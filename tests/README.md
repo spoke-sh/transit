@@ -10353,3 +10353,57 @@ Final documentation and Node formatting/lint checks pass in
 recovery qualification remains open. Reproduce the signed profile with
 `zig build test-unified-query -Doptimize=ReleaseSafe
 -Dunified-sdk=python,node,ruby,rust -Dunified-source=kv` in the pinned shell.
+
+
+### Typed predicate programs in Java, .NET, Erlang and Elixir
+
+The continuation from `30982a1e` adds owned typed program constructors and
+redacted inspection values to these four SDKs. Java and .NET copy their
+instruction collections; BEAM retains immutable lists, tuples and binaries.
+Erlang and Elixir share the existing adapter, with explicit Elixir struct/record
+conversion. Programs carry one to 64 non-nesting postfix instructions. Shared
+Zig still owns source binding, complete program validation, canonical encoding
+and evaluation. These host API additions do not change the native or FZP1
+definitions. C/C++ constructors and compound file plans remain unfinished.
+
+The Java/.NET/BEAM package builds pass in
+`/tmp/transit-sql-boolean-managed-build-2.log`. Installed consumers for all four
+languages pass in `/tmp/transit-sql-boolean-managed-codecs.log`, including the
+nine independent Boolean bundle fixtures, all six scalar types, all operators,
+negative zero, Unicode/binary, long literals and the 64-instruction boundary.
+Malformed stacks, excess instructions, unavailable columns and scalar/source
+type mismatches reject. Managed inputs are copied before their caller-owned
+lists are cleared; BEAM checks reject nested programs. The Elixir consumer
+requires the public program struct and exact conversion back to its record.
+These are local codec checks, not durable execution evidence.
+
+Full `just check` passes, exit 0, in
+`/tmp/transit-sql-boolean-managed-check.log`, including all 96 native/port codec
+cases, generated-contract drift and the documentation build. Reproduce the
+installed codec checks after `just bindings::java-build bindings::dotnet-build
+bindings::beam-build` by invoking `sdk_unified.install` for
+`('java', 'dotnet', 'erlang', 'elixir')` in a fresh private directory inside the
+pinned bindings shell. The signed query schedule now enables these four program
+inspectors; its source-specific outcomes are recorded separately below.
+
+The default Debug signed KV schedule passes, exit 0, in
+`/tmp/transit-sql-boolean-managed-kv.log`. Six native/port/managed SDK inspectors
+agree on Boolean EXPLAIN, literal redaction and 64 instructions, then reject
+after current revocation and source retirement. The existing single-atom
+workload recovers through source/requester/node/disk restart and verifies 41
+rows, six segments and 13,584 bytes. It retains eight resident authority pages
+and an 8 MiB hot store, with 73 cold objects / 8,020,314 bytes, completing in
+239.56 seconds. This is not a throughput claim or compound-delivery proof.
+Reproduce with `just test::unified-query -Dunified-sdk=java,dotnet,erlang,elixir
+-Dunified-source=kv`. Explicit ReleaseSafe, Table/Document, compound delivery
+and current-source clean-lane qualification remain separate gates.
+
+The explicit ReleaseSafe KV run also passes, exit 0, in
+`/tmp/transit-sql-boolean-managed-kv-safe.log`, completing in 86.72 seconds with
+101 cold objects / 8,036,601 bytes. It has the same six inspection callers,
+41 rows, six segments, 13,584 result bytes and unchanged resident/store bounds.
+Reproduce with `just test::unified-query -Doptimize=ReleaseSafe
+-Dunified-sdk=java,dotnet,erlang,elixir -Dunified-source=kv`. No comparison with
+the concurrent Debug sample establishes a speedup or latency target. This run
+qualifies typed Boolean inspection and the existing single-atom recovery
+schedule only; Table/Document and compound-plan recovery remain open.

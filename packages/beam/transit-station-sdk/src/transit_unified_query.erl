@@ -5,12 +5,14 @@
          prepare_next/3,prepare_control/3,submit/2,observe/2,status/2,page/2,page/3]).
 %% Internal bounded-worker callbacks, not an application wire interface.
 -export([open/2,execute/2,evidence/1]).
--export_type([client/0,source/0,scalar/0,cell/0,predicate/0,inspection/0]).
+-export_type([client/0,source/0,scalar/0,cell/0,predicate/0,predicate_atom/0,predicate_instruction/0,inspection/0]).
 -opaque client() :: {transit_unified_client,transit_sdk_worker:handle()}.
 -type source() :: #transit_unified_kv{} | #transit_unified_table{} | #transit_unified_document{}.
 -type scalar() :: {int64,integer()} | {uint64,non_neg_integer()} | {float64,float()} | {boolean,boolean()} | {utf8,binary()} | {binary,binary()}.
 -type cell() :: missing | null | {type_error,atom()} | {value,scalar()} | {conflict,[#transit_unified_alternative{}]}.
--type predicate() :: all | {state,0..7,missing | null | type_error | value | conflict} | {compare,0..7,eq | ne | lt | le | gt | ge,scalar()}.
+-type predicate_atom() :: all | {state,0..7,missing | null | type_error | value | conflict} | {compare,0..7,eq | ne | lt | le | gt | ge,scalar()}.
+-type predicate_instruction() :: {atom,predicate_atom()} | negate | conjunction | disjunction.
+-type predicate() :: predicate_atom() | #transit_unified_predicate_program{}.
 -type inspection() :: #transit_unified_inspection{}.
 -record(state,{bridge,connection=undefined}).
 u64(V) -> transit_sdk_value:integer(V,0,18446744073709551615).
@@ -55,9 +57,15 @@ parsed_scalar(V) when is_map(V),map_size(V)=:=1 ->
         [{<<"utf8">>,B}]->{utf8,transit_sdk_value:text(B,4096)};
         [{<<"binary">>,B}]->{binary,transit_sdk_value:unhex(B,4096)}
     end.
-predicate(all) -> #{<<"all">>=>#{}};
-predicate({state,C,V}) -> #{<<"state">>=>#{<<"column">>=>transit_sdk_value:integer(C,0,7),<<"value">>=>enum(V,[missing,null,type_error,value,conflict])}};
-predicate({compare,C,Op,V}) -> #{<<"compare">>=>#{<<"column">>=>transit_sdk_value:integer(C,0,7),<<"op">>=>enum(Op,[eq,ne,lt,le,gt,ge]),<<"value">>=>scalar(V)}}.
+predicate(#transit_unified_predicate_program{instructions=Instructions}) ->
+    true=Instructions=/=[],#{<<"program">>=>[predicate_instruction(I)||I<-array(Instructions,64)]};
+predicate(Atom) -> predicate_atom(Atom).
+predicate_instruction({atom,Atom}) -> #{<<"atom">>=>predicate_atom(Atom)};
+predicate_instruction(Operator) -> #{enum(Operator,[negate,conjunction,disjunction])=>#{}}.
+predicate_atom(all) -> #{<<"all">>=>#{}};
+predicate_atom({state,C,V}) -> #{<<"state">>=>#{<<"column">>=>transit_sdk_value:integer(C,0,7),<<"value">>=>enum(V,[missing,null,type_error,value,conflict])}};
+predicate_atom({compare,C,Op,V}) -> #{<<"compare">>=>#{<<"column">>=>transit_sdk_value:integer(C,0,7),<<"op">>=>enum(Op,[eq,ne,lt,le,gt,ge]),<<"value">>=>scalar(V)}};
+predicate_atom(_) -> transit_sdk_value:fail(invalid_argument,predicate_atom).
 plan(#transit_unified_plan{projection=P,predicate=F,aggregate=A,limit=L,output_names=N}) -> true=P=/=[],
     Names=optional(N,fun(Values)->true=length(Values)=:=length(P),[optional(V,fun(Name)->transit_sdk_value:text(Name,32) end)||V<-array(Values,8)] end),
     #{<<"version">>=>1,<<"projection">>=>[transit_sdk_value:integer(I,0,7)||I<-array(P,8)],<<"output_names">>=>Names,<<"predicate">>=>predicate(F),<<"aggregate">>=>enum(A,[rows,count,sum]),<<"limit">>=>optional(L,fun decimal/1)}.
@@ -162,12 +170,30 @@ inspection_details(V) when map_size(V)=:=1 ->
                 limit=parsed_optional(maps:get(<<"limit">>,Plan),fun wide/1),aggregate=known(maps:get(<<"aggregate">>,Plan),[rows,count,sum]),
                 columns=[parsed_column(C)||C<-array(maps:get(<<"columns">>,Plan),8)],budgets=parsed_budgets(maps:get(<<"budgets">>,Plan))}
     end.
-inspection_predicate(V) when map_size(V)=:=1 ->
+inspection_predicate(#{<<"program">>:=Instructions}=V) when map_size(V)=:=1 ->
+    Program=array(Instructions,64),
+    case lists:mapfoldl(fun inspection_instruction/2,0,Program) of
+        {Parsed,1} -> #transit_unified_predicate_program{instructions=Parsed};
+        _ -> transit_sdk_value:fail(incompatible_native,inspection_program_shape)
+    end;
+inspection_predicate(V) -> inspection_atom(V).
+inspection_instruction(#{<<"atom">>:=Atom}=V,Depth) when map_size(V)=:=1 -> {{atom,inspection_atom(Atom)},Depth+1};
+inspection_instruction(V,Depth) when is_map(V),map_size(V)=:=1 ->
+    [{Name,Payload}]=maps:to_list(V),Operator=known(Name,[negate,conjunction,disjunction]),
+    Needed=case Operator of negate->1; _->2 end,
+    case is_map(Payload) andalso map_size(Payload)=:=0 andalso Depth>=Needed of
+        true -> {Operator,Depth-Needed+1};
+        false -> transit_sdk_value:fail(incompatible_native,inspection_program_shape)
+    end;
+inspection_instruction(_,_) -> transit_sdk_value:fail(incompatible_native,inspection_instruction).
+inspection_atom(V) when is_map(V),map_size(V)=:=1 ->
     case V of
-        #{<<"all">>:=_} -> all;
+        #{<<"all">>:=Empty} when is_map(Empty),map_size(Empty)=:=0 -> all;
         #{<<"state">>:=#{<<"column">>:=Column,<<"value">>:=State}} -> {state,transit_sdk_value:text(Column,32),known(State,[missing,null,type_error,value,conflict])};
-        #{<<"compare">>:=#{<<"column">>:=Column,<<"op">>:=Op,<<"type">>:=Type}} -> {compare,transit_sdk_value:text(Column,32),known(Op,[eq,ne,lt,le,gt,ge]),known(Type,[int64,uint64,float64,boolean,utf8,binary])}
-    end.
+        #{<<"compare">>:=#{<<"column">>:=Column,<<"op">>:=Op,<<"type">>:=Type}} -> {compare,transit_sdk_value:text(Column,32),known(Op,[eq,ne,lt,le,gt,ge]),known(Type,[int64,uint64,float64,boolean,utf8,binary])};
+        _ -> transit_sdk_value:fail(incompatible_native,inspection_atom)
+    end;
+inspection_atom(_) -> transit_sdk_value:fail(incompatible_native,inspection_atom).
 manifest(V,Realm) ->
     Basis=maps:get(<<"basis">>,V),
     #transit_unified_manifest{job=maps:get(<<"job">>,V),source=transit_station_value:version(maps:get(<<"source">>,V)),requester=#transit_process{realm=Realm,pid=maps:get(<<"requester">>,V)},correlation=wide(maps:get(<<"correlation">>,V)),policy_revision=wide(maps:get(<<"policy_revision">>,V)),request=fixed(maps:get(<<"request">>,V),72),

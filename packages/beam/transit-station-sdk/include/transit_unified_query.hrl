@@ -7,6 +7,7 @@
 -record(transit_unified_table, {resource :: #transit_resource{}, id, names = [<<"id">>, <<"value">>], value_type}).
 -record(transit_unified_projection, {column :: #transit_unified_column{}, path = [], relative = false, mode = scalar, text_bytes = 4096, text_steps = 4096}).
 -record(transit_unified_document, {reference :: #transit_document_reference{}, projections = [], expand = undefined}).
+-record(transit_unified_predicate_program, {instructions = []}).
 -record(transit_unified_plan, {projection = [], predicate = all, aggregate = rows, limit = undefined, output_names = undefined}).
 -record(transit_unified_budgets, {pages, segments, result_bytes}).
 -record(transit_unified_bundle, {bytes :: binary()}).

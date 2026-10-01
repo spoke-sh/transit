@@ -54,8 +54,8 @@ and [neutral codecs](../../packages/zig/transit-station-bindings/docs/unified-qu
 
 ## Finite query predicate programs
 
-Python, TypeScript, Ruby and Rust expose typed postfix programs in their finite
-query plans. A program has one to 64 instructions: an all-row, state or comparison
+Python, TypeScript, Ruby, Rust, Java, .NET, Erlang and Elixir expose typed postfix
+programs in their finite query plans. A program has one to 64 instructions: an all-row, state or comparison
 atom, or a NOT, AND or OR operator. Programs cannot nest. Shared Zig validates
 the whole program against the declared source before encoding; language APIs do
 not implement a separate evaluator. Instructions retain eager error order and
@@ -68,8 +68,12 @@ structure and exclude literals.
 | TypeScript | `Predicate` with `kind: "program"` and `PredicateInstruction` array |
 | Ruby | `PredicateProgram` with copied/frozen `PredicateAtom` / operator symbols |
 | Rust | `Predicate::Program` with owned `PredicateInstruction` / `PredicateAtom` |
+| Java | `PredicateProgram` with copied `PredicateAtomInstruction` / `PredicateOperator` list |
+| .NET | `PredicateProgram` with copied `PredicateAtomInstruction` / `PredicateOperation` collection |
+| Erlang | `transit_unified_predicate_program` record with atom tuples / operator atoms |
+| Elixir | `PredicateProgram` struct with atom tuples / operator atoms |
 
-C, C++, Java, .NET, Erlang and Elixir typed plan constructors currently accept a
+C and C++ typed plan constructors currently accept a
 single comparison or state predicate. Native/port codecs and native SQL support
 the program contract independently. See [query semantics](queries.md) and each
 language's query guide for bounds, ownership and recovery.

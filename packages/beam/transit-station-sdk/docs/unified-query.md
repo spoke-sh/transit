@@ -14,6 +14,15 @@ one model. Scalars are tagged `{int64, N}`, `{uint64, N}`, `{float64, F}`,
 `{boolean, B}`, `{utf8, Binary}` or `{binary, Binary}`; full-width integers are
 checked before crossing the boundary.
 
+`#transit_unified_predicate_program{instructions = Instructions}` composes one
+to 64 postfix instructions. `{atom, Predicate}` wraps one of the atoms above;
+`negate`, `conjunction` and `disjunction` apply NOT, AND and OR. For example,
+`[{atom, A}, {atom, B}, negate, conjunction]` expresses `A AND NOT B`.
+Programs cannot nest. Shared Zig checks stack shape, columns and scalar types
+before encoding. Evaluation is eager in instruction order, preserves unknown
+for null/missing, and selects only true. Immutable instruction lists and binaries
+are owned BEAM values.
+
 `open/3` takes a public client config, credential and scoped connection. It owns
 no process activation. `describe/2` checks current source policy. For a positive
 namespace, `prepare_next/3` returns a prepared record or `undefined`; persist its
@@ -28,7 +37,8 @@ checks result completion. An undefined next command means inspect status.
 It returns `{ok, #transit_unified_inspection{}}` with owned names, source/schema
 digests, current revisions and description/list/explanation records. Explanation
 predicates are `all`, `{state, ColumnName, State}` or
-`{compare, ColumnName, Op, Type}`; literal values are excluded. Operator atoms
+`{compare, ColumnName, Op, Type}`, or a program record whose atom instructions
+contain these redacted forms; literal values are excluded. Operator atoms
 come from a fixed allowlist, and wide integers retain all 64 bits. Inspection
 rechecks current authorization, creates no snapshot and admits no query. The
 Table listing covers only the configured source.

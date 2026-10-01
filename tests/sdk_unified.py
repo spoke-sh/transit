@@ -273,7 +273,7 @@ def install_java(root, fixtures):
     def open_callers(url, connection, state, kind):
         config = root/'client.json'
         config.write_text(json.dumps(dict(url=url, connection=connection, seed_file=str(state/'caller.seed'), kind=kind, bundle=str(state/'bundle.bin'))))
-        return [Consumer([*command, 'serve', config], env, root, inspection=True)]
+        return [Consumer([*command, 'serve', config], env, root, inspection=True, predicate_programs=True)]
     return open_callers
 
 
@@ -301,7 +301,7 @@ def install_dotnet(root, fixtures):
     def open_callers(url, connection, state, kind):
         config = root/'client.json'
         config.write_text(json.dumps(dict(url=url, connection=connection, seed_file=str(state/'caller.seed'), kind=kind, bundle=str(state/'bundle.bin'))))
-        return [Consumer([*command, 'serve', config], env, root, inspection=True)]
+        return [Consumer([*command, 'serve', config], env, root, inspection=True, predicate_programs=True)]
     return open_callers
 
 
@@ -327,7 +327,7 @@ def install_beam(root, fixtures, language):
     def open_callers(url, connection, state, kind):
         config = root/'client.json'
         config.write_text(json.dumps(dict(url=url, connection=connection, seed_file=str(state/'caller.seed'), kind=kind, bundle=str(state/'bundle.bin'))))
-        return [Consumer([*command, 'serve', config], env, root, inspection=True)]
+        return [Consumer([*command, 'serve', config], env, root, inspection=True, predicate_programs=True)]
     return open_callers
 
 

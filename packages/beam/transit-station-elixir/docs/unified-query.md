@@ -17,6 +17,15 @@ source = %Q.KvSource{
 {:ok, client} = Q.open(config, credential, connection)
 ```
 
+`%Q.PredicateProgram{instructions: instructions}` composes one to 64 immutable
+postfix instructions. Use `{:atom, :all}`, `{:atom, {:state, column, state}}` or
+`{:atom, {:compare, column, op, scalar}}`, followed by `:negate`, `:conjunction`
+or `:disjunction`. Two atoms followed by `:conjunction` express AND. Programs
+cannot nest. The Erlang adapter and shared Zig owner validate bounds, stack shape,
+columns and scalar types; evaluation preserves eager error order and null/missing
+unknown, selecting only true. Inspected programs use the same struct with
+column names/types instead of comparison literals.
+
 The application supplies scoped public refs, an explicit credential and connection.
 `describe` checks policy. Persist `Prepared.bytes` returned by `prepare_next`
 before calling `submit`. `{ :uncertain, prepared, error }` preserves the identical

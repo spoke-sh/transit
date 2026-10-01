@@ -24,16 +24,39 @@ scalar({float64,F},float64)-><<0,0,0,0,0,0,0,128>> = <<F:64/float-little>>,ok;
 scalar({boolean,false},boolean)->ok;
 scalar({utf8,<<"café é 東京🙂"/utf8>>},utf8)->ok;
 scalar({binary,<<0,255,128>>},binary)->ok.
+boolean_codecs(A,Cfg)->
+    Fixtures=json:decode(read(maps:get(<<"boolean">>,Cfg))),Types=[int64,uint64,float64,boolean,utf8,binary],
+    Scalars=[{int64,-9223372036854775808},{uint64,?MAX},{float64,-0.0},{boolean,true},{utf8,<<"café é 🙂"/utf8>>},{binary,<<0,255,128>>},{utf8,binary:copy(<<"x">>,512)}],
+    lists:foreach(fun({F,I})->
+        Type=lists:nth(maps:get(<<"type">>,F),Types),
+        Source=#transit_unified_kv{resource=#transit_resource{realm=46,resource=7},key=#transit_unified_decoder{type=Type},value=#transit_unified_decoder{type=uint64}},
+        Instructions=case I of
+            _ when I=<7 -> [{atom,{compare,0,eq,lists:nth(I,Scalars)}},negate,{atom,{state,0,null}},disjunction];
+            8 -> [{atom,all},{atom,{state,0,null}},negate,conjunction];
+            9 -> [{atom,all}|lists:duplicate(63,negate)]
+        end,
+        Plan=#transit_unified_plan{projection=[0],predicate=#transit_unified_predicate_program{instructions=Instructions}},
+        #transit_unified_bundle{bytes=Bytes}=ok(A:prepare(Source,Plan,#transit_unified_budgets{pages=1000,segments=500,result_bytes=1048576})),
+        Bytes=binary:decode_hex(maps:get(<<"wire_hex">>,F))
+    end,lists:zip(Fixtures,lists:seq(1,length(Fixtures)))),
+    Source=#transit_unified_kv{resource=#transit_resource{realm=46,resource=7},key=#transit_unified_decoder{type=int64},value=#transit_unified_decoder{type=uint64}},
+    Invalid=[[],[negate],[{atom,all},{atom,all}],[{atom,all}|lists:duplicate(64,negate)],
+        [{atom,{state,7,null}}],[{atom,{compare,0,eq,{utf8,<<"wrong type">>}}}],
+        [{atom,#transit_unified_predicate_program{instructions=[{atom,all}]}}]],
+    lists:foreach(fun(Instructions)->
+        {error,_}=A:prepare(Source,#transit_unified_plan{projection=[0],predicate=#transit_unified_predicate_program{instructions=Instructions}},#transit_unified_budgets{pages=1,segments=1,result_bytes=1024})
+    end,Invalid).
 codecs(A,Cfg)->
     Fixtures=json:decode(read(maps:get(<<"bundles">>,Cfg))),
     lists:foreach(fun({Kind,F})->#transit_unified_bundle{bytes=B}=bundle(A,source(#transit_resource{realm=46,resource=7},Kind,true),Kind,true),B=binary:decode_hex(maps:get(<<"wire_hex">>,F)),#transit_unified_bundle{bytes=Named}=bundle(A,source(#transit_resource{realm=46,resource=7},Kind,true),Kind,true,[<<"Result">>,undefined]),Named=binary:decode_hex(maps:get(<<"named_wire_hex">>,F)) end,lists:zip([<<"kv">>,<<"table">>,<<"document">>],Fixtures)),
+    boolean_codecs(A,Cfg),
     Types=[int64,uint64,float64,boolean,utf8,binary],Cols=[column(atom_to_binary(T,utf8),T)||T<-Types],
     [Missing,Null,Errors,Values,Conflicts]=ok(A:decode(Cols,read(maps:get(<<"arrow">>,Cfg)),5)),
     true=lists:all(fun(V)->V=:=missing end,Missing),true=lists:all(fun(V)->V=:=null end,Null),true=lists:all(fun(V)->V=:={type_error,map} end,Errors),
     lists:foreach(fun({{value,V},T})->scalar(V,T) end,lists:zip(Values,Types)),
     lists:foreach(fun({{conflict,[#transit_unified_alternative{counter=?MAX,replica=1,value={value,V}},#transit_unified_alternative{counter=?MAX,replica=2,value=null}]},T})->scalar(V,T) end,lists:zip(Conflicts,Types)),
     []=ok(A:decode(Cols,read(maps:get(<<"empty">>,Cfg)),0)),{error,_}=A:decode(Cols,read(maps:get(<<"malformed">>,Cfg)),5),
-    io:format("~p installed unified codecs: three sources, six types, five states and malformed rejection passed~n",[A]).
+    io:format("~p installed unified codecs: three sources, nine Boolean bundles, six types, five states and malformed rejection passed~n",[A]).
 report(V)->io:put_chars([json:encode(V),"\n"]).
 config(Cfg)->
     C=maps:get(<<"connection">>,Cfg),Realm=maps:get(<<"realm">>,C),
@@ -65,10 +88,15 @@ loop(A,C,Cfg,Connection,Saved)->
 result({ok,V})->V;
 result({error,E})->throw({failure,E}).
 inspection_columns(Columns)->[#{name=>N,type=>atom_to_binary(T)}||#transit_unified_column{name=N,type=T}<-Columns].
+inspection_predicate(all)->#{all=>#{}};
+inspection_predicate({state,N,S})->#{state=>#{column=>N,value=>atom_to_binary(S)}};
+inspection_predicate({compare,N,O,T})->#{compare=>#{column=>N,op=>atom_to_binary(O),type=>atom_to_binary(T)}};
+inspection_predicate(#transit_unified_predicate_program{instructions=Instructions})->
+    #{program=>[case I of {atom,Atom}->#{atom=>inspection_predicate(Atom)}; Op->#{atom_to_binary(Op)=>#{}} end||I<-Instructions]}.
 inspection_details(#transit_unified_source_description{columns=Columns})->#{description=>#{columns=>inspection_columns(Columns)}};
 inspection_details(#transit_unified_table_listing{names=Names})->#{tables=>Names};
 inspection_details(#transit_unified_explanation{operators=Operators,predicate=Predicate,projection=Projection,limit=Limit,aggregate=Aggregate,columns=Columns,budgets=#transit_unified_budgets{pages=Pages,segments=Segments,result_bytes=Bytes}})->
-    P=case Predicate of all->#{all=>#{}}; {state,N,S}->#{state=>#{column=>N,value=>atom_to_binary(S)}}; {compare,N,O,T}->#{compare=>#{column=>N,op=>atom_to_binary(O),type=>atom_to_binary(T)}} end,
+    P=inspection_predicate(Predicate),
     #{explanation=>#{operators=>[atom_to_binary(O)||O<-Operators],predicate=>P,projection=>Projection,limit=>case Limit of undefined->null; _->integer_to_binary(Limit) end,
         aggregate=>atom_to_binary(Aggregate),columns=>inspection_columns(Columns),budgets=>#{pages=>integer_to_binary(Pages),segments=>integer_to_binary(Segments),result_bytes=>integer_to_binary(Bytes)}}}.
 action(A,C,#{<<"inspect">>:=#{<<"scope">>:=Scope,<<"sql">>:=Sql}},Connection,Kind)->

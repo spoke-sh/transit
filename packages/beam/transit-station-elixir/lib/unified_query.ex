@@ -41,6 +41,12 @@ defmodule Transit.Station.Sdk.UnifiedQuery.DocumentSource do
   defstruct [:reference, :projections, expand: nil]
 end
 
+defmodule Transit.Station.Sdk.UnifiedQuery.PredicateProgram do
+  @enforce_keys [:instructions]
+  @derive {Inspect, only: []}
+  defstruct [:instructions]
+end
+
 defmodule Transit.Station.Sdk.UnifiedQuery.Plan do
   @enforce_keys [:projection]
   @derive {Inspect, only: []}
@@ -226,6 +232,7 @@ defmodule Transit.Station.Sdk.UnifiedQuery do
     TableSource,
     Projection,
     DocumentSource,
+    PredicateProgram,
     Plan,
     Budgets,
     Bundle,
@@ -340,6 +347,9 @@ defmodule Transit.Station.Sdk.UnifiedQuery do
   def native(%DocumentSource{} = v),
     do: {:transit_unified_document, native(v.reference), native(v.projections), native(v.expand)}
 
+  def native(%PredicateProgram{} = v),
+    do: {:transit_unified_predicate_program, native(v.instructions)}
+
   def native(%Plan{} = v),
     do:
       {:transit_unified_plan, native(v.projection), native(v.predicate), native(v.aggregate),
@@ -420,6 +430,9 @@ defmodule Transit.Station.Sdk.UnifiedQuery do
   def native(value), do: value
 
   @doc false
+  def convert({:transit_unified_predicate_program, instructions}),
+    do: %PredicateProgram{instructions: convert(instructions)}
+
   def convert({:transit_unified_column, name, type}),
     do: %Column{name: convert(name), type: convert(type)}
 

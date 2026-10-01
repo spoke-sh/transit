@@ -94,10 +94,29 @@ public final class UnifiedQuery {
         };
         return obj("version",1,"resource",source.resource().resource(),"source",value);
     }
-    public sealed interface Predicate permits All, IsState, Compare {}
-    public record All() implements Predicate {}
-    public record IsState(int column,State state) implements Predicate { public IsState { columnIndex(column); Objects.requireNonNull(state); } }
-    public record Compare(int column,Query.Comparison comparison,Scalar value) implements Predicate { public Compare { columnIndex(column); Objects.requireNonNull(comparison); Objects.requireNonNull(value); } }
+    public sealed interface Predicate permits PredicateAtom, PredicateProgram {}
+    public sealed interface PredicateAtom extends Predicate permits All, IsState, Compare {}
+    public record All() implements PredicateAtom {}
+    public record IsState(int column,State state) implements PredicateAtom { public IsState { columnIndex(column); Objects.requireNonNull(state); } }
+    public record Compare(int column,Query.Comparison comparison,Scalar value) implements PredicateAtom { public Compare { columnIndex(column); Objects.requireNonNull(comparison); Objects.requireNonNull(value); } }
+    public sealed interface PredicateInstruction permits PredicateAtomInstruction, PredicateOperator {}
+    public record PredicateAtomInstruction(PredicateAtom atom) implements PredicateInstruction { public PredicateAtomInstruction { Objects.requireNonNull(atom); } }
+    public enum PredicateOperator implements PredicateInstruction, InspectedInstruction { NEGATE, CONJUNCTION, DISJUNCTION }
+    public record PredicateProgram(List<PredicateInstruction> instructions) implements Predicate {
+        public PredicateProgram { if(instructions.isEmpty() || instructions.size()>64)throw new IllegalArgumentException("Expected 1..64 predicate instructions"); instructions=List.copyOf(instructions); }
+    }
+    private static JsonObject atomWire(PredicateAtom atom) {
+        return switch(atom) { case All ignored -> obj("all",obj()); case IsState v -> obj("state",obj("column",v.column(),"value",name(v.state()))); case Compare v -> obj("compare",obj("column",v.column(),"op",name(v.comparison()),"value",UnifiedQuery.wire(v.value()))); };
+    }
+    private static JsonObject predicateWire(Predicate predicate) {
+        if(predicate instanceof PredicateAtom atom)return atomWire(atom);
+        var program=(PredicateProgram)predicate; JsonArray instructions=new JsonArray();
+        for(var instruction:program.instructions())instructions.add(switch(instruction) {
+            case PredicateAtomInstruction atom -> obj("atom",atomWire(atom.atom()));
+            case PredicateOperator operator -> obj(name(operator),obj());
+        });
+        return obj("program",instructions);
+    }
     private static void columnIndex(int n) { if(n<0 || n>=8)throw new IllegalArgumentException("Query column outside 0..7"); }
     public record Plan(List<Integer> projection,Predicate predicate,Query.Aggregate aggregate,Optional<BigInteger> limit,Optional<List<Optional<String>>> outputNames) {
         public Plan { projection=List.copyOf(projection); if(projection.isEmpty() || projection.size()>8)throw new IllegalArgumentException("Expected 1..8 query columns"); projection.forEach(UnifiedQuery::columnIndex); Objects.requireNonNull(predicate); Objects.requireNonNull(aggregate); limit.ifPresent(v -> u64(v));
@@ -105,7 +124,7 @@ public final class UnifiedQuery {
         JsonObject wire() {
             JsonArray columns=new JsonArray(); projection.forEach(columns::add);
             JsonArray names=outputNames.map(values -> {JsonArray out=new JsonArray();values.forEach(v -> out.add(v.orElse(null)));return out;}).orElse(null);
-            JsonObject p=switch(predicate) { case All ignored -> obj("all",obj()); case IsState v -> obj("state",obj("column",v.column(),"value",name(v.state()))); case Compare v -> obj("compare",obj("column",v.column(),"op",name(v.comparison()),"value",UnifiedQuery.wire(v.value()))); };
+            JsonObject p=predicateWire(predicate);
             return obj("version",1,"projection",columns,"output_names",names,"predicate",p,"aggregate",name(aggregate),"limit",limit.map(BigInteger::toString).orElse(null));
         }
     }
@@ -152,10 +171,44 @@ public final class UnifiedQuery {
     }
     public record Description(long resourceRevision,BigInteger policyRevision,Budgets budgets,Optional<BigInteger> active,int bundleBytes,int segmentBytes,int batchRows) {}
     public enum InspectionOperator { SCAN, FILTER, LIMIT, PROJECT, COUNT, SUM }
-    public sealed interface InspectedPredicate permits InspectedAll, InspectedState, InspectedComparison {}
-    public record InspectedAll() implements InspectedPredicate {}
-    public record InspectedState(String column,State state) implements InspectedPredicate {}
-    public record InspectedComparison(String column,Query.Comparison comparison,Type type) implements InspectedPredicate {}
+    public sealed interface InspectedPredicate permits InspectedAtom, InspectedProgram {}
+    public sealed interface InspectedAtom extends InspectedPredicate permits InspectedAll, InspectedState, InspectedComparison {}
+    public record InspectedAll() implements InspectedAtom {}
+    public record InspectedState(String column,State state) implements InspectedAtom {}
+    public record InspectedComparison(String column,Query.Comparison comparison,Type type) implements InspectedAtom {}
+    public sealed interface InspectedInstruction permits InspectedAtomInstruction, PredicateOperator {}
+    public record InspectedAtomInstruction(InspectedAtom atom) implements InspectedInstruction { public InspectedAtomInstruction { Objects.requireNonNull(atom); } }
+    public record InspectedProgram(List<InspectedInstruction> instructions) implements InspectedPredicate {
+        public InspectedProgram { if(instructions.isEmpty() || instructions.size()>64)throw incompatible("inspection-program-size"); instructions=List.copyOf(instructions); }
+    }
+    private static InspectedAtom inspectedAtom(JsonElement value) {
+        JsonObject atom=object(value); if(atom.size()!=1)throw incompatible("inspection-atom");
+        var selected=atom.entrySet().iterator().next(); JsonObject data=object(selected.getValue());
+        return switch(selected.getKey()) {
+            case "all" -> { if(!data.isEmpty())throw incompatible("inspection-atom"); yield new InspectedAll(); }
+            case "state" -> new InspectedState(text(string(data.get("column")),32),State.valueOf(string(data.get("value")).toUpperCase(Locale.ROOT)));
+            case "compare" -> new InspectedComparison(text(string(data.get("column")),32),Query.Comparison.valueOf(string(data.get("op")).toUpperCase(Locale.ROOT)),Type.valueOf(string(data.get("type")).toUpperCase(Locale.ROOT)));
+            default -> throw incompatible("inspection-atom");
+        };
+    }
+    private static InspectedPredicate inspectedPredicate(JsonElement value) {
+        JsonObject predicate=object(value); if(predicate.size()!=1)throw incompatible("inspection-predicate");
+        if(!predicate.has("program"))return inspectedAtom(predicate);
+        List<InspectedInstruction> instructions=new ArrayList<>(); int depth=0;
+        for(var v:array(predicate.get("program"),64)) {
+            JsonObject instruction=object(v); if(instruction.size()!=1)throw incompatible("inspection-instruction");
+            var entry=instruction.entrySet().iterator().next();
+            if(entry.getKey().equals("atom")) { instructions.add(new InspectedAtomInstruction(inspectedAtom(entry.getValue()))); depth++; }
+            else {
+                PredicateOperator operator=switch(entry.getKey()) { case "negate" -> PredicateOperator.NEGATE; case "conjunction" -> PredicateOperator.CONJUNCTION; case "disjunction" -> PredicateOperator.DISJUNCTION; default -> throw incompatible("inspection-operator"); };
+                int needed=operator==PredicateOperator.NEGATE?1:2;
+                if(!object(entry.getValue()).isEmpty() || depth<needed)throw incompatible("inspection-program-shape");
+                depth-=needed-1; instructions.add(operator);
+            }
+        }
+        if(depth!=1)throw incompatible("inspection-program-shape");
+        return new InspectedProgram(instructions);
+    }
     public sealed interface InspectionDetails permits SourceDescription, TableListing, Explanation {}
     public record SourceDescription(List<Column> columns) implements InspectionDetails {
         public SourceDescription { columns=List.copyOf(columns); }
@@ -178,14 +231,8 @@ public final class UnifiedQuery {
             case "description" -> new SourceDescription(inspectedColumns(object(entry.getValue()).get("columns")));
             case "tables" -> new TableListing(inspectedNames(entry.getValue(),1));
             case "explanation" -> {
-                JsonObject plan=object(entry.getValue()), predicate=object(plan.get("predicate")), limits=object(plan.get("budgets"));
-                if(predicate.size()!=1)throw incompatible("inspection-predicate"); var selected=predicate.entrySet().iterator().next(); JsonObject data=object(selected.getValue());
-                InspectedPredicate p=switch(selected.getKey()) {
-                    case "all" -> new InspectedAll();
-                    case "state" -> new InspectedState(text(string(data.get("column")),32),State.valueOf(string(data.get("value")).toUpperCase(Locale.ROOT)));
-                    case "compare" -> new InspectedComparison(text(string(data.get("column")),32),Query.Comparison.valueOf(string(data.get("op")).toUpperCase(Locale.ROOT)),Type.valueOf(string(data.get("type")).toUpperCase(Locale.ROOT)));
-                    default -> throw incompatible("inspection-predicate");
-                };
+                JsonObject plan=object(entry.getValue()), limits=object(plan.get("budgets"));
+                InspectedPredicate p=inspectedPredicate(plan.get("predicate"));
                 List<InspectionOperator> operators=array(plan.get("operators"),4).stream().map(o->InspectionOperator.valueOf(string(o).toUpperCase(Locale.ROOT))).toList();
                 if(operators.size()<2)throw incompatible("inspection-operators");
                 yield new Explanation(operators,p,inspectedNames(plan.get("projection"),8),plan.get("limit").isJsonNull()?Optional.empty():Optional.of(wide(plan.get("limit"))),
