@@ -9,7 +9,7 @@ const Kind = enum { kv, table, document };
 const count = 41;
 const document_count = 12;
 const budgets: q.Bundle.Limits = .{ .pages = 1000, .segments = 100, .result_bytes = 1048576 };
-const Config = struct { url: []const u8, connection: q.UnifiedClient.Connection, kind: Kind, expiry_at_ms: ?u64 = null };
+const Config = struct { url: []const u8, connection: q.UnifiedClient.Connection, kind: Kind, expiry_at_ms: ?u64 = null, compound: bool = false };
 const path = [_]q.document.Model.Name{q.document.Model.Name.init("items") catch unreachable};
 const optional_path = [_]q.document.Model.Name{q.document.Model.Name.init("optional") catch unreachable};
 const projections = [_]q.SourceDefinition.Projection{
@@ -29,7 +29,17 @@ fn bundle(config: Config) !q.Bundle {
     const selected: u8 = if (config.kind == .document) 0 else 1;
     var names: [q.fuze.Unified.max_columns]?q.fuze.Unified.Name = @splat(null);
     names[0] = try .init("Result");
-    return .{ .source = try definition(config.kind, config.connection.resource), .plan = .{ .output_names = names, .projection = if (config.kind == .document) &.{ 0, 1, 2, 3 } else &.{1}, .predicate = .{ .compare = .{ .column = selected, .op = .ne, .value = .{ .utf8 = &@as([512]u8, @splat('x')) } } } }, .limits = budgets };
+    const comparison: @FieldType(q.fuze.Unified.Plan.Atom, "compare") = .{ .column = selected, .op = .ne, .value = .{ .utf8 = &@as([512]u8, @splat('x')) } };
+    const ceiling = if (config.kind == .document) "東京🙂/" ++ @as([64]u8, @splat('x')) ++ "/10" else "東京🙂/" ++ @as([128]u8, @splat('x')) ++ "/39";
+    const predicate: q.fuze.Unified.Plan.Predicate = if (config.compound) .{ .program = try q.fuze.Unified.PredicateProgram.Owned.init(&.{
+        .{ .atom = .{ .compare = comparison } },
+        .{ .atom = .{ .compare = .{ .column = selected, .op = .ge, .value = .{ .utf8 = ceiling } } } },
+        .{ .atom = .{ .state = .{ .column = selected, .value = .null } } },
+        .disjunction,
+        .negate,
+        .conjunction,
+    }) } else .{ .compare = comparison };
+    return .{ .source = try definition(config.kind, config.connection.resource), .plan = .{ .output_names = names, .projection = if (config.kind == .document) &.{ 0, 1, 2, 3 } else &.{1}, .predicate = predicate }, .limits = budgets };
 }
 fn value(index: usize, buffer: []u8, padding: usize) ![]const u8 {
     const bytes: [128]u8 = @splat('x');
@@ -173,7 +183,7 @@ pub fn main(init: std.process.Init) !void {
     var admin: Admin = .{ .wire = &transport, .key = root };
     admin.sequence = (try admin.query(.{ .capabilities = {} })).principal_sequence;
     if (std.mem.eql(u8, command, "provision-combined")) return Combined.provision(init, url, &transport, &admin, directory);
-    if (std.mem.eql(u8, command, "provision") or std.mem.eql(u8, command, "provision-expiring")) {
+    if (std.mem.eql(u8, command, "provision") or std.mem.eql(u8, command, "provision-expiring") or std.mem.eql(u8, command, "provision-compound")) {
         if (args.len != 5 and args.len != 6) return error.Usage;
         const kind = std.meta.stringToEnum(Kind, args[4]) orelse return error.InvalidKind;
         const rows = if (args.len == 6) try std.fmt.parseInt(usize, args[5], 10) else count;
@@ -255,7 +265,7 @@ pub fn main(init: std.process.Init) !void {
         _ = try admin.submit(.{ .own = .{ .pid = writer.pid, .expected_generation = writer.generation, .worker = 65536 } });
         _ = try admin.submit(.{ .own = .{ .pid = requester.pid, .expected_generation = requester.generation, .worker = 65537 } });
         const connection: q.UnifiedClient.Connection = .{ .realm = 46, .principal = 1234, .source = writer.pid, .resource = writer.resource, .requester = requester.pid, .requests = requester.resource };
-        const client_config: Config = .{ .url = url, .connection = connection, .kind = kind, .expiry_at_ms = expiry_at_ms };
+        const client_config: Config = .{ .url = url, .connection = connection, .kind = kind, .expiry_at_ms = expiry_at_ms, .compound = std.mem.eql(u8, command, "provision-compound") };
         try save(init, directory, "client.json", client_config);
         try save(init, directory, "shell.json", .{ .url = url, .seed_file = try keyFile(init, directory, "caller.seed", 10), .connection = connection, .workspace = q.Workspace.Config{ .name = "items", .source = try q.Values.Source.fromNative(init.arena.allocator(), try definition(kind, connection.resource)), .limits = try q.Values.Limits.fromNative(init.arena.allocator(), budgets) } });
         _ = try keyFile(init, directory, "caller.seed", 10);

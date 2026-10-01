@@ -20,8 +20,21 @@ auto command = client.prepare_next(namespace_id, bundle);
 The surrounding application supplies realm-scoped process/resource refs, the
 explicit credential and a durable positive namespace. `Source` is a variant of
 `KvSource`, `TableSource` and `DocumentSource`. `Plan` uses ordered projections,
-`All`, `IsState` or typed `Compare`, an optional full-width limit and an explicit
+`All`, `IsState`, typed `Compare` or `PredicateProgram`, an optional full-width limit and an explicit
 aggregate. Unsupported decoder versions, types and paths reject.
+
+`PredicateProgram` owns a vector of one to 64 `PredicateInstruction` values.
+Each instruction is either a `PredicateAtom` variant (`All`, `IsState`, `Compare`)
+or `PredicateOperator::Negate`, `Conjunction` or `Disjunction`. Two atoms followed
+by `Conjunction` express AND. Programs cannot nest. The synchronous C adapter
+borrows the plan's owned values through preparation; the returned bundle keeps
+its bytes independently. Shared Zig checks the complete program and source types,
+evaluates eagerly with null/missing as unknown, and selects only true.
+
+`InspectedProgram` owns the same postfix structure using `InspectedAtom` values
+with names/types instead of literals. Its vectors and strings can outlive the
+client. The C ABI layout and shared-definition cutover require matching C/C++
+headers, SDK libraries and native artifacts; follow the C guide's recovery rules.
 
 `client.inspect_sql(source, name, sql, budgets)` executes scoped `DESCRIBE name`,
 `SHOW TABLES` or `EXPLAIN SELECT ...`. Its owned `Inspection` carries source/schema

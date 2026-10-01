@@ -36,7 +36,7 @@ class Shell:
         self.process.stdout.close(); self.process.stderr.close()
 
 
-def check(binary, root, kind, invoke, expected, fault):
+def check(binary, root, kind, invoke, expected, fault, *, compound=False):
     shell = Shell(binary, root)
     try:
         description = shell.call('.sources')['description']
@@ -62,6 +62,12 @@ def check(binary, root, kind, invoke, expected, fault):
         assert first['columns'] == columns
         sql = ('SELECT chosen.value AS "Result", counter, replica, optional FROM items AS chosen LIMIT 33'
                if kind == 'document' else 'SELECT chosen.value AS "Result" FROM items AS chosen LIMIT 33')
+        if compound:
+            # Select fewer than the LIMIT so ignoring the Boolean program
+            # cannot accidentally produce the same first 33 rows.
+            ceiling = f"東京🙂/{'x'*(64 if kind == 'document' else 128)}/{'08' if kind == 'document' else '31'}"
+            sql = sql.replace(' LIMIT 33', f" WHERE value <> 'x' AND NOT (value >= '{ceiling}' OR value IS NULL) LIMIT 33")
+            expected = expected[:8 if kind == 'document' else 31]
         fault['lost'], fault['retry'] = None, False
         assert 'receipt' in shell.call(sql)
         progress = shell.read()
@@ -108,6 +114,6 @@ def check(binary, root, kind, invoke, expected, fault):
         assert progress['status']['collected'], progress
         assert shell.call('.new 2')['err'] == 'QueryUploadIdentityConflict'
         print(f'Unified {kind} SQL shell: truthful capabilities, pre-submit rejection, frozen bundle/exact retry across shell exit, current prefix denial, '
-              'named output schemas, owned nested rows, complete coverage and permanent retirement/collection passed.', flush=True)
+              f"named output schemas, owned nested rows, predicate={'compound' if compound else 'atom'}, complete coverage and permanent retirement/collection passed.", flush=True)
     finally:
         if shell.process.poll() is None: shell.close()

@@ -40,6 +40,11 @@ pub const Schema = struct {
     }
     pub fn fingerprint(self: Schema) ![32]u8 {
         try self.validate();
+        return self.fingerprintValidated();
+    }
+    // Private to this model owner. Call only after validating the complete
+    // schema, including canonical names, uniqueness and the column bound.
+    fn fingerprintValidated(self: Schema) [32]u8 {
         var hash = std.crypto.hash.sha2.Sha256.init(.{});
         hash.update("transit.fuze.schema.v1\x00");
         hash.update(&.{@intCast(self.columns.len)});
@@ -64,6 +69,12 @@ pub const Basis = struct {
     pub fn validate(self: Basis, schema: Schema) !void {
         if (self.resource == 0 or !std.mem.eql(u8, &self.schema, &try schema.fingerprint())) return error.SourceChanged;
     }
+    /// Validate one complete plan/source binding. Plan validation already
+    /// validates this exact schema; reuse that fact only inside this call.
+    pub fn validatePlan(self: Basis, plan: *const Plan, schema: Schema) !void {
+        try plan.validate(schema);
+        if (self.resource == 0 or !std.mem.eql(u8, &self.schema, &schema.fingerprintValidated())) return error.SourceChanged;
+    }
 };
 pub const Page = struct {
     basis: Basis,
@@ -79,6 +90,8 @@ pub const Page = struct {
         }
     }
 };
+pub const Truth = @import("Finite.zig").Truth;
+pub const PredicateProgram = @import("PredicateProgram.zig");
 pub const Plan = @import("UnifiedPlan.zig");
 pub const Codec = @import("UnifiedCodec.zig");
 pub const Arrow = @import("UnifiedArrow.zig");
@@ -86,6 +99,8 @@ pub const Inspect = @import("UnifiedInspect.zig");
 pub const Stream = @import("UnifiedStream.zig");
 pub const Sql = @import("UnifiedSql.zig");
 test {
+    _ = @import("PredicateTruth.zig");
+    _ = PredicateProgram;
     _ = @import("unified_test.zig");
     _ = @import("unified_sql_test.zig");
 }

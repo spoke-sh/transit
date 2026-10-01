@@ -21,6 +21,16 @@ static void inspection_columns(const transit_station_unified_source_description 
     }
     putchar(']');
 }
+static void inspection_atom(transit_station_unified_predicate_kind kind,const char *column,transit_station_unified_state state,transit_station_comparison comparison,transit_station_unified_type type) {
+    if(kind==TRANSIT_UNIFIED_ALL)printf("{\"all\":{}}");
+    else if(kind==TRANSIT_UNIFIED_IS_STATE){
+        const char *states[]={"missing","null","type_error","value","conflict"};
+        printf("{\"state\":{\"column\":");inspection_text(column);printf(",\"value\":\"%s\"}}",states[state]);
+    }else {
+        const char *comparisons[]={"eq","ne","lt","le","gt","ge"};
+        printf("{\"compare\":{\"column\":");inspection_text(column);printf(",\"op\":\"%s\",\"type\":\"%s\"}}",comparisons[comparison],inspection_types[type]);
+    }
+}
 static void print_inspection(const transit_station_unified_inspection *value) {
     const char *kinds[]={"kv","table","document"};
     printf("{\"inspection\":{\"version\":1,\"scope\":\"configured_source\",\"name\":");inspection_text(value->name);
@@ -36,16 +46,17 @@ static void print_inspection(const transit_station_unified_inspection *value) {
         const transit_station_unified_explanation *p=&value->details.explanation;
         const char *operators[]={"scan","filter","limit","project","count","sum"},*aggregates[]={"rows","count","sum"};
         printf("\"explanation\":{\"operators\":[");for(size_t i=0;i<p->operator_count;++i){if(i)putchar(',');inspection_text(operators[p->operators[i]]);}
-        printf("],\"predicate\":{");
-        if(p->predicate==TRANSIT_UNIFIED_ALL)printf("\"all\":{}");
-        else if(p->predicate==TRANSIT_UNIFIED_IS_STATE) {
-            const char *states[]={"missing","null","type_error","value","conflict"};
-            printf("\"state\":{\"column\":");inspection_text(p->column);printf(",\"value\":\"%s\"}",states[p->state]);
-        } else {
-            const char *comparisons[]={"eq","ne","lt","le","gt","ge"};
-            printf("\"compare\":{\"column\":");inspection_text(p->column);printf(",\"op\":\"%s\",\"type\":\"%s\"}",comparisons[p->comparison],inspection_types[p->type]);
-        }
-        printf("},\"projection\":[");for(size_t i=0;i<p->projection_count;++i){if(i)putchar(',');inspection_text(p->projection[i]);}
+        printf("],\"predicate\":");
+        if(p->predicate==TRANSIT_UNIFIED_PROGRAM){
+            const char *ops[]={"negate","conjunction","disjunction"};printf("{\"program\":[");
+            for(size_t i=0;i<p->instruction_count;++i){
+                const transit_station_unified_inspected_instruction *instruction=&p->instructions[i];if(i)putchar(',');
+                if(instruction->kind==TRANSIT_UNIFIED_ATOM){const transit_station_unified_inspected_atom *a=&instruction->atom;printf("{\"atom\":");inspection_atom(a->kind,a->column,a->state,a->comparison,a->type);putchar('}');}
+                else printf("{\"%s\":{}}",ops[instruction->kind-TRANSIT_UNIFIED_NEGATE]);
+            }
+            printf("]}");
+        }else inspection_atom(p->predicate,p->column,p->state,p->comparison,p->type);
+        printf(",\"projection\":[");for(size_t i=0;i<p->projection_count;++i){if(i)putchar(',');inspection_text(p->projection[i]);}
         printf("],\"limit\":");if(p->has_limit)printf("\"%llu\"",(unsigned long long)p->limit);else printf("null");
         printf(",\"aggregate\":\"%s\",\"columns\":",aggregates[p->aggregate]);inspection_columns(&p->output);
         printf(",\"budgets\":{\"pages\":\"%llu\",\"segments\":\"%llu\",\"result_bytes\":\"%llu\"}}",

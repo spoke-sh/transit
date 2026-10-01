@@ -21,31 +21,57 @@ def reference(case, ast):
                  'utf8': "it's 東京" if n % 2 == 0 else 'a\\b',
                  'binary': b'\x00\xff' if n % 2 == 0 else b''}[kind]
         rows.append([n - 35, None if n % 5 == 0 else value])
-    pred = ast['predicate']
-    encoded_pred = bytes([0])
-    if pred:
+    def atom(pred, row):
         column = names.index(pred['column'][1])
         if pred['op'] == 'is_null':
-            encoded_pred = bytes([1, column, 1])
-            rows = [row for row in rows if row[column] is None]
-        else:
-            literal = pred['literal']
-            value = literal['value']
-            tag = {'int64': 1, 'boolean': 4, 'utf8': 5, 'binary': 6}[literal['kind']]
-            if tag == 6:
-                value = bytes.fromhex(value[2:])
-            operators = {'eq': operator.eq, 'ne': operator.ne, 'lt': operator.lt,
-                         'le': operator.le, 'gt': operator.gt, 'ge': operator.ge}
-            encoded_pred = bytes([2, column, list(operators).index(pred['op']), tag])
-            if tag == 1:
-                encoded_pred += struct.pack('<q', value)
-            elif tag == 4:
-                encoded_pred += bytes([value])
-            elif tag in (5, 6):
-                raw = value.encode() if tag == 5 else value
-                encoded_pred += struct.pack('<I', len(raw)) + raw
-            rows = [row for row in rows if row[column] is not None and value is not None
-                    and operators[pred['op']](row[column], value)]
+            return bytes([1, column, 1]), row[column] is None
+        literal = pred['literal']
+        value = literal['value']
+        tag = {'int64': 1, 'boolean': 4, 'utf8': 5, 'binary': 6}[literal['kind']]
+        if tag == 6:
+            value = bytes.fromhex(value[2:])
+        operators = {'eq': operator.eq, 'ne': operator.ne, 'lt': operator.lt,
+                     'le': operator.le, 'gt': operator.gt, 'ge': operator.ge}
+        encoded = bytes([2, column, list(operators).index(pred['op']), tag])
+        if tag == 1:
+            encoded += struct.pack('<q', value)
+        elif tag == 4:
+            encoded += bytes([value])
+        elif tag in (5, 6):
+            raw = value.encode() if tag == 5 else value
+            encoded += struct.pack('<I', len(raw)) + raw
+        truth = None if row[column] is None or value is None else operators[pred['op']](row[column], value)
+        return encoded, truth
+
+    def evaluate(pred, row):
+        if pred is None:
+            return bytes([0]), True
+        if pred['op'] != 'program':
+            return atom(pred, row)
+        encoded = bytes([3, len(pred['instructions'])])
+        stack = []
+        for instruction in pred['instructions']:
+            op = instruction['op']
+            if op == 'not':
+                encoded += bytes([3])
+                value = stack.pop()
+                stack.append(None if value is None else not value)
+            elif op in ('and', 'or'):
+                encoded += bytes([4 if op == 'and' else 5])
+                right, left = stack.pop(), stack.pop()
+                if op == 'and':
+                    stack.append(False if False in (left, right) else None if None in (left, right) else True)
+                else:
+                    stack.append(True if True in (left, right) else None if None in (left, right) else False)
+            else:
+                data, truth = atom(instruction, row)
+                encoded += data
+                stack.append(truth)
+        assert len(stack) == 1
+        return encoded, stack[0]
+
+    encoded_pred = evaluate(ast['predicate'], rows[0])[0]
+    rows = [row for row in rows if evaluate(ast['predicate'], row)[1] is True]
     limit = ast['input']['limit'] if ast['input'] else ast['limit']
     if limit is not None:
         rows = rows[:limit]
@@ -71,7 +97,7 @@ def reference(case, ast):
     for alias in aliases:
         raw = alias.encode() if alias is not None else b''
         encoded_names += bytes([len(raw)]) + raw
-    definition = hashlib.sha256(b'transit.fuze.plan.v1.output-names.2026-09-30').digest()
+    definition = hashlib.sha256(b'transit.fuze.plan.v1.boolean-programs.2026-10-01').digest()
     encoded = (b'FZP1' + definition + bytes([['rows', 'count', 'sum'].index(aggregate), len(projection)])
                + bytes(projection) + encoded_names + bytes([limit is not None])
                + struct.pack('<Q', limit or 0) + encoded_pred)

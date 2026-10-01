@@ -106,8 +106,18 @@ plans without those fields. The shared native definition covers this stored
 framework change. Old standalone plans, saved requests and authority heads
 reject; recover accepted work using its matching build before a cutover.
 The current native definition covers both the combined local Table writer and
-owned output names across callers. Builds carrying only one of these changes
-are incompatible with the combined definition.
+owned output names across callers and bounded Boolean programs in saved plans.
+Earlier plans and builds without the current program definition are incompatible;
+accepted work requires its matching build for recovery.
+The same current definition includes direct small Table mutation admission and
+captured batch-read selectors. Builds containing only those native changes or
+only Boolean programs also reject; the combined contract has its own identifier.
+
+The typed C/C++ Boolean predicate APIs extend the public plan and owned
+inspection layouts. This ABI cutover has a new shared native definition, including
+all existing inline mutation and captured-read semantics. Matching headers,
+SDK libraries and native artifacts are required; earlier native definitions and
+saved authority requests reject. The FZP1 program encoding is unchanged.
 
 Publication identity includes its domain, namespace and record ID. Domain-aware
 keys and 72-byte references replace the prior layouts under the current shared

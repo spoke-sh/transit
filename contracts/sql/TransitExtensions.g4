@@ -6,7 +6,7 @@ options { caseInsensitive = true; }
 statement: (selectStatement | mutationStatement | extensionStatement) SEMI? EOF;
 asOfFragment: asOfClause EOF;
 
-// A single predicate and a projection bounded by the declared schema at compile time.
+// Boolean predicates and a projection bounded by the declared schema at compile time.
 // The one derived-table form spells filter -> limit -> aggregate without
 // misinterpreting SQL's outer LIMIT as an aggregate input limit.
 selectStatement
@@ -23,7 +23,11 @@ projectionItem: columnReference outputAlias?;
 outputAlias: AS identifier;
 columnReference: identifier (DOT identifier)?;
 whereClause: WHERE predicate;
-predicate: columnReference (IS cellState | comparison literal);
+predicate: disjunction;
+disjunction: conjunction (OR conjunction)*;
+conjunction: negation (AND negation)*;
+negation: NOT negation | LPAREN predicate RPAREN | predicateAtom;
+predicateAtom: columnReference (IS cellState | comparison literal);
 cellState: NULL_ | MISSING | TYPE_ERROR | VALUE | CONFLICT;
 comparison: EQ | NE | LT | LE | GT | GE;
 literal: signedInteger | TRUE | FALSE | NULL_ | STRING (TYPECAST (BYTEA | UINT64 | FLOAT64))?;
@@ -195,6 +199,8 @@ LIMIT: 'LIMIT';
 COUNT: 'COUNT';
 SUM: 'SUM';
 IS: 'IS';
+AND: 'AND';
+OR: 'OR';
 TRUE: 'TRUE';
 FALSE: 'FALSE';
 BYTEA: 'BYTEA';

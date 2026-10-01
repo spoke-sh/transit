@@ -85,8 +85,7 @@ pub const Step = struct { progress: Progress, segment: ?Segment };
 /// No candidate may be published after an error. Filter and checked sum run in
 /// source order; even an overflow that later values could offset is an error.
 pub fn step(bound: m.Plan.Bound, previous: Progress, page: m.Page, workspace: []u8, output: []u8, cancellation: *const f.execution.Cancellation) !Step {
-    const verified = try bound.plan.bind(bound.basis, bound.schema);
-    if (!std.mem.eql(u8, &verified.fingerprint, &bound.fingerprint)) return error.SourceChanged;
+    try bound.validate();
     try previous.validate(bound);
     if (previous.finished != null) return error.QueryComplete;
     if (page.ordinal != previous.pages) return error.InvalidQueryOrdinal;

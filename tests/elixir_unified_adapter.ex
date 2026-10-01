@@ -1,7 +1,22 @@
 defmodule ElixirUnifiedAdapter do
   alias Transit.Client
   alias Transit.Station.Sdk.UnifiedQuery, as: Q
-  def prepare(s, p, b), do: result(Q.prepare(Q.convert(s), Q.convert(p), Q.convert(b)))
+
+  def prepare(s, p, b) do
+    plan = Q.convert(p)
+
+    case elem(p, 2) do
+      {:transit_unified_predicate_program, _} = original ->
+        %Q.PredicateProgram{} = plan.predicate
+        ^original = Q.native(plan.predicate)
+
+      _ ->
+        :ok
+    end
+
+    result(Q.prepare(Q.convert(s), plan, Q.convert(b)))
+  end
+
   def decode(c, i, r), do: result(Q.decode_arrow(Q.convert(c), i, r))
   def open(c, i, r), do: result(Q.open(Client.convert(c), Client.convert(i), Q.convert(r)))
   def close(c), do: result(Q.close(c))

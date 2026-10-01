@@ -1,6 +1,7 @@
 """Independent v1 binary fixtures and Arrow through native and local port APIs."""
 import copy
 import ctypes as c
+import hashlib
 import json
 from pathlib import Path
 import struct
@@ -43,6 +44,44 @@ def arrow_fixture():
         return sink.getvalue().to_pybytes().hex()
 
     return columns, rows, expected_rows, ipc
+
+
+def boolean_bundle_fixtures():
+    programs = json.loads((ROOT / 'packages/zig/transit-fuze/src/fixtures/boolean-plans-v1.json').read_text())['cases']
+    types = ['int64', 'uint64', 'float64', 'boolean', 'utf8', 'binary']
+    literals = [
+        {'int64': str(-(2**63))}, {'uint64': str(2**64-1)},
+        {'float_bits': struct.pack('<d', -0.0).hex()}, {'boolean': True},
+        {'utf8': 'café é 🙂'}, {'binary': '00ff80'}, {'utf8': 'x'*512},
+    ]
+    rows = []
+    for fixture, literal in zip(programs, literals, strict=True):
+        program = [{'atom': {'compare': {'column': 0, 'op': 'eq', 'value': literal}}},
+                   {'negate': {}}, {'atom': {'state': {'column': 0, 'value': 'null'}}}, {'disjunction': {}}]
+        source = dict(resource=7, source=dict(kv=dict(prefix='', key=dict(type=types[fixture['type']-1]), value=dict(type='uint64'))))
+        bundle = dict(source=source, plan=dict(projection=[0], predicate=dict(program=program)),
+                      limits=dict(pages='1000', segments='500', result_bytes='1048576'))
+        source_bytes = b'UQS1' + struct.pack('<QB', 7, 1) + bytes([0, 1, fixture['type'], 1, 2])
+        plan_bytes = bytes.fromhex(fixture['wire_hex'])
+        wire = b'UQB1' + struct.pack('<HHQQQ', len(source_bytes), len(plan_bytes), 1000, 500, 1048576) + source_bytes + plan_bytes
+        rows.append(dict(name=fixture['name'], type=fixture['type'], bundle=bundle, wire_hex=wire.hex()))
+    definition = hashlib.sha256(b'transit.fuze.plan.v1.boolean-programs.2026-10-01').digest()
+    source_bytes = b'UQS1' + struct.pack('<QB', 7, 1) + bytes([0, 1, 1, 1, 2])
+    for name, program, code in (
+        ('all-and-not-null', [{'atom': {'all': {}}}, {'atom': {'state': {'column': 0, 'value': 'null'}}}, {'negate': {}}, {'conjunction': {}}], bytes([0, 1, 0, 1, 3, 4])),
+        ('max64', [{'atom': {'all': {}}}] + [{'negate': {}}]*63, bytes([0]) + bytes([3])*63),
+    ):
+        plan_bytes = b'FZP1' + definition + bytes([0, 1, 0, 0, 0]) + struct.pack('<Q', 0) + bytes([3, len(program)]) + code
+        wire = b'UQB1' + struct.pack('<HHQQQ', len(source_bytes), len(plan_bytes), 1000, 500, 1048576) + source_bytes + plan_bytes
+        rows.append(dict(name=name, type=1, bundle=dict(source=dict(resource=7, source=dict(kv=dict(prefix='', key=dict(type='int64'), value=dict(type='uint64')))), plan=dict(projection=[0], predicate=dict(program=program)), limits=dict(pages='1000', segments='500', result_bytes='1048576')), wire_hex=wire.hex()))
+    for row in rows:
+        wire = bytes.fromhex(row['wire_hex'])
+        digest = hashlib.sha256(b'transit.station.publication.v1\0' + struct.pack('<II', 0x31425155, len(wire))).digest()
+        for index, offset in enumerate(range(0, len(wire), 256)):
+            chunk = wire[offset:offset+256]
+            digest = hashlib.sha256(b'\1' + digest + struct.pack('<IH', index, len(chunk)) + chunk).digest()
+        row['spec'] = dict(format=0x31425155, length=len(wire), digest=list(digest))
+    return rows
 
 
 def run(host, library):
@@ -122,6 +161,33 @@ def run(host, library):
         invalid['limits']['pages'] = value
         check({'prepare': invalid}, valid=False)
 
+    # Independent compound FZP1 bytes, reconstructed UQB1 framing and publication
+    # commitment. Both real transports must preserve the exact neutral program.
+    for fixture in boolean_bundle_fixtures():
+        bundle = fixture['bundle']
+        wire = bytes.fromhex(fixture['wire_hex'])
+        source_length = struct.unpack_from('<H', wire, 4)[0]
+        prepared = check({'prepare': bundle})['prepared']
+        assert prepared == dict(bytes=wire.hex(), spec=fixture['spec'])
+        decoded = check({'decode': wire.hex()})['bundle']
+        assert decoded['plan']['predicate'] == bundle['plan']['predicate']
+        assert check({'prepare': decoded})['prepared'] == prepared
+        old = bytearray(wire)
+        old[32+source_length+4:32+source_length+36] = bytes.fromhex('58ae72e1f9a4b589536e5a0d262d6e6aebcc2fab40698b4bfea6833281ad9f3c')
+        check({'decode': old.hex()}, valid=False)
+
+    for program in ([], [{'negate': {}}], [{'atom': {'all': {}}}]*2,
+                    [{'atom': {'all': {}}}] + [{'negate': {}}]*64,
+                    [{'atom': {'program': [{'atom': {'all': {}}}]}}],
+                    [{'atom': {'state': {'column': 8, 'value': 'null'}}}],
+                    [{'atom': {'all': {}}}, {'atom': {'compare': {'column': 0, 'op': 'eq', 'value': {'uint64': '1'}}}}, {'disjunction': {}}]):
+        invalid = copy.deepcopy(bundle)
+        invalid['plan']['predicate'] = {'program': program}
+        check({'prepare': invalid}, valid=False)
+    maximum = copy.deepcopy(bundle)
+    maximum['plan']['predicate'] = {'program': [{'atom': {'all': {}}}] + [{'negate': {}}]*63}
+    check({'prepare': maximum})
+
     columns, rows, expected_rows, ipc = arrow_fixture()
     for data, wanted in ((rows, expected_rows), ([], [])):
         check({'inspect_arrow': dict(columns=columns, rows=len(data), ipc=ipc(data))}, {'rows': wanted})
@@ -135,7 +201,7 @@ def run(host, library):
             text=True, capture_output=True, timeout=30, check=True)
         actual = [json.loads(line) for line in process.stdout.splitlines()]
         assert actual == expected, (actual, expected)
-    print(f'Unified native/port codecs: {len(actions)} shared cases; three independent bundles, six Arrow types, five cell states, full-width values, Unicode and malformed rejection passed')
+    print(f'Unified native/port codecs: {len(actions)} shared cases; three source bundles, nine compound plans, six Arrow types, five cell states, full-width values, Unicode and malformed rejection passed')
 
 
 if __name__ == '__main__':

@@ -8,10 +8,19 @@ The original Table API remains available in `Query`.
 `Source` is a sealed hierarchy of `KvSource`, `TableSource` and `DocumentSource`.
 KV declares versioned decoders, Table binds an exact ID/schema, and Document
 binds an accepted reference and bounded path/list/text projections. `Plan` selects
-ordered columns, an `All`, `IsState` or typed `Compare` predicate, aggregate and
+ordered columns, an `All`, `IsState`, typed `Compare` or `PredicateProgram` predicate, aggregate and
 optional limit. `Bundle.prepare` requires explicit positive `Budgets`.
 Full-width unsigned values, namespaces, conflict IDs and progress use `BigInteger`;
 IDs governed by the protocol's smaller counter bound use `long`.
+
+`PredicateProgram` owns a copied list of one to 64 `PredicateInstruction` values.
+Wrap an `All`, `IsState` or `Compare` in `PredicateAtomInstruction`; combine atoms
+with `PredicateOperator.NEGATE`, `CONJUNCTION` and `DISJUNCTION` in postfix order.
+For example, `[atom(A), atom(B), NEGATE, CONJUNCTION]` means `A AND NOT B`.
+Programs cannot nest. Shared Zig validates stack shape, column bounds and scalar
+types before encoding; it evaluates eagerly with null/missing as unknown.
+Only true selects a row. `InspectedProgram` owns the same operator order with
+`InspectedAtomInstruction` values containing names/types and no literals.
 
 `Client.open(config, credential, connection)` starts an owned bounded port worker
 without acquiring process activation. `describe` checks current policy and the

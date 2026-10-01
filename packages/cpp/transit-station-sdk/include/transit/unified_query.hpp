@@ -23,9 +23,13 @@ struct DocumentSource {
 using Source = std::variant<KvSource, TableSource, DocumentSource>;
 struct IsState { uint8_t column; State state; };
 struct Compare { uint8_t column; Comparison comparison; Scalar value; };
+using PredicateAtom = std::variant<All, IsState, Compare>;
+enum class PredicateOperator { Negate, Conjunction, Disjunction };
+using PredicateInstruction = std::variant<PredicateAtom, PredicateOperator>;
+struct PredicateProgram { std::vector<PredicateInstruction> instructions; };
 struct Plan {
     std::vector<uint8_t> projection;
-    std::variant<All, IsState, Compare> predicate;
+    std::variant<All, IsState, Compare, PredicateProgram> predicate;
     Aggregate aggregate = Aggregate::Rows;
     std::optional<uint64_t> limit;
     std::optional<std::vector<std::optional<std::string>>> output_names;
@@ -98,22 +102,52 @@ struct SourceView {
         }, source);
     }
 };
-inline transit_station_unified_plan plan(const Plan &v) {
-    transit_station_unified_plan out{};
-    out.projection = v.projection.data(); out.projection_count = v.projection.size();
-    if(v.output_names){
-        if(v.output_names->size()!=v.projection.size() || v.output_names->size()>8)throw failure(TRANSIT_SDK_INVALID_ARGUMENT,"query-output-names");
-        for(size_t i=0;i<v.output_names->size();++i)if((*v.output_names)[i])out.output_names[i]=(*v.output_names)[i]->c_str();
-    }
-    out.aggregate = static_cast<transit_station_aggregate>(v.aggregate);
-    out.has_limit = v.limit.has_value(); out.limit = v.limit.value_or(0);
-    std::visit([&](const auto &p) {
-        using P = std::decay_t<decltype(p)>;
-        if constexpr (std::is_same_v<P, IsState>) { out.predicate = TRANSIT_UNIFIED_IS_STATE; out.column = p.column; out.state = static_cast<transit_station_unified_state>(p.state); }
-        else if constexpr (std::is_same_v<P, Compare>) { out.predicate = TRANSIT_UNIFIED_COMPARE; out.column = p.column; out.comparison = static_cast<transit_station_comparison>(p.comparison); out.value = scalar(p.value); }
-    }, v.predicate);
+template<class T> inline transit_station_unified_predicate_atom atom(const T &p) {
+    transit_station_unified_predicate_atom out{};
+    if constexpr (std::is_same_v<T, IsState>) { out.kind=TRANSIT_UNIFIED_IS_STATE; out.column=p.column; out.state=static_cast<transit_station_unified_state>(p.state); }
+    else if constexpr (std::is_same_v<T, Compare>) { out.kind=TRANSIT_UNIFIED_COMPARE; out.column=p.column; out.comparison=static_cast<transit_station_comparison>(p.comparison); out.value=scalar(p.value); }
+    else static_assert(std::is_same_v<T, All>);
     return out;
 }
+// Pointers borrow Plan's owned values and this view's bounded instruction array.
+// The view cannot move while the synchronous C operation uses those pointers.
+struct PlanView {
+    transit_station_unified_plan value{};
+    std::array<transit_station_unified_instruction,64> instructions{};
+    PlanView(const PlanView &) = delete;
+    explicit PlanView(const Plan &v) {
+        value.projection=v.projection.data(); value.projection_count=v.projection.size();
+        if(v.output_names){
+            if(v.output_names->size()!=v.projection.size() || v.output_names->size()>8)throw failure(TRANSIT_SDK_INVALID_ARGUMENT,"query-output-names");
+            for(size_t i=0;i<v.output_names->size();++i)if((*v.output_names)[i])value.output_names[i]=(*v.output_names)[i]->c_str();
+        }
+        value.aggregate=static_cast<transit_station_aggregate>(v.aggregate);
+        value.has_limit=v.limit.has_value(); value.limit=v.limit.value_or(0);
+        std::visit([&](const auto &p) {
+            using P=std::decay_t<decltype(p)>;
+            if constexpr(std::is_same_v<P, PredicateProgram>){
+                if(p.instructions.empty() || p.instructions.size()>instructions.size())throw failure(TRANSIT_SDK_INVALID_ARGUMENT,"query-program-bound");
+                value.predicate=TRANSIT_UNIFIED_PROGRAM; value.instruction_count=p.instructions.size(); value.instructions=instructions.data();
+                for(size_t i=0;i<p.instructions.size();++i)std::visit([&](const auto &instruction){
+                    using I=std::decay_t<decltype(instruction)>;
+                    if constexpr(std::is_same_v<I,PredicateAtom>){
+                        instructions[i].kind=TRANSIT_UNIFIED_ATOM;
+                        instructions[i].atom=std::visit([](const auto &a){return atom(a);},instruction);
+                    }else {
+                        switch(instruction){
+                            case PredicateOperator::Negate: instructions[i].kind=TRANSIT_UNIFIED_NEGATE;break;
+                            case PredicateOperator::Conjunction: instructions[i].kind=TRANSIT_UNIFIED_CONJUNCTION;break;
+                            case PredicateOperator::Disjunction: instructions[i].kind=TRANSIT_UNIFIED_DISJUNCTION;break;
+                            default: throw failure(TRANSIT_SDK_INVALID_ARGUMENT,"query-program-instruction");
+                        }
+                    }
+                },p.instructions[i]);
+            }else {
+                const auto a=atom(p); value.predicate=a.kind; value.column=a.column; value.state=a.state; value.comparison=a.comparison; value.value=a.value;
+            }
+        },v.predicate);
+    }
+};
 template<class T, auto Destroy, auto Import, auto View> class OwnedBytes {
     std::unique_ptr<T, decltype(Destroy)> value_;
 public:
@@ -129,8 +163,8 @@ using Bundle = detail::OwnedBytes<transit_station_unified_bundle, transit_statio
 using Prepared = detail::OwnedBytes<transit_station_unified_prepared, transit_station_unified_prepared_destroy, transit_station_unified_prepared_import, transit_station_unified_prepared_bytes>;
 using Cursor = detail::OwnedBytes<transit_station_unified_cursor, transit_station_unified_cursor_destroy, transit_station_unified_cursor_import, transit_station_unified_cursor_bytes>;
 inline Bundle prepare(const Source &source, const Plan &plan, Budgets budgets, const char *directory = nullptr) {
-    const detail::SourceView s(source); const auto p = detail::plan(plan); transit_station_unified_bundle *out = nullptr;
-    check(transit_station_unified_prepare_bundle(&s.value, &p, {budgets.pages, budgets.segments, budgets.result_bytes}, directory, &out)); return Bundle(out);
+    const detail::SourceView s(source); const detail::PlanView p(plan); transit_station_unified_bundle *out = nullptr;
+    check(transit_station_unified_prepare_bundle(&s.value, &p.value, {budgets.pages, budgets.segments, budgets.result_bytes}, directory, &out)); return Bundle(out);
 }
 struct Missing {};
 struct Null {};
@@ -179,7 +213,21 @@ enum class SourceKind { Kv, Table, Document };
 enum class InspectionOperator { Scan, Filter, Limit, Project, Count, Sum };
 struct InspectedState { std::string column; State state; };
 struct InspectedComparison { std::string column; Comparison comparison; Type type; };
-using InspectedPredicate = std::variant<All, InspectedState, InspectedComparison>;
+using InspectedAtom = std::variant<All, InspectedState, InspectedComparison>;
+using InspectedInstruction = std::variant<InspectedAtom, PredicateOperator>;
+struct InspectedProgram { std::vector<InspectedInstruction> instructions; };
+using InspectedPredicate = std::variant<All, InspectedState, InspectedComparison, InspectedProgram>;
+namespace detail {
+inline InspectedAtom inspected_atom(const transit_station_unified_inspected_atom &v) {
+    switch(v.kind){
+        case TRANSIT_UNIFIED_ALL: return All{};
+        case TRANSIT_UNIFIED_IS_STATE: return InspectedState{v.column,static_cast<State>(v.state)};
+        case TRANSIT_UNIFIED_COMPARE: return InspectedComparison{v.column,static_cast<Comparison>(v.comparison),static_cast<Type>(v.type)};
+        default: throw failure(TRANSIT_SDK_INCOMPATIBLE_NATIVE,"inspection-atom");
+    }
+}
+}
+
 struct SourceDescription { std::vector<Column> columns; };
 struct TableListing { std::vector<std::string> names; };
 struct Explanation {
@@ -233,6 +281,22 @@ public:
             if(p.has_limit)plan.limit=p.limit;
             if(p.predicate==TRANSIT_UNIFIED_IS_STATE)plan.predicate=InspectedState{p.column,static_cast<State>(p.state)};
             else if(p.predicate==TRANSIT_UNIFIED_COMPARE)plan.predicate=InspectedComparison{p.column,static_cast<Comparison>(p.comparison),static_cast<Type>(p.type)};
+            else if(p.predicate==TRANSIT_UNIFIED_PROGRAM){
+                InspectedProgram program;
+                for(size_t i=0;i<p.instruction_count;++i){
+                    const auto &instruction=p.instructions[i];
+                    if(instruction.kind==TRANSIT_UNIFIED_ATOM)program.instructions.emplace_back(detail::inspected_atom(instruction.atom));
+                    else {
+                        switch(instruction.kind){
+                            case TRANSIT_UNIFIED_NEGATE: program.instructions.emplace_back(PredicateOperator::Negate);break;
+                            case TRANSIT_UNIFIED_CONJUNCTION: program.instructions.emplace_back(PredicateOperator::Conjunction);break;
+                            case TRANSIT_UNIFIED_DISJUNCTION: program.instructions.emplace_back(PredicateOperator::Disjunction);break;
+                            default: throw failure(TRANSIT_SDK_INCOMPATIBLE_NATIVE,"inspection-instruction");
+                        }
+                    }
+                }
+                plan.predicate=std::move(program);
+            }
             result.details=std::move(plan);
         }
         return result;

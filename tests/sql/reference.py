@@ -73,6 +73,18 @@ def literal(ctx):
     return {'kind': 'uint64', 'value': int(value)} if ctx.UINT64() else ({'kind': 'float64', 'value': float(value)} if ctx.FLOAT64() else {'kind': 'binary' if ctx.BYTEA() else 'utf8', 'value': value})
 
 
+def join_program(parts, op):
+    result = list(parts[0])
+    for part in parts[1:]:
+        result.extend(part)
+        result.append({'op': op})
+    return result
+
+
+def normalized_program(instructions):
+    return instructions[0] if len(instructions) == 1 else {'op': 'program', 'instructions': instructions}
+
+
 def antlr_ast(sql):
     ctx = tree(sql).selectStatement()
     assert ctx
@@ -85,13 +97,27 @@ def antlr_ast(sql):
     else:
         selection = {'kind': 'sum', 'column': column(aggregate.columnReference())}
     where = ctx.whereClause()
-    predicate = None
-    if where:
-        pred = where.predicate()
-        predicate = {'column': column(pred.columnReference()), 'op': 'is_' + pred.cellState().getText().lower() if pred.cellState() else None}
+    def atom(pred):
+        result = {'column': column(pred.columnReference()), 'op': 'is_' + pred.cellState().getText().lower() if pred.cellState() else None}
         if pred.comparison():
-            predicate['op'] = {'=': 'eq', '<>': 'ne', '!=': 'ne', '<': 'lt', '<=': 'le', '>': 'gt', '>=': 'ge'}[pred.comparison().getText()]
-            predicate['literal'] = literal(pred.literal())
+            result['op'] = {'=': 'eq', '<>': 'ne', '!=': 'ne', '<': 'lt', '<=': 'le', '>': 'gt', '>=': 'ge'}[pred.comparison().getText()]
+            result['literal'] = literal(pred.literal())
+        return result
+
+    def negation(ctx):
+        if ctx.NOT():
+            return negation(ctx.negation()) + [{'op': 'not'}]
+        if ctx.predicate():
+            return disjunction(ctx.predicate().disjunction())
+        return [atom(ctx.predicateAtom())]
+
+    def conjunction(ctx):
+        return join_program([negation(part) for part in ctx.negation()], 'and')
+
+    def disjunction(ctx):
+        return join_program([conjunction(part) for part in ctx.conjunction()], 'or')
+
+    predicate = normalized_program(disjunction(where.predicate().disjunction())) if where else None
     limits = ctx.limitClause()
     # Identify clauses by their position relative to the derived-table close.
     outer = inner = None
@@ -168,16 +194,22 @@ def pg_ast(sql):
     else:
         source_query = node
         relation = source_node['RangeVar']
-    pred = None
-    if 'whereClause' in source_query:
-        where = source_query['whereClause']
+    def predicate(where):
+        if 'BoolExpr' in where:
+            boolean = where['BoolExpr']
+            args = [predicate(arg) for arg in boolean['args']]
+            if boolean['boolop'] == 'NOT_EXPR':
+                assert len(args) == 1
+                return args[0] + [{'op': 'not'}]
+            return join_program(args, {'AND_EXPR': 'and', 'OR_EXPR': 'or'}[boolean['boolop']])
         if 'NullTest' in where:
             assert where['NullTest'].get('nulltesttype', 'IS_NULL') == 'IS_NULL'
-            pred = {'column': col(where['NullTest']['arg']), 'op': 'is_null'}
-        else:
-            expr = where['A_Expr']
-            op = expr['name'][0]['String']['sval']
-            pred = {'column': col(expr['lexpr']), 'op': {'=': 'eq', '<>': 'ne', '<': 'lt', '<=': 'le', '>': 'gt', '>=': 'ge'}[op], 'literal': const(expr['rexpr'])}
+            return [{'column': col(where['NullTest']['arg']), 'op': 'is_null'}]
+        expr = where['A_Expr']
+        op = expr['name'][0]['String']['sval']
+        return [{'column': col(expr['lexpr']), 'op': {'=': 'eq', '<>': 'ne', '<': 'lt', '<=': 'le', '>': 'gt', '>=': 'ge'}[op], 'literal': const(expr['rexpr'])}]
+
+    pred = normalized_program(predicate(source_query['whereClause'])) if 'whereClause' in source_query else None
     return {'source': relation['relname'], 'source_alias': relation.get('alias', {}).get('aliasname'),
             'output_alias': node['targetList'][0]['ResTarget'].get('name') if function else None,
             'selection': selection, 'predicate': pred, 'limit': limit(node), 'input': inner}

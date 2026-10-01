@@ -52,6 +52,33 @@ SQL `AS` names, with SQL's 16-byte identifier bound. See the
 [query contract](../../contracts/UNIFIED_QUERY_V1.md#public-surfaces-and-qualification)
 and [neutral codecs](../../packages/zig/transit-station-bindings/docs/unified-query.md).
 
+## Finite query predicate programs
+
+All ten SDKs expose typed postfix programs in their finite query plans. A program has one to 64 instructions: an all-row, state or comparison
+atom, or a NOT, AND or OR operator. Programs cannot nest. Shared Zig validates
+the whole program against the declared source before encoding; language APIs do
+not implement a separate evaluator. Instructions retain eager error order and
+three-valued truth, with only true selecting a row. Inspected programs own their
+structure and exclude literals.
+
+| Language | Program API |
+| --- | --- |
+| Python | `PredicateProgram` tuple of `PredicateAtom` / `PredicateOperator` |
+| TypeScript | `Predicate` with `kind: "program"` and `PredicateInstruction` array |
+| Ruby | `PredicateProgram` with copied/frozen `PredicateAtom` / operator symbols |
+| Rust | `Predicate::Program` with owned `PredicateInstruction` / `PredicateAtom` |
+| Java | `PredicateProgram` with copied `PredicateAtomInstruction` / `PredicateOperator` list |
+| .NET | `PredicateProgram` with copied `PredicateAtomInstruction` / `PredicateOperation` collection |
+| Erlang | `transit_unified_predicate_program` record with atom tuples / operator atoms |
+| Elixir | `PredicateProgram` struct with atom tuples / operator atoms |
+| C | `TRANSIT_UNIFIED_PROGRAM` plan with borrowed tagged instructions; owned inline inspection |
+| C++ | `PredicateProgram` with owned `PredicateAtom` / `PredicateOperator` vector |
+
+Native/port codecs and native SQL use the same program contract. See
+[query semantics](queries.md) and each language's query guide for bounds, ownership
+and recovery. The C/C++ plan and explanation layouts require matching headers,
+SDK libraries and native artifacts under the current shared v1 definition.
+
 ## Catalog callers
 
 Python provides [synchronous and asynchronous catalog callers](../../packages/python/transit-station/docs/catalog.md);

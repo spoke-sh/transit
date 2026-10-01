@@ -134,13 +134,80 @@ pub const Source = struct {
         } };
     }
 };
+pub const PredicateAtom = union(enum) {
+    all,
+    state: struct { column: u8, value: m.State },
+    compare: struct { column: u8, op: m.Plan.Comparison, value: Scalar },
+    pub fn native(self: PredicateAtom, alloc: Allocator) !m.Plan.Atom {
+        return switch (self) {
+            .all => .all,
+            .state => |v| .{ .state = .{ .column = v.column, .value = v.value } },
+            .compare => |v| .{ .compare = .{ .column = v.column, .op = v.op, .value = try v.value.native(alloc) } },
+        };
+    }
+    pub fn fromNative(alloc: Allocator, value: m.Plan.Atom) !PredicateAtom {
+        return switch (value) {
+            .all => .all,
+            .state => |v| .{ .state = .{ .column = v.column, .value = v.value } },
+            .compare => |v| .{ .compare = .{ .column = v.column, .op = v.op, .value = try Scalar.fromNative(alloc, v.value) } },
+        };
+    }
+};
+pub const PredicateInstruction = union(enum) {
+    atom: PredicateAtom,
+    negate,
+    conjunction,
+    disjunction,
+};
+pub const Predicate = union(enum) {
+    pub const json_schema_sequence_bounds = .{ .program = m.PredicateProgram.max_instructions };
+    all,
+    state: @FieldType(PredicateAtom, "state"),
+    compare: @FieldType(PredicateAtom, "compare"),
+    program: []const PredicateInstruction,
+    pub fn native(self: Predicate, alloc: Allocator) !m.Plan.Predicate {
+        return switch (self) {
+            .program => |instructions| blk: {
+                if (instructions.len == 0) return error.InvalidPredicateProgram;
+                if (instructions.len > m.PredicateProgram.max_instructions) return error.PredicateTooLarge;
+                var owned: m.PredicateProgram.Owned = .{ .count = @intCast(instructions.len) };
+                for (instructions, owned.instructions[0..instructions.len]) |instruction, *out| out.* = switch (instruction) {
+                    .atom => |atom| .{ .atom = try atom.native(alloc) },
+                    inline else => |_, tag| @unionInit(m.PredicateProgram.Instruction, @tagName(tag), {}),
+                };
+                try (try owned.view()).validateShape();
+                break :blk .{ .program = owned };
+            },
+            inline else => |value, tag| switch (try @as(PredicateAtom, @unionInit(PredicateAtom, @tagName(tag), value)).native(alloc)) {
+                inline else => |atom_value, atom_tag| @unionInit(m.Plan.Predicate, @tagName(atom_tag), atom_value),
+            },
+        };
+    }
+    pub fn fromNative(alloc: Allocator, value: m.Plan.Predicate) !Predicate {
+        return switch (value) {
+            .program => |*program| blk: {
+                const view = try program.view();
+                try view.validateShape();
+                const result = try alloc.alloc(PredicateInstruction, view.instructions.len);
+                for (view.instructions, result) |instruction, *out| out.* = switch (instruction) {
+                    .atom => |atom| .{ .atom = try PredicateAtom.fromNative(alloc, atom) },
+                    inline else => |_, tag| @unionInit(PredicateInstruction, @tagName(tag), {}),
+                };
+                break :blk .{ .program = result };
+            },
+            inline else => |atom_value, atom_tag| switch (try PredicateAtom.fromNative(alloc, @unionInit(m.Plan.Atom, @tagName(atom_tag), atom_value))) {
+                inline else => |v, tag| @unionInit(Predicate, @tagName(tag), v),
+            },
+        };
+    }
+};
 pub const Plan = struct {
     version: u8 = 1,
     projection: []const u32,
     output_names: ?[]const ?[]const u8 = null,
     limit: ?[]const u8 = null,
     aggregate: m.Plan.Aggregate = .rows,
-    predicate: union(enum) { all, state: struct { column: u8, value: m.State }, compare: struct { column: u8, op: m.Plan.Comparison, value: Scalar } } = .all,
+    predicate: Predicate = .all,
     pub fn native(self: Plan, alloc: Allocator) !m.Plan {
         if (self.projection.len == 0 or self.projection.len > m.max_columns) return error.InvalidProjection;
         var names: [m.max_columns]?m.Name = @splat(null);
@@ -155,11 +222,7 @@ pub const Plan = struct {
             if (in >= m.max_columns) return error.UnknownColumn;
             out.* = @intCast(in);
         }
-        return .{ .version = self.version, .projection = selected, .output_names = names, .limit = if (self.limit) |v| try unsigned(v) else null, .aggregate = self.aggregate, .predicate = switch (self.predicate) {
-            .all => .all,
-            .state => |v| .{ .state = .{ .column = v.column, .value = v.value } },
-            .compare => |v| .{ .compare = .{ .column = v.column, .op = v.op, .value = try v.value.native(alloc) } },
-        } };
+        return .{ .version = self.version, .projection = selected, .output_names = names, .limit = if (self.limit) |v| try unsigned(v) else null, .aggregate = self.aggregate, .predicate = try self.predicate.native(alloc) };
     }
     pub fn fromNative(alloc: Allocator, value: m.Plan) !Plan {
         try value.validateShape();
@@ -172,11 +235,7 @@ pub const Plan = struct {
         };
         const selected = try alloc.alloc(u32, value.projection.len);
         for (selected, value.projection) |*out, in| out.* = in;
-        return .{ .version = value.version, .projection = selected, .output_names = names, .limit = if (value.limit) |v| try a.decimal(alloc, v) else null, .aggregate = value.aggregate, .predicate = switch (value.predicate) {
-            .all => .all,
-            .state => |v| .{ .state = .{ .column = v.column, .value = v.value } },
-            .compare => |v| .{ .compare = .{ .column = v.column, .op = v.op, .value = try Scalar.fromNative(alloc, v.value) } },
-        } };
+        return .{ .version = value.version, .projection = selected, .output_names = names, .limit = if (value.limit) |v| try a.decimal(alloc, v) else null, .aggregate = value.aggregate, .predicate = try Predicate.fromNative(alloc, value.predicate) };
     }
 };
 pub const Limits = struct {
@@ -277,4 +336,37 @@ pub fn apply(alloc: Allocator, action: Action) !Result {
             return .{ .rows = try rows(alloc, &decoded) };
         },
     }
+}
+
+test "neutral programs retain owned literals and exact bundle publication identity" {
+    const t = std.testing;
+    var arena: std.heap.ArenaAllocator = .init(t.allocator);
+    defer arena.deinit();
+    const alloc = arena.allocator();
+    var literal = [_]u8{ 'o', 'k' };
+    const bundle: Bundle = .{
+        .source = .{ .resource = 7, .source = .{ .kv = .{ .prefix = "", .key = .{ .type = .binary }, .value = .{ .type = .utf8 } } } },
+        .plan = .{ .projection = &.{1}, .output_names = &.{"label"}, .predicate = .{ .program = &.{
+            .{ .atom = .{ .compare = .{ .column = 1, .op = .eq, .value = .{ .utf8 = &literal } } } },
+            .negate,
+            .{ .atom = .{ .state = .{ .column = 1, .value = .null } } },
+            .disjunction,
+        } } },
+        .limits = .{ .pages = "100", .segments = "100", .result_bytes = "1048576" },
+    };
+    const prepared = (try apply(alloc, .{ .prepare = bundle })).prepared;
+    var restored = (try apply(alloc, .{ .decode = prepared.bytes })).bundle;
+    literal[0] = 'n';
+    try t.expectEqualStrings("ok", restored.plan.predicate.program[0].atom.compare.value.utf8);
+    const repeated = (try apply(alloc, .{ .prepare = restored })).prepared;
+    try t.expectEqualStrings(prepared.bytes, repeated.bytes);
+    try t.expectEqualDeep(prepared.spec, repeated.spec);
+    restored.plan.predicate = .{ .program = &.{.conjunction} };
+    try t.expectError(error.InvalidPredicateProgram, apply(alloc, .{ .prepare = restored }));
+    restored.plan.predicate = .{ .program = &@as([65]PredicateInstruction, @splat(.negate)) };
+    try t.expectError(error.PredicateTooLarge, apply(alloc, .{ .prepare = restored }));
+    restored.plan.predicate = .{ .program = &.{ .{ .atom = .all }, .{ .atom = .{ .compare = .{ .column = 1, .op = .eq, .value = .{ .uint64 = "1" } } } }, .disjunction } };
+    try t.expectError(error.TypeMismatch, apply(alloc, .{ .prepare = restored }));
+    restored.plan.predicate = .{ .program = &.{ .{ .atom = .all }, .{ .atom = .{ .state = .{ .column = 2, .value = .null } } }, .disjunction } };
+    try t.expectError(error.UnknownColumn, apply(alloc, .{ .prepare = restored }));
 }

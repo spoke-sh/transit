@@ -248,3 +248,70 @@ test "SQL exposes five exact states and existing full-width scalar plans" {
     try t.expectError(error.TypeMismatch, m.Sql.plan(a, "SELECT counter FROM items WHERE counter = '1'::float64", src));
     _ = try f.Sql.parse("SELECT missing, type_error, value, conflict, uint64, float64 FROM items");
 }
+
+test "compound SQL owns literal allocations and frees partially lowered plans" {
+    try t.checkAllAllocationFailures(t.allocator, struct {
+        fn run(allocator: std.mem.Allocator) !void {
+            const columns = [_]m.Column{
+                .{ .name = try m.Name.init("id"), .type = .int64 },
+                .{ .name = try m.Name.init("value"), .type = .utf8 },
+            };
+            const src = try source(&columns);
+            var text = "SELECT x.value AS copy FROM items AS x WHERE x.value = 'first' OR NOT (x.id = 2 AND x.value = 'second')".*;
+            const plan = try m.Sql.plan(allocator, &text, src);
+            defer m.Sql.deinit(allocator, &plan);
+            @memset(&text, 0);
+            try t.expectEqualStrings("first", plan.predicate.program.instructions[0].atom.compare.value.utf8);
+            try t.expectEqualStrings("second", plan.predicate.program.instructions[2].atom.compare.value.utf8);
+            const bad = m.Sql.plan(allocator, "SELECT * FROM items WHERE value = 'owned' AND id = 'wrong type'", src) catch |err| {
+                if (err == error.OutOfMemory) return err;
+                try t.expectEqual(error.TypeMismatch, err);
+                return;
+            };
+            m.Sql.deinit(allocator, &bad);
+            return error.UnexpectedSuccess;
+        }
+    }.run, .{});
+}
+
+test "compiled Boolean SQL preserves unknown and eager errors in source order" {
+    const columns = [_]m.Column{
+        .{ .name = try m.Name.init("id"), .type = .int64 },
+        .{ .name = try m.Name.init("value"), .type = .utf8 },
+    };
+    const src = try source(&columns);
+    const plan = try m.Sql.plan(t.allocator, "SELECT * FROM items WHERE NOT value = 'x'", src);
+    defer m.Sql.deinit(t.allocator, &plan);
+    for ([_]m.Cell{ .null, .missing }) |value| {
+        const row: m.Row = .{ .cells = &.{ .{ .value = .{ .int64 = 0 } }, value } };
+        try t.expectEqual(m.Truth.unknown, try plan.predicateTruth(row));
+        try t.expect(!try plan.matches(row));
+    }
+    for ([_][]const u8{
+        "SELECT * FROM items WHERE id = 1 AND value = 'x'",
+        "SELECT * FROM items WHERE id = 0 OR value = 'x'",
+    }) |query| {
+        const compiled = try m.Sql.plan(t.allocator, query, src);
+        defer m.Sql.deinit(t.allocator, &compiled);
+        try t.expectError(error.QueryTypeError, compiled.matches(.{ .cells = &.{ .{ .value = .{ .int64 = 0 } }, .{ .type_error = .int64 } } }));
+    }
+    try t.expectError(error.UnknownQualifier, m.Sql.plan(t.allocator, "SELECT * FROM items AS x WHERE x.id = 0 OR items.id = 1", src));
+    try t.expectError(error.UnsupportedNullComparison, m.Sql.plan(t.allocator, "SELECT * FROM items WHERE value IS NULL OR id = NULL", src));
+}
+
+test "completed selections reject collisions and free owned atoms on binding failure" {
+    const columns = [_]m.Column{
+        .{ .name = try m.Name.init("id"), .type = .int64 },
+        .{ .name = try m.Name.init("value"), .type = .utf8 },
+    };
+    const src = try source(&columns);
+    for ([_][]const u8{
+        "SELECT id, id FROM items WHERE value = 'owned'",
+        "SELECT id AS key, id AS key FROM items WHERE value = 'first' OR value = 'second'",
+        "SELECT count(*) FROM (SELECT id, id FROM items WHERE value = 'owned') AS chosen",
+    }) |text| try t.expectError(error.DuplicateProjection, m.Sql.plan(t.allocator, text, src));
+    for ([_][]const u8{
+        "SELECT id AS key, value AS key FROM items WHERE value = 'owned'",
+        "SELECT count(*) FROM (SELECT id AS key, value AS key FROM items WHERE value = 'owned') AS chosen",
+    }) |text| try t.expectError(error.DuplicateColumn, m.Sql.plan(t.allocator, text, src));
+}

@@ -26,15 +26,53 @@ static class Program
         if(golden) return new Q.DocumentSource(await Reference(r,ulong.MaxValue,3,42),[new(new("title",Q.Type.Utf8),["title"]),new(new("body",Q.Type.Utf8),["body"],mode:Q.ProjectionMode.Text)]);
         return new Q.DocumentSource(await Reference(r,17,1,13),[new(new("value",Q.Type.Utf8),relative:true),new(new("counter",Q.Type.UInt64),relative:true,mode:Q.ProjectionMode.ElementCounter),new(new("replica",Q.Type.UInt64),relative:true,mode:Q.ProjectionMode.ElementReplica),new(new("optional",Q.Type.Utf8),["optional"])],["items"]);
     }
-    static Task<Q.Bundle> Bundle(Q.Source source,string kind,bool golden,bool named=false) => Q.Bundle.PrepareAsync(source,
-        new(golden?[1,0]:kind=="document"?[0,1,2,3]:[1],new Q.Compare((byte)(golden?1:kind=="document"?0:1),QueryComparison.Ne,golden&&kind=="kv"?new Q.Unsigned(ulong.MaxValue):new Q.Text(new string('x',512))),limit:golden?ulong.MaxValue:null,outputNames:named?(golden?["Result",null]:kind=="document"?["Result",null,null,null]:["Result"]):null),new(1000,golden?500u:100u,1048576));
+    static Task<Q.Bundle> Bundle(Q.Source source,string kind,bool golden,bool named=false,bool compound=false) {
+        byte column=(byte)(golden?1:kind=="document"?0:1);
+        var comparison=new Q.Compare(column,QueryComparison.Ne,golden&&kind=="kv"?new Q.Unsigned(ulong.MaxValue):new Q.Text(new string('x',512)));
+        Q.Predicate predicate=comparison;
+        if(compound){
+            Check(!golden);string ceiling="東京🙂/"+new string('x',kind=="document"?64:128)+(kind=="document"?"/10":"/39");
+            predicate=new Q.PredicateProgram([Atom(comparison),Atom(new Q.Compare(column,QueryComparison.Ge,new Q.Text(ceiling))),
+                Atom(new Q.IsState(column,Q.State.Null)),new Q.PredicateOperation(Q.PredicateOperator.Disjunction),
+                new Q.PredicateOperation(Q.PredicateOperator.Negate),new Q.PredicateOperation(Q.PredicateOperator.Conjunction)]);
+        }
+        return Q.Bundle.PrepareAsync(source,new(golden?[1,0]:kind=="document"?[0,1,2,3]:[1],predicate,limit:golden?ulong.MaxValue:null,
+            outputNames:named?(golden?["Result",null]:kind=="document"?["Result",null,null,null]:["Result"]):null),new(1000,golden?500u:100u,1048576));
+    }
     static void Scalar(Q.Scalar scalar,int col) {
         bool valid=col switch { 0=>scalar is Q.Signed { Value:long.MinValue },1=>scalar is Q.Unsigned { Value:ulong.MaxValue },2=>scalar is Q.Floating f && BitConverter.DoubleToInt64Bits(f.Value)==long.MinValue,
             3=>scalar is Q.BooleanValue { Value:false },4=>scalar is Q.Text { Value:"café é 東京🙂" },5=>scalar is Q.Binary b && b.Value.Copy().SequenceEqual(new byte[]{0,255,128}),_=>false }; Check(valid);
     }
+    static Q.PredicateAtomInstruction Atom(Q.PredicateAtom value) => new(value);
+    static async Task BooleanCodecs(JsonNode config) {
+        var fixtures=JsonNode.Parse(File.ReadAllText(Text(config,"boolean")))!.AsArray();
+        Q.Scalar[] values=[new Q.Signed(long.MinValue),new Q.Unsigned(ulong.MaxValue),new Q.Floating(-0.0),new Q.BooleanValue(true),new Q.Text("café é 🙂"),new Q.Binary(new Bytes(new byte[]{0,255,128})),new Q.Text(new string('x',512))];
+        for(int i=0;i<fixtures.Count;i++) {
+            var fixture=fixtures[i]!;
+            Q.Source source=new Q.KvSource(new(46,7),new Bytes([]),new(Enum.GetValues<Q.Type>()[fixture["type"]!.GetValue<int>()-1]),new(Q.Type.UInt64));
+            List<Q.PredicateInstruction> instructions=[];
+            if(i<7)instructions.AddRange([Atom(new Q.Compare(0,QueryComparison.Eq,values[i])),new Q.PredicateOperation(Q.PredicateOperator.Negate),Atom(new Q.IsState(0,Q.State.Null)),new Q.PredicateOperation(Q.PredicateOperator.Disjunction)]);
+            else if(Text(fixture,"name")=="all-and-not-null")instructions.AddRange([Atom(new Q.All()),Atom(new Q.IsState(0,Q.State.Null)),new Q.PredicateOperation(Q.PredicateOperator.Negate),new Q.PredicateOperation(Q.PredicateOperator.Conjunction)]);
+            else { instructions.Add(Atom(new Q.All())); instructions.AddRange(Enumerable.Repeat<Q.PredicateInstruction>(new Q.PredicateOperation(Q.PredicateOperator.Negate),63)); }
+            var program=new Q.PredicateProgram(instructions); instructions.Clear();
+            var bundle=await Q.Bundle.PrepareAsync(source,new([0],program),new(1000,500,1048576));
+            Check(Hex(bundle.Bytes)==Text(fixture,"wire_hex"));
+        }
+        Q.Source signedSource=new Q.KvSource(new(46,7),new Bytes([]),new(Q.Type.Int64),new(Q.Type.UInt64));
+        List<Q.PredicateInstruction> oversized=[Atom(new Q.All())]; oversized.AddRange(Enumerable.Repeat<Q.PredicateInstruction>(new Q.PredicateOperation(Q.PredicateOperator.Negate),64));
+        Q.PredicateInstruction[][] invalid=[[],[new Q.PredicateOperation(Q.PredicateOperator.Negate)],[Atom(new Q.All()),Atom(new Q.All())],oversized.ToArray(),
+            [Atom(new Q.IsState(7,Q.State.Null))],[Atom(new Q.Compare(0,QueryComparison.Eq,new Q.Text("wrong type")))]];
+        foreach(var instructions in invalid) {
+            bool rejected=false;
+            try { await Q.Bundle.PrepareAsync(signedSource,new([0],new Q.PredicateProgram(instructions)),new(1,1,1024)); }
+            catch(ArgumentException) { rejected=true; } catch(TransitException) { rejected=true; }
+            Check(rejected);
+        }
+    }
     static async Task Codecs(JsonNode config) {
         var fixtures=JsonNode.Parse(File.ReadAllText(Text(config,"bundles")))!.AsArray();
         for(int i=0;i<3;i++) { string kind=new[]{"kv","table","document"}[i]; Check(Hex((await Bundle(await Source(new(46,7),kind,true),kind,true)).Bytes)==Text(fixtures[i]!,"wire_hex")); Check(Hex((await Bundle(await Source(new(46,7),kind,true),kind,true,true)).Bytes)==Text(fixtures[i]!,"named_wire_hex")); }
+        await BooleanCodecs(config);
         Q.Column[] columns=Enum.GetValues<Q.Type>().Select(type => new Q.Column(type.ToString().ToLowerInvariant(),type)).ToArray();
         byte[] input=Read(config,"arrow").Copy(); var rows=await Q.DecodeArrowAsync(columns,new Bytes(input),5); Array.Fill(input,(byte)0); Check(rows.Count==5);
         for(int i=0;i<6;i++) {
@@ -43,9 +81,20 @@ static class Program
         }
         Check((await Q.DecodeArrowAsync(columns,Read(config,"empty"),0)).Count==0);
         bool rejected=false; try { await Q.DecodeArrowAsync(columns,Read(config,"malformed"),5); }catch(TransitException) { rejected=true; } Check(rejected);
-        Console.WriteLine(".NET installed unified codecs: three sources, six types, five states, immutable values and malformed rejection passed");
+        Console.WriteLine(".NET installed unified codecs: three sources, nine Boolean bundles, six types, five states, immutable values and malformed rejection passed");
     }
     static string Name(Enum value) => value.ToString() is "TypeError"?"type_error":value.ToString().ToLowerInvariant();
+    static JsonObject InspectedPredicate(Q.InspectedPredicate value) => value switch {
+        Q.InspectedAll=>Obj(("all",Obj())),
+        Q.InspectedState p=>Obj(("state",Obj(("column",p.Column),("value",Name(p.State))))),
+        Q.InspectedComparison p=>Obj(("compare",Obj(("column",p.Column),("op",Name(p.Comparison)),("type",Name(p.Type))))),
+        Q.InspectedProgram p=>Obj(("program",new JsonArray(p.Instructions.Select(v=>(JsonNode?)(v switch {
+            Q.InspectedAtomInstruction a=>Obj(("atom",InspectedPredicate(a.Atom))),
+            Q.InspectedOperation op=>Obj((Name(op.Operator),Obj())),
+            _=>throw new Exception("Unknown SQL instruction")
+        })).ToArray()))),
+        _=>throw new Exception("Unknown SQL inspection predicate")
+    };
     static JsonObject Inspection(Q.Inspection value) {
         JsonArray Columns(IReadOnlyList<Q.Column> values) => new(values.Select(v=>(JsonNode?)Obj(("name",v.Name),("type",Name(v.Type)))).ToArray());
         JsonArray Names(IEnumerable<string> values) => new(values.Select(v=>(JsonNode?)JsonValue.Create(v)).ToArray());
@@ -54,12 +103,7 @@ static class Program
         else if(value.Details is Q.TableListing tables) details=Obj(("tables",Names(tables.Names)));
         else {
             var plan=(Q.Explanation)value.Details;
-            JsonObject predicate=plan.Predicate switch {
-                Q.InspectedAll=>Obj(("all",Obj())),
-                Q.InspectedState p=>Obj(("state",Obj(("column",p.Column),("value",Name(p.State))))),
-                Q.InspectedComparison p=>Obj(("compare",Obj(("column",p.Column),("op",Name(p.Comparison)),("type",Name(p.Type))))),
-                _=>throw new Exception("Unknown SQL inspection predicate")
-            };
+            JsonObject predicate=InspectedPredicate(plan.Predicate);
             details=Obj(("explanation",Obj(("operators",Names(plan.Operators.Select(v=>Name(v)))),("predicate",predicate),("projection",Names(plan.Projection)),
                 ("limit",plan.Limit?.ToString()),("aggregate",Name(plan.Aggregate)),("columns",Columns(plan.Columns)),
                 ("budgets",Obj(("pages",plan.Budgets.Pages.ToString()),("segments",plan.Budgets.Segments.ToString()),("result_bytes",plan.Budgets.ResultBytes.ToString()))))));
@@ -71,7 +115,7 @@ static class Program
     static async Task Serve(JsonNode config) {
         var c=config["connection"]!; ulong realm=Number(c,"realm"); ResourceRef resource=new(realm,Number(c,"resource"));
         Q.Connection connection=new(new(realm,Number(c,"source")),resource,new(realm,Number(c,"requester")),new(realm,Number(c,"requests")));
-        string kind=Text(config,"kind"); var source=await Source(resource,kind,false); Check((await Bundle(source,kind,false,true)).Bytes.Copy().SequenceEqual(Read(config,"bundle").Copy()));
+        string kind=Text(config,"kind"); var source=await Source(resource,kind,false); Check((await Bundle(source,kind,false,true,config["compound"]!.GetValue<bool>())).Bytes.Copy().SequenceEqual(Read(config,"bundle").Copy()));
         Q.Page? saved=null;
         await using(var client=await Q.Client.OpenAsync(new(new Uri(Text(config,"url")),Profile.NativeV1,10000),new(realm,Number(c,"principal"),Text(config,"seed_file")),connection)) {
             var description=await client.DescribeAsync(source); Check(description.BundleBytes==16384 && description.BatchRows==8);

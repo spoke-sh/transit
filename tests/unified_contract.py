@@ -11,7 +11,8 @@ UPLOADS = ROOT / 'packages/zig/transit-query/src/fixtures/uploads.json'
 BUNDLES = ROOT / 'packages/zig/transit-query/src/fixtures/bundles.json'
 SOURCES = ROOT / 'packages/zig/transit-query/src/fixtures/sources.json'
 OUTPUT_NAMES = ROOT / 'packages/zig/transit-fuze/src/fixtures/output-names-v1.json'
-PLAN_DEFINITION = hashlib.sha256(b'transit.fuze.plan.v1.output-names.2026-09-30').digest()
+BOOLEAN_PLANS = ROOT / 'packages/zig/transit-fuze/src/fixtures/boolean-plans-v1.json'
+PLAN_DEFINITION = hashlib.sha256(b'transit.fuze.plan.v1.boolean-programs.2026-10-01').digest()
 
 
 def generate():
@@ -52,6 +53,21 @@ def output_names():
         cases.append(dict(name=label, projection=projection, output_names=aliases,
                           aggregate=['rows', 'count', 'sum'][aggregate], encoded=wire.hex(), columns=columns))
     return json.dumps(dict(version=1, definition=PLAN_DEFINITION.hex(), cases=cases), indent=2)+'\n'
+
+
+def boolean_plans():
+    cases = []
+    for fixture in json.loads(generate())['plans']:
+        atom = bytes.fromhex(fixture['wire_hex'])[51:]
+        assert atom[:3] == bytes([2, 1, 1])
+        # NOT (value = literal) OR value IS NULL; preserve all scalar encodings.
+        atom = bytes([2, 0, 0]) + atom[3:]
+        instructions = atom + bytes([3, 1, 0, 1, 5])
+        wire = b'FZP1' + PLAN_DEFINITION + bytes([0, 1, 0, 0, 0]) + struct.pack('<Q', 0)
+        wire += bytes([3, 4]) + instructions
+        cases.append(dict(name=fixture['name'], type=fixture['type'], wire_hex=wire.hex(),
+                          digest=hashlib.sha256(b'transit.fuze.plan.v1\0' + wire).hexdigest()))
+    return json.dumps(dict(version=1, cases=cases), indent=2) + '\n'
 
 
 def sources():
@@ -114,6 +130,7 @@ if __name__ == '__main__':
         BUNDLES.write_text(bundles())
         UPLOADS.write_text(uploads())
         OUTPUT_NAMES.write_text(output_names())
-    elif sys.argv[1:] or FIXTURE.read_text() != generate() or SOURCES.read_text() != sources() or BUNDLES.read_text() != bundles() or UPLOADS.read_text() != uploads() or OUTPUT_NAMES.read_text() != output_names():
+        BOOLEAN_PLANS.write_text(boolean_plans())
+    elif sys.argv[1:] or FIXTURE.read_text() != generate() or SOURCES.read_text() != sources() or BUNDLES.read_text() != bundles() or UPLOADS.read_text() != uploads() or OUTPUT_NAMES.read_text() != output_names() or BOOLEAN_PLANS.read_text() != boolean_plans():
         raise SystemExit('Unified query fixtures differ; review and regenerate explicitly')
     print('Unified query fixtures: independent schemas, source definitions and full-width/larger FZP1 plans passed.')

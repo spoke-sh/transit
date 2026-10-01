@@ -8,10 +8,19 @@ the original Table query profile remains separate.
 `KvSource` declares two versioned decoders. `TableSource` binds its ID/schema.
 `DocumentSource` binds an accepted reference and optional list expansion with
 bounded scalar/path/text projections. `Bundle.PrepareAsync` accepts a `Plan` and
-explicit positive `Budgets`. Predicates are `All`, `IsState` or typed `Compare`.
+explicit positive `Budgets`. Predicates are `All`, `IsState`, typed `Compare` or `PredicateProgram`.
 Namespaces, unsigned values and progress use `ulong`; signed scalars use `long`.
 Floats preserve finite double bits, including negative zero. Immutable `Bytes`
 own binary values and IPC without exposing mutable buffers.
+
+`PredicateProgram` copies one to 64 `PredicateInstruction` values into a
+read-only collection. `PredicateAtomInstruction` wraps `All`, `IsState` or
+`Compare`; `PredicateOperation` carries `PredicateOperator.Negate`, `Conjunction`
+or `Disjunction`. Instructions use postfix order: two atoms followed by
+`Conjunction` express AND. Programs cannot nest. Shared Zig validates the full
+program against its source, preserves eager error order and null/missing unknown,
+and selects only true. `InspectedProgram` owns redacted `InspectedAtomInstruction`
+and `InspectedOperation` values without retaining native buffers.
 
 `Client.OpenAsync(config, credential, connection)` creates a bounded native worker
 without activating a process. `DescribeAsync` checks current source policy.

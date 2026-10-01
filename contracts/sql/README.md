@@ -76,7 +76,7 @@ remain outside this evidence.
 
 ## Grammar coverage
 
-The read grammar permits one Table, one optional typed comparison or exact cell-state test,
+The read grammar permits one source, an optional Boolean predicate over typed comparisons and exact cell-state tests,
 one to eight columns or star, row output, `COUNT(*)`, and `SUM(column)`. Identifiers
 fold to lowercase unless quoted. Column qualification is optional; `FROM source
 AS alias` makes the alias its column qualifier. `AS` is required. The restricted
@@ -88,12 +88,18 @@ escape quotes by doubling them; bytea literals use `'\x00ff'::bytea`. Keywords
 are case-insensitive. Line/block comments and one optional terminator are admitted.
 The production profile additionally bounds names, literals, statement size and
 comment nesting; grammar acceptance alone does not validate those budgets.
+NOT binds before AND, which binds before OR; parentheses override precedence.
+The production parser admits 64 postfix instructions and a 64-entry stack for
+pending operators/group delimiters. It preserves source order and owns compact
+literal storage within the statement byte bound. Native and local file SQL execute these
+programs with the same three-valued, eager first-error semantics. Each plan
+profile validates atoms against its own admitted logical types and byte budgets.
 
 `SELECT count(*) FROM (SELECT * FROM items WHERE id > 0 LIMIT 2) AS chosen`
 spells Fuze's filter → limit → aggregate order. A direct aggregate's outer
 `LIMIT` is syntactically recognized but cannot be lowered as an input limit.
 No optimizer rewrite is implied. General subqueries, joins, grouping, sorting,
-compound predicates, expression arithmetic, general casts,
+expression arithmetic, general casts,
 `COUNT(column)` and adjacent-string concatenation
 are outside the grammar. `AS OF` remains a separately checked fragment.
 
@@ -123,12 +129,12 @@ compiler continues to reject those statements as executable queries.
 
 [FuzeRewrite.lean](FuzeRewrite.lean) has four complete Lean 4.29.1 theorems:
 
-| Theorem | Exact claim / premises | Printed axioms |
-| --- | --- | --- |
-| `filter_reorder_preserves_selection` | Reordering two total boolean predicates preserves selected rows and order | `propext` |
-| `projection_pruning_preserves_rows` | Final projection factors through retained fields, preserving output values and field/row order | `propext` |
-| `predicate_pushdown_through_projection` | A fallible predicate factors through a total projection; moving it before projection preserves rows and the exact first error | None |
-| `pushdown_preserves_downstream_errors` | The same downstream fallible consumer receives the same rows or earlier error after that pushdown | None |
+| Theorem                                 | Exact claim / premises                                                                                                        | Printed axioms |
+| --------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- | -------------- |
+| `filter_reorder_preserves_selection`    | Reordering two total boolean predicates preserves selected rows and order                                                     | `propext`      |
+| `projection_pruning_preserves_rows`     | Final projection factors through retained fields, preserving output values and field/row order                                | `propext`      |
+| `predicate_pushdown_through_projection` | A fallible predicate factors through a total projection; moving it before projection preserves rows and the exact first error | None           |
+| `pushdown_preserves_downstream_errors`  | The same downstream fallible consumer receives the same rows or earlier error after that pushdown                             | None           |
 
 The recipe requires these named theorems, rejects Lean errors/warnings and
 `sorryAx`, and checks the printed axiom sets. No deferred theorem is represented

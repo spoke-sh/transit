@@ -208,14 +208,43 @@ class Compare:
             'op': self.comparison.value, 'value': self.value._wire()}}
 
 
+class PredicateOperator(Enum):
+    NEGATE = 'negate'
+    CONJUNCTION = 'conjunction'
+    DISJUNCTION = 'disjunction'
+
+
+@dataclass(frozen=True, slots=True)
+class PredicateAtom:
+    predicate: IsState | Compare | None = None
+    def _wire(self) -> object:
+        if self.predicate is not None and not isinstance(self.predicate, (IsState, Compare)):
+            raise TypeError('Expected a non-program predicate atom')
+        return {'atom': {'all': {}} if self.predicate is None else self.predicate._wire()}
+
+
+@dataclass(frozen=True, slots=True)
+class PredicateProgram:
+    """Immutable postfix instructions; shared Zig validates shape and types."""
+    instructions: tuple[PredicateAtom | PredicateOperator, ...]
+    def _wire(self) -> object:
+        if not isinstance(self.instructions, tuple) or not 1 <= len(self.instructions) <= 64:
+            raise TypeError('Expected one to 64 immutable predicate instructions')
+        if any(not isinstance(v, (PredicateAtom, PredicateOperator)) for v in self.instructions):
+            raise TypeError('Expected a predicate atom or operator')
+        return {'program': [{v.value: {}} if isinstance(v, PredicateOperator) else v._wire() for v in self.instructions]}
+
+
 @dataclass(frozen=True, slots=True)
 class Plan:
     projection: tuple[int, ...]
-    predicate: IsState | Compare | None = None
+    predicate: IsState | Compare | PredicateProgram | None = None
     limit: int | None = None
     aggregate: Aggregate = Aggregate.ROWS
     output_names: tuple[str | None, ...] | None = None
     def _wire(self) -> object:
+        if self.predicate is not None and not isinstance(self.predicate, (IsState, Compare, PredicateProgram)):
+            raise TypeError('Expected a query predicate')
         if not isinstance(self.projection, tuple) or not 1 <= len(self.projection) <= 8:
             raise TypeError('Expected one to eight immutable projection indices')
         if self.output_names is not None and (not isinstance(self.output_names, tuple) or len(self.output_names) != len(self.projection)):
@@ -357,6 +386,57 @@ class InspectedComparison:
 
 
 @dataclass(frozen=True, slots=True)
+class InspectedAtom:
+    predicate: InspectedState | InspectedComparison | None
+
+
+@dataclass(frozen=True, slots=True)
+class InspectedProgram:
+    instructions: tuple[InspectedAtom | PredicateOperator, ...]
+
+
+def _inspected_atom(value: dict[str, Any]) -> InspectedState | InspectedComparison | None:
+    if not isinstance(value, dict) or len(value) != 1:
+        raise IncompatibleNative('Invalid inspected atom')
+    if 'all' in value and value['all'] == {}: return None
+    if 'state' in value:
+        v = value['state']
+        return InspectedState(v['column'], State(v['value']))
+    if 'compare' in value:
+        v = value['compare']
+        return InspectedComparison(v['column'], Comparison(v['op']), Type(v['type']))
+    raise IncompatibleNative('Invalid inspected atom')
+
+
+def _inspected_predicate(value: dict[str, Any]) -> InspectedState | InspectedComparison | InspectedProgram | None:
+    if not isinstance(value, dict) or len(value) != 1:
+        raise IncompatibleNative('Invalid inspected predicate')
+    if 'program' not in value: return _inspected_atom(value)
+    program = value['program']
+    if not isinstance(program, list) or not 1 <= len(program) <= 64:
+        raise IncompatibleNative('Invalid inspected program size')
+    instructions: list[InspectedAtom | PredicateOperator] = []
+    depth = 0
+    for instruction in program:
+        if not isinstance(instruction, dict) or len(instruction) != 1:
+            raise IncompatibleNative('Invalid inspected instruction')
+        if 'atom' in instruction:
+            instructions.append(InspectedAtom(_inspected_atom(instruction['atom'])))
+            depth += 1
+        else:
+            name, payload = next(iter(instruction.items()))
+            try: operator = PredicateOperator(name)
+            except ValueError as error: raise IncompatibleNative('Invalid inspected operator') from error
+            needed = 1 if operator is PredicateOperator.NEGATE else 2
+            if payload != {} or depth < needed:
+                raise IncompatibleNative('Invalid inspected program shape')
+            depth -= needed - 1
+            instructions.append(operator)
+    if depth != 1: raise IncompatibleNative('Invalid inspected program shape')
+    return InspectedProgram(tuple(instructions))
+
+
+@dataclass(frozen=True, slots=True)
 class SourceDescription:
     columns: tuple[Column, ...]
 
@@ -369,7 +449,7 @@ class TableListing:
 @dataclass(frozen=True, slots=True)
 class Explanation:
     operators: tuple[str, ...]
-    predicate: InspectedState | InspectedComparison | None
+    predicate: InspectedState | InspectedComparison | InspectedProgram | None
     projection: tuple[str, ...]
     limit: int | None
     aggregate: Aggregate
@@ -404,17 +484,7 @@ def _inspection(value: dict[str, Any], resource: ResourceRef) -> Inspection:
         result = TableListing(tuple(details['tables']))
     elif 'explanation' in details:
         plan = details['explanation']
-        predicate = plan['predicate']
-        inspected: InspectedState | InspectedComparison | None
-        if len(predicate) != 1: raise IncompatibleNative('Invalid inspected predicate')
-        if 'all' in predicate: inspected = None
-        elif 'state' in predicate:
-            v = predicate['state']
-            inspected = InspectedState(v['column'], State(v['value']))
-        elif 'compare' in predicate:
-            v = predicate['compare']
-            inspected = InspectedComparison(v['column'], Comparison(v['op']), Type(v['type']))
-        else: raise IncompatibleNative('Invalid inspected predicate')
+        inspected = _inspected_predicate(plan['predicate'])
         operators = tuple(plan['operators'])
         if not 2 <= len(operators) <= 4 or any(op not in ('scan', 'filter', 'limit', 'project', 'count', 'sum') for op in operators):
             raise IncompatibleNative('Invalid inspected operators')

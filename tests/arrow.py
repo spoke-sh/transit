@@ -181,7 +181,7 @@ def run(binary):
             # Independent canonical plan, source basis and progress encoding.
             projection = [1] if name in ("count", "sum") else [0, 1]
             limit = 37 if name == "limit" else 0 if name == "empty" else None
-            definition = hashlib.sha256(b'transit.fuze.plan.v1.output-names.2026-09-30').digest()
+            definition = hashlib.sha256(b'transit.fuze.plan.v1.boolean-programs.2026-10-01').digest()
             logical = (b"FZP1" + definition + bytes([{"count": 1, "sum": 2}.get(name, 0), len(projection), *projection])
                 + bytes(len(projection)) + bytes([limit is not None])
                 + struct.pack("<Q", limit or 0)

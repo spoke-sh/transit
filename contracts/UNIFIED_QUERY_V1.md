@@ -13,11 +13,11 @@ Document. The `transit-query` package composes Station's current/retained reader
 and the accepted Document reader; Document never imports query execution.
 A source definition declares one resource and exactly one of these adapters:
 
-| Source | Declared decoding / projection | Ordering |
-| --- | --- | --- |
-| KV | Explicit prefix and independently versioned key/value decoders: binary, UTF-8, little-endian signed/unsigned 64-bit, finite IEEE float64 or canonical boolean byte | Unsigned byte order of keys |
-| Table | Exact Table ID and schema fingerprint; key and nullable value columns | Signed primary-key order |
-| Document | Exact document/epoch/type/change-format/accepted revision; named paths, scalar or materialized-text projections, optional list expansion | One root row, or accepted sequence traversal order |
+| Source   | Declared decoding / projection                                                                                                                                     | Ordering                                           |
+| -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------- |
+| KV       | Explicit prefix and independently versioned key/value decoders: binary, UTF-8, little-endian signed/unsigned 64-bit, finite IEEE float64 or canonical boolean byte | Unsigned byte order of keys                        |
+| Table    | Exact Table ID and schema fingerprint; key and nullable value columns                                                                                              | Signed primary-key order                           |
+| Document | Exact document/epoch/type/change-format/accepted revision; named paths, scalar or materialized-text projections, optional list expansion                           | One root row, or accepted sequence traversal order |
 
 There is no KV schema inference or application callback. A decoder mismatch is a
 `type_error` cell. A missing Document path, explicit null and unresolved register
@@ -54,10 +54,22 @@ silently become strings or nulls. Integers retain all 64 bits; finite floating
 point preserves negative zero; text is UTF-8 and lengths are bytes unless the
 operation explicitly declares Unicode scalar traversal.
 
-The initial plan supports ordered scan, one typed comparison or explicit state
-predicate, ordered projection, whole-query limit, row count and checked int64
-sum. A value comparison treats missing/null as nonmatching and rejects type
-errors/conflicts. State predicates allow callers to select those states directly.
+Typed plans support ordered scan, typed comparison and explicit state predicates,
+bounded Boolean composition, ordered projection, whole-query limit, row count and
+checked int64 sum. Value comparisons preserve unknown for missing/null and reject
+type errors/conflicts. Only true selects a row. State predicates select the
+named state as true or false. A Boolean program contains one to 64 postfix
+instructions: an atom, NOT (`negate`), AND (`conjunction`) or OR (`disjunction`).
+Atoms are all-true, exact state tests or existing typed comparisons. NOT preserves
+unknown. AND is false if either value is false, true if both are true, otherwise
+unknown. OR is true if either value is true, false if both are false, otherwise
+unknown. Operands evaluate eagerly in instruction order; the first error aborts
+evaluation even when another operand determines the Boolean result. Validation
+checks every atom before source processing. Programs cannot contain jumps,
+references, recursion or nested programs; stack underflow and multiple final
+values reject. Evaluation uses a fixed 64-byte truth stack. Instruction storage
+is owned inline in the plan; text/binary literals keep their existing borrowed
+lifetime. Copying a plan does not borrow its original instruction storage.
 Sum ignores missing/null, rejects error/conflict and checks overflow in source
 order across page boundaries. Count includes selected rows, regardless of cell
 state. Limit is applied after filtering and before aggregation. No rewrite,
@@ -92,13 +104,27 @@ beyond the output width must be empty. Duplicate output names reject; aliases
 never rename the source schema or confer access to another source.
 
 The current `FZP1` encoding starts with its four-byte magic and the mandatory
-32-byte SHA-256 of `transit.fuze.plan.v1.output-names.2026-09-30`. Missing or
+32-byte SHA-256 of `transit.fuze.plan.v1.boolean-programs.2026-10-01`. Missing or
 foreign plan definitions reject before the plan can bind or execute. Next come
 the aggregate byte, projection-count byte, and that many source-column bytes.
 Each output position then has a one-byte name length and exactly that many name
 bytes; zero means no explicit output name. The existing limit-present byte,
 little-endian u64 limit and predicate encoding follow. Absent limits retain a
 zero value. Canonical decoding rejects trailing bytes and malformed names.
+
+Predicate tags are 0 (all), 1 (state), 2 (compare) and 3 (program). A state atom
+contains a column byte and state byte. A comparison contains a column byte,
+comparison byte and scalar-type byte followed by the scalar payload: little-endian
+8-byte signed/unsigned integer or float bits, one canonical Boolean byte, or a
+little-endian u32 length followed by UTF-8/binary bytes. A program contains a
+one-byte instruction count and exactly that many instructions. Instruction tags
+0, 1 and 2 use the atom encodings above; tags 3, 4 and 5 are payload-free negate,
+conjunction and disjunction. An instruction cannot contain a program. Encodings
+preserve instruction order without simplification; a one-atom program remains
+distinct from a direct atom. Decoding is allocator-free: instructions and output
+names are owned, while projections and variable-width literals borrow the input.
+Truncation, invalid tags, noncanonical scalars and programs exceeding either the
+instruction or total plan-byte budget reject before binding.
 
 Output names participate in the plan fingerprint and the output-schema
 fingerprint. Execution, EXPLAIN and Arrow use the same validated output schema,
@@ -212,6 +238,19 @@ named vectors preserve null slots and own their text. Decode → prepare preserv
 canonical bundle bytes and Publication identity. Compiled workspace metadata
 uses this same plan representation. SQL names retain their separate 16-byte bound.
 
+Neutral predicates also admit `{"program":[...]}`. Each instruction is
+`{"atom":<all/state/compare predicate>}`, `{"negate":{}}`, `{"conjunction":{}}`
+or `{"disjunction":{}}`. The shared codec enforces one to 64 instructions,
+complete postfix shape, exact scalar types and source column bounds. Decoding
+copies instructions and literal values into the caller's result allocator;
+preparing that result preserves canonical bytes and Publication identity.
+Generated schemas derive the program bound from the Fuze instruction owner,
+separately from the eight-column and eight-row bounds. Native SQL lowers Boolean
+composition to this program representation through the shared native/port codec.
+All ten language SDKs expose typed program constructors and inspected programs.
+C/C++ plan and explanation layouts require the current shared ABI definition and
+matching headers/libraries; this host-layout cutover does not change FZP1 bytes.
+
 Input JSON is bounded at 256 KiB; source, plan, bundle, scalar, page and Arrow
 limits still apply independently. Native outputs are owned buffers that callers
 release explicitly; port responses copy them before native release. Pure local
@@ -226,8 +265,8 @@ The v1 SQL compiler reuses the complete-input SQL parser and reference grammar.
 One configured SQL name resolves to an explicit authorized source definition;
 KV decoders and Document paths/list/text projections are declared in that
 definition, never inferred from SQL or application values. This profile supports
-star (all declared columns), one to eight ordered named columns, one typed comparison
-or an exact cell-state test, row output, `COUNT(*)`, and checked int64 `SUM(column)`. The existing
+star (all declared columns), one to eight ordered named columns, Boolean
+composition of typed comparisons and exact cell-state tests, row output, `COUNT(*)`, and checked int64 `SUM(column)`. The existing
 restricted aggregate subquery preserves filter → limit → aggregate order.
 
 `FROM source AS alias` supplies a query-local qualifier. Source resolution still
@@ -252,7 +291,14 @@ V1 limits use the plan's full u64 range; an absent limit stays unlimited, subjec
 to explicit execution budgets. An aggregate's outer LIMIT still rejects.
 `IS NULL`, `IS MISSING`, `IS VALUE`, `IS TYPE_ERROR` and `IS CONFLICT` select
 exactly the named state. Missing values do not become null;
-comparisons skip missing/null and fail on type errors or unresolved conflicts.
+comparisons on missing/null produce unknown and fail on type errors or unresolved
+conflicts. NOT preserves unknown; AND/OR use three-valued truth, and only true
+selects a row. NOT binds before AND, which binds before OR; grouping overrides
+precedence. SQL preserves source-order eager atom evaluation and the first error,
+including errors after a determining Boolean operand. A program has at most 64
+instructions, counting each atom and each Boolean operator. The parser also
+bounds pending operators/group delimiters to 64 entries. Redundant grouping of
+one atom preserves that atom's canonical encoding; operators are never simplified.
 Comparisons require an exact literal type. The grammar has int64, boolean,
 UTF-8 and binary literals, plus string literals with `::uint64` or `::float64`.
 Uint64 accepts decimal digits through 18446744073709551615; float64 accepts

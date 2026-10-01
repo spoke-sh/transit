@@ -12,6 +12,24 @@ path/list/text projections. Six scalar types preserve full-width signed/unsigned
 integers, finite double bits, bool, UTF-8 and arbitrary bytes. Input pointers borrow
 only through the synchronous call. Zig owns encoding and semantic validation.
 
+Set the plan predicate to `TRANSIT_UNIFIED_PROGRAM` and supply one to 64
+`transit_station_unified_instruction` values. `TRANSIT_UNIFIED_ATOM` carries an
+all-row, state or comparison atom; `TRANSIT_UNIFIED_NEGATE`,
+`TRANSIT_UNIFIED_CONJUNCTION` and `TRANSIT_UNIFIED_DISJUNCTION` combine them in
+postfix order. Programs cannot nest. The instruction array and scalar byte
+pointers borrow only until `prepare_bundle` returns; the bundle owns its encoded
+bytes. Shared Zig validates the complete stack, source columns and scalar types
+before encoding, preserving eager error order and unknown truth for null/missing.
+Only true selects a row. Single-atom plans require a null instruction pointer
+and zero instruction count.
+
+The current C plan and explanation layouts require matching headers, SDK libraries
+and native artifacts. Their ABI cutover replaces the shared v1 definition;
+older native builds and saved requests reject before use. Recover accepted work
+with its matching build before changing definitions. FZP1 program bytes are
+unchanged by this host API extension. See the
+[versioning policy](../../../../docs/reference/versioning.md).
+
 `transit_station_unified_open` takes a growing client config, explicit credential
 and source/resource/requester/request-resource connection. It owns a bounded
 native worker and copied credential; it acquires no process activation.
@@ -26,7 +44,8 @@ description/list/explanation details inline; copying it retains no client pointe
 and needs no destroy call. The response contains at most eight columns and four
 operators. The Table listing has zero or one names for the configured source.
 Explanation exposes predicate structure without literal values and preserves
-full-width limits and budgets. Inspection rechecks current authorization before
+full-width limits and budgets. A program explanation owns up to 64 tagged
+instructions and redacted atom names/types inline; it retains no native buffers. Inspection rechecks current authorization before
 returning, creates no snapshot and admits no query. Failure clears the output.
 
 For a positive namespace, call `prepare_next`, copy and persist the returned

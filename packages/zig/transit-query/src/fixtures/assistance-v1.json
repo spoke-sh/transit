@@ -60,6 +60,14 @@
     {"sql":"SELECT id AS key FROM items WHERE i","cursor":35,"start":34,"end":35,"items":["\"id\"","\"items\""]},
     {"sql":"SELECT id AS key FROM items AS x WHERE x.i","cursor":42,"start":41,"end":42,"items":["\"id\""]},
     {"sql":"SELECT id AS key FROM items AS x WHERE key.i","cursor":44,"start":43,"end":44,"items":[]},
-    {"sql":"SELECT id AS key FROM items WHERE key.i","cursor":39,"start":38,"end":39,"items":[]}
+    {"sql":"SELECT id AS key FROM items WHERE key.i","cursor":39,"start":38,"end":39,"items":[]},
+    {"sql":"SELECT * FROM items WHERE id = 1 A","cursor":34,"start":33,"end":34,"items":["AND"]},
+    {"sql":"SELECT * FROM items WHERE id = 1 O","cursor":34,"start":33,"end":34,"items":["OR"]},
+    {"sql":"SELECT * FROM items WHERE N","cursor":27,"start":26,"end":27,"items":["NOT"]},
+    {"sql":"SELECT * FROM items WHERE id = 1 AND N","cursor":38,"start":37,"end":38,"items":["NOT"]},
+    {"sql":"SELECT * FROM items WHERE NOT (id = 1 O","cursor":39,"start":38,"end":39,"items":["OR"]},
+    {"sql":"SELECT * FROM items WHERE id = 1 OR label = ","cursor":44,"start":44,"end":44,"items":["''"]},
+    {"sql":"SELECT * FROM items AS x WHERE x.id = 1 AND x.l","cursor":47,"start":46,"end":47,"items":["\"label\""]},
+    {"sql":"SELECT * FROM items AS x WHERE x.id = 1 OR items.l","cursor":50,"start":49,"end":50,"items":[]}
   ]
 }

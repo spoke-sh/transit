@@ -20,12 +20,12 @@ def fixture():
     maximum = (1 << 64) - 1
     scope = {'realm': 49, 'application': 9, 'pid': 17, 'resource': 19, 'namespace': '23'}
     payload = b'STN1\x01' + b'\x00' * 8 + b'AP1i\x04' + struct.pack('<Q', maximum)
-    request = {'version': 1, 'definition': '8629e1618a4f97ac07d5b4b454249a8d1b18eab9e969a9876345844ef4fa57fe', 'realm': 49, 'principal': 65537, 'sequence': 8,
+    request = {'version': 1, 'definition': 'b2a625681e95d8a208ebe65f4b7b86931b6582bdfcc9f85d66b043447b9473b9', 'realm': 49, 'principal': 65537, 'sequence': 8,
                'command': {'send': {'pid': 17, 'value': payload.hex()}}}
     keys = [key(9, 'c', 0, 0), key(9, 'p', 65537, 0), key(9, 'h', 0, 0),
             key(9, 'o', 65537, maximum), key(9, 'x', 65537, maximum), key(9, 'e', 65537, 83),
             (b'\x00P' + struct.pack('>IQ', 7, 23) + b'r' + struct.pack('>QI', maximum - 1, 0)).hex(), None]
-    query = {'version': 1, 'definition': '8629e1618a4f97ac07d5b4b454249a8d1b18eab9e969a9876345844ef4fa57fe', 'realm': 49, 'principal': 65537,
+    query = {'version': 1, 'definition': 'b2a625681e95d8a208ebe65f4b7b86931b6582bdfcc9f85d66b043447b9473b9', 'realm': 49, 'principal': 65537,
              'kind': {'read_entries': {'resource': 19, 'revision': None, 'view': None, 'keys': keys}}}
     return {'version': 1, 'command': {'scope': scope, 'principal': 65537, 'sequence': '8',
              'command': {'publish': str(maximum)}, 'digest': digest(b'transit.request.v1\x00', request)},

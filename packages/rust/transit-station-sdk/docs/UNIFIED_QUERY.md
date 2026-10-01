@@ -11,6 +11,15 @@ an exact table/schema, or `Source::Document` with an accepted reference and
 bounded projections. `Bundle::prepare` validates them and returns canonical owned
 bytes. This local operation grants no access and admits no work.
 
+`Predicate::Program(Vec<PredicateInstruction>)` accepts one to 64 owned postfix
+instructions. `PredicateInstruction::Atom` wraps `PredicateAtom::All`, `State`
+or `Compare`; `Negate`, `Conjunction` and `Disjunction` combine them. The atom
+type cannot contain another program. Shared Zig validates stack shape and types
+before encoding. Evaluation keeps instruction order, unknown truth and eager
+errors. EXPLAIN exposes owned `InspectedPredicate::Program` instructions with
+`InspectedAtom` structure and no literals. These host values are not durable
+state; preserve the resulting canonical bundle for query recovery.
+
 `Client::open(config, credential, connection)` binds a caller to source/requester
 PIDs and resources in one realm. It requires neither activation nor writer
 ownership. One owned worker runs native operations on the required stack. Methods

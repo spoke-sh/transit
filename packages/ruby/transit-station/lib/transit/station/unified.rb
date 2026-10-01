@@ -5,6 +5,7 @@ module Transit
     module Unified
       TYPES = %i[int64 uint64 float64 boolean utf8 binary].freeze
       STATES = %i[missing null type_error value conflict].freeze
+      PREDICATE_OPERATORS = %i[negate conjunction disjunction].freeze
       Scalar = Data.define(:type, :value) do
         def initialize(type:, value:)
           value = case type
@@ -98,11 +99,28 @@ module Transit
         end
         def wire = { 'compare' => { 'column' => column, 'op' => comparison.to_s, 'value' => value.wire } }
       end
+      PredicateAtom = Data.define(:predicate) do
+        def initialize(predicate: nil)
+          raise ArgumentError, 'Expected a non-program predicate atom' unless predicate.nil? || predicate.is_a?(IsState) || predicate.is_a?(Compare)
+          super(predicate: predicate)
+        end
+        def wire = { 'atom' => predicate&.wire || { 'all' => {} } }
+      end
+      PredicateProgram = Data.define(:instructions) do
+        def initialize(instructions:)
+          unless instructions.is_a?(Array) && instructions.length.between?(1, 64) &&
+              instructions.all? { |v| v.is_a?(PredicateAtom) || PREDICATE_OPERATORS.include?(v) }
+            raise ArgumentError, 'Expected one to 64 predicate atoms/operators'
+          end
+          super(instructions: instructions.dup.freeze)
+        end
+        def wire = { 'program' => instructions.map { |v| v.is_a?(PredicateAtom) ? v.wire : { v.to_s => {} } } }
+      end
       Plan = Data.define(:projection, :predicate, :limit, :aggregate, :output_names) do
         def initialize(projection:, predicate: nil, limit: nil, aggregate: :rows, output_names: nil)
           raise ArgumentError, 'Expected bounded projection' unless projection.is_a?(Array) && projection.length.between?(1, 8)
           raise ArgumentError, 'Output names must match the projection width' unless output_names.nil? || (output_names.is_a?(Array) && output_names.length == projection.length)
-          raise ArgumentError, 'Expected predicate' unless predicate.nil? || predicate.is_a?(IsState) || predicate.is_a?(Compare)
+          raise ArgumentError, 'Expected predicate' unless predicate.nil? || predicate.is_a?(IsState) || predicate.is_a?(Compare) || predicate.is_a?(PredicateProgram)
           raise ArgumentError, 'Expected aggregate' unless %i[rows count sum].include?(aggregate)
           super(projection: projection.map { |v| Internal.integer(v, min: 0, max: 7) }.freeze, predicate: predicate,
             limit: limit.nil? ? nil : Internal.integer(limit, min: 0, max: U64_MAX), aggregate: aggregate,
@@ -160,6 +178,8 @@ module Transit
       Description = Data.define(:resource_revision, :policy_revision, :limits, :active, :bundle_bytes, :segment_bytes, :batch_rows)
       InspectedState = Data.define(:column, :state)
       InspectedComparison = Data.define(:column, :comparison, :type)
+      InspectedAtom = Data.define(:predicate)
+      InspectedProgram = Data.define(:instructions)
       SourceDescription = Data.define(:columns)
       TableListing = Data.define(:names)
       Explanation = Data.define(:operators, :predicate, :projection, :limit, :aggregate, :columns, :budgets)
@@ -180,6 +200,44 @@ module Transit
           raise ArgumentError, 'Expected declared source' unless value.is_a?(KVSource) || value.is_a?(TableSource) || value.is_a?(DocumentSource)
         end
         def columns(values) = values.map { |c| Column.new(name: c.fetch('name'), type: c.fetch('type').to_sym) }.freeze
+        def inspected_atom(value)
+          raise IncompatibleNative, 'Invalid inspected atom' unless value.is_a?(Hash) && value.length == 1
+          kind, atom = value.first
+          case kind
+          when 'all'
+            raise IncompatibleNative, 'Invalid all atom' unless atom == {}
+            nil
+          when 'state' then InspectedState.new(column: Internal.text(atom.fetch('column'), 32).freeze, state: atom.fetch('value').to_sym)
+          when 'compare' then InspectedComparison.new(column: Internal.text(atom.fetch('column'), 32).freeze,
+            comparison: atom.fetch('op').to_sym, type: atom.fetch('type').to_sym)
+          else raise IncompatibleNative, 'Invalid inspected atom'
+          end
+        end
+        def inspected_predicate(value)
+          raise IncompatibleNative, 'Invalid inspected predicate' unless value.is_a?(Hash) && value.length == 1
+          return inspected_atom(value) unless value.key?('program')
+          program = value.fetch('program')
+          raise IncompatibleNative, 'Invalid inspected program size' unless program.is_a?(Array) && program.length.between?(1, 64)
+          depth = 0
+          instructions = program.map do |instruction|
+            raise IncompatibleNative, 'Invalid inspected instruction' unless instruction.is_a?(Hash) && instruction.length == 1
+            kind, payload = instruction.first
+            if kind == 'atom'
+              depth += 1
+              InspectedAtom.new(predicate: inspected_atom(payload))
+            else
+              operator = kind.to_sym
+              needed = operator == :negate ? 1 : 2
+              unless PREDICATE_OPERATORS.include?(operator) && payload == {} && depth >= needed
+                raise IncompatibleNative, 'Invalid inspected program shape'
+              end
+              depth -= needed - 1
+              operator
+            end
+          end
+          raise IncompatibleNative, 'Invalid inspected program shape' unless depth == 1
+          InspectedProgram.new(instructions: instructions.freeze)
+        end
         def inspection(v, resource)
           unless v.fetch('version') == 1 && v.fetch('scope') == 'configured_source' && v.fetch('resource') == resource.resource
             raise IncompatibleNative, 'Invalid SQL inspection scope'
@@ -189,14 +247,7 @@ module Transit
           when 'description' then SourceDescription.new(columns: columns(data.fetch('columns')))
           when 'tables' then TableListing.new(names: data.map { |name| Internal.text(name, 32).freeze }.freeze)
           when 'explanation'
-            kind, predicate = data.fetch('predicate').first
-            selection = case kind
-            when 'all' then nil
-            when 'state' then InspectedState.new(column: Internal.text(predicate.fetch('column'), 32).freeze, state: predicate.fetch('value').to_sym)
-            when 'compare' then InspectedComparison.new(column: Internal.text(predicate.fetch('column'), 32).freeze,
-              comparison: predicate.fetch('op').to_sym, type: predicate.fetch('type').to_sym)
-            else raise IncompatibleNative, 'Invalid inspected predicate'
-            end
+            selection = inspected_predicate(data.fetch('predicate'))
             limits = data.fetch('budgets')
             Explanation.new(operators: data.fetch('operators').map(&:to_sym).freeze, predicate: selection,
               projection: data.fetch('projection').map { |name| Internal.text(name, 32).freeze }.freeze,

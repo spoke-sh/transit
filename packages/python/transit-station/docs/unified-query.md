@@ -17,6 +17,17 @@ bundle = q.Bundle.prepare(source, q.Plan((1,),
     q.Budgets(pages=1000, segments=100, result_bytes=1_048_576))
 ```
 
+`PredicateProgram` accepts an immutable tuple of one to 64 postfix instructions.
+Wrap an `IsState`, `Compare` or unfiltered `None` in `PredicateAtom`; combine them
+with `PredicateOperator.NEGATE`, `CONJUNCTION` and `DISJUNCTION`. For example,
+`PredicateProgram((PredicateAtom(IsState(1, State.NULL)),
+PredicateOperator.NEGATE))` selects non-null cells. Shared Zig validates stack
+shape and every typed atom before producing a bundle. Evaluation is eager and
+ordered; null/missing comparison results remain unknown, and a determining
+operand does not suppress the other operand's error. Programs cannot nest.
+EXPLAIN returns an `InspectedProgram` with immutable `InspectedAtom` values and
+the same operators, excluding literals. Preparing a program admits no work.
+
 Opening `q.Client(url, principal, seed_file, connection)` loads only the explicit
 credential. `connection` binds source/requester processes and their resources in
 one realm; it needs no activation or writer ownership. Use a context manager or

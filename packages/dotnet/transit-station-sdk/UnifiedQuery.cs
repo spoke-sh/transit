@@ -96,9 +96,21 @@ public static class UnifiedQuery
         }
     }
     public abstract record Predicate { private protected Predicate() {} internal abstract JsonObject Wire(); }
-    public sealed record All : Predicate { internal override JsonObject Wire() => V.Obj(("all",V.Obj())); }
-    public sealed record IsState(byte Column,State State) : Predicate { internal override JsonObject Wire() => V.Obj(("state",V.Obj(("column",Index(Column)),("value",Name(State))))); }
-    public sealed record Compare(byte Column,QueryComparison Comparison,Scalar Value) : Predicate { internal override JsonObject Wire() => V.Obj(("compare",V.Obj(("column",Index(Column)),("op",Name(Comparison)),("value",UnifiedQuery.Wire(Value))))); }
+    public abstract record PredicateAtom : Predicate { private protected PredicateAtom() {} }
+    public sealed record All : PredicateAtom { internal override JsonObject Wire() => V.Obj(("all",V.Obj())); }
+    public sealed record IsState(byte Column,State State) : PredicateAtom { internal override JsonObject Wire() => V.Obj(("state",V.Obj(("column",Index(Column)),("value",Name(State))))); }
+    public sealed record Compare(byte Column,QueryComparison Comparison,Scalar Value) : PredicateAtom { internal override JsonObject Wire() => V.Obj(("compare",V.Obj(("column",Index(Column)),("op",Name(Comparison)),("value",UnifiedQuery.Wire(Value))))); }
+    public enum PredicateOperator { Negate,Conjunction,Disjunction }
+    public abstract record PredicateInstruction { private protected PredicateInstruction() {} internal abstract JsonObject Wire(); }
+    public sealed record PredicateAtomInstruction(PredicateAtom Atom) : PredicateInstruction { internal override JsonObject Wire() => V.Obj(("atom",Atom.Wire())); }
+    public sealed record PredicateOperation(PredicateOperator Operator) : PredicateInstruction { internal override JsonObject Wire() => V.Obj((Name(Operator),V.Obj())); }
+    public sealed record PredicateProgram : Predicate {
+        public IReadOnlyList<PredicateInstruction> Instructions { get; }
+        public PredicateProgram(IReadOnlyList<PredicateInstruction> instructions) {
+            Instructions=Copy(instructions,64); if(Instructions.Count==0)throw new ArgumentException("Expected 1..64 predicate instructions");
+        }
+        internal override JsonObject Wire() { JsonArray program=new(); foreach(var instruction in Instructions)program.Add(instruction.Wire()); return V.Obj(("program",program)); }
+    }
     private static uint Index(byte n) => n<8?n:throw new ArgumentException("Query column outside 0..7");
     public sealed record Plan {
         public IReadOnlyList<byte> Projection { get; } public Predicate Predicate { get; } public QueryAggregate Aggregate { get; } public ulong? Limit { get; }
@@ -155,9 +167,47 @@ public static class UnifiedQuery
     public sealed record Description(ulong ResourceRevision,ulong PolicyRevision,Budgets Budgets,ulong? Active,int BundleBytes,int SegmentBytes,int BatchRows);
     public enum InspectionOperator { Scan,Filter,Limit,Project,Count,Sum }
     public abstract record InspectedPredicate { private protected InspectedPredicate() {} }
-    public sealed record InspectedAll : InspectedPredicate;
-    public sealed record InspectedState(string Column,State State) : InspectedPredicate;
-    public sealed record InspectedComparison(string Column,QueryComparison Comparison,Type Type) : InspectedPredicate;
+    public abstract record InspectedAtom : InspectedPredicate { private protected InspectedAtom() {} }
+    public sealed record InspectedAll : InspectedAtom;
+    public sealed record InspectedState(string Column,State State) : InspectedAtom;
+    public sealed record InspectedComparison(string Column,QueryComparison Comparison,Type Type) : InspectedAtom;
+    public abstract record InspectedInstruction { private protected InspectedInstruction() {} }
+    public sealed record InspectedAtomInstruction(InspectedAtom Atom) : InspectedInstruction;
+    public sealed record InspectedOperation(PredicateOperator Operator) : InspectedInstruction;
+    public sealed record InspectedProgram : InspectedPredicate {
+        public IReadOnlyList<InspectedInstruction> Instructions { get; }
+        public InspectedProgram(IReadOnlyList<InspectedInstruction> instructions) {
+            Instructions=Copy(instructions,64); if(Instructions.Count==0)throw V.Incompatible("inspection-program-size");
+        }
+    }
+    private static InspectedAtom ParseInspectedAtom(JsonNode? value) {
+        var atom=V.Object(value); if(atom.Count!=1)throw V.Incompatible("inspection-atom");
+        var selected=atom.Single(); var data=V.Object(selected.Value);
+        return selected.Key switch {
+            "all" when data.Count==0=>new InspectedAll(),
+            "state"=>new InspectedState(V.Text(V.String(data["column"]),32),Variant<State>(data["value"])),
+            "compare"=>new InspectedComparison(V.Text(V.String(data["column"]),32),Variant<QueryComparison>(data["op"]),Variant<Type>(data["type"])),
+            _=>throw V.Incompatible("inspection-atom")
+        };
+    }
+    private static InspectedPredicate ParseInspectedPredicate(JsonNode? value) {
+        var predicate=V.Object(value); if(predicate.Count!=1)throw V.Incompatible("inspection-predicate");
+        if(!predicate.ContainsKey("program"))return ParseInspectedAtom(value);
+        List<InspectedInstruction> instructions=new(); int depth=0;
+        foreach(var v in Array(predicate["program"],64)) {
+            var instruction=V.Object(v); if(instruction.Count!=1)throw V.Incompatible("inspection-instruction");
+            var entry=instruction.Single();
+            if(entry.Key=="atom") { instructions.Add(new InspectedAtomInstruction(ParseInspectedAtom(entry.Value))); depth++; }
+            else {
+                var op=entry.Key switch {"negate"=>PredicateOperator.Negate,"conjunction"=>PredicateOperator.Conjunction,"disjunction"=>PredicateOperator.Disjunction,_=>throw V.Incompatible("inspection-operator")};
+                int needed=op==PredicateOperator.Negate?1:2;
+                if(V.Object(entry.Value).Count!=0 || depth<needed)throw V.Incompatible("inspection-program-shape");
+                depth-=needed-1; instructions.Add(new InspectedOperation(op));
+            }
+        }
+        if(depth!=1)throw V.Incompatible("inspection-program-shape");
+        return new InspectedProgram(instructions);
+    }
     public abstract record InspectionDetails { private protected InspectionDetails() {} }
     public sealed record SourceDescription : InspectionDetails {
         public IReadOnlyList<Column> Columns { get; }
@@ -187,15 +237,8 @@ public static class UnifiedQuery
         if(details.ContainsKey("description")) parsed=new SourceDescription(Columns(V.Object(details["description"])["columns"]));
         else if(details.ContainsKey("tables")) parsed=new TableListing(Names(details["tables"],1));
         else if(details.ContainsKey("explanation")) {
-            var plan=V.Object(details["explanation"]); var predicate=V.Object(plan["predicate"]);
-            if(predicate.Count!=1) throw V.Incompatible("inspection-predicate"); var selected=predicate.Single();
-            var data=V.Object(selected.Value);
-            InspectedPredicate p=selected.Key switch {
-                "all"=>new InspectedAll(),
-                "state"=>new InspectedState(V.Text(V.String(data["column"]),32),Variant<State>(data["value"])),
-                "compare"=>new InspectedComparison(V.Text(V.String(data["column"]),32),Variant<QueryComparison>(data["op"]),Variant<Type>(data["type"])),
-                _=>throw V.Incompatible("inspection-predicate")
-            };
+            var plan=V.Object(details["explanation"]);
+            var p=ParseInspectedPredicate(plan["predicate"]);
             var limits=V.Object(plan["budgets"]);
             parsed=new Explanation(Array(plan["operators"],4).Select(Variant<InspectionOperator>).ToArray(),p,Names(plan["projection"],8),plan["limit"] is null?null:NativeValues.Wide(plan["limit"]),
                 Variant<QueryAggregate>(plan["aggregate"]),Columns(plan["columns"]),new(Positive(NativeValues.Wide(limits["pages"])),Positive(NativeValues.Wide(limits["segments"])),Positive(NativeValues.Wide(limits["result_bytes"]))));

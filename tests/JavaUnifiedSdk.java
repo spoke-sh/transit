@@ -40,13 +40,51 @@ public final class JavaUnifiedSdk {
     }
     private static Bundle bundle(Source source,String kind,boolean golden) { return bundle(source,kind,golden,false); }
     private static Bundle bundle(Source source,String kind,boolean golden,boolean named) {
+        return bundle(source,kind,golden,named,false);
+    }
+    private static Bundle bundle(Source source,String kind,boolean golden,boolean named,boolean compound) {
         boolean doc=kind.equals("document");
-        return Bundle.prepare(source,new Plan(golden?List.of(1,0):doc?List.of(0,1,2,3):List.of(1),new Compare(golden?1:doc?0:1,Query.Comparison.NE,golden&&kind.equals("kv")?new Unsigned(MAX):new Text("x".repeat(512))),Query.Aggregate.ROWS,golden?Optional.of(MAX):Optional.empty(),named?Optional.of(java.util.stream.IntStream.range(0,golden?2:doc?4:1).mapToObj(i -> i==0?Optional.of("Result"):Optional.<String>empty()).toList()):Optional.empty()),new Budgets(n(1000),n(golden?500:100),n(1048576)));
+        int column=golden?1:doc?0:1;
+        var comparison=new Compare(column,Query.Comparison.NE,golden&&kind.equals("kv")?new Unsigned(MAX):new Text("x".repeat(512)));
+        Predicate predicate=comparison;
+        if(compound){
+            check(!golden);String ceiling="東京🙂/"+"x".repeat(doc?64:128)+(doc?"/10":"/39");
+            predicate=new PredicateProgram(List.of(atom(comparison),atom(new Compare(column,Query.Comparison.GE,new Text(ceiling))),
+                atom(new IsState(column,State.NULL)),PredicateOperator.DISJUNCTION,PredicateOperator.NEGATE,PredicateOperator.CONJUNCTION));
+        }
+        return Bundle.prepare(source,new Plan(golden?List.of(1,0):doc?List.of(0,1,2,3):List.of(1),predicate,Query.Aggregate.ROWS,golden?Optional.of(MAX):Optional.empty(),named?Optional.of(java.util.stream.IntStream.range(0,golden?2:doc?4:1).mapToObj(i -> i==0?Optional.of("Result"):Optional.<String>empty()).toList()):Optional.empty()),new Budgets(n(1000),n(golden?500:100),n(1048576)));
     }
     private static Bytes read(JsonObject config,String key) throws Exception { return new Bytes(Files.readAllBytes(Path.of(string(config,key)))); }
+    private static PredicateAtomInstruction atom(PredicateAtom value) { return new PredicateAtomInstruction(value); }
+    private static void booleanCodecs(JsonObject config) throws Exception {
+        var fixtures=new Gson().fromJson(Files.readString(Path.of(string(config,"boolean"))),JsonArray.class);
+        List<Scalar> values=List.of(new Signed(Long.MIN_VALUE),new Unsigned(MAX),new Floating(-0.0),new BooleanValue(true),new Text("café é 🙂"),new Binary(new Bytes(new byte[]{0,(byte)255,(byte)128})),new Text("x".repeat(512)));
+        for(int i=0;i<fixtures.size();i++) {
+            var fixture=fixtures.get(i).getAsJsonObject();
+            Source source=new KvSource(new ResourceRef(46,7),new Bytes(new byte[0]),new Decoder(Type.values()[fixture.get("type").getAsInt()-1]),new Decoder(Type.UINT64));
+            List<PredicateInstruction> instructions=new ArrayList<>();
+            if(i<7)instructions.addAll(List.of(atom(new Compare(0,Query.Comparison.EQ,values.get(i))),PredicateOperator.NEGATE,atom(new IsState(0,State.NULL)),PredicateOperator.DISJUNCTION));
+            else if(string(fixture,"name").equals("all-and-not-null"))instructions.addAll(List.of(atom(new All()),atom(new IsState(0,State.NULL)),PredicateOperator.NEGATE,PredicateOperator.CONJUNCTION));
+            else { instructions.add(atom(new All())); instructions.addAll(Collections.nCopies(63,PredicateOperator.NEGATE)); }
+            var program=new PredicateProgram(instructions); instructions.clear();
+            var bundle=Bundle.prepare(source,new Plan(List.of(0),program,Query.Aggregate.ROWS,Optional.empty(),Optional.empty()),new Budgets(n(1000),n(500),n(1048576)));
+            check(hex(bundle.bytes()).equals(string(fixture,"wire_hex")));
+        }
+        Source source=new KvSource(new ResourceRef(46,7),new Bytes(new byte[0]),new Decoder(Type.INT64),new Decoder(Type.UINT64));
+        List<PredicateInstruction> oversized=new ArrayList<>(); oversized.add(atom(new All())); oversized.addAll(Collections.nCopies(64,PredicateOperator.NEGATE));
+        List<List<PredicateInstruction>> invalid=List.of(List.of(),List.of(PredicateOperator.NEGATE),List.of(atom(new All()),atom(new All())),oversized,
+            List.of(atom(new IsState(7,State.NULL))),List.of(atom(new Compare(0,Query.Comparison.EQ,new Text("wrong type")))));
+        for(var instructions:invalid) {
+            boolean rejected=false;
+            try { Bundle.prepare(source,new Plan(List.of(0),new PredicateProgram(instructions),Query.Aggregate.ROWS,Optional.empty(),Optional.empty()),new Budgets(n(1),n(1),n(1024))); }
+            catch(IllegalArgumentException|TransitException e) { rejected=true; }
+            check(rejected);
+        }
+    }
     private static void codecs(JsonObject config) throws Exception {
         var fixtures=new Gson().fromJson(Files.readString(Path.of(string(config,"bundles"))),JsonArray.class);
         for(int i=0;i<3;i++) { String kind=List.of("kv","table","document").get(i); check(hex(bundle(source(new ResourceRef(46,7),kind,true),kind,true).bytes()).equals(fixtures.get(i).getAsJsonObject().get("wire_hex").getAsString())); check(hex(bundle(source(new ResourceRef(46,7),kind,true),kind,true,true).bytes()).equals(fixtures.get(i).getAsJsonObject().get("named_wire_hex").getAsString())); }
+        booleanCodecs(config);
         List<Column> columns=Arrays.stream(Type.values()).map(type -> new Column(type.name().toLowerCase(Locale.ROOT),type)).toList();
         byte[] input=read(config,"arrow").copy(); var rows=UnifiedQuery.decodeArrow(columns,new Bytes(input),5); Arrays.fill(input,(byte)0);
         List<Scalar> expected=List.of(new Signed(Long.MIN_VALUE),new Unsigned(MAX),new Floating(-0.0),new BooleanValue(false),new Text("café é 東京🙂"),new Binary(new Bytes(new byte[]{0,(byte)255,(byte)128})));
@@ -61,22 +99,33 @@ public final class JavaUnifiedSdk {
         check(Double.doubleToRawLongBits(((Floating)((Value)rows.get(3).get(2)).value()).value())==Long.MIN_VALUE);
         check(UnifiedQuery.decodeArrow(columns,read(config,"empty"),0).isEmpty());
         boolean rejected=false; try { UnifiedQuery.decodeArrow(columns,read(config,"malformed"),5); }catch(TransitException e) { rejected=true; } check(rejected);
-        System.out.println("Java installed unified codecs: three sources, six types, five states, immutable values and malformed rejection passed");
+        System.out.println("Java installed unified codecs: three sources, nine Boolean bundles, six types, five states, immutable values and malformed rejection passed");
     }
     private static String name(Enum<?> v) { return v.name().toLowerCase(Locale.ROOT); }
     private static JsonArray columns(List<Column> values) { JsonArray a=new JsonArray(); values.forEach(v->a.add(json("name",v.name(),"type",name(v.type())))); return a; }
     private static JsonArray names(List<String> values) { JsonArray a=new JsonArray(); values.forEach(a::add); return a; }
     private static JsonArray digest(Bytes bytes) { JsonArray a=new JsonArray(); for(byte b:bytes.copy())a.add(Byte.toUnsignedInt(b)); return a; }
+    private static JsonObject inspectedPredicate(InspectedPredicate value) {
+        return switch(value) {
+            case InspectedAll ignored -> json("all",json());
+            case InspectedState p -> json("state",json("column",p.column(),"value",name(p.state())));
+            case InspectedComparison p -> json("compare",json("column",p.column(),"op",name(p.comparison()),"type",name(p.type())));
+            case InspectedProgram p -> {
+                JsonArray instructions=new JsonArray();
+                for(var instruction:p.instructions())instructions.add(switch(instruction) {
+                    case InspectedAtomInstruction a -> json("atom",inspectedPredicate(a.atom()));
+                    case PredicateOperator op -> json(name(op),json());
+                });
+                yield json("program",instructions);
+            }
+        };
+    }
     private static JsonObject inspection(Inspection value) {
         JsonObject details=switch(value.details()) {
             case SourceDescription d -> json("description",json("columns",columns(d.columns())));
             case TableListing d -> json("tables",names(d.names()));
             case Explanation d -> {
-                JsonObject predicate=switch(d.predicate()) {
-                    case InspectedAll ignored -> json("all",json());
-                    case InspectedState p -> json("state",json("column",p.column(),"value",name(p.state())));
-                    case InspectedComparison p -> json("compare",json("column",p.column(),"op",name(p.comparison()),"type",name(p.type())));
-                };
+                JsonObject predicate=inspectedPredicate(d.predicate());
                 yield json("explanation",json("operators",names(d.operators().stream().map(JavaUnifiedSdk::name).toList()),"predicate",predicate,"projection",names(d.projection()),
                     "limit",d.limit().map(BigInteger::toString).orElse(null),"aggregate",name(d.aggregate()),"columns",columns(d.columns()),
                     "budgets",json("pages",d.budgets().pages().toString(),"segments",d.budgets().segments().toString(),"result_bytes",d.budgets().resultBytes().toString())));
@@ -88,7 +137,7 @@ public final class JavaUnifiedSdk {
     private static void serve(JsonObject config) throws Exception {
         var c=config.getAsJsonObject("connection"); long realm=c.get("realm").getAsLong(); ResourceRef resource=new ResourceRef(realm,c.get("resource").getAsLong());
         var connection=new Connection(new ProcessRef(realm,c.get("source").getAsLong()),resource,new ProcessRef(realm,c.get("requester").getAsLong()),new ResourceRef(realm,c.get("requests").getAsLong()));
-        String kind=string(config,"kind"); Source source=source(resource,kind,false); check(bundle(source,kind,false,true).bytes().equals(read(config,"bundle")));
+        String kind=string(config,"kind"); Source source=source(resource,kind,false); check(bundle(source,kind,false,true,config.get("compound").getAsBoolean()).bytes().equals(read(config,"bundle")));
         Page saved=null;
         try(var client=UnifiedQuery.Client.open(new ClientConfig(java.net.URI.create(string(config,"url")),ClientConfig.Profile.NATIVE_V1,10000,null),new Credential(realm,c.get("principal").getAsLong(),Path.of(string(config,"seed_file"))),connection)) {
             var description=await(client.describe(source)); check(description.bundleBytes()==16384 && description.batchRows()==8);

@@ -8001,6 +8001,175 @@ readiness, current-denial and restart schedule in **36.51 s**; its log is
 `/tmp/transit-sql-output-aliases-local-writer-server.log`. This local-server proof
 does not complete the separate installed all-source recovery or clean gates.
 
+### Predicate truth foundation
+
+The `feat/sql-boolean-predicates` worktree starts from output-alias checkpoint
+`e77b804a`. `Unified.Plan.predicateTruth` preserves unknown for null/missing
+comparisons, while `matches` still selects only true. Exact state tests remain
+two-valued; evaluated type errors, conflicts, unknown columns and mismatched
+scalar types retain their errors. Pure AND/OR/NOT truth operations do not yet
+enable compound SQL or change canonical plans, native definitions or SDK APIs.
+
+Pinned standalone Fuze tests pass **139/139**, including all nine truth pairs,
+three negations, all 25 cell/state-test pairs and 108 comparisons across the six
+scalar types. The literal expectations cover full-width integer ordering, byte
+ordering and the null/missing negation regression. The log is
+`/tmp/transit-sql-boolean-truth-fuze.log`.
+
+After locked frontend installation, `just check` and `just test::sql` both pass
+in `/tmp/transit-sql-boolean-truth-check.log`. The independent SQL proof retains
+134 SELECT AST comparisons, 105 plan/Arrow cases, 44 result cases across three
+source bases/eight page widths and 17 explicit failures. This verifies unchanged
+existing selection and serialization; compound evaluation order, syntax,
+canonical encoding, caller reachability and recovery remain unimplemented.
+The output-alias storage and committed-HEAD clean gates remain open.
+
+### Bounded Boolean evaluation component
+
+`Unified.PredicateProgram` executes postfix Boolean composition over the same
+typed predicate atoms used by existing plans. It rejects empty programs, stack
+underflow, trailing roots and more than 64 instructions. Schema validation checks
+all atoms. Evaluation is eager in instruction order, keeps null/missing unknown
+and preserves the first evaluated error. This is a pure component; compound SQL,
+saved plans, caller values and installed recovery are not enabled by it.
+
+Pinned Fuze checks pass **51 executed tests**, with the separate 93-test upstream
+suite cached, in `/tmp/transit-sql-boolean-program-fuze.log`. New fixtures check
+both operators over every pair of true/false/null/missing cells, all 64 inputs to
+`(a OR b) AND NOT c`, exact work limits, malformed programs, complete binding and
+first-error order. False AND conflict and true OR type-error deliberately fail;
+explicit state predicates still inspect those states successfully. The existing
+independent SQL proof also passes unchanged in
+`/tmp/transit-sql-boolean-program-sql.log`. Neither this evidence nor Boolean truth
+identities permits reordering or suppressing fallible atoms.
+
+### Owned Boolean plans and neutral codecs
+
+The continuation based on `518bb880` owns up to 64 predicate instructions in
+`Unified.Plan` and canonical `FZP1`, while decoded projection/literal bytes retain
+their input-buffer lifetime. Plan copies retain independent instruction storage.
+Neutral native/port codecs and inspection preserve order and expose the same
+instruction bound; schema generation overrides only that sequence field. Native
+and plan definition identifiers change together. Missing/previous definitions
+reject without executing or resetting accepted work.
+
+Fuze passes **56 executed tests** (the upstream suite is cached); the query
+package passes **66 tests**. Checks cover every scalar encoding, all instruction
+prefix truncations, malformed tags/lengths/stack shapes, scalar and total byte
+limits, copied instruction ownership, neutral round trips with exact Publication
+identity, literal-free inspection, and changed-plan checkpoint rejection. A
+compound Table predicate retains the general scan and current read denial.
+The browser boundary rejects malformed programs and accepts exactly 64
+instructions; all **22 query-client tests** pass after correcting a generated
+schema that initially applied the generic eight-item bound to programs.
+
+The expanded native/port proof passes **88 cases**, including seven independently
+encoded compound plans, canonical Publication commitments, previous-definition
+rejection and instruction-limit failures. Source-qualified full `just check`,
+independent `just test::sql` and `just test::unified-codec` results are recorded
+in `/tmp/transit-sql-boolean-plan-check-final.log`. Earlier attempts failed on
+stale raw-SDK hashes and three independent signature/digest fixtures; the current
+canonical bytes were regenerated with Python/OpenSSL and the unchanged rejection
+checks retained. Logs remain `/tmp/transit-sql-boolean-plan-check.log` and
+`/tmp/transit-sql-boolean-plan-check-fixed.log`.
+
+Before this extension, committed clean core passes **22/22** at output-alias
+source `4a646f2b` in **1071.05 s**, and at Boolean foundation `518bb880` in
+**875.55 s**. Completion/timing records are respectively
+`rey-sql-output-aliases/.cache/ci/clean/4a646f2b6b5e-transit-ci-o2u7e86p` and
+`rey-sql-boolean-predicates/.cache/ci/clean/518bb8802998-transit-ci-rm3n8vct`.
+Those runs do not qualify later program changes, other lanes or installed
+all-source recovery. SQL Boolean parsing, typed SDK constructors and current
+installed recovery remain outstanding.
+
+The [owned-plan cost report](benchmarks/results/2026-10-01-boolean-plan-costs.json)
+retains source patches, frozen binary hashes and every paired sample. The first
+inline plan doubled paged-aggregate time. Pointer-based plan methods and
+`Bound.validate` remove redundant plan copies while retaining complete per-page
+schema, source and canonical fingerprint checks; paired aggregate time falls
+about 49% against that initial implementation. A separate lowering rewrite
+showed no consistent improvement and was reverted. Against the foundation,
+final compile medians remain **15–36% higher** (about 0.18–0.24 µs extra), and
+paged aggregate medians are **2.6–2.8% higher**. This shared-host component evidence
+is not a native throughput or complete performance pass. It predates merged #42
+and must be requalified with its shared logical/file primitives.
+
+
+### Native Boolean SQL and compact owned syntax
+
+The Boolean-SQL continuation after `e07bd2c9` adds NOT/AND/OR and parentheses
+through the shared production/reference grammar, native lowering, editor
+completion, located errors and EXPLAIN. The allocation-free parser owns a
+compact literal pool bounded by the 4096-byte statement, up to 64 postfix
+instructions and 64 pending operators/group delimiters. Copies have no internal
+borrowed pointers. Single-atom parentheses preserve the existing canonical atom;
+Boolean operators are not simplified or reordered. Native compilation uses
+`SqlLowering.lowerAtom` and the saved-program owner rather than another
+comparison definition. File plans explicitly reject compound programs.
+
+Full `just check`, `just test::sql` and `just test::file-query` pass in
+`/tmp/transit-sql-boolean-parser-final-check.log`. The independent proof compares
+**151 Zig/ANTLR/PostgreSQL ASTs and 122 canonical plans/Arrow cases**, checks
+**56 result cases across three source bases/eight page widths**, and rejects
+**22 explicit binding/execution failures**. It includes null/missing negation,
+precedence/grouping, full-width scalars, eager errors behind determining operands,
+whole-query limits and unchanged alias scopes. All **57 documentation examples**
+parse. File-query qualification passes **95 real CLI cases**, including explicit
+compound rejection and the unchanged large-input memory bound.
+
+Fuze passes **93 executed tests** with its upstream suite cached; logs include
+`/tmp/transit-sql-boolean-parser-inplace-tests.log` and
+`/tmp/transit-sql-boolean-parser-atom-tests.log`. Fixtures cover copied literal
+ownership, exact instruction/nesting limits, malformed compact spans, complete
+input rejection, source-order errors and allocation-failure cleanup for multiple
+owned literals. The query package's 66-test run adds Boolean cursor fixtures;
+full checks also exercise compound EXPLAIN's final authority check and omission
+of literals. Initial test-only serializer error-set, cell-constructor and EOF
+coordinate failures are corrected; their logs remain in
+`/tmp/transit-sql-boolean-parser-{sql,tests,tests-fixed}.log`.
+
+The [Boolean SQL cost report](benchmarks/results/2026-10-01-boolean-sql-costs.json)
+retains five paired experiments, frozen hashes, raw samples and cumulative source
+patches on `051c766a`. Initial SELECT compilation regresses 64–91% versus that
+saved-program control. Borrowing the AST inside compilation improves those
+medians 7–10%; filling caller-owned AST/predicate storage improves another
+15–33% versus the pointer-only version. A special single-atom path gives mixed
+results (predicate cases about 3% faster, no-WHERE cases 4.5–5.2% slower) and is
+reverted. Final SELECT compilation remains **18.6–33.5% higher** than the control,
+about **0.17–0.48 microseconds extra**. Existing paged aggregate medians are
+2.3–2.8% lower. These shared-host component samples do not qualify compound
+throughput, the logical/file controls, installed callers or end-to-end latency.
+
+The predecessor `051c766a`, rebased onto main `85746270`, passes doctor, all
+91 logical-codec fixtures per native/port boundary and 100 logical Arrow cases.
+Node qualification first finds an inherited formatting error in the logical
+value guide; `e07bd2c9` corrects it and all 39 Node tests then pass. Logs are
+`/tmp/transit-sql-boolean-post42-logical-node.log` and
+`/tmp/transit-sql-boolean-post42-node-fixed.log`.
+
+Committed-HEAD clean core at **`051c766a` fails after 17 passing tasks**.
+`test::service` receives `503 AuthorityUnavailable` when submitting its first
+retained KV turn, before replay assertions (18.34 s); the final four tasks are
+unrun. Total lane time is **1215.07 s**. Station and disk write/recovery/checkpoint/
+trim proofs pass, including the 604.85-second storage task. Cause remains
+unestablished. The failed checkout is `/var/tmp/transit-ci-mv9l_ft8`; its metadata
+is also copied to `rey-sql-boolean-predicates/.cache/ci/clean/051c766a976d-service-failure`.
+The command log is `/tmp/transit-sql-boolean-owned-clean-core.log`. A separate
+diagnostic clone at `/var/tmp/transit-sql-service-diagnostic-8jwnky5h` prints
+internal error names. Its first focused service run passes, but the fixture's
+explicit cleanup still removes its store despite disabling automatic cleanup;
+no retained-store claim follows. That helper is corrected for a subsequent
+instrumented capture. These are investigative runs, not replacement clean
+passes or an established cause. The original failed checkout remains unchanged.
+Diagnostic logs are `/tmp/transit-sql-boolean-service-diagnostic.log` and
+`/tmp/transit-sql-boolean-service-diagnostic-retained.log`.
+
+Typed program APIs/inspection across all ten SDKs, compound file-plan admission,
+installed current-definition recovery/authorization, final performance controls
+and committed-head clean qualification remain open. The earlier named-output
+all-source recovery failure remains failed; this syntax increment does not
+complete it or the original SQL operation scope.
+
 ## SQL performance iteration
 
 ### Output-name component coverage
@@ -8133,6 +8302,10 @@ just test::sql-benchmark --samples 9 --control /path/to/frozen-probe \
 The runner rejects mismatched case/workload shapes, alternates process order and
 retains both sets of samples and executable hashes. Use the actual baseline
 revision and a frozen probe built with the same optimization and toolchain.
+`--cpu N` pins warm-up and sampled processes to an available CPU; the default
+leaves affinity unchanged. Reports include the selected CPU, host load, driver,
+probe, lockfile and Fuze source hashes, plus the runtime diff. Pinning does not
+reserve a CPU or remove shared-host interference.
 
 ### Scoped SQL inspection iteration
 
@@ -10032,3 +10205,561 @@ query-delivery phase after its existing 180-second deadline; it is not passed.
 A focused `just test::query` rerun at `3d0d7819` passes with delivery in 35.52 s.
 That rerun does not establish the cause of the earlier timeout. Full clean
 qualification of this follow-up remains pending.
+
+## Boolean integration with native admission and Fuze validation
+
+At `014e4f6d`, the Boolean branch is rebased onto main `e82c8430`, retaining
+#54's validated canonical encoder and unnamed-output schema validation,
+#57's inline Table admission and captured read selectors, and #58/#59's transport
+and qualification changes. The current native definition is
+`23c4c85312d089e41826bb76da6ffa2b6a009fc49bd8655bcb813524f2f401e7`.
+Generated contracts and independent Python/OpenSSL signing fixtures cover the
+combined definition. Both prior component-only definitions explicitly reject.
+The existing Boolean FZP1 layout and its separate identifier remain unchanged.
+
+Full `just check`, `just test::sql`, `just test::unified-codec`,
+`just test::file-query` and `just bindings::node-check` pass at that committed
+source, exit 0. This includes 151 ASTs, 122 plans/Arrow cases, 56 results across
+three sources/eight page widths, 57 documentation examples, 88 native/port codec
+cases, 95 real file-query cases and all 39 Node tests. Log:
+`/tmp/transit-sql-boolean-main-e82-check.log`. The generated native-schema diff
+against main changes only the definition; captured-read fields remain present.
+
+The [integration measurements](benchmarks/results/2026-10-01-boolean-main-integration.json)
+retain clean source/binary/driver/lock identities, alternating raw samples and
+the exact frozen-budget comparison. Nine paired six-type samples against main
+`e82c8430` return the same results with candidate medians 0.8–8.3% higher.
+A separate nine-pair run uses the original control binary with its verified
+`5ba8f349` SHA-256 prefix and unchanged 15% budget. Its int64, uint64, UTF-8 and
+binary predicate cases exceed that budget at 17.8%, 16.5%, 20.2% and 18.6%; the
+**specialized performance gate fails**. A report's successful execution status
+means samples/results completed, not that its numeric budget passed.
+Seven paired compiler samples against current main show four SELECT medians
+76–98% higher and existing paged aggregates 4.2–5.5% higher. These replace neither
+the earlier source-qualified measurements nor any frozen limit. Shared-host
+load, compound throughput, installed callers and native I/O remain separate.
+
+The pre-rebase clean core at `1bd979b5` was intentionally interrupted after new
+main changes landed. It is incomplete, with `completed: false`, 269.85 seconds
+and checkout `/var/tmp/transit-ci-3_i52gm9`; log:
+`/tmp/transit-sql-boolean-sql-clean-core.log`. It does not qualify the integration.
+The second instrumented service run at `051c766a` passes and retains its owned
+fixtures under `/var/tmp/transit-sql-service-diagnostic-8jwnky5h/tmp`; it does not
+reproduce or explain the original clean-service failure. Private stores and keys
+remain outside Git. The earlier failed clean result remains failed.
+
+Committed-HEAD clean core at `014e4f6d` passes all 22 tasks in 1280.49 seconds;
+terminal metadata is retained at
+`.cache/ci/clean/014e4f6d35d3-transit-ci-o6sevl3q`, log
+`/tmp/transit-sql-boolean-main-e82-clean-core.log`. Clean experience at
+`0b8f3750` fails after six passing tasks: the final Station launcher Arrow reply
+misses its unchanged deadline (309.20 seconds task / 593.61 seconds lane).
+Checkout `/var/tmp/transit-ci-zpxsqzvc` and log
+`/tmp/transit-sql-boolean-main-e82-clean-experience.log` retain evidence. Its
+owned services are stopped; data, keys and logs remain outside Git. Client
+telemetry includes `HttpCapacity` refusals, but the timeout cause is unestablished.
+Other lanes and installed all-source recovery remain unqualified.
+
+### Validation reuse and current-main integration
+
+At `c5cce70a`, the branch includes main `a4ba1124`, retaining unavailable-read
+observation retries without implicit mutation resubmission and persistent
+console history. The only rebase conflict joins both verification-ledger
+additions. Author/committer dates are preserved; the native and FZP1 definitions
+are unchanged by these main commits and the following optimizations.
+
+Atom representation and schema correspondence are checked once per full plan
+validation. The private encoder consumes that validated shape; each binding
+call reuses its own schema validation before hashing. Public encoding still
+rejects invalid UTF-8, oversized bytes, nonfinite floats and unknown columns;
+binding still rejects type mismatches. No validation flag survives the call,
+and continuation/source checks remain. SQL lowering fills owned output storage
+to reduce intermediate plan copies without changing literal ownership or cleanup.
+
+Full `just check`, `just test::unit`, `just test::sql`,
+`just test::unified-codec` and `just test::console-history` pass at this executable
+source, exit 0; log `/tmp/transit-sql-boolean-main-a4-check.log`. The independent
+SQL and native/port counts remain 151 ASTs, 122 plans/Arrow cases, 56 results
+across three sources/eight page widths, 57 documentation examples and 88 codecs.
+The console proof exercises real PTY search/accept/cancel, Unicode/multiline,
+restart, concurrent append, malformed records, permissions and file failure.
+
+The [retained validation measurements](benchmarks/results/2026-10-01-boolean-validation.json.gz)
+contain raw alternating samples, binary/source/driver/lock identities, reproduction
+commands, dirty exploratory patches and the committed-source six-type gate.
+Nine measured pairs plus a discarded warmup return identical results. The eight
+ratios against the original frozen control are 1.0042, 1.0322, 1.0233, 1.0627,
+1.0217, 1.0115, 1.0186 and 1.0010: **the specialized subset passes** its unchanged
+1.15 limit. `budgets.six_ratios` verifies complete clean evidence; the control,
+driver, lock and CPU match the original budget. Other file matrices and the
+large-input gate are not requalified. The earlier failing measurements remain.
+
+Seven compiler pairs against `e82c8430` still show 64–92% overhead in the four
+SELECT probes; the two paged aggregates are 1.4–1.5% faster in this sample.
+Main's intervening CLI commits do not change that control's query/driver/lock
+inputs. These shared-host component results do not establish native latency,
+compound throughput or a complete performance pass. Compiler work remains open.
+
+Committed-HEAD clean core at `c5cce70a` passes all 22 tasks in 883.95 seconds,
+exit 0. Terminal metadata is retained at
+`.cache/ci/clean/c5cce70a7722-transit-ci-yb7tf4xi`, log
+`/tmp/transit-sql-boolean-main-a4-clean-core.log`. PR #52 and issue #37 track
+the failed experience proof, remaining lanes, typed SDK APIs and installed
+recovery. This pass qualifies that executable source, not later SDK edits.
+
+### Typed predicate programs in Python, Node, Ruby and Rust
+
+These four SDKs add typed postfix atoms/operators, bounded plan construction
+and owned inspected program values. Their ordinary single-atom constructors
+remain available. Shared Zig retains validation, canonical encoding and
+execution; host code only constructs neutral values and checks response shape.
+C, C++, Java, .NET, Erlang and Elixir program constructors/inspection are still
+unimplemented; native/port support does not qualify those public adapters.
+
+`boolean_bundle_fixtures()` in [unified_codec.py](unified_codec.py) shares nine
+independent canonical bundles with the native/port and installed SDK consumers.
+Seven literal programs cover six scalar types, full-width values, negative zero,
+Unicode/binary and multi-chunk literals. The additional fixtures independently
+encode an all/state/NOT/AND program and the 64-instruction boundary. The two real
+transports pass all 96 shared codec cases. Installed consumers verify exact
+bundle bytes, invalid stacks/types/limits and input ownership. Python, Node,
+Ruby and Rust pass in `/tmp/transit-sql-boolean-four-sdk-codecs-2.log`; no source
+authorization or recovery claim follows from that local run. The first run
+stopped because the test omitted Python's existing `ValueError` for an invalid
+column; the corrected test accepts that rejection without changing SDK behavior.
+
+The four package builds, Node strict checks and all 39 Node tests pass in
+`/tmp/transit-sql-boolean-sdk-build.log`. Python's strict check passes all 23
+source files in `/tmp/transit-sql-boolean-python-types.log`. The public query
+guides describe exact instruction ownership and the remaining language profiles.
+Reproduce installed codec checks after those package builds by invoking
+`sdk_unified.install` for `('python', 'node', 'ruby', 'rust')` in a fresh private
+directory; `just bindings::unified-codecs` runs the complete default language
+inventory. The other six consumers still cover their documented atom profile.
+
+The signed query schedule now checks Boolean EXPLAIN structure, redacted
+literals and the 64-instruction result through each enabled program adapter,
+then repeats current-denial and retired-source checks. Unsupported SDK adapters
+are explicitly excluded from those program cases; the printed caller count
+identifies coverage. The KV run with Python sync/async, Node, Ruby and Rust
+passes, exit 0, in `/tmp/transit-sql-boolean-four-sdk-kv.log`: seven enabled
+inspection callers agree, then current denial and source retirement reject.
+The unchanged single-atom delivery workload recovers after source/requester/
+node/disk restart, including a transient requester read timeout. It verifies
+41 rows, six segments and 13,584 bytes with eight resident authority pages,
+an 8 MiB hot store and 78 cold objects (8,021,154 bytes), completing in
+175.65 seconds. This is an integration sample, not a latency SLO. It does not
+establish compound-plan delivery/recovery or Table/Document coverage.
+
+Full `just check` passes, exit 0, in `/tmp/transit-sql-boolean-sdk-check.log`.
+Final documentation and Node formatting/lint checks pass in
+`/tmp/transit-sql-boolean-sdk-docs.log`. All-language and compound durable
+recovery qualification remains open. Reproduce the signed profile with
+`zig build test-unified-query -Doptimize=ReleaseSafe
+-Dunified-sdk=python,node,ruby,rust -Dunified-source=kv` in the pinned shell.
+
+
+### Typed predicate programs in Java, .NET, Erlang and Elixir
+
+The continuation from `30982a1e` adds owned typed program constructors and
+redacted inspection values to these four SDKs. Java and .NET copy their
+instruction collections; BEAM retains immutable lists, tuples and binaries.
+Erlang and Elixir share the existing adapter, with explicit Elixir struct/record
+conversion. Programs carry one to 64 non-nesting postfix instructions. Shared
+Zig still owns source binding, complete program validation, canonical encoding
+and evaluation. These host API additions do not change the native or FZP1
+definitions. C/C++ constructors and compound file plans remain unfinished.
+
+The Java/.NET/BEAM package builds pass in
+`/tmp/transit-sql-boolean-managed-build-2.log`. Installed consumers for all four
+languages pass in `/tmp/transit-sql-boolean-managed-codecs.log`, including the
+nine independent Boolean bundle fixtures, all six scalar types, all operators,
+negative zero, Unicode/binary, long literals and the 64-instruction boundary.
+Malformed stacks, excess instructions, unavailable columns and scalar/source
+type mismatches reject. Managed inputs are copied before their caller-owned
+lists are cleared; BEAM checks reject nested programs. The Elixir consumer
+requires the public program struct and exact conversion back to its record.
+These are local codec checks, not durable execution evidence.
+
+Full `just check` passes, exit 0, in
+`/tmp/transit-sql-boolean-managed-check.log`, including all 96 native/port codec
+cases, generated-contract drift and the documentation build. Reproduce the
+installed codec checks after `just bindings::java-build bindings::dotnet-build
+bindings::beam-build` by invoking `sdk_unified.install` for
+`('java', 'dotnet', 'erlang', 'elixir')` in a fresh private directory inside the
+pinned bindings shell. The signed query schedule now enables these four program
+inspectors; its source-specific outcomes are recorded separately below.
+
+The default Debug signed KV schedule passes, exit 0, in
+`/tmp/transit-sql-boolean-managed-kv.log`. Six native/port/managed SDK inspectors
+agree on Boolean EXPLAIN, literal redaction and 64 instructions, then reject
+after current revocation and source retirement. The existing single-atom
+workload recovers through source/requester/node/disk restart and verifies 41
+rows, six segments and 13,584 bytes. It retains eight resident authority pages
+and an 8 MiB hot store, with 73 cold objects / 8,020,314 bytes, completing in
+239.56 seconds. This is not a throughput claim or compound-delivery proof.
+Reproduce with `just test::unified-query -Dunified-sdk=java,dotnet,erlang,elixir
+-Dunified-source=kv`. Explicit ReleaseSafe, Table/Document, compound delivery
+and current-source clean-lane qualification remain separate gates.
+
+The explicit ReleaseSafe KV run also passes, exit 0, in
+`/tmp/transit-sql-boolean-managed-kv-safe.log`, completing in 86.72 seconds with
+101 cold objects / 8,036,601 bytes. It has the same six inspection callers,
+41 rows, six segments, 13,584 result bytes and unchanged resident/store bounds.
+Reproduce with `just test::unified-query -Doptimize=ReleaseSafe
+-Dunified-sdk=java,dotnet,erlang,elixir -Dunified-source=kv`. No comparison with
+the concurrent Debug sample establishes a speedup or latency target. This run
+qualifies typed Boolean inspection and the existing single-atom recovery
+schedule only; Table/Document and compound-plan recovery remain open.
+
+Committed-source clean core at `f6ed5fd2` passes all 22 tasks, exit 0, in
+1076.22 seconds. The log is `/tmp/transit-sql-boolean-managed-clean-core.log`;
+terminal timing/completion metadata is retained under
+`.cache/ci/clean/f6ed5fd282cb-transit-ci-uun7d1gb`. This result precedes the
+C/C++ ABI cutover below and does not qualify that replacement definition.
+
+### Typed predicate programs in C and C++
+
+The continuation from `f6ed5fd2` adds bounded C instructions, caller-owned
+redacted inspection arrays and C++ program/inspection values. Preparation
+borrows input instructions only for its synchronous call; the resulting bundle
+owns its bytes. C++ binds literals from the original plan through a stationary
+view, preserving their lifetime. Unknown instruction codes reject before
+indexing; integer opcode storage permits validation without an invalid C++ enum
+load. Shared Zig remains the validation, canonical encoding and execution owner.
+
+The public C plan and inspection layouts change under the coordinated native
+definition `b2a625681e95d8a208ebe65f4b7b86931b6582bdfcc9f85d66b043447b9473b9`.
+The prior `23c4c853...` definition rejects. Generated schemas, all language
+resources, independent canonical/signing fixtures and serving/reactive
+descriptions move together. FZP1 program bytes and their separate definition
+remain unchanged. Matching headers, SDK libraries and native artifacts are
+required; this cutover supplies no conversion or reset of accepted work.
+
+`just bindings::unified-codecs` passes all ten installed SDK consumers, exit 0,
+in `/tmp/transit-sql-boolean-all-sdk-codecs.log`. Each checks the same nine
+independent Boolean bundles, six scalar types, all operators, variable-width
+input ownership and 64 instructions. The C/C++ tests also reject empty,
+underflowing, extra-stack, oversized, unknown-opcode and invalid-source programs.
+This is codec evidence, not source authorization or durable recovery evidence.
+The separate C/C++ build/codec run also passes, exit 0, in
+`/tmp/transit-sql-boolean-c-codecs-3.log`.
+
+The first installed C run failed because its fixture installer did not write the
+Boolean bundle files; the next exposed the invalid-enum load for opcode 99.
+Both are corrected with the rejecting case retained. Their logs remain
+`/tmp/transit-sql-boolean-c-codecs.log` and
+`/tmp/transit-sql-boolean-c-codecs-2.log`. The first full check stopped on Zig
+formatting; after formatting, full `just check` passes, exit 0, in
+`/tmp/transit-sql-boolean-c-check-2.log`, including generated drift, all 96
+native/port codec cases, Board checks and the documentation build.
+
+Signed Boolean inspection is enabled for all ten SDKs in the existing source
+schedule. Current-definition signed inspection/recovery, committed-source clean
+lanes, Table/Document and compound delivery remain separate qualification gates.
+PR #52 and issue #37 retain their terminal results and continuation handoff.
+
+At `95d4abd0`, the all-ten-SDK ReleaseSafe KV schedule passes, exit 0, in
+231.67 seconds. All 13 native/port/SDK callers agree on Boolean inspection,
+redaction and 64 instructions. The existing single-atom delivery workload
+recovers through source/requester/node/disk restart with exact upload retry,
+current prefix denial and source-pin release: 41 rows, six segments, 13,584
+bytes, eight resident authority pages, an 8 MiB hot store and 76 cold objects
+(8,019,053 bytes). The log is `/tmp/transit-sql-boolean-all-sdk-kv.log`.
+
+Committed-source `just ci-clean --lane core` at `95d4abd0` passes all 22 tasks,
+exit 0, in 1111.20 seconds. The log is
+`/tmp/transit-sql-boolean-c-clean-core.log`; terminal metadata is retained under
+`.cache/ci/clean/95d4abd0d49c-transit-ci-kl2d3hfc`. This qualifies the core lane
+for the native-definition cutover, not the following recovery fixture extension
+or other clean lanes. Hosted run `36820952024` did not start its jobs because
+GitHub reports failed account payments or a spending limit; skipped jobs are
+not executed evidence.
+
+### Compound programs in installed recovery
+
+The continuation from `95d4abd0` adds an explicit compound profile to the real
+source/requester recovery schedule. All ten installed SDKs construct the same
+six-instruction program as the native fixture: a long UTF-8 comparison combined
+with NOT of a comparison/state disjunction. Every typed bundle must match the
+native canonical bytes, and all 13 caller variants prepare the identical signed
+begin operation without dispatch. The independent result oracle excludes the
+last two source rows: 39 KV/Table rows or 10 Document rows, preserving Document
+element identities. Ignoring or changing the Boolean operators changes those
+expected results. The original single-atom profile remains available.
+
+The SQL shell additionally compiles a Boolean filter with a tighter threshold,
+returning 31 KV/Table rows or eight Document rows before its LIMIT 33. This
+prevents an ignored filter from passing merely because LIMIT selects the same
+prefix. Its bundle and original signed request survive shell exit, lost reply
+and exact retry; existing denial, ownership, complete-coverage and permanent
+retirement checks remain. Resident pages, hot-store limits, operation budgets
+and deadlines do not increase. Document retains its separate 64-page authority
+profile; KV/Table use eight pages.
+
+Build all packages and run all three sources with
+`just bindings::unified-compound` in the pinned bindings shell. After building
+matching packages, the equivalent explicit command is
+`just test::unified-query -Doptimize=ReleaseSafe
+-Dunified-sdk=python,node,ruby,rust,c,cpp,java,dotnet,erlang,elixir
+-Dunified-compound=true -Dunified-shell=true`; add `-Dunified-source=kv`,
+`table` or `document` for one source. Board/browser, console, example and expiry
+profiles retain their separate schedules and cannot select this flag implicitly.
+
+The updated proof executable builds and all ten installed codec consumers pass,
+exit 0, in `/tmp/transit-sql-boolean-compound-build-2.log` and
+`/tmp/transit-sql-boolean-compound-consumers.log`. The first build stopped on an
+obsolete array-repetition spelling, corrected for pinned Zig 0.17; it did not
+execute a schedule. Full `just check` also passes, exit 0, in
+`/tmp/transit-sql-boolean-compound-check.log`. These checks do not establish
+durable compound recovery; the signed source outcomes are recorded separately.
+
+The combined installed run's **KV phase passes** in 327.75 seconds, including
+joined caller/service cleanup before the next source begins. All 13 callers
+agree on the compound bundle/prepared identity and verify complete results after
+source/requester/node/disk restart. Current prefix denial and source retirement
+reject. The typed program returns 39 rows / six segments / 13,288 bytes; the SQL
+shell independently returns 31 rows, survives lost-reply exit and retries the
+same bundle/command before retirement and collection. Bounds remain eight
+authority pages and an 8 MiB hot store; the complete source phase records 138
+cold objects / 16,738,044 bytes, including the separate shell query. The log is
+`/tmp/transit-sql-boolean-compound-all-sources.log`. Table and Document phases
+are still running or unrun at this checkpoint; this is not an all-source pass.
+
+
+The same combined run subsequently **passes Table and Document**, and exits 0.
+Table completes in 305.80 seconds with 39 rows / five segments / 12,048 bytes,
+eight authority pages, 8 MiB hot store and 118 cold objects / 14,291,811 bytes.
+Document provisioning takes 1107.88 seconds and the complete phase takes 1311.16
+seconds: ten rows / two segments / 9,648 bytes, 64 authority pages, 8 MiB hot
+store and 988 cold objects / 113,112,747 bytes. Every source includes all 13
+caller variants, compound canonical/prepared-identity agreement, exact upload
+retry, source/requester/node/disk restart, current prefix denial and retirement.
+The SQL shell independently verifies 31 Table / eight Document rows, saved
+bundle/exact retry across exit and permanent retirement/collection. Cleanup joins
+before moving between sources and before terminal success. This qualifies the
+compound schedule at frozen `0bdaaf15`, not a later runtime refactor or every
+transport/bounds/error profile.
+
+Committed-HEAD **`just ci-clean --lane core` at `0bdaaf15` passes all 22 tasks**
+in 1128.22 seconds, exit 0. Completion metadata and all expected zero-exit task
+records are verified under
+`.cache/ci/clean/0bdaaf158d20-transit-ci-8npolt5b`; the command log is
+`/tmp/transit-sql-boolean-compound-clean-core.log`. Remaining clean lanes and
+hosted checks retain their separate gates.
+
+### Shared Boolean execution for file queries
+
+The continuation from `0bdaaf15` extracts the bounded postfix machine shared by
+native and file predicates. Logical file atoms retain their own type admission;
+SQL keeps the six-scalar literal profile. The compiler borrows its owned AST
+only during lowering, then owns the program, literal bytes and descriptor.
+File fingerprints bind instruction order/opcodes/typed literals within the
+existing 8192-byte bound; existing single-atom identities and native definitions
+are unchanged. Full source conversion and digest verification remain mandatory
+after filtering and LIMIT.
+
+Pinned `zig build test` in `packages/zig/transit-fuze` passes, including native
+Boolean regressions and logical file truth tables, eager first-error order,
+64-instruction/invalid-stack/type/column rejection, full-width uint128 comparison,
+changed-program poisoning, late conversion/digest failures and exhaustive
+allocation-failure cleanup. Log: `/tmp/transit-sql-boolean-file-unit-3.log`.
+The first build fails on a declaration placed between Zig fields; moving the
+unchanged declaration resolves it before tests execute. That log remains
+`/tmp/transit-sql-boolean-file-unit-initial.log`.
+
+`just test::file-query` passes **110 real CLI cases**, including independent
+CSV/JSONL results, precedence/grouping, unknown under NOT, exact atom fingerprint,
+source/derived-input aliases, aggregates, eager error branches, statement bounds,
+checked gzip and disk/pipe/cancellation proofs. The retained memory proof reads
+192 MiB under a 96 MiB address-space limit. Its initial new assertion compares a
+lossless decimal-string counter with a Python integer; converting the asserted
+counter to an integer corrects the test without changing runtime behavior.
+The failed and passing logs are `/tmp/transit-sql-boolean-file-cli.log` and
+`/tmp/transit-sql-boolean-file-cli-2.log`. Full `just check` and `just test::sql`
+pass, exit 0, in `/tmp/transit-sql-boolean-file-check.log`. These working-tree
+results do not substitute for committed-HEAD clean validation.
+
+The [paired file report](benchmarks/results/2026-10-01-boolean-file-comparison.json.gz)
+retains 162 successful samples: three alternating baseline/candidate pairs over
+nine shapes and explicit/sampled/full discovery, 4096 rows each, one CPU, warm
+input pages and unchanged budgets. The frozen baseline is `0bdaaf15`, SHA-256
+`70f06335012ad4f94f044f25f305b904eb3a16c48a0281a5192cafa062f05452`;
+the candidate hash is
+`e499d60b442070907cdfdfb47d985fb41cd03a229027bb31f8b5e95c16055a5d`.
+Reports retain source/driver/lock hashes, raw wall/CPU/allocation/RSS records,
+fixture identities and independent result checks. All 27 pipeline median ratios
+are within 1.15 (0.7607–1.0764, median 0.9746). Compiler ratios range
+0.7649–1.4507, median 0.9993; **wide/sampled (1.4507) and gzip/sampled (1.1561)
+exceed 1.15 and remain unresolved**. Allocation counts/bytes match for those
+cases; one wide sample shows wall preemption, but neither cause nor a general
+speedup is established. These per-source single-compilation phases and three
+pairs do not resolve the earlier native SELECT compiler regressions.
+
+The [compound-work report](benchmarks/results/2026-10-01-boolean-file-compound-cost.json.gz)
+adds another 162 successful samples, comparing the same selected rows with a
+six-instruction candidate and single-atom baseline. Across configurations,
+median compile and pipeline ratios are 1.1533 and 1.0644 respectively;
+pipeline ratios range 0.8524–1.2293. Extra operators are different work, so this
+is a cost measurement, not an unchanged-workload regression pass. Both reports
+are reproducible through `tests/fuze_benchmarks/compare.py`; the ordinary matrix
+also accepts `--query compound`. Independent DuckDB compound measurements,
+cold-input/remaining query matrices and installed native latency remain unrun.
+
+### Predicate compiler cost reduction
+
+Runtime commit `4b1dc42e` avoids initializing compound storage for absent or
+single-atom predicates, keeps the compound parser outside the common stack
+frame, and constructs derived-plan storage only for derived inputs. Projection
+validation occurs on the completed plan; derived output schemas still validate
+before name resolution. No predicate bound, public rejection, canonical bytes or
+native definition changes. New rejection fixtures exercise owned string literals
+when duplicate projections/output names reject after lowering.
+
+Pinned Fuze tests, full `just check`, `just test::sql` and all **110 real file CLI
+cases pass** for that runtime. SQL evidence includes 151 independent SELECT ASTs,
+122 real plans/codec/Arrow cases and 56 result cases across three source bases
+and eight page widths. Logs: `/tmp/transit-sql-boolean-compiler-unit-3.log` and
+`/tmp/transit-sql-boolean-compiler-check.log`. The initial single-atom shortcut
+fails one completion test by consuming the cursor before offering a parenthesis;
+keeping cursors on the existing completion path fixes it. The failed log remains
+`/tmp/transit-sql-boolean-compiler-initial-unit.log`.
+
+The [native compiler archive](benchmarks/results/2026-10-01-boolean-compiler-paths.json.gz)
+retains six exploratory comparisons and four final nine-pair comparisons, including
+slower AST initialization/return experiments that were reverted. Final source
+hashes match `4b1dc42e`; original dirty-source metadata is unchanged. The final
+probe SHA-256 is
+`c687fb98866cfa4998e72abd05c97f5bd5811427a44360a5da30c05cfa85fcb2`.
+On CPU 1, SELECT medians fall **20.8–30.3% against `2330d6ed`**, but remain
+**28.0–49.9% above the frozen main control**. The control is `e82c8430`, with no
+Fuze/probe/lockfile differences through `a4ba1124`. CPU-0 reports retain larger
+variation and 9.3–129.7% overhead against main; they are not discarded or replaced.
+The intervening utilization sample overlapped our file benchmark on CPU 0, so it
+does not establish the cause of previous noise or exclusive CPU availability.
+No native compiler or end-to-end latency gate is declared passed.
+
+The [final file comparison](benchmarks/results/2026-10-01-boolean-file-compiler-paths.json.gz)
+retains **486 correct-result samples**: nine alternating pairs, nine shapes,
+three discovery modes, 4096 rows, CPU 0 and warm input, with unchanged budgets.
+All 27 compiler median ratios are below one (0.6652–0.9812, median 0.8630);
+the earlier wide/sampled and gzip/sampled outliers are now 0.9450 and 0.9096.
+Pipeline median ratios range 0.8678–1.2400 (median 1.0057), with **narrow/full
+exceeding the unchanged 1.15 wall-time limit**. Its recorded phase CPU median
+ratio is 0.9868, while wall medians are 51.96/64.43 ms; this discrepancy does not
+turn the wall-time result into a pass or establish the contention cause.
+The report's `status: passed` denotes result correctness, not every timing gate.
+Compound-to-compound costs, cold inputs and remaining matrices stay open.
+
+Committed-HEAD clean core at the preceding file checkpoint `2330d6ed` completes
+all **22 tasks in 1168.10 seconds**, exit 0. Verified completion metadata and task
+records are retained in the native archive and under
+`.cache/ci/clean/2330d6ede62c-transit-ci-8__7bafx`; log
+`/tmp/transit-sql-boolean-file-clean-core.log`. This predates the compiler change.
+Current-source clean lanes and installed requalification remain separate gates.
+
+### Compiled-plan return and equivalent compound measurements
+
+Commit `06700b69` removes a private value-returning compiler wrapper. Each public
+entry point lowers into its own result storage and retains the same allocation,
+cleanup and validation path. The pinned ReleaseSafe assembly loses one 3,400-byte
+plan copy; the public `plan` stack frame shrinks from 22,664 to 19,272 bytes.
+One full-plan return copy remains. The [native return archive](benchmarks/results/2026-10-01-boolean-compiler-return.json.gz)
+retains source patches, assembly, binary/source hashes and three nine-pair CPU-1
+comparisons. An earlier active-payload reconstruction experiment gives mixed
+results (−1.7% to +6.7%) and is reverted. The accepted change gives 0.5–11.9%
+lower SELECT medians against `4b1dc42e`, with overlapping ranges; it does not
+establish a general speedup. Against the unchanged main control, SELECT medians
+remain **22.5–41.6% higher**, so the native compiler gate stays open.
+
+Pinned Fuze unit tests, full `just check` and `just test::sql` pass for the final
+runtime. The independent SQL proof retains 151 SELECT ASTs, 122 canonical
+plan/Arrow cases and 56 result cases across three source bases/eight page widths.
+Log: `/tmp/transit-sql-compiler-direct-check.log`. The file comparison runner
+adds explicit baseline-query and CPU controls: identical query programs are
+labeled separately from filter/compound comparisons with equal results but
+different operator work. Its seven negative/oracle tests pass; different query
+pairs with different results reject before execution.
+
+The [equivalent compound report](benchmarks/results/2026-10-01-boolean-file-compound-equivalent.json.gz)
+passes **486 result-checked samples**: nine alternating pairs across all nine
+shapes and three discovery modes, 4096 rows, CPU 1 and warm input. Both binaries
+execute the same six-instruction program. The frozen baseline is `2330d6ed`;
+candidate source hashes match `06700b69`. All **27 compiler ratios** satisfy
+1.15 (0.7388–1.1221, median 0.9956), as do all **27 pipeline ratios**
+(0.9955–1.0215, median 1.0118). This qualifies that equivalent compound matrix;
+it does not replace the earlier CPU-0 single-atom pipeline outlier or qualify
+cold inputs, independent DuckDB comparisons, native transport latency or clean
+integration lanes. The shared host is not isolated. Log:
+`/tmp/transit-sql-compiler-direct-qualification.log`.
+
+Committed-HEAD **clean core at `dafca8c9` passes all 22 tasks in 1161.50 seconds**,
+exit 0. Expected task order, zero exits and completed metadata are verified in
+`.cache/ci/clean/dafca8c97bdb-transit-ci-ainxmlaz` and retained in the native
+return archive. Log: `/tmp/transit-sql-boolean-compiler-clean-core.log`. This
+qualifies the preceding compiler checkpoint, not the later return-wrapper
+change or the other required lanes. Final documentation validation for this
+continuation passes 4,908 local links across 503 files.
+
+Further read-only inspection of the retained Station experience failure at
+`0b8f3750` identifies six `/v1/query` deadline events with **1.90–1.95 seconds
+spent acquiring the authority lock** and no serialized work recorded. The two
+clusters accompany command work reaching the two-second request limit, provider
+`ReadFailed` events and capacity refusals. The owning `Native.Server.acquire`
+and observability reference define `wait_ns` as lock acquisition, distinct from
+provider/engine work. These sampled logs narrow the next investigation to lock
+holders and provider progress; they do not prove why the holder stalled or why
+the complete Arrow reply missed its deadline. No rerun or changed limit is
+claimed. Logs/stores remain at
+`/var/tmp/transit-ci-zpxsqzvc/src/.cache/launchers/local/station-c5bbc0`.
+
+### Owned parser projections and independent compound matrix
+
+Commit `862ab427` fills selections directly in the owned AST and projections
+through caller-owned arrays. It removes intermediate array returns without
+changing the AST layout, accepted syntax, ownership, bounds or canonical plans.
+Pinned Fuze units, full `just check`, `just test::sql` and all **110 real file CLI
+cases pass**, exit 0. The SQL proof retains 151 SELECT ASTs, 122 canonical
+plan/Arrow cases and 56 result cases across three sources/eight page widths.
+Log: `/tmp/transit-sql-parser-owned-check.log`.
+
+The [parser storage archive](benchmarks/results/2026-10-01-boolean-parser-storage.json.gz)
+retains three nine-pair CPU-1 comparisons, both source variants and assembly.
+The projection-only intermediate has mixed SELECT deltas (−2.4% to +8.5%); it is
+not accepted alone. Filling the AST selection in place gives 1.3–3.4% lower
+SELECT medians against `06700b69`, with overlapping ranges. The main comparison
+still shows **17.4–38.9% overhead**. The 19,272-byte compiler stack frame and
+large AST initialization remain; no native compiler timing pass is claimed.
+Final source hashes match `862ab427`, with original dirty metadata preserved.
+
+The [independent compound report](benchmarks/results/2026-10-01-boolean-compound-duckdb.json.gz)
+passes **324 samples**: nine shapes × explicit/sampled/full discovery × cold/warm
+input × Transit/DuckDB × three repetitions, 4096 rows per fixture. Every expected
+sample identity is present exactly once, result counts/checksums pass, and
+`mincore` confirms zero original-input residency for cold samples and full
+residency for warm samples. The pinned tools are Zig
+`0.17.0-dev.2267+48abf1a34`, DuckDB `1.5.2`/`8a5851971f` and PyArrow `23.0.0`.
+Both engines use one CPU, the existing 4 GiB process address-space ceiling and
+300-second timeout; DuckDB retains one thread and its 64 MB memory limit.
+
+The report retains all six phase timings, CPU/RSS/allocation evidence, exact
+fixtures and source/tool/binary provenance. It compares a compound id filter
+over shared fixture values, not complete SQL value/error/five-state equivalence.
+Discovery, conversion, vectorization and Arrow/allocation scopes differ as
+documented by the [benchmark owner](fuze_benchmarks/README.md). This is descriptive
+comparative evidence, not an unchanged-workload/frozen-budget regression pass.
+Cold input means original page-cache eviction, not a cold machine or device;
+private captures are new and warm. Partial/raw modes, other queries and native
+transport/large-input compound profiles remain unmeasured. Reproduce with
+`nix develop .#benchmarks --command just test::file-benchmark --query compound
+--modes explicit sampled full --caches cold_input warm_input --repetitions 3
+--output REPORT`. Log: `/tmp/transit-sql-parser-compound-matrix.log`.
+
+Earlier committed-source lanes also complete, with metadata/task records in
+the parser storage archive: **clean core at `05a386ab` passes 22/22 in 1107.60
+seconds**, and **clean bindings at `30982a1e` passes 17/17 in 10450.29 seconds**.
+Both exit 0; completed metadata and every expected zero-exit task are verified.
+Their logs are `/tmp/transit-sql-compiler-direct-clean-core.log` and
+`/tmp/transit-sql-boolean-sdk-clean-bindings.log`. Core predates the parser change;
+bindings predates the later native definition/SDK cutover. Neither qualifies
+those later changes or substitutes for all required lanes at one revision.

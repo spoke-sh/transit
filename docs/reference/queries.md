@@ -43,6 +43,17 @@ its own progress and result publications so execution and exact result recovery
 can survive worker loss. Having a source snapshot does not remove that query
 protocol work.
 
+Native typed plans and the shared native/port codec accept Boolean predicate
+programs with up to 64 instructions. They retain null/missing as unknown,
+evaluate atoms eagerly in instruction order, and select only true. A determining
+Boolean operand does not suppress an evaluated type error or conflict. Programs
+share the finite plan's byte budget and continuation identity. Native SQL lowers
+NOT, AND, OR and grouping to these programs. All ten SDKs expose typed program
+constructors and inspected programs. Local file-query plans share the bounded
+Boolean evaluator and retain their own logical schema and source fingerprints;
+the [query contract](../../contracts/UNIFIED_QUERY_V1.md#typed-expressions-and-results)
+defines the native program representation and ownership.
+
 ## Admission and execution
 
 Compile and validate the plan before submission, with explicit operation and
@@ -130,7 +141,7 @@ must be specified together when extending this boundary.
 Selective Table queries use the ordered primary-key index: equality reads one
 key, lower bounds seek, and upper bounds stop the scan. The original Fuze
 predicate still determines matching rows. Comparisons on the value column and
-`!=` retain the general bounded scan. Persistent Arrow storage blocks are
+`!=` and compound native predicates retain the general bounded scan. Persistent Arrow storage blocks are
 separate from the native Arrow batches used for execution and presentation.
 
 The [interactive query contract](../../contracts/INTERACTIVE_QUERY_V1.md) defines

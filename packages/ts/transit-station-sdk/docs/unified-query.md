@@ -1,5 +1,16 @@
 # Unified state queries
 
+`Plan.predicate` accepts `{kind: "program", instructions}` with one to 64 postfix
+`PredicateInstruction` values. An atom uses `{kind: "atom", atom}` with a state
+or comparison `PredicateAtom`; omitting `atom` means all rows. Operators have
+`kind: "negate"`, `"conjunction"` or `"disjunction"`. For example,
+`[{kind: "atom", atom: {kind: "state", column: 1, state: "null"}},
+{kind: "negate"}]` selects non-null cells. `Bundle.prepare` copies the neutral
+input before its first asynchronous wait. Shared Zig validates stack shape and
+types; programs cannot nest. Evaluation preserves instruction order, unknown
+truth and eager errors. EXPLAIN exposes the same bounded structure through
+`InspectedPredicate` without literals; preparation grants no source authority.
+
 Import `unified` from `@transit/station` for v1 KV, Table and accepted Document
 queries. The existing Table v1 APIs remain available. Public source, plan and
 result types are separate from the generated wire schemas; every port request

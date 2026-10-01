@@ -97,20 +97,20 @@ and full-workload blockers. It uses the default 8192 rows, seed 42, eight-row
 pages, ten executions and 2000 compilations/proposals per sample. The executable
 uses Zig `0.17.0-dev.2267+48abf1a34` in ReleaseSafe (`safe` in compiler metadata).
 
-| Family | SELECT component | Median execution per iteration (ms) |
-| --- | --- | ---: |
-| TPC-C | Stock quantity point filter | 0.965 |
-| TPC-C | Low-stock count | 0.954 |
-| TPC-C | Quantity sum | 0.885 |
-| TPC-E | Trade quantity point filter | 0.969 |
-| TPC-E | Filtered quantity sum | 0.962 |
-| TPC-E | Limited projection | 0.033 |
-| TPC-H | Line-item quantity sum | 0.893 |
-| TPC-H | Filtered count | 0.962 |
-| TPC-H | Limited-input sum | 0.011 |
-| TPC-DS | Inventory quantity sum | 0.892 |
-| TPC-DS | Null count | 0.886 |
-| TPC-DS | Limited projection | 0.016 |
+| Family | SELECT component            | Median execution per iteration (ms) |
+| ------ | --------------------------- | ----------------------------------: |
+| TPC-C  | Stock quantity point filter |                               0.965 |
+| TPC-C  | Low-stock count             |                               0.954 |
+| TPC-C  | Quantity sum                |                               0.885 |
+| TPC-E  | Trade quantity point filter |                               0.969 |
+| TPC-E  | Filtered quantity sum       |                               0.962 |
+| TPC-E  | Limited projection          |                               0.033 |
+| TPC-H  | Line-item quantity sum      |                               0.893 |
+| TPC-H  | Filtered count              |                               0.962 |
+| TPC-H  | Limited-input sum           |                               0.011 |
+| TPC-DS | Inventory quantity sum      |                               0.892 |
+| TPC-DS | Null count                  |                               0.886 |
+| TPC-DS | Limited projection          |                               0.016 |
 
 Across the 28 compilation components, per-component medians range from
 0.369 to 1.095 microseconds. The twelve private mutation-proposal components
@@ -135,19 +135,19 @@ shared-host observations, not evidence of a code performance change.
 The [grammar inventory](sql/grammar-surface.md) owns implemented/planned labels.
 Benchmark coverage follows its exact contracts and does not enable new syntax.
 
-| Surface                                                     | Current measurement or blocker                                                                                                          | Owning contract                                                                                                        |
-| ----------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
-| SELECT and shared typed plans                               | Measured finite filter/projection/limit/count/checked int64 sum; canonical plan round-trip precedes execution                           | [SQL](sql.md), [queries](queries.md)                                                                                   |
-| CREATE TABLE and catalog                                    | Reduced definition compilation measured; published two-column Tables cannot represent complete suite schemas/constraints                | [CREATE TABLE](sql/create-table.md)                                                                                    |
-| INSERT, UPDATE, DELETE                                      | Compilation and private proposals measured; literal bounded writes cannot substitute for full transactions or refresh functions         | [Mutation contract](../../contracts/TABLE_MUTATION_V1.md)                                                              |
-| Joins, grouping, ordering and subqueries                    | Planned; full relational workloads blocked                                                                                              | [Planned composition](sql/grammar-surface.md#planned-declarations-and-relational-composition)                          |
-| Decimal/date operations, arithmetic and compound predicates | Planned; quantities here do not implement monetary/date expressions                                                                     | [Expressions](sql/expressions.md)                                                                                      |
-| CSV/JSONL, schema discovery and nested types | Separate file-discovery matrix with frozen numeric budgets; these measurements do not extend the synthetic declarative int64 fixture | [Types and discovery](sql/types.md#schema-discovery-and-binding), [file measurements](performance.md#schema-on-demand-measurements) |
-| BEGIN/COMMIT/ROLLBACK, parameters and bulk operations       | Planned; no multi-statement transaction session or general data loading                                                                 | [Other SQL operations](sql.md#other-sql-operations)                                                                    |
-| KV, Document, graph and foreign relations                   | Native KV/Document query profiles exist but are not measured here; graph/foreign relations remain planned                               | [Source contracts](queries.md), [multi-model targets](sql/grammar-surface.md#planned-standards-and-data-model-surface) |
-| Views, subscriptions, dataflows and recorded effects        | No component result establishes maintained execution or external effects; complete TPC suites do not cover this entire intended surface | [Streaming](sql/streaming.md)                                                                                          |
-| Historical schemas, snapshots and branches                  | Planned and unmeasured; a synthetic fixed basis does not implement historical binding                                                   | [Historical targets](sql/grammar-surface.md#planned-historical-schemas-and-branches)                                   |
-| CLI, SDKs, Board and Flight                                 | Existing caller profiles retain separate permissions and transport limits; all are unmeasured by this harness                           | [Caller APIs](callers.md), [SDKs](sdks.md), [Flight](flight.md)                                                        |
+| Surface                                               | Current measurement or blocker                                                                                                          | Owning contract                                                                                                                     |
+| ----------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| SELECT and shared typed plans                         | Measured finite filter/projection/limit/count/checked int64 sum; canonical plan round-trip precedes execution                           | [SQL](sql.md), [queries](queries.md)                                                                                                |
+| CREATE TABLE and catalog                              | Reduced definition compilation measured; published two-column Tables cannot represent complete suite schemas/constraints                | [CREATE TABLE](sql/create-table.md)                                                                                                 |
+| INSERT, UPDATE, DELETE                                | Compilation and private proposals measured; literal bounded writes cannot substitute for full transactions or refresh functions         | [Mutation contract](../../contracts/TABLE_MUTATION_V1.md)                                                                           |
+| Joins, grouping, ordering and subqueries              | Planned; full relational workloads blocked                                                                                              | [Planned composition](sql/grammar-surface.md#planned-declarations-and-relational-composition)                                       |
+| Decimal/date operations and arithmetic                | Planned; quantities here do not implement monetary/date expressions                                                                     | [Expressions](sql/expressions.md)                                                                                                   |
+| CSV/JSONL, schema discovery and nested types          | Separate file-discovery matrix with frozen numeric budgets; these measurements do not extend the synthetic declarative int64 fixture    | [Types and discovery](sql/types.md#schema-discovery-and-binding), [file measurements](performance.md#schema-on-demand-measurements) |
+| BEGIN/COMMIT/ROLLBACK, parameters and bulk operations | Planned; no multi-statement transaction session or general data loading                                                                 | [Other SQL operations](sql.md#other-sql-operations)                                                                                 |
+| KV, Document, graph and foreign relations             | Native KV/Document query profiles exist but are not measured here; graph/foreign relations remain planned                               | [Source contracts](queries.md), [multi-model targets](sql/grammar-surface.md#planned-standards-and-data-model-surface)              |
+| Views, subscriptions, dataflows and recorded effects  | No component result establishes maintained execution or external effects; complete TPC suites do not cover this entire intended surface | [Streaming](sql/streaming.md)                                                                                                       |
+| Historical schemas, snapshots and branches            | Planned and unmeasured; a synthetic fixed basis does not implement historical binding                                                   | [Historical targets](sql/grammar-surface.md#planned-historical-schemas-and-branches)                                                |
+| CLI, SDKs, Board and Flight                           | Existing caller profiles retain separate permissions and transport limits; all are unmeasured by this harness                           | [Caller APIs](callers.md), [SDKs](sdks.md), [Flight](flight.md)                                                                     |
 
 Explicit catalog APIs support named Table publication, controls and exact saved
 recovery, plus typed lookup, definition reads and bounded listings in all ten

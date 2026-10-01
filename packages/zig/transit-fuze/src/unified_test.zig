@@ -19,16 +19,74 @@ test "unified model keeps absent null type-error value and conflict distinct" {
     for (cells, 0..) |cell, index| {
         try cell.validate(.utf8);
         const plan: m.Plan = .{ .projection = &.{0}, .predicate = .{ .state = .{ .column = 0, .value = @fromBackingInt(@intCast(index)) } } };
-        for (cells, 0..) |candidate, other| try t.expectEqual(index == other, try plan.matches(.{ .cells = &.{candidate} }));
+        for (cells, 0..) |candidate, other| {
+            const row: m.Row = .{ .cells = &.{candidate} };
+            try t.expectEqual(index == other, try plan.matches(row));
+            try t.expectEqual(if (index == other) m.Truth.true_value else m.Truth.false_value, try plan.predicateTruth(row));
+        }
     }
     const comparison: m.Plan = .{ .projection = &.{0}, .predicate = .{ .compare = .{ .column = 0, .op = .eq, .value = .{ .utf8 = "" } } } };
     try t.expect(!try comparison.matches(.{ .cells = &.{.missing} }));
     try t.expect(!try comparison.matches(.{ .cells = &.{.null} }));
+    for ([_]m.Cell{ .missing, .null }) |cell| {
+        const truth = try comparison.predicateTruth(.{ .cells = &.{cell} });
+        try t.expectEqual(m.Truth.unknown, truth);
+        // A negated comparison must not accidentally select absent values.
+        try t.expect(!truth.negate().selects());
+    }
     try t.expectError(error.QueryTypeError, comparison.matches(.{ .cells = &.{cells[2]} }));
     try t.expectError(error.QueryConflict, comparison.matches(.{ .cells = &.{cells[4]} }));
+    try t.expectError(error.QueryTypeError, comparison.predicateTruth(.{ .cells = &.{cells[2]} }));
+    try t.expectError(error.QueryConflict, comparison.predicateTruth(.{ .cells = &.{cells[4]} }));
     try t.expectError(error.InvalidConflict, (m.Cell{ .conflict = alternatives[0..1] }).validate(.utf8));
     const reversed = [_]m.Alternative{ alternatives[1], alternatives[0] };
     try t.expectError(error.InvalidConflict, (m.Cell{ .conflict = &reversed }).validate(.utf8));
+}
+test "predicate truth preserves typed ordering and filter decisions for every comparison" {
+    const pairs = [_][2]m.Scalar{
+        .{ .{ .int64 = std.math.minInt(i64) }, .{ .int64 = std.math.maxInt(i64) } },
+        .{ .{ .uint64 = 1 << 63 }, .{ .uint64 = std.math.maxInt(u64) } },
+        .{ .{ .float64 = -1.5 }, .{ .float64 = 2.5 } },
+        .{ .{ .boolean = false }, .{ .boolean = true } },
+        .{ .{ .utf8 = "a" }, .{ .utf8 = "🙂" } },
+        .{ .{ .binary = &.{0} }, .{ .binary = &.{ 0, 255 } } },
+    };
+    // Columns are less, equal and greater, respectively. Expected results are
+    // literal comparison tables, independent of Scalar.order's implementation.
+    const cases = [_]struct { op: m.Plan.Comparison, expected: [3]bool }{
+        .{ .op = .eq, .expected = .{ false, true, false } },
+        .{ .op = .ne, .expected = .{ true, false, true } },
+        .{ .op = .lt, .expected = .{ true, false, false } },
+        .{ .op = .le, .expected = .{ true, true, false } },
+        .{ .op = .gt, .expected = .{ false, false, true } },
+        .{ .op = .ge, .expected = .{ false, true, true } },
+    };
+    for (pairs) |pair| {
+        const input: m.Schema = .{ .columns = &.{.{ .name = try m.Name.init("value"), .type = std.meta.activeTag(pair[0]) }} };
+        const operands = [_][2]m.Scalar{ .{ pair[0], pair[1] }, .{ pair[0], pair[0] }, .{ pair[1], pair[0] } };
+        for (cases) |case| for (operands, case.expected) |values, expected| {
+            const plan: m.Plan = .{ .projection = &.{0}, .predicate = .{ .compare = .{ .column = 0, .op = case.op, .value = values[1] } } };
+            try plan.validate(input);
+            const row: m.Row = .{ .cells = &.{.{ .value = values[0] }} };
+            try t.expectEqual(if (expected) m.Truth.true_value else m.Truth.false_value, try plan.predicateTruth(row));
+            try t.expectEqual(expected, try plan.matches(row));
+        };
+    }
+}
+test "predicate truth does not turn malformed inputs or evaluated errors into unknown" {
+    const comparison: m.Plan = .{ .projection = &.{0}, .predicate = .{ .compare = .{ .column = 0, .op = .eq, .value = .{ .int64 = 1 } } } };
+    const state: m.Plan = .{ .projection = &.{0}, .predicate = .{ .state = .{ .column = 0, .value = .missing } } };
+    for ([_]m.Plan{ comparison, state }) |plan| {
+        try t.expectError(error.UnknownColumn, plan.predicateTruth(.{ .cells = &.{} }));
+        try t.expectError(error.UnknownColumn, plan.matches(.{ .cells = &.{} }));
+    }
+    const wrong: m.Row = .{ .cells = &.{.{ .value = .{ .uint64 = 1 } }} };
+    try t.expectError(error.TypeMismatch, comparison.predicateTruth(wrong));
+    try t.expectError(error.TypeMismatch, comparison.matches(wrong));
+    const all: m.Plan = .{ .projection = &.{0} };
+    for ([_]m.Cell{ .missing, .null, .{ .type_error = .map } }) |cell| {
+        try t.expectEqual(m.Truth.true_value, try all.predicateTruth(.{ .cells = &.{cell} }));
+    }
 }
 test "one typed plan binds all source kinds and exact contract and schema evidence" {
     const plan: m.Plan = .{ .projection = &.{ 1, 0 }, .predicate = .{ .compare = .{ .column = 0, .op = .ge, .value = .{ .uint64 = std.math.maxInt(u64) } } } };

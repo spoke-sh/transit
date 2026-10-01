@@ -6,17 +6,98 @@ const types = @import("Types.zig");
 const source = @import("FileSource.zig");
 const finite = @import("Finite.zig");
 const values = types.Values;
+const machine = @import("PredicateMachine.zig");
+const lowering = @import("SqlLowering.zig");
+
+/// Instructions and variable-width atoms borrow immutable caller storage.
+/// Compiled file plans own both through their arena.
+pub const Program = struct {
+    pub const max_instructions = machine.max_instructions;
+    pub const Instruction = machine.Instruction(Plan.Atom);
+    instructions: []const Instruction,
+
+    pub fn validate(self: Program, schema: types.Type) !void {
+        try machine.validateShape(self.instructions);
+        for (self.instructions) |instruction| {
+            if (instruction == .atom) try instruction.atom.validate(schema);
+        }
+    }
+    pub fn truth(self: Program, schema: types.Type, cells: []const values.Cell) !finite.Truth {
+        return machine.truth(self.instructions, PredicateRow{ .schema = schema, .cells = cells });
+    }
+};
+const PredicateRow = struct { schema: types.Type, cells: []const values.Cell };
 pub const Plan = struct {
     schema: types.Type,
     source_basis: [32]u8,
     projection: []const u8,
     predicate: union(enum) {
         all,
-        state: struct { column: u8, value: types.State },
-        compare: struct { column: u8, op: finite.Comparison, value: types.Semantics.Atom },
+        state: @FieldType(Atom, "state"),
+        compare: @FieldType(Atom, "compare"),
+        program: Program,
     } = .all,
     aggregate: finite.Aggregate = .rows,
     limit: ?u64 = null,
+    pub const Atom = union(enum) {
+        all,
+        state: struct { column: u8, value: types.State },
+        compare: struct { column: u8, op: finite.Comparison, value: types.Semantics.Atom },
+
+        pub fn validateShape(self: Atom) !void {
+            switch (self) {
+                .all => {},
+                .state => |state| if (state.column >= 128) return error.UnknownColumn,
+                .compare => |comparison| {
+                    if (comparison.column >= 128) return error.UnknownColumn;
+                    if (comparison.value == .bytes and comparison.value.bytes.len > types.Query.max_cell_bytes) return error.CellTooLarge;
+                },
+            }
+        }
+        pub fn validate(self: Atom, schema: types.Type) !void {
+            try self.validateShape();
+            if (schema != .structure) return error.InvalidQuerySchema;
+            switch (self) {
+                .all => {},
+                .state => |state| if (state.column >= schema.structure.len) return error.UnknownColumn,
+                .compare => |comparison| {
+                    if (comparison.column >= schema.structure.len) return error.UnknownColumn;
+                    const expected = schema.structure[comparison.column].type;
+                    try types.Semantics.validate(comparison.value, expected);
+                    if (expected == .interval) return error.UnsupportedComparison;
+                },
+            }
+        }
+        pub fn truth(self: Atom, row: PredicateRow) !finite.Truth {
+            return switch (self) {
+                .all => .true_value,
+                .state => |state| if (state.column < row.cells.len) finite.Truth.fromBool(std.meta.activeTag(row.cells[state.column]) == state.value) else error.UnknownColumn,
+                .compare => |comparison| blk: {
+                    if (row.schema != .structure) return error.InvalidQuerySchema;
+                    if (comparison.column >= row.cells.len or comparison.column >= row.schema.structure.len) return error.UnknownColumn;
+                    break :blk try finite.compareTruth(comparison.op, row.cells[comparison.column], comparison.value, row.schema.structure[comparison.column].type, struct {
+                        fn order(expected: types.Type, left: values.Value, right: types.Semantics.Atom) !std.math.Order {
+                            if (left != .atom) return error.UnsupportedComparison;
+                            return values.atomOrder(left.atom, right, expected);
+                        }
+                    }.order);
+                },
+            };
+        }
+        fn write(self: Atom, schema: types.Type, writer: *std.Io.Writer) !void {
+            switch (self) {
+                .all => try writer.writeByte(0),
+                .state => |state| try writer.writeAll(&.{ 1, state.column, @backingInt(state.value) }),
+                .compare => |comparison| {
+                    try writer.writeAll(&.{ 2, comparison.column, @backingInt(comparison.op) });
+                    var value: [6144]u8 = undefined;
+                    const encoded = try types.Codec.encode(.{ .value = .{ .atom = comparison.value } }, .{ .name = "literal", .type = schema.structure[comparison.column].type }, &value);
+                    try writer.writeInt(u16, @intCast(encoded.len), .little);
+                    try writer.writeAll(encoded);
+                },
+            }
+        }
+    };
     pub fn validate(self: Plan) !void {
         try self.schema.validate(.{});
         if (self.schema != .structure or self.schema.structure.len > 128) return error.InvalidQuerySchema;
@@ -28,14 +109,8 @@ pub const Plan = struct {
         if (self.aggregate != .rows and self.projection.len != 1) return error.UnsupportedAggregate;
         if (self.aggregate == .sum and self.schema.structure[self.projection[0]].type != .int64) return error.UnsupportedAggregate;
         switch (self.predicate) {
-            .all => {},
-            .state => |state| if (state.column >= self.schema.structure.len) return error.UnknownColumn,
-            .compare => |comparison| {
-                if (comparison.column >= self.schema.structure.len) return error.UnknownColumn;
-                try types.Semantics.validate(comparison.value, self.schema.structure[comparison.column].type);
-                if (comparison.value == .bytes and comparison.value.bytes.len > types.Query.max_cell_bytes) return error.CellTooLarge;
-                if (self.schema.structure[comparison.column].type == .interval) return error.UnsupportedComparison;
-            },
+            .program => |program| try program.validate(self.schema),
+            inline else => |value, tag| try @as(Atom, @unionInit(Atom, @tagName(tag), value)).validate(self.schema),
         }
     }
     pub fn fingerprint(self: Plan) ![32]u8 {
@@ -51,15 +126,19 @@ pub const Plan = struct {
         try writer.writeByte(@intFromBool(self.limit != null));
         try writer.writeInt(u64, self.limit orelse 0, .little);
         switch (self.predicate) {
-            .all => try writer.writeByte(0),
-            .state => |state| try writer.writeAll(&.{ 1, state.column, @backingInt(state.value) }),
-            .compare => |comparison| {
-                try writer.writeAll(&.{ 2, comparison.column, @backingInt(comparison.op) });
-                var value: [6144]u8 = undefined;
-                const encoded = try types.Codec.encode(.{ .value = .{ .atom = comparison.value } }, .{ .name = "literal", .type = self.schema.structure[comparison.column].type }, &value);
-                try writer.writeInt(u16, @intCast(encoded.len), .little);
-                try writer.writeAll(encoded);
+            .program => |program| {
+                try writer.writeAll(&.{ 3, @intCast(program.instructions.len) });
+                for (program.instructions) |instruction| switch (instruction) {
+                    .atom => |atom| {
+                        try writer.writeByte(0);
+                        try atom.write(self.schema, &writer);
+                    },
+                    .negate => try writer.writeByte(1),
+                    .conjunction => try writer.writeByte(2),
+                    .disjunction => try writer.writeByte(3),
+                };
             },
+            inline else => |value, tag| try @as(Atom, @unionInit(Atom, @tagName(tag), value)).write(self.schema, &writer),
         }
         var digest: [32]u8 = undefined;
         std.crypto.hash.sha2.Sha256.hash(writer.buffered(), &digest, .{});
@@ -76,16 +155,11 @@ pub const Plan = struct {
         return .{ .structure = fields[0..self.projection.len] };
     }
     fn matches(self: Plan, cells: []const values.Cell) !bool {
-        return switch (self.predicate) {
-            .all => true,
-            .state => |state| std.meta.activeTag(cells[state.column]) == state.value,
-            .compare => |comparison| finite.compare(comparison.op, cells[comparison.column], comparison.value, self.schema.structure[comparison.column].type, struct {
-                fn order(expected: types.Type, left: values.Value, right: types.Semantics.Atom) !std.math.Order {
-                    if (left != .atom) return error.UnsupportedComparison;
-                    return values.atomOrder(left.atom, right, expected);
-                }
-            }.order),
+        const truth = switch (self.predicate) {
+            .program => |program| try program.truth(self.schema, cells),
+            inline else => |value, tag| try @as(Atom, @unionInit(Atom, @tagName(tag), value)).truth(.{ .schema = self.schema, .cells = cells }),
         };
+        return truth.selects();
     }
 };
 pub const Compiled = struct {
@@ -107,27 +181,52 @@ pub fn compile(allocator: std.mem.Allocator, text: []const u8, name: []const u8,
     var arena: std.heap.ArenaAllocator = .init(allocator);
     errdefer arena.deinit();
     const alloc = arena.allocator();
-    const ast = try @import("Sql.zig").parse(text);
+    var ast: @import("Sql.zig").Ast = undefined;
+    try @import("Sql.zig").parseInto(text, &ast, null);
     var names: [128][]const u8 = undefined;
     for (schema.structure, 0..) |field, i| names[i] = field.name;
     var input: [128]u8 = undefined;
     var projected: [128]u8 = undefined;
-    const shape = try @import("SqlLowering.zig").lower(ast, name, names[0..schema.structure.len], &input, &projected);
+    const shape = try lowering.lower(&ast, name, names[0..schema.structure.len], &input, &projected);
     var plan: Plan = .{ .schema = schema, .source_basis = binding.digest, .projection = try alloc.dupe(u8, shape.projection), .aggregate = shape.aggregate, .limit = shape.limit };
     plan.predicate = switch (shape.predicate) {
+        .program => |program| blk: {
+            try program.validate();
+            const instructions = try alloc.alloc(Program.Instruction, program.count);
+            const qualifier = ast.source_alias orelse ast.source;
+            for (program.instructions[0..program.count], instructions) |instruction, *output| {
+                output.* = switch (instruction) {
+                    .atom => |atom| .{ .atom = try lowerAtom(alloc, try lowering.lowerAtom(try program.expand(atom), qualifier.slice(), names[0..schema.structure.len]), schema) },
+                    .negate => .negate,
+                    .conjunction => .conjunction,
+                    .disjunction => .disjunction,
+                };
+            }
+            break :blk .{ .program = .{ .instructions = instructions } };
+        },
+        inline else => |value, tag| blk: {
+            const atom = try lowerAtom(alloc, @unionInit(lowering.Atom, @tagName(tag), value), schema);
+            break :blk switch (atom) {
+                inline else => |item, kind| @unionInit(@FieldType(Plan, "predicate"), @tagName(kind), item),
+            };
+        },
+    };
+    try plan.validate();
+    return .{ .arena = arena, .descriptor = descriptor, .plan = plan };
+}
+fn lowerAtom(allocator: std.mem.Allocator, atom: lowering.Atom, schema: types.Type) !Plan.Atom {
+    return switch (atom) {
         .all => .all,
         .state => |state| .{ .state = .{ .column = state.column, .value = state.value } },
         .compare => |comparison| blk: {
-            const scalar = try @import("UnifiedSql.zig").scalar(alloc, comparison.literal);
-            // The same SQL literal typing as native queries: no source-specific
-            // implicit cast or reinterpretation of a string as an exact number.
+            const scalar = try @import("UnifiedSql.zig").scalar(allocator, comparison.literal);
+            // Native and file SQL have identical literal admission; no implicit
+            // cast or reinterpretation of a string as an exact number.
             try scalar.validate(try schema.structure[comparison.column].type.queryType());
             const cell = try values.fromQuery(.{ .value = scalar });
             break :blk .{ .compare = .{ .column = comparison.column, .op = comparison.op, .value = cell.value.atom } };
         },
     };
-    try plan.validate();
-    return .{ .arena = arena, .descriptor = descriptor, .plan = plan };
 }
 pub const Execution = struct {
     scan: source.Scan,
@@ -248,7 +347,7 @@ test "file projections and limits never hide a source conversion failure" {
     const sources = [_]source.Source{memory.handle()};
     var binding = try source.discover(t.allocator, &sources, .{ .format = .csv, .sample_records = 1 }, &.{});
     defer binding.deinit();
-    var compiled = try compile(t.allocator, "SELECT id FROM input LIMIT 1", "input", &binding);
+    var compiled = try compile(t.allocator, "SELECT id FROM input WHERE id = 1 OR id = 2 LIMIT 1", "input", &binding);
     defer compiled.deinit();
     var execution = try Execution.init(t.allocator, &binding, &sources, compiled.plan);
     defer execution.deinit();
@@ -264,7 +363,7 @@ test "typed file plans compare all integer bits while SQL keeps exact literal ad
     const sources = [_]source.Source{memory.handle()};
     var binding = try source.discover(t.allocator, &sources, .{ .format = .csv, .mode = .full }, &.{});
     defer binding.deinit();
-    const plan: Plan = .{ .schema = binding.schema.type, .source_basis = binding.digest, .projection = &.{0}, .predicate = .{ .compare = .{ .column = 0, .op = .eq, .value = .{ .unsigned = std.math.maxInt(u128) } } } };
+    const plan: Plan = .{ .schema = binding.schema.type, .source_basis = binding.digest, .projection = &.{0}, .predicate = .{ .program = .{ .instructions = &.{ .{ .atom = .{ .compare = .{ .column = 0, .op = .ne, .value = .{ .unsigned = std.math.maxInt(u128) } } } }, .negate } } } };
     var execution = try Execution.init(t.allocator, &binding, &sources, plan);
     defer execution.deinit();
     var row = (try execution.next()).?;
@@ -279,7 +378,7 @@ fn allocationSchedule(allocator: std.mem.Allocator) !void {
     const sources = [_]source.Source{memory.handle()};
     var binding = try source.discover(allocator, &sources, .{ .format = .csv, .mode = .full }, &.{});
     defer binding.deinit();
-    var compiled = try compile(allocator, "SELECT id FROM input WHERE text = 'hello'", "input", &binding);
+    var compiled = try compile(allocator, "SELECT id FROM input WHERE NOT (text <> 'hello' OR id < 1)", "input", &binding);
     defer compiled.deinit();
     var execution = try Execution.init(allocator, &binding, &sources, compiled.plan);
     defer execution.deinit();
@@ -293,4 +392,49 @@ fn allocationSchedule(allocator: std.mem.Allocator) !void {
 }
 test "file plan and result allocation failures release owned schema literals and rows" {
     try std.testing.checkAllAllocationFailures(std.testing.allocator, allocationSchedule, .{});
+}
+
+test "file compound SQL owns literals and preserves binding after input text is overwritten" {
+    const t = std.testing;
+    var memory: Memory = .{ .bytes = "id,text\n1,hello\n2,world\n" };
+    const sources = [_]source.Source{memory.handle()};
+    var binding = try source.discover(t.allocator, &sources, .{ .format = .csv, .mode = .full }, &.{});
+    defer binding.deinit();
+    var text = "SELECT id FROM input WHERE NOT (text <> 'hello' OR id < 1)".*;
+    var compiled = try compile(t.allocator, &text, "input", &binding);
+    defer compiled.deinit();
+    @memset(&text, 'x');
+    const literal = compiled.plan.predicate.program.instructions[0].atom.compare.value.bytes;
+    try t.expectEqualStrings("hello", literal);
+    var execution = try Execution.init(t.allocator, &binding, &sources, compiled.plan);
+    defer execution.deinit();
+    var first = (try execution.next()).?;
+    first.deinit();
+    // Typed plans borrow immutable program/literal storage. Mutating a valid
+    // literal after execution starts must fail before another row is disclosed.
+    @constCast(literal)[0] = 'H';
+    try t.expectError(error.SourceChanged, execution.next());
+    try t.expect(!execution.complete);
+    try t.expectError(error.FailedQuery, execution.next());
+}
+
+test "file compound filtering never hides a late changed source digest" {
+    const t = std.testing;
+    var bytes = "id\n1\n2\n".*;
+    var memory: Memory = .{ .bytes = &bytes };
+    const sources = [_]source.Source{memory.handle()};
+    var binding = try source.discover(t.allocator, &sources, .{ .format = .csv, .mode = .full }, &.{});
+    defer binding.deinit();
+    var compiled = try compile(t.allocator, "SELECT id FROM input WHERE id < 0 AND NOT (id IS NULL) LIMIT 0", "input", &binding);
+    defer compiled.deinit();
+    bytes[bytes.len - 2] = '3';
+    var execution = try Execution.init(t.allocator, &binding, &sources, compiled.plan);
+    defer execution.deinit();
+    try t.expectError(error.SourceChanged, execution.next());
+    try t.expect(!execution.complete);
+    try t.expectError(error.FailedQuery, execution.next());
+}
+
+test {
+    _ = @import("file_predicate_test.zig");
 }

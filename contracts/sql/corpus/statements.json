@@ -1685,6 +1685,210 @@
       "id": "output-alias-aggregate-limit",
       "sql": "SELECT count(*) AS rows FROM items LIMIT 1",
       "compile_error": "UnsupportedAggregateLimit"
+    },
+    {
+      "id": "boolean-0",
+      "sql": "SELECT * FROM items WHERE id = 1 AND value = 2",
+      "schema": {
+        "name": "items",
+        "columns": [
+          "id",
+          "value"
+        ],
+        "type": "int64"
+      }
+    },
+    {
+      "id": "boolean-1",
+      "sql": "SELECT * FROM items WHERE id = 1 OR value = 2",
+      "schema": {
+        "name": "items",
+        "columns": [
+          "id",
+          "value"
+        ],
+        "type": "int64"
+      }
+    },
+    {
+      "id": "boolean-2",
+      "sql": "SELECT * FROM items WHERE NOT value = 2",
+      "schema": {
+        "name": "items",
+        "columns": [
+          "id",
+          "value"
+        ],
+        "type": "int64"
+      }
+    },
+    {
+      "id": "boolean-3",
+      "sql": "SELECT * FROM items WHERE NOT NOT value = 2",
+      "schema": {
+        "name": "items",
+        "columns": [
+          "id",
+          "value"
+        ],
+        "type": "int64"
+      }
+    },
+    {
+      "id": "boolean-4",
+      "sql": "SELECT * FROM items WHERE id < 0 OR id = 1 AND value = 2",
+      "schema": {
+        "name": "items",
+        "columns": [
+          "id",
+          "value"
+        ],
+        "type": "int64"
+      }
+    },
+    {
+      "id": "boolean-5",
+      "sql": "SELECT * FROM items WHERE (id < 0 OR id = 1) AND value = 2",
+      "schema": {
+        "name": "items",
+        "columns": [
+          "id",
+          "value"
+        ],
+        "type": "int64"
+      }
+    },
+    {
+      "id": "boolean-6",
+      "sql": "SELECT * FROM items WHERE NOT (id < 0 OR NOT value = 2)",
+      "schema": {
+        "name": "items",
+        "columns": [
+          "id",
+          "value"
+        ],
+        "type": "int64"
+      }
+    },
+    {
+      "id": "boolean-7",
+      "sql": "SELECT * FROM items WHERE NOT value IS NULL",
+      "schema": {
+        "name": "items",
+        "columns": [
+          "id",
+          "value"
+        ],
+        "type": "int64"
+      }
+    },
+    {
+      "id": "boolean-8",
+      "sql": "SELECT * FROM items WHERE value IS NULL OR value >= 0",
+      "schema": {
+        "name": "items",
+        "columns": [
+          "id",
+          "value"
+        ],
+        "type": "int64"
+      }
+    },
+    {
+      "id": "boolean-9",
+      "sql": "SELECT * FROM items WHERE NOT (value = 1 AND value IS NULL)",
+      "schema": {
+        "name": "items",
+        "columns": [
+          "id",
+          "value"
+        ],
+        "type": "int64"
+      }
+    },
+    {
+      "id": "boolean-10",
+      "sql": "SELECT id AS key FROM items AS x WHERE x.id > 0 AND NOT x.value < 10 LIMIT 7",
+      "schema": {
+        "name": "items",
+        "columns": [
+          "id",
+          "value"
+        ],
+        "type": "int64"
+      }
+    },
+    {
+      "id": "boolean-11",
+      "sql": "SELECT count(*) FROM items WHERE NOT value = 0",
+      "schema": {
+        "name": "items",
+        "columns": [
+          "id",
+          "value"
+        ],
+        "type": "int64"
+      }
+    },
+    {
+      "id": "boolean-12",
+      "sql": "SELECT sum(chosen.value) AS total FROM (SELECT value FROM items WHERE id > 0 OR value IS NULL LIMIT 9) AS chosen",
+      "schema": {
+        "name": "items",
+        "columns": [
+          "id",
+          "value"
+        ],
+        "type": "int64"
+      }
+    },
+    {
+      "id": "boolean-13",
+      "sql": "SELECT * FROM items WHERE ((id = 1))",
+      "schema": {
+        "name": "items",
+        "columns": [
+          "id",
+          "value"
+        ],
+        "type": "int64"
+      }
+    },
+    {
+      "id": "boolean-14",
+      "sql": "SELECT * FROM items WHERE id = 1 AND (id = 2 AND id = 3)",
+      "schema": {
+        "name": "items",
+        "columns": [
+          "id",
+          "value"
+        ],
+        "type": "int64"
+      }
+    },
+    {
+      "id": "boolean-15",
+      "sql": "SELECT * FROM items WHERE (id = 1 AND id = 2) AND id = 3",
+      "schema": {
+        "name": "items",
+        "columns": [
+          "id",
+          "value"
+        ],
+        "type": "int64"
+      }
+    },
+    {
+      "id": "boolean-16",
+      "sql": "SELECT * FROM items WHERE NOT NOT NOT NOT NOT NOT NOT NOT NOT NOT NOT NOT NOT NOT NOT NOT NOT NOT NOT NOT NOT NOT NOT NOT NOT NOT NOT NOT NOT NOT NOT NOT NOT NOT NOT NOT NOT NOT NOT NOT NOT NOT NOT NOT NOT NOT NOT NOT NOT NOT NOT NOT NOT NOT NOT NOT NOT NOT NOT NOT NOT NOT NOT id = 1",
+      "schema": {
+        "name": "items",
+        "columns": [
+          "id",
+          "value"
+        ],
+        "type": "int64"
+      }
     }
   ],
   "reject": [
@@ -1706,11 +1910,6 @@
     {
       "id": "excluded-4",
       "sql": "SELECT count(value) FROM items",
-      "postgres": true
-    },
-    {
-      "id": "excluded-5",
-      "sql": "SELECT * FROM items WHERE id = 1 AND value = 2",
       "postgres": true
     },
     {
@@ -1811,6 +2010,41 @@
     {
       "id": "output-alias-star",
       "sql": "SELECT * AS result FROM items",
+      "postgres": false
+    },
+    {
+      "id": "boolean-invalid-0",
+      "sql": "SELECT * FROM items WHERE id = 1 AND",
+      "postgres": false
+    },
+    {
+      "id": "boolean-invalid-1",
+      "sql": "SELECT * FROM items WHERE NOT",
+      "postgres": false
+    },
+    {
+      "id": "boolean-invalid-2",
+      "sql": "SELECT * FROM items WHERE ()",
+      "postgres": false
+    },
+    {
+      "id": "boolean-invalid-3",
+      "sql": "SELECT * FROM items WHERE (id = 1",
+      "postgres": false
+    },
+    {
+      "id": "boolean-invalid-4",
+      "sql": "SELECT * FROM items WHERE id = 1)",
+      "postgres": false
+    },
+    {
+      "id": "boolean-invalid-5",
+      "sql": "SELECT * FROM items WHERE id = 1 OR AND value = 2",
+      "postgres": false
+    },
+    {
+      "id": "boolean-invalid-6",
+      "sql": "SELECT * FROM items WHERE (id = 1 LIMIT 2)",
       "postgres": false
     }
   ],

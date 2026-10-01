@@ -11,6 +11,14 @@ bounded `Projection` values. `Bundle.prepare(source, plan, budgets)` validates
 and creates canonical bytes without admitting work. All wide values use Ruby
 `Integer`; binary strings and returned bytes are copied and frozen.
 
+`PredicateProgram.new(instructions: [...])` copies and freezes one to 64 postfix
+instructions. Use `PredicateAtom.new(predicate: comparison_or_state)` or
+`PredicateAtom.new` for an all-row atom, and `:negate`, `:conjunction` and
+`:disjunction` for operators. Shared Zig validates complete stack shape and typed
+atoms; nested programs reject. Evaluation retains instruction order, unknown
+truth and eager errors. EXPLAIN returns an `InspectedProgram` with frozen
+`InspectedAtom` values and operator symbols, excluding literal values.
+
 `Client.open(config, credential, connection) { |client| ... }` owns one query
 port. The explicit `Connection` binds source/requester PIDs and resources in one
 realm. It needs no activation or writer ownership. `describe(source)` checks
