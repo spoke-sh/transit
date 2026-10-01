@@ -2607,6 +2607,15 @@ deadline. These shared-host, incomplete workload observations do not qualify an
 end-to-end speedup or resolve the historical timing change. Committed-source
 clean qualification remains separate.
 
+The subsequent [clean checkpoint](verification/results/m37-clean-delivery-core-2026-10-01.json)
+passes all **22 core tasks at committed `42d45983` in 1,082.326 seconds** including
+setup. Its disk storage task passes in 430.21 seconds with kill, checkpoint and
+trim recovery. The driver stops between lanes; growth, experience, launchers,
+bindings and browser remain unrun at this source. This core pass does not resolve
+the focused query timeout. Hosted run `36832812554` is refused before any test
+starts with the same GitHub account billing annotation. The source-specific
+record retains both outcomes; neither is a complete ordinary or cost pass.
+
 ## Interrupted CI evidence — 2026-10-01
 
 Hosted launcher job `110201098691` reaches its 30-minute execution cap after
