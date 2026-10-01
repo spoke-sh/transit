@@ -39,6 +39,7 @@ Every row is **Implemented — execution** within its stated profile.
 | `LIMIT n` | Full uint64 row count; omission does not truncate or remove execution budgets | [SELECT](select.md) |
 | `COUNT(*)`, `SUM(column)` | One aggregate; uint64 count or ordered checked int64 sum | [Aggregates](expressions.md#aggregate-functions) |
 | Aggregate over one derived table | Only the restricted filter → limit → aggregate form, with its required alias | [Limited aggregate input](select.md#aggregate-a-limited-input) |
+| `FROM source AS alias` | Query-local column qualifier; explicit `AS`, unchanged source and output column identities | [Project rows](select.md#project-rows) |
 | `DESCRIBE name`, `SHOW TABLES` | Current authorized metadata for the configured source; not a realm-wide catalog | [DESCRIBE](describe.md), [SHOW](show.md) |
 | `EXPLAIN SELECT ...` | Validated finite plan and output columns; no query admission, snapshot acquisition or execution | [EXPLAIN](explain.md) |
 
@@ -57,11 +58,11 @@ different [recovery behavior](../queries.md).
 
 | Form | Support | Caller and boundary |
 | --- | --- | --- |
-| `INSERT INTO ... VALUES ...` | **Implemented — execution** | One to three literal rows through an explicitly enabled Table writer, shared client, typed SDKs or mutation CLI |
+| `INSERT INTO ... VALUES ...` | **Implemented — execution** | One to three literal rows through an explicitly enabled Table writer, shared client, typed SDKs or configured console |
 | `UPDATE ... SET ... WHERE key = literal` | **Implemented — execution** | One value-column assignment at one primary key through that writer |
 | `DELETE FROM ... WHERE key = literal` | **Implemented — execution** | One primary key through that writer |
 | `CREATE TABLE`, `CREATE KV`, `CREATE DOCUMENT` compilation | **Implemented — compilation** | Shared offline state compiler; owned definitions and canonical review SQL |
-| Compatible empty `CREATE TABLE` publication | **Implemented — execution** | Explicit catalog host/caller/CLI; two columns: int64 non-null key and explicitly nullable int64/bool/UTF-8/binary value |
+| Compatible empty `CREATE TABLE` publication | **Implemented — execution** | Explicit catalog host/caller/console; two columns: int64 non-null key and explicitly nullable int64/bool/UTF-8/binary value |
 | `CREATE KV`, `CREATE DOCUMENT` publication | **Planned — checked grammar** | No catalog creation operation, provisioning or default decoder/replica follows from offline compilation |
 | `CREATE INTERFACE`, `CREATE THEME`, `CREATE SCREEN`, `CREATE BINDING`, `CREATE ACTION` | **Implemented — compilation**, with separate implemented publication | One complete application definition; explicit reviewed conditional publication, outside the query grammar |
 
@@ -77,8 +78,8 @@ The [SDK matrix](../sdks.md#table-mutation-callers) and
 [catalog contract](../../../contracts/DECLARATIVE_CATALOG_V1.md) identify the
 available language callers. All ten SDKs expose typed catalog creation, controls,
 exact saved recovery and owned lookup/definition/page values through the shared
-native implementation. These explicit catalog APIs do not enable administrative
-statements in the query console.
+native implementation. The console exposes compatible CREATE TABLE through an explicit catalog route;
+other administrative SQL families retain their own stated support boundaries.
 
 ## Planned declarations and relational composition
 
@@ -87,7 +88,7 @@ statements in the query console.
 | `CREATE CONNECTION`, `CREATE SOURCE`, `CREATE SINK` | **Planned — checked grammar** | Typed options, secret references, dependencies and separately authorized activation; declarations confer no access |
 | `GRANT`, `REVOKE` | **Planned — checked grammar** | Lower to current owning authorization operations; names and PID ownership do not grant rights |
 | `SHOW SOURCES`, `SHOW SINKS`, `SHOW CONNECTIONS` | **Planned — checked grammar** | Authorized paged catalog inspection; a configured-source listing is not a global catalog |
-| Expressions, boolean composition, aliases and reusable queries | **Planned — syntax undecided** | Selected SQL expressions with explicit type, five-state conversion and error-order rules; no general evaluator exists today |
+| Expressions, boolean composition, output aliases and reusable queries | **Planned — syntax undecided** | Selected SQL expressions with explicit type, five-state conversion and error-order rules; no general evaluator exists today |
 | `JOIN`, `GROUP BY`, `COUNT(column)` | **Planned — syntax undecided** | One inner or left int64 equijoin over Tables, optional int64 grouping, count and ordered checked int64 sum; explicit source vectors and bag multiplicity |
 | `ORDER BY`, further expressions, aggregates and query composition | **Planned — syntax undecided** | Broader selected relational operations with explicit error/order semantics and bounded state; individual variants still need contracts |
 | `CREATE VIEW`, `CREATE MATERIALIZED VIEW`, `SUBSCRIBE` | **Planned — syntax undecided** | Named definitions, complete changes, resumable backfill, snapshot/change handoff and current disclosure |

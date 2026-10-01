@@ -18,6 +18,16 @@ The gateway uses Apache Arrow 23.0.0 protocol definitions. Metadata union/list/m
 coverage does not widen application query types. Unsupported operations return
 explicit UNIMPLEMENTED. Pinned Python ADBC uses its unprepared fallback.
 
+`GetSchema` and statement execution report SQL syntax, source/type binding and
+compiler-bound failures as INVALID_ARGUMENT. Unsupported constructs, grammar-only
+families and statements that require a different interface return UNIMPLEMENTED.
+Messages give a correction or supported alternative and parser line/byte-column
+coordinates where available. They contain no SQL excerpts or literal values and
+fit the existing 128-byte gRPC message budget. Authentication and current access
+checks precede these diagnostics. A compilation failure does not admit a query or
+consume the supplied sequence; an unavailable response after admission still
+requires recovery with the original identity below.
+
 ## Connect with ADBC
 
 Provision the query hosts, service binding, dedicated caller/requester and

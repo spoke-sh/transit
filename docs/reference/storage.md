@@ -28,6 +28,9 @@ application history into current state.
 The [performance reference](performance.md) quantifies current small-page read
 and write amplification. Catalog reads stop at namespace boundaries. Bounded tree mutation batches copy
 shared paths once, and the backend stages sibling immutable pages in groups.
+The catalog also shares point-read paths when counting inserted and deleted
+records in a mutation batch. It reads the original immutable root and installs
+the new count only after all candidate pages stage successfully.
 Verified pages use a bounded LRU cache. A separate 16-record cache holds verified
 immutable authority metadata so data scans cannot evict it. Its key includes the
 complete catalog root; a root change invalidates the records. Native reads still

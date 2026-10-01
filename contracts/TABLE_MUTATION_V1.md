@@ -11,8 +11,9 @@ the [state contract](STATE_V1.md) defines accepted commits.
 
 An application must explicitly expose the operation and authorize its caller.
 The helper does not discover a writer, grant access, submit work or commit.
-The console, Board, Flight SQL and language SDK query clients do not yet admit
-SQL mutations. A query source declaration or read permission is insufficient.
+The console admits SQL mutations through its explicit `writes.table` connection
+and private recovery file. Board, Flight SQL and language SDK query clients do
+not admit mutations. A query source declaration or read permission is insufficient.
 The canonical request below supports immutable transport; it does not create a
 public admission route or standalone transaction session. Table row storage keeps
 its existing encoding. Native, ABI and saved-operation definition checks cover
@@ -105,9 +106,9 @@ rights. Applying a mutation through Fuze alone is impossible.
 Applications retain the original admitted command identity and exact signed
 proposal under uncertain transport. A fresh statement is new work. Replaying
 an already accepted turn reconciles its native receipt; it does not invoke
-the helper again to select against newer state. Public SQL admission and durable
-result routing require their own implementation before those guarantees can
-be offered by a console or SDK convenience API.
+the helper again to select against newer state. The console composes the signed client below: it persists each exact command,
+observes processed input and rejection, then reads terminal status before
+reporting applied rows. Its connection grants no authority.
 
 Deleting a current row does not retire its resource or erase retained history,
 accepted inputs or receipts. Retention remains unlimited by default. Mutation

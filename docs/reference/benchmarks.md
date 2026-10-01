@@ -51,8 +51,10 @@ this harness, and no decimal monetary representation or trading policy is chosen
 ## What runs
 
 The [component manifest](../../tests/benchmarks/manifest.json) owns the exact SQL.
-Each family has seven components: three SELECTs, one two-column declaration and
-literal INSERT, UPDATE and DELETE. The 28 components exercise the same public
+Each family has seven base components: three SELECTs, one two-column declaration
+and literal INSERT, UPDATE and DELETE. An additional selected-count fixture uses
+an explicit source alias over identical data and predicate, recording the cost
+of that spelling separately. The 29 components exercise the same public
 package implementation used by declarative callers. They do not establish
 transport-specific latency or execute a complete business transaction.
 

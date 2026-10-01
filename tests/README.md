@@ -1922,6 +1922,64 @@ matching `.log`. The private fixture includes credentials and must not be
 published. PRs #40 and #41 are merged; merge status does not qualify this failed
 schedule or establish a performance improvement under native cold storage.
 
+### Shared reads for catalog mutation counts
+
+The `perf/sql-catalog-mutation-reads` continuation starts from merged #41 at
+`d5541301` in its own `rey-sql-catalog-mutation-reads` worktree. Catalog mutation
+counting now uses the existing bounded `Tree.getMany` before staging the new
+candidate. It validates all keys, values and duplicate keys before page I/O,
+reads the original immutable cut, and updates the root and count together only
+after successful staging. The eight-key bound and current v1 formats are unchanged.
+
+The standalone core suite passes **64 tests**. An eight-operation fixture over
+64 existing records mixes inserts, replacement, deletes and no-ops in unsorted
+caller order. It records **45 page loads** with separate existence reads versus
+**23** with shared traversal, including the same subsequent tree mutation in
+both counts. Both produce the same immutable candidate root. Independent expected
+values check all 130 addresses in the selected range and the retained old cut;
+the new count is 65. Every observed read failure and staging failure/lost
+acknowledgement preserves the original candidate root and count. Corrupt pages
+reject; empty/no-op batches do not stage; malformed and oversized batches reject
+before reads or writes. The log is
+`/tmp/transit-sql-catalog-mutation-batch-unit-final.log`.
+
+This is component I/O evidence, not a native latency improvement. The earlier
+shared-point-read cold recovery failure remains open: a status observation times
+out after 213 additions, while the original accepted turn has recovered. Its
+retained node log shows the final read spending almost ten seconds waiting
+behind an `open_view` write that also reaches its deadline. The batching change
+reduces demonstrated repeated work; it does not by itself diagnose that provider
+stall or qualify the full native recovery schedule. Full checks, resource-fault
+simulation and native/committed-head clean evidence are recorded separately.
+
+At committed `68794bd7`, full `just check` passes, including generated contracts,
+CLI, frontend and documentation checks. The eight-seed resource simulation
+passes **798 traces / 15,496 events / 1,598 executions**, with identical replay
+in **450.845 s**. Its report records dirty source based on `d5541301`; the
+production source was committed unchanged as `68794bd7`. Committed-head
+`just ci-clean --lane core --work-root /var/tmp` passes all **22 tasks** in
+**1254.78 s**, without inherited workspace build outputs. Evidence is retained
+under `.cache/ci/clean/68794bd70102-transit-ci-w03ie6wa` and in
+`/tmp/transit-sql-catalog-mutation-batch-resource-simulation.json`.
+
+The native cold-recovery schedule at that same committed revision **fails after
+149 applied additions / 944.550 s** on an application-status `AuthorityTimeout`.
+Original input **538** recovers as receipt **540** without resubmission. Joined
+cleanup succeeds. Eight authority pages, four mutations, the 8 MiB hot store
+and 8 MiB cold cache remain the bounds. The full 257-addition continuation,
+later metadata/restart and disclosure checks are unqualified for this candidate.
+The record is `/tmp/transit-sql-catalog-mutation-batch-cold-recovery.json`; the
+private failure fixture remains under
+`.cache/verification/catalog/recovery-failures/1790809229338501922`.
+
+Its final node events distinguish a turn reaching the ten-second deadline
+(52 cache hits / 912 misses) from the following read spending **9.950 s**
+waiting and **0.050 s** working before its own deadline. A later turn is logged
+successful at position **573**, but the interrupted proof did not observe its
+application status. Neither that log nor component page-load savings qualifies
+the missing end-to-end assertions or establishes the storage stall's cause.
+The complete native run remains failed; no deadline has been increased.
+
 ## SQL branch integration of seeded simulations
 
 The SQL branch rebases onto `a53d6262` (merged PR #33), preserving the expanded
@@ -2416,6 +2474,31 @@ runner-entry regression completes stage one, fails stage two deliberately and
 requires incomplete evidence with no later execution. The larger ordinary job
 caps permit measuring expanded inventories; they do not change task-local
 deadlines or qualify the historical feedback budgets.
+
+Clean experience at `1f76bf3b` passes all seven tasks in 523.220 seconds including
+setup, with 292 courier read refusals, replacement after 30.276 seconds and the
+Arrow reply within the original deadline. Core passes twelve tasks before its
+package build is deliberately interrupted to integrate main at `2704c153` after
+new PR conflicts. Its completion record remains false; growth, bindings and
+launchers are unrun at that checkpoint. The stopped checkout retains evidence
+and has no remaining owned processes. Hosted discovery run
+[36801433218](https://github.com/rupurt/rey/actions/runs/36801433218) uses the
+unchanged `1f76bf3b` source and is incomplete at this recording.
+
+Integration preserves main's SQL console write/recovery cases and the controlled
+missing-MinIO diagnostic environment. Full `just check` passes on the merged
+development source. Clean qualification of the merged commit remains separate
+from the superseded run.
+
+The first merged combined Table attempt fails its 45-second console wait while
+MinIO rejects cold writes with HTTP 507 `XMinioStorageFull`. The pinned provider
+reserves 1% of its filesystem's total capacity; the shared 1.97 TB filesystem has
+fallen below that reserve. Removing rebuildable outputs and dependencies from
+stopped, owned qualification checkouts restores space while retaining source,
+logs, proof records and database state. The same proof then passes in 65.916
+seconds: 105 turns, two recovered initialization receipts, a 0.504-second held
+snapshot and all added SQL-write interruption/recovery/cancellation cases. No
+assertion, request deadline or provider capacity guard changes between attempts.
 
 ## Expanded fault-verification qualification — 2026-09-30
 
@@ -7065,6 +7148,70 @@ Executed for this documentation change:
 These checks validate documentation and rendering. They do not rerun bundle
 builds, application installation, provider recovery or deployment qualification.
 
+### Explicit source aliases
+
+The `feat/sql-source-aliases` continuation implements explicit `FROM source AS
+alias` through the shared Zig parser, compiler and scoped completion owner.
+Fuze and query package tests pass. Equivalent aliased/unaliased queries produce
+identical canonical plans for row, state-test, count, sum and restricted-derived
+forms. Checks reject hidden original qualifiers, escaped inner aliases, unknown
+actual sources and duplicate columns. Completion fixtures keep the declared
+source authority separate from alias spelling, including quoted case and typed
+literal hints.
+
+Eight additional independent completion fixtures expose and correct a missing
+dot continuation after a source qualifier, including an alias that also names a
+column, quoted case, hidden/foreign sources and an already qualified column.
+The first run fails the original-source continuation case (63/64 package tests
+pass); after the correction all 64 query package tests pass. Logs are
+`/tmp/transit-sql-source-aliases-completion-before.log` and
+`/tmp/transit-sql-source-aliases-completion-after.log`. This changes suggestions,
+not source authority, parsing or the saved-plan format.
+
+`just test::sql` passes **113** Zig/ANTLR/PostgreSQL SELECT AST comparisons,
+**92** real plans and independent paged Arrow checks, and **19** grammar
+exclusions. The unified fixture checks **28** independent results at three source
+kind bases and eight page widths, plus nine explicit failure cases. Mutation and
+declaration fixtures also pass unchanged. The log is
+`/tmp/transit-sql-source-aliases-sql.log`. These are compiler/engine proofs;
+installed native/port/ten-SDK inspection and SQL-shell recovery checks are
+separate.
+
+Full `just check` passes on the initial source tree and again at rebased
+`512ebcb4`, including the completion correction. The latter log is
+`/tmp/transit-sql-source-aliases-rebased-check.log`. The first installed attempt
+stops before provisioning because this fresh worktree has no built Python wheel;
+no caller case ran. The failed log is
+`/tmp/transit-sql-source-aliases-installed.log`. All standalone Zig and ten SDK
+package builds subsequently pass. The installed run passes KV and Table in
+**386.41 s / 374.20 s**, including inspection agreement across thirteen
+native/port/SDK callers and SQL-shell admission, exact retry, source/requester/
+node/store recovery, current denial, retained rows and joined cleanup. Document
+qualification is still running. The log is
+`/tmp/transit-sql-source-aliases-installed-built.log`; its frozen binaries precede
+the rebase and completion-only correction, and these two source passes do not
+establish a complete three-source run.
+
+Committed-head `just ci-clean --lane core --work-root /var/tmp` passes all
+**22 tasks in 1309.02 s** at `34b0b96f`. The report is
+`.cache/ci/clean/34b0b96f175e-transit-ci-ocwpgt5q/core.meta.json`; the log is
+`/tmp/transit-sql-source-aliases-ci-clean-core.log`. Rebase onto merged #44 at
+`b8b224ce` preserves all three original commits unchanged. Clean growth at
+rebased `512ebcb4` is running with #44's catalog read reduction and the corrected
+snapshot fixture; the earlier failed growth attempts remain failed. Its log is
+`/tmp/transit-sql-source-aliases-ci-clean-growth.log`.
+
+The declarative benchmark adds an aliased selected-count component beside its
+unaliased equivalent; all **29 components** and nine rejection probes pass with
+257 rows, three rows per page and five samples. Compile medians are **0.582 /
+0.707 microseconds** for unaliased/aliased SQL; execution medians are **76.816 /
+75.703 microseconds**. The canonical plans and independently checked outputs
+agree. These samples overlap other qualification and do not establish an
+execution speedup or native latency. Full workloads remain blocked. The report
+is `/tmp/transit-sql-source-aliases-benchmark.json`, with dirty source based on
+`d5541301` and exact manifest/harness/binary provenance. The benchmark runner's
+negative controls, documentation links and verification inventory checks pass.
+
 ## SQL performance iteration
 
 `just test::sql-benchmark` builds a ReleaseSafe public-package consumer and records
@@ -7571,6 +7718,19 @@ as other installed integration proofs do. Safety checks, workload, fault
 injections, timeouts and resident limits remain unchanged; Debug remains
 available through the direct Zig commands. A new committed-head clean run is
 required to qualify the recipe change.
+
+The clean growth retry at `7f2ef35f` passes its first **seven tasks**, including
+the ReleaseSafe growing service (**300.67 s**) and the expanded mutation task
+(**333.20 s**, including compilation). The mutation schedule itself completes
+**21 profiles in 210.849 s**, with **6231 reads**, **153 turn responses**,
+**23 lost receipts** and successful cleanup. It covers native ABI, port and CLI;
+the separate 98-profile installed proof above covers all ten SDKs.
+The lane then fails in `test::table-query-writer` after **115.47 s** when the
+console reports `AuthorityTimeout`. The **1340.14 s** lane is failed, with its
+last **13 tasks unrun**. Evidence remains at `/var/tmp/transit-ci-w350glyv/src`
+and `/tmp/transit-sql-mutation-coverage-clean-growth-release-safe.log`;
+the completed mutation record is copied to
+`/tmp/transit-sql-mutation-coverage-clean-native.json`.
 
 ### Full-reference mutation command cutover
 
@@ -8430,6 +8590,32 @@ mutations while new queries succeed. Native read revocation finally prevents
 disclosure. Independent PyArrow decoding verifies the complete typed cell
 envelopes and values.
 
+The clean attempt at `7f2ef35f` exposed a synchronization problem in that fixture:
+it held an interactive snapshot read while performing the entire CLI mutation
+upload, seal and apply. The console keeps its ordinary five-second request
+timeout; the extra setup exceeded it. The fixture now stages and seals before
+opening the console snapshot, freezes the final apply command, and holds the
+snapshot read only until that apply input is processed. It checks the applied
+outcome, affected row and original input separately, then compares both retained
+cuts and both later queries. `snapshot_pause_seconds` records the harness's final
+apply interval. Workload rows, numeric namespace collision, request deadlines,
+resident bounds and recovery/policy assertions remain unchanged. The focused
+rerun reaches all retained/latest query assertions, then fails in later policy
+progress polling on `StaleStateResource`: that poll opened a Table-policy view
+while the turn being observed could change its resource revision. The progress
+probe now reads only the current process input. Separate phase, policy and row
+assertions still check their owning state; no rejection is swallowed or retried.
+The first focused log is `/tmp/transit-sql-combined-snapshot-final-apply.log`.
+
+With both fixture corrections, `just test::table-query-writer` passes in
+**106.683 s**, with **5001 reads**, **70 turn responses**, both recovered
+initialization receipts and a **1.085 s** final-apply pause. Four mutations,
+256-byte values, eight authority pages, and the five-second console deadline
+remain unchanged. The log is `/tmp/transit-sql-combined-snapshot-progress.log`.
+This run covers native/CLI callers; it does not expand installed SDK coverage.
+A new committed-head clean growth run is still required; neither earlier failed
+run is reclassified as a pass.
+
 The schedule takes **54.355 s**, including provisioning/recovery, with **5303
 reads**, **70 accepted turn responses**, two recovered initialization receipts,
 at most four mutations, 256-byte values and eight resident authority pages.
@@ -8488,3 +8674,79 @@ is `.cache/ci/clean/a3c40a0d6006-transit-ci-ux_5ezz5`. Later commits add the opt
 SDK test schedule and documentation, with the production source unchanged.
 This is a complete core-lane pass plus the separately executed combined-host
 proofs, not a complete clean-suite pass.
+
+### Console SQL routes, diagnostics and exact write recovery
+
+The console dispatches bounded mutations and compatible Table declarations to the
+shared signed clients through explicit `writes.table` / `writes.catalog` routes.
+Located parser failures and the shared diagnostic presenter distinguish syntax,
+unsupported constructs, reference-only families, unavailable interfaces and
+binding errors. This does not extend the accepted mutation grammar, install
+writers/catalogs, grant rights or enable Flight writes.
+
+Local focused runs for issue #46 completed with the pinned development shell:
+
+```sh
+just check
+just test::sql
+just test::table-query-writer
+just test::catalog
+just test::flight
+```
+
+`just check` includes **419 real CLI cases**, including both reported INSERT
+forms, missing catalog routes, incompatible Table definitions, statement/batch
+bounds, locations, escaped/redacted context, and a listening trap proving invalid
+SQL makes no authority call. The SQL corpus retains **113 SELECT ASTs, 92 plans,
+28 unified results, 31 mutation cases and 182 declaration cases**. These compiler
+checks alone make no admission or durability claim.
+
+The real console in `tests/table_query_writer.py` runs against the combined host
+and disk Ursula. It inserts, updates and deletes, observes zero-row results and
+atomic duplicate-key rejection, and reads the resulting rows. It loses a native
+receipt, verifies the original saved signature, reopens without submission, rejects
+changed key/connection or missing-definition recovery, and explicitly resumes
+exactly once. SIGINT preserves admitted work and prevents the following batch
+statement from running; `.cancel` reconciles the input and observes cancellation.
+A proxy holds a prepared part while a distinct administrator revokes policy.
+The rejected input leaves its upload recoverable, blocks replacement work and
+can still be cancelled. The policy-race focused run completed in **51.73 seconds**,
+with at most four mutations per turn, 256-byte values and eight authority pages.
+
+The real catalog proof runs CREATE TABLE through the console, loses its receipt,
+verifies no replay on open, resumes the original signed command, checks the
+explicit creation-cancellation limitation, and resolves the created definition
+through DESCRIBE and paged SHOW TABLES. Duplicate names report the recorded
+conflict; revoked inspection prevents `.status` disclosure. The final catalog
+report has `completed: true` and no cleanup failures. The first attempt's new
+Python variable shadowed its report function during finalization; that attempt
+failed and is not counted as a complete proof.
+
+Flight schema and execution tests cover error categories, coordinates, guidance,
+redaction, authentication/current authorization before diagnostics, and no
+admission for rejected SQL. Full finite-result recovery and independent PyArrow,
+ADBC Python and ADBC C checks pass. Remote public messages retain their 128-byte
+ASCII bound; a longer draft message failed its unit check and was shortened.
+
+Console batch and controlling-PTY regressions keep result stdout separate from
+errors and preserve recovery files on rejected SQL. Valid INSERT without a writer
+has configuration guidance, while malformed SELECT has a caret. The idle-interrupt
+fixture acknowledges a queued `.show` after the final result, so an earlier input
+redraw cannot be mistaken for completed recovery persistence. Deadlines and
+recovery assertions are unchanged. These fixtures do not establish arbitrary
+SQL, automatic query registration after CREATE TABLE, multi-resource transactions,
+or cancellation of an already applied write. Clean-checkout lane execution is
+reported separately with the PR's committed revision.
+
+The console recovery reader also requires exact canonical JSON, preventing native
+type defaults from filling in omitted nested request definitions or schema
+versions. The writer proof removes each field from otherwise canonical saved
+bytes and checks rejection before resubmission. The initial clean growth run at
+`7d97b4fd` was interrupted after Arrow, page and growing-authority checks passed
+to include this additional check; it is not a complete clean-lane result.
+
+The subsequent full `just test::console table` run completed: console batch, PTY,
+interruption and TLS checks took **237.72 seconds** inside the **275.64-second**
+disk-backed unified proof. The earlier terminal attempt expected a parse caret
+for valid INSERT without a writer and failed; the corrected assertion requires
+the caret only for malformed SELECT and keeps the no-send/stdout checks.

@@ -113,6 +113,14 @@ checkpoints is unavailable. Tests cover namespace isolation, 96 principals with 
 above 255, retained snapshots, pagination, count conservation, malformed/oversize
 records and lost staging acknowledgement. The node composes this catalog through the backend package.
 
+Catalog `mutate` validates the complete bounded batch before reading pages. It
+uses `getMany` at the original immutable root to distinguish insertion, replacement,
+deletion and absent-key deletion when calculating the candidate record count.
+Those observations share search paths, own at most eight values, and live only
+for this call. A failed read, checked count calculation or page stage leaves both
+the candidate root and record count unchanged. Only the authority's later commit
+can publish the candidate; batching does not cache permissions or add write rights.
+
 ## Evidence
 
 [Unit proofs](../src/pages_test.zig) check 256 retained keys, lookup

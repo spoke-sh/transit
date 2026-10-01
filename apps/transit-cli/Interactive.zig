@@ -21,7 +21,7 @@ pub fn sql(console: *Console, statement: []const u8) !void {
     const source = try console.config.source.native(allocator);
     // Compilation uses the configured declaration. Opening validates it against
     // current authority before acquiring data; compilation itself performs no I/O.
-    const bundle = try q.Bundle.fromSql(allocator, source, try .init(console.config.name), statement, try console.config.limits.native());
+    const bundle = q.Bundle.fromSql(allocator, source, try .init(console.config.name), statement, try console.config.limits.native()) catch |err| return console.sqlFailure(statement, err);
     try interrupted();
     timing.enter(.open);
     var nonce: [16]u8 = undefined;

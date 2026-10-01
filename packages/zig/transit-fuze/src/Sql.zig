@@ -4,6 +4,9 @@ const std = @import("std");
 const f = @import("root.zig");
 const m = f.model;
 pub const max_statement_bytes = 4096;
+/// Optional parser evidence. Offsets are UTF-8 byte offsets into this statement;
+/// expected text is static grammar vocabulary, never a borrowed SQL value.
+pub const Location = struct { offset: usize = 0, expected: ?[]const u8 = null };
 pub const max_comment_depth = 16;
 pub const max_literal_bytes = 2 + 2 * m.max_cell_bytes;
 
@@ -27,6 +30,7 @@ pub const Predicate = union(enum) {
 pub const Input = struct { projection: Projection, limit: ?u64, alias: m.Name };
 pub const Ast = struct {
     source: m.Name,
+    source_alias: ?m.Name = null,
     selection: Selection,
     predicate: Predicate = .all,
     limit: ?u64 = null,
@@ -47,15 +51,23 @@ pub const Mutation = struct {
 
 /// Returned AST contains no pointers into text, allocations, effects or authority.
 pub fn parse(text: []const u8) !Ast {
+    return parseLocated(text, null);
+}
+pub fn parseLocated(text: []const u8, location: ?*Location) !Ast {
+    if (location) |value| value.* = .{};
     try validateText(text);
-    var parser: Parser = .{ .lexer = .{ .text = text } };
+    var parser: Parser = .{ .lexer = .{ .text = text }, .location = location };
     return statement(&parser);
 }
 /// Offline state declaration syntax. No catalog lookup, provisioning or grants.
 /// Omitted nullability remains unspecified; semantic validation is separate.
 pub fn parseDeclaration(text: []const u8) !?f.Declaration.Definition {
+    return parseDeclarationLocated(text, null);
+}
+pub fn parseDeclarationLocated(text: []const u8, location: ?*Location) !?f.Declaration.Definition {
+    if (location) |value| value.* = .{};
     try validateText(text);
-    var parser: Parser = .{ .lexer = .{ .text = text } };
+    var parser: Parser = .{ .lexer = .{ .text = text }, .location = location };
     try parser.advance();
     if (!parser.word("CREATE")) return null;
     try parser.advance();
@@ -100,8 +112,12 @@ fn validateText(text: []const u8) !void {
 /// Parse only bounded, literal Table mutations. This supplies no write authority;
 /// the application must explicitly route the plan through its fenced writer.
 pub fn parseMutation(text: []const u8) !?Mutation {
+    return parseMutationLocated(text, null);
+}
+pub fn parseMutationLocated(text: []const u8, location: ?*Location) !?Mutation {
+    if (location) |value| value.* = .{};
     try validateText(text);
-    var parser: Parser = .{ .lexer = .{ .text = text } };
+    var parser: Parser = .{ .lexer = .{ .text = text }, .location = location };
     try parser.advance();
     const insert = parser.word("INSERT");
     const update = parser.word("UPDATE");
@@ -145,8 +161,12 @@ pub fn parseMutation(text: []const u8) !?Mutation {
 /// leaves other statements to their owner; recognized forms consume all input.
 /// Catalog resolution and current read authority belong to the query client.
 pub fn parseInspection(text: []const u8) !?Inspection {
+    return parseInspectionLocated(text, null);
+}
+pub fn parseInspectionLocated(text: []const u8, location: ?*Location) !?Inspection {
+    if (location) |value| value.* = .{};
     try validateText(text);
-    var parser: Parser = .{ .lexer = .{ .text = text } };
+    var parser: Parser = .{ .lexer = .{ .text = text }, .location = location };
     try parser.advance();
     if (parser.word("EXPLAIN")) return .{ .explain = try statement(&parser) };
     if (parser.word("DESCRIBE")) {
@@ -184,6 +204,7 @@ fn statement(parser: *Parser) !Ast {
         try parser.requireWord("FROM");
         var ast: Ast = .{ .source = try parser.name(), .selection = selection };
         if (parser.assistance) |h| h.source = ast.source;
+        ast.source_alias = try parser.sourceAlias();
         ast.predicate = try parser.predicate();
         const limit = try parser.limit();
         try parser.require(.right);
@@ -197,6 +218,7 @@ fn statement(parser: *Parser) !Ast {
     }
     var ast: Ast = .{ .source = try parser.name(), .selection = selection };
     if (parser.assistance) |h| h.source = ast.source;
+    ast.source_alias = try parser.sourceAlias();
     ast.predicate = try parser.predicate();
     ast.limit = try parser.limit();
     try parser.end();
@@ -231,8 +253,10 @@ const Lexer = struct {
     text: []const u8,
     position: usize = 0,
     cursor_enabled: bool = false,
+    start: usize = 0,
     fn next(self: *Lexer) !Token {
         while (self.position < self.text.len) {
+            self.start = self.position;
             const rest = self.text[self.position..];
             if (std.mem.indexOfScalar(u8, " \t\r\n", rest[0]) != null) {
                 self.position += 1;
@@ -256,6 +280,7 @@ const Lexer = struct {
             } else break;
         }
         const start = self.position;
+        self.start = start;
         if (start == self.text.len) return .{ .tag = .eof, .text = "" };
         const byte = self.text[start];
         self.position += 1;
@@ -307,8 +332,12 @@ const Parser = struct {
     lexer: Lexer,
     token: Token = undefined,
     assistance: ?*Hints = null,
+    location: ?*Location = null,
     name_role: NameRole = .source,
     fn advance(self: *Parser) !void {
+        defer {
+            if (self.location) |location| location.* = .{ .offset = self.lexer.start };
+        }
         self.token = try self.lexer.next();
     }
     fn word(self: *const Parser, expected: []const u8) bool {
@@ -316,7 +345,10 @@ const Parser = struct {
         return self.token.tag == .word and std.ascii.eqlIgnoreCase(self.token.text, expected);
     }
     fn requireWord(self: *Parser, expected: []const u8) !void {
-        if (!self.word(expected)) return error.UnsupportedConstruct;
+        if (!self.word(expected)) {
+            if (self.location) |location| location.expected = expected;
+            return error.UnsupportedConstruct;
+        }
         try self.advance();
     }
     fn take(self: *Parser, tag: Tag) !bool {
@@ -326,13 +358,24 @@ const Parser = struct {
         return true;
     }
     fn require(self: *Parser, tag: Tag) !void {
-        if (!try self.take(tag)) return error.InvalidSqlSyntax;
+        if (!try self.take(tag)) {
+            if (self.location) |location| location.expected = switch (tag) {
+                .left => "(",
+                .right => ")",
+                .comma => ",",
+                .eq => "=",
+                .star => "*",
+                else => @tagName(tag),
+            };
+            return error.InvalidSqlSyntax;
+        }
     }
     fn end(self: *Parser) !void {
         _ = try self.take(.semi);
         if (self.token.tag != .eof) return error.UnsupportedConstruct;
     }
     fn declarationType(self: *Parser) !m.Type {
+        if (self.location) |location| location.expected = "INT64, BOOL, UTF8 or BINARY";
         const result: m.Type = if (self.word("INT64")) .int64 else if (self.word("BOOL")) .boolean else if (self.word("UTF8")) .utf8 else if (self.word("BINARY")) .binary else return error.UnsupportedDeclarationType;
         try self.advance();
         return result;
@@ -340,6 +383,7 @@ const Parser = struct {
     fn name(self: *Parser) !m.Name {
         var bytes: [16]u8 = undefined;
         const token = self.token;
+        if (self.location) |location| location.expected = "an identifier";
         if (token.tag == .cursor) if (self.assistance) |h| {
             h.name_role = self.name_role;
             return error.IncompleteSql;
@@ -357,6 +401,16 @@ const Parser = struct {
         const result = try m.Name.init(bytes[0..raw.len]);
         try self.advance();
         return result;
+    }
+    fn sourceAlias(self: *Parser) !?m.Name {
+        if (!self.word("AS")) return null;
+        try self.advance();
+        const previous = self.name_role;
+        self.name_role = .alias;
+        defer self.name_role = previous;
+        const alias = try self.name();
+        if (self.assistance) |h| h.source_alias = alias;
+        return alias;
     }
     fn column(self: *Parser) !Column {
         const previous = self.name_role;
@@ -511,6 +565,7 @@ pub const Hints = struct {
     symbols: [16]?Tag = @splat(null),
     name_role: ?NameRole = null,
     source: ?m.Name = null,
+    source_alias: ?m.Name = null,
     qualifier: ?m.Name = null,
     literal_column: ?Column = null,
     predicate_column: ?Column = null,

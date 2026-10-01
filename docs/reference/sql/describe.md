@@ -2,7 +2,10 @@
 
 `DESCRIBE` returns the ordered column names and types of one configured KV,
 Table or Document query source through the console or query workspace `inspect`
-operation.
+operation. With `writes.catalog` configured, console DESCRIBE instead resolves
+a named Table in that catalog under current native reads and inspect policy.
+It returns its definition and checks the live Table schema. `.schema` continues
+to describe the query source.
 
 ## Syntax
 
@@ -17,7 +20,7 @@ quoted names resolve exactly against the configured source name.
 
 ## Result and access
 
-The result identifies its scope as one configured source, with source kind,
+The query-source result identifies its scope as one configured source, with source kind,
 resource, full declaration and schema fingerprints, current metadata and policy
 revisions, and column names/types. It does not enumerate other realm objects or
 read application rows. Current native source/requester access and query policy

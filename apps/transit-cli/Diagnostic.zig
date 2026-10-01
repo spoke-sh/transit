@@ -2,6 +2,7 @@
 const std = @import("std");
 const Self = @This();
 command: []const u8 = "transit",
+sql: ?@import("transit_query").fuze.SqlDiagnostic = null,
 argument: ?usize = null,
 option: ?[]const u8 = null,
 file: ?[]const u8 = null,
@@ -23,6 +24,7 @@ pub fn fail(self: *Self, err: anyerror, summary: []const u8, next: ?[]const u8) 
     return err;
 }
 pub fn setFailure(self: *Self, err: anyerror, summary: []const u8, next: ?[]const u8) void {
+    self.sql = null;
     self.presentation = .general;
     self.summary = summary;
     self.next = next;
@@ -53,6 +55,7 @@ pub fn atArgument(self: *Self, index: ?usize, option: ?[]const u8) void {
     self.option = option;
 }
 pub fn atFile(self: *Self, file: []const u8) void {
+    self.sql = null;
     self.argument = null;
     self.option = null;
     self.file = file;
@@ -148,6 +151,10 @@ fn quoted(out: *std.Io.Writer, value: []const u8) !void {
     try out.writeByte('"');
 }
 pub fn render(self: Self, out: *std.Io.Writer, err: anyerror) !void {
+    if (self.sql) |diagnostic| {
+        try out.writeAll("error: ");
+        return diagnostic.render(out);
+    }
     if (err == error.InvalidTimingCommand) return out.writeAll("Usage: .timing on|off\n");
     const Advice = struct { []const u8, ?[]const u8 };
     const advice: ?Advice = switch (err) {

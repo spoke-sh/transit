@@ -54,7 +54,9 @@ def check(binary, root, kind, invoke, expected, fault):
         assert shell.call('.new 2')['status'] is None
         assert shell.call('CREATE KV items (UTF8)')['err'] == 'UnsupportedStatement'
         assert shell.call('.status')['status'] is None
-        sql = 'SELECT * FROM items LIMIT 33' if kind == 'document' else 'SELECT value FROM items LIMIT 33'
+        assert shell.call('SELECT items.value FROM items AS chosen')['err'] == 'UnknownQualifier'
+        assert shell.call('.status')['status'] is None
+        sql = 'SELECT * FROM items AS chosen LIMIT 33' if kind == 'document' else 'SELECT chosen.value FROM items AS chosen LIMIT 33'
         fault['lost'], fault['retry'] = None, False
         assert 'receipt' in shell.call(sql)
         progress = shell.read()

@@ -55,7 +55,7 @@ def load_manifest():
     for name in ('components', 'probes'):
         ids = [case['id'] for case in data[name]]
         require(len(ids) == len(set(ids)), f'duplicate {name}')
-    require(len(data['components']) == 28 and len(data['probes']) == 9, 'component/probe inventory changed; review coverage')
+    require(len(data['components']) == 29 and len(data['probes']) == 9, 'component/probe inventory changed; review coverage')
     for suite in expected:
         require({case['kind'] for case in data['components'] if case['suite'] == suite} == {'select', 'declaration', 'mutation'}, f'missing component layer: {suite}')
     return data

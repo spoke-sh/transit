@@ -80,6 +80,10 @@ def check(driver):
         'SELECT sum(id) FROM (SELECT * FROM items WHERE id > -8 LIMIT 37) AS chosen',
         'SELECT count(*) FROM (SELECT optional FROM items LIMIT 33) AS chosen',
         'SELECT sum(id) FROM (SELECT id FROM items LIMIT 0) AS chosen',
+        'SELECT x.counter, x.id FROM items AS x WHERE x.id >= -1 LIMIT 9',
+        'SELECT x.optional FROM items AS x WHERE x.optional IS CONFLICT',
+        'SELECT "Row".optional FROM items AS "Row" WHERE "Row".optional IS TYPE_ERROR',
+        'SELECT sum(chosen.id) FROM (SELECT x.id FROM items AS x WHERE x.id > -8 LIMIT 37) AS chosen',
     ]
     failures = [
         ('SELECT id, counter, id FROM items', 'DuplicateProjection'),

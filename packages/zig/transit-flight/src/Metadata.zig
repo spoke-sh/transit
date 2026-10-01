@@ -89,7 +89,7 @@ fn catalogMatches(value: ?[]const u8) bool {
 /// schema used when adapting verified captured rows. No admission or source I/O.
 pub fn querySchema(name: []const u8, schema: f.model.Schema, sql: []const u8, output: []u8, workspace: []u8) ![]const u8 {
     var fixed: std.heap.FixedBufferAllocator = .init(workspace);
-    const bundle = root.query.Bundle.fromSql(fixed.allocator(), .{ .resource = 1, .source = .{ .table = .{ .id = 1, .schema = schema } } }, try .init(name), sql, .{ .pages = 4096, .segments = 63, .result_bytes = 240 * 1024 }) catch return error.UnsupportedQuery;
+    const bundle = try root.query.Bundle.fromSql(fixed.allocator(), .{ .resource = 1, .source = .{ .table = .{ .id = 1, .schema = schema } } }, try .init(name), sql, .{ .pages = 4096, .segments = 63, .result_bytes = 240 * 1024 });
     // Layout owns the names and nullability before the Arrow workspace is reused.
     const layout = try root.TableResult.init(schema, bundle.plan);
     const rows: f.Unified.Inspect.Batch = .{ .columns = layout.len };

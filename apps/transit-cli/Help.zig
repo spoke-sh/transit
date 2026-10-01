@@ -63,7 +63,8 @@ pub const console =
     \\Paths in the configuration resolve relative to its file.
     \\Submit SQL with a semicolon. .help lists dot commands.
     \\YAML configures connections; .transitrc contains dot commands.
-    \\Each SELECT gets a fresh snapshot. Ctrl-C cancels running SQL.
+    \\Each SELECT gets a fresh snapshot. Ctrl-C cancels active reads.
+    \\Use console .help for write routes and exact recovery after interruption.
     \\
     \\Configuration: apps/transit-cli/docs/console.md
     \\

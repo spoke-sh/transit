@@ -1402,6 +1402,93 @@
       "id": "duplicate-projection-after-width-expansion",
       "sql": "SELECT id, value, id FROM items",
       "compile_error": "DuplicateProjection"
+    },
+    {
+      "id": "source-alias-projection",
+      "sql": "SELECT x.value, id FROM items AS x WHERE x.id >= 0 LIMIT 9",
+      "schema": {
+        "name": "items",
+        "columns": [
+          "id",
+          "value"
+        ],
+        "type": "int64"
+      }
+    },
+    {
+      "id": "source-alias-folding",
+      "sql": "SELECT x.id FROM items AS X",
+      "schema": {
+        "name": "items",
+        "columns": [
+          "id",
+          "value"
+        ],
+        "type": "int64"
+      }
+    },
+    {
+      "id": "source-alias-quoted",
+      "sql": "SELECT \"Row\".value FROM items AS \"Row\" WHERE \"Row\".value IS NULL",
+      "schema": {
+        "name": "items",
+        "columns": [
+          "id",
+          "value"
+        ],
+        "type": "int64"
+      }
+    },
+    {
+      "id": "source-alias-count",
+      "sql": "SELECT COUNT(*) FROM items AS x WHERE x.id > 0",
+      "schema": {
+        "name": "items",
+        "columns": [
+          "id",
+          "value"
+        ],
+        "type": "int64"
+      }
+    },
+    {
+      "id": "source-alias-sum",
+      "sql": "SELECT SUM(x.value) FROM items AS x",
+      "schema": {
+        "name": "items",
+        "columns": [
+          "id",
+          "value"
+        ],
+        "type": "int64"
+      }
+    },
+    {
+      "id": "source-alias-derived",
+      "sql": "SELECT SUM(chosen.value) FROM (SELECT x.value FROM items AS x WHERE x.id > 0 LIMIT 2) AS chosen",
+      "schema": {
+        "name": "items",
+        "columns": [
+          "id",
+          "value"
+        ],
+        "type": "int64"
+      }
+    },
+    {
+      "id": "source-alias-hidden-name",
+      "sql": "SELECT items.id FROM items AS x",
+      "compile_error": "UnknownQualifier"
+    },
+    {
+      "id": "source-alias-hidden-predicate",
+      "sql": "SELECT * FROM items AS x WHERE items.id > 0",
+      "compile_error": "UnknownQualifier"
+    },
+    {
+      "id": "source-alias-outer-scope",
+      "sql": "SELECT SUM(x.value) FROM (SELECT x.value FROM items AS x) AS chosen",
+      "compile_error": "UnknownQualifier"
     }
   ],
   "reject": [
@@ -1483,6 +1570,21 @@
     {
       "id": "excluded-16",
       "sql": "SELECT *; FROM items",
+      "postgres": false
+    },
+    {
+      "id": "source-alias-required-as",
+      "sql": "SELECT * FROM items x",
+      "postgres": true
+    },
+    {
+      "id": "source-alias-missing-name",
+      "sql": "SELECT * FROM items AS",
+      "postgres": false
+    },
+    {
+      "id": "source-alias-duplicate-as",
+      "sql": "SELECT * FROM items AS x AS y",
       "postgres": false
     }
   ],

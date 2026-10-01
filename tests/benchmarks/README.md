@@ -37,7 +37,7 @@ report left by a hard kill is incomplete. Never infer success from file existenc
 
 ## Workload and measurement boundaries
 
-`manifest.json` owns the 28 executable components, nine rejection probes, pinned
+`manifest.json` owns the 29 executable components, nine rejection probes, pinned
 specification references and full-workload inventory. Every workload entry has
 its common schema and driver blockers; additional requirements are suite-level
 prerequisites, not an exhaustive per-query operator audit. TPC-DS entries count
@@ -49,6 +49,11 @@ The inventory is intentionally independent from component completion. Removing
 an operation, accepting a blocker probe or changing a component result fails
 review checks. Promoting coverage requires real full-workload implementations and
 oracles; deleting a blocker label is insufficient.
+
+The selected-count pair uses identical data, predicate and output with and
+without an explicit source alias. It records their compilation and execution
+costs separately while SQLite/PyArrow verify the same result. This additional
+component does not promote any full-workload coverage.
 
 Every SELECT uses the production SQL compiler, FZP1 encode/decode and bound
 `Unified.Stream`. The source is a synthetic two-column Table basis with eight

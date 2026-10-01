@@ -123,7 +123,9 @@ def run(node, host, proof, port_host, library, kinds=("kv", "table", "document")
                 inspection_requests = [{'inspect': {'scope': scope, 'sql': sql}} for sql in (
                     'DESCRIBE items;', 'SHOW TABLES;', 'EXPLAIN SELECT count(*) FROM items;',
                     "EXPLAIN SELECT value FROM items WHERE value = 'redacted-literal' LIMIT 18446744073709551615;",
-                    'EXPLAIN SELECT value FROM items WHERE value IS TYPE_ERROR LIMIT 0;')]
+                    'EXPLAIN SELECT value FROM items WHERE value IS TYPE_ERROR LIMIT 0;',
+                    'EXPLAIN SELECT count(*) FROM items AS chosen;',
+                    'EXPLAIN SELECT chosen.value FROM items AS chosen WHERE chosen.value IS TYPE_ERROR LIMIT 0;')]
                 sends = fault['console_sends']
                 for action in inspection_requests:
                     expected = None

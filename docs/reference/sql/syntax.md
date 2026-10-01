@@ -32,9 +32,11 @@ longer names into an executable query. Reference-grammar acceptance alone does
 not enforce these production bounds.
 
 `source.column` qualifies a column with the exact declared source name.
-The compiler performs no schema, namespace or catalog lookup. Ordinary source
-aliases are unsupported; `AS alias` exists only in the restricted
-[aggregate subquery](select.md#aggregate-a-limited-input).
+With `FROM source AS alias`, use `alias.column` instead; the source name remains
+the identity to resolve, while the alias supplies its query-local qualifier.
+`AS` is required. The compiler performs no schema, namespace or catalog lookup.
+The restricted [aggregate subquery](select.md#aggregate-a-limited-input) has a
+separate outer alias; an inner source alias does not escape that subquery.
 
 ## Query literals
 

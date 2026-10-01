@@ -30,8 +30,10 @@ float64 literal suffixes. See [typed SQL](unified-sql.md) for their semantics.
 
 Every query has exactly one `FROM` source and at most one predicate. Unquoted
 ASCII identifiers fold to lowercase; quoted names preserve case and must still
-be valid identifiers. Qualified columns must name the declared source. General
-source aliases and catalog/schema resolution are unsupported.
+be valid identifiers. `FROM source AS alias` supplies a query-local qualifier;
+qualified columns use that alias when present, otherwise the declared source.
+`AS` is required. Aliases preserve the source and output column identities.
+Catalog/schema resolution is unsupported.
 
 Literals are signed decimal int64, `TRUE`/`FALSE`, UTF-8 SQL strings with doubled
 quotes, and bytea hex strings such as `'\x00ff'::bytea`. `IS NULL` selects explicit
@@ -49,7 +51,8 @@ FROM (SELECT value FROM items WHERE id >= 0 LIMIT 2) AS chosen;
 ```
 
 The inner projection must retain the aggregate column. The outer qualifier must
-match the declared alias; the inner predicate uses the original source. Direct
+match the derived-table alias; the inner projection and predicate use the source
+or its own explicit alias. Direct
 aggregates can have a predicate but no outer LIMIT. An outer limit would apply
 to aggregate output in SQL, so compilation returns `UnsupportedAggregateLimit`,
 including for zero. Nested/general subqueries, row-output subqueries and outer

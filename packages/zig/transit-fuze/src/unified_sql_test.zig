@@ -5,6 +5,40 @@ const t = std.testing;
 fn source(columns: []const m.Column) !m.Sql.Source {
     return .{ .name = try m.Name.init("items"), .schema = .{ .columns = columns } };
 }
+test "source aliases preserve canonical plans and keep relation scopes separate" {
+    var arena = std.heap.ArenaAllocator.init(t.allocator);
+    defer arena.deinit();
+    const allocator = arena.allocator();
+    const columns = [_]m.Column{
+        .{ .name = try m.Name.init("id"), .type = .int64 },
+        .{ .name = try m.Name.init("value"), .type = .int64 },
+    };
+    const src = try source(&columns);
+    const pairs = [_][2][]const u8{
+        .{ "SELECT items.value, id FROM items WHERE items.id > 0 LIMIT 9", "SELECT x.value, id FROM items AS x WHERE x.id > 0 LIMIT 9" },
+        .{ "SELECT * FROM items WHERE value IS NULL", "SELECT * FROM items AS \"Row\" WHERE \"Row\".value IS NULL" },
+        .{ "SELECT count(*) FROM items WHERE id <= 3", "SELECT count(*) FROM items AS X WHERE x.id <= 3" },
+        .{ "SELECT sum(items.value) FROM items", "SELECT sum(x.value) FROM items AS x" },
+        .{ "SELECT sum(chosen.value) FROM (SELECT value FROM items WHERE id > 0 LIMIT 2) AS chosen", "SELECT sum(chosen.value) FROM (SELECT x.value FROM items AS x WHERE x.id > 0 LIMIT 2) AS chosen" },
+    };
+    for (pairs) |pair| {
+        const plain = try m.Sql.plan(allocator, pair[0], src);
+        const aliased = try m.Sql.plan(allocator, pair[1], src);
+        var expected: [m.Codec.max_plan_bytes]u8 = undefined;
+        var actual: [m.Codec.max_plan_bytes]u8 = undefined;
+        try t.expectEqualSlices(u8, try m.Codec.encode(plain, &expected), try m.Codec.encode(aliased, &actual));
+    }
+    for ([_][]const u8{
+        "SELECT items.id FROM items AS x",
+        "SELECT * FROM items AS x WHERE items.id > 0",
+        "SELECT sum(items.value) FROM items AS x",
+        "SELECT row.id FROM items AS \"Row\"",
+        "SELECT sum(x.value) FROM (SELECT x.value FROM items AS x) AS chosen",
+        "SELECT sum(chosen.value) FROM (SELECT chosen.value FROM items AS x) AS chosen",
+    }) |text| try t.expectError(error.UnknownQualifier, m.Sql.plan(allocator, text, src));
+    try t.expectError(error.UnknownSource, m.Sql.plan(allocator, "SELECT items.id FROM other AS items", src));
+    try t.expectError(error.DuplicateProjection, m.Sql.plan(allocator, "SELECT id, x.id FROM items AS x", src));
+}
 test "unified SQL owns projections and literal bytes and preserves v1 parsing" {
     var arena = std.heap.ArenaAllocator.init(t.allocator);
     defer arena.deinit();

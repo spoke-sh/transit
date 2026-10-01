@@ -398,3 +398,15 @@ The [independent fixtures](../packages/zig/transit-catalog/src/fixtures/catalog-
 pin exact layouts and full-width application IDs. Component and native evidence
 are recorded separately in the [proof ledger](../tests/README.md); an in-memory
 schedule does not establish disk recovery or native fencing.
+
+## SQL console composition
+
+The console's optional `writes.catalog` selects this client using the console's
+transport and credential. CREATE TABLE validates the two-column adapter, assigns
+operation/object/Table identities once, prepares the command and persists it
+before submission. Admission, processed input and the attributed catalog outcome
+remain separate. `.status` observes; `.resume` reconciles the original command.
+There is no creation cancellation or implicit query/mutation policy. SHOW TABLES
+and DESCRIBE use the bounded current-authorized inspection client. Console
+configuration and private recovery are defined in the
+[console guide](../apps/transit-cli/docs/console.md#writing-tables-and-catalogs).

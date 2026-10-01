@@ -8,8 +8,9 @@ authorized Station turn. Shared Zig and
 [C ABI/native-port callers](../../../packages/zig/transit-station-bindings/docs/catalog.md)
 submit to an explicit
 [`catalog` host](../../../apps/transit-query-host/README.md) or application
-integration. The [catalog CLI](../../../apps/transit-cli/docs/catalog.md)
-compiles, saves and explicitly submits these declarations through the same owner.
+integration. The [console](../../../apps/transit-cli/docs/console.md#writing-tables-and-catalogs)
+executes compatible declarations through `writes.catalog`. `.help CREATE TABLE`
+explains configuration, the two-column schema and exact recovery.
 Python exposes [typed sync/async catalog methods](../../../packages/python/transit-station/docs/catalog.md);
 TypeScript exposes [typed promise methods](../../../packages/ts/transit-station-sdk/docs/catalog.md);
 Rust exposes [typed blocking methods](../../../packages/rust/transit-station-sdk/docs/CATALOG.md);
@@ -20,7 +21,7 @@ Java exposes [typed futures](../../../packages/java/transit-station-sdk/docs/CAT
 .NET exposes [typed tasks](../../../packages/dotnet/transit-station-sdk/docs/CATALOG.md);
 Erlang exposes [typed records](../../../packages/beam/transit-station-sdk/docs/catalog.md);
 Elixir exposes [typed structs](../../../packages/beam/transit-station-elixir/docs/catalog.md).
-Query interfaces reject the statement. Board has no
+Flight SQL and read-query SDK interfaces reject the statement. Board has no
 administrative route for it. Neither compilation nor the
 helper provisions a native resource, chooses a writer, grants access or registers
 a query source implicitly.
@@ -77,13 +78,14 @@ The shared Zig `Client` can prepare and submit that request to an explicitly
 integrated catalog application, preserve its exact signed send across caller
 replacement, and inspect its attributed outcome under current rights. A send
 receipt establishes admission; publication requires an applied catalog receipt.
-Zig, native ABI/port and explicit CLI callers support name lookup, exact definition reads and lists of at
+The console supports DESCRIBE and SHOW TABLES through its configured catalog.
+Zig, native ABI/port and explicit callers support name lookup, exact definition reads and lists of at
 most eight catalog definitions. Continuation binds the resource revision and
 rechecks current rights; a changed revision requires a fresh listing. These
 metadata methods have typed mappings in all ten language SDKs, sharing the same
 signed Zig caller and owned bounded values.
 The supplied catalog host requires explicit native provisioning, initialization
-and grants. It does not enable the query console or infer query/mutation policy.
+and grants. Creating a Table does not configure a query source or infer query/mutation policy.
 
 The form is a relational spelling of typed Table creation. Actual
 [Tables](../tables.md) are Station state over a resource, with explicit writer
