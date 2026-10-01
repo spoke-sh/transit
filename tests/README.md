@@ -11933,9 +11933,14 @@ two preceding parameter worktrees' generated `.zig-cache` directories. Removing
 only those disposable caches raises available disk space from 18 GiB to 27 GiB;
 source, probe archives and retained failure evidence are untouched. The unchanged
 Document command is rerun with log
-`/var/tmp/transit-sql-parameter-sdk-document-retry.log`. This rerun is still
-running at this checkpoint and is not a pass. No deadline, resident bound,
-quota or storage threshold is increased.
+`/var/tmp/transit-sql-parameter-sdk-document-retry.log`. This rerun passes in
+**680.72 s**, including **591.82 s** provisioning, with 12 rows, two segments
+and 9880 Arrow bytes. All thirteen callers agree on parameter compilation,
+results and current denial/retirement; the saved bundle survives exact upload
+retry and worker/node/disk-store restart. The Document fixture retains its
+existing 64 resident authority pages and 8 MiB hot store. The first failure
+remains failed and separate from this successful rerun. No deadline, resident
+bound, quota or storage threshold is increased.
 
 Committed-HEAD `just ci-clean --lane core --work-root /var/tmp` passes all
 **22 tasks in 810.40 s** at `ea2e0fa3`, including the seeded simulation layers,
@@ -11949,3 +11954,9 @@ failures and the earlier Document storage-pressure failure remain recorded
 independently.
 CLI binding inputs, named PREPARE/EXECUTE lifetime, file-source binding and
 saved-template compatibility remain outside this SDK increment.
+
+Hosted run `36894762494` at documentation checkpoint `074dc5d5` executes no jobs.
+Both failed-job annotations identify account billing/spending-limit refusal;
+the remaining jobs are skipped. This is not a hosted code/test failure or a
+hosted pass. The submitted SDK PR can be reviewed independently of the
+remaining complete clean-lane and milestone qualification.
