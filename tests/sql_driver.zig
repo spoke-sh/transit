@@ -84,7 +84,7 @@ const AstView = struct {
                 try out.objectField("columns");
                 try writeProjection(out, projection);
             },
-            .sum => |*column| {
+            .sum, .count_values => |*column| {
                 try out.objectField("column");
                 try writeColumn(out, column);
             },

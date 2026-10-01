@@ -128,8 +128,10 @@ pub const Stage = struct {
     }
     pub fn decode(value: p.Value) !Stage {
         try value.validate();
-        if (value.len != 228 or !std.mem.eql(u8, value.data[0..4], "GQT1")) return error.InvalidQueryStage;
-        const self: Stage = .{ .candidate = try m.Stream.Progress.decode(value.data[4..171]), .segment = try Segment.decode(try p.Value.init(value.data[171..226])), .written = std.mem.readInt(u16, value.data[226..228], .little) };
+        const progress_end = 4 + m.Stream.progress_bytes;
+        const segment_end = progress_end + 55;
+        if (value.len != segment_end + 2 or !std.mem.eql(u8, value.data[0..4], "GQT1")) return error.InvalidQueryStage;
+        const self: Stage = .{ .candidate = try m.Stream.Progress.decode(value.data[4..progress_end]), .segment = try Segment.decode(try p.Value.init(value.data[progress_end..segment_end])), .written = std.mem.readInt(u16, value.data[segment_end..][0..2], .little) };
         if (self.written > self.segment.bytes or (self.written != self.segment.bytes and self.written % fragment_bytes != 0) or !value.eql(try self.encode())) return error.InvalidQueryStage;
         return self;
     }

@@ -81,10 +81,11 @@ def reference(case, ast):
     input_columns = [names.index(item['column'][1]) for item in inner] if inner else list(range(len(names)))
     input_names = [item['alias'] or item['column'][1] for item in inner] if inner else names
     aliases = [ast['output_alias']]
-    if aggregate == 'sum':
+    if aggregate in ('sum', 'count_values'):
         projection = [input_columns[input_names.index(selection['column'][1])]]
         values = [row[projection[0]] for row in rows if row[projection[0]] is not None]
-        expected = {aliases[0] or 'sum': [sum(values) if values else None]}
+        expected = ({aliases[0] or 'count': [len(values)]} if aggregate == 'count_values' else
+                    {aliases[0] or 'sum': [sum(values) if values else None]})
     elif aggregate == 'count':
         projection = [input_columns[0]]
         expected = {aliases[0] or 'count': [len(rows)]}
@@ -97,11 +98,11 @@ def reference(case, ast):
     for alias in aliases:
         raw = alias.encode() if alias is not None else b''
         encoded_names += bytes([len(raw)]) + raw
-    definition = hashlib.sha256(b'transit.fuze.plan.v1.boolean-programs.2026-10-01').digest()
-    encoded = (b'FZP1' + definition + bytes([['rows', 'count', 'sum'].index(aggregate), len(projection)])
+    definition = hashlib.sha256(b'transit.fuze.plan.v1.boolean-programs.count-values.2026-10-01').digest()
+    encoded = (b'FZP1' + definition + bytes([['rows', 'count', 'sum', 'count_values'].index(aggregate), len(projection)])
                + bytes(projection) + encoded_names + bytes([limit is not None])
                + struct.pack('<Q', limit or 0) + encoded_pred)
-    types = ['uint64' if aggregate == 'count' else 'int64'] if aggregate != 'rows' else [
+    types = ['uint64' if aggregate in ('count', 'count_values') else 'int64'] if aggregate != 'rows' else [
         'int64' if index == 0 else case['schema']['type'] for index in projection]
     return encoded.hex(), expected, dict(zip(expected, types, strict=True))
 

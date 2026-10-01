@@ -83,7 +83,9 @@ public final class JavaUnifiedSdk {
     }
     private static void codecs(JsonObject config) throws Exception {
         var fixtures=new Gson().fromJson(Files.readString(Path.of(string(config,"bundles"))),JsonArray.class);
-        for(int i=0;i<3;i++) { String kind=List.of("kv","table","document").get(i); check(hex(bundle(source(new ResourceRef(46,7),kind,true),kind,true).bytes()).equals(fixtures.get(i).getAsJsonObject().get("wire_hex").getAsString())); check(hex(bundle(source(new ResourceRef(46,7),kind,true),kind,true,true).bytes()).equals(fixtures.get(i).getAsJsonObject().get("named_wire_hex").getAsString())); }
+        for(int i=0;i<3;i++) { String kind=List.of("kv","table","document").get(i); check(hex(bundle(source(new ResourceRef(46,7),kind,true),kind,true).bytes()).equals(fixtures.get(i).getAsJsonObject().get("wire_hex").getAsString())); check(hex(bundle(source(new ResourceRef(46,7),kind,true),kind,true,true).bytes()).equals(fixtures.get(i).getAsJsonObject().get("named_wire_hex").getAsString()));
+            var counted=Bundle.prepare(source(new ResourceRef(46,7),kind,true),new Plan(List.of(1),new All(),Query.Aggregate.COUNT_VALUES,Optional.empty(),Optional.of(List.of(Optional.of("present")))),new Budgets(n(1000),n(500),n(1048576)));
+            check(hex(counted.bytes()).equals(fixtures.get(i).getAsJsonObject().get("counted_wire_hex").getAsString())); }
         booleanCodecs(config);
         List<Column> columns=Arrays.stream(Type.values()).map(type -> new Column(type.name().toLowerCase(Locale.ROOT),type)).toList();
         byte[] input=read(config,"arrow").copy(); var rows=UnifiedQuery.decodeArrow(columns,new Bytes(input),5); Arrays.fill(input,(byte)0);

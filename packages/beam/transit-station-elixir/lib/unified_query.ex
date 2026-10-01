@@ -178,6 +178,7 @@ defmodule Transit.Station.Sdk.UnifiedQuery.Manifest do
     :pages,
     :scanned,
     :selected,
+    :value_count,
     :segments,
     :rows,
     :byte_count,
@@ -201,6 +202,7 @@ defmodule Transit.Station.Sdk.UnifiedQuery.Manifest do
     :pages,
     :scanned,
     :selected,
+    :value_count,
     :segments,
     :rows,
     :byte_count,
@@ -390,8 +392,8 @@ defmodule Transit.Station.Sdk.UnifiedQuery do
        native(v.correlation), native(v.policy_revision), native(v.request), native(v.kind),
        native(v.resource), native(v.revision), native(v.source_digest), native(v.schema_digest),
        native(v.plan_digest), native(v.pages), native(v.scanned), native(v.selected),
-       native(v.segments), native(v.rows), native(v.byte_count), native(v.sum),
-       native(v.finished), native(v.chain)}
+       native(v.value_count), native(v.segments), native(v.rows), native(v.byte_count),
+       native(v.sum), native(v.finished), native(v.chain)}
 
   def native(%Page{} = v),
     do:
@@ -568,7 +570,7 @@ defmodule Transit.Station.Sdk.UnifiedQuery do
   def convert(
         {:transit_unified_manifest, job, source, requester, correlation, policy_revision, request,
          kind, resource, revision, source_digest, schema_digest, plan_digest, pages, scanned,
-         selected, segments, rows, byte_count, sum, finished, chain}
+         selected, value_count, segments, rows, byte_count, sum, finished, chain}
       ),
       do: %Manifest{
         job: convert(job),
@@ -586,6 +588,7 @@ defmodule Transit.Station.Sdk.UnifiedQuery do
         pages: convert(pages),
         scanned: convert(scanned),
         selected: convert(selected),
+        value_count: convert(value_count),
         segments: convert(segments),
         rows: convert(rows),
         byte_count: convert(byte_count),

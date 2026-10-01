@@ -210,7 +210,7 @@ inline Rows decode_arrow(const std::vector<Column> &columns, const Bytes &ipc, u
 struct Connection { ProcessRef source; ResourceRef resource; ProcessRef requester; ResourceRef requests; };
 using Description = transit_station_unified_description;
 enum class SourceKind { Kv, Table, Document };
-enum class InspectionOperator { Scan, Filter, Limit, Project, Count, Sum };
+enum class InspectionOperator { Scan, Filter, Limit, Project, Count, Sum, CountValues };
 struct InspectedState { std::string column; State state; };
 struct InspectedComparison { std::string column; Comparison comparison; Type type; };
 using InspectedAtom = std::variant<All, InspectedState, InspectedComparison>;

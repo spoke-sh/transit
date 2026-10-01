@@ -72,7 +72,7 @@ Saving a binding is not durable query acceptance or an authorization grant.
 AST against a frozen binding and returns an owned `Compiled`. It shares column
 resolution, projection, predicate and ordered aggregate semantics with the
 native query profile. It supports finite SELECT, Boolean predicates, projection,
-LIMIT, COUNT and int64 SUM, including the existing restricted aggregate subquery.
+LIMIT, COUNT(*)/COUNT(column) and int64 SUM, including the existing restricted aggregate subquery.
 SQL literals retain the native six-type admission rules: comparisons require
 exactly matching types, without implicit source-dependent casts. Other logical
 types can be projected; typed Zig plans can compare ordered scalar atoms with
@@ -110,10 +110,14 @@ bound. `SELECT *` and typed plans can project every field within the source boun
 
 All source rows are framed, converted and verified even after a projection,
 predicate or limit discards them. A late malformed/unconvertible value therefore
-prevents successful completion. Operator predicates/SUM run only on rows selected
-by the plan's limit; missing/null comparisons remain unknown through Boolean
-composition and skip SUM, while evaluated type-error/conflict cells fail. SUM checks each int64 addition in source order;
-empty SUM is null. COUNT returns uint64. Aggregates are emitted only after source
+prevents successful completion. Operator predicates/aggregates run only on rows selected
+by the plan's limit; missing/null comparisons remain unknown through Boolean composition and skip SUM, while evaluated
+type-error/conflict cells fail. SUM checks each int64 addition in source order;
+empty SUM is null. Both COUNT forms return uint64 zero for empty input.
+COUNT(*) counts selected rows; COUNT(column) counts top-level values of any
+admitted logical type, skips missing/null and rejects error/conflict. A structured
+value contributes one without counting its children. Skipped cells consume the
+input LIMIT. Count addition checks u64 overflow. Aggregates are emitted only after source
 verification; ordinary row results remain provisional until `complete` is true.
 There is no retained result cache or automatic restart with a changed binding.
 

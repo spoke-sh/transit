@@ -133,8 +133,8 @@ pub fn outputSchema(self: *const Self, schema: m.Schema, columns: *[m.max_column
 }
 fn outputColumn(self: *const Self, schema: m.Schema, index: usize) !m.Column {
     var column = if (self.aggregate == .rows) try schema.column(self.projection[index]) else m.Column{
-        .name = try m.Name.init(@tagName(self.aggregate)),
-        .type = if (self.aggregate == .count) .uint64 else .int64,
+        .name = try m.Name.init(if (self.aggregate == .count_values) "count" else @tagName(self.aggregate)),
+        .type = if (self.aggregate == .sum) .int64 else .uint64,
     };
     if (self.output_names[index]) |name| column.name = name;
     return column;

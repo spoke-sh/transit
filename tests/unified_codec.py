@@ -65,7 +65,7 @@ def boolean_bundle_fixtures():
         plan_bytes = bytes.fromhex(fixture['wire_hex'])
         wire = b'UQB1' + struct.pack('<HHQQQ', len(source_bytes), len(plan_bytes), 1000, 500, 1048576) + source_bytes + plan_bytes
         rows.append(dict(name=fixture['name'], type=fixture['type'], bundle=bundle, wire_hex=wire.hex()))
-    definition = hashlib.sha256(b'transit.fuze.plan.v1.boolean-programs.2026-10-01').digest()
+    definition = hashlib.sha256(b'transit.fuze.plan.v1.boolean-programs.count-values.2026-10-01').digest()
     source_bytes = b'UQS1' + struct.pack('<QB', 7, 1) + bytes([0, 1, 1, 1, 2])
     for name, program, code in (
         ('all-and-not-null', [{'atom': {'all': {}}}, {'atom': {'state': {'column': 0, 'value': 'null'}}}, {'negate': {}}, {'conjunction': {}}], bytes([0, 1, 0, 1, 3, 4])),
@@ -145,6 +145,19 @@ def run(host, library):
             invalid_names = copy.deepcopy(named)
             invalid_names['plan']['output_names'] = names
             check({'prepare': invalid_names}, valid=False)
+        counted = copy.deepcopy(bundle)
+        counted['plan'] = dict(projection=[1], aggregate='count_values', output_names=['present'])
+        counted_prepared = check({'prepare': counted})['prepared']
+        assert counted_prepared['bytes'] == fixture['counted_wire_hex']
+        counted_decoded = check({'decode': counted_prepared['bytes']})['bundle']
+        assert counted_decoded['plan']['aggregate'] == 'count_values'
+        assert counted_decoded['plan']['projection'] == [1]
+        assert check({'prepare': counted_decoded})['prepared'] == counted_prepared
+        # A matching version label cannot make an old accepted plan compatible.
+        old = bytearray.fromhex(counted_prepared['bytes'])
+        plan_offset = old.index(b'FZP1')
+        old[plan_offset+4:plan_offset+36] = bytes.fromhex('58ae72e1f9a4b589536e5a0d262d6e6aebcc2fab40698b4bfea6833281ad9f3c')
+        check({'decode': old.hex()}, valid=False)
         declared = check({'source': source})['source']
         assert declared['bytes'] == definitions[index]['wire_hex']
         assert bytes(declared['digest']).hex() == definitions[index]['digest']

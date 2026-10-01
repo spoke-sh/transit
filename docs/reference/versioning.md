@@ -125,3 +125,13 @@ definition. Native SDK publication actions use the application domain; typed
 framework owners use their declared domains. Earlier authority heads, signing
 fixtures and saved mutation commands are incompatible. Recover pending work
 with its matching build; no fallback decoder, conversion or reset is supplied.
+
+Finite value counts extend the shared plan and persisted query progress. Current
+plans carry the `boolean-programs.count-values.2026-10-01` definition; native peers
+use the combined `inline-table-mutation.captured-read-batch.boolean-predicate-programs.c-cpp-program-abi.count-values.2026-10-01`
+definition. Query checkpoints encode the value counter separately from selected
+rows. Previous plans, saved requests and stored authority/framework records
+require their matching build for recovery. Missing/foreign definitions and the
+old checkpoint layout reject; no conversion, fallback or implicit counter reset
+is provided. The [query contract](../../contracts/UNIFIED_QUERY_V1.md) specifies
+the current bytes and neutral manifest field.

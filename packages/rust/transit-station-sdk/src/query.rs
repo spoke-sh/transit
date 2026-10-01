@@ -20,6 +20,7 @@ pub enum Aggregate {
     Rows,
     Count,
     Sum,
+    CountValues,
 }
 #[derive(Clone, Copy, Debug)]
 pub enum Column {
@@ -72,7 +73,7 @@ impl QueryPlan {
         };
         Ok(
             json!({"projection":match self.projection { Projection::Both=>"both", Projection::Key=>"key", Projection::Value=>"value" },
-            "aggregate":match self.aggregate { Aggregate::Rows=>"rows", Aggregate::Count=>"count", Aggregate::Sum=>"sum" }, "limit":self.limit.map(|value|value.to_string()), "predicate":predicate}),
+            "aggregate":match self.aggregate { Aggregate::Rows=>"rows", Aggregate::Count=>"count", Aggregate::Sum=>"sum",Aggregate::CountValues=>"count_values" }, "limit":self.limit.map(|value|value.to_string()), "predicate":predicate}),
         )
     }
 }

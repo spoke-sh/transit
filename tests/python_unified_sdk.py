@@ -25,6 +25,8 @@ def codecs(config):
         assert bundle.data.hex() == fixtures[index]['wire_hex']
         named = q.Bundle.prepare(source, q.Plan((1, 0), q.Compare(1, Comparison.NE, scalar), 2**64-1, output_names=('Result', None)), q.Budgets(1000, 500, 1048576))
         assert named.data.hex() == fixtures[index]['named_wire_hex']
+        counted = q.Bundle.prepare(source, q.Plan((1,), aggregate=q.Aggregate.COUNT_VALUES, output_names=('present',)), q.Budgets(1000, 500, 1048576))
+        assert counted.data.hex() == fixtures[index]['counted_wire_hex']
     for source in (q.KVSource(resource, b'', q.Decoder(q.Type.BINARY, 2), q.Decoder(q.Type.UTF8)),
                    q.TableSource(resource, 9, ('id', 'label'), q.Type.UINT64)):
         try: q.Bundle.prepare(source, q.Plan((0,)), q.Budgets(1, 1, 1))

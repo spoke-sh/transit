@@ -158,6 +158,10 @@ def main():
             actual = cell_bytes(output[1]['row']['value']['structure'][0], typ)
             expected = bytes.fromhex(case['value_hex'])[7 + len(bytes.fromhex(case['type_hex'])):]
             assert actual == expected, case['name']
+            counted = invoke(['--format', 'csv', '--mode', 'explicit', '--schema', schema,
+                              '-c', 'SELECT COUNT(x) AS present FROM input', '-'], buffer.getvalue().encode(), env=env)
+            assert counted[0]['schema']['type']['structure'] == [dict(name='present', type={'uint64': {}}, nullable=False, optional=False)]
+            assert counted[1]['row']['value']['structure'] == [{'value': {'atom': {'unsigned': '1'}}}]
         base = ['--format', 'csv', '-c', 'SELECT SUM(n) FROM input', '-']
         data = b'n,id\n1,001\n2,002\n'
         ordinary = invoke(base, data, env=env)
@@ -183,6 +187,22 @@ def main():
                 [{'value': {'atom': {tag: str(value)}}} for value in row] for row in expected]
             assert output[0]['binding'] == ordinary[0]['binding']
             assert int(output[-1]['complete']['scanned']) == 2
+        # Top-level recursive values count once; null/missing consume input LIMIT.
+        nested = b'{"x":[]}\n{"x":null}\n{}\n{"x":[1]}\n'
+        for sql, expected in [
+            ('SELECT COUNT(x) AS present FROM input', 2),
+            ('SELECT COUNT(*) AS present FROM input', 4),
+            ('SELECT COUNT(q.items) AS present FROM (SELECT x AS items FROM input LIMIT 3) AS q', 1),
+            ('SELECT COUNT(x) AS present FROM (SELECT x FROM input LIMIT 0) AS q', 0),
+            ('SELECT COUNT(x) AS present FROM input WHERE x IS MISSING', 0),
+            ('SELECT COUNT(x) AS present FROM input WHERE x IS NULL', 0),
+        ]:
+            result = invoke(['--format', 'jsonl', '--mode', 'full', '-c', sql, '-'], nested, env=env)
+            assert result[1]['row']['value']['structure'] == [{'value': {'atom': {'unsigned': str(expected)}}}]
+            assert int(result[-1]['complete']['scanned']) == 4
+        for sql in ['SELECT COUNT(x) FROM (SELECT x FROM input LIMIT 1) AS q',
+                    'SELECT COUNT(x) FROM (SELECT x FROM input LIMIT 0) AS q']:
+            invoke(['--format', 'csv', '--sample-records', '1', '-c', sql, '-'], b'x\n1\nbad\n', expected=1, env=env)
         # Independently commit source/schema, aggregate/projection, empty limit
         # and predicate, then every optional output name in position order.
         source_rows = invoke(['--format', 'csv', '-c', 'SELECT * FROM input', '-'], data, env=env)

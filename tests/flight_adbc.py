@@ -15,13 +15,17 @@ def verify(uri, certificate_path, root, token, schema, expected, next_sequence):
             ('SELECT id, value FROM items', expected),
             ('SELECT * FROM items WHERE id < 0', []),
             ('SELECT count(*) FROM items', [{'count': 41}]),
+            ('SELECT count(value) AS present FROM items', [{'present': sum(row['value'] is not None for row in expected)}]),
+            ('SELECT count(chosen.amount) FROM (SELECT value AS amount FROM items LIMIT 3) AS chosen', [{'count': sum(row['value'] is not None for row in expected[:3])}]),
+            ('SELECT count(value) FROM items WHERE id < 0', [{'count': 0}]),
+            ('SELECT value AS first, value AS second FROM items WHERE id = 0', [{'first': None, 'second': None}]),
             ('SELECT sum(value) FROM items', [{'sum': sum(row['value'] or 0 for row in expected)}]),
         ):
             with connection.cursor() as cursor:
                 cursor.adbc_statement.set_options(**{adbc.StatementOptions.RPC_CALL_HEADER_PREFIX.value + 'x-transit-request-sequence': str(next_sequence())})
                 cursor.execute(query_text)
                 assert cursor.fetch_arrow_table().to_pylist() == expected_rows
-    print('ADBC Python: native schema, exact rows, empty result, count, sum and unprepared fallback passed.', flush=True)
+    print('ADBC Python: native schema, exact rows, empty result, row/value counts, aliases, limited input, sum and unprepared fallback passed.', flush=True)
     source = Path(__file__).resolve().parent / 'flight'
     pin = json.loads((source / 'upstream.json').read_text())['files'][0]
     assert hashlib.sha256((source / pin['path']).read_bytes()).hexdigest() == pin['sha256']

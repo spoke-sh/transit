@@ -104,7 +104,7 @@ typedef struct transit_station_unified_description {
     size_t bundle_bytes, segment_bytes, batch_rows;
 } transit_station_unified_description;
 typedef enum transit_station_unified_inspection_kind { TRANSIT_UNIFIED_DESCRIPTION, TRANSIT_UNIFIED_TABLES, TRANSIT_UNIFIED_EXPLANATION } transit_station_unified_inspection_kind;
-typedef enum transit_station_unified_inspection_operator { TRANSIT_UNIFIED_SCAN, TRANSIT_UNIFIED_FILTER, TRANSIT_UNIFIED_INPUT_LIMIT, TRANSIT_UNIFIED_PROJECT, TRANSIT_UNIFIED_COUNT, TRANSIT_UNIFIED_SUM } transit_station_unified_inspection_operator;
+typedef enum transit_station_unified_inspection_operator { TRANSIT_UNIFIED_SCAN, TRANSIT_UNIFIED_FILTER, TRANSIT_UNIFIED_INPUT_LIMIT, TRANSIT_UNIFIED_PROJECT, TRANSIT_UNIFIED_COUNT, TRANSIT_UNIFIED_SUM, TRANSIT_UNIFIED_COUNT_VALUES } transit_station_unified_inspection_operator;
 typedef struct transit_station_unified_inspected_column { char name[33]; transit_station_unified_type type; } transit_station_unified_inspected_column;
 typedef struct transit_station_unified_source_description { transit_station_unified_inspected_column columns[8]; size_t column_count; } transit_station_unified_source_description;
 typedef struct transit_station_unified_table_listing { char names[1][33]; size_t count; } transit_station_unified_table_listing;
@@ -169,7 +169,7 @@ typedef struct transit_station_unified_manifest {
     uint64_t correlation, policy_revision; uint8_t request[72];
     transit_station_unified_source_kind source_kind; transit_sdk_resource resource; uint64_t revision;
     uint8_t source_digest[32], schema_digest[32], plan_digest[32];
-    uint64_t pages, scanned, selected, segments, rows, byte_count;
+    uint64_t pages, scanned, selected, value_count, segments, rows, byte_count;
     bool has_sum; int64_t sum; transit_station_unified_finished finished; uint8_t chain[32];
 } transit_station_unified_manifest;
 typedef struct transit_station_unified_page_info {

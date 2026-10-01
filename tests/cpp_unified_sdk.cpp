@@ -94,7 +94,9 @@ static void boolean_codecs(const std::string &root) {
     for(const auto &instructions:invalid){bool rejected=false;try{q::prepare(source,{{0},q::PredicateProgram{instructions},Aggregate::Rows,std::nullopt,std::nullopt},{1,1,1024});}catch(const Error &){rejected=true;}assert(rejected);}
 }
 static void codecs(const std::string &root) {
-    for(int kind=0;kind<3;++kind) { auto b=bundle(source(ResourceRef(46,7),kind,true),kind,true); assert(b.data()==read(root+"/bundle"+std::to_string(kind)+".bin")); assert(bundle(source(ResourceRef(46,7),kind,true),kind,true,true).data()==read(root+"/named-bundle"+std::to_string(kind)+".bin")); }
+    for(int kind=0;kind<3;++kind) { auto b=bundle(source(ResourceRef(46,7),kind,true),kind,true); assert(b.data()==read(root+"/bundle"+std::to_string(kind)+".bin")); assert(bundle(source(ResourceRef(46,7),kind,true),kind,true,true).data()==read(root+"/named-bundle"+std::to_string(kind)+".bin"));
+        q::Plan counted{{1},All{},Aggregate::CountValues,std::nullopt,std::vector<std::optional<std::string>>{"present"}};
+        assert(q::prepare(source(ResourceRef(46,7),kind,true),counted,{1000,500,1048576}).data()==read(root+"/counted-bundle"+std::to_string(kind)+".bin")); }
     boolean_codecs(root);
     const std::vector<q::Column> columns{{"int64",q::Type::Int64},{"uint64",q::Type::UInt64},{"float64",q::Type::Float64},{"boolean",q::Type::Boolean},{"utf8",q::Type::Utf8},{"binary",q::Type::Binary}};
     auto ipc=read(root+"/arrow.ipc"); const auto rows=q::decode_arrow(columns,ipc,5); std::fill(ipc.begin(),ipc.end(),0);

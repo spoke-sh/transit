@@ -11171,7 +11171,66 @@ test`), exit 0; log `/var/tmp/transit-sql-count-value-units.log`. Fixtures cover
 all six native scalar types, false/empty/negative-zero values, overflow and a
 logical empty list as one top-level value.
 
-This prerequisite is not exposed through typed plans, SQL, resumable execution
-or caller APIs. Those changes, the coordinated definition cutover and independent
-execution/recovery/performance qualification remain open in the
+At prerequisite commit `d35d04e4`, this helper was not exposed through typed
+plans, SQL, resumable execution or caller APIs. The coordinated continuation
+below supersedes that implementation boundary without enlarging this unit proof.
+
+## COUNT(column) coordinated surface — 2026-10-01
+
+The continuation on `d35d04e4` adds aggregate `count_values` (tag 3), shared
+native/file SQL lowering, resumable progress and neutral manifest value counts,
+all ten typed SDKs, generated contracts and independent signing fixtures.
+Progress grows from 167 to 175 bytes; the largest KV checkpoint is 254 bytes
+within the unchanged 256-byte value bound. Both native and FZP1 definition
+identifiers change. Former definitions/layouts reject rather than defaulting,
+resetting progress or invoking a fallback decoder.
+
+The working-tree full `just check` passes under the pinned bindings shell,
+followed by **162 real file CLI cases**, **106 PyArrow cases** and **64 shared
+native/port codec cases**, exit 0. Log:
+`/var/tmp/transit-count-column-check-manifest-fixed.log`. The file proof retains
+192 MiB input under 96 MiB address space and checks late conversion failures
+after LIMIT 0 and LIMIT 1. Recursive file counts count a top-level list as one
+value. Full checks include generated drift, units, 422 CLI diagnostic cases,
+the four terminal signal schedules, history and frontend checks/builds.
+
+`just test::sql` and the independent Arrow proof pass, exit 0, in
+`/var/tmp/transit-count-column-generated-sql-fixed.log`: **157 SELECT ASTs,
+125 canonical-plan/codec/Arrow cases, 57 independently evaluated results across
+three source kinds and eight page widths**, and 21 excluded/error cases.
+Fuze units separately exercise six scalar types, all three basis kinds, widths
+1–8, seven LIMIT choices, encode/decode after every step, full u64 counters,
+null/missing LIMIT consumption, errors/conflicts and forged checkpoint rejection;
+log `/var/tmp/transit-count-column-fuze-expanded.log`.
+
+All ten installed query SDK codec consumers pass against independent count
+bundles for KV, Table and Document sources, alongside existing byte/Arrow
+fixtures. All SDK packages build, and Node checks pass after formatting a
+pre-existing logical-types example. Log:
+`/var/tmp/transit-count-column-installed-codecs-fixed.log`, exit 0. This is codec
+and packaging evidence, not service authorization or recovery qualification.
+
+Failed development attempts remain distinct: an old fixed-offset malformed
+progress test failed after the layout change; generated Board contracts rejected
+stale reactive signing fixtures; full checks caught the stale progress limit,
+remaining signing fixtures and missing required `value_count` fields in frontend
+test manifests. The first SDK command stopped at Node documentation formatting,
+before running installed consumers. Their logs are respectively
+`/var/tmp/transit-count-column-fuze.log`,
+`/var/tmp/transit-count-column-generated-sql.log`,
+`/var/tmp/transit-count-column-check.log`,
+`/var/tmp/transit-count-column-check-fixed.log`,
+`/var/tmp/transit-count-column-check-signing-fixed.log` and
+`/var/tmp/transit-count-column-sdk-codecs.log`. Subsequent focused successes do
+not turn those incomplete commands into passes.
+
+A later review corrected Flight's independently reconstructed output schema
+to use the shared plan, including value-count uint64 conversion and row/aggregate
+aliases. The refreshed full `just check` and `just test::sql` pass, exit 0, in
+`/var/tmp/transit-count-column-flight-layout-check.log`, including 57 parsed
+documentation examples and the same independent result counts above. The added
+Flight/ADBC cases are still running; no result is claimed yet. Installed native inspection cases now include named
+value counts and a renamed limited derived input. Their external execution,
+COUNT-specific disk recovery/current denial, frozen performance comparisons
+and committed-HEAD clean lanes remain open in the
 [M40 continuation](../docs/roadmap/M40.md#countcolumn-continuation).

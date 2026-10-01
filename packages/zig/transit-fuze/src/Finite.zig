@@ -2,7 +2,7 @@
 //! profiles own binding and layouts; missing/null/error/conflict rules are one.
 const std = @import("std");
 pub const Truth = @import("PredicateTruth.zig").Truth;
-pub const Aggregate = enum(u8) { rows = 0, count = 1, sum = 2 };
+pub const Aggregate = enum(u8) { rows = 0, count = 1, sum = 2, count_values = 3 };
 pub const Comparison = enum(u8) { eq = 0, ne = 1, lt = 2, le = 3, gt = 4, ge = 5 };
 pub fn compare(op: Comparison, cell: anytype, literal: anytype, context: anytype, comptime order: anytype) !bool {
     return (try compareTruth(op, cell, literal, context, order)).selects();

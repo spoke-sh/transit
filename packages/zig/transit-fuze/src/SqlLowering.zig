@@ -72,8 +72,8 @@ pub fn lower(ast: *const sql.Ast, source: []const u8, columns: []const []const u
             output[0] = if (input_projection) |projected| projected.columns[0] else 0;
             break :blk .{ .columns = output[0..1] };
         },
-        .sum => |column| blk: {
-            aggregate = .sum;
+        .sum, .count_values => |column| blk: {
+            aggregate = if (ast.selection == .sum) .sum else .count_values;
             if (output.len == 0) return error.InvalidProjection;
             output[0] = if (input_projection) |*projected|
                 try resolveProjected(column, qualifier, projected, columns)
@@ -120,7 +120,7 @@ fn resolve(column: sql.Column, source: []const u8, columns: []const []const u8) 
 }
 fn resolveProjected(column: sql.Column, source: []const u8, projection: *const Projection, columns: []const []const u8) !u8 {
     if (column.qualifier) |qualifier| if (!std.mem.eql(u8, qualifier.slice(), source)) return error.UnknownQualifier;
-    // Resolve one aggregate input directly through its projection. COUNT does
+    // Resolve one aggregate input directly through its projection. COUNT(*) does
     // not resolve a column, and direct queries need no derived name workspace.
     for (projection.columns, 0..) |index, i| {
         if (std.mem.eql(u8, projection.name(i, columns), column.name.slice())) return index;

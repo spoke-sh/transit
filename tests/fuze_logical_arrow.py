@@ -196,6 +196,15 @@ def main():
             assert physical.names == ['total']
             assert len(batches) == 1 and batches[0].num_rows == 1
             assert arrow_cell(batches[0].column(0), 0, typ) == cell_bytes(cell, typ)
+        for query, expected in [
+            ('SELECT COUNT(n) AS present FROM input', 2),
+            ('SELECT COUNT(q.items) AS present FROM (SELECT n AS items FROM input LIMIT 3) AS q', 1),
+            ('SELECT COUNT(n) AS present FROM (SELECT n FROM input LIMIT 0) AS q', 0),
+        ]:
+            physical, batches = cli(['--format', 'jsonl', '--mode', 'full', '-c', query, '-'], data)
+            assert physical.names == ['present']
+            assert len(batches) == 1 and batches[0].num_rows == 1
+            assert arrow_cell(batches[0].column(0), 0, {'uint64': {}}) == cell_bytes({'value': {'atom': {'unsigned': str(expected)}}}, {'uint64': {}})
         # Neutral JSON bridge covers variants and conflicts not produced by files.
         for typ, cell in recursive_cases():
             for variant in [cell, {'null': {}}, {'missing': {}}, {'type_error': 'utf8'}, {'conflict': [{'counter': '9007199254740993', 'replica': '18446744073709551615', 'value': cell}, {'counter': '18446744073709551615', 'replica': '1', 'value': {'null': {}}}]}]:

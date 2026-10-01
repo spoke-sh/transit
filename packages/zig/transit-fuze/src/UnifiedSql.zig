@@ -44,10 +44,10 @@ fn compileInto(allocator: std.mem.Allocator, ast: *const sql.Ast, source: Source
             selected[0] = if (ast.input != null) input[0] else 0;
             result.* = .{ .projection = selected[0..1], .aggregate = .count };
         },
-        .sum => |column| {
+        .sum, .count_values => |column| {
             const index = try resolve(column, qualifier, input_schema);
             selected[0] = if (ast.input != null) input[index] else index;
-            result.* = .{ .projection = selected[0..1], .aggregate = .sum };
+            result.* = .{ .projection = selected[0..1], .aggregate = if (ast.selection == .sum) .sum else .count_values };
         },
     }
     if (ast.output_alias) |alias| result.output_names[0] = try ownedName(alias);

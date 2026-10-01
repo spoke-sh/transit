@@ -249,6 +249,7 @@ def install_c(root, fixtures, language):
     for i, item in enumerate(json.loads((fixtures/'bundles.json').read_text())):
         (fixtures/f'bundle{i}.bin').write_bytes(bytes.fromhex(item['wire_hex']))
         (fixtures/f'named-bundle{i}.bin').write_bytes(bytes.fromhex(item['named_wire_hex']))
+        (fixtures/f'counted-bundle{i}.bin').write_bytes(bytes.fromhex(item['counted_wire_hex']))
     for i, item in enumerate(json.loads((fixtures/'boolean.json').read_text())):
         (fixtures/f'boolean{i}.bin').write_bytes(bytes.fromhex(item['wire_hex']))
     subprocess.run([executable, 'codecs', fixtures], cwd=root, env=env, check=True, timeout=90)

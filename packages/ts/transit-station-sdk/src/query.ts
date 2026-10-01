@@ -9,7 +9,7 @@ import type { GrowingAction } from "./wire.ts";
 import type { Turn } from "./turn.ts";
 
 export type Projection = "both" | "key" | "value";
-export type Aggregate = "rows" | "count" | "sum";
+export type Aggregate = "rows" | "count" | "sum" | "count_values";
 export type Comparison = "eq" | "ne" | "lt" | "le" | "gt" | "ge";
 export type Predicate =
   | { readonly kind: "is-null"; readonly column: 0 | 1 }
@@ -39,7 +39,7 @@ export class QueryPlan {
     this.aggregate = options.aggregate ?? "rows";
     if (
       !["both", "key", "value"].includes(this.projection) ||
-      !["rows", "count", "sum"].includes(this.aggregate)
+      !["rows", "count", "sum", "count_values"].includes(this.aggregate)
     )
       throw new TypeError("Unsupported query projection or aggregate");
     this.limit = options.limit === undefined ? undefined : wide(options.limit);

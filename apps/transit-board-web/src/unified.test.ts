@@ -29,6 +29,7 @@ function page(cell: UnifiedCell): UnifiedQueryResponse {
           pages: "1",
           scanned: "1",
           selected: "1",
+          value_count: "0",
           segments: "1",
           rows: "1",
           bytes: "1",
@@ -87,6 +88,7 @@ describe("unified query boundary", () => {
     Object.assign(value.page.evidence.manifest, {
       scanned: "8",
       selected: "8",
+      value_count: "0",
       rows: "8",
       bytes: "65536",
     });

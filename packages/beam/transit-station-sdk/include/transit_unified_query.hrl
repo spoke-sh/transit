@@ -22,6 +22,6 @@
 -record(transit_unified_status, {phase, correlation, reference, manifest = undefined, collected = false}).
 -record(transit_unified_observation, {state, reason = undefined}).
 -record(transit_unified_alternative, {counter, replica, value}).
--record(transit_unified_manifest, {job, source, requester, correlation, policy_revision, request, kind, resource, revision, source_digest, schema_digest, plan_digest, pages, scanned, selected, segments, rows, byte_count, sum = undefined, finished, chain}).
+-record(transit_unified_manifest, {job, source, requester, correlation, policy_revision, request, kind, resource, revision, source_digest, schema_digest, plan_digest, pages, scanned, selected, value_count, segments, rows, byte_count, sum = undefined, finished, chain}).
 -record(transit_unified_page, {manifest, columns, ordinal, rows, ipc, next = undefined}).
 -endif.

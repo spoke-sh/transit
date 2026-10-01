@@ -8,7 +8,7 @@ namespace Transit.Station.Sdk;
 public enum QueryColumn { Key, Value }
 public enum QueryComparison { Eq, Ne, Lt, Le, Gt, Ge }
 public enum QueryProjection { Both, Key, Value }
-public enum QueryAggregate { Rows, Count, Sum }
+public enum QueryAggregate { Rows, Count, Sum, CountValues }
 public enum QueryCloseReason { Cancelled, Denied }
 public abstract record QueryPredicate
 {
@@ -48,7 +48,7 @@ public sealed record QueryPlan
         if (!Enum.IsDefined(projection) || !Enum.IsDefined(aggregate)) throw new ArgumentException("Unknown query plan kind");
         Projection = projection; Aggregate = aggregate; Limit = limit; Predicate = predicate ?? new QueryPredicate.All();
     }
-    internal JsonObject Wire(int bound) => Value.Obj(("projection", Projection.ToString().ToLowerInvariant()), ("aggregate", Aggregate.ToString().ToLowerInvariant()),
+    internal JsonObject Wire(int bound) => Value.Obj(("projection", Projection.ToString().ToLowerInvariant()), ("aggregate", Aggregate == QueryAggregate.CountValues ? "count_values" : Aggregate.ToString().ToLowerInvariant()),
         ("limit", Limit is { } limit ? Turn.Decimal(limit) : null), ("predicate", Predicate.Wire(bound)));
 }
 public sealed record QueryJob(ulong Result, ulong Correlation, ReadVersion Source);

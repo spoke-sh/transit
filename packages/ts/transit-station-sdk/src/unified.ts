@@ -529,7 +529,15 @@ export type InspectionDetails =
   | { readonly kind: "tables"; readonly names: readonly string[] }
   | {
       readonly kind: "explanation";
-      readonly operators: readonly ("scan" | "filter" | "limit" | "project" | "count" | "sum")[];
+      readonly operators: readonly (
+        | "scan"
+        | "filter"
+        | "limit"
+        | "project"
+        | "count"
+        | "sum"
+        | "count_values"
+      )[];
       readonly predicate: InspectedPredicate | undefined;
       readonly projection: readonly string[];
       readonly limit: bigint | undefined;
@@ -613,6 +621,7 @@ export interface Manifest {
   readonly pages: bigint;
   readonly scanned: bigint;
   readonly selected: bigint;
+  readonly valueCount: bigint;
   readonly segments: bigint;
   readonly rows: bigint;
   readonly byteCount: bigint;
@@ -675,6 +684,7 @@ function page(value: WirePage, realm: number): Page {
     pages: nativeWide(m.pages),
     scanned: nativeWide(m.scanned),
     selected: nativeWide(m.selected),
+    valueCount: nativeWide(m.value_count),
     segments: nativeWide(m.segments),
     rows: nativeWide(m.rows),
     byteCount: nativeWide(m.bytes),

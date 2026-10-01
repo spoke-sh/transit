@@ -178,8 +178,8 @@ pub const Plan = struct {
     }
     fn outputField(self: Plan, index: usize) types.Field {
         var field = if (self.aggregate == .rows) self.schema.structure[self.projection[index]] else types.Field{
-            .name = @tagName(self.aggregate),
-            .type = if (self.aggregate == .count) .uint64 else .int64,
+            .name = if (self.aggregate == .count_values) "count" else @tagName(self.aggregate),
+            .type = if (self.aggregate == .sum) .int64 else .uint64,
             .nullable = self.aggregate == .sum,
         };
         if (self.output_names.len != 0) if (self.output_names[index]) |name| {
@@ -288,6 +288,7 @@ pub const Execution = struct {
     fingerprint: [32]u8,
     scanned: u64 = 0,
     selected: u64 = 0,
+    value_count: u64 = 0,
     emitted: u64 = 0,
     sum: ?i64 = null,
     complete: bool = false,
@@ -316,6 +317,7 @@ pub const Execution = struct {
                 continue;
             }
             self.selected = try std.math.add(u64, self.selected, 1);
+            if (self.plan.aggregate == .count_values) self.value_count = try finite.countValue(self.value_count, row.cells[self.plan.projection[0]]);
             if (self.plan.aggregate == .sum) self.sum = try finite.sum(self.sum, row.cells[self.plan.projection[0]], struct {
                 fn integer(value: values.Value) !i64 {
                     if (value != .atom or value.atom != .signed) return error.TypeMismatch;
@@ -336,7 +338,12 @@ pub const Execution = struct {
             var arena: std.heap.ArenaAllocator = .init(self.scan.allocator);
             errdefer arena.deinit();
             const cells = try arena.allocator().alloc(values.Cell, 1);
-            cells[0] = if (self.plan.aggregate == .count) .{ .value = .{ .atom = .{ .unsigned = self.selected } } } else if (self.sum) |sum| .{ .value = .{ .atom = .{ .signed = sum } } } else .null;
+            cells[0] = switch (self.plan.aggregate) {
+                .count => .{ .value = .{ .atom = .{ .unsigned = self.selected } } },
+                .count_values => .{ .value = .{ .atom = .{ .unsigned = self.value_count } } },
+                .sum => if (self.sum) |sum| .{ .value = .{ .atom = .{ .signed = sum } } } else .null,
+                .rows => unreachable,
+            };
             self.complete = true;
             self.emitted = 1;
             return .{ .arena = arena, .cells = cells };

@@ -68,6 +68,7 @@ pub const Manifest = struct {
     pages: []const u8,
     scanned: []const u8,
     selected: []const u8,
+    value_count: []const u8,
     segments: []const u8,
     rows: []const u8,
     bytes: []const u8,
@@ -76,7 +77,7 @@ pub const Manifest = struct {
     chain: [32]u8,
     pub fn fromNative(alloc: Allocator, value: q.UnifiedRecords.Manifest) !Manifest {
         const progress = value.checkpoint.progress;
-        return .{ .job = value.job.id, .source = value.job.source, .requester = value.job.destination, .correlation = try a.decimal(alloc, value.job.correlation), .policy_revision = try a.decimal(alloc, value.job.policy_revision), .request = try value.job.request.encode(), .basis = progress.basis, .plan = progress.plan, .pages = try a.decimal(alloc, progress.pages), .scanned = try a.decimal(alloc, progress.scanned), .selected = try a.decimal(alloc, progress.selected), .segments = try a.decimal(alloc, progress.segments), .rows = try a.decimal(alloc, progress.rows), .bytes = try a.decimal(alloc, value.checkpoint.bytes), .sum = if (progress.sum) |sum| try a.decimal(alloc, sum) else null, .finished = progress.finished, .chain = value.checkpoint.chain };
+        return .{ .job = value.job.id, .source = value.job.source, .requester = value.job.destination, .correlation = try a.decimal(alloc, value.job.correlation), .policy_revision = try a.decimal(alloc, value.job.policy_revision), .request = try value.job.request.encode(), .basis = progress.basis, .plan = progress.plan, .pages = try a.decimal(alloc, progress.pages), .scanned = try a.decimal(alloc, progress.scanned), .selected = try a.decimal(alloc, progress.selected), .value_count = try a.decimal(alloc, progress.value_count), .segments = try a.decimal(alloc, progress.segments), .rows = try a.decimal(alloc, progress.rows), .bytes = try a.decimal(alloc, value.checkpoint.bytes), .sum = if (progress.sum) |sum| try a.decimal(alloc, sum) else null, .finished = progress.finished, .chain = value.checkpoint.chain };
     }
 };
 pub const Page = struct {

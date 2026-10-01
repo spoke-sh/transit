@@ -121,7 +121,7 @@ module Transit
           raise ArgumentError, 'Expected bounded projection' unless projection.is_a?(Array) && projection.length.between?(1, 8)
           raise ArgumentError, 'Output names must match the projection width' unless output_names.nil? || (output_names.is_a?(Array) && output_names.length == projection.length)
           raise ArgumentError, 'Expected predicate' unless predicate.nil? || predicate.is_a?(IsState) || predicate.is_a?(Compare) || predicate.is_a?(PredicateProgram)
-          raise ArgumentError, 'Expected aggregate' unless %i[rows count sum].include?(aggregate)
+          raise ArgumentError, 'Expected aggregate' unless %i[rows count sum count_values].include?(aggregate)
           super(projection: projection.map { |v| Internal.integer(v, min: 0, max: 7) }.freeze, predicate: predicate,
             limit: limit.nil? ? nil : Internal.integer(limit, min: 0, max: U64_MAX), aggregate: aggregate,
             output_names: output_names&.map { |v| v.nil? ? nil : Internal.text(v, 32).freeze }&.freeze)
@@ -185,7 +185,7 @@ module Transit
       Explanation = Data.define(:operators, :predicate, :projection, :limit, :aggregate, :columns, :budgets)
       Inspection = Data.define(:name, :resource, :source_kind, :source_digest, :schema_digest, :resource_revision, :policy_revision, :details)
       Manifest = Data.define(:job, :source, :requester, :correlation, :policy_revision, :request, :source_kind, :resource, :revision,
-        :source_digest, :schema_digest, :plan_digest, :pages, :scanned, :selected, :segments, :rows, :byte_count, :sum, :finished, :chain)
+        :source_digest, :schema_digest, :plan_digest, :pages, :scanned, :selected, :value_count, :segments, :rows, :byte_count, :sum, :finished, :chain)
       Page = Data.define(:manifest, :columns, :ordinal, :rows, :ipc, :next) do
         def decode(native_host: nil) = Unified.decode_arrow(columns, ipc, rows, native_host: native_host)
         def inspect = "#<Transit::Station::Unified::Page ordinal=#{ordinal} rows=#{rows}>"
@@ -297,7 +297,7 @@ module Transit
             resource: ResourceRef.new(realm: realm, resource: basis.fetch('resource')), revision: basis.fetch('revision'),
             source_digest: Value.digest(basis.fetch('contract')), schema_digest: Value.digest(basis.fetch('schema')), plan_digest: Value.digest(m.fetch('plan')),
             pages: Value.wide(m.fetch('pages')), scanned: Value.wide(m.fetch('scanned')), selected: Value.wide(m.fetch('selected')),
-            segments: Value.wide(m.fetch('segments')), rows: Value.wide(m.fetch('rows')), byte_count: Value.wide(m.fetch('bytes')),
+            value_count: Value.wide(m.fetch('value_count')), segments: Value.wide(m.fetch('segments')), rows: Value.wide(m.fetch('rows')), byte_count: Value.wide(m.fetch('bytes')),
             sum: m.fetch('sum').nil? ? nil : Value.wide(m.fetch('sum'), min: -(1 << 63), max: (1 << 63)-1), finished: m.fetch('finished').to_sym, chain: Value.digest(m.fetch('chain')))
           Page.new(manifest: manifest, columns: v.fetch('columns').map { |c| Column.new(name: c.fetch('name'), type: c.fetch('type').to_sym) }.freeze,
             ordinal: Value.wide(v.fetch('ordinal')), rows: Internal.integer(v.fetch('rows'), min: 0, max: 8), ipc: Internal.unhex(v.fetch('ipc'), 65536).freeze,

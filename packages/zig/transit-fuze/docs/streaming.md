@@ -21,14 +21,17 @@ output schema when aliases are present so collisions still reject before output.
 Pages have consecutive ordinals and at most eight rows. Source adapters own
 ordering and cursor validation; `end` requires their completion evidence. An
 empty page alone does not establish completion. The pointer-free `FZS1` progress
-record is 167 bytes. It binds source kind, resource/revision, source declaration,
+record is 175 bytes. It binds source kind, resource/revision, source declaration,
 schema and plan fingerprints, counters, aggregate carry and termination. Adapter
 cursors are stored beside it, never hidden in a native iterator.
 
 The optional u64 limit applies after filtering across the whole query; null
-means no logical row limit. Count includes selected null/missing rows and emits
-uint64. Checked int64 sum ignores null/missing values and remains null for an
-empty/all-null selection. Type errors or conflicts in compared/summed cells
+means no logical row limit. Row count includes selected null/missing rows and
+emits uint64. Value count (`count_values`) counts only top-level value cells of
+its projected column, regardless of type; null/missing still consume the input
+limit. Its separate u64 `value_count` checkpoint field preserves continuation.
+Both count forms emit zero for empty input and reject overflow. Checked int64 sum ignores null/missing values and remains null for an
+empty/all-null selection. Type errors or conflicts in compared, summed or value-counted cells
 fail the step. Addition preserves source order across page boundaries; summing
 independent page totals could hide an intermediate overflow and is unsupported.
 

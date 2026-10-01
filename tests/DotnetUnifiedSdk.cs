@@ -71,7 +71,9 @@ static class Program
     }
     static async Task Codecs(JsonNode config) {
         var fixtures=JsonNode.Parse(File.ReadAllText(Text(config,"bundles")))!.AsArray();
-        for(int i=0;i<3;i++) { string kind=new[]{"kv","table","document"}[i]; Check(Hex((await Bundle(await Source(new(46,7),kind,true),kind,true)).Bytes)==Text(fixtures[i]!,"wire_hex")); Check(Hex((await Bundle(await Source(new(46,7),kind,true),kind,true,true)).Bytes)==Text(fixtures[i]!,"named_wire_hex")); }
+        for(int i=0;i<3;i++) { string kind=new[]{"kv","table","document"}[i]; Check(Hex((await Bundle(await Source(new(46,7),kind,true),kind,true)).Bytes)==Text(fixtures[i]!,"wire_hex")); Check(Hex((await Bundle(await Source(new(46,7),kind,true),kind,true,true)).Bytes)==Text(fixtures[i]!,"named_wire_hex"));
+            var counted=await Q.Bundle.PrepareAsync(await Source(new(46,7),kind,true),new([1],aggregate:QueryAggregate.CountValues,outputNames:["present"]),new(1000,500,1048576));
+            Check(Hex(counted.Bytes)==Text(fixtures[i]!,"counted_wire_hex")); }
         await BooleanCodecs(config);
         Q.Column[] columns=Enum.GetValues<Q.Type>().Select(type => new Q.Column(type.ToString().ToLowerInvariant(),type)).ToArray();
         byte[] input=Read(config,"arrow").Copy(); var rows=await Q.DecodeArrowAsync(columns,new Bytes(input),5); Array.Fill(input,(byte)0); Check(rows.Count==5);
@@ -83,7 +85,7 @@ static class Program
         bool rejected=false; try { await Q.DecodeArrowAsync(columns,Read(config,"malformed"),5); }catch(TransitException) { rejected=true; } Check(rejected);
         Console.WriteLine(".NET installed unified codecs: three sources, nine Boolean bundles, six types, five states, immutable values and malformed rejection passed");
     }
-    static string Name(Enum value) => value.ToString() is "TypeError"?"type_error":value.ToString().ToLowerInvariant();
+    static string Name(Enum value) => value.ToString() is "TypeError"?"type_error":value.ToString() is "CountValues"?"count_values":value.ToString().ToLowerInvariant();
     static JsonObject InspectedPredicate(Q.InspectedPredicate value) => value switch {
         Q.InspectedAll=>Obj(("all",Obj())),
         Q.InspectedState p=>Obj(("state",Obj(("column",p.Column),("value",Name(p.State))))),

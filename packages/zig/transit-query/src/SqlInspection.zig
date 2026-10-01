@@ -8,7 +8,7 @@ const a = q.document.JsonValues;
 const Allocator = std.mem.Allocator;
 pub const Scope = struct { name: []const u8, source: v.Source, limits: v.Limits };
 pub const Request = struct { scope: Scope, sql: []const u8 };
-pub const Operator = enum { scan, filter, limit, project, count, sum };
+pub const Operator = enum { scan, filter, limit, project, count, sum, count_values };
 pub const PredicateAtom = union(enum) {
     all,
     state: struct { column: []const u8, value: m.State },
@@ -129,6 +129,7 @@ fn explain(allocator: Allocator, plan: m.Plan, schema: m.Schema, limits: q.Bundl
     operators[count] = switch (plan.aggregate) {
         .rows => .project,
         .count => .count,
+        .count_values => .count_values,
         .sum => .sum,
     };
     count += 1;

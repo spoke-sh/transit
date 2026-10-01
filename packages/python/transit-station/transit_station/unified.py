@@ -486,7 +486,7 @@ def _inspection(value: dict[str, Any], resource: ResourceRef) -> Inspection:
         plan = details['explanation']
         inspected = _inspected_predicate(plan['predicate'])
         operators = tuple(plan['operators'])
-        if not 2 <= len(operators) <= 4 or any(op not in ('scan', 'filter', 'limit', 'project', 'count', 'sum') for op in operators):
+        if not 2 <= len(operators) <= 4 or any(op not in ('scan', 'filter', 'limit', 'project', 'count', 'sum', 'count_values') for op in operators):
             raise IncompatibleNative('Invalid inspected operators')
         limits = plan['budgets']
         result = Explanation(operators, inspected, tuple(plan['projection']),
@@ -523,6 +523,7 @@ class Manifest:
     pages: int
     scanned: int
     selected: int
+    value_count: int
     segments: int
     rows: int
     byte_count: int
@@ -557,7 +558,7 @@ def _page(v: dict[str, Any], realm: int) -> Page:
         ProcessRef(realm, data['requester']), _wide(int(data['correlation']), 'correlation'), _wide(int(data['policy_revision']), 'policy revision'),
         owned_bytes(bytes.fromhex(data['request']), 72), basis['kind'], ResourceRef(realm, basis['resource']), integer(basis['revision'], 'revision', minimum=0),
         bytes(basis['contract']), bytes(basis['schema']), bytes(data['plan']),
-        _wide(int(data['pages']), 'pages'), _wide(int(data['scanned']), 'scanned'), _wide(int(data['selected']), 'selected'),
+        _wide(int(data['pages']), 'pages'), _wide(int(data['scanned']), 'scanned'), _wide(int(data['selected']), 'selected'), _wide(int(data['value_count']), 'value count'),
         _wide(int(data['segments']), 'segments'), _wide(int(data['rows']), 'rows'), _wide(int(data['bytes']), 'bytes'),
         None if data['sum'] is None else integer(int(data['sum']), 'sum', minimum=-(1 << 63), maximum=(1 << 63)-1), data['finished'], bytes(data['chain']))
     if any(len(v) != 32 for v in (manifest.source_digest, manifest.schema_digest, manifest.plan_digest, manifest.chain)):

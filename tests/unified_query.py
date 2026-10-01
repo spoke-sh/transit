@@ -163,6 +163,8 @@ def run(node, host, proof, port_host, library, kinds=("kv", "table", "document")
                     'EXPLAIN SELECT count(*) FROM items AS chosen;',
                     'EXPLAIN SELECT chosen.value FROM items AS chosen WHERE chosen.value IS TYPE_ERROR LIMIT 0;',
                     'EXPLAIN SELECT count(*) AS total FROM items AS chosen;',
+                    'EXPLAIN SELECT count(chosen.value) AS present FROM items AS chosen;',
+                    'EXPLAIN SELECT count(chosen.amount) FROM (SELECT value AS amount FROM items LIMIT 0) AS chosen;',
                     'EXPLAIN SELECT chosen.value AS "Result", chosen.value AS copy FROM items AS chosen WHERE chosen.value IS TYPE_ERROR LIMIT 0;')]
                 program_inspectors = (native, port_client, *(caller for caller in callers if caller.predicate_programs))
                 program_requests = [{'inspect': {'scope': scope, 'sql': sql}} for sql in (
@@ -189,7 +191,11 @@ def run(node, host, proof, port_host, library, kinds=("kv", "table", "document")
                         if 'tables' in expected: assert expected['tables'] == (['items'] if kind == 'table' else [])
                         if 'explanation' in expected:
                             plan = expected['explanation']
-                            if plan['aggregate'] == 'count':
+                            if plan['aggregate'] == 'count_values':
+                                assert plan['projection'] == ['value']
+                                assert plan['columns'] == [{'name': 'present' if 'AS present' in action['inspect']['sql'] else 'count', 'type': 'uint64'}]
+                                assert plan['operators'] == (['scan', 'limit', 'count_values'] if 'LIMIT 0' in action['inspect']['sql'] else ['scan', 'count_values'])
+                            elif plan['aggregate'] == 'count':
                                 assert plan['columns'] == [{'name': 'total' if 'AS total' in action['inspect']['sql'] else 'count', 'type': 'uint64'}]
                             elif 'state' in plan['predicate']:
                                 assert plan['limit'] == '0' and plan['predicate'] == {'state': {'column': 'value', 'value': 'type_error'}}

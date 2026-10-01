@@ -17,7 +17,7 @@ selectStatement
     ;
 sourceAlias: AS identifier;
 selection: projection | aggregateSelection;
-aggregateSelection: (COUNT LPAREN STAR RPAREN | SUM LPAREN columnReference RPAREN) outputAlias?;
+aggregateSelection: (COUNT LPAREN (STAR | columnReference) RPAREN | SUM LPAREN columnReference RPAREN) outputAlias?;
 projection: STAR | projectionItem (COMMA projectionItem)*;
 projectionItem: columnReference outputAlias?;
 outputAlias: AS identifier;

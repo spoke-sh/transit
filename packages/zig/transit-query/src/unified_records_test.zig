@@ -5,7 +5,7 @@ const r = q.UnifiedRecords;
 const m = q.fuze.Unified;
 const p = q.protocol;
 test "larger canonical request bundles use an independent immutable commitment" {
-    const Fixture = struct { kind: []const u8, wire_hex: []const u8, reference_hex: []const u8, named_wire_hex: []const u8 };
+    const Fixture = struct { kind: []const u8, wire_hex: []const u8, reference_hex: []const u8, named_wire_hex: []const u8, counted_wire_hex: []const u8 };
     const cases = try std.json.parseFromSlice([]Fixture, t.allocator, @embedFile("fixtures/bundles.json"), .{});
     defer cases.deinit();
     for (cases.value) |case| {
@@ -52,7 +52,7 @@ test "durable source records fit unchanged values and preserve all continuation 
     const bound = try bundle.plan.bind(try q.UnifiedSource.basis(source, 42), try source.schema(&columns));
     var checkpoint: r.Checkpoint = .{ .progress = m.Stream.Progress.start(bound) };
     checkpoint.cursor.after = try p.Value.init(&@as([32]u8, @splat('a')));
-    try t.expectEqual(@as(u16, 246), (try checkpoint.encode()).len);
+    try t.expectEqual(@as(u16, 254), (try checkpoint.encode()).len);
     try t.expectEqualDeep(checkpoint, try r.Checkpoint.decode(try checkpoint.encode()));
     for ([_]m.SourceKind{ .table, .document }) |kind| {
         var changed = checkpoint;
@@ -78,7 +78,7 @@ test "durable source records fit unchanged values and preserve all continuation 
     const manifest: r.Manifest = .{ .job = complete, .checkpoint = checkpoint };
     var output: [r.Manifest.max_bytes]u8 = undefined;
     try t.expectEqualDeep(manifest, try r.Manifest.decode(try manifest.encode(&output)));
-    try t.expectEqual(@as(usize, 396), (try manifest.encode(&output)).len);
+    try t.expectEqual(@as(usize, 404), (try manifest.encode(&output)).len);
     for ([_]p.Value{ try policy.encode(), try job.encode(), try checkpoint.encode(), try segment.encode() }, 0..) |value, kind| {
         var bad = value;
         bad.data[0] = 'X';

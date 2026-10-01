@@ -12,7 +12,7 @@ module Transit
     end
     QueryPlan = Data.define(:projection, :aggregate, :limit, :predicate) do
       def initialize(projection: :both, aggregate: :rows, limit: nil, predicate: nil)
-        raise ArgumentError, 'Select a supported projection/aggregate' unless %i[both key value].include?(projection) && %i[rows count sum].include?(aggregate)
+        raise ArgumentError, 'Select a supported projection/aggregate' unless %i[both key value].include?(projection) && %i[rows count sum count_values].include?(aggregate)
         Internal.integer(limit, min: 0, max: U64_MAX) unless limit.nil?
         raise ArgumentError, 'Expected Predicate' unless predicate.nil? || predicate.is_a?(Predicate)
         super

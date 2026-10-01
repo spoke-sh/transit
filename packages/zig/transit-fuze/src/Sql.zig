@@ -14,7 +14,7 @@ pub const Column = struct { qualifier: ?m.Name = null, name: m.Name };
 pub const ProjectionItem = struct { column: Column, alias: ?m.Name = null };
 /// All null means star. Explicit names form a contiguous bounded prefix.
 pub const Projection = [f.Unified.max_columns]?ProjectionItem;
-pub const Selection = union(enum) { rows: Projection, count, sum: Column };
+pub const Selection = union(enum) { rows: Projection, count, sum: Column, count_values: Column };
 pub const Text = struct {
     bytes: [max_literal_bytes]u8 = @splat(0),
     len: u16 = 0,
@@ -471,8 +471,7 @@ const Parser = struct {
             try self.advance();
             try self.require(.left);
             if (count) {
-                try self.require(.star);
-                result.* = .count;
+                result.* = if (try self.take(.star)) .count else .{ .count_values = try self.column() };
             } else {
                 if (self.assistance) |h| h.sum_only = true;
                 const column_value = try self.column();

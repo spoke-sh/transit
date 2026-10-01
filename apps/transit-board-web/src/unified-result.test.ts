@@ -20,6 +20,7 @@ const manifest: ResultPage["evidence"]["manifest"] = {
   pages: "3",
   scanned: "3",
   selected: "3",
+  value_count: "0",
   segments: "3",
   rows: "3",
   bytes: "3",

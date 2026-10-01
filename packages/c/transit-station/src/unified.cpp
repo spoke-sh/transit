@@ -88,8 +88,8 @@ std::string predicate_wire(const transit_station_unified_plan &v) {
 }
 std::string plan_wire(const transit_station_unified_plan &v) {
     require(v.projection && v.projection_count>0 && v.projection_count<=8,"query-projection");
-    require(v.aggregate>=TRANSIT_AGGREGATE_ROWS && v.aggregate<=TRANSIT_AGGREGATE_SUM,"query-aggregate");
-    const char *aggregates[]={"rows","count","sum"};
+    require(v.aggregate>=TRANSIT_AGGREGATE_ROWS && v.aggregate<=TRANSIT_AGGREGATE_COUNT_VALUES,"query-aggregate");
+    const char *aggregates[]={"rows","count","sum","count_values"};
     std::string projection="[",names="[";
     for(size_t i=0;i<8;++i){if(i>=v.projection_count)require(!v.output_names[i],"query-output-names");else{if(i)names+=',';names+=v.output_names[i]?quote(text(v.output_names[i],32)):"null";}}
     for(size_t i=0;i<v.projection_count;++i){require(v.projection[i]<8,"query-column");if(i)projection+=',';projection+=decimal(v.projection[i]);}
@@ -237,7 +237,7 @@ std::unique_ptr<transit_station_unified_page> page_parse(const Raw &raw,const By
     m.job=raw.number(v,p+"job");m.source=read_version(raw,v,p+"source");m.requester={realm,raw.number(v,p+"requester")};m.correlation=wide(raw,v,p+"correlation");m.policy_revision=wide(raw,v,p+"policy_revision");fixed_bytes(raw,v,p+"request",m.request,72);
     const char *kinds[]={"kv","table","document"};m.source_kind=static_cast<transit_station_unified_source_kind>(select_name(raw.field(v,b+"kind",true),kinds,3));m.resource={realm,raw.number(v,b+"resource")};m.revision=raw.number(v,b+"revision",true);
     digest(raw,v,b+"contract",m.source_digest);digest(raw,v,b+"schema",m.schema_digest);digest(raw,v,p+"plan",m.plan_digest);digest(raw,v,p+"chain",m.chain);
-    m.pages=wide(raw,v,p+"pages");m.scanned=wide(raw,v,p+"scanned");m.selected=wide(raw,v,p+"selected");m.segments=wide(raw,v,p+"segments");m.rows=wide(raw,v,p+"rows");m.byte_count=wide(raw,v,p+"bytes");
+    m.pages=wide(raw,v,p+"pages");m.scanned=wide(raw,v,p+"scanned");m.selected=wide(raw,v,p+"selected");m.value_count=wide(raw,v,p+"value_count");m.segments=wide(raw,v,p+"segments");m.rows=wide(raw,v,p+"rows");m.byte_count=wide(raw,v,p+"bytes");
     m.has_sum=raw.field(v,p+"sum")!="null";if(m.has_sum)m.sum=signed_number(raw,v,p+"sum");const char *finished[]={"source_end","limit"};m.finished=static_cast<transit_station_unified_finished>(select_name(raw.field(v,p+"finished",true),finished,2));
     out->info.ordinal=wide(raw,v,"page/ordinal");const auto rows=raw.number(v,"page/rows",true);require(rows<=8,"query-row-bound");out->info.rows=static_cast<uint8_t>(rows);
     out->info.column_count=array_size(raw,v,"page/columns",8);require(out->info.column_count>0,"query-columns");
@@ -282,11 +282,11 @@ transit_sdk_error transit_station_unified_inspect_sql(transit_station_unified_cl
         if(exists(r,v,d+"description")){result.kind=TRANSIT_UNIFIED_DESCRIPTION;result.details.description=inspected_columns(r,v,d+"description/columns");}
         else if(exists(r,v,d+"tables")){result.kind=TRANSIT_UNIFIED_TABLES;auto &list=result.details.tables;list.count=array_size(r,v,d+"tables",1);for(size_t i=0;i<list.count;++i)inspected_name(r,v,d+"tables/"+decimal(i),list.names[i]);}
         else {result.kind=TRANSIT_UNIFIED_EXPLANATION;const auto e=d+"explanation/";auto &plan=result.details.explanation;
-            const char *operators[]={"scan","filter","limit","project","count","sum"};plan.operator_count=array_size(r,v,e+"operators",4);require(plan.operator_count>=2,"inspection-operators");
-            for(size_t i=0;i<plan.operator_count;++i)plan.operators[i]=static_cast<transit_station_unified_inspection_operator>(select_name(r.field(v,e+"operators/"+decimal(i),true),operators,6));
+            const char *operators[]={"scan","filter","limit","project","count","sum","count_values"};plan.operator_count=array_size(r,v,e+"operators",4);require(plan.operator_count>=2,"inspection-operators");
+            for(size_t i=0;i<plan.operator_count;++i)plan.operators[i]=static_cast<transit_station_unified_inspection_operator>(select_name(r.field(v,e+"operators/"+decimal(i),true),operators,7));
             inspected_predicate(r,v,e+"predicate",plan);
             plan.projection_count=array_size(r,v,e+"projection",8);for(size_t i=0;i<plan.projection_count;++i)inspected_name(r,v,e+"projection/"+decimal(i),plan.projection[i]);
-            plan.has_limit=r.field(v,e+"limit")!="null";if(plan.has_limit)plan.limit=wide(r,v,e+"limit");const char *aggregates[]={"rows","count","sum"};plan.aggregate=static_cast<transit_station_aggregate>(select_name(r.field(v,e+"aggregate",true),aggregates,3));
+            plan.has_limit=r.field(v,e+"limit")!="null";if(plan.has_limit)plan.limit=wide(r,v,e+"limit");const char *aggregates[]={"rows","count","sum","count_values"};plan.aggregate=static_cast<transit_station_aggregate>(select_name(r.field(v,e+"aggregate",true),aggregates,4));
             plan.output=inspected_columns(r,v,e+"columns");plan.budgets={wide(r,v,e+"budgets/pages"),wide(r,v,e+"budgets/segments"),wide(r,v,e+"budgets/result_bytes")};
         }
         *out=result;

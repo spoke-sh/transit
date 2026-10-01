@@ -56,7 +56,8 @@ boolean_codecs(A,Cfg)->
     end,Invalid).
 codecs(A,Cfg)->
     Fixtures=json:decode(read(maps:get(<<"bundles">>,Cfg))),
-    lists:foreach(fun({Kind,F})->#transit_unified_bundle{bytes=B}=bundle(A,source(#transit_resource{realm=46,resource=7},Kind,true),Kind,true),B=binary:decode_hex(maps:get(<<"wire_hex">>,F)),#transit_unified_bundle{bytes=Named}=bundle(A,source(#transit_resource{realm=46,resource=7},Kind,true),Kind,true,[<<"Result">>,undefined]),Named=binary:decode_hex(maps:get(<<"named_wire_hex">>,F)) end,lists:zip([<<"kv">>,<<"table">>,<<"document">>],Fixtures)),
+    lists:foreach(fun({Kind,F})->#transit_unified_bundle{bytes=B}=bundle(A,source(#transit_resource{realm=46,resource=7},Kind,true),Kind,true),B=binary:decode_hex(maps:get(<<"wire_hex">>,F)),#transit_unified_bundle{bytes=Named}=bundle(A,source(#transit_resource{realm=46,resource=7},Kind,true),Kind,true,[<<"Result">>,undefined]),Named=binary:decode_hex(maps:get(<<"named_wire_hex">>,F)),
+        #transit_unified_bundle{bytes=Counted}=ok(A:prepare(source(#transit_resource{realm=46,resource=7},Kind,true),#transit_unified_plan{projection=[1],aggregate=count_values,output_names=[<<"present">>]},#transit_unified_budgets{pages=1000,segments=500,result_bytes=1048576})),Counted=binary:decode_hex(maps:get(<<"counted_wire_hex">>,F)) end,lists:zip([<<"kv">>,<<"table">>,<<"document">>],Fixtures)),
     boolean_codecs(A,Cfg),
     Types=[int64,uint64,float64,boolean,utf8,binary],Cols=[column(atom_to_binary(T,utf8),T)||T<-Types],
     [Missing,Null,Errors,Values,Conflicts]=ok(A:decode(Cols,read(maps:get(<<"arrow">>,Cfg)),5)),

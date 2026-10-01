@@ -54,9 +54,9 @@ def run(binary):
                 def octets(value): return value.encode() if isinstance(value, str) else bytes(value)
                 wire = (b"FZS1\1" + struct.pack("<QQ", basis["resource"], basis["revision"])
                     + octets(basis["contract"]) + octets(basis["schema"]) + octets(progress["plan"])
-                    + struct.pack("<QQQQQBqB", *(progress[k] for k in ("pages", "scanned", "selected", "segments", "rows")),
+                    + struct.pack("<QQQQQQBqB", *(progress[k] for k in ("pages", "scanned", "selected", "value_count", "segments", "rows")),
                         progress["sum"] is not None, progress["sum"] or 0, 2))
-                assert len(wire) == 167 and Path(f"{path}-{width}.progress").read_bytes() == wire
+                assert len(wire) == 175 and Path(f"{path}-{width}.progress").read_bytes() == wire
         print("Unified execution: independent filter/limit/count/sum and checkpoint encoding across all eight page widths passed")
         for name in ("rows", "empty"):
             path = Path(directory) / f"unified-{name}.arrow"
@@ -181,7 +181,7 @@ def run(binary):
             # Independent canonical plan, source basis and progress encoding.
             projection = [1] if name in ("count", "sum") else [0, 1]
             limit = 37 if name == "limit" else 0 if name == "empty" else None
-            definition = hashlib.sha256(b'transit.fuze.plan.v1.boolean-programs.2026-10-01').digest()
+            definition = hashlib.sha256(b'transit.fuze.plan.v1.boolean-programs.count-values.2026-10-01').digest()
             logical = (b"FZP1" + definition + bytes([{"count": 1, "sum": 2}.get(name, 0), len(projection), *projection])
                 + bytes(len(projection)) + bytes([limit is not None])
                 + struct.pack("<Q", limit or 0)
@@ -191,10 +191,10 @@ def run(binary):
             assert basis["kind"] == "table"
             encoded = (b"FZS1\2" + struct.pack("<QQ", basis["resource"], basis["revision"])
                        + octets(basis["contract"]) + octets(basis["schema"]) + octets(progress["plan"])
-                       + struct.pack("<QQQQQBqB", *(progress[key] for key in ("pages", "scanned", "selected", "segments", "rows")),
+                       + struct.pack("<QQQQQQBqB", *(progress[key] for key in ("pages", "scanned", "selected", "value_count", "segments", "rows")),
                                      progress["sum"] is not None, progress["sum"] or 0,
                                      {"source_end": 1, "limit": 2}[progress["finished"]]))
-            assert len(encoded) == 167 and Path(f"{path}.progress").read_bytes() == encoded
+            assert len(encoded) == 175 and Path(f"{path}.progress").read_bytes() == encoded
             actual = []
             total_bytes = 0
             datatype = {"bool": pa.bool_(), "text": pa.string(), "binary": pa.binary()}.get(name, pa.int64())

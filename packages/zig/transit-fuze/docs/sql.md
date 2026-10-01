@@ -37,7 +37,7 @@ qualified columns use that alias when present, otherwise the declared source.
 `AS` is required. Source aliases preserve the source and output column identities.
 Catalog/schema resolution is unsupported.
 
-`column AS name`, `COUNT(*) AS name` and `SUM(column) AS name` supply owned output
+`column AS name`, either COUNT form with `AS name`, and `SUM(column) AS name` supply owned output
 names. Repeated source columns require distinct resulting names. Output aliases
 do not change predicate scope, types or cell states. An inner projection's
 aliases become the names available to the outer aggregate.

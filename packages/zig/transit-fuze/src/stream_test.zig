@@ -52,10 +52,10 @@ test "current steps retry exactly after allocation output and cancellation fault
     const different = try bound(.{ .projection = &.{0}, .limit = 100 });
     try t.expectError(error.SourceChanged, s.step(different, initial, input, workspace, &output, &cancellation));
     var encoding = try initial.encode();
-    encoding[158] = 1; // Absent sum must have canonical zero bytes.
+    encoding[s.progress_bytes - 9] = 1; // Absent sum must have canonical zero bytes.
     try t.expectError(error.InvalidQueryProgress, s.Progress.decode(&encoding));
     encoding = try good.progress.encode();
-    encoding[157] = 2; // Presence is a boolean.
+    encoding[s.progress_bytes - 10] = 2; // Presence is a boolean.
     try t.expectError(error.InvalidQueryProgress, s.Progress.decode(&encoding));
     try t.expectError(error.InvalidQueryProgress, s.Progress.decode(encoding[0..100]));
     const count = try bound(.{ .projection = &.{0}, .aggregate = .count });
