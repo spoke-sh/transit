@@ -457,7 +457,7 @@ pub const Console = struct {
         while (if (source) |reader| reader.takeByte() catch |err| switch (err) {
             error.EndOfStream => null,
             else => return err,
-        } else try Signals.readByte()) |byte| {
+        } else try Signals.readByte(.stream)) |byte| {
             if (Signals.interrupted()) return error.ConsoleInterrupted;
             if (length == buffer.len) return error.ConsoleInputTooLarge;
             buffer[length] = byte;

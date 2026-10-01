@@ -663,9 +663,12 @@ pub fn build(b: *std.Build) void {
     diagnostics_test.has_side_effects = true;
     diagnostics_test.stdio = .inherit;
     b.step("test-cli-diagnostics", "Check CLI failure coordinates, next steps and output privacy").dependOn(&diagnostics_test.step);
+    const console_input_gate = b.addLibrary(.{ .name = "transit-console-input-gate", .linkage = .dynamic, .root_module = b.createModule(.{ .target = target, .optimize = optimize, .link_libc = true }) });
+    console_input_gate.root_module.addCSourceFile(.{ .file = b.path("tests/console_input_gate.c"), .flags = &.{ "-std=c11", "-Wall", "-Wextra", "-Werror" } });
     const history_test = b.addSystemCommand(&.{ "python3", "-B" });
     history_test.addFileArg(b.path("tests/console_history.py"));
     history_test.addArtifactArg(query_shell);
+    history_test.addArtifactArg(console_input_gate);
     history_test.has_side_effects = true;
     history_test.stdio = .inherit;
     b.step("test-console-history", "Check real terminal history search and persistence").dependOn(&history_test.step);

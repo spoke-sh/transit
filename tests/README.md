@@ -11123,3 +11123,40 @@ and retained in the lowering archive. Log:
 `/tmp/transit-sql-file-alias-clean-core.log`. This precedes the two lowering
 optimizations and does not qualify their final source. Current clean lanes,
 the console failure and remaining performance limits stay open.
+
+## Console input flush and signal schedule — 2026-10-01
+
+A full SQL-branch check at `2cbd1a00` failed waiting for a fresh prompt after
+Ctrl-C in history search. A controlled Linux PTY schedule reproduces the same
+stall against a freshly built main `a4ba1124`: `poll` reports readable input,
+the terminal flushes it on Ctrl-C, the actual signal handler completes, and a
+later `read` blocks with `VMIN=1`. No additional key arrives before the existing
+15-second prompt deadline. This demonstrates the race on main without proving
+the exact interleaving of the original unscheduled failure.
+
+Raw terminal input now uses `VMIN=0/VTIME=0`; polling owns the wait. Signal flags
+are checked after reading and before interpreting a byte or end-of-input. An
+empty raw-terminal read without a hangup returns to polling; ordinary stream EOF
+and terminal hangup retain their end-of-input meaning. Normal input/escape waits,
+output deadlines, cancellation, exit status and terminal restoration retain
+their existing limits and behavior.
+
+`just test::console-history` includes the real-syscall interposer
+[console_input_gate.c](console_input_gate.c) and
+[four scheduled cases](console_signals.py). The parent waits for a ready read,
+applies a flush/signal, waits for the real handler's acknowledgment when needed,
+checks the terminal queue, then releases the read. Cases cover a flushed Ctrl-C
+during search, an empty read without a signal, Ctrl-C overriding queued Ctrl-D,
+and SIGTERM after a flush. They assert prompt/exit behavior, a later ordinary
+Ctrl-D, no result stdout/native requests/history submission, and exact terminal
+attribute restoration. The interposer is loaded only by these proof children.
+
+All four cases and the existing history suite pass on the correction. The same
+test fails on its first scheduled case against the frozen main control.
+[Source hashes, control logs and development failures](verification/results/console-input-race-2026-10-01.json)
+retain their distinct outcomes. Pinned `just transit-board::install`, full
+`just check` and `zig build test-cli-lifecycle` pass, exit 0; log
+`/var/tmp/transit-console-race-proof/full-check.log`. This includes all 422 CLI
+diagnostic cases, units, generated contracts and both frontend checks/builds.
+Committed-HEAD clean qualification remains pending. This is local terminal
+evidence, not a new query recovery or SDK compatibility claim.
