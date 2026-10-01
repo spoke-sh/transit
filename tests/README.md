@@ -11587,3 +11587,11 @@ projection matrix already records narrow/explicit compilation at **1.1592**,
 above 1.15. Targeted success does not establish a complete timing pass. The clean
 core run started at `8b9d1d5b` precedes this optimization and cannot qualify it by
 inheritance. Current-source clean qualification remains separate.
+
+The retained Station launcher installation was still running after its earlier
+Arrow-reply failure. A signed read at **13:01:20 UTC** observes `last-query` at
+authority position 169. This establishes later completion, not its arrival time
+or satisfaction of the original 60-second deadline. The owning launcher's
+`down` operation stops it at **13:02:15 UTC**, with its WAL and logs preserved
+and no reset. The [original failure record](verification/results/count-values-experience-station-2026-10-01.json)
+retains this follow-up separately; the experience lane remains failed.

@@ -313,5 +313,22 @@
     "Six tasks pass, including Board query; Station does not complete its first query and later lifecycle assertions are unrun.",
     "Courier readiness replacement returns before the Arrow wait fails. Several worker logs record HTTP 503 HttpCapacity/AuthorityUnavailable; this does not establish the cause or every upstream response.",
     "The earlier experience failure at 2130f367 is separate and remains failed. No deadline, resident bound or runtime code changed."
-  ]
+  ],
+  "followup": {
+    "source_revision": "cdb1bc49777e9fc550836a6835119dc240def0e8",
+    "fixture": "/var/tmp/transit-ci-mc2kg8kf/src/.cache/launchers/local/station-886ef1",
+    "observed_at": "2026-10-01T13:01:20.727757+00:00",
+    "last_query_present": true,
+    "position": 169,
+    "original_proof_passed": false,
+    "shutdown": {
+      "at": "2026-10-01T13:02:15.751537+00:00",
+      "command": "launchers/main.py local down --name station-886ef1",
+      "manager_socket_removed": true,
+      "wal_preserved": true,
+      "logs_preserved": true,
+      "reset": false
+    },
+    "limits": "This later signed read does not establish when the query completed and does not satisfy the original 60-second deadline. Shutdown preserves data/logs and does not reset the fixture."
+  }
 }
