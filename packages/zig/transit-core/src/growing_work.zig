@@ -66,12 +66,28 @@ pub fn apply(engine: anytype, candidate: anytype, request: g.Request, now: ?core
             if (out.phase == .delivered) if (destination.work_before_ms) |deadline| engine.before(now, deadline) catch |err| {
                 if (err == error.DeadlineExpired) out.phase = .expired else return err;
             };
-            if (out.phase == .delivered) try admit(candidate, &destination, position, out.value, .{ .process = .{ .pid = out.source, .turn = out.turn, .output = out.id } });
             out.resolved_at = position;
-            try candidate.put(address(.output, id), out);
-            try candidate.remove(address(.pending_output, id));
-            try candidate.remove(try c.key(.pending_destination, out.destination, id, ""));
-            try candidate.remove(routeKey(out.source, out.destination, id));
+            // Share immutable paths across this bounded delivery decision. All
+            // records still become authoritative only at the journal commit.
+            var mutations: [6]core.pages.Mutation = undefined;
+            mutations[0] = try c.putMutation(address(.output, id), out);
+            mutations[1] = .{ .key = address(.pending_output, id), .value = null };
+            mutations[2] = .{ .key = try c.key(.pending_destination, out.destination, id, ""), .value = null };
+            mutations[3] = .{ .key = routeKey(out.source, out.destination, id), .value = null };
+            var count: usize = 4;
+            if (out.phase == .delivered) {
+                if (destination.admitted >= p.max_counter) return error.Overflow;
+                destination.admitted += 1;
+                mutations[4] = try c.putMutation(try c.key(.mailbox, destination.pid, destination.admitted, ""), g.Input{
+                    .position = position,
+                    .ordinal = destination.admitted,
+                    .value = out.value,
+                    .origin = .{ .process = .{ .pid = out.source, .turn = out.turn, .output = out.id } },
+                });
+                mutations[5] = try c.putMutation(address(.process, destination.pid), destination);
+                count = 6;
+            }
+            try candidate.mutate(mutations[0..count]);
         },
         .dispatch => |command| {
             var value = try effect(engine, command.effect);

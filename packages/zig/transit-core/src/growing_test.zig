@@ -1020,6 +1020,71 @@ test "growing outboxes preserve routes, permission ordering and lost delivery re
     try t.expect(std.meta.eql(fixture.engine.head, recovered.head));
 }
 
+test "delivery staging failures preserve admission provenance and every pending index" {
+    const work = @import("growing_work.zig");
+    const c = core.catalog;
+    var f: Fixture = .{};
+    defer f.deinit();
+    try f.init();
+    const source = try f.root(.{ .spawn = .{} });
+    const destination = try f.root(.{ .spawn = .{} });
+    _ = try f.root(.{ .own = .{ .pid = source, .expected_generation = 0, .worker = 0 } });
+    const turn = try f.emit(source, .{ .{ .pid = destination, .value = core.Value.integer(42) }, null, null, null }, null);
+    const signed = try g.sign(.{ .realm = 42, .principal = 0, .sequence = f.root_sequence, .command = .{ .deliver = 1 } }, f.root_key);
+    const before = f.engine.head;
+    const writes = f.pages.writes;
+    _ = try f.engine.prepare(signed);
+    const stages = f.pages.writes - writes;
+    try t.expect(stages > 0);
+    std.debug.print("Delivery preparation: {d} page stages; {d} staging/acknowledgement fault cases.\n", .{ stages, stages * 2 });
+    const pending = [_]core.pages.Key{
+        growing.address(.pending_output, 1),
+        try c.key(.pending_destination, destination, 1, ""),
+        work.routeKey(source, destination, 1),
+    };
+    const pending_values = [_]u64{ destination, 1, 1 };
+    const mailbox = try c.key(.mailbox, destination, 1, "");
+    // Enumerate every staging boundary, including persisted pages whose
+    // acknowledgements were lost. Unpublished candidates cannot resolve work.
+    for (0..stages) |offset| {
+        for ([_]bool{ false, true }) |lost| {
+            if (lost) {
+                f.pages.lose_at = f.pages.writes + offset;
+                try t.expectError(error.StagingAcknowledgementLost, f.engine.prepare(signed));
+                f.pages.lose_at = null;
+            } else {
+                f.pages.fail_at = f.pages.writes + offset;
+                try t.expectError(error.StagingFailed, f.engine.prepare(signed));
+                f.pages.fail_at = null;
+            }
+            try t.expectEqualDeep(before, f.engine.head);
+            const after_fault_writes = f.pages.writes;
+            var recovered = try Engine.open(&f.journal, &f.pages, f.genesis);
+            try t.expectEqual(after_fault_writes, f.pages.writes);
+            try t.expectEqualDeep(before, recovered.head);
+            try t.expectEqual(@as(u64, 0), (try recovered.process(destination)).admitted);
+            try t.expectEqual(.pending, (try work.output(&recovered, 1)).phase);
+            var catalog = try recovered.state();
+            try t.expectEqual(@as(?g.Input, null), try catalog.get(g.Input, mailbox));
+            for (pending, pending_values) |key, value| try t.expectEqual(@as(?u64, value), try catalog.get(u64, key));
+        }
+    }
+    const receipt = try f.engine.submit(signed);
+    try t.expectEqual(before.position, receipt);
+    f.engine = try Engine.open(&f.journal, &f.pages, f.genesis);
+    try t.expectEqual(receipt, try f.engine.submit(signed));
+    try t.expectEqual(@as(u64, 1), (try f.engine.process(destination)).admitted);
+    const output = try work.output(&f.engine, 1);
+    try t.expectEqual(.delivered, output.phase);
+    try t.expectEqual(@as(?u64, receipt), output.resolved_at);
+    var catalog = try f.engine.state();
+    const input = (try catalog.get(g.Input, mailbox)).?;
+    try t.expectEqual(receipt, input.position);
+    try t.expectEqual(@as(i64, 42), try input.value.asInteger());
+    try t.expectEqualDeep(g.Origin{ .process = .{ .pid = source, .turn = turn, .output = 1 } }, input.origin);
+    for (pending) |key| try t.expectEqual(@as(?u64, null), try catalog.get(u64, key));
+}
+
 test "growing effects retain bounded settlement across retirement and reject late results" {
     const work = @import("growing_work.zig");
     const Clock = struct {
