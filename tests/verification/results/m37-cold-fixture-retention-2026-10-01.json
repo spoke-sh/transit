@@ -28,5 +28,1306 @@
       "failure": null,
       "passed": true
     }
-  ]
+  ],
+  "committed_qualification": {
+    "revision": "c8e58460ec4b760cee976c36443c0b1d6ad169f6",
+    "attempts": [
+      {
+        "step": "install",
+        "revision": "c8e58460ec4b760cee976c36443c0b1d6ad169f6",
+        "exit_code": 0,
+        "seconds": 8.387,
+        "command": [
+          "just",
+          "transit-board::install"
+        ],
+        "log": "/home/alex/workspace/rupurt/rey-issue-26/.cache/clean-c8e58460-install.log",
+        "log_sha256": "ab631e46e1bf4a9277b8daa80f70672675dc3c35b71983299bec5986dd52e96a"
+      },
+      {
+        "step": "check",
+        "revision": "c8e58460ec4b760cee976c36443c0b1d6ad169f6",
+        "exit_code": 0,
+        "seconds": 220.788,
+        "command": [
+          "just",
+          "check"
+        ],
+        "log": "/home/alex/workspace/rupurt/rey-issue-26/.cache/clean-c8e58460-check.log",
+        "log_sha256": "f0f599fb794e58d23f194bdaa2e9167f14689e7e569008a8ed394b61183921f4"
+      },
+      {
+        "step": "catalog-cold",
+        "revision": "c8e58460ec4b760cee976c36443c0b1d6ad169f6",
+        "exit_code": 0,
+        "seconds": 143.566,
+        "command": [
+          "env",
+          "TMPDIR=/var/tmp/transit-c8e58460-catalog",
+          "just",
+          "test::catalog",
+          "--cold"
+        ],
+        "log": "/home/alex/workspace/rupurt/rey-issue-26/.cache/clean-c8e58460-catalog-cold.log",
+        "log_sha256": "d31e5662c65d9bac1d0d7c6291d4854db37cfd6a7126fadefd934d8eb3df92be"
+      },
+      {
+        "step": "experience",
+        "revision": "c8e58460ec4b760cee976c36443c0b1d6ad169f6",
+        "exit_code": 0,
+        "seconds": 478.951,
+        "command": [
+          "just",
+          "ci-clean",
+          "--lane",
+          "experience"
+        ],
+        "log": "/home/alex/workspace/rupurt/rey-issue-26/.cache/clean-c8e58460-experience.log",
+        "log_sha256": "45ff7ab2c0dee6880ca4c21d2bc8e8f5d0548aaea64ce796c56a8b3e406ef9f2",
+        "metadata": {
+          "version": 1,
+          "revision": "c8e58460ec4b760cee976c36443c0b1d6ad169f6",
+          "tier": "experience",
+          "expected_tasks": [
+            "transit-board::check",
+            "transit-docs::check",
+            "bindings::node-check",
+            "test::observability",
+            "transit-board::test",
+            "transit-board::query-test",
+            "launchers::local::test-station"
+          ],
+          "run_id": null,
+          "run_attempt": null,
+          "machine": {
+            "platform": "Linux-6.17.0-41-generic-x86_64-with-glibc2.42",
+            "logical_cpus": 48,
+            "affinity": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7,
+              8,
+              9,
+              10,
+              11,
+              12,
+              13,
+              14,
+              15,
+              16,
+              17,
+              18,
+              19,
+              20,
+              21,
+              22,
+              23,
+              24,
+              25,
+              26,
+              27,
+              28,
+              29,
+              30,
+              31,
+              32,
+              33,
+              34,
+              35,
+              36,
+              37,
+              38,
+              39,
+              40,
+              41,
+              42,
+              43,
+              44,
+              45,
+              46,
+              47
+            ],
+            "runner": null,
+            "runner_arch": null
+          },
+          "completed": true,
+          "active_task": null,
+          "seconds": 460.58,
+          "checkpoint_unix": 1790863729.2281363,
+          "result_count": 7
+        },
+        "tasks": [
+          {
+            "lane": "experience",
+            "task": "transit-board::check",
+            "seconds": 65.43,
+            "exit_code": 0
+          },
+          {
+            "lane": "experience",
+            "task": "transit-docs::check",
+            "seconds": 60.4,
+            "exit_code": 0
+          },
+          {
+            "lane": "experience",
+            "task": "bindings::node-check",
+            "seconds": 6.42,
+            "exit_code": 0
+          },
+          {
+            "lane": "experience",
+            "task": "test::observability",
+            "seconds": 13.28,
+            "exit_code": 0
+          },
+          {
+            "lane": "experience",
+            "task": "transit-board::test",
+            "seconds": 12.77,
+            "exit_code": 0
+          },
+          {
+            "lane": "experience",
+            "task": "transit-board::query-test",
+            "seconds": 60.29,
+            "exit_code": 0
+          },
+          {
+            "lane": "experience",
+            "task": "launchers::local::test-station",
+            "seconds": 241.97,
+            "exit_code": 0
+          }
+        ],
+        "complete_lane_pass": true,
+        "station_recovery": {
+          "version": 1,
+          "profile": "local",
+          "installation": "station-c6b132",
+          "artifact_provenance": {
+            "commit": "c8e58460ec4b760cee976c36443c0b1d6ad169f6",
+            "dirty": false,
+            "zig": "0.17.0-dev.2267+48abf1a34",
+            "flake_lock": "865faed173c5a710f77c231ce13c427bfe9eeaf3900e7edc7fa7e9d6233b1264",
+            "optimize": "ReleaseSafe"
+          },
+          "deadline_seconds": 60,
+          "query_submitted": true,
+          "reply_seconds": 38.81783682806417,
+          "passed_before_cleanup": true,
+          "recovery": {
+            "refused_reads": 292,
+            "restarts": 1,
+            "replacement_seconds": 30.312
+          },
+          "refused_reads": 292,
+          "forwarded_commands": 26,
+          "cleanup_restart_started": true,
+          "cleanup_restart_completed": true
+        }
+      }
+    ],
+    "cold_catalog": {
+      "version": 1,
+      "completed": true,
+      "revision": "c8e58460ec4b760cee976c36443c0b1d6ad169f6",
+      "dirty": false,
+      "runner_sha256": "5f13a3756375868d9e193d8c08fe745c6a5b4d835098d126c2d1a437028b0c5c",
+      "resident_pages": 8,
+      "requested_growth_tables": 0,
+      "selected_sdks": [],
+      "sdk_install_seconds": 0.0,
+      "sdk_artifacts": {},
+      "binaries": {
+        "node": "bfb249a6af0e4c5b92ada80f7f8bb124e0a1c68bd37320314b9a9b46357c1d31",
+        "proof": "e8a2c73048df4fa1ef70561602f213ce95af991657baeba22dbf88db9af1c483",
+        "host": "f21d25109a1178a5ffdadfeb70f33c13842dfd6889f0a44d8820e92f94f44e1a",
+        "port": "c7e22d28c785b333b182dcdbf888e03c625034a6fa90eabb6fedae7085ba7af8",
+        "library.so": "9179501c56b34b502687ae150224690b5025e30bc2f142011e7da7482e4d608f",
+        "cli": "862be85839bdc48517797a53ce616eb56582c751923df1d6a4f2b304ef001195"
+      },
+      "error": null,
+      "seconds": 14.867,
+      "counts": {
+        "reads": 1574,
+        "caller_reads": 633,
+        "turns": 38,
+        "max_mutations": 4,
+        "max_value_bytes": 133
+      },
+      "catalog_growth_tables": 0,
+      "growth_samples": [],
+      "growth_current": null,
+      "growth_baseline": {
+        "counts": {
+          "reads": 970,
+          "caller_reads": 351,
+          "turns": 34,
+          "max_mutations": 4,
+          "max_value_bytes": 132
+        },
+        "upstream_operations": {
+          "administrator:capabilities": {
+            "attempts": 150,
+            "transport_failures": 0,
+            "http_errors": 0,
+            "elapsed_ns": 1001425919,
+            "max_ns": 81809919
+          },
+          "administrator:spawn": {
+            "attempts": 2,
+            "transport_failures": 0,
+            "http_errors": 0,
+            "elapsed_ns": 44334059,
+            "max_ns": 36144813
+          },
+          "administrator:grant": {
+            "attempts": 4,
+            "transport_failures": 0,
+            "http_errors": 0,
+            "elapsed_ns": 79806165,
+            "max_ns": 25090856
+          },
+          "administrator:create_resource": {
+            "attempts": 2,
+            "transport_failures": 0,
+            "http_errors": 0,
+            "elapsed_ns": 73227737,
+            "max_ns": 47206377
+          },
+          "administrator:grant_resource": {
+            "attempts": 11,
+            "transport_failures": 0,
+            "http_errors": 0,
+            "elapsed_ns": 375562065,
+            "max_ns": 48944296
+          },
+          "administrator:associate": {
+            "attempts": 2,
+            "transport_failures": 0,
+            "http_errors": 0,
+            "elapsed_ns": 154014764,
+            "max_ns": 90486445
+          },
+          "administrator:own": {
+            "attempts": 8,
+            "transport_failures": 0,
+            "http_errors": 0,
+            "elapsed_ns": 264157228,
+            "max_ns": 55697444
+          },
+          "caller:capabilities": {
+            "attempts": 123,
+            "transport_failures": 0,
+            "http_errors": 0,
+            "elapsed_ns": 758846205,
+            "max_ns": 79055761
+          },
+          "caller:send": {
+            "attempts": 36,
+            "transport_failures": 0,
+            "http_errors": 0,
+            "elapsed_ns": 1179285707,
+            "max_ns": 52578251
+          },
+          "owner:process": {
+            "attempts": 251,
+            "transport_failures": 0,
+            "http_errors": 0,
+            "elapsed_ns": 1567202735,
+            "max_ns": 56815369
+          },
+          "owner:resource": {
+            "attempts": 32,
+            "transport_failures": 0,
+            "http_errors": 0,
+            "elapsed_ns": 80846134,
+            "max_ns": 16087610
+          },
+          "owner:open_view": {
+            "attempts": 32,
+            "transport_failures": 0,
+            "http_errors": 0,
+            "elapsed_ns": 1314266236,
+            "max_ns": 56421380
+          },
+          "owner:entries": {
+            "attempts": 162,
+            "transport_failures": 0,
+            "http_errors": 0,
+            "elapsed_ns": 1274798294,
+            "max_ns": 22630043
+          },
+          "owner:turn": {
+            "attempts": 37,
+            "transport_failures": 0,
+            "http_errors": 3,
+            "elapsed_ns": 2242140838,
+            "max_ns": 104721473
+          },
+          "caller:read_entries": {
+            "attempts": 125,
+            "transport_failures": 0,
+            "http_errors": 2,
+            "elapsed_ns": 1170363929,
+            "max_ns": 84624765
+          },
+          "caller:process": {
+            "attempts": 40,
+            "transport_failures": 0,
+            "http_errors": 0,
+            "elapsed_ns": 566332946,
+            "max_ns": 98224560
+          },
+          "caller:resource": {
+            "attempts": 13,
+            "transport_failures": 0,
+            "http_errors": 1,
+            "elapsed_ns": 19215542,
+            "max_ns": 2018000
+          },
+          "caller:entries": {
+            "attempts": 50,
+            "transport_failures": 0,
+            "http_errors": 0,
+            "elapsed_ns": 80197390,
+            "max_ns": 7134573
+          },
+          "administrator:process": {
+            "attempts": 1,
+            "transport_failures": 0,
+            "http_errors": 0,
+            "elapsed_ns": 1553895,
+            "max_ns": 1553895
+          },
+          "owner:association": {
+            "attempts": 23,
+            "transport_failures": 0,
+            "http_errors": 0,
+            "elapsed_ns": 87851664,
+            "max_ns": 8813930
+          }
+        }
+      },
+      "growth_phases": {
+        "compile": {
+          "calls": 0,
+          "failures": 0,
+          "seconds": 0.0,
+          "caller_reads": 0
+        },
+        "prepare": {
+          "calls": 0,
+          "failures": 0,
+          "seconds": 0.0,
+          "caller_reads": 0
+        },
+        "admit": {
+          "calls": 0,
+          "failures": 0,
+          "seconds": 0.0,
+          "caller_reads": 0
+        },
+        "await_application": {
+          "calls": 0,
+          "failures": 0,
+          "seconds": 0.0,
+          "caller_reads": 0
+        }
+      },
+      "upstream_operations": {
+        "administrator:capabilities": {
+          "attempts": 181,
+          "transport_failures": 0,
+          "http_errors": 0,
+          "elapsed_ns": 1295028035,
+          "max_ns": 97465386
+        },
+        "administrator:spawn": {
+          "attempts": 2,
+          "transport_failures": 0,
+          "http_errors": 0,
+          "elapsed_ns": 44334059,
+          "max_ns": 36144813
+        },
+        "administrator:grant": {
+          "attempts": 4,
+          "transport_failures": 0,
+          "http_errors": 0,
+          "elapsed_ns": 79806165,
+          "max_ns": 25090856
+        },
+        "administrator:create_resource": {
+          "attempts": 2,
+          "transport_failures": 0,
+          "http_errors": 0,
+          "elapsed_ns": 73227737,
+          "max_ns": 47206377
+        },
+        "administrator:grant_resource": {
+          "attempts": 12,
+          "transport_failures": 0,
+          "http_errors": 0,
+          "elapsed_ns": 424556688,
+          "max_ns": 48994623
+        },
+        "administrator:associate": {
+          "attempts": 2,
+          "transport_failures": 0,
+          "http_errors": 0,
+          "elapsed_ns": 154014764,
+          "max_ns": 90486445
+        },
+        "administrator:own": {
+          "attempts": 8,
+          "transport_failures": 0,
+          "http_errors": 0,
+          "elapsed_ns": 264157228,
+          "max_ns": 55697444
+        },
+        "caller:capabilities": {
+          "attempts": 178,
+          "transport_failures": 0,
+          "http_errors": 0,
+          "elapsed_ns": 835901488,
+          "max_ns": 79055761
+        },
+        "caller:send": {
+          "attempts": 41,
+          "transport_failures": 0,
+          "http_errors": 0,
+          "elapsed_ns": 1412696836,
+          "max_ns": 56025536
+        },
+        "owner:process": {
+          "attempts": 511,
+          "transport_failures": 0,
+          "http_errors": 0,
+          "elapsed_ns": 2350216446,
+          "max_ns": 63242578
+        },
+        "owner:resource": {
+          "attempts": 36,
+          "transport_failures": 0,
+          "http_errors": 0,
+          "elapsed_ns": 93045009,
+          "max_ns": 16087610
+        },
+        "owner:open_view": {
+          "attempts": 36,
+          "transport_failures": 0,
+          "http_errors": 0,
+          "elapsed_ns": 1501891015,
+          "max_ns": 56421380
+        },
+        "owner:entries": {
+          "attempts": 185,
+          "transport_failures": 0,
+          "http_errors": 0,
+          "elapsed_ns": 1479983797,
+          "max_ns": 22630043
+        },
+        "owner:turn": {
+          "attempts": 41,
+          "transport_failures": 0,
+          "http_errors": 3,
+          "elapsed_ns": 2624220242,
+          "max_ns": 114382767
+        },
+        "caller:read_entries": {
+          "attempts": 240,
+          "transport_failures": 0,
+          "http_errors": 18,
+          "elapsed_ns": 1512415547,
+          "max_ns": 84624765
+        },
+        "caller:process": {
+          "attempts": 56,
+          "transport_failures": 0,
+          "http_errors": 0,
+          "elapsed_ns": 766081845,
+          "max_ns": 98224560
+        },
+        "caller:resource": {
+          "attempts": 13,
+          "transport_failures": 0,
+          "http_errors": 1,
+          "elapsed_ns": 19215542,
+          "max_ns": 2018000
+        },
+        "caller:entries": {
+          "attempts": 146,
+          "transport_failures": 0,
+          "http_errors": 0,
+          "elapsed_ns": 287294212,
+          "max_ns": 7134573
+        },
+        "administrator:process": {
+          "attempts": 1,
+          "transport_failures": 0,
+          "http_errors": 0,
+          "elapsed_ns": 1553895,
+          "max_ns": 1553895
+        },
+        "owner:association": {
+          "attempts": 27,
+          "transport_failures": 0,
+          "http_errors": 0,
+          "elapsed_ns": 100502629,
+          "max_ns": 8813930
+        }
+      },
+      "node_recovery": {
+        "enabled": false,
+        "failed_attempts": 0,
+        "restarted": false,
+        "original_turn_sha256": null,
+        "receipt": null
+      },
+      "metadata_measurements": [
+        {
+          "operation": "list",
+          "expected_error": "AccessDenied",
+          "reads": 4,
+          "seconds": 0.07788
+        },
+        {
+          "operation": "list",
+          "expected_error": null,
+          "reads": 5,
+          "seconds": 0.037344
+        },
+        {
+          "operation": "list",
+          "expected_error": null,
+          "reads": 5,
+          "seconds": 0.02698
+        },
+        {
+          "operation": "lookup",
+          "expected_error": null,
+          "reads": 5,
+          "seconds": 0.023989
+        },
+        {
+          "operation": "definition",
+          "expected_error": null,
+          "reads": 3,
+          "seconds": 0.017468
+        },
+        {
+          "operation": "lookup",
+          "expected_error": null,
+          "reads": 5,
+          "seconds": 0.022835
+        },
+        {
+          "operation": "definition",
+          "expected_error": null,
+          "reads": 3,
+          "seconds": 0.020449
+        },
+        {
+          "operation": "lookup",
+          "expected_error": null,
+          "reads": 5,
+          "seconds": 0.023802
+        },
+        {
+          "operation": "definition",
+          "expected_error": null,
+          "reads": 3,
+          "seconds": 0.016239
+        },
+        {
+          "operation": "lookup",
+          "expected_error": null,
+          "reads": 5,
+          "seconds": 0.021523
+        },
+        {
+          "operation": "definition",
+          "expected_error": null,
+          "reads": 3,
+          "seconds": 0.014708
+        },
+        {
+          "operation": "lookup",
+          "expected_error": null,
+          "reads": 5,
+          "seconds": 0.022757
+        },
+        {
+          "operation": "definition",
+          "expected_error": null,
+          "reads": 3,
+          "seconds": 0.023481
+        },
+        {
+          "operation": "lookup",
+          "expected_error": null,
+          "reads": 3,
+          "seconds": 0.016715
+        },
+        {
+          "operation": "definition",
+          "expected_error": null,
+          "reads": 3,
+          "seconds": 0.017853
+        },
+        {
+          "surface": "abi",
+          "operation": "list",
+          "expected_error": null,
+          "reads": 4,
+          "seconds": 0.017442
+        },
+        {
+          "surface": "abi",
+          "operation": "lookup",
+          "expected_error": null,
+          "reads": 4,
+          "seconds": 0.015363
+        },
+        {
+          "surface": "abi",
+          "operation": "definition",
+          "expected_error": null,
+          "reads": 2,
+          "seconds": 0.008096
+        },
+        {
+          "surface": "abi",
+          "operation": "lookup",
+          "expected_error": null,
+          "reads": 4,
+          "seconds": 0.016364
+        },
+        {
+          "surface": "abi",
+          "operation": "definition",
+          "expected_error": null,
+          "reads": 2,
+          "seconds": 0.007968
+        },
+        {
+          "surface": "abi",
+          "operation": "lookup",
+          "expected_error": null,
+          "reads": 4,
+          "seconds": 0.013798
+        },
+        {
+          "surface": "abi",
+          "operation": "definition",
+          "expected_error": null,
+          "reads": 2,
+          "seconds": 0.00807
+        },
+        {
+          "surface": "abi",
+          "operation": "lookup",
+          "expected_error": null,
+          "reads": 4,
+          "seconds": 0.013957
+        },
+        {
+          "surface": "abi",
+          "operation": "definition",
+          "expected_error": null,
+          "reads": 2,
+          "seconds": 0.00818
+        },
+        {
+          "surface": "abi",
+          "operation": "lookup",
+          "expected_error": null,
+          "reads": 4,
+          "seconds": 0.014516
+        },
+        {
+          "surface": "abi",
+          "operation": "definition",
+          "expected_error": null,
+          "reads": 2,
+          "seconds": 0.010096
+        },
+        {
+          "surface": "abi",
+          "operation": "lookup",
+          "expected_error": null,
+          "reads": 2,
+          "seconds": 0.008559
+        },
+        {
+          "surface": "abi",
+          "operation": "definition",
+          "expected_error": null,
+          "reads": 2,
+          "seconds": 0.008071
+        },
+        {
+          "surface": "port",
+          "operation": "list",
+          "expected_error": null,
+          "reads": 4,
+          "seconds": 0.022542
+        },
+        {
+          "surface": "port",
+          "operation": "lookup",
+          "expected_error": null,
+          "reads": 4,
+          "seconds": 0.013938
+        },
+        {
+          "surface": "port",
+          "operation": "definition",
+          "expected_error": null,
+          "reads": 2,
+          "seconds": 0.007818
+        },
+        {
+          "surface": "port",
+          "operation": "lookup",
+          "expected_error": null,
+          "reads": 4,
+          "seconds": 0.014004
+        },
+        {
+          "surface": "port",
+          "operation": "definition",
+          "expected_error": null,
+          "reads": 2,
+          "seconds": 0.009589
+        },
+        {
+          "surface": "port",
+          "operation": "lookup",
+          "expected_error": null,
+          "reads": 4,
+          "seconds": 0.012588
+        },
+        {
+          "surface": "port",
+          "operation": "definition",
+          "expected_error": null,
+          "reads": 2,
+          "seconds": 0.010204
+        },
+        {
+          "surface": "port",
+          "operation": "lookup",
+          "expected_error": null,
+          "reads": 4,
+          "seconds": 0.016022
+        },
+        {
+          "surface": "port",
+          "operation": "definition",
+          "expected_error": null,
+          "reads": 2,
+          "seconds": 0.00801
+        },
+        {
+          "surface": "port",
+          "operation": "lookup",
+          "expected_error": null,
+          "reads": 4,
+          "seconds": 0.013016
+        },
+        {
+          "surface": "port",
+          "operation": "definition",
+          "expected_error": null,
+          "reads": 2,
+          "seconds": 0.007114
+        },
+        {
+          "surface": "port",
+          "operation": "lookup",
+          "expected_error": null,
+          "reads": 2,
+          "seconds": 0.006372
+        },
+        {
+          "surface": "port",
+          "operation": "definition",
+          "expected_error": null,
+          "reads": 2,
+          "seconds": 0.006189
+        },
+        {
+          "surface": "cli",
+          "operation": "list",
+          "expected_error": null,
+          "reads": 5,
+          "seconds": 0.023293
+        },
+        {
+          "surface": "cli",
+          "operation": "lookup",
+          "expected_error": null,
+          "reads": 5,
+          "seconds": 0.021994
+        },
+        {
+          "surface": "cli",
+          "operation": "definition",
+          "expected_error": null,
+          "reads": 3,
+          "seconds": 0.015839
+        },
+        {
+          "surface": "cli",
+          "operation": "lookup",
+          "expected_error": null,
+          "reads": 5,
+          "seconds": 0.022588
+        },
+        {
+          "surface": "cli",
+          "operation": "definition",
+          "expected_error": null,
+          "reads": 3,
+          "seconds": 0.012589
+        },
+        {
+          "surface": "cli",
+          "operation": "lookup",
+          "expected_error": null,
+          "reads": 5,
+          "seconds": 0.020344
+        },
+        {
+          "surface": "cli",
+          "operation": "definition",
+          "expected_error": null,
+          "reads": 3,
+          "seconds": 0.01589
+        },
+        {
+          "surface": "cli",
+          "operation": "lookup",
+          "expected_error": null,
+          "reads": 5,
+          "seconds": 0.023802
+        },
+        {
+          "surface": "cli",
+          "operation": "definition",
+          "expected_error": null,
+          "reads": 3,
+          "seconds": 0.014777
+        },
+        {
+          "surface": "cli",
+          "operation": "lookup",
+          "expected_error": null,
+          "reads": 5,
+          "seconds": 0.016351
+        },
+        {
+          "surface": "cli",
+          "operation": "definition",
+          "expected_error": null,
+          "reads": 3,
+          "seconds": 0.015042
+        },
+        {
+          "surface": "cli",
+          "operation": "lookup",
+          "expected_error": null,
+          "reads": 3,
+          "seconds": 0.014908
+        },
+        {
+          "surface": "cli",
+          "operation": "definition",
+          "expected_error": null,
+          "reads": 3,
+          "seconds": 0.016539
+        },
+        {
+          "operation": "list",
+          "expected_error": "CatalogDenied",
+          "reads": 2,
+          "seconds": 0.013428
+        },
+        {
+          "operation": "lookup",
+          "expected_error": "CatalogDenied",
+          "reads": 2,
+          "seconds": 0.01682
+        },
+        {
+          "operation": "definition",
+          "expected_error": "CatalogDenied",
+          "reads": 2,
+          "seconds": 0.015457
+        },
+        {
+          "surface": "abi",
+          "operation": "list",
+          "expected_error": 4,
+          "reads": 1,
+          "seconds": 0.006184
+        },
+        {
+          "surface": "abi",
+          "operation": "lookup",
+          "expected_error": 4,
+          "reads": 1,
+          "seconds": 0.006246
+        },
+        {
+          "surface": "abi",
+          "operation": "definition",
+          "expected_error": 4,
+          "reads": 1,
+          "seconds": 0.005149
+        },
+        {
+          "surface": "port",
+          "operation": "list",
+          "expected_error": 4,
+          "reads": 1,
+          "seconds": 0.004748
+        },
+        {
+          "surface": "port",
+          "operation": "lookup",
+          "expected_error": 4,
+          "reads": 1,
+          "seconds": 0.005072
+        },
+        {
+          "surface": "port",
+          "operation": "definition",
+          "expected_error": 4,
+          "reads": 1,
+          "seconds": 0.006404
+        },
+        {
+          "surface": "cli",
+          "operation": "list",
+          "expected_error": 4,
+          "reads": 2,
+          "seconds": 0.011448
+        },
+        {
+          "surface": "cli",
+          "operation": "lookup",
+          "expected_error": 4,
+          "reads": 2,
+          "seconds": 0.012741
+        },
+        {
+          "surface": "cli",
+          "operation": "definition",
+          "expected_error": 4,
+          "reads": 2,
+          "seconds": 0.012019
+        },
+        {
+          "operation": "list",
+          "expected_error": "AccessDenied",
+          "reads": 2,
+          "seconds": 0.016149
+        },
+        {
+          "operation": "lookup",
+          "expected_error": "AccessDenied",
+          "reads": 2,
+          "seconds": 0.012167
+        },
+        {
+          "operation": "definition",
+          "expected_error": "AccessDenied",
+          "reads": 2,
+          "seconds": 0.010977
+        },
+        {
+          "surface": "abi",
+          "operation": "list",
+          "expected_error": 4,
+          "reads": 1,
+          "seconds": 0.002446
+        },
+        {
+          "surface": "abi",
+          "operation": "lookup",
+          "expected_error": 4,
+          "reads": 1,
+          "seconds": 0.002235
+        },
+        {
+          "surface": "abi",
+          "operation": "definition",
+          "expected_error": 4,
+          "reads": 1,
+          "seconds": 0.002734
+        },
+        {
+          "surface": "port",
+          "operation": "list",
+          "expected_error": 4,
+          "reads": 1,
+          "seconds": 0.002045
+        },
+        {
+          "surface": "port",
+          "operation": "lookup",
+          "expected_error": 4,
+          "reads": 1,
+          "seconds": 0.002591
+        },
+        {
+          "surface": "port",
+          "operation": "definition",
+          "expected_error": 4,
+          "reads": 1,
+          "seconds": 0.002088
+        },
+        {
+          "surface": "cli",
+          "operation": "list",
+          "expected_error": 4,
+          "reads": 2,
+          "seconds": 0.009864
+        },
+        {
+          "surface": "cli",
+          "operation": "lookup",
+          "expected_error": 4,
+          "reads": 2,
+          "seconds": 0.008731
+        },
+        {
+          "surface": "cli",
+          "operation": "definition",
+          "expected_error": 4,
+          "reads": 2,
+          "seconds": 0.008834
+        }
+      ],
+      "revoked_during_metadata_read": true,
+      "metadata_surfaces": [
+        "abi",
+        "port",
+        "cli"
+      ],
+      "lost_caller_receipts": 6,
+      "lost_writer_receipts": 3,
+      "listed_definitions": 6,
+      "node_errors": {
+        "groups": [
+          {
+            "event": "transit.http.request",
+            "operation": null,
+            "error": "ConflictingRetry",
+            "count": 1,
+            "first_time_unix_ms": 1790863238629,
+            "max_ns": 912910
+          },
+          {
+            "event": "transit.http.request",
+            "operation": null,
+            "error": "StaleGeneration",
+            "count": 1,
+            "first_time_unix_ms": 1790863239304,
+            "max_ns": 1840368
+          },
+          {
+            "event": "transit.http.request",
+            "operation": null,
+            "error": "AccessDenied",
+            "count": 20,
+            "first_time_unix_ms": 1790863239470,
+            "max_ns": 4651146
+          }
+        ],
+        "dropped": 0
+      },
+      "storage": {
+        "cold": true,
+        "hot_bytes_limit": 8388608,
+        "cold_objects": 73,
+        "cold_file_bytes": 3112345
+      },
+      "cleanup_failures": []
+    },
+    "cold_catalog_sha256": "f82e386a2a5f23e65180aa9371f8a2070a30d3104cbaece4bd2ed8f1834d0eb0",
+    "hosted": {
+      "version": 1,
+      "run_id": 36874212362,
+      "url": "https://github.com/rupurt/rey/actions/runs/36874212362",
+      "head": "c8e58460ec4b760cee976c36443c0b1d6ad169f6",
+      "run_attempt": 1,
+      "created_at": "2026-10-01T14:10:04Z",
+      "profile": "ordinary",
+      "tests_executed": 0,
+      "jobs": [
+        {
+          "job_id": 110409361384,
+          "name": "Selection and documentation",
+          "conclusion": "failure",
+          "steps": [],
+          "annotations": [
+            "The job was not started because recent account payments have failed or your spending limit needs to be increased. Please check the 'Billing & plans' section in your settings"
+          ]
+        },
+        {
+          "job_id": 110409396796,
+          "name": "foundation-and-protocol",
+          "conclusion": "failure",
+          "steps": [],
+          "annotations": [
+            "The job was not started because recent account payments have failed or your spending limit needs to be increased. Please check the 'Billing & plans' section in your settings"
+          ]
+        },
+        {
+          "job_id": 110409397791,
+          "name": "Documentation site",
+          "conclusion": "skipped",
+          "steps": [],
+          "annotations": []
+        },
+        {
+          "job_id": 110409397862,
+          "name": "matrix.lane",
+          "conclusion": "skipped",
+          "steps": [],
+          "annotations": []
+        }
+      ]
+    },
+    "full_suite_passed": false,
+    "limits": [
+      "The ordinary clean experience lane passes at c8; other source-scoped lanes do not combine into a full suite at this revision.",
+      "The native cold-catalog run exercises the actual provider and normal cleanup. The failed-retention path is tested by the separately recorded native-process lifecycle controls.",
+      "Hosted jobs are refused before tests; there is no hosted or cost qualification."
+    ]
+  },
+  "retained_cold_catalog_logs": [
+    {
+      "revision": "c8e58460ec4b760cee976c36443c0b1d6ad169f6",
+      "path": "/var/tmp/transit-c8e58460-catalog/rey-storage-qd8rcdif/ursula.log",
+      "inode": 94145159,
+      "size": 22005,
+      "truncated": false,
+      "chunks": [
+        {
+          "path": "rey-storage-qd8rcdif-94145159-0-ursula.log",
+          "offset": 0,
+          "bytes": 22005,
+          "sha256": "12474be77ea4c05676052a2b2c4568e2bf20bd5524b3cfaed1f78833d15e1db2"
+        }
+      ]
+    },
+    {
+      "revision": "c8e58460ec4b760cee976c36443c0b1d6ad169f6",
+      "path": "/var/tmp/transit-c8e58460-catalog/rey-storage-qd8rcdif/node.log",
+      "inode": 94145173,
+      "size": 106750,
+      "truncated": false,
+      "chunks": [
+        {
+          "path": "rey-storage-qd8rcdif-94145173-0-node.log",
+          "offset": 0,
+          "bytes": 106750,
+          "sha256": "b51fcb4cf7cf652bb26782f7e3adff2f4fdf01797e84e7eb81744e50281d9b47"
+        }
+      ]
+    }
+  ],
+  "completed_build_cleanup": {
+    "version": 1,
+    "time_unix": 1790863807.6296682,
+    "targets": [
+      "/home/alex/workspace/rupurt/rey-issue-26/.cache/qualification-c8e58460/.zig-cache",
+      "/home/alex/workspace/rupurt/rey-issue-26/.cache/qualification-c8e58460/zig-out",
+      "/home/alex/workspace/rupurt/rey-issue-26/.cache/qualification-c8e58460/node_modules"
+    ],
+    "references": [],
+    "unreadable": [
+      {
+        "pid": "3595",
+        "name": "systemd",
+        "kind": "maps"
+      },
+      {
+        "pid": "3610",
+        "name": "(sd-pam)",
+        "kind": "maps"
+      },
+      {
+        "pid": "4058",
+        "name": "ssh-agent",
+        "kind": "maps"
+      },
+      {
+        "pid": "474662",
+        "name": "sshd-session",
+        "kind": "maps"
+      },
+      {
+        "pid": "3501425",
+        "name": "sshd-session",
+        "kind": "maps"
+      }
+    ],
+    "scope": "Completed c8 frozen-checkout build outputs and frontend dependencies only. Exact six cold-catalog binaries retained by their report hashes. Source, CI records, reports and fixture evidence remain. Active original7e binding suffix and unrelated work remain untouched. Shared-host task timings are not isolated benchmarks.",
+    "free_bytes_before": 18778583040,
+    "free_bytes_after": 21021216768
+  },
+  "retained_cold_catalog_binaries": {
+    "version": 1,
+    "revision": "c8e58460ec4b760cee976c36443c0b1d6ad169f6",
+    "scope": "Completed c8 frozen-checkout build outputs and frontend dependencies only. Exact six cold-catalog binaries retained by their report hashes. Source, CI records, reports and fixture evidence remain. Active original7e binding suffix and unrelated work remain untouched. Shared-host task timings are not isolated benchmarks.",
+    "binaries": {
+      "f21d25109a1178a5ffdadfeb70f33c13842dfd6889f0a44d8820e92f94f44e1a": {
+        "original": "/home/alex/workspace/rupurt/rey-issue-26/.cache/qualification-c8e58460/.zig-cache/o/d807d0dc12a280652a8b49ead96c3ba3/transit-query-host",
+        "saved": "/home/alex/workspace/rupurt/rey-issue-26/.cache/c8-catalog-retained-reproduction/f21d25109a1178a5-transit-query-host",
+        "bytes": 20067376,
+        "sha256": "f21d25109a1178a5ffdadfeb70f33c13842dfd6889f0a44d8820e92f94f44e1a"
+      },
+      "c7e22d28c785b333b182dcdbf888e03c625034a6fa90eabb6fedae7085ba7af8": {
+        "original": "/home/alex/workspace/rupurt/rey-issue-26/.cache/qualification-c8e58460/.zig-cache/o/41933a5ab6aac03c4c7d8db262ac3060/transit-station-host",
+        "saved": "/home/alex/workspace/rupurt/rey-issue-26/.cache/c8-catalog-retained-reproduction/c7e22d28c785b333-transit-station-host",
+        "bytes": 27454008,
+        "sha256": "c7e22d28c785b333b182dcdbf888e03c625034a6fa90eabb6fedae7085ba7af8"
+      },
+      "bfb249a6af0e4c5b92ada80f7f8bb124e0a1c68bd37320314b9a9b46357c1d31": {
+        "original": "/home/alex/workspace/rupurt/rey-issue-26/.cache/qualification-c8e58460/.zig-cache/o/c1cb09cb571ae3a3fc18b5c23a167d8e/transit-node",
+        "saved": "/home/alex/workspace/rupurt/rey-issue-26/.cache/c8-catalog-retained-reproduction/bfb249a6af0e4c5b-transit-node",
+        "bytes": 19973040,
+        "sha256": "bfb249a6af0e4c5b92ada80f7f8bb124e0a1c68bd37320314b9a9b46357c1d31"
+      },
+      "9179501c56b34b502687ae150224690b5025e30bc2f142011e7da7482e4d608f": {
+        "original": "/home/alex/workspace/rupurt/rey-issue-26/.cache/qualification-c8e58460/.zig-cache/o/2b5824ab43defb13cb35391f1c23859c/libtransit_station.so",
+        "saved": "/home/alex/workspace/rupurt/rey-issue-26/.cache/c8-catalog-retained-reproduction/9179501c56b34b50-libtransit_station.so",
+        "bytes": 24948080,
+        "sha256": "9179501c56b34b502687ae150224690b5025e30bc2f142011e7da7482e4d608f"
+      },
+      "e8a2c73048df4fa1ef70561602f213ce95af991657baeba22dbf88db9af1c483": {
+        "original": "/home/alex/workspace/rupurt/rey-issue-26/.cache/qualification-c8e58460/.zig-cache/o/ffa8286067e31923a44476d19d16ccc6/transit-catalog-proof",
+        "saved": "/home/alex/workspace/rupurt/rey-issue-26/.cache/c8-catalog-retained-reproduction/e8a2c73048df4fa1-transit-catalog-proof",
+        "bytes": 16049064,
+        "sha256": "e8a2c73048df4fa1ef70561602f213ce95af991657baeba22dbf88db9af1c483"
+      },
+      "862be85839bdc48517797a53ce616eb56582c751923df1d6a4f2b304ef001195": {
+        "original": "/home/alex/workspace/rupurt/rey-issue-26/.cache/qualification-c8e58460/.zig-cache/o/5d951b1833556adb8665c4ef0c0e75d3/transit",
+        "saved": "/home/alex/workspace/rupurt/rey-issue-26/.cache/c8-catalog-retained-reproduction/862be85839bdc485-transit",
+        "bytes": 27181112,
+        "sha256": "862be85839bdc48517797a53ce616eb56582c751923df1d6a4f2b304ef001195"
+      }
+    }
+  }
 }

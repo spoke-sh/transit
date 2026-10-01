@@ -1810,6 +1810,16 @@ and refuses to remove unjoined cold state. This is fixture lifecycle evidence,
 not MinIO or database durability qualification. Stop/kill timeouts and provider
 disk reserves are unchanged.
 
+At committed `c8e58460`, full checks pass in 220.788 seconds. The actual native
+cold-catalog task passes in 143.566 seconds including compilation; its proof
+runs for 14.867 seconds with 73 cold objects, an 8 MiB hot-store limit, six lost
+caller receipts, three lost writer receipts and no cleanup failures. The clean
+experience lane passes all seven tasks in 478.951 seconds including setup;
+Station observes its original Arrow reply in 38.818 seconds before cleanup,
+within the unchanged 60-second deadline. These are separate from the lifecycle
+controls and do not complete the ordinary suite. Hosted run `36874212362` is
+refused before test execution by the account billing/spending restriction.
+
 With source based on `ef2cc97d` and the recovery runner under development, the
 original node digest `1039c8de…328d6e07e` stalls after 138 additions. Replacing it
 with the split-only node `214b0646…2dfcd04` still fails the unchanged progress
@@ -2641,6 +2651,110 @@ phases, after **415/430/394 commands**, with matching coordinates over their com
 The additional staging reduction does not resolve the deadline, and these
 incomplete shared-host samples do not establish a complete-workload speedup.
 All phase limits, provider durability and workload assertions are unchanged.
+
+## Query boundary and fixture controls — 2026-10-01
+
+The [continuation record](verification/results/m37-clean-continuation-2026-10-01.json)
+retains `c61896d2`'s 55 ordinary passes, two failures and 17 unrun tasks of 74,
+plus one browser pass, one failure and five unrun tasks. Core, experience and
+launchers complete at that source; an independent growth suffix does not
+retroactively complete its original failed lane. The original delivery attempt
+exceeds the 180-second limit after 416 commands. The complete suffix separately passes the
+HTTP/RPC recovery and closure proofs. Hosted run `36836820226` is refused before
+test execution by the account billing restriction. These results do not qualify
+the full suite or its cost budget.
+
+The [boundary controls](verification/results/m37-query-boundaries-2026-10-01.json)
+preserve the failed browser resume after restored access. The native client
+classifies a validated `HttpCapacity` rejection as `AuthorityUnavailable`; Board
+previously flattened that into generic `Unavailable`. Board now retries only
+that paired classification for read/preparation operations, at most three times
+with 500 ms, 1 s and 2 s delays under the original request deadline. Signed
+submission is unchanged. The original binary fails the intended negative
+control in 52.597 seconds; the corrected full API/browser proof passes in
+140.693 seconds. Controls require exact native attempt counts for recovery,
+exhaustion, denial and unrelated failure, plus identical signed recovery and
+explicit resume without resubmission.
+
+The Table proof originally assumes a small preparation must remain staged,
+although the supported inline profile can already apply it. Its snapshot
+interleave now explicitly admits the existing staged begin before resuming the
+same compiled reference. A subsequent run passes the snapshot check, then
+exposes the same invalid assumption in interrupted cancellation. The corrected
+proof distinguishes an admitted inline write reporting `applied` from a staged
+begin reporting `cancelled`, verifies the frozen command tags and row outcomes,
+and retains the rejection-gated upload-part case. The full proof passes in
+100.597 seconds with original `c61896d2` binaries and the `28f98560` fixture,
+including two initialization receipt recoveries and a 0.658-second snapshot
+pause. Neither original failure is discarded; these source-specific timings
+are not a performance comparison.
+
+Full checks at `28f98560` pass in 226.534 seconds. Its clean experience attempt
+passes five tasks, then fails when the test proxy records a closed downstream
+reply socket as an upstream error; Station is unrun. The binding check and raw
+native proof pass before orchestration deliberately stops at a task boundary.
+The child's observed zero exit is recorded separately from the incomplete CI
+checkpoint. Neither lane is complete. The deterministic disconnect control
+reproduces `ConnectionResetError` in the original proxy and passes with the
+`7e263488` fixture, which counts closed downstream replies while retaining
+upstream errors and all exact retry/page assertions.
+
+Full checks at `7e263488` pass in 215.963 seconds. Its first clean experience
+attempt passes four tasks, then Board inspection exhausts its ten-second retry
+window after native page staging reports `ReadFailed` under the existing
+800 ms request deadline. Query and Station tasks are unrun. The attempt overlaps
+preparing stopped-build cleanup on the shared host; its storage errors
+do not establish a cause. The failure output retains only child-log tails;
+these later attempts additionally retain up to 32 numbered child logs per
+fixture, with
+at most 8 MiB per file and explicit offsets when truncated. The five
+implementation and fixture commits are pushed. Hosted run `36850587443` is again
+refused before any test starts. Eleven binding tasks pass at this source:
+contracts, the native proof (332.19 seconds), complete Python SDK (1,102.76 seconds), complete Node SDK
+(810.80 seconds), logical-value/Arrow ownership (32.37 seconds), and complete Rust
+SDK (781.59 seconds), Ruby SDK (700.93 seconds), C/C++ SDK (1,559.10 seconds),
+Java SDK (838.91 seconds), .NET SDK (706.71 seconds) and Erlang/Elixir SDK
+(1,420.35 seconds). Each installed SDK task includes Station, HTTP/RPC, mutation and catalog
+schedules. Interoperability passes the Python-to-Node pair, then fails in
+402.25 seconds after MinIO returns HTTP 507 `XMinioStorageFull` and a later
+request reaches `DeadlineUncertain`. The clean binding attempt ends with eleven
+passes, one failure and five unrun tasks in 8,715.956 seconds including setup.
+The five unreached tasks then pass in an independent continuation: finite
+safety model (11.894 seconds), delivery model (6.681), SQL rewrite theorems
+(7.045), SQL checks (19.994) and RPC faults (163.893), each including its shell
+setup. The safety model explores 7,867 states and detects four removed guards
+replayed against Zig; four named Lean theorems have no `sorry` axioms or
+warnings. The original failed lane remains incomplete.
+
+All seven browser tasks pass at this source: inspection (50.01 seconds), query
+(177.53), HTTP (1,000.54), gRPC (691.46), reactive browser (139.79), reactive views
+(294.81) and reactive-view lifecycle (61.37). The complete clean browser lane
+takes 2,439.751 seconds including setup. HTTP and gRPC include disk recovery
+and 755 and 527 persisted cold objects respectively. A fresh clean experience
+retry passes all seven tasks in 475.415 seconds including setup. Station takes 239.73 seconds; its original Arrow reply arrives
+in 38.854 seconds, before cleanup intervention and within the unchanged
+60-second deadline. The courier replacement takes 30.267 seconds after 292
+refused reads. The earlier failures and unresolved timing cause remain recorded.
+
+A separate diagnostic with the exact original `c61896d2` binaries and existing
+request metrics enabled passes in 67.624 seconds, including delivery in
+50.456 seconds under the unchanged 180-second cap. All 4,464 completed responses
+have metrics; no records are dropped. Delivery accounts for 3,013 responses,
+34,465 provider requests and 17,736 attempted page stages. Its 42.546 seconds of
+provider time are included in 46.283 seconds of observed request work, not added
+to it; lock wait totals 0.000263 seconds. This later instrumented success does
+not explain the earlier timing change, qualify an uninstrumented source or
+establish an implementation speedup. The original timeouts remain recorded.
+
+An uninstrumented repeat then uses the same original binaries, unchanged
+fixture/support sources, CPU affinity and stack limit. It passes all assertions
+in 69.689 seconds including shell setup, with delivery in 47.385 seconds.
+The earlier timing variation remains unexplained, and complete clean growth
+qualification remains open. Retained system-wide
+[PSI](https://docs.kernel.org/accounting/psi.html) samples describe different
+observation windows and cannot attribute a causal share to this fixture.
+The interop retry remains unrun with only about 1.5 GiB above the provider
+reserve; the exact original binaries and SDK packages remain available.
 
 ## Interrupted CI evidence — 2026-10-01
 
