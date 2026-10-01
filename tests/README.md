@@ -11879,3 +11879,73 @@ The first injection control incorrectly selected `resource`; compilation uses
 the shared `read_entries` batch operation. The fixture rejected the unreached
 fault instead of reporting a pass. The corrected control targets `read_entries`;
 the failed run remains in the corresponding `rebase-recovery-fixed.log`.
+
+## Typed SQL parameter SDKs — 2026-10-01
+
+Commit `ea2e0fa3` adds typed one-shot SQL compilation to Python sync/async,
+TypeScript, Rust, Ruby, C, C++, Java, .NET, Erlang and Elixir. These methods
+delegate to the existing shared neutral compiler and exact scalar codecs,
+returning an owned ordinary bundle without snapshot acquisition or admission.
+The isolated `feat/sql-parameter-sdk` worktree contains `origin/main` at
+`21e9569c`; its rebase preserves author dates and introduces no conflicts or
+source changes. The parent shared-compilation PR remains a separate dependency.
+
+All ten SDK package builds pass, as do all ten independently installed codec
+consumers. Full `just check` passes on the implementation subsequently committed
+unchanged as `ea2e0fa3`; the later SDK-index documentation addition passes the
+local-link check separately (5003 links in 505 files). Logs are
+`/var/tmp/transit-sql-parameter-sdk-{build,installed-codecs,check,docs}.log`.
+
+The installed signed recovery proof runs in the pinned bindings shell:
+
+```sh
+just test::unified-query -Doptimize=ReleaseSafe \
+  -Dunified-sdk=python,node,ruby,rust,c,cpp,java,dotnet,erlang,elixir \
+  -Dunified-source=kv
+```
+
+The same command selects `table` and `document` for their separate source
+profiles. Each uses thirteen callers: native ABI, local port, Python sync/async
+and the other nine SDKs. Successful UTF-8 and maximum-u64 LIMIT bindings,
+ordinary SQL and explicit empty bindings produce the same canonical bundles as
+their literal equivalents. A separately constructed Zig typed-plan fixture
+supplies the recovery bundle's expected bytes. Empty/missing bindings and the
+five wrong scalar types reject; compilation allocates no command sequence.
+Node, Java and .NET clear the original input collection before awaiting the
+result; C releases borrowed inputs and C++ resets bindings before inspecting
+the returned bundle. Existing codec cases supply independent scalar coverage.
+
+KV passes in **151.89 s** and Table in **151.17 s**, each with 41 rows, six
+segments and 13,584 Arrow bytes. All callers verify completed results and reject
+compilation after prefix revocation and resource retirement. The returned bundle
+survives a lost upload response, exact original retry and worker/node/disk-store
+restart. Bounds remain eight resident authority pages and an 8 MiB hot store.
+Durations include fixture installation/provisioning and are not comparative
+SDK throughput or compiler-latency measurements. Logs are
+`/var/tmp/transit-sql-parameter-sdk-kv.log` and
+`/var/tmp/transit-sql-parameter-sdk-remaining-sources.log`.
+
+The first Document command fails during provisioning, before compilation or
+SDK recovery, with `AuthorityUnavailable`. Its retained log records MinIO
+`507 XMinioStorageFull` at the minimum free-drive threshold and Ursula cold-store
+backpressure. An audit finds no live process, mapping or file reference to the
+two preceding parameter worktrees' generated `.zig-cache` directories. Removing
+only those disposable caches raises available disk space from 18 GiB to 27 GiB;
+source, probe archives and retained failure evidence are untouched. The unchanged
+Document command is rerun with log
+`/var/tmp/transit-sql-parameter-sdk-document-retry.log`. This rerun is still
+running at this checkpoint and is not a pass. No deadline, resident bound,
+quota or storage threshold is increased.
+
+Committed-HEAD `just ci-clean --lane core --work-root /var/tmp` passes all
+**22 tasks in 810.40 s** at `ea2e0fa3`, including the seeded simulation layers,
+ABI checks and real disk recovery. Completion, revision, exact inventory/order
+and successful exits are audited in
+`.cache/ci/clean/ea2e0fa3e49c-transit-ci-kdrwe6rc/core{,.meta}.json`; log
+`/var/tmp/transit-sql-parameter-sdk-clean-core.log`. Later changes only record
+this proof and milestone status. This is a core-lane result, not an all-five-lane
+clean pass or a new performance improvement. Parent compiler-performance
+failures and the earlier Document storage-pressure failure remain recorded
+independently.
+CLI binding inputs, named PREPARE/EXECUTE lifetime, file-source binding and
+saved-template compatibility remain outside this SDK increment.
