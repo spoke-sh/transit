@@ -11160,3 +11160,18 @@ retain their distinct outcomes. Pinned `just transit-board::install`, full
 diagnostic cases, units, generated contracts and both frontend checks/builds.
 Committed-HEAD clean qualification remains pending. This is local terminal
 evidence, not a new query recovery or SDK compatibility claim.
+
+## COUNT(column) shared transition — 2026-10-01
+
+The `feat/sql-count-column` continuation starts from `a3e15a9f`. Its shared
+pure cell transition counts each top-level value, ignores missing/null, rejects
+type errors/conflicts and checks the full u64 range. Focused Fuze package tests
+pass under the pinned bindings shell (`cd packages/zig/transit-fuze && zig build
+test`), exit 0; log `/var/tmp/transit-sql-count-value-units.log`. Fixtures cover
+all six native scalar types, false/empty/negative-zero values, overflow and a
+logical empty list as one top-level value.
+
+This prerequisite is not exposed through typed plans, SQL, resumable execution
+or caller APIs. Those changes, the coordinated definition cutover and independent
+execution/recovery/performance qualification remain open in the
+[M40 continuation](../docs/roadmap/M40.md#countcolumn-continuation).
