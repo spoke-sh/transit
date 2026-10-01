@@ -14,7 +14,7 @@ gzip -c data.csv | transit file-query --format csv --gzip -c 'SELECT * FROM inpu
 
 The source name is `input`. The query uses the
 [finite file-plan profile](../../../packages/zig/transit-fuze/docs/file-sources.md#finite-file-plans):
-projection, one predicate, LIMIT, COUNT and checked int64 SUM. Logical values can
+projection, bounded NOT/AND/OR predicates, LIMIT, COUNT and checked int64 SUM. Logical values can
 be projected recursively; comparison literals retain the existing six scalar
 types without implicit casts. SQL does not open arbitrary paths or invoke a
 file-reading function. Explicit acquisition options select the bytes.

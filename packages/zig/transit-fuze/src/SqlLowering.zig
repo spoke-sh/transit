@@ -3,17 +3,24 @@
 const std = @import("std");
 const sql = @import("Sql.zig");
 const finite = @import("Finite.zig");
+pub const Atom = union(enum) {
+    all,
+    state: struct { column: u8, value: @import("Scalar.zig").State },
+    compare: struct { column: u8, op: finite.Comparison, literal: sql.Literal },
+};
 pub const Shape = struct {
     projection: []const u8,
     aggregate: finite.Aggregate,
     limit: ?u64,
     predicate: union(enum) {
         all,
-        state: struct { column: u8, value: @import("Scalar.zig").State },
-        compare: struct { column: u8, op: finite.Comparison, literal: sql.Literal },
+        state: @FieldType(Atom, "state"),
+        compare: @FieldType(Atom, "compare"),
+        // Borrows the caller-owned AST until typed lowering finishes.
+        program: *const sql.PredicateProgram,
     },
 };
-pub fn lower(ast: sql.Ast, source: []const u8, columns: []const []const u8, input: []u8, output: []u8) !Shape {
+pub fn lower(ast: *const sql.Ast, source: []const u8, columns: []const []const u8, input: []u8, output: []u8) !Shape {
     if (!std.mem.eql(u8, ast.source.slice(), source)) return error.UnknownSource;
     if (ast.selection != .rows and ast.limit != null) return error.UnsupportedAggregateLimit;
     if (ast.input != null and ast.selection == .rows) return error.UnsupportedConstruct;
@@ -43,14 +50,19 @@ pub fn lower(ast: sql.Ast, source: []const u8, columns: []const []const u8, inpu
         .aggregate = aggregate,
         .limit = if (ast.input) |value| value.limit else ast.limit,
         .predicate = switch (ast.predicate) {
-            .program => return error.UnsupportedCompoundPredicate,
-            inline else => |value, tag| try lowerAtom(@unionInit(sql.PredicateAtom, @tagName(tag), value), source_qualifier, columns),
+            .program => |*program| .{ .program = program },
+            inline else => |value, tag| blk: {
+                const atom = try lowerAtom(@unionInit(sql.PredicateAtom, @tagName(tag), value), source_qualifier, columns);
+                break :blk switch (atom) {
+                    inline else => |item, kind| @unionInit(@FieldType(Shape, "predicate"), @tagName(kind), item),
+                };
+            },
         },
     };
 }
 /// Shared column scope and operator binding for native and local file profiles.
 /// The selected plan owns literal conversion and type admission.
-pub fn lowerAtom(atom: sql.PredicateAtom, source: []const u8, columns: []const []const u8) !@FieldType(Shape, "predicate") {
+pub fn lowerAtom(atom: sql.PredicateAtom, source: []const u8, columns: []const []const u8) !Atom {
     return switch (atom) {
         .all => .all,
         .state => |state| .{ .state = .{ .column = try resolve(state.column, source, columns), .value = state.value } },

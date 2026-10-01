@@ -63,8 +63,8 @@ current address. Scalar text/binary bytes remain borrowed. `Plan.Predicate.progr
 stores this copyable value and participates in validation, fingerprints and
 stream continuation checks. `FZP1` decoding owns instructions while borrowing
 projection/literal bytes from its input. Programs use the same 8192-byte plan
-budget. Native SQL lowers NOT, AND, OR and grouping to these programs; the
-local file-query profile still accepts one comparison or state test.
+budget. Native and local file SQL lower NOT, AND, OR and grouping through the same
+bounded evaluator; each profile retains its own schema and literal admission.
 
 `Unified.Sql` lowers SELECT syntax against declared sources. The
 [SQL guide](docs/unified-sql.md) describes capabilities, allocated ownership and

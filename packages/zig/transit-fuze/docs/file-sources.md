@@ -71,7 +71,7 @@ Saving a binding is not durable query acceptance or an authorization grant.
 `FileQuery.compile(allocator, sql, source_name, &binding)` lowers the shared SQL
 AST against a frozen binding and returns an owned `Compiled`. It shares column
 resolution, projection, predicate and ordered aggregate semantics with the
-native query profile. It supports finite SELECT, one predicate, projection,
+native query profile. It supports finite SELECT, Boolean predicates, projection,
 LIMIT, COUNT and int64 SUM, including the existing restricted aggregate subquery.
 SQL literals retain the native six-type admission rules: comparisons require
 exactly matching types, without implicit source-dependent casts. Other logical
@@ -94,8 +94,8 @@ bound. `SELECT *` and typed plans can project every field within the source boun
 All source rows are framed, converted and verified even after a projection,
 predicate or limit discards them. A late malformed/unconvertible value therefore
 prevents successful completion. Operator predicates/SUM run only on rows selected
-by the plan's limit; missing/null skip comparisons and SUM, while evaluated
-type-error/conflict cells fail. SUM checks each int64 addition in source order;
+by the plan's limit; missing/null comparisons remain unknown through Boolean
+composition and skip SUM, while evaluated type-error/conflict cells fail. SUM checks each int64 addition in source order;
 empty SUM is null. COUNT returns uint64. Aggregates are emitted only after source
 verification; ordinary row results remain provisional until `complete` is true.
 There is no retained result cache or automatic restart with a changed binding.
@@ -148,6 +148,20 @@ format. The [type contract](../../../../contracts/FUZE_TYPES_V1.md) owns descrip
 and cell formats. Independent fixture and allocator-failure commands live in
 [the proof ledger](../../../../tests/README.md#fuze-bounded-file-sources).
 
-File-query plans accept one comparison or state atom, including redundant grouping.
-Compound NOT/AND/OR predicates reject with `UnsupportedCompoundPredicate`. The
-shared parser accepting them does not expand this plan profile.
+Predicates combine comparisons and state tests with NOT, AND, OR and parentheses.
+NOT binds before AND, then OR. Programs have at most 64 postfix instructions;
+each atom/operator counts once. The same bounded evaluator as native plans
+preserves unknown under NOT, evaluates atoms eagerly in source order and selects
+only true. A false AND or true OR never suppresses an evaluated error or conflict.
+All atoms validate before scanning, including branches that cannot select a row.
+
+`FileQuery.Program` borrows immutable instructions and variable-width literals.
+`Compiled` owns its program, literal bytes and schema independently of the SQL
+input. Keep these owners alive through execution. Changing any program opcode,
+atom, order or literal changes the plan fingerprint; changes during execution
+fail before the next row. Fingerprints use at most 8192 encoded bytes, including
+the whole plan and each literal's typed encoding. Each typed literal is at most
+4096 bytes; satisfying that bound alone does not satisfy the complete fingerprint
+budget. SQL keeps its 220-byte per-literal and 4096-byte statement bounds.
+Existing single-atom fingerprints are unchanged. File programs do not change
+native saved-plan encodings, language ABI layouts or file-source bindings.

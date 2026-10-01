@@ -167,10 +167,7 @@ def main():
             aliased = invoke(['--format', 'csv', '-c', sql, '-'], data, env=env)
             assert aliased[1]['row'] == ordinary[1]['row']
             assert aliased[-1]['complete']['scanned'] == ordinary[-1]['complete']['scanned']
-        for sql in ('SELECT n FROM input WHERE n > 0 AND n < 3',
-                    'SELECT n FROM input WHERE NOT n = 0',
-                    'SELECT n FROM input WHERE n = 0 OR n = 1',
-                    'SELECT n AS renamed FROM input',
+        for sql in ('SELECT n AS renamed FROM input',
                     'SELECT SUM(n) AS total FROM input',
                     'SELECT SUM(chosen.renamed) FROM (SELECT n AS renamed FROM input LIMIT 2) AS chosen',
                     'SELECT input.n FROM input AS src',
@@ -178,6 +175,42 @@ def main():
                     'SELECT src.n FROM input AS src WHERE input.n > 0',
                     'SELECT n FROM absent AS input'):
             invoke(['--format', 'csv', '-c', sql, '-'], data, 1, env)
+        # A pre-extension atom plan retains its exact identity; new Boolean
+        # instructions do not reinterpret existing file-plan fingerprints.
+        assert ordinary[0]['plan'] == 'e8a4ebc7692c3c202f836b34cf1b6db48735c2759154a578222987f0d7704196'
+        for sql, expected in (
+            ('SELECT n FROM input WHERE n > 0 AND n < 3', [1, 2]),
+            ('SELECT n FROM input WHERE NOT n = 1', [2]),
+            ('SELECT n FROM input WHERE n = 1 OR n = 2 AND n < 0', [1]),
+            ('SELECT n FROM input WHERE (n = 1 OR n = 2) AND n < 0', []),
+            ('SELECT src.n FROM input AS src WHERE NOT (src.n = 1 OR src.n IS NULL)', [2]),
+            ('SELECT n FROM input WHERE n <> 0 AND NOT (n = 2) LIMIT 1', [1]),
+            ('SELECT SUM(chosen.n) FROM (SELECT src.n FROM input AS src WHERE src.n > 0 AND src.n < 2 LIMIT 2) AS chosen', [1]),
+            ('SELECT n FROM input WHERE ' + 'NOT ' * 63 + 'n = 1', [2]),
+        ):
+            output = invoke(['--format', 'csv', '-c', sql, '-'], data, env=env)
+            actual = [int(row['row']['value']['structure'][0]['value']['atom']['signed']) for row in output[1:-1]]
+            assert actual == expected, (sql, actual)
+            assert int(output[-1]['complete']['scanned']) == 2
+        for sql in ('SELECT n FROM input WHERE n > 0 OR unknown = 1',
+                    "SELECT n FROM input WHERE n < 0 AND n = 'one'",
+                    'SELECT n FROM input AS src WHERE src.n > 0 AND input.n < 3',
+                    'SELECT n FROM input WHERE ' + 'NOT ' * 64 + 'n = 1'):
+            invoke(['--format', 'csv', '-c', sql, '-'], data, 1, env)
+        sparse = b'{"id":1,"n":1}\n{"id":2,"n":2}\n{"id":3,"n":null}\n{"id":4}\n'
+        for predicate, expected in (
+            ('NOT (n = 1)', [2]),
+            ('n = 1 OR n IS NULL OR n IS MISSING', [1, 3, 4]),
+            ('NOT (n = 1 AND n IS VALUE)', [2, 3, 4]),
+        ):
+            output = invoke(['--format', 'jsonl', '--mode', 'full', '-c', 'SELECT id FROM input WHERE ' + predicate, '-'], sparse, env=env)
+            actual = [int(row['row']['value']['structure'][0]['value']['atom']['signed']) for row in output[1:-1]]
+            assert actual == expected, (predicate, actual)
+            assert int(output[-1]['complete']['scanned']) == 4
+        # Determining Boolean operands never suppress an evaluated type error.
+        for predicate in ('id > 0 OR n > 0', 'id < 0 AND n > 0'):
+            invoke(['--format', 'csv', '--sample-records', '1', '--mismatch', 'type_error', '-c', 'SELECT id FROM input WHERE ' + predicate, '-'], b'id,n\n1,1\n2,bad\n', 1, env)
+        invoke(['--format', 'csv', '--sample-records', '1', '-c', 'SELECT id FROM input WHERE id = 1 OR id = 2 LIMIT 1', '-'], b'id,n\n1,1\n2,bad\n', 1, env)
         compressed = gzip.compress(data)
         zipped = invoke(base + ['--gzip'], compressed, env=env)
         assert ordinary == zipped

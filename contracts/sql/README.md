@@ -91,9 +91,9 @@ comment nesting; grammar acceptance alone does not validate those budgets.
 NOT binds before AND, which binds before OR; parentheses override precedence.
 The production parser admits 64 postfix instructions and a 64-entry stack for
 pending operators/group delimiters. It preserves source order and owns compact
-literal storage within the statement byte bound. Native SQL executes these
-programs with three-valued, eager first-error semantics; local file plans
-explicitly reject compound predicates until their owning profile supports them.
+literal storage within the statement byte bound. Native and local file SQL execute these
+programs with the same three-valued, eager first-error semantics. Each plan
+profile validates atoms against its own admitted logical types and byte budgets.
 
 `SELECT count(*) FROM (SELECT * FROM items WHERE id > 0 LIMIT 2) AS chosen`
 spells Fuze's filter → limit → aggregate order. A direct aggregate's outer

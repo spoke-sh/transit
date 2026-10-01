@@ -185,7 +185,7 @@ including byte ordering for text/binary. Uint64 and float64 comparisons use expl
 `'18446744073709551615'::uint64` and `'1.25e2'::float64`.
 `IS NULL` selects explicit null, not a missing Document field. `IS MISSING`,
 `IS VALUE`, `IS TYPE_ERROR` and `IS CONFLICT` select those exact states. Native
-queries compose predicates with NOT, AND, OR and grouping; [Boolean rules](sql/expressions.md#predicate-operators)
+and local file queries compose predicates with NOT, AND, OR and grouping; [Boolean rules](sql/expressions.md#predicate-operators)
 define precedence, unknown values, eager errors and the 64-instruction bound.
 
 ## Bounds and unsupported operations

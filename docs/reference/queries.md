@@ -49,8 +49,8 @@ evaluate atoms eagerly in instruction order, and select only true. A determining
 Boolean operand does not suppress an evaluated type error or conflict. Programs
 share the finite plan's byte budget and continuation identity. Native SQL lowers
 NOT, AND, OR and grouping to these programs. All ten SDKs expose typed program
-constructors and inspected programs. Local file-query plans accept one comparison
-or state predicate;
+constructors and inspected programs. Local file-query plans share the bounded
+Boolean evaluator and retain their own logical schema and source fingerprints;
 the [query contract](../../contracts/UNIFIED_QUERY_V1.md#typed-expressions-and-results)
 defines the native program representation and ownership.
 

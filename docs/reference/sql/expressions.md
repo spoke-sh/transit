@@ -30,11 +30,11 @@ reject; there is no implicit cast to another column type. `IS NOT NULL`, `IN`,
 `LIKE`, `BETWEEN` and column-to-column comparison are unsupported; use
 `NOT (column IS NULL)` for the negated state test.
 
-Native KV/Table/Document queries support up to 64 predicate instructions: each
+Native KV/Table/Document and local file queries support up to 64 predicate instructions: each
 comparison/state test and each NOT/AND/OR counts once. Parentheses do not count
 as instructions, but pending operators and group delimiters share a 64-entry
-parser stack. The statement byte limit still applies. Local file queries retain
-their single-atom predicate profile.
+parser stack. The statement byte limit still applies. File plans also retain
+their [fingerprint byte budget](../../../packages/zig/transit-fuze/docs/file-sources.md#finite-file-plans).
 
 Null/missing comparisons produce unknown; NOT preserves unknown. AND is false
 if either operand is false and true only if both are true. OR is true if either
