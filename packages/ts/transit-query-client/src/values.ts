@@ -89,7 +89,6 @@ export function validateUnifiedQuery(input: unknown): input is UnifiedQueryRespo
       JSON.stringify(plan.operators) === JSON.stringify(expected) &&
       plan.projection.length > 0 &&
       plan.projection.length <= 8 &&
-      new Set(plan.projection).size === plan.projection.length &&
       plan.projection.every(name) &&
       (plan.limit === null || unsigned(plan.limit)) &&
       Object.values(plan.budgets).every((s) => unsigned(s, false)) &&
@@ -98,10 +97,9 @@ export function validateUnifiedQuery(input: unknown): input is UnifiedQueryRespo
           ? name(plan.predicate.state.column)
           : name(plan.predicate.compare.column))) &&
       (plan.aggregate === "rows"
-        ? plan.columns.map((c) => c.name).join(",") === plan.projection.join(",")
+        ? plan.columns.length === plan.projection.length
         : plan.projection.length === 1 &&
           plan.columns.length === 1 &&
-          plan.columns[0]!.name === plan.aggregate &&
           plan.columns[0]!.type === (plan.aggregate === "count" ? "uint64" : "int64"))
     );
   }

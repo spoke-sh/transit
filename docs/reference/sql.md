@@ -193,7 +193,7 @@ line comments and nested block comments are accepted. Additional statements and
 trailing tokens fail. Durable requests use an explicitly budgeted finite plan
 upload.
 
-Joins, sorting, grouping, arithmetic, compound predicates, output aliases,
+Joins, sorting, grouping, arithmetic, compound predicates,
 `COUNT(column)`, general casts and continuous queries are unsupported.
 Public query transports reject writes. Applications can explicitly integrate
 the [bounded Table mutation helper](sql/insert.md) in their fenced writer.

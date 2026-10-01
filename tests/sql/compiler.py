@@ -51,22 +51,33 @@ def reference(case, ast):
         rows = rows[:limit]
     selection = ast['selection']
     aggregate = selection['kind']
+    inner = ast['input']['projection'] if ast['input'] else None
+    input_columns = [names.index(item['column'][1]) for item in inner] if inner else list(range(len(names)))
+    input_names = [item['alias'] or item['column'][1] for item in inner] if inner else names
+    aliases = [ast['output_alias']]
     if aggregate == 'sum':
-        projection = [names.index(selection['column'][1])]
+        projection = [input_columns[input_names.index(selection['column'][1])]]
         values = [row[projection[0]] for row in rows if row[projection[0]] is not None]
-        expected = {'sum': [sum(values) if values else None]}
+        expected = {aliases[0] or 'sum': [sum(values) if values else None]}
     elif aggregate == 'count':
-        projected = ast['input']['projection'] if ast['input'] else None
-        projection = [names.index(projected[0][1])] if projected else [0]
-        expected = {'count': [len(rows)]}
+        projection = [input_columns[0]]
+        expected = {aliases[0] or 'count': [len(rows)]}
     else:
-        projection = [names.index(c[1]) for c in selection['columns']] if selection['columns'] else [0, 1]
-        expected = {names[c]: [row[c] for row in rows] for c in projection}
+        items = selection['columns']
+        projection = [names.index(item['column'][1]) for item in items] if items else [0, 1]
+        aliases = [item['alias'] for item in items] if items else [None] * len(projection)
+        expected = {alias or names[c]: [row[c] for row in rows] for c, alias in zip(projection, aliases)}
+    encoded_names = b''
+    for alias in aliases:
+        raw = alias.encode() if alias is not None else b''
+        encoded_names += bytes([len(raw)]) + raw
     definition = hashlib.sha256(b'transit.fuze.plan.v1.output-names.2026-09-30').digest()
     encoded = (b'FZP1' + definition + bytes([['rows', 'count', 'sum'].index(aggregate), len(projection)])
-               + bytes(projection) + bytes(len(projection)) + bytes([limit is not None])
+               + bytes(projection) + encoded_names + bytes([limit is not None])
                + struct.pack('<Q', limit or 0) + encoded_pred)
-    return encoded.hex(), expected
+    types = ['uint64' if aggregate == 'count' else 'int64'] if aggregate != 'rows' else [
+        'int64' if index == 0 else case['schema']['type'] for index in projection]
+    return encoded.hex(), expected, dict(zip(expected, types, strict=True))
 
 
 def main():
@@ -96,7 +107,7 @@ def main():
             assert response.get('compile_error') == case['compile_error'], response
             continue
         assert 'compile_error' not in response, response
-        encoded, expected = reference(case, ast)
+        encoded, expected, types = reference(case, ast)
         assert response['encoded'] == encoded, case['id']
         combined = {name: [] for name in expected}
         assert response['segments'] > 0
@@ -109,8 +120,7 @@ def main():
                     if cell['state'] == 1:
                         assert cell['kind'] == 7 and cell['value'] is None
                     else:
-                        kind = 'uint64' if name == 'count' else ('int64' if name == 'sum' or name == case['schema']['columns'][0] else case['schema']['type'])
-                        assert cell['kind'] == {'int64': 1, 'uint64': 2, 'boolean': 4, 'utf8': 5, 'binary': 6}[kind]
+                        assert cell['kind'] == {'int64': 1, 'uint64': 2, 'boolean': 4, 'utf8': 5, 'binary': 6}[types[name]], (case['id'], name, cell, types[name])
                     combined[name].append(cell['value'])
         assert combined == expected, (case['id'], combined, expected)
         executed += 1

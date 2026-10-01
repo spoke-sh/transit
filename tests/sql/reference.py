@@ -55,7 +55,10 @@ def column(ctx):
 
 
 def projection(ctx):
-    return None if ctx.STAR() else [column(c) for c in ctx.columnReference()]
+    return None if ctx.STAR() else [
+        {'column': column(item.columnReference()),
+         'alias': identifier(item.outputAlias().identifier()) if item.outputAlias() else None}
+        for item in ctx.projectionItem()]
 
 
 def literal(ctx):
@@ -99,7 +102,9 @@ def antlr_ast(sql):
         else:
             outer = n
     names = ctx.identifier()
-    return {'source': identifier(names[0]), 'source_alias': identifier(ctx.sourceAlias().identifier()) if ctx.sourceAlias() else None, 'selection': selection, 'predicate': predicate,
+    return {'source': identifier(names[0]), 'source_alias': identifier(ctx.sourceAlias().identifier()) if ctx.sourceAlias() else None,
+            'output_alias': identifier(aggregate.outputAlias().identifier()) if aggregate and aggregate.outputAlias() else None,
+            'selection': selection, 'predicate': predicate,
             'limit': outer, 'input': None if selected else {
                 'projection': projection(ctx.projection()), 'limit': inner, 'alias': identifier(names[1])}}
 
@@ -115,10 +120,10 @@ def pg_ast(sql):
         return [None, fields[0]] if len(fields) == 1 else fields
 
     def project(node):
-        targets = [x['ResTarget']['val'] for x in node['targetList']]
-        if len(targets) == 1 and targets[0].get('ColumnRef', {}).get('fields') == [{'A_Star': {}}]:
+        targets = [x['ResTarget'] for x in node['targetList']]
+        if len(targets) == 1 and targets[0]['val'].get('ColumnRef', {}).get('fields') == [{'A_Star': {}}]:
             return None
-        return [col(x) for x in targets]
+        return [{'column': col(x['val']), 'alias': x.get('name')} for x in targets]
 
     def const(node):
         if 'TypeCast' in node:
@@ -173,4 +178,6 @@ def pg_ast(sql):
             expr = where['A_Expr']
             op = expr['name'][0]['String']['sval']
             pred = {'column': col(expr['lexpr']), 'op': {'=': 'eq', '<>': 'ne', '<': 'lt', '<=': 'le', '>': 'gt', '>=': 'ge'}[op], 'literal': const(expr['rexpr'])}
-    return {'source': relation['relname'], 'source_alias': relation.get('alias', {}).get('aliasname'), 'selection': selection, 'predicate': pred, 'limit': limit(node), 'input': inner}
+    return {'source': relation['relname'], 'source_alias': relation.get('alias', {}).get('aliasname'),
+            'output_alias': node['targetList'][0]['ResTarget'].get('name') if function else None,
+            'selection': selection, 'predicate': pred, 'limit': limit(node), 'input': inner}

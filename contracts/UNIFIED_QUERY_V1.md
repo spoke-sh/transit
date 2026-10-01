@@ -226,9 +226,18 @@ checks the declared source name. Qualified columns use the alias when present;
 the original source name then rejects as a qualifier. Unqualified columns remain
 valid. Inner source aliases and the restricted subquery's outer alias have
 separate scopes. `AS` is required, and aliases obey the 16-byte identifier rules.
-An alias does not rename output columns or change the source basis. It lowers
+A source alias does not rename output columns or change the source basis. It lowers
 away before plan encoding, so equivalent aliased and unaliased queries have
 identical canonical plan bytes and execution semantics.
+
+`column AS name`, `COUNT(*) AS name` and `SUM(column) AS name` supply owned
+output names. `AS` is required, using the same 16-byte identifier rules. The
+resulting names must be distinct; repeated source indices are allowed with
+distinct names. Names, types and cell states in the source remain unchanged.
+Output aliases do not enter predicate scope. A renamed inner projection supplies
+the names available to the restricted outer aggregate; compilation resolves
+those names back to source indices. Only final output names enter canonical plan
+bytes. Star cannot have an output alias, and implicit aliases reject.
 
 V1 limits use the plan's full u64 range; an absent limit stays unlimited, subject
 to explicit execution budgets. An aggregate's outer LIMIT still rejects.

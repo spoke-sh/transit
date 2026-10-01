@@ -5,8 +5,8 @@ accepted Document projection. Names and types come from that declaration. SQL ne
 source nor grants access to it.
 For scalar types and retained cell states, see [data types](types.md).
 The [function and operator index](expressions.md) lists the complete expression
-subset. [INSERT](insert.md), [UPDATE](update.md) and [DELETE](delete.md) are
-unsupported; query permission does not authorize mutations.
+subset. [INSERT](insert.md), [UPDATE](update.md) and [DELETE](delete.md) use
+separately authorized mutation callers; query permission does not authorize them.
 
 ## Syntax
 
@@ -17,8 +17,8 @@ SELECT aggregate FROM (
   SELECT projection FROM source [AS alias] [WHERE predicate] [LIMIT count]
 ) AS alias;
 
-projection := * | column [, column ...]
-aggregate  := COUNT(*) | SUM(column)
+projection := * | column [AS name] [, column [AS name] ...]
+aggregate  := (COUNT(*) | SUM(column)) [AS name]
 predicate  := column IS state | column comparison literal
 state      := NULL | MISSING | VALUE | TYPE_ERROR | CONFLICT
 comparison := = | <> | != | < | <= | > | >=
@@ -38,16 +38,26 @@ SELECT * FROM items;
 SELECT value FROM items;
 SELECT items.value, items.id FROM items;
 SELECT chosen.value, chosen.id FROM items AS chosen;
+SELECT value AS amount, id AS key FROM items;
+SELECT value AS first_value, value AS second_value FROM items;
 ```
 
-Explicit lists preserve the requested order and contain one to eight different
-column names. Star selects all declared columns. Output aliases,
-expressions and `DISTINCT` are unsupported.
+Explicit lists preserve the requested order and contain one to eight output
+columns. `column AS name` names that output position. The same input column can
+appear more than once when the resulting names are distinct. Duplicate output
+names reject, including collisions between an alias and an unrenamed column.
+Star selects all declared columns and cannot have an alias. Expressions and
+`DISTINCT` are unsupported.
+
+Output aliases follow the identifier case and length rules. They change result
+column names without changing values, types, cell states or source identity.
+`WHERE` continues to resolve original input names: an output alias does not
+become a predicate column. `AS` is required for output aliases.
 
 `FROM source AS alias` gives the declared source a query-local qualifier. With
 an alias, qualified columns must use that alias; the original source name is
 hidden as a qualifier. Unqualified columns still resolve against the declared
-schema. Aliases follow identifier case and length rules and do not rename output
+schema. Source aliases follow identifier case and length rules and do not rename output
 columns, change source identity or grant access. `AS` is required.
 
 Results follow defined source order, including primary-key order for Tables.
@@ -99,12 +109,15 @@ operation, source and result budgets still govern execution. `OFFSET` is unsuppo
 ```sql
 SELECT COUNT(*) FROM items;
 SELECT SUM(value) FROM items WHERE id > 0;
+SELECT COUNT(*) AS rows FROM items;
+SELECT SUM(value) AS total FROM items WHERE id > 0;
 ```
 
 An aggregate returns one result cell. `COUNT(*)` counts selected rows, including
 null and every other cell state. Its result is uint64;
 an empty input gives zero. Flight checks conversion to its published int64
 result type. `COUNT(column)` is unsupported.
+The default output names are `count` and `sum`; `AS name` replaces that name.
 
 `SUM(column)` requires int64. It adds values with checked overflow in source order,
 skips missing/null, and returns null on empty/all-skipped
@@ -119,10 +132,14 @@ FROM (SELECT value FROM items WHERE id >= 0 LIMIT 2) AS chosen;
 
 SELECT COUNT(*)
 FROM (SELECT * FROM items LIMIT 2) AS chosen;
+
+SELECT SUM(chosen.amount) AS total
+FROM (SELECT value AS amount FROM items WHERE id >= 0 LIMIT 2) AS chosen;
 ```
 
 This single derived-table form applies filter, then limit, then aggregate.
-The inner projection must retain the sum's column. Inner qualifiers refer to the
+The inner projection must retain the sum's column. If it renames that column,
+the outer sum uses the new name; the original name is hidden. Inner qualifiers refer to the
 source or its inner alias; an outer qualifier must match `chosen`. The inner
 alias is unavailable in the outer selection. General or nested subqueries,
 outer predicates and derived tables returning rows are unsupported. An outer
@@ -139,7 +156,7 @@ and [console use](../../../apps/transit-cli/docs/console.md).
 
 ## Failures and unsupported forms
 
-Unknown sources, columns or qualifiers reject. So do duplicate projections,
+Unknown sources, columns or qualifiers reject. So do duplicate output names,
 type mismatches, invalid binary literals, unsupported limits/comparisons and
 oversized cells. The compiler returns no successful prefix or approximate plan.
 [Query SQL v1](../../../packages/zig/transit-fuze/docs/unified-sql.md) owns exact

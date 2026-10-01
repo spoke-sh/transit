@@ -24,10 +24,18 @@ test("native inspection fixtures retain full-width metadata and enforce plan sem
   for (const invalid of [
     { ...plan, operators: ["scan", "limit", "filter", "project"] },
     { ...plan, limit: "18446744073709551616" },
-    { ...plan, projection: ["value", "value"] },
+    { ...plan, columns: [plan.columns[0], plan.columns[0]] },
+    { ...plan, projection: ["value"] },
+    { ...plan, projection: ["value", "invalid name"] },
     { ...plan, budgets: { ...plan.budgets, pages: "0" } },
   ])
     expect(validateUnifiedQuery(response({ explanation: invalid }))).toBe(false);
+  const count = fixture.cases[6]!.details.explanation!;
+  expect(
+    validateUnifiedQuery(
+      response({ explanation: { ...count, columns: [{ name: "rows", type: "int64" }] } }),
+    ),
+  ).toBe(false);
   expect(validateUnifiedQuery(response({ tables: ["foreign"] }))).toBe(false);
   expect(validateUnifiedQuery(response({ tables: [] }))).toBe(false);
 });

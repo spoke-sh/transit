@@ -32,6 +32,12 @@ one `details` alternative:
   original SQL text are excluded. Output columns use the same validated Fuze
   plan method as Arrow execution and result verification.
 
+Input projection names can repeat when their distinct output positions have
+different names. Output aliases appear in `columns`; source names remain in
+`projection` and predicates. Row projection/output widths match. Aggregates have
+one input projection and one output column of uint64 for count or int64 for sum,
+independently of the chosen output name. Duplicate output names reject.
+
 Explanation describes a proposed finite plan, with no captured data revision,
 query identity, execution timing, estimated cost or result. The current metadata
 revision is not a promised future SELECT snapshot. Operators retain declared

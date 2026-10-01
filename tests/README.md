@@ -7262,6 +7262,49 @@ and performance under the replacement definition. Its logs are
 `/tmp/transit-sql-output-aliases-wire-sql.log` and
 `/tmp/transit-sql-output-aliases-fixtures.log`.
 
+### SQL output-alias lowering checkpoint
+
+The shared parser, reference grammar and compiler accept explicit `AS` names on
+row positions and count/sum results. Restricted derived aggregates resolve
+renamed inner columns back to original source indices. Predicates continue to
+resolve original source names. Owned-name, scope, duplicate-output, identifier
+bound, completion and EXPLAIN fixtures exercise this behavior without granting
+source access or widening query execution budgets.
+
+`just test::sql` passes **134** Zig/ANTLR/PostgreSQL AST comparisons, **105**
+independently encoded plans and Arrow results, and **44** six-type/five-state
+result cases across three source bases and eight page widths. The latter includes
+renamed negative zero, full-width uint64, binary, null/missing/error/conflict
+cells, repeated inputs, empty results and named aggregates; **17** cases check
+explicit compile/execution failures. All **56** public SQL examples parse.
+The Fuze/query package tests, existing mutation and declaration checks also pass
+in `/tmp/transit-sql-output-aliases-syntax-final-focused.log`.
+
+The initial checks expose two test assumptions: result types were inferred from
+output names, and a repeated identical projection expected `DuplicateColumn`
+instead of the existing `DuplicateProjection`. The independent checker now
+derives types from input positions and aggregate semantics; the precise error
+expectation is corrected. Initial failures remain in
+`/tmp/transit-sql-output-aliases-parser-expanded-unit.log` and
+`/tmp/transit-sql-output-aliases-parser-sql.log`; the corrected SQL pass is in
+`/tmp/transit-sql-output-aliases-parser-sql-fixed.log`.
+
+The first full `just check` exposes stale browser inspection rules that required
+unique input projections and fixed output names. The browser now validates
+matching widths, distinct valid output names and aggregate types independently
+of aliases. Shared native fixtures include repeated renamed inputs, named count
+and renamed derived sum; malformed duplicate outputs, widths and count types
+still reject. The failed full run is
+`/tmp/transit-sql-output-aliases-syntax-check.log` and the focused browser check is
+`/tmp/transit-sql-output-aliases-browser-inspection.log`.
+The corrected full `just check` passes, including generated-contract checks,
+Zig tests, browser validation and the documentation build, in
+`/tmp/transit-sql-output-aliases-syntax-check-fixed.log`.
+
+This compiler checkpoint does not establish neutral-plan/SDK output-name round
+trips, installed recovery, performance or committed-head clean qualification.
+Those remain required before publishing the output-alias increment.
+
 ## SQL performance iteration
 
 `just test::sql-benchmark` builds a ReleaseSafe public-package consumer and records

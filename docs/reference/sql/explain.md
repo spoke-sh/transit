@@ -7,6 +7,7 @@ same Fuze compiler as query execution.
 ```sql
 EXPLAIN SELECT value FROM items WHERE id > 0 LIMIT 2;
 EXPLAIN SELECT count(*) FROM items;
+EXPLAIN SELECT value AS amount, value AS copy FROM items;
 ```
 
 The result lists logical operators in evaluation order, the predicate column
@@ -15,6 +16,10 @@ configured execution budgets. Literal values are omitted. Checked SUM outputs
 int64 and COUNT outputs uint64. The supported SELECT syntax and type limits
 apply; `EXPLAIN ANALYZE`, cost estimates and alternative physical plans are
 unsupported.
+
+Input projections retain source column names; output columns contain any `AS`
+names. Repeated input columns remain separate output positions with distinct
+names, using the same schema validation as execution.
 
 The scope contains one configured source. Current source/requester read access
 and query policy must authorize the declaration before name resolution and

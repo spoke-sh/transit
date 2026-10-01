@@ -40,6 +40,7 @@ Every row is **Implemented — execution** within its stated profile.
 | `COUNT(*)`, `SUM(column)` | One aggregate; uint64 count or ordered checked int64 sum | [Aggregates](expressions.md#aggregate-functions) |
 | Aggregate over one derived table | Only the restricted filter → limit → aggregate form, with its required alias | [Limited aggregate input](select.md#aggregate-a-limited-input) |
 | `FROM source AS alias` | Query-local column qualifier; explicit `AS`, unchanged source and output column identities | [Project rows](select.md#project-rows) |
+| Output `AS name` | Names row or aggregate output positions; distinct names allow repeated inputs; renamed inner columns resolve in the outer aggregate | [Project rows](select.md#project-rows) |
 | `DESCRIBE name`, `SHOW TABLES` | Current authorized metadata for the configured source; not a realm-wide catalog | [DESCRIBE](describe.md), [SHOW](show.md) |
 | `EXPLAIN SELECT ...` | Validated finite plan and output columns; no query admission, snapshot acquisition or execution | [EXPLAIN](explain.md) |
 
@@ -88,7 +89,7 @@ other administrative SQL families retain their own stated support boundaries.
 | `CREATE CONNECTION`, `CREATE SOURCE`, `CREATE SINK` | **Planned — checked grammar** | Typed options, secret references, dependencies and separately authorized activation; declarations confer no access |
 | `GRANT`, `REVOKE` | **Planned — checked grammar** | Lower to current owning authorization operations; names and PID ownership do not grant rights |
 | `SHOW SOURCES`, `SHOW SINKS`, `SHOW CONNECTIONS` | **Planned — checked grammar** | Authorized paged catalog inspection; a configured-source listing is not a global catalog |
-| Expressions, boolean composition, output aliases and reusable queries | **Planned — syntax undecided** | Selected SQL expressions with explicit type, five-state conversion and error-order rules; no general evaluator exists today |
+| Expressions, boolean composition and reusable queries | **Planned — syntax undecided** | Selected SQL expressions with explicit type, five-state conversion and error-order rules; no general evaluator exists today |
 | `JOIN`, `GROUP BY`, `COUNT(column)` | **Planned — syntax undecided** | One inner or left int64 equijoin over Tables, optional int64 grouping, count and ordered checked int64 sum; explicit source vectors and bag multiplicity |
 | `ORDER BY`, further expressions, aggregates and query composition | **Planned — syntax undecided** | Broader selected relational operations with explicit error/order semantics and bounded state; individual variants still need contracts |
 | `CREATE VIEW`, `CREATE MATERIALIZED VIEW`, `SUBSCRIBE` | **Planned — syntax undecided** | Named definitions, complete changes, resumable backfill, snapshot/change handoff and current disclosure |
