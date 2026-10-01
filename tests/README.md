@@ -2500,6 +2500,28 @@ seconds: 105 turns, two recovered initialization receipts, a 0.504-second held
 snapshot and all added SQL-write interruption/recovery/cancellation cases. No
 assertion, request deadline or provider capacity guard changes between attempts.
 
+## Installed Node optional Arrow dependency — 2026-10-01
+
+Hosted [bindings job 110181434108](https://github.com/rupurt/rey/actions/runs/36803044000/job/110181434108)
+passes the raw client and durable-continuation checks, then exits when the
+Station fixture installs its optional Arrow dependency. The original fixture
+reports only installation exit 1, so that hosted log does not identify the
+package-manager error.
+
+With `CI=true GITHUB_ACTIONS=true` and pinned `pnpm@10.32.1`, changing an existing
+consumer manifest to add `apache-arrow@21.2.0` reproduces
+`ERR_PNPM_OUTDATED_LOCKFILE`. A separate control invokes the actual fixture from
+`5c76d03e` with its built Transit tarballs: Arrow is absent initially and the
+second install fails. The corrected fixture explicitly updates only this
+disposable consumer lock. It preserves the absence check, then installs Arrow
+and passes an independent IPC round trip for `9007199254740993n`.
+
+The [installation record](verification/results/m37-node-arrow-install-2026-10-01.json)
+retains source hashes and both outcomes. Full repository checks pass on the
+corrected development source. These installation controls do not by themselves
+qualify the real Station, query, connector or remaining language schedules.
+No repository lock, native behavior or progress deadline changes.
+
 ## Current Board browser qualification — 2026-10-01
 
 The [browser investigation record](verification/results/m37-board-browser-2026-10-01.json)

@@ -532,6 +532,13 @@ It also checks generated response validation, byte ownership and preservation of
 uncertainty on unconfirmed submit responses. `bindings::mutation-node` selects
 these checks independently.
 
+The installed Node Station consumer first verifies that the optional Arrow
+package is absent, then adds the exact Arrow adapter dependency for owned IPC
+checks. This second installation explicitly updates the disposable consumer's
+generated lockfile, including under CI's frozen-lock default. Repository locks
+are unchanged. Failed installations report the exit status and package-manager
+error codes without dumping package-manager output.
+
 `bindings::ruby-sdk-test` adds immutable mutation values through the existing
 owned Ruby worker and native port. Its installed schedule uses namespace
 `9223372036854775825`, rejects an altered request commitment, replaces the caller
