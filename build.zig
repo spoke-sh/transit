@@ -123,7 +123,7 @@ pub fn build(b: *std.Build) void {
         .root_source_file = b.path("tests/sql_bench.zig"),
         .target = target,
         .optimize = optimize,
-        .imports = &.{.{ .name = "transit_fuze", .module = fuze.module("transit_fuze") }},
+        .imports = &.{ .{ .name = "transit_fuze", .module = fuze.module("transit_fuze") }, .{ .name = "transit_query", .module = query.module("transit_query") } },
     }) });
     b.step("sql-benchmark", "Build the pure SQL performance probe").dependOn(&b.addInstallArtifact(sql_benchmark, .{}).step);
     const declarative_benchmark = b.addExecutable(.{ .name = "transit-declarative-benchmark", .root_module = b.createModule(.{

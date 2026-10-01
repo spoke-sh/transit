@@ -18,8 +18,8 @@ def main():
     parser.add_argument('--control', type=Path, help='Frozen ReleaseSafe probe to alternate with the candidate')
     parser.add_argument('--control-revision', help='Source revision of the frozen control')
     parser.add_argument('--cpu', type=int, help='Pin both frozen probes to one available CPU')
-    parser.add_argument('--profile', choices=('baseline', 'count-values', 'parameters'), default='baseline',
-                        help='Separate unchanged controls, value counts, and prepare/bind component costs')
+    parser.add_argument('--profile', choices=('baseline', 'count-values', 'parameters', 'parameter-callers'), default='baseline',
+                        help='Separate unchanged controls, value counts, compiler binding, and neutral caller costs')
     args = parser.parse_args()
     if not 1 <= args.samples <= 100:
         parser.error('--samples must be between 1 and 100')
@@ -66,7 +66,8 @@ def main():
         binary_sha256=hashlib.sha256(binary.read_bytes()).hexdigest(), optimization='ReleaseSafe', profile=args.profile,
         source_diff_sha256=hashlib.sha256(subprocess.check_output(['git', 'diff', 'HEAD', '--binary'])).hexdigest(),
         affinity=sorted(os.sched_getaffinity(0)), probe_timeout_seconds=300,
-        scope='pure compile and paged aggregate; excludes source I/O, authorization and transport',
+        scope=('neutral source/scalar conversion, binding and owned results with two stub descriptions; excludes signing, real authorization I/O and transport'
+               if args.profile == 'parameter-callers' else 'pure compile and paged aggregate; excludes source I/O, authorization and transport'),
         cpu=args.cpu, host_load=os.getloadavg() if hasattr(os, 'getloadavg') else None,
         driver_sha256=hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
         probe_sha256=hashlib.sha256(Path('tests/sql_bench.zig').read_bytes()).hexdigest(),
