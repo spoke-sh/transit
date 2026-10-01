@@ -11772,3 +11772,74 @@ variants without manually changing limits. An initial package invocation with
 passes. Earlier clean-growth and Station failures remain separate; these focused
 passes do not complete either clean lane. Logs, executable hashes, runner bytes,
 source identities and the comparison wrapper are retained in the archive.
+
+## Neutral SQL parameter callers — 2026-10-01
+
+`SqlCompilation` provides one current-authority operation for native/port
+`Bridge.compile` and configured `Workspace.compile`. Shared fixtures exercise
+all six exact scalar encodings, maximum integers, negative zero, binary bytes,
+SQL-looking UTF-8 values, ordinary/empty bindings, input aggregation and Document
+paths. Returned bundles and metadata are independent of request/template owners.
+The read-only test client has no dispatch interface; denial, source replacement
+and budget reductions at either observation return no candidate. Exhaustive
+allocation-failure schedules cover released inputs and output conversion.
+The query package passes **73/73 tests**. The initial 72/73 result had an incorrect
+expected test error (`InvalidQueryInteger` versus the existing shared codec's
+`InvalidDocumentInteger`); correcting that expectation preserves the codec.
+Logs: `/var/tmp/transit-sql-parameter-callers-query{,-fixed}.log`.
+
+Generated ABI, port, workspace, Board and binding resources follow the Zig
+owners. The separate `sql_capabilities` action preserves every previous native
+and workspace response variant, including the original capability object.
+An exact schema comparison against `2e45f6bf` verifies unchanged ABI definition,
+function signatures, configuration schemas and all pre-existing action/result
+variants, accounting for the port's nested `unified_query` union. Workspace
+request reflection now uses input defaults, so ordinary `{compile:{sql}}`
+requests remain valid. JSON Schema probes reject numeric wide-integer bindings,
+ambiguous scalar variants and null scalar values. The initial full check caught
+request fields incorrectly reflected as required outputs; corrected reflection
+passes generated boundary and frontend validation. No stored/native definition
+or bundle format is changed.
+
+Full `just check` and independent `just test::sql` pass at `1b92acd9`, including
+59 documentation examples, 157 ordinary ASTs, 125 plan/Arrow cases and the 44-case
+parameter corpus. Log `/var/tmp/transit-sql-parameter-callers-final-check.log`.
+The later Board error-mapping correction returns bad requests for invalid
+parameter ordinals/counts/types; its real HTTP proof passes through
+`just transit-board::query-test`, including exact equality with literal bundles,
+full-width values, no command-sequence allocation, upload/result verification
+and revocation. Log `/var/tmp/transit-sql-parameter-callers-board-fixed.log`.
+The earlier nonexistent `test::board-query` recipe executed no proof. Full
+`just check` also passes after this correction at `943c4d78`; log
+`/var/tmp/transit-sql-parameter-callers-submission-check.log`.
+
+The signed native ABI/port and actual SQL-shell KV schedule passes at `1b92acd9`
+in 77.63 s, with 41 rows/six segments, lost upload response, exact original retry,
+worker/node/disk-store restart, current prefix denial and permanent retirement.
+The parameter compiler's bundle equals the separately constructed Zig plan;
+that returned bundle becomes the recovery schedule's input. Invalid bindings
+and compilation after revocation/retirement reject without dispatch. Log
+`/var/tmp/transit-sql-parameter-callers-final-native-kv.log`. A preceding working-tree
+prototype also passed KV/Table/Document, but its capability envelope differs;
+current Table/Document repetitions are separate qualification, not inherited
+passes. The initial log is `/var/tmp/transit-sql-parameter-callers-native.log`;
+current remaining-source log is
+`/var/tmp/transit-sql-parameter-callers-final-native-remaining.log`.
+
+The [neutral caller performance archive](benchmarks/results/2026-10-01-sql-parameter-callers.json.gz)
+retains nine CPU-1 ReleaseSafe samples at clean `1b92acd9`, exact source/driver
+bytes and patch, commands and frozen binary hashes. One-shot parameter medians
+are **6732–6851 ns**, including template preparation, source/scalar conversion,
+binding, canonical encoding and owned neutral result conversion. Equivalent
+literal requests through the same owner cost **4156–4372 ns**. Both execute two
+stub description checks per iteration; these numbers exclude real authorization
+I/O, signing, transport and query admission. Reusable compiler binding remains
+a different measurement in the preceding section. The unchanged thirteen-case
+workload passes every existing 1.15 regression gate against frozen `9412e439`:
+ratios **0.8615–1.0183**. Shared-host variations are retained and are not claimed
+as an optimization. Probe timeouts, runtime budgets and quotas are unchanged.
+
+Language convenience methods, CLI binding inputs, named PREPARE/EXECUTE lifetime,
+file-source parameters and installed all-language recovery remain unfinished.
+Remaining-source and committed-HEAD clean results must be recorded separately;
+this checkpoint does not close the parameter family or issue #37.
