@@ -34,12 +34,18 @@ pub fn validateShape(self: Self) !void {
 pub fn validate(self: Self, schema: m.Schema) !void {
     try schema.validate();
     try self.validateShape();
-    var output: [m.max_columns]m.Column = undefined;
-    for (self.projection, 0..) |column, index| {
-        _ = try schema.column(column);
-        output[index] = try self.outputColumn(schema, index);
+    for (self.projection) |column| _ = try schema.column(column);
+    const renamed = for (self.output_names[0..self.projection.len]) |name| {
+        if (name != null) break true;
+    } else false;
+    // With no output aliases, validated source names and unique projections
+    // already prove the row schema; aggregate names/types are fixed constants.
+    // Renamed outputs still need the combined schema collision check.
+    if (renamed) {
+        var output: [m.max_columns]m.Column = undefined;
+        for (0..self.projection.len) |index| output[index] = try self.outputColumn(schema, index);
+        try (m.Schema{ .columns = output[0..self.projection.len] }).validate();
     }
-    try (m.Schema{ .columns = output[0..self.projection.len] }).validate();
     if (self.aggregate == .sum and (try schema.column(self.projection[0])).type != .int64) return error.UnsupportedAggregate;
     switch (self.predicate) {
         .all => {},
