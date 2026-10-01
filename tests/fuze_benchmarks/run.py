@@ -66,7 +66,7 @@ def fixture(directory, shape, count):
                     if n % 3: row['value'] = n if n % 5 else None
                 elif shape == 'decimal': row['amount'] = n % 1000 + 0.125
                 elif shape == 'identifiers': row['identifier'] = f'00{n:08}'
-                else: row['value'] = n % 101
+                else: row['value'] = 100000 + n % 101
                 if form == 'csv': writer.writerow(row)
                 else: out.write(json.dumps(row, separators=(',', ':')) + '\n')
             out.flush(); os.fsync(out.fileno())
@@ -80,16 +80,29 @@ def fixture(directory, shape, count):
         files=[dict(name=p.name, bytes=p.stat().st_size, sha256=digest(p)) for p in paths])
 
 
-def config(fixture, mode, rows, batch_rows, projected):
+def config(fixture, mode, rows, batch_rows, projected, query='all'):
     actual_mode = 'sampled' if mode == 'partial' else mode
     fields = fixture['fields'] if mode == 'explicit' else fixture['fields'][:1] if mode == 'partial' else None
     sql = 'SELECT id FROM input' if projected and mode != 'raw' else 'SELECT * FROM input'
+    output_rows = rows
+    result_sum = None if mode == 'raw' else rows*(rows-1)//2
+    if query == 'filter':
+        sql = f'SELECT id FROM input WHERE id < {rows//4}'
+        output_rows = rows//4
+        result_sum = output_rows*(output_rows-1)//2
+    elif query == 'count':
+        sql = 'SELECT count(*) FROM input'
+        output_rows, result_sum = 1, rows
+    elif query == 'sum':
+        sql = 'SELECT sum(id) FROM input'
+        output_rows = 1
     return dict(paths=['-'] if fixture['shape'] == 'pipe' else list(map(str, fixture['paths'])),
         options=dict(format=fixture['format'], mode=actual_mode, sample_records=1024, sample_bytes=1024*1024,
             max_scan_bytes=4*1024*1024*1024, max_records=100_000_000, max_record_bytes=65536, max_fields=128),
         schema_json=json.dumps(dict(definition=TYPES, type=dict(structure=fields))) if fields else None,
         gzip=fixture['shape'] == 'gzip', sql=sql, batch_rows=batch_rows, export_iterations=20,
-        expected_rows=rows, expected_id_sum=None if mode == 'raw' else rows*(rows-1)//2, expected_output_rows=rows)
+        expected_rows=rows, expected_id_sum=None if mode == 'raw' else rows*(rows-1)//2,
+        expected_output_rows=output_rows, expected_result_sum=result_sum)
 
 
 def residency(path):
@@ -127,6 +140,7 @@ def checked(records, expected, engine):
     if not records or records[-1].get('complete') is not True: raise ValueError('Missing completion')
     if records[-1]['scanned'] != expected['expected_rows']: raise ValueError('Incorrect scan count')
     if records[-1]['id_sum'] != expected['expected_id_sum']: raise ValueError('Incorrect result checksum')
+    if 'expected_result_sum' in expected and records[-1]['result_sum'] != expected['expected_result_sum']: raise ValueError('Incorrect query checksum')
     if engine == 'transit' and records[-1]['build_mode'] != 'safe': raise ValueError('Expected ReleaseSafe build')
     for record in records:
         if 'phase' in record:
@@ -216,10 +230,13 @@ def main():
     parser.add_argument('--engines', nargs='+', choices=('transit', 'duckdb'), default=['transit', 'duckdb'])
     parser.add_argument('--batch-rows', type=int, choices=(1, 8), default=8)
     parser.add_argument('--project-id', action='store_true')
+    parser.add_argument('--query', choices=('all', 'filter', 'count', 'sum'), default='all')
     parser.add_argument('--timeout', type=int, default=300)
     args = parser.parse_args()
     if not 1 <= args.rows <= 100_000_000 or not 1 <= args.repetitions <= 20 or not 1 <= args.timeout <= 3600:
         parser.error('Invalid workload budget')
+    if (args.project_id and args.query != 'all') or (args.query in ('filter', 'sum') and 'raw' in args.modes):
+        parser.error('Projection selects the all query; filter/sum require typed modes')
     args.binary = args.binary.resolve(); args.output = args.output.resolve()
     report = dict(definition=DEFINITION, status='running', completed=False, samples=[], summary=[], fixtures=[])
     def save():
@@ -242,7 +259,7 @@ def main():
             machine=dict(platform=platform.platform(), cpuinfo=Path('/proc/cpuinfo').read_text().split('\n\n')[0],
                 affinity=affinity, selected_cpu=cpu, load=os.getloadavg(), meminfo=Path('/proc/meminfo').read_text()),
             parameters=dict(rows=args.rows, repetitions=args.repetitions, shapes=args.shapes, modes=args.modes,
-                caches=args.caches, engines=args.engines, batch_rows=args.batch_rows, projected=args.project_id,
+                caches=args.caches, engines=args.engines, batch_rows=args.batch_rows, projected=args.project_id, query=args.query,
                 timeout_seconds=args.timeout, process_address_space_bytes=4*1024**3, duckdb_memory_limit='64MB', duckdb_threads=1),
             limits=['Cold applies only to verified input page residency; captures are newly written and warm.',
                 'DuckDB streaming combines decoding/execution with Arrow construction.',
@@ -257,7 +274,7 @@ def main():
                 source = fixture(directory, shape, args.rows)
                 report['fixtures'].append(dict(shape=shape, files=source['files'], expanded=source['expanded']))
                 for mode in args.modes:
-                    configuration = config(source, mode, args.rows, args.batch_rows, args.project_id)
+                    configuration = config(source, mode, args.rows, args.batch_rows, args.project_id, args.query)
                     for cache in args.caches:
                         for repetition in range(args.repetitions):
                             engines = args.engines if repetition % 2 == 0 else list(reversed(args.engines))

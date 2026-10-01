@@ -1,5 +1,6 @@
 """Pinned development comparator; host acquisition is separate from DuckDB."""
 import gzip
+import csv
 import ctypes as c
 import hashlib
 import json
@@ -136,9 +137,12 @@ def literal(value):
     raise TypeError(value)
 
 
+def reader_sql(name, paths, options):
+    return name + '(' + literal(paths) + ', ' + ','.join(key + '=' + literal(value) for key, value in options.items()) + ')'
+
+
 def read(connection, name, paths, options):
-    return connection.sql('SELECT * FROM ' + name + '(' + literal(paths) + ', ' +
-        ','.join(key + '=' + literal(value) for key, value in options.items()) + ')')
+    return connection.sql('SELECT * FROM ' + reader_sql(name, paths, options))
 
 
 def main(config):
@@ -191,7 +195,23 @@ def main(config):
                 kwargs['auto_detect'] = True
                 if types: kwargs['types'] = types
                 if mode == 'raw': kwargs['all_varchar'] = True
-            relation = read(connection, 'read_csv', paths, kwargs)
+            if mode == 'explicit':
+                # Explicit DuckDB columns are positional. Inspect each bounded
+                # fixture header, order its columns accordingly, then project
+                # by name before UNION ALL. Keep this host work in discovery.
+                selects = []
+                headers = []
+                projection = ','.join('"' + name.replace('"', '""') + '"' for name in types)
+                for path in paths:
+                    with open(path, newline='') as stream: header = next(csv.reader(stream))
+                    if len(header) != len(types) or set(header) != set(types): raise ValueError('Unexpected explicit fixture header')
+                    headers.append(header)
+                    local = {**kwargs, 'columns': {name: types[name] for name in header}}
+                    selects.append('SELECT ' + projection + ' FROM ' + reader_sql('read_csv', [path], local))
+                relation = connection.sql(' UNION ALL '.join(selects))
+                kwargs['benchmark_header_alignment'] = headers
+            else:
+                relation = read(connection, 'read_csv', paths, kwargs)
         elif mode == 'raw':
             kwargs = dict(format='newline_delimited', maximum_object_size=65536)
             quoted = '[' + ','.join("'" + p + "'" for p in paths) + ']'
@@ -233,14 +253,23 @@ def main(config):
             with pa.ipc.new_stream(sink, cached.schema) as writer: writer.write_batch(cached)
             exported += len(sink.getvalue())
         meter.end('export_cached_batch', cached.num_rows * config['export_iterations'], exported)
-        meter.begin(); emitted = 0; first_batch = None
+        meter.begin(); emitted = 0; first_batch = None; result_sum = 0
         with query.to_arrow_reader(batch_size=config['batch_rows']) as reader:
             for batch in reader:
                 emitted += batch.num_rows
+                if config.get('expected_result_sum') is not None:
+                    index = batch.schema.get_field_index('id') if 'id' in batch.schema.names else 0
+                    result_sum += pc.sum(batch.column(index)).as_py() or 0
                 if first_batch is None: first_batch = time.perf_counter_ns() - meter.started
         assert emitted == config['expected_output_rows']
+        if config.get('expected_result_sum') is not None:
+            assert result_sum == config['expected_result_sum']
+            # DuckDB SUM(BIGINT) exports HUGEINT as Arrow decimal128. Equality
+            # above proves the integer fixture oracle before JSON conversion.
+            result_sum = int(result_sum)
         meter.end('scan_convert_execute_arrow', emitted, first_batch_ns=first_batch)
         emit(dict(complete=True, scanned=rows, id_sum=id_sum if config.get('expected_id_sum') is not None else None,
+            result_sum=result_sum if config.get('expected_result_sum') is not None else None,
             encoded_bytes=encoded_total, expanded_bytes=expanded_total, build=connection.sql('PRAGMA version').fetchall(),
             rss_kib=resource.getrusage(resource.RUSAGE_SELF).ru_maxrss))
     finally:

@@ -13,18 +13,19 @@ class Evidence(unittest.TestCase):
     def records(self):
         return [dict(phase=p, elapsed_ns=100, cpu_ns=50) for p in
             ('capture', 'discovery', 'compile', 'scan_convert', 'export_cached_batch', 'scan_convert_execute')] + [
-                dict(complete=True, scanned=3, id_sum=3, build_mode='safe')]
+                dict(complete=True, scanned=3, id_sum=3, result_sum=3, build_mode='safe')]
 
     def test_only_complete_checked_runs_pass(self):
-        expected = dict(expected_rows=3, expected_id_sum=3)
+        expected = dict(expected_rows=3, expected_id_sum=3, expected_result_sum=3)
         run.checked(self.records(), expected, 'transit')
-        for change in ('missing_phase', 'duplicate', 'incomplete', 'bad_count', 'wrong_sum', 'wrong_build', 'bad_time'):
+        for change in ('missing_phase', 'duplicate', 'incomplete', 'bad_count', 'wrong_sum', 'wrong_query', 'wrong_build', 'bad_time'):
             records = self.records()
             if change == 'missing_phase': records.pop(1)
             elif change == 'duplicate': records.insert(1, copy.deepcopy(records[0]))
             elif change == 'incomplete': records[-1]['complete'] = False
             elif change == 'bad_count': records[-1]['scanned'] = 2
             elif change == 'wrong_sum': records[-1]['id_sum'] = 4
+            elif change == 'wrong_query': records[-1]['result_sum'] = 4
             elif change == 'wrong_build': records[-1]['build_mode'] = 'debug'
             else: records[0]['elapsed_ns'] = 0
             with self.subTest(change=change), self.assertRaises(ValueError):
@@ -41,6 +42,17 @@ class Evidence(unittest.TestCase):
                 self.assertEqual(partial['expected_id_sum'], 136)
                 self.assertEqual(partial['options']['mode'], 'sampled')
                 self.assertIsNone(run.config(left, 'raw', 17, 8, False)['expected_id_sum'])
+
+    def test_query_oracles_and_distinct_column_values(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            source = run.fixture(Path(temporary), 'multifile', 17)
+            for path in source['paths']:
+                with path.open() as stream:
+                    for row in run.csv.DictReader(stream):
+                        self.assertNotEqual(row['id'], row['value'])
+            for query, count, total in [('all', 17, 136), ('filter', 4, 6), ('count', 1, 17), ('sum', 1, 136)]:
+                cfg = run.config(source, 'explicit', 17, 8, False, query)
+                self.assertEqual((cfg['expected_output_rows'], cfg['expected_result_sum']), (count, total))
 
     def test_failed_preparation_cannot_leave_a_success_report(self):
         with tempfile.TemporaryDirectory() as temporary:

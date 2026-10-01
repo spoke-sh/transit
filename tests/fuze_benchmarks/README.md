@@ -10,6 +10,9 @@ nix develop .#benchmarks
 just doctor
 just test::file-benchmark --output .cache/fuze-baseline.json
 just test::file-benchmark --project-id --output .cache/fuze-projection.json
+just test::file-benchmark --query filter --modes explicit sampled full --output .cache/fuze-filter.json
+just test::file-benchmark --query count --output .cache/fuze-count.json
+just test::file-benchmark --query sum --modes explicit sampled full --output .cache/fuze-sum.json
 python3 -B tests/fuze_benchmarks/large.py zig-out/bin/transit-file-benchmark --output .cache/fuze-large.json
 ```
 
@@ -97,6 +100,15 @@ claims that the engines have identical inference or result contracts. See the
 upstream [CSV discovery](https://duckdb.org/docs/current/data/csv/auto_detection),
 [JSON loading](https://duckdb.org/docs/current/data/json/loading_json), and
 [streaming Python API](https://duckdb.org/docs/current/clients/python/reference/).
+
+Fully explicit DuckDB CSV columns assign names by position. The comparator reads
+each fixture's header, orders that file's explicit column map, and projects back
+to declared name order before `UNION ALL`. This Python header work is included in
+discovery and its exact header order is recorded. Reordered files use disjoint
+id/value domains, even in small smoke cases. Both scan and query outputs verify
+independently calculated row counts and exact id/aggregate sums. The separate
+file/Arrow correctness fixtures verify every field and state; benchmark checksums
+alone do not establish complete value equivalence.
 
 `six.zig` is a separate regression control using only the original public
 six-scalar API. The same driver runs against the original base and candidate,

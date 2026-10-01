@@ -556,6 +556,7 @@ logical-codec:
     python3 -B tests/fuze_logical_codec.py zig-out/lib/libtransit_station.so zig-out/bin/transit-station-host
 
 # Run in nix develop .#benchmarks; reports require an explicit output path.
+[positional-arguments]
 file-benchmark *args:
     #!/usr/bin/env bash
     set -euo pipefail
