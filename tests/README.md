@@ -9413,6 +9413,53 @@ previous output-name profile and explicitly reject output aliases; source `AS`
 aliases remain supported. Earlier merged-tree checks do not qualify this rebased
 revision; final checks must run again.
 
+### Post-merge Fuze qualification
+
+Follow-up revision `a24f5cd3` passes locked frontend installation, full
+`just check`, `just test::sql` (134 independent SELECT ASTs, 105 compiled plans
+and 44 unified results), `just test::fuze-types` (11 tests / 46 scalar fixtures),
+`just test::fuze-sources` (25 tests), `just test::file-query` (92 real cases),
+`just test::logical-arrow` (100 PyArrow cases) and `just test::logical-codec`
+(91 C ABI/native-port cases). The three added file-query cases reject output
+aliases in this narrower profile; native SQL retains its output-name support.
+
+Its specialized six-type control still fails the frozen 1.15 ratio budget in
+seven predicate/aggregate cases. The
+[post-merge evidence](fuze_benchmarks/results/2026-09-30/README.md#post-merge-specialized-path-regression)
+retains the complete raw repetitions and scoped failed gate. This is a detected
+regression, not final performance qualification. Final clean lanes and the
+installed-owner rerun remain outstanding under issue #53.
+
+Native plan validation at `a99a9c59` avoids rebuilding an output schema when
+validated unique source names and projections already determine it. Aliased
+outputs retain their combined collision check. Binding also uses the same
+private canonical encoder after complete plan/basis validation, avoiding a
+second shape traversal; public encoding independently validates its inputs.
+Wire bytes, definitions, fingerprints, page/source checks and cancellation are
+unchanged. Fuze package tests and the complete independent SQL proof pass after
+both changes. The final paired six-type control passes every unchanged 1.15
+budget with ratios 1.0003–1.1219. Raw measurements, exact hashes and both prior
+failed trials remain in the linked evidence. Final clean lanes are still pending.
+
+At `331abe3a`, full `just check` and the 52 native C ABI/port codec cases pass.
+The clean core lane completes all 22 tasks, including signed service and disk
+recovery. Clean growth completes its first eight tasks: Arrow, logical types,
+sources, all 92 file-query cases, 100 logical Arrow cases, 91 logical codec cases,
+immutable pages and growing authority recovery. Main then advances through
+PR #57 to `8bd85869`; integrating it supersedes this source. The owned clean run
+is interrupted during `test::growing-service`, with exit 130 and no surviving
+owned processes. Growth is incomplete; experience, launchers and bindings did
+not start. The [retained checkpoint](verification/results/m39-superseded-2026-10-01.json)
+records task timings, completion and log hashes. These results do not qualify
+the new integration implicitly.
+
+The rebase preserves both evidence-ledger additions and every original commit
+author/committer date. Fuze, Arrow, the six-type driver and `flake.lock` match
+the measured native implementation; its raw benchmark reports retain their
+original revision identities. Main's new native definitions, generated caller
+resources, Table admission and transport changes require fresh integration
+checks and ordinary clean lanes.
+
 
 ## Durable Table mutation latency
 

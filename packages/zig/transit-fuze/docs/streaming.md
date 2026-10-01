@@ -12,6 +12,12 @@ Success returns candidate progress and an optional segment borrowing the output
 buffer. Consume or copy those bytes before reusing it. On failure discard the
 partial output and retain the previous committed progress.
 
+Each step revalidates the source schema, projected columns, output-name shape,
+literal types and exact bound plan. When there are no output aliases, validated
+unique source names and projection indices determine a valid row schema;
+aggregate output names and types are fixed. Validation reconstructs the combined
+output schema when aliases are present so collisions still reject before output.
+
 Pages have consecutive ordinals and at most eight rows. Source adapters own
 ordering and cursor validation; `end` requires their completion evidence. An
 empty page alone does not establish completion. The pointer-free `FZS1` progress

@@ -1,0 +1,26 @@
+{
+  "scope": "specialized-six-type-only",
+  "revision": "7aa743ca185b0b8214bb1339e53cc1d9755e0205",
+  "status": "failed",
+  "completed": true,
+  "budget_sha256": "63365fed72acde73e8ce3e17194a2d9ddc6fb9a3b6ddc4c1a289309c6ac9bf5d",
+  "report_sha256": "4509c49e60ad9e0c54060a5c3b658181127e53d540e7923330574ebc84a65d7e",
+  "conditions_match": true,
+  "ratios": {
+    "SELECT * FROM items": 0.9294468576954916,
+    "SELECT count(*) FROM items WHERE i >= 4": 0.7891539243602108,
+    "SELECT count(*) FROM items WHERE u = '18446744073709551615'::uint64": 1.013752824016666,
+    "SELECT count(*) FROM items WHERE f = '-0.0'::float64": 1.0929695654483067,
+    "SELECT count(*) FROM items WHERE b = TRUE": 1.4661757234511494,
+    "SELECT count(*) FROM items WHERE s = '\u03bb exact'": 1.013169154530654,
+    "SELECT count(*) FROM items WHERE x = '\\x00ff'::bytea": 1.0689719194801248,
+    "SELECT sum(i) FROM items": 0.8351658054023996
+  },
+  "violations": [
+    {
+      "sql": "SELECT count(*) FROM items WHERE b = TRUE",
+      "actual": 1.4661757234511494,
+      "limit": 1.15
+    }
+  ]
+}
