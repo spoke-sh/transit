@@ -269,17 +269,18 @@ pub fn apply(engine: anytype, candidate: anytype, next: *growth.Head, request: g
             if (command.deadline_ms > (sample orelse return error.ClockUnavailable).lower() + g.view_lifetime_ms) return error.InvalidLifetime;
             if (data.deadline_ms) |bound| if (command.deadline_ms > bound) return error.InvalidLifetime;
             if (process.settle_before_ms) |bound| if (command.deadline_ms > bound) return error.InvalidLifetime;
-            try candidate.put(address(.view, position), growth.StoredView{ .meta = .{ .id = position, .pid = command.pid, .principal = request.principal, .generation = command.generation, .input = command.input, .process_revision = command.expected_revision, .resource = command.resource, .revision = command.revision, .deadline_ms = command.deadline_ms }, .snapshot = engine.head.catalog });
-            try candidate.put(try c.key(.views_by_pid, command.pid, position, ""), position);
-            try candidate.put(try c.key(.views_by_resource, command.resource, position, ""), position);
+            try candidate.mutate(&.{
+                try c.putMutation(address(.view, position), growth.StoredView{ .meta = .{ .id = position, .pid = command.pid, .principal = request.principal, .generation = command.generation, .input = command.input, .process_revision = command.expected_revision, .resource = command.resource, .revision = command.revision, .deadline_ms = command.deadline_ms }, .snapshot = engine.head.catalog }),
+                try c.putMutation(try c.key(.views_by_pid, command.pid, position, ""), position),
+                try c.putMutation(try c.key(.views_by_resource, command.resource, position, ""), position),
+            });
         },
         .close_view => |command| {
             var stored = try view(engine, command.view);
             if (stored.meta.pid != command.pid or stored.meta.principal != request.principal) return error.Forbidden;
             if (stored.meta.closed_at != null) return error.StateViewExpired;
             stored.meta.closed_at = position;
-            try candidate.put(address(.view, command.view), stored);
-            try closeIndexes(candidate, stored.meta);
+            try closeView(candidate, stored);
         },
         .retire_resource, .expire_resource => |id| {
             var data = try resource(engine, id);
@@ -382,8 +383,7 @@ fn turn(engine: anytype, candidate: anytype, next: *growth.Head, principal: u64,
             write = data;
         }
         stored.meta.closed_at = position;
-        try candidate.put(address(.view, id), stored);
-        try closeIndexes(candidate, stored.meta);
+        try closeView(candidate, stored);
     };
     if (command.write_view != null and write == null) return error.InvalidStateView;
     if (command.failed) {
@@ -393,7 +393,7 @@ fn turn(engine: anytype, candidate: anytype, next: *growth.Head, principal: u64,
         process.failure = command.input;
         try @import("growing_lifecycle.zig").fence(&process);
     } else {
-        var mutations: [g.turn_mutations]@import("pages.zig").Mutation = undefined;
+        var mutations: [g.turn_mutations + 1]@import("pages.zig").Mutation = undefined;
         var mutation_count: usize = 0;
         for (command.mutations) |slot| if (slot) |mutation| {
             const data = if (write) |*value| value else return error.MissingWriteView;
@@ -409,7 +409,6 @@ fn turn(engine: anytype, candidate: anytype, next: *growth.Head, principal: u64,
                 data.entries -= 1;
             }
         };
-        try candidate.mutate(mutations[0..mutation_count]);
         if (write) |*data| {
             // Validate the final atomic batch, not its intermediate cardinality:
             // replacing a key at the encoding ceiling must remain possible.
@@ -417,8 +416,10 @@ fn turn(engine: anytype, candidate: anytype, next: *growth.Head, principal: u64,
             data.revision = position;
             data.last_turn = position;
             if ((data.history_ms orelse 0) > 0) data.changed_ms = (sample orelse return error.ClockUnavailable).upper();
-            try candidate.put(address(.resource, data.id), data.*);
+            mutations[mutation_count] = try c.putMutation(address(.resource, data.id), data.*);
+            mutation_count += 1;
         }
+        try candidate.mutate(mutations[0..mutation_count]);
         const subject = try engine.principal(principal);
         for (command.outputs, 0..) |slot, i| if (slot) |output| {
             try engine.executable(process, sample, false);
@@ -426,19 +427,23 @@ fn turn(engine: anytype, candidate: anytype, next: *growth.Head, principal: u64,
             _ = try engine.process(output.pid);
             if (next.outputs >= p.max_counter) return error.Overflow;
             next.outputs += 1;
-            try candidate.put(address(.output, next.outputs), g.Outbox{ .id = next.outputs, .source = process.pid, .turn = position, .index = @intCast(i), .destination = output.pid, .value = output.value });
-            try candidate.put(try c.key(.outputs_by_source, process.pid, next.outputs, ""), next.outputs);
-            try candidate.put(try c.key(.outputs_by_destination, output.pid, next.outputs, ""), next.outputs);
-            try candidate.put(address(.pending_output, next.outputs), output.pid);
-            try candidate.put(try c.key(.pending_destination, output.pid, next.outputs, ""), next.outputs);
-            try candidate.put(@import("growing_work.zig").routeKey(process.pid, output.pid, next.outputs), next.outputs);
+            try candidate.mutate(&.{
+                try c.putMutation(address(.output, next.outputs), g.Outbox{ .id = next.outputs, .source = process.pid, .turn = position, .index = @intCast(i), .destination = output.pid, .value = output.value }),
+                try c.putMutation(try c.key(.outputs_by_source, process.pid, next.outputs, ""), next.outputs),
+                try c.putMutation(try c.key(.outputs_by_destination, output.pid, next.outputs, ""), next.outputs),
+                try c.putMutation(address(.pending_output, next.outputs), output.pid),
+                try c.putMutation(try c.key(.pending_destination, output.pid, next.outputs, ""), next.outputs),
+                try c.putMutation(@import("growing_work.zig").routeKey(process.pid, output.pid, next.outputs), next.outputs),
+            });
         };
         if (command.effect) |payload| {
             try engine.executable(process, sample, false);
             if (subject.grant.permissions & p.permission(.effect) == 0) return error.Forbidden;
-            try candidate.put(address(.effect, position), g.Effect{ .id = position, .pid = process.pid, .payload = payload });
-            try candidate.put(try c.key(.effects_by_pid, process.pid, position, ""), position);
-            try candidate.put(address(.pending_effect, position), process.pid);
+            try candidate.mutate(&.{
+                try c.putMutation(address(.effect, position), g.Effect{ .id = position, .pid = process.pid, .payload = payload }),
+                try c.putMutation(try c.key(.effects_by_pid, process.pid, position, ""), position),
+                try c.putMutation(address(.pending_effect, position), process.pid),
+            });
         }
         process.consumed += 1;
         process.revision = position;
@@ -447,7 +452,11 @@ fn turn(engine: anytype, candidate: anytype, next: *growth.Head, principal: u64,
     try candidate.put(address(.process, process.pid), process);
 }
 
-fn closeIndexes(candidate: anytype, view_value: g.View) !void {
-    try candidate.remove(try c.key(.views_by_pid, view_value.pid, view_value.id, ""));
-    try candidate.remove(try c.key(.views_by_resource, view_value.resource, view_value.id, ""));
+fn closeView(candidate: anytype, stored: growth.StoredView) !void {
+    const view_value = stored.meta;
+    try candidate.mutate(&.{
+        try c.putMutation(address(.view, view_value.id), stored),
+        .{ .key = try c.key(.views_by_pid, view_value.pid, view_value.id, ""), .value = null },
+        .{ .key = try c.key(.views_by_resource, view_value.resource, view_value.id, ""), .value = null },
+    });
 }
