@@ -63,6 +63,10 @@ pub fn validateHead(request: *std.http.Server.Request) !void {
 }
 
 pub fn respond(request: *std.http.Server.Request, status: std.http.Status, body: []const u8) !void {
+    // std.http does not mark an already consumed request body as closing.
+    // Keep our sequential listener's lifetime in sync with this response's
+    // Connection: close, including failures after reading a complete body.
+    request.head.keep_alive = false;
     try request.respond(body, .{ .status = status, .keep_alive = false, .extra_headers = &.{
         .{ .name = "content-type", .value = "application/json" },
         .{ .name = "cache-control", .value = "no-store" },
@@ -186,6 +190,20 @@ test "data exhaustion preserves the separately bounded control reserve" {
     admission.release(true);
     try (Options{}).validate();
     try std.testing.expectError(error.InvalidHttpLimits, (Options{ .connections = 8 }).validate());
+}
+
+test "closing response ends reuse even after consuming the request body" {
+    var reader: Io.Reader = .fixed("POST /api HTTP/1.1\r\nHost: example.test\r\nContent-Length: 1\r\n\r\nxGET /health HTTP/1.1\r\nHost: example.test\r\n\r\n");
+    var output: [1024]u8 = undefined;
+    var writer: Io.Writer = .fixed(&output);
+    var server = std.http.Server.init(&reader, &writer);
+    var request = try server.receiveHead();
+    _ = try request.readerExpectNone(&.{}).discardRemaining();
+    try std.testing.expectEqual(.ready, server.reader.state);
+    try respond(&request, .service_unavailable, "{\"err\":\"AuthorityUnavailable\"}");
+    try std.testing.expect(std.mem.indexOf(u8, writer.buffered(), "connection: close\r\n") != null);
+    // A buffered successor must not be dispatched after advertising closure.
+    try std.testing.expect(!request.head.keep_alive);
 }
 
 test "framing validates host, duplicate identity headers and unambiguous bodies" {

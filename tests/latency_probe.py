@@ -91,6 +91,18 @@ class Probe:
                             owner.counts['principal:' + str(envelope['principal']) + ':' + classified + ':elapsed_ns'] += elapsed
                         owner.counts['response_bytes'] += len(data)
                         owner.counts['status:' + str(response.status)] += 1
+                        if native and response.status != 200:
+                            # Fixed categories distinguish admission pressure
+                            # from unavailable storage/transport. Never turn a
+                            # peer's arbitrary error text into a metric label.
+                            try:
+                                rejection = json.loads(data).get('err')
+                            except (ValueError, AttributeError):
+                                rejection = None
+                            if rejection not in ('HttpCapacity', 'AuthorityUnavailable',
+                                                 'AccessDenied', 'Conflict'):
+                                rejection = 'other'
+                            owner.counts['rejection:' + rejection] += 1
                     self.send_response(response.status)
                     for key, val in response.getheaders():
                         if key.lower() not in ('transfer-encoding', 'connection', 'content-length'):

@@ -275,6 +275,9 @@ raw samples, executable hashes, source provenance, console phases, affected-row
 checks and independent reads. A failed or interrupted experiment is incomplete;
 its JSON report and original recovery files remain available. Completed samples
 from a failed run do not establish a successful workload result.
+Failed samples retain the caller's elapsed time and timing line when available.
+Instrumented native rejections distinguish capacity refusal from unavailable
+authority work using fixed error categories; arbitrary error text is not retained.
 
 The fixture uses a persistent console. `--client` selects the separately compiled
 `transit-mutation-latency-client` public Zig consumer. That control checkpoints

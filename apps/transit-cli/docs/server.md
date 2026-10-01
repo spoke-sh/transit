@@ -315,6 +315,10 @@ diagnostics, not durable receipts. Manager diagnostics contain role/error names,
 not child payloads or credentials. Retention remains unlimited; query execution
 budgets cap each request at 1,000 source pages, 128 segments and 1 MiB result data.
 Provider heap targets are not hard RSS limits or an isolation guarantee.
+Gateway transport diagnostics omit ordinary idle closes and idle expiry.
+`HttpRequestDeadline` identifies expiry after request dispatch; it does not
+establish whether the authority accepted the request. Preserve the exact saved
+request and reconcile through the caller's recovery interface.
 
 The gateway forwards only native `/v1/query`, `/v1/command` and `/health` routes,
 preserving the signed body and upstream response status. Node and gateway permit
