@@ -11477,3 +11477,30 @@ six completed comparisons. They use CPU 1, nine alternating pairs, verified
 input-cache conditioning and unchanged limits on the shared host. Changing a
 call boundary changes where work is incurred; these timings do not prove why
 the explicit-schema cases regress.
+
+The subsequent `db5a29bc` implementation replaces the file compiler's schema
+encode/decode copy with `Type.clone`. It retains descriptor validation and uses
+the canonical writer to check the independent encoded-byte budget, then owns all
+names and recursive children directly. Source identity/metadata checks remain.
+Canonical bytes, fingerprints, native/FZP1 definitions and ABI layouts do not
+change. Fuze tests check use after releasing the original, every allocation
+failure, recursive containers, independent scalar fixtures and exact node/name
+budget boundaries. An added test initially used an inferred tuple where the
+pinned compiler requires an array; the corrected full unit suite passes in
+`/var/tmp/transit-count-descriptor-copy-bounds-array.log`. All **162 file CLI
+cases** also pass, including the 192 MiB/96 MiB memory proof, in
+`/var/tmp/transit-count-descriptor-copy-file-query.log`.
+
+The [owned-descriptor archive](benchmarks/results/2026-10-01-count-values-descriptor-copy.json.gz)
+retains **540 correct paired results** against pre-COUNT and unmodified COUNT,
+with all **30 compiler and 30 pipeline gates passing**. Compiler ratios span
+**0.7880–1.0321** for the targeted narrow/wide projections and sparse SUM cases.
+The three originally failing combinations pass these targeted runs, but the
+complete frozen-control matrix remains open. Nine alternating pairs use CPU 1,
+verified input-cache conditions and unchanged budgets on the shared host.
+The final committed prototype rebuild is byte-identical to the measured binary;
+the archive distinguishes subsequent test-only boundary checks from runtime code.
+Log `/var/tmp/transit-count-descriptor-copy-comparison.log`. The broader run is
+`/var/tmp/transit-count-descriptor-copy-full-comparison.log`.
+Full integrated `just check` passes, exit 0, in
+`/var/tmp/transit-count-descriptor-copy-integrated-check.log`.
