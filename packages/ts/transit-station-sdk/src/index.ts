@@ -109,3 +109,4 @@ export type {
 } from "./document.ts";
 
 export * as catalog from "./catalog.ts";
+export * as logical from "./logical.ts";

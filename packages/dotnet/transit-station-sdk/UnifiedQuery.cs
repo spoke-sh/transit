@@ -102,10 +102,12 @@ public static class UnifiedQuery
     private static uint Index(byte n) => n<8?n:throw new ArgumentException("Query column outside 0..7");
     public sealed record Plan {
         public IReadOnlyList<byte> Projection { get; } public Predicate Predicate { get; } public QueryAggregate Aggregate { get; } public ulong? Limit { get; }
-        public Plan(IReadOnlyList<byte> projection,Predicate? predicate=null,QueryAggregate aggregate=QueryAggregate.Rows,ulong? limit=null) {
+        public IReadOnlyList<string?>? OutputNames { get; }
+        public Plan(IReadOnlyList<byte> projection,Predicate? predicate=null,QueryAggregate aggregate=QueryAggregate.Rows,ulong? limit=null,IReadOnlyList<string?>? outputNames=null) {
             Projection=Copy(projection,8); if(Projection.Count==0) throw new ArgumentException("Expected query projection"); foreach(byte n in Projection) Index(n); Predicate=predicate??new All(); _=Name(aggregate); Aggregate=aggregate; Limit=limit;
+            if(outputNames is not null){if(outputNames.Count!=Projection.Count)throw new ArgumentException("Output names must match the projection width");OutputNames=System.Array.AsReadOnly(outputNames.Select(n => n is null?null:V.Text(n,32)).ToArray());}
         }
-        internal JsonObject Wire() { JsonArray p=new(); foreach(byte n in Projection) p.Add((uint)n); return V.Obj(("version",1),("projection",p),("predicate",Predicate.Wire()),("aggregate",Name(Aggregate)),("limit",Limit is {} limit?Turn.Decimal(limit):null)); }
+        internal JsonObject Wire() { JsonArray p=new(); foreach(byte n in Projection) p.Add((uint)n); JsonArray? names=null;if(OutputNames is not null){names=new();foreach(var n in OutputNames)names.Add(n);} return V.Obj(("version",1),("projection",p),("output_names",names),("predicate",Predicate.Wire()),("aggregate",Name(Aggregate)),("limit",Limit is {} limit?Turn.Decimal(limit):null)); }
     }
     public sealed record Budgets(ulong Pages,ulong Segments,ulong ResultBytes) { internal JsonObject Wire() => V.Obj(("pages",Turn.Decimal(Positive(Pages))),("segments",Turn.Decimal(Positive(Segments))),("result_bytes",Turn.Decimal(Positive(ResultBytes)))); }
     public sealed record Bundle {

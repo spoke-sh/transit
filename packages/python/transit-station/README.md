@@ -1,5 +1,8 @@
 # transit-station for Python
 
+The [local logical codec guide](docs/logical.md) covers exact scalar/recursive
+documents, owned values, checked casts and logical Arrow export.
+
 Typed handlers, scoped KV/Table access, durable calls and synchronous/asynchronous
 runners over the shared Zig Station implementation. The public API selects
 `native_v1` explicitly. Python owns application codecs and scheduling; Zig owns

@@ -63,12 +63,13 @@ std::string plan_wire(const transit_station_unified_plan &v) {
     require(v.projection && v.projection_count>0 && v.projection_count<=8,"query-projection");
     require(v.aggregate>=TRANSIT_AGGREGATE_ROWS && v.aggregate<=TRANSIT_AGGREGATE_SUM,"query-aggregate");
     const char *aggregates[]={"rows","count","sum"};const char *comparisons[]={"eq","ne","lt","le","gt","ge"};
-    std::string projection="[",predicate="{\"all\":{}}";
+    std::string projection="[",predicate="{\"all\":{}}",names="[";
+    for(size_t i=0;i<8;++i){if(i>=v.projection_count)require(!v.output_names[i],"query-output-names");else{if(i)names+=',';names+=v.output_names[i]?quote(text(v.output_names[i],32)):"null";}}
     for(size_t i=0;i<v.projection_count;++i){require(v.projection[i]<8,"query-column");if(i)projection+=',';projection+=decimal(v.projection[i]);}
     if(v.predicate==TRANSIT_UNIFIED_IS_STATE){require(v.state>=TRANSIT_UNIFIED_MISSING && v.state<=TRANSIT_UNIFIED_CONFLICT,"query-state");predicate="{\"state\":{\"column\":"+decimal(v.column)+",\"value\":"+quote(states[v.state])+"}}";}
     else if(v.predicate==TRANSIT_UNIFIED_COMPARE){require(v.comparison>=TRANSIT_COMPARE_EQ && v.comparison<=TRANSIT_COMPARE_GE,"query-comparison");predicate="{\"compare\":{\"column\":"+decimal(v.column)+",\"op\":"+quote(comparisons[v.comparison])+",\"value\":"+scalar_wire(v.value)+"}}";}
     else require(v.predicate==TRANSIT_UNIFIED_ALL,"query-predicate");
-    return "{\"version\":1,\"projection\":"+projection+"],\"predicate\":"+predicate+",\"aggregate\":"+quote(aggregates[v.aggregate])+",\"limit\":"+(v.has_limit?quote(decimal(v.limit)):"null")+"}";
+    return "{\"version\":1,\"projection\":"+projection+"],\"output_names\":"+names+"],\"predicate\":"+predicate+",\"aggregate\":"+quote(aggregates[v.aggregate])+",\"limit\":"+(v.has_limit?quote(decimal(v.limit)):"null")+"}";
 }
 std::string limits_wire(transit_station_unified_budgets v) {require(v.pages && v.segments && v.result_bytes,"query-budgets");return "{\"pages\":"+quote(decimal(v.pages))+",\"segments\":"+quote(decimal(v.segments))+",\"result_bytes\":"+quote(decimal(v.result_bytes))+"}";}
 Bytes codec(Local &local,const std::string &action) {

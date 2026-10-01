@@ -37,9 +37,21 @@
       "id": "TPC-C",
       "specification": "5.11.0",
       "url": "https://www.tpc.org/TPC_Documents_Current_Versions/pdf/tpc-c_v5.11.0.pdf",
-      "operations": ["New-Order", "Payment", "Order-Status", "Delivery", "Stock-Level"],
-      "common_blockers": ["schema", "suite_driver"],
-      "additional_suite_requirements": ["transactions", "expressions"]
+      "operations": [
+        "New-Order",
+        "Payment",
+        "Order-Status",
+        "Delivery",
+        "Stock-Level"
+      ],
+      "common_blockers": [
+        "schema",
+        "suite_driver"
+      ],
+      "additional_suite_requirements": [
+        "transactions",
+        "expressions"
+      ]
     },
     {
       "id": "TPC-E",
@@ -59,8 +71,15 @@
         "Data-Maintenance",
         "Trade-Cleanup"
       ],
-      "common_blockers": ["schema", "suite_driver"],
-      "additional_suite_requirements": ["transactions", "relational", "expressions"]
+      "common_blockers": [
+        "schema",
+        "suite_driver"
+      ],
+      "additional_suite_requirements": [
+        "transactions",
+        "relational",
+        "expressions"
+      ]
     },
     {
       "id": "TPC-H",
@@ -92,8 +111,15 @@
         "RF1",
         "RF2"
       ],
-      "common_blockers": ["schema", "suite_driver"],
-      "additional_suite_requirements": ["relational", "expressions", "bulk"]
+      "common_blockers": [
+        "schema",
+        "suite_driver"
+      ],
+      "additional_suite_requirements": [
+        "relational",
+        "expressions",
+        "bulk"
+      ]
     },
     {
       "id": "TPC-DS",
@@ -211,8 +237,15 @@
         "DF_WS",
         "DF_I"
       ],
-      "common_blockers": ["schema", "suite_driver"],
-      "additional_suite_requirements": ["relational", "expressions", "bulk"]
+      "common_blockers": [
+        "schema",
+        "suite_driver"
+      ],
+      "additional_suite_requirements": [
+        "relational",
+        "expressions",
+        "bulk"
+      ]
     }
   ],
   "components": [
@@ -221,21 +254,30 @@
       "suite": "TPC-C",
       "kind": "select",
       "source": "stock",
-      "sql": "SELECT quantity FROM stock WHERE id = 7"
+      "sql": "SELECT quantity FROM stock WHERE id = 7",
+      "output_types": [
+        "int64"
+      ]
     },
     {
       "id": "tpc-c.low_stock",
       "suite": "TPC-C",
       "kind": "select",
       "source": "stock",
-      "sql": "SELECT COUNT(*) FROM stock WHERE quantity < 20"
+      "sql": "SELECT COUNT(*) FROM stock WHERE quantity < 20",
+      "output_types": [
+        "uint64"
+      ]
     },
     {
       "id": "tpc-c.quantity_sum",
       "suite": "TPC-C",
       "kind": "select",
       "source": "stock",
-      "sql": "SELECT SUM(quantity) FROM stock"
+      "sql": "SELECT SUM(quantity) FROM stock",
+      "output_types": [
+        "int64"
+      ]
     },
     {
       "id": "tpc-c.declaration",
@@ -270,21 +312,31 @@
       "suite": "TPC-E",
       "kind": "select",
       "source": "trade",
-      "sql": "SELECT quantity FROM trade WHERE id = 7"
+      "sql": "SELECT quantity FROM trade WHERE id = 7",
+      "output_types": [
+        "int64"
+      ]
     },
     {
       "id": "tpc-e.large_quantity",
       "suite": "TPC-E",
       "kind": "select",
       "source": "trade",
-      "sql": "SELECT SUM(quantity) FROM trade WHERE quantity > 50"
+      "sql": "SELECT SUM(quantity) FROM trade WHERE quantity > 50",
+      "output_types": [
+        "int64"
+      ]
     },
     {
       "id": "tpc-e.recent",
       "suite": "TPC-E",
       "kind": "select",
       "source": "trade",
-      "sql": "SELECT id, quantity FROM trade WHERE id >= 11 LIMIT 8"
+      "sql": "SELECT id, quantity FROM trade WHERE id >= 11 LIMIT 8",
+      "output_types": [
+        "int64",
+        "int64"
+      ]
     },
     {
       "id": "tpc-e.declaration",
@@ -319,28 +371,40 @@
       "suite": "TPC-H",
       "kind": "select",
       "source": "lineitem",
-      "sql": "SELECT SUM(quantity) FROM lineitem"
+      "sql": "SELECT SUM(quantity) FROM lineitem",
+      "output_types": [
+        "int64"
+      ]
     },
     {
       "id": "tpc-h.selected_count",
       "suite": "TPC-H",
       "kind": "select",
       "source": "lineitem",
-      "sql": "SELECT COUNT(*) FROM lineitem WHERE quantity >= 25"
+      "sql": "SELECT COUNT(*) FROM lineitem WHERE quantity >= 25",
+      "output_types": [
+        "uint64"
+      ]
     },
     {
       "id": "tpc-h.selected_count_alias",
       "suite": "TPC-H",
       "kind": "select",
       "source": "lineitem",
-      "sql": "SELECT COUNT(*) FROM lineitem AS chosen WHERE chosen.quantity >= 25"
+      "sql": "SELECT COUNT(*) FROM lineitem AS chosen WHERE chosen.quantity >= 25",
+      "output_types": [
+        "uint64"
+      ]
     },
     {
       "id": "tpc-h.limited_sum",
       "suite": "TPC-H",
       "kind": "select",
       "source": "lineitem",
-      "sql": "SELECT SUM(chosen.quantity) FROM (SELECT quantity FROM lineitem WHERE id >= 11 LIMIT 8) AS chosen"
+      "sql": "SELECT SUM(chosen.quantity) FROM (SELECT quantity FROM lineitem WHERE id >= 11 LIMIT 8) AS chosen",
+      "output_types": [
+        "int64"
+      ]
     },
     {
       "id": "tpc-h.declaration",
@@ -375,21 +439,31 @@
       "suite": "TPC-DS",
       "kind": "select",
       "source": "inventory",
-      "sql": "SELECT SUM(quantity) FROM inventory"
+      "sql": "SELECT SUM(quantity) FROM inventory",
+      "output_types": [
+        "int64"
+      ]
     },
     {
       "id": "tpc-ds.null_count",
       "suite": "TPC-DS",
       "kind": "select",
       "source": "inventory",
-      "sql": "SELECT COUNT(*) FROM inventory WHERE quantity IS NULL"
+      "sql": "SELECT COUNT(*) FROM inventory WHERE quantity IS NULL",
+      "output_types": [
+        "uint64"
+      ]
     },
     {
       "id": "tpc-ds.sample",
       "suite": "TPC-DS",
       "kind": "select",
       "source": "inventory",
-      "sql": "SELECT id, quantity FROM inventory LIMIT 8"
+      "sql": "SELECT id, quantity FROM inventory LIMIT 8",
+      "output_types": [
+        "int64",
+        "int64"
+      ]
     },
     {
       "id": "tpc-ds.declaration",
@@ -418,6 +492,48 @@
       "kind": "mutation",
       "source": "inventory",
       "sql": "DELETE FROM inventory WHERE id = 2"
+    },
+    {
+      "id": "tpc-h.selected_count_output_alias",
+      "suite": "TPC-H",
+      "kind": "select",
+      "source": "lineitem",
+      "sql": "SELECT COUNT(*) AS \"Total\" FROM lineitem WHERE quantity >= 25",
+      "output_types": [
+        "uint64"
+      ]
+    },
+    {
+      "id": "tpc-h.limited_sum_output_alias",
+      "suite": "TPC-H",
+      "kind": "select",
+      "source": "lineitem",
+      "sql": "SELECT SUM(chosen.amount) AS \"Total\" FROM (SELECT quantity AS amount FROM lineitem WHERE id >= 11 LIMIT 8) AS chosen",
+      "output_types": [
+        "int64"
+      ]
+    },
+    {
+      "id": "tpc-e.recent_output_alias",
+      "suite": "TPC-E",
+      "kind": "select",
+      "source": "trade",
+      "sql": "SELECT id AS \"Key\", quantity AS \"Amount\" FROM trade WHERE id >= 11 LIMIT 8",
+      "output_types": [
+        "int64",
+        "int64"
+      ]
+    },
+    {
+      "id": "tpc-e.repeated_output_alias",
+      "suite": "TPC-E",
+      "kind": "select",
+      "source": "trade",
+      "sql": "SELECT quantity AS \"Amount\", quantity AS \"Copy\" FROM trade WHERE id >= 11 LIMIT 8",
+      "output_types": [
+        "int64",
+        "int64"
+      ]
     }
   ],
   "probes": [

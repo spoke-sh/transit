@@ -32,6 +32,34 @@ pub fn codec(json: [*]const u8, len: usize, out: *?*base.Buffer) callconv(.c) ba
     base.output(result, out) catch |err| return base.status(err);
     return .ok;
 }
+test "SQL output names survive neutral and ABI bundle round trips without changing identity" {
+    const t = std.testing;
+    var arena = std.heap.ArenaAllocator.init(t.allocator);
+    defer arena.deinit();
+    const alloc = arena.allocator();
+    const m = query.fuze.Unified;
+    const source: Source = .{ .resource = 7, .source = .{ .table = .{ .id = 9, .names = .{ "id", "value" }, .value_type = .int64 } } };
+    for ([_][]const u8{
+        "SELECT value AS amount FROM items",
+        "SELECT value AS amount, value AS copy FROM items",
+        "SELECT count(*) AS rows FROM items",
+        "SELECT sum(value) AS total FROM items",
+        "SELECT id, value FROM items",
+    }) |sql| {
+        const bundle = try query.Bundle.fromSql(alloc, try source.native(alloc), try m.Name.init("items"), sql, .{ .pages = 100, .segments = 100, .result_bytes = 1048576 });
+        var bytes: [query.Bundle.max_bytes]u8 = undefined;
+        const expected = try bundle.encode(&bytes);
+        const expected_hex = try std.fmt.allocPrint(alloc, "{x}", .{expected});
+        const decoded = (try apply(alloc, .{ .decode = expected_hex })).bundle;
+        const json = try std.json.Stringify.valueAlloc(alloc, Action{ .prepare = decoded }, .{});
+        var buffer: ?*base.Buffer = null;
+        try t.expectEqual(.ok, codec(json.ptr, json.len, &buffer));
+        defer base.Api.station_buffer_destroy(buffer);
+        const output = try std.json.parseFromSlice(Result, alloc, base.Api.station_buffer_data(buffer.?)[0..base.Api.station_buffer_size(buffer.?)], .{});
+        try t.expectEqualStrings(expected_hex, output.value.prepared.bytes);
+        try t.expectEqualDeep(try query.station.Publication.Digest.of(query.Bundle.format, expected), output.value.prepared.spec);
+    }
+}
 test "unified foreign bundles preserve every source and full-width scalar through owned JSON" {
     const t = std.testing;
     var arena = std.heap.ArenaAllocator.init(t.allocator);
@@ -67,4 +95,24 @@ test "unified foreign bundles preserve every source and full-width scalar throug
     var invalid = sources[0];
     invalid.source.kv.value.version = 2;
     try t.expectError(error.UnsupportedDecoder, invalid.native(alloc));
+}
+test "neutral output names own their bytes and enforce exact output width" {
+    const t = std.testing;
+    var arena = std.heap.ArenaAllocator.init(t.allocator);
+    defer arena.deinit();
+    const alloc = arena.allocator();
+    var text = "amount".*;
+    var native = try (Plan{ .projection = &.{ 0, 1 }, .output_names = &.{ &text, null } }).native(alloc);
+    @memset(&text, 'x');
+    try t.expectEqualStrings("amount", native.output_names[0].?.slice());
+    const neutral = try Plan.fromNative(alloc, native);
+    native.output_names[0] = try query.fuze.Unified.Name.init("changed");
+    try t.expectEqualStrings("amount", neutral.output_names.?[0].?);
+    try t.expect(neutral.output_names.?[1] == null);
+    for ([_][]const ?[]const u8{ &.{}, &.{"one"}, &.{ "one", "two", "three" } }) |names| {
+        try t.expectError(error.InvalidOutputNames, (Plan{ .projection = &.{ 0, 1 }, .output_names = names }).native(alloc));
+    }
+    for ([_][]const u8{ "", "not an identifier", "abcdefghijklmnopqrstuvwxyz1234567" }) |name| {
+        try t.expectError(error.InvalidColumnName, (Plan{ .projection = &.{0}, .output_names = &.{name} }).native(alloc));
+    }
 }

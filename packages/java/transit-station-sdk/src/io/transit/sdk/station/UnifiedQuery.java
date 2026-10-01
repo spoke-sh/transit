@@ -99,12 +99,14 @@ public final class UnifiedQuery {
     public record IsState(int column,State state) implements Predicate { public IsState { columnIndex(column); Objects.requireNonNull(state); } }
     public record Compare(int column,Query.Comparison comparison,Scalar value) implements Predicate { public Compare { columnIndex(column); Objects.requireNonNull(comparison); Objects.requireNonNull(value); } }
     private static void columnIndex(int n) { if(n<0 || n>=8)throw new IllegalArgumentException("Query column outside 0..7"); }
-    public record Plan(List<Integer> projection,Predicate predicate,Query.Aggregate aggregate,Optional<BigInteger> limit) {
-        public Plan { projection=List.copyOf(projection); if(projection.isEmpty() || projection.size()>8)throw new IllegalArgumentException("Expected 1..8 query columns"); projection.forEach(UnifiedQuery::columnIndex); Objects.requireNonNull(predicate); Objects.requireNonNull(aggregate); limit.ifPresent(v -> u64(v)); }
+    public record Plan(List<Integer> projection,Predicate predicate,Query.Aggregate aggregate,Optional<BigInteger> limit,Optional<List<Optional<String>>> outputNames) {
+        public Plan { projection=List.copyOf(projection); if(projection.isEmpty() || projection.size()>8)throw new IllegalArgumentException("Expected 1..8 query columns"); projection.forEach(UnifiedQuery::columnIndex); Objects.requireNonNull(predicate); Objects.requireNonNull(aggregate); limit.ifPresent(v -> u64(v));
+            outputNames=outputNames.map(List::copyOf); if(outputNames.isPresent()){var names=outputNames.get();if(names.size()!=projection.size())throw new IllegalArgumentException("Output names must match the projection width");names.forEach(n -> n.ifPresent(v -> text(v,32)));} }
         JsonObject wire() {
             JsonArray columns=new JsonArray(); projection.forEach(columns::add);
+            JsonArray names=outputNames.map(values -> {JsonArray out=new JsonArray();values.forEach(v -> out.add(v.orElse(null)));return out;}).orElse(null);
             JsonObject p=switch(predicate) { case All ignored -> obj("all",obj()); case IsState v -> obj("state",obj("column",v.column(),"value",name(v.state()))); case Compare v -> obj("compare",obj("column",v.column(),"op",name(v.comparison()),"value",UnifiedQuery.wire(v.value()))); };
-            return obj("version",1,"projection",columns,"predicate",p,"aggregate",name(aggregate),"limit",limit.map(BigInteger::toString).orElse(null));
+            return obj("version",1,"projection",columns,"output_names",names,"predicate",p,"aggregate",name(aggregate),"limit",limit.map(BigInteger::toString).orElse(null));
         }
     }
     public record Budgets(BigInteger pages,BigInteger segments,BigInteger resultBytes) {

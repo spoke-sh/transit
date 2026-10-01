@@ -74,6 +74,7 @@ export type Predicate =
     };
 export interface Plan {
   readonly projection: readonly number[];
+  readonly outputNames?: readonly (string | null)[];
   readonly predicate?: Predicate;
   readonly limit?: bigint;
   readonly aggregate?: Aggregate;
@@ -242,6 +243,11 @@ function sourceWire(source: Source): WireSource {
 function planWire(plan: Plan): WireBundle["plan"] {
   if (!Array.isArray(plan.projection) || plan.projection.length < 1 || plan.projection.length > 8)
     throw new TypeError("Expected one to eight projection indices");
+  if (
+    plan.outputNames !== undefined &&
+    (!Array.isArray(plan.outputNames) || plan.outputNames.length !== plan.projection.length)
+  )
+    throw new TypeError("Output names must match the projection width");
   let predicate: NonNullable<WireBundle["plan"]["predicate"]> = { all: {} };
   const selected = plan.predicate;
   if (selected?.kind === "state")
@@ -260,6 +266,10 @@ function planWire(plan: Plan): WireBundle["plan"] {
   return {
     version: 1,
     projection: plan.projection.map((v) => integer(v, "column", 0, 7)),
+    output_names:
+      plan.outputNames === undefined
+        ? null
+        : plan.outputNames.map((v) => (v === null ? null : text(v, 32))),
     predicate,
     limit: plan.limit === undefined ? null : wide(plan.limit).toString(),
     aggregate: plan.aggregate ?? "rows",

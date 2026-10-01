@@ -32,8 +32,13 @@ Every query has exactly one `FROM` source and at most one predicate. Unquoted
 ASCII identifiers fold to lowercase; quoted names preserve case and must still
 be valid identifiers. `FROM source AS alias` supplies a query-local qualifier;
 qualified columns use that alias when present, otherwise the declared source.
-`AS` is required. Aliases preserve the source and output column identities.
+`AS` is required. Source aliases preserve the source and output column identities.
 Catalog/schema resolution is unsupported.
+
+`column AS name`, `COUNT(*) AS name` and `SUM(column) AS name` supply owned output
+names. Repeated source columns require distinct resulting names. Output aliases
+do not change predicate scope, types or cell states. An inner projection's
+aliases become the names available to the outer aggregate.
 
 Literals are signed decimal int64, `TRUE`/`FALSE`, UTF-8 SQL strings with doubled
 quotes, and bytea hex strings such as `'\x00ff'::bytea`. `IS NULL` selects explicit
@@ -69,13 +74,14 @@ identifier bytes. Block comments nest at most 16 levels. SQL literal decoding
 admits at most 220 value bytes with 442 bytes of hex scratch storage. Typed plans
 have their own larger cell and name bounds. These limits bound one operation,
 not retained source cardinality. Parsing is a linear scan with no recursive
-parser stack. The AST holds up to eight explicit projection names and one predicate;
+parser stack. The AST holds up to eight explicit projection items, each with an
+optional owned alias, and one predicate;
 `SELECT *` expands to every declared column during compilation.
 
 Malformed encoding, NUL, unterminated strings/comments, oversized input,
 out-of-range integers and unsupported syntax fail explicitly. Schema/name/type
 validation runs before returning a plan. Unsupported DDL, writes, joins, sorting,
-grouping, arithmetic, compound predicates, output aliases and general casts do
+grouping, arithmetic, compound predicates and general casts do
 not become executable merely because the reference grammar describes them.
 There is no best-effort translation or successful partial parse.
 

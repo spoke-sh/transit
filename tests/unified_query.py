@@ -125,7 +125,9 @@ def run(node, host, proof, port_host, library, kinds=("kv", "table", "document")
                     "EXPLAIN SELECT value FROM items WHERE value = 'redacted-literal' LIMIT 18446744073709551615;",
                     'EXPLAIN SELECT value FROM items WHERE value IS TYPE_ERROR LIMIT 0;',
                     'EXPLAIN SELECT count(*) FROM items AS chosen;',
-                    'EXPLAIN SELECT chosen.value FROM items AS chosen WHERE chosen.value IS TYPE_ERROR LIMIT 0;')]
+                    'EXPLAIN SELECT chosen.value FROM items AS chosen WHERE chosen.value IS TYPE_ERROR LIMIT 0;',
+                    'EXPLAIN SELECT count(*) AS total FROM items AS chosen;',
+                    'EXPLAIN SELECT chosen.value AS "Result", chosen.value AS copy FROM items AS chosen WHERE chosen.value IS TYPE_ERROR LIMIT 0;')]
                 sends = fault['console_sends']
                 for action in inspection_requests:
                     expected = None
@@ -140,10 +142,14 @@ def run(node, host, proof, port_host, library, kinds=("kv", "table", "document")
                         if 'tables' in expected: assert expected['tables'] == (['items'] if kind == 'table' else [])
                         if 'explanation' in expected:
                             plan = expected['explanation']
-                            if plan['aggregate'] == 'count': assert plan['columns'] == [{'name': 'count', 'type': 'uint64'}]
+                            if plan['aggregate'] == 'count':
+                                assert plan['columns'] == [{'name': 'total' if 'AS total' in action['inspect']['sql'] else 'count', 'type': 'uint64'}]
                             elif 'state' in plan['predicate']:
                                 assert plan['limit'] == '0' and plan['predicate'] == {'state': {'column': 'value', 'value': 'type_error'}}
                                 assert plan['operators'] == ['scan', 'filter', 'limit', 'project']
+                                if 'AS "Result"' in action['inspect']['sql']:
+                                    assert plan['projection'] == ['value', 'value']
+                                    assert plan['columns'] == [{'name': name, 'type': 'utf8'} for name in ('Result', 'copy')]
                             else: assert plan['limit'] == str(2**64-1) and plan['operators'] == ['scan', 'filter', 'limit', 'project']
                 assert sends == fault['console_sends'], 'inspection submitted query work'
                 print(f"Unified {kind}: SQL inspection agrees across {len(inspectors)} enabled native/port/SDK callers", flush=True)
@@ -236,7 +242,8 @@ def run(node, host, proof, port_host, library, kinds=("kv", "table", "document")
                         row['counter'] = dict(state=3, kind=2, value=index+2, alternatives=[])
                         row['replica'] = dict(state=3, kind=2, value=1, alternatives=[])
                         row['optional'] = dict(state=0, kind=0, value=None, alternatives=[])
-                assert actual == expected, actual[:2]
+                named_expected = [{('Result' if name == 'value' else name): cell for name, cell in row.items()} for row in expected]
+                assert actual == named_expected, actual[:2]
                 assert total > 8192
                 assert kind == "document" or len(actual) > 32
                 manifest = final["manifest"]

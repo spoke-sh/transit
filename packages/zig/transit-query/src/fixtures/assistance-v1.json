@@ -48,6 +48,18 @@
     {"sql":"SELECT * FROM items AS id WHERE id ","cursor":35,"start":35,"end":35,"items":["IS",".","=","<>","<","<=",">",">="]},
     {"sql":"SELECT * FROM items AS id WHERE id.id ","cursor":38,"start":38,"end":38,"items":["IS","=","<>","<","<=",">",">="]},
     {"sql":"SELECT * FROM items AS \"Row\" WHERE \"Row\" ","cursor":41,"start":41,"end":41,"items":["."]},
-    {"sql":"SELECT * FROM items AS \"Row\" WHERE row ","cursor":39,"start":39,"end":39,"items":[]}
+    {"sql":"SELECT * FROM items AS \"Row\" WHERE row ","cursor":39,"start":39,"end":39,"items":[]},
+    {"sql":"SELECT id ","cursor":10,"start":10,"end":10,"items":["AS","FROM",".",","]},
+    {"sql":"SELECT id AS ","cursor":13,"start":13,"end":13,"items":[]},
+    {"sql":"SELECT count(*) ","cursor":16,"start":16,"end":16,"items":["AS","FROM"]},
+    {"sql":"SELECT count(*) AS ","cursor":19,"start":19,"end":19,"items":[]},
+    {"sql":"SELECT sum(id) AS ","cursor":18,"start":18,"end":18,"items":[]},
+    {"sql":"SELECT id AS key, la","cursor":20,"start":18,"end":20,"items":["\"label\""]},
+    {"sql":"SELECT id AS key FROM items WHERE ke","cursor":36,"start":34,"end":36,"items":[]},
+    {"sql":"SELECT id AS key FROM items WHERE key ","cursor":38,"start":38,"end":38,"items":[]},
+    {"sql":"SELECT id AS key FROM items WHERE i","cursor":35,"start":34,"end":35,"items":["\"id\"","\"items\""]},
+    {"sql":"SELECT id AS key FROM items AS x WHERE x.i","cursor":42,"start":41,"end":42,"items":["\"id\""]},
+    {"sql":"SELECT id AS key FROM items AS x WHERE key.i","cursor":44,"start":43,"end":44,"items":[]},
+    {"sql":"SELECT id AS key FROM items WHERE key.i","cursor":39,"start":38,"end":39,"items":[]}
   ]
 }

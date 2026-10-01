@@ -30,6 +30,7 @@ pub const Request = union(enum) {
     growing_document_read: abi.document_bridge.ReadAction,
     document_codec: abi.document.Action,
     unified_query_codec: abi.unified_query.Action,
+    logical_codec: abi.logical_codec.Action,
     unified_query: abi.query_client.bridge.Action,
     table_mutation: abi.mutation_client.bridge.Action,
     catalog: abi.catalog_client.bridge.Action,

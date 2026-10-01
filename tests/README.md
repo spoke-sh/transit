@@ -7239,19 +7239,32 @@ package builds subsequently pass. The installed run passes KV and Table in
 **386.41 s / 374.20 s**, including inspection agreement across thirteen
 native/port/SDK callers and SQL-shell admission, exact retry, source/requester/
 node/store recovery, current denial, retained rows and joined cleanup. Document
-qualification is still running. The log is
+qualification also passes in **1726.68 s**, including **1465.98 s** provisioning:
+twelve rows/two segments/9,880 bytes, with its existing 64 authority pages and
+8 MiB hot store. The entire three-source command exits successfully. The log is
 `/tmp/transit-sql-source-aliases-installed-built.log`; its frozen binaries precede
-the rebase and completion-only correction, and these two source passes do not
-establish a complete three-source run.
+the rebase and completion-only correction. KV/Table retain eight authority pages;
+these different fixture profiles do not establish comparable native latency.
 
 Committed-head `just ci-clean --lane core --work-root /var/tmp` passes all
 **22 tasks in 1309.02 s** at `34b0b96f`. The report is
 `.cache/ci/clean/34b0b96f175e-transit-ci-ocwpgt5q/core.meta.json`; the log is
 `/tmp/transit-sql-source-aliases-ci-clean-core.log`. Rebase onto merged #44 at
 `b8b224ce` preserves all three original commits unchanged. Clean growth at
-rebased `512ebcb4` is running with #44's catalog read reduction and the corrected
-snapshot fixture; the earlier failed growth attempts remain failed. Its log is
-`/tmp/transit-sql-source-aliases-ci-clean-growth.log`.
+rebased `512ebcb4` includes #44's catalog read reduction and the corrected
+snapshot fixture, but fails in query delivery at the unchanged 180-second
+deadline (**592.17 s** task / **752.95 s** lane). Three tasks pass and seventeen
+are unrun, including the corrected fixture. The earlier failed attempts remain
+failed; this result does not establish their cause. The log is
+`/tmp/transit-sql-source-aliases-ci-clean-growth.log`, with its failure checkout
+retained at `/var/tmp/transit-ci-0sct7l0m`.
+
+Clean experience at final alias head `93c3832b` passes five tasks, then fails
+Board's cancellation-result observation with HTTP **503 Unavailable**
+(**93.33 s** task / **261.17 s** lane). The final Station task is unrun. The log
+is `/tmp/transit-sql-source-aliases-ci-clean-experience.log`, with its failure
+checkout retained at `/var/tmp/transit-ci-knqo9ipr`. Neither lane is passed;
+the implementation is published as tracking draft PR #47.
 
 The declarative benchmark adds an aliased selected-count component beside its
 unaliased equivalent; all **29 components** and nine rejection probes pass with
@@ -7264,7 +7277,312 @@ is `/tmp/transit-sql-source-aliases-benchmark.json`, with dirty source based on
 `d5541301` and exact manifest/harness/binary provenance. The benchmark runner's
 negative controls, documentation links and verification inventory checks pass.
 
+### Typed output-name plan checkpoint
+
+The `feat/sql-output-aliases` continuation introduces owned names by output
+position and a mandatory definition in `FZP1`. Five independent Python byte
+fixtures cover renamed rows, repeated inputs with distinct names, named count
+and sum, and default names. Fuze tests compare exact bytes and output schemas,
+retain input basis/schema identity, and reject old/foreign definitions,
+colliding names, hidden slots and malformed owned names. Decoded names remain
+owned when the encoded input is changed. Fuze package tests pass after migrating
+two limit-field corruption probes to the replacement wire offsets.
+The full unit task passes after two inline signing digests are recomputed with
+independent canonical JSON/SHA-256. The first broader run passes 493/494 tests
+and exposes that stale expected digest; it remains distinct from the corrected
+pass in `/tmp/transit-sql-output-aliases-unit-fixed.log`.
+
+A source-behavior regression publishes an integrity-valid bundle with a foreign
+plan definition, then verifies one terminal rejection reply to the original peer
+and correlation without retaining a source version. The first run fails because
+the new decoder error escapes the disposition mapping (64/65 tests pass).
+Classifying incompatible-plan and invalid-output-name errors as failed requests
+makes all 65 query-package tests pass. The before/after logs are
+`/tmp/transit-sql-output-aliases-rejection-before.log` and
+`/tmp/transit-sql-output-aliases-rejection-after.log`. This is an in-memory
+behavior proof; it does not replace installed or disk-backed recovery evidence.
+
+The shared native definition, generated protocol/installation/ABI/host/browser
+resources, neutral bundles and signing fixtures are replaced together. Native
+fixtures use independent SHA-256 and OpenSSL signatures; rejection of the actual
+retired definition remains explicit. `just test::sql` passes its existing 113
+parser comparisons, 92 plan/Arrow checks, 28 three-source/eight-page-width cases,
+and mutation/declaration checks under the new plan encoding. This checkpoint
+does not yet enable output-alias SQL syntax or qualify installed caller recovery
+and performance under the replacement definition. Its logs are
+`/tmp/transit-sql-output-aliases-model-test-fixed.log`,
+`/tmp/transit-sql-output-aliases-wire-sql.log` and
+`/tmp/transit-sql-output-aliases-fixtures.log`.
+
+### SQL output-alias lowering checkpoint
+
+The shared parser, reference grammar and compiler accept explicit `AS` names on
+row positions and count/sum results. Restricted derived aggregates resolve
+renamed inner columns back to original source indices. Predicates continue to
+resolve original source names. Owned-name, scope, duplicate-output, identifier
+bound, completion and EXPLAIN fixtures exercise this behavior without granting
+source access or widening query execution budgets.
+
+`just test::sql` passes **134** Zig/ANTLR/PostgreSQL AST comparisons, **105**
+independently encoded plans and Arrow results, and **44** six-type/five-state
+result cases across three source bases and eight page widths. The latter includes
+renamed negative zero, full-width uint64, binary, null/missing/error/conflict
+cells, repeated inputs, empty results and named aggregates; **17** cases check
+explicit compile/execution failures. All **56** public SQL examples parse.
+The Fuze/query package tests, existing mutation and declaration checks also pass
+in `/tmp/transit-sql-output-aliases-syntax-final-focused.log`.
+
+The initial checks expose two test assumptions: result types were inferred from
+output names, and a repeated identical projection expected `DuplicateColumn`
+instead of the existing `DuplicateProjection`. The independent checker now
+derives types from input positions and aggregate semantics; the precise error
+expectation is corrected. Initial failures remain in
+`/tmp/transit-sql-output-aliases-parser-expanded-unit.log` and
+`/tmp/transit-sql-output-aliases-parser-sql.log`; the corrected SQL pass is in
+`/tmp/transit-sql-output-aliases-parser-sql-fixed.log`.
+
+The first full `just check` exposes stale browser inspection rules that required
+unique input projections and fixed output names. The browser now validates
+matching widths, distinct valid output names and aggregate types independently
+of aliases. Shared native fixtures include repeated renamed inputs, named count
+and renamed derived sum; malformed duplicate outputs, widths and count types
+still reject. The failed full run is
+`/tmp/transit-sql-output-aliases-syntax-check.log` and the focused browser check is
+`/tmp/transit-sql-output-aliases-browser-inspection.log`.
+The corrected full `just check` passes, including generated-contract checks,
+Zig tests, browser validation and the documentation build, in
+`/tmp/transit-sql-output-aliases-syntax-check-fixed.log`.
+
+This compiler checkpoint does not establish neutral-plan/SDK output-name round
+trips, installed recovery, performance or committed-head clean qualification.
+Those remain required before publishing the output-alias increment.
+
+### Neutral and installed SDK output-name checkpoint
+
+The neutral plan now preserves optional names by output position through
+decode/prepare and workspace compiled metadata. A regression compiles named
+SQL, decodes its bundle through the neutral API, then prepares it through the
+actual ABI codec and compares exact bytes and publication identity. Before the
+fix, 12/13 binding tests pass and this regression exposes lost names and a
+changed digest; afterward all pass. Ownership checks mutate the original name
+buffers, and malformed names or vectors with the wrong width reject. Logs are
+`/tmp/transit-sql-output-aliases-neutral-before.log` and
+`/tmp/transit-sql-output-aliases-neutral-after.log`.
+
+All ten public SDK plan APIs expose these names. The neutral/ABI cutover replaces
+the shared native definition with
+`00177e103bcb1a8208abd6958d79c9f3f471caf62d4a0c87957072356fd28214`;
+generated contracts, host/browser resources and independent signed fixtures move
+together. Both the preceding native definition and the retired main
+definition remain explicit rejection cases. The plan-definition identifier and
+`FZP1` layout from the preceding checkpoint are unchanged.
+
+The shared native/port codec suite passes **52 cases**. All eight SDK package
+build tasks pass, then `python3 -B tests/sdk_unified.py` installs and executes
+all **ten language consumers** in a fresh temporary directory. Each consumer
+compares default and named bundles against independent bytes for KV, Table and
+Document, retaining six-type/five-state Arrow and malformed-input checks. The
+new `just bindings::unified-codecs` task composes those build tasks and this
+standalone proof. These are pure codec checks: no signed authority caller or
+disk recovery is exercised. Logs are
+`/tmp/transit-sql-output-aliases-neutral-unit.log`,
+`/tmp/transit-sql-output-aliases-sdk-build.log` and
+`/tmp/transit-sql-output-aliases-installed-codecs.log`.
+
+Full `just check` passes, including generated-contract drift, runtime units,
+**21** query-browser tests and the documentation build. Python mypy passes;
+`just test::sql` retains the preceding **134/105/44/17/56** checks, and
+`just bindings::node-check` passes **39 tests**. Logs are
+`/tmp/transit-sql-output-aliases-neutral-check.log`,
+`/tmp/transit-sql-output-aliases-neutral-mypy.log` and
+`/tmp/transit-sql-output-aliases-neutral-sql-node.log`.
+Initial generation attempts fail on fixture ordering and a formatting-wrapper
+invocation; their logs remain in
+`/tmp/transit-sql-output-aliases-neutral-generate.log` and
+`/tmp/transit-sql-output-aliases-neutral-generate-fixed.log`. Fixtures are regenerated before dependent
+schemas, formatting uses `vp fmt`, and the subsequent full check passes.
+
+Installed authority/CLI named-schema checks, exact retry, current denial,
+disk-backed recovery, performance measurements and committed-HEAD clean lanes
+remain required. Earlier source-alias failures remain separate evidence.
+
+### Installed named-output recovery checkpoint
+
+The disk-backed unified-query schedule now uses an explicit `Result` output
+name in the Zig bundle and all ten SDK constructors. Document's other output
+positions retain their default names. Independently decoded Arrow must carry
+the exact renamed schema and original values. The SQL shell uses a quoted
+output alias, saves its original bundle/request across shell exit, and checks
+names on each returned page. Inspection includes named count and repeated
+inputs with distinct names, both under current access and subsequent denial.
+
+The first installed attempt fails before upload because its new inspection
+fixture expects mixed case from an unquoted SQL identifier. Quoting `Result`
+corrects the fixture without changing compiler case rules. That failure remains
+in `/tmp/transit-sql-output-aliases-installed-recovery.log`.
+
+The corrected schedule passes KV named-plan preparation and SQL inspection
+across **13 native/port/installed caller variants**, then exact signed upload
+retry and worker/node/disk-store restart after staging a segment. After restart,
+the cold store refuses writes with **507 `XMinioStorageFull`**: its shared 1.8 TB
+backing filesystem has only 17 GB available. Ursula reaches its existing 8 MiB
+hot-store boundary and returns `ColdBackpressure`; native staging reports 503.
+No storage quota or operation deadline is increased. This is incomplete recovery
+evidence: completed results, post-restart disclosure denial, CLI execution and
+the Table/Document schedules are not qualified by this run.
+The run exits unsuccessfully at the unchanged **900-second** post-restart
+deadline, with namespace 1 / correlation 86 still `admitted` and no manifest.
+Table and Document are unrun. The fixture's normal cleanup completes; the
+separately retained log snapshot is diagnostic evidence, not a recoverable
+copy of the store.
+
+The corrected log is
+`/tmp/transit-sql-output-aliases-installed-recovery-fixed.log`. A private log
+snapshot is retained at `/var/tmp/transit-sql-output-aliases-capacity-evidence`.
+The six frozen runtime artifact hashes are in
+`/tmp/transit-sql-output-aliases-installed-artifacts.json`; their runtime source
+is `4e9a8bca`, before the later compiler optimization. The unchanged limits and
+remaining gates still apply after capacity is restored.
+
+Full `just check` passes on the subsequent optimized source tree, including
+generated-contract drift, runtime units, browser validation and the documentation
+build, in `/tmp/transit-sql-output-aliases-optimized-check.log`. This does not
+complete the storage-dependent installed schedule or committed-HEAD clean lanes.
+
+### Output-alias integration with located diagnostics and console writes
+
+The continuation rebases without conflicts onto `2704c153`, including #49's
+wire-access investigation and #50's located diagnostics, authorized console
+write routes and canonical saved-write validation. Parser locations, diagnostic
+redaction and the existing mutation/catalog execution owners remain in use.
+The PostgreSQL/MySQL milestone is a proposal, not an implemented listener.
+
+Real CLI regression cases expose stale duplicate-projection advice that forbids
+repeated inputs. Shared local/remote diagnostics now describe distinct output
+names and explicit `AS`; invalid output-name shapes also receive binding advice.
+Malformed alias syntax retains its exact location. The bounded remote rendering
+tests pass, including output-name failures; runtime errors still keep their
+owning authority/recovery disposition.
+
+The initial CLI regression fails in
+`/tmp/transit-sql-output-aliases-rebased-diagnostics-before.log`. The next run
+exposes a new fixture using `id` against its configured `key` column; that fixture
+is corrected without changing binding rules, and its failure remains in
+`/tmp/transit-sql-output-aliases-rebased-focused.log`. The corrected **422 real
+CLI cases** pass, including the socket trap that rejects any authority contact
+for invalid SQL. Fuze package tests and the full independent SQL proof pass:
+134 ASTs, 105 plan/Arrow cases, 44 results, 17 failures and 56 public examples.
+Logs are `/tmp/transit-sql-output-aliases-rebased-fuze.log` and
+`/tmp/transit-sql-output-aliases-rebased-focused-fixed.log`.
+Full `just check` also passes on the rebased integration tree in
+`/tmp/transit-sql-output-aliases-rebased-check.log`; final local documentation
+links pass in `/tmp/transit-sql-output-aliases-rebased-docs.log`.
+
+The expression reference and grammar inventory now consistently describe output
+names and repeated inputs. Earlier measurements and installed artifacts retain
+their original pre-rebase source identities; the rebase does not qualify new
+installed write routes or resolve the recorded cold-store capacity failure.
+
+### Output aliases with the combined local Table writer
+
+The output-alias continuation rebases onto `65c9c669`, retaining the combined
+local Table query/writer and automatic console write route from `a0a9375e`.
+The rebase preserves author dates and resolves definition/generated-resource
+conflicts by generating a combined current native definition:
+`1b790ef9b226fa9d5ee27622dd7fbfd51cb56eb764574594c0a792d4170bf0a2`,
+the SHA-256 of
+`transit.native.v1.local-writer.sql-output-name-callers.2026-09-30`.
+The output-name `FZP1` definition stays unchanged. Schemas, ABI resources, browser
+validators and independent SHA-256/OpenSSL signing fixtures are regenerated.
+Explicit regressions reject alias-only, local-writer-only and intermediate
+definitions. No installation history is converted or reset.
+
+The first full check fails one protocol fixture because the independently
+recomputed entries-query digest omitted the existing `resource` and `revision`
+null fields. Correcting the expected canonical bytes preserves production
+signing. The failed log is
+`/tmp/transit-sql-output-aliases-local-writer-check.log`; full `just check` and
+`just test::sql` then pass in
+`/tmp/transit-sql-output-aliases-local-writer-check-fixed.log`.
+
+That combined command's subsequent `just test::server` fails before its local
+console transcript: the bindings shell's `TRANSIT_SQL_TOOLS` build setting leaks
+into automatic server configuration and correctly rejects as unknown. Evidence
+remains at `/var/tmp/transit-server-proof-i9no6k0w`. A focused run removes only
+the shell's `TRANSIT_SQL_TOOLS` and `TRANSIT_GSON_JAR` variables, retaining the
+same pinned tools and unchanged fixture. It passes the real console write,
+readiness, current-denial and restart schedule in **36.51 s**; its log is
+`/tmp/transit-sql-output-aliases-local-writer-server.log`. This local-server proof
+does not complete the separate installed all-source recovery or clean gates.
+
 ## SQL performance iteration
+
+### Output-name component coverage
+
+The declarative benchmark includes four additional output-name components:
+named count, named sum over a renamed derived input, renamed row projection,
+and repeated inputs with distinct names. Its independent manifest declares
+result types by position; the oracle no longer infers signedness from names.
+SQLite supplies expected names/values and PyArrow checks complete output.
+
+All **33 components and nine rejection probes** pass for both 257 rows in
+three-row pages and zero rows, including quoted mixed-case output names.
+Reports are `/tmp/transit-sql-output-aliases-benchmark-oracle-fixed.json` and
+`/tmp/transit-sql-output-aliases-benchmark-empty.json`. These correctness runs
+use one sample, one execution and ten compilations; they are not performance
+comparisons. The eight benchmark-runner negative checks and local documentation
+links also pass. Full TPC workloads remain blocked.
+Reports identify dirty source based on `4e9a8bca`, with exact binary,
+manifest, harness and fixture hashes; runtime code is unchanged from that commit.
+
+The first run fails on a fixture's unquoted mixed-case alias: Transit correctly
+folds it to lowercase while SQLite preserves case. The fixture now uses quoted
+identifiers when expecting mixed case. That failed report remains at
+`/tmp/transit-sql-output-aliases-benchmark-oracle.json`; the corrected passes do
+not overwrite it. Logs are
+`/tmp/transit-sql-output-aliases-benchmark-build.log` and
+`/tmp/transit-sql-output-aliases-benchmark-oracles-fixed.log`.
+
+### Direct-query compilation measurement
+
+Direct queries now use the already validated source schema instead of building
+and validating an identity input projection. Derived inputs still build and
+validate their projected scope; all plans retain final validation. Fuze's
+standalone tests and `just test::sql` pass, including 105 independently encoded
+plans and 44 paged result cases. Logs are
+`/tmp/transit-sql-output-aliases-compile-optimization-unit.log` and
+`/tmp/transit-sql-output-aliases-compile-optimization-check.log`.
+
+The [paired raw report](benchmarks/results/2026-10-01-output-aliases.json)
+records control/candidate order **A B B A A B**, five samples per run, one warm-up,
+8192 rows in eight-row pages, ten executions and 2000 compilations per sample.
+Both frozen binaries pass all 33 components and nine rejection probes in each
+run, with identical verified output cells and Arrow segment hashes. The report
+retains raw durations, fixture/harness/compiler/binary identities, source plus
+the exact candidate patch, host load and result evidence. The control is runtime
+source `7e6e2905` (unchanged from `4e9a8bca`); the candidate adds only the recorded
+compiler change.
+
+Medians across the three per-build run medians, in microseconds:
+
+| Compilation component | Control | Candidate |
+| --- | ---: | ---: |
+| Selected count | 1.073 | 0.725 |
+| Selected count with output name | 1.172 | 0.828 |
+| Row projection | 1.527 | 1.188 |
+| Renamed row projection | 1.747 | 1.412 |
+| Named sum over derived input | 1.841 | 1.723 |
+
+The direct named cases show about 19–29% less compilation time in these samples.
+Execution timings overlap; no execution speedup is established. The derived
+path retains its validation work, so its small observed difference is not
+attributed to a removed operation. This shared host also runs installed recovery;
+the measurements do not establish isolated-host, native, transport or storage
+latency. The installed recovery run uses frozen pre-optimization binaries and
+does not independently qualify the later compiler change. The subsequent full
+check passes as recorded above; committed-HEAD clean lanes remain outstanding.
+
+### Finite SQL probe
 
 `just test::sql-benchmark` builds a ReleaseSafe public-package consumer and records
 five independent process samples after one warm-up. Four compile cases each run
@@ -8862,3 +9180,235 @@ and `/tmp/transit-local-writes-combined.log`; final unit/lifecycle evidence is i
 `/tmp/transit-local-writes-final.log`. These are working-tree executions, not
 clean committed-HEAD or hosted CI evidence. `just ci-clean`, physical ENOSPC and
 installed SDK matrices were not run for this cutover.
+## Fuze logical type foundation
+
+The local `Types` profile has nine passing focused Zig tests, including 46
+independently generated Python stdlib scalar cases for exact integer widths,
+decimal coefficients, IEEE floats, Gregorian dates, timestamps and UUIDs.
+`just test::fuze-types` checks fixture drift and executes descriptor/value
+truncation, incompatible definitions, recursive budgets, escaped duplicate JSON
+keys and exhaustive allocator-failure cleanup schedules. This is local
+codec/conversion evidence, not CSV/JSONL execution, installed SDK/Arrow extension,
+durable file recovery or comparative performance evidence. The original
+six-scalar Fuze package suite passed before recursive codec additions; final-tree
+package and repository checks are recorded separately when executed.
+
+The type-foundation tree passes full `just check` on Linux x86_64 with the pinned
+Zig 0.17 shell and locked frontend dependencies: generated native/application/ABI
+contracts, unit/CLI checks, independent fixtures, frontend validation/tests and
+Docusaurus build. The initial contract commit `cb86170a` separately passes
+`just ci-clean --lane core` in a fresh checkout, including disk Ursula,
+service/client/caller/inspection/state proofs. This clean result applies to that
+contract-only commit, not subsequent type or reader implementation. One focused
+shell entry failed due to a missing cached Nix derivation; retrying with
+`--option eval-cache false` resolved the environment failure without changing pins.
+
+## Fuze bounded file sources
+
+`just test::fuze-sources` passes 23 focused Zig tests, including the nine type
+checks. Six independent Python csv/json/Decimal cases compare exact schema and
+neutral value bytes at chunk widths 1, 2, 3, 7 and 8192. Separate framing schedules
+split a quoted/BOM/newline corpus at every width. The tests cover partial and raw
+schemas, multi-file names, sparse/nested values, integer precision, late outliers,
+unknown fields, malformed/ragged input, work limits, option ownership, changed
+content, current denial, cancellation, failed-prefix completion, binding
+truncation/definition rejection and exhaustive allocator-failure cleanup.
+
+These callbacks use in-memory fixture sources. They establish neither physical
+file/capture durability nor installed caller, compression, Arrow or DuckDB
+performance qualification. Full checks and clean CI for the source checkpoint
+are recorded when executed; the earlier contract-only clean run does not qualify
+this implementation.
+
+The source checkpoint passes full `just check`, including generated contract
+checks, Zig units, CLI diagnostics, frontend tests and the documentation build.
+A subsequent focused rerun of all 23 source/type tests passes after centralizing
+saved-binding metadata validation. Logs are `/tmp/rey-fuze-sources-check.log`
+and `/tmp/rey-fuze-source-final-test.log`; these local paths are not portable
+artifacts or independent durability evidence.
+
+Committed source checkpoint `2b729f7a` passes `just ci-clean --lane core` without
+inherited outputs. Foundation/package checks, properties, client ABI, Station,
+disk storage, service, runtime upgrade, callers, inspection and state all finish
+successfully. Evidence is `.cache/ci/clean/2b729f7afdcc-transit-ci-9iwhecgd` and
+`/tmp/rey-fuze-source-ci-clean.log`. This is the core lane, not every integration
+or installed SDK profile.
+
+The shared file/native SQL checkpoint passes all 65 Fuze package tests and
+`just test::sql`: 104 independent parser ASTs, 86 Table plans/results and 24
+unified results over three source bases/eight page widths, plus declaration and
+mutation oracles. File tests exercise shared finite filtering/projection/LIMIT,
+COUNT/ordered SUM, late failures behind LIMIT, exact typed uint128 predicates,
+and exhaustive allocation failures. Logical JSON tests preserve recursive
+descriptors, full-width integers and signed floating zero through owned codecs;
+missing/foreign definitions and noncanonical numeric strings reject. Logs are
+`/tmp/rey-fuze-logical-json-test.log` and `/tmp/rey-fuze-sql-regression.log`.
+Physical acquisition, installed SDK extensions and comparative performance
+remain separate qualification gates.
+
+## Captured local file queries
+
+`just test::file-query` passes 83 cases against the real `transit` executable on
+Linux x86_64. Six independent Python source fixtures and all 46 scalar oracle
+cases cross acquisition, discovery/explicit decoding, SQL and neutral JSON;
+the Python checker reconstructs canonical descriptor/value bytes independently.
+Other cases verify gzip optional fields/header CRC/payload CRC/size, truncation,
+trailing/concatenated members, encoded/expanded quotas, exact aggregate results,
+late failures behind LIMIT, explicit type-error cells, duplicate names/keys,
+UTF-8 failures and invocation validation.
+
+SIGINT during idle/partial stdin and blocked stdout exits 130; a broken output
+pipe exits 1. SIGKILL during acquisition leaves no named capture. Each case
+checks its private temporary directory. Rewriting the original file after the
+schema is published leaves all 10000 captured values unchanged. A 192 MiB CSV
+scan returns the expected count under a **96 MiB RLIMIT_AS** process ceiling;
+captures use `/var/tmp` disk storage. This is larger than the process's permitted
+address space, not a claim that input exceeds host RAM or that host caches were
+cold. No durable job is admitted, so these are ephemeral cleanup/immutability
+proofs rather than accepted-work crash recovery.
+
+The CLI checkpoint passes full `just check` (generated contracts, Zig/CLI units,
+independent fixtures, frontend checks/tests and documentation build). Logs are
+`/tmp/rey-fuze-cli-proof.log` and `/tmp/rey-fuze-cli-check.log`. Arrow, installed
+SDK extensions and the DuckDB performance matrix are not qualified by this run.
+
+## Logical Arrow export
+
+`just test::logical-arrow` passes **100 PyArrow 23.0.0 cases** on Linux x86_64.
+All 46 independent scalar fixtures and six source fixtures cross the real CLI
+into IPC, with Python reconstructing exact canonical values from Arrow buffers.
+Temporal validation reads integer units without Python datetime truncation;
+decimal uses widened Python Decimal precision. The separate neutral-JSON bridge
+checks binary, interval, civil timestamp, fixed arrays, maps, tagged unions,
+structs, lists and JSON across value/null/missing/type-error/conflict. Canonical
+type metadata, full-width conflict IDs, inactive variants and ownership after
+the producer exits remain intact.
+
+Independent checks include physical schema/nullability, full Arrow validation,
+batch splitting at widths 1/8 under 64 KiB segments and missing end markers on
+late failure. The Fuze package passes 66 tests, including logical IPC round trip,
+tiny workspace/output failures and the previous allocation schedules. Logs are
+`/tmp/rey-fuze-arrow-proof.log` and `/tmp/rey-fuze-logical-arrow-cli.log`. These
+prove local IPC export, not installed SDK, logical IPC import/C ownership,
+Flight expansion or comparative performance.
+
+The logical Arrow checkpoint also passes full `just check` and a rerun of all
+83 real file-query host cases; see `/tmp/rey-fuze-arrow-check.log`. Rich Arrow
+export remains inside the original output/workspace bounds.
+
+Structural operations pass **11 focused type tests / 68 Fuze package tests**.
+The 46 independent scalar fixtures now also compare Python-computed semantic
+SHA-256 hashes, including float32 widening and signed-zero normalization.
+Recursive tests distinguish null/missing, check exact uint128 ordering, typed map
+equality and rejection of error/conflict/unsupported traits before comparison
+short-circuiting. Hashing does not change the bit-preserving neutral codecs.
+The log is `/tmp/rey-fuze-operations-test.log`.
+
+## Local logical codec and installed owners
+
+`just test::logical-codec` passes 91 independent scalar/recursive/state fixtures
+through both the C ABI and local native port on Linux x86_64. It compares exact
+binary values and type fingerprints, the independent scalar structural-hash
+oracle, generated recursive JSON Schema validation and PyArrow interpretation.
+It rejects missing/foreign definitions, truncation, trailing bytes and noncanonical
+hex, and checks explicit decimal rounding. Native input bytes are overwritten
+before returned buffers are read; copied results remain valid after native
+buffer release. Fuze's allocation-failure test covers every allocation in a
+complete uint128 binding/result operation.
+
+`just bindings::logical-test` installs current wheels and Node tarballs outside
+the checkout and passes the same 91 fixtures through public Python/TypeScript
+logical owners. Byte arrays are independently owned, results survive later calls
+and codec closure, and closed codecs reject work. Native artifacts come from the
+local pinned build. This qualifies local document/codecs and logical IPC export;
+it does not widen the stored/native query or Flight profiles, qualify other
+language logical APIs, or establish comparative performance. The 100-case
+`just test::logical-arrow` schedule also passes after sharing its recursive
+fixtures with these boundary checks.
+
+## File comparison baselines and metadata execution
+
+The [2026-09-30 evidence](fuze_benchmarks/results/2026-09-30/README.md) freezes
+numeric budgets in commit `5052c59e`, before the metadata optimizations. The
+optional benchmark shell pins DuckDB 1.5.2/build `8a5851971f` and PyArrow 23.0.0
+from the unchanged lockfile. `just doctor` and the optional-shell version/build
+checks pass. The harness uses the real CLI capture boundary and Fuze source,
+query and Arrow owners; DuckDB remains a development dependency.
+
+The accepted baseline contains 792 samples over nine shapes, five schema modes,
+two input-cache conditions and two engines, including separate projection,
+batch-size, filter, COUNT and SUM experiments. Every case has three raw
+repetitions and verified source hashes/results. The same eight-query six-scalar
+driver runs against `d5541301` and candidate with one discarded warmup and nine
+measured processes per binary. Median candidate/control ratios are 0.9960–1.0480.
+A 600058901-byte input completes in four modes under a fresh 256 MiB RAM/cache
+cgroup with swap disabled, actual peak 268435456 bytes and no OOM events.
+Exact commands, scope differences, original failures, hashes and compressed raw
+JSON reports accompany the baseline. Executable VmHWM and process-lifetime
+wait4 RSS are separate counters; the latter includes the pre-exec launcher.
+
+The harness rejects wrong counts/checksums, missing phases/completion and changed
+captures. Its six Python evidence tests also reject incomplete/dirty reports,
+changed workloads/drivers/CPU, missing repetitions and numeric regressions; a
+failed check replaces any prior successful report. The numeric checker recomputes
+metrics from raw observations and requires identical declared conditions. It does
+not infer parity from a successful process exit or compare incompatible allocator
+counter scopes.
+
+The descriptor-validation optimization at `19d3ba7d` passes all 25 focused
+source/type tests. The bounded CSV column-map implementation at `f509cdfb` passes
+27, including reordered/absent optional headers and rejection of a replacement
+valid binding during an active scan. Its map is rebuilt per file; current checks,
+full-row conversion, source verification and failed-prefix behavior remain.
+At `00f83fc0`, full `just check`, all 83 executable file-query cases and all 100
+independent PyArrow cases pass. The benchmark binaries are rebuilt from that
+source; generated local Zig caches were then removed before candidate measurement.
+
+The first complete optimized matrix passes its result, allocation, I/O-count,
+memory, scan/query and specialized-path checks but fails the numeric timing gate:
+12 cold-acquisition/phase wall limits and one discovery CPU limit. The retained
+report distinguishes this failure from successful correctness checks. Investigation
+shows large wall/CPU separation in cold acquisition with unchanged bytes and
+similar acquisition CPU; the unchanged repeat below tests reproducibility. These observations
+are not a passed performance gate or final committed-HEAD clean qualification.
+
+
+A complete unchanged repeat also fails seven capture/discovery timing limits in
+different cases. Both optional metadata changes are withdrawn at `cffa7b56`;
+none of these failures is waived and no budget is raised. The
+[experiment archive](fuze_benchmarks/results/2026-09-30/README.md#withdrawn-metadata-experiments)
+retains every raw run and both failed gate reports. A source comparison verifies
+that all implementation/generated-contract/build/toolchain paths again match
+accepted baseline `5052c59e`. The delivered feature uses that measured baseline;
+it makes no qualified optimization or DuckDB-parity claim. Final clean checks
+remain a separate requirement.
+
+### File-query integration with current main
+
+The schema-on-demand branch integrates `main` at `9fdf1d02`, including current
+native definitions, SQL diagnostics and explicit `AS` source aliases. Alias
+resolution lives in the shared `SqlLowering` path for file and native queries;
+it preserves source identity, binds inner/outer qualifiers separately and rejects
+bare aliases or references to the hidden original qualifier. SDK resources are
+regenerated from the merged Zig owners.
+
+The merged tree passes `just doctor`, full `just check` (including documentation
+production build), and `just test::sql`: 113 independent SELECT ASTs, 92 real
+plans and 28 unified results, plus mutation/declaration fixtures. The first
+expanded file-query proof incorrectly expected bare aliases to succeed; the
+shared parser rejects them. Correcting that expectation and the new guide text
+leaves the implemented grammar unchanged. The complete rerun of
+`just test::file-query` passes 89 real CLI cases, including explicit/nested aliases,
+invalid qualifiers and all existing capture/gzip/cancellation/192 MiB memory cases.
+
+The frozen benchmark artifacts retain their exact pre-integration revisions.
+Integration does not reinstate either withdrawn metadata experiment and does not
+turn those historical timings into measurements of a new revision. Committed-HEAD
+clean qualification remains outstanding at this integration checkpoint.
+
+The subsequent rebase uses `origin/main` at `ac9ad43d`, which adds native SQL
+output aliases and replaces its current protocol definition. Native compilation
+and generated SDK resources retain that implementation. File plans keep their
+previous output-name profile and explicitly reject output aliases; source `AS`
+aliases remain supported. Earlier merged-tree checks do not qualify this rebased
+revision; final checks must run again.

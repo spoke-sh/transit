@@ -98,16 +98,18 @@ module Transit
         end
         def wire = { 'compare' => { 'column' => column, 'op' => comparison.to_s, 'value' => value.wire } }
       end
-      Plan = Data.define(:projection, :predicate, :limit, :aggregate) do
-        def initialize(projection:, predicate: nil, limit: nil, aggregate: :rows)
+      Plan = Data.define(:projection, :predicate, :limit, :aggregate, :output_names) do
+        def initialize(projection:, predicate: nil, limit: nil, aggregate: :rows, output_names: nil)
           raise ArgumentError, 'Expected bounded projection' unless projection.is_a?(Array) && projection.length.between?(1, 8)
+          raise ArgumentError, 'Output names must match the projection width' unless output_names.nil? || (output_names.is_a?(Array) && output_names.length == projection.length)
           raise ArgumentError, 'Expected predicate' unless predicate.nil? || predicate.is_a?(IsState) || predicate.is_a?(Compare)
           raise ArgumentError, 'Expected aggregate' unless %i[rows count sum].include?(aggregate)
           super(projection: projection.map { |v| Internal.integer(v, min: 0, max: 7) }.freeze, predicate: predicate,
-            limit: limit.nil? ? nil : Internal.integer(limit, min: 0, max: U64_MAX), aggregate: aggregate)
+            limit: limit.nil? ? nil : Internal.integer(limit, min: 0, max: U64_MAX), aggregate: aggregate,
+            output_names: output_names&.map { |v| v.nil? ? nil : Internal.text(v, 32).freeze }&.freeze)
         end
         def wire = { 'version' => 1, 'projection' => projection, 'predicate' => predicate&.wire || { 'all' => {} },
-          'limit' => limit&.to_s, 'aggregate' => aggregate.to_s }
+          'limit' => limit&.to_s, 'aggregate' => aggregate.to_s, 'output_names' => output_names }
       end
       Budgets = Data.define(:pages, :segments, :result_bytes) do
         def initialize(pages:, segments:, result_bytes:)

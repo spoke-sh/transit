@@ -24,6 +24,7 @@ export const sections: Section[] = [
     pages: [
       reference("cli", "Transit CLI"),
       page("apps/transit-cli/docs/console.md", "guides/console", "Use the console"),
+      page("apps/transit-cli/docs/file-query.md", "guides/file-query", "Query CSV and JSONL files"),
       page("apps/transit-cli/docs/server.md", "guides/server", "Configure a local server"),
       page(
         "apps/transit-cli/docs/applications.md",
@@ -64,6 +65,11 @@ export const sections: Section[] = [
       reference("sql/as-of", "FOR SYSTEM_TIME AS OF"),
       reference("sql/application", "Application declarations"),
       reference("queries", "Query execution and recovery"),
+      page(
+        "packages/zig/transit-fuze/docs/file-sources.md",
+        "reference/file-sources",
+        "Bounded CSV and JSONL sources",
+      ),
       page("packages/zig/transit-fuze/docs/sql.md", "reference/sql-table", "Table SQL v1"),
       page(
         "packages/zig/transit-fuze/docs/unified-sql.md",

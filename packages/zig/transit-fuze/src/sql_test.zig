@@ -40,6 +40,10 @@ test "SQL bounded lexical decoding and complete-input rejection" {
     try t.expectError(error.InvalidSqlEncoding, sql.parse("SELECT * FROM items\x00"));
     try t.expectError(error.InvalidSqlEncoding, sql.parse("SELECT * FROM items\xff"));
     try t.expectError(error.InvalidColumnName, sql.parse("SELECT seventeenlettersx FROM items"));
+    _ = try sql.parse("SELECT id AS abcdefghijklmnop FROM items");
+    try t.expectError(error.InvalidColumnName, sql.parse("SELECT id AS abcdefghijklmnopq FROM items"));
+    try t.expectError(error.InvalidColumnName, sql.parse("SELECT count(*) AS abcdefghijklmnopq FROM items"));
+    try t.expectError(error.InvalidColumnName, sql.parse("SELECT id AS \"\" FROM items"));
     try t.expectError(error.InvalidColumnName, sql.parse("SELECT \"a\"\"b\" FROM items"));
     try t.expectError(error.LiteralOutOfRange, sql.parse("SELECT * FROM items WHERE id = 9223372036854775808"));
     try t.expectError(error.LiteralOutOfRange, sql.parse("SELECT * FROM items WHERE id = -9223372036854775809"));
@@ -113,6 +117,12 @@ test "incomplete grammar expectations come from the production parser" {
         .{ .prefix = "", .keyword = "SELECT" },
         .{ .prefix = "SELECT ", .keyword = "COUNT", .role = .column, .symbol = .star },
         .{ .prefix = "SELECT id ", .keyword = "FROM", .symbol = .comma },
+        .{ .prefix = "SELECT id ", .keyword = "AS" },
+        .{ .prefix = "SELECT id AS ", .role = .alias },
+        .{ .prefix = "SELECT id AS key, ", .role = .column },
+        .{ .prefix = "SELECT count(*) ", .keyword = "AS" },
+        .{ .prefix = "SELECT count(*) AS ", .role = .alias },
+        .{ .prefix = "SELECT sum(value) AS ", .role = .alias },
         .{ .prefix = "SELECT id, value ", .keyword = "FROM" },
         .{ .prefix = "SELECT * FROM ", .role = .source },
         .{ .prefix = "SELECT * FROM items ", .keyword = "WHERE", .symbol = .semi },
@@ -154,6 +164,12 @@ test "incomplete grammar expectations come from the production parser" {
     try t.expectEqualStrings("x", aliased.qualifier.?.slice());
     try t.expectEqual(sql.NameRole.column, aliased.name_role.?);
     try t.expectEqual(sql.NameRole.alias, (try sql.hints("SELECT * FROM items AS ")).name_role.?);
+    const renamed = try sql.hints("SELECT id AS key FROM items AS x WHERE x.");
+    try t.expectEqualStrings("x", renamed.source_alias.?.slice());
+    try t.expectEqualStrings("x", renamed.qualifier.?.slice());
+    const plain = try sql.hints("SELECT id AS key FROM items WHERE ");
+    try t.expect(plain.source_alias == null);
+    try t.expectEqual(sql.NameRole.column, plain.name_role.?);
     for ([_][]const u8{ "DELETE ", "SELECT * JOIN ", "SELECT 'open;", "SELECT \"open", "/* open", "-- ignored" }) |prefix| {
         const hints = try sql.hints(prefix);
         try t.expect(hints.name_role == null);

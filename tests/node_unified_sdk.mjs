@@ -33,6 +33,10 @@ async function codecs() {
     assert.equal(hex(bundle.data), fixtures[index].wire_hex);
     const copy = bundle.data; copy.fill(0);
     assert.equal(hex(bundle.data), fixtures[index].wire_hex);
+    const named = await q.Bundle.prepare(source, {projection: [1, 0], outputNames: ['Result', null], limit: wide, predicate: {
+      kind: 'compare', column: 1, comparison: 'ne', value: index === 0 ? {type: 'uint64', value: wide} : {type: 'utf8', value: 'x'.repeat(512)},
+    }}, {pages: 1000n, segments: 500n, resultBytes: 1048576n});
+    assert.equal(hex(named.data), fixtures[index].named_wire_hex);
   }
   for (const source of [{...sources[0], value: {type: 'uint64', version: 2}}, {...sources[1], valueType: 'uint64'}])
     await assert.rejects(q.Bundle.prepare(source, {projection: [0]}, {pages: 1n, segments: 1n, resultBytes: 1n}));
@@ -66,7 +70,8 @@ async function serve() {
         {column: {name: 'replica', type: 'uint64'}, relative: true, mode: 'element_replica'},
         {column: {name: 'optional', type: 'utf8'}, path: ['optional']},
       ]};
-  const bundle = await q.Bundle.prepare(source, {projection: config.kind === 'document' ? [0, 1, 2, 3] : [1], predicate: {
+  const bundle = await q.Bundle.prepare(source, {projection: config.kind === 'document' ? [0, 1, 2, 3] : [1],
+    outputNames: config.kind === 'document' ? ['Result', null, null, null] : ['Result'], predicate: {
     kind: 'compare', column: config.kind === 'document' ? 0 : 1, comparison: 'ne', value: {type: 'utf8', value: 'x'.repeat(512)},
   }}, {pages: 1000n, segments: 100n, resultBytes: 1048576n});
   assert.equal(hex(bundle.data), hex(await readFile(config.bundle)));

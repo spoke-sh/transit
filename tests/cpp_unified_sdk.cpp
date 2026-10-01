@@ -45,13 +45,15 @@ static q::Source source(ResourceRef resource,int kind,bool golden) {
         {{"value",q::Type::Utf8},{},true},{{"counter",q::Type::UInt64},{},true,q::ProjectionMode::ElementCounter},
         {{"replica",q::Type::UInt64},{},true,q::ProjectionMode::ElementReplica},{{"optional",q::Type::Utf8},{"optional"}}},std::vector<std::string>{"items"}};
 }
-static q::Bundle bundle(const q::Source &source,int kind,bool golden) {
+static q::Bundle bundle(const q::Source &source,int kind,bool golden,bool named=false) {
+    std::optional<std::vector<std::optional<std::string>>> names;
+    if(named){names.emplace(golden?2:kind==2?4:1);(*names)[0]="Result";}
     return q::prepare(source,{golden?std::vector<uint8_t>{1,0}:kind==2?std::vector<uint8_t>{0,1,2,3}:std::vector<uint8_t>{1},
         q::Compare{static_cast<uint8_t>(golden?1:kind==2?0:1),Comparison::Ne,golden&&kind==0?q::Scalar{uint64_t{UINT64_MAX}}:q::Scalar{std::string(512,'x')}},
-        Aggregate::Rows,golden?std::optional<uint64_t>{UINT64_MAX}:std::nullopt},{1000,static_cast<uint64_t>(golden?500:100),1048576});
+        Aggregate::Rows,golden?std::optional<uint64_t>{UINT64_MAX}:std::nullopt,names},{1000,static_cast<uint64_t>(golden?500:100),1048576});
 }
 static void codecs(const std::string &root) {
-    for(int kind=0;kind<3;++kind) { auto b=bundle(source(ResourceRef(46,7),kind,true),kind,true); assert(b.data()==read(root+"/bundle"+std::to_string(kind)+".bin")); }
+    for(int kind=0;kind<3;++kind) { auto b=bundle(source(ResourceRef(46,7),kind,true),kind,true); assert(b.data()==read(root+"/bundle"+std::to_string(kind)+".bin")); assert(bundle(source(ResourceRef(46,7),kind,true),kind,true,true).data()==read(root+"/named-bundle"+std::to_string(kind)+".bin")); }
     const std::vector<q::Column> columns{{"int64",q::Type::Int64},{"uint64",q::Type::UInt64},{"float64",q::Type::Float64},{"boolean",q::Type::Boolean},{"utf8",q::Type::Utf8},{"binary",q::Type::Binary}};
     auto ipc=read(root+"/arrow.ipc"); const auto rows=q::decode_arrow(columns,ipc,5); std::fill(ipc.begin(),ipc.end(),0);
     const std::array<q::Scalar,6> expected{int64_t{INT64_MIN},uint64_t{UINT64_MAX},-0.0,false,std::string("café é 東京🙂"),Bytes{0,255,128}};
@@ -70,7 +72,7 @@ static void serve(char **args) {
     const auto realm=std::stoull(args[6]); const ResourceRef resource(realm,std::stoull(args[9]));
     const q::Connection connection{ProcessRef(realm,std::stoull(args[8])),resource,ProcessRef(realm,std::stoull(args[10])),ResourceRef(realm,std::stoull(args[11]))};
     const int kind=std::string(args[4])=="kv"?0:std::string(args[4])=="table"?1:2;
-    const auto definition=source(resource,kind,false); assert(bundle(definition,kind,false).data()==read(args[5]));
+    const auto definition=source(resource,kind,false); assert(bundle(definition,kind,false,true).data()==read(args[5]));
     std::optional<q::Client> owner(q::Client::open(ClientConfig::growing(args[2]).timeout(10000),Credential(realm,std::stoull(args[7]),args[3]),connection));
     auto &client=*owner; const auto description=client.describe(definition); assert(description.bundle_bytes==16384&&description.batch_rows==8);
     std::optional<q::Page> saved; std::cout<<"{\"ready\":true}"<<std::endl;

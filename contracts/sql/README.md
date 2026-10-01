@@ -80,7 +80,10 @@ The read grammar permits one Table, one optional typed comparison or exact cell-
 one to eight columns or star, row output, `COUNT(*)`, and `SUM(column)`. Identifiers
 fold to lowercase unless quoted. Column qualification is optional; `FROM source
 AS alias` makes the alias its column qualifier. `AS` is required. The restricted
-aggregate input subquery has a separate outer alias. Strings
+aggregate input subquery has a separate outer alias. Row projections and
+aggregates accept explicit `AS name` output aliases. Output names are distinct;
+an inner projection's renamed columns are available to the outer aggregate,
+while predicates resolve original source columns. Strings
 escape quotes by doubling them; bytea literals use `'\x00ff'::bytea`. Keywords
 are case-insensitive. Line/block comments and one optional terminator are admitted.
 The production profile additionally bounds names, literals, statement size and
@@ -91,7 +94,7 @@ spells Fuze's filter → limit → aggregate order. A direct aggregate's outer
 `LIMIT` is syntactically recognized but cannot be lowered as an input limit.
 No optimizer rewrite is implied. General subqueries, joins, grouping, sorting,
 compound predicates, expression arithmetic, general casts,
-`COUNT(column)`, aliases on output columns and adjacent-string concatenation
+`COUNT(column)` and adjacent-string concatenation
 are outside the grammar. `AS OF` remains a separately checked fragment.
 
 `CREATE TABLE`/`DOCUMENT`/`KV` have a separate bounded offline Zig compiler:

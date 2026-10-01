@@ -531,3 +531,34 @@ vortex *args:
 # Installed Python/Node, local application, query or browser/reactive faults.
 vortex-profile profile:
     python3 -B tests/verification/external_profiles.py --profile {{quote(profile)}}
+
+# Independent logical type fixtures, allocation failures and exact codecs.
+fuze-types:
+    python3 -B tests/fuze_types.py
+    zig test packages/zig/transit-fuze/src/Types.zig
+
+# Independent CSV/JSONL records, schema binding, denial and allocation schedules.
+fuze-sources:
+    python3 -B tests/fuze_sources.py
+    zig test packages/zig/transit-fuze/src/FileSource.zig
+
+# Real file/stdin/gzip query host, independent codecs and constrained process memory.
+file-query:
+    zig build test-file-query
+
+# Independent PyArrow interpretation of all logical families and five states.
+logical-arrow:
+    zig build test-logical-arrow
+
+# Exact logical values across owned C buffers and bounded local host messages.
+logical-codec:
+    zig build station-abi transit-station-host
+    python3 -B tests/fuze_logical_codec.py zig-out/lib/libtransit_station.so zig-out/bin/transit-station-host
+
+# Run in nix develop .#benchmarks; reports require an explicit output path.
+[positional-arguments]
+file-benchmark *args:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    zig build file-benchmark -Doptimize=ReleaseSafe
+    "${TRANSIT_FUZE_BENCH_PYTHON:?Enter nix develop .#benchmarks}" -B tests/fuze_benchmarks/run.py zig-out/bin/transit-file-benchmark "$@"

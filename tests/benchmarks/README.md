@@ -37,7 +37,7 @@ report left by a hard kill is incomplete. Never infer success from file existenc
 
 ## Workload and measurement boundaries
 
-`manifest.json` owns the 29 executable components, nine rejection probes, pinned
+`manifest.json` owns the 33 executable components, nine rejection probes, pinned
 specification references and full-workload inventory. Every workload entry has
 its common schema and driver blockers; additional requirements are suite-level
 prerequisites, not an exhaustive per-query operator audit. TPC-DS entries count
@@ -54,6 +54,14 @@ The selected-count pair uses identical data, predicate and output with and
 without an explicit source alias. It records their compilation and execution
 costs separately while SQLite/PyArrow verify the same result. This additional
 component does not promote any full-workload coverage.
+
+Four output-name components cover named count, named sum over a renamed derived
+input, renamed rows and repeated inputs with distinct names. The first three
+have existing controls with identical values. SQLite supplies expected names
+and values, preserving alias case; the manifest supplies independent result
+types by position. A name such as `Total` cannot determine whether its cells are
+signed or unsigned. Every run verifies both names and types before reporting
+timings. These components do not promote full-workload coverage.
 
 Every SELECT uses the production SQL compiler, FZP1 encode/decode and bound
 `Unified.Stream`. The source is a synthetic two-column Table basis with eight

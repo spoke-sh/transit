@@ -41,6 +41,13 @@ configures `.connect` and `.mode`; server `transit.yaml` settings overlay the
 installed bundle's defaults. See the linked component guides for precedence,
 limits and recovery.
 
+## Local file queries
+
+`transit file-query` executes finite SQL over captured CSV/JSONL files or stdin,
+with explicit, sampled, full or raw schemas. The [file-query guide](docs/file-query.md)
+defines exact values, checked gzip, temporary disk quotas and completion records.
+It uses local OS access and creates no durable Transit job.
+
 ## Explicit catalog operations
 
 `transit catalog` compiles `CREATE TABLE` offline, saves signed initialization,

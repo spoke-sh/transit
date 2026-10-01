@@ -105,6 +105,10 @@
             inputsFrom = [ serving ];
             packages = [ (pkgs.callPackage ./nix/flight-tools.nix { }) ];
           };
+          benchmarks = pkgs.mkShell {
+            inputsFrom = [ default ];
+            TRANSIT_FUZE_BENCH_PYTHON = "${pkgs.callPackage ./nix/fuze-benchmark-tools.nix { }}/bin/python3";
+          };
           serving = pkgs.mkShell {
             inputsFrom = [ default ];
             packages = [ pkgs.nginx ];

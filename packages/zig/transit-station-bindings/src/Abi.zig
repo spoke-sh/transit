@@ -8,6 +8,7 @@ pub const growing = @import("GrowingAbi.zig");
 pub const document_bridge = @import("DocumentBridge.zig");
 pub const document = @import("DocumentCodec.zig");
 pub const unified_query = @import("QueryCodec.zig");
+pub const logical_codec = @import("LogicalCodec.zig");
 pub const query_client = @import("QueryAbi.zig");
 pub const mutation_client = @import("TableMutationAbi.zig");
 pub const catalog_client = @import("CatalogAbi.zig");
@@ -24,6 +25,13 @@ fn cast(comptime T: type, pointer: anytype) *T {
 }
 pub fn output(value: anytype, out: *?*Buffer) !void {
     return outputWithAllocator(allocator, value, out);
+}
+/// Copy a domain-validated JSON response into an independently owned ABI buffer.
+pub fn outputEncoded(bytes: []const u8, out: *?*Buffer) !void {
+    const buffer = try allocator.create(BufferImpl);
+    errdefer allocator.destroy(buffer);
+    buffer.bytes = try allocator.dupe(u8, bytes);
+    out.* = @ptrCast(buffer);
 }
 pub fn outputWithAllocator(alloc: std.mem.Allocator, value: anytype, out: *?*Buffer) !void {
     const buffer = try alloc.create(BufferImpl);
@@ -57,6 +65,7 @@ pub fn failure(err: anyerror, out: *?*Buffer) Status {
     return status(err);
 }
 pub const Api = struct {
+    pub const station_logical_codec = logical_codec.codec;
     pub const station_catalog_create = catalog_client.create;
     pub const station_catalog_destroy = catalog_client.destroy;
     pub const station_catalog_call = catalog_client.call;

@@ -1,7 +1,7 @@
 # Performance characteristics and improvement plan
 
 For planned CSV/JSONL workloads, see
-[schema-on-demand comparisons](#planned-schema-on-demand-comparisons). The native
+[schema-on-demand comparisons](#schema-on-demand-measurements). The native
 query measurements below do not measure file discovery or type inference.
 
 The console executes fresh interactive queries through leased native snapshots
@@ -311,76 +311,89 @@ Recovery, current revocation, cancellation, expiry, source changes and uncertain
 commits belong in the same evaluation. Durable-job recovery remains a separate
 requirement. A fast read that skips these boundaries does not qualify the design.
 
-## Planned schema on demand comparisons
+## Schema on demand measurements
 
-**Status: planned; no CSV/JSONL inference implementation or comparative results.**
-The [type-system plan](sql/types.md#planned-type-system-and-schema-discovery)
-requires useful first-query latency without losing exact types or allowing
-resident memory to grow with the input. Existing Table/KV/Document timings above
-are not a file-reading baseline. DuckDB supplies a comparison system; it does
-not supply Transit's execution engine or authorization semantics.
+Local CSV/JSONL discovery, finite queries and explicit CLI capture have a
+[reproducible comparison matrix](../../tests/fuze_benchmarks/README.md) and
+[recorded baseline and budgets](../../tests/fuze_benchmarks/results/2026-09-30/README.md).
+DuckDB 1.5.2 (build `8a5851971f`) and PyArrow 23.0.0 are pinned development
+comparators; neither supplies Transit's execution engine or authorization.
+The [type and source reference](sql/types.md#schema-discovery-and-binding)
+defines supported modes and deliberate semantic differences.
 
-### Workload matrix
+The recorded baseline uses 4096 deterministic rows across narrow/wide CSV,
+nested/sparse/decimal JSONL, leading-zero identifiers, reordered files, gzip and
+stdin. Explicit, partial, sampled, full and raw modes run with cold/warm input
+pages, three raw repetitions and one CPU per child. Separate projection,
+one-row/eight-row batch, filter, COUNT and SUM runs bring the matrix to 792
+samples across both engines. The reports retain fixture hashes, resolved schemas,
+reader options, compiler/build hashes, resource limits, CPU/RSS, allocation/I/O
+counters, exact row/query checksums and every raw repetition.
 
-Run explicit-schema, partial-override, bounded-sample, full-input-discovery and
-raw modes separately. Full discovery necessarily reads the selected input before
-its final schema is known; compare that cost separately from a sampled first
-batch. Record which modes each implementation actually supports.
+### Measured phases and limits
 
-| Dimension | Required cases |
-| --- | --- |
-| Format and access | CSV and JSONL; seekable local files, compressed files and non-seekable streams; single file and many-file inputs |
-| Shape | Narrow numeric rows, wide mostly unused columns, long text, exact decimals/large integers, temporal values, nested/sparse/heterogeneous JSON |
-| Inference hazards | Empty/all-null input, leading-zero identifiers, late numeric overflow or new fields, ambiguous dates, duplicate names/keys, missing versus null and malformed trailing records |
-| Query work | First bounded projection, selective filter, full scan, count and checked aggregation for supported types; include result validation/export |
-| Scale | Small startup-dominated input, input larger than caches, input larger than RAM, many files and adversarial nesting/field counts under fixed budgets |
-| Reuse and concurrency | Fresh process/discovery, repeated bound schema, valid/invalid metadata cache, changed source/options, single-thread and declared parallel settings, concurrent scans |
+Capture, discovery, compilation, full scan/conversion, query execution and cached
+batch export have separate timers. Query execution starts a fresh scan; its time
+must not be added to or subtracted from the earlier scan as an isolated operator
+cost. First-batch timing starts after acquisition/discovery and means logical
+rows in Fuze; DuckDB's streaming API also constructs Arrow. Fuze rows remain
+provisional until verified EOF. Cached export serializes at most eight decoded
+rows, not a retained full result or full-source output throughput.
 
-Keep a regression suite for the existing six-scalar explicit KV/Table/Document
-path. A general type representation must not impose unmeasured per-cell dynamic
-allocation or dispatch overhead on those queries.
+The frozen pre-optimization baseline at `420e3279` has these explicit-schema,
+warm-input medians on the shared Linux Threadripper 3960X host:
 
-### Method and acceptance
+| Shape | Fuze full query pipeline | DuckDB query/Arrow pipeline | Fuze executable peak RSS |
+| --- | ---: | ---: | ---: |
+| Narrow CSV | 38.966 ms | 7.463 ms | 9696 KiB |
+| Wide CSV | 461.055 ms | 42.623 ms | 9712 KiB |
+| Nested JSONL | 224.880 ms | 11.967 ms | 10728 KiB |
 
-Pin Transit revision/toolchain/build mode and DuckDB release/build/extensions.
-Retain fixture generators, seeds, file hashes, exact commands, options, CPU,
-memory, thread counts, storage and compression settings. Normalize only declared
-shared semantics; verify schema, row count, exact values and failure disposition
-with an independent oracle before comparing speed. Keep missing/null, decimal
-rounding or overflow differences visible instead of normalizing them away to
-produce a misleading parity result.
+These are observations for different validation/output contracts, with no parity
+or speedup claim. Both phases include checked result consumption. Fuze validates
+all fields and rows; DuckDB can prune work. Allocator scopes also differ: Fuze
+counts backing-allocator requests, while the comparator's process hook includes
+Python/glue. Jemalloc and PyArrow counters remain separately labeled. RSS uses
+the executable's VmHWM counter; separate process-lifetime counters include the
+launcher before exec. Three repetitions do not establish p95/p99 tails.
 
-Measure discovery and bytes sampled, binding/compilation, time to schema and first
-batch, full scan/conversion, query execution and output encoding separately.
-Report rows/s and input MiB/s, CPU time, peak RSS, allocator high-water marks and
-allocation counts, bytes read/decoded/copied, and metadata/spool size. A configured
-cache cap is not peak RSS; full-file bytes retained on disk are not resident RAM.
-Measure source-only kernels separately from authorized end-to-end and durable
-capture/publication paths. DuckDB file scans do not model Transit recovery costs.
+Cold-input runs verify eviction of the fixture's file pages. Captures are newly
+written and warm; this is not a cold-device or whole-host-cache claim. A separate
+Transit proof completes a 600058901-byte input under a 256 MiB cgroup RAM-plus-file-
+cache limit with swap disabled in explicit/sampled/full/raw modes. Each records
+actual peak and zero OOM events. That proof establishes the selected resource
+boundary, not large-input DuckDB performance. Temporary storage must be disk
+backed when input exceeds the desired memory budget.
 
-Use randomized or alternating paired runs on the same host, separate warmups
-from retained samples and declare cache state rather than calling every fresh
-process cold. Retain all repetitions and failures; report spread and sufficiently
-sampled percentiles. Before optimization, review baseline-derived numeric budgets
-for startup, scan throughput, scalar-path regressions and memory. No numerical
-speedup, parity target or latency promise is selected by this plan. Performance
-acceptance requires published budgets and measured results, plus correctness and
-memory-bound checks; missing comparisons remain unmeasured.
+### Regression and execution choices
 
-### Optimization hypotheses
+Numeric limits were committed with the baseline before optimization. They bound
+per-case phase/first-batch latency, CPU, executable RSS, tracked live bytes,
+allocation requests/bytes and source-read work. A paired eight-query control uses
+the same driver against the original six-scalar implementation; each median
+candidate/control ratio must remain at most 1.15. Exact limits, source report
+hashes, failures and reproduction commands live with the
+[baseline artifacts](../../tests/fuze_benchmarks/results/2026-09-30/README.md).
+Incomplete or changed-workload evidence cannot pass the checker.
 
-DuckDB's [execution format](https://duckdb.org/docs/current/internals/vector)
-describes column vectors, compact constant/dictionary representations and child
-vectors for nested values. That motivates evaluating typed batches and specialized
-scalar kernels in Fuze, but does not establish a benefit in Transit. Other
-candidates are per-batch type dispatch, bounded scratch reuse, delayed conversion
-of unneeded columns, and inference caches bound to exact source/options/schema.
-Measure each independently against equivalent work before adopting it.
+CSV scans retain bounded header/schema metadata and validate the current binding
+before rows and completion. Full-row conversion and EOF verification apply after
+projection, predicates or LIMIT. Delaying or skipping unused conversions would
+hide errors under this contract and is not admitted. There is no retained result
+cache, cross-query inference cache or implicit refetch.
 
-Projection and filter pushdown must preserve the selected validation/error policy
-and inference coverage: an invalid unprojected field cannot disappear if full-row
-validation was promised. Parallel parsing must preserve record boundaries,
-deterministic inference and declared error order; compression/seekability affect
-which partitions are legal. Keep sample buffers, parser state, schema metadata,
-nested children, output and any spool independently budgeted. A larger fixed array
-or silent row/field truncation does not satisfy the memory requirement.
+Two optional metadata optimizations were evaluated after the baseline: avoiding
+one repeated descriptor-validation traversal and caching header-to-column indices.
+Their full result, allocation, I/O-count, memory and six-type checks passed, but
+two complete repetitions failed different capture/discovery timing limits. Both
+optimizations were withdrawn without changing the budgets. File discovery and
+scanning retain the measured baseline's metadata algorithm. The
+[experiment record](../../tests/fuze_benchmarks/results/2026-09-30/README.md#withdrawn-metadata-experiments)
+retains both failures and the observed shared-host interference; it establishes
+no qualified optimization benefit or isolated cause for every timing change.
+
+Independent [source, CLI and Arrow proofs](../../tests/README.md#fuze-bounded-file-sources)
+cover extreme values, malformed/outlier input, changed content, denial,
+cancellation and ownership. Those correctness schedules are separate from the
+synthetic timing shapes. Native accepted-work recovery keeps its existing
+contracts; local captured files do not admit durable jobs.

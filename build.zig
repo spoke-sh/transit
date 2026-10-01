@@ -39,7 +39,27 @@ pub fn build(b: *std.Build) void {
     const exchange = b.dependency("transit_exchange", .{ .target = target, .optimize = optimize });
     const station_http = b.dependency("transit_station_http", .{ .target = target, .optimize = optimize });
     const fuze = b.dependency("transit_fuze", .{ .target = target, .optimize = optimize });
+    b.step("logical-contract", "Export reflected logical type and value schemas").dependOn(&b.addRunArtifact(fuze.artifact("transit-logical-contract")).step);
     const query = b.dependency("transit_query", .{ .target = target, .optimize = optimize });
+    const file_capture = b.createModule(.{ .root_source_file = b.path("apps/transit-cli/FileCapture.zig"), .target = target, .optimize = optimize, .imports = &.{.{ .name = "transit_query", .module = query.module("transit_query") }} });
+    const file_benchmark = b.addExecutable(.{ .name = "transit-file-benchmark", .root_module = b.createModule(.{
+        .root_source_file = b.path("tests/fuze_benchmarks/main.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{ .{ .name = "transit_fuze", .module = fuze.module("transit_fuze") }, .{ .name = "file_capture", .module = file_capture } },
+    }) });
+    const file_benchmark_step = b.step("file-benchmark", "Build bounded source/discovery/execution phase measurements");
+    file_benchmark_step.dependOn(&b.addInstallArtifact(file_benchmark, .{}).step);
+    const allocation_probe = b.addLibrary(.{ .name = "transit-fuze-allocations", .linkage = .dynamic, .root_module = b.createModule(.{ .target = target, .optimize = optimize, .link_libc = true }) });
+    allocation_probe.root_module.addCSourceFile(.{ .file = b.path("tests/fuze_benchmarks/allocations.c"), .flags = &.{ "-std=c11", "-Wall", "-Wextra", "-Werror" } });
+    file_benchmark_step.dependOn(&b.addInstallArtifact(allocation_probe, .{}).step);
+    const six_benchmark = b.addExecutable(.{ .name = "transit-six-benchmark", .root_module = b.createModule(.{
+        .root_source_file = b.path("tests/fuze_benchmarks/six.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{.{ .name = "transit_fuze", .module = fuze.module("transit_fuze") }},
+    }) });
+    b.step("six-benchmark", "Build the specialized six-type execution control").dependOn(&b.addInstallArtifact(six_benchmark, .{}).step);
     const catalog = b.dependency("transit_catalog", .{ .target = target, .optimize = optimize });
     b.step("query-api", "Export reflected query workspace declarations").dependOn(&b.addInstallArtifact(query.artifact("transit-query-api"), .{}).step);
     const station = b.dependency("transit_station", .{ .target = target, .optimize = optimize });
@@ -631,6 +651,25 @@ pub fn build(b: *std.Build) void {
     diagnostics_test.has_side_effects = true;
     diagnostics_test.stdio = .inherit;
     b.step("test-cli-diagnostics", "Check CLI failure coordinates, next steps and output privacy").dependOn(&diagnostics_test.step);
+    const file_query_test = b.addSystemCommand(&.{ "python3", "-B" });
+    file_query_test.addFileArg(b.path("tests/fuze_file_query.py"));
+    file_query_test.addArtifactArg(query_shell);
+    file_query_test.has_side_effects = true;
+    file_query_test.stdio = .inherit;
+    b.step("test-file-query", "Prove captured CSV/JSONL queries, gzip, quotas and cancellation").dependOn(&file_query_test.step);
+    const logical_arrow_proof = b.addExecutable(.{ .name = "transit-logical-arrow-proof", .root_module = b.createModule(.{
+        .root_source_file = b.path("tests/fuze_logical_arrow.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{.{ .name = "transit_fuze", .module = fuze.module("transit_fuze") }},
+    }) });
+    const logical_arrow_test = b.addSystemCommand(&.{ "python3", "-B" });
+    logical_arrow_test.addFileArg(b.path("tests/fuze_logical_arrow.py"));
+    logical_arrow_test.addArtifactArg(query_shell);
+    logical_arrow_test.addArtifactArg(logical_arrow_proof);
+    logical_arrow_test.has_side_effects = true;
+    logical_arrow_test.stdio = .inherit;
+    b.step("test-logical-arrow", "Independently check logical type/state Arrow export").dependOn(&logical_arrow_test.step);
     const server_test = b.addSystemCommand(&.{ "python3", "-B" });
     server_test.addFileArg(b.path("tests/server.py"));
     for ([_]*std.Build.Step.Compile{ query_shell, node_artifact, query_host, board }) |artifact| server_test.addArtifactArg(artifact);

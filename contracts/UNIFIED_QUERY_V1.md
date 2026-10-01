@@ -81,6 +81,33 @@ checkpoint binds source evidence and plan digest to global progress, checked sum
 and explicit end/limit disposition. Adapter continuation is a separate owned
 record. These are resident/batch limits, not total source or result cardinality.
 
+## Canonical plans and output names
+
+A typed plan owns up to eight optional output names. A name applies to its
+output position, not its source column: a repeated source column is permitted
+when the resulting output names are distinct. An omitted name preserves the
+source name for rows or `count`/`sum` for an aggregate. Names use the schema's
+one-to-thirty-two-byte ASCII identifier rules and canonical zero padding. Slots
+beyond the output width must be empty. Duplicate output names reject; aliases
+never rename the source schema or confer access to another source.
+
+The current `FZP1` encoding starts with its four-byte magic and the mandatory
+32-byte SHA-256 of `transit.fuze.plan.v1.output-names.2026-09-30`. Missing or
+foreign plan definitions reject before the plan can bind or execute. Next come
+the aggregate byte, projection-count byte, and that many source-column bytes.
+Each output position then has a one-byte name length and exactly that many name
+bytes; zero means no explicit output name. The existing limit-present byte,
+little-endian u64 limit and predicate encoding follow. Absent limits retain a
+zero value. Canonical decoding rejects trailing bytes and malformed names.
+
+Output names participate in the plan fingerprint and the output-schema
+fingerprint. Execution, EXPLAIN and Arrow use the same validated output schema,
+including for empty results. Input basis/schema identity, filtering, aggregate
+arithmetic, source order, five-state cells and resource bounds are unchanged.
+The shared native definition also changes for this stored-framework cutover;
+old saved requests and authority heads require their matching build for recovery.
+There is no fallback decoder, automatic migration or data reset.
+
 ## Larger requests and durable publication
 
 V1 advertises separate plan, source, result and upload capabilities. It never
@@ -176,6 +203,15 @@ encoded bundles use hex. UTF-8 remains text. Projection indices are JSON integer
 arrays. Missing, null, type error, value and ordered conflicts remain distinct
 tagged values, including the full-width counter/replica pair of each alternative.
 
+Neutral plans include `output_names`: null retains all default names; otherwise
+the array has exactly one entry per projection position. A null entry retains
+that position's default, and a string supplies a valid name of at most 32 ASCII
+identifier bytes. Empty arrays, width mismatches, invalid names and resulting
+output-name collisions reject. Decoding emits null for an all-default vector;
+named vectors preserve null slots and own their text. Decode → prepare preserves
+canonical bundle bytes and Publication identity. Compiled workspace metadata
+uses this same plan representation. SQL names retain their separate 16-byte bound.
+
 Input JSON is bounded at 256 KiB; source, plan, bundle, scalar, page and Arrow
 limits still apply independently. Native outputs are owned buffers that callers
 release explicitly; port responses copy them before native release. Pure local
@@ -199,9 +235,18 @@ checks the declared source name. Qualified columns use the alias when present;
 the original source name then rejects as a qualifier. Unqualified columns remain
 valid. Inner source aliases and the restricted subquery's outer alias have
 separate scopes. `AS` is required, and aliases obey the 16-byte identifier rules.
-An alias does not rename output columns or change the source basis. It lowers
+A source alias does not rename output columns or change the source basis. It lowers
 away before plan encoding, so equivalent aliased and unaliased queries have
 identical canonical plan bytes and execution semantics.
+
+`column AS name`, `COUNT(*) AS name` and `SUM(column) AS name` supply owned
+output names. `AS` is required, using the same 16-byte identifier rules. The
+resulting names must be distinct; repeated source indices are allowed with
+distinct names. Names, types and cell states in the source remain unchanged.
+Output aliases do not enter predicate scope. A renamed inner projection supplies
+the names available to the restricted outer aggregate; compilation resolves
+those names back to source indices. Only final output names enter canonical plan
+bytes. Star cannot have an output alias, and implicit aliases reject.
 
 V1 limits use the plan's full u64 range; an absent limit stays unlimited, subject
 to explicit execution budgets. An aggregate's outer LIMIT still rejects.

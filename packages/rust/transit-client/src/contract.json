@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "definition": "ccd596113a3719c6d38afdffe907f04e90f4703472c91aaaffa7875364b5b31e",
+  "definition": "1b790ef9b226fa9d5ee27622dd7fbfd51cb56eb764574594c0a792d4170bf0a2",
   "minimum_stack_bytes": 8388608,
   "limits": {
     "max_counter": 9007199254740991,
@@ -422,7 +422,7 @@
         "definition": {
           "type": "string",
           "enum": [
-            "ccd596113a3719c6d38afdffe907f04e90f4703472c91aaaffa7875364b5b31e"
+            "1b790ef9b226fa9d5ee27622dd7fbfd51cb56eb764574594c0a792d4170bf0a2"
           ]
         },
         "operation_metadata": {
@@ -476,7 +476,7 @@
       ],
       "x-transit-defaults": {
         "version": 1,
-        "definition": "ccd596113a3719c6d38afdffe907f04e90f4703472c91aaaffa7875364b5b31e",
+        "definition": "1b790ef9b226fa9d5ee27622dd7fbfd51cb56eb764574594c0a792d4170bf0a2",
         "operation_metadata": true,
         "opaque_retry": true,
         "native_v1": true,

@@ -1,0 +1,109 @@
+{
+  "completed": true,
+  "status": "failed",
+  "violations": [
+    {
+      "report": "baseline",
+      "case": "narrow/partial/cold_input/capture",
+      "metric": "elapsed_ns",
+      "actual": 1447840,
+      "limit": 847627
+    },
+    {
+      "report": "baseline",
+      "case": "narrow/sampled/cold_input/capture",
+      "metric": "elapsed_ns",
+      "actual": 775684,
+      "limit": 729094
+    },
+    {
+      "report": "baseline",
+      "case": "narrow/full/cold_input/capture",
+      "metric": "elapsed_ns",
+      "actual": 1609000,
+      "limit": 742348
+    },
+    {
+      "report": "baseline",
+      "case": "narrow/full/warm_input/discovery",
+      "metric": "elapsed_ns",
+      "actual": 8734387,
+      "limit": 8148934
+    },
+    {
+      "report": "baseline",
+      "case": "narrow/full/warm_input/discovery",
+      "metric": "cpu_ns",
+      "actual": 8671416,
+      "limit": 7087618
+    },
+    {
+      "report": "baseline",
+      "case": "narrow/raw/cold_input/capture",
+      "metric": "elapsed_ns",
+      "actual": 1667543,
+      "limit": 773068
+    },
+    {
+      "report": "baseline",
+      "case": "wide/partial/cold_input/capture",
+      "metric": "elapsed_ns",
+      "actual": 20638099,
+      "limit": 7499233
+    },
+    {
+      "report": "baseline",
+      "case": "identifiers/sampled/cold_input/capture",
+      "metric": "elapsed_ns",
+      "actual": 3248909,
+      "limit": 823024
+    },
+    {
+      "report": "projection-baseline",
+      "case": "narrow/sampled/cold_input/capture",
+      "metric": "elapsed_ns",
+      "actual": 1635781,
+      "limit": 825007
+    },
+    {
+      "report": "projection-baseline",
+      "case": "nested/full/cold_input/capture",
+      "metric": "elapsed_ns",
+      "actual": 4723970,
+      "limit": 1372875
+    },
+    {
+      "report": "filter-baseline",
+      "case": "wide/explicit/cold_input/capture",
+      "metric": "elapsed_ns",
+      "actual": 89756267,
+      "limit": 8111034
+    },
+    {
+      "report": "count-baseline",
+      "case": "wide/explicit/cold_input/capture",
+      "metric": "elapsed_ns",
+      "actual": 77998291,
+      "limit": 8009649
+    },
+    {
+      "report": "sum-baseline",
+      "case": "wide/explicit/cold_input/capture",
+      "metric": "elapsed_ns",
+      "actual": 76541612,
+      "limit": 8845242
+    }
+  ],
+  "budgets_sha256": "63365fed72acde73e8ce3e17194a2d9ddc6fb9a3b6ddc4c1a289309c6ac9bf5d",
+  "reports": {
+    "baseline": "b1a5fd2549c72717324273b20d6db425540004ff63e4e7b3720dd091698337ad",
+    "projection-baseline": "461a025a4f4eb2a1d3c15c9b69579c123c30868669331e983fdcda5be16b7194",
+    "batch1-baseline": "84d79b6c08c193375594abf0c4bdf5f86aa1353a1c8d1c4bc76b0cdf0dd5dc15",
+    "filter-baseline": "bee47b897621481503a6c12d7eb0064d14abb1e0819450e3a125cce64627879a",
+    "count-baseline": "9ae136a7b70657af5de2d804ee7c0c1e4fb2a5e90f5a35816b4a533e34a5d252",
+    "sum-baseline": "590698bc6221c8861f2d74756dadc0a03afb2ae619736e2d3420559d0ed3a79f",
+    "six-baseline": "a4d4e04bebc1ff95c6486fcdbe45daf1098c3a3d00f78849bb33215a4bed6d71",
+    "large-baseline": "47d0a137a6efb9d022ec2514de37705bd754b5c872d4c7d1034d44453489b9bc"
+  },
+  "error": "Numeric regression budget exceeded"
+}

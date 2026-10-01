@@ -8,6 +8,23 @@ sum over caller-authorized source batches. Aggregates update bounded state
 without materializing discarded row projections. It has no storage, credentials or
 native authority. No optimizer rewrites are enabled.
 
+`Types` owns bounded logical descriptors and the specialized scalar profile used
+by `Unified`. `Types.Semantics` binds checked integer/decimal, finite float,
+boolean, UTF-8/binary, Gregorian date, time, civil/UTC timestamp and UUID atoms.
+Casts and lossless domain promotion have separate admission rules. Recursive
+struct/list/array/map/union cells preserve null, missing, errors and conflicts;
+`Types.Codec` owns decoded descriptor/value bytes in an explicitly released arena.
+`Types.Json` keeps exact numeric lexemes and rejects duplicate decoded keys.
+The [logical type contract](../../../contracts/FUZE_TYPES_V1.md) specifies codecs,
+budgets and capability limits. These APIs do not extend SQL, persisted Tables,
+native query plans or Flight. Run `just test::fuze-types` for independent fixtures.
+
+`FileSource` implements bounded CSV/JSONL discovery and decoding over immutable
+host-provided bytes. Explicit, sampled, full and raw modes freeze one schema;
+`SourceCodec` saves/restores its exact binding under current source access.
+The [file-source guide](docs/file-sources.md) owns modes, ownership, cancellation,
+framing, limits and the separate acquisition/durable-job boundary.
+
 `Unified` implements the [finite query v1 contract](../../../contracts/UNIFIED_QUERY_V1.md):
 up to eight typed columns, full-width signed/unsigned values, finite float64,
 UTF-8/binary, five cell states and preserved conflict alternatives. Its canonical
@@ -16,6 +33,14 @@ across source pages; `Unified.Arrow` emits nested typed state/conflict columns.
 KV, Table and Document adapters, interactive snapshots and durable public
 submission compose these types through [transit-query](../transit-query/README.md).
 The contract fixes workspace, segment and encoding budgets.
+
+Typed plans provide optional owned `output_names` by output position. Row names
+default to their source names; aggregate names default to `count` or `sum`.
+Distinct output names permit projecting one input column more than once.
+Validation rejects duplicate output names, malformed names and names outside the
+output width. Output names affect the saved plan and result schema, while the
+input schema and source basis stay unchanged. `FZP1` requires its current plan
+definition before decoding; incompatible saved plans reject.
 
 `Unified.Sql` lowers SELECT syntax against declared sources. The
 [SQL guide](docs/unified-sql.md) describes capabilities, allocated ownership and

@@ -71,6 +71,10 @@ node-sdk-test: node-build
     just test::table-mutation --sdk node
     just test::catalog --sdk node
 
+# Qualify installed logical values and Arrow ownership outside the checkout.
+logical-test: python-build node-build
+    python3 -B tests/sdk_logical.py python node
+
 # Build independent Rust source crates with their embedded native artifact.
 rust-build: build
     cargo fetch --locked --manifest-path packages/rust/transit-client/Cargo.toml
@@ -332,6 +336,10 @@ unified-beam source="table": beam-build
 # All ten installed SDKs against each of the three current source services.
 unified-all: python-build node-build ruby-build rust-build c-build java-build dotnet-build beam-build
     zig build test-unified-query -Doptimize=ReleaseSafe -Dunified-sdk=python,node,ruby,rust,c,cpp,java,dotnet,erlang,elixir
+
+# Pure installed query codecs: exact bundle bytes and independently produced Arrow.
+unified-codecs: python-build node-build ruby-build rust-build c-build java-build dotnet-build beam-build
+    python3 -B tests/sdk_unified.py
 
 # Installed Python sync/async catalog clients and exact saved command recovery.
 catalog-python: python-build

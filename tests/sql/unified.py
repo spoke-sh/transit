@@ -49,13 +49,18 @@ def expected(ast):
         rows = rows[:limit]
     selection = ast['selection']
     if selection['kind'] == 'count':
-        return {'count': [cell(2, len(rows))]}
+        return {ast['output_alias'] or 'count': [cell(2, len(rows))]}
     if selection['kind'] == 'sum':
-        column = NAMES.index(selection['column'][1])
+        inner = ast['input']['projection'] if ast['input'] else None
+        input_names = [item['alias'] or item['column'][1] for item in inner] if inner else NAMES
+        input_columns = [NAMES.index(item['column'][1]) for item in inner] if inner else list(range(8))
+        column = input_columns[input_names.index(selection['column'][1])]
         values = [r[column]['value'] for r in rows if r[column]['state'] == 3]
-        return {'sum': [cell(1, sum(values)) if values else cell(7, state=1)]}
-    columns = [NAMES.index(c[1]) for c in selection['columns']] if selection['columns'] else range(8)
-    return {NAMES[c]: [r[c] for r in rows] for c in columns}
+        return {ast['output_alias'] or 'sum': [cell(1, sum(values)) if values else cell(7, state=1)]}
+    items = selection['columns']
+    columns = [NAMES.index(item['column'][1]) for item in items] if items else range(8)
+    names = [item['alias'] or item['column'][1] for item in items] if items else NAMES
+    return {name: [r[c] for r in rows] for c, name in zip(columns, names, strict=True)}
 
 
 def check(driver):
@@ -84,6 +89,22 @@ def check(driver):
         'SELECT x.optional FROM items AS x WHERE x.optional IS CONFLICT',
         'SELECT "Row".optional FROM items AS "Row" WHERE "Row".optional IS TYPE_ERROR',
         'SELECT sum(chosen.id) FROM (SELECT x.id FROM items AS x WHERE x.id > -8 LIMIT 37) AS chosen',
+        'SELECT id AS key, counter AS sequence, fraction AS amount, flag AS enabled, value AS text, raw AS bytes, missing AS absent, optional AS state FROM items',
+        'SELECT id AS value, value AS id FROM items WHERE id >= -1 LIMIT 9',
+        'SELECT value AS left_value, value AS right_value FROM items',
+        'SELECT optional AS first_state, optional AS second_state FROM items',
+        'SELECT x.counter AS "Counter", x.id AS "SELECT" FROM items AS x LIMIT 33',
+        "SELECT fraction AS signed_zero FROM items WHERE fraction = '-0.0'::float64",
+        'SELECT id AS __proto__, counter AS constructor FROM items LIMIT 2',
+        'SELECT value AS text FROM items WHERE missing IS NULL',
+        'SELECT count(*) AS rows FROM items WHERE optional IS TYPE_ERROR',
+        'SELECT count(*) AS rows FROM items WHERE missing IS NULL',
+        'SELECT sum(id) AS total FROM items WHERE id >= 0',
+        'SELECT sum(chosen.amount) AS total FROM (SELECT x.id AS amount FROM items AS x WHERE x.id > -8 LIMIT 37) AS chosen',
+        'SELECT sum(chosen.value) AS total FROM (SELECT value AS id, id AS value FROM items LIMIT 33) AS chosen',
+        'SELECT sum(second_id) AS total FROM (SELECT id AS first_id, id AS second_id FROM items LIMIT 9) AS chosen',
+        'SELECT sum("ID") AS "SUM" FROM (SELECT id AS "ID" FROM items LIMIT 0) AS chosen',
+        'SELECT count(*) AS total FROM (SELECT optional AS state FROM items LIMIT 33) AS chosen',
     ]
     failures = [
         ('SELECT id, counter, id FROM items', 'DuplicateProjection'),
@@ -95,6 +116,14 @@ def check(driver):
         ('SELECT sum(counter) FROM items', 'UnsupportedAggregate'),
         ('SELECT count(*) FROM items LIMIT 1', 'UnsupportedAggregateLimit'),
         ("SELECT optional FROM items WHERE optional = 'x'", 'QueryTypeError'),
+        ('SELECT id AS key, counter AS key FROM items', 'DuplicateColumn'),
+        ('SELECT id AS counter, counter FROM items', 'DuplicateColumn'),
+        ('SELECT id AS key, id AS key FROM items', 'DuplicateProjection'),
+        ('SELECT id AS key FROM items WHERE key > 0', 'UnknownColumn'),
+        ('SELECT sum(chosen.id) FROM (SELECT id AS amount FROM items) AS chosen', 'UnknownColumn'),
+        ('SELECT sum(amount) FROM (SELECT counter AS amount FROM items) AS chosen', 'UnsupportedAggregate'),
+        ('SELECT count(*) FROM (SELECT id AS key, counter AS key FROM items) AS chosen', 'DuplicateColumn'),
+        ('SELECT sum(id) FROM (SELECT id AS "ID" FROM items) AS chosen', 'UnknownColumn'),
     ]
     cases = [dict(sql=s) for s in statements] + [dict(sql=s, expected_error=e) for s, e in failures]
     asts = [antlr_ast(c['sql']) for c in cases]
@@ -126,8 +155,8 @@ def check(driver):
                 assert len(actual[name]) == len(want[name]), (case, response, name, len(actual[name]), len(want[name]))
                 for row, (observed, expected_cell) in enumerate(zip(actual[name], want[name], strict=True)):
                     assert observed == expected_cell, (case, response, name, row, observed, expected_cell)
-            if 'fraction' in actual and actual['fraction']:
-                assert math.copysign(1, actual['fraction'][0]['value']) == math.copysign(1, want['fraction'][0]['value'])
+                    if expected_cell['kind'] == 3 and expected_cell['state'] == 3:
+                        assert math.copysign(1, observed['value']) == math.copysign(1, expected_cell['value'])
             seen.add((i, response['kind'], response['width']))
         for i, case in enumerate(cases):
             if 'expected_error' in case and case['expected_error'] != 'QueryTypeError':

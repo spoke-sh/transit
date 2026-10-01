@@ -21,6 +21,7 @@ defines the exact profile:
 | --- | --- |
 | `SELECT *` | All one to eight declared columns |
 | One to eight named columns | Ordered projection; duplicate names reject |
+| `column AS name`, `COUNT(*) AS name`, `SUM(column) AS name` | Owned output names; repeated inputs are allowed with distinct output names |
 | `FROM source AS alias` | Alias supplies the column qualifier; source and output column identities stay unchanged |
 | One comparison | Exactly typed int64, uint64, finite float64, bool, UTF-8 or binary literal; byte ordering for text/binary |
 | `IS NULL`, `IS MISSING`, `IS VALUE`, `IS TYPE_ERROR`, `IS CONFLICT` | Exact cell-state selection |
@@ -29,6 +30,10 @@ defines the exact profile:
 | `SUM(column)` | Checked int64 sum in source order; missing/null skipped, error/conflict fails |
 
 The existing restricted aggregate subquery spells filter → limit → aggregate.
+An inner output alias becomes the column name resolved by the outer sum. Output
+aliases do not enter `WHERE` scope; predicates retain original source names.
+Output names are inline in the plan and affect canonical bytes and result-schema
+identity without changing the input schema or source basis.
 An outer aggregate LIMIT rejects. Uint64 and finite float64 comparison literals
 use explicit `'digits'::uint64` and `'decimal'::float64` forms. `column = NULL`
 rejects with `UnsupportedNullComparison`. No implicit casts or rewrites occur.

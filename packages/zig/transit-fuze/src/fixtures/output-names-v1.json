@@ -1,0 +1,85 @@
+{
+  "version": 1,
+  "definition": "58ae72e1f9a4b589536e5a0d262d6e6aebcc2fab40698b4bfea6833281ad9f3c",
+  "cases": [
+    {
+      "name": "renamed-row",
+      "projection": [
+        1,
+        0
+      ],
+      "output_names": [
+        "amount",
+        null
+      ],
+      "aggregate": "rows",
+      "encoded": "465a503158ae72e1f9a4b589536e5a0d262d6e6aebcc2fab40698b4bfea6833281ad9f3c0002010006616d6f756e740000000000000000000000",
+      "columns": [
+        "amount",
+        "id"
+      ]
+    },
+    {
+      "name": "repeated-input",
+      "projection": [
+        0,
+        0
+      ],
+      "output_names": [
+        "left_id",
+        "right_id"
+      ],
+      "aggregate": "rows",
+      "encoded": "465a503158ae72e1f9a4b589536e5a0d262d6e6aebcc2fab40698b4bfea6833281ad9f3c00020000076c6566745f69640872696768745f696400000000000000000000",
+      "columns": [
+        "left_id",
+        "right_id"
+      ]
+    },
+    {
+      "name": "renamed-count",
+      "projection": [
+        0
+      ],
+      "output_names": [
+        "total"
+      ],
+      "aggregate": "count",
+      "encoded": "465a503158ae72e1f9a4b589536e5a0d262d6e6aebcc2fab40698b4bfea6833281ad9f3c01010005746f74616c00000000000000000000",
+      "columns": [
+        "total"
+      ]
+    },
+    {
+      "name": "renamed-sum",
+      "projection": [
+        0
+      ],
+      "output_names": [
+        "Total"
+      ],
+      "aggregate": "sum",
+      "encoded": "465a503158ae72e1f9a4b589536e5a0d262d6e6aebcc2fab40698b4bfea6833281ad9f3c02010005546f74616c00000000000000000000",
+      "columns": [
+        "Total"
+      ]
+    },
+    {
+      "name": "unchanged-row",
+      "projection": [
+        0,
+        1
+      ],
+      "output_names": [
+        null,
+        null
+      ],
+      "aggregate": "rows",
+      "encoded": "465a503158ae72e1f9a4b589536e5a0d262d6e6aebcc2fab40698b4bfea6833281ad9f3c00020001000000000000000000000000",
+      "columns": [
+        "id",
+        "value"
+      ]
+    }
+  ]
+}

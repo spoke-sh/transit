@@ -95,6 +95,17 @@ def run(host, library):
         assert prepared['spec'] == dict(format=0x31425155, length=len(bytes.fromhex(fixture['wire_hex'])), digest=list(reference[-32:]))
         decoded = check({'decode': fixture['wire_hex']})['bundle']
         assert check({'prepare': decoded})['prepared'] == prepared
+        named = copy.deepcopy(bundle)
+        named['plan']['output_names'] = ['Result', None]
+        named_prepared = check({'prepare': named})['prepared']
+        assert named_prepared['bytes'] == fixture['named_wire_hex']
+        named_decoded = check({'decode': fixture['named_wire_hex']})['bundle']
+        assert named_decoded['plan']['output_names'] == ['Result', None]
+        assert check({'prepare': named_decoded})['prepared'] == named_prepared
+        for names in ([], ['Result'], ['Result', None, None], ['', None], ['bad name', None]):
+            invalid_names = copy.deepcopy(named)
+            invalid_names['plan']['output_names'] = names
+            check({'prepare': invalid_names}, valid=False)
         declared = check({'source': source})['source']
         assert declared['bytes'] == definitions[index]['wire_hex']
         assert bytes(declared['digest']).hex() == definitions[index]['digest']

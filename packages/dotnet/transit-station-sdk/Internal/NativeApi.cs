@@ -3,8 +3,11 @@ using System.Runtime.InteropServices;
 namespace Transit.Station.Sdk.Internal;
 internal sealed class NativeApi {
     internal const uint Version = 1;
-    internal const string Definition = "ccd596113a3719c6d38afdffe907f04e90f4703472c91aaaffa7875364b5b31e";
+    internal const string Definition = "1b790ef9b226fa9d5ee27622dd7fbfd51cb56eb764574594c0a792d4170bf0a2";
     internal const int MinimumStackBytes = 8388608;
+    [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+    internal delegate uint station_logical_codecDelegate([In] byte[] arg0, nuint arg1, out IntPtr arg2);
+    internal readonly station_logical_codecDelegate station_logical_codec;
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
     internal delegate uint station_catalog_createDelegate(uint arg0, [In] byte[] arg1, nuint arg2, [In] byte[] arg3, [In] byte[] arg4, nuint arg5, out IntPtr arg6);
     internal readonly station_catalog_createDelegate station_catalog_create;
@@ -111,6 +114,7 @@ internal sealed class NativeApi {
     internal delegate void station_buffer_destroyDelegate(IntPtr arg0);
     internal readonly station_buffer_destroyDelegate station_buffer_destroy;
     internal NativeApi(IntPtr library) {
+        station_logical_codec = Marshal.GetDelegateForFunctionPointer<station_logical_codecDelegate>(NativeLibrary.GetExport(library, "station_logical_codec"));
         station_catalog_create = Marshal.GetDelegateForFunctionPointer<station_catalog_createDelegate>(NativeLibrary.GetExport(library, "station_catalog_create"));
         station_catalog_destroy = Marshal.GetDelegateForFunctionPointer<station_catalog_destroyDelegate>(NativeLibrary.GetExport(library, "station_catalog_destroy"));
         station_catalog_call = Marshal.GetDelegateForFunctionPointer<station_catalog_callDelegate>(NativeLibrary.GetExport(library, "station_catalog_call"));

@@ -31,7 +31,10 @@ fn frame(store: *Store, peer: u64, message: s.Frame) !s.Turn {
 fn request(store: *Store, bundle: q.Bundle) !s.PublicationReference {
     var bytes: [q.Bundle.max_bytes]u8 = undefined;
     const body = try bundle.encode(&bytes);
-    const ref = try bundle.reference(store.resource, 1);
+    return requestBytes(store, body);
+}
+fn requestBytes(store: *Store, body: []const u8) !s.PublicationReference {
+    const ref: s.PublicationReference = .{ .domain = .query_request, .resource = store.resource, .namespace = 1, .record = 1, .spec = try s.Publication.Digest.of(q.Bundle.format, body) };
     for (0..100) |_| {
         var turn = try store.capture();
         if (try s.PublicationUpload.step(&turn, .{ .domain = .query_request, .namespace = ref.namespace, .identity_key = r.key('u', 1, 0), .identity = try ref.encode(), .limits = .{ .record_bytes = q.Bundle.max_bytes, .staging_bytes = q.Bundle.max_bytes, .staging_records = 1 }, .records = &.{.{ .id = 1, .spec = ref.spec, .bytes = body }} })) return ref;
@@ -439,4 +442,46 @@ test "source behavior closes denied accepted work with the original reply and re
         }
     };
     try t.expect(replied);
+}
+
+test "source behavior rejects a published incompatible plan with an exact terminal reply" {
+    var store: Store = .{};
+    defer store.deinit();
+    var requests: Store = .{ .resource = 8, .pid = 9 };
+    defer requests.deinit();
+    const definition = try seedKV(&store, 1);
+    const workspace = try t.allocator.alloc(u8, m.Arrow.working_bytes);
+    defer t.allocator.free(workspace);
+    const adapter = try t.allocator.alloc(u8, q.UnifiedBehavior.adapter_bytes);
+    defer t.allocator.free(adapter);
+    const cancellation = q.fuze.execution.Cancellation.init(false);
+    var behavior: q.UnifiedBehavior.Source = .{ .peer = 9, .initializer = 42, .resources = undefined, .workspace = workspace, .adapter = adapter, .cancellation = &cancellation };
+    const handler = behavior.interface();
+    var turn = try store.capture();
+    try turn.write(s.GenServer.descriptor_key, s.GenServer.descriptor);
+    try handler.initialize.?(handler.context, &turn);
+    try capture.setPolicy(&turn, .{ .peer = 9, .requests = 8, .revision = 1, .allow = true, .limits = limits, .declaration = try q.Bundle.declaration(definition) });
+    try store.commit(turn);
+    const bundle: q.Bundle = .{ .source = definition, .plan = .{ .projection = &.{1} }, .limits = limits };
+    var bytes: [q.Bundle.max_bytes]u8 = undefined;
+    const encoded = try bundle.encode(&bytes);
+    const plan_start = 32 + @as(usize, std.mem.readInt(u16, bytes[4..6], .little));
+    bytes[plan_start + 4] ^= 1;
+    // Publication integrity is valid; rejection must come from plan compatibility.
+    const ref = try requestBytes(&requests, encoded);
+    const call: s.Frame = .{ .kind = .call, .correlation = 77, .payload = try ref.encode() };
+    turn = try frame(&store, 9, call);
+    try q.UnifiedBehavior.dispatchSource(&turn, call, 9, 42, Source{ .store = &requests }, adapter, workspace, &cancellation);
+    try store.commit(turn);
+    try t.expectEqual(0, store.versions.count());
+    var replies: usize = 0;
+    for (turn.decision.outputs) |slot| if (slot) |output| {
+        const result = try s.Frame.decode(output.value);
+        try t.expectEqual(.reply, result.kind);
+        try t.expectEqual(@as(u64, 9), output.pid);
+        try t.expectEqual(@as(u64, 77), result.correlation);
+        try t.expectEqualStrings("query.v1.rejected", result.payload.slice());
+        replies += 1;
+    };
+    try t.expectEqual(1, replies);
 }

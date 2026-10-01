@@ -66,6 +66,7 @@ reference deployment and physical-capacity tests remain explicit commands.
 | `just test::server-faults` | Add interrupted provisioning, native gateway denial/capacity and negative provider-rollback checks |
 | `just test::server-capacity` | Fill a newly allocated ext4 image to real ENOSPC, preserve accepted query identity and recover the same installation |
 | `just test::unified-codec` | Check independent v1 bundles and nested Arrow through the native library and local port |
+| `just bindings::unified-codecs` | Build all ten SDKs and verify installed codec consumers against independent default/named bundles and Arrow; no service or recovery claim |
 | `just test::document` | Qualify Document change/checkpoint publication, exact retries, current-policy reads and bounded cleanup through worker/node/store loss |
 | `just test::publication` | Qualify 64 KiB immutable records, bounded staging/cleanup, exact retry and worker/node/store recovery |
 | `just test::unit` | Runs Zig unit/protocol tests without a service |
@@ -122,6 +123,11 @@ reference deployment and physical-capacity tests remain explicit commands.
 | `just test::packages` | Runs each library’s standalone test suite for focused package work |
 | `just test::serving`, `just test::serving-tls`, `just test::serving-capacity` | Signed application admission/recovery, actual nginx termination and bounded concurrent gateway reads; focused M19 proofs |
 | `just test::packages-build` | Compiles those test suites through each package’s own manifest; CI executes shared tests once through root unit checks |
+| `just test::fuze-types`, `just test::fuze-sources` | Independent logical type and CSV/JSONL fixtures, exact codecs, frozen discovery, budgets, allocation and denial/cancellation checks |
+| `just test::file-query` | Real CSV/JSONL file/stdin/gzip queries, independent exact results, quotas, cancellation, immutable capture and bounded process memory |
+| `just test::file-benchmark --output PATH` | Pinned DuckDB file/discovery/execution comparison matrix in the benchmarks shell; raw reports and explicit metric scopes |
+| `just test::logical-codec`, `just bindings::logical-test` | Exact logical native/port codecs and installed Python/TypeScript owners, generated recursive schemas, hashes and Arrow |
+| `just test::logical-arrow` | Independent PyArrow interpretation of rich logical types, all five states, exact metadata, bounded batches and failed prefixes |
 | `just test::compute` | Runs the pinned Arrow compute dependency’s additional tests with Fuze’s configuration |
 | `just test::dev-environment`, `just test::kubectl-transit` | Verify checkout kubeconfig isolation and the plugin CLI, query limits, origin checks and signal handling offline; included in `ci` |
 | `just test::deployments` | Renders/lints the Transit Helm chart and checks bootstrap, credential, storage and network boundaries without a cluster; included in `ci` |

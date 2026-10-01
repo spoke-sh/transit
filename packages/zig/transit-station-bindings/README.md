@@ -18,6 +18,12 @@ See the [binding guide](docs/bindings.md) for ownership, scoped turns, explicit
 dispatch, exact pending retry and query buffers. Native foreign pointers never
 grant durable authority; host runtimes still own scheduling and joined destruction.
 
+`station_logical_codec` exposes Fuze's local logical descriptors, exact values,
+casts, structural operations and logical Arrow export with independently owned
+buffers. Its [type contract](../../../contracts/FUZE_TYPES_V1.md) defines the
+separate logical document identifiers and bounds. These operations do not admit
+new native query types, stored Table schemas or file access.
+
 Run `zig build test` here for standalone checks. From the root, use `just check`
 and `just bindings::native` for generated-contract drift and real C/C++/Python
 ownership/recovery proofs. `just bindings::generate` regenerates declarations

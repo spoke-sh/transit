@@ -1489,6 +1489,202 @@
       "id": "source-alias-outer-scope",
       "sql": "SELECT SUM(x.value) FROM (SELECT x.value FROM items AS x) AS chosen",
       "compile_error": "UnknownQualifier"
+    },
+    {
+      "id": "output-alias-row",
+      "sql": "SELECT value AS result, id AS key FROM items",
+      "schema": {
+        "name": "items",
+        "columns": [
+          "id",
+          "value"
+        ],
+        "type": "int64"
+      }
+    },
+    {
+      "id": "output-alias-repeated",
+      "sql": "SELECT value AS first_value, value AS second_value FROM items",
+      "schema": {
+        "name": "items",
+        "columns": [
+          "id",
+          "value"
+        ],
+        "type": "int64"
+      }
+    },
+    {
+      "id": "output-alias-shadow",
+      "sql": "SELECT id AS value, value AS id FROM items WHERE id >= 0 LIMIT 3",
+      "schema": {
+        "name": "items",
+        "columns": [
+          "id",
+          "value"
+        ],
+        "type": "int64"
+      }
+    },
+    {
+      "id": "output-alias-quoted",
+      "sql": "SELECT x.id AS \"SELECT\", x.value AS \"Value\" FROM items AS x",
+      "schema": {
+        "name": "items",
+        "columns": [
+          "id",
+          "value"
+        ],
+        "type": "int64"
+      }
+    },
+    {
+      "id": "output-alias-folding",
+      "sql": "SELECT id AS KEY, value AS VALUE FROM items",
+      "schema": {
+        "name": "items",
+        "columns": [
+          "id",
+          "value"
+        ],
+        "type": "int64"
+      }
+    },
+    {
+      "id": "output-alias-count",
+      "sql": "SELECT count(*) AS rows FROM items WHERE value IS NULL",
+      "schema": {
+        "name": "items",
+        "columns": [
+          "id",
+          "value"
+        ],
+        "type": "int64"
+      }
+    },
+    {
+      "id": "output-alias-sum",
+      "sql": "SELECT sum(value) AS total FROM items WHERE id > 0",
+      "schema": {
+        "name": "items",
+        "columns": [
+          "id",
+          "value"
+        ],
+        "type": "int64"
+      }
+    },
+    {
+      "id": "output-alias-empty-sum",
+      "sql": "SELECT sum(amount) AS total FROM (SELECT value AS amount FROM items LIMIT 0) AS chosen",
+      "schema": {
+        "name": "items",
+        "columns": [
+          "id",
+          "value"
+        ],
+        "type": "int64"
+      }
+    },
+    {
+      "id": "output-alias-derived",
+      "sql": "SELECT sum(chosen.amount) AS total FROM (SELECT x.value AS amount FROM items AS x WHERE x.id > 0 LIMIT 2) AS chosen",
+      "schema": {
+        "name": "items",
+        "columns": [
+          "id",
+          "value"
+        ],
+        "type": "int64"
+      }
+    },
+    {
+      "id": "output-alias-derived-shadow",
+      "sql": "SELECT sum(chosen.id) AS total FROM (SELECT value AS id, id AS value FROM items LIMIT 2) AS chosen",
+      "schema": {
+        "name": "items",
+        "columns": [
+          "id",
+          "value"
+        ],
+        "type": "int64"
+      }
+    },
+    {
+      "id": "output-alias-derived-repeated",
+      "sql": "SELECT sum(second_value) AS total FROM (SELECT value AS first_value, value AS second_value FROM items LIMIT 3) AS chosen",
+      "schema": {
+        "name": "items",
+        "columns": [
+          "id",
+          "value"
+        ],
+        "type": "int64"
+      }
+    },
+    {
+      "id": "output-alias-derived-count",
+      "sql": "SELECT count(*) AS rows FROM (SELECT value AS result FROM items LIMIT 2) AS chosen",
+      "schema": {
+        "name": "items",
+        "columns": [
+          "id",
+          "value"
+        ],
+        "type": "int64"
+      }
+    },
+    {
+      "id": "output-alias-special-names",
+      "sql": "SELECT id AS __proto__, value AS constructor FROM items",
+      "schema": {
+        "name": "items",
+        "columns": [
+          "id",
+          "value"
+        ],
+        "type": "int64"
+      }
+    },
+    {
+      "id": "output-alias-collision",
+      "sql": "SELECT id AS key, value AS key FROM items",
+      "compile_error": "DuplicateColumn"
+    },
+    {
+      "id": "output-alias-default-collision",
+      "sql": "SELECT id AS value, value FROM items",
+      "compile_error": "DuplicateColumn"
+    },
+    {
+      "id": "output-alias-repeated-collision",
+      "sql": "SELECT value AS key, value AS key FROM items",
+      "compile_error": "DuplicateProjection"
+    },
+    {
+      "id": "output-alias-where-scope",
+      "sql": "SELECT id AS key FROM items WHERE key > 0",
+      "compile_error": "UnknownColumn"
+    },
+    {
+      "id": "output-alias-hidden-inner",
+      "sql": "SELECT sum(chosen.value) FROM (SELECT value AS amount FROM items) AS chosen",
+      "compile_error": "UnknownColumn"
+    },
+    {
+      "id": "output-alias-quoted-inner",
+      "sql": "SELECT sum(amount) FROM (SELECT value AS \"Amount\" FROM items) AS chosen",
+      "compile_error": "UnknownColumn"
+    },
+    {
+      "id": "output-alias-inner-collision",
+      "sql": "SELECT count(*) FROM (SELECT id AS key, value AS key FROM items) AS chosen",
+      "compile_error": "DuplicateColumn"
+    },
+    {
+      "id": "output-alias-aggregate-limit",
+      "sql": "SELECT count(*) AS rows FROM items LIMIT 1",
+      "compile_error": "UnsupportedAggregateLimit"
     }
   ],
   "reject": [
@@ -1585,6 +1781,36 @@
     {
       "id": "source-alias-duplicate-as",
       "sql": "SELECT * FROM items AS x AS y",
+      "postgres": false
+    },
+    {
+      "id": "output-alias-implicit",
+      "sql": "SELECT id key FROM items",
+      "postgres": true
+    },
+    {
+      "id": "output-alias-implicit-aggregate",
+      "sql": "SELECT count(*) rows FROM items",
+      "postgres": true
+    },
+    {
+      "id": "output-alias-missing-name",
+      "sql": "SELECT id AS FROM items",
+      "postgres": false
+    },
+    {
+      "id": "output-alias-aggregate-missing-name",
+      "sql": "SELECT sum(value) AS FROM items",
+      "postgres": false
+    },
+    {
+      "id": "output-alias-duplicate-as",
+      "sql": "SELECT id AS key AS other FROM items",
+      "postgres": false
+    },
+    {
+      "id": "output-alias-star",
+      "sql": "SELECT * AS result FROM items",
       "postgres": false
     }
   ],

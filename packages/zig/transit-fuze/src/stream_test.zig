@@ -90,10 +90,10 @@ test "current plan codec rejects truncation aliases and incompatible definitions
     }
     const defaults: m.Plan = .{ .projection = &.{0} };
     const encoded = try m.Codec.encode(defaults, &bytes);
-    bytes[8] = 1; // Absent limit has canonical zero bytes.
+    bytes[41] = 1; // Absent limit has canonical zero bytes after definition/names.
     try t.expectError(error.InvalidPlanEncoding, m.Codec.decode(encoded));
     _ = try m.Codec.encode(defaults, &bytes);
-    bytes[7] = 2;
+    bytes[40] = 2; // Limit-present byte is exactly zero or one.
     try t.expectError(error.InvalidPlanEncoding, m.Codec.decode(encoded));
     _ = try m.Codec.encode(defaults, &bytes);
     bytes[3] = '2';

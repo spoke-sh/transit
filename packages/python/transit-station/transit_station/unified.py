@@ -214,10 +214,18 @@ class Plan:
     predicate: IsState | Compare | None = None
     limit: int | None = None
     aggregate: Aggregate = Aggregate.ROWS
+    output_names: tuple[str | None, ...] | None = None
     def _wire(self) -> object:
         if not isinstance(self.projection, tuple) or not 1 <= len(self.projection) <= 8:
             raise TypeError('Expected one to eight immutable projection indices')
+        if self.output_names is not None and (not isinstance(self.output_names, tuple) or len(self.output_names) != len(self.projection)):
+            raise TypeError('Output names must match the projection width')
+        if self.output_names is not None:
+            for name in self.output_names:
+                if name is not None and (not isinstance(name, str) or len(name.encode('utf-8')) > 32):
+                    raise TypeError('Expected an output name of at most 32 bytes')
         return {'version': 1, 'projection': [integer(v, 'column', minimum=0, maximum=7) for v in self.projection],
+            'output_names': self.output_names,
             'predicate': {'all': {}} if self.predicate is None else self.predicate._wire(),
             'limit': None if self.limit is None else str(_wide(self.limit, 'limit')), 'aggregate': self.aggregate.value}
 

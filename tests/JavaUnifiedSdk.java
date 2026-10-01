@@ -38,14 +38,15 @@ public final class JavaUnifiedSdk {
                 : new DocumentSource(reference(r,n(17),1,13),List.of(projection("value",Type.UTF8,List.of(),true,ProjectionMode.SCALAR),projection("counter",Type.UINT64,List.of(),true,ProjectionMode.ELEMENT_COUNTER),projection("replica",Type.UINT64,List.of(),true,ProjectionMode.ELEMENT_REPLICA),new Projection(new Column("optional",Type.UTF8),List.of("optional"))),Optional.of(List.of("items")));
         };
     }
-    private static Bundle bundle(Source source,String kind,boolean golden) {
+    private static Bundle bundle(Source source,String kind,boolean golden) { return bundle(source,kind,golden,false); }
+    private static Bundle bundle(Source source,String kind,boolean golden,boolean named) {
         boolean doc=kind.equals("document");
-        return Bundle.prepare(source,new Plan(golden?List.of(1,0):doc?List.of(0,1,2,3):List.of(1),new Compare(golden?1:doc?0:1,Query.Comparison.NE,golden&&kind.equals("kv")?new Unsigned(MAX):new Text("x".repeat(512))),Query.Aggregate.ROWS,golden?Optional.of(MAX):Optional.empty()),new Budgets(n(1000),n(golden?500:100),n(1048576)));
+        return Bundle.prepare(source,new Plan(golden?List.of(1,0):doc?List.of(0,1,2,3):List.of(1),new Compare(golden?1:doc?0:1,Query.Comparison.NE,golden&&kind.equals("kv")?new Unsigned(MAX):new Text("x".repeat(512))),Query.Aggregate.ROWS,golden?Optional.of(MAX):Optional.empty(),named?Optional.of(java.util.stream.IntStream.range(0,golden?2:doc?4:1).mapToObj(i -> i==0?Optional.of("Result"):Optional.<String>empty()).toList()):Optional.empty()),new Budgets(n(1000),n(golden?500:100),n(1048576)));
     }
     private static Bytes read(JsonObject config,String key) throws Exception { return new Bytes(Files.readAllBytes(Path.of(string(config,key)))); }
     private static void codecs(JsonObject config) throws Exception {
         var fixtures=new Gson().fromJson(Files.readString(Path.of(string(config,"bundles"))),JsonArray.class);
-        for(int i=0;i<3;i++) { String kind=List.of("kv","table","document").get(i); check(hex(bundle(source(new ResourceRef(46,7),kind,true),kind,true).bytes()).equals(fixtures.get(i).getAsJsonObject().get("wire_hex").getAsString())); }
+        for(int i=0;i<3;i++) { String kind=List.of("kv","table","document").get(i); check(hex(bundle(source(new ResourceRef(46,7),kind,true),kind,true).bytes()).equals(fixtures.get(i).getAsJsonObject().get("wire_hex").getAsString())); check(hex(bundle(source(new ResourceRef(46,7),kind,true),kind,true,true).bytes()).equals(fixtures.get(i).getAsJsonObject().get("named_wire_hex").getAsString())); }
         List<Column> columns=Arrays.stream(Type.values()).map(type -> new Column(type.name().toLowerCase(Locale.ROOT),type)).toList();
         byte[] input=read(config,"arrow").copy(); var rows=UnifiedQuery.decodeArrow(columns,new Bytes(input),5); Arrays.fill(input,(byte)0);
         List<Scalar> expected=List.of(new Signed(Long.MIN_VALUE),new Unsigned(MAX),new Floating(-0.0),new BooleanValue(false),new Text("café é 東京🙂"),new Binary(new Bytes(new byte[]{0,(byte)255,(byte)128})));
@@ -87,7 +88,7 @@ public final class JavaUnifiedSdk {
     private static void serve(JsonObject config) throws Exception {
         var c=config.getAsJsonObject("connection"); long realm=c.get("realm").getAsLong(); ResourceRef resource=new ResourceRef(realm,c.get("resource").getAsLong());
         var connection=new Connection(new ProcessRef(realm,c.get("source").getAsLong()),resource,new ProcessRef(realm,c.get("requester").getAsLong()),new ResourceRef(realm,c.get("requests").getAsLong()));
-        String kind=string(config,"kind"); Source source=source(resource,kind,false); check(bundle(source,kind,false).bytes().equals(read(config,"bundle")));
+        String kind=string(config,"kind"); Source source=source(resource,kind,false); check(bundle(source,kind,false,true).bytes().equals(read(config,"bundle")));
         Page saved=null;
         try(var client=UnifiedQuery.Client.open(new ClientConfig(java.net.URI.create(string(config,"url")),ClientConfig.Profile.NATIVE_V1,10000,null),new Credential(realm,c.get("principal").getAsLong(),Path.of(string(config,"seed_file"))),connection)) {
             var description=await(client.describe(source)); check(description.bundleBytes()==16384 && description.batchRows()==8);

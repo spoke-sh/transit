@@ -6,7 +6,7 @@ pub fn main(init: std.process.Init) !void {
     dispatch(init, &diagnostic) catch |err| {
         diagnostic.emit(init.io, err);
         std.process.exit(switch (err) {
-            error.ConsoleInterrupted, error.InteractiveQueryCancelled, error.ConsoleQueryInterrupted => 130,
+            error.ConsoleInterrupted, error.InteractiveQueryCancelled, error.ConsoleQueryInterrupted, error.FileQueryInterrupted => 130,
             error.InvalidInvocation, error.InvalidConfiguration, error.InvalidConfigurationPath, error.InvalidCredentialFile => 2,
             else => 1,
         });
@@ -14,6 +14,7 @@ pub fn main(init: std.process.Init) !void {
 }
 fn dispatch(init: std.process.Init, diagnostic: *Diagnostic) !void {
     const args = try init.minimal.args.toSlice(init.arena.allocator());
+    if (args.len > 1 and std.mem.eql(u8, args[1], "file-query")) return @import("FileQuery.zig").run(init, args[2..], diagnostic);
     if (args.len > 1 and std.mem.eql(u8, args[1], "app")) return @import("Application.zig").run(init, args[2..], diagnostic);
     if (args.len > 1 and std.mem.eql(u8, args[1], "mutate")) return @import("Mutations.zig").run(init, args[2..], diagnostic);
     if (args.len > 1 and std.mem.eql(u8, args[1], "catalog")) return @import("Catalog.zig").run(init, args[2..], diagnostic);
