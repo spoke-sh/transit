@@ -23,8 +23,10 @@ gzip and a real stdin pipe. Every process receives one CPU, a 4 GiB virtual
 address-space ceiling, and a timeout. DuckDB uses one thread, a 64 MB engine
 memory limit, insertion-order preservation, a 256 KiB CSV buffer and no extension
 downloads. Its Python/OpenBLAS runtime needs more than 1 GiB of virtual mappings;
-that reservation is distinct from resident memory. Peak process RSS comes from
-`wait4`, independently for each child. Fixture data and private captures live on
+that reservation is distinct from resident memory. `image_peak_rss_kib` records
+the executable's `/proc/self/status` VmHWM counter after its measured work.
+The separate `wait4` `peak_rss_kib` includes the launcher's inherited pre-exec
+memory and is only a process-lifetime upper bound. Fixture data and private captures live on
 disk in `/var/tmp`, and are removed after the run.
 
 Each shape is generated once and checked by SHA-256. Before every cold-input
@@ -77,8 +79,11 @@ rounding. These are arena traffic, not every application malloc call. Reading
 those counters occurs outside phase timers and does not flush caches. Its
 read-byte counter covers process read syscalls, including reader metadata; it
 is not a logical row-byte count. PyArrow pool counters are separate. The allocator scopes differ, so their counts are not interchangeable measures
-of engine work. Peak process RSS comes from the kernel; jemalloc live bytes
-are endpoint snapshots.
+of engine work. RSS counters come from the kernel; jemalloc live bytes
+are endpoint snapshots. Linux preserves resource-usage metrics across exec;
+the [getrusage documentation](https://man7.org/linux/man-pages/man2/getrusage.2.html)
+and [proc counter definitions](https://www.kernel.org/doc/html/latest/filesystems/proc.html)
+explain why launcher and executable-image peaks are recorded separately.
 See the [allocator statistics](https://jemalloc.net/jemalloc.3.html) for the
 counter semantics.
 

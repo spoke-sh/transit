@@ -271,6 +271,7 @@ def main(config):
         emit(dict(complete=True, scanned=rows, id_sum=id_sum if config.get('expected_id_sum') is not None else None,
             result_sum=result_sum if config.get('expected_result_sum') is not None else None,
             encoded_bytes=encoded_total, expanded_bytes=expanded_total, build=connection.sql('PRAGMA version').fetchall(),
+            image_peak_rss_kib=int(next(line.split()[1] for line in Path('/proc/self/status').read_text().splitlines() if line.startswith('VmHWM:'))),
             rss_kib=resource.getrusage(resource.RUSAGE_SELF).ru_maxrss))
     finally:
         connection.close()

@@ -81,6 +81,17 @@ fn kernelFile(init: std.process.Init, path: []const u8) ![]const u8 {
     var reader = file.readerStreaming(init.io, &buffer);
     return reader.interface.allocRemaining(init.arena.allocator(), .limited(4096));
 }
+fn imageRss(init: std.process.Init) !u64 {
+    var lines = std.mem.splitScalar(u8, try kernelFile(init, "/proc/self/status"), '\n');
+    while (lines.next()) |line| {
+        if (!std.mem.startsWith(u8, line, "VmHWM:")) continue;
+        var words = std.mem.tokenizeAny(u8, line[6..], " \t");
+        const number = words.next() orelse return error.MissingRss;
+        if (!std.mem.eql(u8, words.next() orelse return error.MissingRss, "kB")) return error.InvalidRssUnit;
+        return std.fmt.parseInt(u64, number, 10);
+    }
+    return error.MissingRss;
+}
 fn cgroup(init: std.process.Init) !struct { path: []const u8, memory_max: []const u8, memory_swap_max: []const u8, memory_peak: []const u8, memory_events: []const u8, cpu_stat: []const u8 } {
     const a = init.arena.allocator();
     const membership = try kernelFile(init, "/proc/self/cgroup");
@@ -222,5 +233,5 @@ pub fn main(init: std.process.Init) !void {
     if (!execution.complete or execution.scanned != rows or execution.emitted != config.expected_output_rows) return error.IncorrectQueryResult;
     if (config.expected_result_sum != null and result_sum != config.expected_result_sum.?) return error.IncorrectQueryChecksum;
     try meter.end("scan_convert_execute", execution.emitted, 0, first_batch);
-    try emit(meter.out, .{ .complete = true, .scanned = rows, .id_sum = if (id_column != null) @as(?i64, sum) else null, .result_sum = if (config.expected_result_sum != null) @as(?i64, result_sum) else null, .encoded_bytes = config.options.max_scan_bytes - encoded_remaining, .expanded_bytes = config.options.max_scan_bytes - expanded_remaining, .build_mode = @tagName(@import("builtin").mode), .cgroup = try cgroup(init) });
+    try emit(meter.out, .{ .complete = true, .scanned = rows, .id_sum = if (id_column != null) @as(?i64, sum) else null, .result_sum = if (config.expected_result_sum != null) @as(?i64, result_sum) else null, .encoded_bytes = config.options.max_scan_bytes - encoded_remaining, .expanded_bytes = config.options.max_scan_bytes - expanded_remaining, .build_mode = @tagName(@import("builtin").mode), .image_peak_rss_kib = try imageRss(init), .cgroup = try cgroup(init) });
 }

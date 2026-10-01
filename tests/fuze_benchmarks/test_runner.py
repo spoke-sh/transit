@@ -13,7 +13,7 @@ class Evidence(unittest.TestCase):
     def records(self):
         return [dict(phase=p, elapsed_ns=100, cpu_ns=50) for p in
             ('capture', 'discovery', 'compile', 'scan_convert', 'export_cached_batch', 'scan_convert_execute')] + [
-                dict(complete=True, scanned=3, id_sum=3, result_sum=3, build_mode='safe')]
+                dict(complete=True, scanned=3, id_sum=3, result_sum=3, build_mode='safe', image_peak_rss_kib=4096)]
 
     def test_only_complete_checked_runs_pass(self):
         expected = dict(expected_rows=3, expected_id_sum=3, expected_result_sum=3)

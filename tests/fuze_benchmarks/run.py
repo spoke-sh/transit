@@ -138,6 +138,7 @@ def checked(records, expected, engine):
     required = ['capture', 'discovery', 'compile', 'scan_convert', 'export_cached_batch', 'scan_convert_execute'] if engine == 'transit' else ['capture_python', 'discovery_bind', 'compile_bind', 'scan_convert_arrow', 'export_cached_batch', 'scan_convert_execute_arrow']
     if names != required: raise ValueError('Incomplete, reordered or duplicated phases')
     if not records or records[-1].get('complete') is not True: raise ValueError('Missing completion')
+    if records[-1]['image_peak_rss_kib'] <= 0: raise ValueError('Missing executable-image peak RSS')
     if records[-1]['scanned'] != expected['expected_rows']: raise ValueError('Incorrect scan count')
     if records[-1]['id_sum'] != expected['expected_id_sum']: raise ValueError('Incorrect result checksum')
     if 'expected_result_sum' in expected and records[-1]['result_sum'] != expected['expected_result_sum']: raise ValueError('Incorrect query checksum')
@@ -195,6 +196,7 @@ def invoke(command, configuration, fixture, directory, engine, timeout, cpu):
             checked(result['records'], configuration, engine)
             identities = [{k: r[k] for k in ('length', 'digest')} for r in result['records'] if 'source' in r]
             if identities != fixture['expanded']: raise ValueError('Captured content does not match fixture hashes')
+            result['image_peak_rss_kib'] = result['records'][-1]['image_peak_rss_kib']
         except (ValueError, KeyError, TypeError) as error:
             result['validation_error'] = str(error)
     return result
@@ -265,6 +267,7 @@ def main():
                 'DuckDB streaming combines decoding/execution with Arrow construction.',
                 'DuckDB process glibc request counts include Python/glue and instrumentation overhead; jemalloc/PyArrow counters are separately scoped; read bytes include metadata.',
                 'Per-process wall includes startup and up to 5ms reap polling; phase timers exclude this.',
+                'wait4 peak_rss_kib includes the pre-exec launcher image; image_peak_rss_kib is the current executable VmHWM counter.',
                 'Capture hosts differ: Zig CLI implementation and Python comparator copying.',
                 'Cached-batch export contains at most eight rows; it is not full-source export throughput.'])
         with tempfile.TemporaryDirectory(prefix='transit-fuze-bench-', dir='/var/tmp') as work:
