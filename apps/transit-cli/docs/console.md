@@ -301,6 +301,14 @@ bundle and submit it, waiting for requester processing between steps. The wait
 phase includes source-worker execution, durable result publication and delivery
 of the completion to the requester. These are client-observed phases rather than
 pure network or engine execution time.
+For Table mutations and catalog writes, `compile` measures local lowering;
+`prepare` includes current metadata, identity checks and signing each command.
+`submit` measures native send acknowledgements. `wait` includes processed-input
+observations and polling sleeps; `fetch` reads rejection and terminal outcome
+records. `persist` includes every atomic recovery-file replacement and file/directory
+sync throughout the operation, and `render` writes the final presentation.
+An admission acknowledgement alone is not a completed mutation. These phases
+partition client wall time; worker and storage work can occur during several of them.
 Sub-millisecond work can display as zero. Timing does not change JSON stdout or
 query recovery, and `.timing off` disables it. Missing, invalid or extra arguments
 print `Usage: .timing on|off` to stderr without changing the setting. Interactive
