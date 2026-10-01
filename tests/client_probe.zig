@@ -15,8 +15,20 @@ const Config = struct {
     state_association: []const u8,
     consumed: u64,
 };
+fn submitForRejection(client: *wire.Client, signed: p.Growth.SignedRequest) !wire.Receipt {
+    // Storage can become unavailable before the requested rejection is observed.
+    // Retry only these transient outcomes, with the exact frozen operation and
+    // at most three attempts inside the harness's existing 20-second limit.
+    for (0..3) |attempt| {
+        return client.submit(signed) catch |err| {
+            if (attempt < 2 and (err == error.AuthorityUnavailable or err == error.AuthorityTimeout)) continue;
+            return err;
+        };
+    }
+    unreachable;
+}
 fn reject(client: *wire.Client, request: p.Request, key: p.Ed25519.KeyPair, code: p.ErrorCode) !void {
-    try t.expectError(error.Rejected, client.submit(try p.sign(request, key)));
+    try t.expectError(error.Rejected, submitForRejection(client, try p.sign(request, key)));
     try t.expectEqual(@as(?p.ErrorCode, code), client.last_rejection);
 }
 pub fn main(init: std.process.Init) !void {
@@ -62,7 +74,7 @@ pub fn main(init: std.process.Init) !void {
         try reject(&client, invalid, key, .InvalidInput);
         invalid = pending.signed.request;
         invalid.command.turn.effect = try p.Value.init("unauthorized effect");
-        try t.expectError(error.AccessDenied, client.submit(try p.sign(invalid, key)));
+        try t.expectError(error.AccessDenied, submitForRejection(&client, try p.sign(invalid, key)));
         const before = (try client.query(read, key)).body.process;
         try t.expectEqual(delivery.revision, before.process.revision);
         const unchanged = try session.readView(opened.position, try p.Value.init("value"), null);

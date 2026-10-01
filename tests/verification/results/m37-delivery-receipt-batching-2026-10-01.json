@@ -1,0 +1,475 @@
+{
+  "version": 1,
+  "base_revision": "42d45983d5297145edaf46ac6782a6ef4262c35a",
+  "candidate_source_sha256": {
+    "packages/zig/transit-core/src/growing.zig": "f25b2fd2302cd9563411956e261f0c42217acecd0c510e000591773aa805305a",
+    "packages/zig/transit-core/src/growing_work.zig": "7d5c720e4eae5b09e50f60eb505889197bfd004657cef8551b7f54ec5749e34b",
+    "packages/zig/transit-core/src/growing_test.zig": "9fbea931fe992822203d9fa52f6ada6354441fc0594a0188df489f1e84021f22"
+  },
+  "unit": {
+    "scope": "Isolated package source identical to working candidate",
+    "tests_passed": 65,
+    "page_stages": 6,
+    "staging_fault_cases": 12,
+    "log_sha256": "c03247a38ad8726fbfe6e52b929fb10dac0f86688ca23d86eb65d785fe1f3558"
+  },
+  "simulation": {
+    "revision": "42d45983d5297145edaf46ac6782a6ef4262c35a",
+    "dirty": true,
+    "binary_sha256": "66df453e5c3bba1dfe4e328ae8d1399a6ff0cf7d7d86342fca5c8a3d9e3a2e1d",
+    "oracle_sha256": "6d22e644e9e077ef6b5e04e6ba50c8105ea805bf5790b2b592ac8e6e6deeaa05",
+    "zig": "0.17.0-dev.2267+48abf1a34",
+    "generator": "xorshift64-delivery-v1",
+    "configuration": {
+      "seeds": 64,
+      "steps": 128,
+      "trace": null
+    },
+    "traces": 70,
+    "events": 10535,
+    "executions": 141,
+    "actions": {
+      "send": 990,
+      "own": 790,
+      "prepare_turn": 2081,
+      "commit": 1645,
+      "retry": 815,
+      "prepare_delivery": 1265,
+      "progress": 70,
+      "policy": 1032,
+      "assert_drained": 140,
+      "restart": 1615,
+      "terminate": 92
+    },
+    "outcomes": {
+      "success": 6879,
+      "Conflict": 376,
+      "ConflictingRetry": 18,
+      "RetiredProcess": 555,
+      "UnknownOutput": 255,
+      "NoPreparation": 470,
+      "LostAcknowledgement": 55,
+      "Forbidden": 889,
+      "RouteBlocked": 33,
+      "StorageUnavailable": 199,
+      "StaleGeneration": 66,
+      "OutputAlreadyResolved": 155,
+      "NoInput": 585
+    },
+    "trace_sha256": [
+      "642e28a30491b44ee76efafbf76e9c8b80509f8cbf90b0319b4814a1b5a4eee8",
+      "51be32190e1b3f8acdaf0b4a8a635f00608d42eb77498c52dcda6de0c4f8aac9",
+      "7de6931fd0469e25ae6d2b865848436d1425cf055448502186a72efc646802ba",
+      "8a5211a158b36cf04cc9205c2d06efbce1df4e94cd0dbaac3937da63ca947690",
+      "eed763f5ff3e005562eee13cccd5e4c72186c631c4b8443a958bf08ce77ca2a3",
+      "08c3c7818fc15d2fcf8e40fee3c42482b5cad86efd20369620ec99553825d95d",
+      "176b7410957e2e8b389564ffa38865fad527f3626175091be2a2d9da9f92fa3b",
+      "6ba4ea032e00f32f63365ef6a9e02becf541fb8db5995a800bbe481ba453246b",
+      "8d0e8f804228d96fda82cc9e66ed2327fafc483b6fa34c8cbd33f0c3ca7ce60d",
+      "9f74934ab91d358a2717cc5e489369f61d8c49b2148036cc7fd8d600538c939f",
+      "d7c2d3b57a14434d3d71a2e35710a06fb539dc6c88ca9089b09cda413cdfb851",
+      "ddd155c1d101fa250c1ff2d1e70735113872313e60fd3b139db321ec6982d34d",
+      "7f8e600f3e3a689d0450189a9f4f5b26154e8a90862d0d8ed8cf0db00dd4e058",
+      "068421c483e9a2ff35a8f077ec423b78c7524fc6ab9b28fc4e31c56309f8e8b0",
+      "4040e8f4635546e9000d6f8e56b2ec538403705ced9e4ade3d50c1bdccd07cfd",
+      "b343718e9cd67561544c8671d0c5b2047527eb2591646a7951e26406614d1825",
+      "b053d5eb68e9c8181a89968d4a3895208d0950ddd209875599d79e61dcf2be8b",
+      "2e7fa671423a167ad3404691c0857bc1c6536ac992f829db9bfa6ca9ab784704",
+      "4de0a485c0a6f5617e95c3e064718c555ca62270a964542f51431c85ce895fba",
+      "9ec6adb7e5aaff89392f2c9b5bd4e1f498d27976868a7e5f4c251e2b3561955e",
+      "4af3b18e957967345524c22d6ccc3418a5b83ba4f6e627777d16584a4517eb7e",
+      "1837d30db0cf4474cd6ae53b48b11350c2e4a6ffb5a9d3025d5d4c645ad007a7",
+      "6a4d49438636f99b4473faafddf793dd44263900cf1e9f2b9552a45c13962aff",
+      "44a8bfeb0dab866f32d4cbc1142e2f84d0fe3976bdb65f691561492b7b8d9147",
+      "9f6040b69cf4c00b62a1594153092a75c9d2246d22c3ec4902d9f52d0f9e1f95",
+      "34d57c7765fbad2c3ad12e023478b5806283a5ae91143354f9210a250d05f558",
+      "69ffcbee19aae8c67913d04eec42c6bf8755fbddf0506d1d692579249b56a51d",
+      "b531e2a8e9a38cf0e01c85a3ea562219c625f8702285b538ec7ef348b07fc59b",
+      "8087cfe83c26d0acb92d63c1e35633be12a9acd4f681b71b26c1193d88267909",
+      "dfb8f8eccf048863387e6e5161a4b4bd5cd813895b7aed65d28d7ec779278631",
+      "0ee897c5636ca09f4388003568324d84ab3553de29955725cde38d0a4b9de66c",
+      "2f0229bd6023e275be8f8017de8679c44b36776b26ee53875fb96e6b8ea19e95",
+      "4ae0356563384a81b6b2f12af9e91aa7afe9d2dd61847560162c448952771ce9",
+      "dfb84e367c17c6090fa52b444436e73229200b1b07177ced50d51920781daa30",
+      "64f3843b6b7da267fac53082bbd0a49ccf5eaf6f2c0773c8b7ad974e44a1890e",
+      "90d0090ec78fc9d9510efd2c75777a2f3e644baa05725a77775a2e994adf72c7",
+      "006bbdab1191ec4c3637380b2effb079455dda4b842ce16813181aea18ceed16",
+      "2bd1dbd47c24405862fe20ca13645a4ba5cf9181656b6f69e4c3c296b53618a7",
+      "e174ce98a8900ee7b77039e87de26f0cc63ba96b80ddf7415aa5d0dc2f9dfe24",
+      "57d2e91f86a2cd98083f43b62bb5452704df24b49400c7cdbde9b656f89469b2",
+      "2add1dbd3144861cccde62a3458066a763fa188a6b9393be4697c1310f3455cc",
+      "94ca2c261e9786da7f1008df64fd0b4a8cd2ff2e7134757ad2043efde50cc286",
+      "b5f44f6db4ad063a2b1099f99b32d8f11fc0a5a45e59604b38a0f346e361a231",
+      "85b28e128d6ce279ba6da6a79fe8eaa939dcf9c31679d7a97b16699248d4f3bd",
+      "e7b7b0555d041137e2ff6d1355595a5e238f3ddb486063c500908f7023307d8c",
+      "5ca15b1fbf4982e26893a748bf3da66122cac84dc906affa0a66198a35baad2e",
+      "11c672a152346044bfdffe43a1dfdd3d4f74d1dedbc266bcc715ff6d119af7d5",
+      "3eb43ab0808b4035abd07837487b01eb908b044535acc68918ba7f051aa20ad2",
+      "7a897891b0e5f5c952f1252d4e1773c7e6ead9a581f24bf37b6ad1fe4f215bb8",
+      "aca38b1da5aadaab33df1112c621be0f0c541808a1b07a6403629f60625c1cb6",
+      "b6709afffc30bc10d838161b96fa953d47e7dbcefe5a4df417b18a72892d3aa4",
+      "542eabfe4ed9fcc3a7a588f279fa95511f3ad1b1a05039a9d9a39619f92946ca",
+      "f8c848978fd26bc9d45be519ec475c4c7c7b4320bb2b31ea3f6248180fefa5af",
+      "83ee42e21881c0e9a07c2313958dee93c5b987be5cb5815b04aacd25a097e8b2",
+      "11ceb6cb7ca45373e400295f0a658bcc06310b6373760435d2dcf89bbdb90853",
+      "441ff225a2a2e810075272315ec8f833bb6ac91d2d0ab96bd6967e2d6f4c25f7",
+      "3d98e1b5047114e097739e35037dc7885637948b8cc4580836b6b28208331edb",
+      "7d3ad64e17381e627f6f3b863edd574f9140d42e0098fa15cbabbbc3383fe081",
+      "70b418b0e85744858d478b0a2b18dc4617caf5e62081cfe2e71e98820bda1903",
+      "73794e6645e397ad1e7c1289e74b1d921f8224b856ec4b9a629e806010e39494",
+      "f3fe343b519ba37023e6b15ec347269631fbd25ebd911bcab1fc4f1443808891",
+      "d1c5be1e86d902747b67103a1d465287313b942154c21f2d989c06350f2a39a2",
+      "4851680fdf41e46afa2d4f0cc0644d55b4dab71e8478f53fdfed069052bf6826",
+      "17ccc01cb74c21ffe989692866b6ed8c1b3d1c1b4de09956f90f1a4c1ac1cc98",
+      "f8ba9409e2bd2deb493defe4d4515a4d9cddd2aa768a19bc1b320859a5046e6d",
+      "776a935d8aa176b013af4e8682dfcb33dc503edd6bd44e9e6283c00513d591ed",
+      "42045cc0aee2f133590a2ab11ca24916136ed8e3c025cde236d1ec04fdfb8122",
+      "a39f554a98043382e04ad08e77de6f82f4426512fe896010c553d1b107844dd8",
+      "ae41f65173781fc1c6844b4f1a251879ca4d3696b8750371c01c5b5f1b74afe2",
+      "61a58e7b9b47bc9498900c7fa21b0bba8f6563642715455538fdc8d91c838672"
+    ],
+    "negative_controls": [
+      "undrained_work",
+      "incomplete_observation"
+    ],
+    "negative_control_events": 3,
+    "elapsed_seconds": 227.346,
+    "completed": true
+  },
+  "full_check": {
+    "exit_code": 0,
+    "log_sha256": "f59c549bedb6474d07bc82bcab428c277f5137de9b85a72c0e082ceeeed7f473"
+  },
+  "node_sha256": "f64671093457aeaf56d506c57540adee6b1ca2b5f6f640b07716675e86fa9e35",
+  "limits": [
+    "Page stage counts describe this exact small-catalog unit fixture, not all workloads.",
+    "All three focused disk attempts time out under the unchanged 180-second delivery cap; none completes the workload.",
+    "The clean core pass at 42d45983 covers the earlier six-key implementation, not this eight-key follow-up.",
+    "Shared-host samples and incomplete workloads do not qualify a speedup, a general latency guarantee or expanded-suite costs."
+  ],
+  "mutations": {
+    "version": 1,
+    "revision": "8e49e0bc3d50315d75538588ccb75ae156d3ad7e",
+    "status": "passed",
+    "mutants": [
+      {
+        "name": "route_order",
+        "status": "detected",
+        "seconds": 8.905
+      },
+      {
+        "name": "delivery_origin",
+        "status": "detected",
+        "seconds": 6.028
+      }
+    ]
+  },
+  "implemented_revision": "8e49e0bc3d50315d75538588ccb75ae156d3ad7e",
+  "disk_comparison": {
+    "version": 1,
+    "revision": "9b19d56955fd3b6e9a8bbaf05ea95532f59af8f9",
+    "dirty": false,
+    "scope": "Six-key/eight-key/six-key disk query proof; same caller, fixture, stack, CPU and deadlines",
+    "node_sha256": "a679216420a28b3c1af349fbe42135d920c2b4c626ef0ed4e1ac50e88532616a",
+    "caller_sha256": "9595c7d03d8039a331d0a44a63857025f1e9ca7eff973e13696241c6dd059946",
+    "fixture_sha256": "9b92821449f55965c9f65f2f6373b1345d419abb4d0293cc8071e3714845a8f3",
+    "deadline_seconds": 180,
+    "placement_sequence": [
+      0,
+      0,
+      0
+    ],
+    "runs": [
+      {
+        "label": "1-six-key",
+        "cpu": 0,
+        "node_sha256": "a679216420a28b3c1af349fbe42135d920c2b4c626ef0ed4e1ac50e88532616a",
+        "command": [
+          "nix",
+          "develop",
+          ".#bindings",
+          "--command",
+          "env",
+          "TMPDIR=/home/alex/workspace/rupurt/rey-issue-26/.cache/query-delivery-receipt-controls/1-six-key/tmp",
+          "taskset",
+          "-c",
+          "0",
+          "python3",
+          "-B",
+          "tests/growing_query.py",
+          "/home/alex/workspace/rupurt/rey-issue-26/.cache/delivery-batch-artifacts/transit-node",
+          "/var/tmp/transit-ci-o74jenrb/src/.zig-cache/o/1050979747768600858670e574ed0f02/transit-query-proof"
+        ],
+        "started_unix": 1790841234.4966238,
+        "seconds": 237.729,
+        "exit_code": 1,
+        "log": "/home/alex/workspace/rupurt/rey-issue-26/.cache/query-delivery-receipt-controls/1-six-key/proof.log",
+        "log_sha256": "48cbd97cfd939c594954ce38d9b23a08e01e9cc9b11e133682e4fa3a2822640e",
+        "scheduling_sha256": "7571d56e0ab80d69a3132f1ff3296f9eb388f12e5265ba058b3535ab30f85b70",
+        "logs": [
+          {
+            "path": "1-six-key/rey-storage-q3kir7iq/node.log",
+            "size": 376539,
+            "retained": 376539,
+            "truncated": false,
+            "sha256": "295db7ab54b1fe7cf54037acf8a59a144fff0d59147bb810a2f078b8377c7ff2"
+          },
+          {
+            "path": "1-six-key/rey-storage-q3kir7iq/ursula.log",
+            "size": 165510,
+            "retained": 165510,
+            "truncated": false,
+            "sha256": "73684582468db00ea654fd72e83166427102ac0fb721ce0d31d4133c7b3882af"
+          }
+        ]
+      },
+      {
+        "label": "2-eight-key",
+        "cpu": 0,
+        "node_sha256": "f64671093457aeaf56d506c57540adee6b1ca2b5f6f640b07716675e86fa9e35",
+        "command": [
+          "nix",
+          "develop",
+          ".#bindings",
+          "--command",
+          "env",
+          "TMPDIR=/home/alex/workspace/rupurt/rey-issue-26/.cache/query-delivery-receipt-controls/2-eight-key/tmp",
+          "taskset",
+          "-c",
+          "0",
+          "python3",
+          "-B",
+          "tests/growing_query.py",
+          "/home/alex/workspace/rupurt/rey-issue-26/zig-out/bin/transit-node",
+          "/var/tmp/transit-ci-o74jenrb/src/.zig-cache/o/1050979747768600858670e574ed0f02/transit-query-proof"
+        ],
+        "started_unix": 1790841472.3891437,
+        "seconds": 244.619,
+        "exit_code": 1,
+        "log": "/home/alex/workspace/rupurt/rey-issue-26/.cache/query-delivery-receipt-controls/2-eight-key/proof.log",
+        "log_sha256": "a304a0a249845708ace68443779ef8c540a3e864ddce955f79df34305c687bdd",
+        "scheduling_sha256": "e6e7192366a209fa0556f2f33f583c235d48edc5b6f9fcb689eb897214fa0f52",
+        "logs": [
+          {
+            "path": "2-eight-key/rey-storage-mmfn8xnr/node.log",
+            "size": 385368,
+            "retained": 385368,
+            "truncated": false,
+            "sha256": "3da7b95a76c263115d4006f008704857c5be1947bcd8bd8897620f0cc9c826c3"
+          },
+          {
+            "path": "2-eight-key/rey-storage-mmfn8xnr/ursula.log",
+            "size": 169425,
+            "retained": 169425,
+            "truncated": false,
+            "sha256": "6d2e56ab1ce1f5962a7f3918f9e6cb88cdf0bbd201f1e26467cd3cf95d308c82"
+          }
+        ]
+      },
+      {
+        "label": "3-six-key",
+        "cpu": 0,
+        "node_sha256": "a679216420a28b3c1af349fbe42135d920c2b4c626ef0ed4e1ac50e88532616a",
+        "command": [
+          "nix",
+          "develop",
+          ".#bindings",
+          "--command",
+          "env",
+          "TMPDIR=/home/alex/workspace/rupurt/rey-issue-26/.cache/query-delivery-receipt-controls/3-six-key/tmp",
+          "taskset",
+          "-c",
+          "0",
+          "python3",
+          "-B",
+          "tests/growing_query.py",
+          "/home/alex/workspace/rupurt/rey-issue-26/.cache/delivery-batch-artifacts/transit-node",
+          "/var/tmp/transit-ci-o74jenrb/src/.zig-cache/o/1050979747768600858670e574ed0f02/transit-query-proof"
+        ],
+        "started_unix": 1790841717.0473335,
+        "seconds": 259.62,
+        "exit_code": 1,
+        "log": "/home/alex/workspace/rupurt/rey-issue-26/.cache/query-delivery-receipt-controls/3-six-key/proof.log",
+        "log_sha256": "c0000de31fdf00df16f42be6c918c93ba15783c05250d6d6e000455d3ec4a85b",
+        "scheduling_sha256": "1feef9abd93f296fd7c46b1186192243501c8d490b50eee29c1467ed7af56be4",
+        "logs": [
+          {
+            "path": "3-six-key/rey-storage-y8329rv3/node.log",
+            "size": 363683,
+            "retained": 363683,
+            "truncated": false,
+            "sha256": "dc28ba1494130ffe4e078bc7ef78603ab6fa9405f6b42f21f8c27f0ddff0b18f"
+          },
+          {
+            "path": "3-six-key/rey-storage-y8329rv3/ursula.log",
+            "size": 160110,
+            "retained": 160110,
+            "truncated": false,
+            "sha256": "49bc21b1ec4e28eeb4dec4368e2c6e563c4ae7212007518205b140baadc72320"
+          }
+        ]
+      }
+    ],
+    "limits": [
+      "Focused samples do not qualify the interrupted growth lane.",
+      "Sequential CPU placement samples share the host and filesystem; unrelated activity is uncontrolled.",
+      "Scheduling observations are sampled lower bounds; missing short-lived threads are not zero work."
+    ],
+    "fixture_revision": "d6ce30ea6901c38d7d7614976843581c95c3412f",
+    "stack_limit_bytes": 48234496,
+    "stack_limit_evidence": "Retained clean growing-hot-64-1.json from the same build runner",
+    "candidate_node_sha256": "f64671093457aeaf56d506c57540adee6b1ca2b5f6f640b07716675e86fa9e35",
+    "candidate_source_revision": "8e49e0bc3d50315d75538588ccb75ae156d3ad7e",
+    "candidate_source_dirty": false,
+    "candidate_source_sha256": {
+      "packages/zig/transit-core/src/growing_work.zig": "7d5c720e4eae5b09e50f60eb505889197bfd004657cef8551b7f54ec5749e34b",
+      "packages/zig/transit-core/src/growing_test.zig": "9fbea931fe992822203d9fa52f6ada6354441fc0594a0188df489f1e84021f22",
+      "flake.lock": "865faed173c5a710f77c231ce13c427bfe9eeaf3900e7edc7fa7e9d6233b1264"
+    },
+    "sequence": [
+      "six-key",
+      "eight-key",
+      "six-key"
+    ]
+  },
+  "disk_summary": {
+    "version": 1,
+    "source": {
+      "original": "9b19d56955fd3b6e9a8bbaf05ea95532f59af8f9",
+      "batched": "8e49e0bc3d50315d75538588ccb75ae156d3ad7e"
+    },
+    "runs": [
+      {
+        "label": "1-six-key",
+        "exit_code": 1,
+        "seconds": 237.729,
+        "phase_seconds": null,
+        "delivery_completed_commands": 415,
+        "last_position": 610,
+        "operations": {
+          "own": {
+            "commands": 2,
+            "work_ns": 231369620,
+            "wait_ns": 772,
+            "cache_hits": 111,
+            "cache_misses": 17
+          },
+          "deliver": {
+            "commands": 138,
+            "work_ns": 47276651451,
+            "wait_ns": 22021,
+            "cache_hits": 16533,
+            "cache_misses": 2650
+          },
+          "open_view": {
+            "commands": 138,
+            "work_ns": 35351001417,
+            "wait_ns": 20229,
+            "cache_hits": 8416,
+            "cache_misses": 1849
+          },
+          "turn": {
+            "commands": 137,
+            "work_ns": 87374914967,
+            "wait_ns": 22015,
+            "cache_hits": 23766,
+            "cache_misses": 3187
+          }
+        },
+        "node_log_sha256": "295db7ab54b1fe7cf54037acf8a59a144fff0d59147bb810a2f078b8377c7ff2"
+      },
+      {
+        "label": "2-eight-key",
+        "exit_code": 1,
+        "seconds": 244.619,
+        "phase_seconds": null,
+        "delivery_completed_commands": 430,
+        "last_position": 625,
+        "operations": {
+          "own": {
+            "commands": 2,
+            "work_ns": 637430096,
+            "wait_ns": 171,
+            "cache_hits": 111,
+            "cache_misses": 17
+          },
+          "deliver": {
+            "commands": 143,
+            "work_ns": 45848338024,
+            "wait_ns": 12803,
+            "cache_hits": 14804,
+            "cache_misses": 2774
+          },
+          "open_view": {
+            "commands": 143,
+            "work_ns": 32812943985,
+            "wait_ns": 12310,
+            "cache_hits": 8744,
+            "cache_misses": 1931
+          },
+          "turn": {
+            "commands": 142,
+            "work_ns": 92696776282,
+            "wait_ns": 13404,
+            "cache_hits": 24579,
+            "cache_misses": 3276
+          }
+        },
+        "node_log_sha256": "3da7b95a76c263115d4006f008704857c5be1947bcd8bd8897620f0cc9c826c3"
+      },
+      {
+        "label": "3-six-key",
+        "exit_code": 1,
+        "seconds": 259.62,
+        "phase_seconds": null,
+        "delivery_completed_commands": 394,
+        "last_position": 589,
+        "operations": {
+          "own": {
+            "commands": 2,
+            "work_ns": 256194107,
+            "wait_ns": 161,
+            "cache_hits": 111,
+            "cache_misses": 17
+          },
+          "deliver": {
+            "commands": 131,
+            "work_ns": 46412174105,
+            "wait_ns": 11275,
+            "cache_hits": 15667,
+            "cache_misses": 2510
+          },
+          "open_view": {
+            "commands": 131,
+            "work_ns": 36278126748,
+            "wait_ns": 11170,
+            "cache_hits": 7958,
+            "cache_misses": 1741
+          },
+          "turn": {
+            "commands": 130,
+            "work_ns": 88460209614,
+            "wait_ns": 12451,
+            "cache_hits": 22480,
+            "cache_misses": 2945
+          }
+        },
+        "node_log_sha256": "dc28ba1494130ffe4e078bc7ef78603ab6fa9405f6b42f21f8c27f0ddff0b18f"
+      }
+    ],
+    "limits": [
+      "Same fixture/caller/CPU/stack and original deadlines; sequential observations on a shared host, not statistical latency or cost qualification.",
+      "Page-stage count reduction is separately measured in the unit fixture; request timing does not measure syscall counts.",
+      "Failed original runs do not supply complete-workload durations for computing an end-to-end speedup."
+    ],
+    "common_prefix_commands": 394,
+    "identical_command_coordinates": true,
+    "completed_comparison": true
+  },
+  "conclusion": "Combining delivery with caller sequence/receipt reduces the unit fixture from eight stages to six and preserves tested fault/replay properties. The disk deadline remains unresolved.",
+  "methods": {
+    "script_sha256": "acf34e5c477fee35cf1a0497b412a6676afc63206861b9d603c1fb19832bf9a2",
+    "summary_script_sha256": "046be9bc1be81c449f97903e561b7520af6e20e5207ae0da74b3a57ed589284c",
+    "disk_method": "Use the preserved six-key node from 9b19d569, eight-key node from 8e49e0bc, then six-key again. Same original d6ce30ea query fixture and caller, CPU 0, 46 MiB stack, 64/1/64 resident-page schedule and 180-second phases. Retain provider/node logs through fixture cleanup and compare ordered position/operation/PID/sequence/status coordinates for the common completed prefix."
+  }
+}

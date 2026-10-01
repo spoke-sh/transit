@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "status": "qualified on three warm samples and one explicit cold baseline; no percentile or cold-variance claim",
+  "status": "qualified for the retained 33-task baseline; expanded inventory qualification pending",
   "feedback_seconds": 900,
   "stretch_feedback_seconds": 300,
   "aggregate_runner_seconds": 3600,
@@ -22,5 +22,9 @@
     "feedback_seconds": 2100,
     "aggregate_runner_seconds": 8100,
     "restored_cache_bytes": 0
+  },
+  "qualified_baseline": {
+    "ordinary_tasks": 33,
+    "evidence": "results/m10-ci-2026-09-25.json"
   }
 }

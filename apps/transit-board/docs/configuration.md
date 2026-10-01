@@ -161,6 +161,13 @@ Its body limit is 49152 bytes. `Origin` must equal `public_origin` and
 Retain an uncertain submission's frozen token for exact retry. A read conflict
 permits a read retry; it does not authorize a new query.
 
+Board retries a native `HttpCapacity` refusal at most three times for query
+reads and token preparation, waiting 500 ms, one second and two seconds within
+the original request deadline. Each attempt repeats the same workspace request
+and checks current authority again; failed candidate pages are never disclosed.
+Signed submission, denial and other failures do not enter this retry. An
+exhausted capacity refusal remains `503 Unavailable`.
+
 The generated OpenAPI describes one v1 request/response model. Atlas advertises
 the configured visible query resource. Schemas bound result rows, columns and
 conflict alternatives to eight; the client validates full-width numbers and
@@ -171,17 +178,31 @@ the configured source without admission or snapshots. Its separate metadata
 view shows current source/policy evidence and proposed plan/output types;
 current denial, changed observations and hiding clear that view.
 
-Run explicitly compiles SQL and starts one finite upload. Browser polling may
+**Run query** explicitly compiles SQL and starts one finite upload. Browser polling may
 advance that authorized upload only after observing its previous input commit;
-an uncertain signed submission requires **Retry exact submission**. Editing or
-switching Canvas/Browse never executes a new query. Namespaces and immutable
+an uncertain signed submission requires **Retry exact submission**. Editing alone
+does not enable execution, and switching Canvas/Browse never starts a query.
+Namespaces and immutable
 compiled bundles remain tied to the submitted draft. Resume observes a namespace
 without rerunning it. Separate controls request cancellation or request
 retirement/collection; they cannot promise external cancellation or retract bytes.
 
+For a Table source, **Enable Live draft** explicitly opens a finite evaluation
+budget. While enabled, complete valid edits can start queries within that budget;
+edits coalesce while accepted work is pending. Pause stops scheduling without
+cancelling accepted work. **Follow changes** separately refreshes an eligible
+completed query using its submitted plan. See [Live Table views](reactive.md) for
+both controls, recovery and their limits.
+
 One result segment is resident. Each visible observation rechecks current source
 access and verifies that page, including its manifest, plan and source contract.
-Known denial, expiry and history gaps clear source/draft/pending/result state.
-Connection failure hides rows while preserving an uncertain token. Hidden tabs
-hide results and returning rechecks access. No browser storage, Live queries,
-arbitrary business-value decoder or administrative SQL is introduced.
+Known denial, expiry and history gaps clear source, draft and displayed result;
+the original upload plan and frozen uncertain token remain available for exact
+recovery. **Refresh query access** rechecks access and retained status without
+reading the cleared result. **Resume without rerunning** explicitly selects that
+namespace again; its result remains distinct from the current SQL draft.
+Temporary connection failure retains permitted rows with their original source
+basis and preserves an uncertain token. Hidden tabs hide results and returning
+rechecks access. Recovery stays in memory unless explicitly exported; no signing
+keys or result pages are written to browser storage. The workspace does not
+provide arbitrary business-value decoding or administrative SQL.

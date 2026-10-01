@@ -5,6 +5,8 @@ from pathlib import Path
 import subprocess
 import sys
 import tempfile
+import signal
+import time
 
 import yaml
 from ci import LANES, ROOT
@@ -25,6 +27,11 @@ def main():
     # starts. Reclaim on all hosted runs and before either restore or build.
     for name in ("Restore Nix store", "Prepare development shell"):
         assert steps.index(reclaim) < next(i for i, step in enumerate(steps) if step.get("name") == name)
+    names = [step.get("name") for step in steps]
+    assert names.index("Prepare development shell") < names.index("Save Nix store")
+    assert names.index("Save Nix store") < names.index("Run ${{ matrix.lane }} checks")
+    artifacts = next(step for step in steps if step.get("name") == "Preserve task timings and completion evidence")
+    assert ".cache/m9/station-local-readiness.json" in artifacts["with"]["path"].splitlines()
     gate = workflow["jobs"]["foundation-and-protocol"]
     assert gate["if"] == "always()" and gate["needs"] == ["plan", "checks", "documentation"]
     assert workflow["jobs"]["documentation"]["if"] == "needs.plan.outputs.full == 'false'"
@@ -45,38 +52,52 @@ def main():
     reclaim = next(step for step in fault_steps if step.get('name') == 'Reclaim unused hosted SDKs')
     assert reclaim['if'] == "runner.environment == 'github-hosted'"
     assert fault_steps.index(reclaim) < next(i for i, step in enumerate(fault_steps) if step.get('name') == 'Restore Nix store')
-    budgets = {"feedback_seconds": 600, "aggregate_runner_seconds": 3000, "restored_cache_bytes": 1000}
+    budgets = {"feedback_seconds": 600, "aggregate_runner_seconds": 3000, "restored_cache_bytes": 2000}
     sample = dict(id=1, head_sha='fixture', html_url='https://example.invalid', conclusion='success', created_at='2026-01-01T00:00:00Z')
     job = dict(name='core', conclusion='success', started_at='2026-01-01T00:00:01Z', completed_at='2026-01-01T00:00:10Z', steps=[])
     log = 'core\tCache hit for: nix-key\ncore\tCache Size: ~0 MB (100 B)\ncore\tCache hit for: zig-key\ncore\tCache Size: ~0 MB (200 B)\n'
-    measured = summarize(sample, [job], log, budgets)
-    assert measured['budget_met'] and measured['restored_cache_bytes'] == 300
-    assert measured['feedback_seconds'] == 10 and measured['aggregate_runner_seconds'] == 9
-    assert not summarize(sample, [job], '', budgets)['budget_met']
-    assert not summarize(sample, [dict(job, conclusion='failure')], log, budgets)['budget_met']
-    assert not summarize(sample, [dict(job, completed_at=None)], log, budgets)['budget_met']
-    assert not summarize(sample, [job], log, dict(budgets, feedback_seconds=10))['budget_met']
-    cold_log = 'core\tCI dependency cache mode: cold\n'
-    assert not summarize(sample, [job], cold_log, budgets)['budget_met']
-    cold_budget = dict(feedback_seconds=20, aggregate_runner_seconds=20, restored_cache_bytes=0)
-    cold = summarize(sample, [job], cold_log, dict(budgets, cold=cold_budget))
+    full_jobs = [dict(job, name=name) for name in selected]
+    full_log = ''.join(log.replace('core\t', name + '\t') for name in selected)
+    measured = summarize(sample, full_jobs, full_log, budgets)
+    assert measured['budget_met'] and measured['restored_cache_bytes'] == 1500
+    assert measured['feedback_seconds'] == 10 and measured['aggregate_runner_seconds'] == 45
+    assert not measured['missing_lanes'] and not measured['duplicate_lanes']
+    assert not summarize(sample, full_jobs, '', budgets)['budget_met']
+    assert not summarize(sample, [dict(job, conclusion='failure'), *full_jobs[1:]], full_log, budgets)['budget_met']
+    assert not summarize(sample, [dict(job, completed_at=None), *full_jobs[1:]], full_log, budgets)['budget_met']
+    assert not summarize(sample, full_jobs, full_log, dict(budgets, feedback_seconds=10))['budget_met']
+    cold_log = ''.join(name + '\tCI dependency cache mode: cold\n' for name in selected)
+    assert not summarize(sample, full_jobs, cold_log, budgets)['budget_met']
+    cold_budget = dict(feedback_seconds=20, aggregate_runner_seconds=60, restored_cache_bytes=0)
+    cold = summarize(sample, full_jobs, cold_log, dict(budgets, cold=cold_budget))
     assert cold['budget_met'] and cold['budget'] == cold_budget and cold['cache_profile'] == 'cold'
     assert measured['budget'] == budgets and measured['cache_profile'] == 'warm'
-    fallback_log = log.replace('Cache hit for: zig-key', 'Cache hit for restore-key: zig-key')
-    fallback = summarize(sample, [job], fallback_log, budgets)
-    assert fallback['restored_cache_bytes'] == 300 and fallback['cache_profile'] == 'miss-or-partial'
+    fallback_log = full_log.replace('Cache hit for: zig-key', 'Cache hit for restore-key: zig-key')
+    fallback = summarize(sample, full_jobs, fallback_log, budgets)
+    assert fallback['restored_cache_bytes'] == 1500 and fallback['cache_profile'] == 'miss-or-partial'
     assert fallback['status'] == 'measured' and not fallback['budget_met']
     # Match an actual full hosted selection: the alternative docs-only job is
     # skipped, but every required matrix lane must still execute successfully.
-    full_jobs = [dict(job, name=name) for name in selected]
     docs_skipped = dict(job, name='Documentation site', conclusion='skipped')
-    full_log = ''.join(log.replace('core\t', name + '\t') for name in selected)
     full_budgets = dict(budgets, restored_cache_bytes=2000)
     full = summarize(sample, [*full_jobs, docs_skipped], full_log, full_budgets)
     assert full['budget_met'] and len(full['lanes']) == len(selected)
     assert full['restored_cache_bytes'] == 1500
     assert not summarize(sample, [*full_jobs[:-1], docs_skipped], full_log, full_budgets)['budget_met']
     assert not summarize(sample, [*full_jobs[:-1], dict(full_jobs[-1], conclusion='skipped'), docs_skipped], full_log, full_budgets)['budget_met']
+    # Missing ordinary lanes cannot meet the suite budget even when there is no
+    # skipped documentation job to expose the incomplete selection.
+    for name in selected:
+        incomplete = summarize(sample, [row for row in full_jobs if row['name'] != name], full_log, budgets)
+        assert incomplete['status'] == 'inconclusive' and not incomplete['budget_met']
+        assert incomplete['missing_lanes'] == [name] and not incomplete['duplicate_lanes']
+    single = summarize(sample, [job], log, budgets)
+    assert single['status'] == 'inconclusive' and not single['budget_met']
+    assert single['feedback_seconds'] == 10 and single['aggregate_runner_seconds'] == 9
+    assert single['restored_cache_bytes'] == 300
+    duplicate = summarize(sample, [*full_jobs, job], full_log, budgets)
+    assert duplicate['status'] == 'inconclusive' and not duplicate['budget_met']
+    assert duplicate['duplicate_lanes'] == ['core'] and not duplicate['missing_lanes']
     assert not select(["docs/reference/state.md", "docs/roadmap/M26.md", "README.md"])["full"]
     for paths in ([], ["docs/schema.json"], ["contracts/STATE_V1.md"],
                   ["build.zig"], ["unknown"], ["docs/../../build.zig"],
@@ -154,6 +175,60 @@ def main():
         assert metadata["completed"] is False
         assert metadata["expected_tasks"] == LANES["browser"]
         assert "transit-board::browser" in (path / "summary").read_text()
+    # Kill the real runner while its second task is active. Neither SIGTERM nor
+    # SIGKILL executes its finally block; the earlier task must remain recorded.
+    with tempfile.TemporaryDirectory(prefix="transit-ci-interrupted-") as directory:
+        path = Path(directory)
+        runner = path / "tests/ci.py"
+        runner.parent.mkdir()
+        runner.write_bytes((ROOT / "tests/ci.py").read_bytes())
+        (runner.parent / "verification").mkdir()
+        expected = ["first", "paused", "later"]
+        (runner.parent / "verification/suite.json").write_text(json.dumps({
+            "version": 1, "lanes": {"fixture": expected}, "tiers": {}}))
+        script = path / "just"
+        script.write_text(f"#!{sys.executable}\nimport os,sys,time\nfrom pathlib import Path\n"
+                          "Path(sys.argv[1]+'.started').touch()\n"
+                          "if sys.argv[1] == os.getenv('BLOCK_TASK'): time.sleep(30)\n")
+        script.chmod(0o755)
+        env = os.environ | {"PATH": str(path) + os.pathsep + os.environ["PATH"],
+                            "GITHUB_STEP_SUMMARY": str(path / "summary")}
+        for sig in (signal.SIGTERM, signal.SIGKILL):
+            marker = path / "paused.started"
+            marker.unlink(missing_ok=True)
+            child = subprocess.Popen([sys.executable, "-B", runner, "fixture"],
+                                     env=env | {"BLOCK_TASK": "paused"},
+                                     stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                                     start_new_session=True)
+            try:
+                deadline = time.monotonic() + 10
+                while not marker.exists():
+                    assert child.poll() is None and time.monotonic() < deadline
+                    time.sleep(.02)
+                os.killpg(child.pid, sig)
+                child.communicate(timeout=5)
+                assert child.returncode == -sig
+            finally:
+                try: os.killpg(child.pid, signal.SIGKILL)
+                except ProcessLookupError: pass
+                child.communicate(timeout=5)
+            evidence = json.loads((path / ".cache/ci/fixture.json").read_text())
+            metadata = json.loads((path / ".cache/ci/fixture.meta.json").read_text())
+            assert len(evidence) == metadata["result_count"] == 1
+            assert evidence[0]["task"] == "first" and evidence[0]["exit_code"] == 0
+            assert metadata["completed"] is False and metadata["expected_tasks"] == expected
+            assert metadata["active_task"] == {"lane": "fixture", "task": "paused"}
+            assert metadata["checkpoint_unix"] > 0
+            assert not (path / "later.started").exists()
+        # A complete subsequent run replaces the incomplete checkpoint only
+        # after every selected task succeeds.
+        subprocess.run([sys.executable, "-B", runner, "fixture"], env=env,
+                       capture_output=True, check=True)
+        evidence = json.loads((path / ".cache/ci/fixture.json").read_text())
+        metadata = json.loads((path / ".cache/ci/fixture.meta.json").read_text())
+        assert metadata["completed"] and metadata["active_task"] is None
+        assert [row["task"] for row in evidence] == expected
+        assert all(row["exit_code"] == 0 for row in evidence)
     # Run the discovery entry point: a completed first stage followed by a
     # definite task failure must retain both outcomes and stop before stage 3.
     with tempfile.TemporaryDirectory(prefix='transit-discovery-runner-') as directory:

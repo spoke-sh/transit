@@ -1800,6 +1800,26 @@ digest, input, observed failures, replacement and receipt state. Retained
 configurations still name their original temporary paths; the fixture is
 diagnostic evidence, not an automatically restorable launcher installation.
 
+The native cold-store process is joined before its files move into the retained
+fixture. `test::catalog` first checks this lifecycle with a disposable native
+child and an injected unjoined child. The
+[cleanup control](verification/results/m37-cold-fixture-retention-2026-10-01.json)
+reproduces the stale Docker cleanup path's `ColdStore.name` `AttributeError`;
+the corrected path preserves both authority and cold files after normal cleanup
+and refuses to remove unjoined cold state. This is fixture lifecycle evidence,
+not MinIO or database durability qualification. Stop/kill timeouts and provider
+disk reserves are unchanged.
+
+At committed `c8e58460`, full checks pass in 220.788 seconds. The actual native
+cold-catalog task passes in 143.566 seconds including compilation; its proof
+runs for 14.867 seconds with 73 cold objects, an 8 MiB hot-store limit, six lost
+caller receipts, three lost writer receipts and no cleanup failures. The clean
+experience lane passes all seven tasks in 478.951 seconds including setup;
+Station observes its original Arrow reply in 38.818 seconds before cleanup,
+within the unchanged 60-second deadline. These are separate from the lifecycle
+controls and do not complete the ordinary suite. Hosted run `36874212362` is
+refused before test execution by the account billing/spending restriction.
+
 With source based on `ef2cc97d` and the recovery runner under development, the
 original node digest `1039c8de…328d6e07e` stalls after 138 additions. Replacing it
 with the split-only node `214b0646…2dfcd04` still fails the unchanged progress
@@ -2499,6 +2519,431 @@ logs, proof records and database state. The same proof then passes in 65.916
 seconds: 105 turns, two recovered initialization receipts, a 0.504-second held
 snapshot and all added SQL-write interruption/recovery/cancellation cases. No
 assertion, request deadline or provider capacity guard changes between attempts.
+
+## Query result selection after access recovery — 2026-10-01
+
+Hosted run `36809340716` passes the five atlas browser tests, then exposes a
+workspace defect: revocation clears rows, but refreshing restored access reads
+the retained completed namespace and displays those rows again under a reset
+draft. The [selection record](verification/results/m37-query-selection-2026-10-01.json)
+retains the hosted failure and source hashes.
+
+The workspace now retains accepted upload/signature recovery independently of
+result selection. Access refresh checks access and status without selecting
+cleared rows; explicit namespace resume verifies the original result and labels
+its unavailable saved SQL separately from the current draft. The real disk-backed
+API/browser proof passes in **167.816 seconds** on development base `e1253fc6`.
+It checks zero result-page reads during access refresh, the unchanged namespace,
+explicit resume with no new submission, exact retry after a lost acknowledgement,
+and clearing on source retirement. The original browser deadlines are unchanged.
+Three earlier attempts receive unavailable API responses before browser launch;
+they do not detect the UI defect or qualify completion. Full combined-source
+clean and hosted qualification remain open.
+
+The [unavailable-reply controls](verification/results/m37-query-recovery-2026-10-01.json)
+subsequently reach the original UI failure locally: one result remains where zero
+is required after access refresh. The corrected UI passes the same real proof.
+The API fixture now recovers unavailable preparation and frozen-submission replies
+using the identical request body. A proxy replaces one successful preparation
+reply and one actual accepted receipt with `Unavailable`; recovery must preserve
+both original requests and return the original receipt. Disabling that recovery
+fails on the injected preparation reply. Eight attempts remain bounded by the
+existing ten-second preparation, sixty-second settlement and 120-second upload
+windows; receipt retries now consume the settlement window instead of preceding
+it. These controls retain unavailable observations as uncertainty, not rejection.
+
+## Inspection read throttling — 2026-10-01
+
+After the complete clean browser lane passes at `88fc1d0d`, a ReleaseSafe
+HTTP/browser comparison fails its original five-second records-heading assertion.
+The [trace and controls](verification/results/m37-inspection-throttle-2026-10-01.json)
+show two records reads starting 97 ms and 90 ms after successful atlas reads,
+inside Board's unchanged 100 ms read interval. Both receive HTTP 429. Retrying
+only on the next five-second poll allows the same collision to recur.
+
+Records and selected metadata now recover only explicit `429 RateLimited`
+responses, with at most three retries 250 ms apart. They preserve resource and
+continuation identity, clear displayed data before waiting, stop on hiding or
+disposal, and do not retry denial, stale history or unclassified failures. Six
+focused controls, strict types and frontend checks pass.
+
+The real browser proof injects two rate-limit responses for each of records and
+HTTP metadata without changing its assertion deadlines. The original UI fails
+the intended heading assertion; the corrected UI passes. The complete corrected
+HTTP/browser fixture then passes in **988.537 seconds** including compilation
+(**879.10 seconds** inside the proof), retaining sixteen sends, eight applications,
+two cancellation requests and persisted cold capture. The first failed comparison
+and later injected workload do not qualify a speedup or a default build-profile
+change. Combined-source clean and hosted completion remain separate gates.
+
+## Delivery staging and bounded query progress — 2026-10-01
+
+Committed `d6ce30ea` passes full repository checks in 218.371 seconds and clean
+core's 22 tasks in 1,123.770 seconds including setup. Clean growth passes eight
+tasks, then the query delivery phase exceeds its unchanged 180-second deadline
+inside `test::growing-service`; seventeen later growth tasks are unrun. Clean
+launchers passes both tasks in 345.792 seconds. The
+[progress record](verification/results/m37-delivery-progress-2026-10-01.json)
+retains the exact binaries, completed task outcomes and diagnostics.
+
+The failed delivery window contains 350 completed commands through position 545,
+with negligible authority-lock wait. Sequential controls on CPUs 0, 12 and 0,
+using identical binaries, fixture and the clean runner's 46 MiB stack limit, all
+repeat the delivery timeout. Earlier direct invocations with an 8 MiB stack fail
+before the workload and do not qualify those controls. A separate instrumented
+run observes 13,447 completed Ursula `fdatasync` calls during delivery, with a
+6.8 ms median. Tracing perturbs execution and syscall durations overlap; these
+observations neither decompose wall time nor establish a shared-host cause.
+
+Clean bindings passes its check and native tasks, then its Python SDK task exits
+successfully after client, Station, HTTP/gRPC, mutation and catalog checks. The
+CI controller is paused while that active task continues under its unchanged
+deadlines, then terminated only after the task exits. Its original checkpoint
+and the independently observed zero child exit status are retained separately.
+The lane is deliberately incomplete so the changed implementation can be tested;
+the wrapper's termination is not a failed SDK proof. This source ends with
+**35 ordinary passes, one failure and 38 unrun tasks of 74**, plus seven unrun
+browser tasks. Hosted run `36823397287` is refused before execution by GitHub's
+account billing restriction and contains no test results.
+
+The [batching control](verification/results/m37-delivery-batching-2026-10-01.json)
+compares `9b19d569` with the original delivery path. It groups the disposition,
+three pending-index removals and optional mailbox/process pair into one existing
+bounded catalog mutation. The same small-catalog unit fixture stages **eight
+pages instead of sixteen**. Both paths pass all 65 core tests. Every numbered
+staging refusal and lost staging acknowledgement leaves the published admission,
+mailbox and pending indexes unchanged; recovery and exact retry preserve one
+admission with original source/turn/output provenance. Expanded simulation passes
+**70 traces / 10,535 events with identical replay** in 238.024 seconds. Both
+compiling route-order and delivery-origin mutants are detected, and full
+repository checks pass on the matching development source.
+
+The sequential original/batched/original disk comparison uses the same caller,
+fixture, CPU, stack limit and phase deadlines. **All three delivery phases time
+out**, after 321, 410 and 382 completed commands respectively; the common prefix
+has identical command coordinates. Total fixture times are 247.660, 256.580 and
+246.524 seconds. The batched sample makes more progress, but does not clear the
+deadline. These shared-host, incomplete workload observations do not qualify an
+end-to-end speedup or resolve the historical timing change. Committed-source
+clean qualification remains separate.
+
+The subsequent [clean checkpoint](verification/results/m37-clean-delivery-core-2026-10-01.json)
+passes all **22 core tasks at committed `42d45983` in 1,082.326 seconds** including
+setup. Its disk storage task passes in 430.21 seconds with kill, checkpoint and
+trim recovery. The driver stops between lanes; growth, experience, launchers,
+bindings and browser remain unrun at this source. This core pass does not resolve
+the focused query timeout. Hosted run `36832812554` is refused before any test
+starts with the same GitHub account billing annotation. The source-specific
+record retains both outcomes; neither is a complete ordinary or cost pass.
+
+The [receipt-batching follow-up](verification/results/m37-delivery-receipt-batching-2026-10-01.json)
+at `8e49e0bc` prepares delivery's records together with the caller sequence and
+receipt in the existing eight-key mutation limit. Other commands still read
+their resulting caller record after applying their own changes. The same unit
+fixture now stages **six pages**, with twelve staging/acknowledgement fault
+cases; all 65 tests pass. Expanded replay passes **70 traces / 10,535 events** in
+227.346 seconds, full repository checks pass on matching development source,
+and both compiling delivery mutants are detected at the committed revision.
+
+A six-key/eight-key/six-key disk comparison again times out in all three delivery
+phases, after **415/430/394 commands**, with matching coordinates over their common
+394-command prefix. Total fixture times are 237.729/244.619/259.620 seconds.
+The additional staging reduction does not resolve the deadline, and these
+incomplete shared-host samples do not establish a complete-workload speedup.
+All phase limits, provider durability and workload assertions are unchanged.
+
+## Query boundary and fixture controls — 2026-10-01
+
+The [continuation record](verification/results/m37-clean-continuation-2026-10-01.json)
+retains `c61896d2`'s 55 ordinary passes, two failures and 17 unrun tasks of 74,
+plus one browser pass, one failure and five unrun tasks. Core, experience and
+launchers complete at that source; an independent growth suffix does not
+retroactively complete its original failed lane. The original delivery attempt
+exceeds the 180-second limit after 416 commands. The complete suffix separately passes the
+HTTP/RPC recovery and closure proofs. Hosted run `36836820226` is refused before
+test execution by the account billing restriction. These results do not qualify
+the full suite or its cost budget.
+
+The [boundary controls](verification/results/m37-query-boundaries-2026-10-01.json)
+preserve the failed browser resume after restored access. The native client
+classifies a validated `HttpCapacity` rejection as `AuthorityUnavailable`; Board
+previously flattened that into generic `Unavailable`. Board now retries only
+that paired classification for read/preparation operations, at most three times
+with 500 ms, 1 s and 2 s delays under the original request deadline. Signed
+submission is unchanged. The original binary fails the intended negative
+control in 52.597 seconds; the corrected full API/browser proof passes in
+140.693 seconds. Controls require exact native attempt counts for recovery,
+exhaustion, denial and unrelated failure, plus identical signed recovery and
+explicit resume without resubmission.
+
+The Table proof originally assumes a small preparation must remain staged,
+although the supported inline profile can already apply it. Its snapshot
+interleave now explicitly admits the existing staged begin before resuming the
+same compiled reference. A subsequent run passes the snapshot check, then
+exposes the same invalid assumption in interrupted cancellation. The corrected
+proof distinguishes an admitted inline write reporting `applied` from a staged
+begin reporting `cancelled`, verifies the frozen command tags and row outcomes,
+and retains the rejection-gated upload-part case. The full proof passes in
+100.597 seconds with original `c61896d2` binaries and the `28f98560` fixture,
+including two initialization receipt recoveries and a 0.658-second snapshot
+pause. Neither original failure is discarded; these source-specific timings
+are not a performance comparison.
+
+Full checks at `28f98560` pass in 226.534 seconds. Its clean experience attempt
+passes five tasks, then fails when the test proxy records a closed downstream
+reply socket as an upstream error; Station is unrun. The binding check and raw
+native proof pass before orchestration deliberately stops at a task boundary.
+The child's observed zero exit is recorded separately from the incomplete CI
+checkpoint. Neither lane is complete. The deterministic disconnect control
+reproduces `ConnectionResetError` in the original proxy and passes with the
+`7e263488` fixture, which counts closed downstream replies while retaining
+upstream errors and all exact retry/page assertions.
+
+Full checks at `7e263488` pass in 215.963 seconds. Its first clean experience
+attempt passes four tasks, then Board inspection exhausts its ten-second retry
+window after native page staging reports `ReadFailed` under the existing
+800 ms request deadline. Query and Station tasks are unrun. The attempt overlaps
+preparing stopped-build cleanup on the shared host; its storage errors
+do not establish a cause. The failure output retains only child-log tails;
+these later attempts additionally retain up to 32 numbered child logs per
+fixture, with
+at most 8 MiB per file and explicit offsets when truncated. The five
+implementation and fixture commits are pushed. Hosted run `36850587443` is again
+refused before any test starts. Eleven binding tasks pass at this source:
+contracts, the native proof (332.19 seconds), complete Python SDK (1,102.76 seconds), complete Node SDK
+(810.80 seconds), logical-value/Arrow ownership (32.37 seconds), and complete Rust
+SDK (781.59 seconds), Ruby SDK (700.93 seconds), C/C++ SDK (1,559.10 seconds),
+Java SDK (838.91 seconds), .NET SDK (706.71 seconds) and Erlang/Elixir SDK
+(1,420.35 seconds). Each installed SDK task includes Station, HTTP/RPC, mutation and catalog
+schedules. Interoperability passes the Python-to-Node pair, then fails in
+402.25 seconds after MinIO returns HTTP 507 `XMinioStorageFull` and a later
+request reaches `DeadlineUncertain`. The clean binding attempt ends with eleven
+passes, one failure and five unrun tasks in 8,715.956 seconds including setup.
+The five unreached tasks then pass in an independent continuation: finite
+safety model (11.894 seconds), delivery model (6.681), SQL rewrite theorems
+(7.045), SQL checks (19.994) and RPC faults (163.893), each including its shell
+setup. The safety model explores 7,867 states and detects four removed guards
+replayed against Zig; four named Lean theorems have no `sorry` axioms or
+warnings. The original failed lane remains incomplete.
+
+All seven browser tasks pass at this source: inspection (50.01 seconds), query
+(177.53), HTTP (1,000.54), gRPC (691.46), reactive browser (139.79), reactive views
+(294.81) and reactive-view lifecycle (61.37). The complete clean browser lane
+takes 2,439.751 seconds including setup. HTTP and gRPC include disk recovery
+and 755 and 527 persisted cold objects respectively. A fresh clean experience
+retry passes all seven tasks in 475.415 seconds including setup. Station takes 239.73 seconds; its original Arrow reply arrives
+in 38.854 seconds, before cleanup intervention and within the unchanged
+60-second deadline. The courier replacement takes 30.267 seconds after 292
+refused reads. The earlier failures and unresolved timing cause remain recorded.
+
+A separate diagnostic with the exact original `c61896d2` binaries and existing
+request metrics enabled passes in 67.624 seconds, including delivery in
+50.456 seconds under the unchanged 180-second cap. All 4,464 completed responses
+have metrics; no records are dropped. Delivery accounts for 3,013 responses,
+34,465 provider requests and 17,736 attempted page stages. Its 42.546 seconds of
+provider time are included in 46.283 seconds of observed request work, not added
+to it; lock wait totals 0.000263 seconds. This later instrumented success does
+not explain the earlier timing change, qualify an uninstrumented source or
+establish an implementation speedup. The original timeouts remain recorded.
+
+An uninstrumented repeat then uses the same original binaries, unchanged
+fixture/support sources, CPU affinity and stack limit. It passes all assertions
+in 69.689 seconds including shell setup, with delivery in 47.385 seconds.
+The earlier timing variation remains unexplained, and complete clean growth
+qualification remains open. Retained system-wide
+[PSI](https://docs.kernel.org/accounting/psi.html) samples describe different
+observation windows and cannot attribute a causal share to this fixture.
+The interop retry remains unrun with only about 1.5 GiB above the provider
+reserve; the exact original binaries and SDK packages remain available.
+
+## Interrupted CI evidence — 2026-10-01
+
+Hosted launcher job `110201098691` reaches its 30-minute execution cap after
+`test::build` passes in 592.32 seconds, while `launchers::local::test` is active.
+The original runner writes results only in `finally`; cancellation leaves no
+CI JSON for artifact upload. Shell preparation alone takes 623 seconds.
+The [interruption record](verification/results/m37-ci-interruption-2026-10-01.json)
+retains the job phases, timeout annotation and log hash.
+
+The corrected runner atomically checkpoints each completed task and the current
+attempt before/after execution. Its actual entry point retains one passed task
+and the interrupted second task under both SIGTERM and SIGKILL, never running
+the third. A subsequent complete run records all three successes. The original
+runner fails this control because the checkpoint is absent. Existing definite
+failure propagation and aggregate-gate checks pass. A cancelled task receives no
+invented exit status or duration; metadata remains incomplete at its checkpoint.
+
+CI also saves the rooted Nix shell before long checks and uploads the separate
+Station readiness record. Cache keys, cold-mode exclusion, job execution caps,
+proof deadlines and provider guards remain unchanged. Workflow ordering requires
+hosted validation; these controls do not qualify a complete lane or cost budget.
+
+## Qualification checkpoint — 2026-10-01
+
+At frozen committed `88fc1d0d`, [clean experience and browser](verification/results/m37-clean-browser-2026-10-01.json)
+pass all seven tasks in each lane. Full `just check` passes in 228.407 seconds;
+experience takes 521.652 seconds and browser takes 2,580.391 seconds, including
+clean setup. The original Station reply arrives in **59.7616 seconds** under its
+unchanged 60-second cap, before cleanup restarts the courier. This narrow pass
+does not diagnose earlier progress failures. The browser lane includes complete
+HTTP/RPC crash-recovery proofs, reactive transport, live-view verification and
+lifecycle checks. Core, growth, launchers and bindings at this revision remain
+unrun; earlier source results do not fill those gaps.
+
+The [completed continuation run](verification/results/m37-hosted-continuation-2026-10-01.json)
+`36809340716` records **61 ordinary passes, one failure, two interrupted tasks
+and ten unrun tasks** out of 74 at synthetic merge `7e0d6a69`. The separate browser
+tier has one pass, one failure and five unrun tasks. The failures are the upload
+marker comparison and cleared-result redisplay corrected below; launchers reaches
+its job cap and the next push cancels bindings during its C SDK task. Completed
+bindings tasks come from retained job logs because no final artifact is uploaded.
+This incomplete run takes **76m40s** feedback and **223m21s** aggregate job time,
+restoring **4,947,520,314 bytes** with mixed/missing cache hits. It does not qualify
+a cost budget.
+
+The next [ordinary and discovery runs](verification/results/m37-hosted-refusals-2026-10-01.json)
+at `88fc1d0d` are refused before any job executes. GitHub reports an account
+payment/spending restriction. Both runs contain zero test results; neither
+supplies passing or failing proof evidence.
+
+The [cost-inventory control](verification/results/m37-ci-cost-inventory-2026-10-01.json)
+exposes a reporting error: a synthetic successful core-only run with known warm
+caches meets the old collector's full-suite budget check. The corrected collector
+requires exactly one job for each ordinary inventory lane and reports missing or
+duplicate lanes as inconclusive while retaining measured timings and cache bytes.
+Controls cover each missing lane, duplicates, full warm/cold selections, skipped
+jobs, incomplete timestamps and missing cache evidence. The CI runner checks pass.
+These synthetic checks do not supply hosted cost samples or change any budget.
+
+The [completed hosted record](verification/results/m37-hosted-ordinary-2026-10-01.json)
+for run `36803044000` retains **53 passed, two failed and thirteen unrun** ordinary
+tasks out of 68 at synthetic merge `03ab0209`. Its tree matches merged `9fdf1d02`.
+Core, launchers and ordinary experience complete; bindings stops at the optional
+Node Arrow installation, and growth stops at the HTTP example's upload-marker
+comparison after nineteen passing tasks. The separate browser tier fails its
+first task and leaves six unrun. The corrections below retain those failures.
+
+This failed, partially cached run takes **70m02s** from creation through final
+gating, **196m22s** aggregate job time and restores **12,257,714,802 bytes**.
+All job logs are available. Its cache profile is neither warm nor explicit cold;
+it does not qualify a budget. The numeric budgets retain their earlier 33-task
+calibration and do not certify the expanded inventory.
+
+The [local checkpoint](verification/results/m37-local-progress-2026-10-01.json)
+keeps clean experience's seven passes at `5c76d03e` separate from its later core
+failure after nineteen passes. Clean experience at `31f071d0` passes six tasks,
+then misses the original 60-second Station Arrow-reply window following the
+courier readiness fault. The original reply later exists without resubmission,
+after the fault fixture restores the original endpoint and restarts the courier
+during cleanup. This observation does not prove completion without that
+intervention. The owned
+installation is then stopped and its disk state retained. Current evidence does
+not establish the cause of that progress delay. The local Station proof writes
+`.cache/m9/station-local-readiness.json` after its timed schedule and cleanup,
+including replacement timing, reply time, whether it passed before cleanup, and
+whether cleanup restarted the courier. Writing this evidence does not extend
+the 60-second reply deadline.
+
+A focused disk-backed query run at clean `5c76d03e` passes, with delivery taking
+84.552 seconds under its unchanged 180-second cap. Nineteen matching request
+coordinates from the earlier failed tail have identical cache-miss counts and
+negligible authority-lock waits, but longer engine/provider work. These two
+source/host observations narrow the investigation; they do not establish cause
+or erase the earlier timeout.
+
+The complete Node SDK task also passes under `CI=true GITHUB_ACTIONS=true` on the
+development source with the installation correction, including Station, HTTP,
+gRPC, mutation and catalog schedules. It is a focused development run; edits and
+commits during that run prevent treating it as committed-source clean evidence.
+The remaining clean, hosted/browser and expanded cost gates stay open.
+
+## Exact caller rejection recovery — 2026-10-01
+
+Clean core at `5c76d03e` passes 19 tasks, then the caller probe expects
+`AccessDenied` but receives `AuthorityUnavailable` after a node page-stage read
+failure. A transient transport outcome does not establish the required denial.
+The [rejection record](verification/results/m37-caller-rejections-2026-10-01.json)
+preserves that failure and a controlled reproduction: the proxy replaces one
+actual denial with a classified 503, and the original probe fails.
+
+The corrected probe makes at most three attempts with the identical signed
+operation, retrying only `AuthorityUnavailable` and `AuthorityTimeout`. The
+existing 20-second outer limit still applies. The real caller schedule passes
+four injected rejection recoveries across two principals and two generations;
+the proxy compares signed bytes on each retry. Exact denial/rejection, unchanged
+state/revision, stale activation and lost/malformed accepted receipts remain
+required. Acceptance, other errors and exhausted retries still fail. This does
+not diagnose the underlying provider delay or qualify the unfinished core lane.
+
+## Exchange example upload markers — 2026-10-01
+
+Both runnable HTTP and RPC examples reproduce `ChangedCallConfiguration` on
+their first publication: they compare a stored `SPU1` upload marker with the raw
+request reference. The shared `PublicationUpload.marker` encoder now supplies
+the expected domain, namespace and frozen-request digest. Its independent byte
+vector checks the existing 48-byte layout; no stored format or definition changes.
+
+The [example record](verification/results/m37-exchange-marker-2026-10-01.json)
+retains both original failures and four passing local schedules: HTTP/RPC with
+ordinary credentials and with fresh bootstrap keys. Each rejects a changed
+reconciliation deadline under a fresh activation, resumes the original peer and
+correlation, restarts disk Ursula/node and replays after credential removal.
+Each observes exactly one external send. Station package tests pass, including
+the independent marker bytes and existing interrupted-publication checks.
+These runs do not qualify Compose/reference placement or the whole clean suite.
+
+## Installed Node optional Arrow dependency — 2026-10-01
+
+Hosted [bindings job 110181434108](https://github.com/rupurt/rey/actions/runs/36803044000/job/110181434108)
+passes the raw client and durable-continuation checks, then exits when the
+Station fixture installs its optional Arrow dependency. The original fixture
+reports only installation exit 1, so that hosted log does not identify the
+package-manager error.
+
+With `CI=true GITHUB_ACTIONS=true` and pinned `pnpm@10.32.1`, changing an existing
+consumer manifest to add `apache-arrow@21.2.0` reproduces
+`ERR_PNPM_OUTDATED_LOCKFILE`. A separate control invokes the actual fixture from
+`5c76d03e` with its built Transit tarballs: Arrow is absent initially and the
+second install fails. The corrected fixture explicitly updates only this
+disposable consumer lock. It preserves the absence check, then installs Arrow
+and passes an independent IPC round trip for `9007199254740993n`.
+
+The [installation record](verification/results/m37-node-arrow-install-2026-10-01.json)
+retains source hashes and both outcomes. Full repository checks pass on the
+corrected development source. These installation controls do not by themselves
+qualify the real Station, query, connector or remaining language schedules.
+No repository lock, native behavior or progress deadline changes.
+
+## Current Board browser qualification — 2026-10-01
+
+The [browser investigation record](verification/results/m37-board-browser-2026-10-01.json)
+reproduces all five hosted browser failures at `31e3c97f`. Retained page context
+shows a successfully rendered native v1 Relief atlas and current process/resource
+evidence. The fixture instead expects the removed Departure board, inline process
+state and old resource-entry presentation. Longer waits cannot satisfy those
+obsolete assertions.
+
+The corrected proof selects the current atlas by keyboard, preserves focus across
+polling and opens real process/journey routes. It checks consumed/pending input,
+the fixture's actual recorded output identity, closed effects, causal references
+and accessibility. Resource checks retain exact keys and writer/revision evidence
+without exposing application values. Mailbox payloads remain escaped; known denial
+clears observations, while temporary unavailability retains the exact earlier
+process revision with a stale label. All original assertion deadlines remain.
+
+Full `just check` passes on the development source based on merged `2b078b18` in
+213.290 seconds. All five corrected browser tests pass in 20.0 seconds, followed
+by the real API outage/load proof. A separate run with an owned disk-backed
+`TMPDIR` also passes all five tests and the full API fixture; source hashes and
+log digests are retained. CI now uploads failed Playwright traces and page context.
+These focused results do not complete the remaining browser/ordinary lanes.
+
+The first clean experience run at `2b078b18` passes Board and documentation tasks,
+then fails Node SDK checks on formatting in the newly merged logical-value guide.
+The formatting-only correction passes `just bindings::node-check`. Separately,
+the earlier local `164b808f` campaign ends after 34 passing tasks when query
+delivery exceeds its original 180-second deadline; later growth and bindings tasks
+are unrun. That hot-Ursula failure is not attributed to MinIO's free-space guard.
 
 ## Hosted discovery completion — 2026-10-01
 

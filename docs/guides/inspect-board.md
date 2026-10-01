@@ -35,11 +35,14 @@ actual inspection endpoints and [security](../reference/security.md) for scope.
 
 ## Queries and definitions
 
-Submit a finite query explicitly. Typing or changing SQL does not automatically
-execute it. Preserve query namespace, request and result identity through unknown
-replies; complete-result verification precedes presenting a complete answer.
-Follow changes refreshes an eligible submitted query under explicit budgets.
-It is not continuous SQL or speculative execution while editing.
+**Run query** explicitly submits a finite query. For a Table source, **Enable Live
+draft** authorizes a finite budget within which complete valid edits can start
+queries. Editing does not open or reset that budget. Preserve query namespace,
+request and result identity through unknown replies; complete-result verification
+precedes presenting a complete answer. **Follow changes** separately refreshes an
+eligible submitted query under its own budget. The [Live Table guide](../../apps/transit-board/docs/reactive.md)
+describes scheduling, pause and recovery. Continuous SQL and speculative partial
+draft execution are unsupported.
 
 The optional application editor uses the shared compiler and neutral definition.
 Review the whole valid proposal and publish conditionally with the operator's

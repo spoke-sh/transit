@@ -11,7 +11,25 @@ pub fn unifiedQuery(wire: *client.Client, io: std.Io, config: UnifiedQueryConfig
     defer std.crypto.secureZero(u8, std.mem.asBytes(&key));
     var caller: q.UnifiedClient = .{ .wire = wire, .connection = config.connection, .key = key };
     defer std.crypto.secureZero(u8, std.mem.asBytes(&caller.key));
-    return q.Workspace.apply(allocator, &caller, config.workspace, request);
+    // Only the native capacity refusal is eligible here. Keep this list
+    // exhaustive: a new operation must decide whether it may repeat. Preparing
+    // a token does not dispatch it; an uncertain submit still needs exact,
+    // explicit recovery by the caller.
+    const read_only = switch (request) {
+        .describe, .suggest, .assist, .compile, .inspect, .next, .next_draft, .draft_open, .draft_close, .draft_status, .observe, .status, .page, .prepare_control => true,
+        .submit => false,
+    };
+    var attempt: u2 = 0;
+    while (true) return q.Workspace.apply(allocator, &caller, config.workspace, request) catch |err| {
+        // HTTP 503 maps to AuthorityUnavailable; only the separately validated
+        // rejection identifies a capacity refusal rather than an unknown loss.
+        if (!read_only or err != error.AuthorityUnavailable or wire.last_rejection != .HttpCapacity or attempt == 3) return err;
+        // At most four bounded workspace attempts, all under the original
+        // request cancellation/deadline. No candidate page is disclosed early.
+        try io.sleep(.fromMilliseconds(@as(u32, 500) << attempt), .awake);
+        attempt += 1;
+        continue;
+    };
 }
 pub const Cursor = struct { position: ?u64 = null, process_after: ?u64 = null, resource_after: ?u64 = null };
 pub const RecordsCursor = struct { resource: u64, revision: ?u64 = null, after: ?p.Value = null };

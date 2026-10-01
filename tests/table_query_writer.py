@@ -262,7 +262,18 @@ def run(node, host, proof, library, cli, *, sdks=()):
             # the final apply must commit after its retained snapshot. Holding
             # the request across the whole upload instead makes test setup race
             # the console's ordinary five-second per-request deadline.
-            staged = mutation("UPDATE items SET value='new' WHERE id=1", namespace, cli_mutations, seal_only=True)
+            sql = "UPDATE items SET value='new' WHERE id=1"
+            staged = cli_mutations.call({'compile': dict(name='items', sql=sql, namespace=str(namespace))})['compiled']
+            # This schedule needs a separately sealed upload. The shared next
+            # operation may choose inline execution for this small request, so
+            # begin its public staged profile explicitly before the CLI resumes.
+            description = mutations.call({'describe': {}})['description']
+            begin = mutations.call({'prepare': {'begin': dict(reference=staged['reference'], table=1, policy_revision=description['policy_revision'])}})['prepared']
+            receipt = mutations.call({'submit': begin})['receipt']
+            until(lambda: mutations.call({'observe': dict(prepared=begin, input=receipt['position'])})['observation'] == 'processed')
+            assert mutations.call({'rejection': dict(prepared=begin, input=receipt['position'])})['rejection'] is None
+            assert mutations.call({'status': staged['reference']})['status']['phase'] == 'uploading'
+            staged = mutation(sql, namespace, cli_mutations, compiled=staged, seal_only=True)
             apply = cli_mutations.call({'prepare': {'apply': staged['reference']}})['prepared']
             pause_snapshot = True
             console = subprocess.Popen(console_args, env=fixture.env, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
@@ -340,27 +351,40 @@ def run(node, host, proof, library, cli, *, sdks=()):
             again = json.loads(console_run(data='.resume\n').stdout)['mutation']
             assert again == restored
             console_run('DELETE FROM items WHERE id=102')
-            # SIGINT retains admitted work, stops a batch before its next SQL,
-            # and explicit cancellation reconciles the original input first.
-            source.send_signal(signal.SIGSTOP)
-            interrupted = subprocess.Popen(console_args[:-2], stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, env=fixture.env)
-            processes.append(interrupted)
-            try:
-                interrupted.stdin.write("INSERT INTO items (id,value) VALUES (103,'pending');\nDELETE FROM items WHERE id=1;\n")
-                interrupted.stdin.flush()
-                until(lambda: recovery_path.exists() and not json.loads(recovery_path.read_bytes())['complete'] and json.loads(recovery_path.read_bytes())['operation']['mutation']['input'] is not None)
-                interrupted.send_signal(signal.SIGINT)
-                stdout, stderr = interrupted.communicate(timeout=15)
-                assert interrupted.returncode == 130 and not stdout and '.resume' in stderr, (interrupted.returncode, stdout, stderr)
-            finally:
-                source.send_signal(signal.SIGCONT)
+            # SIGINT retains the admitted command and stops before the next SQL.
+            # Check the actual command selected: inline execution can finish
+            # during reconciliation, while a staged begin remains cancellable.
+            def interrupt_write(sql, command_tag):
+                source.send_signal(signal.SIGSTOP)
+                interrupted = subprocess.Popen(console_args[:-2], stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, env=fixture.env)
+                processes.append(interrupted)
+                try:
+                    interrupted.stdin.write(sql + ";\nDELETE FROM items WHERE id=1;\n")
+                    interrupted.stdin.flush()
+                    until(lambda: recovery_path.exists() and not json.loads(recovery_path.read_bytes())['complete'] and json.loads(recovery_path.read_bytes())['operation']['mutation']['input'] is not None)
+                    pending = json.loads(recovery_path.read_bytes())['operation']['mutation']['pending']
+                    frame = bytes.fromhex(pending['signed']['request']['command']['send']['value'])
+                    assert frame[13:17] == command_tag, frame[13:17]
+                    interrupted.send_signal(signal.SIGINT)
+                    stdout, stderr = interrupted.communicate(timeout=15)
+                    assert interrupted.returncode == 130 and not stdout and '.resume' in stderr, (interrupted.returncode, stdout, stderr)
+                finally:
+                    source.send_signal(signal.SIGCONT)
+            interrupt_write("INSERT INTO items (id,value) VALUES (103,'pending')", b'TME1')
+            applied = json.loads(console_run(data='.cancel\n').stdout)['mutation']
+            assert applied['phase'] == 'applied' and applied['affected_rows'] == 1 and not applied['uncertain'], applied
+            assert console_rows(console_run('SELECT * FROM items').stdout) == current + [dict(id=103, value='pending')]
+            console_run('DELETE FROM items WHERE id=103')
+            # A 200-byte cell fits the Table bound but requires staged upload.
+            interrupt_write("INSERT INTO items (id,value) VALUES (103,'" + 'p' * 200 + "')", b'TMB1')
             cancelled = json.loads(console_run(data='.cancel\n').stdout)['mutation']
             assert cancelled['phase'] == 'cancelled', cancelled
             assert console_rows(console_run('SELECT * FROM items').stdout) == current
+            print('Console interruption: admitted inline write applied, staged begin cancelled, later batch SQL never ran.', flush=True)
             # Revoke after a part is frozen but before its admission. A rejected
             # part must not be mistaken for a terminal mutation or lose recovery.
             rejection_gate['armed'] = True
-            racing = subprocess.Popen(console_args[:-2]+['-c', "INSERT INTO items (id,value) VALUES (104,'denied')"], env=fixture.env, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+            racing = subprocess.Popen(console_args[:-2]+['-c', "INSERT INTO items (id,value) VALUES (104,'" + 'd' * 200 + "')"], env=fixture.env, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
             processes.append(racing)
             try:
                 assert rejection_gate['seen'].wait(timeout=15), 'console did not prepare a mutation part'

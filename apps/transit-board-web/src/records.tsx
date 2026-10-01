@@ -4,6 +4,7 @@ import { message } from "./state";
 import { GrpcMetadata } from "./grpc-metadata";
 import { DocumentMetadata } from "./document-metadata";
 import { HttpMetadata } from "./http-metadata";
+import { retryInspectionRead } from "./inspection-read";
 
 type QueryDeclaration = NonNullable<RecordsResponse["queries"][number]>["declaration"];
 function QueryEvidence({ detail }: { detail: QueryDeclaration }) {
@@ -178,13 +179,21 @@ export function Records({ resource }: { resource: number }) {
       if (disposed || busy || document.hidden) return;
       busy = true;
       try {
-        const next = await records(resource, cursor, abort.signal);
+        const next = await retryInspectionRead(
+          () => records(resource, cursor, abort.signal),
+          abort.signal,
+          () => !document.hidden,
+          (cause) => {
+            setPage(null);
+            setError(message(cause));
+          },
+        );
         if (!disposed && !document.hidden) {
           setPage(next);
           setError("");
         }
       } catch (cause) {
-        if (!disposed) {
+        if (!disposed && !document.hidden) {
           setPage(null);
           setError(message(cause));
         }

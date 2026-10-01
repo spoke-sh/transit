@@ -115,6 +115,15 @@ admission versus a recorded denial. Destination admission, provenance and source
 resolution share one publication. An uncertain acknowledgement is retried under
 the same principal sequence, without a second admission.
 
+Delivery stages the output disposition and removal of its three pending indexes
+in one bounded catalog batch. An admitted delivery includes its mailbox entry
+and destination counter. The caller sequence and exact-retry receipt complete
+the same batch of at most eight keys. Shared tree paths are copied once within
+the batch; the existing conditional journal append publishes the decision.
+A staging failure or lost page acknowledgement leaves the previous published
+root authoritative, including its admission count, pending indexes and retry
+identity.
+
 Termination/known expiry fences pending work without scanning the whole backlog.
 The PID's terminal fact is immediate authority; individual pending output/effect
 records can still show their prior recorded phase until bounded reconciliation

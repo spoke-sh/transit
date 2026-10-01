@@ -291,15 +291,22 @@ pub fn Engine(comptime Journal: type, comptime PageStore: type) type {
                 try self.validateTime(now);
                 next.time_floor_ms = now.unix_ms;
             }
-            try self.apply(&candidate, &next, request, sample);
+            // Delivery contributes six keys at most and does not change the
+            // caller record. Its final mutation can include both retry records.
+            var mutations: [core.pages.mutation_batch]core.pages.Mutation = undefined;
+            const count: usize = if (request.command == .deliver)
+                try work_ops.prepareDelivery(self, &candidate, request, sample, mutations[0..6])
+            else count: {
+                try self.apply(&candidate, &next, request, sample);
+                break :count 0;
+            };
             // Grant changes may target this caller only when the root's own
             // identity is unchanged; administrative root replacement is invalid.
             var principal_value = (try candidate.get(Principal, address(.principal, request.principal))) orelse return error.InvalidHistory;
             principal_value.sequence = request.sequence;
-            try candidate.mutate(&.{
-                try catalog.putMutation(address(.principal, request.principal), principal_value),
-                try catalog.putMutation(try catalog.key(.receipt, request.principal, request.sequence, ""), Receipt{ .position = self.head.position, .digest = try g.digest(request) }),
-            });
+            mutations[count] = try catalog.putMutation(address(.principal, request.principal), principal_value);
+            mutations[count + 1] = try catalog.putMutation(try catalog.key(.receipt, request.principal, request.sequence, ""), Receipt{ .position = self.head.position, .digest = try g.digest(request) });
+            try candidate.mutate(mutations[0 .. count + 2]);
             next.catalog = candidate.snapshot;
             next.position += 1;
             return .{ .record = .{ .position = self.head.position, .previous = self.head.catalog.root, .next = next, .request = request, .time = sample } };
@@ -442,7 +449,8 @@ pub fn Engine(comptime Journal: type, comptime PageStore: type) type {
                     try state_ops.retireIndexes(candidate, pid);
                 },
                 .create_resource, .grant_resource, .associate, .open_view, .close_view, .retire_resource, .expire_resource, .reclaim_resource, .begin_turn, .turn, .turn_with_versions => try state_ops.apply(self, candidate, next, request, sample),
-                .deliver, .dispatch, .observe, .close_effect, .cancel_effect => try work_ops.apply(self, candidate, request, sample),
+                .deliver => unreachable, // Prepared with its retry records above.
+                .dispatch, .observe, .close_effect, .cancel_effect => try work_ops.apply(self, candidate, request, sample),
                 .runtime_intent, .runtime_observe, .runtime_upgrade, .activate => try @import("growing_runtime.zig").apply(self, candidate, request, sample),
                 .create, .initialize, .@"suspend", .@"resume", .expire_suspension => try @import("growing_lifecycle.zig").apply(self, candidate, request, sample),
                 .collect => |command| {

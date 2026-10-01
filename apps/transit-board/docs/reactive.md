@@ -1,9 +1,10 @@
 # Live Table views
 
-M21 integration is in progress. `reactive` explicitly composes the shared
-`transit-serving-http` host with Board. Browser/placement evidence is tracked in
-[the proof guide](../../../tests/README.md#m21-qualification);
-compilation does not close those gates.
+The optional `reactive` configuration composes the shared `transit-serving-http`
+host with Board for Table progress and finite query refresh. The query workspace
+also provides a separate finite budget for evaluating edited Table queries.
+
+## Follow source changes
 
 The optional configuration has `principal`, `seed_file` and `gateway`, using the
 [shared gateway configuration](../../../packages/zig/transit-serving-http/README.md).
@@ -54,3 +55,31 @@ browser reload loses this in-memory recovery state; recorded query namespaces
 remain recoverable through the existing finite query surface. No offline data or
 signing key is stored in browser storage. Different origins and non-browser
 callers still require explicit native sequence coordination.
+
+## Evaluate edited drafts
+
+**Enable Live draft** explicitly opens a recorded generation for the configured
+Table requester. Select one, two, four or eight evaluation intents. Within that
+budget, the browser coalesces edits, compiles complete valid SQL through the
+shared query owner and keeps at most one accepted query active. Partial SQL does
+not execute by dropping clauses. KV and Document draft evaluation are unsupported.
+This control uses the query workspace; it does not require the reactive gateway.
+
+Editing, retries, navigation and reconnects do not reset consumed intents.
+Exhaustion requires another explicit enable action. **Pause Live draft**, hiding
+and route departure stop scheduling; closing the generation does not cancel
+accepted queries. **Cancel draft query** is a separate request. Recover uncertain
+work with **Recover original draft work**, preserving its original namespace,
+bundle and signed input instead of starting another query.
+
+Before reloading with pending work, use **Save draft recovery**. Restore that
+file and explicitly recover the original work after reload. The file contains
+neither signing keys nor result pages and grants no authority. A candidate result
+replaces the displayed one only after complete coverage verification and a
+current-authority reread. Results remain labeled with their evaluated SQL when
+the current draft differs.
+
+The [finite draft contract](../../../contracts/QUERY_DRAFT_V1.md) defines intent
+admission and closure; the [browser owner](../../../packages/ts/transit-query-client/README.md)
+defines in-memory scheduling and recovery. Follow continues to use the submitted
+plan independently of edits and retains its separate eight-intent generation.

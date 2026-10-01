@@ -146,6 +146,7 @@ def run(node, cli, board, browser=False):
         # Browser runtime tests open the real binary directly, without credentials.
         if browser:
             env = os.environ | {"BOARD_TEST_URL": origin,
+                                "BOARD_TEST_OUTPUT": str(output["id"]),
                                 "BOARD_TEST_RESOURCE": str(resource), "BOARD_TEST_PID": str(pids[0]), "BOARD_TEST_SINK": str(pids[1]), "BOARD_TEST_MALFORMED": str(pids[2]),
                                 "BOARD_SCREENSHOT": str(Path(".cache/board.png").resolve())}
             subprocess.run(["vp", "exec", "--filter", "@rey/transit-board-web", "playwright", "test", "board.spec.ts"], env=env, check=True, timeout=180)

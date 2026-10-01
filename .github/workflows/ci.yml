@@ -135,6 +135,16 @@ jobs:
         # Keep the shell closure rooted through cache GC; a temporary `-c true`
         # alone would let GC discard the binaries we just spent time building.
         run: nix develop .#${{ matrix.shell }} --profile "$RUNNER_TEMP/transit-ci-shell" --command true
+      - name: Save Nix store
+        # Preserve the rooted toolchain before long tests can be cancelled.
+        # Test outcomes remain separate; no checkout artifacts enter this cache.
+        if: ${{ !cancelled() && inputs.cache_mode != 'cold' && matrix.cache_writer && steps.shell.outcome == 'success' && steps.nix-cache.outputs.hit-primary-key != 'true' }}
+        uses: nix-community/cache-nix-action/save@7df957e333c1e5da7721f60227dbba6d06080569 # v7.0.2
+        with:
+          primary-key: ${{ steps.nix-cache.outputs.primary-key }}
+          # Keep the rooted lane closure, not arbitrary downloaded build state.
+          # A GC target is not a hard cap; live roots are always retained.
+          gc-max-store-size-linux: '0'
       - name: Restore Zig standard libraries and fetched packages
         id: zig-cache
         if: inputs.cache_mode != 'cold'
@@ -187,6 +197,8 @@ jobs:
             .cache/verification/domain-simulation/
             .cache/verification/domain-simulation-mutations/
             .cache/verification/vortex/
+            .cache/transit-board-browser/
+            .cache/m9/station-local-readiness.json
           include-hidden-files: true
           if-no-files-found: warn
           retention-days: 14
@@ -201,15 +213,6 @@ jobs:
             .cache/ci-zig/h
             .cache/ci-zig/p
           key: ${{ steps.zig-cache.outputs.cache-primary-key }}
-      - name: Save Nix store
-        # Preserve expensive successful toolchain builds even if a test fails.
-        if: ${{ !cancelled() && inputs.cache_mode != 'cold' && matrix.cache_writer && steps.shell.outcome == 'success' && steps.nix-cache.outputs.hit-primary-key != 'true' }}
-        uses: nix-community/cache-nix-action/save@7df957e333c1e5da7721f60227dbba6d06080569 # v7.0.2
-        with:
-          primary-key: ${{ steps.nix-cache.outputs.primary-key }}
-          # Keep the rooted lane closure, not arbitrary downloaded build state.
-          # A GC target is not a hard cap; live roots are always retained.
-          gc-max-store-size-linux: '0'
   foundation-and-protocol:
     # Preserve the previous required-check name across the decomposition.
     if: always()

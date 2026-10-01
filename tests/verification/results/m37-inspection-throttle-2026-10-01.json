@@ -1,0 +1,215 @@
+{
+  "version": 1,
+  "scope": "Controlled records/metadata rate-limit recovery; no completed optimization cost comparison",
+  "implemented_revision": "476da5a30b8d3f7bbe3aa0a89c70c50fb5e5bb42",
+  "initial_experiment": {
+    "version": 1,
+    "revision": "88fc1d0d2ea643ca24b39f6241a3f4c7fd52f7a4",
+    "dirty": false,
+    "optimization": "ReleaseSafe",
+    "command": [
+      "nix",
+      "develop",
+      ".#bindings",
+      "--command",
+      "env",
+      "TMPDIR=/var/tmp/transit-issue26-proof",
+      "zig",
+      "build",
+      "test-http-worker",
+      "-Dhttp-board=true",
+      "-Dhttp-board-browser=true",
+      "-Doptimize=ReleaseSafe",
+      "--verbose"
+    ],
+    "baseline_task_seconds": 1015.48,
+    "baseline_proof_seconds": 1005.11,
+    "baseline_workload": {
+      "sends": 16,
+      "applications": 8,
+      "cancellation_requests": 2
+    },
+    "source_sha256": {
+      "build.zig": "31f473451eda96ff978d8efd85e95b15bc4468439bd90988ed5dc2733318ba3f",
+      "tests/http_worker.py": "1a43fc3e02552478735c81f1b85a4854e235deb0d49ed90f85c11d2c55c678ef",
+      "tests/http_worker.zig": "a2e86fcdfe60810572a7407d5f3ceca8101971ee5c8d32329f0a499f77b87219",
+      "tests/http_board.py": "9097e96b819d805ea424a9777302f32535b46aeb04e7e1c0f1e77c5f143d9348",
+      "apps/transit-board-web/browser/http.spec.ts": "9ab805827aeef543db6b44a646fd317b57bdfe97734e2a2f3727ba1ec0699852",
+      "flake.lock": "865faed173c5a710f77c231ce13c427bfe9eeaf3900e7edc7fa7e9d6233b1264"
+    },
+    "exit_code": 1,
+    "seconds": 403.518,
+    "log_sha256": "d78496056855f5004355766520ef7021d857c64efdff398c05d501ec6f9818b9",
+    "proof_seconds": null,
+    "workload_assertions_completed": false,
+    "browser_passed": false,
+    "limits": [
+      "Single shared-host observation; not a hosted or statistical cost qualification.",
+      "Compilation paths and host contention differ; proof time excludes compilation and workload assertions remain identical.",
+      "No source, deadline, job cap or workload change is applied by this control."
+    ],
+    "artifacts": [
+      {
+        "name": "transit-node",
+        "path": "./.zig-cache/o/71436d3bca022573dc84dffb0d5f2830/transit-node",
+        "bytes": 19922208,
+        "sha256": "829c3b3910a60e5942a175de5549bf2787859666139d89e0dc7ede750e42d944"
+      },
+      {
+        "name": "transit-http-worker-proof",
+        "path": "./.zig-cache/o/2ad5fcdeec67753753a4d2457f8f143d/transit-http-worker-proof",
+        "bytes": 18592936,
+        "sha256": "1cbdb05005d1511db0a7424ea7eba14dc5d89cc16dba7ea52c9f1a501fb11292"
+      },
+      {
+        "name": "transit-station-http-worker",
+        "path": "./.zig-cache/o/4b09e1e27d230e1bb34c9a45826ab5ab/transit-station-http-worker",
+        "bytes": 20517720,
+        "sha256": "3a8b5ae8a85aad5dff2d70e1a46862ba564ec8e61f1a4721cad690b8557403e0"
+      },
+      {
+        "name": "libtransit_station.so",
+        "path": "./.zig-cache/o/ca6576e288d7fb30ad9d25164017e5b8/libtransit_station.so",
+        "bytes": 24948080,
+        "sha256": "c547fbc1a1d64cf351651d1df369df6d50007cc05167630b20356842f64eb22a"
+      },
+      {
+        "name": "transit-board",
+        "path": "./.zig-cache/o/de8358d00d4a55c3b0e110216d98c996/transit-board",
+        "bytes": 28137992,
+        "sha256": "893613a2a34a6f4a40f44d4a2bcbe8a189357ff289213aca80cd88ec88e82b4b"
+      }
+    ],
+    "failure": {
+      "kind": "browser assertion",
+      "location": "apps/transit-board-web/browser/http.spec.ts:28",
+      "expected": "Exchange 1 complete heading visible within original 5000 ms",
+      "observed": "Records panel shows rate limited; trace contains two 429 records replies separated by five-second polling, each after a successful atlas read.",
+      "classification": "Incomplete comparison; no speedup or optimization-profile qualification."
+    },
+    "retained_browser_artifacts": [
+      {
+        "path": ".cache/http-releasesafe-failure-88fc1d0d/.last-run.json",
+        "sha256": "a08f9104b5f5e33793ab0e43745d024795e36f6f7cb173dea609db46c7516e5a"
+      },
+      {
+        "path": ".cache/http-releasesafe-failure-88fc1d0d/http-captured-HTTP-evidenc-dae80-lears-after-read-revocation/error-context.md",
+        "sha256": "383c694f7e9b0fa97b1ecff53138fcd5015b3a59aaf35dafd6ae11b9203560dc"
+      },
+      {
+        "path": ".cache/http-releasesafe-failure-88fc1d0d/http-captured-HTTP-evidenc-dae80-lears-after-read-revocation/trace.zip",
+        "sha256": "30c51337c1d30ad8ab9796c8f8859ec402d086749b92284aa7ad7f30f40720e8"
+      }
+    ]
+  },
+  "initial_network_observations": [
+    {
+      "started": "2026-10-01T05:16:48.215Z",
+      "url": "http://127.0.0.1:44437/api/v1/atlas",
+      "method": "GET",
+      "status": 200,
+      "milliseconds": 11.346
+    },
+    {
+      "started": "2026-10-01T05:16:48.312Z",
+      "url": "http://127.0.0.1:44437/api/v1/resources/879/records",
+      "method": "GET",
+      "status": 429,
+      "milliseconds": 5.902
+    },
+    {
+      "started": "2026-10-01T05:16:53.231Z",
+      "url": "http://127.0.0.1:44437/api/v1/atlas",
+      "method": "GET",
+      "status": 200,
+      "milliseconds": 9.013
+    },
+    {
+      "started": "2026-10-01T05:16:53.321Z",
+      "url": "http://127.0.0.1:44437/api/v1/resources/879/records",
+      "method": "GET",
+      "status": 429,
+      "milliseconds": 2.755
+    }
+  ],
+  "controls": {
+    "version": 1,
+    "base_revision": "88fc1d0d2ea643ca24b39f6241a3f4c7fd52f7a4",
+    "development_base": "a91abe2ccb80bb366c581ae5ce15bf58259a858a",
+    "optimization": "ReleaseSafe",
+    "command": [
+      "nix",
+      "develop",
+      ".#bindings",
+      "--command",
+      "env",
+      "TMPDIR=/var/tmp/transit-issue26-proof",
+      "zig",
+      "build",
+      "test-http-worker",
+      "-Dhttp-board-browser=true",
+      "-Doptimize=ReleaseSafe"
+    ],
+    "controls": [
+      {
+        "phase": "original-ui",
+        "dirty": true,
+        "source_sha256": {
+          "apps/transit-board-web/browser/http.spec.ts": "372cada4db20ac8f6e20fee2bc2f0e8abccbb2387a0ea43be773cc4431ade386",
+          "apps/transit-board-web/src/records.tsx": "1fb2c7541b4b579b1fddbf89013ab2886c60c742310a7263ad5373ede05559ea",
+          "apps/transit-board-web/src/use-metadata.ts": "2c73c8c42a865940ec5b5721355eb478851ea85987c349d341cf156ab6b1c999"
+        },
+        "exit_code": 1,
+        "seconds": 355.213,
+        "log_sha256": "8752a7ccfdaa3c14e3fbe07328174e5e38cc68663b21e906feee96fa311b6d6b",
+        "detected": true
+      },
+      {
+        "phase": "corrected-ui",
+        "dirty": true,
+        "source_sha256": {
+          "apps/transit-board-web/browser/http.spec.ts": "372cada4db20ac8f6e20fee2bc2f0e8abccbb2387a0ea43be773cc4431ade386",
+          "apps/transit-board-web/src/inspection-read.ts": "bc28702096d26c19bec0f481e86e9fdf6a8a3591598dc2da765febf526b23ae0",
+          "apps/transit-board-web/src/inspection-read.test.ts": "fa938856622fba2e3840b0edc1232767e5681448c5f975741898515478b6e95c",
+          "apps/transit-board-web/src/records.tsx": "d4e448d23bf81f5204b1f59ef704fbba015fab71e7dbe9f08e6f6e04597da0eb",
+          "apps/transit-board-web/src/use-metadata.ts": "5e8b60d4b31271fe105e5149aeb0a1eebdebfa1f673ac8e9a7fcbc1a1058f329"
+        },
+        "exit_code": 0,
+        "seconds": 988.537,
+        "log_sha256": "733f71198f34d7981309c79272b252630121eae8977aef52685843047b7a472c",
+        "proof_seconds": 879.1,
+        "passed": true
+      }
+    ]
+  },
+  "focused_checks": [
+    {
+      "command": "vp check",
+      "exit_code": 0
+    },
+    {
+      "command": "vp exec tsc --noEmit",
+      "exit_code": 0
+    },
+    {
+      "command": "vp test run src/inspection-read.test.ts",
+      "exit_code": 0,
+      "passed_tests": 6
+    }
+  ],
+  "completed_workload": {
+    "sends": 16,
+    "applications": 8,
+    "cancellation_requests": 2,
+    "hot_limit_bytes": 8388608,
+    "cold_objects": 778,
+    "object_store_bytes": 85860471
+  },
+  "limits": [
+    "The comparison first fails on two HTTP 429 records reads during the original five-second heading assertion, not on an engine invariant.",
+    "The original-UI control overlays only the deterministic browser fault schedule on frozen revision 88fc1d0d. The positive additionally overlays the recorded UI helper/hooks; exact source hashes identify both.",
+    "The positive complete proof takes 988.537 seconds including compilation and 879.10 seconds inside the native fixture. These shared-host observations differ in workload/browser faults, compilation and host contention; no speedup is qualified.",
+    "Only explicit 429 RateLimited reads retry, at most three times 250 ms apart. Displayed data clears before waiting. Hiding/disposal, current denial and stale-history distinctions remain.",
+    "No task deadline, provider capacity guard, signed submission or default build profile is changed. Full combined-source clean and hosted qualification remain separate."
+  ]
+}

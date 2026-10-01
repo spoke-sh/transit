@@ -62,7 +62,10 @@ nulls and binary labels. Five-second current-policy observations continue while
 the resource interior is hidden by Neighborhood. Browser tab hiding clears
 visible results; returning rechecks authority. Known denial/expiry clears the
 source, draft and result. In v1 it also stops automatic reads, including after
-follow-lease expiry; **Refresh query access** explicitly rechecks authorization.
+follow-lease expiry; **Refresh query access** explicitly rechecks authorization
+without selecting the cleared result again. **Resume without rerunning** selects
+a retained namespace and verifies its result under current access. Its saved SQL
+is unavailable, so the result is marked separately from the current draft.
 The workspace retains frozen pending requests across
 in-app route remounts for exact recovery; known denial does not invent their
 rejection. Temporary connection failures retain permitted v1 rows with their
@@ -78,6 +81,13 @@ to the configured read grant. That view holds eight record identities with
 recognized exchange metadata and exact source revisions. It omits captured
 bodies and application values, uses explicit continuation, and clears on errors
 or tab hiding. Five-second refreshes recheck current authority. Automatic emphasis and animated entry are unsupported.
+
+Records and selected metadata reads retry an explicit rate-limit response at
+most three times, 250 ms apart, so they can recover between shared five-second
+polls. Retries keep the same resource and continuation, stop on hiding or disposal,
+clear displayed data before waiting, and do not retry denial, stale history or
+unclassified failures. They do not
+change the host's read limit or confer access to previously displayed data.
 
 Recognized HTTP captures offer **Inspect HTTP metadata**. The selected view shows
 frozen policy revisions, budgets, trust digest, timing, omitted field counts and
@@ -113,6 +123,14 @@ denial clearing and connection retries;
 and saves a local screenshot/failed traces under `.cache/`. Chromium needs its
 host libraries; on supported CI Linux images Playwright can provision them with
 `vp exec --filter @rey/transit-board-web playwright install --with-deps chromium`.
+
+The inspection proof enters the native v1 atlas, selects a process with the
+keyboard, and opens the process evidence routes directly. It checks admission,
+consumption, output and effect references, plus retained revision evidence during
+an outage. Payload escaping uses an admitted mailbox value; resource inspection
+checks source keys and writer/revision evidence without displaying application
+values. CI retains failed Playwright traces and page context alongside task
+completion records.
 
 `just transit-board::query-browser` qualifies the growing atlas and workspace
 against real hosts, including live revocation and lossless typed values.

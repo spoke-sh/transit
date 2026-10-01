@@ -64,9 +64,11 @@ eight selected intents per explicit Follow generation. That finite budget also
 limits durable control history; lease expiry alone does not remove old receipts.
 
 Pause, hide and close stop new scheduling/renewal through explicit lifecycle
-controls. Accepted work remains independently observable. Editing SQL still
-requires explicit submission of a new generation; speculative execution while
-typing and incremental continuous results are unsupported.
+controls. Accepted work remains independently observable. Follow retains its
+submitted plan when SQL is edited. The separate
+[finite draft budget](queries.md#finite-draft-evaluation) permits evaluating
+complete edits after explicit enablement; it does not reset Follow or provide
+speculative partial execution or incremental continuous results.
 
 SSE is a signed POST fetch stream, not `EventSource` GET. WebSocket uses the
 `transit.reactive.v1` subprotocol and the configured challenge bootstrap; there

@@ -1,0 +1,87 @@
+{
+  "version": 1,
+  "scope": "Current upload marker validation in finite HTTP and RPC examples; local profiles only",
+  "source": {
+    "revision": "31f071d0fbc166dee8251cb170cf90093590a2a3",
+    "dirty": true,
+    "files": {
+      "packages/zig/transit-station/src/PublicationUpload.zig": "9b7fc53fcb98b7e275d66e908ff1d2a4872b0e1e160917e17d9fc01197539fa3",
+      "packages/zig/transit-station/src/publication_test.zig": "b05b3b33c0009c2d4ec236d748d9b44a3dd2f05c8be8362ba58e2cc3c86958c6",
+      "examples/station-http/main.zig": "8bbdce88b72dd8be077a4f047ec883dc12dd6a6e3f1fdf3204f16f2e0fa89e52",
+      "examples/station-grpc/main.zig": "153a704c6681ecf151ea8d2c1510366faf5cd9df6af75c43f573f66b2d56276d",
+      "examples/exchange/run.py": "912981fbc92735ddf6d02c9a3d33384e3d11ebba66ec06852e75693c8597a11e"
+    }
+  },
+  "baseline": {
+    "http": "ChangedCallConfiguration on first publish",
+    "grpc": "ChangedCallConfiguration on first publish",
+    "cause": "Examples compare SPU1 stored marker with encoded request reference instead of the domain/namespace/digest marker."
+  },
+  "checks": {
+    "station_package_tests": true,
+    "independent_marker_vector": "application domain 1; namespace 0x0102030405060708; standard SHA-256 abc vector",
+    "http": {
+      "passed": true,
+      "seconds": 78.88,
+      "sends": 1,
+      "body_bytes": 23
+    },
+    "grpc": {
+      "passed": true,
+      "seconds": 86.38,
+      "sends": 1,
+      "body_bytes": 54
+    },
+    "bootstrap": [
+      {
+        "task": "examples::http-bootstrap",
+        "exit_code": 0,
+        "seconds": 68.886
+      },
+      {
+        "task": "examples::grpc-bootstrap",
+        "exit_code": 0,
+        "seconds": 110.754
+      }
+    ],
+    "changed_reconciliation_deadline_rejected": true,
+    "original_peer_and_correlation_recovered": true,
+    "replay_after_disk_restart_and_credential_removal": true
+  },
+  "logs": {
+    "http-example-baseline.log": {
+      "path": ".cache/http-example-baseline.log",
+      "sha256": "b6d7c2b1e5e0e91c2c1b72551c31c9485aba727df1ade94d68639ecb268a4686"
+    },
+    "grpc-example-baseline.log": {
+      "path": ".cache/grpc-example-baseline.log",
+      "sha256": "af253410e94727ce6224c6a14464958bf470c4b092342d093f0019face302471"
+    },
+    "exchange-marker-unit-package.log": {
+      "path": ".cache/exchange-marker-unit-package.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "http-example-marker.log": {
+      "path": ".cache/http-example-marker.log",
+      "sha256": "e60dc36bf9def838a87c782b65600e8c25a884f7b35a8733d9232c4d34c780d2"
+    },
+    "grpc-example-marker.log": {
+      "path": ".cache/grpc-example-marker.log",
+      "sha256": "3deffaab3c310ab5445f894ec4d9d6ef490ff77362611c0b8737af62f35afe93"
+    },
+    "example-http-bootstrap-marker.log": {
+      "path": ".cache/example-http-bootstrap-marker.log",
+      "sha256": "b5227a4429b8d57feb8372e1cd8326dd6df8b7c4af13b9e01040f6afdc80d06b"
+    },
+    "example-grpc-bootstrap-marker.log": {
+      "path": ".cache/example-grpc-bootstrap-marker.log",
+      "sha256": "7ac8bdbd1929c1aaf0ec9431eedc2648c8edeb2107fbaec56e99fed43756f69e"
+    }
+  },
+  "limits": [
+    "Stored marker format, contract definition and native authorization are unchanged.",
+    "The exposed encoder performs no I/O and confers no authority.",
+    "Each example retains original operation/loop/deadline bounds.",
+    "Local focused runs are not a clean-lane, hosted or placement qualification."
+  ]
+}

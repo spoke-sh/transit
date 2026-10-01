@@ -1,0 +1,54 @@
+{
+  "version": 1,
+  "scope": "Caller proof distinguishes transient transport from definitive rejection without changing native policy",
+  "development_base": "31f071d0fbc166dee8251cb170cf90093590a2a3",
+  "dirty": true,
+  "source_sha256": {
+    "tests/client_probe.zig": "2deb1062f7cb0d8cbc25980a03221edf27700aadc09652c116397c45d133539c",
+    "tests/callers.py": "bfc353c88137b87a6534b11da54f2d02057d66f352f04b444ba1b9082c303a59"
+  },
+  "original_probe_sha256": "595aaa7e3ab7cff7147a21907a9e06ccca7477e107c9990f92dbdc053dbb1d92",
+  "original_clean_failure": {
+    "revision": "5c76d03e697cc914d4ea29ff7404eedf6417da63",
+    "lane": "core",
+    "completed": false,
+    "passed_tasks": 19,
+    "failed_task": "test::callers",
+    "expected": "AccessDenied",
+    "observed": "AuthorityUnavailable",
+    "node_observation": "page.stage ReadFailed after the 2-second request timeout; underlying delay cause unestablished"
+  },
+  "negative_control": {
+    "command": "nix develop --command env TMPDIR=/var/tmp/transit-issue26-proof just test::callers",
+    "original_probe_with_injected_unavailability": true,
+    "exit_code": 1,
+    "observed": "expected error.AccessDenied, found error.AuthorityUnavailable"
+  },
+  "corrected": {
+    "command": "nix develop --command env TMPDIR=/var/tmp/transit-issue26-proof just test::callers",
+    "exit_code": 0,
+    "exact_signed_rejection_retries": 4,
+    "principals": 2,
+    "generations_per_principal": 2,
+    "maximum_attempts": 3,
+    "outer_probe_timeout_seconds": 20,
+    "retry_errors": [
+      "AuthorityUnavailable",
+      "AuthorityTimeout"
+    ],
+    "state_and_revision_unchanged": true,
+    "stale_state_input_and_activation_rejections": true,
+    "lost_and_malformed_accepted_receipt_recovery": true
+  },
+  "logs": {
+    "clean-5c76d03e-core.log": "a62cfb1448f91ea7a28cd74e4ab2f874ef6bdfe01b5aa0e459df929c8ba6ddb3",
+    "callers-rejection-negative.log": "c5cdc667331b2bf772f621aa8a267c1e256cd14f4371ff7771c410d5382c17f3",
+    "callers-rejection-recovery.log": "8862dedd86510d98c4b2d37246f2cd41f362c65bc044c6e364f72c0b88ce7988"
+  },
+  "limits": [
+    "Transient outcomes never satisfy the required denial or permanent rejection.",
+    "Unexpected acceptance, any other error, or exhaustion still fails.",
+    "No server/client timeout, native grant or accepted-work identity changes.",
+    "This fixture correction does not establish the cause of provider delay or complete the core lane."
+  ]
+}

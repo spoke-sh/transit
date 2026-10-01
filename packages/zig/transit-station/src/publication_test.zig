@@ -305,6 +305,19 @@ test "bounded cleanup retains permanent identities and a captured historical roo
     try verify(pubn, &captured, 1, &bytes);
 }
 
+test "upload marker encodes the current domain namespace and frozen digest" {
+    const Upload = @import("PublicationUpload.zig");
+    const frozen = try p.Value.init("abc");
+    const actual = try Upload.marker(.application, 0x0102030405060708, frozen);
+    // Independent little-endian coordinates and the SHA-256 abc test vector.
+    var bytes: [48]u8 = undefined;
+    _ = try std.fmt.hexToBytes(&bytes, "53505531010000000807060504030201ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad");
+    try t.expectEqualSlices(u8, &bytes, actual.slice());
+    try t.expectError(error.InvalidPublicationUpload, Upload.marker(@fromBackingInt(@intCast(0)), 1, frozen));
+    try t.expectError(error.InvalidPublicationUpload, Upload.marker(.application, 0, frozen));
+    try t.expectError(error.InvalidPublicationUpload, Upload.marker(.application, 1, try p.Value.init("")));
+}
+
 test "paired upload keeps partial publication separate from admission and rejects changed identities" {
     const Upload = @import("PublicationUpload.zig");
     var store: Store = .{};

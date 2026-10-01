@@ -143,7 +143,23 @@ completed reports share a revision and cover the committed inventory exactly.
 These local timings do not requalify the earlier hosted 33-task budget samples.
 Individual lanes and interrupted attempts must never be reported as the full gate.
 
+The runner atomically replaces task results and completion metadata before and
+after each task. Metadata identifies `active_task`, `result_count` and the last
+`checkpoint_unix`; `completed` becomes true only after every selected task passes.
+After a hard interruption, `seconds` measures through the last checkpoint rather
+than the unseen end of the active task. A partially updated file pair or an active
+task remains incomplete. Hosted job timing separately measures the job's cost.
+The rooted Nix shell is cached before task execution so later cancellation does
+not discard a successfully prepared toolchain; cached tools do not establish a
+passing test result.
+
 ## CI and clean-run cost evidence
+
+Executed budget qualification belongs to the retained 33-task baseline below.
+The expanded inventory remains unqualified; the
+[completed failed hosted record](results/m37-hosted-ordinary-2026-10-01.json)
+retains its actual task outcomes, partial-cache profile and costs. Larger job
+execution caps do not revise the numeric budgets or make an incomplete run pass.
 
 The [CI budgets](ci-budgets.json) allow under fifteen minutes of warm feedback
 and sixty aggregate runner minutes, following the accepted five-lane sample.
@@ -531,6 +547,13 @@ same lost-receipt and current-grant schedule at namespace `18446744073709551615`
 It also checks generated response validation, byte ownership and preservation of
 uncertainty on unconfirmed submit responses. `bindings::mutation-node` selects
 these checks independently.
+
+The installed Node Station consumer first verifies that the optional Arrow
+package is absent, then adds the exact Arrow adapter dependency for owned IPC
+checks. This second installation explicitly updates the disposable consumer's
+generated lockfile, including under CI's frozen-lock default. Repository locks
+are unchanged. Failed installations report the exit status and package-manager
+error codes without dumping package-manager output.
 
 `bindings::ruby-sdk-test` adds immutable mutation values through the existing
 owned Ruby worker and native port. Its installed schedule uses namespace

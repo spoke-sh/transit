@@ -204,9 +204,11 @@ Opening the console never resubmits saved work. `.status` observes under current
 rights; `.resume` reconciles the original signed request and continues its saved
 operation. Ctrl-C stops waiting, preserves the operation and discards the remaining
 submitted batch; disconnecting does not undo a write. `.cancel` first reconciles
-any uncertain mutation input, then requests cancellation. It cannot undo an
-applied mutation, and CREATE TABLE has no cancellation operation. Recovery commands
-refer to the last saved write until replaced by another write or durable query.
+any uncertain mutation input, then requests cancellation. An admitted inline
+mutation can finish during reconciliation; `.cancel` reports its applied outcome.
+It cannot undo an applied mutation, and CREATE TABLE has no cancellation
+operation. Recovery commands refer to the last saved write until replaced by
+another write or durable query.
 An explicit `.resume ID` selects a durable query only after pending writes finish.
 Do not repeat SQL after uncertainty: it creates a new operation. Unresolved work
 blocks new writes, queries and connection switching; inspection/help remain usable.

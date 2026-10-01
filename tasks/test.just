@@ -294,6 +294,7 @@ table-mutation *args:
 # Catalog Table publication, exact receipt recovery and native fencing on disk.
 [positional-arguments]
 catalog *args:
+    python3 -B tests/catalog_fixture.py
     zig build test-catalog -Doptimize=ReleaseSafe -- "$@"
 
 # Disk-backed metadata beyond resident pages, current cursors and restart.
