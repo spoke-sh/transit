@@ -8,14 +8,13 @@ pub const Source = struct { name: m.Name, schema: m.Schema };
 pub fn plan(allocator: std.mem.Allocator, text: []const u8, source: Source) !m.Plan {
     var ast: sql.Ast = undefined;
     try sql.parseInto(text, &ast, null);
-    return compileAst(allocator, &ast, source);
+    var result: m.Plan = undefined;
+    try compileInto(allocator, &ast, source, &result);
+    return result;
 }
 pub fn compile(allocator: std.mem.Allocator, ast: sql.Ast, source: Source) !m.Plan {
-    return compileAst(allocator, &ast, source);
-}
-fn compileAst(allocator: std.mem.Allocator, ast: *const sql.Ast, source: Source) !m.Plan {
     var result: m.Plan = undefined;
-    try compileInto(allocator, ast, source, &result);
+    try compileInto(allocator, &ast, source, &result);
     return result;
 }
 fn compileInto(allocator: std.mem.Allocator, ast: *const sql.Ast, source: Source, result: *m.Plan) !void {
