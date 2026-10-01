@@ -59,6 +59,22 @@ does not read source data, retain a snapshot, admit a query or sign a command.
 An accepted query's exact saved bundle and signed commands remain its recovery
 material; rebinding a template is a new query, never uncertain-operation retry.
 
+`transit-query.SqlTemplate` supplies the resource binding above Fuze. Its pure
+`init` records the entire canonical `SourceDefinition` fingerprint, including
+resource, KV prefix/decoders, Table ID/schema, and Document identity, accepted
+revision and projection paths. An equal schema on another definition is
+insufficient. `bind` checks this fingerprint and returns an owned ordinary
+`Bundle`, including independent copies of source paths and values. Explicit
+positive execution budgets retain their existing definition.
+
+`UnifiedClient.prepareSql` checks current source access before and after
+compilation. `bindSql` checks current access and permitted budgets before and
+after binding. Failure at either check releases candidate allocations and returns
+no bundle. These methods use the shared read-only description operation; they
+do not submit work. The source still independently checks current admission when
+a bound bundle is uploaded. Neither a previously prepared template nor a bound
+bundle preserves permission after revocation.
+
 ## Compatibility and evidence
 
 Binding lowers placeholders to ordinary scalar/limit values. Canonical FZP1

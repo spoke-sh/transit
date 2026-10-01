@@ -33,6 +33,19 @@ scalar decoder. Log: `/var/tmp/transit-sql-parameters-independent.log`.
 These are compiler/component results; full checks, performance, committed-HEAD
 clean qualification and public caller integration remain pending.
 
+The subsequent query layer adds exact definition binding and owned source paths
+to `SqlTemplate`; `UnifiedClient.prepareSql`/`bindSql` use the same current
+description boundary before and after their work. All 69 query package tests
+pass, including three new tests covering KV/Table/Document identity changes,
+canonical literal-bundle equality, independent path/value ownership and every
+allocation failure, revocation at either observation and budget reduction. A
+read-only fake exposes no submission method. This is component authority-order
+evidence, not a signed transport or installed-caller proof. The first run passed
+68/69 and failed because the test's source factory returned a runtime-created
+borrowed path; static fixture storage fixes that lifetime. Logs:
+`/var/tmp/transit-sql-parameters-source-binding.log` and
+`/var/tmp/transit-sql-parameters-source-binding-fixed.log`.
+
 ## Declarative benchmark components
 
 The [component harness](benchmarks/README.md) measures synthetic SQL compilation,

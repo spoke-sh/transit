@@ -56,3 +56,28 @@ retries identical signed bytes, kills source work during segment staging, restar
 the node/store, requires fresh worker generations, and revokes access after an
 actual returned prefix. The [test ledger](../../../../tests/README.md#m18-qualification)
 records which source profiles passed and the remaining qualification obligations.
+
+## Typed query templates
+
+`prepareSql(allocator, definition, name, text)` returns an owned `SqlTemplate`.
+It records the complete source definition and exposes inferred
+`parameterTypes()`. A replacement resource, Table ID, KV prefix/decoder or
+Document identity, revision or path invalidates reuse, even with equal columns.
+The supplied definition and SQL text can be released after preparation.
+
+`bindSql(allocator, template, definition, values, limits)` returns a separately
+owned `SqlTemplate.Bound.bundle`. Values use the shared six-type `Unified.Scalar`;
+types must match exactly. Source arrays/paths and plan literals are copied.
+Release each bound owner with `deinit`, independently of its template. These
+methods check current access before and after their work. Binding also checks
+the requested budgets at both observations. A denial or reduced budget returns
+no candidate bundle and performs no upload.
+
+Pure `SqlTemplate.init`/`bind` check typing and source compatibility without I/O;
+their caller must enforce current authorization. Neither API retains source data,
+opens a snapshot nor registers named durable prepared state. A bound bundle
+uses the existing upload and admission path. Preserve its exact original bytes
+and signed commands across uncertainty; binding again is a new query, not retry.
+The [parameter contract](../../../../contracts/SQL_PARAMETERS_V1.md) defines the
+profile. Named PREPARE/EXECUTE, file and CLI/SDK parameter operations remain
+unsupported.

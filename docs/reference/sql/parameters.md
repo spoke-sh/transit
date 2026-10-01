@@ -27,6 +27,13 @@ identity, current authorization and execution budgets belong to the query
 caller. Rebinding does not recover an earlier uncertain submission: retain and
 retry that submission's exact saved operation.
 
+The Zig query client adds `prepareSql`/`bindSql` around the compiler. Its
+`SqlTemplate` records the complete source definition and rejects a changed
+resource, decoder, Table ID or Document revision/path. Both client operations
+recheck current permission before returning; binding also rechecks execution
+budgets. They return local owned values and do not submit work. See the
+[query caller API](../../../packages/zig/transit-query/docs/unified-client.md#typed-query-templates).
+
 Ordinary SQL submission, CLI/SDK parameter APIs, named `PREPARE`/`EXECUTE`, file
 parameters and saved templates are unsupported. See the
 [compiler API](../../../packages/zig/transit-fuze/docs/unified-sql.md#typed-templates)
