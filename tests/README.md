@@ -10712,3 +10712,54 @@ holders and provider progress; they do not prove why the holder stalled or why
 the complete Arrow reply missed its deadline. No rerun or changed limit is
 claimed. Logs/stores remain at
 `/var/tmp/transit-ci-zpxsqzvc/src/.cache/launchers/local/station-c5bbc0`.
+
+### Owned parser projections and independent compound matrix
+
+Commit `862ab427` fills selections directly in the owned AST and projections
+through caller-owned arrays. It removes intermediate array returns without
+changing the AST layout, accepted syntax, ownership, bounds or canonical plans.
+Pinned Fuze units, full `just check`, `just test::sql` and all **110 real file CLI
+cases pass**, exit 0. The SQL proof retains 151 SELECT ASTs, 122 canonical
+plan/Arrow cases and 56 result cases across three sources/eight page widths.
+Log: `/tmp/transit-sql-parser-owned-check.log`.
+
+The [parser storage archive](benchmarks/results/2026-10-01-boolean-parser-storage.json.gz)
+retains three nine-pair CPU-1 comparisons, both source variants and assembly.
+The projection-only intermediate has mixed SELECT deltas (−2.4% to +8.5%); it is
+not accepted alone. Filling the AST selection in place gives 1.3–3.4% lower
+SELECT medians against `06700b69`, with overlapping ranges. The main comparison
+still shows **17.4–38.9% overhead**. The 19,272-byte compiler stack frame and
+large AST initialization remain; no native compiler timing pass is claimed.
+Final source hashes match `862ab427`, with original dirty metadata preserved.
+
+The [independent compound report](benchmarks/results/2026-10-01-boolean-compound-duckdb.json.gz)
+passes **324 samples**: nine shapes × explicit/sampled/full discovery × cold/warm
+input × Transit/DuckDB × three repetitions, 4096 rows per fixture. Every expected
+sample identity is present exactly once, result counts/checksums pass, and
+`mincore` confirms zero original-input residency for cold samples and full
+residency for warm samples. The pinned tools are Zig
+`0.17.0-dev.2267+48abf1a34`, DuckDB `1.5.2`/`8a5851971f` and PyArrow `23.0.0`.
+Both engines use one CPU, the existing 4 GiB process address-space ceiling and
+300-second timeout; DuckDB retains one thread and its 64 MB memory limit.
+
+The report retains all six phase timings, CPU/RSS/allocation evidence, exact
+fixtures and source/tool/binary provenance. It compares a compound id filter
+over shared fixture values, not complete SQL value/error/five-state equivalence.
+Discovery, conversion, vectorization and Arrow/allocation scopes differ as
+documented by the [benchmark owner](fuze_benchmarks/README.md). This is descriptive
+comparative evidence, not an unchanged-workload/frozen-budget regression pass.
+Cold input means original page-cache eviction, not a cold machine or device;
+private captures are new and warm. Partial/raw modes, other queries and native
+transport/large-input compound profiles remain unmeasured. Reproduce with
+`nix develop .#benchmarks --command just test::file-benchmark --query compound
+--modes explicit sampled full --caches cold_input warm_input --repetitions 3
+--output REPORT`. Log: `/tmp/transit-sql-parser-compound-matrix.log`.
+
+Earlier committed-source lanes also complete, with metadata/task records in
+the parser storage archive: **clean core at `05a386ab` passes 22/22 in 1107.60
+seconds**, and **clean bindings at `30982a1e` passes 17/17 in 10450.29 seconds**.
+Both exit 0; completed metadata and every expected zero-exit task are verified.
+Their logs are `/tmp/transit-sql-compiler-direct-clean-core.log` and
+`/tmp/transit-sql-boolean-sdk-clean-bindings.log`. Core predates the parser change;
+bindings predates the later native definition/SDK cutover. Neither qualifies
+those later changes or substitutes for all required lanes at one revision.
