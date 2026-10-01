@@ -11546,3 +11546,17 @@ independently. Logs `/var/tmp/transit-count-discovery-copy-comparison.log`,
 `/var/tmp/transit-count-discovery-copy-sum-comparison.log`,
 `/var/tmp/transit-count-discovery-copy-ownership-checks.log` and
 `/var/tmp/transit-count-discovery-copy-integrated-check.log`.
+
+The [direct-parser-arena variant](benchmarks/results/2026-10-01-rejected-discovery-parser-arena.json.gz)
+keeps the parsed JSON descriptor arena after definition, descriptor and encoded-byte
+checks, alongside direct copies in explicit/raw discovery. Fuze package units,
+including ownership after overwriting the JSON input and every allocation failure,
+pass. All **594 paired results** and **33 pipeline gates** pass, but three compiler
+gates fail: wide/explicit warm projection **1.2101** against the current copy,
+wide/explicit cold projection **1.2371** against pre-COUNT, and wide/explicit cold
+SUM **1.6610** against the current copy. This variant is also **rejected and
+restored**. It does not establish an improvement by removing an allocation alone.
+The archive keeps the exact patch, all six reports, drivers and audited medians.
+Logs `/var/tmp/transit-count-discovery-arena-check-build.log`,
+`/var/tmp/transit-count-discovery-arena-units.log` and
+`/var/tmp/transit-count-discovery-arena-comparison.log`.
