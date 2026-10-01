@@ -145,6 +145,12 @@ Individual lanes and interrupted attempts must never be reported as the full gat
 
 ## CI and clean-run cost evidence
 
+Executed budget qualification belongs to the retained 33-task baseline below.
+The expanded inventory remains unqualified; the
+[completed failed hosted record](results/m37-hosted-ordinary-2026-10-01.json)
+retains its actual task outcomes, partial-cache profile and costs. Larger job
+execution caps do not revise the numeric budgets or make an incomplete run pass.
+
 The [CI budgets](ci-budgets.json) allow under fifteen minutes of warm feedback
 and sixty aggregate runner minutes, following the accepted five-lane sample.
 Under ten minutes remains an improvement target and five a stretch. `just ci::cost RUN_ID` retains hosted phase timing and restored

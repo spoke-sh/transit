@@ -2500,6 +2500,43 @@ seconds: 105 turns, two recovered initialization receipts, a 0.504-second held
 snapshot and all added SQL-write interruption/recovery/cancellation cases. No
 assertion, request deadline or provider capacity guard changes between attempts.
 
+## Qualification checkpoint — 2026-10-01
+
+The [completed hosted record](verification/results/m37-hosted-ordinary-2026-10-01.json)
+for run `36803044000` retains **53 passed, two failed and thirteen unrun** ordinary
+tasks out of 68 at synthetic merge `03ab0209`. Its tree matches merged `9fdf1d02`.
+Core, launchers and ordinary experience complete; bindings stops at the optional
+Node Arrow installation, and growth stops at the HTTP example's upload-marker
+comparison after nineteen passing tasks. The separate browser tier fails its
+first task and leaves six unrun. The corrections below retain those failures.
+
+This failed, partially cached run takes **70m02s** from creation through final
+gating, **196m22s** aggregate job time and restores **12,257,714,802 bytes**.
+All job logs are available. Its cache profile is neither warm nor explicit cold;
+it does not qualify a budget. The numeric budgets retain their earlier 33-task
+calibration and do not certify the expanded inventory.
+
+The [local checkpoint](verification/results/m37-local-progress-2026-10-01.json)
+keeps clean experience's seven passes at `5c76d03e` separate from its later core
+failure after nineteen passes. Clean experience at `31f071d0` passes six tasks,
+then misses the original 60-second Station Arrow-reply window following the
+courier readiness fault. The original reply later exists without resubmission
+or a manual restart. The owned installation is then stopped and its disk state
+retained. Current evidence does not establish the cause of that progress delay.
+
+A focused disk-backed query run at clean `5c76d03e` passes, with delivery taking
+84.552 seconds under its unchanged 180-second cap. Nineteen matching request
+coordinates from the earlier failed tail have identical cache-miss counts and
+negligible authority-lock waits, but longer engine/provider work. These two
+source/host observations narrow the investigation; they do not establish cause
+or erase the earlier timeout.
+
+The complete Node SDK task also passes under `CI=true GITHUB_ACTIONS=true` on the
+development source with the installation correction, including Station, HTTP,
+gRPC, mutation and catalog schedules. It is a focused development run; edits and
+commits during that run prevent treating it as committed-source clean evidence.
+The remaining clean, hosted/browser and expanded cost gates stay open.
+
 ## Exact caller rejection recovery — 2026-10-01
 
 Clean core at `5c76d03e` passes 19 tasks, then the caller probe expects
