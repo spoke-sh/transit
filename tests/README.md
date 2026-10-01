@@ -6,6 +6,37 @@ earlier entry refers to that entry's source, not automatically to HEAD. The late
 records its reruns and remaining qualification separately; earlier consolidation
 results do not qualify the changed stored layout by inheritance.
 
+## SQL parameter integration with Boolean main — 2026-10-01
+
+The SQL stack rebases onto main `fe2fbd81` through the combined COUNT branch
+`95730437`. Conflict resolution preserves Boolean postfix programs, owned AST
+lowering, file aliases, value-count progress and both SDK interfaces. The combined
+native definition is `e412a074bf01f92cb62c7953051930d81a78cc1a0f45472b7eff17d9931f8633`;
+the FZP1 definition is `772db79a4ed16fff507c2b5ea28580a266ee2552548329e7107842c90413a88c`.
+Schemas, binding resources and independent signing/plan fixtures are regenerated.
+Tests reject both earlier Boolean-only and value-count-only definitions.
+
+Pinned Fuze, protocol and query package tests pass after integration. Full
+`just check` passes at parameter revision `8ed8f52f`; the later move onto
+`95730437` changes only inherited qualification documents and retained results.
+Additional `just test::sql` cases combine value counts, Boolean truth, output and
+derived-input aliases, input LIMIT and eager predicate errors across all three
+sources and eight page widths. The independent suite passes 174 ASTs, 142 plan
+cases, 72 query results and 27 query exclusions. Parameter checks pass 37 reference
+ASTs, 26 canonical plan/Arrow results and 20 exact rejections. Log:
+`/var/tmp/transit-sql-main-495-combined-regressions-fixed.log`.
+
+The template grammar still admits one comparison or state test. Compound
+parameter templates reject before binding, while ordinary SQL retains Boolean
+composition. The first added corpus run failed because a literal-only rejection
+case was incorrectly marked as containing placeholders; the fixture now records
+`has_parameters: false`, keeping ordinary Boolean acceptance and template rejection
+separate. No parser behavior or limit was weakened to satisfy that check.
+
+These checks do not qualify every clean lane, the remaining performance budgets,
+named prepared-statement lifetimes or continuous SQL. Earlier source-qualified
+failures and measurements below retain their original scope.
+
 ## Typed parameter compiler foundation
 
 The `feat/sql-query-parameters` continuation starts from `fbb4ebc9` in its own

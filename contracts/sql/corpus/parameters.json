@@ -206,7 +206,7 @@
       "sql": "SELECT value FROM items WHERE value >= $1 LIMIT $2",
       "parameters": [
         {
-          "utf8": "it's 東京"
+          "utf8": "it's \u6771\u4eac"
         },
         {
           "uint64": "18446744073709551615"
@@ -789,6 +789,39 @@
       "parse_error": "UnsupportedConstruct",
       "grammar": false,
       "postgres": true
+    },
+    {
+      "id": "compound-template-exclusion-0",
+      "sql": "SELECT * FROM items WHERE id = $1 OR id = $2",
+      "parameters": [],
+      "schema": {
+        "name": "items",
+        "columns": [
+          "id",
+          "value"
+        ],
+        "type": "int64"
+      },
+      "parse_error": "UnsupportedConstruct",
+      "grammar": false,
+      "postgres": true
+    },
+    {
+      "id": "compound-template-exclusion-1",
+      "sql": "SELECT * FROM items WHERE NOT id = 1",
+      "parameters": [],
+      "schema": {
+        "name": "items",
+        "columns": [
+          "id",
+          "value"
+        ],
+        "type": "int64"
+      },
+      "parse_error": "UnsupportedConstruct",
+      "grammar": false,
+      "postgres": true,
+      "has_parameters": false
     }
   ]
 }
