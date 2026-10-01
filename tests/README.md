@@ -8302,6 +8302,10 @@ just test::sql-benchmark --samples 9 --control /path/to/frozen-probe \
 The runner rejects mismatched case/workload shapes, alternates process order and
 retains both sets of samples and executable hashes. Use the actual baseline
 revision and a frozen probe built with the same optimization and toolchain.
+`--cpu N` pins warm-up and sampled processes to an available CPU; the default
+leaves affinity unchanged. Reports include the selected CPU, host load, driver,
+probe, lockfile and Fuze source hashes, plus the runtime diff. Pinning does not
+reserve a CPU or remove shared-host interference.
 
 ### Scoped SQL inspection iteration
 
@@ -10601,3 +10605,55 @@ is a cost measurement, not an unchanged-workload regression pass. Both reports
 are reproducible through `tests/fuze_benchmarks/compare.py`; the ordinary matrix
 also accepts `--query compound`. Independent DuckDB compound measurements,
 cold-input/remaining query matrices and installed native latency remain unrun.
+
+### Predicate compiler cost reduction
+
+Runtime commit `4b1dc42e` avoids initializing compound storage for absent or
+single-atom predicates, keeps the compound parser outside the common stack
+frame, and constructs derived-plan storage only for derived inputs. Projection
+validation occurs on the completed plan; derived output schemas still validate
+before name resolution. No predicate bound, public rejection, canonical bytes or
+native definition changes. New rejection fixtures exercise owned string literals
+when duplicate projections/output names reject after lowering.
+
+Pinned Fuze tests, full `just check`, `just test::sql` and all **110 real file CLI
+cases pass** for that runtime. SQL evidence includes 151 independent SELECT ASTs,
+122 real plans/codec/Arrow cases and 56 result cases across three source bases
+and eight page widths. Logs: `/tmp/transit-sql-boolean-compiler-unit-3.log` and
+`/tmp/transit-sql-boolean-compiler-check.log`. The initial single-atom shortcut
+fails one completion test by consuming the cursor before offering a parenthesis;
+keeping cursors on the existing completion path fixes it. The failed log remains
+`/tmp/transit-sql-boolean-compiler-initial-unit.log`.
+
+The [native compiler archive](benchmarks/results/2026-10-01-boolean-compiler-paths.json.gz)
+retains six exploratory comparisons and four final nine-pair comparisons, including
+slower AST initialization/return experiments that were reverted. Final source
+hashes match `4b1dc42e`; original dirty-source metadata is unchanged. The final
+probe SHA-256 is
+`c687fb98866cfa4998e72abd05c97f5bd5811427a44360a5da30c05cfa85fcb2`.
+On CPU 1, SELECT medians fall **20.8–30.3% against `2330d6ed`**, but remain
+**28.0–49.9% above the frozen main control**. The control is `e82c8430`, with no
+Fuze/probe/lockfile differences through `a4ba1124`. CPU-0 reports retain larger
+variation and 9.3–129.7% overhead against main; they are not discarded or replaced.
+The intervening utilization sample overlapped our file benchmark on CPU 0, so it
+does not establish the cause of previous noise or exclusive CPU availability.
+No native compiler or end-to-end latency gate is declared passed.
+
+The [final file comparison](benchmarks/results/2026-10-01-boolean-file-compiler-paths.json.gz)
+retains **486 correct-result samples**: nine alternating pairs, nine shapes,
+three discovery modes, 4096 rows, CPU 0 and warm input, with unchanged budgets.
+All 27 compiler median ratios are below one (0.6652–0.9812, median 0.8630);
+the earlier wide/sampled and gzip/sampled outliers are now 0.9450 and 0.9096.
+Pipeline median ratios range 0.8678–1.2400 (median 1.0057), with **narrow/full
+exceeding the unchanged 1.15 wall-time limit**. Its recorded phase CPU median
+ratio is 0.9868, while wall medians are 51.96/64.43 ms; this discrepancy does not
+turn the wall-time result into a pass or establish the contention cause.
+The report's `status: passed` denotes result correctness, not every timing gate.
+Compound-to-compound costs, cold inputs and remaining matrices stay open.
+
+Committed-HEAD clean core at the preceding file checkpoint `2330d6ed` completes
+all **22 tasks in 1168.10 seconds**, exit 0. Verified completion metadata and task
+records are retained in the native archive and under
+`.cache/ci/clean/2330d6ede62c-transit-ci-8__7bafx`; log
+`/tmp/transit-sql-boolean-file-clean-core.log`. This predates the compiler change.
+Current-source clean lanes and installed requalification remain separate gates.

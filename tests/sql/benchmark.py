@@ -2,6 +2,7 @@
 import argparse
 import hashlib
 import json
+import os
 from pathlib import Path
 import platform
 import statistics
@@ -16,23 +17,27 @@ def main():
     parser.add_argument('--output', type=Path, default=Path('.cache/verification/sql/benchmark.json'))
     parser.add_argument('--control', type=Path, help='Frozen ReleaseSafe probe to alternate with the candidate')
     parser.add_argument('--control-revision', help='Source revision of the frozen control')
+    parser.add_argument('--cpu', type=int, help='Pin both frozen probes to one available CPU')
     args = parser.parse_args()
     if not 1 <= args.samples <= 100:
         parser.error('--samples must be between 1 and 100')
     if bool(args.control) != bool(args.control_revision):
         parser.error('--control and --control-revision must be supplied together')
+    if args.cpu is not None and (not hasattr(os, 'sched_getaffinity') or args.cpu not in os.sched_getaffinity(0)):
+        parser.error('--cpu must name an available affinity CPU')
+    pin = None if args.cpu is None else lambda: os.sched_setaffinity(0, {args.cpu})
     binary = args.binary.resolve()
     # One unrecorded warm-up, followed by independent processes with identical work.
-    subprocess.run([binary], check=True, capture_output=True, text=True)
+    subprocess.run([binary], check=True, capture_output=True, text=True, preexec_fn=pin)
     samples = []
     control_samples = []
     control = args.control.resolve() if args.control else None
     if control:
-        subprocess.run([control], check=True, capture_output=True, text=True)
+        subprocess.run([control], check=True, capture_output=True, text=True, preexec_fn=pin)
     for sample_index in range(args.samples):
         runs = [(binary, samples)] + ([(control, control_samples)] if control else [])
         for executable, target in runs if sample_index % 2 == 0 else reversed(runs):
-            result = subprocess.run([executable], check=True, capture_output=True, text=True)
+            result = subprocess.run([executable], check=True, capture_output=True, text=True, preexec_fn=pin)
             target.append([json.loads(line) for line in result.stdout.splitlines()])
     summary = []
     for index, first in enumerate(samples[0]):
@@ -54,6 +59,12 @@ def main():
         compiler=subprocess.check_output(['zig', 'version'], text=True).strip(),
         binary_sha256=hashlib.sha256(binary.read_bytes()).hexdigest(), optimization='ReleaseSafe',
         scope='pure compile and paged aggregate; excludes source I/O, authorization and transport',
+        cpu=args.cpu, host_load=os.getloadavg() if hasattr(os, 'getloadavg') else None,
+        driver_sha256=hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
+        probe_sha256=hashlib.sha256(Path('tests/sql_bench.zig').read_bytes()).hexdigest(),
+        lock_sha256=hashlib.sha256(Path('flake.lock').read_bytes()).hexdigest(),
+        source_sha256={str(path): hashlib.sha256(path.read_bytes()).hexdigest() for path in sorted(Path('packages/zig/transit-fuze/src').glob('*.zig'))},
+        source_diff=subprocess.check_output(['git', 'diff', 'HEAD', '--', 'packages/zig/transit-fuze/src'], text=True),
         samples=samples, summary=summary)
     if control:
         report['control'] = dict(revision=args.control_revision,
