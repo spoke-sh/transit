@@ -15,10 +15,26 @@ import time
 
 ROOT = Path(__file__).resolve().parents[2]
 
+DISCOVERY = [
+    ['just', 'test::model', '--tail', '5'],
+    ['just', 'test::properties', '--seeds', '128', '--steps', '128'],
+    ['just', 'test::simulation', '--seeds', '64', '--steps', '128'],
+    ['just', 'test::resource-simulation', '--seeds', '4'],
+    ['just', 'test::scheduler-simulation', '--seeds', '16', '--steps', '128'],
+    ['just', 'test::domain-simulation', '--seeds', '16'],
+    ['just', 'test::vortex', '--seed', '19', '--rounds', '16'],
+    ['just', 'test::codecs', '--fuzz=10K'],
+    ['just', 'test::mutations'],
+    ['just', 'test::simulation-mutations'],
+    ['just', 'test::resource-simulation-mutations'],
+    ['just', 'test::scheduler-simulation-mutations'],
+    ['just', 'test::domain-simulation-mutations'],
+]
+
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--profile', choices=('sdk', 'application', 'query', 'reactive'), required=True)
+    parser.add_argument('--profile', choices=('sdk', 'application', 'query', 'reactive', 'discovery'), required=True)
     args = parser.parse_args()
     destination = ROOT / '.cache/verification/external' / f'{time.time_ns()}-{args.profile}'
     destination.mkdir(parents=True)
@@ -29,6 +45,8 @@ def main():
         runner_sha256=hashlib.sha256(Path(__file__).read_bytes()).hexdigest(), stages=[])
     report_path = destination / 'report.json'
     report_path.write_text(json.dumps(report, indent=2) + '\n')
+    if args.profile == 'discovery' and report['dirty']:
+        raise SystemExit('Discovery includes mutation checks against committed HEAD; commit source changes first.')
     native = ['zig-out/bin/transit-node', 'zig-out/bin/rey-cli', 'zig-out/lib/libtransit_client.so']
     profiles = dict(
         sdk=[['just', 'bindings::python-build', 'bindings::node-build'],
@@ -38,11 +56,16 @@ def main():
         application=[['just', 'test::server-application-faults'], ['just', 'test::runtime-upgrade']],
         query=[['just', 'test::unified-lifecycle'], ['just', 'test::unified-expiry'],
                ['just', 'test::interactive-query', '--source', 'table']],
-        reactive=[['just', 'test::reactive-views-lifecycle']])
+        reactive=[['just', 'test::reactive-views-lifecycle']],
+        discovery=DISCOVERY)
     started = time.monotonic()
     try:
         for index, command in enumerate(profiles[args.profile]):
-            stage = dict(command=command, completed=False, timeout_seconds=900)
+            # The measured exhaustive resource sweep takes over 30 minutes.
+            # Exploration has its own cap; real fault/progress deadlines inside
+            # each task and the existing external profiles remain unchanged.
+            stage = dict(command=command, completed=False,
+                         timeout_seconds=3600 if args.profile == 'discovery' else 900)
             report['stages'].append(stage)
             report_path.write_text(json.dumps(report, indent=2) + '\n')
             print(f'External {args.profile}: {command[0:3]}', flush=True)
@@ -50,7 +73,7 @@ def main():
             with (destination / f'{index}.log').open('w') as log:
                 child = subprocess.Popen(command, cwd=ROOT, stdout=log, stderr=subprocess.STDOUT, start_new_session=True)
                 try:
-                    code = child.wait(timeout=900)
+                    code = child.wait(timeout=stage['timeout_seconds'])
                     stage.update(exit=code, completed=code == 0)
                     if code:
                         raise RuntimeError(f'external stage failed; inspect {destination / f"{index}.log"}')

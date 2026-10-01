@@ -62,7 +62,12 @@ in place to change a running installation's selected artifacts. Continue with
 
 MinIO is built from the source of release `2025-09-07T16-13-09Z`, matching the
 existing fixture's release because the historical binary/image distribution is
-unavailable. This package selects the trusted local development profile, not a
+unavailable. [minio.nix](minio.nix) owns this shared source/hash definition. On Linux
+x86_64, the default and bindings CI shells include that same executable for owned
+disk/S3 fixtures; they no longer extract or start the unavailable historical image.
+`nix build .#minio` exposes the provider independently of the local bundle. The
+existing source, vendor hash and lockfile inputs are unchanged.
+This package selects the trusted local development profile, not a
 production object-storage release. No Docker daemon is required. Full release
 distribution and compatible runtime upgrades remain separate work.
 
@@ -223,8 +228,10 @@ build-store allowance. No cache-purge permission or external cache secret is
 needed. The self-hosted reference workflow keeps its existing local store.
 
 Disposable GitHub-hosted runners remove the image's unused Android and .NET
-installations on Nix cache misses before shell preparation; consumed SDKs come
-from the pinned shell. Exact cache hits skip this filesystem cleanup.
+installations before restoring the Nix cache or preparing the shell; consumed
+SDKs come from the pinned shell. Exact cache hits also need room for extraction:
+the bindings restore in run `36796408660` exhausted disk before the previous
+cleanup step could execute.
 The first explicit cold run (`36196325993`) exhausted disk while copying the
 freshly built Ursula binary in the bindings lane. Its failure is inconclusive,
 not a cache-miss qualification. The cleanup step is excluded from user-managed
@@ -255,7 +262,11 @@ experience as `just ci::browser`. `just ci` runs all five inventories sequential
 in the pinned bindings shell; `just check` uses the ordinary developer tools.
 
 The experience lane uses `nix develop .#ci-experience`, a shell without provider
-or Kubernetes tools and without PyArrow. Its measured environment closure is
+or Kubernetes tools and without PyArrow. Its Python environment includes PyYAML
+and `jsonschema` for the Board query contract checks. The bindings shell's Python
+environment includes those same validators. Both use the existing locked nixpkgs
+input; no compiler, provider or lockfile revision changes are required.
+Its previously measured environment closure is
 1.2 GiB. Experience/launchers share one Nix cache, core/growth share another,
 and bindings owns the third; each group has one writer. Successful preparation is rooted
 before collection, and a miss saves only the live closure. Small changes to the
@@ -266,10 +277,18 @@ New lane caches can fall back to the previous shared cache for their first run,
 so the split itself does not force rebuilding Ursula from Rust source.
 
 The bindings lane uses `nix develop .#ci-bindings`: the native tools, PyArrow and
-foreign SDKs, without Kubernetes/provider tools. Its environment closure measures
-6.1 GiB. Those SDKs are cached only in this lane; it installs only the Node
+foreign SDKs and pinned native MinIO, without Kubernetes/provider management tools.
+Its previously measured environment closure was 6.1 GiB before adding native MinIO.
+Those SDKs are cached only in this lane; it installs only the Node
 binding's workspace dependencies. This keeps new language qualification from
 expanding the other lanes or serializing their checks.
+
+Execution caps account for the expanded task inventories: growth has 90 minutes,
+experience (including browser proofs) 60 minutes and bindings 180 minutes. Core
+and launchers retain 30 minutes, or 45 for explicit cold calibration. These are
+finite failure limits, not measured feedback budgets. The earlier warm/cold
+budget records remain historical; a larger cap does not qualify a slower run or
+change any accepted operation's deadline.
 
 All lanes reuse a compiler/dependency cache keyed by the locked toolchain and
 Zig manifests. Only bindings writes it, including the C++ standard library.
@@ -368,7 +387,12 @@ CI installs the frozen lock before `just ci` and runs the pinned Chromium proof.
 `just test::model` uses TLA+/TLC from the existing nixpkgs lock (1.7.4); it
 is rooted in the bindings CI shell alongside Java, without expanding the core
 or frontend shell. The small model runs in ordinary bindings qualification.
-Weekly CI expands model/property exploration and runs actual guard mutations.
+The separate weekly/manual fault workflow expands model/property exploration and
+runs actual guard mutations through `just test::vortex-profile discovery`. It
+restores the ordinary core Nix cache without adding another cache writer. Its
+exploration stage/job limits are distinct from ordinary CI feedback budgets;
+the [harness guide](../tests/verification/README.md#external-fault-testing) owns
+the commands, limits and failure reporting.
 The separate dedicated reference workflow runs weekly and on demand; absent
 runner capacity is outstanding evidence, not a passing deployment proof.
 

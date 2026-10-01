@@ -64,11 +64,16 @@ seed files remain only in the disposable fixture and are never copied to artifac
 | ------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
 | `sdk`         | Installed Python wheels and Node tarballs: frozen bytes, dropped reply, seedless host recovery, await cancellation, disposal and revoked retry | Native Linux public SDKs; package/build hashes and per-host histories                        |
 | `application` | Lost provisioning/rotation/migration/activation replies, current revocation and runtime upgrade                                                | Local application manager and provider adapter fixture; no Kubernetes claim                  |
-| `query`       | Durable capture cancellation/expiry plus interactive Table snapshot cancellation/current denial                                                | Distinct durable and leased query lifetimes; Docker cold-store fixture for interactive reads |
+| `query`       | Durable capture cancellation/expiry plus interactive Table snapshot cancellation/current denial                                                | Distinct durable and leased query lifetimes; pinned native MinIO for interactive cold reads |
 | `reactive`    | Real browser refresh replacement, pause, revocation and lifecycle recovery                                                                     | Owning TLS/browser rig; installed Chromium required                                          |
+| `discovery`   | Expanded finite model/property/simulation campaigns, sixteen external fault rounds, codec fuzzing and all compiling guard mutations             | Separate exploration campaign; committed source required                                     |
 
 The profile runner retains commands, logs, source/compiler identity and per-stage
-completion in `.cache/verification/external/`; every stage has a 900-second cap.
+completion in `.cache/verification/external/`. The four selected external profiles
+keep a 900-second stage cap. Discovery has a 3,600-second cap per stage, including
+the measured exhaustive resource sweep; the tasks retain their own fault,
+progress and mutation limits. A failed stage stops the campaign and leaves the
+overall report incomplete.
 SDK histories record actual signed attempts, receipts and host-ownership checks.
 The original owning tasks remain runnable independently. A seed does not fix OS
 scheduling. External failures are retained; automatic schedule minimization is
@@ -76,8 +81,11 @@ limited to the in-process JSON trace profiles. Real reference placement, physica
 ENOSPC, arbitrary corruption and host power loss retain separate proof owners.
 
 The ordinary core lane owns the four-round external regression; weekly discovery
-runs sixteen rounds. The manual [external workflow](../../.github/workflows/fault-verification.yml)
-selects one additional profile and preserves incomplete artifacts. Stage deadlines
+runs sixteen rounds. The [fault workflow](../../.github/workflows/fault-verification.yml)
+runs discovery weekly and accepts any profile on demand. It retains the same
+thirteen exploration commands formerly appended to ordinary bindings, with a
+separate 180-minute job cap for discovery and 60 minutes for the external profiles.
+It preserves complete and incomplete reports and traces. Stage deadlines
 are failure limits, not measured feedback targets. Local and hosted timing evidence
 must remain separate; the existing hosted budgets are not requalified by adding
 these tasks or by one local passing sample.
@@ -433,7 +441,8 @@ measurements for the native v1 authority. These are test datasets, not service S
 
 `just test::scale` executes its smaller `qualification_matrix` twice by default,
 retaining each sample under `.cache/verification/scale/` and a completion manifest.
-It requires Linux and Docker for the owned cold tier. `just test::growing-load`
+It requires Linux x86_64 and the pinned native MinIO in the Nix shell for the owned
+cold tier. `just test::growing-load`
 focuses the finite public-service offered-load case. The
 [backend guide](../../packages/zig/transit-backend-ursula/docs/growing.md#proof-and-limits)
 defines timing boundaries, generator queueing and storage measurements. A matrix

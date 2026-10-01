@@ -110,7 +110,7 @@ def inside(mount, cli, node, host):
 def run(cli, node, host, *application):
     assert sys.platform == "linux"
     repo = Path(__file__).resolve().parents[1]
-    minio_binary()  # Native binary exists before entering the isolated container.
+    minio = str(minio_binary())
     image = json.loads((repo / "deploy/reference/versions.json").read_text())["ursula"]
     tools = {name: str(Path(shutil.which(name) or "missing").resolve(strict=True))
              for name in ("bash", "mount", "umount", "setpriv", "mkfs.ext4")}
@@ -136,7 +136,7 @@ trap '{q(tools['umount'])} /proof/mount' EXIT
     success = False
     try:
         result = subprocess.run(["docker", "run", "--rm", "--name", name, "--privileged", "--user", "0:0",
-            "--env", "PATH=" + str(Path(ursula).parent),
+            "--env", "PATH=" + os.pathsep.join(str(Path(binary).parent) for binary in (ursula, minio)),
             "--mount", f"type=bind,src={root},dst=/proof",
             "--mount", f"type=bind,src={repo},dst={repo},readonly",
             "--mount", "type=bind,src=/nix/store,dst=/nix/store,readonly",

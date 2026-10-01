@@ -1,41 +1,75 @@
-name: External fault qualification
+name: Fault verification
 on:
   workflow_dispatch:
     inputs:
       profile:
-        description: 'Independent external profile (outside ordinary PR cost samples)'
+        description: 'Fault profile (outside ordinary PR cost samples)'
         type: choice
-        options: [sdk, application, query, reactive]
+        options: [sdk, application, query, reactive, discovery]
         default: sdk
+  schedule:
+    - cron: '53 5 * * 1'
 permissions:
   contents: read
 concurrency:
-  group: transit-faults-${{ github.ref }}-${{ inputs.profile }}
+  group: transit-faults-${{ github.ref }}-${{ inputs.profile || 'discovery' }}
   cancel-in-progress: false
 jobs:
   qualify:
     runs-on: ${{ vars.TRANSIT_CI_RUNNER || 'ubuntu-24.04' }}
-    timeout-minutes: 60
+    # Exploration includes the measured 31-minute resource sweep. It owns a
+    # separate finite job cap; this is not an ordinary feedback qualification.
+    timeout-minutes: ${{ (github.event_name == 'schedule' || inputs.profile == 'discovery') && 180 || 60 }}
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           persist-credentials: false
       - uses: cachix/install-nix-action@b85815f71a6de0ddee80b8a80a98d43f4bcc66c7 # v31
+      - name: Reclaim unused hosted SDKs
+        if: runner.environment == 'github-hosted'
+        run: |
+          df -h /
+          sudo rm -rf -- /usr/local/lib/android /usr/share/dotnet
+          df -h /
+      - name: Restore Nix store
+        # Read the ordinary core cache; its existing writer owns uploads.
+        uses: nix-community/cache-nix-action/restore@7df957e333c1e5da7721f60227dbba6d06080569 # v7.0.2
+        with:
+          primary-key: nix-v2-core-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('flake.lock', 'flake.nix', 'nix/*.nix', 'nix/vite-plus/**', 'nix/ate-upgrade/**', 'deploy/reference/versions.json') }}
+          restore-prefixes-first-match: |
+            nix-v2-core-${{ runner.os }}-${{ runner.arch }}-
+      - name: Prepare development shell
+        run: nix develop .#serving --profile "$RUNNER_TEMP/transit-fault-shell" --command true
       - name: Install locked dependencies
+        if: github.event_name != 'schedule' && inputs.profile != 'discovery'
         run: nix develop .#serving --command just transit-board::install
       - name: Install owned browser dependencies
         if: inputs.profile == 'reactive'
         run: nix develop .#serving --command vp exec --filter @rey/transit-board-web playwright install --with-deps chromium
       - name: Run selected qualification
         env:
-          PROFILE: ${{ inputs.profile }}
+          PROFILE: ${{ inputs.profile || 'discovery' }}
         run: nix develop .#serving --command just test::vortex-profile "$PROFILE"
       - name: Preserve complete and incomplete experiment records
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: external-${{ inputs.profile }}-${{ github.run_attempt }}
-          path: .cache/verification/external/
+          name: external-${{ inputs.profile || 'discovery' }}-${{ github.run_attempt }}
+          path: |
+            .cache/verification/external/
+            .cache/verification/*.json
+            .cache/verification/model/
+            .cache/verification/mutations/
+            .cache/verification/transitions/
+            .cache/verification/simulation/
+            .cache/verification/simulation-mutations/
+            .cache/verification/resource-simulation/
+            .cache/verification/resource-simulation-mutations/
+            .cache/verification/scheduler-simulation/
+            .cache/verification/scheduler-simulation-mutations/
+            .cache/verification/domain-simulation/
+            .cache/verification/domain-simulation-mutations/
+            .cache/verification/vortex/
           include-hidden-files: true
           if-no-files-found: warn
           retention-days: 14

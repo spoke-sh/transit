@@ -12,6 +12,17 @@ require neither a Cargo source-cache path nor manually assembled loader paths.
 The clean-consumer proof removes extracted crates and build outputs before
 running the executable against a real disk authority.
 
+Loaded native code remains mapped until process exit. Repeated opens share the
+same image; closing a client joins its owned work and releases handles and
+buffers. This keeps code available while the native I/O runtime's detached
+threads finish returning. Embedded files are removed immediately after loading.
+The process admits at most sixteen distinct native images, including Station
+and explicit overrides; further images return `IncompatibleNative` at
+`native-library-capacity`. This does not limit the number of client handles.
+Keep override files immutable for the life of the process. Missing files or a
+changed file identity reject subsequent opens; they never select an embedded
+fallback. Restart the process to select replacement native code.
+
 The existing M9 `transit-station` crate remains unchanged while the separate
 typed Station SDK is built. See the [Rust design](../../../docs/history/sdk/RUST.md).
 

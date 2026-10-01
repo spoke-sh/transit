@@ -16,6 +16,7 @@ def run(node, cli, library, artifacts):
                 archive.extractall(target / 'vendor', filter='data')
         (target / 'src').mkdir()
         shutil.copyfile(root / 'tests/rust_client_sdk.rs', target / 'src/main.rs')
+        shutil.copyfile(root / 'tests/rust_native_lifetime.rs', target / 'src/native_lifetime.rs')
         (target / 'Cargo.toml').write_text('''[package]
 name = "transit-rust-client-proof"
 version = "0.1.0"
@@ -49,6 +50,10 @@ dependencies = ["serde_json", "transit-client"]
             checked = subprocess.run(['cargo', 'check', '--locked', '--offline'], cwd=target, env=env, capture_output=True, text=True)
             assert checked.returncode != 0 and code in checked.stderr, checked.stderr
         # Installation must survive removal of build outputs and extracted crates.
+        override = target / 'native-override'
+        override.mkdir()
+        shutil.copy2(target / 'vendor/transit-native-client-0.2.0/lib/libtransit_client.so', override)
+        env['TRANSIT_RUST_TEST_NATIVE_DIRECTORY'] = str(override)
         shutil.rmtree(target / 'vendor'); shutil.rmtree(target / 'target'); shutil.rmtree(target / 'src')
         def invoke(mode, config):
             return subprocess.check_output([executable, mode, config], cwd=target, env=env, timeout=30)

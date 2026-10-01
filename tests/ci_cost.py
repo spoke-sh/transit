@@ -16,8 +16,13 @@ def seconds(start, end):
 
 def summarize(run, jobs, log, budgets):
     lanes = []
+    full_inventory = {'core', 'growth', 'experience', 'launchers', 'bindings'} <= {job['name'] for job in jobs}
     for job in jobs:
         if job['name'] in ('Selection and documentation', 'foundation-and-protocol'):
+            continue
+        # The full matrix owns documentation through experience. Its separate
+        # docs-only job is intentionally skipped by the selection gate.
+        if full_inventory and job['name'] == 'Documentation site' and job['conclusion'] == 'skipped':
             continue
         # Missing/incomplete jobs remain explicit, with no invented duration.
         row = dict(name=job['name'], conclusion=job['conclusion'], seconds=None, phases={})
@@ -35,11 +40,12 @@ def summarize(run, jobs, log, budgets):
         lines = [line for line in log.splitlines() if line.startswith(job['name'] + '\t')]
         # Extract only byte counts and cache kinds, never raw logs or keys.
         sizes = [int(n) for line in lines for n in re.findall(r'Cache Size:.*\((\d+) B\)', line)]
-        hits = {kind for line in lines for kind in ('nix', 'zig') if f'Cache hit for: {kind}-' in line}
+        hits = {kind for line in lines for kind in re.findall(r'Cache (?:hit for(?: restore-key)?:|restored from key:) (nix|zig)-', line)}
         misses = any('Cache not found' in line for line in lines)
+        fallback = any('Cache hit for restore-key:' in line for line in lines)
         cold = any('CI dependency cache mode: cold' in line for line in lines)
         row['cache'] = dict(restored_bytes=sum(sizes) if sizes else 0 if cold else None,
-                            mode='cold' if cold and not hits and not sizes else 'warm' if hits == {'nix', 'zig'} and len(sizes) == 2 else 'miss-or-partial' if misses else 'unknown')
+                            mode='cold' if cold and not hits and not sizes else 'miss-or-partial' if misses or fallback else 'warm' if hits == {'nix', 'zig'} and len(sizes) == 2 else 'unknown')
         lanes.append(row)
     complete = bool(lanes) and all(row['conclusion'] == 'success' and row['seconds'] is not None for row in lanes)
     ends = [j['completed_at'] for j in jobs if j.get('completed_at')]
@@ -73,10 +79,25 @@ def main():
     response = api(f'actions/runs/{args.run}/attempts/{run["run_attempt"]}/jobs?per_page=100')
     if response['total_count'] != len(response['jobs']):
         raise ValueError('Job pagination is incomplete')
-    log = subprocess.check_output(['gh', 'run', 'view', str(args.run), '--repo', args.repo,
-                                   '--attempt', str(run['run_attempt']), '--log'], text=True)
+    # A runner can die before uploading its log (for example during cache
+    # extraction). Preserve measurable jobs and the missing-log distinction.
+    logs, missing_logs = [], []
+    for job in response['jobs']:
+        if job['conclusion'] == 'skipped' or job['name'] in ('Selection and documentation', 'foundation-and-protocol'):
+            continue
+        fetched = subprocess.run(['gh', 'run', 'view', str(args.run), '--repo', args.repo,
+                                  '--attempt', str(run['run_attempt']), '--job', str(job['id']), '--log'],
+                                 text=True, capture_output=True)
+        if fetched.returncode:
+            missing_logs.append(dict(job_id=job['id'], name=job['name'], exit_code=fetched.returncode))
+        else:
+            logs.append(fetched.stdout)
+    log = '\n'.join(logs)
     budgets = json.loads((ROOT / 'tests/verification/ci-budgets.json').read_text())
     result = summarize(run, response['jobs'], log, budgets)
+    result['unavailable_job_logs'] = missing_logs
+    if missing_logs:
+        result.update(status='inconclusive', budget_met=False)
     destination = args.output or ROOT / f'.cache/ci/cost-{args.run}.json'
     destination.parent.mkdir(parents=True, exist_ok=True)
     destination.write_text(json.dumps(result, indent=2) + '\n')

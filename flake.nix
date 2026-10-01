@@ -37,6 +37,7 @@
           kubectl-transit = pkgs.callPackage ./nix/kubectl-transit.nix { inherit zig; };
           vite-plus = pkgs.callPackage ./nix/vite-plus.nix { };
           transit = pkgs.callPackage ./nix/transit.nix { inherit zig vite-plus; };
+          minio = pkgs.callPackage ./nix/minio.nix { };
           reference = pkgs.callPackage ./nix/reference-tools.nix {
             pins = builtins.fromJSON (builtins.readFile ./deploy/reference/versions.json);
           };
@@ -47,9 +48,9 @@
           inherit (reference) kind kubectl-ate;
           inherit (ursula-overlay.packages.${system}) ursula ursulactl;
           inherit zig kubectl-transit;
-          inherit transit;
+          inherit transit minio;
           transit-local = pkgs.callPackage ./nix/transit-local.nix {
-            inherit transit;
+            inherit transit minio;
             inherit (ursula-overlay.packages.${system}) ursula;
           };
           inherit vite-plus;
@@ -69,7 +70,7 @@
             ;
         }
         // nixpkgs.lib.optionalAttrs (system == "x86_64-linux") {
-          inherit (toolchains.${system}) transit-local;
+          inherit (toolchains.${system}) transit-local minio;
         }
       );
 
@@ -110,7 +111,7 @@
           };
           ci-bindings = import ./nix/ci-bindings.nix {
             inherit pkgs;
-            inherit (toolchains.${system}) sql-tools;
+            inherit (toolchains.${system}) sql-tools minio;
             base = ci-experience;
           };
           ci-experience = import ./nix/ci-experience.nix {
@@ -158,7 +159,8 @@
                 kind
                 kubectl-ate
                 kubectl-transit
-              ];
+              ]
+              ++ pkgs.lib.optionals (system == "x86_64-linux") [ toolchains.${system}.minio ];
 
               # Keep tool state and the default Kubernetes context checkout-local.
               shellHook = ''

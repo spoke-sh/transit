@@ -5,7 +5,9 @@
       "id": "AUTH-01",
       "claim": "One conditional successor publishes a prepared transition",
       "owner": "docs/reference/processes.md",
-      "implementation": ["packages/zig/transit-core/src/root.zig"],
+      "implementation": [
+        "packages/zig/transit-core/src/root.zig"
+      ],
       "profile": "transit-v1/state-v1/station-v1",
       "tasks": [
         "test::unit",
@@ -14,7 +16,10 @@
         "test::model",
         "test::simulation"
       ],
-      "scenarios": ["Competing prepared successors", "Acknowledgement lost after append"],
+      "scenarios": [
+        "Competing prepared successors",
+        "Acknowledgement lost after append"
+      ],
       "limits": "The test store assumes Ursula conditional append; disk integration checks the provider boundary.",
       "model": "tests/verification/models/Authority.tla",
       "qualification": "Required current-v1 scenarios; historical results do not establish this cutover. See tests/README.md for executed evidence."
@@ -23,7 +28,9 @@
       "id": "AUTH-02",
       "claim": "Current grants and activation generation fence new publication and receipt disclosure",
       "owner": "docs/reference/security.md",
-      "implementation": ["packages/zig/transit-core/src/root.zig"],
+      "implementation": [
+        "packages/zig/transit-core/src/root.zig"
+      ],
       "profile": "transit-v1/state-v1/station-v1",
       "tasks": [
         "test::unit",
@@ -45,9 +52,17 @@
       "id": "STATE-01",
       "claim": "Mutations, consumed input and outputs have one visibility decision",
       "owner": "docs/reference/state.md",
-      "implementation": ["packages/zig/transit-core/src/growing_state.zig"],
+      "implementation": [
+        "packages/zig/transit-core/src/growing_state.zig"
+      ],
       "profile": "transit-v1/state-v1/station-v1",
-      "tasks": ["test::unit", "test::state", "test::storage", "test::station", "test::properties"],
+      "tasks": [
+        "test::unit",
+        "test::state",
+        "test::storage",
+        "test::station",
+        "test::properties"
+      ],
       "scenarios": [
         "Stale resource revisions and private rollback",
         "Restart before/after conditional append",
@@ -61,7 +76,9 @@
       "id": "RETRY-01",
       "claim": "Exact retry preserves one durable outcome and unknown is not rejection",
       "owner": "docs/reference/callers.md",
-      "implementation": ["packages/zig/transit-client/src/root.zig"],
+      "implementation": [
+        "packages/zig/transit-client/src/root.zig"
+      ],
       "profile": "transit-v1/state-v1/station-v1",
       "tasks": [
         "test::callers",
@@ -92,9 +109,16 @@
       "id": "LIFE-01",
       "claim": "Expiry and settlement closure cannot be reopened by late work or old recovery state",
       "owner": "docs/reference/retention.md",
-      "implementation": ["packages/zig/transit-core/src/Time.zig"],
+      "implementation": [
+        "packages/zig/transit-core/src/Time.zig"
+      ],
       "profile": "transit-v1/state-v1/station-v1",
-      "tasks": ["test::unit", "test::service", "test::storage", "test::model"],
+      "tasks": [
+        "test::unit",
+        "test::service",
+        "test::storage",
+        "test::model"
+      ],
       "scenarios": [
         "Uncertain time at admission cutoff",
         "Paused dispatch and late reconciliation"
@@ -107,10 +131,20 @@
       "id": "REPLAY-01",
       "claim": "Recovery restores decisions without running handlers or redispatching effects",
       "owner": "docs/reference/streams.md",
-      "implementation": ["packages/zig/transit-core/src/root.zig"],
+      "implementation": [
+        "packages/zig/transit-core/src/root.zig"
+      ],
       "profile": "transit-v1/state-v1/station-v1",
-      "tasks": ["test::storage", "test::service", "test::station", "test::properties"],
-      "scenarios": ["SIGKILL and WAL recovery", "Checkpoint plus trimmed tail"],
+      "tasks": [
+        "test::storage",
+        "test::service",
+        "test::station",
+        "test::properties"
+      ],
+      "scenarios": [
+        "SIGKILL and WAL recovery",
+        "Checkpoint plus trimmed tail"
+      ],
       "limits": "Process kill is not host power loss; legacy checkpoint includes the whole bounded catalog.",
       "model": null,
       "qualification": "Required current-v1 scenarios; historical results do not establish this cutover. See tests/README.md for executed evidence."
@@ -119,9 +153,16 @@
       "id": "CAP-01",
       "claim": "Pressure never silently deletes accepted work and control reserve permits closure",
       "owner": "docs/reference/retention.md",
-      "implementation": ["packages/zig/transit-core/src/root.zig"],
+      "implementation": [
+        "packages/zig/transit-core/src/root.zig"
+      ],
       "profile": "transit-v1/state-v1/station-v1",
-      "tasks": ["test::unit", "test::capacity", "test::growing-capacity", "test::growing-quota"],
+      "tasks": [
+        "test::unit",
+        "test::capacity",
+        "test::growing-capacity",
+        "test::growing-quota"
+      ],
       "scenarios": [
         "Admission ceiling with outstanding input",
         "Real ENOSPC followed by revocation and restart"
@@ -134,7 +175,9 @@
       "id": "HOST-01",
       "claim": "Cancellation and disposal join owned native work without manufacturing rollback",
       "owner": "docs/reference/callers.md",
-      "implementation": ["packages/zig/transit-station-bindings/src/Abi.zig"],
+      "implementation": [
+        "packages/zig/transit-station-bindings/src/Abi.zig"
+      ],
       "profile": "transit-v1/state-v1/station-v1",
       "tasks": [
         "bindings::native",
@@ -192,9 +235,14 @@
       "id": "ARROW-02",
       "claim": "Incremental query limits and ordered aggregates span batches without silently truncating source or output",
       "owner": "contracts/UNIFIED_QUERY_V1.md",
-      "implementation": ["packages/zig/transit-fuze/src/UnifiedStream.zig"],
+      "implementation": [
+        "packages/zig/transit-fuze/src/UnifiedStream.zig"
+      ],
       "profile": "unified-query-v1",
-      "tasks": ["test::unit", "test::arrow"],
+      "tasks": [
+        "test::unit",
+        "test::arrow"
+      ],
       "scenarios": [
         "70 rows, variable partitions, global filter/limit, null and exact integer aggregates",
         "Signed overflow across page boundaries despite a cancelling later value",
@@ -214,7 +262,11 @@
         "packages/zig/transit-station/src/QueryRecords.zig"
       ],
       "profile": "transit-v1/station-growing/query capture development",
-      "tasks": ["test::unit", "test::growing-service", "test::query"],
+      "tasks": [
+        "test::unit",
+        "test::growing-service",
+        "test::query"
+      ],
       "scenarios": [
         "70-row private capture with fresh turns, lost private proposals, duplicate/future continuations and corruption",
         "41-row real capture, lost stage/seal replies, two caller/node/provider replacements; one-page first recovery and selectable final cache",
@@ -229,7 +281,9 @@
       "id": "RUNTIME-01",
       "claim": "Provider recovery and upgrades cannot grant ownership or redirect durable work",
       "owner": "docs/reference/deployment.md",
-      "implementation": ["packages/zig/transit-runtime-substrate/src/root.zig"],
+      "implementation": [
+        "packages/zig/transit-runtime-substrate/src/root.zig"
+      ],
       "profile": "transit-v1/state-v1/station-v1",
       "tasks": [
         "test::runtime-upgrade",
@@ -250,7 +304,9 @@
       "id": "READ-01",
       "claim": "Inspection preserves current authorization, revision boundaries and explicit gaps",
       "owner": "docs/guides/inspect-board.md",
-      "implementation": ["packages/zig/transit-core/src/growing_read.zig"],
+      "implementation": [
+        "packages/zig/transit-core/src/growing_read.zig"
+      ],
       "profile": "transit-v1/state-v1/station-v1",
       "tasks": [
         "test::inspection",
@@ -272,9 +328,14 @@
       "id": "O11Y-01",
       "claim": "Diagnostic pressure cannot stall authority or expose application credentials",
       "owner": "docs/reference/observability.md",
-      "implementation": ["packages/zig/transit-observability/src/root.zig"],
+      "implementation": [
+        "packages/zig/transit-observability/src/root.zig"
+      ],
       "profile": "transit-v1/state-v1/station-v1",
-      "tasks": ["test::telemetry", "test::observability"],
+      "tasks": [
+        "test::telemetry",
+        "test::observability"
+      ],
       "scenarios": [
         "Stalled log pipe on one CPU",
         "Lost HTTP acknowledgement retains receipt semantics"
@@ -292,7 +353,10 @@
         "packages/zig/transit-station/src/Frame.zig"
       ],
       "profile": "transit-v1/station-frame-v1",
-      "tasks": ["test::codecs", "contract::check"],
+      "tasks": [
+        "test::codecs",
+        "contract::check"
+      ],
       "scenarios": [
         "Malformed/truncated signed JSON under fixed workspace",
         "Owned binary frame and exact correlation roundtrip",
@@ -312,7 +376,10 @@
         "packages/zig/transit-backend-ursula/src/PackedPageStore.zig"
       ],
       "profile": "immutable-page-v2 primitive; not a public authority profile",
-      "tasks": ["test::unit", "test::pages"],
+      "tasks": [
+        "test::unit",
+        "test::pages"
+      ],
       "scenarios": [
         "Root publication conflict and unreachable staging",
         "SIGKILL then root-only checkpoint and trim",
@@ -327,9 +394,14 @@
       "id": "GROWTH-01",
       "claim": "A growing control root atomically retains mailbox admission and exact retry evidence beyond legacy process/principal counts",
       "owner": "docs/reference/state.md",
-      "implementation": ["packages/zig/transit-core/src/growing.zig"],
+      "implementation": [
+        "packages/zig/transit-core/src/growing.zig"
+      ],
       "profile": "transit-v1 development control slice; not running service",
-      "tasks": ["test::unit", "contract::check"],
+      "tasks": [
+        "test::unit",
+        "contract::check"
+      ],
       "scenarios": [
         "Twenty wide principals and seventy processes",
         "Prepared root loses to revocation",
@@ -345,9 +417,14 @@
       "id": "GROWTH-02",
       "claim": "Growing state turns atomically publish bounded mutations, progress, captured outputs and closed views without loading the whole resource",
       "owner": "docs/reference/state.md",
-      "implementation": ["packages/zig/transit-core/src/growing_state.zig"],
+      "implementation": [
+        "packages/zig/transit-core/src/growing_state.zig"
+      ],
       "profile": "transit-v1 development state slice; not running service",
-      "tasks": ["test::unit", "contract::check"],
+      "tasks": [
+        "test::unit",
+        "contract::check"
+      ],
       "scenarios": [
         "More than four resources, thirty-two rows and four retained views",
         "Rejected destination after staged rows preserves live root",
@@ -362,9 +439,14 @@
       "id": "GROWTH-03",
       "claim": "Bounded paged reads preserve their declared state basis without retaining stale permission or ownership",
       "owner": "docs/reference/security.md",
-      "implementation": ["packages/zig/transit-core/src/growing_read.zig"],
+      "implementation": [
+        "packages/zig/transit-core/src/growing_read.zig"
+      ],
       "profile": "transit-v1 development read slice; not running service",
-      "tasks": ["test::unit", "contract::check"],
+      "tasks": [
+        "test::unit",
+        "contract::check"
+      ],
       "scenarios": [
         "Captured old resource version versus later writer commit",
         "Current grants, ownership, deadline and clock uncertainty",
@@ -381,9 +463,15 @@
       "id": "GROWTH-04",
       "claim": "Indexed delivery and bounded settlement preserve order, retry identity and permanent closure without scanning retained work",
       "owner": "docs/reference/connectors.md",
-      "implementation": ["packages/zig/transit-core/src/growing_work.zig"],
+      "implementation": [
+        "packages/zig/transit-core/src/growing_work.zig"
+      ],
       "profile": "transit-v1 development work slice; not running service",
-      "tasks": ["test::unit", "contract::check", "test::simulation"],
+      "tasks": [
+        "test::unit",
+        "contract::check",
+        "test::simulation"
+      ],
       "scenarios": [
         "Independent routes and stale prepared admission after revocation",
         "Lost delivery and observation acknowledgements",
@@ -404,7 +492,11 @@
         "tests/growing.zig"
       ],
       "profile": "transit-v1 development authority and disk Ursula; not running service",
-      "tasks": ["test::growing", "test::unit", "contract::check"],
+      "tasks": [
+        "test::growing",
+        "test::unit",
+        "contract::check"
+      ],
       "scenarios": [
         "Twenty wide principals, seventy processes, six resources and sixty-four rows with one resident page",
         "Revocation fences an already staged candidate",
@@ -429,7 +521,11 @@
         "packages/zig/transit-client/src/Session.zig"
       ],
       "profile": "transit-v1 development service; legacy launcher defaults preserved",
-      "tasks": ["test::growing-service", "test::unit", "contract::check"],
+      "tasks": [
+        "test::growing-service",
+        "test::unit",
+        "contract::check"
+      ],
       "scenarios": [
         "Wide caller principal and sixty-four rows with bounded point/paged reads",
         "Wrong realm, mixed revisions, page holes and nonadvancing cursors reject",
@@ -455,7 +551,10 @@
         "tests/growing_maintenance.py"
       ],
       "profile": "transit-v1 development maintenance; one record per rotating scan step",
-      "tasks": ["test::unit", "test::growing-service"],
+      "tasks": [
+        "test::unit",
+        "test::growing-service"
+      ],
       "scenarios": [
         "Clock failure cannot expire finite work or block recorded terminal-source disposition",
         "Continuing admissions cannot extend a scan pass indefinitely",
@@ -525,7 +624,11 @@
         "tests/growing_client.zig"
       ],
       "profile": "transit-v1 scoped retry development capability",
-      "tasks": ["test::unit", "test::growing-service", "contract::check"],
+      "tasks": [
+        "test::unit",
+        "test::growing-service",
+        "contract::check"
+      ],
       "scenarios": [
         "Blocked metadata has no executable head input",
         "PID scope and current admin permission independently enforced",
@@ -554,7 +657,12 @@
         "tests/growing.zig"
       ],
       "profile": "transit-v1 retained read version development capability",
-      "tasks": ["test::unit", "test::growing-service", "contract::check", "test::growing"],
+      "tasks": [
+        "test::unit",
+        "test::growing-service",
+        "contract::check",
+        "test::growing"
+      ],
       "scenarios": [
         "Existing signed command/query digests remain unchanged",
         "Private staging and invalid release publish no version or progress",
@@ -580,7 +688,11 @@
         "packages/zig/transit-core/src/growing_read.zig"
       ],
       "profile": "transit-v1 development control slice; not running service",
-      "tasks": ["test::unit", "test::growing-capacity", "test::growing-quota"],
+      "tasks": [
+        "test::unit",
+        "test::growing-capacity",
+        "test::growing-quota"
+      ],
       "scenarios": [
         "Admission ceiling with outstanding input, reserve exhaustion and restart",
         "Signed capabilities query reports ceiling/reserve headroom before, at and past the ceiling",
@@ -600,7 +712,10 @@
         "packages/zig/transit-station/src/QueryRecords.zig"
       ],
       "profile": "growing Station result delivery; publication is disabled unless a host supplies QueryDelivery.Context",
-      "tasks": ["test::unit", "test::model-delivery"],
+      "tasks": [
+        "test::unit",
+        "test::model-delivery"
+      ],
       "scenarios": [
         "Duplicate/retried segment after a lost credit grant or acknowledgement is inert",
         "Sender blocked at the credit window until a grant is observed",
@@ -621,7 +736,10 @@
         "tests/verification/scale.py"
       ],
       "profile": "finite single-authority v3 growth/load matrix",
-      "tasks": ["test::growing-load", "test::scale"],
+      "tasks": [
+        "test::growing-load",
+        "test::scale"
+      ],
       "scenarios": [
         "Fixed-cache growth across 64/256/1024 retained rows and 69 associations",
         "Independently scheduled signed admissions with generator queueing and control latency",
@@ -643,7 +761,10 @@
         "tests/sql/compiler.py"
       ],
       "profile": "current SELECT / unified-query-v1",
-      "tasks": ["test::unit", "test::sql"],
+      "tasks": [
+        "test::unit",
+        "test::sql"
+      ],
       "scenarios": [
         "Three-parser normalized AST agreement including pinned PostgreSQL regression excerpts",
         "Exact plan codec and independent PyArrow results over 70-row sources",
@@ -658,9 +779,14 @@
       "id": "SQL-02",
       "claim": "Named specification rewrites preserve ordered projection/selection and stated first-error behavior under explicit factorization premises",
       "owner": "contracts/sql/README.md",
-      "implementation": ["contracts/sql/FuzeRewrite.lean", "tests/sql/rewrites.py"],
+      "implementation": [
+        "contracts/sql/FuzeRewrite.lean",
+        "tests/sql/rewrites.py"
+      ],
       "profile": "M12 Lean specification, not Zig refinement",
-      "tasks": ["test::sql-rewrites"],
+      "tasks": [
+        "test::sql-rewrites"
+      ],
       "scenarios": [
         "Total predicate reordering and projection pruning",
         "Fallible predicate pushdown through total projection",
@@ -682,7 +808,10 @@
         "apps/transit-cli/main.zig"
       ],
       "profile": "M13 public query v1 over growing v3",
-      "tasks": ["test::unit", "test::public-query"],
+      "tasks": [
+        "test::unit",
+        "test::public-query"
+      ],
       "scenarios": [
         "Lost admission receipt retries the exact signed request",
         "Worker SIGKILL requires fresh ownership and resumes captured work",
@@ -734,7 +863,10 @@
         "packages/zig/transit-station/src/ImmutableIndex.zig"
       ],
       "profile": "transit-v1/station-publication-v1",
-      "tasks": ["test::unit", "test::publication"],
+      "tasks": [
+        "test::unit",
+        "test::publication"
+      ],
       "scenarios": [
         "Independent commitment fixtures and malformed descriptors",
         "Same full-width namespace and record in distinct domains preserve independent content, quota, cursors and cleanup",
@@ -808,7 +940,11 @@
         "packages/zig/transit-station-grpc/src/Policy.zig"
       ],
       "profile": "M16 transport only; one connection and one finite outgoing batch",
-      "tasks": ["test::grpc-libraries", "test::grpc-transport", "test::tls-alpn"],
+      "tasks": [
+        "test::grpc-libraries",
+        "test::grpc-transport",
+        "test::tls-alpn"
+      ],
       "scenarios": [
         "All four call shapes against grpcio with independent protobuf, binary and duplicate metadata, status and trailers",
         "Simultaneous 64-byte request and 16-KiB response credit; no receive-blocked upload",
@@ -830,7 +966,9 @@
         "packages/zig/transit-exchange/src/Worker.zig"
       ],
       "profile": "M16 controller-driven finite worker over disk Ursula",
-      "tasks": ["test::grpc-worker"],
+      "tasks": [
+        "test::grpc-worker"
+      ],
       "scenarios": [
         "Four shapes complete and replay with current read grants and no credentials or sockets",
         "Worker loss during each partial capture, node/store restart and fresh ownership close unknown without another send",
@@ -925,7 +1063,11 @@
         "tests/grpc_server.py"
       ],
       "profile": "M22 codec and inbound transport foundation; full gateway interoperability open",
-      "tasks": ["test::unit", "test::flight-metadata", "test::grpc-server"],
+      "tasks": [
+        "test::unit",
+        "test::flight-metadata",
+        "test::grpc-server"
+      ],
       "scenarios": [
         "Independent PyArrow checks standard metadata schemas, optional filters, empty results and dense union/list/map children",
         "Signed tickets reject tampering, foreign scope and expiry without granting authority",
@@ -1049,7 +1191,11 @@
         "tests/console.py"
       ],
       "profile": "M24 finite read-only KV/Table/Document console and shared Board cursor assistance",
-      "tasks": ["test::unit", "test::console", "test::unified-ingress"],
+      "tasks": [
+        "test::unit",
+        "test::console",
+        "test::unified-ingress"
+      ],
       "scenarios": [
         "Real controlling terminal and pipes: multiline comments/quotes, bracketed paste, UTF-8 boundaries, replacement/accept/undo, EOF, resize and signals",
         "Current scoped metadata, stale-input/catalog rejection, one pending request and current denial clearing",
@@ -1074,7 +1220,12 @@
         "tests/server_capacity.py"
       ],
       "profile": "M24 Linux local_table_v1 with native MinIO, disk Ursula and eight owned child roles",
-      "tasks": ["test::unit", "test::server", "test::server-faults", "test::server-capacity"],
+      "tasks": [
+        "test::unit",
+        "test::server",
+        "test::server-faults",
+        "test::server-capacity"
+      ],
       "scenarios": [
         "Interrupted persisted bootstrap recovers identical identities/receipts; duplicate manager, listener conflicts, changed artifacts and missing/rolled-back storage reject",
         "Manager SIGKILL, child/node/store loss, fresh keys/increasing generations and preserved activation markers; bounded restart exhaustion and forced shutdown join children and pipe readers",
@@ -1155,7 +1306,10 @@
         "tests/delivery_simulation.zig"
       ],
       "profile": "two producer PIDs and one destination; real signed core transitions with an atomic in-memory journal",
-      "tasks": ["test::simulation", "test::simulation-mutations"],
+      "tasks": [
+        "test::simulation",
+        "test::simulation-mutations"
+      ],
       "scenarios": [
         "Competing workers and same-principal sequences with delayed prepared publication",
         "Lost turn/delivery replies and exact retries before and after restart",
@@ -1203,7 +1357,10 @@
         "tests/scheduler_simulation.zig"
       ],
       "profile": "two producer Sessions and a courier with signed in-process transport; finite settlement profile and explicit trusted time",
-      "tasks": ["test::scheduler-simulation", "test::scheduler-simulation-mutations"],
+      "tasks": [
+        "test::scheduler-simulation",
+        "test::scheduler-simulation-mutations"
+      ],
       "scenarios": [
         "Request loss versus response loss across preparation/submission scheduling boundaries",
         "Session ownership replacement, current permission denial and volatile host loss",
@@ -1229,7 +1386,10 @@
         "packages/zig/transit-catalog/src/simulation_test.zig"
       ],
       "profile": "Seeded real-component tests with atomic private-turn stores",
-      "tasks": ["test::domain-simulation", "test::domain-simulation-mutations"],
+      "tasks": [
+        "test::domain-simulation",
+        "test::domain-simulation-mutations"
+      ],
       "scenarios": [
         "Reordered concurrent edits, missing dependencies, duplicate requests and interrupted page staging",
         "Checkpoint candidate discard, final floor/epoch publication and stale-replica rejection",
@@ -1252,7 +1412,10 @@
         "tests/sdk_raw_client.py"
       ],
       "profile": "Owned native Linux binaries with disk Ursula, plus independently selected installed-host and local service rigs",
-      "tasks": ["test::vortex", "test::vortex-profile"],
+      "tasks": [
+        "test::vortex",
+        "test::vortex-profile"
+      ],
       "scenarios": [
         "Requested/observed request and response loss/delay, connection interruption, SIGKILL/restart and courier pause/resume",
         "Quiescent resource/input/output conservation and exact original destination admission provenance",
@@ -1350,7 +1513,10 @@
         "apps/transit-query-host/main.zig"
       ],
       "profile": "transit-v1/state-v1/station-v1/table-query-writer-v1",
-      "tasks": ["test::unit", "test::table-query-writer"],
+      "tasks": [
+        "test::unit",
+        "test::table-query-writer"
+      ],
       "scenarios": [
         "Independent configuration, state, initialization and policy-control bytes",
         "Four-mutation staged/ready phases, exact configuration after owner replacement, duplicate and forged continuations",
@@ -1375,7 +1541,10 @@
         "tests/sql/declarations.py"
       ],
       "profile": "state-declaration-v1/offline",
-      "tasks": ["test::unit", "test::sql"],
+      "tasks": [
+        "test::unit",
+        "test::sql"
+      ],
       "scenarios": [
         "Owned names, canonical padding, contiguous columns, duplicate names and complete-input exclusions",
         "Independent ANTLR ASTs and canonical formatting, including the full four-type/three-nullability product for both Table columns",
@@ -1495,6 +1664,50 @@
       "limits": "Explicit shared Zig/C ABI/native-port/CLI callers and supplied catalog host; Python sync/async, TypeScript promise, Rust blocking, Ruby synchronous, C11/C++17 blocking methods, Java futures, .NET tasks and Erlang/Elixir records/structs over a shared owned worker. At most eight metadata entries and four mutations; Table schema remains two columns. Native page scans may cross the name prefix, but those values are not decoded or returned. The growth schedule uses a dynamic-map component store; the disk schedule creates seven applied Tables across manual/host resources by default, eighteen with all ten SDKs (including Python sync/async); the signed Zig growth schedule adds 65 Tables and lists 70 definitions over nine pages before/after disk restart with the same resident bound. The 257-additional-Table run remains failed; host power loss is not established.",
       "model": null,
       "qualification": "See tests/README.md#conditional-declarative-catalog for executed component, caller/ABI/port/CLI and installed caller and supplied-host disk recovery evidence; see tests/README.md#signed-catalog-metadata for signed Zig growth, restart and guard-mutation evidence; larger growth and broader catalog operation proofs remain."
+    },
+    {
+      "id": "HOST-02",
+      "claim": "Rust native code remains mapped while detached I/O threads finish, with bounded image reuse across client and runner lifetimes",
+      "owner": "packages/rust/transit-client/README.md",
+      "implementation": [
+        "packages/rust/transit-client/src/library.rs",
+        "bindings/generate.py"
+      ],
+      "profile": "Rust public SDKs on Linux x86_64 with pinned native I/O runtime",
+      "tasks": [
+        "bindings::rust-sdk-test",
+        "bindings::rust-lifetime"
+      ],
+      "scenarios": [
+        "Installed raw clients perform I/O and close repeatedly without unloading or duplicating native images",
+        "Fresh malformed inputs block without consuming input or publishing state, then runners close with both code images retained",
+        "Explicit override reuse preserves identity; replaced or missing files reject without an embedded fallback"
+      ],
+      "limits": "Process-lifetime code mappings; at most sixteen distinct native images. Handles and buffers still release on close. Mapping checks are Linux-specific; finite stress does not prove every host schedule.",
+      "model": null
+    },
+    {
+      "id": "HOST-03",
+      "claim": "Native stateless courier replacement after failed readiness probes reconstructs pending work from current authority with the same delivery identity",
+      "owner": "launchers/README.md",
+      "implementation": [
+        "process-compose.yaml",
+        "examples/station-ledger/process-compose.yaml",
+        "apps/transit-delivery/main.zig"
+      ],
+      "profile": "Native Process Compose counter and Station topologies; injected readiness outage in the Station proof",
+      "tasks": [
+        "launchers::local::test-station",
+        "launchers::local::test",
+        "test::callers"
+      ],
+      "scenarios": [
+        "Signed delivery reads are unavailable until the manager replaces its failed-readiness courier; a pending Arrow reply completes within the existing window after reads recover",
+        "Explicit manager stop preserves queued outbox until explicit restart",
+        "Current delivery permissions and original destinations remain authoritative across courier replacement"
+      ],
+      "limits": "Finite Linux fixture with pinned Process Compose; no general fairness, availability SLO or additional provider qualification. Worker activations remain explicit.",
+      "model": null
     }
   ]
 }

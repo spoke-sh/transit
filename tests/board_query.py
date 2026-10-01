@@ -44,36 +44,43 @@ def run(node, host, proof, board, browser=False):
             config.write_text(json.dumps(options))
             serving = start("board", [board, str(config)])
             wait_ready(fixture.http, serving, origin + "/health")
-            def request(path, operation=None, *, status=200, headers=None):
-                time.sleep(0.12)
+            def request(path, operation=None, *, status=200, headers=None, deadline=None):
                 body = None if operation is None else json.dumps(operation).encode()
                 supplied = {"Origin": origin, "Content-Type": "application/json"} | (headers or {})
                 req = urllib.request.Request(origin + path, body, supplied, method="GET" if operation is None else "POST")
-                try: response = fixture.http.open(req, timeout=10)
-                except urllib.error.HTTPError as err: response = err
-                with response:
-                    data = response.read()
-                    if status == 200 and response.status == 409 and operation is not None and next(iter(operation)) in ("describe", "status", "page") and json.loads(data).get("err") == "QueryExpired":
-                        return json.loads(data)
-                    if status == 200 and response.status == 409 and path == "/api/v1/atlas":
-                        return json.loads(data)
-                    assert response.status == status, (response.status, data[:500])
-                    assert response.headers["Cache-Control"] == "no-store"
-                    return json.loads(data)
+                kind = None if operation is None else next(iter(operation))
+                reading = operation is None or (path == "/api/v1/query" and kind in ("describe", "status", "page", "observe"))
+                attempts = (12 if path.split("?", 1)[0] == "/api/v1/atlas" else 8) if reading else 1
+                for attempt in range(attempts):
+                    time.sleep(0.12)
+                    remaining = 10 if deadline is None else deadline - time.monotonic()
+                    assert remaining > 0, "Board observation exceeded its existing deadline"
+                    try: response = fixture.http.open(req, timeout=min(10, remaining))
+                    except urllib.error.HTTPError as err: response = err
+                    with response:
+                        data = response.read()
+                        value = json.loads(data)
+                        unavailable = response.status == 503 and value.get("err") == "Unavailable"
+                        changed = (status == 200 and response.status == 409 and
+                                   value.get("err") == "QueryExpired" and
+                                   (kind in ("describe", "status", "page") or path == "/api/v1/atlas"))
+                        if reading and response.status != status and (unavailable or changed):
+                            # Temporary unavailability cannot prove an expected
+                            # denial or expired cut. Repeat the identical read,
+                            # including its saved position, until that assertion
+                            # is observable. Never retry a mutation here.
+                            if kind == "observe" and status == 200 and unavailable:
+                                return value  # settle owns the receipt deadline.
+                            if attempt + 1 < attempts:
+                                time.sleep(0.1)
+                                continue
+                        assert response.status == status, (response.status, data[:500])
+                        assert response.headers["Cache-Control"] == "no-store"
+                        return value
             def api(operation, **kwargs):
-                for _ in range(8):
-                    value = request("/api/v1/query", operation, **kwargs)
-                    if kwargs.get("status", 200) != 200 or value.get("err") != "QueryExpired": return value
-                    time.sleep(0.1)
-                raise AssertionError("resource observation did not stabilize within read retry budget")
+                return request("/api/v1/query", operation, **kwargs)
             def current_atlas():
-                # A fresh current observation can conflict with ongoing worker
-                # cleanup. Retry the whole read, never reuse a changed cut.
-                for _ in range(12):
-                    value = request("/api/v1/atlas")
-                    if value.get("err") != "QueryExpired": return value
-                    time.sleep(0.1)
-                raise AssertionError("atlas did not stabilize within read retry budget")
+                return request("/api/v1/atlas")
             caps = request("/api/v1/capabilities")
             assert caps["profile"] == "native_v1" and caps["query_enabled"] and caps["read_only"]
             atlas = current_atlas()
@@ -128,7 +135,15 @@ def run(node, host, proof, board, browser=False):
                 receipt = api({"submit": prepared})["receipt"]
                 assert api({"submit": prepared})["receipt"] == receipt
                 until = time.monotonic() + 60
-                while "pending" in (observed := api({"observe": receipt["position"]})["observation"]):
+                while True:
+                    response = api({"observe": receipt["position"]}, deadline=until)
+                    # An unavailable receipt read says nothing new about the
+                    # frozen submission. Observe the same receipt again without
+                    # preparing or submitting another mutation.
+                    if response.get("err") != "Unavailable":
+                        observed = response["observation"]
+                        if "pending" not in observed:
+                            break
                     assert time.monotonic() < until
                     time.sleep(0.05)
                 assert "committed" in observed, observed
@@ -144,7 +159,7 @@ def run(node, host, proof, board, browser=False):
             upload("1", compiled["bundle"])
             deadline = time.monotonic() + 120
             while True:
-                observation = api({"status": "1"})["status"]
+                observation = api({"status": "1"}, deadline=deadline)["status"]
                 if observation["phase"] == "complete": break
                 assert time.monotonic() < deadline, observation
                 assert all(process.poll() is None for process in processes)

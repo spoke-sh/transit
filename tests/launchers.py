@@ -68,11 +68,16 @@ def proof(profile):
         last = None
         while time.monotonic() < deadline:
             try:
+                # Wait for the example value before sampling process progress.
+                # A turn can commit between these independent reads; returning
+                # an earlier process row after observing its new value races
+                # the caller's consumed/admitted assertions.
+                value = installation.counter_value() if expected is not None else None
                 page = installation.inspect()["observation"]
                 rows = [p for p in page["processes"] if p]
                 assert len(rows) == 1 and page["reader"]["permissions"] == 16, page
                 last = rows[0]
-                if expected is None or installation.counter_value() == expected:
+                if expected is None or value == expected:
                     return last
             except (urllib.error.URLError, ConnectionError, TimeoutError):
                 pass
@@ -109,7 +114,7 @@ def proof(profile):
             config = json.loads(launcher.docker("config", "--format", "json", capture=True))
             assert config["services"]["node"]["environment"]["LOG_LEVEL"] == "debug"
             assert config["services"]["board"]["logging"]["options"]["max-size"] == "5m"
-        assert first["consumed"] == first["admitted"] == 2 and first["binding"] is None
+        assert first["consumed"] == first["admitted"] == 2 and first["binding"] is None, first
         from launcher_updates import exercise
         exercise(installation, launcher, invoke, observe)
         first = observe(12)

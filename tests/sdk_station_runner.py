@@ -23,7 +23,9 @@ class Consumer:
     arrow_adapter: bool = True
 
 
-def run(node, cli, raw_library, install, label):
+def run(node, cli, raw_library, install, label, *, decode_block_repetitions=1, failures_only=False):
+    if not 1 <= decode_block_repetitions <= 1024:
+        raise ValueError('decode-block repetitions must be in 1..1024')
     from client_abi_growing import GrowingSystem
     from client_abi import Native
     from station import frame
@@ -71,21 +73,27 @@ def run(node, cli, raw_library, install, label):
                     assert status in (6, 7) and time.monotonic() < deadline, (status, response)
                     time.sleep(.05)
             finally: native.lib.transit_operation_destroy(op)
-        fault = {'drop': False, 'delay': False, 'poison': False, 'commands': [], 'poisoned': False}
+        fault = {'drop': False, 'delay': False, 'poison': False, 'commands': [], 'poisoned': False,
+                 'unavailable_reply': False, 'unavailable_replies': 0,
+                 'unavailable_process': None, 'unavailable_reads': 0}
         class Proxy(BaseHTTPRequestHandler):
             def log_message(self, *_): pass
             def do_POST(self):
                 body = self.rfile.read(int(self.headers['Content-Length']))
                 conn = HTTPConnection('127.0.0.1', system.port, timeout=30)
                 try:
+                    if self.path == '/v1/command':
+                        # Retain attempts even if the upstream response arrives
+                        # after the host's deadline.
+                        fault['commands'].append(body)
                     # BaseHTTPRequestHandler normalizes leading double slashes in self.path.
                     # Preserve the original target so faults cannot hide malformed SDK URLs.
                     target = self.raw_requestline.split()[1].decode('ascii')
                     conn.request('POST', target, body, {'Content-Type': 'application/json'})
                     result = conn.getresponse()
                     data = result.read()
+                    status = result.status
                     if self.path == '/v1/command':
-                        fault['commands'].append(body)
                         mutation = json.loads(body)['request']['command']
                         if ('turn' in mutation or 'turn_with_versions' in mutation) and result.status == 200:
                             if fault['delay']:
@@ -95,14 +103,24 @@ def run(node, cli, raw_library, install, label):
                                 fault['drop'] = False
                                 self.close_connection = True
                                 return
-                    elif fault['poison'] and not fault['poisoned'] and self.path == '/v1/query':
+                            if fault['unavailable_reply']:
+                                fault['unavailable_reply'] = False
+                                fault['unavailable_replies'] += 1
+                                status, data = 503, b'{"err":"AuthorityUnavailable"}'
+                    elif self.path == '/v1/query':
                         query = json.loads(body)['query']['kind']
-                        if 'entries' in query and query['entries'].get('key') == b'total'.hex():
+                        if (status == 200 and fault['unavailable_process'] is not None and
+                                query.get('process') == fault['unavailable_process']):
+                            fault['unavailable_process'] = None
+                            fault['unavailable_reads'] += 1
+                            status, data = 503, b'{"err":"AuthorityUnavailable"}'
+                        elif (fault['poison'] and not fault['poisoned'] and
+                              'entries' in query and query['entries'].get('key') == b'total'.hex()):
                             parsed = json.loads(data)
                             parsed['realm'] += 1
                             data = json.dumps(parsed).encode()
                             fault['poisoned'] = True
-                    self.send_response(result.status)
+                    self.send_response(status)
                     self.send_header('Content-Length', str(len(data)))
                     self.end_headers()
                     self.wfile.write(data)
@@ -111,7 +129,8 @@ def run(node, cli, raw_library, install, label):
         thread = threading.Thread(target=proxy.serve_forever, daemon=True)
         thread.start()
         url = f'http://127.0.0.1:{proxy.server_port}'
-        children = []
+        children, worker_configs = [], {}
+        recovered_events, repeated_reads = 0, 0
         def provision(role='service', finite=False, lifetime_ms=240000):
             nonlocal principal
             principal += 1
@@ -140,13 +159,53 @@ def run(node, cli, raw_library, install, label):
         def worker(cfg):
             child = subprocess.Popen(consumer.command('worker', config_file(cfg)), stdin=subprocess.PIPE, stdout=subprocess.PIPE, env=env, cwd=target, text=True)
             children.append(child)
+            worker_configs[child.pid] = cfg
             return child
-        def one(child):
-            child.stdin.write('one\n'); child.stdin.flush()
-            assert select.select([child.stdout], [], [], 180)[0], 'Public runner timed out'
+        def one(child, action='one', deadline=None):
+            remaining = 180 if deadline is None else deadline - time.monotonic()
+            assert remaining > 0, 'Public runner recovery deadline'
+            child.stdin.write(action + '\n'); child.stdin.flush()
+            assert select.select([child.stdout], [], [], remaining)[0], 'Public runner timed out'
             value = child.stdout.readline()
             assert value, f'Worker failed with {child.poll()}'
             return json.loads(value)
+        def expect_one(child, *events):
+            nonlocal recovered_events, repeated_reads
+            deadline = time.monotonic() + 180
+            observed = one(child, deadline=deadline)
+            for _ in range(8):
+                if observed['event'] in events:
+                    return
+                transient = observed.get('code') in ('AuthorityTimeout', 'AuthorityUnavailable', 'HttpCapacity')
+                if observed['event'] == 'ReadUnavailable' and transient:
+                    observed = one(child, deadline=deadline)
+                    repeated_reads += 1
+                    continue
+                assert (observed['event'] == 'NeedsRecovery' and
+                        observed['phase'] in ('dispatch', 'observe_confirmation') and
+                        transient), {
+                            'expected': events, 'observed': observed}
+                saved = Path(worker_configs[child.pid]['pending'])
+                frozen = saved.read_bytes()
+                signed = json.loads(frozen)['operation']['growing_command']
+                request = signed['request']
+                def attempts():
+                    matching = []
+                    for body in fault['commands']:
+                        candidate = json.loads(body)['request']
+                        if all(candidate[key] == request[key] for key in ('realm', 'principal', 'sequence')):
+                            matching.append(body)
+                    return matching
+                original = attempts()
+                assert original and json.loads(original[0]) == signed
+                # A paused runner cannot silently advance or replace accepted
+                # work. Reconcile the saved operation through the host API.
+                assert one(child, deadline=deadline) == observed
+                assert saved.read_bytes() == frozen
+                observed = one(child, 'reconcile', deadline)
+                assert all(body == original[0] for body in attempts()), 'Recovery changed signed bytes'
+                recovered_events += 1
+            assert observed['event'] in events, {'recovery_budget_exhausted': observed}
         def close(child):
             child.stdin.write('close\n'); child.stdin.flush()
             assert json.loads(child.stdout.readline()) == {'closed': True}
@@ -175,13 +234,18 @@ def run(node, cli, raw_library, install, label):
             gates = json.loads(invoke('gates', gated))
             assert gates['gates'] == ['commit', 'open', 'permit']
             assert process(gated)['consumed'] == 1
-            for mode in ('decode-stop', 'decode-block', 'handler-stop', 'handler-block', consumer.invalid_handler, *consumer.extra_failures):
+            for mode in ('decode-stop', *('decode-block',) * decode_block_repetitions,
+                         'handler-stop', 'handler-block', consumer.invalid_handler, *consumer.extra_failures):
                 cfg = provision()
                 send(cfg, b'TSC\x02\x02' if mode.startswith('decode-') else b'TSC\x01\x01' + (1).to_bytes(8, 'little'))
                 invoke(mode, cfg)
                 state = process(cfg)
                 assert state['consumed'] == 0 and (state['failure'] is not None) == mode.endswith('-block')
                 assert read({'resource': cfg['resource']})['body']['resource']['entries'] == 0
+            if failures_only:
+                print(f'{label} Station lifetime: {decode_block_repetitions} fresh decode-block cases, '
+                      'codec/handler failures, retained native mappings and bounded image reuse passed.')
+                return
             async_cfg = provision()
             send(async_cfg, b'TSC\x01\x01' + (5).to_bytes(8, 'little'))
             fault['delay_marker'] = Path(async_cfg['output'], 'accepted')
@@ -195,7 +259,7 @@ def run(node, cli, raw_library, install, label):
             send(source, b'TSC\x01\x01' + (2**64-1).to_bytes(8, 'little'))
             service = worker(source)
             fault['drop'] = True
-            assert one(service)['event'] == 'NeedsRecovery'
+            expect_one(service, 'NeedsRecovery')
             accepted = fault['commands'][-1]
             service.kill(); service.wait(timeout=10); children.remove(service)
             system.authority.kill(); system.authority.wait(timeout=10)
@@ -212,7 +276,7 @@ def run(node, cli, raw_library, install, label):
             own(source)
             send(requester, b'TSC\x01\x03')
             caller = worker(requester)
-            assert one(caller)['event'] == 'Committed'
+            expect_one(caller, 'Committed')
             waiting = read({'process': requester['pid']})['body']['process']
             close(caller)
             own(requester)
@@ -252,29 +316,39 @@ def run(node, cli, raw_library, install, label):
             table, query_cfg = provision('table'), provision('query')
             table['peer'], query_cfg['peer'] = query_cfg['pid'], table['pid']
             service, caller = worker(table), worker(query_cfg)
+            assert one(service, 'ready') == {'ready': True}
             send(table, b'TSQ\x01\x01')
-            assert one(service)['event'] == 'Committed'
+            # Deterministically exercise the same uncertain outcome observed
+            # under storage latency, after this schema turn has been accepted.
+            before_recovery = recovered_events
+            before_reads = repeated_reads
+            fault['unavailable_process'] = table['pid']
+            fault['unavailable_reply'] = True
+            expect_one(service, 'Committed')
+            assert fault['unavailable_replies'] == 1 and recovered_events > before_recovery
+            assert fault['unavailable_reads'] == 1 and repeated_reads > before_reads
+            assert process(table)['consumed'] == 1
             for index in range(41):
                 key = -(2**63) if index == 0 else index
                 value = None if index % 5 == 0 else 2**63-1 if index == 1 else 2**53+1
                 payload = b'TSQ\x01\x02' + key.to_bytes(8, 'little', signed=True)
                 payload += b'\0' if value is None else b'\1' + value.to_bytes(8, 'little', signed=True)
                 send(table, payload)
-                assert one(service)['event'] == 'Committed'
+                expect_one(service, 'Committed')
             send(table, b'TSQ\x01\x03')
-            assert one(service)['event'] == 'Committed'
+            expect_one(service, 'Committed')
             send(table, b'TSQ\x01\x01')
-            assert one(service)['event'] == 'Committed'
+            expect_one(service, 'Committed')
             send(query_cfg, b'TSQ\x01\x04')
-            assert one(caller)['event'] == 'Committed'
+            expect_one(caller, 'Committed')
             close(caller)
             own(query_cfg)
             caller = worker(query_cfg)
             manifest_file = Path(query_cfg['output']) / 'manifest.json'
             for _ in range(150):
                 deliver()
-                assert one(service)['event'] in ('Committed', 'Idle')
-                assert one(caller)['event'] in ('Committed', 'Idle')
+                expect_one(service, 'Committed', 'Idle')
+                expect_one(caller, 'Committed', 'Idle')
                 if manifest_file.exists(): break
             else: raise AssertionError('Public query did not complete')
             close(service); close(caller)
@@ -318,6 +392,8 @@ def run(node, cli, raw_library, install, label):
                 'owned_ipc_after_close': not children, 'revoked_result_denied': denied['denied'],
             })
             print(f'{label} Station: clean artifacts/examples, full-width codecs, gated mutations, callback failures, scope safety, stop/join, codec policy, poisoned reads, fencing/expiry, exact disk/host recovery, retained Tables and six owned IPC segments passed.')
+            print(f'{label} Station recovery: {recovered_events} transient outcomes reconciled with unchanged signed attempts.')
+            print(f'{label} Station reads: {repeated_reads} unavailable observations repeated within the same progress budget.')
         finally:
             for child in children:
                 child.kill(); child.wait(timeout=10)

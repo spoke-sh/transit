@@ -10,6 +10,7 @@ import yaml
 from ci import LANES, ROOT
 from ci_select import select
 from ci_cost import summarize
+from verification.external_profiles import DISCOVERY
 
 
 def main():
@@ -17,8 +18,13 @@ def main():
     selected = [row["lane"] for row in workflow["jobs"]["checks"]["strategy"]["matrix"]["include"]]
     assert selected == ["core", "growth", "experience", "launchers", "bindings"]
     assert workflow["jobs"]["checks"]["strategy"]["fail-fast"] is False
-    reclaim = next(step for step in workflow['jobs']['checks']['steps'] if step.get('name') == 'Reclaim unused hosted SDKs')
-    assert reclaim['if'] == "runner.environment == 'github-hosted' && steps.nix-cache.outputs.hit-primary-key != 'true'"
+    steps = workflow["jobs"]["checks"]["steps"]
+    reclaim = next(step for step in steps if step.get("name") == "Reclaim unused hosted SDKs")
+    assert reclaim["if"] == "runner.environment == 'github-hosted'"
+    # A primary cache hit can fill the disk during extraction, before the shell
+    # starts. Reclaim on all hosted runs and before either restore or build.
+    for name in ("Restore Nix store", "Prepare development shell"):
+        assert steps.index(reclaim) < next(i for i, step in enumerate(steps) if step.get("name") == name)
     gate = workflow["jobs"]["foundation-and-protocol"]
     assert gate["if"] == "always()" and gate["needs"] == ["plan", "checks", "documentation"]
     assert workflow["jobs"]["documentation"]["if"] == "needs.plan.outputs.full == 'false'"
@@ -29,6 +35,16 @@ def main():
     events = workflow.get("on", workflow.get(True))
     assert events["push"]["branches"] == ["main"]
     assert {"pull_request", "merge_group", "workflow_dispatch"} <= events.keys()
+    faults = yaml.safe_load((ROOT / '.github/workflows/fault-verification.yml').read_text())
+    fault_events = faults.get('on', faults.get(True))
+    assert fault_events['schedule'] and 'discovery' in fault_events['workflow_dispatch']['inputs']['profile']['options']
+    assert len(DISCOVERY) == 13 and len({command[1] for command in DISCOVERY}) == 13
+    assert ['just', 'test::resource-simulation', '--seeds', '4'] in DISCOVERY
+    assert ['just', 'test::vortex', '--seed', '19', '--rounds', '16'] in DISCOVERY
+    fault_steps = faults['jobs']['qualify']['steps']
+    reclaim = next(step for step in fault_steps if step.get('name') == 'Reclaim unused hosted SDKs')
+    assert reclaim['if'] == "runner.environment == 'github-hosted'"
+    assert fault_steps.index(reclaim) < next(i for i, step in enumerate(fault_steps) if step.get('name') == 'Restore Nix store')
     budgets = {"feedback_seconds": 600, "aggregate_runner_seconds": 3000, "restored_cache_bytes": 1000}
     sample = dict(id=1, head_sha='fixture', html_url='https://example.invalid', conclusion='success', created_at='2026-01-01T00:00:00Z')
     job = dict(name='core', conclusion='success', started_at='2026-01-01T00:00:01Z', completed_at='2026-01-01T00:00:10Z', steps=[])
@@ -46,6 +62,21 @@ def main():
     cold = summarize(sample, [job], cold_log, dict(budgets, cold=cold_budget))
     assert cold['budget_met'] and cold['budget'] == cold_budget and cold['cache_profile'] == 'cold'
     assert measured['budget'] == budgets and measured['cache_profile'] == 'warm'
+    fallback_log = log.replace('Cache hit for: zig-key', 'Cache hit for restore-key: zig-key')
+    fallback = summarize(sample, [job], fallback_log, budgets)
+    assert fallback['restored_cache_bytes'] == 300 and fallback['cache_profile'] == 'miss-or-partial'
+    assert fallback['status'] == 'measured' and not fallback['budget_met']
+    # Match an actual full hosted selection: the alternative docs-only job is
+    # skipped, but every required matrix lane must still execute successfully.
+    full_jobs = [dict(job, name=name) for name in selected]
+    docs_skipped = dict(job, name='Documentation site', conclusion='skipped')
+    full_log = ''.join(log.replace('core\t', name + '\t') for name in selected)
+    full_budgets = dict(budgets, restored_cache_bytes=2000)
+    full = summarize(sample, [*full_jobs, docs_skipped], full_log, full_budgets)
+    assert full['budget_met'] and len(full['lanes']) == len(selected)
+    assert full['restored_cache_bytes'] == 1500
+    assert not summarize(sample, [*full_jobs[:-1], docs_skipped], full_log, full_budgets)['budget_met']
+    assert not summarize(sample, [*full_jobs[:-1], dict(full_jobs[-1], conclusion='skipped'), docs_skipped], full_log, full_budgets)['budget_met']
     assert not select(["docs/reference/state.md", "docs/roadmap/M26.md", "README.md"])["full"]
     for paths in ([], ["docs/schema.json"], ["contracts/STATE_V1.md"],
                   ["build.zig"], ["unknown"], ["docs/../../build.zig"],
@@ -123,6 +154,32 @@ def main():
         assert metadata["completed"] is False
         assert metadata["expected_tasks"] == LANES["browser"]
         assert "transit-board::browser" in (path / "summary").read_text()
+    # Run the discovery entry point: a completed first stage followed by a
+    # definite task failure must retain both outcomes and stop before stage 3.
+    with tempfile.TemporaryDirectory(prefix='transit-discovery-runner-') as directory:
+        path = Path(directory)
+        runner = path / 'tests/verification/external_profiles.py'
+        runner.parent.mkdir(parents=True)
+        runner.write_bytes((ROOT / 'tests/verification/external_profiles.py').read_bytes())
+        (path / '.gitignore').write_text('.cache/\n')
+        script = path / 'just'
+        script.write_text(f'#!{sys.executable}\nimport sys\nprint("controlled stage", sys.argv[1:])\nsys.exit(23 if sys.argv[1] == "test::properties" else 0)\n')
+        script.chmod(0o755)
+        subprocess.run(['git', 'init', '-q'], cwd=path, check=True)
+        subprocess.run(['git', 'add', '.'], cwd=path, check=True)
+        subprocess.run(['git', '-c', 'user.name=CI fixture', '-c', 'user.email=fixture@example.invalid',
+                        'commit', '-qm', 'test(ci): seed discovery fixture'], cwd=path, check=True)
+        result = subprocess.run([sys.executable, '-B', runner, '--profile', 'discovery'], cwd=path,
+                                env=os.environ | {'PATH': str(path) + os.pathsep + os.environ['PATH']}, capture_output=True)
+        assert result.returncode != 0, result
+        reports = list((path / '.cache/verification/external').glob('*/report.json'))
+        assert len(reports) == 1
+        evidence = json.loads(reports[0].read_text())
+        assert not evidence['completed'] and not evidence['dirty']
+        assert [stage['command'] for stage in evidence['stages']] == DISCOVERY[:2]
+        assert evidence['stages'][0]['completed'] and evidence['stages'][0]['exit'] == 0
+        assert not evidence['stages'][1]['completed'] and evidence['stages'][1]['exit'] == 23
+        assert all(stage['timeout_seconds'] == 3600 for stage in evidence['stages'])
     print("CI lanes: disjoint local/hosted inventory, aggregate gate and failure propagation passed.")
 
 

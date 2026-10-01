@@ -98,8 +98,20 @@ def exercise(profile, name=None, base=None, existing=False):
         invoke("send", "-2", "--request-id", "proof-delta")
         invoke("send", "-2", "--request-id", "proof-delta")
         await_value(lambda: total() == 10 and entry("requester", b"answer") == b"10", "Correlated delta/retry was not atomic")
-        invoke("send", "query", "--request-id", "proof-query")
-        await_value(lambda: entry("requester", b"last-query") is not None, "Arrow reply did not complete")
+        if profile == "local":
+            from courier_readiness import ReadinessOutage
+            with ReadinessOutage(installation, launcher) as fault:
+                invoke("send", "query", "--request-id", "proof-query")
+                deadline = time.monotonic() + 60
+                recovery = fault.recover(deadline)
+                await_value(lambda: entry("requester", b"last-query") is not None,
+                            "Arrow reply did not complete", seconds=max(0, deadline-time.monotonic()))
+                assert time.monotonic() < deadline, "Arrow reply exceeded its original deadline"
+                assert fault.commands > 0
+                print("Station courier readiness recovery: " + json.dumps(recovery), flush=True)
+        else:
+            invoke("send", "query", "--request-id", "proof-query")
+            await_value(lambda: entry("requester", b"last-query") is not None, "Arrow reply did not complete")
         if profile == "reference":
             process = installation.process("ledger")
             worker = process["binding"]["activation"]["worker_incarnation"]

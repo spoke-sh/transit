@@ -2121,6 +2121,385 @@ The following evidence-only commit changes no production source. This is a
 complete core-lane pass plus the focused SQL proof above, not a full clean-suite
 or administrative-execution qualification.
 
+## Rust native lifetime investigation — 2026-09-30
+
+Following PR #33, a fresh installed Rust suite passed on the merged source
+`a53d6262`, while a separate repeated malformed-input schedule reproduced the
+`decode-block` SIGSEGV on case 108 after 107 successful fresh cases. A retained
+core shows the detached native thread returning from `futexWake` through
+`Io.Threaded.WaitGroup.finish` and `Io.Threaded.worker` after the client library
+was unmapped. The Rust owner was removing the extracted artifact, and the main
+thread was joining that owner. Thus a passing ordinary rerun does not resolve
+the failure.
+
+The Rust loader now retains bounded shared code mappings until process exit,
+while handle and buffer destruction remain explicit. Installed raw/Station
+regressions check actual Linux mappings across close and repeated open. The
+focused `nix develop .#bindings --command just bindings::rust-lifetime 256`
+reuses the existing installed-consumer/real-authority fixture with fresh
+malformed inputs. It checks the failure marker, unchanged input progress and
+empty resource after each case. The case argument is bounded to 1–1024 and
+defaults to 128; this is a selected host schedule, not deterministic OS replay.
+The installed consumer is reused across independent fixtures of at most 32 cases,
+with each history verified before joined cleanup. An initial 256-case attempt in
+one history exhausted the fixture's 64 MiB hot-storage quota during provisioning.
+It did not complete and is not lifetime evidence for all 256 cases. Quotas remain
+unchanged; the batched profile keeps this host-lifetime proof within its scope.
+The corrected batched run passed all 256 cases across eight independently verified
+histories using one installed consumer build, followed by joined cleanup.
+
+Qualification of the correction is in progress. An initial corrected run passed
+the raw-client regression but could not compile the Station consumer because
+the shared `/tmp` filesystem ran out of space. That incomplete run is not a pass;
+subsequent work uses an owned disk-backed `TMPDIR`.
+The full corrected installed Rust client, Station, HTTP and gRPC suite then passed.
+
+The [follow-up record](verification/results/m37-followup-2026-09-30.json)
+retains hashes and separates incomplete, passing and unexecuted profiles.
+Installed raw-client checks passed, including sixteen I/O/open/close repetitions
+and override reuse/replacement/missing-file rejection. A compiling mutation that
+removes library retention fails the mapping assertion immediately. The authority
+(14 traces / 749 events), resource (204 / 3,958), shared-client (eight / 542)
+and component (eight schedules) simulations passed with identical replay.
+
+The first concurrent clean attempts at `4ae88b99` remain incomplete. Core passed
+21 tasks, then its final state test observed `Conflict` while maintenance changed
+the authority tail during a resource metadata read. The corrected maintenance
+poll retries that fresh read within the existing ten-second deadline; the focused
+state proof passed. Snapshot cuts and mutation retries are unchanged. Growth
+exceeded its existing 240-second Station write deadline, experience received
+`503 Unavailable` observing a Board operation, and bindings reported an unexpected
+Python Station event. Runner assertions now preserve the actual unexpected event.
+These results do not establish the complete ordinary gate.
+
+An isolated clean bindings run at `2b9faa53` passed generated contracts, native
+conformance and the complete Python, Node and Rust SDK tasks. The Rust task took
+574.66 s. The lane then stopped in Ruby when a query turn correctly returned
+`NeedsRecovery` with `AuthorityTimeout`; the fixture had assumed immediate
+commitment. Ten later tasks were unrun.
+
+The shared fixture now repeats explicitly unavailable reads and reconciles
+transient dispatch/confirmation failures through the installed host API. It
+checks that `next()` remains paused, saved bytes stay unchanged and observed
+same-identity command attempts remain byte-identical. Recovery shares the existing
+180-second progress deadline and has at most eight recovery/read steps. Other
+outcomes still fail. A deterministic unavailable read and unavailable reply after
+acceptance challenge those paths; the accepted schema input must be consumed once.
+The focused Ruby schedule passed with both faults: one unavailable read repeated
+and one accepted outcome reconciled, followed by all Table, IPC, revocation and
+lifetime checks. `just check` passed with the corrected fixtures.
+
+Board's focused query proof passed after its fixture learned to repeat only
+unavailable observations of the same receipt within the existing 60-second
+deadline. It does not prepare or submit replacement work. The isolated complete
+growing-service proof also passed without code or deadline changes: Station write
+took 71.616 s against 240 s, and query delivery took 149.820 s against 180 s.
+Earlier timing failures remain separate evidence.
+
+The subsequent clean growth lane at `dae70a38` passed 14 tasks, including query
+delivery in 145.224 s and the complete gRPC streaming/restart proof. Its gRPC fault
+fixture then reached its declared 60-second process work cutoff while preparing
+the second call for the blocked-peer scenario. `DeadlineUncertain` correctly
+prevented further ordinary work; that scenario's intended control challenge had
+not begun. The remaining three growth tasks and four later lanes were unrun.
+The cutoff scenario now uses a separate disposable disk installation after the
+crash/revocation installation is joined. It declares a 120-second work lifetime
+before spawning and verifies that the recorded work and settlement cutoffs stay
+unchanged through preparation and closure. It starts the RPC in the final
+30 seconds of that work window. The 10-second control-progress limit remains
+unchanged; cold-spill evidence belongs to the preceding crash/revocation profile.
+Expiry waits through the configured
+10-second clock-error bound and requires `DeadlineExpired`, rather than accepting
+any failed dispatch. This scenario declares the peer's existing 120-second block
+window as its RPC timeout before preparing the request, and checks that both the
+worker and remote RPC remain active when closure completes.
+
+An initial isolated attempt failed the combined closure-duration/worker-alive
+assertion before its operands were logged; the original operand remains
+unattributed. Four diagnostic reruns passed, with closure taking 0.186–0.711 s.
+Those passes precede the definite-expiry and active-peer assertions and do not
+erase the earlier failure.
+
+A full rerun then took 59.078 s just to prepare both calls in the fresh
+installation; the worker exited before reaching the peer. This demonstrated
+that separating installations alone did not establish the intended pre-cutoff
+dispatch premise. The 120-second work window is selected before admission to
+accommodate setup; the test still requires definite expiry, an active remote
+call, bounded closure and permanent retirement.
+
+The lifetime diagnostic initially used the execution-read selector after work
+expiry, which correctly rejected input access even though closure had passed in
+0.294 s with an active peer. It now uses public inspection for retained process
+metadata. `just test::grpc-control` runs this isolated portion directly;
+`just test::grpc-faults` still includes both crash/revocation and cutoff profiles.
+The corrected focused proof passed in 133.06 s excluding compilation, with
+closure in 0.181 s while the worker and remote RPC remained active. It verified
+unchanged recorded cutoffs, exact `DeadlineExpired`, duplicate-closure rejection,
+permanent retirement and pending-effect cancellation. `just check` passed with
+the corrected fixtures and focused task registration.
+
+The next combined proof passed all crash boundaries and dispatch revocation,
+then failed while starting the separate control installation: MinIO returned
+HTTP 503 to bucket creation after its health probe returned ready. Bucket creation
+now retries only HTTP 503 using the same signed request and the original
+30-second startup deadline. An injected 503 followed by real MinIO creation
+passed; negative checks retained immediate non-503 failure and deadline exhaustion
+under persistent unavailability.
+
+The expanded deterministic profiles passed on committed sources. Authority and
+resource reports identify `028e2f7b`; shared-client and component reports identify
+`2b9faa53`, whose intervening change corrects the separate state API polling fixture.
+All four retain clean-source identity, binary/oracle hashes and identical replay.
+
+| Expanded profile | Executed result | Simulation time |
+| --- | --- | ---: |
+| Authority: 32 seeds, 128 steps | 38 traces / 5,293 events | 119.304 s |
+| Resources: four seeds, every observed I/O boundary | 3,202 traces / 60,704 events | 1,744.224 s |
+| Shared client: 32 seeds, 128 steps | 36 traces / 6,490 events | 158.158 s |
+| Components: 32 seeds | 128 schedules across Document, Exchange, query/refresh and runtime owners | 38.139 s |
+
+The resource checker rejects corrupted values, input progress, outputs and views,
+plus stalled and incomplete histories. The retained reports include the full trace
+hash lists and actual fault counts. These in-process results preserve the existing
+atomic-journal premise; disk durability and host scheduling use their separate proofs.
+
+At committed `ee4770c9`, the complete clean bindings lane passed all 16 tasks in
+7,096.414 s including setup. This includes every installed SDK, the ten-language
+interoperability ring, finite models, SQL checks and gRPC publication faults. The
+same revision's first clean growth attempt passed Arrow, pages and authority growth,
+then exceeded the unchanged 180-second query-delivery limit in `growing-service`.
+Station writes had passed in 217.453 s against 240 s. Successful delivery/turn
+receipts continued until the query timeout; no correctness assertion failed, but
+the cause remains unattributed. Other test workloads were active on the shared
+host. This attempt does not establish the complete ordinary gate. A new clean
+attempt uses the same source, workload and limits with CPU affinity 6–11 instead
+of 16–31. That clean growth repeat passed all 18 tasks in 3,548.751 s including
+setup. Station writes took 71.311 s and query delivery took 150.013 s. The full
+gRPC fault proof passed with closure in 0.316 s while its worker and remote RPC
+remained active. The HTTP proof passed sixteen sends, eight applications and two
+cancellation requests. Both real connector examples passed. These two complete
+lanes account for 34 tasks at the same implementation revision; experience,
+launchers and core remain outside this draft checkpoint. The earlier growth
+timeout remains an incomplete attempt with an unattributed cause.
+
+During the bindings run, an external process removed the qualification worktree
+and branch. The independent clean checkout and running tests survived. The
+worktree and source checkout were restored at the identical commit, and open log
+descriptors preserved the complete bindings log through completion. No test was
+restarted or skipped. Earlier ignored logs, build outputs and private crash files
+were removed with the worktree; their committed result summaries, embedded reports
+and hashes remain in the follow-up record. This event is recorded separately from
+test outcomes.
+
+The next clean experience attempt at `ee4770c9` passes five tasks, then fails
+Board query qualification on HTTP 503 `Unavailable` while reading query status.
+The final Station launcher task does not run. This remains an incomplete lane.
+Integration with main at `dca324f3` preserves its definition/layout cutover and
+catalog/mutation proof registrations; the integrated ordinary inventory has
+68 tasks. Earlier results do not qualify this changed source by inheritance.
+
+The integrated Board fixture repeats only the same unavailable status,
+description, page or Atlas read. It retains the existing eight-query/twelve-Atlas
+attempt limits, the 60-second receipt window and 120-second result window;
+individual read timeouts cannot exceed the remaining window. It never prepares
+or submits a replacement mutation. A first focused run passes query operations,
+then fails on an unavailable final Atlas read. After including that read in its
+existing retry loop, the complete real Board proof passes. Expected denial,
+expired cuts and malformed-command checks remain in that proof. Full `just check`
+and generated binding checks also pass on the integrated development source.
+
+The merged cold-store fixture passes temporary-unavailability recovery,
+accepted-but-unavailable then already-owned recovery, foreign/malformed conflict
+rejection, immediate denial and exhaustion of the original startup deadline.
+Repeated attempts retain identical signed requests. A real owned MinIO bucket
+also accepts repeated creation. These focused checks and the Board failure logs
+are retained in the follow-up record; clean integrated qualification remains
+separate. A fresh hosted check still does not start because GitHub reports the
+account payments/spending-limit restriction.
+
+The clean experience lane at `95ed6c72` again passes five tasks, then fails
+when a retained stale Atlas position returns temporary HTTP 503 instead of the
+required 409. The Station launcher and subsequent lanes remain unrun. A 503
+does not establish stale-cut rejection. The observation helper now gives each
+read one bounded retry loop, including reads with expected rejection statuses:
+eight attempts for query/inspection reads and twelve for Atlas. It retains the
+same URL, saved position, operation and request bytes; expected statuses and
+`no-store` assertions remain mandatory. The existing receipt/result deadlines
+still bound their reads, and mutations are never retried by this helper.
+
+Eleven controlled response schedules pass, including unavailable-then-expired,
+unavailable-then-denied, refusal to accept a successful stale-cut read, both retry
+bounds, unchanged query identity, deadline exhaustion, receipt observation and
+no mutation retry. The final helper also passes the complete real Board proof
+in a separate checkout based on `95ed6c72`. The simulation checkout remains at
+that unchanged commit while this fixture correction is validated; reports retain
+their actual source identities. The follow-up record embeds the failed clean
+attempt and controlled-check driver. Complete clean qualification of the final
+fixture is still required.
+
+At clean simulation source `95ed6c72`, the expanded campaigns repeat successfully:
+38 authority traces / 5,293 events (121.605 s), 3,202 exhaustive resource traces /
+60,704 events (1,835.258 s), and 36 shared-client traces / 6,490 events (164.360 s).
+The component campaign now includes catalog and passes 160 schedules across five
+owners in 55.894 s. Each report retains identical replay, source and tool/binary
+identity. These are 72,487 events across 3,276 traces plus the separate component
+schedules; they preserve the existing atomic-journal and host-scheduling limits.
+
+Clean experience at `5fe3df66` passes all six Board/frontend tasks, including the
+corrected Board query proof, then fails the Station launcher's unchanged
+60-second Arrow-reply wait. The retained manager log shows the courier exiting
+after repeated failed readiness probes; its inherited `restart: no` policy leaves
+it stopped. This matches the manager's documented
+[probe lifecycle](https://f1bonacc1.github.io/process-compose/health/).
+Current public reads show consumed requester input with no recorded Arrow result.
+Restarting the same courier completes that retained reply (16.689 s of subsequent
+polling). No query is reissued and no authority or deadline is changed. The
+original clean attempt remains failed; subsequent lanes did not run.
+
+The native counter and Station topologies now restart the stateless courier
+after failure with a one-second backoff. An owned proxy in the Station proof
+refuses only signed delivery reads, preserving command bytes and all authority
+checks. The proof observes a new courier PID and increased manager restart count
+before releasing the fault, then requires the Arrow result within the original
+60-second window. It passes with 292 refused reads and one replacement after
+30.261 s, followed by the existing same-PID worker recovery, upgrades, Board and
+persistent stop/start assertions. The proxy restores the original configuration
+and joins its threads. The full ordinary gate still requires all five lanes at
+the final committed source.
+
+The counter launcher proof also passes with the new policy, including an explicit
+courier stop that preserves its queued outbox until explicit restart, authority
+restart, same-PID replacement and foreground cleanup. Full `just check` passes.
+A negative control disables only the Station courier restart policy: the real
+injected-outage proof fails at `Courier did not recover after failed readiness
+probes`. The driver restores the topology and stops its owned failed installation.
+This is detection of the removed lifecycle guard, not an unrelated build or
+timeout failure. Final catalog and documentation checks pass separately.
+
+Clean experience at `8b1be77e` passes all seven tasks in 516.624 seconds including
+setup. Its Station launcher observes 292 refused delivery reads, one automatic
+courier replacement after 30.284 seconds and the Arrow reply within the original
+60-second window. The remaining ordinary lanes are separate until their full
+completion records are available.
+
+Hosted [run 36796408660](https://github.com/rupurt/rey/actions/runs/36796408660)
+executes jobs; the earlier account restriction no longer prevents this run.
+Experience fails its first task because its reduced Nix Python environment lacks
+`jsonschema`. Bindings fails while restoring the Nix store with `No space left
+on device`, before any test executes. These are failed qualifications. The CI
+shells now include the validator from the existing lock, and disposable hosted
+runners reclaim unused SDK space before cache extraction, including exact hits.
+Self-hosted runners retain their software. Both corrected Python environments,
+the full Board check in the reduced experience shell, `just doctor` and full
+`just check` pass locally; hosted correction evidence remains separate.
+
+Cost accounting also distinguishes the intentionally skipped documentation-only
+job from the full matrix that already owns the documentation proof. Its regression
+requires all five lane names before excluding that alternative job and rejects a
+missing or skipped required lane. This correction does not convert failed jobs
+or unknown cache transfers into budget qualification.
+
+Clean core at `8b1be77e` then passes all 22 tasks in 1,160.532 seconds including
+setup. Together with experience, this is 29 tasks at one revision. Growth passes
+Arrow, pages and authority growth, then the Station caller exits with
+`AuthorityTimeout`. This is not its outer 240-second timeout: the node records a
+6.72-second successful turn followed by a failed page stage and request timeout.
+The underlying provider delay remains unattributed. That attempt has 32 passing
+tasks, one failed task and 35 unrun tasks; bindings and launchers do not execute.
+
+The separate clean experience attempt at CI-setup commit `151772ac` passes six
+tasks, then misses the Station Arrow reply's original 60-second window after the
+injected courier outage. The manager replaces the courier, but node logs record
+storage read/write failures, request timeouts and capacity refusals after release.
+The original reply is later present without resubmission or manual replacement.
+This later observation does not pass the deadline. Logs, process status and the
+stopped installation remain retained; the cause of storage unavailability is not
+established by these observations.
+
+Hosted run `36796408660` executes synthetic merge `7ee3c04b`, combining PR head
+`8b1be77e` with main `5c98499e`. Its core lane passes all 22 tasks in 1,196.95
+seconds excluding setup. Growth passes seven tasks, then Docker exits 125 before
+the combined Table fixture starts. A separate registry lookup confirms that its
+pinned historical MinIO digest has no manifest. The run takes 1,762 seconds from
+creation to completion and 4,366 aggregate runner seconds. The bindings log is
+unavailable after its runner disk failure, so total restored bytes are unknown;
+this failed run does not qualify a cost budget. Cost collection now preserves
+available job measurements when another job's log is missing and distinguishes
+fallback cache restores from a complete warm sample.
+
+Hosted launchers fails its initial consumed/admitted assertion without recording
+the row. Independent controlled scheduling reproduces a race in the original
+observer: it samples process progress before the counter value, then returns the
+old row when the turn commits between reads. The corrected helper samples the
+value first and progress afterward, retaining the 30-second polling limit. Four
+controlled cases pass, including stalled and metadata-only observations, and the
+full native counter launcher proof passes from a short checkout based on
+`151772ac`. The hosted row's original operands remain unavailable. An earlier
+focused attempt in the long worktree path fails the explicit Unix-socket path
+bound before launching the manager; that attempt is not lifecycle evidence.
+
+At committed `151772ac`, all nine component mutations are detected by executed
+assertions: Document conflicts/checkpoint floors, Exchange holds, refresh
+generation, provider readiness and four catalog policy/receipt/inspection/cursor
+guards. Compilation failures and timeouts do not count as detections.
+
+Cold-store fixtures now start the same native MinIO output already used by the
+local bundle. The former bundle definition and extracted shared Nix definition
+resolve to the identical store path and binary hash; source/vendor pins and
+`flake.lock` are unchanged. Actual startup, repeated owned-bucket creation and
+the six controlled readiness/rejection cases pass. The first combined Table
+proof with native cold storage proceeds past startup, then fails on
+`StaleStateResource` in its progress observation. Main's focused correction
+`88d7ab7d` supplies a progress-only query and prepares the mutation before holding
+the snapshot read; these fixture changes are brought over without changing the
+runtime or broadening the declared snapshot deadline.
+
+The corrected combined Table proof passes in 45.231 seconds with two recovered
+initialization receipts, 70 turns and a 0.547-second held snapshot. The native
+cold-page proof passes write, recovery, checkpoint and trim recovery with 1,024
+keys, 1 MiB of retained values, two resident pages and 20 persisted cold chunks.
+The physical capacity proof reaches real ENOSPC after query acceptance and passes
+finite control/shutdown and exact recovery in 18.62 seconds. Native-provider
+lifecycle checks join the real child and remove its owned data, including failed
+startup. Full `just check` and `just doctor` pass on the corrected development
+source based on `151772ac`; the experiment record binds the changed source hashes.
+Initial stale image imports and ambient-tool assumptions in CLI diagnostics are
+retained as failed attempts and corrected before these passes. These focused
+results do not replace committed-source clean or hosted qualification.
+
+Discovery retains the exact thirteen commands and exploration arguments formerly
+appended to ordinary bindings. The fault workflow now selects that campaign weekly
+or on demand, with separate 3,600-second stage and 180-minute job limits. A real
+runner-entry regression completes stage one, fails stage two deliberately and
+requires incomplete evidence with no later execution. The larger ordinary job
+caps permit measuring expanded inventories; they do not change task-local
+deadlines or qualify the historical feedback budgets.
+
+Clean experience at `1f76bf3b` passes all seven tasks in 523.220 seconds including
+setup, with 292 courier read refusals, replacement after 30.276 seconds and the
+Arrow reply within the original deadline. Core passes twelve tasks before its
+package build is deliberately interrupted to integrate main at `2704c153` after
+new PR conflicts. Its completion record remains false; growth, bindings and
+launchers are unrun at that checkpoint. The stopped checkout retains evidence
+and has no remaining owned processes. Hosted discovery run
+[36801433218](https://github.com/rupurt/rey/actions/runs/36801433218) uses the
+unchanged `1f76bf3b` source and is incomplete at this recording.
+
+Integration preserves main's SQL console write/recovery cases and the controlled
+missing-MinIO diagnostic environment. Full `just check` passes on the merged
+development source. Clean qualification of the merged commit remains separate
+from the superseded run.
+
+The first merged combined Table attempt fails its 45-second console wait while
+MinIO rejects cold writes with HTTP 507 `XMinioStorageFull`. The pinned provider
+reserves 1% of its filesystem's total capacity; the shared 1.97 TB filesystem has
+fallen below that reserve. Removing rebuildable outputs and dependencies from
+stopped, owned qualification checkouts restores space while retaining source,
+logs, proof records and database state. The same proof then passes in 65.916
+seconds: 105 turns, two recovered initialization receipts, a 0.504-second held
+snapshot and all added SQL-write interruption/recovery/cancellation cases. No
+assertion, request deadline or provider capacity guard changes between attempts.
+
 ## Expanded fault-verification qualification — 2026-09-30
 
 The [local experiment record](verification/results/m37-local-2026-09-30.json)

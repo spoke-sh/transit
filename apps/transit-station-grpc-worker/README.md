@@ -66,3 +66,5 @@ without complete capture closes unknown, even if the process was killed before
 opening its socket. Complete captured evidence can resume local observation and
 publication. A retired caller's route is permanent; a new PID cannot receive it.
 The exact schedules and timings are in the [test guide](../../tests/README.md).
+`just test::grpc-control` runs the finite work-cutoff and blocked-peer closure
+portion in its own disposable disk installation.

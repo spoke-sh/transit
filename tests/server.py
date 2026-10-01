@@ -16,22 +16,8 @@ import time
 import urllib.error
 import urllib.request
 
-from cold_storage import IMAGE
+from cold_storage import minio_binary
 from storage import free_port
-
-
-def minio_binary():
-    """Fixture setup only. The server itself receives a native executable path."""
-    path = Path(".cache/dependencies/minio-14cea493").resolve()
-    if not path.exists():
-        path.parent.mkdir(parents=True, exist_ok=True)
-        container = subprocess.check_output(["docker", "create", IMAGE], text=True).strip()
-        try:
-            subprocess.run(["docker", "cp", container + ":/usr/bin/minio", str(path)], check=True)
-            path.chmod(0o755)
-        finally:
-            subprocess.run(["docker", "rm", container], check=True, stdout=subprocess.DEVNULL)
-    return path
 
 
 def children(pid):

@@ -78,6 +78,11 @@ rust-build: build
     cargo fetch --locked --manifest-path examples/station-sdk/rust/Cargo.toml
     python3 -B bindings/build_rust.py .cache/bindings/rust
 
+# Stress installed Rust runner destruction on fresh malformed inputs.
+rust-lifetime cases="128": rust-build
+    zig build transit-node rey-cli
+    python3 -B tests/rust_station_lifetime.py --cases {{quote(cases)}}
+
 # Build clean Rust consumers; run from the bindings shell.
 rust-sdk-test: rust-build
     cargo fmt --manifest-path packages/rust/transit-client/Cargo.toml --check

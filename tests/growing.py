@@ -48,9 +48,9 @@ def main():
         with ExitStack() as resources:
             cold = None
             if args.cold_s3:
-                from cold_storage import ColdStore, IMAGE
+                from cold_storage import ColdStore
                 cold = resources.enter_context(ColdStore())
-                evidence["cold_image"] = IMAGE
+                evidence["cold_provider"] = cold.identity
             fixture = resources.enter_context(Fixture(cold.config() if cold else None))
             evidence['filesystem'] = subprocess.check_output(['stat', '-f', '-c', '%T', fixture.root], text=True).strip()
             for phase in ("write", "recover", "checkpoint", "trim_recover"):

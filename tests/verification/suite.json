@@ -208,7 +208,9 @@
       "bindings::catalog-java",
       "bindings::catalog-dotnet",
       "bindings::catalog-beam",
-      "test::catalog-growth"
+      "test::catalog-growth",
+      "bindings::rust-lifetime",
+      "test::grpc-control"
     ]
   },
   "nested_tasks": {

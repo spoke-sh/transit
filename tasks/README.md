@@ -55,6 +55,7 @@ reference deployment and physical-capacity tests remain explicit commands.
 | `just launchers::local::test`, `just launchers::compose::test` | Qualify persistence, duplicate-safe provisioning, fresh ownership and missing-store refusal in isolated installations |
 | `just transit-board::query-test`, `just transit-board::query-browser` | Qualify the optional growing query API and real Canvas/Browse workspace, exact integers and live revocation |
 | `just test::public-query` | Exercise the real query shell/hosts, exact retry, fenced recovery and current authorization over disk Ursula |
+| `just test::grpc-control` | Focus finite work expiry and bounded closure with an active blocked RPC; also included in `test::grpc-faults` |
 | `just test::flight` | Qualify native TLS Flight SQL through pinned PyArrow and ADBC Python/C consumers |
 | `just test::flight-outbound` | Record a TLS Flight effect through the RPC worker and replay typed Arrow after node/store loss with the peer stopped |
 | `just test::unified-query` | Run signed v1 source/requester recovery fixtures; optionally select a source with `-Dunified-source=kv`, `table` or `document` |
@@ -99,7 +100,7 @@ reference deployment and physical-capacity tests remain explicit commands.
 | `just test::scheduler-simulation`, `just test::scheduler-simulation-mutations` | Schedule shared Session/courier calls with request/reply loss, ownership, trusted time and mutation controls |
 | `just test::domain-simulation`, `just test::domain-simulation-mutations` | Replay bounded Document, Exchange, refresh, runtime and catalog contract schedules and qualify their assertions with real-code mutations |
 | `just test::vortex [--seed N --rounds N]` | Inject external network/process faults into owned node, worker, courier and disk Ursula; preserve histories and cleanup evidence |
-| `just test::vortex-profile sdk\|application\|query\|reactive` | Qualify installed Python/Node hosts, local installation/migration, distinct query lifetimes or browser refresh through existing owned rigs |
+| `just test::vortex-profile sdk\|application\|query\|reactive\|discovery` | Qualify selected external hosts/lifecycles, or run the separate expanded discovery campaign with retained stage outcomes and finite limits |
 | `just test::resource-simulation-smoke`, `just test::resource-simulation [--seeds N --exhaustive]` | Replay saved page faults or enumerate numbered staging/read/publication/trim interruptions with an independent resource oracle |
 | `just test::resource-simulation-mutations` | Detect omitted resource writes and input progress in isolated committed core mutants |
 | `just test::properties [--seeds N --steps N]` | Runs saved and generated authority schedules; failures retain a minimized replay trace |
@@ -108,10 +109,10 @@ reference deployment and physical-capacity tests remain explicit commands.
 | `just test::growing-quota` | Checks service/Station admission refusal, retained backlog and reserve exhaustion across disk restart |
 | `just test::growing-capacity` | Uses an owned Docker/ext4 fixture to qualify growing pages, ENOSPC, physical reserve release and control/recovery progress |
 | `just test::pages [--keys N --cache N --layout packed\|closed]` | Checks immutable page roots through disk restart and checkpoint/trim with a bounded cache; records measurements |
-| `just test::pages-cold [--keys N --cache N]` | Linux/Docker: repeats the page proof with an owned persistent S3-compatible cold store and measures both providers |
+| `just test::pages-cold [--keys N --cache N]` | Linux x86_64: repeats the page proof with pinned native MinIO and measures both providers |
 | `just test::growing [--rows N --cold-s3]` | Proves v1 growing-authority atomic publication, retained reads/receipts and restart/checkpoint/trim against disk Ursula; service integration remains separate |
 | `just test::growing-load` | Measures independently offered public v1 requests, queueing, revocation latency, exact retries, state drain and restart |
-| `just test::scale [--repeat N]` | Runs the declared repeated growth/load matrix with disk Ursula and an owned Docker cold store; retains each sample |
+| `just test::scale [--repeat N]` | Runs the declared repeated growth/load matrix with disk Ursula and pinned native MinIO; retains each sample |
 | `just test::growing-service` | Qualifies the explicit v1 node/client profile, bounded state access and uncertain reply recovery on one CPU using ReleaseSafe binaries |
 | `just test::query [--finish-pages N]` | Focuses query capture, sealing, publication and partial-consumption recovery using ReleaseSafe binaries; included in the growing service proof |
 | `just test::growing-station` | Focuses growing Station calls, retained Table sources and recovery; also included in the full growing service proof |
@@ -163,6 +164,16 @@ For prerequisites, proof boundaries, and troubleshooting, use the
 
 `just test::inspection` exercises the signed, bounded public read surface against
 isolated disk-backed Ursula.
+
+For repeated installed Rust runner destruction, use
+`nix develop .#bindings --command just bindings::rust-lifetime 256`.
+The focused task accepts 1–1024 fresh malformed-input cases (default 128);
+ordinary Rust SDK qualification also checks retained native code mappings.
+The consumer is installed once and exercised in independent disk-backed fixtures
+of at most 32 cases. Each fixture verifies its history before joined cleanup;
+the test does not increase storage quotas or reset accepted work within a history.
+Use an owned disk-backed `TMPDIR` for large consumer builds, as the clean suite
+does. See the [proof ledger](../tests/README.md#rust-native-lifetime-investigation--2026-09-30).
 
 ## Public documentation
 

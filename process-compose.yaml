@@ -72,6 +72,9 @@ processes:
 
   delivery:
     <<: *managed
+    # Readiness loss can terminate this stateless courier. Reconstruct pending
+    # delivery from current authority after replacement, with the same identity.
+    availability: {restart: "on_failure", backoff_seconds: 1}
     command: 'exec {{.PYTHON_Q}} -B {{.ROOT_Q}}/launchers/main.py local service --name {{.NAME_Q}} delivery 2>&1'
     log_location: '{{.STATE_DIR}}/delivery.log'
     environment: ['LOG_LEVEL={{.DELIVERY_LOG_LEVEL}}', 'LOG_FORMAT={{.DELIVERY_LOG_FORMAT}}']

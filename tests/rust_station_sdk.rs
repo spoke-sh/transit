@@ -306,6 +306,8 @@ fn save_owned(shared: &Shared, output: &str) -> Result<()> {
     }
     Ok(())
 }
+mod native_lifetime;
+
 fn drive<M: 'static, H: Handler<M>>(
     cfg: Value,
     mode: &str,
@@ -350,6 +352,8 @@ fn drive<M: 'static, H: Handler<M>>(
         return Ok(());
     }
     let mut runner = opened?;
+    let native_images = native_lifetime::mappings();
+    assert_eq!(native_images.len(), 2);
     if mode == "async" {
         assert!(!matches!(
             runner.next()?,
@@ -525,6 +529,7 @@ fn drive<M: 'static, H: Handler<M>>(
         }
     }
     runner.close().map_err(|error| error.error)?;
+    native_lifetime::retained(&native_images);
     Ok(())
 }
 fn codecs(cfg: &Value) -> Result<()> {

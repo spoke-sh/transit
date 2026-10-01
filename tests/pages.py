@@ -48,7 +48,7 @@ def main():
     parser.add_argument("--keys", type=int, default=64)
     parser.add_argument("--cache", type=int, default=2)
     parser.add_argument("--layout", choices=("closed", "packed"), default="packed")
-    parser.add_argument("--cold-s3", action="store_true", help="qualify persistent cold storage using owned Docker MinIO")
+    parser.add_argument("--cold-s3", action="store_true", help="qualify persistent cold storage using pinned native MinIO")
     parser.add_argument("--timeout", type=float, default=120)
     args = parser.parse_args()
     root = Path(__file__).resolve().parents[1]
@@ -68,9 +68,9 @@ def main():
         with ExitStack() as resources:
             cold = None
             if args.cold_s3:
-                from cold_storage import ColdStore, IMAGE
+                from cold_storage import ColdStore
                 cold = resources.enter_context(ColdStore())
-                evidence["cold_image"] = IMAGE
+                evidence["cold_provider"] = cold.identity
             fixture = resources.enter_context(Fixture(cold.config() if cold else None))
             for i, phase in enumerate(("write", "recover", "checkpoint", "trim_recover")):
                 if i:

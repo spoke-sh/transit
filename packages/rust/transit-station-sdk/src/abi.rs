@@ -44,10 +44,10 @@ pub struct Api {
     pub station_growing_arrow_cell: unsafe extern "C" fn(*const u8, usize, u32, u32, *mut *mut station_buffer) -> u32,
     pub station_buffer_size: unsafe extern "C" fn(*const station_buffer) -> usize,
     pub station_buffer_destroy: unsafe extern "C" fn(*mut station_buffer) -> (),
-    _library: libloading::Library,
+    _library: std::sync::Arc<libloading::Library>,
 }
 impl Api {
-    pub unsafe fn load(library: libloading::Library) -> Result<Self, libloading::Error> {
+    pub unsafe fn load(library: std::sync::Arc<libloading::Library>) -> Result<Self, libloading::Error> {
         Ok(Self {
             station_catalog_create: *unsafe { library.get(b"station_catalog_create\0")? },
             station_catalog_destroy: *unsafe { library.get(b"station_catalog_destroy\0")? },
