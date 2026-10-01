@@ -2341,6 +2341,82 @@ requires all five lane names before excluding that alternative job and rejects a
 missing or skipped required lane. This correction does not convert failed jobs
 or unknown cache transfers into budget qualification.
 
+Clean core at `8b1be77e` then passes all 22 tasks in 1,160.532 seconds including
+setup. Together with experience, this is 29 tasks at one revision. Growth passes
+Arrow, pages and authority growth, then the Station caller exits with
+`AuthorityTimeout`. This is not its outer 240-second timeout: the node records a
+6.72-second successful turn followed by a failed page stage and request timeout.
+The underlying provider delay remains unattributed. That attempt has 32 passing
+tasks, one failed task and 35 unrun tasks; bindings and launchers do not execute.
+
+The separate clean experience attempt at CI-setup commit `151772ac` passes six
+tasks, then misses the Station Arrow reply's original 60-second window after the
+injected courier outage. The manager replaces the courier, but node logs record
+storage read/write failures, request timeouts and capacity refusals after release.
+The original reply is later present without resubmission or manual replacement.
+This later observation does not pass the deadline. Logs, process status and the
+stopped installation remain retained; the cause of storage unavailability is not
+established by these observations.
+
+Hosted run `36796408660` executes synthetic merge `7ee3c04b`, combining PR head
+`8b1be77e` with main `5c98499e`. Its core lane passes all 22 tasks in 1,196.95
+seconds excluding setup. Growth passes seven tasks, then Docker exits 125 before
+the combined Table fixture starts. A separate registry lookup confirms that its
+pinned historical MinIO digest has no manifest. The run takes 1,762 seconds from
+creation to completion and 4,366 aggregate runner seconds. The bindings log is
+unavailable after its runner disk failure, so total restored bytes are unknown;
+this failed run does not qualify a cost budget. Cost collection now preserves
+available job measurements when another job's log is missing and distinguishes
+fallback cache restores from a complete warm sample.
+
+Hosted launchers fails its initial consumed/admitted assertion without recording
+the row. Independent controlled scheduling reproduces a race in the original
+observer: it samples process progress before the counter value, then returns the
+old row when the turn commits between reads. The corrected helper samples the
+value first and progress afterward, retaining the 30-second polling limit. Four
+controlled cases pass, including stalled and metadata-only observations, and the
+full native counter launcher proof passes from a short checkout based on
+`151772ac`. The hosted row's original operands remain unavailable. An earlier
+focused attempt in the long worktree path fails the explicit Unix-socket path
+bound before launching the manager; that attempt is not lifecycle evidence.
+
+At committed `151772ac`, all nine component mutations are detected by executed
+assertions: Document conflicts/checkpoint floors, Exchange holds, refresh
+generation, provider readiness and four catalog policy/receipt/inspection/cursor
+guards. Compilation failures and timeouts do not count as detections.
+
+Cold-store fixtures now start the same native MinIO output already used by the
+local bundle. The former bundle definition and extracted shared Nix definition
+resolve to the identical store path and binary hash; source/vendor pins and
+`flake.lock` are unchanged. Actual startup, repeated owned-bucket creation and
+the six controlled readiness/rejection cases pass. The first combined Table
+proof with native cold storage proceeds past startup, then fails on
+`StaleStateResource` in its progress observation. Main's focused correction
+`88d7ab7d` supplies a progress-only query and prepares the mutation before holding
+the snapshot read; these fixture changes are brought over without changing the
+runtime or broadening the declared snapshot deadline.
+
+The corrected combined Table proof passes in 45.231 seconds with two recovered
+initialization receipts, 70 turns and a 0.547-second held snapshot. The native
+cold-page proof passes write, recovery, checkpoint and trim recovery with 1,024
+keys, 1 MiB of retained values, two resident pages and 20 persisted cold chunks.
+The physical capacity proof reaches real ENOSPC after query acceptance and passes
+finite control/shutdown and exact recovery in 18.62 seconds. Native-provider
+lifecycle checks join the real child and remove its owned data, including failed
+startup. Full `just check` and `just doctor` pass on the corrected development
+source based on `151772ac`; the experiment record binds the changed source hashes.
+Initial stale image imports and ambient-tool assumptions in CLI diagnostics are
+retained as failed attempts and corrected before these passes. These focused
+results do not replace committed-source clean or hosted qualification.
+
+Discovery retains the exact thirteen commands and exploration arguments formerly
+appended to ordinary bindings. The fault workflow now selects that campaign weekly
+or on demand, with separate 3,600-second stage and 180-minute job limits. A real
+runner-entry regression completes stage one, fails stage two deliberately and
+requires incomplete evidence with no later execution. The larger ordinary job
+caps permit measuring expanded inventories; they do not change task-local
+deadlines or qualify the historical feedback budgets.
+
 ## Expanded fault-verification qualification — 2026-09-30
 
 The [local experiment record](verification/results/m37-local-2026-09-30.json)
