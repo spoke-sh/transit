@@ -11060,3 +11060,66 @@ larger-input timing matrices, current committed-head clean lanes and installed
 qualification are not implied by these focused passes. Adjacent Station/growing
 fixture qualification stays with #53/#60; unmerged proof-allowance changes are not
 applied here.
+
+### File-alias lowering follow-up
+
+Commits `818758a0` and `2cbd1a00` borrow output-name metadata from the owned
+syntax tree during lowering and resolve aggregate inputs directly through the
+projection. The compiled file plan still owns its names. An ownership regression
+compiles and destroys another named query before inspecting the first plan.
+Generated `SqlLowering.project` code removes a 432-byte projection copy and
+reduces its stack frame from 792 to 184 bytes; the temporary 128-entry name
+array used for aggregate resolution is also removed.
+
+The [lowering measurement archive](benchmarks/results/2026-10-01-file-alias-lowering.json.gz)
+retains six reports and all **1836 correct results**, exact drivers, binary
+hashes, source patches and assembly. Production hashes are checked against
+`818758a0` or `2cbd1a00`; the earlier intermediate borrowing experiment retains
+its exact patch against `c3e39c3a`. Reports distinguish successful result checks
+from the existing 1.15 timing limit. The workload, nine alternating pairs, CPU 1,
+4096 rows, 4 GiB address-space ceiling and 300-second timeout are unchanged.
+
+- Initial borrowing experiment: 54 narrow-shape samples against the previous
+  implementation; compiler ratios 0.8581–0.9141 and pipeline 1.0088–1.0130.
+- Final borrowing against main: 486 samples; **6/27 compiler cases exceed 1.15**
+  (range 0.9542–1.1751). All pipeline cases meet it (0.9805–1.0318).
+- Direct projection resolution against the borrowing revision: 162 unchanged
+  filter samples across narrow/sparse/gzip shapes. Compiler ratios are mixed,
+  0.8829–1.0903; pipeline ratios 0.9843–1.0145.
+- Final warm-input filter against main: 486 samples; all 27 compiler ratios
+  (0.9266–1.1452) and 27 pipeline ratios (0.9495–1.0176) meet 1.15.
+- Final cold-input filter against main: 486 samples; all pipeline ratios meet
+  1.15 (0.9836–1.0107). **Three compiler cases exceed it**: sparse/explicit
+  1.1542, decimal/sampled 1.2279 and gzip/full 1.1549. Cold-input conditioning
+  is the harness's file-cache request, not proof of cold physical storage.
+- Derived aliased SUM against the borrowing revision: 162 samples across
+  narrow/sparse/gzip; compiler ratios 0.8680–1.0273 and pipeline 0.9895–1.0110.
+  Both binaries execute the same renamed inner projection and outer aggregate.
+
+The earlier failed timing cases remain in their original archive. The completed
+warm filter matrix does not establish the remaining cold/query/size matrices or
+an overall performance pass. Microsecond compilation timings remain one call per
+process on a shared host, rather than steady-state throughput measurements.
+
+At `818758a0`, full `just check`, independent SQL, 108 file CLI cases and 103
+PyArrow cases pass, exit 0; log `/tmp/transit-sql-file-alias-borrowed-check.log`.
+At `2cbd1a00`, Fuze units pass, but full `just check` fails in console history:
+after Ctrl-C clears a history search, `console_history.py:174` receives no new
+prompt within the existing deadline. The cause is not established. The original
+chained SQL/file/Arrow tasks were unrun; log
+`/tmp/transit-sql-file-alias-direct-check.log`. This failure is not a passed
+qualification or attributed to the lowering changes.
+
+A separate focused run at the same `2cbd1a00` source passes `just test::sql`,
+all 108 real file CLI cases and all 103 PyArrow cases, exit 0. It retains the
+134 AST / 105 plan / 44 independent result counts and the 192 MiB input under
+96 MiB address-space check. Log:
+`/var/tmp/transit-sql-file-alias-submit-focused.log`. These focused passes do
+not resolve or replace the failed full check.
+
+The prior committed-HEAD clean core at `c3e39c3a` completes **22/22 tasks in
+1185.49 seconds**, exit 0. Its metadata and exact task inventory are verified
+and retained in the lowering archive. Log:
+`/tmp/transit-sql-file-alias-clean-core.log`. This precedes the two lowering
+optimizations and does not qualify their final source. Current clean lanes,
+the console failure and remaining performance limits stay open.
