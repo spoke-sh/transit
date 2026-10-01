@@ -2483,7 +2483,7 @@ new PR conflicts. Its completion record remains false; growth, bindings and
 launchers are unrun at that checkpoint. The stopped checkout retains evidence
 and has no remaining owned processes. Hosted discovery run
 [36801433218](https://github.com/rupurt/rey/actions/runs/36801433218) uses the
-unchanged `1f76bf3b` source and is incomplete at this recording.
+unchanged `1f76bf3b` source. Its subsequent completion is recorded below.
 
 Integration preserves main's SQL console write/recovery cases and the controlled
 missing-MinIO diagnostic environment. Full `just check` passes on the merged
@@ -2499,6 +2499,58 @@ logs, proof records and database state. The same proof then passes in 65.916
 seconds: 105 turns, two recovered initialization receipts, a 0.504-second held
 snapshot and all added SQL-write interruption/recovery/cancellation cases. No
 assertion, request deadline or provider capacity guard changes between attempts.
+
+## Hosted discovery completion — 2026-10-01
+
+Hosted [run 36801433218](https://github.com/rupurt/rey/actions/runs/36801433218)
+passes all thirteen discovery stages at clean `1f76bf3b`, using pinned Zig
+`0.17.0-dev.2267+48abf1a34`. The [experiment record](verification/results/m37-hosted-discovery-2026-10-01.json)
+preserves the downloaded reports, source/binary/oracle identities, commands,
+trace hashes, job metadata and an SHA-256 manifest of the 492 artifact files.
+
+| Executed profile | Result |
+| --- | --- |
+| Finite model | 91,981 states; four removed guards detected and counterexamples replayed against Zig |
+| Single-process properties | 264 traces / 33,255 steps |
+| Authority/delivery simulation | 70 traces / 10,535 events, identical replay |
+| Resource simulation | 402 traces / 7,804 events, identical replay; four seeds with sampled fault points |
+| Session/courier simulation | 20 traces / 3,274 events, identical replay |
+| Component simulation | 80 schedules across five implementation owners, identical replay |
+| External supervisor | Seed 19, sixteen completed rounds against disk Ursula; cleanup passed |
+| Codec fuzzing | Registered `--fuzz=10K` command completed successfully |
+| Compiling production mutations | All nineteen mutants detected across five campaigns |
+
+The resource campaign records `exhaustive: false`; it does not repeat the earlier
+exhaustive sweep. Authority/resource/scheduler reports retain trace digests and
+generator configurations, but the successful concrete JSON inputs are not in this
+artifact. Reproducing those inputs requires the recorded generator/source;
+concrete failure traces remain supported. Component event records and external
+histories are retained in the downloadable artifact.
+
+Campaign execution takes 1,044.621 seconds, job wall time 1,483 seconds and
+workflow creation-to-completion 1,490 seconds. The compressed artifact is 354,942
+bytes and has the workflow's fourteen-day retention. These are one discovery
+sample's measurements, not ordinary feedback or cache-budget qualification.
+The later PR #45 head `164b808f` and merge `9fdf1d02` are different revisions;
+their ordinary checks remain separately tracked by
+[issue #26](https://github.com/rupurt/rey/issues/26).
+
+The [qualification handoff record](verification/results/m37-qualification-handoff-2026-10-01.json)
+retains the first three completed clean lanes at `164b808f`: launchers (two tasks,
+333.992 seconds), experience (seven tasks, 494.358 seconds) and core (22 tasks,
+782.916 seconds), including setup. Growth is running and bindings is unrun at
+this checkpoint; these 31 passes do not complete the 68-task ordinary gate.
+
+Hosted [ordinary run 36803044000](https://github.com/rupurt/rey/actions/runs/36803044000)
+uses synthetic merge `03ab0209`, whose source tree matches merged main `9fdf1d02`.
+Launchers passes both tasks in 1,038.43 seconds and experience passes all seven
+ordinary tasks in 1,011.62 seconds, excluding setup. The experience job then
+fails its first separate browser task in 81.74 seconds: five Board tests do not
+observe expected headings or committed-state text within their original
+five-second assertion limits. Six later browser tasks are unrun. Other hosted
+lanes are still running at this recording. The downloaded logs and timing
+metadata establish the failure; the upload omits Playwright's error-context
+files, and its cause remains unresolved. This is not a complete hosted pass.
 
 ## Expanded fault-verification qualification — 2026-09-30
 

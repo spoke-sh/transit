@@ -17,8 +17,8 @@ concurrency:
 jobs:
   qualify:
     runs-on: ${{ vars.TRANSIT_CI_RUNNER || 'ubuntu-24.04' }}
-    # Exploration includes the measured 31-minute resource sweep. It owns a
-    # separate finite job cap; this is not an ordinary feedback qualification.
+    # Exploration owns a separate finite cap. The registered resource campaign
+    # samples fault points; this is not an ordinary feedback qualification.
     timeout-minutes: ${{ (github.event_name == 'schedule' || inputs.profile == 'discovery') && 180 || 60 }}
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2

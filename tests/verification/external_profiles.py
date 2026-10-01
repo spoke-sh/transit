@@ -61,8 +61,8 @@ def main():
     started = time.monotonic()
     try:
         for index, command in enumerate(profiles[args.profile]):
-            # The measured exhaustive resource sweep takes over 30 minutes.
-            # Exploration has its own cap; real fault/progress deadlines inside
+            # Exploration has its own cap; the registered resource sweep samples
+            # fault points. Real fault/progress deadlines inside
             # each task and the existing external profiles remain unchanged.
             stage = dict(command=command, completed=False,
                          timeout_seconds=3600 if args.profile == 'discovery' else 900)
