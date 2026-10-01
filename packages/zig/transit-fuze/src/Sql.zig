@@ -212,18 +212,20 @@ fn statement(parser: *Parser, ast: *Ast) !void {
     try parser.advance();
     if (!parser.word("SELECT")) return error.UnsupportedStatement;
     try parser.advance();
-    const selection = try parser.selection();
-    const output_alias = if (selection == .rows) null else try parser.outputAlias();
-    if (parser.assistance) |h| h.aggregate = selection != .rows;
+    ast.* = .{ .source = undefined, .selection = .count };
+    try parser.selection(&ast.selection);
+    ast.output_alias = if (ast.selection == .rows) null else try parser.outputAlias();
+    if (parser.assistance) |h| h.aggregate = ast.selection != .rows;
     try parser.requireWord("FROM");
-    const derived = if (selection == .rows and parser.token.tag == .cursor) false else try parser.take(.left);
+    const derived = if (ast.selection == .rows and parser.token.tag == .cursor) false else try parser.take(.left);
     if (derived) {
-        if (selection == .rows) return error.UnsupportedConstruct;
+        if (ast.selection == .rows) return error.UnsupportedConstruct;
         if (parser.assistance) |h| h.aggregate = false;
         try parser.requireWord("SELECT");
-        const projected = try parser.projection();
+        var projected: Projection = undefined;
+        try parser.projection(&projected);
         try parser.requireWord("FROM");
-        ast.* = .{ .source = try parser.name(), .selection = selection, .output_alias = output_alias };
+        ast.source = try parser.name();
         if (parser.assistance) |h| h.source = ast.source;
         ast.source_alias = try parser.sourceAlias();
         try parser.predicate(&ast.predicate);
@@ -237,7 +239,7 @@ fn statement(parser: *Parser, ast: *Ast) !void {
         try parser.end();
         return;
     }
-    ast.* = .{ .source = try parser.name(), .selection = selection, .output_alias = output_alias };
+    ast.source = try parser.name();
     if (parser.assistance) |h| h.source = ast.source;
     ast.source_alias = try parser.sourceAlias();
     try parser.predicate(&ast.predicate);
@@ -449,38 +451,39 @@ const Parser = struct {
         }
         return .{ .name = first };
     }
-    fn projection(self: *Parser) !Projection {
-        var result: Projection = @splat(null);
-        if (try self.take(.star)) return result;
-        for (&result, 0..) |*column_value, index| {
+    fn projection(self: *Parser, result: *Projection) !void {
+        result.* = @splat(null);
+        if (try self.take(.star)) return;
+        for (result, 0..) |*column_value, index| {
             const column_ref = try self.column();
             column_value.* = .{ .column = column_ref, .alias = try self.outputAlias() };
             if (index + 1 == result.len) {
                 if (self.token.tag == .comma) return error.InvalidProjection;
-                return result;
+                return;
             }
-            if (!try self.take(.comma)) return result;
+            if (!try self.take(.comma)) return;
         }
         unreachable;
     }
-    fn selection(self: *Parser) !Selection {
+    fn selection(self: *Parser, result: *Selection) !void {
         const count = self.word("COUNT");
         if (count or self.word("SUM")) {
             try self.advance();
             try self.require(.left);
-            const result: Selection = if (count) blk: {
+            if (count) {
                 try self.require(.star);
-                break :blk .count;
-            } else value: {
+                result.* = .count;
+            } else {
                 if (self.assistance) |h| h.sum_only = true;
                 const column_value = try self.column();
                 if (self.assistance) |h| h.sum_only = false;
-                break :value .{ .sum = column_value };
-            };
+                result.* = .{ .sum = column_value };
+            }
             try self.require(.right);
-            return result;
+            return;
         }
-        return .{ .rows = try self.projection() };
+        result.* = .{ .rows = undefined };
+        try self.projection(&result.rows);
     }
     fn predicate(self: *Parser, result: *Predicate) !void {
         // statement initializes the absent predicate; do not clear the entire
