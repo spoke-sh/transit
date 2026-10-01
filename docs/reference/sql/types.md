@@ -200,6 +200,6 @@ cannot open a pathname or create authorization. See the
 ownership, exact modes and failures, and the
 [source contract](../../../contracts/FUZE_SOURCE_V1.md) for neutral encoding.
 
-The [performance reference](../performance.md#planned-schema-on-demand-comparisons)
+The [performance reference](../performance.md#schema-on-demand-measurements)
 separates source measurements from existing native query timings. DuckDB is a
 pinned development comparator, without any Transit runtime dependency.
