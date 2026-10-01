@@ -11560,3 +11560,30 @@ The archive keeps the exact patch, all six reports, drivers and audited medians.
 Logs `/var/tmp/transit-count-discovery-arena-check-build.log`,
 `/var/tmp/transit-count-discovery-arena-units.log` and
 `/var/tmp/transit-count-discovery-arena-comparison.log`.
+
+The `53945c67` implementation reuses descriptor validation while lowering a
+compiler-owned immutable schema. `Type.clone` and binding metadata checks remain;
+the private plan-shape check validates projection, names, aggregates and predicates.
+Public typed-plan admission still validates both schema and shape. Boundary tests
+reject duplicate fields, invalid decimal descriptors and changed binding identity;
+an already compiled plan retains its owned descriptor after the source binding is
+changed. Fuze package tests and all **162 real file CLI cases** pass. The frozen
+probe rebuilt after adding these tests is byte-identical. Full integrated
+`just check` passes in `/var/tmp/transit-count-plan-validation-integrated-check.log`.
+
+The [compiler-validation comparison](benchmarks/results/2026-10-01-count-values-plan-validation.json.gz)
+retains **594 correct paired results**, all **33 compiler gates** and all
+**33 pipeline gates** passing against pre-COUNT and the current descriptor-copy
+control. Compiler ratios span **0.5834–1.1146** and pipeline ratios
+**0.9971–1.0270**. The two failing combinations in the earlier complete matrix
+pass these targeted comparisons. Every sample inventory and median is audited;
+all recorded Fuze source hashes match prototype `605e46ed` and implementation
+`53945c67`. The exact patch and comparison driver are retained. Native/FZP1
+definitions, canonical plan bytes, fingerprints and bounds do not change.
+
+The new complete matrix remains in progress in
+`/var/tmp/transit-count-plan-validation-full-comparison.log`. Its first warm
+projection matrix already records narrow/explicit compilation at **1.1592**,
+above 1.15. Targeted success does not establish a complete timing pass. The clean
+core run started at `8b9d1d5b` precedes this optimization and cannot qualify it by
+inheritance. Current-source clean qualification remains separate.
