@@ -8,8 +8,19 @@ pub const Atom = union(enum) {
     state: struct { column: u8, value: @import("Scalar.zig").State },
     compare: struct { column: u8, op: finite.Comparison, literal: sql.Literal },
 };
+pub const OutputNames = [@import("Unified.zig").max_columns]?@import("model.zig").Name;
+pub const Projection = struct {
+    columns: []const u8,
+    names: OutputNames = @splat(null),
+    pub fn name(self: *const Projection, index: usize, source_columns: []const []const u8) []const u8 {
+        if (index < self.names.len) if (self.names[index]) |*alias| return alias.slice();
+        return source_columns[self.columns[index]];
+    }
+};
 pub const Shape = struct {
     projection: []const u8,
+    output_names: OutputNames,
+    input: ?Projection,
     aggregate: finite.Aggregate,
     limit: ?u64,
     predicate: union(enum) {
@@ -24,29 +35,40 @@ pub fn lower(ast: *const sql.Ast, source: []const u8, columns: []const []const u
     if (!std.mem.eql(u8, ast.source.slice(), source)) return error.UnknownSource;
     if (ast.selection != .rows and ast.limit != null) return error.UnsupportedAggregateLimit;
     if (ast.input != null and ast.selection == .rows) return error.UnsupportedConstruct;
-    if (ast.output_alias != null) return error.UnsupportedOutputAlias;
+    if (ast.selection == .rows and ast.output_alias != null) return error.InvalidOutputNames;
+    if (columns.len == 0 or columns.len > input.len or columns.len > 128) return error.InvalidColumnCount;
     const source_name = ast.source_alias orelse ast.source;
     const source_qualifier = source_name.slice();
-    const input_projection = try project(if (ast.input) |value| value.projection else @splat(null), source_qualifier, columns, input);
+    const input_projection: ?Projection = if (ast.input) |value| try project(value.projection, source_qualifier, columns, input) else null;
+    var input_names: [128][]const u8 = undefined;
+    const input_columns = if (input_projection) |*projected| blk: {
+        for (0..projected.columns.len) |i| input_names[i] = projected.name(i, columns);
+        break :blk input_names[0..projected.columns.len];
+    } else columns;
     const qualifier_name = if (ast.input) |value| value.alias else source_name;
     const qualifier = qualifier_name.slice();
     var aggregate: finite.Aggregate = .rows;
-    const projection = switch (ast.selection) {
+    var projection: Projection = switch (ast.selection) {
         .rows => |value| try project(value, qualifier, columns, output),
         .count => blk: {
             aggregate = .count;
-            output[0] = input_projection[0];
-            break :blk output[0..1];
+            if (output.len == 0) return error.InvalidProjection;
+            output[0] = if (input_projection) |projected| projected.columns[0] else 0;
+            break :blk .{ .columns = output[0..1] };
         },
         .sum => |column| blk: {
             aggregate = .sum;
-            output[0] = try resolve(column, qualifier, columns);
-            if (std.mem.indexOfScalar(u8, input_projection, output[0]) == null) return error.UnknownColumn;
-            break :blk output[0..1];
+            if (output.len == 0) return error.InvalidProjection;
+            const index = try resolve(column, qualifier, input_columns);
+            output[0] = if (input_projection) |projected| projected.columns[index] else index;
+            break :blk .{ .columns = output[0..1] };
         },
     };
+    if (ast.output_alias) |alias| projection.names[0] = try validName(alias);
     return .{
-        .projection = projection,
+        .projection = projection.columns,
+        .output_names = projection.names,
+        .input = input_projection,
         .aggregate = aggregate,
         .limit = if (ast.input) |value| value.limit else ast.limit,
         .predicate = switch (ast.predicate) {
@@ -75,26 +97,35 @@ fn resolve(column: sql.Column, source: []const u8, columns: []const []const u8) 
     for (columns, 0..) |name, i| if (std.mem.eql(u8, name, column.name.slice())) return @intCast(i);
     return error.UnknownColumn;
 }
-fn project(value: sql.Projection, source: []const u8, columns: []const []const u8, output: []u8) ![]const u8 {
+fn validName(name: @import("model.zig").Name) !@import("model.zig").Name {
+    if (name.len > name.bytes.len or !std.meta.eql(name, try @import("model.zig").Name.init(name.slice()))) return error.InvalidColumnName;
+    return name;
+}
+fn project(value: sql.Projection, source: []const u8, columns: []const []const u8, output: []u8) !Projection {
     if (columns.len == 0 or columns.len > output.len or columns.len > 255) return error.InvalidColumnCount;
     if (value[0] == null) {
         for (value[1..]) |column| if (column != null) return error.InvalidProjection;
         for (0..columns.len) |i| output[i] = @intCast(i);
-        return output[0..columns.len];
+        return .{ .columns = output[0..columns.len] };
     }
     var count: usize = 0;
+    var result: Projection = .{ .columns = output };
     for (value) |column| {
         if (column) |selected| {
             if (count == output.len) return error.InvalidProjection;
-            if (selected.alias != null) return error.UnsupportedOutputAlias;
             const index = try resolve(selected.column, source, columns);
-            if (std.mem.indexOfScalar(u8, output[0..count], index) != null) return error.DuplicateProjection;
             output[count] = index;
+            if (selected.alias) |alias| result.names[count] = try validName(alias);
+            for (0..count) |previous| {
+                if (index == output[previous] and std.meta.eql(result.names[count], result.names[previous])) return error.DuplicateProjection;
+                if (std.mem.eql(u8, result.name(count, columns), result.name(previous, columns))) return error.DuplicateColumn;
+            }
             count += 1;
         } else {
             for (value[count..]) |remaining| if (remaining != null) return error.InvalidProjection;
             break;
         }
     }
-    return output[0..count];
+    result.columns = output[0..count];
+    return result;
 }

@@ -56,6 +56,10 @@ Output aliases follow the identifier case and length rules. They change result
 column names without changing values, types, cell states or source identity.
 `WHERE` continues to resolve original input names: an output alias does not
 become a predicate column. `AS` is required for output aliases.
+The [local file-query profile](../../../apps/transit-cli/docs/file-query.md)
+uses these same alias and scope rules for CSV/JSONL results, including recursive
+logical values. Its source acquisition, typed-plan name limits and result
+completion rules are described separately.
 
 `FROM source AS alias` gives the declared source a query-local qualifier. With
 an alias, qualified columns must use that alias; the original source name is
