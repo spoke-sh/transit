@@ -1466,7 +1466,7 @@
                 "definition": {
                   "type": "string",
                   "enum": [
-                    "1b790ef9b226fa9d5ee27622dd7fbfd51cb56eb764574594c0a792d4170bf0a2"
+                    "8629e1618a4f97ac07d5b4b454249a8d1b18eab9e969a9876345844ef4fa57fe"
                   ]
                 },
                 "realm": {
@@ -2363,6 +2363,7 @@
                           "x-transit-field-order": [
                             "resource",
                             "revision",
+                            "view",
                             "keys"
                           ],
                           "properties": {
@@ -2374,6 +2375,20 @@
                               "x-transit-signed": false
                             },
                             "revision": {
+                              "anyOf": [
+                                {
+                                  "type": "integer",
+                                  "minimum": 0,
+                                  "maximum": 9007199254740991,
+                                  "x-transit-bits": 64,
+                                  "x-transit-signed": false
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "view": {
                               "anyOf": [
                                 {
                                   "type": "integer",
@@ -2411,7 +2426,8 @@
                             "keys"
                           ],
                           "x-transit-defaults": {
-                            "revision": null
+                            "revision": null,
+                            "view": null
                           }
                         }
                       }
@@ -2871,7 +2887,7 @@
               ],
               "x-transit-defaults": {
                 "version": 1,
-                "definition": "1b790ef9b226fa9d5ee27622dd7fbfd51cb56eb764574594c0a792d4170bf0a2"
+                "definition": "8629e1618a4f97ac07d5b4b454249a8d1b18eab9e969a9876345844ef4fa57fe"
               }
             },
             "signature": {

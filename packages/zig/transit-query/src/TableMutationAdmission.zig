@@ -108,7 +108,8 @@ fn readRequest(turn: *Turn, current: r.Status, output: *[Request.max_bytes]u8) !
 fn apply(turn: *Turn, current: *r.Status) !void {
     if (current.terminal()) return;
     if (current.phase != .sealed) return error.MutationNotSealed;
-    const grant = permitted(turn, current.*) catch |err| return switch (err) {
+    // Preserve the publication policy gate before accessing retained chunks.
+    _ = permitted(turn, current.*) catch |err| return switch (err) {
         error.MutationDenied => close(turn, current, .rejected, .denied, 0),
         error.MutationSourceChanged => close(turn, current, .rejected, .source_changed, 0),
         else => err,
@@ -118,6 +119,14 @@ fn apply(turn: *Turn, current: *r.Status) !void {
     // bytes are classified as an invalid request; no failed read is acknowledged.
     const bytes = try readRequest(turn, current.*, &buffer);
     const request = Request.decode(bytes) catch return close(turn, current, .rejected, .invalid_request, 0);
+    return applyRequest(turn, current, request);
+}
+fn applyRequest(turn: *Turn, current: *r.Status, request: Request) !void {
+    const grant = permitted(turn, current.*) catch |err| return switch (err) {
+        error.MutationDenied => close(turn, current, .rejected, .denied, 0),
+        error.MutationSourceChanged => close(turn, current, .rejected, .source_changed, 0),
+        else => err,
+    };
     if (request.realm != turn.delivery.realm or request.writer != turn.delivery.pid or request.resource != turn.view.resource or request.table != current.table) return close(turn, current, .rejected, .invalid_request, 0);
     if (!std.mem.eql(u8, &current.declaration, &try r.declaration(request.target()))) return close(turn, current, .rejected, .source_changed, 0);
     if (!grant.permits(request.plan.operation)) return close(turn, current, .rejected, .denied, 0);
@@ -131,6 +140,29 @@ fn apply(turn: *Turn, current: *r.Status) !void {
         };
     };
     try close(turn, current, .applied, .none, result.affected_rows);
+}
+// Inline admission records rows and the full terminal identity together. It does
+// not publish an active upload pointer, so three rows still fit in four writes.
+fn execute(turn: *Turn, principal: u64, value: r.Inline) !r.Status {
+    const request = value.request;
+    if (request.realm != turn.delivery.realm or request.writer != turn.delivery.pid or request.resource != turn.view.resource) return error.MutationIdentityConflict;
+    const reference = try request.reference(value.namespace);
+    try turn.prefetch(&.{ r.key('u', value.namespace, 0), r.key('a', 0, 0), Pub.key(.table_mutation, value.namespace, 'b', 0, 0), r.key('p', principal, request.table), s.Table.descriptorKey(request.table) });
+    if (try status(turn, value.namespace)) |existing| {
+        if (existing.principal != principal) return error.MutationPrincipalMismatch;
+        if (!std.meta.eql(existing.reference, reference) or existing.table != request.table or existing.policy_revision != value.policy_revision) return error.MutationIdentityConflict;
+        if (!existing.terminal()) return error.MutationNamespaceInUse;
+        return existing;
+    }
+    if (try active(turn)) |namespace| {
+        const previous = (try status(turn, namespace)) orelse return error.InvalidMutationRecord;
+        if (!previous.terminal()) return error.MutationBusy;
+    }
+    if (try turn.read(Pub.key(.table_mutation, value.namespace, 'b', 0, 0)) != null) return error.MutationNamespaceInUse;
+    var current: r.Status = .{ .reference = reference, .principal = principal, .table = request.table, .declaration = try r.declaration(request.target()), .policy_revision = value.policy_revision, .phase = .sealed };
+    try applyRequest(turn, &current, request);
+    try turn.validate();
+    return current;
 }
 /// Called only by an application that explicitly exposes the mutation protocol.
 /// The authenticated envelope supplies the caller. No payload can choose it.
@@ -149,9 +181,10 @@ pub fn dispatch(turn: *Turn) !r.Status {
     };
     if (principal == 0 or principal > p.max_counter) return error.MutationPrincipalMismatch;
     const command = try r.Command.decode(&frame.payload);
+    if (command == .execute) return execute(turn, principal, command.execute);
     if (command == .begin) return begin(turn, principal, command.begin);
     const reference = switch (command) {
-        .begin => unreachable,
+        .begin, .execute => unreachable,
         .part => |value| value.reference,
         .seal, .apply, .cancel => |value| value,
     };
@@ -159,7 +192,7 @@ pub fn dispatch(turn: *Turn) !r.Status {
     const namespace = reference.namespace;
     if (!current.terminal()) try checkActive(turn, namespace);
     switch (command) {
-        .begin => unreachable,
+        .begin, .execute => unreachable,
         .part => |value| {
             if (current.phase != .uploading) return error.MutationUploadClosed;
             _ = try permitted(turn, current);

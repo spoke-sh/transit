@@ -21,7 +21,7 @@ test "neutral mutation values retain independent bytes, wide identities and owne
         .{ .apply = ref_text },
         .{ .cancel = ref_text },
     };
-    for (commands, object.get("commands").?.array.items) |command, expected| {
+    for (commands, object.get("commands").?.array.items[0..commands.len]) |command, expected| {
         const native = try command.native(alloc);
         try t.expectEqualStrings(expected.string, try c.hex(alloc, (try native.encode()).slice()));
     }

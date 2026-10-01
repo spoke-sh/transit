@@ -453,3 +453,10 @@ bounds expires accepted work or promises external cancellation.
 The console proofs exercise Table, KV and Document workers with disk Ursula,
 pipes, a controlling PTY and explicit TLS trust. Commands and executed outcomes
 belong in the [proof ledger](../../../tests/README.md).
+
+Small canonical Table mutations fit one direct writer command. Larger requests
+use bounded upload, seal and apply commands. Each prepared send is saved before
+submission; `.resume` reconciles the original bytes after an uncertain response.
+`.cancel` first reconciles a pending send and cannot undo a committed direct
+mutation. Saved requests and installations require the current shared definition;
+a definition mismatch rejects before execution and never resets existing data.

@@ -88,6 +88,12 @@ pub fn WithTransport(comptime Transport: type) type {
             if (meta.pid != self.pid or meta.generation != self.generation) return error.InvalidStateView;
             return response.body.entries;
         }
+        pub fn readViewMany(self: *Self, view: g.View, keys: [g.page_size]?p.Value) ![g.page_size]?g.Entry {
+            if (view.pid != self.pid or view.generation != self.generation) return error.InvalidStateView;
+            const response = try self.client.query(.{ .realm = self.realm, .principal = self.principal, .kind = .{ .read_entries = .{ .resource = view.resource, .revision = view.revision, .view = view.id, .keys = keys } } }, self.key);
+            if (response.body.read_entries.view == null or !std.meta.eql(response.body.read_entries.view.?, view)) return error.InvalidAuthorityResponse;
+            return response.body.read_entries.entries;
+        }
         pub fn prepareCloseView(self: *const Self, delivery: Delivery, view: u64) !Pending {
             return self.prepare(delivery, .{ .close_view = .{ .pid = self.pid, .view = view } });
         }

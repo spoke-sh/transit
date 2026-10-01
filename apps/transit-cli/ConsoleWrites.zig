@@ -94,6 +94,7 @@ pub fn open(init: std.process.Init, path: []const u8, config: Config, client: *q
                 const frame = try q.station.Frame.decode(pending.signed.request.command.send.value);
                 const command = try q.TableMutationRecords.Command.decode(&frame.payload);
                 const saved_reference = switch (command) {
+                    .execute => |v| try v.request.reference(v.namespace),
                     .begin => |v| v.reference,
                     .part => |v| v.reference,
                     .seal, .apply, .cancel => |v| v,
@@ -240,17 +241,27 @@ fn advance(self: *Self, console: *Console, timing: *Timing) !void {
                     value.input = null;
                     try self.saveTimed(timing);
                 }
-                timing.enter(.fetch);
                 const reference = try value.request.reference(value.namespace);
-                if (try writer.status(reference)) |outcome| if (outcome.terminal()) {
+                timing.enter(.prepare);
+                // prepareNext already batches the full terminal status with the
+                // metadata needed for a successor. Avoid a separate status read
+                // on every intermediate upload command.
+                value.pending = if (self.record.cancelling) cancel: {
+                    timing.enter(.fetch);
+                    const outcome = try writer.status(reference);
+                    timing.enter(.prepare);
+                    break :cancel if (outcome != null and outcome.?.terminal()) null else try writer.prepare(.{ .cancel = reference });
+                } else try writer.prepareNext(value.namespace, value.request);
+                if (value.pending == null) {
+                    timing.enter(.fetch);
+                    const outcome = (try writer.status(reference)) orelse return error.InvalidConsoleRecovery;
+                    if (!outcome.terminal()) return error.InvalidConsoleRecovery;
                     self.record.complete = true;
                     try self.saveTimed(timing);
                     _ = try self.statusTimed(console, timing);
                     if (outcome.phase == .rejected) return error.MutationRejected;
                     return;
-                };
-                timing.enter(.prepare);
-                value.pending = if (self.record.cancelling) try writer.prepare(.{ .cancel = reference }) else (try writer.prepareNext(value.namespace, value.request)) orelse continue;
+                }
                 try self.saveTimed(timing);
             },
             .creation => |*value| {

@@ -810,22 +810,37 @@ test "growing captured reads retain a version but never retain permission or own
     const current = try fixture.query(65536, .{ .entries = .{ .resource = resource, .revision = revision, .key = key } });
     try t.expectEqual(@as(i64, 7), try current.body.entries.page.entries[0].?.value.asInteger());
 
+    const many: @FieldType(g.Query, "kind") = .{ .read_entries = .{ .resource = resource, .revision = resource, .view = reader_view, .keys = .{ key, null, null, null, null, null, null, null } } };
+    const old_many = try fixture.query(65536, many);
+    try t.expectEqualDeep(old.body.entries.view, old_many.body.read_entries.view);
+    try t.expectEqual(@as(?g.Entry, null), old_many.body.read_entries.entries[0]);
+    var wrong = many;
+    wrong.read_entries.resource += 1;
+    try t.expectError(error.InvalidStateView, fixture.query(65536, wrong));
     // Current rights apply even though the old root and view are still retained.
     _ = try fixture.root(.{ .grant_resource = .{ .resource = resource, .subject = 65536, .permissions = 0 } });
     try t.expectError(error.Forbidden, fixture.query(65536, .{ .entries = .{ .view = reader_view } }));
+    try t.expectError(error.Forbidden, fixture.query(65536, many));
     _ = try fixture.root(.{ .grant_resource = .{ .resource = resource, .subject = 65536, .permissions = core.protocol.State.all_permissions } });
     clock.error_ms = 6;
     try t.expectError(error.UntrustedTime, fixture.query(65536, .{ .entries = .{ .view = reader_view } }));
+    try t.expectError(error.UntrustedTime, fixture.query(65536, many));
     clock.error_ms = 1;
     clock.now = 199;
     try t.expectError(error.DeadlineUncertain, fixture.query(65536, .{ .entries = .{ .view = reader_view } }));
+    try t.expectError(error.DeadlineUncertain, fixture.query(65536, many));
     clock.now = 200;
     clock.error_ms = 0;
     try t.expectError(error.StateViewExpired, fixture.query(65536, .{ .entries = .{ .view = reader_view } }));
+    try t.expectError(error.StateViewExpired, fixture.query(65536, many));
     // A fresh view is fenced by ownership changes even with the same principal.
     const fresh = try fixture.engine.submit(try fixture.worker(4, .{ .open_view = .{ .pid = reader, .generation = 2, .input = reader_input, .expected_revision = 0, .resource = resource, .revision = revision, .deadline_ms = 300 } }));
     _ = try fixture.root(.{ .own = .{ .pid = reader, .expected_generation = 2, .worker = 65536 } });
     try t.expectError(error.InvalidStateView, fixture.query(65536, .{ .entries = .{ .view = fresh } }));
+    var fenced = many;
+    fenced.read_entries.view = fresh;
+    fenced.read_entries.revision = revision;
+    try t.expectError(error.InvalidStateView, fixture.query(65536, fenced));
 
     var forged = try g.signQuery(.{ .realm = 42, .principal = 65536, .kind = .{ .process = writer } }, fixture.worker_key);
     forged.query.kind = .{ .process = reader };

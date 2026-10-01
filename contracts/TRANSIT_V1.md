@@ -114,6 +114,14 @@ null at a requested slot means that key was absent at the returned revision.
 Unrequested slots are null. Input order is preserved, without sorting or a
 continuation. Optional `revision` requires that exact current revision; null
 selects the current cut. This does not retain a version or permit stale reads.
+An optional `view` selects an existing captured owner view while `resource` and
+optional `revision` bind its exact resource. The response includes that view.
+This path checks current process scope, executable ownership, generation,
+resource authorization and view lifetime before reading and again before
+returning. Keys are evaluated together at the captured catalog root; current
+resource revisions do not replace the captured cut. A null view selects current
+resource reads and returns a null view. Neither form grants or retains authority.
+
 
 The query uses the existing signed-query domain, native PID association scope,
 current resource inspect/read permissions, dependency/lifetime checks and final
