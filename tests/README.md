@@ -9273,3 +9273,49 @@ it does not widen the stored/native query or Flight profiles, qualify other
 language logical APIs, or establish comparative performance. The 100-case
 `just test::logical-arrow` schedule also passes after sharing its recursive
 fixtures with these boundary checks.
+
+## File comparison baselines and metadata execution
+
+The [2026-09-30 evidence](fuze_benchmarks/results/2026-09-30/README.md) freezes
+numeric budgets in commit `5052c59e`, before the metadata optimizations. The
+optional benchmark shell pins DuckDB 1.5.2/build `8a5851971f` and PyArrow 23.0.0
+from the unchanged lockfile. `just doctor` and the optional-shell version/build
+checks pass. The harness uses the real CLI capture boundary and Fuze source,
+query and Arrow owners; DuckDB remains a development dependency.
+
+The accepted baseline contains 792 samples over nine shapes, five schema modes,
+two input-cache conditions and two engines, including separate projection,
+batch-size, filter, COUNT and SUM experiments. Every case has three raw
+repetitions and verified source hashes/results. The same eight-query six-scalar
+driver runs against `d5541301` and candidate with one discarded warmup and nine
+measured processes per binary. Median candidate/control ratios are 0.9960–1.0480.
+A 600058901-byte input completes in four modes under a fresh 256 MiB RAM/cache
+cgroup with swap disabled, actual peak 268435456 bytes and no OOM events.
+Exact commands, scope differences, original failures, hashes and compressed raw
+JSON reports accompany the baseline. Executable VmHWM and process-lifetime
+wait4 RSS are separate counters; the latter includes the pre-exec launcher.
+
+The harness rejects wrong counts/checksums, missing phases/completion and changed
+captures. Its six Python evidence tests also reject incomplete/dirty reports,
+changed workloads/drivers/CPU, missing repetitions and numeric regressions; a
+failed check replaces any prior successful report. The numeric checker recomputes
+metrics from raw observations and requires identical declared conditions. It does
+not infer parity from a successful process exit or compare incompatible allocator
+counter scopes.
+
+The descriptor-validation optimization at `19d3ba7d` passes all 25 focused
+source/type tests. The bounded CSV column-map implementation at `f509cdfb` passes
+27, including reordered/absent optional headers and rejection of a replacement
+valid binding during an active scan. Its map is rebuilt per file; current checks,
+full-row conversion, source verification and failed-prefix behavior remain.
+At `00f83fc0`, full `just check`, all 83 executable file-query cases and all 100
+independent PyArrow cases pass. The benchmark binaries are rebuilt from that
+source; generated local Zig caches were then removed before candidate measurement.
+
+The first complete optimized matrix passes its result, allocation, I/O-count,
+memory, scan/query and specialized-path checks but fails the numeric timing gate:
+12 cold-acquisition/phase wall limits and one discovery CPU limit. The retained
+report distinguishes this failure from successful correctness checks. Investigation
+shows large wall/CPU separation in cold acquisition with unchanged bytes and
+similar acquisition CPU; a complete unchanged rerun is required. These observations
+are not a passed performance gate or final committed-HEAD clean qualification.
