@@ -554,3 +554,10 @@ logical-arrow:
 logical-codec:
     zig build station-abi transit-station-host
     python3 -B tests/fuze_logical_codec.py zig-out/lib/libtransit_station.so zig-out/bin/transit-station-host
+
+# Run in nix develop .#benchmarks; reports require an explicit output path.
+file-benchmark *args:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    zig build file-benchmark -Doptimize=ReleaseSafe
+    "${TRANSIT_FUZE_BENCH_PYTHON:?Enter nix develop .#benchmarks}" -B tests/fuze_benchmarks/run.py zig-out/bin/transit-file-benchmark "$@"
