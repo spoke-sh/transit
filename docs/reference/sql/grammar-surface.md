@@ -33,7 +33,7 @@ Every row is **Implemented — execution** within its stated profile.
 
 | Form | Executable profile | Public owner |
 | --- | --- | --- |
-| `SELECT *`, ordered column list | One declared KV, Table or accepted Document projection; one to eight distinct columns | [SELECT](select.md) |
+| `SELECT *`, ordered column list | One declared KV, Table or accepted Document projection; one to eight output positions with distinct result names | [SELECT](select.md) |
 | `WHERE column comparison literal` | One exactly typed comparison: `=`, `<>`, `!=`, `<`, `<=`, `>`, `>=` | [Expressions](expressions.md) |
 | `IS NULL`, `IS MISSING`, `IS VALUE`, `IS TYPE_ERROR`, `IS CONFLICT` | One exact cell-state predicate; missing and null remain distinct | [Types and cell states](types.md) |
 | `LIMIT n` | Full uint64 row count; omission does not truncate or remove execution budgets | [SELECT](select.md) |

@@ -7397,6 +7397,40 @@ generated-contract drift, runtime units, browser validation and the documentatio
 build, in `/tmp/transit-sql-output-aliases-optimized-check.log`. This does not
 complete the storage-dependent installed schedule or committed-HEAD clean lanes.
 
+### Output-alias integration with located diagnostics and console writes
+
+The continuation rebases without conflicts onto `2704c153`, including #49's
+wire-access investigation and #50's located diagnostics, authorized console
+write routes and canonical saved-write validation. Parser locations, diagnostic
+redaction and the existing mutation/catalog execution owners remain in use.
+The PostgreSQL/MySQL milestone is a proposal, not an implemented listener.
+
+Real CLI regression cases expose stale duplicate-projection advice that forbids
+repeated inputs. Shared local/remote diagnostics now describe distinct output
+names and explicit `AS`; invalid output-name shapes also receive binding advice.
+Malformed alias syntax retains its exact location. The bounded remote rendering
+tests pass, including output-name failures; runtime errors still keep their
+owning authority/recovery disposition.
+
+The initial CLI regression fails in
+`/tmp/transit-sql-output-aliases-rebased-diagnostics-before.log`. The next run
+exposes a new fixture using `id` against its configured `key` column; that fixture
+is corrected without changing binding rules, and its failure remains in
+`/tmp/transit-sql-output-aliases-rebased-focused.log`. The corrected **422 real
+CLI cases** pass, including the socket trap that rejects any authority contact
+for invalid SQL. Fuze package tests and the full independent SQL proof pass:
+134 ASTs, 105 plan/Arrow cases, 44 results, 17 failures and 56 public examples.
+Logs are `/tmp/transit-sql-output-aliases-rebased-fuze.log` and
+`/tmp/transit-sql-output-aliases-rebased-focused-fixed.log`.
+Full `just check` also passes on the rebased integration tree in
+`/tmp/transit-sql-output-aliases-rebased-check.log`; final local documentation
+links pass in `/tmp/transit-sql-output-aliases-rebased-docs.log`.
+
+The expression reference and grammar inventory now consistently describe output
+names and repeated inputs. Earlier measurements and installed artifacts retain
+their original pre-rebase source identities; the rebase does not qualify new
+installed write routes or resolve the recorded cold-store capacity failure.
+
 ## SQL performance iteration
 
 ### Output-name component coverage

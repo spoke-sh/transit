@@ -353,6 +353,9 @@ with tempfile.TemporaryDirectory(prefix='transit-cli-diagnostics-') as directory
             ('CREATE CONNECTION unfinished', ('[grammar_only]', 'syntax has not been validated')),
             ('SELEC * FROM items;', ('[unsupported]', 'supported syntax')),
             ('SELECT absent FROM items;', ('[binding]', 'exact column names')),
+            ('SELECT value AS;', ('[syntax]', 'line 1, column 16', 'expected an identifier')),
+            ('SELECT value AS copy, value AS copy FROM items;', ('[binding]', 'DuplicateProjection', 'distinct result names', 'AS')),
+            ('SELECT key AS copy, value AS copy FROM items;', ('[binding]', 'DuplicateColumn', 'distinct result names', 'AS')),
             ('SELECT * FROM items WHERE value = NULL;', ('[binding]', 'IS NULL', 'IS MISSING')),
         ):
             invoke(['console', '--no-rc', '--config', path, '--format', 'json', '-c', statement], 1, fragments)

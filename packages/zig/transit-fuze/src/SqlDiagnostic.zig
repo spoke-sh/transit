@@ -31,12 +31,12 @@ pub fn query(text: []const u8, cause: anyerror, inspection: bool) ?Self {
     const semantic = switch (cause) {
         error.UnknownSource => "The source is not the configured source or Table writer name. Inspect the configured source and use its exact name; CREATE TABLE does not configure a query source.",
         error.UnknownColumn, error.UnknownQualifier => "Inspect the configured schema and use its exact column names and source qualifier.",
-        error.DuplicateProjection, error.InvalidProjection => "Select one to eight distinct declared columns, or use SELECT *.",
+        error.DuplicateProjection, error.InvalidProjection, error.InvalidOutputNames => "Select one to eight output positions with distinct result names. Use explicit AS names when selecting an input column more than once.",
         error.UnsupportedNullComparison => "Use IS NULL to test explicit nulls; use IS MISSING for missing Document fields.",
         error.UnsupportedAggregateLimit => "To limit aggregate input, use the documented aggregate over a limited derived table; an outer LIMIT is not an input limit.",
         error.UnsupportedAggregate => "Use COUNT(*) or SUM on an int64 column; other aggregates and input types are unsupported.",
         error.UnsupportedTableColumnCount, error.UnspecifiedNullability, error.UnsupportedTableKey, error.UnsupportedTableNullability, error.UnsupportedTableType => "CREATE TABLE requires exactly two columns: an INT64 NOT NULL key and a nullable INT64, BOOL, UTF8 or BINARY value. Use .help CREATE TABLE in the console.",
-        error.DuplicateColumn => "Use distinct column names in the declaration.",
+        error.DuplicateColumn => "Use distinct result names in SELECT, assigning names with AS where needed. Declarations also require distinct column names.",
         error.ImmutablePrimaryKey, error.UnsupportedMutationPredicate, error.InvalidMutationColumns, error.DuplicateMutationKey => "Use .help INSERT, .help UPDATE or .help DELETE in the console for bounded literal mutations and key equality.",
         error.TypeMismatch, error.InvalidPredicate => "Match the literal type to the declared column type; implicit conversions are unsupported.",
         else => null,
@@ -187,6 +187,7 @@ pub fn renderRemote(self: *const Self, out: *std.Io.Writer) !void {
             try out.writeAll(switch (self.cause) {
                 error.UnsupportedNullComparison => "use IS NULL or IS MISSING instead of comparison with NULL.",
                 error.UnknownSource, error.UnknownColumn, error.UnknownQualifier => "check exact source and column names against the configured schema.",
+                error.DuplicateProjection, error.InvalidProjection, error.InvalidOutputNames, error.DuplicateColumn => "use distinct output or declaration names; AS names SELECT outputs.",
                 else => "check supported types, literals and aggregates in /reference/sql/.",
             });
         },
@@ -217,6 +218,9 @@ test "query boundaries distinguish parser evidence, grammar families and binding
         .{ "SHOW SOURCES;", error.UnsupportedCatalog, Kind.grammar_only, @as(usize, 1) },
         .{ "SELEC * FROM items;", error.UnsupportedStatement, Kind.unsupported, @as(usize, 1) },
         .{ "SELECT * FROM items JOIN other;", error.UnsupportedConstruct, Kind.unsupported, @as(usize, 21) },
+        .{ "SELECT value AS copy, value AS copy FROM items;", error.DuplicateProjection, Kind.binding, @as(usize, 1) },
+        .{ "SELECT id AS copy, value AS copy FROM items;", error.DuplicateColumn, Kind.binding, @as(usize, 1) },
+        .{ "SELECT value FROM items;", error.InvalidOutputNames, Kind.binding, @as(usize, 1) },
     };
     inline for (cases) |case| {
         const result = query(case[0], case[1], true).?;
