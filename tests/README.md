@@ -2520,6 +2520,18 @@ Three earlier attempts receive unavailable API responses before browser launch;
 they do not detect the UI defect or qualify completion. Full combined-source
 clean and hosted qualification remain open.
 
+The [unavailable-reply controls](verification/results/m37-query-recovery-2026-10-01.json)
+subsequently reach the original UI failure locally: one result remains where zero
+is required after access refresh. The corrected UI passes the same real proof.
+The API fixture now recovers unavailable preparation and frozen-submission replies
+using the identical request body. A proxy replaces one successful preparation
+reply and one actual accepted receipt with `Unavailable`; recovery must preserve
+both original requests and return the original receipt. Disabling that recovery
+fails on the injected preparation reply. Eight attempts remain bounded by the
+existing ten-second preparation, sixty-second settlement and 120-second upload
+windows; receipt retries now consume the settlement window instead of preceding
+it. These controls retain unavailable observations as uncertainty, not rejection.
+
 ## Interrupted CI evidence — 2026-10-01
 
 Hosted launcher job `110201098691` reaches its 30-minute execution cap after

@@ -1,0 +1,73 @@
+{
+  "base_revision": "e1253fc62931436063cdb3068eb7e355feabafce",
+  "runs": [
+    {
+      "label": "disabled-recovery",
+      "exit_code": 1,
+      "seconds": 35.622,
+      "sha256": {
+        "apps/transit-board-web/src/unified-workspace.tsx": "43562903703fb0c1d985ca2cdb33d85c0421cd61386efce4a4c30f23dcc0d79b",
+        "tests/board_query.py": "74169139459dc7c5763c0d8c1bfd0b67c2a4a997c241b2d8b76aa18d1840fa54",
+        "apps/transit-board-web/browser/query.spec.ts": "9949cbc82583a62523bc2cdeb5ef0a8c2532711a5ce150f30c2eda47fcc9995a"
+      },
+      "log_sha256": "0b127e6dc0d4faf4e9bd981c8fb853f11a879a60fb9fbe4dece11c94b5a52d3a",
+      "classification": "detected disabled exact-request recovery"
+    },
+    {
+      "label": "original-ui",
+      "exit_code": 1,
+      "seconds": 148.574,
+      "sha256": {
+        "apps/transit-board-web/src/unified-workspace.tsx": "43562903703fb0c1d985ca2cdb33d85c0421cd61386efce4a4c30f23dcc0d79b",
+        "tests/board_query.py": "8d9ecf9e442d219069af6df2becdd32add2550ff6578c0db69d129c2c32646ab",
+        "apps/transit-board-web/browser/query.spec.ts": "9949cbc82583a62523bc2cdeb5ef0a8c2532711a5ce150f30c2eda47fcc9995a"
+      },
+      "log_sha256": "faee181b43b6778d564deb594f31ac93575f28f69ee29a9cb1b99af3996baeb3",
+      "classification": "detected automatic redisplay after access restoration"
+    },
+    {
+      "label": "corrected-ui",
+      "exit_code": 0,
+      "seconds": 155.658,
+      "sha256": {
+        "apps/transit-board-web/src/unified-workspace.tsx": "f8a16ddc6e4ec0664df8416454278abdb45702337a76a465c513345b6b6fce46",
+        "tests/board_query.py": "37f320501e1109d6410f4a0ccff17010c09d31863aa8170ebe7bb54522936ee9",
+        "apps/transit-board-web/browser/query.spec.ts": "9949cbc82583a62523bc2cdeb5ef0a8c2532711a5ce150f30c2eda47fcc9995a"
+      },
+      "log_sha256": "af3b0346972c0c523183f2c1747a13f68ed31dedd53fec7e6609139226f797b7",
+      "classification": "passed complete API and browser proof"
+    }
+  ],
+  "version": 1,
+  "scope": "Recover original Board query preparation and accepted submission after unavailable replies",
+  "dirty": true,
+  "command": [
+    "nix",
+    "develop",
+    "--command",
+    "env",
+    "TMPDIR=/var/tmp/transit-issue26-proof",
+    "just",
+    "transit-board::query-browser"
+  ],
+  "recovery": {
+    "maximum_attempts": 8,
+    "default_preparation_deadline_seconds": 10,
+    "settlement_deadline_seconds": 60,
+    "upload_deadline_seconds": 120,
+    "browser_test_deadline_seconds": 180,
+    "fresh_request_preparation_on_submit_retry": false
+  },
+  "assertions": [
+    "Proxy forwards an actual successful preparation and replaces its reply with Unavailable",
+    "Proxy forwards an actual accepted submission and replaces its receipt with Unavailable",
+    "Recovery sends byte-identical original requests; accepted submission returns byte-identical receipt",
+    "Settlement includes both receipt attempts and observation inside its original 60-second bound; upload retains the original 120-second outer bound",
+    "Original UI fails the zero-cleared-result assertion; corrected UI resumes only on explicit selection without another submission"
+  ],
+  "limits": [
+    "The first UI-negative run and corrected run differ in fixture cleanup nesting, which runs after the tested assertion; their exact source hashes are retained.",
+    "This is a focused development proof, not all-source clean or hosted qualification.",
+    "Unavailable replies do not establish rejected admission or explain shared-host storage delays."
+  ]
+}
