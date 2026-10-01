@@ -114,6 +114,14 @@ and saves a local screenshot/failed traces under `.cache/`. Chromium needs its
 host libraries; on supported CI Linux images Playwright can provision them with
 `vp exec --filter @rey/transit-board-web playwright install --with-deps chromium`.
 
+The inspection proof enters the native v1 atlas, selects a process with the
+keyboard, and opens the process evidence routes directly. It checks admission,
+consumption, output and effect references, plus retained revision evidence during
+an outage. Payload escaping uses an admitted mailbox value; resource inspection
+checks source keys and writer/revision evidence without displaying application
+values. CI retains failed Playwright traces and page context alongside task
+completion records.
+
 `just transit-board::query-browser` qualifies the growing atlas and workspace
 against real hosts, including live revocation and lossless typed values.
 `just transit-board::http-browser` checks actual HTTP capture metadata and live

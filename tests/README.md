@@ -2500,6 +2500,37 @@ seconds: 105 turns, two recovered initialization receipts, a 0.504-second held
 snapshot and all added SQL-write interruption/recovery/cancellation cases. No
 assertion, request deadline or provider capacity guard changes between attempts.
 
+## Current Board browser qualification — 2026-10-01
+
+The [browser investigation record](verification/results/m37-board-browser-2026-10-01.json)
+reproduces all five hosted browser failures at `31e3c97f`. Retained page context
+shows a successfully rendered native v1 Relief atlas and current process/resource
+evidence. The fixture instead expects the removed Departure board, inline process
+state and old resource-entry presentation. Longer waits cannot satisfy those
+obsolete assertions.
+
+The corrected proof selects the current atlas by keyboard, preserves focus across
+polling and opens real process/journey routes. It checks consumed/pending input,
+the fixture's actual recorded output identity, closed effects, causal references
+and accessibility. Resource checks retain exact keys and writer/revision evidence
+without exposing application values. Mailbox payloads remain escaped; known denial
+clears observations, while temporary unavailability retains the exact earlier
+process revision with a stale label. All original assertion deadlines remain.
+
+Full `just check` passes on the development source based on merged `2b078b18` in
+213.290 seconds. All five corrected browser tests pass in 20.0 seconds, followed
+by the real API outage/load proof. A separate run with an owned disk-backed
+`TMPDIR` also passes all five tests and the full API fixture; source hashes and
+log digests are retained. CI now uploads failed Playwright traces and page context.
+These focused results do not complete the remaining browser/ordinary lanes.
+
+The first clean experience run at `2b078b18` passes Board and documentation tasks,
+then fails Node SDK checks on formatting in the newly merged logical-value guide.
+The formatting-only correction passes `just bindings::node-check`. Separately,
+the earlier local `164b808f` campaign ends after 34 passing tasks when query
+delivery exceeds its original 180-second deadline; later growth and bindings tasks
+are unrun. That hot-Ursula failure is not attributed to MinIO's free-space guard.
+
 ## Hosted discovery completion — 2026-10-01
 
 Hosted [run 36801433218](https://github.com/rupurt/rey/actions/runs/36801433218)

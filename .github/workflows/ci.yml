@@ -187,6 +187,7 @@ jobs:
             .cache/verification/domain-simulation/
             .cache/verification/domain-simulation-mutations/
             .cache/verification/vortex/
+            .cache/transit-board-browser/
           include-hidden-files: true
           if-no-files-found: warn
           retention-days: 14

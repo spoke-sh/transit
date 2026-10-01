@@ -1,0 +1,73 @@
+{
+  "version": 1,
+  "scope": "Browser fixture hard cutover to the implemented native v1 interface; no runtime or deadline changes",
+  "development_base": "2b078b18dd60616111efbbc4206dc8fee7cfd0e5",
+  "dirty": true,
+  "source_sha256": {
+    "apps/transit-board-web/browser/board.spec.ts": "42c7adad7921e32a57813f408dfa6f8509855afb34fad28fe387ee270cb1292f",
+    "tests/board.py": "0b8521a4b9bb5cfdb455f50ed55b4d83df4ca3707f3ef4f8623b4ea621721c3c",
+    ".github/workflows/ci.yml": "45cd2337da74d2137c16a2d2e70c441f45ab1e705a4adaa227c1d6bed23016f3"
+  },
+  "baseline": {
+    "revision": "31e3c97f401a4fb6855b52d8605b3f5f927fe45c",
+    "failed_tests": 5,
+    "cause": "Obsolete Departure board / KV entry / committed inline state assertions; retained DOM shows successful native v1 Relief atlas and current process metadata.",
+    "log_sha256": "b27ad3f55f75e112e60b9c7fc4c285c2cd395af23fa2bf756f0e0bb39e88744d"
+  },
+  "validation": [
+    {
+      "name": "check",
+      "exit_code": 0,
+      "seconds": 213.29
+    },
+    {
+      "name": "board-browser",
+      "exit_code": 0,
+      "seconds": 45.128
+    }
+  ],
+  "disk_browser": {
+    "command": [
+      "nix",
+      "develop",
+      "--command",
+      "env",
+      "TMPDIR=/var/tmp/transit-issue26-proof",
+      "just",
+      "transit-board::browser"
+    ],
+    "passed": true,
+    "browser_tests": 5,
+    "browser_seconds": 20.0,
+    "filesystem": "ext2/ext3",
+    "api_fixture_completed": true,
+    "log_sha256": "7a9cf17ca9c713b2f9d599362b44cad379e197c3342367fc5ed2a19ee8014396"
+  },
+  "sdk_formatting": {
+    "clean_revision": "2b078b18dd60616111efbbc4206dc8fee7cfd0e5",
+    "clean_passed_tasks": 2,
+    "failed_task": "bindings::node-check",
+    "cause": "Newly merged docs/logical.md did not match Vite+ formatting",
+    "corrected_command": [
+      "just",
+      "bindings::node-check"
+    ],
+    "corrected_exit": 0,
+    "log_sha256": "6d57a8445832f34c13caab6911030315e2f84114bab5556d807b0034a5fef9af"
+  },
+  "checks_preserved": [
+    "five-second assertions and original stale-poll deadline",
+    "keyboard focus across polling and direct deep routes",
+    "consumed/pending inputs and actual recorded output identity",
+    "causal journey, effect closure and accessibility",
+    "resource record keys and writer/revision evidence without application values",
+    "escaped admitted mailbox payload, current denial clearing and retry",
+    "exact retained process revision on temporary read unavailability",
+    "no browser cookies, local/session storage, viewer credentials or runtime errors"
+  ],
+  "limits": [
+    "This is focused browser/API evidence; it does not complete all seven browser tasks.",
+    "Full five-lane clean and hosted qualification are still open.",
+    "The historical local growth timeout remains a separate unexplained failure."
+  ]
+}
