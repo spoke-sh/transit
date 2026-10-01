@@ -282,6 +282,17 @@ public static class UnifiedQuery
             var action=V.Obj(("inspect",V.Obj(("scope",V.Obj(("source",source.Wire()),("name",V.Text(name,32)),("limits",budgets.Wire()))),("sql",V.Text(sql,4096)))));
             return worker.Invoke(b=>ParseInspection(b.UnifiedQuery(action)["inspection"],connection.Resource),cancellation);
         }
+        /// <summary>New owned finite bundle; no upload or admission. Await cancellation retains native ownership.</summary>
+        public Task<Bundle> CompileSqlAsync(Source source,string name,string sql,Budgets budgets,IReadOnlyList<Scalar>? parameters=null,CancellationToken cancellation=default) {
+            if(source.Resource!=connection.Resource) throw new ArgumentException("Different query resource");
+            JsonArray? values=null;
+            if(parameters is not null) {
+                if(parameters.Count>3) throw new ArgumentException("Expected at most three parameter scalars");
+                values=new();foreach(var scalar in parameters)values.Add(Wire(scalar));
+            }
+            var action=V.Obj(("compile",V.Obj(("scope",V.Obj(("source",source.Wire()),("name",V.Text(name,32)),("limits",budgets.Wire()))),("sql",V.Text(sql,4096)),("parameters",values))));
+            return worker.Invoke(b=>new Bundle(Encoded(V.Object(b.UnifiedQuery(action)["compiled"])["bundle"],16384)),cancellation);
+        }
         public Task<Prepared?> PrepareNextAsync(ulong ns,Bundle bundle,CancellationToken cancellation=default) {
             var action=V.Obj(("next",V.Obj(("namespace",Turn.Decimal(Positive(ns))),("bundle",Hex(bundle.Bytes)))));
             return worker.Invoke(b => b.UnifiedQuery(action)["prepared"] is {} v?new Prepared(new Bytes(V.Utf8.GetBytes(V.String(v)))):null,cancellation);

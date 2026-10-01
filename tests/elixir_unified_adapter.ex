@@ -22,6 +22,10 @@ defmodule ElixirUnifiedAdapter do
   def close(c), do: result(Q.close(c))
   def describe(c, s), do: result(Q.describe(c, Q.convert(s)))
   def inspect(c, s, n, sql, b), do: result(Q.inspect_sql(c, Q.convert(s), n, sql, Q.convert(b)))
+
+  def compile(c, s, n, sql, b, p),
+    do: result(Q.compile_sql(c, Q.convert(s), n, sql, Q.convert(b), Q.convert(p)))
+
   def next(c, n, b), do: result(Q.prepare_next(c, n, Q.convert(b)))
   def submit(c, p), do: result(Q.submit(c, Q.convert(p)))
   def observe(c, p), do: result(Q.observe(c, p))

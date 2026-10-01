@@ -506,6 +506,17 @@ def _inspection_request(source: Source, name: str, sql: str, budgets: Budgets) -
     return {'inspect': {'scope': {'source': source._wire(), 'name': name, 'limits': budgets._wire()}, 'sql': sql}}
 
 
+def _compilation_request(source: Source, name: str, sql: str, budgets: Budgets,
+                         parameters: tuple[Scalar, ...] | None) -> object:
+    owned_bytes(name.encode(), 32)
+    owned_bytes(sql.encode(), 4096)
+    if parameters is not None and (not isinstance(parameters, tuple) or len(parameters) > 3):
+        raise ValueError('Expected at most three parameter scalars in a tuple')
+    values = None if parameters is None else [value._wire() for value in parameters]
+    return {'compile': {'scope': {'source': source._wire(), 'name': name, 'limits': budgets._wire()},
+                        'sql': sql, 'parameters': values}}
+
+
 @dataclass(frozen=True, slots=True)
 class Manifest:
     job: int
@@ -617,6 +628,13 @@ class Client:
         value = self._call({'next': {'namespace': str(_wide(namespace, 'namespace', 1)), 'bundle': bundle.data.hex()}})['prepared']
         return None if value is None else Prepared(value.encode())
 
+    def compile_sql(self, source: Source, name: str, sql: str, budgets: Budgets,
+                    parameters: tuple[Scalar, ...] | None = None) -> Bundle:
+        """Own a finite bundle under current source access; no upload or admission."""
+        if source.resource != self.connection.resource: raise ValueError('Source differs from the connection')
+        result = self._call(_compilation_request(source, name, sql, budgets, parameters))
+        return Bundle(bytes.fromhex(result['compiled']['bundle']))
+
     def _control(self, name: str, namespace: int) -> Prepared:
         value = self._call({'prepare': {name: str(_wide(namespace, 'namespace', 1))}})['prepared']
         if value is None: raise IncompatibleNative('Missing prepared command')
@@ -683,6 +701,13 @@ class AsyncClient:
     async def prepare_next(self, namespace: int, bundle: Bundle) -> Prepared | None:
         value = (await self._call({'next': {'namespace': str(_wide(namespace, 'namespace', 1)), 'bundle': bundle.data.hex()}}))['prepared']
         return None if value is None else Prepared(value.encode())
+
+    async def compile_sql(self, source: Source, name: str, sql: str, budgets: Budgets,
+                          parameters: tuple[Scalar, ...] | None = None) -> Bundle:
+        """Cancellation of the await leaves the native read owned by this worker."""
+        if source.resource != self.connection.resource: raise ValueError('Source differs from the connection')
+        result = await self._call(_compilation_request(source, name, sql, budgets, parameters))
+        return Bundle(bytes.fromhex(result['compiled']['bundle']))
 
     async def _control(self, name: str, namespace: int) -> Prepared:
         value = (await self._call({'prepare': {name: str(_wide(namespace, 'namespace', 1))}}))['prepared']

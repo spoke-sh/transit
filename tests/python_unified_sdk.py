@@ -124,7 +124,20 @@ async def serve(config, asynchronous):
             if 'close' in action:
                 break
             try:
-                if 'inspect' in action:
+                if 'compile' in action:
+                    v = action['compile']; limits = v['scope']['limits']
+                    def scalar(value):
+                        kind, data = next(iter(value.items()))
+                        if kind in ('int64', 'uint64'): data = int(data)
+                        elif kind == 'float_bits':
+                            kind, data = 'float64', struct.unpack('<d', bytes.fromhex(data))[0]
+                        elif kind == 'binary': data = bytes.fromhex(data)
+                        return q.Scalar(q.Type(kind), data)
+                    parameters = None if v.get('parameters') is None else tuple(map(scalar, v['parameters']))
+                    compiled = await invoke('compile_sql', declared, v['scope']['name'], v['sql'],
+                        q.Budgets(*(int(limits[name]) for name in ('pages', 'segments', 'result_bytes'))), parameters)
+                    result = {'compiled': {'bundle': compiled.data.hex()}}
+                elif 'inspect' in action:
                     v = action['inspect']
                     limits = v['scope']['limits']
                     inspected = await invoke('inspect_sql', declared, v['scope']['name'], v['sql'],

@@ -120,7 +120,22 @@ async function serve() {
       if ('close' in action) break;
       try {
         let result;
-        if ('inspect' in action) {
+        if ('compile' in action) {
+          const request = action.compile, limits = request.scope.limits;
+          const parameters = request.parameters?.map(item => {
+            const [type, input] = Object.entries(item)[0];
+            const value = type === 'int64' || type === 'uint64' ? BigInt(input)
+              : type === 'float_bits' ? Buffer.from(input, 'hex').readDoubleLE()
+              : type === 'binary' ? Buffer.from(input, 'hex') : input;
+            return {type: type === 'float_bits' ? 'float64' : type, value};
+          });
+          const pending = client.compileSql(source, request.scope.name, request.sql, {
+            pages: BigInt(limits.pages), segments: BigInt(limits.segments), resultBytes: BigInt(limits.result_bytes),
+          }, parameters);
+          parameters?.splice(0); // The pending operation owns its inputs.
+          const compiled = await pending;
+          result = {compiled: {bundle: hex(compiled.data)}};
+        } else if ('inspect' in action) {
           const request = action.inspect, limits = request.scope.limits;
           const value = await client.inspectSql(source, request.scope.name, request.sql, {
             pages: BigInt(limits.pages), segments: BigInt(limits.segments), resultBytes: BigInt(limits.result_bytes),

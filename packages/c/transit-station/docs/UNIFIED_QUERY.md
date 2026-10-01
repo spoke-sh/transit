@@ -37,6 +37,22 @@ native worker and copied credential; it acquires no process activation.
 16 KiB, an Arrow segment is at most 64 KiB and a batch has at most eight rows and
 eight columns. Local capability support does not establish remote permission.
 
+`transit_station_unified_compile_sql(client, source, name, sql, budgets,
+parameters, out)` returns an independently owned bundle; destroy it with
+`transit_station_unified_bundle_destroy`. `parameters` points to a
+`transit_station_unified_bindings` containing scalar pointers and a count.
+A null bindings pointer selects ordinary SQL; a non-null binding with count zero
+selects a template without placeholders. Inputs borrow only for the synchronous
+call. On failure `*out` is null.
+
+The name binds one explicit source. SQL is limited to 4096 bytes and bindings to
+three exact scalar values, with uint64 for LIMIT; no casts, null parameters or
+text substitution occur. Compilation checks current source access and budgets
+before and after binding and returns no bundle on failure. It takes no snapshot
+and submits no query. Use the existing upload workflow for the returned bundle;
+recover uncertain work from its original saved bundle and command rather than
+rebinding. See the [parameter contract](../../../../contracts/SQL_PARAMETERS_V1.md).
+
 `transit_station_unified_inspect_sql(client, source, name, sql, budgets, out)`
 executes scoped `DESCRIBE name`, `SHOW TABLES` or `EXPLAIN SELECT ...` through the
 shared Zig owner. The output struct owns all names, digests, revisions and tagged

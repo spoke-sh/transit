@@ -25,6 +25,19 @@ realm. It needs no activation or writer ownership. `describe(source)` checks
 current availability and policy. Native requests and results are checked against
 the generated schema, including the complete tagged variants.
 
+`compile_sql(source, name, sql, budgets, parameters: nil)` returns an owned
+`Bundle`. Supply an array of immutable `Scalar` values to bind placeholders.
+`nil` selects ordinary SQL; `[]` selects a template without placeholders.
+The resulting bytes are copied and frozen.
+
+The name binds one explicit source. SQL is limited to 4096 bytes and bindings to
+three exact scalar values, with uint64 for LIMIT; no casts, null parameters or
+text substitution occur. Compilation checks current source access and budgets
+before and after binding and returns no bundle on failure. It takes no snapshot
+and submits no query. Use the existing upload workflow for the returned bundle;
+recover uncertain work from its original saved bundle and command rather than
+rebinding. See the [parameter contract](../../../../contracts/SQL_PARAMETERS_V1.md).
+
 `inspect_sql(source, name, sql, budgets)` executes scoped `DESCRIBE name`,
 `SHOW TABLES` or `EXPLAIN SELECT ...` through the same Zig inspection owner as
 the console. The immutable `Inspection` carries source/schema digests, current

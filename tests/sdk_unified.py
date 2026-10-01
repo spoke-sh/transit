@@ -24,9 +24,10 @@ def compound_profile(state):
 
 
 class Consumer:
-    def __init__(self, command, environment, directory, *, inspection=False, predicate_programs=False):
+    def __init__(self, command, environment, directory, *, inspection=False, predicate_programs=False, compilation=False):
         self.inspection = inspection
         self.predicate_programs = predicate_programs
+        self.compilation = compilation
         self.child = subprocess.Popen(command, env=environment, cwd=directory,
             stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True)
         try: assert self.read() == {'ready': True}
@@ -115,8 +116,8 @@ def install(root, languages):
             config = root/'client.json'
             config.write_text(json.dumps(dict(url=url, connection=connection, seed_file=str(state/'caller.seed'),
                 kind=kind, compound=compound_profile(state), bundle=str(state/'bundle.bin'), arrow_site=str(Path(pyarrow.__file__).parent.parent))))
-            first = Consumer([python, '-B', script, 'sync', config], env, root, inspection=True, predicate_programs=True)
-            try: second = Consumer([python, '-B', script, 'async', config], env, root, inspection=True, predicate_programs=True)
+            first = Consumer([python, '-B', script, 'sync', config], env, root, inspection=True, predicate_programs=True, compilation=True)
+            try: second = Consumer([python, '-B', script, 'async', config], env, root, inspection=True, predicate_programs=True, compilation=True)
             except BaseException:
                 first.close()
                 raise
@@ -141,7 +142,7 @@ def install_node(root, fixtures):
     def open_callers(url, connection, state, kind):
         config = root/'client.json'
         config.write_text(json.dumps(dict(url=url, connection=connection, seed_file=str(state/'caller.seed'), kind=kind, compound=compound_profile(state), bundle=str(state/'bundle.bin'))))
-        return [Consumer(['node', script, 'serve', config], env, root, inspection=True, predicate_programs=True)]
+        return [Consumer(['node', script, 'serve', config], env, root, inspection=True, predicate_programs=True, compilation=True)]
     return open_callers
 
 
@@ -160,7 +161,7 @@ def install_ruby(root, fixtures):
     def open_callers(url, connection, state, kind):
         config = root/'client.json'
         config.write_text(json.dumps(dict(url=url, connection=connection, seed_file=str(state/'caller.seed'), kind=kind, compound=compound_profile(state), bundle=str(state/'bundle.bin'))))
-        return [Consumer(['ruby', script, 'serve', config], env, root, inspection=True, predicate_programs=True)]
+        return [Consumer(['ruby', script, 'serve', config], env, root, inspection=True, predicate_programs=True, compilation=True)]
     return open_callers
 
 
@@ -203,7 +204,7 @@ serde_json = { version = "=1.0.145", features = ["arbitrary_precision"] }
     def open_callers(url, connection, state, kind):
         config = root/'client.json'
         config.write_text(json.dumps(dict(url=url, connection=connection, seed_file=str(state/'caller.seed'), kind=kind, compound=compound_profile(state), bundle=str(state/'bundle.bin'))))
-        return [Consumer([executable, 'serve', config], env, root, inspection=True, predicate_programs=True)]
+        return [Consumer([executable, 'serve', config], env, root, inspection=True, predicate_programs=True, compilation=True)]
     return open_callers
 
 
@@ -213,6 +214,14 @@ class CConsumer(Consumer):
         elif 'submit' in action: command = 'submit ' + action['submit'].encode().hex()
         elif 'next' in action:
             v = action['next']; command = f"next {v['namespace']} {v['bundle']}"
+        elif 'compile' in action:
+            v = action['compile']; scope = v['scope']; limits = scope['limits']; parameters = v.get('parameters')
+            command = f"compile {scope['name']} {v['sql'].encode().hex()} {limits['pages']} {limits['segments']} {limits['result_bytes']} {-1 if parameters is None else len(parameters)}"
+            for item in parameters or ():
+                kind, value = next(iter(item.items()))
+                if kind == 'utf8': value = value.encode().hex()
+                elif kind == 'boolean': value = 'true' if value else 'false'
+                command += f' {kind}:{value}'
         elif 'inspect' in action:
             v = action['inspect']; scope = v['scope']; limits = scope['limits']
             command = f"inspect {scope['name']} {v['sql'].encode().hex()} {limits['pages']} {limits['segments']} {limits['result_bytes']}"
@@ -262,7 +271,7 @@ def install_c(root, fixtures, language):
         arguments = [executable, 'serve', url, str(state/'caller.seed'), kind, str(state/'bundle.bin')]
         arguments += [str(connection[key]) for key in ('realm', 'principal', 'source', 'resource', 'requester', 'requests')]
         arguments.append('compound' if compound_profile(state) else 'atom')
-        return [CConsumer(arguments, env, root, inspection=True, predicate_programs=True)]
+        return [CConsumer(arguments, env, root, inspection=True, predicate_programs=True, compilation=True)]
     return open_callers
 
 
@@ -281,7 +290,7 @@ def install_java(root, fixtures):
     def open_callers(url, connection, state, kind):
         config = root/'client.json'
         config.write_text(json.dumps(dict(url=url, connection=connection, seed_file=str(state/'caller.seed'), kind=kind, compound=compound_profile(state), bundle=str(state/'bundle.bin'))))
-        return [Consumer([*command, 'serve', config], env, root, inspection=True, predicate_programs=True)]
+        return [Consumer([*command, 'serve', config], env, root, inspection=True, predicate_programs=True, compilation=True)]
     return open_callers
 
 
@@ -309,7 +318,7 @@ def install_dotnet(root, fixtures):
     def open_callers(url, connection, state, kind):
         config = root/'client.json'
         config.write_text(json.dumps(dict(url=url, connection=connection, seed_file=str(state/'caller.seed'), kind=kind, compound=compound_profile(state), bundle=str(state/'bundle.bin'))))
-        return [Consumer([*command, 'serve', config], env, root, inspection=True, predicate_programs=True)]
+        return [Consumer([*command, 'serve', config], env, root, inspection=True, predicate_programs=True, compilation=True)]
     return open_callers
 
 
@@ -335,7 +344,7 @@ def install_beam(root, fixtures, language):
     def open_callers(url, connection, state, kind):
         config = root/'client.json'
         config.write_text(json.dumps(dict(url=url, connection=connection, seed_file=str(state/'caller.seed'), kind=kind, compound=compound_profile(state), bundle=str(state/'bundle.bin'))))
-        return [Consumer([*command, 'serve', config], env, root, inspection=True, predicate_programs=True)]
+        return [Consumer([*command, 'serve', config], env, root, inspection=True, predicate_programs=True, compilation=True)]
     return open_callers
 
 

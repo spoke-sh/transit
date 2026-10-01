@@ -27,6 +27,19 @@ take an exclusive mutable borrow; concurrent access cannot be hidden in an
 unbounded executor queue. The API blocks: move the owner into a host blocking
 task when integrating with an executor. `close` and drop join native destruction.
 
+`compile_sql(&source, name, sql, budgets, parameters)` returns an owned `Bundle`
+under the client's exclusive mutable borrow. `parameters` is `Option<&[Scalar]>`:
+`None` selects ordinary SQL; `Some(&[])` selects a template without placeholders.
+The result owns its bytes independently of the borrowed source and bindings.
+
+The name binds one explicit source. SQL is limited to 4096 bytes and bindings to
+three exact scalar values, with uint64 for LIMIT; no casts, null parameters or
+text substitution occur. Compilation checks current source access and budgets
+before and after binding and returns no bundle on failure. It takes no snapshot
+and submits no query. Use the existing upload workflow for the returned bundle;
+recover uncertain work from its original saved bundle and command rather than
+rebinding. See the [parameter contract](../../../../contracts/SQL_PARAMETERS_V1.md).
+
 `inspect_sql(&source, name, sql, budgets)` executes scoped `DESCRIBE name`,
 `SHOW TABLES` or `EXPLAIN SELECT ...` through the shared Zig inspection owner.
 The owned `Inspection` returns source/schema digests, current resource/policy

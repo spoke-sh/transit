@@ -1,7 +1,7 @@
 %% Public immutable query values; the native worker owns signed protocol work.
 -module(transit_unified_query).
 -include("transit_unified_query.hrl").
--export([prepare/3,prepare/4,decode_arrow/3,decode_arrow/4,open/3,close/1,describe/2,inspect_sql/5,
+-export([prepare/3,prepare/4,decode_arrow/3,decode_arrow/4,open/3,close/1,describe/2,inspect_sql/5,compile_sql/5,compile_sql/6,
          prepare_next/3,prepare_control/3,submit/2,observe/2,status/2,page/2,page/3]).
 %% Internal bounded-worker callbacks, not an application wire interface.
 -export([open/2,execute/2,evidence/1]).
@@ -119,6 +119,8 @@ evidence(_) -> undefined.
 call({transit_unified_client,Worker},Request) -> transit_sdk_worker:invoke(Worker,Request).
 describe(Client,Source) -> call(Client,{describe,Source}).
 inspect_sql(Client,Source,Name,Sql,Budgets) -> call(Client,{inspect,Source,Name,Sql,Budgets}).
+compile_sql(Client,Source,Name,Sql,Budgets) -> compile_sql(Client,Source,Name,Sql,Budgets,undefined).
+compile_sql(Client,Source,Name,Sql,Budgets,Parameters) -> call(Client,{compile,Source,Name,Sql,Budgets,Parameters}).
 prepare_next(Client,Namespace,Bundle) -> call(Client,{next,Namespace,Bundle}).
 prepare_control(Client,Control,Namespace) -> call(Client,{control,Control,Namespace}).
 submit(Client,Prepared) -> case call(Client,{submit,Prepared}) of {error,#transit_error{kind=unknown_outcome}=E}->{uncertain,Prepared,E}; Other->Other end.
@@ -143,6 +145,11 @@ operation(B,#transit_unified_connection{resource=R},{inspect,S,Name,Sql,Budgets}
     #transit_unified_inspection{name=transit_sdk_value:text(maps:get(<<"name">>,V),32),resource=R,source_kind=known(maps:get(<<"source_kind">>,V),[kv,table,document]),
         source_digest=transit_station_value:digest(maps:get(<<"contract">>,V)),schema_digest=transit_station_value:digest(maps:get(<<"schema">>,V)),
         resource_revision=transit_sdk_value:counter(maps:get(<<"resource_revision">>,V),0),policy_revision=positive(wide(maps:get(<<"policy_revision">>,V))),details=inspection_details(maps:get(<<"details">>,V))};
+operation(B,#transit_unified_connection{resource=R},{compile,S,Name,Sql,Budgets,Parameters}) ->
+    true=source_resource(S)=:=R,
+    Values=case Parameters of undefined->null; L when is_list(L),length(L)=<3 -> [scalar(V)||V<-L] end,
+    #{<<"compiled">>:=#{<<"bundle">>:=Bundle}}=request(B,#{<<"compile">>=>#{<<"scope">>=>#{<<"source">>=>source(S),<<"name">>=>transit_sdk_value:text(Name,32),<<"limits">>=>budgets(Budgets)},<<"sql">>=>transit_sdk_value:text(Sql,4096),<<"parameters">>=>Values}}),
+    #transit_unified_bundle{bytes=transit_sdk_value:unhex(Bundle,16384)};
 operation(B,_,{next,N,#transit_unified_bundle{bytes=Bundle}}) ->
     #{<<"prepared">>:=V}=request(B,#{<<"next">>=>#{<<"namespace">>=>decimal(positive(N)),<<"bundle">>=>transit_sdk_value:hex(transit_sdk_value:bytes(Bundle,16384))}}),prepared(V);
 operation(B,_,{control,Control,N}) -> #{<<"prepared">>:=V}=request(B,#{<<"prepare">>=>#{enum(Control,[cancel,retire,collect])=>decimal(positive(N))}}),prepared(V);

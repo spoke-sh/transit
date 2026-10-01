@@ -29,6 +29,20 @@ in flight. Try-with-resources closes the port and joins the worker. Completion
 callbacks must not call blocking close on the publisher thread; close from the
 owning application thread after observing the future.
 
+`compileSql(source, name, sql, budgets, parameters)` returns a
+`CompletableFuture<Bundle>`. The optional `List<Scalar>` is copied into the native
+request before worker submission. The four-argument overload or `null` selects
+ordinary SQL; an empty list selects a template without placeholders.
+The immutable bundle survives the input list and client.
+
+The name binds one explicit source. SQL is limited to 4096 bytes and bindings to
+three exact scalar values, with uint64 for LIMIT; no casts, null parameters or
+text substitution occur. Compilation checks current source access and budgets
+before and after binding and returns no bundle on failure. It takes no snapshot
+and submits no query. Use the existing upload workflow for the returned bundle;
+recover uncertain work from its original saved bundle and command rather than
+rebinding. See the [parameter contract](../../../../contracts/SQL_PARAMETERS_V1.md).
+
 `inspectSql(source, name, sql, budgets)` executes scoped `DESCRIBE name`,
 `SHOW TABLES` or `EXPLAIN SELECT ...` through the shared Zig inspection owner.
 Its future returns an immutable `Inspection` with source/schema digests, current

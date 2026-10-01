@@ -301,6 +301,15 @@ public:
         }
         return result;
     }
+    Bundle compile_sql(const Source &source, const std::string &name, const std::string &sql, Budgets budgets,
+                       const std::optional<std::vector<Scalar>> &parameters = std::nullopt) {
+        detail::SourceView s(source);std::vector<transit_station_unified_scalar> values;
+        if(parameters){if(parameters->size()>3)throw std::invalid_argument("Expected at most three parameter scalars");for(const auto &value:*parameters)values.push_back(detail::scalar(value));}
+        const transit_station_unified_bindings bindings{values.data(),values.size()};
+        transit_station_unified_bundle *out=nullptr;
+        check(transit_station_unified_compile_sql(value_.get(),&s.value,name.c_str(),sql.c_str(),{budgets.pages,budgets.segments,budgets.result_bytes},parameters?&bindings:nullptr,&out));
+        return Bundle(out);
+    }
     std::optional<Prepared> prepare_next(uint64_t ns, const Bundle &bundle) {
         transit_station_unified_prepared *out = nullptr; check(transit_station_unified_prepare_next(value_.get(), ns, bundle.native(), &out));
         if (!out) return {}; return Prepared(out);

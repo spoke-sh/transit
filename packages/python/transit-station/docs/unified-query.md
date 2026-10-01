@@ -43,6 +43,19 @@ command. A rejected observation reports the durable behavior rejection. A null
 prepared command does not prove query completion: read `status(namespace)`.
 Namespaces and budgets retain the full unsigned 64-bit range.
 
+`compile_sql(source, name, sql, budgets, parameters=None)` returns an owned
+`Bundle` in both client variants; await the asynchronous method. Pass a tuple of
+`Scalar` values to bind `$1`, `$2`, and so on. `None` selects ordinary SQL; an
+empty tuple selects a template without placeholders.
+
+The name binds one explicit source. SQL is limited to 4096 bytes and bindings to
+three exact scalar values, with uint64 for LIMIT; no casts, null parameters or
+text substitution occur. Compilation checks current source access and budgets
+before and after binding and returns no bundle on failure. It takes no snapshot
+and submits no query. Use the existing upload workflow for the returned bundle;
+recover uncertain work from its original saved bundle and command rather than
+rebinding. See the [parameter contract](../../../../contracts/SQL_PARAMETERS_V1.md).
+
 `inspect_sql(source, name, sql, budgets)` accepts `DESCRIBE name`, `SHOW TABLES`
 and `EXPLAIN SELECT ...`. Both client variants return an `Inspection` containing
 current resource/policy revisions, declaration/schema digests and typed

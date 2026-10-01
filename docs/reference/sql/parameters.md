@@ -6,7 +6,8 @@ or an input LIMIT. Values bind directly into an ordinary plan; they are never
 interpreted as SQL text. Templates support one comparison or cell-state test;
 Boolean predicate composition remains available through ordinary SQL submission.
 
-These are compiler-template examples, not console or SQL-shell commands:
+These templates are accepted through explicit compiler or SDK bindings; ordinary
+console and SQL-shell text does not supply their parameter values:
 
 ```sql
 SELECT value FROM items WHERE id > $1 LIMIT $2;
@@ -45,8 +46,16 @@ its grammar bounds.
 Compilation does not submit the bundle or retain source data. See the
 [native caller boundary](../../../packages/zig/transit-station-bindings/docs/unified-query.md#signed-caller-ownership).
 
-Ordinary SQL submission without explicit bindings, language convenience parameter
-APIs, CLI parameter arguments, named `PREPARE`/`EXECUTE`, file parameters and saved
-templates are unsupported. See the
+All ten [language SDKs](../sdks.md) expose one-shot typed compilation through this
+shared operation. Supply the explicit source, its SQL name, SQL text, positive
+budgets and optional ordered scalar bindings. The result is an ordinary owned
+bundle for the existing admission/recovery workflow. Omitting bindings selects
+ordinary SQL; an explicit empty collection selects a template with no
+placeholders. Host integers and scalar types map through the existing exact
+codecs. At most three values bind the current grammar sites. SDK guides describe
+ownership and cancellation for each host language.
+
+Unresolved placeholders in ordinary SQL submission, CLI parameter arguments,
+named `PREPARE`/`EXECUTE`, file parameters and saved templates are unsupported. See the
 [compiler API](../../../packages/zig/transit-fuze/docs/unified-sql.md#typed-templates)
 and [exact parameter contract](../../../contracts/SQL_PARAMETERS_V1.md).

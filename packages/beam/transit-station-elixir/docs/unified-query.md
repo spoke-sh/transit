@@ -33,6 +33,20 @@ retry token. Admission, `observe` disposition and `status` completion are separa
 `nil` from `prepare_next` means inspect status. `prepare_control` creates explicit
 cancel/retire/collect commands with the same persistence rules.
 
+`compile_sql(client, source, name, sql, budgets, parameters \ nil)` returns
+`{:ok, %Bundle{}}` or a tagged error through the shared Erlang owner. Bindings are
+a list of the existing tagged scalars, such as `{:utf8, "value"}` and
+`{:uint64, 8}`. `nil` selects ordinary SQL; `[]` selects a template without
+placeholders. The immutable result survives client close.
+
+The name binds one explicit source. SQL is limited to 4096 bytes and bindings to
+three exact scalar values, with uint64 for LIMIT; no casts, null parameters or
+text substitution occur. Compilation checks current source access and budgets
+before and after binding and returns no bundle on failure. It takes no snapshot
+and submits no query. Use the existing upload workflow for the returned bundle;
+recover uncertain work from its original saved bundle and command rather than
+rebinding. See the [parameter contract](../../../../contracts/SQL_PARAMETERS_V1.md).
+
 `inspect_sql(client, source, name, sql, budgets)` returns `{:ok, %Inspection{}}`
 for scoped `DESCRIBE name`, `SHOW TABLES` and `EXPLAIN SELECT ...`. Its details
 are `SourceDescription`, `TableListing` or `Explanation` structs with owned

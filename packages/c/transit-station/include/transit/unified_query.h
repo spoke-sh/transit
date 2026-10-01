@@ -146,6 +146,12 @@ transit_sdk_error transit_station_unified_describe(transit_station_unified_clien
 /* Current scoped metadata; no snapshot, query admission or literal disclosure.
  * Name/SQL are bounded UTF-8 strings; output is zeroed on failure. */
 transit_sdk_error transit_station_unified_inspect_sql(transit_station_unified_client *, const transit_station_unified_source *, const char *name, const char *sql, transit_station_unified_budgets, transit_station_unified_inspection *out);
+/* NULL bindings select ordinary SQL; a non-NULL empty set selects a template
+ * without placeholders. At most three values; all inputs borrow for this call.
+ * On success out owns its bundle independently; failure leaves out NULL.
+ * Compilation uses current source access and performs no upload or admission. */
+typedef struct transit_station_unified_bindings { const transit_station_unified_scalar *values; size_t count; } transit_station_unified_bindings;
+transit_sdk_error transit_station_unified_compile_sql(transit_station_unified_client *, const transit_station_unified_source *, const char *name, const char *sql, transit_station_unified_budgets, const transit_station_unified_bindings *, transit_station_unified_bundle **out);
 transit_sdk_error transit_station_unified_prepare_next(transit_station_unified_client *, uint64_t namespace_id, const transit_station_unified_bundle *, transit_station_unified_prepared **out); /* NULL: inspect status, not completion. */
 typedef enum transit_station_unified_control { TRANSIT_UNIFIED_CANCEL, TRANSIT_UNIFIED_RETIRE, TRANSIT_UNIFIED_COLLECT } transit_station_unified_control;
 transit_sdk_error transit_station_unified_prepare_control(transit_station_unified_client *, transit_station_unified_control, uint64_t namespace_id, transit_station_unified_prepared **out);

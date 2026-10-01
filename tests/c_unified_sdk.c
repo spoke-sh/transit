@@ -150,7 +150,25 @@ static void serve(char **args) {
         char *command=strtok(line," \n"),*arg=strtok(NULL," \n"),*token=strtok(NULL," \n"); assert(command);
         if(!strcmp(command,"close"))break;
         transit_sdk_error error={0};
-        if(!strcmp(command,"inspect")) {
+        if(!strcmp(command,"compile")) {
+            transit_sdk_bytes sql=unhex(token); ((char *)sql.data)[sql.size]='\0';
+            transit_station_unified_budgets budgets={0}; budgets.pages=strtoull(strtok(NULL," \n"),NULL,10);budgets.segments=strtoull(strtok(NULL," \n"),NULL,10);budgets.result_bytes=strtoull(strtok(NULL," \n"),NULL,10);
+            long count=strtol(strtok(NULL," \n"),NULL,10);assert(count>=-1&&count<=3);
+            transit_station_unified_scalar values[3]={{0}};
+            for(long i=0;i<count;++i){
+                char *type=strtok(NULL," \n"),*payload=strchr(type,':');assert(payload);*payload++='\0';
+                if(!strcmp(type,"int64")){values[i].type=TRANSIT_UNIFIED_INT64;values[i].signed_value=strtoll(payload,NULL,10);}
+                else if(!strcmp(type,"uint64")){values[i].type=TRANSIT_UNIFIED_UINT64;values[i].unsigned_value=strtoull(payload,NULL,10);}
+                else if(!strcmp(type,"boolean")){values[i].type=TRANSIT_UNIFIED_BOOLEAN;values[i].boolean=!strcmp(payload,"true");}
+                else if(!strcmp(type,"float_bits")){transit_sdk_bytes bits=unhex(payload);assert(bits.size==8);uint64_t raw=0;for(size_t j=0;j<8;++j)raw|=(uint64_t)bits.data[j]<<(8*j);values[i].type=TRANSIT_UNIFIED_FLOAT64;memcpy(&values[i].float_value,&raw,8);free((void *)bits.data);}
+                else{assert(!strcmp(type,"utf8")||!strcmp(type,"binary"));values[i].type=!strcmp(type,"utf8")?TRANSIT_UNIFIED_UTF8:TRANSIT_UNIFIED_BINARY;values[i].bytes=unhex(payload);}
+            }
+            transit_station_unified_bindings parameters={values,count<0?0:(size_t)count};transit_station_unified_bundle *compiled=NULL;
+            error=transit_station_unified_compile_sql(client,&d.source,arg,(const char *)sql.data,budgets,count<0?NULL:&parameters,&compiled);
+            free((void *)sql.data);for(long i=0;i<count;++i)if(values[i].type==TRANSIT_UNIFIED_UTF8||values[i].type==TRANSIT_UNIFIED_BINARY)free((void *)values[i].bytes.data);
+            if(!error.kind){checked(transit_station_unified_bundle_bytes(compiled,&data));printf("{\"status\":0,\"value\":{\"compiled\":{\"bundle\":\"");print_hex(data);puts("\"}}}");}else assert(!compiled);
+            transit_station_unified_bundle_destroy(compiled);
+        } else if(!strcmp(command,"inspect")) {
             transit_sdk_bytes sql=unhex(token); ((char *)sql.data)[sql.size]='\0';
             transit_station_unified_budgets budgets={0}; budgets.pages=strtoull(strtok(NULL," \n"),NULL,10);budgets.segments=strtoull(strtok(NULL," \n"),NULL,10);budgets.result_bytes=strtoull(strtok(NULL," \n"),NULL,10);
             transit_station_unified_inspection out={0};error=transit_station_unified_inspect_sql(client,&d.source,arg,(const char *)sql.data,budgets,&out);free((void *)sql.data);

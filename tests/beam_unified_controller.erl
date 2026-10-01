@@ -108,6 +108,18 @@ inspection_details(#transit_unified_explanation{operators=Operators,predicate=Pr
     P=inspection_predicate(Predicate),
     #{explanation=>#{operators=>[atom_to_binary(O)||O<-Operators],predicate=>P,projection=>Projection,limit=>case Limit of undefined->null; _->integer_to_binary(Limit) end,
         aggregate=>atom_to_binary(Aggregate),columns=>inspection_columns(Columns),budgets=>#{pages=>integer_to_binary(Pages),segments=>integer_to_binary(Segments),result_bytes=>integer_to_binary(Bytes)}}}.
+parameter(#{<<"int64">>:=V})->{int64,binary_to_integer(V)};
+parameter(#{<<"uint64">>:=V})->{uint64,binary_to_integer(V)};
+parameter(#{<<"float_bits">>:=V})-><<F:64/float-little>>=binary:decode_hex(V),{float64,F};
+parameter(#{<<"boolean">>:=V})->{boolean,V};
+parameter(#{<<"utf8">>:=V})->{utf8,V};
+parameter(#{<<"binary">>:=V})->{binary,binary:decode_hex(V)}.
+action(A,C,#{<<"compile">>:=#{<<"scope">>:=Scope,<<"sql">>:=Sql}=Request},Connection,Kind)->
+    Limits=maps:get(<<"limits">>,Scope),Resource=Connection#transit_unified_connection.resource,
+    Budgets=#transit_unified_budgets{pages=binary_to_integer(maps:get(<<"pages">>,Limits)),segments=binary_to_integer(maps:get(<<"segments">>,Limits)),result_bytes=binary_to_integer(maps:get(<<"result_bytes">>,Limits))},
+    Parameters=case maps:get(<<"parameters">>,Request,null) of null->undefined; Values->[parameter(V)||V<-Values] end,
+    #transit_unified_bundle{bytes=Bytes}=result(A:compile(C,source(Resource,Kind,false),maps:get(<<"name">>,Scope),Sql,Budgets,Parameters)),
+    {#{compiled=>#{bundle=>hex(Bytes)}},undefined};
 action(A,C,#{<<"inspect">>:=#{<<"scope">>:=Scope,<<"sql">>:=Sql}},Connection,Kind)->
     Limits=maps:get(<<"limits">>,Scope),Resource=Connection#transit_unified_connection.resource,
     Budgets=#transit_unified_budgets{pages=binary_to_integer(maps:get(<<"pages">>,Limits)),segments=binary_to_integer(maps:get(<<"segments">>,Limits)),result_bytes=binary_to_integer(maps:get(<<"result_bytes">>,Limits))},
