@@ -793,6 +793,40 @@ export class Client {
     if (!("inspection" in value)) throw new IncompatibleNative("Expected SQL inspection");
     return inspection(value.inspection, id);
   }
+  /** Compile an owned finite bundle; binding never uploads or admits a query. */
+  async compileSql(
+    source: Source,
+    name: string,
+    sql: string,
+    budgets: Budgets,
+    parameters?: readonly Scalar[],
+  ): Promise<Bundle> {
+    const id = resource(source);
+    if (
+      id.realm !== this.connection.resource.realm ||
+      id.resource !== this.connection.resource.resource
+    )
+      throw new TypeError("Source differs from the connection");
+    if (parameters !== undefined && (!Array.isArray(parameters) || parameters.length > 3))
+      throw new TypeError("Expected at most three parameter scalars");
+    const value = await this.bridge.call({
+      compile: {
+        scope: {
+          name: text(name, 32),
+          source: sourceWire(source),
+          limits: {
+            pages: positive(budgets.pages),
+            segments: positive(budgets.segments),
+            result_bytes: positive(budgets.resultBytes),
+          },
+        },
+        sql: text(sql, 4096),
+        parameters: parameters === undefined ? null : parameters.map(scalar),
+      },
+    });
+    if (!("compiled" in value)) throw new IncompatibleNative("Expected compiled SQL bundle");
+    return new Bundle(unhex(value.compiled.bundle, 16384));
+  }
   async prepareNext(namespace: bigint, bundle: Bundle): Promise<Prepared | undefined> {
     if (!(bundle instanceof Bundle)) throw new TypeError("Expected query bundle");
     const value = await this.bridge.call({

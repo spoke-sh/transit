@@ -36,6 +36,19 @@ with names/types instead of literals. Its vectors and strings can outlive the
 client. The C ABI layout and shared-definition cutover require matching C/C++
 headers, SDK libraries and native artifacts; follow the C guide's recovery rules.
 
+`client.compile_sql(source, name, sql, budgets, parameters)` returns a move-only
+owned `Bundle`. `parameters` is an optional vector of `Scalar`: omission or
+`std::nullopt` selects ordinary SQL; an empty vector selects a template without
+placeholders. The result survives the source and binding inputs.
+
+The name binds one explicit source. SQL is limited to 4096 bytes and bindings to
+three exact scalar values, with uint64 for LIMIT; no casts, null parameters or
+text substitution occur. Compilation checks current source access and budgets
+before and after binding and returns no bundle on failure. It takes no snapshot
+and submits no query. Use the existing upload workflow for the returned bundle;
+recover uncertain work from its original saved bundle and command rather than
+rebinding. See the [parameter contract](../../../../contracts/SQL_PARAMETERS_V1.md).
+
 `client.inspect_sql(source, name, sql, budgets)` executes scoped `DESCRIBE name`,
 `SHOW TABLES` or `EXPLAIN SELECT ...`. Its owned `Inspection` carries source/schema
 digests, current resource/policy revisions and a variant of `SourceDescription`,

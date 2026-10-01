@@ -120,7 +120,22 @@ def serve(config)
       action = JSON.parse(line)
       break if action.key?('close')
       begin
-        result = if action.key?('inspect')
+        result = if action.key?('compile')
+          request = action.fetch('compile'); scope = request.fetch('scope'); limits = scope.fetch('limits')
+          parameters = request['parameters']&.map do |item|
+            kind, data = item.first
+            data = case kind
+            when 'int64', 'uint64' then Integer(data)
+            when 'float_bits' then [data].pack('H*').unpack1('E')
+            when 'binary' then [data].pack('H*')
+            else data
+            end
+            Q::Scalar.new(type: (kind == 'float_bits' ? :float64 : kind.to_sym), value: data)
+          end
+          value = client.compile_sql(source, scope.fetch('name'), request.fetch('sql'), Q::Budgets.new(
+            pages: Integer(limits.fetch('pages')), segments: Integer(limits.fetch('segments')), result_bytes: Integer(limits.fetch('result_bytes'))), parameters: parameters)
+          { compiled: { bundle: value.data.unpack1('H*') } }
+        elsif action.key?('inspect')
           request = action.fetch('inspect')
           scope = request.fetch('scope')
           limits = scope.fetch('limits')

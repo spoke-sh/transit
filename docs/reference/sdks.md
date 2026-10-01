@@ -33,6 +33,32 @@ use separate generated, runtime-validated [query](../../packages/ts/transit-quer
 [application](../../packages/ts/transit-application/README.md) packages; the Node
 native client is not a browser credential adapter.
 
+## Typed SQL compilation
+
+All ten SDKs compile finite SQL with an explicit source, source name, positive
+budgets and optional ordered scalar bindings. They call the same shared
+compiler, current-access checks and neutral codecs. Compilation returns an owned
+ordinary bundle and performs no snapshot acquisition or admission.
+
+| Language | Public query method |
+| --- | --- |
+| Python | [`Client.compile_sql`, `AsyncClient.compile_sql`](../../packages/python/transit-station/docs/unified-query.md) |
+| TypeScript | [`Client.compileSql`](../../packages/ts/transit-station-sdk/docs/unified-query.md) |
+| Rust | [`Client::compile_sql`](../../packages/rust/transit-station-sdk/docs/UNIFIED_QUERY.md) |
+| Ruby | [`Client#compile_sql`](../../packages/ruby/transit-station/docs/UNIFIED_QUERY.md) |
+| C | [`transit_station_unified_compile_sql`](../../packages/c/transit-station/docs/UNIFIED_QUERY.md) |
+| C++ | [`Client::compile_sql`](../../packages/cpp/transit-station-sdk/docs/UNIFIED_QUERY.md) |
+| Java | [`Client.compileSql`](../../packages/java/transit-station-sdk/docs/UNIFIED_QUERY.md) |
+| .NET | [`Client.CompileSqlAsync`](../../packages/dotnet/transit-station-sdk/docs/UNIFIED_QUERY.md) |
+| Erlang | [`transit_unified_query:compile_sql/5,6`](../../packages/beam/transit-station-sdk/docs/unified-query.md) |
+| Elixir | [`UnifiedQuery.compile_sql/5,6`](../../packages/beam/transit-station-elixir/docs/unified-query.md) |
+
+Omitted bindings select ordinary SQL; an explicit empty collection selects a
+template without placeholders. The [parameter reference](sql/parameters.md)
+defines exact typing, grammar sites and limits. Follow the ordinary bundle
+upload and saved-command recovery workflow; rebinding is a new query, not a
+retry of uncertain work. These methods do not create named prepared statements.
+
 ## Finite query output names
 
 All ten language SDKs expose optional names by output position in their finite

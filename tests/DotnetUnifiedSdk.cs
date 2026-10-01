@@ -129,7 +129,26 @@ static class Program
                 var action=JsonNode.Parse(line)!.AsObject(); if(action.ContainsKey("close"))break;
                 try {
                     JsonObject result;
-                    if(action["inspect"] is {} inspection) {
+                    if(action["compile"] is {} compilation) {
+                        var scope=compilation["scope"]!; var limits=scope["limits"]!;
+                        Q.Scalar Parameter(JsonNode? item) {
+                            var entry=item!.AsObject().Single(); var v=entry.Value!;
+                            return entry.Key switch {
+                                "int64" => new Q.Signed(long.Parse(v.GetValue<string>())),
+                                "uint64" => new Q.Unsigned(ulong.Parse(v.GetValue<string>())),
+                                "float_bits" => new Q.Floating(BinaryPrimitives.ReadDoubleLittleEndian(Convert.FromHexString(v.GetValue<string>()))),
+                                "boolean" => new Q.BooleanValue(v.GetValue<bool>()),
+                                "utf8" => new Q.Text(v.GetValue<string>()),
+                                "binary" => new Q.Binary(new Bytes(Convert.FromHexString(v.GetValue<string>()))),
+                                _ => throw new Exception("Unknown parameter type")
+                            };
+                        }
+                        var parameters=compilation["parameters"]?.AsArray().Select(Parameter).ToArray();
+                        var pending=client.CompileSqlAsync(source,Text(scope,"name"),Text(compilation,"sql"),new(ulong.Parse(Text(limits,"pages")),ulong.Parse(Text(limits,"segments")),ulong.Parse(Text(limits,"result_bytes"))),parameters);
+                        if(parameters is not null)Array.Clear(parameters);
+                        var compiled=await pending;
+                        result=Obj(("compiled",Obj(("bundle",Hex(compiled.Bytes)))));
+                    } else if(action["inspect"] is {} inspection) {
                         var scope=inspection["scope"]!; var limits=scope["limits"]!;
                         var value=await client.InspectSqlAsync(source,Text(scope,"name"),Text(inspection,"sql"),new(ulong.Parse(Text(limits,"pages")),ulong.Parse(Text(limits,"segments")),ulong.Parse(Text(limits,"result_bytes"))));
                         Check(value.Resource==resource && Name(value.SourceKind)==kind); result=Inspection(value);

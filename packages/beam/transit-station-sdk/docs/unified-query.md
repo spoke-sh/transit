@@ -32,6 +32,20 @@ prepare a replacement. Other failures return `{error, #transit_error{}}`.
 A receipt is admission; `observe/2` checks behavior disposition and `status/2`
 checks result completion. An undefined next command means inspect status.
 
+`compile_sql(Client, Source, Name, Sql, Budgets, Parameters)` returns
+`{ok, #transit_unified_bundle{}}` or a tagged error through the owned worker.
+Pass a list of the existing tagged scalars to bind placeholders. The five-argument
+form or `undefined` selects ordinary SQL; `[]` selects a template without
+placeholders. The immutable bundle is independent of the client lifetime.
+
+The name binds one explicit source. SQL is limited to 4096 bytes and bindings to
+three exact scalar values, with uint64 for LIMIT; no casts, null parameters or
+text substitution occur. Compilation checks current source access and budgets
+before and after binding and returns no bundle on failure. It takes no snapshot
+and submits no query. Use the existing upload workflow for the returned bundle;
+recover uncertain work from its original saved bundle and command rather than
+rebinding. See the [parameter contract](../../../../contracts/SQL_PARAMETERS_V1.md).
+
 `inspect_sql(Client, Source, Name, Sql, Budgets)` executes scoped `DESCRIBE name`,
 `SHOW TABLES` or `EXPLAIN SELECT ...` through the shared Zig inspection owner.
 It returns `{ok, #transit_unified_inspection{}}` with owned names, source/schema

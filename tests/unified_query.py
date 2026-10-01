@@ -250,9 +250,9 @@ def run(node, host, proof, port_host, library, kinds=("kv", "table", "document")
                     assert sends == fault['console_sends'], 'preparation submitted query work'
                     print(f"Unified {kind}: compound bundle and original prepared identity agree across {2+len(callers)} callers", flush=True)
                 from unified_parameters import compile_requests, rejected as compilation_rejected
-                compilers = (native, port_client)
-                compilation_requests = compile_requests(compilers, scope, kind, root, fault)
-                print(f"Unified {kind}: native/port parameter compilation agrees with literal and frozen typed-plan bytes; no dispatch", flush=True)
+                compilers = (native, port_client, *(caller for caller in callers if caller.compilation))
+                compilation_requests = compile_requests(compilers, scope, kind, root, fault, capability_owners=(native, port_client))
+                print(f"Unified {kind}: parameter compilation agrees across {len(compilers)} native/port/SDK callers with literal and frozen typed-plan bytes; no dispatch", flush=True)
                 uploader = callers[0] if callers else native
                 try:
                     upload(uploader, root)

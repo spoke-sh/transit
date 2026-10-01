@@ -1020,6 +1020,38 @@ impl Client {
         let response = self.call(json!({"inspect":{"scope":{"source":source.wire()?,"name":name,"limits":budgets.wire()?},"sql":sql}}))?;
         Inspection::parse(field(&response, "inspection")?, self.connection.resource)
     }
+    /// Compile a new owned bundle under current source permission. An uncertain
+    /// upload must retain its original bundle and commands instead of rebinding.
+    pub fn compile_sql(
+        &mut self,
+        source: &Source,
+        name: &str,
+        sql: &str,
+        budgets: Budgets,
+        parameters: Option<&[Scalar]>,
+    ) -> Result<Bundle> {
+        if source.resource() != self.connection.resource || name.len() > 32 || sql.len() > 4096 {
+            return Err(invalid());
+        }
+        let values = match parameters {
+            Some(values) if values.len() <= 3 => Some(
+                values
+                    .iter()
+                    .map(Scalar::wire)
+                    .collect::<Result<Vec<_>>>()?,
+            ),
+            Some(_) => return Err(invalid()),
+            None => None,
+        };
+        let response = self.call(json!({"compile":{"scope":{"source":source.wire()?,"name":name,"limits":budgets.wire()?},"sql":sql,"parameters":values}}))?;
+        Bundle::from_bytes(unhex(
+            string(
+                field(field(&response, "compiled")?, "bundle")?,
+                "query-bundle",
+            )?,
+            16384,
+        )?)
+    }
     pub fn prepare_next(&mut self, namespace: u64, bundle: &Bundle) -> Result<Option<Prepared>> {
         if namespace == 0 {
             return Err(invalid());

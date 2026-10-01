@@ -306,6 +306,19 @@ defmodule Transit.Station.Sdk.UnifiedQuery do
         :transit_unified_query.inspect_sql(client, native(source), name, sql, native(budgets))
       )
 
+  def compile_sql(client, source, name, sql, %Budgets{} = budgets, parameters \\ nil),
+    do:
+      result(
+        :transit_unified_query.compile_sql(
+          client,
+          native(source),
+          name,
+          sql,
+          native(budgets),
+          native(parameters)
+        )
+      )
+
   def prepare_next(client, namespace, %Bundle{} = bundle),
     do: result(:transit_unified_query.prepare_next(client, namespace, native(bundle)))
 

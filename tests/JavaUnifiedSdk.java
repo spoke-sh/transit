@@ -149,7 +149,29 @@ public final class JavaUnifiedSdk {
                     JsonObject action=object(line); if(action.has("close"))break;
                     try {
                         JsonObject result;
-                        if(action.has("inspect")) {
+                        if(action.has("compile")) {
+                            var request=action.getAsJsonObject("compile"); var scope=request.getAsJsonObject("scope"); var limits=scope.getAsJsonObject("limits");
+                            List<Scalar> parameters=null;
+                            if(request.has("parameters")&&!request.get("parameters").isJsonNull()) {
+                                parameters=new ArrayList<>();
+                                for(var item:request.getAsJsonArray("parameters")) {
+                                    var entry=item.getAsJsonObject().entrySet().iterator().next(); var v=entry.getValue();
+                                    parameters.add(switch(entry.getKey()) {
+                                        case "int64" -> new Signed(Long.parseLong(v.getAsString()));
+                                        case "uint64" -> new Unsigned(new BigInteger(v.getAsString()));
+                                        case "float_bits" -> new Floating(ByteBuffer.wrap(HexFormat.of().parseHex(v.getAsString())).order(ByteOrder.LITTLE_ENDIAN).getDouble());
+                                        case "boolean" -> new BooleanValue(v.getAsBoolean());
+                                        case "utf8" -> new Text(v.getAsString());
+                                        case "binary" -> new Binary(new Bytes(HexFormat.of().parseHex(v.getAsString())));
+                                        default -> throw new AssertionError("Unknown parameter type");
+                                    });
+                                }
+                            }
+                            var pending=client.compileSql(source,string(scope,"name"),string(request,"sql"),new Budgets(new BigInteger(string(limits,"pages")),new BigInteger(string(limits,"segments")),new BigInteger(string(limits,"result_bytes"))),parameters);
+                            if(parameters!=null)parameters.clear();
+                            var compiled=await(pending);
+                            result=json("compiled",json("bundle",hex(compiled.bytes())));
+                        } else if(action.has("inspect")) {
                             var request=action.getAsJsonObject("inspect"); var scope=request.getAsJsonObject("scope"); var limits=scope.getAsJsonObject("limits");
                             var value=await(client.inspectSql(source,string(scope,"name"),string(request,"sql"),new Budgets(new BigInteger(string(limits,"pages")),new BigInteger(string(limits,"segments")),new BigInteger(string(limits,"result_bytes")))));
                             check(value.resource().equals(resource) && name(value.sourceKind()).equals(kind)); result=inspection(value);

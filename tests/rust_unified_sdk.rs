@@ -570,7 +570,47 @@ fn serve(config: &Value) -> AnyResult<()> {
             break;
         }
         let result = (|| -> transit_client::Result<Value> {
-            Ok(if let Some(v) = action.get("inspect") {
+            Ok(if let Some(v) = action.get("compile") {
+                let scope = &v["scope"];
+                let limits = &scope["limits"];
+                let parameters: Option<Vec<q::Scalar>> =
+                    v.get("parameters").and_then(Value::as_array).map(|values| {
+                        values
+                            .iter()
+                            .map(|value| {
+                                let (kind, data) =
+                                    value.as_object().unwrap().iter().next().unwrap();
+                                match kind.as_str() {
+                                    "int64" => {
+                                        q::Scalar::Int64(data.as_str().unwrap().parse().unwrap())
+                                    }
+                                    "uint64" => {
+                                        q::Scalar::Uint64(data.as_str().unwrap().parse().unwrap())
+                                    }
+                                    "float_bits" => q::Scalar::Float64(f64::from_le_bytes(
+                                        unhex(data.as_str().unwrap()).try_into().unwrap(),
+                                    )),
+                                    "boolean" => q::Scalar::Boolean(data.as_bool().unwrap()),
+                                    "utf8" => q::Scalar::Utf8(data.as_str().unwrap().into()),
+                                    "binary" => q::Scalar::Binary(unhex(data.as_str().unwrap())),
+                                    _ => panic!("Unknown parameter type"),
+                                }
+                            })
+                            .collect()
+                    });
+                let value = client.compile_sql(
+                    &source,
+                    text(scope, "name"),
+                    text(v, "sql"),
+                    q::Budgets {
+                        pages: text(limits, "pages").parse().unwrap(),
+                        segments: text(limits, "segments").parse().unwrap(),
+                        result_bytes: text(limits, "result_bytes").parse().unwrap(),
+                    },
+                    parameters.as_deref(),
+                )?;
+                json!({"compiled":{"bundle":hex(value.data())}})
+            } else if let Some(v) = action.get("inspect") {
                 let scope = &v["scope"];
                 let limits = &scope["limits"];
                 let value = client.inspect_sql(

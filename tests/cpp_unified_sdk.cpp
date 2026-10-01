@@ -126,7 +126,22 @@ static void serve(char **args) {
         if(command=="close")break;
         try {
             std::string result;
-            if(command=="inspect"){
+            if(command=="compile"){
+                q::Budgets budgets{};int count;input>>budgets.pages>>budgets.segments>>budgets.result_bytes>>count;assert(input&&count>=-1&&count<=3);
+                std::optional<std::vector<q::Scalar>> parameters;
+                if(count>=0){parameters.emplace();for(int i=0;i<count;++i){
+                    std::string item;input>>item;const auto colon=item.find(':');assert(input&&colon!=std::string::npos);
+                    const auto type=item.substr(0,colon),value=item.substr(colon+1);
+                    if(type=="int64")parameters->emplace_back(static_cast<int64_t>(std::stoll(value)));
+                    else if(type=="uint64")parameters->emplace_back(static_cast<uint64_t>(std::stoull(value)));
+                    else if(type=="boolean")parameters->emplace_back(value=="true");
+                    else if(type=="float_bits"){auto bits=unhex(value);assert(bits.size()==8);uint64_t raw=0;for(size_t j=0;j<8;++j)raw|=static_cast<uint64_t>(bits[j])<<(8*j);double number;std::memcpy(&number,&raw,8);parameters->emplace_back(number);}
+                    else{const auto bytes=unhex(value);if(type=="utf8")parameters->emplace_back(std::string(bytes.begin(),bytes.end()));else{assert(type=="binary");parameters->emplace_back(bytes);}}
+                }}
+                const auto bytes=unhex(token);auto compiled=client.compile_sql(definition,arg,std::string(bytes.begin(),bytes.end()),budgets,parameters);
+                parameters.reset();result="{\"compiled\":{\"bundle\":\""+hex(compiled.data())+"\"}}";
+            }
+            else if(command=="inspect"){
                 q::Budgets budgets{};input>>budgets.pages>>budgets.segments>>budgets.result_bytes;assert(input);
                 const auto bytes=unhex(token);const auto value=client.inspect_sql(definition,arg,std::string(bytes.begin(),bytes.end()),budgets);
                 assert(value.resource.resource()==resource.resource()&&static_cast<int>(value.source_kind)==kind);

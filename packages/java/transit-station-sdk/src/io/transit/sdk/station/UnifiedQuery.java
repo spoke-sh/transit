@@ -286,6 +286,20 @@ public final class UnifiedQuery {
             JsonObject action=obj("inspect",obj("scope",obj("source",UnifiedQuery.source(source),"name",text(name,32),"limits",budgets.wire()),"sql",text(sql,4096)));
             return worker.submit(b->inspection(b.unifiedQuery(action,false).get("inspection"),connection.resource()));
         }
+        public CompletableFuture<Bundle> compileSql(Source source,String name,String sql,Budgets budgets) {
+            return compileSql(source,name,sql,budgets,null);
+        }
+        /** New owned finite bundle; this operation performs no upload or admission. */
+        public CompletableFuture<Bundle> compileSql(Source source,String name,String sql,Budgets budgets,List<Scalar> parameters) {
+            if(!source.resource().equals(connection.resource()))throw new IllegalArgumentException("Different query resource");
+            JsonElement values=JsonNull.INSTANCE;
+            if(parameters!=null) {
+                if(parameters.size()>3)throw new IllegalArgumentException("Expected at most three parameter scalars");
+                JsonArray bound=new JsonArray();for(Scalar value:parameters)bound.add(wire(Objects.requireNonNull(value)));values=bound;
+            }
+            JsonObject action=obj("compile",obj("scope",obj("source",UnifiedQuery.source(source),"name",text(name,32),"limits",budgets.wire()),"sql",text(sql,4096),"parameters",values));
+            return worker.submit(b -> new Bundle(encoded(object(b.unifiedQuery(action,false).get("compiled")).get("bundle"),16384)));
+        }
         public CompletableFuture<Optional<Prepared>> prepareNext(BigInteger namespace,Bundle bundle) {
             JsonObject action=obj("next",obj("namespace",positive(namespace).toString(),"bundle",hex(bundle.bytes())));
             return worker.submit(b -> { JsonElement v=b.unifiedQuery(action,false).get("prepared"); return v.isJsonNull()?Optional.empty():Optional.of(new Prepared(new Bytes(string(v).getBytes(StandardCharsets.UTF_8)))); });

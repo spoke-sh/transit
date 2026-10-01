@@ -32,6 +32,20 @@ prepared token and must resolve any uncertainty. An admission receipt, an
 `ObserveAsync` disposition and a `StatusAsync` completed result are distinct.
 A null next command means inspect status.
 
+`CompileSqlAsync(source, name, sql, budgets, parameters = null, cancellation)`
+returns an owned `Bundle`. The optional `IReadOnlyList<Scalar>` is converted to an
+owned request before worker submission. `null` selects ordinary SQL; an empty
+list selects a template without placeholders. Cancellation of the wait retains
+worker ownership until completion; disposal joins native cleanup.
+
+The name binds one explicit source. SQL is limited to 4096 bytes and bindings to
+three exact scalar values, with uint64 for LIMIT; no casts, null parameters or
+text substitution occur. Compilation checks current source access and budgets
+before and after binding and returns no bundle on failure. It takes no snapshot
+and submits no query. Use the existing upload workflow for the returned bundle;
+recover uncertain work from its original saved bundle and command rather than
+rebinding. See the [parameter contract](../../../../contracts/SQL_PARAMETERS_V1.md).
+
 `InspectSqlAsync(source, name, sql, budgets, cancellation)` executes scoped
 `DESCRIBE name`, `SHOW TABLES` or `EXPLAIN SELECT ...` through the shared Zig
 inspection owner. `Inspection` carries source/schema digests, current

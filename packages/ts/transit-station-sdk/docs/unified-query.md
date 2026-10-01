@@ -52,6 +52,20 @@ again. A rejected observation reports the durable behavior rejection. When
 preparation returns undefined, inspect `status(namespace)` for the terminal or
 admitted state.
 
+`client.compileSql(source, name, sql, budgets, parameters?)` returns a
+`Promise<Bundle>`. Pass a readonly array of `Scalar` values to bind placeholders;
+omit it for ordinary SQL, or pass `[]` for a template without placeholders.
+Inputs are converted to owned wire values before the first await; changing the
+original array or binary buffers cannot change the pending compilation.
+
+The name binds one explicit source. SQL is limited to 4096 bytes and bindings to
+three exact scalar values, with uint64 for LIMIT; no casts, null parameters or
+text substitution occur. Compilation checks current source access and budgets
+before and after binding and returns no bundle on failure. It takes no snapshot
+and submits no query. Use the existing upload workflow for the returned bundle;
+recover uncertain work from its original saved bundle and command rather than
+rebinding. See the [parameter contract](../../../../contracts/SQL_PARAMETERS_V1.md).
+
 `client.inspectSql(source, name, sql, budgets)` accepts `DESCRIBE name`,
 `SHOW TABLES` and `EXPLAIN SELECT ...`. It returns an `Inspection` with current
 resource/policy revisions, owned declaration/schema digests and typed details

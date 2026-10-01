@@ -6,8 +6,9 @@ the existing comparison predicate and in a `LIMIT` position. The ordinary
 statement parser and public SQL submission routes reject unresolved parameters.
 Named `PREPARE`, `EXECUTE`, prepared-state persistence and file-query parameters
 are not implemented. The shared query boundary exposes the one-shot compilation
-operation below; language convenience APIs and CLI argument handling have their
-own integration scope.
+operation below. All ten SDKs expose it through typed one-shot compilation
+methods returning an ordinary owned bundle; CLI parameter arguments are not
+implemented.
 
 ## Syntax and typing
 
@@ -117,7 +118,7 @@ bytes are identical to a manually constructed plan with the same values and
 output names. The neutral compile action, response and capability are additive;
 generated ABI/port/workspace schemas follow their shared Zig owners. Existing
 requests retain their meanings. No unbound template codec, saved-template format,
-signed native operation or C ABI function layout is added. Existing source,
+signed native operation or shared native ABI function layout is added. Existing source,
 plan and native definition identifiers retain their current meaning and checks.
 Matching build requirements remain; an implementation without the new action
 rejects it before any dispatch.

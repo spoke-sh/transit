@@ -355,6 +355,21 @@ module Transit
             'limits' => budgets.wire }, 'sql' => Internal.text(sql, 4096) } })
           Values.inspection(result.fetch('inspection'), connection.resource)
         end
+        def compile_sql(source, name, sql, budgets, parameters: nil)
+          Values.source!(source)
+          raise ArgumentError, 'Source differs from the connection' unless source.resource == connection.resource
+          raise ArgumentError, 'Expected Budgets' unless budgets.is_a?(Budgets)
+          unless parameters.nil? || (parameters.is_a?(Array) && parameters.length <= 3)
+            raise ArgumentError, 'Expected at most three parameter scalars'
+          end
+          values = parameters&.map do |value|
+            raise ArgumentError, 'Expected Scalar' unless value.is_a?(Scalar)
+            value.wire
+          end
+          result = call({ 'compile' => { 'scope' => { 'source' => source.wire, 'name' => Internal.text(name, 32),
+            'limits' => budgets.wire }, 'sql' => Internal.text(sql, 4096), 'parameters' => values } })
+          Bundle.new(data: Internal.unhex(result.fetch('compiled').fetch('bundle'), 16384))
+        end
         def prepare_next(namespace, bundle)
           raise ArgumentError, 'Expected Bundle' unless bundle.is_a?(Bundle)
           v = call({ 'next' => { 'namespace' => Internal.integer(namespace, max: U64_MAX).to_s, 'bundle' => bundle.data.unpack1('H*') } }).fetch('prepared')
