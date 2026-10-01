@@ -10993,3 +10993,70 @@ Their logs are `/tmp/transit-sql-compiler-direct-clean-core.log` and
 `/tmp/transit-sql-boolean-sdk-clean-bindings.log`. Core predates the parser change;
 bindings predates the later native definition/SDK cutover. Neither qualifies
 those later changes or substitutes for all required lanes at one revision.
+## File-query output aliases — 2026-10-01
+
+The separate `feat/sql-file-output-aliases` worktree starts at main `a4ba1124`.
+Runtime commits `620f2c16` and `e5d08951` add owned SQL output names to file
+plans and isolate renamed-output descriptor validation. Native saved plans,
+SDK layouts, source bindings and existing unnamed file fingerprints are unchanged.
+This source does not include the separate Boolean continuation in PR #52.
+
+Pinned Fuze units, full `just check`, `just test::sql`, `just test::file-query`
+and `just test::logical-arrow` pass on final runtime `e5d08951`, exit 0.
+The SQL proof checks 134 SELECT ASTs, 105 canonical plan/codec/Arrow cases and
+44 independent results across three source bases/eight page widths. All **108
+real file CLI cases** and **103 PyArrow 23.0.0 cases** pass. The CLI proof retains
+192 MiB input under a 96 MiB address-space limit. Logs:
+`/tmp/transit-sql-file-alias-final-check.log` and
+`/tmp/transit-sql-file-alias-scoped.log`. Initial-runtime full/focused passes are
+separately retained in `/tmp/transit-sql-file-alias-check.log` and
+`/tmp/transit-sql-file-alias-integration.log`.
+
+Fixtures cover row/aggregate aliases, repeated recursive input columns, exact
+Arrow names/descriptors and missing/null/value states, quoted names, derived-input
+scope and hidden original names. Native/file comparisons share expected scope
+and projection semantics. Independent Python reconstructs unnamed and named
+fingerprints. Ownership checks overwrite SQL text and mutate borrowed names
+during execution; mutation fails before another row and cannot complete.
+Malformed names, collisions, mismatched name-vector widths and repeated recursive
+outputs exceeding the descriptor budget reject. Allocation-failure injection
+retains cleanup across owned alias/literal/schema/result allocation. Late source
+conversion failure after an aliased LIMIT still omits successful JSON/Arrow
+completion. Existing cell and Arrow fixture families retain their own wider
+value/state coverage; the alias cases alone do not prove every logical type.
+
+The [file-alias measurement archive](benchmarks/results/2026-10-01-file-output-aliases.json.gz)
+contains four paired reports, all raw samples/configurations, production source
+hashes verified against the two runtime commits, frozen binary/tool/lock hashes,
+source patches, assembly and the exact measurement drivers. All **1080 measured
+results pass**. Both engines in these pairs are frozen Transit binaries; this is
+not a DuckDB comparison. Workloads use 4096 rows, nine alternating pairs on CPU 1,
+warm input, the existing 4 GiB address-space ceiling and 300-second timeout.
+Other host work is not isolated. Compilation is one cold invocation per process;
+its microsecond timings retain all samples and do not establish steady-state
+compiler throughput.
+
+- Initial main comparison: 486 samples across nine shapes and explicit/sampled/full
+  discovery. All 27 pipeline ratios meet 1.15 (0.9957–1.0700), but **12/27 compiler
+  cases exceed 1.15** (complete range 0.9758–1.3832).
+- Workspace isolation: 54 narrow-shape samples against the initial implementation.
+  The generated validator frame falls from **7848 to 384 bytes**; the main control
+  uses 232 bytes. All validation remains. Compiler ratios are mixed (0.8724–1.1252);
+  this structural stack improvement is not claimed as a compiler speedup.
+- Final main comparison: 486 samples. All 27 pipeline ratios meet 1.15
+  (0.9466–1.0306), but **16/27 compiler cases exceed 1.15** (range 1.0541–1.4094).
+  The compiler gate remains open; no failed sample or budget is removed.
+- New named-plan cost: 54 narrow-shape samples compare default `id` with explicit
+  `AS id` on the same final binary. Values/results agree while the plan work
+  differs. Compiler ratios are 1.0368–1.0746; pipeline ratios 0.9719–1.0086.
+  This descriptive feature-cost measurement is not an unchanged-workload gate.
+
+The ignored comparison driver is reused from PR #52 with this worktree's file
+harness, production source and frozen binaries; its exact source is in the archive.
+Build controls/candidates with `zig build file-benchmark -Doptimize=ReleaseSafe`.
+The initial invocation of nonexistent `transit-fuze-benchmark` exited 1 before
+any measurement; the corrected build passed. Remaining cold-input/query/mode and
+larger-input timing matrices, current committed-head clean lanes and installed
+qualification are not implied by these focused passes. Adjacent Station/growing
+fixture qualification stays with #53/#60; unmerged proof-allowance changes are not
+applied here.
