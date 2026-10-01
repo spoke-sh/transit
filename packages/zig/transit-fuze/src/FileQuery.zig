@@ -229,10 +229,10 @@ pub fn compile(allocator: std.mem.Allocator, text: []const u8, name: []const u8,
     const shape = try lowering.lower(&ast, name, names[0..schema.structure.len], &input, &projected);
     var output_names: [@import("Unified.zig").max_columns]?[]const u8 = undefined;
     if (shape.input) |*inner| {
-        try (Plan{ .schema = schema, .source_basis = binding.digest, .projection = inner.columns, .output_names = namesView(&inner.names, &output_names, inner.columns.len) }).validate();
+        try (Plan{ .schema = schema, .source_basis = binding.digest, .projection = inner.columns, .output_names = namesView(inner.names, &output_names, inner.columns.len) }).validate();
     }
     var plan: Plan = .{ .schema = schema, .source_basis = binding.digest, .projection = try alloc.dupe(u8, shape.projection), .aggregate = shape.aggregate, .limit = shape.limit };
-    const borrowed_names = namesView(&shape.output_names, &output_names, shape.projection.len);
+    const borrowed_names = namesView(shape.output_names, &output_names, shape.projection.len);
     if (borrowed_names.len != 0) {
         const owned = try alloc.alloc(?[]const u8, borrowed_names.len);
         for (borrowed_names, owned) |borrowed, *item| item.* = if (borrowed) |value| try alloc.dupe(u8, value) else null;
@@ -277,12 +277,9 @@ fn lowerAtom(allocator: std.mem.Allocator, atom: lowering.Atom, schema: types.Ty
         },
     };
 }
-fn namesView(names: *const lowering.OutputNames, output: *[@import("Unified.zig").max_columns]?[]const u8, width: usize) []const ?[]const u8 {
-    const renamed = for (names) |name| {
-        if (name != null) break true;
-    } else false;
-    if (!renamed) return &.{};
-    for (names[0..width], output[0..width]) |*name, *item| item.* = if (name.*) |*value| value.slice() else null;
+fn namesView(names: lowering.OutputNames, output: *[@import("Unified.zig").max_columns]?[]const u8, width: usize) []const ?[]const u8 {
+    if (names == .none) return &.{};
+    for (output[0..width], 0..) |*item, i| item.* = if (names.get(i)) |value| value.slice() else null;
     return output[0..width];
 }
 pub const Execution = struct {
@@ -454,6 +451,9 @@ test "file output aliases own names and agree with native column scope" {
         defer t.allocator.free(text);
         var compiled = try compile(t.allocator, text, "input", &binding);
         defer compiled.deinit();
+        // Reusing compiler stack storage must not change an earlier result.
+        var subsequent = try compile(t.allocator, "SELECT value AS replaced FROM input", "input", &binding);
+        subsequent.deinit();
         var native_arena: std.heap.ArenaAllocator = .init(t.allocator);
         defer native_arena.deinit();
         const native = try unified.Sql.plan(native_arena.allocator(), text, native_source);

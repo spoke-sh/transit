@@ -8,12 +8,33 @@ pub const Atom = union(enum) {
     state: struct { column: u8, value: @import("Scalar.zig").State },
     compare: struct { column: u8, op: finite.Comparison, literal: sql.Literal },
 };
-pub const OutputNames = [@import("Unified.zig").max_columns]?@import("model.zig").Name;
+/// Borrows the caller's immutable AST until typed lowering copies admitted names.
+pub const OutputNames = union(enum) {
+    none,
+    projection: *const sql.Projection,
+    aggregate: *const @import("model.zig").Name,
+    pub fn get(self: OutputNames, index: usize) ?*const @import("model.zig").Name {
+        return switch (self) {
+            .none => null,
+            .aggregate => |name| if (index == 0) name else null,
+            .projection => |items| blk: {
+                if (index >= items.len) break :blk null;
+                if (items[index]) |*item| if (item.alias) |*name| break :blk name;
+                break :blk null;
+            },
+        };
+    }
+    fn equal(self: OutputNames, left: usize, right: usize) bool {
+        const a = self.get(left) orelse return self.get(right) == null;
+        const b = self.get(right) orelse return false;
+        return std.meta.eql(a.*, b.*);
+    }
+};
 pub const Projection = struct {
     columns: []const u8,
-    names: OutputNames = @splat(null),
+    names: OutputNames = .none,
     pub fn name(self: *const Projection, index: usize, source_columns: []const []const u8) []const u8 {
-        if (index < self.names.len) if (self.names[index]) |*alias| return alias.slice();
+        if (self.names.get(index)) |alias| return alias.slice();
         return source_columns[self.columns[index]];
     }
 };
@@ -39,7 +60,7 @@ pub fn lower(ast: *const sql.Ast, source: []const u8, columns: []const []const u
     if (columns.len == 0 or columns.len > input.len or columns.len > 128) return error.InvalidColumnCount;
     const source_name = ast.source_alias orelse ast.source;
     const source_qualifier = source_name.slice();
-    const input_projection: ?Projection = if (ast.input) |value| try project(value.projection, source_qualifier, columns, input) else null;
+    const input_projection: ?Projection = if (ast.input) |*value| try project(&value.projection, source_qualifier, columns, input) else null;
     var input_names: [128][]const u8 = undefined;
     const input_columns = if (input_projection) |*projected| blk: {
         for (0..projected.columns.len) |i| input_names[i] = projected.name(i, columns);
@@ -49,7 +70,7 @@ pub fn lower(ast: *const sql.Ast, source: []const u8, columns: []const []const u
     const qualifier = qualifier_name.slice();
     var aggregate: finite.Aggregate = .rows;
     var projection: Projection = switch (ast.selection) {
-        .rows => |value| try project(value, qualifier, columns, output),
+        .rows => |*value| try project(value, qualifier, columns, output),
         .count => blk: {
             aggregate = .count;
             if (output.len == 0) return error.InvalidProjection;
@@ -64,7 +85,10 @@ pub fn lower(ast: *const sql.Ast, source: []const u8, columns: []const []const u
             break :blk .{ .columns = output[0..1] };
         },
     };
-    if (ast.output_alias) |alias| projection.names[0] = try validName(alias);
+    if (ast.output_alias) |*alias| {
+        try validName(alias);
+        projection.names = .{ .aggregate = alias };
+    }
     return .{
         .projection = projection.columns,
         .output_names = projection.names,
@@ -97,11 +121,10 @@ fn resolve(column: sql.Column, source: []const u8, columns: []const []const u8) 
     for (columns, 0..) |name, i| if (std.mem.eql(u8, name, column.name.slice())) return @intCast(i);
     return error.UnknownColumn;
 }
-fn validName(name: @import("model.zig").Name) !@import("model.zig").Name {
-    if (name.len > name.bytes.len or !std.meta.eql(name, try @import("model.zig").Name.init(name.slice()))) return error.InvalidColumnName;
-    return name;
+fn validName(name: *const @import("model.zig").Name) !void {
+    if (name.len > name.bytes.len or !std.meta.eql(name.*, try @import("model.zig").Name.init(name.slice()))) return error.InvalidColumnName;
 }
-fn project(value: sql.Projection, source: []const u8, columns: []const []const u8, output: []u8) !Projection {
+fn project(value: *const sql.Projection, source: []const u8, columns: []const []const u8, output: []u8) !Projection {
     if (columns.len == 0 or columns.len > output.len or columns.len > 255) return error.InvalidColumnCount;
     if (value[0] == null) {
         for (value[1..]) |column| if (column != null) return error.InvalidProjection;
@@ -110,14 +133,17 @@ fn project(value: sql.Projection, source: []const u8, columns: []const []const u
     }
     var count: usize = 0;
     var result: Projection = .{ .columns = output };
-    for (value) |column| {
-        if (column) |selected| {
+    for (value) |*column| {
+        if (column.*) |*selected| {
             if (count == output.len) return error.InvalidProjection;
             const index = try resolve(selected.column, source, columns);
             output[count] = index;
-            if (selected.alias) |alias| result.names[count] = try validName(alias);
+            if (selected.alias) |*alias| {
+                try validName(alias);
+                result.names = .{ .projection = value };
+            }
             for (0..count) |previous| {
-                if (index == output[previous] and std.meta.eql(result.names[count], result.names[previous])) return error.DuplicateProjection;
+                if (index == output[previous] and result.names.equal(count, previous)) return error.DuplicateProjection;
                 if (std.mem.eql(u8, result.name(count, columns), result.name(previous, columns))) return error.DuplicateColumn;
             }
             count += 1;
