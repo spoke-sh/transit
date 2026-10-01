@@ -16,6 +16,15 @@ pub const Options = struct {
     /// domain validation can impose a stricter per-field limit on host slices.
     sequence_max_length: ?usize = null,
 };
+/// A public owner can narrow or extend one sequence field without changing
+/// neighboring collections or the caller's other schema options.
+fn fieldOptions(comptime T: type, comptime name: []const u8, comptime options: Options) Options {
+    var result = options;
+    if (comptime @hasDecl(T, "json_schema_sequence_bounds") and @hasField(@TypeOf(T.json_schema_sequence_bounds), name)) {
+        result.sequence_max_length = @field(T.json_schema_sequence_bounds, name);
+    }
+    return result;
+}
 pub fn write(comptime T: type, out: *std.json.Stringify, comptime options: Options) std.Io.Writer.Error!void {
     @setEvalBranchQuota(100000);
     if (comptime @typeInfo(T) == .@"struct") {
@@ -81,7 +90,7 @@ pub fn write(comptime T: type, out: *std.json.Stringify, comptime options: Optio
                 try out.objectField(name);
                 if (comptime @hasDecl(T, "json_schema_fields") and @hasField(@TypeOf(T.json_schema_fields), name)) {
                     try out.write(@field(T.json_schema_fields, name));
-                } else try write(F, out, options);
+                } else try write(F, out, fieldOptions(T, name, options));
             }
             try out.endObject();
             try out.objectField("required");
@@ -111,7 +120,7 @@ pub fn write(comptime T: type, out: *std.json.Stringify, comptime options: Optio
                 try out.objectField("properties");
                 try out.beginObject();
                 try out.objectField(name);
-                try write(F, out, options);
+                try write(F, out, fieldOptions(T, name, options));
                 try out.endObject();
                 try out.endObject();
             }
@@ -133,4 +142,31 @@ test "public owned scalar schema follows its JSON codec hook" {
     var out: std.json.Stringify = .{ .writer = &writer };
     try write(Scalar, &out, .{});
     try std.testing.expectEqualStrings("{\"type\":\"string\",\"pattern\":\"^[0-9]+$\"}", writer.buffered());
+}
+
+test "sequence field bounds preserve neighboring collections and schema options" {
+    const Example = struct {
+        pub const json_schema_sequence_bounds = .{ .instructions = 64 };
+        columns: []const bool,
+        instructions: []const u32,
+    };
+    const Selection = union(enum) {
+        pub const json_schema_sequence_bounds = .{ .instructions = 64 };
+        columns: []const bool,
+        instructions: []const u32,
+    };
+    const t = std.testing;
+    inline for (.{ Example, Selection }) |T| {
+        var bytes: [4096]u8 = undefined;
+        var writer: std.Io.Writer = .fixed(&bytes);
+        var out: std.json.Stringify = .{ .writer = &writer };
+        try write(T, &out, .{ .output = true, .sequence_max_length = 8 });
+        const decoded = try std.json.parseFromSlice(std.json.Value, t.allocator, writer.buffered(), .{});
+        defer decoded.deinit();
+        const columns = if (T == Example) decoded.value.object.get("properties").?.object.get("columns").? else decoded.value.object.get("oneOf").?.array.items[0].object.get("properties").?.object.get("columns").?;
+        const instructions = if (T == Example) decoded.value.object.get("properties").?.object.get("instructions").? else decoded.value.object.get("oneOf").?.array.items[1].object.get("properties").?.object.get("instructions").?;
+        try t.expectEqual(@as(i64, 8), columns.object.get("maxItems").?.integer);
+        try t.expectEqual(@as(i64, 64), instructions.object.get("maxItems").?.integer);
+        try t.expectEqualStrings("integer", instructions.object.get("items").?.object.get("type").?.string);
+    }
 }

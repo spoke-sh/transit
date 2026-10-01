@@ -5,6 +5,37 @@ type Page = Extract<UnifiedQueryResponse, { page: unknown }>["page"];
 export type UnifiedCell = Page["cells"][number][number];
 type Scalar = Extract<UnifiedCell, { value: unknown }>["value"];
 type Column = Page["evidence"]["columns"][number];
+type Inspection = Extract<UnifiedQueryResponse, { inspection: unknown }>["inspection"];
+type Predicate = Extract<
+  Inspection["details"],
+  { explanation: unknown }
+>["explanation"]["predicate"];
+type Atom = Exclude<Predicate, { program: unknown }>;
+function inspectedAtom(value: Atom): boolean {
+  return (
+    "all" in value ||
+    /^[A-Za-z_][A-Za-z_0-9]{0,31}$/.test(
+      "state" in value ? value.state.column : value.compare.column,
+    )
+  );
+}
+function inspectedPredicate(value: Predicate): boolean {
+  if (!("program" in value)) return inspectedAtom(value);
+  if (value.program.length === 0 || value.program.length > 64) return false;
+  let depth = 0;
+  for (const instruction of value.program) {
+    if ("atom" in instruction) {
+      if (!inspectedAtom(instruction.atom)) return false;
+      depth++;
+    } else if ("negate" in instruction) {
+      if (depth === 0) return false;
+    } else {
+      if (depth < 2) return false;
+      depth--;
+    }
+  }
+  return depth === 1;
+}
 const unsigned = (s: string, zero = true) =>
   /^(0|[1-9][0-9]{0,19})$/.test(s) && (zero || s !== "0") && BigInt(s) <= 18446744073709551615n;
 const signed = (s: string) =>
@@ -92,10 +123,7 @@ export function validateUnifiedQuery(input: unknown): input is UnifiedQueryRespo
       plan.projection.every(name) &&
       (plan.limit === null || unsigned(plan.limit)) &&
       Object.values(plan.budgets).every((s) => unsigned(s, false)) &&
-      ("all" in plan.predicate ||
-        ("state" in plan.predicate
-          ? name(plan.predicate.state.column)
-          : name(plan.predicate.compare.column))) &&
+      inspectedPredicate(plan.predicate) &&
       (plan.aggregate === "rows"
         ? plan.columns.length === plan.projection.length
         : plan.projection.length === 1 &&

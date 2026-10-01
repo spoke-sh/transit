@@ -10,12 +10,23 @@ limit: ?u64 = null,
 aggregate: Aggregate = .rows,
 pub const Aggregate = @import("Finite.zig").Aggregate;
 pub const Comparison = @import("Finite.zig").Comparison;
-pub const Predicate = union(enum) {
+pub const Atom = union(enum) {
     all,
     state: struct { column: u8, value: m.State },
     compare: struct { column: u8, op: Comparison, value: m.Scalar },
 
-    pub fn validate(self: Predicate, schema: m.Schema) !void {
+    pub fn validateShape(self: Atom) !void {
+        switch (self) {
+            .all => {},
+            .state => |state| if (state.column >= m.max_columns) return error.UnknownColumn,
+            .compare => |comparison| {
+                if (comparison.column >= m.max_columns) return error.UnknownColumn;
+                try comparison.value.validate(std.meta.activeTag(comparison.value));
+            },
+        }
+    }
+    pub fn validate(self: Atom, schema: m.Schema) !void {
+        try self.validateShape();
         switch (self) {
             .all => {},
             .state => |state| _ = try schema.column(state.column),
@@ -23,7 +34,7 @@ pub const Predicate = union(enum) {
         }
     }
     /// Caller validates the schema and predicate before evaluating source rows.
-    pub fn truth(self: Predicate, row: m.Row) !m.Truth {
+    pub fn truth(self: Atom, row: m.Row) !m.Truth {
         return switch (self) {
             .all => .true_value,
             .state => |state| if (state.column < row.cells.len) m.Truth.fromBool(std.meta.activeTag(row.cells[state.column]) == state.value) else error.UnknownColumn,
@@ -39,8 +50,33 @@ pub const Predicate = union(enum) {
         };
     }
 };
+pub const Predicate = union(enum) {
+    all,
+    state: @FieldType(Atom, "state"),
+    compare: @FieldType(Atom, "compare"),
+    program: m.PredicateProgram.Owned,
+
+    pub fn validateShape(self: *const Predicate) !void {
+        switch (self.*) {
+            .program => |*program| try (try program.view()).validateShape(),
+            inline else => |value, tag| try @as(Atom, @unionInit(Atom, @tagName(tag), value)).validateShape(),
+        }
+    }
+    pub fn validate(self: *const Predicate, schema: m.Schema) !void {
+        switch (self.*) {
+            .program => |*program| try (try program.view()).validate(schema),
+            inline else => |value, tag| try @as(Atom, @unionInit(Atom, @tagName(tag), value)).validate(schema),
+        }
+    }
+    pub fn truth(self: *const Predicate, row: m.Row) !m.Truth {
+        return switch (self.*) {
+            .program => |*program| (try program.view()).truth(row),
+            inline else => |value, tag| @as(Atom, @unionInit(Atom, @tagName(tag), value)).truth(row),
+        };
+    }
+};
 /// Schema-independent shape checks also protect canonical encoding/decoding.
-pub fn validateShape(self: Self) !void {
+pub fn validateShape(self: *const Self) !void {
     if (self.version != 1) return error.UnsupportedPlan;
     if (self.projection.len == 0 or self.projection.len > m.max_columns) return error.InvalidProjection;
     for (self.projection, 0..) |column, index| {
@@ -54,8 +90,9 @@ pub fn validateShape(self: Self) !void {
         if (value.len > value.bytes.len or !std.meta.eql(value, try m.Name.init(value.slice()))) return error.InvalidColumnName;
     };
     if (self.aggregate != .rows and self.projection.len != 1) return error.UnsupportedAggregate;
+    try self.predicate.validateShape();
 }
-pub fn validate(self: Self, schema: m.Schema) !void {
+pub fn validate(self: *const Self, schema: m.Schema) !void {
     try schema.validate();
     try self.validateShape();
     for (self.projection) |column| _ = try schema.column(column);
@@ -75,12 +112,12 @@ pub fn validate(self: Self, schema: m.Schema) !void {
 }
 /// The same validated output schema is used by execution, inspection and result
 /// verification. The returned slice borrows columns, never the source schema.
-pub fn outputSchema(self: Self, schema: m.Schema, columns: *[m.max_columns]m.Column) !m.Schema {
+pub fn outputSchema(self: *const Self, schema: m.Schema, columns: *[m.max_columns]m.Column) !m.Schema {
     try self.validate(schema);
     for (0..self.projection.len) |index| columns[index] = try self.outputColumn(schema, index);
     return .{ .columns = columns[0..self.projection.len] };
 }
-fn outputColumn(self: Self, schema: m.Schema, index: usize) !m.Column {
+fn outputColumn(self: *const Self, schema: m.Schema, index: usize) !m.Column {
     var column = if (self.aggregate == .rows) try schema.column(self.projection[index]) else m.Column{
         .name = try m.Name.init(@tagName(self.aggregate)),
         .type = if (self.aggregate == .count) .uint64 else .int64,
@@ -93,15 +130,20 @@ pub const Bound = struct {
     basis: m.Basis,
     schema: m.Schema,
     fingerprint: [32]u8,
+
+    /// Revalidate the same source/schema/plan evidence without copying the plan.
+    pub fn validate(self: *const Bound) !void {
+        if (!std.mem.eql(u8, &try m.Codec.boundFingerprint(&self.plan, self.basis, self.schema), &self.fingerprint)) return error.SourceChanged;
+    }
 };
-pub fn bind(self: Self, basis: m.Basis, schema: m.Schema) !Bound {
-    return .{ .plan = self, .basis = basis, .schema = schema, .fingerprint = try m.Codec.boundFingerprint(self, basis, schema) };
+pub fn bind(self: *const Self, basis: m.Basis, schema: m.Schema) !Bound {
+    return .{ .plan = self.*, .basis = basis, .schema = schema, .fingerprint = try m.Codec.boundFingerprint(self, basis, schema) };
 }
-pub fn matches(self: Self, row: m.Row) !bool {
+pub fn matches(self: *const Self, row: m.Row) !bool {
     return (try self.predicateTruth(row)).selects();
 }
 /// Evaluate an already validated predicate without losing null/missing truth.
 /// Only matches() reduces unknown to a nonmatching filter result.
-pub fn predicateTruth(self: Self, row: m.Row) !m.Truth {
+pub fn predicateTruth(self: *const Self, row: m.Row) !m.Truth {
     return self.predicate.truth(row);
 }

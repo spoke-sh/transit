@@ -8043,6 +8043,57 @@ independent SQL proof also passes unchanged in
 `/tmp/transit-sql-boolean-program-sql.log`. Neither this evidence nor Boolean truth
 identities permits reordering or suppressing fallible atoms.
 
+### Owned Boolean plans and neutral codecs
+
+The continuation based on `518bb880` owns up to 64 predicate instructions in
+`Unified.Plan` and canonical `FZP1`, while decoded projection/literal bytes retain
+their input-buffer lifetime. Plan copies retain independent instruction storage.
+Neutral native/port codecs and inspection preserve order and expose the same
+instruction bound; schema generation overrides only that sequence field. Native
+and plan definition identifiers change together. Missing/previous definitions
+reject without executing or resetting accepted work.
+
+Fuze passes **56 executed tests** (the upstream suite is cached); the query
+package passes **66 tests**. Checks cover every scalar encoding, all instruction
+prefix truncations, malformed tags/lengths/stack shapes, scalar and total byte
+limits, copied instruction ownership, neutral round trips with exact Publication
+identity, literal-free inspection, and changed-plan checkpoint rejection. A
+compound Table predicate retains the general scan and current read denial.
+The browser boundary rejects malformed programs and accepts exactly 64
+instructions; all **22 query-client tests** pass after correcting a generated
+schema that initially applied the generic eight-item bound to programs.
+
+The expanded native/port proof passes **88 cases**, including seven independently
+encoded compound plans, canonical Publication commitments, previous-definition
+rejection and instruction-limit failures. Source-qualified full `just check`,
+independent `just test::sql` and `just test::unified-codec` results are recorded
+in `/tmp/transit-sql-boolean-plan-check-final.log`. Earlier attempts failed on
+stale raw-SDK hashes and three independent signature/digest fixtures; the current
+canonical bytes were regenerated with Python/OpenSSL and the unchanged rejection
+checks retained. Logs remain `/tmp/transit-sql-boolean-plan-check.log` and
+`/tmp/transit-sql-boolean-plan-check-fixed.log`.
+
+Before this extension, committed clean core passes **22/22** at output-alias
+source `4a646f2b` in **1071.05 s**, and at Boolean foundation `518bb880` in
+**875.55 s**. Completion/timing records are respectively
+`rey-sql-output-aliases/.cache/ci/clean/4a646f2b6b5e-transit-ci-o2u7e86p` and
+`rey-sql-boolean-predicates/.cache/ci/clean/518bb8802998-transit-ci-rm3n8vct`.
+Those runs do not qualify later program changes, other lanes or installed
+all-source recovery. SQL Boolean parsing, typed SDK constructors and current
+installed recovery remain outstanding.
+
+The [owned-plan cost report](benchmarks/results/2026-10-01-boolean-plan-costs.json)
+retains source patches, frozen binary hashes and every paired sample. The first
+inline plan doubled paged-aggregate time. Pointer-based plan methods and
+`Bound.validate` remove redundant plan copies while retaining complete per-page
+schema, source and canonical fingerprint checks; paired aggregate time falls
+about 49% against that initial implementation. A separate lowering rewrite
+showed no consistent improvement and was reverted. Against the foundation,
+final compile medians remain **15–36% higher** (about 0.18–0.24 µs extra), and
+paged aggregate medians are **2.6–2.8% higher**. This shared-host component evidence
+is not a native throughput or complete performance pass. It predates merged #42
+and must be requalified with its shared logical/file primitives.
+
 ## SQL performance iteration
 
 ### Output-name component coverage

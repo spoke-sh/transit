@@ -48,7 +48,7 @@ null or missing cells produce unknown; evaluated type errors and conflicts
 remain errors. Exact state tests produce true or false. `Plan.matches` selects
 only true, preserving the existing filter behavior. The pure truth operations
 combine already evaluated values; they do not specify operand evaluation order,
-suppress errors or enable compound predicates in SQL or saved plans.
+suppress errors or authorize evaluation rewrites.
 
 `Unified.PredicateProgram` composes these atoms in a borrowed postfix instruction
 slice with `negate`, `conjunction` and `disjunction`. It accepts one to 64
@@ -57,8 +57,13 @@ requires exactly one final truth value. Evaluation uses a fixed 64-byte truth
 stack with no allocation, recursion, jumps or shared subexpressions. It evaluates
 atoms eagerly in instruction order and returns the first error; a determining
 true/false operand does not suppress the other operand's error. Instruction and
-literal storage must remain immutable while borrowed. This pure component is
-not yet representable in `Unified.Plan`, SQL, `FZP1` or public caller values.
+literal storage must remain immutable while borrowed. `PredicateProgram.Owned`
+copies instructions into a bounded inline array; its `view` borrows that owner's
+current address. Scalar text/binary bytes remain borrowed. `Plan.Predicate.program`
+stores this copyable value and participates in validation, fingerprints and
+stream continuation checks. `FZP1` decoding owns instructions while borrowing
+projection/literal bytes from its input. Programs use the same 8192-byte plan
+budget. SQL parsing still accepts a single comparison or state test.
 
 `Unified.Sql` lowers SELECT syntax against declared sources. The
 [SQL guide](docs/unified-sql.md) describes capabilities, allocated ownership and

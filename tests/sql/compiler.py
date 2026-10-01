@@ -71,7 +71,7 @@ def reference(case, ast):
     for alias in aliases:
         raw = alias.encode() if alias is not None else b''
         encoded_names += bytes([len(raw)]) + raw
-    definition = hashlib.sha256(b'transit.fuze.plan.v1.output-names.2026-09-30').digest()
+    definition = hashlib.sha256(b'transit.fuze.plan.v1.boolean-programs.2026-10-01').digest()
     encoded = (b'FZP1' + definition + bytes([['rows', 'count', 'sum'].index(aggregate), len(projection)])
                + bytes(projection) + encoded_names + bytes([limit is not None])
                + struct.pack('<Q', limit or 0) + encoded_pred)

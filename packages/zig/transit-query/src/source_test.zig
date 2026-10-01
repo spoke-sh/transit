@@ -360,6 +360,28 @@ test "Table primary-key access matches full predicate evaluation at signed bound
     };
     var batch: source.Batch = .{};
     const point: m.Plan = .{ .projection = &.{ 0, 1 }, .predicate = .{ .compare = .{ .column = 0, .op = .eq, .value = .{ .int64 = 1 } } } };
+    // A comparison inside a program is not a safe range by itself. This OR
+    // must retain every primary key, including those outside its first atom.
+    const compound: m.Plan = .{ .projection = &.{ 0, 1 }, .predicate = .{ .program = try .init(&.{
+        .{ .atom = .{ .compare = point.predicate.compare } },
+        .{ .atom = .all },
+        .disjunction,
+    }) } };
+    var cursor: source.Cursor = .{};
+    var selected: usize = 0;
+    while (!cursor.done) {
+        var arena: std.heap.ArenaAllocator = .init(t.allocator);
+        defer arena.deinit();
+        try source.pagePlanned(definition, compound, cut, cursor, &snapshot, &snapshot, arena.allocator(), &batch);
+        for (batch.engine().rows) |row| {
+            try t.expect(try compound.matches(row));
+            try t.expectEqual(keys[selected], row.cells[0].value.int64);
+            selected += 1;
+        }
+        cursor = batch.next;
+    }
+    try t.expectEqual(keys.len, selected);
     store.denied = true;
     try t.expectError(error.AccessDenied, source.pagePlanned(definition, point, cut, .{}, &snapshot, &snapshot, t.allocator, &batch));
+    try t.expectError(error.AccessDenied, source.pagePlanned(definition, compound, cut, .{}, &snapshot, &snapshot, t.allocator, &batch));
 }

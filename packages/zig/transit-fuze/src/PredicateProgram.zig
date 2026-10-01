@@ -1,18 +1,38 @@
 //! Bounded, pure Boolean composition over the existing typed predicate atoms.
 //! Instructions and literal bytes borrow caller storage and must stay immutable
-//! during use. This component does not yet extend SQL or the FZP1 plan codec.
+//! during use. Owned stores instructions inline; literal bytes remain borrowed.
 const m = @import("Unified.zig");
 const Self = @This();
 
 /// Limits expression work, never retained source or result cardinality.
 pub const max_instructions = 64;
 pub const Instruction = union(enum) {
-    atom: m.Plan.Predicate,
+    atom: m.Plan.Atom,
     negate,
     conjunction,
     disjunction,
 };
 instructions: []const Instruction,
+
+/// Copyable instruction ownership for allocator-free saved-plan decoding.
+/// No slice points into this value until view() borrows its final address.
+/// Scalar text/binary storage still belongs to the caller or encoded plan.
+pub const Owned = struct {
+    instructions: [max_instructions]Instruction = @splat(.negate),
+    count: u8 = 0,
+
+    pub fn init(instructions: []const Instruction) !Owned {
+        try (Self{ .instructions = instructions }).validateShape();
+        var result: Owned = .{ .count = @intCast(instructions.len) };
+        @memcpy(result.instructions[0..instructions.len], instructions);
+        return result;
+    }
+    pub fn view(self: *const Owned) !Self {
+        if (self.count == 0) return error.InvalidPredicateProgram;
+        if (self.count > max_instructions) return error.PredicateTooLarge;
+        return .{ .instructions = self.instructions[0..self.count] };
+    }
+};
 
 /// A postfix program must consume all its instructions into exactly one value.
 /// No references, jumps, recursion or shared subexpressions can amplify work.
@@ -21,7 +41,10 @@ pub fn validateShape(self: Self) !void {
     if (self.instructions.len > max_instructions) return error.PredicateTooLarge;
     var depth: usize = 0;
     for (self.instructions) |instruction| switch (instruction) {
-        .atom => depth += 1,
+        .atom => |atom| {
+            try atom.validateShape();
+            depth += 1;
+        },
         .negate => if (depth == 0) return error.InvalidPredicateProgram,
         .conjunction, .disjunction => {
             if (depth < 2) return error.InvalidPredicateProgram;

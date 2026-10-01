@@ -431,7 +431,7 @@ export interface Description {
   readonly segmentBytes: number;
   readonly batchRows: number;
 }
-export type InspectedPredicate =
+export type InspectedAtom =
   | { readonly kind: "state"; readonly column: string; readonly state: State }
   | {
       readonly kind: "compare";
@@ -439,6 +439,58 @@ export type InspectedPredicate =
       readonly comparison: Comparison;
       readonly type: Type;
     };
+export type InspectedInstruction =
+  | { readonly kind: "atom"; readonly atom: InspectedAtom | undefined }
+  | { readonly kind: "negate" | "conjunction" | "disjunction" };
+export type InspectedPredicate =
+  | InspectedAtom
+  | {
+      readonly kind: "program";
+      readonly instructions: readonly InspectedInstruction[];
+    };
+type WireInspection = Extract<UnifiedQueryResult, { inspection: unknown }>["inspection"];
+type WireInspectedPredicate = Extract<
+  WireInspection["details"],
+  { explanation: unknown }
+>["explanation"]["predicate"];
+function inspectedAtom(
+  predicate: Exclude<WireInspectedPredicate, { program: unknown }>,
+): InspectedAtom | undefined {
+  if ("all" in predicate) return undefined;
+  if ("state" in predicate)
+    return Object.freeze({
+      kind: "state",
+      column: predicate.state.column,
+      state: predicate.state.value,
+    });
+  return Object.freeze({
+    kind: "compare",
+    column: predicate.compare.column,
+    comparison: predicate.compare.op,
+    type: predicate.compare.type,
+  });
+}
+function inspectedPredicate(predicate: WireInspectedPredicate): InspectedPredicate | undefined {
+  if (!("program" in predicate)) return inspectedAtom(predicate);
+  if (predicate.program.length === 0 || predicate.program.length > 64)
+    throw new IncompatibleNative("Invalid inspected program size");
+  let depth = 0;
+  const instructions = predicate.program.map((instruction): InspectedInstruction => {
+    if ("atom" in instruction) {
+      depth++;
+      return Object.freeze({ kind: "atom", atom: inspectedAtom(instruction.atom) });
+    }
+    if ("negate" in instruction) {
+      if (depth === 0) throw new IncompatibleNative("Invalid inspected program shape");
+      return Object.freeze({ kind: "negate" });
+    }
+    if (depth < 2) throw new IncompatibleNative("Invalid inspected program shape");
+    depth--;
+    return Object.freeze({ kind: "conjunction" in instruction ? "conjunction" : "disjunction" });
+  });
+  if (depth !== 1) throw new IncompatibleNative("Invalid inspected program shape");
+  return Object.freeze({ kind: "program", instructions: Object.freeze(instructions) });
+}
 export type InspectionDetails =
   | { readonly kind: "description"; readonly columns: readonly Column[] }
   | { readonly kind: "tables"; readonly names: readonly string[] }
@@ -483,22 +535,7 @@ function inspection(
     details = Object.freeze({ kind: "tables", names: Object.freeze([...input.tables]) });
   else {
     const plan = input.explanation;
-    const predicate = plan.predicate;
-    const inspected: InspectedPredicate | undefined =
-      "all" in predicate
-        ? undefined
-        : "state" in predicate
-          ? Object.freeze({
-              kind: "state",
-              column: predicate.state.column,
-              state: predicate.state.value,
-            })
-          : Object.freeze({
-              kind: "compare",
-              column: predicate.compare.column,
-              comparison: predicate.compare.op,
-              type: predicate.compare.type,
-            });
+    const inspected = inspectedPredicate(plan.predicate);
     if (plan.operators.length < 2 || plan.operators.length > 4)
       throw new IncompatibleNative("Invalid inspected operators");
     details = Object.freeze({

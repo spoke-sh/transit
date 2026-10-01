@@ -28,6 +28,14 @@ bytes. Named output positions may repeat an input index when resulting names
 are distinct. Decoding preserves owned names and null slots, so preparing a
 decoded bundle retains its exact bytes and immutable Publication identity.
 
+The neutral `predicate.program` array accepts one to 64 postfix instructions.
+Atoms reuse the `all`, `state` and `compare` values; `negate`, `conjunction` and
+`disjunction` have empty-object payloads. The shared owner validates complete
+stack shape and every typed atom before encoding. Decode copies instruction
+and literal storage into its owned result. The generated array limit is specific
+to programs; column and row limits stay at eight. SQL parsing and typed SDK
+constructors still expose the single-atom profile.
+
 The complete JSON input is at most 256 KiB. The native implementation additionally
 enforces the 16 KiB bundle, 8-column/8-row page, 4 KiB scalar and 64 KiB Arrow
 segment bounds. Arrow parsing uses a 4 MiB fixed workspace. All returned arrays,

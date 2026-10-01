@@ -76,6 +76,35 @@ test("native inspection fixtures retain full-width metadata and enforce plan sem
   expect(validateUnifiedQuery(response({ tables: ["foreign"] }))).toBe(false);
   expect(validateUnifiedQuery(response({ tables: [] }))).toBe(false);
 });
+test("compound inspection accepts bounded postfix structure and rejects malformed programs", () => {
+  const plan = fixture.cases[2]!.details.explanation!;
+  const atom = { atom: { compare: { column: "id", op: "eq", type: "int64" } } };
+  const check = (program: unknown[]) =>
+    validateUnifiedQuery(
+      response({
+        explanation: { ...plan, predicate: { program } },
+      }),
+    );
+  expect(
+    check([
+      atom,
+      { negate: {} },
+      { atom: { state: { column: "value", value: "null" } } },
+      { disjunction: {} },
+    ]),
+  ).toBe(true);
+  expect(check([atom, ...Array.from({ length: 63 }, () => ({ negate: {} }))])).toBe(true);
+  for (const invalid of [
+    [],
+    [{ negate: {} }],
+    [atom, atom],
+    [atom, { conjunction: {} }],
+    [atom, ...Array.from({ length: 64 }, () => ({ negate: {} }))],
+    [{ atom: { state: { column: "bad name", value: "null" } } }],
+    [{ atom: { program: [atom] } }],
+  ])
+    expect(check(invalid)).toBe(false);
+});
 test("inspection read conflicts retry the exact request and return separate metadata", async () => {
   const expected = response(fixture.cases[1]!.details);
   const fetcher = vi

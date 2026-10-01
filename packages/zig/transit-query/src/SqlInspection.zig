@@ -9,11 +9,47 @@ const Allocator = std.mem.Allocator;
 pub const Scope = struct { name: []const u8, source: v.Source, limits: v.Limits };
 pub const Request = struct { scope: Scope, sql: []const u8 };
 pub const Operator = enum { scan, filter, limit, project, count, sum };
-pub const Predicate = union(enum) {
+pub const PredicateAtom = union(enum) {
     all,
     state: struct { column: []const u8, value: m.State },
     compare: struct { column: []const u8, op: m.Plan.Comparison, type: m.Type },
 };
+pub const PredicateInstruction = union(enum) {
+    atom: PredicateAtom,
+    negate,
+    conjunction,
+    disjunction,
+};
+pub const Predicate = union(enum) {
+    pub const json_schema_sequence_bounds = .{ .program = m.PredicateProgram.max_instructions };
+    all,
+    state: @FieldType(PredicateAtom, "state"),
+    compare: @FieldType(PredicateAtom, "compare"),
+    program: []const PredicateInstruction,
+};
+fn inspectAtom(allocator: Allocator, atom: m.Plan.Atom, schema: m.Schema) !PredicateAtom {
+    return switch (atom) {
+        .all => .all,
+        .state => |state| .{ .state = .{ .column = try allocator.dupe(u8, (try schema.column(state.column)).name.slice()), .value = state.value } },
+        .compare => |comparison| .{ .compare = .{ .column = try allocator.dupe(u8, (try schema.column(comparison.column)).name.slice()), .op = comparison.op, .type = std.meta.activeTag(comparison.value) } },
+    };
+}
+fn inspectPredicate(allocator: Allocator, predicate: m.Plan.Predicate, schema: m.Schema) !Predicate {
+    return switch (predicate) {
+        .program => |*program| blk: {
+            const view = try program.view();
+            const result = try allocator.alloc(PredicateInstruction, view.instructions.len);
+            for (view.instructions, result) |instruction, *out| out.* = switch (instruction) {
+                .atom => |atom| .{ .atom = try inspectAtom(allocator, atom, schema) },
+                inline else => |_, tag| @unionInit(PredicateInstruction, @tagName(tag), {}),
+            };
+            break :blk .{ .program = result };
+        },
+        inline else => |value, tag| switch (try inspectAtom(allocator, @unionInit(m.Plan.Atom, @tagName(tag), value), schema)) {
+            inline else => |atom_value, atom_tag| @unionInit(Predicate, @tagName(atom_tag), atom_value),
+        },
+    };
+}
 pub const Explanation = struct {
     operators: []const Operator,
     predicate: Predicate,
@@ -100,17 +136,36 @@ fn explain(allocator: Allocator, plan: m.Plan, schema: m.Schema, limits: q.Bundl
     for (plan.projection, projection) |index, *target| target.* = try allocator.dupe(u8, (try schema.column(index)).name.slice());
     return .{
         .operators = try allocator.dupe(Operator, operators[0..count]),
-        .predicate = switch (plan.predicate) {
-            .all => .all,
-            .state => |state| .{ .state = .{ .column = try allocator.dupe(u8, (try schema.column(state.column)).name.slice()), .value = state.value } },
-            .compare => |comparison| .{ .compare = .{ .column = try allocator.dupe(u8, (try schema.column(comparison.column)).name.slice()), .op = comparison.op, .type = std.meta.activeTag(comparison.value) } },
-        },
+        .predicate = try inspectPredicate(allocator, plan.predicate, schema),
         .projection = projection,
         .limit = if (plan.limit) |limit| try a.decimal(allocator, limit) else null,
         .aggregate = plan.aggregate,
         .columns = try v.foreignColumns(allocator, output_schema),
         .budgets = try v.Limits.fromNative(allocator, limits),
     };
+}
+
+test "compound explanation preserves instruction order and omits literals" {
+    const t = std.testing;
+    var arena: std.heap.ArenaAllocator = .init(t.allocator);
+    defer arena.deinit();
+    const schema: m.Schema = .{ .columns = &.{.{ .name = try m.Name.init("label"), .type = .utf8 }} };
+    const plan: m.Plan = .{ .projection = &.{0}, .predicate = .{ .program = try .init(&.{
+        .{ .atom = .{ .compare = .{ .column = 0, .op = .eq, .value = .{ .utf8 = "private-literal" } } } },
+        .negate,
+        .{ .atom = .{ .state = .{ .column = 0, .value = .null } } },
+        .disjunction,
+    }) } };
+    const value = try explain(arena.allocator(), plan, schema, .{ .pages = 10, .segments = 10, .result_bytes = 1000 });
+    try t.expectEqualSlices(Operator, &.{ .scan, .filter, .project }, value.operators);
+    try t.expectEqual(4, value.predicate.program.len);
+    try t.expectEqualStrings("label", value.predicate.program[0].atom.compare.column);
+    try t.expectEqual(m.Type.utf8, value.predicate.program[0].atom.compare.type);
+    try t.expect(value.predicate.program[1] == .negate);
+    try t.expectEqual(m.State.null, value.predicate.program[2].atom.state.value);
+    try t.expect(value.predicate.program[3] == .disjunction);
+    const encoded = try std.json.Stringify.valueAlloc(arena.allocator(), value, .{});
+    try t.expect(std.mem.indexOf(u8, encoded, "private-literal") == null);
 }
 
 const TestClient = struct {
