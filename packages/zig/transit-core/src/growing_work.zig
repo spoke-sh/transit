@@ -48,47 +48,50 @@ fn admit(candidate: anytype, process: *g.Process, position: u64, value: p.Value,
     try candidate.put(address(.process, process.pid), process.*);
 }
 
+/// Prepare delivery records without staging them. The engine combines these
+/// with the caller sequence and receipt in one existing eight-key batch.
+pub fn prepareDelivery(engine: anytype, candidate: anytype, request: g.Request, now: ?core.Time.Sample, mutations: *[6]core.pages.Mutation) anyerror!usize {
+    const id = request.command.deliver;
+    const position = engine.head.position;
+    const caller = try engine.principal(request.principal);
+    var out = try output(engine, id);
+    if (out.phase != .pending) return error.OutputAlreadyResolved;
+    const route = try candidate.scan(u64, .{ .namespace = .pending_route, .major = out.source, .minor = out.destination }, null);
+    const first = route.records[0] orelse return error.InvalidHistory;
+    if (first.value != id) return error.RouteBlocked;
+    const source = try engine.process(out.source);
+    var destination = try engine.process(out.destination);
+    out.courier = request.principal;
+    out.policy_revision = caller.revision;
+    out.phase = if (try terminal(engine, source, now)) .cancelled else if (caller.grant.permissions & p.permission(.send) == 0) .denied else if (destination.lifecycle == .terminated) .retired else if (try terminal(engine, destination, now)) .expired else .delivered;
+    if (out.phase == .delivered) if (destination.work_before_ms) |deadline| engine.before(now, deadline) catch |err| {
+        if (err == error.DeadlineExpired) out.phase = .expired else return err;
+    };
+    out.resolved_at = position;
+    mutations[0] = try c.putMutation(address(.output, id), out);
+    mutations[1] = .{ .key = address(.pending_output, id), .value = null };
+    mutations[2] = .{ .key = try c.key(.pending_destination, out.destination, id, ""), .value = null };
+    mutations[3] = .{ .key = routeKey(out.source, out.destination, id), .value = null };
+    var count: usize = 4;
+    if (out.phase == .delivered) {
+        if (destination.admitted >= p.max_counter) return error.Overflow;
+        destination.admitted += 1;
+        mutations[4] = try c.putMutation(try c.key(.mailbox, destination.pid, destination.admitted, ""), g.Input{
+            .position = position,
+            .ordinal = destination.admitted,
+            .value = out.value,
+            .origin = .{ .process = .{ .pid = out.source, .turn = out.turn, .output = out.id } },
+        });
+        mutations[5] = try c.putMutation(address(.process, destination.pid), destination);
+        count = 6;
+    }
+    return count;
+}
+
 pub fn apply(engine: anytype, candidate: anytype, request: g.Request, now: ?core.Time.Sample) anyerror!void {
     const position = engine.head.position;
     const caller = try engine.principal(request.principal);
     switch (request.command) {
-        .deliver => |id| {
-            var out = try output(engine, id);
-            if (out.phase != .pending) return error.OutputAlreadyResolved;
-            const route = try candidate.scan(u64, .{ .namespace = .pending_route, .major = out.source, .minor = out.destination }, null);
-            const first = route.records[0] orelse return error.InvalidHistory;
-            if (first.value != id) return error.RouteBlocked;
-            const source = try engine.process(out.source);
-            var destination = try engine.process(out.destination);
-            out.courier = request.principal;
-            out.policy_revision = caller.revision;
-            out.phase = if (try terminal(engine, source, now)) .cancelled else if (caller.grant.permissions & p.permission(.send) == 0) .denied else if (destination.lifecycle == .terminated) .retired else if (try terminal(engine, destination, now)) .expired else .delivered;
-            if (out.phase == .delivered) if (destination.work_before_ms) |deadline| engine.before(now, deadline) catch |err| {
-                if (err == error.DeadlineExpired) out.phase = .expired else return err;
-            };
-            out.resolved_at = position;
-            // Share immutable paths across this bounded delivery decision. All
-            // records still become authoritative only at the journal commit.
-            var mutations: [6]core.pages.Mutation = undefined;
-            mutations[0] = try c.putMutation(address(.output, id), out);
-            mutations[1] = .{ .key = address(.pending_output, id), .value = null };
-            mutations[2] = .{ .key = try c.key(.pending_destination, out.destination, id, ""), .value = null };
-            mutations[3] = .{ .key = routeKey(out.source, out.destination, id), .value = null };
-            var count: usize = 4;
-            if (out.phase == .delivered) {
-                if (destination.admitted >= p.max_counter) return error.Overflow;
-                destination.admitted += 1;
-                mutations[4] = try c.putMutation(try c.key(.mailbox, destination.pid, destination.admitted, ""), g.Input{
-                    .position = position,
-                    .ordinal = destination.admitted,
-                    .value = out.value,
-                    .origin = .{ .process = .{ .pid = out.source, .turn = out.turn, .output = out.id } },
-                });
-                mutations[5] = try c.putMutation(address(.process, destination.pid), destination);
-                count = 6;
-            }
-            try candidate.mutate(mutations[0..count]);
-        },
         .dispatch => |command| {
             var value = try effect(engine, command.effect);
             if (value.pid != command.pid) return error.InvalidEffect;
