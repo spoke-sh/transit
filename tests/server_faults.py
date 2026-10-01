@@ -96,6 +96,8 @@ def reusable_connections(fixture):
         assert response(fixture, '/v1/query', json.dumps(query).encode(),
                         {'X-Transit-Control': 'snapshot'}, direct)[0] == 400
     closing_gateway_response(fixture)
+    from server_write_observation import run as write_observation
+    write_observation(fixture)
     print('Transit transport: socket reuse, partial-body isolation and checked control hints passed', flush=True)
 
 
