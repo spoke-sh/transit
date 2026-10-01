@@ -30,6 +30,8 @@ def run(node, caller, *, finish_pages=64):
         manifest = fixture.root / "query.json"
         fault = {"stage": None, "seal": None, "publish": None, "receive": None,
                  "retries": set(), "queries": 0}
+        attempts = {"query": 0, "command": 0, "read_entries": 0}
+        attempt_lock = threading.Lock()
 
         class Proxy(BaseHTTPRequestHandler):
             def log_message(self, *_):
@@ -38,6 +40,12 @@ def run(node, caller, *, finish_pages=64):
             def do_POST(self):
                 body = self.rfile.read(int(self.headers["Content-Length"]))
                 envelope = json.loads(body)
+                with attempt_lock:
+                    if self.path == "/v1/query":
+                        attempts["query"] += 1
+                        attempts["read_entries"] += int("read_entries" in envelope["query"]["kind"])
+                    elif self.path == "/v1/command":
+                        attempts["command"] += 1
                 connection = HTTPConnection("127.0.0.1", port, timeout=15)
                 try:
                     connection.request("POST", self.path, body, {"Content-Type": "application/json"})
@@ -102,14 +110,25 @@ def run(node, caller, *, finish_pages=64):
 
             authority = start()
             captured_queries = None
+            print("Growing query fixture:", fixture.root, flush=True)
             for phase in ("write", "seal", "recover", "publish", "deliver"):
                 started = time.monotonic()
                 # Complete delivery includes hundreds of durable paged turns.
                 # Use the disk proof's finite phase allowance for that work;
                 # memory-backed timing does not qualify its WAL cost.
                 budget = 600 if phase == "deliver" else 180
-                subprocess.run([caller, proxy_url, phase, str(manifest)], check=True, timeout=budget)
-                timings[phase] = round(time.monotonic() - started, 3)
+                with attempt_lock:
+                    before = attempts.copy()
+                complete = False
+                try:
+                    subprocess.run([caller, proxy_url, phase, str(manifest)], check=True, timeout=budget)
+                    complete = True
+                finally:
+                    timings[phase] = round(time.monotonic() - started, 3)
+                    with attempt_lock:
+                        counts = {key: value - before[key] for key, value in attempts.items()}
+                    print("Growing query phase:", json.dumps({"phase": phase, "complete": complete,
+                          "seconds": timings[phase], "native_attempts": counts}), flush=True)
                 if phase == "recover":
                     captured_queries = fault["queries"]
                 if phase in ("write", "seal", "publish"):

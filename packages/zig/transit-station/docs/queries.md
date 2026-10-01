@@ -43,6 +43,13 @@ as one allocation or claim separate IPC streams can be concatenated. The source
 version is released with the final seal; captured data remains ordinary retained
 state. End-to-end publication must still validate the complete ordered chain.
 
+Native captured turns prefetch fragment keys in groups of at most eight while
+assembling or verifying a segment. Each group uses the same captured view and
+current read authority; private writes still take precedence. The bounded turn
+cache is reused only within that turn. Missing fragments, wrong lengths and
+digest mismatches still reject the segment. Read-only completion adapters retain
+their ordinary point-read interface.
+
 ## Publication and receipt
 
 Configure both hosts with `server.query = .{ .workspace = workspace,
