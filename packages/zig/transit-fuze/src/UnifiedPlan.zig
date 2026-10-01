@@ -78,13 +78,18 @@ pub fn bind(self: Self, basis: m.Basis, schema: m.Schema) !Bound {
     return .{ .plan = self, .basis = basis, .schema = schema, .fingerprint = try m.Codec.boundFingerprint(self, basis, schema) };
 }
 pub fn matches(self: Self, row: m.Row) !bool {
+    return (try self.predicateTruth(row)).selects();
+}
+/// Evaluate an already validated predicate without losing null/missing truth.
+/// Only matches() reduces unknown to a nonmatching filter result.
+pub fn predicateTruth(self: Self, row: m.Row) !m.Truth {
     return switch (self.predicate) {
-        .all => true,
-        .state => |state| if (state.column < row.cells.len) std.meta.activeTag(row.cells[state.column]) == state.value else error.UnknownColumn,
+        .all => .true_value,
+        .state => |state| if (state.column < row.cells.len) m.Truth.fromBool(std.meta.activeTag(row.cells[state.column]) == state.value) else error.UnknownColumn,
         .compare => |comparison| blk: {
             if (comparison.column >= row.cells.len) return error.UnknownColumn;
             const cell = row.cells[comparison.column];
-            break :blk try @import("Finite.zig").compare(comparison.op, cell, comparison.value, {}, struct {
+            break :blk try @import("Finite.zig").compareTruth(comparison.op, cell, comparison.value, {}, struct {
                 fn order(_: void, left: m.Scalar, right: m.Scalar) !std.math.Order {
                     return left.order(right);
                 }

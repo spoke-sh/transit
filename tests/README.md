@@ -8001,6 +8001,29 @@ readiness, current-denial and restart schedule in **36.51 s**; its log is
 `/tmp/transit-sql-output-aliases-local-writer-server.log`. This local-server proof
 does not complete the separate installed all-source recovery or clean gates.
 
+### Predicate truth foundation
+
+The `feat/sql-boolean-predicates` worktree starts from output-alias checkpoint
+`e77b804a`. `Unified.Plan.predicateTruth` preserves unknown for null/missing
+comparisons, while `matches` still selects only true. Exact state tests remain
+two-valued; evaluated type errors, conflicts, unknown columns and mismatched
+scalar types retain their errors. Pure AND/OR/NOT truth operations do not yet
+enable compound SQL or change canonical plans, native definitions or SDK APIs.
+
+Pinned standalone Fuze tests pass **139/139**, including all nine truth pairs,
+three negations, all 25 cell/state-test pairs and 108 comparisons across the six
+scalar types. The literal expectations cover full-width integer ordering, byte
+ordering and the null/missing negation regression. The log is
+`/tmp/transit-sql-boolean-truth-fuze.log`.
+
+After locked frontend installation, `just check` and `just test::sql` both pass
+in `/tmp/transit-sql-boolean-truth-check.log`. The independent SQL proof retains
+134 SELECT AST comparisons, 105 plan/Arrow cases, 44 result cases across three
+source bases/eight page widths and 17 explicit failures. This verifies unchanged
+existing selection and serialization; compound evaluation order, syntax,
+canonical encoding, caller reachability and recovery remain unimplemented.
+The output-alias storage and committed-HEAD clean gates remain open.
+
 ## SQL performance iteration
 
 ### Output-name component coverage

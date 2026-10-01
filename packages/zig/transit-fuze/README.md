@@ -42,6 +42,14 @@ output width. Output names affect the saved plan and result schema, while the
 input schema and source basis stay unchanged. `FZP1` requires its current plan
 definition before decoding; incompatible saved plans reject.
 
+`Unified.Plan.predicateTruth` evaluates an already validated predicate as
+`Unified.Truth`: `true_value`, `false_value` or `unknown`. Comparisons against
+null or missing cells produce unknown; evaluated type errors and conflicts
+remain errors. Exact state tests produce true or false. `Plan.matches` selects
+only true, preserving the existing filter behavior. The pure truth operations
+combine already evaluated values; they do not specify operand evaluation order,
+suppress errors or enable compound predicates in SQL or saved plans.
+
 `Unified.Sql` lowers SELECT syntax against declared sources. The
 [SQL guide](docs/unified-sql.md) describes capabilities, allocated ownership and
 errors. `Sql` owns the shared parser and cursor assistance. All callers execute
