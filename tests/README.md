@@ -11841,5 +11841,27 @@ as an optimization. Probe timeouts, runtime budgets and quotas are unchanged.
 
 Language convenience methods, CLI binding inputs, named PREPARE/EXECUTE lifetime,
 file-source parameters and installed all-language recovery remain unfinished.
-Remaining-source and committed-HEAD clean results must be recorded separately;
-this checkpoint does not close the parameter family or issue #37.
+This checkpoint does not close the parameter family or issue #37.
+
+The subsequent Table repetition passes in **73.20 s**, with 41 rows/six
+segments. Document fails during provisioning with `AuthorityUnavailable`,
+before parameter compilation/execution. The same fixture logs record native
+MinIO `507 XMinioStorageFull` and Ursula cold-store backpressure; this is not a
+Document parameter pass. The preceding remaining-source log retains the failure.
+No quota, deadline or storage threshold is increased.
+
+Committed-HEAD `just ci-clean --lane core --work-root /var/tmp` passes all
+**22 tasks in 693.03 s** at `945bd68c`. Completion and task evidence are
+`.cache/ci/clean/945bd68cbb4f-transit-ci-68l1v0ai/core{,.meta}.json`; log
+`/var/tmp/transit-sql-parameter-callers-clean-core.log`. This proves that revision's
+core lane only, not the other four ordinary lanes or a later rebase.
+
+The four-PR stack (#63–#66) is rebased onto `21e9569c` from `origin/main`.
+All 42 commits retain their author dates as committer dates. No conflicts occur;
+range comparison finds only an already-merged TypeScript documentation-formatting
+hunk disappearing from the COUNT commit. Main's bounded Board capacity-read
+recovery, exact frozen-request recovery tests, delivery batching and failed
+cold-store fixture retention remain integrated. Post-rebase validation is recorded
+in the PR and issue handoff separately from these earlier results. Unfinished
+SDK convenience methods are preserved in the separate `feat/sql-parameter-sdk`
+worktree and are not part of #66's submitted shared-compilation scope.
