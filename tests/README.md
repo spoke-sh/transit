@@ -11632,3 +11632,15 @@ failures, establish their cause, erase them or provide a full timing pass. They
 do not justify another runtime optimization without further evidence. Logs
 `/var/tmp/transit-count-compiler-self-control.log` and
 `/var/tmp/transit-count-compiler-diagnostic-comparison.log`.
+
+The fixed-revision installed-bindings clean lane at `5d897f0d` completes with
+**17/17 tasks passing in 9909.64 s**. The [completed record](verification/results/count-values-bindings-2026-10-01.json)
+retains the exact source revision, completed metadata, ordered task inventory,
+zero exit codes and log digest. It covers the installed SDK checks, the public
+language interoperability ring, bounded models, SQL rewrite checks, independent
+SQL fixtures and Python gRPC fault schedules. This source includes COUNT's
+coordinated definition/SDK cutover but precedes the later file-compiler changes;
+it is not a complete current-source suite pass. The isolated checkout is removed
+by the successful clean runner after copying evidence to
+`.cache/ci/clean/5d897f0dc733-transit-ci-s1517yp_`. Log
+`/var/tmp/transit-count-column-clean-bindings.log`.
