@@ -113,6 +113,13 @@ With plain `nix develop`, exit and reenter the shell to refresh packaged command
 
 ## SDK qualification tools
 
+`nix develop .#benchmarks` supplies `TRANSIT_FUZE_BENCH_PYTHON`, an absolute
+Python interpreter with DuckDB 1.5.2 and PyArrow 23.0.0. The assertions in
+[fuze-benchmark-tools.nix](fuze-benchmark-tools.nix) and the existing locked
+nixpkgs source pin both packages and their transitive build inputs. This addition
+deliberately keeps every `flake.lock` input revision unchanged. DuckDB is a
+development comparator and is absent from Transit runtime dependencies.
+
 M11's Python packaging/type checks add `build`, setuptools, wheel, pip and mypy
 to the developer and bindings CI shells. The bindings shell also adds Ruby
 3.4.9 / RubyGems 3.7.2 for the new SDK target. These packages come from the
