@@ -182,3 +182,8 @@ controlled host. These repeated-loop summaries are not request latency
 percentiles. A busy shared machine, compiler differences and page size affect
 results. No paired performance improvement follows from one run, and no
 end-to-end throughput follows from component nanoseconds.
+
+For single-row durable INSERT/UPDATE/DELETE latency, use the
+[mutation measurement fixture](performance.md#durable-table-mutation-measurements).
+It includes admission, owner processing, durable storage and caller persistence,
+which compiler and private-proposal component cases exclude.

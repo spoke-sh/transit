@@ -9360,3 +9360,53 @@ and generated SDK resources retain that implementation. File plans keep their
 previous output-name profile and explicitly reject output aliases; source `AS`
 aliases remain supported. Earlier merged-tree checks do not qualify this rebased
 revision; final checks must run again.
+
+
+## Durable Table mutation latency
+
+Tracked by [issue #55](https://github.com/rupurt/rey/issues/55). Qualification is
+in progress; the following measurements are diagnostic evidence, not a latency
+SLO or an assertion that unexecuted gates passed.
+
+The initial supplied transcript placed 5.78–6.28 seconds inside `submit` for
+single-row mutations. Read-only source and owned ReleaseSafe experiments at
+`ac9ad43d` found four writer commands and twelve native durable operations per
+small statement, about 300 provider POSTs, and thirteen console checkpoints.
+Larger decoded caches removed most provider GETs but not the POST count; fixed
+20 ms polling did not reliably improve completion. Compiler/proposal component
+benchmarks excluded this work.
+
+An instrumented candidate fixture completed seven cases after catalog batching,
+direct admission and captured-read batching: INSERT 1.061 s, UPDATE 0.813 s,
+DELETE 0.845 s. Each used one send/view/turn and about 58–59 provider POSTs.
+These are single shared-host samples, including proxy overhead, from intermediate
+dirty source. The artifact records exact binary hashes. They do not establish
+percentile tails or a controlled speedup. Raw local artifact:
+`/var/tmp/transit-mutation-triage/candidate-batched.json`.
+
+The same harness with earlier binaries completed four instrumented statements
+(5.163, 4.317, 7.104 and 10.172 s) before `AuthorityUnavailable`; its status is
+failed with an unknown outcome. Evidence and the original pending request remain
+at `/var/tmp/transit-server-proof-jmnsc_bm` and
+`/var/tmp/transit-mutation-triage/baseline-matched.json`. This is incomplete
+baseline evidence, not a completed comparison. An earlier triage run also saw
+`HttpConnectionClosing`; that observation alone does not establish which peer or
+idle/deadline boundary closed the connection.
+
+Reproduce in `nix develop`:
+
+```sh
+just test::mutation-latency --repeat 20 --output /var/tmp/mutations-console.json
+just test::mutation-latency --repeat 20 --instrument --output /var/tmp/mutations-counts.json
+just test::mutation-latency --repeat 20 --rows 100 --age 100 --resident-pages 64 --output /var/tmp/mutations-aged.json
+just test::mutation-latency --repeat 20 --idle-ms 1500 --worker-interval-ms 20 --output /var/tmp/mutations-poll20.json
+just test::mutation-latency --repeat 20 --readers 1 --client .cache/transit-latency/release/bin/transit-mutation-latency-client --output /var/tmp/mutations-client.json
+```
+
+The ordinary task freezes ReleaseSafe binaries, creates an owned disk fixture,
+validates every affected count and selected row plus final cardinality, and joins
+its children. Row/history preparation is excluded from measured cases. A direct
+caller failure preserves `client-pending.json` with exact prepared bytes; a
+console failure preserves its ordinary recovery file. The runner does not resume
+or reset failed work. These are finite closed-loop experiments, not saturation,
+open-loop throughput or cold operating-system cache tests.

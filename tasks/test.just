@@ -365,6 +365,11 @@ console-latency *args:
     zig build transit transit-node transit-query-host transit-board -Doptimize=ReleaseSafe --prefix .cache/transit-latency/release
     python3 -B tests/console_latency.py .cache/transit-latency/release/bin/transit .cache/transit-latency/release/bin/transit-node .cache/transit-latency/release/bin/transit-query-host {{args}}
 
+# Owned durable writes; requires --output, supports independent history/row controls.
+mutation-latency *args:
+    zig build transit transit-node transit-query-host transit-board mutation-latency-client -Doptimize=ReleaseSafe --prefix .cache/transit-latency/release
+    python3 -B tests/mutation_latency.py .cache/transit-latency/release/bin/transit .cache/transit-latency/release/bin/transit-node .cache/transit-latency/release/bin/transit-query-host {{args}}
+
 # Leased native snapshots and real finite Fuze/Arrow execution for all sources.
 interactive-query *args:
     zig build transit transit-node unified-query-proof -Doptimize=ReleaseSafe --prefix .cache/transit-interactive

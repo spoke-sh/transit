@@ -52,6 +52,8 @@ class Probe:
                     labels.append('principal:' + str(envelope['principal']) + ':' + classified)
                 connection = HTTPConnection(endpoint.hostname, endpoint.port, timeout=60)
                 started = time.monotonic_ns()
+                with owner.lock:
+                    owner.counts['attempts'] += 1
                 try:
                     headers = {key: val for key, val in self.headers.items()
                                if key.lower() not in ('host', 'connection', 'content-length')}
@@ -100,6 +102,10 @@ class Probe:
                 except (BrokenPipeError, ConnectionResetError):
                     with owner.lock:
                         owner.counts['disconnected'] += 1
+                except OSError:
+                    with owner.lock:
+                        owner.counts['transport_failures'] += 1
+                    self.send_error(503)
                 finally:
                     connection.close()
 
