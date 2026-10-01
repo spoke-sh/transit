@@ -21,6 +21,19 @@
           "type": "object",
           "additionalProperties": false,
           "required": [
+            "sql_capabilities"
+          ],
+          "properties": {
+            "sql_capabilities": {
+              "type": "object",
+              "maxProperties": 0
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
             "suggest"
           ],
           "properties": {
@@ -89,8 +102,7 @@
               "required": [
                 "sql",
                 "cursor",
-                "generation",
-                "mode"
+                "generation"
               ],
               "x-transit-defaults": {
                 "mode": "sql"
@@ -109,18 +121,113 @@
               "type": "object",
               "additionalProperties": false,
               "x-transit-field-order": [
-                "sql"
+                "sql",
+                "parameters"
               ],
               "properties": {
                 "sql": {
                   "type": "string",
                   "maxLength": 131072
+                },
+                "parameters": {
+                  "anyOf": [
+                    {
+                      "type": "array",
+                      "maxItems": 8,
+                      "items": {
+                        "oneOf": [
+                          {
+                            "type": "object",
+                            "additionalProperties": false,
+                            "required": [
+                              "int64"
+                            ],
+                            "properties": {
+                              "int64": {
+                                "type": "string",
+                                "maxLength": 131072
+                              }
+                            }
+                          },
+                          {
+                            "type": "object",
+                            "additionalProperties": false,
+                            "required": [
+                              "uint64"
+                            ],
+                            "properties": {
+                              "uint64": {
+                                "type": "string",
+                                "maxLength": 131072
+                              }
+                            }
+                          },
+                          {
+                            "type": "object",
+                            "additionalProperties": false,
+                            "required": [
+                              "float_bits"
+                            ],
+                            "properties": {
+                              "float_bits": {
+                                "type": "string",
+                                "maxLength": 131072
+                              }
+                            }
+                          },
+                          {
+                            "type": "object",
+                            "additionalProperties": false,
+                            "required": [
+                              "boolean"
+                            ],
+                            "properties": {
+                              "boolean": {
+                                "type": "boolean"
+                              }
+                            }
+                          },
+                          {
+                            "type": "object",
+                            "additionalProperties": false,
+                            "required": [
+                              "utf8"
+                            ],
+                            "properties": {
+                              "utf8": {
+                                "type": "string",
+                                "maxLength": 131072
+                              }
+                            }
+                          },
+                          {
+                            "type": "object",
+                            "additionalProperties": false,
+                            "required": [
+                              "binary"
+                            ],
+                            "properties": {
+                              "binary": {
+                                "type": "string",
+                                "maxLength": 131072
+                              }
+                            }
+                          }
+                        ]
+                      }
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
                 }
               },
               "required": [
                 "sql"
               ],
-              "x-transit-defaults": {}
+              "x-transit-defaults": {
+                "parameters": null
+              }
             }
           }
         },
@@ -375,8 +482,7 @@
                 }
               },
               "required": [
-                "namespace",
-                "cursor"
+                "namespace"
               ],
               "x-transit-defaults": {
                 "cursor": null
@@ -1270,6 +1376,63 @@
                   "writes": false,
                   "continuous": false
                 }
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "sql_capabilities"
+          ],
+          "properties": {
+            "sql_capabilities": {
+              "type": "object",
+              "additionalProperties": false,
+              "x-transit-field-order": [
+                "version",
+                "parameters",
+                "max_parameters",
+                "statement_bytes"
+              ],
+              "properties": {
+                "version": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 255,
+                  "x-transit-bits": 8,
+                  "x-transit-signed": false
+                },
+                "parameters": {
+                  "type": "boolean"
+                },
+                "max_parameters": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 255,
+                  "x-transit-bits": 8,
+                  "x-transit-signed": false
+                },
+                "statement_bytes": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 4294967295,
+                  "x-transit-bits": 32,
+                  "x-transit-signed": false
+                }
+              },
+              "required": [
+                "version",
+                "parameters",
+                "max_parameters",
+                "statement_bytes"
+              ],
+              "x-transit-defaults": {
+                "version": 1,
+                "parameters": true,
+                "max_parameters": 3,
+                "statement_bytes": 4096
               }
             }
           }

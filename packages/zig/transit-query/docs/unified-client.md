@@ -79,5 +79,21 @@ opens a snapshot nor registers named durable prepared state. A bound bundle
 uses the existing upload and admission path. Preserve its exact original bytes
 and signed commands across uncertainty; binding again is a new query, not retry.
 The [parameter contract](../../../../contracts/SQL_PARAMETERS_V1.md) defines the
-profile. Named PREPARE/EXECUTE, file and CLI/SDK parameter operations remain
-unsupported.
+profile. Named PREPARE/EXECUTE, file parameters, CLI parameter arguments and
+language convenience parameter APIs remain unsupported.
+
+`SqlCompilation.apply(allocator, client, request)` compiles a complete neutral
+request through the same parser, `SqlTemplate` and scalar codecs. The request
+contains an explicit `scope` (`name`, `source`, `limits`), `sql` and optional
+`parameters`. Omitted/null parameters use ordinary SQL; an array uses template
+syntax and must contain exactly the required values. The read-only client
+boundary checks permission and budgets before and after compilation. Returned
+canonical bundle hex and typed metadata belong to the result allocator, with
+independent copies of source paths and values. As with other neutral operations,
+use a result arena and release it on both success and failure.
+
+`Bridge.compile` and `Workspace.compile` delegate to this operation; the workspace
+supplies its configured scope. Their separate `sql_capabilities` operation
+advertises local parameter support without changing existing capability responses. Their compiled bundles use the existing upload and admission path.
+Compilation does not allocate a durable namespace, sign a command or retain a
+snapshot, and it cannot resolve uncertain accepted work.

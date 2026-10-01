@@ -23,6 +23,14 @@ It returns current metadata within the configured source scope, separate from
 compiled query bundles or submitted results. It creates no query or snapshot.
 The worksheet's Run action retains its explicit SELECT submission interface.
 
+The query API's `compile` request also accepts an explicit neutral `parameters`
+array and delegates to the shared [parameter compiler](../../contracts/SQL_PARAMETERS_V1.md).
+It returns an ordinary owned bundle after current source and budget checks;
+compilation does not submit it. Invalid parameter indices, counts and types
+return a bad-request response. The separate `sql_capabilities` request reports
+local parameter support and grammar bounds. The worksheet has no parameter-entry
+form; existing SQL drafts continue to use ordinary compilation.
+
 ## Read evidence, not assumptions
 
 Reads are paged and carry their observation basis. A source association is not

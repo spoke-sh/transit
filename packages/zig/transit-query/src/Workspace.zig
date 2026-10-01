@@ -7,6 +7,7 @@ const b = q.Bridge;
 const a = q.document.JsonValues;
 const m = q.fuze.Unified;
 pub const schema_options: q.protocol.Schema.Options = .{ .output = true, .safe_integers = true, .sequence_max_length = 8, .text_max_length = 131072 };
+pub const request_schema_options: q.protocol.Schema.Options = .{ .safe_integers = true, .sequence_max_length = 8, .text_max_length = 131072 };
 pub const Config = struct { name: []const u8, source: v.Source, limits: v.Limits };
 pub const SqlCapabilities = struct {
     version: u8 = 1,
@@ -37,12 +38,13 @@ pub const Draft = struct {
         return result;
     }
 };
-pub const Compiled = struct { bundle: []const u8, source: v.Source, plan: v.Plan, limits: v.Limits, contract: [32]u8, schema: [32]u8 };
+pub const Compiled = q.SqlCompilation.Result;
 pub const Request = union(enum) {
     describe,
+    sql_capabilities,
     suggest: struct { search: []const u8 },
     assist: q.Assistance.Request,
-    compile: struct { sql: []const u8 },
+    compile: struct { sql: []const u8, parameters: ?[]const v.Scalar = null },
     inspect: struct { sql: []const u8 },
     next: struct { namespace: []const u8, bundle: []const u8 },
     next_draft: struct { namespace: []const u8, bundle: []const u8, generation: []const u8 },
@@ -58,6 +60,7 @@ pub const Request = union(enum) {
 pub const Page = struct { evidence: b.Page, cells: []const []const v.Cell };
 pub const Response = union(enum) {
     description: Description,
+    sql_capabilities: q.SqlCompilation.Capabilities,
     suggestions: struct { resource: u64, contract: [32]u8, items: []const q.Editor.Item },
     assistance: q.Assistance.Response,
     compiled: Compiled,
@@ -75,6 +78,7 @@ pub fn apply(allocator: std.mem.Allocator, client: *q.UnifiedClient, config: Con
     const limits = try config.limits.native();
     const name = try m.Name.init(config.name);
     switch (request) {
+        .sql_capabilities => return .{ .sql_capabilities = .{} },
         .inspect => |value| return .{ .inspection = try client.inspectSql(allocator, .{ .scope = .{ .name = config.name, .source = config.source, .limits = config.limits }, .sql = value.sql }) },
         .assist => |value| {
             _ = try client.describe(definition);
@@ -94,12 +98,11 @@ pub fn apply(allocator: std.mem.Allocator, client: *q.UnifiedClient, config: Con
             var columns: [m.max_columns]m.Column = undefined;
             return .{ .description = .{ .connection = client.connection, .name = config.name, .source = description, .budgets = config.limits, .columns = try v.foreignColumns(allocator, try definition.schema(&columns)) } };
         },
-        .compile => |input| {
-            const bundle = try client.compileSql(allocator, definition, name, input.sql, limits);
-            var buffer: [q.Bundle.max_bytes]u8 = undefined;
-            var columns: [m.max_columns]m.Column = undefined;
-            return .{ .compiled = .{ .bundle = try a.hex(allocator, try bundle.encode(&buffer)), .source = config.source, .plan = try v.Plan.fromNative(allocator, bundle.plan), .limits = config.limits, .contract = try definition.fingerprint(), .schema = try (try definition.schema(&columns)).fingerprint() } };
-        },
+        .compile => |input| return .{ .compiled = try q.SqlCompilation.apply(allocator, client, .{
+            .scope = .{ .name = config.name, .source = config.source, .limits = config.limits },
+            .sql = input.sql,
+            .parameters = input.parameters,
+        }) },
         inline .next, .next_draft => |input, tag| {
             const bundle = try q.Bundle.decode(allocator, try v.unhex(allocator, input.bundle, q.Bundle.max_bytes));
             if (!std.mem.eql(u8, &try bundle.source.fingerprint(), &try definition.fingerprint())) return error.QueryIdentityMismatch;

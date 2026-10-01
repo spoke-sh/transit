@@ -249,6 +249,10 @@ def run(node, host, proof, port_host, library, kinds=("kv", "table", "document")
                         assert owner.call(action)['prepared'] == prepared, 'compound preparation changed signed identity'
                     assert sends == fault['console_sends'], 'preparation submitted query work'
                     print(f"Unified {kind}: compound bundle and original prepared identity agree across {2+len(callers)} callers", flush=True)
+                from unified_parameters import compile_requests, rejected as compilation_rejected
+                compilers = (native, port_client)
+                compilation_requests = compile_requests(compilers, scope, kind, root, fault)
+                print(f"Unified {kind}: native/port parameter compilation agrees with literal and frozen typed-plan bytes; no dispatch", flush=True)
                 uploader = callers[0] if callers else native
                 try:
                     upload(uploader, root)
@@ -291,6 +295,7 @@ def run(node, host, proof, port_host, library, kinds=("kv", "table", "document")
                 saved = (root / "cursor.json").read_bytes()
                 invoke("revoke", direct=True)
                 invoke("page", error="AccessDenied")
+                compilation_rejected(compilers, compilation_requests)
                 for owner in inspectors:
                     for action in inspection_requests + (program_requests if owner in program_inspectors else []):
                         try:
@@ -385,6 +390,7 @@ def run(node, host, proof, port_host, library, kinds=("kv", "table", "document")
                     after = versions['next']
                     position = versions['position']
                 invoke('retire-source', direct=True)
+                compilation_rejected(compilers, compilation_requests, retired=True)
                 # Native/port expose the mapped client error; typed SDKs retain
                 # the more specific authority rejection in their public code.
                 retired_errors = ('QuerySourceUnavailable', 'ResourceUnavailable', 'Rejected', 'AccessDenied', 'StateResourceExpired')

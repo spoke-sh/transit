@@ -4,8 +4,10 @@ This contract defines caller-owned finite query templates in Zig Fuze. The
 separate `Sql.parseTemplate` entry point accepts `$n` in the right operand of
 the existing comparison predicate and in a `LIMIT` position. The ordinary
 statement parser and public SQL submission routes reject unresolved parameters.
-Named `PREPARE`, `EXECUTE`, prepared-state persistence, file-query parameters
-and CLI/SDK parameter operations are not implemented.
+Named `PREPARE`, `EXECUTE`, prepared-state persistence and file-query parameters
+are not implemented. The shared query boundary exposes the one-shot compilation
+operation below; language convenience APIs and CLI argument handling have their
+own integration scope.
 
 ## Syntax and typing
 
@@ -34,8 +36,41 @@ Bindings provide exactly one scalar per ordinal, in ordinal order. Scalars use
 `Unified.Scalar` and its existing value, UTF-8 and 4096-byte limits. The shared
 neutral scalar representation is `transit-query.Values.Scalar`, as specified by
 the [query contract](UNIFIED_QUERY_V1.md); no second numeric or binary codec is
-introduced. This representation in shared fixtures is not a parameter transport
-operation.
+introduced.
+
+## Neutral compilation operation
+
+`Bridge.compile` accepts `{scope, sql, parameters?}`. `scope` contains the explicit
+SQL `name`, neutral `source` definition and positive `limits`, using the same
+representations as inspection. `parameters` is either omitted/null for ordinary
+SQL or an ordered array of neutral scalars for the template grammar. An empty
+array accepts only a template with no placeholders. Every ordinal must have one
+value of its exact inferred type. The grammar-derived parameter-count bound,
+4096-byte SQL limit and existing request/scalar/bundle limits apply before any
+execution. SQL text is never constructed from parameter values.
+
+`Workspace.compile` accepts the same optional `parameters` with its configured
+scope. Both paths call `SqlCompilation`; they check current source permission
+and permitted budgets before compiling and again after binding. A failure at
+either check returns no result. These are read-only operations: no data snapshot,
+query namespace, upload, admission, sequence allocation or dispatch is created.
+The read-only local `sql_capabilities` action returns `version: 1`,
+`parameters: true`, the grammar-derived `max_parameters` and `statement_bytes`.
+It is additive: existing capability responses retain their exact fields. Source
+admission still checks the running authority independently.
+
+The `compiled` result contains canonical `bundle` hex plus the neutral `source`,
+`plan` and `limits`, and exact source `contract` and `schema` fingerprints. Every
+returned slice belongs to the supplied result allocator independently of the
+request and temporary template. Native ABI and local-port result buffers own the
+serialized response. A result is an ordinary finite bundle: callers use the
+existing `next`/`submit` operations and retain their exact saved bundle and frozen
+signed commands across uncertain outcomes. Compilation is not recovery, and a
+new binding must never replace an uncertain original operation.
+
+The [neutral compilation fixtures](../packages/zig/transit-query/src/fixtures/sql-compilation-v1.json)
+define requests and expected typed plans for shared callers. The parameter
+compiler corpus separately checks canonical bytes against an independent encoder.
 
 ## Ownership and admission
 
@@ -79,9 +114,13 @@ bundle preserves permission after revocation.
 
 Binding lowers placeholders to ordinary scalar/limit values. Canonical FZP1
 bytes are identical to a manually constructed plan with the same values and
-output names. No unbound template codec, saved-template format, native wire
-operation or ABI declaration is added. Existing source, plan and native
-definition identifiers retain their current meaning and checks.
+output names. The neutral compile action, response and capability are additive;
+generated ABI/port/workspace schemas follow their shared Zig owners. Existing
+requests retain their meanings. No unbound template codec, saved-template format,
+signed native operation or C ABI function layout is added. Existing source,
+plan and native definition identifiers retain their current meaning and checks.
+Matching build requirements remain; an implementation without the new action
+rejects it before any dispatch.
 
 The [shared corpus](sql/corpus/parameters.json) uses an independent ANTLR tree,
 PostgreSQL parser comparison for the declared subset, direct reference-AST

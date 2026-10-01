@@ -123,3 +123,13 @@ and system load comparable. Alternate candidate/control runs externally and
 retain both reports. Do not compare a compile number with an execution number or
 infer network/durability costs from a private proposal. The ordinary SQL proof
 continues to own wider cell-state, error, rollback and independent grammar tests.
+
+`--profile parameter-callers` measures the shared neutral SQL compilation owner
+for all six scalar types. Each sample includes source/scalar conversion, complete
+source-definition binding, canonical bundle encoding and independently owned
+neutral result values. Literal and parameter requests must produce identical
+bundle bytes before timing. Two stub description calls model the required check
+positions; they do not measure actual authorization reads, signatures, transport
+or admission. Preparation is included in this one-shot operation. Use the
+`parameters` profile to measure reusable template preparation and binding
+separately. Both profiles leave the thirteen unchanged controls intact.

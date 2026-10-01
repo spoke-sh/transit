@@ -125,6 +125,7 @@ pub const Error = struct { err: enum { Forbidden, NotFound, InvalidQuery, QueryE
 pub const UnifiedQueryRequest = @import("transit_query").Workspace.Request;
 pub const UnifiedQueryResponse = @import("transit_query").Workspace.Response;
 pub const unified_query_schema_options = @import("transit_query").Workspace.schema_options;
+pub const unified_query_request_schema_options = @import("transit_query").Workspace.request_schema_options;
 pub const AtlasResponse = struct {
     version: u8 = 1,
     realm: u64,

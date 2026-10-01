@@ -1,12 +1,14 @@
 //! Pure SQL costs, isolated from source I/O and authority. No timing assertions.
 const std = @import("std");
 const f = @import("transit_fuze");
+const q = @import("transit_query");
 const m = f.Unified;
 
 pub fn main(init: std.process.Init) !void {
     const args = try init.minimal.args.toSlice(init.arena.allocator());
     if (args.len == 2 and std.mem.eql(u8, args[1], "--count-values")) return countValues(init);
     if (args.len == 2 and std.mem.eql(u8, args[1], "--parameters")) return parameters(init);
+    if (args.len == 2 and std.mem.eql(u8, args[1], "--parameter-callers")) return parameterCallers(init);
     if (args.len != 1) return error.Usage;
     const columns = [_]m.Column{
         .{ .name = try m.Name.init("id"), .type = .int64 },
@@ -141,6 +143,55 @@ fn parameters(init: std.process.Init) !void {
             }
             const elapsed = start.durationTo(std.Io.Clock.awake.now(init.io)).toNanoseconds();
             try std.json.Stringify.value(.{ .phase = phase, .case = @tagName(value), .iterations = iterations, .elapsed_ns = elapsed, .plan_sha256 = digest }, .{}, &stdout.interface);
+            try stdout.interface.writeByte('\n');
+        }
+    }
+    try stdout.interface.flush();
+}
+
+const CompilationClient = struct {
+    reads: usize = 0,
+    pub fn describe(self: *@This(), definition: q.SourceDefinition) !q.UnifiedClient.Description {
+        self.reads += 1;
+        return .{ .definition = definition, .resource_revision = 1, .policy_revision = 1, .limits = .{ .pages = 100, .segments = 100, .result_bytes = 1048576 }, .active = null };
+    }
+};
+
+/// Source/parameter conversion, complete source binding and owned neutral
+/// results, including two stub description checks. No signing/network latency.
+fn parameterCallers(init: std.process.Init) !void {
+    const values = [_]m.Scalar{ .{ .int64 = -1 }, .{ .uint64 = std.math.maxInt(u64) }, .{ .float64 = -0.0 }, .{ .boolean = true }, .{ .utf8 = "it's 東京" }, .{ .binary = "\x00\xff" } };
+    const literals = [_][]const u8{ "-1", "'18446744073709551615'::uint64", "'-0.0'::float64", "TRUE", "'it''s 東京'", "'\\x00ff'::bytea" };
+    var output: [4096]u8 = undefined;
+    var stdout = std.Io.File.stdout().writerStreaming(init.io, &output);
+    var memory: [65536]u8 = undefined;
+    var arena = std.heap.FixedBufferAllocator.init(&memory);
+    const iterations = 10000;
+    for (values, literals) |value, literal| {
+        const ordinary = try std.fmt.allocPrint(init.arena.allocator(), "SELECT value AS chosen FROM items WHERE value >= {s} LIMIT 1024", .{literal});
+        const parameters_wire = [_]q.Values.Scalar{ try q.Values.Scalar.fromNative(init.arena.allocator(), value), .{ .uint64 = "1024" } };
+        const scope: q.SqlInspection.Scope = .{ .name = "items", .source = .{ .resource = 7, .source = .{ .kv = .{ .prefix = "646174612f", .key = .{ .type = .int64 }, .value = .{ .type = std.meta.activeTag(value) } } } }, .limits = .{ .pages = "100", .segments = "100", .result_bytes = "1048576" } };
+        const literal_request: q.SqlCompilation.Request = .{ .scope = scope, .sql = ordinary };
+        const parameter_request: q.SqlCompilation.Request = .{ .scope = scope, .sql = "SELECT value AS chosen FROM items WHERE value >= $1 LIMIT $2", .parameters = &parameters_wire };
+        var checked: CompilationClient = .{};
+        const expected = try q.SqlCompilation.apply(init.arena.allocator(), &checked, literal_request);
+        const bound = try q.SqlCompilation.apply(init.arena.allocator(), &checked, parameter_request);
+        if (!std.mem.eql(u8, expected.bundle, bound.bundle) or checked.reads != 4) return error.IncorrectParameterBundle;
+        const canonical = try q.Values.unhex(init.arena.allocator(), bound.bundle, q.Bundle.max_bytes);
+        var digest: [32]u8 = undefined;
+        std.crypto.hash.sha2.Sha256.hash(canonical, &digest, .{});
+        inline for (.{ "literal_neutral", "parameter_neutral" }) |phase| {
+            var client: CompilationClient = .{};
+            const request = if (comptime std.mem.eql(u8, phase, "literal_neutral")) literal_request else parameter_request;
+            const start = std.Io.Clock.awake.now(init.io);
+            for (0..iterations) |_| {
+                arena.reset();
+                const result = try q.SqlCompilation.apply(arena.allocator(), &client, request);
+                std.mem.doNotOptimizeAway(result);
+            }
+            const elapsed = start.durationTo(std.Io.Clock.awake.now(init.io)).toNanoseconds();
+            if (client.reads != iterations * 2) return error.IncorrectDescriptionCount;
+            try std.json.Stringify.value(.{ .phase = phase, .case = @tagName(value), .iterations = iterations, .elapsed_ns = elapsed, .bundle_sha256 = digest, .description_reads_per_iteration = 2 }, .{}, &stdout.interface);
             try stdout.interface.writeByte('\n');
         }
     }
