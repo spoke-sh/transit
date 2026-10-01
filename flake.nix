@@ -133,6 +133,7 @@
               packages = [
                 pkgs.just
                 pkgs.git
+                pkgs.duckdb
                 (pkgs.python3.withPackages (ps: [
                   ps.pyyaml
                   ps.jsonschema
