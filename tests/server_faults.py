@@ -5,7 +5,9 @@ import os
 from pathlib import Path
 import shutil
 import socket
+import socketserver
 import subprocess
+import threading
 import time
 import urllib.error
 import urllib.request
@@ -93,7 +95,68 @@ def reusable_connections(fixture):
         assert response(fixture, '/v1/query', json.dumps(query).encode(), direct=direct)[0] == 403
         assert response(fixture, '/v1/query', json.dumps(query).encode(),
                         {'X-Transit-Control': 'snapshot'}, direct)[0] == 400
+    closing_gateway_response(fixture)
     print('Transit transport: socket reuse, partial-body isolation and checked control hints passed', flush=True)
+
+
+def closing_gateway_response(fixture):
+    """A consumed body and failed upstream still end advertised socket reuse."""
+    attempts = []
+
+    class Dropped(socketserver.BaseRequestHandler):
+        def handle(self):
+            self.request.settimeout(3)
+            data = b''
+            while b'\r\n\r\n' not in data:
+                part = self.request.recv(4096)
+                assert part, 'upstream request ended before headers'
+                data += part
+                assert len(data) < 8192
+            head, body = data.split(b'\r\n\r\n', 1)
+            while len(body) < 2:
+                part = self.request.recv(2 - len(body))
+                assert part, 'upstream request ended before body'
+                body += part
+            assert body == b'{}', body
+            attempts.append(1)
+            # No response: the gateway must report uncertainty and close once.
+
+    with socketserver.ThreadingTCPServer(('127.0.0.1', 0), Dropped) as upstream:
+        thread = threading.Thread(target=upstream.serve_forever, daemon=True)
+        thread.start()
+        from storage import free_port
+        port = free_port()
+        config = fixture.root / 'closing-gateway.json'
+        config.write_text(json.dumps({'port': port, 'upstream': f'http://127.0.0.1:{upstream.server_address[1]}'}))
+        with (fixture.root / 'closing-gateway.stderr').open('wb') as log:
+            process = subprocess.Popen([fixture.cli, '__transit_gateway_v1', str(config)],
+                                       stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=log)
+            try:
+                deadline = time.monotonic() + 10
+                while True:
+                    assert process.poll() is None
+                    try:
+                        peer = socket.create_connection(('127.0.0.1', port), timeout=3)
+                        break
+                    except ConnectionRefusedError:
+                        assert time.monotonic() < deadline
+                        time.sleep(.02)
+                with peer:
+                    request = f'POST /v1/query HTTP/1.1\r\nHost: localhost:{port}\r\nContent-Length: 2\r\n\r\n{{}}'.encode()
+                    # Already-buffered successors must not dispatch after close.
+                    peer.sendall(request + request)
+                    result = bytearray()
+                    while data := peer.recv(8192):
+                        result.extend(data)
+                        assert len(result) < 16384
+                assert result.count(b'HTTP/1.1 503') == 1, result
+                assert b'connection: close\r\n' in result.lower(), result
+                assert len(attempts) == 1, attempts
+            finally:
+                process.terminate()
+                process.wait(timeout=10)
+                upstream.shutdown()
+                thread.join(timeout=5)
 
 
 def configured_hosts(cli, node, host):
