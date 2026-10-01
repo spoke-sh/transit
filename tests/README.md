@@ -11504,3 +11504,28 @@ Log `/var/tmp/transit-count-descriptor-copy-comparison.log`. The broader run is
 `/var/tmp/transit-count-descriptor-copy-full-comparison.log`.
 Full integrated `just check` passes, exit 0, in
 `/var/tmp/transit-count-descriptor-copy-integrated-check.log`.
+
+The completed [full owned-descriptor comparison](benchmarks/results/2026-10-01-count-values-descriptor-copy-full.json.gz)
+retains **3888 correct process results**: four unchanged queries, nine shapes,
+three discovery modes, two input-cache conditions and nine alternating pairs.
+All **216 pipeline gates pass**; **214 of 216 compiler gates pass**. Warm
+projection with decimal/explicit discovery reaches **1.1960**, and cold SUM
+with wide/explicit discovery reaches **1.2297**, above the unchanged 1.15 limit.
+The final cold SUM report adds the second failure after the earlier seven-report
+checkpoint. Correctness completion is not a full timing pass. Every sample
+inventory and median was audited; binary hashes and all recorded Fuze source
+hashes match the frozen `d14887f2` prototype, whose runtime is published in
+`db5a29bc`. The untracked archived comparison driver explains the dirty flag.
+
+Committed-HEAD `just ci-clean --lane growth --work-root /var/tmp` at `40718b3f`
+**fails** after eight passing tasks. `test::growing-service` finishes the query
+write, seal, recover and publish phases, then its deliver subprocess exceeds the
+unchanged **180-second** deadline. The task takes **487.29 s** and the incomplete
+lane takes **685.38 s**; **17 of 26 tasks are unrun**. The
+[failure record](verification/results/count-values-growth-delivery-2026-10-01.json)
+retains exact metadata, task order and the log digest. The node-log tail shows
+successful deliver/open-view/turn receipts; a proxy disconnect during cleanup
+does not establish a cause. The clean checkout remains at
+`/var/tmp/transit-ci-9vlbv3xj/src`; the fixture's temporary storage was removed by
+its cleanup. Log `/var/tmp/transit-count-descriptor-copy-clean-growth.log`.
+No deadline, residency or operation limit changes were made.
