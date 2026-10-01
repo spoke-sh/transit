@@ -4,6 +4,8 @@ import os
 from http.client import HTTPConnection
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import signal
+import socket
+import struct
 from pathlib import Path
 import subprocess
 import sys
@@ -71,6 +73,7 @@ class QueryCapacityRefusals:
         self.lock = threading.Lock()
         self.selection, self.remaining, self.attempts = None, 0, 0
         self.errors = []
+        self.closed_replies = 0
         owner = self
         class Proxy(BaseHTTPRequestHandler):
             def log_message(self, *_): pass
@@ -100,11 +103,18 @@ class QueryCapacityRefusals:
                         connection.request('POST', self.path, body, headers)
                         response = connection.getresponse()
                         data, status = response.read(), response.status
-                    self.send_response(status)
-                    self.send_header('Content-Length', str(len(data)))
-                    self.send_header('Content-Type', 'application/json')
-                    self.end_headers()
-                    self.wfile.write(data)
+                    try:
+                        self.send_response(status)
+                        self.send_header('Content-Length', str(len(data)))
+                        self.send_header('Content-Type', 'application/json')
+                        self.end_headers()
+                        self.wfile.write(data)
+                    except (BrokenPipeError, ConnectionResetError):
+                        # Board can cancel this read under its original deadline.
+                        # Count the abandoned reply; upstream failures still reach
+                        # the outer error check and fail the fixture.
+                        with owner.lock:
+                            owner.closed_replies += 1
                 except Exception as error:
                     owner.errors.append(type(error).__name__)
                     raise
@@ -135,7 +145,48 @@ class QueryCapacityRefusals:
         assert not self.thread.is_alive()
 
 
+def check_capacity_disconnect():
+    """A downstream reset after forwarding is not a failed proxy operation."""
+    arrived, release = threading.Event(), threading.Event()
+    class Upstream(BaseHTTPRequestHandler):
+        def log_message(self, *_): pass
+        def do_POST(self):
+            self.rfile.read(int(self.headers['Content-Length']))
+            arrived.set()
+            assert release.wait(timeout=5), 'disconnect control was not released'
+            data = b'{}'
+            self.send_response(200)
+            self.send_header('Content-Length', str(len(data)))
+            self.end_headers()
+            self.wfile.write(data)
+    upstream = ThreadingHTTPServer(('127.0.0.1', 0), Upstream)
+    thread = threading.Thread(target=upstream.serve_forever, daemon=True)
+    thread.start()
+    proxy = QueryCapacityRefusals(upstream.server_port, 1234)
+    downstream = socket.create_connection(proxy.server.server_address, timeout=5)
+    try:
+        body = b'{"query":{"principal":1234,"kind":{"resource":1}}}'
+        downstream.sendall(b'POST /v1/query HTTP/1.1\r\nHost: localhost\r\nContent-Length: ' + str(len(body)).encode() + b'\r\n\r\n' + body)
+        assert arrived.wait(timeout=5), 'disconnect control never reached upstream'
+        downstream.setsockopt(socket.SOL_SOCKET, socket.SO_LINGER, struct.pack('ii', 1, 0))
+        downstream.close()
+        release.set()
+        deadline = time.monotonic() + 5
+        while not proxy.errors and not getattr(proxy, 'closed_replies', 0):
+            assert time.monotonic() < deadline, 'proxy did not observe client reset'
+            time.sleep(0.01)
+        assert not proxy.errors, proxy.errors
+        assert proxy.closed_replies == 1, proxy.closed_replies
+    finally:
+        release.set()
+        downstream.close()
+        proxy.close()
+        upstream.shutdown(); upstream.server_close(); thread.join(timeout=5)
+        assert not thread.is_alive()
+
+
 def run(node, host, proof, board, browser=False):
+    check_capacity_disconnect()
     node, host, proof, board = (str(Path(path).resolve()) for path in (node, host, proof, board))
     with Fixture() as fixture:
         processes, logs = [], []
