@@ -10133,6 +10133,30 @@ three-source run; no provider limit or failure is waived. The
 records the command, source and log identity. Diagnosis and final ordinary clean
 lanes remain outstanding.
 
+The unchanged Document-only reproduction fails the same way. The proof's seed
+driver propagates transient errors immediately, although GenServer preserves
+its pending signed request and the real query host retries it. The corrected
+driver retains the 20-step progress bound and adds a ten-second availability
+retry budget, preserving frozen mutations and discarding only unsent private
+read candidates. The proxy first refuses a seed turn, then withholds its accepted
+receipt; both retries must use identical signed bytes and recover the original
+receipt. The old native helper fails this injected schedule as expected.
+
+The corrected diagnostic passes KV/Table/Document in 32.04/33.85/296.13 s,
+including all existing upload, restart, result, revocation and pin checks. Its
+WAL backend is file-based but its Nix scratch directory is on tmpfs; the final
+committed-HEAD recovery run must use the owned ext4 scratch directory. Storage
+and resident-page limits are unchanged. The linked report retains both failed
+runs, the negative control, exact source/log hashes and diagnostic scope.
+
+Clean experience at `efc7e001` passes Board and documentation checks/build, then
+fails on formatting of the TypeScript logical-value guide. The formatting fix
+passes `just bindings::node-check`. The prior `bf39a197` clean core passes its
+first 18 tasks, including Station, disk storage and signed service, then fails
+runtime upgrade with a backend `ReadFailed` and `AuthorityUnavailable`. An
+unchanged focused reproduction passes; the initial cause is not established,
+and final clean qualification still must pass. Neither failed lane is complete.
+
 
 ## Durable Table mutation latency
 

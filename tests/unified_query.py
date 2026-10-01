@@ -38,13 +38,33 @@ def run(node, host, proof, port_host, library, kinds=("kv", "table", "document")
             callers = []
             fault = {"lost": None, "retry": False, "stage": threading.Event(), "resume": threading.Event(),
                      "read_timeout": threading.Event(), "timed_out": threading.Event(), "console_sends": 0,
-                     "console_delay": threading.Event(), "console_waiting": threading.Event()}
+                     "console_delay": threading.Event(), "console_waiting": threading.Event(),
+                     "seeding": True, "seed_phase": 0, "seed_request": None, "seed_receipt": None}
 
             class Proxy(BaseHTTPRequestHandler):
                 def log_message(self, *_): pass
                 def do_POST(self):
                     body = self.rfile.read(int(self.headers["Content-Length"]))
                     message = json.loads(body)
+                    request = message.get("request", {})
+                    command = request.get("command", {})
+                    seed_turn = (fault['seeding'] and self.path == '/v1/command'
+                                 and request.get('principal') == 65536
+                                 and ('turn' in command or 'turn_with_versions' in command))
+                    if seed_turn and fault['seed_phase'] == 0:
+                        # Refuse the first prepared seed turn before forwarding.
+                        # The next two attempts must keep these exact bytes.
+                        fault['seed_request'] = body
+                        fault['seed_phase'] = 1
+                        data = b'{"err":"AuthorityUnavailable"}'
+                        self.send_response(503)
+                        self.send_header("Content-Length", str(len(data)))
+                        self.end_headers()
+                        self.wfile.write(data)
+                        print(f"Unified {kind}: seed turn unavailable before submission", flush=True)
+                        return
+                    if seed_turn and fault['seed_phase'] in (1, 2):
+                        assert body == fault['seed_request'], 'seed retry changed its signed request'
                     if self.path == '/v1/query' and message['query']['principal'] == 1234 and fault['console_delay'].is_set() and not fault['console_waiting'].is_set():
                         fault['console_waiting'].set()
                         time.sleep(2)
@@ -56,6 +76,7 @@ def run(node, host, proof, port_host, library, kinds=("kv", "table", "document")
                         connection.request("POST", self.path, body, {"Content-Type": "application/json"})
                         response = connection.getresponse()
                         data = response.read()
+                        status = response.status
                         if self.path == "/v1/command" and response.status == 200:
                             request = message["request"]
                             command = request["command"]
@@ -75,7 +96,17 @@ def run(node, host, proof, port_host, library, kinds=("kv", "table", "document")
                                 fault["resume"].wait(timeout=60)
                         if hook := fault.get('console_hook'):
                             data = hook(self.path, message, data)
-                        self.send_response(response.status)
+                        if seed_turn and status == 200:
+                            if fault['seed_phase'] == 1:
+                                # The mutation committed; hide its reply behind
+                                # the same temporary error as an unknown outcome.
+                                fault['seed_receipt'] = data
+                                fault['seed_phase'] = 2
+                                status, data = 503, b'{"err":"AuthorityUnavailable"}'
+                            elif fault['seed_phase'] == 2:
+                                assert data == fault['seed_receipt'], 'seed retry changed its committed receipt'
+                                fault['seed_phase'] = 3
+                        self.send_response(status)
                         self.send_header("Content-Length", str(len(data)))
                         self.end_headers()
                         self.wfile.write(data)
@@ -107,7 +138,10 @@ def run(node, host, proof, port_host, library, kinds=("kv", "table", "document")
                 subprocess.run([node, str(node_config), "--initialize"], check=True, capture_output=True, timeout=30, env=fixture.env)
                 authority = start("node", [node, str(node_config)])
                 wait_ready(fixture.http, authority, url + "/health")
-                connection = invoke("provision-compound" if compound else "provision", kind, timeout=1800, direct=True)
+                connection = invoke("provision-compound" if compound else "provision", kind, timeout=1800)
+                assert fault['seed_phase'] == 3, 'seed unavailable/lost-reply schedule did not finish'
+                fault['seeding'] = False
+                print(f"Unified {kind}: seed retry preserved signed bytes and the original committed receipt", flush=True)
                 print(f"Unified {kind}: provisioned in {time.monotonic() - started:.2f}s", flush=True)
                 for name in ("source", "requester", "courier"):
                     path = root / f"{name}.json"
