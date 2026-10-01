@@ -69,6 +69,24 @@ Digests, ordered segment coverage and the complete manifest establish a result.
 A decoded page, transport success or initial status alone cannot establish the
 whole answer. See [stream flow control](streams.md#flow-control).
 
+## Finite draft evaluation
+
+A Table workspace can explicitly open a draft generation with one to eight
+evaluation intents. The generation freezes its source contract and page, segment
+and result-byte limits. While enabled, complete valid edits can admit finite
+queries; the browser coalesces edits and retains one accepted query at a time.
+Partial SQL and speculative alternatives are not executed. KV and Document draft
+evaluation are unsupported.
+
+Admission atomically records an intent with the query's existing call identity.
+Retries, edits, reloads and reconnects do not reset the budget; cancellation or
+later failure does not refund it. Pause and close stop new scheduling while
+accepted work keeps its independent exact recovery and cancellation semantics.
+Current authority and source compatibility still apply. The
+[draft contract](../../contracts/QUERY_DRAFT_V1.md) owns the wire and generation
+rules; [Board's controls](../../apps/transit-board/docs/reactive.md#evaluate-edited-drafts)
+explain browser enable, pause and saved recovery.
+
 ## Recovery and display
 
 Save the exact query submission/recovery identity when the interface supports
