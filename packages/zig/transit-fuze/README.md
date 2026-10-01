@@ -50,6 +50,16 @@ only true, preserving the existing filter behavior. The pure truth operations
 combine already evaluated values; they do not specify operand evaluation order,
 suppress errors or enable compound predicates in SQL or saved plans.
 
+`Unified.PredicateProgram` composes these atoms in a borrowed postfix instruction
+slice with `negate`, `conjunction` and `disjunction`. It accepts one to 64
+instructions, validates all atoms against a schema before source processing and
+requires exactly one final truth value. Evaluation uses a fixed 64-byte truth
+stack with no allocation, recursion, jumps or shared subexpressions. It evaluates
+atoms eagerly in instruction order and returns the first error; a determining
+true/false operand does not suppress the other operand's error. Instruction and
+literal storage must remain immutable while borrowed. This pure component is
+not yet representable in `Unified.Plan`, SQL, `FZP1` or public caller values.
+
 `Unified.Sql` lowers SELECT syntax against declared sources. The
 [SQL guide](docs/unified-sql.md) describes capabilities, allocated ownership and
 errors. `Sql` owns the shared parser and cursor assistance. All callers execute

@@ -14,6 +14,30 @@ pub const Predicate = union(enum) {
     all,
     state: struct { column: u8, value: m.State },
     compare: struct { column: u8, op: Comparison, value: m.Scalar },
+
+    pub fn validate(self: Predicate, schema: m.Schema) !void {
+        switch (self) {
+            .all => {},
+            .state => |state| _ = try schema.column(state.column),
+            .compare => |comparison| try comparison.value.validate((try schema.column(comparison.column)).type),
+        }
+    }
+    /// Caller validates the schema and predicate before evaluating source rows.
+    pub fn truth(self: Predicate, row: m.Row) !m.Truth {
+        return switch (self) {
+            .all => .true_value,
+            .state => |state| if (state.column < row.cells.len) m.Truth.fromBool(std.meta.activeTag(row.cells[state.column]) == state.value) else error.UnknownColumn,
+            .compare => |comparison| blk: {
+                if (comparison.column >= row.cells.len) return error.UnknownColumn;
+                const cell = row.cells[comparison.column];
+                break :blk try @import("Finite.zig").compareTruth(comparison.op, cell, comparison.value, {}, struct {
+                    fn order(_: void, left: m.Scalar, right: m.Scalar) !std.math.Order {
+                        return left.order(right);
+                    }
+                }.order);
+            },
+        };
+    }
 };
 /// Schema-independent shape checks also protect canonical encoding/decoding.
 pub fn validateShape(self: Self) !void {
@@ -47,11 +71,7 @@ pub fn validate(self: Self, schema: m.Schema) !void {
         try (m.Schema{ .columns = output[0..self.projection.len] }).validate();
     }
     if (self.aggregate == .sum and (try schema.column(self.projection[0])).type != .int64) return error.UnsupportedAggregate;
-    switch (self.predicate) {
-        .all => {},
-        .state => |state| _ = try schema.column(state.column),
-        .compare => |comparison| try comparison.value.validate((try schema.column(comparison.column)).type),
-    }
+    try self.predicate.validate(schema);
 }
 /// The same validated output schema is used by execution, inspection and result
 /// verification. The returned slice borrows columns, never the source schema.
@@ -83,17 +103,5 @@ pub fn matches(self: Self, row: m.Row) !bool {
 /// Evaluate an already validated predicate without losing null/missing truth.
 /// Only matches() reduces unknown to a nonmatching filter result.
 pub fn predicateTruth(self: Self, row: m.Row) !m.Truth {
-    return switch (self.predicate) {
-        .all => .true_value,
-        .state => |state| if (state.column < row.cells.len) m.Truth.fromBool(std.meta.activeTag(row.cells[state.column]) == state.value) else error.UnknownColumn,
-        .compare => |comparison| blk: {
-            if (comparison.column >= row.cells.len) return error.UnknownColumn;
-            const cell = row.cells[comparison.column];
-            break :blk try @import("Finite.zig").compareTruth(comparison.op, cell, comparison.value, {}, struct {
-                fn order(_: void, left: m.Scalar, right: m.Scalar) !std.math.Order {
-                    return left.order(right);
-                }
-            }.order);
-        },
-    };
+    return self.predicate.truth(row);
 }

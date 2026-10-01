@@ -80,6 +80,7 @@ pub const Page = struct {
     }
 };
 pub const Truth = @import("Finite.zig").Truth;
+pub const PredicateProgram = @import("PredicateProgram.zig");
 pub const Plan = @import("UnifiedPlan.zig");
 pub const Codec = @import("UnifiedCodec.zig");
 pub const Arrow = @import("UnifiedArrow.zig");
@@ -88,6 +89,7 @@ pub const Stream = @import("UnifiedStream.zig");
 pub const Sql = @import("UnifiedSql.zig");
 test {
     _ = @import("PredicateTruth.zig");
+    _ = PredicateProgram;
     _ = @import("unified_test.zig");
     _ = @import("unified_sql_test.zig");
 }

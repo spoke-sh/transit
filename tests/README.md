@@ -8024,6 +8024,25 @@ existing selection and serialization; compound evaluation order, syntax,
 canonical encoding, caller reachability and recovery remain unimplemented.
 The output-alias storage and committed-HEAD clean gates remain open.
 
+### Bounded Boolean evaluation component
+
+`Unified.PredicateProgram` executes postfix Boolean composition over the same
+typed predicate atoms used by existing plans. It rejects empty programs, stack
+underflow, trailing roots and more than 64 instructions. Schema validation checks
+all atoms. Evaluation is eager in instruction order, keeps null/missing unknown
+and preserves the first evaluated error. This is a pure component; compound SQL,
+saved plans, caller values and installed recovery are not enabled by it.
+
+Pinned Fuze checks pass **51 executed tests**, with the separate 93-test upstream
+suite cached, in `/tmp/transit-sql-boolean-program-fuze.log`. New fixtures check
+both operators over every pair of true/false/null/missing cells, all 64 inputs to
+`(a OR b) AND NOT c`, exact work limits, malformed programs, complete binding and
+first-error order. False AND conflict and true OR type-error deliberately fail;
+explicit state predicates still inspect those states successfully. The existing
+independent SQL proof also passes unchanged in
+`/tmp/transit-sql-boolean-program-sql.log`. Neither this evidence nor Boolean truth
+identities permits reordering or suppressing fallible atoms.
+
 ## SQL performance iteration
 
 ### Output-name component coverage
