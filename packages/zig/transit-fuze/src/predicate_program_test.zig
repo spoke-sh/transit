@@ -236,6 +236,34 @@ test "compound plan identity fences continuation and survives page boundaries" {
     try t.expectError(error.SourceChanged, m.Stream.step(tampered, progress, page, workspace, &output, &cancellation));
 }
 
+test "public and bound encoders reject invalid atoms before producing canonical bytes" {
+    const input: m.Schema = .{ .columns = &.{.{ .name = try m.Name.init("value"), .type = .utf8 }} };
+    const basis: m.Basis = .{ .kind = .table, .resource = 7, .revision = 9, .contract = @splat(1), .schema = try input.fingerprint() };
+    const Case = struct { atom: m.Plan.Atom, failure: anyerror };
+    for ([_]Case{
+        .{ .atom = .{ .state = .{ .column = m.max_columns, .value = .missing } }, .failure = error.UnknownColumn },
+        .{ .atom = .{ .compare = .{ .column = 0, .op = .eq, .value = .{ .utf8 = "\xff" } } }, .failure = error.InvalidUtf8 },
+        .{ .atom = .{ .compare = .{ .column = 0, .op = .eq, .value = .{ .binary = &@as([m.max_cell_bytes + 1]u8, @splat(0)) } } }, .failure = error.CellTooLarge },
+        .{ .atom = .{ .compare = .{ .column = 0, .op = .eq, .value = .{ .float64 = std.math.inf(f64) } } }, .failure = error.NonFiniteValue },
+    }) |case| {
+        var plan: m.Plan = .{ .projection = &.{0}, .predicate = switch (case.atom) {
+            inline else => |value, tag| @unionInit(m.Plan.Predicate, @tagName(tag), value),
+        } };
+        var buffer: [m.Codec.max_plan_bytes]u8 = undefined;
+        for (0..2) |_| {
+            try t.expectError(case.failure, m.Codec.encode(plan, &buffer));
+            try t.expectError(case.failure, plan.bind(basis, input));
+            var owned: Program.Owned = .{ .count = 1 };
+            owned.instructions[0] = .{ .atom = case.atom };
+            plan.predicate = .{ .program = owned };
+        }
+    }
+    const mismatch: m.Plan = .{ .projection = &.{0}, .predicate = .{ .compare = .{ .column = 0, .op = .eq, .value = .{ .int64 = 7 } } } };
+    var bytes: [m.Codec.max_plan_bytes]u8 = undefined;
+    const decoded = try m.Codec.decode(try m.Codec.encode(mismatch, &bytes));
+    try t.expectError(error.TypeMismatch, decoded.bind(basis, input));
+}
+
 test "independent Boolean plan fixtures preserve every scalar and canonical identity" {
     const Fixture = struct { version: u8, cases: []const struct { name: []const u8, type: u8, wire_hex: []const u8, digest: []const u8 } };
     const fixture = try std.json.parseFromSlice(Fixture, t.allocator, @embedFile("fixtures/boolean-plans-v1.json"), .{});

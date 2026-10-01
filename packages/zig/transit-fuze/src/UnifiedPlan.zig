@@ -27,10 +27,15 @@ pub const Atom = union(enum) {
     }
     pub fn validate(self: Atom, schema: m.Schema) !void {
         try self.validateShape();
+        try self.validateSchema(schema);
+    }
+    // Shape validation has already checked scalar representation and bounds.
+    // Resolve the column and its declared type without validating bytes again.
+    fn validateSchema(self: Atom, schema: m.Schema) !void {
         switch (self) {
             .all => {},
             .state => |state| _ = try schema.column(state.column),
-            .compare => |comparison| try comparison.value.validate((try schema.column(comparison.column)).type),
+            .compare => |comparison| if (std.meta.activeTag(comparison.value) != (try schema.column(comparison.column)).type) return error.TypeMismatch,
         }
     }
     /// Caller validates the schema and predicate before evaluating source rows.
@@ -66,6 +71,15 @@ pub const Predicate = union(enum) {
         switch (self.*) {
             .program => |*program| try (try program.view()).validate(schema),
             inline else => |value, tag| try @as(Atom, @unionInit(Atom, @tagName(tag), value)).validate(schema),
+        }
+    }
+    // Called only after the enclosing plan has validated every atom's shape.
+    fn validateSchema(self: *const Predicate, schema: m.Schema) !void {
+        switch (self.*) {
+            .program => |*program| for ((try program.view()).instructions) |instruction| {
+                if (instruction == .atom) try instruction.atom.validateSchema(schema);
+            },
+            inline else => |value, tag| try @as(Atom, @unionInit(Atom, @tagName(tag), value)).validateSchema(schema),
         }
     }
     pub fn truth(self: *const Predicate, row: m.Row) !m.Truth {
@@ -108,7 +122,7 @@ pub fn validate(self: *const Self, schema: m.Schema) !void {
         try (m.Schema{ .columns = output[0..self.projection.len] }).validate();
     }
     if (self.aggregate == .sum and (try schema.column(self.projection[0])).type != .int64) return error.UnsupportedAggregate;
-    try self.predicate.validate(schema);
+    try self.predicate.validateSchema(schema);
 }
 /// The same validated output schema is used by execution, inspection and result
 /// verification. The returned slice borrows columns, never the source schema.

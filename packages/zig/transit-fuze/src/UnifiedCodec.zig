@@ -11,8 +11,7 @@ pub fn encode(plan: m.Plan, output: []u8) ![]const u8 {
 /// Validate the complete binding before using the private canonical encoder.
 /// The public encode entry point independently validates caller-supplied shapes.
 pub fn boundFingerprint(plan: *const m.Plan, basis: m.Basis, schema: m.Schema) ![32]u8 {
-    try plan.validate(schema);
-    try basis.validate(schema);
+    try basis.validatePlan(plan, schema);
     var bytes: [max_plan_bytes]u8 = undefined;
     const encoded = try encodeValidatedShape(plan, &bytes);
     var hash = std.crypto.hash.sha2.Sha256.init(.{});
@@ -38,13 +37,13 @@ fn encodeValidatedShape(plan: *const m.Plan, output: []u8) ![]const u8 {
             const view = try program.view();
             try writer.writeAll(&.{ 3, program.count });
             for (view.instructions) |instruction| switch (instruction) {
-                .atom => |atom| try encodeAtom(atom, &writer),
+                .atom => |atom| try encodeValidatedAtom(atom, &writer),
                 .negate => try writer.writeByte(3),
                 .conjunction => try writer.writeByte(4),
                 .disjunction => try writer.writeByte(5),
             };
         },
-        inline else => |value, tag| try encodeAtom(@unionInit(m.Plan.Atom, @tagName(tag), value), &writer),
+        inline else => |value, tag| try encodeValidatedAtom(@unionInit(m.Plan.Atom, @tagName(tag), value), &writer),
     }
     if (writer.end > max_plan_bytes) return error.PlanTooLarge;
     return writer.buffered();
@@ -91,16 +90,15 @@ pub fn decode(bytes: []const u8) !m.Plan {
     return plan;
 }
 
-fn encodeAtom(atom: m.Plan.Atom, writer: *std.Io.Writer) !void {
+// Only encodeValidatedShape calls this after validating every atom, including
+// scalar representations and column bounds. Public encode cannot bypass it.
+fn encodeValidatedAtom(atom: m.Plan.Atom, writer: *std.Io.Writer) !void {
     switch (atom) {
         .all => try writer.writeByte(0),
         .state => |state| {
-            if (state.column >= m.max_columns) return error.UnknownColumn;
             try writer.writeAll(&.{ 1, state.column, @backingInt(state.value) });
         },
         .compare => |comparison| {
-            if (comparison.column >= m.max_columns) return error.UnknownColumn;
-            try comparison.value.validate(std.meta.activeTag(comparison.value));
             try writer.writeAll(&.{ 2, comparison.column, @backingInt(comparison.op), @backingInt(std.meta.activeTag(comparison.value)) });
             switch (comparison.value) {
                 .int64 => |value| try writer.writeInt(i64, value, .little),
