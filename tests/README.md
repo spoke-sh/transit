@@ -11607,3 +11607,12 @@ or satisfaction of the original 60-second deadline. The owning launcher's
 `down` operation stops it at **13:02:15 UTC**, with its WAL and logs preserved
 and no reset. The [original failure record](verification/results/count-values-experience-station-2026-10-01.json)
 retains this follow-up separately; the experience lane remains failed.
+
+Current-runtime clean growth at `3f5cfdd8` also **fails** after eight passing
+tasks, including the new file compiler and logical-source checks. Query write,
+seal, recover and publish finish, then deliver exceeds the unchanged 180-second
+subprocess deadline. The failed task takes **501.54 s**, the lane **730.01 s**,
+and **17 of 26 tasks remain unrun**. The [separate record](verification/results/count-values-growth-validation-2026-10-01.json)
+retains exact metadata and task order. This repeats the earlier failure stage;
+its cause remains unestablished. Checkout `/var/tmp/transit-ci-r6_tbid3/src` and
+log `/var/tmp/transit-count-plan-validation-clean-growth.log` are retained.
