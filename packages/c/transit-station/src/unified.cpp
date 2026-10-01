@@ -59,16 +59,41 @@ std::string scalar_wire(const transit_station_unified_scalar &v) {
     case TRANSIT_UNIFIED_BINARY:return "{\"binary\":"+quote(hex(copy(v.bytes,4096)))+"}";
     }fail(TRANSIT_SDK_INVALID_ARGUMENT,"query-scalar");
 }
+std::string atom_wire(const transit_station_unified_predicate_atom &v) {
+    const char *comparisons[]={"eq","ne","lt","le","gt","ge"};
+    if(v.kind==TRANSIT_UNIFIED_ALL)return "{\"all\":{}}";
+    require(v.column<8,"query-column");
+    if(v.kind==TRANSIT_UNIFIED_IS_STATE){require(v.state>=TRANSIT_UNIFIED_MISSING && v.state<=TRANSIT_UNIFIED_CONFLICT,"query-state");return "{\"state\":{\"column\":"+decimal(v.column)+",\"value\":"+quote(states[v.state])+"}}";}
+    require(v.kind==TRANSIT_UNIFIED_COMPARE,"query-predicate-atom");
+    require(v.comparison>=TRANSIT_COMPARE_EQ && v.comparison<=TRANSIT_COMPARE_GE,"query-comparison");
+    return "{\"compare\":{\"column\":"+decimal(v.column)+",\"op\":"+quote(comparisons[v.comparison])+",\"value\":"+scalar_wire(v.value)+"}}";
+}
+std::string predicate_wire(const transit_station_unified_plan &v) {
+    if(v.predicate!=TRANSIT_UNIFIED_PROGRAM){
+        require(!v.instructions && !v.instruction_count,"query-unused-program");
+        return atom_wire({v.predicate,v.column,v.state,v.comparison,v.value});
+    }
+    require(v.instructions && v.instruction_count>0 && v.instruction_count<=64,"query-program-bound");
+    const char *operators[]={"negate","conjunction","disjunction"};
+    std::string result="{\"program\":[";
+    for(size_t i=0;i<v.instruction_count;++i){
+        const auto &instruction=v.instructions[i];if(i)result+=',';
+        if(instruction.kind==TRANSIT_UNIFIED_ATOM)result+="{\"atom\":"+atom_wire(instruction.atom)+"}";
+        else {
+            require(instruction.kind>=TRANSIT_UNIFIED_NEGATE && instruction.kind<=TRANSIT_UNIFIED_DISJUNCTION,"query-program-instruction");
+            result+="{"+quote(operators[instruction.kind-TRANSIT_UNIFIED_NEGATE])+":{}}";
+        }
+    }
+    return result+"]}";
+}
 std::string plan_wire(const transit_station_unified_plan &v) {
     require(v.projection && v.projection_count>0 && v.projection_count<=8,"query-projection");
     require(v.aggregate>=TRANSIT_AGGREGATE_ROWS && v.aggregate<=TRANSIT_AGGREGATE_SUM,"query-aggregate");
-    const char *aggregates[]={"rows","count","sum"};const char *comparisons[]={"eq","ne","lt","le","gt","ge"};
-    std::string projection="[",predicate="{\"all\":{}}",names="[";
+    const char *aggregates[]={"rows","count","sum"};
+    std::string projection="[",names="[";
     for(size_t i=0;i<8;++i){if(i>=v.projection_count)require(!v.output_names[i],"query-output-names");else{if(i)names+=',';names+=v.output_names[i]?quote(text(v.output_names[i],32)):"null";}}
     for(size_t i=0;i<v.projection_count;++i){require(v.projection[i]<8,"query-column");if(i)projection+=',';projection+=decimal(v.projection[i]);}
-    if(v.predicate==TRANSIT_UNIFIED_IS_STATE){require(v.state>=TRANSIT_UNIFIED_MISSING && v.state<=TRANSIT_UNIFIED_CONFLICT,"query-state");predicate="{\"state\":{\"column\":"+decimal(v.column)+",\"value\":"+quote(states[v.state])+"}}";}
-    else if(v.predicate==TRANSIT_UNIFIED_COMPARE){require(v.comparison>=TRANSIT_COMPARE_EQ && v.comparison<=TRANSIT_COMPARE_GE,"query-comparison");predicate="{\"compare\":{\"column\":"+decimal(v.column)+",\"op\":"+quote(comparisons[v.comparison])+",\"value\":"+scalar_wire(v.value)+"}}";}
-    else require(v.predicate==TRANSIT_UNIFIED_ALL,"query-predicate");
+    const auto predicate=predicate_wire(v);
     return "{\"version\":1,\"projection\":"+projection+"],\"output_names\":"+names+"],\"predicate\":"+predicate+",\"aggregate\":"+quote(aggregates[v.aggregate])+",\"limit\":"+(v.has_limit?quote(decimal(v.limit)):"null")+"}";
 }
 std::string limits_wire(transit_station_unified_budgets v) {require(v.pages && v.segments && v.result_bytes,"query-budgets");return "{\"pages\":"+quote(decimal(v.pages))+",\"segments\":"+quote(decimal(v.segments))+",\"result_bytes\":"+quote(decimal(v.result_bytes))+"}";}
@@ -92,6 +117,56 @@ transit_station_unified_source_description inspected_columns(const Raw &raw,cons
     transit_station_unified_source_description out{};out.column_count=array_size(raw,bytes,path,8);require(out.column_count>0,"inspection-columns");
     for(size_t i=0;i<out.column_count;++i){const auto column=path+"/"+decimal(i);inspected_name(raw,bytes,column+"/name",out.columns[i].name);out.columns[i].type=static_cast<transit_station_unified_type>(select_name(raw.field(bytes,column+"/type",true),types,6));}
     return out;
+}
+// Raw::field serializes parsed JSON canonically. Match the complete tagged
+// object as well as the selected child so extra or nested variants cannot pass.
+size_t inspected_tag(const Raw &raw,const Bytes &bytes,const std::string &path,const char *const *names,size_t count) {
+    for(size_t i=0;i<count;++i)if(exists(raw,bytes,path+"/"+names[i])){
+        const auto child=raw.field(bytes,path+"/"+names[i]);
+        if(raw.field(bytes,path)!="{"+quote(names[i])+":"+child+"}")fail(TRANSIT_SDK_INCOMPATIBLE_NATIVE,"inspection-tag");
+        return i;
+    }
+    fail(TRANSIT_SDK_INCOMPATIBLE_NATIVE,"inspection-tag");
+}
+transit_station_unified_inspected_atom inspected_atom(const Raw &raw,const Bytes &bytes,const std::string &path) {
+    transit_station_unified_inspected_atom out{};const char *atoms[]={"all","state","compare"};
+    out.kind=static_cast<transit_station_unified_predicate_kind>(inspected_tag(raw,bytes,path,atoms,3));
+    const auto payload=path+"/"+atoms[out.kind];
+    if(out.kind==TRANSIT_UNIFIED_ALL){if(raw.field(bytes,payload)!="{}")fail(TRANSIT_SDK_INCOMPATIBLE_NATIVE,"inspection-all");}
+    else {
+        inspected_name(raw,bytes,payload+"/column",out.column);
+        if(out.kind==TRANSIT_UNIFIED_IS_STATE)out.state=static_cast<transit_station_unified_state>(select_name(raw.field(bytes,payload+"/value",true),states,5));
+        else {
+            const char *comparisons[]={"eq","ne","lt","le","gt","ge"};
+            out.comparison=static_cast<transit_station_comparison>(select_name(raw.field(bytes,payload+"/op",true),comparisons,6));
+            out.type=static_cast<transit_station_unified_type>(select_name(raw.field(bytes,payload+"/type",true),types,6));
+        }
+    }
+    return out;
+}
+void inspected_predicate(const Raw &raw,const Bytes &bytes,const std::string &path,transit_station_unified_explanation &out) {
+    const char *predicates[]={"all","state","compare","program"};
+    out.predicate=static_cast<transit_station_unified_predicate_kind>(inspected_tag(raw,bytes,path,predicates,4));
+    if(out.predicate!=TRANSIT_UNIFIED_PROGRAM){
+        const auto atom=inspected_atom(raw,bytes,path);std::copy_n(atom.column,33,out.column);
+        out.state=atom.state;out.comparison=atom.comparison;out.type=atom.type;return;
+    }
+    const auto program=path+"/program";
+    if(raw.field(bytes,program).front()!='[')fail(TRANSIT_SDK_INCOMPATIBLE_NATIVE,"inspection-program-array");
+    out.instruction_count=array_size(raw,bytes,program,64);size_t depth=0;
+    const char *instructions[]={"atom","negate","conjunction","disjunction"};
+    for(size_t i=0;i<out.instruction_count;++i){
+        const auto at=program+"/"+decimal(i);auto &instruction=out.instructions[i];
+        instruction.kind=static_cast<transit_station_unified_instruction_kind>(inspected_tag(raw,bytes,at,instructions,4));
+        const auto payload=at+"/"+instructions[instruction.kind];
+        if(instruction.kind==TRANSIT_UNIFIED_ATOM){instruction.atom=inspected_atom(raw,bytes,payload);++depth;}
+        else {
+            const size_t needed=instruction.kind==TRANSIT_UNIFIED_NEGATE?1:2;
+            if(raw.field(bytes,payload)!="{}" || depth<needed)fail(TRANSIT_SDK_INCOMPATIBLE_NATIVE,"inspection-program-shape");
+            depth-=needed-1;
+        }
+    }
+    if(depth!=1)fail(TRANSIT_SDK_INCOMPATIBLE_NATIVE,"inspection-program-shape");
 }
 struct NativeQuery {
     Local local;
@@ -209,9 +284,7 @@ transit_sdk_error transit_station_unified_inspect_sql(transit_station_unified_cl
         else {result.kind=TRANSIT_UNIFIED_EXPLANATION;const auto e=d+"explanation/";auto &plan=result.details.explanation;
             const char *operators[]={"scan","filter","limit","project","count","sum"};plan.operator_count=array_size(r,v,e+"operators",4);require(plan.operator_count>=2,"inspection-operators");
             for(size_t i=0;i<plan.operator_count;++i)plan.operators[i]=static_cast<transit_station_unified_inspection_operator>(select_name(r.field(v,e+"operators/"+decimal(i),true),operators,6));
-            if(exists(r,v,e+"predicate/all"))plan.predicate=TRANSIT_UNIFIED_ALL;
-            else if(exists(r,v,e+"predicate/state")){plan.predicate=TRANSIT_UNIFIED_IS_STATE;inspected_name(r,v,e+"predicate/state/column",plan.column);plan.state=static_cast<transit_station_unified_state>(select_name(r.field(v,e+"predicate/state/value",true),states,5));}
-            else {plan.predicate=TRANSIT_UNIFIED_COMPARE;const char *comparisons[]={"eq","ne","lt","le","gt","ge"};inspected_name(r,v,e+"predicate/compare/column",plan.column);plan.comparison=static_cast<transit_station_comparison>(select_name(r.field(v,e+"predicate/compare/op",true),comparisons,6));plan.type=static_cast<transit_station_unified_type>(select_name(r.field(v,e+"predicate/compare/type",true),types,6));}
+            inspected_predicate(r,v,e+"predicate",plan);
             plan.projection_count=array_size(r,v,e+"projection",8);for(size_t i=0;i<plan.projection_count;++i)inspected_name(r,v,e+"projection/"+decimal(i),plan.projection[i]);
             plan.has_limit=r.field(v,e+"limit")!="null";if(plan.has_limit)plan.limit=wide(r,v,e+"limit");const char *aggregates[]={"rows","count","sum"};plan.aggregate=static_cast<transit_station_aggregate>(select_name(r.field(v,e+"aggregate",true),aggregates,3));
             plan.output=inspected_columns(r,v,e+"columns");plan.budgets={wide(r,v,e+"budgets/pages"),wide(r,v,e+"budgets/segments"),wide(r,v,e+"budgets/result_bytes")};

@@ -34,9 +34,9 @@ Atoms reuse the `all`, `state` and `compare` values; `negate`, `conjunction` and
 stack shape and every typed atom before encoding. Decode copies instruction
 and literal storage into its owned result. The generated array limit is specific
 to programs; column and row limits stay at eight. Native SQL lowers NOT, AND, OR
-and grouping to these programs. Python, TypeScript, Ruby, Rust, Java, .NET, Erlang
-and Elixir expose typed program constructors and inspected programs; C/C++
-constructors retain the single-atom profile.
+and grouping to these programs. All ten SDKs expose typed program constructors
+and inspected programs. The C/C++ layout extension replaces the shared ABI
+definition; deploy matching headers, SDK libraries and native artifacts.
 
 The complete JSON input is at most 256 KiB. The native implementation additionally
 enforces the 16 KiB bundle, 8-column/8-row page, 4 KiB scalar and 64 KiB Arrow

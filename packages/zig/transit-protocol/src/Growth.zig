@@ -5,8 +5,8 @@ pub const version = 1;
 /// Contract-set fingerprint, independent of the public version label. Replace
 /// this identifier on an incompatible pre-1.0 cutover, including changed stored
 /// Station/query semantics. Never reuse it to reinterpret accepted history.
-/// SHA-256 of transit.native.v1.inline-table-mutation.captured-read-batch.boolean-predicate-programs.2026-10-01.
-pub const Definition = enum { @"23c4c85312d089e41826bb76da6ffa2b6a009fc49bd8655bcb813524f2f401e7" };
+/// SHA-256 of transit.native.v1.inline-table-mutation.captured-read-batch.boolean-predicate-programs.c-cpp-program-abi.2026-10-01.
+pub const Definition = enum { b2a625681e95d8a208ebe65f4b7b86931b6582bdfcc9f85d66b043447b9473b9 };
 pub const current_definition: Definition = @fromBackingInt(0);
 pub const Id = u64;
 pub const request_domain = "transit.request.v1\x00";
@@ -584,6 +584,8 @@ test "native responses require the current contract definition even with a v1 la
     const incomplete_output_names = "{\"version\":1,\"definition\":\"34f920f3044133818431378d99c1db55f7c714e43c6966acb71197b0a4d69090\",\"realm\":42,\"position\":1,\"principal_sequence\":0,\"body\":{\"identity\":{\"principal\":0,\"permissions\":1,\"pid\":null,\"policy_revision\":0}}}";
     try t.expectError(error.InvalidEnumTag, std.json.parseFromSlice(Response, t.allocator, incomplete_output_names, .{}));
     inline for (.{
+        // Shared Boolean plans before the typed C/C++ program ABI.
+        "23c4c85312d089e41826bb76da6ffa2b6a009fc49bd8655bcb813524f2f401e7",
         // Inline Table admission and captured reads before Boolean integration.
         "8629e1618a4f97ac07d5b4b454249a8d1b18eab9e969a9876345844ef4fa57fe",
         // Boolean plans before inline admission and captured-read selectors.
@@ -763,8 +765,8 @@ test "v1 turn and entries signatures match independent canonical bytes" {
     // Altering Turn or the entries-query defaults breaks retained receipts.
     const request: Request = .{ .realm = 42, .principal = 0, .sequence = 1, .command = .{ .turn = .{ .pid = 2, .generation = 3, .input = 4, .expected_revision = 0 } } };
     const query: Query = .{ .realm = 42, .principal = 0, .kind = .{ .entries = .{ .view = 5 } } };
-    try std.testing.expectEqualStrings("5e8290e63c150a6b2be07a3f6e26888dbe77de084dfea49071c5cbff04810d4f", &std.fmt.bytesToHex(try digest(request), .lower));
-    try std.testing.expectEqualStrings("e323bb4a92fdf1722dc1f094947da527efd97af33b779a6df590c16035a3154e", &std.fmt.bytesToHex(try queryDigest(query), .lower));
+    try std.testing.expectEqualStrings("312e126d979fa0b5813b926419e8f7fa42f625019075cdcaa2c4c9b7ae11dd31", &std.fmt.bytesToHex(try digest(request), .lower));
+    try std.testing.expectEqualStrings("4abd58c6411c172402672bb721dcf3aa1bf0dbb5cf1151d043eae1b13c446afb", &std.fmt.bytesToHex(try queryDigest(query), .lower));
 }
 
 test "retained version proposals and responses reject foreign duplicate and forged bases" {

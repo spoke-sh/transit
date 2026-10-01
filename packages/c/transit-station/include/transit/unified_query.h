@@ -45,7 +45,22 @@ typedef struct transit_station_unified_source {
         } document;
     } source;
 } transit_station_unified_source;
-typedef enum transit_station_unified_predicate_kind { TRANSIT_UNIFIED_ALL, TRANSIT_UNIFIED_IS_STATE, TRANSIT_UNIFIED_COMPARE } transit_station_unified_predicate_kind;
+typedef enum transit_station_unified_predicate_kind { TRANSIT_UNIFIED_ALL, TRANSIT_UNIFIED_IS_STATE, TRANSIT_UNIFIED_COMPARE, TRANSIT_UNIFIED_PROGRAM } transit_station_unified_predicate_kind;
+typedef struct transit_station_unified_predicate_atom {
+    transit_station_unified_predicate_kind kind; /* ALL, IS_STATE or COMPARE. */
+    uint8_t column; transit_station_unified_state state;
+    transit_station_comparison comparison; transit_station_unified_scalar value;
+} transit_station_unified_predicate_atom;
+/* Integer storage lets the C++ implementation reject unknown C input codes
+ * before treating them as an instruction, without an invalid-enum load. */
+typedef uint32_t transit_station_unified_instruction_kind;
+enum {
+    TRANSIT_UNIFIED_ATOM, TRANSIT_UNIFIED_NEGATE, TRANSIT_UNIFIED_CONJUNCTION, TRANSIT_UNIFIED_DISJUNCTION
+};
+typedef struct transit_station_unified_instruction {
+    transit_station_unified_instruction_kind kind;
+    transit_station_unified_predicate_atom atom; /* Used only for ATOM. */
+} transit_station_unified_instruction;
 typedef struct transit_station_unified_plan {
     const uint8_t *projection; size_t projection_count;
     bool has_limit; uint64_t limit;
@@ -55,6 +70,9 @@ typedef struct transit_station_unified_plan {
     transit_station_comparison comparison; transit_station_unified_scalar value;
     /* Null names retain defaults; slots beyond projection_count must be null. */
     const char *output_names[8];
+    /* PROGRAM borrows 1..64 postfix instructions through prepare_bundle.
+     * Other predicate kinds require NULL/0. Programs cannot nest. */
+    const transit_station_unified_instruction *instructions; size_t instruction_count;
 } transit_station_unified_plan;
 typedef struct transit_station_unified_budgets { uint64_t pages, segments, result_bytes; } transit_station_unified_budgets;
 typedef struct transit_station_unified_bundle transit_station_unified_bundle;
@@ -90,6 +108,15 @@ typedef enum transit_station_unified_inspection_operator { TRANSIT_UNIFIED_SCAN,
 typedef struct transit_station_unified_inspected_column { char name[33]; transit_station_unified_type type; } transit_station_unified_inspected_column;
 typedef struct transit_station_unified_source_description { transit_station_unified_inspected_column columns[8]; size_t column_count; } transit_station_unified_source_description;
 typedef struct transit_station_unified_table_listing { char names[1][33]; size_t count; } transit_station_unified_table_listing;
+typedef struct transit_station_unified_inspected_atom {
+    transit_station_unified_predicate_kind kind;
+    char column[33]; transit_station_unified_state state;
+    transit_station_comparison comparison; transit_station_unified_type type;
+} transit_station_unified_inspected_atom;
+typedef struct transit_station_unified_inspected_instruction {
+    transit_station_unified_instruction_kind kind;
+    transit_station_unified_inspected_atom atom;
+} transit_station_unified_inspected_instruction;
 typedef struct transit_station_unified_explanation {
     transit_station_unified_inspection_operator operators[4]; size_t operator_count;
     transit_station_unified_predicate_kind predicate;
@@ -99,6 +126,8 @@ typedef struct transit_station_unified_explanation {
     bool has_limit; uint64_t limit; transit_station_aggregate aggregate;
     transit_station_unified_source_description output;
     transit_station_unified_budgets budgets;
+    /* PROGRAM owns its redacted atoms inline; no input/client pointers. */
+    transit_station_unified_inspected_instruction instructions[64]; size_t instruction_count;
 } transit_station_unified_explanation;
 /* Entirely caller-owned, with no borrowed pointers or destroy operation.
  * Bounds describe one configured source, not a fixed-size realm catalog. */

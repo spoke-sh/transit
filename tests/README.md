@@ -10407,3 +10407,50 @@ Reproduce with `just test::unified-query -Doptimize=ReleaseSafe
 the concurrent Debug sample establishes a speedup or latency target. This run
 qualifies typed Boolean inspection and the existing single-atom recovery
 schedule only; Table/Document and compound-plan recovery remain open.
+
+Committed-source clean core at `f6ed5fd2` passes all 22 tasks, exit 0, in
+1076.22 seconds. The log is `/tmp/transit-sql-boolean-managed-clean-core.log`;
+terminal timing/completion metadata is retained under
+`.cache/ci/clean/f6ed5fd282cb-transit-ci-uun7d1gb`. This result precedes the
+C/C++ ABI cutover below and does not qualify that replacement definition.
+
+### Typed predicate programs in C and C++
+
+The continuation from `f6ed5fd2` adds bounded C instructions, caller-owned
+redacted inspection arrays and C++ program/inspection values. Preparation
+borrows input instructions only for its synchronous call; the resulting bundle
+owns its bytes. C++ binds literals from the original plan through a stationary
+view, preserving their lifetime. Unknown instruction codes reject before
+indexing; integer opcode storage permits validation without an invalid C++ enum
+load. Shared Zig remains the validation, canonical encoding and execution owner.
+
+The public C plan and inspection layouts change under the coordinated native
+definition `b2a625681e95d8a208ebe65f4b7b86931b6582bdfcc9f85d66b043447b9473b9`.
+The prior `23c4c853...` definition rejects. Generated schemas, all language
+resources, independent canonical/signing fixtures and serving/reactive
+descriptions move together. FZP1 program bytes and their separate definition
+remain unchanged. Matching headers, SDK libraries and native artifacts are
+required; this cutover supplies no conversion or reset of accepted work.
+
+`just bindings::unified-codecs` passes all ten installed SDK consumers, exit 0,
+in `/tmp/transit-sql-boolean-all-sdk-codecs.log`. Each checks the same nine
+independent Boolean bundles, six scalar types, all operators, variable-width
+input ownership and 64 instructions. The C/C++ tests also reject empty,
+underflowing, extra-stack, oversized, unknown-opcode and invalid-source programs.
+This is codec evidence, not source authorization or durable recovery evidence.
+The separate C/C++ build/codec run also passes, exit 0, in
+`/tmp/transit-sql-boolean-c-codecs-3.log`.
+
+The first installed C run failed because its fixture installer did not write the
+Boolean bundle files; the next exposed the invalid-enum load for opcode 99.
+Both are corrected with the rejecting case retained. Their logs remain
+`/tmp/transit-sql-boolean-c-codecs.log` and
+`/tmp/transit-sql-boolean-c-codecs-2.log`. The first full check stopped on Zig
+formatting; after formatting, full `just check` passes, exit 0, in
+`/tmp/transit-sql-boolean-c-check-2.log`, including generated drift, all 96
+native/port codec cases, Board checks and the documentation build.
+
+Signed Boolean inspection is enabled for all ten SDKs in the existing source
+schedule. Current-definition signed inspection/recovery, committed-source clean
+lanes, Table/Document and compound delivery remain separate qualification gates.
+PR #52 and issue #37 retain their terminal results and continuation handoff.

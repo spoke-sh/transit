@@ -245,6 +245,8 @@ def install_c(root, fixtures, language):
     for i, item in enumerate(json.loads((fixtures/'bundles.json').read_text())):
         (fixtures/f'bundle{i}.bin').write_bytes(bytes.fromhex(item['wire_hex']))
         (fixtures/f'named-bundle{i}.bin').write_bytes(bytes.fromhex(item['named_wire_hex']))
+    for i, item in enumerate(json.loads((fixtures/'boolean.json').read_text())):
+        (fixtures/f'boolean{i}.bin').write_bytes(bytes.fromhex(item['wire_hex']))
     subprocess.run([executable, 'codecs', fixtures], cwd=root, env=env, check=True, timeout=90)
     if language == 'cpp':
         source.write_text('#include <transit/unified_query.hpp>\nvoid copy(transit::sdk::station::unified::Client &client) { auto other = client; }')
@@ -254,7 +256,7 @@ def install_c(root, fixtures, language):
     def open_callers(url, connection, state, kind):
         arguments = [executable, 'serve', url, str(state/'caller.seed'), kind, str(state/'bundle.bin')]
         arguments += [str(connection[key]) for key in ('realm', 'principal', 'source', 'resource', 'requester', 'requests')]
-        return [CConsumer(arguments, env, root, inspection=True)]
+        return [CConsumer(arguments, env, root, inspection=True, predicate_programs=True)]
     return open_callers
 
 

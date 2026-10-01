@@ -69,12 +69,49 @@ static void scalar(transit_station_unified_scalar v,size_t column) {
     if(column==4)equal(v.bytes,bytes("café é 東京🙂"));
     if(column==5)equal(v.bytes,(transit_sdk_bytes){(const uint8_t *)"\x00\xff\x80",3});
 }
+static void boolean_codecs(const char *root) {
+    const uint8_t projection[]={0};
+    transit_station_unified_source source={0};source.kind=TRANSIT_UNIFIED_KV;source.resource=(transit_sdk_resource){46,7};source.source.kv.key.version=1;source.source.kv.value=(transit_station_unified_decoder){1,TRANSIT_UNIFIED_UINT64};
+    transit_station_unified_budgets budgets={1000,500,1048576};
+    for(size_t i=0;i<9;++i){
+        const transit_station_unified_type type=i<6?(transit_station_unified_type)i:i==6?TRANSIT_UNIFIED_UTF8:TRANSIT_UNIFIED_INT64;source.source.kv.key.type=type;
+        char padding[513];memset(padding,'x',512);padding[512]=0;
+        transit_station_unified_instruction instructions[64]={0};size_t count=4;
+        if(i<7){
+            instructions[0].atom.kind=TRANSIT_UNIFIED_COMPARE;instructions[0].atom.comparison=TRANSIT_COMPARE_EQ;instructions[0].atom.value.type=type;
+            instructions[0].atom.value.signed_value=INT64_MIN;instructions[0].atom.value.unsigned_value=UINT64_MAX;instructions[0].atom.value.float_value=-0.0;instructions[0].atom.value.boolean=true;
+            instructions[0].atom.value.bytes=i==5?(transit_sdk_bytes){(const uint8_t *)"\x00\xff\x80",3}:bytes(i==6?padding:"café é 🙂");
+            instructions[1].kind=TRANSIT_UNIFIED_NEGATE;instructions[2].atom.kind=TRANSIT_UNIFIED_IS_STATE;instructions[2].atom.state=TRANSIT_UNIFIED_NULL;instructions[3].kind=TRANSIT_UNIFIED_DISJUNCTION;
+        }else if(i==7){instructions[1].atom.kind=TRANSIT_UNIFIED_IS_STATE;instructions[1].atom.state=TRANSIT_UNIFIED_NULL;instructions[2].kind=TRANSIT_UNIFIED_NEGATE;instructions[3].kind=TRANSIT_UNIFIED_CONJUNCTION;}
+        else {count=64;for(size_t j=1;j<count;++j)instructions[j].kind=TRANSIT_UNIFIED_NEGATE;}
+        transit_station_unified_plan plan={0};plan.projection=projection;plan.projection_count=1;plan.predicate=TRANSIT_UNIFIED_PROGRAM;plan.instructions=instructions;plan.instruction_count=count;
+        transit_station_unified_bundle *bundle=NULL;checked(transit_station_unified_prepare_bundle(&source,&plan,budgets,NULL,&bundle));
+        memset(instructions,0,sizeof(instructions));memset(padding,0,sizeof(padding));
+        transit_sdk_bytes encoded={0};checked(transit_station_unified_bundle_bytes(bundle,&encoded));char name[32];snprintf(name,sizeof(name),"boolean%zu.bin",i);transit_sdk_bytes expected=fixture(root,name);equal(encoded,expected);free((void *)expected.data);transit_station_unified_bundle_destroy(bundle);
+    }
+    source.source.kv.key.type=TRANSIT_UNIFIED_INT64;
+    for(size_t i=0;i<9;++i){
+        transit_station_unified_instruction instructions[65]={0};size_t count=1;
+        if(i==0)count=0;
+        else if(i==1)instructions[0].kind=TRANSIT_UNIFIED_NEGATE;
+        else if(i==2)count=2;
+        else if(i==3){count=65;for(size_t j=1;j<count;++j)instructions[j].kind=TRANSIT_UNIFIED_NEGATE;}
+        else if(i==4)instructions[0].kind=(transit_station_unified_instruction_kind)99;
+        else if(i==5)instructions[0].atom.kind=TRANSIT_UNIFIED_PROGRAM;
+        else if(i==6){instructions[0].atom.kind=TRANSIT_UNIFIED_IS_STATE;instructions[0].atom.column=7;}
+        else if(i==7){instructions[0].atom.kind=TRANSIT_UNIFIED_COMPARE;instructions[0].atom.value.type=TRANSIT_UNIFIED_UTF8;instructions[0].atom.value.bytes=bytes("wrong type");}
+        transit_station_unified_plan plan={0};plan.projection=projection;plan.projection_count=1;plan.predicate=TRANSIT_UNIFIED_PROGRAM;plan.instructions=i==8?NULL:instructions;plan.instruction_count=count;
+        transit_station_unified_bundle *bundle=(transit_station_unified_bundle *)(uintptr_t)1;
+        assert(transit_station_unified_prepare_bundle(&source,&plan,budgets,NULL,&bundle).kind!=TRANSIT_SDK_OK && !bundle);
+    }
+}
 static void codecs(const char *root) {
     for(int i=0;i<3;++i) {
         definition d=source((transit_sdk_resource){46,7},i,true); transit_station_unified_bundle *b=bundle(&d,true,false); transit_sdk_bytes encoded={0}; checked(transit_station_unified_bundle_bytes(b,&encoded));
         char name[32]; snprintf(name,sizeof(name),"bundle%d.bin",i); transit_sdk_bytes expected=fixture(root,name); equal(encoded,expected); free((void *)expected.data); transit_station_unified_bundle_destroy(b);
         b=bundle(&d,true,true); checked(transit_station_unified_bundle_bytes(b,&encoded)); snprintf(name,sizeof(name),"named-bundle%d.bin",i); expected=fixture(root,name); equal(encoded,expected); free((void *)expected.data); transit_station_unified_bundle_destroy(b);
     }
+    boolean_codecs(root);
     const char *names[]={"int64","uint64","float64","boolean","utf8","binary"}; transit_station_unified_column columns[6];
     for(size_t i=0;i<6;++i)columns[i]=(transit_station_unified_column){names[i],(transit_station_unified_type)i};
     transit_sdk_bytes ipc=fixture(root,"arrow.ipc"); transit_station_unified_rows *rows=NULL;
@@ -88,7 +125,7 @@ static void codecs(const char *root) {
     transit_station_unified_rows_destroy(rows); rows=NULL;
     ipc=fixture(root,"empty.ipc"); checked(transit_station_unified_decode_arrow(columns,6,ipc,0,NULL,&rows)); free((void *)ipc.data); transit_station_unified_cell missing={0}; assert(transit_station_unified_rows_cell(rows,0,0,&missing).kind!=TRANSIT_SDK_OK); transit_station_unified_rows_destroy(rows); rows=NULL;
     ipc=fixture(root,"malformed.ipc"); assert(transit_station_unified_decode_arrow(columns,6,ipc,5,NULL,&rows).kind!=TRANSIT_SDK_OK && !rows); free((void *)ipc.data);
-    puts("C installed unified codecs: three sources, six types, five states, owned rows and malformed rejection passed");
+    puts("C installed unified codecs: three sources, nine Boolean bundles, six types, five states, owned rows and malformed rejection passed");
 }
 static void serve(char **args) {
     const uint64_t realm=strtoull(args[6],NULL,10),principal=strtoull(args[7],NULL,10);

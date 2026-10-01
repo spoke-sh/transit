@@ -31,6 +31,21 @@ static void inspection(const q::Inspection &value) {
             std::visit([&](const auto &p){using P=std::decay_t<decltype(p)>;
                 if constexpr(std::is_same_v<P,q::InspectedState>){plan.predicate=TRANSIT_UNIFIED_IS_STATE;name(plan.column,p.column);plan.state=static_cast<transit_station_unified_state>(p.state);}
                 else if constexpr(std::is_same_v<P,q::InspectedComparison>){plan.predicate=TRANSIT_UNIFIED_COMPARE;name(plan.column,p.column);plan.comparison=static_cast<transit_station_comparison>(p.comparison);plan.type=static_cast<transit_station_unified_type>(p.type);}
+                else if constexpr(std::is_same_v<P,q::InspectedProgram>){
+                    plan.predicate=TRANSIT_UNIFIED_PROGRAM;assert(p.instructions.size()<=64);plan.instruction_count=p.instructions.size();
+                    for(size_t i=0;i<p.instructions.size();++i)std::visit([&](const auto &instruction){using I=std::decay_t<decltype(instruction)>;auto &out_instruction=plan.instructions[i];
+                        if constexpr(std::is_same_v<I,q::InspectedAtom>){out_instruction.kind=TRANSIT_UNIFIED_ATOM;auto &out_atom=out_instruction.atom;
+                            std::visit([&](const auto &a){using A=std::decay_t<decltype(a)>;
+                                if constexpr(std::is_same_v<A,q::InspectedState>){out_atom.kind=TRANSIT_UNIFIED_IS_STATE;name(out_atom.column,a.column);out_atom.state=static_cast<transit_station_unified_state>(a.state);}
+                                else if constexpr(std::is_same_v<A,q::InspectedComparison>){out_atom.kind=TRANSIT_UNIFIED_COMPARE;name(out_atom.column,a.column);out_atom.comparison=static_cast<transit_station_comparison>(a.comparison);out_atom.type=static_cast<transit_station_unified_type>(a.type);}
+                            },instruction);
+                        }else {switch(instruction){
+                            case q::PredicateOperator::Negate:out_instruction.kind=TRANSIT_UNIFIED_NEGATE;break;
+                            case q::PredicateOperator::Conjunction:out_instruction.kind=TRANSIT_UNIFIED_CONJUNCTION;break;
+                            case q::PredicateOperator::Disjunction:out_instruction.kind=TRANSIT_UNIFIED_DISJUNCTION;break;
+                        }}
+                    },p.instructions[i]);
+                }
                 else plan.predicate=TRANSIT_UNIFIED_ALL;
             },d.predicate);
         }
@@ -52,8 +67,28 @@ static q::Bundle bundle(const q::Source &source,int kind,bool golden,bool named=
         q::Compare{static_cast<uint8_t>(golden?1:kind==2?0:1),Comparison::Ne,golden&&kind==0?q::Scalar{uint64_t{UINT64_MAX}}:q::Scalar{std::string(512,'x')}},
         Aggregate::Rows,golden?std::optional<uint64_t>{UINT64_MAX}:std::nullopt,names},{1000,static_cast<uint64_t>(golden?500:100),1048576});
 }
+static void boolean_codecs(const std::string &root) {
+    const std::array<q::Scalar,7> values{int64_t{INT64_MIN},uint64_t{UINT64_MAX},-0.0,true,std::string("café é 🙂"),Bytes{0,255,128},std::string(512,'x')};
+    for(size_t i=0;i<9;++i){
+        const auto type=i<6?static_cast<q::Type>(i):i==6?q::Type::Utf8:q::Type::Int64;
+        q::Source source=q::KvSource{ResourceRef(46,7),{},{type},{q::Type::UInt64}};
+        std::vector<q::PredicateInstruction> instructions;
+        if(i<7)instructions={q::PredicateAtom{q::Compare{0,Comparison::Eq,values[i]}},q::PredicateOperator::Negate,q::PredicateAtom{q::IsState{0,q::State::Null}},q::PredicateOperator::Disjunction};
+        else if(i==7)instructions={q::PredicateAtom{All{}},q::PredicateAtom{q::IsState{0,q::State::Null}},q::PredicateOperator::Negate,q::PredicateOperator::Conjunction};
+        else {instructions.emplace_back(q::PredicateAtom{All{}});instructions.insert(instructions.end(),63,q::PredicateOperator::Negate);}
+        q::PredicateProgram program{instructions};instructions.clear();
+        auto bundle=q::prepare(source,{{0},program,Aggregate::Rows,std::nullopt,std::nullopt},{1000,500,1048576});program.instructions.clear();
+        assert(bundle.data()==read(root+"/boolean"+std::to_string(i)+".bin"));
+    }
+    q::Source source=q::KvSource{ResourceRef(46,7),{},{q::Type::Int64},{q::Type::UInt64}};
+    std::vector<q::PredicateInstruction> oversized{q::PredicateAtom{All{}}};oversized.insert(oversized.end(),64,q::PredicateOperator::Negate);
+    const std::vector<std::vector<q::PredicateInstruction>> invalid{{},{q::PredicateOperator::Negate},{q::PredicateAtom{All{}},q::PredicateAtom{All{}}},oversized,
+        {static_cast<q::PredicateOperator>(99)},{q::PredicateAtom{q::IsState{7,q::State::Null}}},{q::PredicateAtom{q::Compare{0,Comparison::Eq,std::string("wrong type")}}}};
+    for(const auto &instructions:invalid){bool rejected=false;try{q::prepare(source,{{0},q::PredicateProgram{instructions},Aggregate::Rows,std::nullopt,std::nullopt},{1,1,1024});}catch(const Error &){rejected=true;}assert(rejected);}
+}
 static void codecs(const std::string &root) {
     for(int kind=0;kind<3;++kind) { auto b=bundle(source(ResourceRef(46,7),kind,true),kind,true); assert(b.data()==read(root+"/bundle"+std::to_string(kind)+".bin")); assert(bundle(source(ResourceRef(46,7),kind,true),kind,true,true).data()==read(root+"/named-bundle"+std::to_string(kind)+".bin")); }
+    boolean_codecs(root);
     const std::vector<q::Column> columns{{"int64",q::Type::Int64},{"uint64",q::Type::UInt64},{"float64",q::Type::Float64},{"boolean",q::Type::Boolean},{"utf8",q::Type::Utf8},{"binary",q::Type::Binary}};
     auto ipc=read(root+"/arrow.ipc"); const auto rows=q::decode_arrow(columns,ipc,5); std::fill(ipc.begin(),ipc.end(),0);
     const std::array<q::Scalar,6> expected{int64_t{INT64_MIN},uint64_t{UINT64_MAX},-0.0,false,std::string("café é 東京🙂"),Bytes{0,255,128}};
@@ -66,7 +101,7 @@ static void codecs(const std::string &root) {
     assert(std::signbit(std::get<double>(std::get<q::Scalar>(rows[3][2]))));
     assert(q::decode_arrow(columns,read(root+"/empty.ipc"),0).empty());
     bool rejected=false; try { q::decode_arrow(columns,read(root+"/malformed.ipc"),5); }catch(const Error &) { rejected=true; } assert(rejected);
-    std::cout<<"C++ installed unified codecs: three sources, six types, five states, owned values and malformed rejection passed"<<std::endl;
+    std::cout<<"C++ installed unified codecs: three sources, nine Boolean bundles, six types, five states, owned values and malformed rejection passed"<<std::endl;
 }
 static void serve(char **args) {
     const auto realm=std::stoull(args[6]); const ResourceRef resource(realm,std::stoull(args[9]));
