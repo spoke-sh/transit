@@ -75,14 +75,7 @@ pub const Bound = struct {
     fingerprint: [32]u8,
 };
 pub fn bind(self: Self, basis: m.Basis, schema: m.Schema) !Bound {
-    try self.validate(schema);
-    try basis.validate(schema);
-    var bytes: [m.Codec.max_plan_bytes]u8 = undefined;
-    const encoded = try m.Codec.encode(self, &bytes);
-    var hash = std.crypto.hash.sha2.Sha256.init(.{});
-    hash.update("transit.fuze.plan.v1\x00");
-    hash.update(encoded);
-    return .{ .plan = self, .basis = basis, .schema = schema, .fingerprint = hash.finalResult() };
+    return .{ .plan = self, .basis = basis, .schema = schema, .fingerprint = try m.Codec.boundFingerprint(self, basis, schema) };
 }
 pub fn matches(self: Self, row: m.Row) !bool {
     return switch (self.predicate) {
