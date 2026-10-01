@@ -31,6 +31,9 @@ pub const Plan = struct {
     schema: types.Type,
     source_basis: [32]u8,
     projection: []const u8,
+    /// Empty retains defaults; otherwise one optional borrowed name per output.
+    /// Names and their vector must remain immutable through execution.
+    output_names: []const ?[]const u8 = &.{},
     predicate: union(enum) {
         all,
         state: @FieldType(Atom, "state"),
@@ -102,12 +105,19 @@ pub const Plan = struct {
         try self.schema.validate(.{});
         if (self.schema != .structure or self.schema.structure.len > 128) return error.InvalidQuerySchema;
         if (self.projection.len == 0 or self.projection.len > 128) return error.InvalidProjection;
+        if (self.output_names.len != 0 and self.output_names.len != self.projection.len) return error.InvalidOutputNames;
+        const renamed = self.hasOutputNames();
         for (self.projection, 0..) |index, i| {
             if (index >= self.schema.structure.len) return error.UnknownColumn;
-            for (self.projection[0..i]) |earlier| if (index == earlier) return error.DuplicateProjection;
+            if (!renamed) for (self.projection[0..i]) |earlier| {
+                if (index == earlier) return error.DuplicateProjection;
+            };
         }
         if (self.aggregate != .rows and self.projection.len != 1) return error.UnsupportedAggregate;
         if (self.aggregate == .sum and self.schema.structure[self.projection[0]].type != .int64) return error.UnsupportedAggregate;
+        // The 128-field descriptor workspace belongs only to renamed outputs;
+        // keep its stack probing/initialization out of ordinary validation.
+        if (renamed) try @call(.never_inline, validateOutput, .{&self});
         switch (self.predicate) {
             .program => |program| try program.validate(self.schema),
             inline else => |value, tag| try @as(Atom, @unionInit(Atom, @tagName(tag), value)).validate(self.schema),
@@ -140,6 +150,18 @@ pub const Plan = struct {
             },
             inline else => |value, tag| try @as(Atom, @unionInit(Atom, @tagName(tag), value)).write(self.schema, &writer),
         }
+        // Preserve existing unnamed-plan identities. Named plans commit every
+        // optional name, including its position, within the same byte budget.
+        if (self.hasOutputNames()) {
+            try writer.writeAll("output_names\x00");
+            for (self.output_names) |name| {
+                try writer.writeByte(@intFromBool(name != null));
+                if (name) |value| {
+                    try writer.writeByte(@intCast(value.len));
+                    try writer.writeAll(value);
+                }
+            }
+        }
         var digest: [32]u8 = undefined;
         std.crypto.hash.sha2.Sha256.hash(writer.buffered(), &digest, .{});
         return digest;
@@ -147,12 +169,29 @@ pub const Plan = struct {
     pub fn outputSchema(self: Plan, fields: []types.Field) !types.Type {
         try self.validate();
         if (fields.len < self.projection.len) return error.InvalidProjection;
-        if (self.aggregate != .rows) {
-            fields[0] = .{ .name = @tagName(self.aggregate), .type = if (self.aggregate == .count) .uint64 else .int64, .nullable = self.aggregate == .sum };
-            return .{ .structure = fields[0..1] };
-        }
-        for (self.projection, 0..) |index, i| fields[i] = self.schema.structure[index];
+        for (0..self.projection.len) |i| fields[i] = self.outputField(i);
         return .{ .structure = fields[0..self.projection.len] };
+    }
+    fn hasOutputNames(self: Plan) bool {
+        for (self.output_names) |name| if (name != null) return true;
+        return false;
+    }
+    fn outputField(self: Plan, index: usize) types.Field {
+        var field = if (self.aggregate == .rows) self.schema.structure[self.projection[index]] else types.Field{
+            .name = @tagName(self.aggregate),
+            .type = if (self.aggregate == .count) .uint64 else .int64,
+            .nullable = self.aggregate == .sum,
+        };
+        if (self.output_names.len != 0) if (self.output_names[index]) |name| {
+            field.name = name;
+        };
+        return field;
+    }
+    fn validateOutput(self: *const Plan) !void {
+        var fields: [128]types.Field = undefined;
+        for (0..self.projection.len) |i| fields[i] = self.outputField(i);
+        // Repeated recursive inputs must still fit the descriptor budget.
+        try (types.Type{ .structure = fields[0..self.projection.len] }).validate(.{});
     }
     fn matches(self: Plan, cells: []const values.Cell) !bool {
         const truth = switch (self.predicate) {
@@ -188,7 +227,17 @@ pub fn compile(allocator: std.mem.Allocator, text: []const u8, name: []const u8,
     var input: [128]u8 = undefined;
     var projected: [128]u8 = undefined;
     const shape = try lowering.lower(&ast, name, names[0..schema.structure.len], &input, &projected);
+    var output_names: [@import("Unified.zig").max_columns]?[]const u8 = undefined;
+    if (shape.input) |*inner| {
+        try (Plan{ .schema = schema, .source_basis = binding.digest, .projection = inner.columns, .output_names = namesView(inner.names, &output_names, inner.columns.len) }).validate();
+    }
     var plan: Plan = .{ .schema = schema, .source_basis = binding.digest, .projection = try alloc.dupe(u8, shape.projection), .aggregate = shape.aggregate, .limit = shape.limit };
+    const borrowed_names = namesView(shape.output_names, &output_names, shape.projection.len);
+    if (borrowed_names.len != 0) {
+        const owned = try alloc.alloc(?[]const u8, borrowed_names.len);
+        for (borrowed_names, owned) |borrowed, *item| item.* = if (borrowed) |value| try alloc.dupe(u8, value) else null;
+        plan.output_names = owned;
+    }
     plan.predicate = switch (shape.predicate) {
         .program => |program| blk: {
             try program.validate();
@@ -227,6 +276,11 @@ fn lowerAtom(allocator: std.mem.Allocator, atom: lowering.Atom, schema: types.Ty
             break :blk .{ .compare = .{ .column = comparison.column, .op = comparison.op, .value = cell.value.atom } };
         },
     };
+}
+fn namesView(names: lowering.OutputNames, output: *[@import("Unified.zig").max_columns]?[]const u8, width: usize) []const ?[]const u8 {
+    if (names == .none) return &.{};
+    for (output[0..width], 0..) |*item, i| item.* = if (names.get(i)) |value| value.slice() else null;
+    return output[0..width];
 }
 pub const Execution = struct {
     scan: source.Scan,
@@ -373,12 +427,120 @@ test "typed file plans compare all integer bits while SQL keeps exact literal ad
     try t.expectError(error.UnsupportedQueryType, compile(t.allocator, "SELECT n FROM input WHERE n = 1", "input", &binding));
     try t.expectError(error.UnsupportedAggregate, compile(t.allocator, "SELECT SUM(n) FROM input", "input", &binding));
 }
+test "file output aliases own names and agree with native column scope" {
+    const t = std.testing;
+    const unified = @import("Unified.zig");
+    var memory: Memory = .{ .bytes = "id,value\n1,2\n2,3\n3,4\n" };
+    const sources = [_]source.Source{memory.handle()};
+    var binding = try source.discover(t.allocator, &sources, .{ .format = .csv, .mode = .full }, &.{});
+    defer binding.deinit();
+    const native_columns = [_]unified.Column{
+        .{ .name = try unified.Name.init("id"), .type = .int64 },
+        .{ .name = try unified.Name.init("value"), .type = .int64 },
+    };
+    const native_source: unified.Sql.Source = .{ .name = try unified.Name.init("input"), .schema = .{ .columns = &native_columns } };
+    for ([_]struct { sql: []const u8, names: []const []const u8, columns: []const u8 }{
+        .{ .sql = "SELECT value AS first, value AS second FROM input", .names = &.{ "first", "second" }, .columns = &.{ 1, 1 } },
+        .{ .sql = "SELECT id, value AS \"Value\" FROM input", .names = &.{ "id", "Value" }, .columns = &.{ 0, 1 } },
+        .{ .sql = "SELECT COUNT(*) AS rows FROM input", .names = &.{"rows"}, .columns = &.{0} },
+        .{ .sql = "SELECT SUM(value) AS total FROM input", .names = &.{"total"}, .columns = &.{1} },
+        .{ .sql = "SELECT SUM(chosen.renamed) AS total FROM (SELECT src.value AS renamed FROM input AS src WHERE src.id > 1 LIMIT 1) AS chosen", .names = &.{"total"}, .columns = &.{1} },
+        .{ .sql = "SELECT SUM(chosen.second) FROM (SELECT value AS first, value AS second FROM input LIMIT 1) AS chosen", .names = &.{"sum"}, .columns = &.{1} },
+    }) |fixture| {
+        const text = try t.allocator.dupe(u8, fixture.sql);
+        defer t.allocator.free(text);
+        var compiled = try compile(t.allocator, text, "input", &binding);
+        defer compiled.deinit();
+        // Reusing compiler stack storage must not change an earlier result.
+        var subsequent = try compile(t.allocator, "SELECT value AS replaced FROM input", "input", &binding);
+        subsequent.deinit();
+        var native_arena: std.heap.ArenaAllocator = .init(t.allocator);
+        defer native_arena.deinit();
+        const native = try unified.Sql.plan(native_arena.allocator(), text, native_source);
+        @memset(text, 'x'); // Neither plan may borrow output names from SQL text.
+        var fields: [128]types.Field = undefined;
+        const output = try compiled.plan.outputSchema(&fields);
+        var native_fields: [unified.max_columns]unified.Column = undefined;
+        const native_output = try native.outputSchema(native_source.schema, &native_fields);
+        try t.expectEqualSlices(u8, fixture.columns, compiled.plan.projection);
+        try t.expectEqualSlices(u8, native.projection, compiled.plan.projection);
+        for (fixture.names, output.structure, native_output.columns) |name, field, native_field| {
+            try t.expectEqualStrings(name, field.name);
+            try t.expectEqualStrings(name, native_field.name.slice());
+            try t.expectEqual(native_field.type, try field.type.queryType());
+        }
+        var execution = try Execution.init(t.allocator, &binding, &sources, compiled.plan);
+        defer execution.deinit();
+        while (try execution.next()) |owned| {
+            var row = owned;
+            defer row.deinit();
+            try t.expectEqual(fixture.columns.len, row.cells.len);
+        }
+        try t.expect(execution.complete);
+    }
+    for ([_][]const u8{
+        "SELECT value AS id, id FROM input",
+        "SELECT value AS same, id AS same FROM input",
+        "SELECT value AS renamed FROM input WHERE renamed > 1",
+        "SELECT SUM(chosen.value) FROM (SELECT value AS renamed FROM input) AS chosen",
+        "SELECT SUM(chosen.id) FROM (SELECT value AS renamed FROM input) AS chosen",
+        "SELECT COUNT(*) FROM (SELECT id AS same, value AS same FROM input) AS chosen",
+    }) |text| {
+        if (compile(t.allocator, text, "input", &binding)) |accepted| {
+            var unexpected = accepted;
+            unexpected.deinit();
+            return error.UnexpectedFileAcceptance;
+        } else |_| {}
+        var arena: std.heap.ArenaAllocator = .init(t.allocator);
+        defer arena.deinit();
+        if (unified.Sql.plan(arena.allocator(), text, native_source)) |_| return error.UnexpectedNativeAcceptance else |_| {}
+    }
+}
+test "typed file output names bind identity and enforce output descriptor budgets" {
+    const t = std.testing;
+    var memory: Memory = .{ .bytes = "id\n1\n2\n" };
+    const sources = [_]source.Source{memory.handle()};
+    var binding = try source.discover(t.allocator, &sources, .{ .format = .csv, .mode = .full }, &.{});
+    defer binding.deinit();
+    var name = "first".*;
+    const names = [_]?[]const u8{&name};
+    var plan: Plan = .{ .schema = binding.schema.type, .source_basis = binding.digest, .projection = &.{0} };
+    const unnamed = try plan.fingerprint();
+    plan.output_names = &.{null};
+    try t.expectEqual(unnamed, try plan.fingerprint());
+    plan.output_names = &names;
+    try t.expect(!std.mem.eql(u8, &unnamed, &try plan.fingerprint()));
+    var execution = try Execution.init(t.allocator, &binding, &sources, plan);
+    defer execution.deinit();
+    var row = (try execution.next()).?;
+    row.deinit();
+    name[0] = 'F';
+    try t.expectError(error.SourceChanged, execution.next());
+    try t.expect(!execution.complete);
+    try t.expectError(error.FailedQuery, execution.next());
+    plan.output_names = &.{ "a", "b" };
+    try t.expectError(error.InvalidOutputNames, plan.validate());
+    plan.output_names = &.{""};
+    try t.expectError(error.InvalidFieldName, plan.validate());
+    plan.output_names = &.{"a\x00b"};
+    try t.expectError(error.InvalidFieldName, plan.validate());
+    plan.output_names = &.{"\xff"};
+    try t.expectError(error.InvalidFieldName, plan.validate());
+    const child: types.Type = .int64;
+    const schema: types.Type = .{ .structure = &.{.{ .name = "list", .type = .{ .list = .{ .type = &child } } }} };
+    var repeated_names: [128]?[]const u8 = undefined;
+    var storage: [128][3]u8 = undefined;
+    for (&repeated_names, &storage, 0..) |*item, *bytes, i| item.* = try std.fmt.bufPrint(bytes, "{d}", .{i});
+    const projection: [128]u8 = @splat(0);
+    plan = .{ .schema = schema, .source_basis = @splat(0), .projection = &projection, .output_names = &repeated_names };
+    try t.expectError(error.TypeBudgetExceeded, plan.validate());
+}
 fn allocationSchedule(allocator: std.mem.Allocator) !void {
     var memory: Memory = .{ .bytes = "id,text\n1,hello\n2,world\n" };
     const sources = [_]source.Source{memory.handle()};
     var binding = try source.discover(allocator, &sources, .{ .format = .csv, .mode = .full }, &.{});
     defer binding.deinit();
-    var compiled = try compile(allocator, "SELECT id FROM input WHERE NOT (text <> 'hello' OR id < 1)", "input", &binding);
+    var compiled = try compile(allocator, "SELECT id AS first, id AS second FROM input WHERE NOT (text <> 'hello' OR id < 1)", "input", &binding);
     defer compiled.deinit();
     var execution = try Execution.init(allocator, &binding, &sources, compiled.plan);
     defer execution.deinit();

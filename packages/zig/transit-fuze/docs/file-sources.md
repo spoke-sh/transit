@@ -80,11 +80,28 @@ an explicitly supplied matching type. General casts, nested access, joins and
 additional SQL literal families are unsupported in this file-plan profile.
 Explicit source aliases (`FROM input AS src`) also apply inside the restricted
 aggregate input. The alias hides the original source qualifier. File plans reject
-bare aliases and output-column/aggregate aliases; native query plans support the
-output aliases described in the [native SQL guide](unified-sql.md).
+bare aliases. Rows, COUNT and SUM accept explicit output aliases, such as
+`SELECT value AS amount FROM input` and `SELECT SUM(value) AS total FROM input`.
+The SQL identifier rules match the [native SQL guide](unified-sql.md): names are
+at most 16 bytes, unquoted names fold to lowercase and quoted names preserve case.
+Distinct output names permit repeated input columns. Duplicate resulting names
+reject, including collisions with an unrenamed column. An inner projection's
+renamed columns are available to its outer aggregate; WHERE still resolves the
+original source columns. Renaming preserves values, types and cell states.
+
+Typed `FileQuery.Plan.output_names` is empty for default names, or contains one
+optional name per projected output. A null entry retains the source name (or
+`count`/`sum`). Typed names use the logical descriptor's UTF-8 rules and limits;
+SQL names retain the narrower identifier rules above. The resulting descriptor,
+including repeated recursive columns, must fit its existing 256-node and
+4096-name-byte budgets. Typed plans borrow immutable name/vector storage;
+`Compiled` owns copies independently of SQL text.
 
 A plan binds the source commitment, complete schema, projection, predicate,
-aggregate and limit into a fingerprint. `Execution.init` checks that binding;
+aggregate, limit and explicit output names into a fingerprint. Plans without
+names retain their existing fingerprints; renaming changes identity. Names count
+toward the existing 8192-byte fingerprint budget. Mutating borrowed names during
+execution rejects before the next row. `Execution.init` checks that binding;
 `next()` returns an owned projected row. Release each row, then deinitialize the
 execution before releasing its borrowed plan/binding/source owners. The execution
 must remain at its final address after scanning begins. The schema supports up

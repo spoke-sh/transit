@@ -12,6 +12,7 @@ import tempfile
 import threading
 
 from console_terminal import Terminal, ANSI
+from console_signals import check as check_signals
 
 
 def clear(terminal):
@@ -29,7 +30,7 @@ def search(terminal, query, result):
     terminal.expect(' > ' + result)
 
 
-def check(binary):
+def check(binary, signal_gate):
     with tempfile.TemporaryDirectory(prefix='transit-history-') as directory, socket.socket() as trap:
         root = Path(directory)
         home = root / 'home'
@@ -175,9 +176,14 @@ def check(binary):
             finally:
                 terminal.close()
         assert history.read_bytes() == saved, 'fallback modified another history file'
+        with history.open('a') as output:
+            output.write('".signal_schedule"\n')
+        saved = history.read_bytes()
+        check_signals(binary, config, home, signal_gate)
+        assert history.read_bytes() == saved, 'signal schedule executed an old draft'
         assert not select.select([trap], [], [], 0)[0], 'history editing sent a native request'
     print('Console history: PTY search/accept/cancel, dot commands, Unicode/multiline, restart, concurrent append, bounded malformed records, private permissions and unavailable-file fallback passed.')
 
 
 if __name__ == '__main__':
-    check(str(Path(sys.argv[1]).resolve()))
+    check(str(Path(sys.argv[1]).resolve()), Path(sys.argv[2]).resolve())

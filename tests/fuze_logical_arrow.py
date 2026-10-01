@@ -172,6 +172,30 @@ def main():
                     cell = b'\3' + b''.join(arrow_cell(batch.column(n), i, field['type']) for n, field in enumerate(typ['structure']))
                     actual.append((b'FVL1' + struct.pack('<H', len(desc)) + desc + b'\0' + cell).hex())
             assert actual == case['rows_hex'], case['name']
+        # File aliases preserve recursive descriptors, states, repeated values
+        # and physical Arrow field names independently of the JSON renderer.
+        typ = {'list': {'type': {'int64': {}}, 'nullable': True}}
+        data = b'{"n":[1,null]}\n{"n":null}\n{}\n{"n":[2]}\n'
+        physical, batches = cli(['--format', 'jsonl', '--mode', 'full', '--batch-rows', '1', '-c',
+                                 'SELECT n AS first, n AS \"Second\" FROM input', '-'], data)
+        fields = [dict(name=name, type=typ, nullable=True, optional=True) for name in ('first', 'Second')]
+        assert physical.names == ['first', 'Second']
+        assert physical.metadata[b'transit.logical_schema'] == descriptor({'structure': fields}).hex().encode()
+        expected = [
+            {'value': {'list': [{'value': {'atom': {'signed': '1'}}}, {'null': {}}]}},
+            {'null': {}}, {'missing': {}},
+            {'value': {'list': [{'value': {'atom': {'signed': '2'}}}]}},
+        ]
+        for column in (0, 1):
+            assert [arrow_cell(batch.column(column), i, typ) for batch in batches for i in range(batch.num_rows)] == [cell_bytes(cell, typ) for cell in expected]
+        for aggregate, typ, cell in (
+            ('COUNT(*)', {'uint64': {}}, {'value': {'atom': {'unsigned': '2'}}}),
+            ('SUM(n)', {'int64': {}}, {'value': {'atom': {'signed': '3'}}}),
+        ):
+            physical, batches = cli(['--format', 'csv', '-c', f'SELECT {aggregate} AS total FROM input', '-'], b'n\n1\n2\n')
+            assert physical.names == ['total']
+            assert len(batches) == 1 and batches[0].num_rows == 1
+            assert arrow_cell(batches[0].column(0), 0, typ) == cell_bytes(cell, typ)
         # Neutral JSON bridge covers variants and conflicts not produced by files.
         for typ, cell in recursive_cases():
             for variant in [cell, {'null': {}}, {'missing': {}}, {'type_error': 'utf8'}, {'conflict': [{'counter': '9007199254740993', 'replica': '18446744073709551615', 'value': cell}, {'counter': '18446744073709551615', 'replica': '1', 'value': {'null': {}}}]}]:
@@ -189,7 +213,7 @@ def main():
             _, batches = cli(['--format', 'csv', '--batch-rows', width, '-c', 'SELECT * FROM input', '-'], data)
             assert sum(batch.num_rows for batch in batches) == 17
             assert all(batch.column(0).field('value')[i].as_py() == 'a' * 16000 for batch in batches for i in range(batch.num_rows))
-        p = subprocess.run([CLI, 'file-query', '--format', 'csv', '--output', 'arrow', '--sample-records', '1', '-c', 'SELECT * FROM input LIMIT 1', '-'], input=b'x\n1\nbad\n', capture_output=True, timeout=30)
+        p = subprocess.run([CLI, 'file-query', '--format', 'csv', '--output', 'arrow', '--sample-records', '1', '-c', 'SELECT x AS kept FROM input LIMIT 1', '-'], input=b'x\n1\nbad\n', capture_output=True, timeout=30)
         assert p.returncode == 1 and p.stdout and not p.stdout.endswith(b'\xff\xff\xff\xff\0\0\0\0')
         CASES += 1
     print(f'Logical Arrow: {CASES} PyArrow {pa.__version__} cases, exact scalar/recursive values and all five states, metadata, owned batches, bounded splitting and failed-prefix completion passed.')

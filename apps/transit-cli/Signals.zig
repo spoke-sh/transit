@@ -46,8 +46,14 @@ pub fn close(self: Self) void {
     _ = std.c.sigaction(.TERM, &self.old_term, null);
 }
 /// Finite polling keeps idle pipe/TTY input responsive to stop signals.
-pub fn readByte() !?u8 {
-    while (true) switch (try pollByte(100)) {
+pub const InputMode = enum {
+    stream,
+    /// Terminal.run uses noncanonical VMIN=0/VTIME=0. A flushed input queue
+    /// can therefore produce an empty read without closing the terminal.
+    raw_terminal,
+};
+pub fn readByte(mode: InputMode) !?u8 {
+    while (true) switch (try pollByte(100, mode)) {
         .byte => |byte| return byte,
         .eof => return null,
         .timeout => {},
@@ -58,7 +64,7 @@ pub fn pending() bool {
     return std.c.poll(&fd, 1, 0) > 0;
 }
 pub const Input = union(enum) { byte: u8, eof, timeout };
-pub fn pollByte(timeout_ms: c_int) !Input {
+pub fn pollByte(timeout_ms: c_int, mode: InputMode) !Input {
     while (true) {
         if (interrupted()) return error.ConsoleInterrupted;
         var fd: [1]std.c.pollfd = .{.{ .fd = 0, .events = std.c.POLL.IN, .revents = 0 }};
@@ -70,7 +76,10 @@ pub fn pollByte(timeout_ms: c_int) !Input {
         }
         var byte: u8 = undefined;
         const count = std.c.read(0, @ptrCast(&byte), 1);
-        if (count == 0) return .eof;
+        // A signal can flush input after poll reports readiness, or leave a
+        // byte queued when sent without the terminal's signal character.
+        if (interrupted()) return error.ConsoleInterrupted;
+        if (count == 0) return if (mode == .raw_terminal and fd[0].revents & std.c.POLL.HUP == 0) .timeout else .eof;
         if (count == 1) return .{ .byte = byte };
         if (std.c._errno().* != @backingInt(std.c.E.INTR)) return error.ConsoleInputFailed;
     }

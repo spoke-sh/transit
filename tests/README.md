@@ -10993,3 +10993,170 @@ Their logs are `/tmp/transit-sql-compiler-direct-clean-core.log` and
 `/tmp/transit-sql-boolean-sdk-clean-bindings.log`. Core predates the parser change;
 bindings predates the later native definition/SDK cutover. Neither qualifies
 those later changes or substitutes for all required lanes at one revision.
+## File-query output aliases — 2026-10-01
+
+The separate `feat/sql-file-output-aliases` worktree starts at main `a4ba1124`.
+Runtime commits `620f2c16` and `e5d08951` add owned SQL output names to file
+plans and isolate renamed-output descriptor validation. Native saved plans,
+SDK layouts, source bindings and existing unnamed file fingerprints are unchanged.
+This source does not include the separate Boolean continuation in PR #52.
+
+Pinned Fuze units, full `just check`, `just test::sql`, `just test::file-query`
+and `just test::logical-arrow` pass on final runtime `e5d08951`, exit 0.
+The SQL proof checks 134 SELECT ASTs, 105 canonical plan/codec/Arrow cases and
+44 independent results across three source bases/eight page widths. All **108
+real file CLI cases** and **103 PyArrow 23.0.0 cases** pass. The CLI proof retains
+192 MiB input under a 96 MiB address-space limit. Logs:
+`/tmp/transit-sql-file-alias-final-check.log` and
+`/tmp/transit-sql-file-alias-scoped.log`. Initial-runtime full/focused passes are
+separately retained in `/tmp/transit-sql-file-alias-check.log` and
+`/tmp/transit-sql-file-alias-integration.log`.
+
+Fixtures cover row/aggregate aliases, repeated recursive input columns, exact
+Arrow names/descriptors and missing/null/value states, quoted names, derived-input
+scope and hidden original names. Native/file comparisons share expected scope
+and projection semantics. Independent Python reconstructs unnamed and named
+fingerprints. Ownership checks overwrite SQL text and mutate borrowed names
+during execution; mutation fails before another row and cannot complete.
+Malformed names, collisions, mismatched name-vector widths and repeated recursive
+outputs exceeding the descriptor budget reject. Allocation-failure injection
+retains cleanup across owned alias/literal/schema/result allocation. Late source
+conversion failure after an aliased LIMIT still omits successful JSON/Arrow
+completion. Existing cell and Arrow fixture families retain their own wider
+value/state coverage; the alias cases alone do not prove every logical type.
+
+The [file-alias measurement archive](benchmarks/results/2026-10-01-file-output-aliases.json.gz)
+contains four paired reports, all raw samples/configurations, production source
+hashes verified against the two runtime commits, frozen binary/tool/lock hashes,
+source patches, assembly and the exact measurement drivers. All **1080 measured
+results pass**. Both engines in these pairs are frozen Transit binaries; this is
+not a DuckDB comparison. Workloads use 4096 rows, nine alternating pairs on CPU 1,
+warm input, the existing 4 GiB address-space ceiling and 300-second timeout.
+Other host work is not isolated. Compilation is one cold invocation per process;
+its microsecond timings retain all samples and do not establish steady-state
+compiler throughput.
+
+- Initial main comparison: 486 samples across nine shapes and explicit/sampled/full
+  discovery. All 27 pipeline ratios meet 1.15 (0.9957–1.0700), but **12/27 compiler
+  cases exceed 1.15** (complete range 0.9758–1.3832).
+- Workspace isolation: 54 narrow-shape samples against the initial implementation.
+  The generated validator frame falls from **7848 to 384 bytes**; the main control
+  uses 232 bytes. All validation remains. Compiler ratios are mixed (0.8724–1.1252);
+  this structural stack improvement is not claimed as a compiler speedup.
+- Final main comparison: 486 samples. All 27 pipeline ratios meet 1.15
+  (0.9466–1.0306), but **16/27 compiler cases exceed 1.15** (range 1.0541–1.4094).
+  The compiler gate remains open; no failed sample or budget is removed.
+- New named-plan cost: 54 narrow-shape samples compare default `id` with explicit
+  `AS id` on the same final binary. Values/results agree while the plan work
+  differs. Compiler ratios are 1.0368–1.0746; pipeline ratios 0.9719–1.0086.
+  This descriptive feature-cost measurement is not an unchanged-workload gate.
+
+The ignored comparison driver is reused from PR #52 with this worktree's file
+harness, production source and frozen binaries; its exact source is in the archive.
+Build controls/candidates with `zig build file-benchmark -Doptimize=ReleaseSafe`.
+The initial invocation of nonexistent `transit-fuze-benchmark` exited 1 before
+any measurement; the corrected build passed. Remaining cold-input/query/mode and
+larger-input timing matrices, current committed-head clean lanes and installed
+qualification are not implied by these focused passes. Adjacent Station/growing
+fixture qualification stays with #53/#60; unmerged proof-allowance changes are not
+applied here.
+
+### File-alias lowering follow-up
+
+Commits `818758a0` and `2cbd1a00` borrow output-name metadata from the owned
+syntax tree during lowering and resolve aggregate inputs directly through the
+projection. The compiled file plan still owns its names. An ownership regression
+compiles and destroys another named query before inspecting the first plan.
+Generated `SqlLowering.project` code removes a 432-byte projection copy and
+reduces its stack frame from 792 to 184 bytes; the temporary 128-entry name
+array used for aggregate resolution is also removed.
+
+The [lowering measurement archive](benchmarks/results/2026-10-01-file-alias-lowering.json.gz)
+retains six reports and all **1836 correct results**, exact drivers, binary
+hashes, source patches and assembly. Production hashes are checked against
+`818758a0` or `2cbd1a00`; the earlier intermediate borrowing experiment retains
+its exact patch against `c3e39c3a`. Reports distinguish successful result checks
+from the existing 1.15 timing limit. The workload, nine alternating pairs, CPU 1,
+4096 rows, 4 GiB address-space ceiling and 300-second timeout are unchanged.
+
+- Initial borrowing experiment: 54 narrow-shape samples against the previous
+  implementation; compiler ratios 0.8581–0.9141 and pipeline 1.0088–1.0130.
+- Final borrowing against main: 486 samples; **6/27 compiler cases exceed 1.15**
+  (range 0.9542–1.1751). All pipeline cases meet it (0.9805–1.0318).
+- Direct projection resolution against the borrowing revision: 162 unchanged
+  filter samples across narrow/sparse/gzip shapes. Compiler ratios are mixed,
+  0.8829–1.0903; pipeline ratios 0.9843–1.0145.
+- Final warm-input filter against main: 486 samples; all 27 compiler ratios
+  (0.9266–1.1452) and 27 pipeline ratios (0.9495–1.0176) meet 1.15.
+- Final cold-input filter against main: 486 samples; all pipeline ratios meet
+  1.15 (0.9836–1.0107). **Three compiler cases exceed it**: sparse/explicit
+  1.1542, decimal/sampled 1.2279 and gzip/full 1.1549. Cold-input conditioning
+  is the harness's file-cache request, not proof of cold physical storage.
+- Derived aliased SUM against the borrowing revision: 162 samples across
+  narrow/sparse/gzip; compiler ratios 0.8680–1.0273 and pipeline 0.9895–1.0110.
+  Both binaries execute the same renamed inner projection and outer aggregate.
+
+The earlier failed timing cases remain in their original archive. The completed
+warm filter matrix does not establish the remaining cold/query/size matrices or
+an overall performance pass. Microsecond compilation timings remain one call per
+process on a shared host, rather than steady-state throughput measurements.
+
+At `818758a0`, full `just check`, independent SQL, 108 file CLI cases and 103
+PyArrow cases pass, exit 0; log `/tmp/transit-sql-file-alias-borrowed-check.log`.
+At `2cbd1a00`, Fuze units pass, but full `just check` fails in console history:
+after Ctrl-C clears a history search, `console_history.py:174` receives no new
+prompt within the existing deadline. The cause is not established. The original
+chained SQL/file/Arrow tasks were unrun; log
+`/tmp/transit-sql-file-alias-direct-check.log`. This failure is not a passed
+qualification or attributed to the lowering changes.
+
+A separate focused run at the same `2cbd1a00` source passes `just test::sql`,
+all 108 real file CLI cases and all 103 PyArrow cases, exit 0. It retains the
+134 AST / 105 plan / 44 independent result counts and the 192 MiB input under
+96 MiB address-space check. Log:
+`/var/tmp/transit-sql-file-alias-submit-focused.log`. These focused passes do
+not resolve or replace the failed full check.
+
+The prior committed-HEAD clean core at `c3e39c3a` completes **22/22 tasks in
+1185.49 seconds**, exit 0. Its metadata and exact task inventory are verified
+and retained in the lowering archive. Log:
+`/tmp/transit-sql-file-alias-clean-core.log`. This precedes the two lowering
+optimizations and does not qualify their final source. Current clean lanes,
+the console failure and remaining performance limits stay open.
+
+## Console input flush and signal schedule — 2026-10-01
+
+A full SQL-branch check at `2cbd1a00` failed waiting for a fresh prompt after
+Ctrl-C in history search. A controlled Linux PTY schedule reproduces the same
+stall against a freshly built main `a4ba1124`: `poll` reports readable input,
+the terminal flushes it on Ctrl-C, the actual signal handler completes, and a
+later `read` blocks with `VMIN=1`. No additional key arrives before the existing
+15-second prompt deadline. This demonstrates the race on main without proving
+the exact interleaving of the original unscheduled failure.
+
+Raw terminal input now uses `VMIN=0/VTIME=0`; polling owns the wait. Signal flags
+are checked after reading and before interpreting a byte or end-of-input. An
+empty raw-terminal read without a hangup returns to polling; ordinary stream EOF
+and terminal hangup retain their end-of-input meaning. Normal input/escape waits,
+output deadlines, cancellation, exit status and terminal restoration retain
+their existing limits and behavior.
+
+`just test::console-history` includes the real-syscall interposer
+[console_input_gate.c](console_input_gate.c) and
+[four scheduled cases](console_signals.py). The parent waits for a ready read,
+applies a flush/signal, waits for the real handler's acknowledgment when needed,
+checks the terminal queue, then releases the read. Cases cover a flushed Ctrl-C
+during search, an empty read without a signal, Ctrl-C overriding queued Ctrl-D,
+and SIGTERM after a flush. They assert prompt/exit behavior, a later ordinary
+Ctrl-D, no result stdout/native requests/history submission, and exact terminal
+attribute restoration. The interposer is loaded only by these proof children.
+
+All four cases and the existing history suite pass on the correction. The same
+test fails on its first scheduled case against the frozen main control.
+[Source hashes, control logs and development failures](verification/results/console-input-race-2026-10-01.json)
+retain their distinct outcomes. Pinned `just transit-board::install`, full
+`just check` and `zig build test-cli-lifecycle` pass, exit 0; log
+`/var/tmp/transit-console-race-proof/full-check.log`. This includes all 422 CLI
+diagnostic cases, units, generated contracts and both frontend checks/builds.
+Committed-HEAD clean qualification remains pending. This is local terminal
+evidence, not a new query recovery or SDK compatibility claim.

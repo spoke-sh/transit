@@ -21,7 +21,13 @@ file-reading function. Explicit acquisition options select the bytes.
 An explicit source alias, such as `FROM input AS src`, binds qualified columns
 to that alias and hides `input` as a qualifier. Aliases also work inside the
 supported limited aggregate input. Bare aliases without `AS` are rejected.
-Output-column and aggregate aliases are not supported by file plans.
+Rows and aggregates accept explicit output names: `SELECT value AS amount FROM
+input` or `SELECT SUM(value) AS total FROM input`. Result names must be distinct;
+different names permit selecting one input more than once. Aliases preserve
+values, types and states in JSON and Arrow output. SQL names have the same
+16-byte identifier bound as native queries. WHERE uses original input names;
+an outer aggregate uses the names of its inner projection. Output names are
+part of plan identity, while source identity remains unchanged.
 
 ## Schemas and exact values
 

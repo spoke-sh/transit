@@ -2,6 +2,7 @@
 """Real CLI acquisition/results: independent codec oracle and disk/pipe faults."""
 import csv
 import gzip
+import hashlib
 import io
 import json
 import os
@@ -167,13 +168,46 @@ def main():
             aliased = invoke(['--format', 'csv', '-c', sql, '-'], data, env=env)
             assert aliased[1]['row'] == ordinary[1]['row']
             assert aliased[-1]['complete']['scanned'] == ordinary[-1]['complete']['scanned']
-        for sql in ('SELECT n AS renamed FROM input',
-                    'SELECT SUM(n) AS total FROM input',
-                    'SELECT SUM(chosen.renamed) FROM (SELECT n AS renamed FROM input LIMIT 2) AS chosen',
-                    'SELECT input.n FROM input AS src',
+        for sql, names, expected, tag in (
+            ('SELECT n AS renamed FROM input', ['renamed'], [[1], [2]], 'signed'),
+            ('SELECT n AS first, n AS second FROM input', ['first', 'second'], [[1, 1], [2, 2]], 'signed'),
+            ('SELECT n AS \"Value\" FROM input', ['Value'], [[1], [2]], 'signed'),
+            ('SELECT SUM(n) AS total FROM input', ['total'], [[3]], 'signed'),
+            ('SELECT COUNT(*) AS rows FROM input', ['rows'], [[2]], 'unsigned'),
+            ('SELECT SUM(chosen.renamed) AS total FROM (SELECT n AS renamed FROM input WHERE n > 1 LIMIT 1) AS chosen', ['total'], [[2]], 'signed'),
+            ('SELECT SUM(chosen.second) FROM (SELECT n AS first, n AS second FROM input LIMIT 1) AS chosen', ['sum'], [[1]], 'signed'),
+        ):
+            output = invoke(['--format', 'csv', '-c', sql, '-'], data, env=env)
+            assert [f['name'] for f in output[0]['schema']['type']['structure']] == names
+            assert [row['row']['value']['structure'] for row in output[1:-1]] == [
+                [{'value': {'atom': {tag: str(value)}}} for value in row] for row in expected]
+            assert output[0]['binding'] == ordinary[0]['binding']
+            assert int(output[-1]['complete']['scanned']) == 2
+        # Independently commit source/schema, aggregate/projection, empty limit
+        # and predicate, then every optional output name in position order.
+        source_rows = invoke(['--format', 'csv', '-c', 'SELECT * FROM input', '-'], data, env=env)
+        plan_bytes = (b'transit.fuze.file-plan.v1\0' + bytes.fromhex(ordinary[0]['binding'])
+                      + hashlib.sha256(descriptor(source_rows[0]['schema']['type'])).digest()
+                      + bytes([2, 1, 1, 0]) + struct.pack('<Q', 0) + b'\0')
+        assert hashlib.sha256(plan_bytes).hexdigest() == ordinary[0]['plan']
+        named = invoke(['--format', 'csv', '-c', 'SELECT SUM(n) AS total FROM input', '-'], data, env=env)
+        assert hashlib.sha256(plan_bytes + b'output_names\0\1\5total').hexdigest() == named[0]['plan']
+        assert ordinary[0]['plan'] == 'e8a4ebc7692c3c202f836b34cf1b6db48735c2759154a578222987f0d7704196'
+        for aggregate, expected in [('COUNT(*)', {'value': {'atom': {'unsigned': '0'}}}), ('SUM(n)', {'null': {}})]:
+            empty = invoke(['--format', 'csv', '-c', f'SELECT {aggregate} AS empty FROM input WHERE n < 0', '-'], data, env=env)
+            assert empty[0]['schema']['type']['structure'][0]['name'] == 'empty'
+            assert empty[1]['row']['value']['structure'] == [expected]
+        for sql in ('SELECT input.n FROM input AS src',
                     'SELECT SUM(src.n) FROM input src',
                     'SELECT src.n FROM input AS src WHERE input.n > 0',
-                    'SELECT n FROM absent AS input'):
+                    'SELECT n FROM absent AS input',
+                    'SELECT n renamed FROM input',
+                    'SELECT n AS id, id FROM input',
+                    'SELECT n AS same, id AS same FROM input',
+                    'SELECT n AS renamed FROM input WHERE renamed > 0',
+                    'SELECT SUM(chosen.n) FROM (SELECT n AS renamed FROM input) AS chosen',
+                    'SELECT COUNT(*) FROM (SELECT n AS same, id AS same FROM input) AS chosen',
+                    'SELECT n AS name_is_too_long_here FROM input'):
             invoke(['--format', 'csv', '-c', sql, '-'], data, 1, env)
         # A pre-extension atom plan retains its exact identity; new Boolean
         # instructions do not reinterpret existing file-plan fingerprints.
@@ -228,6 +262,7 @@ def main():
             invoke(base + flags, data_in, 1, env)
         # Limit and projection never hide a source mismatch or unknown field.
         invoke(['--format', 'csv', '--sample-records', '1', '-c', 'SELECT id FROM input LIMIT 1', '-'], b'id,n\n1,1\n2,bad\n', 1, env)
+        invoke(['--format', 'csv', '--sample-records', '1', '-c', 'SELECT id AS kept FROM input LIMIT 1', '-'], b'id,n\n1,1\n2,bad\n', 1, env)
         invoke(['--format', 'jsonl', '--sample-records', '1', '-c', 'SELECT id FROM input LIMIT 1', '-'], b'{"id":1}\n{"id":2,"new":3}\n', 1, env)
         error_rows = invoke(['--format', 'csv', '--sample-records', '1', '--mismatch', 'type_error', '-c', 'SELECT n FROM input', '-'], b'n\n1\nbad\n', env=env)
         assert 'type_error' in error_rows[2]['row']['value']['structure'][0]

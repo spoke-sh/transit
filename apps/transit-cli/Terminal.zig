@@ -16,7 +16,9 @@ pub fn run(console: *Console.Console) !void {
     raw.lflag.IEXTEN = false;
     raw.iflag.IXON = false;
     raw.iflag.ICRNL = false;
-    raw.cc[@backingInt(std.c.V.MIN)] = 1;
+    // poll owns the wait. A signal may flush its ready byte before read runs;
+    // an empty read must return so normal code can handle the signal.
+    raw.cc[@backingInt(std.c.V.MIN)] = 0;
     raw.cc[@backingInt(std.c.V.TIME)] = 0;
     raw.cc[@backingInt(std.c.V.SUSP)] = 0; // Ctrl-Z belongs to completion undo.
     raw.cc[@backingInt(std.c.V.QUIT)] = 0;
@@ -321,7 +323,7 @@ const Editor = struct {
     fn loop(self: *Editor) !void {
         try self.draw();
         while (true) {
-            const event = Signals.pollByte(100) catch |err| {
+            const event = Signals.pollByte(100, .raw_terminal) catch |err| {
                 if (err != error.ConsoleInterrupted or Signals.terminating()) return err;
                 Signals.clear();
                 self.clearDraft();
@@ -417,7 +419,7 @@ const Editor = struct {
         const length = std.unicode.utf8ByteSequenceLength(byte) catch return error.InvalidSqlEncoding;
         var bytes: [4]u8 = undefined;
         bytes[0] = byte;
-        for (bytes[1..length]) |*next| next.* = try Signals.readByte() orelse return error.InvalidSqlEncoding;
+        for (bytes[1..length]) |*next| next.* = try Signals.readByte(.raw_terminal) orelse return error.InvalidSqlEncoding;
         if (!std.unicode.utf8ValidateSlice(bytes[0..length])) return error.InvalidSqlEncoding;
         if (self.searching) {
             if (self.search_length + length > max_bytes) return error.StatementTooLarge;
@@ -431,7 +433,7 @@ const Editor = struct {
         var sequence: [12]u8 = undefined;
         var length: usize = 0;
         while (length < sequence.len) {
-            const event = try Signals.pollByte(25);
+            const event = try Signals.pollByte(25, .raw_terminal);
             if (event != .byte) break;
             sequence[length] = event.byte;
             length += 1;

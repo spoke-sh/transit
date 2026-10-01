@@ -332,7 +332,8 @@ Ctrl-R opens reverse history search. Type a case-sensitive substring to find the
 newest matching SQL statement or dot command; Ctrl-R again finds an older match.
 Backspace edits the search. Enter or Tab returns a match to the editable prompt;
 press Enter again to submit it. Escape or Ctrl-G restores the original draft,
-and Ctrl-C clears the draft and search. A search with no match shows `(no match)`.
+and Ctrl-C clears the draft and search without waiting for another keystroke,
+including when the terminal discards pending input. A search with no match shows `(no match)`.
 Up/Down also recalls older/newer commands and restores the draft when moving
 past the newest entry.
 
