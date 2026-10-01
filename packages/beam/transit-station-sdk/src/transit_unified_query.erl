@@ -58,8 +58,9 @@ parsed_scalar(V) when is_map(V),map_size(V)=:=1 ->
 predicate(all) -> #{<<"all">>=>#{}};
 predicate({state,C,V}) -> #{<<"state">>=>#{<<"column">>=>transit_sdk_value:integer(C,0,7),<<"value">>=>enum(V,[missing,null,type_error,value,conflict])}};
 predicate({compare,C,Op,V}) -> #{<<"compare">>=>#{<<"column">>=>transit_sdk_value:integer(C,0,7),<<"op">>=>enum(Op,[eq,ne,lt,le,gt,ge]),<<"value">>=>scalar(V)}}.
-plan(#transit_unified_plan{projection=P,predicate=F,aggregate=A,limit=L}) -> true=P=/=[],
-    #{<<"version">>=>1,<<"projection">>=>[transit_sdk_value:integer(I,0,7)||I<-array(P,8)],<<"predicate">>=>predicate(F),<<"aggregate">>=>enum(A,[rows,count,sum]),<<"limit">>=>optional(L,fun decimal/1)}.
+plan(#transit_unified_plan{projection=P,predicate=F,aggregate=A,limit=L,output_names=N}) -> true=P=/=[],
+    Names=optional(N,fun(Values)->true=length(Values)=:=length(P),[optional(V,fun(Name)->transit_sdk_value:text(Name,32) end)||V<-array(Values,8)] end),
+    #{<<"version">>=>1,<<"projection">>=>[transit_sdk_value:integer(I,0,7)||I<-array(P,8)],<<"output_names">>=>Names,<<"predicate">>=>predicate(F),<<"aggregate">>=>enum(A,[rows,count,sum]),<<"limit">>=>optional(L,fun decimal/1)}.
 budgets(#transit_unified_budgets{pages=P,segments=S,result_bytes=B}) -> positive(P),positive(S),positive(B),#{<<"pages">>=>decimal(P),<<"segments">>=>decimal(S),<<"result_bytes">>=>decimal(B)}.
 parsed_budgets(#{<<"pages">>:=P,<<"segments">>:=S,<<"result_bytes">>:=B}) -> V=#transit_unified_budgets{pages=wide(P),segments=wide(S),result_bytes=wide(B)},budgets(V),V.
 optional(undefined,_) -> null;

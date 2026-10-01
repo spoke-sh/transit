@@ -44,7 +44,7 @@ end
 defmodule Transit.Station.Sdk.UnifiedQuery.Plan do
   @enforce_keys [:projection]
   @derive {Inspect, only: []}
-  defstruct [:projection, predicate: :all, aggregate: :rows, limit: nil]
+  defstruct [:projection, predicate: :all, aggregate: :rows, limit: nil, output_names: nil]
 end
 
 defmodule Transit.Station.Sdk.UnifiedQuery.Budgets do
@@ -343,7 +343,7 @@ defmodule Transit.Station.Sdk.UnifiedQuery do
   def native(%Plan{} = v),
     do:
       {:transit_unified_plan, native(v.projection), native(v.predicate), native(v.aggregate),
-       native(v.limit)}
+       native(v.limit), native(v.output_names)}
 
   def native(%Budgets{} = v),
     do: {:transit_unified_budgets, native(v.pages), native(v.segments), native(v.result_bytes)}
@@ -461,12 +461,13 @@ defmodule Transit.Station.Sdk.UnifiedQuery do
       expand: convert(expand)
     }
 
-  def convert({:transit_unified_plan, projection, predicate, aggregate, limit}),
+  def convert({:transit_unified_plan, projection, predicate, aggregate, limit, output_names}),
     do: %Plan{
       projection: convert(projection),
       predicate: convert(predicate),
       aggregate: convert(aggregate),
-      limit: convert(limit)
+      limit: convert(limit),
+      output_names: convert(output_names)
     }
 
   def convert({:transit_unified_budgets, pages, segments, result_bytes}),

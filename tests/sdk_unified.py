@@ -9,6 +9,7 @@ import shutil
 import subprocess
 import sys
 import tarfile
+import tempfile
 import tomllib
 
 import pyarrow
@@ -240,6 +241,7 @@ def install_c(root, fixtures, language):
     source.unlink()
     for i, item in enumerate(json.loads((fixtures/'bundles.json').read_text())):
         (fixtures/f'bundle{i}.bin').write_bytes(bytes.fromhex(item['wire_hex']))
+        (fixtures/f'named-bundle{i}.bin').write_bytes(bytes.fromhex(item['named_wire_hex']))
     subprocess.run([executable, 'codecs', fixtures], cwd=root, env=env, check=True, timeout=90)
     if language == 'cpp':
         source.write_text('#include <transit/unified_query.hpp>\nvoid copy(transit::sdk::station::unified::Client &client) { auto other = client; }')
@@ -324,3 +326,12 @@ def install_beam(root, fixtures, language):
         config.write_text(json.dumps(dict(url=url, connection=connection, seed_file=str(state/'caller.seed'), kind=kind, bundle=str(state/'bundle.bin'))))
         return [Consumer([*command, 'serve', config], env, root, inspection=True)]
     return open_callers
+
+
+if __name__ == '__main__':
+    if sys.argv[1:]:
+        raise SystemExit('Usage: python3 -B tests/sdk_unified.py (build SDK packages first)')
+    languages = ('python', 'node', 'ruby', 'rust', 'c', 'cpp', 'java', 'dotnet', 'erlang', 'elixir')
+    with tempfile.TemporaryDirectory(prefix='transit-sdk-codecs-') as directory:
+        install(Path(directory) / 'installed', languages)
+    print('All ten installed query SDK codec consumers passed; no authority or recovery claim.')

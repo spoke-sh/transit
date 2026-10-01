@@ -12,10 +12,11 @@ source(R,<<"kv">>,Golden)->#transit_unified_kv{resource=R,prefix=case Golden of 
 source(R,<<"table">>,Golden)->#transit_unified_table{resource=R,id=case Golden of true->9; false->1 end,names=[<<"id">>,case Golden of true-><<"label">>; false-><<"value">> end],value_type=utf8};
 source(R,<<"document">>,true)->#transit_unified_document{reference=#transit_document_reference{resource=R,document=?MAX,epoch=3,type_revision=1,revision=42},projections=[projection(<<"title">>,utf8,[<<"title">>],false,scalar),projection(<<"body">>,utf8,[<<"body">>],false,text)]};
 source(R,<<"document">>,false)->#transit_unified_document{reference=#transit_document_reference{resource=R,document=17,epoch=1,type_revision=1,revision=13},expand=[<<"items">>],projections=[projection(<<"value">>,utf8,[],true,scalar),projection(<<"counter">>,uint64,[],true,element_counter),projection(<<"replica">>,uint64,[],true,element_replica),projection(<<"optional">>,utf8,[<<"optional">>],false,scalar)]}.
-bundle(A,S,K,Golden)->
+bundle(A,S,K,Golden)->bundle(A,S,K,Golden,undefined).
+bundle(A,S,K,Golden,Names)->
     {P,C}=case {Golden,K} of {true,_}->{[1,0],1}; {false,<<"document">>}->{[0,1,2,3],0}; _->{[1],1} end,
     V=case {Golden,K} of {true,<<"kv">>}->{uint64,?MAX}; _->{utf8,binary:copy(<<"x">>,512)} end,
-    Plan=#transit_unified_plan{projection=P,predicate={compare,C,ne,V},limit=case Golden of true->?MAX; false->undefined end},
+    Plan=#transit_unified_plan{output_names=Names,projection=P,predicate={compare,C,ne,V},limit=case Golden of true->?MAX; false->undefined end},
     ok(A:prepare(S,Plan,#transit_unified_budgets{pages=1000,segments=case Golden of true->500; false->100 end,result_bytes=1048576})).
 scalar({int64,-9223372036854775808},int64)->ok;
 scalar({uint64,?MAX},uint64)->ok;
@@ -25,7 +26,7 @@ scalar({utf8,<<"café é 東京🙂"/utf8>>},utf8)->ok;
 scalar({binary,<<0,255,128>>},binary)->ok.
 codecs(A,Cfg)->
     Fixtures=json:decode(read(maps:get(<<"bundles">>,Cfg))),
-    lists:foreach(fun({Kind,F})->#transit_unified_bundle{bytes=B}=bundle(A,source(#transit_resource{realm=46,resource=7},Kind,true),Kind,true),B=binary:decode_hex(maps:get(<<"wire_hex">>,F)) end,lists:zip([<<"kv">>,<<"table">>,<<"document">>],Fixtures)),
+    lists:foreach(fun({Kind,F})->#transit_unified_bundle{bytes=B}=bundle(A,source(#transit_resource{realm=46,resource=7},Kind,true),Kind,true),B=binary:decode_hex(maps:get(<<"wire_hex">>,F)),#transit_unified_bundle{bytes=Named}=bundle(A,source(#transit_resource{realm=46,resource=7},Kind,true),Kind,true,[<<"Result">>,undefined]),Named=binary:decode_hex(maps:get(<<"named_wire_hex">>,F)) end,lists:zip([<<"kv">>,<<"table">>,<<"document">>],Fixtures)),
     Types=[int64,uint64,float64,boolean,utf8,binary],Cols=[column(atom_to_binary(T,utf8),T)||T<-Types],
     [Missing,Null,Errors,Values,Conflicts]=ok(A:decode(Cols,read(maps:get(<<"arrow">>,Cfg)),5)),
     true=lists:all(fun(V)->V=:=missing end,Missing),true=lists:all(fun(V)->V=:=null end,Null),true=lists:all(fun(V)->V=:={type_error,map} end,Errors),

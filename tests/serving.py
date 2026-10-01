@@ -42,12 +42,12 @@ class Key:
 
 
 def native_query(key, principal, kind):
-    query = dict(version=1, definition='67e9b3edcd3502e692285c9a3d093bd6b9a958dc6edde4c7057504067d505ff0', realm=REALM, principal=principal, kind=kind)
+    query = dict(version=1, definition='1b790ef9b226fa9d5ee27622dd7fbfd51cb56eb764574594c0a792d4170bf0a2', realm=REALM, principal=principal, kind=kind)
     return dict(query=query, signature=key.sign(hashlib.sha256(b'transit.query.v1\0' + compact(query)).digest()))
 
 
 def native_command(key, principal, sequence, command):
-    request = dict(version=1, definition='67e9b3edcd3502e692285c9a3d093bd6b9a958dc6edde4c7057504067d505ff0', realm=REALM, principal=principal, sequence=sequence, command=command)
+    request = dict(version=1, definition='1b790ef9b226fa9d5ee27622dd7fbfd51cb56eb764574594c0a792d4170bf0a2', realm=REALM, principal=principal, sequence=sequence, command=command)
     return dict(request=request, signature=key.sign(hashlib.sha256(b'transit.request.v1\0' + compact(request)).digest()))
 
 

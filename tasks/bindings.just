@@ -333,6 +333,10 @@ unified-beam source="table": beam-build
 unified-all: python-build node-build ruby-build rust-build c-build java-build dotnet-build beam-build
     zig build test-unified-query -Doptimize=ReleaseSafe -Dunified-sdk=python,node,ruby,rust,c,cpp,java,dotnet,erlang,elixir
 
+# Pure installed query codecs: exact bundle bytes and independently produced Arrow.
+unified-codecs: python-build node-build ruby-build rust-build c-build java-build dotnet-build beam-build
+    python3 -B tests/sdk_unified.py
+
 # Installed Python sync/async catalog clients and exact saved command recovery.
 catalog-python: python-build
     mypy --config-file packages/python/transit-station/pyproject.toml packages/python/transit-client/transit_client packages/python/transit-station/transit_station

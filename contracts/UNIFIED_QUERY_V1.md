@@ -203,6 +203,15 @@ encoded bundles use hex. UTF-8 remains text. Projection indices are JSON integer
 arrays. Missing, null, type error, value and ordered conflicts remain distinct
 tagged values, including the full-width counter/replica pair of each alternative.
 
+Neutral plans include `output_names`: null retains all default names; otherwise
+the array has exactly one entry per projection position. A null entry retains
+that position's default, and a string supplies a valid name of at most 32 ASCII
+identifier bytes. Empty arrays, width mismatches, invalid names and resulting
+output-name collisions reject. Decoding emits null for an all-default vector;
+named vectors preserve null slots and own their text. Decode → prepare preserves
+canonical bundle bytes and Publication identity. Compiled workspace metadata
+uses this same plan representation. SQL names retain their separate 16-byte bound.
+
 Input JSON is bounded at 256 KiB; source, plan, bundle, scalar, page and Arrow
 limits still apply independently. Native outputs are owned buffers that callers
 release explicitly; port responses copy them before native release. Pure local

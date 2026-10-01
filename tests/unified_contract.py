@@ -79,13 +79,17 @@ def bundles():
         selected = 'unsigned-max' if definition['kind'] == 'kv' else 'larger-plan'
         plan = bytes.fromhex(next(p['wire_hex'] for p in plans if p['name'] == selected))
         bundle = b'UQB1' + struct.pack('<HH', len(source), len(plan)) + limits + source + plan
+        # Independent FZP1 layout: two projections then two optional names.
+        assert plan[36:42] == bytes([0, 2, 1, 0, 0, 0])
+        named_plan = plan[:40] + bytes([6]) + b'Result' + bytes([0]) + plan[42:]
+        named_bundle = b'UQB1' + struct.pack('<HH', len(source), len(named_plan)) + limits + source + named_plan
         initial = hashlib.sha256(b'transit.station.publication.v1\0' + struct.pack('<II', 0x31425155, len(bundle))).digest()
         digest = initial
         for index, offset in enumerate(range(0, len(bundle), 256)):
             part = bundle[offset:offset+256]
             digest = hashlib.sha256(b'\1' + digest + struct.pack('<IH', index, len(part)) + part).digest()
         ref = b'SPF1' + struct.pack('<QIQQII', 8, 2, 2**64-1, 1, 0x31425155, len(bundle)) + digest
-        result.append(dict(kind=definition['kind'], wire_hex=bundle.hex(), reference_hex=ref.hex()))
+        result.append(dict(kind=definition['kind'], wire_hex=bundle.hex(), reference_hex=ref.hex(), named_wire_hex=named_bundle.hex()))
     return json.dumps(result, indent=2)+'\n'
 
 

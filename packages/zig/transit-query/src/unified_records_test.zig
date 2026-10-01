@@ -5,7 +5,7 @@ const r = q.UnifiedRecords;
 const m = q.fuze.Unified;
 const p = q.protocol;
 test "larger canonical request bundles use an independent immutable commitment" {
-    const Fixture = struct { kind: []const u8, wire_hex: []const u8, reference_hex: []const u8 };
+    const Fixture = struct { kind: []const u8, wire_hex: []const u8, reference_hex: []const u8, named_wire_hex: []const u8 };
     const cases = try std.json.parseFromSlice([]Fixture, t.allocator, @embedFile("fixtures/bundles.json"), .{});
     defer cases.deinit();
     for (cases.value) |case| {

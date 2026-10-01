@@ -233,7 +233,14 @@ export function validateUnifiedQuery(input: unknown): input is UnifiedQueryRespo
       compiled.plan.version === 1 &&
       (compiled.plan.limit === null || unsigned(compiled.plan.limit)) &&
       compiled.plan.projection.length > 0 &&
-      compiled.plan.projection.length <= 8
+      compiled.plan.projection.length <= 8 &&
+      (compiled.plan.output_names === null ||
+        (compiled.plan.output_names.length === compiled.plan.projection.length &&
+          compiled.plan.output_names.every(
+            (name) => name === null || /^[A-Za-z_][A-Za-z_0-9]{0,31}$/.test(name),
+          ) &&
+          new Set(compiled.plan.output_names.filter((name) => name !== null)).size ===
+            compiled.plan.output_names.filter((name) => name !== null).length))
     );
   }
   return true;

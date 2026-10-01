@@ -137,26 +137,42 @@ pub const Source = struct {
 pub const Plan = struct {
     version: u8 = 1,
     projection: []const u32,
+    output_names: ?[]const ?[]const u8 = null,
     limit: ?[]const u8 = null,
     aggregate: m.Plan.Aggregate = .rows,
     predicate: union(enum) { all, state: struct { column: u8, value: m.State }, compare: struct { column: u8, op: m.Plan.Comparison, value: Scalar } } = .all,
     pub fn native(self: Plan, alloc: Allocator) !m.Plan {
         if (self.projection.len == 0 or self.projection.len > m.max_columns) return error.InvalidProjection;
+        var names: [m.max_columns]?m.Name = @splat(null);
+        if (self.output_names) |values| {
+            if (values.len != self.projection.len) return error.InvalidOutputNames;
+            for (values, 0..) |name, index| if (name) |text| {
+                names[index] = try m.Name.init(text);
+            };
+        }
         const selected = try alloc.alloc(u8, self.projection.len);
         for (selected, self.projection) |*out, in| {
             if (in >= m.max_columns) return error.UnknownColumn;
             out.* = @intCast(in);
         }
-        return .{ .version = self.version, .projection = selected, .limit = if (self.limit) |v| try unsigned(v) else null, .aggregate = self.aggregate, .predicate = switch (self.predicate) {
+        return .{ .version = self.version, .projection = selected, .output_names = names, .limit = if (self.limit) |v| try unsigned(v) else null, .aggregate = self.aggregate, .predicate = switch (self.predicate) {
             .all => .all,
             .state => |v| .{ .state = .{ .column = v.column, .value = v.value } },
             .compare => |v| .{ .compare = .{ .column = v.column, .op = v.op, .value = try v.value.native(alloc) } },
         } };
     }
     pub fn fromNative(alloc: Allocator, value: m.Plan) !Plan {
+        try value.validateShape();
+        const has_names = for (value.output_names) |name| {
+            if (name != null) break true;
+        } else false;
+        const names: ?[]?[]const u8 = if (has_names) try alloc.alloc(?[]const u8, value.projection.len) else null;
+        if (names) |output| for (output, value.output_names[0..value.projection.len]) |*out, name| {
+            out.* = if (name) |text| try alloc.dupe(u8, text.slice()) else null;
+        };
         const selected = try alloc.alloc(u32, value.projection.len);
         for (selected, value.projection) |*out, in| out.* = in;
-        return .{ .version = value.version, .projection = selected, .limit = if (value.limit) |v| try a.decimal(alloc, v) else null, .aggregate = value.aggregate, .predicate = switch (value.predicate) {
+        return .{ .version = value.version, .projection = selected, .output_names = names, .limit = if (value.limit) |v| try a.decimal(alloc, v) else null, .aggregate = value.aggregate, .predicate = switch (value.predicate) {
             .all => .all,
             .state => |v| .{ .state = .{ .column = v.column, .value = v.value } },
             .compare => |v| .{ .compare = .{ .column = v.column, .op = v.op, .value = try Scalar.fromNative(alloc, v.value) } },

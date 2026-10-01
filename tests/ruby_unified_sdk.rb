@@ -19,6 +19,9 @@ def codecs(config)
       Q::Budgets.new(pages: 1000, segments: 500, result_bytes: 1048576))
     check(bundle.data.unpack1('H*') == fixtures[index].fetch('wire_hex'))
     check(bundle.data.frozen?)
+    named = Q::Bundle.prepare(source, Q::Plan.new(projection: [1, 0], output_names: ['Result', nil], predicate: Q::Compare.new(column: 1, comparison: :ne, value: scalar), limit: (1 << 64)-1),
+      Q::Budgets.new(pages: 1000, segments: 500, result_bytes: 1048576))
+    check(named.data.unpack1('H*') == fixtures[index].fetch('named_wire_hex'))
   end
   begin
     Q::Bundle.prepare(Q::KVSource.new(resource: resource, prefix: '', key: Q::Decoder.new(type: :binary, version: 2), value: Q::Decoder.new(type: :utf8)),

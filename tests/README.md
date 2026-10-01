@@ -7305,6 +7305,55 @@ This compiler checkpoint does not establish neutral-plan/SDK output-name round
 trips, installed recovery, performance or committed-head clean qualification.
 Those remain required before publishing the output-alias increment.
 
+### Neutral and installed SDK output-name checkpoint
+
+The neutral plan now preserves optional names by output position through
+decode/prepare and workspace compiled metadata. A regression compiles named
+SQL, decodes its bundle through the neutral API, then prepares it through the
+actual ABI codec and compares exact bytes and publication identity. Before the
+fix, 12/13 binding tests pass and this regression exposes lost names and a
+changed digest; afterward all pass. Ownership checks mutate the original name
+buffers, and malformed names or vectors with the wrong width reject. Logs are
+`/tmp/transit-sql-output-aliases-neutral-before.log` and
+`/tmp/transit-sql-output-aliases-neutral-after.log`.
+
+All ten public SDK plan APIs expose these names. The neutral/ABI cutover replaces
+the shared native definition with
+`00177e103bcb1a8208abd6958d79c9f3f471caf62d4a0c87957072356fd28214`;
+generated contracts, host/browser resources and independent signed fixtures move
+together. Both the preceding native definition and the retired main
+definition remain explicit rejection cases. The plan-definition identifier and
+`FZP1` layout from the preceding checkpoint are unchanged.
+
+The shared native/port codec suite passes **52 cases**. All eight SDK package
+build tasks pass, then `python3 -B tests/sdk_unified.py` installs and executes
+all **ten language consumers** in a fresh temporary directory. Each consumer
+compares default and named bundles against independent bytes for KV, Table and
+Document, retaining six-type/five-state Arrow and malformed-input checks. The
+new `just bindings::unified-codecs` task composes those build tasks and this
+standalone proof. These are pure codec checks: no signed authority caller or
+disk recovery is exercised. Logs are
+`/tmp/transit-sql-output-aliases-neutral-unit.log`,
+`/tmp/transit-sql-output-aliases-sdk-build.log` and
+`/tmp/transit-sql-output-aliases-installed-codecs.log`.
+
+Full `just check` passes, including generated-contract drift, runtime units,
+**21** query-browser tests and the documentation build. Python mypy passes;
+`just test::sql` retains the preceding **134/105/44/17/56** checks, and
+`just bindings::node-check` passes **39 tests**. Logs are
+`/tmp/transit-sql-output-aliases-neutral-check.log`,
+`/tmp/transit-sql-output-aliases-neutral-mypy.log` and
+`/tmp/transit-sql-output-aliases-neutral-sql-node.log`.
+Initial generation attempts fail on fixture ordering and a formatting-wrapper
+invocation; their logs remain in
+`/tmp/transit-sql-output-aliases-neutral-generate.log` and
+`/tmp/transit-sql-output-aliases-neutral-generate-fixed.log`. Fixtures are regenerated before dependent
+schemas, formatting uses `vp fmt`, and the subsequent full check passes.
+
+Installed authority/CLI named-schema checks, exact retry, current denial,
+disk-backed recovery, performance measurements and committed-HEAD clean lanes
+remain required. Earlier source-alias failures remain separate evidence.
+
 ## SQL performance iteration
 
 `just test::sql-benchmark` builds a ReleaseSafe public-package consumer and records

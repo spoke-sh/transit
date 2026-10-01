@@ -306,12 +306,20 @@ pub enum Predicate {
 #[derive(Clone)]
 pub struct Plan {
     pub projection: Vec<u8>,
+    pub output_names: Option<Vec<Option<String>>>,
     pub predicate: Predicate,
     pub limit: Option<u64>,
     pub aggregate: Aggregate,
 }
 impl Plan {
     fn wire(&self) -> Result<Value> {
+        if self
+            .output_names
+            .as_ref()
+            .is_some_and(|names| names.len() != self.projection.len())
+        {
+            return Err(invalid());
+        }
         let predicate = match &self.predicate {
             Predicate::All => json!({"all":{}}),
             Predicate::State { column, state } => {
@@ -326,7 +334,7 @@ impl Plan {
             }
         };
         Ok(
-            json!({"version":1,"projection":self.projection,"predicate":predicate,"limit":self.limit.map(|v|v.to_string()),"aggregate":match self.aggregate {Aggregate::Rows=>"rows",Aggregate::Count=>"count",Aggregate::Sum=>"sum"}}),
+            json!({"version":1,"projection":self.projection,"output_names":self.output_names,"predicate":predicate,"limit":self.limit.map(|v|v.to_string()),"aggregate":match self.aggregate {Aggregate::Rows=>"rows",Aggregate::Count=>"count",Aggregate::Sum=>"sum"}}),
         )
     }
 }

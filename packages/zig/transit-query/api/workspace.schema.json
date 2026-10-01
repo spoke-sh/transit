@@ -1933,6 +1933,7 @@
                   "x-transit-field-order": [
                     "version",
                     "projection",
+                    "output_names",
                     "limit",
                     "aggregate",
                     "predicate"
@@ -1955,6 +1956,28 @@
                         "x-transit-bits": 32,
                         "x-transit-signed": false
                       }
+                    },
+                    "output_names": {
+                      "anyOf": [
+                        {
+                          "type": "array",
+                          "maxItems": 8,
+                          "items": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "maxLength": 131072
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          }
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
                     },
                     "limit": {
                       "anyOf": [
@@ -2162,12 +2185,14 @@
                   "required": [
                     "version",
                     "projection",
+                    "output_names",
                     "limit",
                     "aggregate",
                     "predicate"
                   ],
                   "x-transit-defaults": {
                     "version": 1,
+                    "output_names": null,
                     "limit": null,
                     "aggregate": "rows",
                     "predicate": {
