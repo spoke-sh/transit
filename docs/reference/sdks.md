@@ -52,6 +52,28 @@ SQL `AS` names, with SQL's 16-byte identifier bound. See the
 [query contract](../../contracts/UNIFIED_QUERY_V1.md#public-surfaces-and-qualification)
 and [neutral codecs](../../packages/zig/transit-station-bindings/docs/unified-query.md).
 
+## Finite query predicate programs
+
+Python, TypeScript, Ruby and Rust expose typed postfix programs in their finite
+query plans. A program has one to 64 instructions: an all-row, state or comparison
+atom, or a NOT, AND or OR operator. Programs cannot nest. Shared Zig validates
+the whole program against the declared source before encoding; language APIs do
+not implement a separate evaluator. Instructions retain eager error order and
+three-valued truth, with only true selecting a row. Inspected programs own their
+structure and exclude literals.
+
+| Language | Program API |
+| --- | --- |
+| Python | `PredicateProgram` tuple of `PredicateAtom` / `PredicateOperator` |
+| TypeScript | `Predicate` with `kind: "program"` and `PredicateInstruction` array |
+| Ruby | `PredicateProgram` with copied/frozen `PredicateAtom` / operator symbols |
+| Rust | `Predicate::Program` with owned `PredicateInstruction` / `PredicateAtom` |
+
+C, C++, Java, .NET, Erlang and Elixir typed plan constructors currently accept a
+single comparison or state predicate. Native/port codecs and native SQL support
+the program contract independently. See [query semantics](queries.md) and each
+language's query guide for bounds, ownership and recovery.
+
 ## Catalog callers
 
 Python provides [synchronous and asynchronous catalog callers](../../packages/python/transit-station/docs/catalog.md);

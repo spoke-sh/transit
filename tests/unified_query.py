@@ -128,6 +128,17 @@ def run(node, host, proof, port_host, library, kinds=("kv", "table", "document")
                     'EXPLAIN SELECT chosen.value FROM items AS chosen WHERE chosen.value IS TYPE_ERROR LIMIT 0;',
                     'EXPLAIN SELECT count(*) AS total FROM items AS chosen;',
                     'EXPLAIN SELECT chosen.value AS "Result", chosen.value AS copy FROM items AS chosen WHERE chosen.value IS TYPE_ERROR LIMIT 0;')]
+                program_inspectors = (native, port_client, *(caller for caller in callers if caller.predicate_programs))
+                program_requests = [{'inspect': {'scope': scope, 'sql': sql}} for sql in (
+                    "EXPLAIN SELECT value FROM items WHERE NOT (value IS NULL OR value = 'redacted-literal') AND value IS VALUE;",
+                    'EXPLAIN SELECT value FROM items WHERE ' + 'NOT '*63 + 'value IS NULL;')]
+                program_predicates = [
+                    {'program': [{'atom': {'state': {'column': 'value', 'value': 'null'}}},
+                        {'atom': {'compare': {'column': 'value', 'op': 'eq', 'type': 'utf8'}}},
+                        {'disjunction': {}}, {'negate': {}},
+                        {'atom': {'state': {'column': 'value', 'value': 'value'}}}, {'conjunction': {}}]},
+                    {'program': [{'atom': {'state': {'column': 'value', 'value': 'null'}}}] + [{'negate': {}}]*63},
+                ]
                 sends = fault['console_sends']
                 for action in inspection_requests:
                     expected = None
@@ -151,6 +162,18 @@ def run(node, host, proof, port_host, library, kinds=("kv", "table", "document")
                                     assert plan['projection'] == ['value', 'value']
                                     assert plan['columns'] == [{'name': name, 'type': 'utf8'} for name in ('Result', 'copy')]
                             else: assert plan['limit'] == str(2**64-1) and plan['operators'] == ['scan', 'filter', 'limit', 'project']
+                for action, predicate in zip(program_requests, program_predicates, strict=True):
+                    expected = None
+                    for owner in program_inspectors:
+                        value = owner.call(action)['inspection']
+                        assert value['resource'] == connection['resource'] and value['name'] == 'items'
+                        assert value['source_kind'] == kind and 'redacted-literal' not in json.dumps(value)
+                        plan = value['details']['explanation']
+                        assert plan['predicate'] == predicate and plan['operators'] == ['scan', 'filter', 'project']
+                        assert plan['columns'] == [{'name': 'value', 'type': 'utf8'}] and plan['limit'] is None
+                        if expected is None: expected = value
+                        assert value == expected
+                print(f"Unified {kind}: Boolean inspection including 64 instructions agrees across {len(program_inspectors)} enabled native/port/SDK callers", flush=True)
                 assert sends == fault['console_sends'], 'inspection submitted query work'
                 print(f"Unified {kind}: SQL inspection agrees across {len(inspectors)} enabled native/port/SDK callers", flush=True)
                 uploader = callers[0] if callers else native
@@ -210,7 +233,7 @@ def run(node, host, proof, port_host, library, kinds=("kv", "table", "document")
                 invoke("revoke", direct=True)
                 invoke("page", error="AccessDenied")
                 for owner in inspectors:
-                    for action in inspection_requests:
+                    for action in inspection_requests + (program_requests if owner in program_inspectors else []):
                         try:
                             owner.call(action)
                             raise AssertionError('revoked SQL inspection succeeded')
@@ -300,7 +323,7 @@ def run(node, host, proof, port_host, library, kinds=("kv", "table", "document")
                 # the more specific authority rejection in their public code.
                 retired_errors = ('QuerySourceUnavailable', 'ResourceUnavailable', 'Rejected', 'AccessDenied', 'StateResourceExpired')
                 for owner in inspectors:
-                    for action in inspection_requests:
+                    for action in inspection_requests + (program_requests if owner in program_inspectors else []):
                         try:
                             owner.call(action)
                             raise AssertionError('retired source disclosed SQL metadata')

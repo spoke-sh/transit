@@ -64,7 +64,7 @@ export type Source =
       readonly expand?: readonly string[];
       readonly projections: readonly Projection[];
     };
-export type Predicate =
+export type PredicateAtom =
   | { readonly kind: "state"; readonly column: number; readonly state: State }
   | {
       readonly kind: "compare";
@@ -72,6 +72,12 @@ export type Predicate =
       readonly comparison: Comparison;
       readonly value: Scalar;
     };
+export type PredicateInstruction =
+  | { readonly kind: "atom"; readonly atom?: PredicateAtom }
+  | { readonly kind: "negate" | "conjunction" | "disjunction" };
+export type Predicate =
+  | PredicateAtom
+  | { readonly kind: "program"; readonly instructions: readonly PredicateInstruction[] };
 export interface Plan {
   readonly projection: readonly number[];
   readonly outputNames?: readonly (string | null)[];
@@ -240,6 +246,48 @@ function sourceWire(source: Source): WireSource {
     }
   }
 }
+type WirePredicate = NonNullable<WireBundle["plan"]["predicate"]>;
+function atomWire(
+  selected: PredicateAtom | undefined,
+): Exclude<WirePredicate, { program: unknown }> {
+  if (selected === undefined) return { all: {} };
+  if (selected?.kind === "state")
+    return { state: { column: integer(selected.column, "column", 0, 7), value: selected.state } };
+  if (selected?.kind === "compare")
+    return {
+      compare: {
+        column: integer(selected.column, "column", 0, 7),
+        op: selected.comparison,
+        value: scalar(selected.value),
+      },
+    };
+  throw new TypeError("Expected a non-program predicate atom");
+}
+function predicateWire(selected: Predicate | undefined): WirePredicate {
+  if (selected?.kind !== "program") return atomWire(selected);
+  if (
+    !Array.isArray(selected.instructions) ||
+    selected.instructions.length < 1 ||
+    selected.instructions.length > 64
+  )
+    throw new TypeError("Expected one to 64 predicate instructions");
+  return {
+    program: selected.instructions.map((instruction) => {
+      switch (instruction?.kind) {
+        case "atom":
+          return { atom: atomWire(instruction.atom) };
+        case "negate":
+          return { negate: {} };
+        case "conjunction":
+          return { conjunction: {} };
+        case "disjunction":
+          return { disjunction: {} };
+        default:
+          throw new TypeError("Expected a predicate atom or operator");
+      }
+    }),
+  };
+}
 function planWire(plan: Plan): WireBundle["plan"] {
   if (!Array.isArray(plan.projection) || plan.projection.length < 1 || plan.projection.length > 8)
     throw new TypeError("Expected one to eight projection indices");
@@ -248,21 +296,6 @@ function planWire(plan: Plan): WireBundle["plan"] {
     (!Array.isArray(plan.outputNames) || plan.outputNames.length !== plan.projection.length)
   )
     throw new TypeError("Output names must match the projection width");
-  let predicate: NonNullable<WireBundle["plan"]["predicate"]> = { all: {} };
-  const selected = plan.predicate;
-  if (selected?.kind === "state")
-    predicate = {
-      state: { column: integer(selected.column, "column", 0, 7), value: selected.state },
-    };
-  else if (selected?.kind === "compare")
-    predicate = {
-      compare: {
-        column: integer(selected.column, "column", 0, 7),
-        op: selected.comparison,
-        value: scalar(selected.value),
-      },
-    };
-  else if (selected !== undefined) throw new TypeError("Expected query predicate");
   return {
     version: 1,
     projection: plan.projection.map((v) => integer(v, "column", 0, 7)),
@@ -270,7 +303,7 @@ function planWire(plan: Plan): WireBundle["plan"] {
       plan.outputNames === undefined
         ? null
         : plan.outputNames.map((v) => (v === null ? null : text(v, 32))),
-    predicate,
+    predicate: predicateWire(plan.predicate),
     limit: plan.limit === undefined ? null : wide(plan.limit).toString(),
     aggregate: plan.aggregate ?? "rows",
   };

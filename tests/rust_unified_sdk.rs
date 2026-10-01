@@ -1,10 +1,10 @@
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use std::{
     fs,
     io::{self, BufRead, Write},
 };
 use transit_client::{ClientConfig, Credential, ProcessRef, ResourceRef};
-use transit_station_sdk::{unified as q, Aggregate, Comparison, DocumentReference};
+use transit_station_sdk::{Aggregate, Comparison, DocumentReference, unified as q};
 type AnyResult<T> = Result<T, Box<dyn std::error::Error>>;
 fn hex(v: &[u8]) -> String {
     v.iter().map(|b| format!("{b:02x}")).collect()
@@ -52,6 +52,21 @@ fn projection(
         mode,
         text_bytes: 4096,
         text_steps: 4096,
+    }
+}
+fn inspected_atom(value: q::InspectedAtom) -> Value {
+    match value {
+        q::InspectedAtom::All => json!({"all":{}}),
+        q::InspectedAtom::State { column, state } => {
+            json!({"state":{"column":column,"value":match state {q::State::TypeError=>"type_error".to_owned(),_=>format!("{state:?}").to_lowercase()}}})
+        }
+        q::InspectedAtom::Compare {
+            column,
+            comparison,
+            value_type,
+        } => {
+            json!({"compare":{"column":column,"op":format!("{comparison:?}").to_lowercase(),"type":format!("{value_type:?}").to_lowercase()}})
+        }
     }
 }
 fn codecs(config: &Value) -> AnyResult<()> {
@@ -132,6 +147,127 @@ fn codecs(config: &Value) -> AnyResult<()> {
         )?;
         assert_eq!(hex(bundle.data()), text(&fixtures[index], "named_wire_hex"));
     }
+    let boolean_fixtures: Value = serde_json::from_slice(&fs::read(text(config, "boolean"))?)?;
+    let types = [
+        q::Type::Int64,
+        q::Type::Uint64,
+        q::Type::Float64,
+        q::Type::Boolean,
+        q::Type::Utf8,
+        q::Type::Binary,
+    ];
+    let scalars = [
+        q::Scalar::Int64(i64::MIN),
+        q::Scalar::Uint64(u64::MAX),
+        q::Scalar::Float64(-0.0),
+        q::Scalar::Boolean(true),
+        q::Scalar::Utf8("café é 🙂".into()),
+        q::Scalar::Binary(vec![0, 255, 128]),
+        q::Scalar::Utf8("x".repeat(512)),
+    ];
+    for (index, fixture) in boolean_fixtures.as_array().unwrap().iter().enumerate() {
+        use q::{PredicateAtom as A, PredicateInstruction as I};
+        let source = q::Source::KV {
+            resource,
+            prefix: vec![],
+            key: q::Decoder::v1(types[number(fixture, "type") as usize - 1]),
+            value: q::Decoder::v1(q::Type::Uint64),
+        };
+        let instructions = if index < 7 {
+            vec![
+                I::Atom(A::Compare {
+                    column: 0,
+                    comparison: Comparison::Eq,
+                    value: scalars[index].clone(),
+                }),
+                I::Negate,
+                I::Atom(A::State {
+                    column: 0,
+                    state: q::State::Null,
+                }),
+                I::Disjunction,
+            ]
+        } else if text(fixture, "name") == "all-and-not-null" {
+            vec![
+                I::Atom(A::All),
+                I::Atom(A::State {
+                    column: 0,
+                    state: q::State::Null,
+                }),
+                I::Negate,
+                I::Conjunction,
+            ]
+        } else {
+            let mut v = vec![I::Atom(A::All)];
+            v.extend(vec![I::Negate; 63]);
+            v
+        };
+        let plan = q::Plan {
+            projection: vec![0],
+            output_names: None,
+            predicate: q::Predicate::Program(instructions),
+            limit: None,
+            aggregate: Aggregate::Rows,
+        };
+        let bundle = q::Bundle::prepare(
+            &source,
+            &plan,
+            q::Budgets {
+                pages: 1000,
+                segments: 500,
+                result_bytes: 1048576,
+            },
+            None,
+        )?;
+        assert_eq!(hex(bundle.data()), text(fixture, "wire_hex"));
+    }
+    {
+        use q::{PredicateAtom as A, PredicateInstruction as I};
+        let source = q::Source::KV {
+            resource,
+            prefix: vec![],
+            key: q::Decoder::v1(q::Type::Int64),
+            value: q::Decoder::v1(q::Type::Uint64),
+        };
+        let mut oversized = vec![I::Atom(A::All)];
+        oversized.extend(vec![I::Negate; 64]);
+        for instructions in [
+            vec![],
+            vec![I::Negate],
+            vec![I::Atom(A::All), I::Atom(A::All)],
+            oversized,
+            vec![I::Atom(A::State {
+                column: 8,
+                state: q::State::Null,
+            })],
+            vec![I::Atom(A::Compare {
+                column: 0,
+                comparison: Comparison::Eq,
+                value: q::Scalar::Utf8("wrong type".into()),
+            })],
+        ] {
+            let plan = q::Plan {
+                projection: vec![0],
+                output_names: None,
+                predicate: q::Predicate::Program(instructions),
+                limit: None,
+                aggregate: Aggregate::Rows,
+            };
+            assert!(
+                q::Bundle::prepare(
+                    &source,
+                    &plan,
+                    q::Budgets {
+                        pages: 1,
+                        segments: 1,
+                        result_bytes: 1024
+                    },
+                    None
+                )
+                .is_err()
+            );
+        }
+    }
     let invalid = q::Source::KV {
         resource,
         prefix: vec![],
@@ -141,23 +277,25 @@ fn codecs(config: &Value) -> AnyResult<()> {
         },
         value: q::Decoder::v1(q::Type::Utf8),
     };
-    assert!(q::Bundle::prepare(
-        &invalid,
-        &q::Plan {
-            output_names: None,
-            projection: vec![0],
-            predicate: q::Predicate::All,
-            limit: None,
-            aggregate: Aggregate::Rows
-        },
-        q::Budgets {
-            pages: 1,
-            segments: 1,
-            result_bytes: 1
-        },
-        None
-    )
-    .is_err());
+    assert!(
+        q::Bundle::prepare(
+            &invalid,
+            &q::Plan {
+                output_names: None,
+                projection: vec![0],
+                predicate: q::Predicate::All,
+                limit: None,
+                aggregate: Aggregate::Rows
+            },
+            q::Budgets {
+                pages: 1,
+                segments: 1,
+                result_bytes: 1
+            },
+            None
+        )
+        .is_err()
+    );
     let columns = [
         ("int64", q::Type::Int64),
         ("uint64", q::Type::Uint64),
@@ -176,9 +314,11 @@ fn codecs(config: &Value) -> AnyResult<()> {
     assert_eq!(rows.len(), 5);
     assert!(rows[0].iter().all(|v| matches!(v, q::Cell::Missing)));
     assert!(rows[1].iter().all(|v| matches!(v, q::Cell::Null)));
-    assert!(rows[2]
-        .iter()
-        .all(|v| matches!(v,q::Cell::TypeError(k) if k=="map")));
+    assert!(
+        rows[2]
+            .iter()
+            .all(|v| matches!(v,q::Cell::TypeError(k) if k=="map"))
+    );
     let expected = [
         q::Scalar::Int64(i64::MIN),
         q::Scalar::Uint64(u64::MAX),
@@ -211,16 +351,18 @@ fn codecs(config: &Value) -> AnyResult<()> {
     assert!(q::decode_arrow(&columns, &fs::read(text(config, "empty"))?, 0, None)?.is_empty());
     assert!(q::decode_arrow(&columns, &fs::read(text(config, "malformed"))?, 5, None).is_err());
     println!(
-        "Rust installed unified codecs: three sources, six types, five states and malformed rejection passed"
+        "Rust installed unified codecs: three sources, nine Boolean bundles, six types, five states and malformed rejection passed"
     );
     Ok(())
 }
 fn inspection(value: q::Inspection) -> Value {
     fn columns(values: Vec<q::Column>) -> Value {
-        json!(values
-            .into_iter()
-            .map(|v| json!({"name":v.name,"type":format!("{:?}",v.value_type).to_lowercase()}))
-            .collect::<Vec<_>>())
+        json!(
+            values
+                .into_iter()
+                .map(|v| json!({"name":v.name,"type":format!("{:?}",v.value_type).to_lowercase()}))
+                .collect::<Vec<_>>()
+        )
     }
     let details = match value.details {
         q::InspectionDetails::Description { columns: values } => {
@@ -249,6 +391,14 @@ fn inspection(value: q::Inspection) -> Value {
                     value_type,
                 } => {
                     json!({"compare":{"column":column,"op":format!("{comparison:?}").to_lowercase(),"type":format!("{value_type:?}").to_lowercase()}})
+                }
+                q::InspectedPredicate::Program(instructions) => {
+                    json!({"program":instructions.into_iter().map(|v|match v {
+                    q::InspectedInstruction::Atom(atom)=>json!({"atom":inspected_atom(atom)}),
+                    q::InspectedInstruction::Negate=>json!({"negate":{}}),
+                    q::InspectedInstruction::Conjunction=>json!({"conjunction":{}}),
+                    q::InspectedInstruction::Disjunction=>json!({"disjunction":{}}),
+                }).collect::<Vec<_>>()})
                 }
             };
             json!({"explanation":{"operators":operators.iter().map(|v|format!("{v:?}").to_lowercase()).collect::<Vec<_>>(),

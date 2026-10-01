@@ -10296,8 +10296,60 @@ Main's intervening CLI commits do not change that control's query/driver/lock
 inputs. These shared-host component results do not establish native latency,
 compound throughput or a complete performance pass. Compiler work remains open.
 
-A committed-HEAD clean core run at `c5cce70a` is in progress at
-`/var/tmp/transit-ci-yb7tf4xi`, log `/tmp/transit-sql-boolean-main-a4-clean-core.log`.
-PR #52 and issue #37 track its terminal result, the failed experience proof,
-remaining lanes, typed SDK APIs and installed recovery. Neither earlier clean
-passes nor the specialized performance pass qualify those outstanding gates.
+Committed-HEAD clean core at `c5cce70a` passes all 22 tasks in 883.95 seconds,
+exit 0. Terminal metadata is retained at
+`.cache/ci/clean/c5cce70a7722-transit-ci-yb7tf4xi`, log
+`/tmp/transit-sql-boolean-main-a4-clean-core.log`. PR #52 and issue #37 track
+the failed experience proof, remaining lanes, typed SDK APIs and installed
+recovery. This pass qualifies that executable source, not later SDK edits.
+
+### Typed predicate programs in Python, Node, Ruby and Rust
+
+These four SDKs add typed postfix atoms/operators, bounded plan construction
+and owned inspected program values. Their ordinary single-atom constructors
+remain available. Shared Zig retains validation, canonical encoding and
+execution; host code only constructs neutral values and checks response shape.
+C, C++, Java, .NET, Erlang and Elixir program constructors/inspection are still
+unimplemented; native/port support does not qualify those public adapters.
+
+`boolean_bundle_fixtures()` in [unified_codec.py](unified_codec.py) shares nine
+independent canonical bundles with the native/port and installed SDK consumers.
+Seven literal programs cover six scalar types, full-width values, negative zero,
+Unicode/binary and multi-chunk literals. The additional fixtures independently
+encode an all/state/NOT/AND program and the 64-instruction boundary. The two real
+transports pass all 96 shared codec cases. Installed consumers verify exact
+bundle bytes, invalid stacks/types/limits and input ownership. Python, Node,
+Ruby and Rust pass in `/tmp/transit-sql-boolean-four-sdk-codecs-2.log`; no source
+authorization or recovery claim follows from that local run. The first run
+stopped because the test omitted Python's existing `ValueError` for an invalid
+column; the corrected test accepts that rejection without changing SDK behavior.
+
+The four package builds, Node strict checks and all 39 Node tests pass in
+`/tmp/transit-sql-boolean-sdk-build.log`. Python's strict check passes all 23
+source files in `/tmp/transit-sql-boolean-python-types.log`. The public query
+guides describe exact instruction ownership and the remaining language profiles.
+Reproduce installed codec checks after those package builds by invoking
+`sdk_unified.install` for `('python', 'node', 'ruby', 'rust')` in a fresh private
+directory; `just bindings::unified-codecs` runs the complete default language
+inventory. The other six consumers still cover their documented atom profile.
+
+The signed query schedule now checks Boolean EXPLAIN structure, redacted
+literals and the 64-instruction result through each enabled program adapter,
+then repeats current-denial and retired-source checks. Unsupported SDK adapters
+are explicitly excluded from those program cases; the printed caller count
+identifies coverage. The KV run with Python sync/async, Node, Ruby and Rust
+passes, exit 0, in `/tmp/transit-sql-boolean-four-sdk-kv.log`: seven enabled
+inspection callers agree, then current denial and source retirement reject.
+The unchanged single-atom delivery workload recovers after source/requester/
+node/disk restart, including a transient requester read timeout. It verifies
+41 rows, six segments and 13,584 bytes with eight resident authority pages,
+an 8 MiB hot store and 78 cold objects (8,021,154 bytes), completing in
+175.65 seconds. This is an integration sample, not a latency SLO. It does not
+establish compound-plan delivery/recovery or Table/Document coverage.
+
+Full `just check` passes, exit 0, in `/tmp/transit-sql-boolean-sdk-check.log`.
+Final documentation and Node formatting/lint checks pass in
+`/tmp/transit-sql-boolean-sdk-docs.log`. All-language and compound durable
+recovery qualification remains open. Reproduce the signed profile with
+`zig build test-unified-query -Doptimize=ReleaseSafe
+-Dunified-sdk=python,node,ruby,rust -Dunified-source=kv` in the pinned shell.

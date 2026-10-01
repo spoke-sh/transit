@@ -16,6 +16,12 @@ async function reference(resource, document, epoch, revision) {
   bytes.writeUInt32LE(1, 28); bytes.writeBigUInt64LE(revision, 32);
   return DocumentReference.decode(resource.realm, bytes);
 }
+function inspectedPredicate(value) {
+  if (value === undefined) return {all: {}};
+  if (value.kind === 'state') return {state: {column: value.column, value: value.state}};
+  if (value.kind === 'compare') return {compare: {column: value.column, op: value.comparison, type: value.type}};
+  return {program: value.instructions.map(v => v.kind === 'atom' ? {atom: inspectedPredicate(v.atom)} : {[v.kind]: {}})};
+}
 async function codecs() {
   const resource = new ResourceRef(46, 7);
   const sources = [
@@ -40,6 +46,26 @@ async function codecs() {
   }
   for (const source of [{...sources[0], value: {type: 'uint64', version: 2}}, {...sources[1], valueType: 'uint64'}])
     await assert.rejects(q.Bundle.prepare(source, {projection: [0]}, {pages: 1n, segments: 1n, resultBytes: 1n}));
+  const booleanFixtures = JSON.parse(await readFile(config.boolean, 'utf8'));
+  const scalarValues = [-(1n << 63n), wide, -0, true, 'café é 🙂', new Uint8Array([0, 255, 128]), 'x'.repeat(512)];
+  const types = ['int64', 'uint64', 'float64', 'boolean', 'utf8', 'binary'];
+  const atom = value => ({kind: 'atom', atom: value});
+  for (const [index, fixture] of booleanFixtures.entries()) {
+    const type = types[fixture.type - 1];
+    const source = {kind: 'kv', resource, prefix: new Uint8Array(), key: {type}, value: {type: 'uint64'}};
+    const instructions = index < 7 ? [atom({kind: 'compare', column: 0, comparison: 'eq', value: {type, value: scalarValues[index]}}),
+      {kind: 'negate'}, atom({kind: 'state', column: 0, state: 'null'}), {kind: 'disjunction'}]
+      : fixture.name === 'all-and-not-null' ? [atom(), atom({kind: 'state', column: 0, state: 'null'}), {kind: 'negate'}, {kind: 'conjunction'}]
+      : [atom(), ...Array.from({length: 63}, () => ({kind: 'negate'}))];
+    const pending = q.Bundle.prepare(source, {projection: [0], predicate: {kind: 'program', instructions}}, {pages: 1000n, segments: 500n, resultBytes: 1048576n});
+    instructions.length = 0; // The async boundary must already own the encoded input.
+    assert.equal(hex((await pending).data), fixture.wire_hex);
+  }
+  const predicateSource = {kind: 'kv', resource, prefix: new Uint8Array(), key: {type: 'int64'}, value: {type: 'uint64'}};
+  for (const instructions of [[], [{kind: 'negate'}], [atom(), atom()], [atom(), ...Array.from({length: 64}, () => ({kind: 'negate'}))],
+    [atom({kind: 'program', instructions: [atom()]})], [atom({kind: 'state', column: 8, state: 'null'})],
+    [atom({kind: 'compare', column: 0, comparison: 'eq', value: {type: 'utf8', value: 'wrong type'}})]])
+    await assert.rejects(q.Bundle.prepare(predicateSource, {projection: [0], predicate: {kind: 'program', instructions}}, {pages: 1n, segments: 1n, resultBytes: 1024n}));
   const columns = ['int64', 'uint64', 'float64', 'boolean', 'utf8', 'binary'].map(type => ({name: type, type}));
   const rows = await q.decodeArrow(columns, await readFile(config.arrow), 5);
   assert.equal(rows.length, 5);
@@ -56,7 +82,7 @@ async function codecs() {
   assert.ok(Object.is(rows[3][2].value.value, -0));
   assert.deepEqual(await q.decodeArrow(columns, await readFile(config.empty), 0), []);
   await assert.rejects(q.decodeArrow(columns, await readFile(config.malformed), 5));
-  console.log('Node installed unified codecs: three sources, six types, five states, owned buffers and malformed rejection passed');
+  console.log('Node installed unified codecs: three sources, nine Boolean bundles, six types, five states, owned buffers and malformed rejection passed');
 }
 async function serve() {
   const v = config.connection, resource = new ResourceRef(v.realm, v.resource);
@@ -94,8 +120,7 @@ async function serve() {
           assert.deepEqual(value.resource, resource); assert.equal(value.sourceKind, config.kind);
           const d = value.details;
           const details = d.kind === 'description' ? {description: {columns: d.columns}} : d.kind === 'tables' ? {tables: d.names} : {
-            explanation: {operators: d.operators, predicate: d.predicate === undefined ? {all: {}} : d.predicate.kind === 'state'
-              ? {state: {column: d.predicate.column, value: d.predicate.state}} : {compare: {column: d.predicate.column, op: d.predicate.comparison, type: d.predicate.type}},
+            explanation: {operators: d.operators, predicate: inspectedPredicate(d.predicate),
               projection: d.projection, limit: d.limit?.toString() ?? null, aggregate: d.aggregate, columns: d.columns,
               budgets: {pages: d.budgets.pages.toString(), segments: d.budgets.segments.toString(), result_bytes: d.budgets.resultBytes.toString()}},
           };

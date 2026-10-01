@@ -290,6 +290,47 @@ impl Source {
     }
 }
 #[derive(Clone, Default)]
+pub enum PredicateAtom {
+    #[default]
+    All,
+    State {
+        column: u8,
+        state: State,
+    },
+    Compare {
+        column: u8,
+        comparison: Comparison,
+        value: Scalar,
+    },
+}
+#[derive(Clone)]
+pub enum PredicateInstruction {
+    Atom(PredicateAtom),
+    Negate,
+    Conjunction,
+    Disjunction,
+}
+impl PredicateAtom {
+    fn wire(&self) -> Result<Value> {
+        Ok(match self {
+            Self::All => json!({"all":{}}),
+            Self::State { column, state } => {
+                json!({"state":{"column":column,"value":state.wire()}})
+            }
+            Self::Compare {
+                column,
+                comparison,
+                value,
+            } => compare_wire(*column, *comparison, value)?,
+        })
+    }
+}
+fn compare_wire(column: u8, comparison: Comparison, value: &Scalar) -> Result<Value> {
+    Ok(
+        json!({"compare":{"column":column,"op":match comparison {Comparison::Eq=>"eq",Comparison::Ne=>"ne",Comparison::Lt=>"lt",Comparison::Le=>"le",Comparison::Gt=>"gt",Comparison::Ge=>"ge"},"value":value.wire()?}}),
+    )
+}
+#[derive(Clone, Default)]
 pub enum Predicate {
     #[default]
     All,
@@ -302,6 +343,7 @@ pub enum Predicate {
         comparison: Comparison,
         value: Scalar,
     },
+    Program(Vec<PredicateInstruction>),
 }
 #[derive(Clone)]
 pub struct Plan {
@@ -329,8 +371,23 @@ impl Plan {
                 column,
                 comparison,
                 value,
-            } => {
-                json!({"compare":{"column":column,"op":match comparison {Comparison::Eq=>"eq",Comparison::Ne=>"ne",Comparison::Lt=>"lt",Comparison::Le=>"le",Comparison::Gt=>"gt",Comparison::Ge=>"ge"},"value":value.wire()?}})
+            } => compare_wire(*column, *comparison, value)?,
+            Predicate::Program(instructions) => {
+                if !(1..=64).contains(&instructions.len()) {
+                    return Err(invalid());
+                }
+                let program = instructions
+                    .iter()
+                    .map(|instruction| {
+                        Ok(match instruction {
+                            PredicateInstruction::Atom(atom) => json!({"atom":atom.wire()?}),
+                            PredicateInstruction::Negate => json!({"negate":{}}),
+                            PredicateInstruction::Conjunction => json!({"conjunction":{}}),
+                            PredicateInstruction::Disjunction => json!({"disjunction":{}}),
+                        })
+                    })
+                    .collect::<Result<Vec<_>>>()?;
+                json!({"program":program})
             }
         };
         Ok(
@@ -553,6 +610,26 @@ pub enum InspectionOperator {
 }
 /// Predicate structure only. Inspection never returns the query's literal.
 #[derive(Clone, Debug)]
+pub enum InspectedAtom {
+    All,
+    State {
+        column: String,
+        state: State,
+    },
+    Compare {
+        column: String,
+        comparison: Comparison,
+        value_type: Type,
+    },
+}
+#[derive(Clone, Debug)]
+pub enum InspectedInstruction {
+    Atom(InspectedAtom),
+    Negate,
+    Conjunction,
+    Disjunction,
+}
+#[derive(Clone, Debug)]
 pub enum InspectedPredicate {
     All,
     State {
@@ -564,6 +641,89 @@ pub enum InspectedPredicate {
         comparison: Comparison,
         value_type: Type,
     },
+    Program(Vec<InspectedInstruction>),
+}
+impl InspectedAtom {
+    fn parse(value: &Value) -> Result<Self> {
+        let (kind, selection) = tag(value)?;
+        Ok(match kind {
+            "all" if selection.as_object().is_some_and(|v| v.is_empty()) => Self::All,
+            "state" => Self::State {
+                column: string(field(selection, "column")?, "inspection-column")?.to_owned(),
+                state: match string(field(selection, "value")?, "inspection-state")? {
+                    "missing" => State::Missing,
+                    "null" => State::Null,
+                    "type_error" => State::TypeError,
+                    "value" => State::Value,
+                    "conflict" => State::Conflict,
+                    _ => return Err(malformed()),
+                },
+            },
+            "compare" => Self::Compare {
+                column: string(field(selection, "column")?, "inspection-column")?.to_owned(),
+                comparison: match string(field(selection, "op")?, "inspection-comparison")? {
+                    "eq" => Comparison::Eq,
+                    "ne" => Comparison::Ne,
+                    "lt" => Comparison::Lt,
+                    "le" => Comparison::Le,
+                    "gt" => Comparison::Gt,
+                    "ge" => Comparison::Ge,
+                    _ => return Err(malformed()),
+                },
+                value_type: Type::parse(field(selection, "type")?)?,
+            },
+            _ => return Err(malformed()),
+        })
+    }
+}
+impl InspectedPredicate {
+    fn parse(value: &Value) -> Result<Self> {
+        let (kind, program) = tag(value)?;
+        if kind != "program" {
+            return Ok(match InspectedAtom::parse(value)? {
+                InspectedAtom::All => Self::All,
+                InspectedAtom::State { column, state } => Self::State { column, state },
+                InspectedAtom::Compare {
+                    column,
+                    comparison,
+                    value_type,
+                } => Self::Compare {
+                    column,
+                    comparison,
+                    value_type,
+                },
+            });
+        }
+        let program = array(program)?;
+        if !(1..=64).contains(&program.len()) {
+            return Err(malformed());
+        }
+        let mut depth = 0usize;
+        let mut instructions = Vec::with_capacity(program.len());
+        for instruction in program {
+            let (kind, payload) = tag(instruction)?;
+            if kind == "atom" {
+                instructions.push(InspectedInstruction::Atom(InspectedAtom::parse(payload)?));
+                depth += 1;
+                continue;
+            }
+            let (operator, needed) = match kind {
+                "negate" => (InspectedInstruction::Negate, 1),
+                "conjunction" => (InspectedInstruction::Conjunction, 2),
+                "disjunction" => (InspectedInstruction::Disjunction, 2),
+                _ => return Err(malformed()),
+            };
+            if !payload.as_object().is_some_and(|v| v.is_empty()) || depth < needed {
+                return Err(malformed());
+            }
+            depth -= needed - 1;
+            instructions.push(operator);
+        }
+        if depth != 1 {
+            return Err(malformed());
+        }
+        Ok(Self::Program(instructions))
+    }
 }
 #[derive(Clone, Debug)]
 pub enum InspectionDetails {
@@ -641,38 +801,7 @@ impl Inspection {
                 if !(2..=4).contains(&operators.len()) {
                     return Err(malformed());
                 }
-                let (kind, selection) = tag(field(data, "predicate")?)?;
-                let predicate = match kind {
-                    "all" => InspectedPredicate::All,
-                    "state" => InspectedPredicate::State {
-                        column: string(field(selection, "column")?, "inspection-column")?
-                            .to_owned(),
-                        state: match string(field(selection, "value")?, "inspection-state")? {
-                            "missing" => State::Missing,
-                            "null" => State::Null,
-                            "type_error" => State::TypeError,
-                            "value" => State::Value,
-                            "conflict" => State::Conflict,
-                            _ => return Err(malformed()),
-                        },
-                    },
-                    "compare" => InspectedPredicate::Compare {
-                        column: string(field(selection, "column")?, "inspection-column")?
-                            .to_owned(),
-                        comparison: match string(field(selection, "op")?, "inspection-comparison")?
-                        {
-                            "eq" => Comparison::Eq,
-                            "ne" => Comparison::Ne,
-                            "lt" => Comparison::Lt,
-                            "le" => Comparison::Le,
-                            "gt" => Comparison::Gt,
-                            "ge" => Comparison::Ge,
-                            _ => return Err(malformed()),
-                        },
-                        value_type: Type::parse(field(selection, "type")?)?,
-                    },
-                    _ => return Err(malformed()),
-                };
+                let predicate = InspectedPredicate::parse(field(data, "predicate")?)?;
                 InspectionDetails::Explanation {
                     operators,
                     predicate,

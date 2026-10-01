@@ -5,6 +5,14 @@ Q = Transit::Station::Unified
 def check(value)
   raise 'Unified Ruby assertion failed' unless value
 end
+def inspected_predicate(value)
+  case value
+  when nil then { all: {} }
+  when Q::InspectedState then { state: { column: value.column, value: value.state } }
+  when Q::InspectedComparison then { compare: { column: value.column, op: value.comparison, type: value.type } }
+  else { program: value.instructions.map { |v| v.is_a?(Q::InspectedAtom) ? { atom: inspected_predicate(v.predicate) } : { v => {} } } }
+  end
+end
 def codecs(config)
   resource = Transit::ResourceRef.new(realm: 46, resource: 7)
   sources = [Q::KVSource.new(resource: resource, prefix: 'data/', key: Q::Decoder.new(type: :binary), value: Q::Decoder.new(type: :uint64)),
@@ -30,6 +38,31 @@ def codecs(config)
   rescue Transit::Error
     nil
   end
+  scalar_values = [-(1 << 63), (1 << 64)-1, -0.0, true, 'café é 🙂', "\x00\xff\x80".b, 'x'*512]
+  JSON.parse(File.read(config.fetch('boolean'))).each_with_index do |fixture, index|
+    type = Q::TYPES[fixture.fetch('type')-1]
+    source = Q::KVSource.new(resource: resource, prefix: ''.b, key: Q::Decoder.new(type: type), value: Q::Decoder.new(type: :uint64))
+    instructions = if index < 7
+      [Q::PredicateAtom.new(predicate: Q::Compare.new(column: 0, comparison: :eq, value: Q::Scalar.new(type: type, value: scalar_values[index]))),
+        :negate, Q::PredicateAtom.new(predicate: Q::IsState.new(column: 0, state: :null)), :disjunction]
+    elsif fixture.fetch('name') == 'all-and-not-null'
+      [Q::PredicateAtom.new, Q::PredicateAtom.new(predicate: Q::IsState.new(column: 0, state: :null)), :negate, :conjunction]
+    else [Q::PredicateAtom.new] + [:negate]*63
+    end
+    program = Q::PredicateProgram.new(instructions: instructions)
+    instructions.clear
+    bundle = Q::Bundle.prepare(source, Q::Plan.new(projection: [0], predicate: program), Q::Budgets.new(pages: 1000, segments: 500, result_bytes: 1048576))
+    raise 'Boolean bundle mismatch' unless bundle.data.unpack1('H*') == fixture.fetch('wire_hex')
+  end
+  source = Q::KVSource.new(resource: resource, prefix: ''.b, key: Q::Decoder.new(type: :int64), value: Q::Decoder.new(type: :uint64))
+  [[], [:negate], [Q::PredicateAtom.new, Q::PredicateAtom.new], [Q::PredicateAtom.new]+[:negate]*64,
+    [Q::PredicateAtom.new(predicate: Q::Compare.new(column: 0, comparison: :eq, value: Q::Scalar.new(type: :utf8, value: 'wrong type')))]].each do |instructions|
+    begin
+      Q::Bundle.prepare(source, Q::Plan.new(projection: [0], predicate: Q::PredicateProgram.new(instructions: instructions)), Q::Budgets.new(pages: 1, segments: 1, result_bytes: 1024))
+      raise 'invalid predicate program accepted'
+    rescue ArgumentError, Transit::Error
+    end
+  end
   columns = %i[int64 uint64 float64 boolean utf8 binary].map { |type| Q::Column.new(name: type.to_s, type: type) }
   rows = Q.decode_arrow(columns, File.binread(config.fetch('arrow')), 5)
   check(rows.length == 5 && rows.all? { |row| row.length == 6 })
@@ -48,7 +81,7 @@ def codecs(config)
   rescue Transit::Error
     nil
   end
-  puts 'Ruby installed unified codecs: three sources, six types, five states and malformed rejection passed'
+  puts 'Ruby installed unified codecs: three sources, nine Boolean bundles, six types, five states and malformed rejection passed'
 end
 def serve(config)
   v = config.fetch('connection')
@@ -91,11 +124,7 @@ def serve(config)
           when Q::SourceDescription then { description: { columns: data.columns.map(&:to_h) } }
           when Q::TableListing then { tables: data.names }
           when Q::Explanation
-            predicate = case data.predicate
-            when nil then { all: {} }
-            when Q::InspectedState then { state: { column: data.predicate.column, value: data.predicate.state } }
-            else { compare: { column: data.predicate.column, op: data.predicate.comparison, type: data.predicate.type } }
-            end
+            predicate = inspected_predicate(data.predicate)
             check(data.columns.frozen? && data.projection.frozen? && data.operators.frozen?)
             { explanation: { operators: data.operators, predicate: predicate, projection: data.projection, limit: data.limit&.to_s,
               aggregate: data.aggregate, columns: data.columns.map(&:to_h), budgets: data.budgets.to_h.transform_values(&:to_s) } }

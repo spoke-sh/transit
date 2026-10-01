@@ -247,7 +247,8 @@ preparing that result preserves canonical bytes and Publication identity.
 Generated schemas derive the program bound from the Fuze instruction owner,
 separately from the eight-column and eight-row bounds. Native SQL lowers Boolean
 composition to this program representation through the shared native/port codec.
-Typed language SDK constructors retain the single-atom profile.
+Python, TypeScript, Ruby and Rust expose typed program constructors and inspected
+programs. Other language SDK constructors retain the single-atom profile.
 
 Input JSON is bounded at 256 KiB; source, plan, bundle, scalar, page and Arrow
 limits still apply independently. Native outputs are owned buffers that callers

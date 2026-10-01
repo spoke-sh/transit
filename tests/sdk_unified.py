@@ -14,14 +14,15 @@ import tomllib
 
 import pyarrow
 from unified_abi import Failure
-from unified_codec import arrow_fixture
+from unified_codec import arrow_fixture, boolean_bundle_fixtures
 
 ROOT = Path(__file__).resolve().parents[1]
 
 
 class Consumer:
-    def __init__(self, command, environment, directory, *, inspection=False):
+    def __init__(self, command, environment, directory, *, inspection=False, predicate_programs=False):
         self.inspection = inspection
+        self.predicate_programs = predicate_programs
         self.child = subprocess.Popen(command, env=environment, cwd=directory,
             stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True)
         try: assert self.read() == {'ready': True}
@@ -70,6 +71,8 @@ def install(root, languages):
     (root/'malformed.ipc').write_bytes(bytes.fromhex(ipc(bad)))
     shutil.copyfile(ROOT/'packages/zig/transit-query/src/fixtures/bundles.json', root/'bundles.json')
     fixtures = dict(bundles=str(root/'bundles.json'), arrow=str(root/'arrow.ipc'), empty=str(root/'empty.ipc'), malformed=str(root/'malformed.ipc'))
+    (root/'boolean.json').write_text(json.dumps(boolean_bundle_fixtures()))
+    fixtures['boolean'] = str(root/'boolean.json')
     (root/'fixtures.json').write_text(json.dumps(fixtures))
     factories = []
     for language in languages:
@@ -108,8 +111,8 @@ def install(root, languages):
             config = root/'client.json'
             config.write_text(json.dumps(dict(url=url, connection=connection, seed_file=str(state/'caller.seed'),
                 kind=kind, bundle=str(state/'bundle.bin'), arrow_site=str(Path(pyarrow.__file__).parent.parent))))
-            first = Consumer([python, '-B', script, 'sync', config], env, root, inspection=True)
-            try: second = Consumer([python, '-B', script, 'async', config], env, root, inspection=True)
+            first = Consumer([python, '-B', script, 'sync', config], env, root, inspection=True, predicate_programs=True)
+            try: second = Consumer([python, '-B', script, 'async', config], env, root, inspection=True, predicate_programs=True)
             except BaseException:
                 first.close()
                 raise
@@ -134,7 +137,7 @@ def install_node(root, fixtures):
     def open_callers(url, connection, state, kind):
         config = root/'client.json'
         config.write_text(json.dumps(dict(url=url, connection=connection, seed_file=str(state/'caller.seed'), kind=kind, bundle=str(state/'bundle.bin'))))
-        return [Consumer(['node', script, 'serve', config], env, root, inspection=True)]
+        return [Consumer(['node', script, 'serve', config], env, root, inspection=True, predicate_programs=True)]
     return open_callers
 
 
@@ -153,7 +156,7 @@ def install_ruby(root, fixtures):
     def open_callers(url, connection, state, kind):
         config = root/'client.json'
         config.write_text(json.dumps(dict(url=url, connection=connection, seed_file=str(state/'caller.seed'), kind=kind, bundle=str(state/'bundle.bin'))))
-        return [Consumer(['ruby', script, 'serve', config], env, root, inspection=True)]
+        return [Consumer(['ruby', script, 'serve', config], env, root, inspection=True, predicate_programs=True)]
     return open_callers
 
 
@@ -196,7 +199,7 @@ serde_json = { version = "=1.0.145", features = ["arbitrary_precision"] }
     def open_callers(url, connection, state, kind):
         config = root/'client.json'
         config.write_text(json.dumps(dict(url=url, connection=connection, seed_file=str(state/'caller.seed'), kind=kind, bundle=str(state/'bundle.bin'))))
-        return [Consumer([executable, 'serve', config], env, root, inspection=True)]
+        return [Consumer([executable, 'serve', config], env, root, inspection=True, predicate_programs=True)]
     return open_callers
 
 
