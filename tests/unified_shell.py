@@ -93,8 +93,11 @@ def check(binary, root, kind, invoke, expected, fault, *, compound=False, counts
             assert time.monotonic() < until, progress
             progress = shell.call('.advance')
         assert progress['status']['phase'] in ('admitted', 'complete'), progress
-        while shell.call('.status')['status']['phase'] != 'complete':
-            assert time.monotonic() < until
+        while True:
+            progress = shell.call('.status')
+            assert isinstance(progress.get('status'), dict), progress
+            if progress['status']['phase'] == 'complete': break
+            assert time.monotonic() < until, progress
             time.sleep(0.1)
         rows = []
         while True:
