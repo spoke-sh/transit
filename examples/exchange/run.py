@@ -227,7 +227,7 @@ backend = "inline"
             body = work / "caller/body"
             body.write_bytes(request_payload)
             caller_config = {"url": url, "realm": realm, "principal": 1, "pid": caller["pid"], "worker": connector["pid"],
-                "seed_file": str(keys["caller"]), "reconcile_before_ms": deadline, "body_file": str(body),
+                "seed_file": str(keys["caller"]), "endpoint_revision": 1, "reconcile_before_ms": deadline, "body_file": str(body),
                 "request": {"method": "POST", "target": [{"literal": "/example"}], "body_bytes": 5,
                     "headers": [{"name": "Authorization", "value": [{"literal": "Bearer "}, {"secret": {"binding": "demo", "version": 1}}]}]}}
             connector_config = {"url": url, "realm": realm, "principal": 2, "pid": connector["pid"],
@@ -308,15 +308,15 @@ backend = "inline"
 
             called = activate("caller", caller_config, "publish")
             assert called["phase"] == "called"
-            # Reopening a saved call validates the whole frozen request policy.
-            # This new activation must reject a changed deadline before recovery
-            # with the original configuration resumes the same durable call.
-            try:
-                activate("caller", caller_config | {"reconcile_before_ms": caller_config["reconcile_before_ms"] + 1}, "publish")
-            except RuntimeError as error:
-                assert "ChangedCallConfiguration" in str(error), str(error)
-            else:
-                raise AssertionError("Changed request policy reused a saved call")
+            # A saved call must reject changed frozen policy after publication
+            # and admission; the original configuration resumes the same call.
+            for field in ("reconcile_before_ms", "endpoint_revision"):
+                try:
+                    activate("caller", caller_config | {field: caller_config[field] + 1}, "publish")
+                except RuntimeError as error:
+                    assert "ChangedCallConfiguration" in str(error), str(error)
+                else:
+                    raise AssertionError(f"Changed {field} reused a saved call")
             if profile == "reference": placement.kill_caller_worker()
             recovered = activate("caller", caller_config, "publish")
             assert recovered == called, ("Restart changed the durable call", called, recovered)

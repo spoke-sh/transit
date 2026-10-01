@@ -96,10 +96,11 @@ content digests and quota before staging, but does not interpret the adapter's
 marker or grant access. HTTP and RPC callers use this shared upload mechanism;
 formats, authorization and durable call identity remain with their adapters.
 
-`PublicationUpload.marker(domain, namespace, identity)` encodes that same stored
-marker for comparison after an authorized read. Recovery checks compare this
-marker with the stored value, preserving the exact domain, namespace and frozen
-request commitment. The encoder performs no reads, writes or publication.
+`PublicationUpload.marker(domain, namespace, identity)` returns that same bounded
+marker for comparison with a current-authorized read. It rejects a zero domain,
+zero namespace or empty identity. Compare the stored marker with this value when
+resuming an already admitted call; the marker is not the raw adapter reference.
+Marker construction grants no access and does not check publication completeness.
 
 ## Disposition and cleanup
 

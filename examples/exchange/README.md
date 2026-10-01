@@ -9,8 +9,9 @@ ownership through the public growing protocol; provider placement grants no
 execution rights.
 
 `run.py` provisions disposable disk Ursula, an authority, caller and connector
-resources, and an independent TLS peer. It verifies the same saved call after
-caller replacement, then restarts node/store and replays after deleting the
+resources, and an independent TLS peer. It rejects a changed endpoint revision
+against the saved upload marker and verifies the same saved call after caller
+replacement, then restarts node/store and replays after deleting the
 credential and stopping the peer. Protocol selection is fixed by each example's
 runnable entry point. HTTP uses a synthetic POST; RPC uses a protoc descriptor
 and original binary/Unicode/full-width protobuf plus an empty message.

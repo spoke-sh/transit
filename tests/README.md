@@ -10238,6 +10238,35 @@ not qualify later revisions implicitly. Final committed-HEAD qualification
 remains outstanding.
 
 
+### Finite HTTP and gRPC saved-call marker checks
+
+At `0633d355`, the clean growth lane passes its first 24 tasks, including complete
+HTTP/gRPC worker recovery and the corrected combined Table/query writer schedule.
+The HTTP example then fails after its initial publication commits a call:
+`ChangedCallConfiguration` comes from comparing the stored 48-byte `SPU1` upload
+marker with the raw `HTQ1` request reference. An unchanged focused gRPC example
+reproduces the same mismatch with `GRQ1`. The lane remains incomplete; the
+[example publication report](verification/results/m39-example-publication-2026-10-01.json)
+retains its task results, independent reproduction, prior core/experience passes
+and log hashes.
+
+Both examples now construct the expected marker through Station's shared
+`PublicationUpload.marker` helper. The stored format and peer/correlation checks
+remain unchanged. Package tests verify an independent marker byte fixture, invalid
+identity rejection and equality with the stored upload marker. Each real example
+also rejects a changed endpoint revision before resuming the original call.
+
+The focused local disk runs pass for HTTP (53.59 seconds), gRPC (69.90 seconds),
+HTTP with fresh-key bootstrap (56.40 seconds) and gRPC with fresh-key bootstrap
+(72.30 seconds). Each reuses the original call across caller replacement, sends
+exactly once and replays after node/store restart with the peer stopped and
+credential removed. These timings exclude compilation. The initial development
+check omitted an explicit endpoint revision and failed with a fixture `KeyError`;
+the report retains that failure and the corrected fixture source hashes.
+Compose and Substrate variants were not run for this correction. Final integrated
+qualification is recorded separately.
+
+
 ## Durable Table mutation latency
 
 Tracked by [issue #55](https://github.com/rupurt/rey/issues/55). Qualification is

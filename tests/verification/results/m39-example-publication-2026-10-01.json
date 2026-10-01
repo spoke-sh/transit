@@ -1,0 +1,772 @@
+{
+  "version": 1,
+  "issue": 53,
+  "revision": "0633d355ede2e928407cb4257c52213cb0aa651c",
+  "failure": {
+    "metadata": {
+      "version": 1,
+      "revision": "0633d355ede2e928407cb4257c52213cb0aa651c",
+      "tier": "growth",
+      "completed": false,
+      "expected_tasks": [
+        "test::arrow",
+        "test::fuze-types",
+        "test::fuze-sources",
+        "test::file-query",
+        "test::logical-arrow",
+        "test::logical-codec",
+        "test::pages",
+        "test::growing",
+        "test::growing-service",
+        "test::public-query",
+        "test::publication",
+        "test::table-mutation",
+        "test::table-query-writer",
+        "test::catalog",
+        "test::http-transport",
+        "test::tls-alpn",
+        "test::grpc-libraries",
+        "test::grpc-codegen",
+        "test::grpc-transport",
+        "test::grpc-server",
+        "test::flight-metadata",
+        "test::grpc-worker",
+        "test::grpc-faults",
+        "test::http-worker",
+        "examples::http",
+        "examples::grpc"
+      ],
+      "seconds": 4314.54,
+      "run_id": null,
+      "run_attempt": null,
+      "machine": {
+        "platform": "Linux-6.17.0-41-generic-x86_64-with-glibc2.42",
+        "logical_cpus": 48,
+        "affinity": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10,
+          11,
+          12,
+          13,
+          14,
+          15,
+          16,
+          17,
+          18,
+          19,
+          20,
+          21,
+          22,
+          23,
+          24,
+          25,
+          26,
+          27,
+          28,
+          29,
+          30,
+          31,
+          32,
+          33,
+          34,
+          35,
+          36,
+          37,
+          38,
+          39,
+          40,
+          41,
+          42,
+          43,
+          44,
+          45,
+          46,
+          47
+        ],
+        "runner": null,
+        "runner_arch": null
+      }
+    },
+    "tasks": [
+      {
+        "lane": "growth",
+        "task": "test::arrow",
+        "seconds": 10.94,
+        "exit_code": 0
+      },
+      {
+        "lane": "growth",
+        "task": "test::fuze-types",
+        "seconds": 0.59,
+        "exit_code": 0
+      },
+      {
+        "lane": "growth",
+        "task": "test::fuze-sources",
+        "seconds": 0.66,
+        "exit_code": 0
+      },
+      {
+        "lane": "growth",
+        "task": "test::file-query",
+        "seconds": 24.13,
+        "exit_code": 0
+      },
+      {
+        "lane": "growth",
+        "task": "test::logical-arrow",
+        "seconds": 9.58,
+        "exit_code": 0
+      },
+      {
+        "lane": "growth",
+        "task": "test::logical-codec",
+        "seconds": 10.95,
+        "exit_code": 0
+      },
+      {
+        "lane": "growth",
+        "task": "test::pages",
+        "seconds": 8.58,
+        "exit_code": 0
+      },
+      {
+        "lane": "growth",
+        "task": "test::growing",
+        "seconds": 134.39,
+        "exit_code": 0
+      },
+      {
+        "lane": "growth",
+        "task": "test::growing-service",
+        "seconds": 654.41,
+        "exit_code": 0
+      },
+      {
+        "lane": "growth",
+        "task": "test::public-query",
+        "seconds": 166.22,
+        "exit_code": 0
+      },
+      {
+        "lane": "growth",
+        "task": "test::publication",
+        "seconds": 390.38,
+        "exit_code": 0
+      },
+      {
+        "lane": "growth",
+        "task": "test::table-mutation",
+        "seconds": 233.76,
+        "exit_code": 0
+      },
+      {
+        "lane": "growth",
+        "task": "test::table-query-writer",
+        "seconds": 196.67,
+        "exit_code": 0
+      },
+      {
+        "lane": "growth",
+        "task": "test::catalog",
+        "seconds": 112.48,
+        "exit_code": 0
+      },
+      {
+        "lane": "growth",
+        "task": "test::http-transport",
+        "seconds": 21.47,
+        "exit_code": 0
+      },
+      {
+        "lane": "growth",
+        "task": "test::tls-alpn",
+        "seconds": 2.94,
+        "exit_code": 0
+      },
+      {
+        "lane": "growth",
+        "task": "test::grpc-libraries",
+        "seconds": 11.16,
+        "exit_code": 0
+      },
+      {
+        "lane": "growth",
+        "task": "test::grpc-codegen",
+        "seconds": 9.33,
+        "exit_code": 0
+      },
+      {
+        "lane": "growth",
+        "task": "test::grpc-transport",
+        "seconds": 13.22,
+        "exit_code": 0
+      },
+      {
+        "lane": "growth",
+        "task": "test::grpc-server",
+        "seconds": 15.58,
+        "exit_code": 0
+      },
+      {
+        "lane": "growth",
+        "task": "test::flight-metadata",
+        "seconds": 54.95,
+        "exit_code": 0
+      },
+      {
+        "lane": "growth",
+        "task": "test::grpc-worker",
+        "seconds": 814.48,
+        "exit_code": 0
+      },
+      {
+        "lane": "growth",
+        "task": "test::grpc-faults",
+        "seconds": 390.98,
+        "exit_code": 0
+      },
+      {
+        "lane": "growth",
+        "task": "test::http-worker",
+        "seconds": 1006.45,
+        "exit_code": 0
+      },
+      {
+        "lane": "growth",
+        "task": "examples::http",
+        "seconds": 20.24,
+        "exit_code": 1
+      }
+    ],
+    "log": {
+      "path": "/tmp/rey-issue53-0633d355-growth-attempt1.log",
+      "sha256": "f39a03b46360f7432e36a5dcb38b10ecd6e5972d801c55c82f889831b30a4f80"
+    },
+    "trigger": "The initial HTTP publish committed its call, then compared its SPU1 upload marker with a raw HTQ1 reference and raised ChangedCallConfiguration.",
+    "grpc_reproduction": {
+      "command": "NIX_CONFIG='eval-cache = false' nix develop --command env TMPDIR=/var/tmp/transit-ci-yocmldsi/tmp just examples::grpc",
+      "revision": "0633d355ede2e928407cb4257c52213cb0aa651c",
+      "exit_code": 1,
+      "log": {
+        "path": "/tmp/rey-issue53-grpc-example-original.log",
+        "sha256": "fed74bd0d1d983374d9848013f3f2033b912b389b3feeaa7ef2f4a132a94a272"
+      },
+      "result": "The same initial-publication comparison fails for the GRQ1 reference."
+    }
+  },
+  "correction": {
+    "description": "Expose the existing SPU1 marker constructor for current-authorized recovery reads; HTTP and gRPC examples compare that marker, preserve peer/correlation checks and reject changed endpoint revision before resuming the original call.",
+    "stored_format_changed": false,
+    "deadline_or_runtime_limit_changed": false,
+    "base_revision": "0633d355ede2e928407cb4257c52213cb0aa651c",
+    "dirty_source_sha256": {
+      "packages/zig/transit-station/src/PublicationUpload.zig": "e26177adecda405e310dff73db711756574593c4427d59abeca0549116cd8eec",
+      "packages/zig/transit-station/src/publication_test.zig": "8e649fad69921c838896328f125ac14727c535995299086706998f7d1c822844",
+      "examples/station-http/main.zig": "63733a75a556b2c6f257a10f1216bbf73af557faaaef2ab35ff26f4084b74bc8",
+      "examples/station-grpc/main.zig": "b8de3815ee3600b4cedf399324d0354ade69a060dd20bf4e789fb84b2f81ac3e",
+      "examples/exchange/run.py": "505b81c44a8d716ea9ca3549983b74c2f4116cc84f1bfd07092973ec1982844c"
+    },
+    "unit_check": {
+      "command": "NIX_CONFIG='eval-cache = false' nix develop --command bash -euo pipefail -c 'cd packages/zig/transit-station; zig build test'",
+      "exit_code": 0,
+      "coverage": [
+        "independent 48-byte SPU1 fixture and frozen identity SHA-256",
+        "zero domain, zero namespace and empty identity refusal",
+        "stored upload marker equality",
+        "existing changed domain/namespace/identity and admission tests"
+      ],
+      "log": {
+        "path": "/tmp/rey-issue53-publication-marker-unit.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    },
+    "development_fixture_failure": {
+      "exit_code": 1,
+      "cause": "The new negative check initially indexed endpoint_revision, which was omitted from the fixture configuration because the caller defaulted to 1. Set the fixture revision explicitly to 1 before retrying.",
+      "log": {
+        "path": "/tmp/rey-issue53-marker-test-missing-config.log",
+        "sha256": "465f1a9b6996c7111aa93e611c7467cad3877bd67c24dd0a1c1909e7d4d7e7a3"
+      }
+    },
+    "focused_examples": [
+      {
+        "command": "NIX_CONFIG='eval-cache = false' nix develop --command env TMPDIR=/var/tmp/transit-issue53-example-proof just examples::http",
+        "exit_code": 0,
+        "result": {
+          "example": "station-http",
+          "profile": "local",
+          "bootstrap": false,
+          "phase": "passed",
+          "sends": 1,
+          "status": 200,
+          "body_bytes": 23,
+          "seconds": 53.59
+        },
+        "log": {
+          "path": "/tmp/rey-issue53-fixed-http.log",
+          "sha256": "c146f5bce844a9d2e8e06b4cfb46fa395491e4599d82b0d563b3614c04ae3f93"
+        },
+        "checks": [
+          "changed endpoint revision rejects",
+          "same peer and correlation after caller replacement",
+          "one external send",
+          "node/store restart",
+          "replay with peer stopped and credential removed"
+        ]
+      },
+      {
+        "command": "NIX_CONFIG='eval-cache = false' nix develop --command env TMPDIR=/var/tmp/transit-issue53-example-proof just examples::grpc",
+        "exit_code": 0,
+        "result": {
+          "example": "station-grpc",
+          "profile": "local",
+          "bootstrap": false,
+          "phase": "passed",
+          "sends": 1,
+          "status": 0,
+          "body_bytes": 54,
+          "seconds": 69.9
+        },
+        "log": {
+          "path": "/tmp/rey-issue53-fixed-grpc.log",
+          "sha256": "ca31a53d37767ddc47b601548c8905da37ded2f2c66cdedf085c0bfe8c958fef"
+        },
+        "checks": [
+          "changed endpoint revision rejects",
+          "same peer and correlation after caller replacement",
+          "one external send",
+          "node/store restart",
+          "replay with peer stopped and credential removed"
+        ]
+      },
+      {
+        "command": "NIX_CONFIG='eval-cache = false' nix develop --command env TMPDIR=/var/tmp/transit-issue53-example-proof just examples::http-bootstrap",
+        "exit_code": 0,
+        "result": {
+          "example": "station-http",
+          "profile": "local",
+          "bootstrap": true,
+          "phase": "passed",
+          "sends": 1,
+          "status": 200,
+          "body_bytes": 23,
+          "seconds": 56.4
+        },
+        "log": {
+          "path": "/tmp/rey-issue53-fixed-http-bootstrap.log",
+          "sha256": "0608e2ab9a7d5138da98de1cc80dedb669a134200aaeb0c5e04b4120cc6a8770"
+        },
+        "checks": [
+          "changed endpoint revision rejects",
+          "same peer and correlation after caller replacement",
+          "one external send",
+          "node/store restart",
+          "replay with peer stopped and credential removed"
+        ]
+      },
+      {
+        "command": "NIX_CONFIG='eval-cache = false' nix develop --command env TMPDIR=/var/tmp/transit-issue53-example-proof just examples::grpc-bootstrap",
+        "exit_code": 0,
+        "result": {
+          "example": "station-grpc",
+          "profile": "local",
+          "bootstrap": true,
+          "phase": "passed",
+          "sends": 1,
+          "status": 0,
+          "body_bytes": 54,
+          "seconds": 72.3
+        },
+        "log": {
+          "path": "/tmp/rey-issue53-fixed-grpc-bootstrap.log",
+          "sha256": "c119f47c103602a2a63e908a585c3e9dfcb042489c1553ec105c20af4356acd2"
+        },
+        "checks": [
+          "changed endpoint revision rejects",
+          "same peer and correlation after caller replacement",
+          "one external send",
+          "node/store restart",
+          "replay with peer stopped and credential removed"
+        ]
+      }
+    ]
+  },
+  "superseded_passes": {
+    "core": {
+      "metadata": {
+        "version": 1,
+        "revision": "0633d355ede2e928407cb4257c52213cb0aa651c",
+        "tier": "core",
+        "completed": true,
+        "expected_tasks": [
+          "check-core",
+          "test::properties",
+          "test::simulation",
+          "test::resource-simulation-smoke",
+          "test::scheduler-simulation",
+          "test::domain-simulation",
+          "test::vortex",
+          "test::codecs",
+          "test::dev-environment",
+          "test::kubectl-transit",
+          "test::deployments",
+          "test::telemetry",
+          "test::packages-build",
+          "test::compute",
+          "test::client-abi",
+          "test::station",
+          "test::storage",
+          "test::service",
+          "test::runtime-upgrade",
+          "test::callers",
+          "test::inspection",
+          "test::state"
+        ],
+        "seconds": 1113.17,
+        "run_id": null,
+        "run_attempt": null,
+        "machine": {
+          "platform": "Linux-6.17.0-41-generic-x86_64-with-glibc2.42",
+          "logical_cpus": 48,
+          "affinity": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20,
+            21,
+            22,
+            23,
+            24,
+            25,
+            26,
+            27,
+            28,
+            29,
+            30,
+            31,
+            32,
+            33,
+            34,
+            35,
+            36,
+            37,
+            38,
+            39,
+            40,
+            41,
+            42,
+            43,
+            44,
+            45,
+            46,
+            47
+          ],
+          "runner": null,
+          "runner_arch": null
+        }
+      },
+      "tasks": [
+        {
+          "lane": "core",
+          "task": "check-core",
+          "seconds": 92.19,
+          "exit_code": 0
+        },
+        {
+          "lane": "core",
+          "task": "test::properties",
+          "seconds": 15.24,
+          "exit_code": 0
+        },
+        {
+          "lane": "core",
+          "task": "test::simulation",
+          "seconds": 18.32,
+          "exit_code": 0
+        },
+        {
+          "lane": "core",
+          "task": "test::resource-simulation-smoke",
+          "seconds": 4.16,
+          "exit_code": 0
+        },
+        {
+          "lane": "core",
+          "task": "test::scheduler-simulation",
+          "seconds": 16.2,
+          "exit_code": 0
+        },
+        {
+          "lane": "core",
+          "task": "test::domain-simulation",
+          "seconds": 4.62,
+          "exit_code": 0
+        },
+        {
+          "lane": "core",
+          "task": "test::vortex",
+          "seconds": 13.66,
+          "exit_code": 0
+        },
+        {
+          "lane": "core",
+          "task": "test::codecs",
+          "seconds": 4.83,
+          "exit_code": 0
+        },
+        {
+          "lane": "core",
+          "task": "test::dev-environment",
+          "seconds": 0.08,
+          "exit_code": 0
+        },
+        {
+          "lane": "core",
+          "task": "test::kubectl-transit",
+          "seconds": 3.48,
+          "exit_code": 0
+        },
+        {
+          "lane": "core",
+          "task": "test::deployments",
+          "seconds": 1.71,
+          "exit_code": 0
+        },
+        {
+          "lane": "core",
+          "task": "test::telemetry",
+          "seconds": 1.63,
+          "exit_code": 0
+        },
+        {
+          "lane": "core",
+          "task": "test::packages-build",
+          "seconds": 150.29,
+          "exit_code": 0
+        },
+        {
+          "lane": "core",
+          "task": "test::compute",
+          "seconds": 0.36,
+          "exit_code": 0
+        },
+        {
+          "lane": "core",
+          "task": "test::client-abi",
+          "seconds": 7.03,
+          "exit_code": 0
+        },
+        {
+          "lane": "core",
+          "task": "test::station",
+          "seconds": 195.52,
+          "exit_code": 0
+        },
+        {
+          "lane": "core",
+          "task": "test::storage",
+          "seconds": 469.77,
+          "exit_code": 0
+        },
+        {
+          "lane": "core",
+          "task": "test::service",
+          "seconds": 63.74,
+          "exit_code": 0
+        },
+        {
+          "lane": "core",
+          "task": "test::runtime-upgrade",
+          "seconds": 5.79,
+          "exit_code": 0
+        },
+        {
+          "lane": "core",
+          "task": "test::callers",
+          "seconds": 21.68,
+          "exit_code": 0
+        },
+        {
+          "lane": "core",
+          "task": "test::inspection",
+          "seconds": 7.16,
+          "exit_code": 0
+        },
+        {
+          "lane": "core",
+          "task": "test::state",
+          "seconds": 15.71,
+          "exit_code": 0
+        }
+      ],
+      "log": {
+        "path": "/tmp/rey-issue53-0633d355-core-passed.log",
+        "sha256": "7a6902817a9d7a7f36fc1bf670cd1f4e9946a0433a66a888f8b5907d73fd9cea"
+      }
+    },
+    "experience": {
+      "metadata": {
+        "version": 1,
+        "revision": "0633d355ede2e928407cb4257c52213cb0aa651c",
+        "tier": "experience",
+        "completed": true,
+        "expected_tasks": [
+          "transit-board::check",
+          "transit-docs::check",
+          "bindings::node-check",
+          "test::observability",
+          "transit-board::test",
+          "transit-board::query-test",
+          "launchers::local::test-station"
+        ],
+        "seconds": 555.05,
+        "run_id": null,
+        "run_attempt": null,
+        "machine": {
+          "platform": "Linux-6.17.0-41-generic-x86_64-with-glibc2.42",
+          "logical_cpus": 48,
+          "affinity": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20,
+            21,
+            22,
+            23,
+            24,
+            25,
+            26,
+            27,
+            28,
+            29,
+            30,
+            31,
+            32,
+            33,
+            34,
+            35,
+            36,
+            37,
+            38,
+            39,
+            40,
+            41,
+            42,
+            43,
+            44,
+            45,
+            46,
+            47
+          ],
+          "runner": null,
+          "runner_arch": null
+        }
+      },
+      "tasks": [
+        {
+          "lane": "experience",
+          "task": "transit-board::check",
+          "seconds": 67.71,
+          "exit_code": 0
+        },
+        {
+          "lane": "experience",
+          "task": "transit-docs::check",
+          "seconds": 61.79,
+          "exit_code": 0
+        },
+        {
+          "lane": "experience",
+          "task": "bindings::node-check",
+          "seconds": 6.66,
+          "exit_code": 0
+        },
+        {
+          "lane": "experience",
+          "task": "test::observability",
+          "seconds": 13.53,
+          "exit_code": 0
+        },
+        {
+          "lane": "experience",
+          "task": "transit-board::test",
+          "seconds": 15.29,
+          "exit_code": 0
+        },
+        {
+          "lane": "experience",
+          "task": "transit-board::query-test",
+          "seconds": 82.61,
+          "exit_code": 0
+        },
+        {
+          "lane": "experience",
+          "task": "launchers::local::test-station",
+          "seconds": 307.46,
+          "exit_code": 0
+        }
+      ],
+      "log": {
+        "path": "/tmp/rey-issue53-0633d355-experience-passed.log",
+        "sha256": "5e6f59d2791c0fc9cc2b2c1762052d1f1d5da0515cde7b679ffc42518b03d768"
+      }
+    },
+    "full_check": {
+      "completed": true,
+      "revision": "0633d355ede2e928407cb4257c52213cb0aa651c",
+      "log": {
+        "path": "/tmp/rey-issue53-0633d355-check-passed.log",
+        "sha256": "6adfe5394fee0525eaa414d3245891426a054afd4d11510d0a3a2d342dfd706c"
+      }
+    }
+  },
+  "limits": [
+    "Focused examples use ext4 disk Ursula; Compose and Substrate placement variants were not run.",
+    "The partial growth run is not a completed lane.",
+    "The final committed-revision ordinary suite is recorded separately."
+  ]
+}
