@@ -29,7 +29,8 @@ No rewrite is enabled.
 ordinary statements continue to reject unresolved placeholders. The
 [parameter contract](../SQL_PARAMETERS_V1.md) and
 [shared corpus](corpus/parameters.json) define its exact scope. This does not
-enable named PREPARE/EXECUTE or parameter submission through the CLI/SDKs.
+enable named PREPARE/EXECUTE. The CLI and SDKs submit explicit typed bindings
+through the shared compiler; see the parameter contract.
 
 ## Reproducible reference checks
 

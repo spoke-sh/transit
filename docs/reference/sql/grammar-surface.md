@@ -89,7 +89,7 @@ other administrative SQL families retain their own stated support boundaries.
 | `CREATE CONNECTION`, `CREATE SOURCE`, `CREATE SINK` | **Planned — checked grammar** | Typed options, secret references, dependencies and separately authorized activation; declarations confer no access |
 | `GRANT`, `REVOKE` | **Planned — checked grammar** | Lower to current owning authorization operations; names and PID ownership do not grant rights |
 | `SHOW SOURCES`, `SHOW SINKS`, `SHOW CONNECTIONS` | **Planned — checked grammar** | Authorized paged catalog inspection; a configured-source listing is not a global catalog |
-| Expressions, boolean composition and reusable queries | **Planned — syntax undecided** | Selected SQL expressions with explicit type, five-state conversion and error-order rules; no general evaluator exists today |
+| Further expressions and reusable queries | **Planned — syntax undecided** | Selected SQL expressions with explicit type, five-state conversion and error-order rules; no general evaluator exists today |
 | `JOIN`, `GROUP BY` | **Planned — syntax undecided** | One inner or left int64 equijoin over Tables, optional int64 grouping, count and ordered checked int64 sum; explicit source vectors and bag multiplicity |
 | `ORDER BY`, further expressions, aggregates and query composition | **Planned — syntax undecided** | Broader selected relational operations with explicit error/order semantics and bounded state; individual variants still need contracts |
 | `CREATE VIEW`, `CREATE MATERIALIZED VIEW`, `SUBSCRIBE` | **Planned — syntax undecided** | Named definitions, complete changes, resumable backfill, snapshot/change handoff and current disclosure |
@@ -98,7 +98,7 @@ other administrative SQL families retain their own stated support boundaries.
 | `ALTER`, `DROP`, `TRUNCATE` | **Planned — syntax undecided** | Conditional definition/dependency lifecycle; logical retirement is separate from physical cleanup |
 | `COPY`, SQL `MERGE INTO`, upsert | **Planned — syntax undecided** | Bounded typed transfer or one-resource mutation/conflict semantics; no implicit file/network authority |
 | `BEGIN`, `COMMIT`, `ROLLBACK` | **Planned — syntax undecided** | A defined transaction scope above Station; no implicit cross-resource atomicity or rollback of uncertain commits |
-| `PREPARE`, `EXECUTE`, parameters | **Zig parameter templates; named statements planned** | [Typed `$n` binding](parameters.md) owns plans, checks complete source definitions and current policy; CLI/SDK execution remains separate work |
+| `PREPARE`, `EXECUTE`, parameters | **Explicit parameter bindings; named statements planned** | [Typed `$n` binding](parameters.md) owns plans, checks complete source definitions and current policy; CLI and all SDKs accept explicit bindings; named statements have no execution route |
 | Richer `EXPLAIN` and query description | **Planned — syntax undecided** | Shared logical/physical operators, effects and budgets without executing them; current `EXPLAIN SELECT` remains implemented |
 
 The checked connector, privilege and listing forms have individual pages in the

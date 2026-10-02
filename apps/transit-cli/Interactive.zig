@@ -23,10 +23,14 @@ pub fn sql(console: *Console, request: @import("SqlInput.zig").Request) !void {
     // Ordinary SQL keeps its pure compile path. Explicit bindings use the
     // shared compiler's current-access checks; opening still validates authority
     // independently before acquiring any data.
+    var binding: q.fuze.Sql.Binding = .{};
     const bundle = if (request.parameters != null) compiled: {
         const result = (q.Workspace.apply(allocator, console.client, console.config, .{ .compile = request }) catch |err| return console.sqlFailure(statement, err)).compiled;
         break :compiled try q.Bundle.decode(allocator, try q.Values.unhex(allocator, result.bundle, q.Bundle.max_bytes));
-    } else q.Bundle.fromSql(allocator, source, try .init(console.config.name), statement, try console.config.limits.native()) catch |err| return console.sqlFailure(statement, err);
+    } else q.Bundle.fromSqlDiagnostic(allocator, source, try .init(console.config.name), statement, try console.config.limits.native(), &binding) catch |err| {
+        console.diagnostic.sql = q.fuze.SqlDiagnostic.bound(statement, err, true, binding);
+        return err;
+    };
     try interrupted();
     timing.enter(.open);
     var nonce: [16]u8 = undefined;

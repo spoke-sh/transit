@@ -72,6 +72,20 @@ Syntax/binding failures use INVALID_ARGUMENT; unavailable syntax or interfaces
 use UNIMPLEMENTED. The [console guide](../../apps/transit-cli/docs/console.md#sql-errors)
 shows the display and explains how compile failures differ from uncertain work.
 
+Interactive console and file-query binding errors identify the failing name,
+source scope and statement location. Type mismatches include expected and
+supplied types and the relevant caller-supplied scalar; text/binary previews
+escape controls and show at most 32 bytes with explicit truncation. These local
+details are correction context, not telemetry. They do not fetch stored values
+or inaccessible catalog candidates. Parameter failures distinguish index gaps,
+incompatible repeated types, missing bindings and changed prepared sources.
+
+File-query failures retain the source path, logical record and record-start byte
+when known, and the field for decoding failures. Record numbering is local to
+each file and includes the CSV header; it is not a physical line number for
+multiline records. A failure after output starts marks any emitted prefix as
+incomplete. `LIMIT` does not bypass required source validation.
+
 State definitions have an offline Zig compiler. Shared Zig/C ABI/native-port
 catalog callers and the [console](../../apps/transit-cli/docs/console.md#writing-tables-and-catalogs)
 also create and publish named two-column Tables. General SQL administrative

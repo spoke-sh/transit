@@ -12080,3 +12080,21 @@ presentation change. It checks one human conflict diagnostic, empty human
 result stdout on rejection, exact key/row in JSON, `.status` parity, absence of
 uncertainty advice on terminal rejection, rollback and existing interruption,
 lost-reply and policy-race recovery schedules.
+
+
+### Compiler and file diagnostic attribution
+
+On 2026-10-02, `just check` and `just test::file-query` pass with owned compiler
+binding context and file failure attribution. The focused rerun of
+`just test::unit test::cli-diagnostics test::file-query` passes after adding
+submitted-mutation context. The CLI suite executes 456 cases; the file suite
+executes 184. New cases check unknown subjects, qualifiers and scopes, exact
+expected/supplied types, bounded supplied literals, repeated INSERT keys and
+both input positions. Multiple-file runtime failures identify the failing
+file, logical record, record-start byte and field after LIMIT 0 or LIMIT 1;
+partial output has no completion marker. Byte columns and logical records are
+not presented as Unicode display columns or physical file lines.
+
+These results establish local compiler and file presentation. They do not
+establish retained runtime query causes or a shared structured diagnostic
+contract across remote adapters; those remain in M44.

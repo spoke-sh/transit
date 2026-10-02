@@ -10,7 +10,8 @@ pub const Location = struct { offset: usize = 0, expected: ?[]const u8 = null };
 pub const max_comment_depth = 16;
 pub const max_literal_bytes = 2 + 2 * m.max_cell_bytes;
 
-pub const Column = struct { qualifier: ?m.Name = null, name: m.Name };
+pub const Column = struct { qualifier: ?m.Name = null, name: m.Name, offset: ?usize = null };
+pub const Binding = @import("SqlBinding.zig");
 pub const ProjectionItem = struct { column: Column, alias: ?m.Name = null };
 /// All null means star. Explicit names form a contiguous bounded prefix.
 pub const Projection = [f.Unified.max_columns]?ProjectionItem;
@@ -38,6 +39,7 @@ pub const Predicate = union(enum) {
 pub const Input = struct { projection: Projection, limit: ?u64, alias: m.Name };
 pub const Ast = struct {
     source: m.Name,
+    source_offset: ?usize = null,
     source_alias: ?m.Name = null,
     selection: Selection,
     output_alias: ?m.Name = null,
@@ -251,6 +253,7 @@ fn statement(parser: *Parser, ast: *Ast) !void {
         var projected: Projection = undefined;
         try parser.projection(&projected);
         try parser.requireWord("FROM");
+        ast.source_offset = if (parser.location != null) parser.lexer.start else null;
         ast.source = try parser.name();
         if (parser.assistance) |h| h.source = ast.source;
         ast.source_alias = try parser.sourceAlias();
@@ -265,6 +268,7 @@ fn statement(parser: *Parser, ast: *Ast) !void {
         try parser.end();
         return;
     }
+    ast.source_offset = if (parser.location != null) parser.lexer.start else null;
     ast.source = try parser.name();
     if (parser.assistance) |h| h.source = ast.source;
     ast.source_alias = try parser.sourceAlias();
@@ -478,20 +482,22 @@ const Parser = struct {
         const previous = self.name_role;
         self.name_role = .column;
         defer self.name_role = previous;
+        const offset: ?usize = if (self.location != null) self.lexer.start else null;
         const first = try self.name();
         if (try self.take(.dot)) {
             if (self.assistance) |h| h.qualifier = first;
             const column_name = try self.name();
             if (self.assistance) |h| h.qualifier = null;
-            return .{ .qualifier = first, .name = column_name };
+            return .{ .qualifier = first, .name = column_name, .offset = offset };
         }
-        return .{ .name = first };
+        return .{ .name = first, .offset = offset };
     }
     fn projection(self: *Parser, result: *Projection) !void {
         result.* = @splat(null);
         if (try self.take(.star)) return;
         for (result, 0..) |*column_value, index| {
             const column_ref = try self.column();
+            if (self.token.tag == .left) return error.UnsupportedAggregate;
             column_value.* = .{ .column = column_ref, .alias = try self.outputAlias() };
             if (index + 1 == result.len) {
                 if (self.token.tag == .comma) return error.InvalidProjection;

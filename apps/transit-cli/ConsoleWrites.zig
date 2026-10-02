@@ -173,7 +173,11 @@ pub fn start(self: *Self, console: *Console, text: []const u8, route: q.fuze.Sql
             const writer = if (self.mutation) |*client| client else return error.ConsoleWriterRequired;
             const description = try self.readOnly(q.TableMutationClient.describe, .{writer});
             timing.enter(.compile);
-            const request = q.TableMutationRequest.fromSql(writer.connection.realm, writer.connection.writer, description.table, self.record.name.?, text) catch |err| return console.sqlFailure(text, err);
+            var binding: q.fuze.Sql.Binding = .{};
+            const request = q.TableMutationRequest.fromSqlDiagnostic(writer.connection.realm, writer.connection.writer, description.table, self.record.name.?, text, &binding) catch |err| {
+                console.diagnostic.sql = q.fuze.SqlDiagnostic.bound(text, err, true, binding);
+                return err;
+            };
             if (!description.policy.permits(request.plan.operation)) return error.MutationDenied;
             timing.enter(.prepare);
             const namespace = try identity(self.io);

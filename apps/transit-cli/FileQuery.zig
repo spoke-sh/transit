@@ -186,6 +186,13 @@ pub fn run(init: std.process.Init, args: []const []const u8, diagnostic: *Diagno
     if (options.has_null) options.source.dialect.null_tokens = &options.null_token;
     var signals = try Signals.install();
     defer signals.close();
+    var stage: @import("FileDiagnostic.zig").Stage = .capture;
+    var location: f.FileSource.Location = .{};
+    var output_started = false;
+    var limited = false;
+    errdefer if (diagnostic.sql == null) {
+        diagnostic.source = .{ .stage = stage, .path = if (location.source) |index| options.paths[index] else diagnostic.file, .location = location, .output_started = output_started, .limited = limited, .max_record_bytes = options.source.max_record_bytes, .max_records = options.source.max_records, .max_scan_bytes = options.source.max_scan_bytes };
+    };
     var explicit: ?f.Types.Decoded = null;
     defer if (explicit) |*owner| owner.deinit();
     if (options.schema) |path| {
@@ -208,14 +215,28 @@ pub fn run(init: std.process.Init, args: []const []const u8, diagnostic: *Diagno
         count += 1;
     }
     diagnostic.file = null;
-    var binding = try f.FileSource.discover(init.gpa, sources[0..count], options.source, if (explicit) |owner| owner.type.structure else &.{});
+    stage = .schema;
+    var binding = try f.FileSource.discoverDiagnostic(init.gpa, sources[0..count], options.source, if (explicit) |owner| owner.type.structure else &.{}, &location);
     defer binding.deinit();
-    var compiled = try f.FileQuery.compile(init.gpa, options.sql.?, "input", &binding);
+    stage = .compile;
+    var context: f.Sql.Binding = .{};
+    var compiled = f.FileQuery.compileDiagnostic(init.gpa, options.sql.?, "input", &binding, &context) catch |err| {
+        diagnostic.sql = f.SqlDiagnostic.bound(options.sql.?, err, false, context);
+        if (diagnostic.sql) |*failure| failure.hint = "Use the source name input and columns in the file schema. Run transit file-query --help for supported syntax, schema and type options.";
+        return err;
+    };
     defer compiled.deinit();
     var execution = try f.FileQuery.Execution.init(init.gpa, &binding, sources[0..count], compiled.plan);
     defer execution.deinit();
+    stage = .execute;
+    limited = compiled.plan.limit != null;
+    errdefer {
+        location = execution.scan.position();
+        if (!execution.scan.failed) location.field_len = 0;
+    }
     var fields: [128]f.Types.Field = undefined;
     const schema = try compiled.plan.outputSchema(&fields);
+    output_started = true;
     if (options.output == .arrow) return arrowOutput(init, &binding, &execution, schema, options.batch_rows);
     const basis = std.fmt.bytesToHex(binding.digest, .lower);
     const plan = std.fmt.bytesToHex(execution.fingerprint, .lower);

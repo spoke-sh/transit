@@ -217,6 +217,10 @@ pub const Compiled = struct {
     }
 };
 pub fn compile(allocator: std.mem.Allocator, text: []const u8, name: []const u8, binding: *const source.Binding) !Compiled {
+    return compileDiagnostic(allocator, text, name, binding, null);
+}
+pub fn compileDiagnostic(allocator: std.mem.Allocator, text: []const u8, name: []const u8, binding: *const source.Binding, diagnostic: ?*@import("Sql.zig").Binding) !Compiled {
+    if (diagnostic) |detail| detail.* = .{};
     try binding.validateMetadata();
     var descriptor = try binding.schema.type.clone(allocator);
     errdefer descriptor.deinit();
@@ -225,12 +229,13 @@ pub fn compile(allocator: std.mem.Allocator, text: []const u8, name: []const u8,
     errdefer arena.deinit();
     const alloc = arena.allocator();
     var ast: @import("Sql.zig").Ast = undefined;
-    try @import("Sql.zig").parseInto(text, &ast, null);
+    var location: @import("Sql.zig").Location = .{};
+    try @import("Sql.zig").parseInto(text, &ast, if (diagnostic != null) &location else null);
     var names: [128][]const u8 = undefined;
     for (schema.structure, 0..) |field, i| names[i] = field.name;
     var input: [128]u8 = undefined;
     var projected: [128]u8 = undefined;
-    const shape = try lowering.lower(&ast, name, names[0..schema.structure.len], &input, &projected);
+    const shape = try lowering.lowerDiagnostic(&ast, name, names[0..schema.structure.len], &input, &projected, diagnostic);
     var output_names: [@import("Unified.zig").max_columns]?[]const u8 = undefined;
     if (shape.input) |*inner| {
         try (Plan{ .schema = schema, .source_basis = binding.digest, .projection = inner.columns, .output_names = namesView(inner.names, &output_names, inner.columns.len) }).validateShape();
@@ -249,7 +254,7 @@ pub fn compile(allocator: std.mem.Allocator, text: []const u8, name: []const u8,
             const qualifier = ast.source_alias orelse ast.source;
             for (program.instructions[0..program.count], instructions) |instruction, *output| {
                 output.* = switch (instruction) {
-                    .atom => |atom| .{ .atom = try lowerAtom(alloc, try lowering.lowerAtom(try program.expand(atom), qualifier.slice(), names[0..schema.structure.len]), schema) },
+                    .atom => |atom| .{ .atom = try lowerAtom(alloc, try lowering.lowerAtomDiagnostic(try program.expand(atom), qualifier.slice(), names[0..schema.structure.len], diagnostic), schema, diagnostic) },
                     .negate => .negate,
                     .conjunction => .conjunction,
                     .disjunction => .disjunction,
@@ -258,7 +263,7 @@ pub fn compile(allocator: std.mem.Allocator, text: []const u8, name: []const u8,
             break :blk .{ .program = .{ .instructions = instructions } };
         },
         inline else => |value, tag| blk: {
-            const atom = try lowerAtom(alloc, @unionInit(lowering.Atom, @tagName(tag), value), schema);
+            const atom = try lowerAtom(alloc, @unionInit(lowering.Atom, @tagName(tag), value), schema, diagnostic);
             break :blk switch (atom) {
                 inline else => |item, kind| @unionInit(@FieldType(Plan, "predicate"), @tagName(kind), item),
             };
@@ -267,7 +272,7 @@ pub fn compile(allocator: std.mem.Allocator, text: []const u8, name: []const u8,
     try plan.validateShape();
     return .{ .arena = arena, .descriptor = descriptor, .plan = plan };
 }
-fn lowerAtom(allocator: std.mem.Allocator, atom: lowering.Atom, schema: types.Type) !Plan.Atom {
+fn lowerAtom(allocator: std.mem.Allocator, atom: lowering.Atom, schema: types.Type, diagnostic: ?*@import("Sql.zig").Binding) !Plan.Atom {
     return switch (atom) {
         .all => .all,
         .state => |state| .{ .state = .{ .column = state.column, .value = state.value } },
@@ -275,7 +280,14 @@ fn lowerAtom(allocator: std.mem.Allocator, atom: lowering.Atom, schema: types.Ty
             const scalar = try @import("UnifiedSql.zig").scalar(allocator, comparison.literal);
             // Native and file SQL have identical literal admission; no implicit
             // cast or reinterpretation of a string as an exact number.
-            try scalar.validate(try schema.structure[comparison.column].type.queryType());
+            scalar.validate(try schema.structure[comparison.column].type.queryType()) catch |err| {
+                if (diagnostic) |detail| {
+                    detail.expected = @tagName(schema.structure[comparison.column].type);
+                    detail.actual = @tagName(scalar);
+                    @import("Sql.zig").Binding.supplied(detail, scalar);
+                }
+                return err;
+            };
             const cell = try values.fromQuery(.{ .value = scalar });
             break :blk .{ .compare = .{ .column = comparison.column, .op = comparison.op, .value = cell.value.atom } };
         },

@@ -131,6 +131,8 @@ const Reader = struct {
     offset: u64 = 0,
     consumed: u64 = 0,
     previous_record: u64 = 0,
+    logical_record: u64 = 0,
+    record_start: u64 = 0,
     record_bytes: u64 = 0,
     hash: std.crypto.hash.sha2.Sha256 = .init(.{}),
     verified: bool = false,
@@ -139,6 +141,8 @@ const Reader = struct {
         return .{ .source = source, .framer = try framing.Framer.init(options.format, options.dialect, record) };
     }
     fn next(self: *Reader) !?[]u8 {
+        self.logical_record = std.math.add(u64, self.logical_record, 1) catch return error.SourceWorkExceeded;
+        self.record_start = self.consumed;
         try self.source.check(self.source.context);
         if (self.framer.ready) try self.framer.release();
         if (self.framer.ended) return null;
@@ -196,6 +200,10 @@ const Header = struct {
     }
 };
 pub fn discover(allocator: std.mem.Allocator, sources: []const Source, options: Options, overrides: []const types.Field) !Binding {
+    return discoverDiagnostic(allocator, sources, options, overrides, null);
+}
+pub fn discoverDiagnostic(allocator: std.mem.Allocator, sources: []const Source, options: Options, overrides: []const types.Field, diagnostic: ?*Location) !Binding {
+    if (diagnostic) |location| location.* = .{};
     try options.validate();
     const source_digest = try sourceDigest(sources, options);
     const options_digest = try options.fingerprint();
@@ -205,8 +213,13 @@ pub fn discover(allocator: std.mem.Allocator, sources: []const Source, options: 
     var evidence: Evidence = .{};
     const record_buffer = try allocator.alloc(u8, options.max_record_bytes);
     defer allocator.free(record_buffer);
-    for (sources) |source| {
+    for (sources, 0..) |source, source_index| {
+        if (diagnostic) |location| location.* = .{ .source = source_index };
         var reader = try Reader.init(source, options, record_buffer);
+        errdefer if (diagnostic) |location| {
+            location.record = reader.logical_record;
+            location.byte = reader.record_start;
+        };
         var header: Header = .{};
         var first = true;
         while (try reader.next()) |record| {
@@ -244,6 +257,7 @@ pub fn discover(allocator: std.mem.Allocator, sources: []const Source, options: 
         if (first and options.format == .csv and options.dialect.header and options.mode != .explicit) return error.MissingCsvHeader;
         try source.check(source.context);
     }
+    if (diagnostic) |location| location.* = .{};
     var schema = if (options.mode == .explicit) blk: {
         var buffer: [types.max_encoding_bytes]u8 = undefined;
         break :blk try types.decode(allocator, try (types.Type{ .structure = overrides }).encode(&buffer));
@@ -288,7 +302,24 @@ pub const Row = struct {
         self.* = undefined;
     }
 };
+/// Source-local logical record coordinates, including a CSV header. Byte is
+/// the zero-based record start in the captured, expanded input, not a guessed
+/// physical line or the reader's prefetched offset.
+pub const Location = struct {
+    source: ?usize = null,
+    record: ?u64 = null,
+    byte: ?u64 = null,
+    field: [128]u8 = @splat(0),
+    field_len: usize = 0,
+    field_truncated: bool = false,
+    pub fn name(self: *Location, value: []const u8) void {
+        self.field_len = @min(value.len, self.field.len);
+        @memcpy(self.field[0..self.field_len], value[0..self.field_len]);
+        self.field_truncated = value.len > self.field.len;
+    }
+};
 pub const Scan = struct {
+    location: Location = .{},
     allocator: std.mem.Allocator,
     binding: *const Binding,
     sources: []const Source,
@@ -307,6 +338,15 @@ pub const Scan = struct {
         self.allocator.free(self.record_buffer);
         self.* = undefined;
     }
+    pub fn position(self: *const Scan) Location {
+        var result = self.location;
+        result.source = if (self.file < self.sources.len) self.file else null;
+        if (self.reader) |reader| {
+            result.record = reader.logical_record;
+            result.byte = reader.record_start;
+        }
+        return result;
+    }
     pub fn next(self: *Scan) !?Row {
         if (self.failed) return error.FailedSource;
         if (self.complete) return null;
@@ -317,6 +357,7 @@ pub const Scan = struct {
                 self.reader = try Reader.init(self.sources[self.file], self.binding.options, self.record_buffer);
                 self.header = .{};
             }
+            self.location = .{};
             const record = (try self.reader.?.next()) orelse {
                 if (!self.reader.?.verified) return error.IncompleteSource;
                 self.reader = null;
@@ -333,7 +374,10 @@ pub const Scan = struct {
                 const parsed = try framing.csv(record, self.binding.options.dialect, fields[0..self.binding.options.max_fields]);
                 if (self.header.count == 0) {
                     try self.header.fromFields(parsed, self.binding.options.dialect.header);
-                    for (self.header.names[0..self.header.count]) |name| if (findField(schema, name) == null) return error.UnknownField;
+                    for (self.header.names[0..self.header.count]) |name| if (findField(schema, name) == null) {
+                        self.location.name(name);
+                        return error.UnknownField;
+                    };
                     if (self.binding.options.dialect.header) {
                         arena.deinit();
                         continue;
@@ -341,6 +385,7 @@ pub const Scan = struct {
                 }
                 if (parsed.len != self.header.count) return error.RaggedCsvRow;
                 for (schema, cells) |field, *cell| {
+                    self.location.name(field.name);
                     const index = for (self.header.names[0..self.header.count], 0..) |name, i| {
                         if (std.mem.eql(u8, field.name, name)) break i;
                     } else null;
@@ -354,8 +399,12 @@ pub const Scan = struct {
                 defer parsed.deinit();
                 if (parsed.value != .object) return error.JsonObjectRequired;
                 if (self.binding.options.mode == .raw) cells[0] = .{ .value = .{ .json = try alloc.dupe(u8, record) } } else {
-                    for (parsed.value.object.keys()) |key| if (findField(schema, key) == null) return error.UnknownField;
+                    for (parsed.value.object.keys()) |key| if (findField(schema, key) == null) {
+                        self.location.name(key);
+                        return error.UnknownField;
+                    };
                     for (schema, cells) |field, *cell| {
+                        self.location.name(field.name);
                         cell.* = if (parsed.value.object.get(field.name)) |value| try jsonCell(alloc, value, field.type, self.binding.options.mismatch, 0) else .missing;
                         try cell.validate(field, .{});
                     }

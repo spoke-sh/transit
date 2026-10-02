@@ -12,8 +12,11 @@ limits: Limits,
 /// The SQL name is a caller-owned alias for this explicit source definition.
 /// Returned plan slices belong to allocator; source slices retain their owner.
 pub fn fromSql(allocator: std.mem.Allocator, source: q.SourceDefinition, name: m.Name, text: []const u8, limits: Limits) !Self {
+    return fromSqlDiagnostic(allocator, source, name, text, limits, null);
+}
+pub fn fromSqlDiagnostic(allocator: std.mem.Allocator, source: q.SourceDefinition, name: m.Name, text: []const u8, limits: Limits, diagnostic: ?*q.fuze.Sql.Binding) !Self {
     var columns: [m.max_columns]m.Column = undefined;
-    const plan = try m.Sql.plan(allocator, text, .{ .name = name, .schema = try source.schema(&columns) });
+    const plan = try m.Sql.planDiagnostic(allocator, text, .{ .name = name, .schema = try source.schema(&columns) }, diagnostic);
     const result: Self = .{ .source = source, .plan = plan, .limits = limits };
     try result.validate();
     return result;

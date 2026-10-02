@@ -483,6 +483,14 @@ display. At most 120 source bytes around the failure are shown. Literal values,
 quoted identifiers and comments are masked, including unfinished tokens. These
 excerpts appear in local stderr diagnostics, not telemetry or result stdout.
 
+Binding errors separately identify the failing source, column or qualifier and
+its scope. Expected/supplied types and a bounded escaped caller-supplied value
+explain type mismatches. Text and binary previews contain at most 32 bytes and
+mark truncation. A derived-table error names the derived scope; the compiler
+does not suggest inaccessible catalog names or reread stored values for detail.
+`SHOW SOURCES`, `SHOW SINKS` and `SHOW CONNECTIONS` report their unsupported
+execution route locally, even when the configured authority is unavailable.
+
 The categories distinguish syntax errors, unsupported constructs, exceeded
 bounds, source/type binding failures, grammar-only families and operations
 unavailable on the query interface. Grammar-family recognition alone does not

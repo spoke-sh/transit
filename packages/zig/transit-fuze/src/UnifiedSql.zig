@@ -6,21 +6,29 @@ const m = f.Unified;
 const sql = f.Sql;
 pub const Source = struct { name: m.Name, schema: m.Schema };
 pub fn plan(allocator: std.mem.Allocator, text: []const u8, source: Source) !m.Plan {
+    return planDiagnostic(allocator, text, source, null);
+}
+pub fn planDiagnostic(allocator: std.mem.Allocator, text: []const u8, source: Source, diagnostic: ?*sql.Binding) !m.Plan {
+    if (diagnostic) |value| value.* = .{};
     var ast: sql.Ast = undefined;
-    try sql.parseInto(text, &ast, null);
+    var location: sql.Location = .{};
+    try sql.parseInto(text, &ast, if (diagnostic != null) &location else null);
     var result: m.Plan = undefined;
-    try compileInto(allocator, &ast, source, &result);
+    try compileInto(allocator, &ast, source, &result, diagnostic);
     return result;
 }
 pub fn compile(allocator: std.mem.Allocator, ast: sql.Ast, source: Source) !m.Plan {
     var result: m.Plan = undefined;
-    try compileInto(allocator, &ast, source, &result);
+    try compileInto(allocator, &ast, source, &result, null);
     return result;
 }
-fn compileInto(allocator: std.mem.Allocator, ast: *const sql.Ast, source: Source, result: *m.Plan) !void {
+fn compileInto(allocator: std.mem.Allocator, ast: *const sql.Ast, source: Source, result: *m.Plan, diagnostic: ?*sql.Binding) !void {
     if (ast.unbound_parameters) return error.UnboundParameters;
     try source.schema.validate();
-    if (!sameName(ast.source, source.name)) return error.UnknownSource;
+    if (!sameName(ast.source, source.name)) {
+        sql.Binding.at(diagnostic, .{ .name = ast.source, .offset = ast.source_offset }, source.name.slice());
+        return error.UnknownSource;
+    }
     if (ast.selection != .rows and ast.limit != null) return error.UnsupportedAggregateLimit;
     if (ast.input != null and ast.selection == .rows) return error.UnsupportedConstruct;
     if (ast.selection == .rows and ast.output_alias != null) return error.InvalidOutputNames;
@@ -32,13 +40,13 @@ fn compileInto(allocator: std.mem.Allocator, ast: *const sql.Ast, source: Source
     // have a validated source schema and use its column indices unchanged.
     if (ast.input) |value| {
         var inner: m.Plan = undefined;
-        try projection(value.projection, source_qualifier, source.schema, &input, &inner);
+        try projection(value.projection, source_qualifier, source.schema, &input, &inner, diagnostic);
         input_schema = try inner.outputSchema(source.schema, &input_columns);
     }
     const qualifier = if (ast.input) |value| try ownedName(value.alias) else source_qualifier;
     var selected: [m.max_columns]u8 = undefined;
     switch (ast.selection) {
-        .rows => |value| try projection(value, qualifier, source.schema, &selected, result),
+        .rows => |value| try projection(value, qualifier, source.schema, &selected, result, diagnostic),
         .count => {
             // Count consumes rows; a single validated input column carries the
             // required plan shape without inspecting its value or state.
@@ -46,7 +54,15 @@ fn compileInto(allocator: std.mem.Allocator, ast: *const sql.Ast, source: Source
             result.* = .{ .projection = selected[0..1], .aggregate = .count };
         },
         .sum, .count_values => |column| {
-            const index = try resolve(column, qualifier, input_schema);
+            const index = try resolve(column, qualifier, input_schema, diagnostic);
+            if (ast.selection == .sum and input_schema.columns[index].type != .int64) {
+                sql.Binding.at(diagnostic, column, qualifier.slice());
+                if (diagnostic) |detail| {
+                    detail.expected = "int64";
+                    detail.actual = @tagName(input_schema.columns[index].type);
+                }
+                return error.UnsupportedAggregate;
+            }
             selected[0] = if (ast.input != null) input[index] else index;
             result.* = .{ .projection = selected[0..1], .aggregate = if (ast.selection == .sum) .sum else .count_values };
         },
@@ -71,7 +87,7 @@ fn compileInto(allocator: std.mem.Allocator, ast: *const sql.Ast, source: Source
                 };
                 for (program.instructions[0..program.count]) |instruction| {
                     owned.instructions[owned.count] = switch (instruction) {
-                        .atom => |value| .{ .atom = try lowerAtom(allocator, try program.expand(value), source_qualifier.slice(), column_names[0..source.schema.columns.len]) },
+                        .atom => |value| .{ .atom = try lowerAtom(allocator, try program.expand(value), source_qualifier.slice(), column_names[0..source.schema.columns.len], source.schema, diagnostic) },
                         .negate => .negate,
                         .conjunction => .conjunction,
                         .disjunction => .disjunction,
@@ -80,7 +96,7 @@ fn compileInto(allocator: std.mem.Allocator, ast: *const sql.Ast, source: Source
                 }
             },
             inline else => |value, tag| {
-                const atom = try lowerAtom(allocator, @unionInit(sql.PredicateAtom, @tagName(tag), value), source_qualifier.slice(), column_names[0..source.schema.columns.len]);
+                const atom = try lowerAtom(allocator, @unionInit(sql.PredicateAtom, @tagName(tag), value), source_qualifier.slice(), column_names[0..source.schema.columns.len], source.schema, diagnostic);
                 switch (atom) {
                     inline else => |item, kind| result.predicate = @unionInit(m.Plan.Predicate, @tagName(kind), item),
                 }
@@ -96,12 +112,38 @@ pub fn deinit(allocator: std.mem.Allocator, compiled: *const m.Plan) void {
     allocator.free(compiled.projection);
     freePredicate(allocator, &compiled.predicate);
 }
-fn lowerAtom(allocator: std.mem.Allocator, atom: sql.PredicateAtom, source: []const u8, columns: []const []const u8) !m.Plan.Atom {
-    return switch (try @import("SqlLowering.zig").lowerAtom(atom, source, columns)) {
+fn lowerAtom(allocator: std.mem.Allocator, atom: sql.PredicateAtom, source: []const u8, columns: []const []const u8, schema: m.Schema, diagnostic: ?*sql.Binding) !m.Plan.Atom {
+    errdefer if (atom != .all) {
+        const column = switch (atom) {
+            .state => |v| v.column,
+            .compare => |v| v.column,
+            else => unreachable,
+        };
+        if (diagnostic == null or diagnostic.?.subject == null) sql.Binding.at(diagnostic, column, source);
+    };
+    const lowered = @import("SqlLowering.zig").lowerAtom(atom, source, columns) catch |err| {
+        if (atom != .all) sql.Binding.atError(diagnostic, switch (atom) {
+            .state => |v| v.column,
+            .compare => |v| v.column,
+            else => unreachable,
+        }, source, err);
+        return err;
+    };
+    const result: m.Plan.Atom = switch (lowered) {
         .all => .all,
         .state => |state| .{ .state = .{ .column = state.column, .value = state.value } },
         .compare => |value| .{ .compare = .{ .column = value.column, .op = value.op, .value = try scalar(allocator, value.literal) } },
     };
+    errdefer freeAtom(allocator, result);
+    result.validate(schema) catch |err| {
+        if (diagnostic) |detail| if (result == .compare) {
+            detail.expected = @tagName(schema.columns[result.compare.column].type);
+            detail.actual = @tagName(result.compare.value);
+            sql.Binding.supplied(detail, result.compare.value);
+        };
+        return err;
+    };
+    return result;
 }
 fn freeAtom(allocator: std.mem.Allocator, atom: m.Plan.Atom) void {
     if (atom == .compare) switch (atom.compare.value) {
@@ -125,12 +167,16 @@ fn ownedName(name: f.model.Name) !m.Name {
     if (name.len > name.bytes.len or !std.meta.eql(name, try f.model.Name.init(name.slice()))) return error.InvalidColumnName;
     return m.Name.init(name.slice());
 }
-fn resolve(column: sql.Column, qualifier: m.Name, schema: m.Schema) !u8 {
-    if (column.qualifier) |name| if (!sameName(name, qualifier)) return error.UnknownQualifier;
+fn resolve(column: sql.Column, qualifier: m.Name, schema: m.Schema, diagnostic: ?*sql.Binding) !u8 {
+    if (column.qualifier) |name| if (!sameName(name, qualifier)) {
+        sql.Binding.atError(diagnostic, column, qualifier.slice(), error.UnknownQualifier);
+        return error.UnknownQualifier;
+    };
     for (schema.columns, 0..) |item, index| if (sameName(item.name, column.name)) return @intCast(index);
+    sql.Binding.at(diagnostic, column, qualifier.slice());
     return error.UnknownColumn;
 }
-fn projection(value: sql.Projection, qualifier: m.Name, schema: m.Schema, output: *[m.max_columns]u8, result: *m.Plan) !void {
+fn projection(value: sql.Projection, qualifier: m.Name, schema: m.Schema, output: *[m.max_columns]u8, result: *m.Plan, diagnostic: ?*sql.Binding) !void {
     if (value[0] == null) {
         for (value[1..]) |column| if (column != null) return error.InvalidProjection;
         for (0..schema.columns.len) |i| output[i] = @intCast(i);
@@ -141,9 +187,20 @@ fn projection(value: sql.Projection, qualifier: m.Name, schema: m.Schema, output
     var names: [m.max_columns]?m.Name = @splat(null);
     for (value) |column| {
         if (column) |selected| {
-            const index = try resolve(selected.column, qualifier, schema);
+            const index = try resolve(selected.column, qualifier, schema, diagnostic);
             output[count] = index;
             if (selected.alias) |alias| names[count] = try ownedName(alias);
+            for (0..count) |previous| {
+                const current_name = names[count] orelse schema.columns[index].name;
+                const previous_name = names[previous] orelse schema.columns[output[previous]].name;
+                if (sameName(current_name, previous_name)) {
+                    sql.Binding.at(diagnostic, selected.column, qualifier.slice());
+                    if (diagnostic) |detail| if (selected.alias) |alias| {
+                        detail.subject = alias;
+                    };
+                    return if (index == output[previous]) error.DuplicateProjection else error.DuplicateColumn;
+                }
+            }
             count += 1;
         } else {
             for (value[count..]) |remaining| if (remaining != null) return error.InvalidProjection;

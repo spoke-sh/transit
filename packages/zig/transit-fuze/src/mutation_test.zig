@@ -103,3 +103,22 @@ test "mutation variable-width literals enforce the Table storage boundary" {
     try t.expectEqualSlices(u8, &@as([220]u8, @splat(255)), updated.operation.update.value.binary.slice());
     try t.expectError(error.InvalidBinaryLiteral, mutation.compile("INSERT INTO items (id,value) VALUES(1,'\\x0'::bytea)", try target(.binary)));
 }
+
+test "mutation compiler distinguishes submitted duplicate keys null keys and value type errors" {
+    var detail: f.Sql.Binding = .{};
+    try t.expectError(error.DuplicateMutationKey, mutation.compileDiagnostic("INSERT INTO items (value,id) VALUES (10,-1),(20,-1)", try target(.int64), &detail));
+    try t.expectEqualStrings("id", detail.subject.?.slice());
+    try t.expectEqual(-1, detail.key.?);
+    try t.expectEqual(2, detail.input_row.?);
+    try t.expectEqual(1, detail.previous_row.?);
+    try t.expectError(error.NullPrimaryKey, mutation.compileDiagnostic("INSERT INTO items (id,value) VALUES (NULL,10)", try target(.int64), &detail));
+    try t.expectEqualStrings("id", detail.subject.?.slice());
+    try t.expectEqualStrings("int64", detail.expected.?);
+    try t.expectEqualStrings("null", detail.actual.?);
+    try t.expectEqual(null, detail.key);
+    try t.expectError(error.TypeMismatch, mutation.compileDiagnostic("INSERT INTO items (id,value) VALUES (1,10),(2,'bad')", try target(.int64), &detail));
+    try t.expectEqualStrings("value", detail.subject.?.slice());
+    try t.expectEqualStrings("int64", detail.expected.?);
+    try t.expectEqualStrings("utf8", detail.actual.?);
+    try t.expectEqual(2, detail.input_row.?);
+}

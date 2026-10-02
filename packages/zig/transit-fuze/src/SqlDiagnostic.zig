@@ -19,6 +19,8 @@ column: usize = 1,
 context: [512]u8 = @splat(0),
 context_len: usize = 0,
 caret: usize = 0,
+detail: [512]u8 = @splat(0),
+detail_len: usize = 0,
 
 const mutation_hint = "Use explicit column names for INSERT, for example INSERT INTO items (id, value) VALUES (1, 100). Use .help INSERT in the console to configure an authorized Table writer and discover execution and recovery. A query connection does not grant writes.";
 const read_hint = "Use .help SQL in the console for supported syntax; .schema and .sources show the configured columns and source.";
@@ -29,6 +31,8 @@ const grammar_hint = "This statement family has no executable SQL route; its sub
 /// `inspection` means this interface accepts DESCRIBE/SHOW TABLES/EXPLAIN.
 pub fn query(text: []const u8, cause: anyerror, inspection: bool) ?Self {
     const semantic = switch (cause) {
+        error.InvalidColumnCount => "Check the column count allowed by this source profile.",
+        error.InvalidMutationPlan => "Supply one to three distinct typed INSERT rows, one value UPDATE or one primary-key DELETE.",
         error.UnknownSource => "The source is not the configured source or Table writer name. Use .sources in the console and use the exact configured name; CREATE TABLE does not configure a query source.",
         error.UnknownColumn, error.UnknownQualifier => "Use .schema and .sources in the console to check exact column names and the source qualifier.",
         error.DuplicateProjection, error.InvalidProjection, error.InvalidOutputNames => "Select one to eight output positions with distinct result names. Use explicit AS names when selecting an input column more than once.",
@@ -37,11 +41,33 @@ pub fn query(text: []const u8, cause: anyerror, inspection: bool) ?Self {
         error.UnsupportedAggregate => "Use COUNT(*), COUNT(column), or SUM on an int64 column; other aggregate forms are unsupported.",
         error.UnsupportedTableColumnCount, error.UnspecifiedNullability, error.UnsupportedTableKey, error.UnsupportedTableNullability, error.UnsupportedTableType => "CREATE TABLE requires exactly two columns: an INT64 NOT NULL key and a nullable INT64, BOOL, UTF8 or BINARY value. Use .help CREATE TABLE in the console.",
         error.DuplicateColumn => "Use distinct result names in SELECT, assigning names with AS where needed. Declarations also require distinct column names.",
+        error.NullPrimaryKey => "Supply a non-NULL INT64 primary key. No mutation command was prepared.",
+        error.ParameterCountMismatch, error.ParameterGap, error.ParameterTypeConflict, error.InvalidParameterIndex, error.InvalidParameterSite, error.UnboundParameters => "Use consecutive positional parameters beginning with $1 and supply one exact scalar binding for each index. Repeated indices must have the same type.",
+        error.SourceChanged => "Inspect the current source declaration and explicitly prepare the statement again against it.",
         error.ImmutablePrimaryKey, error.UnsupportedMutationPredicate, error.InvalidMutationColumns, error.DuplicateMutationKey => "Use .help INSERT, .help UPDATE or .help DELETE in the console for bounded literal mutations and key equality.",
         error.TypeMismatch, error.InvalidPredicate => "Match the literal type to the declared column type; implicit conversions are unsupported.",
         else => null,
     };
-    if (semantic) |hint| return .{ .kind = .binding, .cause = cause, .summary = "SQL cannot be bound to the configured source", .hint = hint };
+    if (semantic) |hint| return .{ .kind = .binding, .cause = cause, .summary = switch (cause) {
+        error.UnknownSource => "Unknown SQL source",
+        error.UnknownColumn => "Unknown column in this scope",
+        error.UnknownQualifier => "Unknown source qualifier in this scope",
+        error.DuplicateProjection => "Duplicate result column; assign distinct output names",
+        error.DuplicateColumn => "Duplicate column name",
+        error.TypeMismatch => "SQL value has the wrong type",
+        error.ImmutablePrimaryKey => "UPDATE cannot change the primary key",
+        error.DuplicateMutationKey => "INSERT repeats a primary key within the statement",
+        error.NullPrimaryKey => "The primary key cannot be NULL",
+        error.UnsupportedAggregate => "Unsupported aggregate function or input type",
+        error.ParameterCountMismatch => "The number of bindings does not match the SQL parameters",
+        error.ParameterGap => "SQL parameter indices must be consecutive from $1",
+        error.ParameterTypeConflict => "A repeated parameter requires incompatible types",
+        error.InvalidParameterIndex => "SQL parameter indices start at $1",
+        error.InvalidParameterSite => "A parameter is not supported at this SQL position",
+        error.UnboundParameters => "SQL parameters require explicit bindings",
+        error.SourceChanged => "The prepared SQL source or schema changed",
+        else => "SQL cannot be bound to the configured source",
+    }, .hint = hint };
     switch (cause) {
         error.UnsupportedDeclaration,
         error.UnsupportedDeclarationType,
@@ -100,6 +126,26 @@ pub fn query(text: []const u8, cause: anyerror, inspection: bool) ?Self {
         return .{ .kind = .binding, .cause = cause, .summary = "SQL literal or construct cannot be compiled", .hint = read_hint };
     }
     result.source(text, .{ .offset = start });
+    return result;
+}
+
+/// Consume context captured by the failing compiler operation, never by a
+/// later catalog read or a guess at similarly spelled source text.
+pub fn bound(text: []const u8, cause: anyerror, inspection: bool, binding: sql.Binding) ?Self {
+    var result = query(text, cause, inspection) orelse return null;
+    var out: std.Io.Writer = .fixed(&result.detail);
+    if (binding.subject) |subject| {
+        out.print("Subject: \"{s}\"", .{subject.slice()}) catch unreachable;
+        if (binding.scope_len != 0) out.print("; scope: \"{s}\"", .{binding.scope[0..binding.scope_len]}) catch unreachable;
+        out.writeByte('.') catch unreachable;
+    }
+    if (binding.expected) |expected| out.print(" Expected {s}; supplied {s}.", .{ expected, binding.actual orelse "unknown" }) catch unreachable;
+    if (binding.literal_len != 0) out.print(" Value: {s}.", .{binding.literal[0..binding.literal_len]}) catch unreachable;
+    if (binding.key) |key| out.print(" Key: {d}.", .{key}) catch unreachable;
+    if (binding.input_row) |row| out.print(" Input row: {d}.", .{row}) catch unreachable;
+    if (binding.previous_row) |row| out.print(" First occurrence: row {d}.", .{row}) catch unreachable;
+    result.detail_len = out.end;
+    if (binding.location) |location| result.source(text, location);
     return result;
 }
 
@@ -217,6 +263,10 @@ pub fn renderStyled(self: *const Self, out: *std.Io.Writer, style: anytype) !voi
     try out.writeAll("] (");
     try style.write(out, .cause, @errorName(self.cause));
     try out.writeByte(')');
+    if (self.detail_len != 0) {
+        try out.writeByte('\n');
+        try style.write(out, .summary, self.detail[0..self.detail_len]);
+    }
     if (self.location) |location| {
         var buffer: [80]u8 = undefined;
         try out.writeAll(" at ");

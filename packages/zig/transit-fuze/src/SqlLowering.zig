@@ -53,20 +53,26 @@ pub const Shape = struct {
     },
 };
 pub fn lower(ast: *const sql.Ast, source: []const u8, columns: []const []const u8, input: []u8, output: []u8) !Shape {
+    return lowerDiagnostic(ast, source, columns, input, output, null);
+}
+pub fn lowerDiagnostic(ast: *const sql.Ast, source: []const u8, columns: []const []const u8, input: []u8, output: []u8, diagnostic: ?*sql.Binding) !Shape {
     if (ast.unbound_parameters) return error.UnboundParameters;
-    if (!std.mem.eql(u8, ast.source.slice(), source)) return error.UnknownSource;
+    if (!std.mem.eql(u8, ast.source.slice(), source)) {
+        sql.Binding.at(diagnostic, .{ .name = ast.source, .offset = ast.source_offset }, source);
+        return error.UnknownSource;
+    }
     if (ast.selection != .rows and ast.limit != null) return error.UnsupportedAggregateLimit;
     if (ast.input != null and ast.selection == .rows) return error.UnsupportedConstruct;
     if (ast.selection == .rows and ast.output_alias != null) return error.InvalidOutputNames;
     if (columns.len == 0 or columns.len > input.len or columns.len > 128) return error.InvalidColumnCount;
     const source_name = ast.source_alias orelse ast.source;
     const source_qualifier = source_name.slice();
-    const input_projection: ?Projection = if (ast.input) |*value| try project(&value.projection, source_qualifier, columns, input) else null;
+    const input_projection: ?Projection = if (ast.input) |*value| try project(&value.projection, source_qualifier, columns, input, diagnostic) else null;
     const qualifier_name = if (ast.input) |value| value.alias else source_name;
     const qualifier = qualifier_name.slice();
     var aggregate: finite.Aggregate = .rows;
     var projection: Projection = switch (ast.selection) {
-        .rows => |*value| try project(value, qualifier, columns, output),
+        .rows => |*value| try project(value, qualifier, columns, output, diagnostic),
         .count => blk: {
             aggregate = .count;
             if (output.len == 0) return error.InvalidProjection;
@@ -77,9 +83,9 @@ pub fn lower(ast: *const sql.Ast, source: []const u8, columns: []const []const u
             aggregate = if (ast.selection == .sum) .sum else .count_values;
             if (output.len == 0) return error.InvalidProjection;
             output[0] = if (input_projection) |*projected|
-                try resolveProjected(column, qualifier, projected, columns)
+                try resolveProjected(column, qualifier, projected, columns, diagnostic)
             else
-                try resolve(column, qualifier, columns);
+                try resolve(column, qualifier, columns, diagnostic);
             break :blk .{ .columns = output[0..1] };
         },
     };
@@ -96,7 +102,7 @@ pub fn lower(ast: *const sql.Ast, source: []const u8, columns: []const []const u
         .predicate = switch (ast.predicate) {
             .program => |*program| .{ .program = program },
             inline else => |value, tag| blk: {
-                const atom = try lowerAtom(@unionInit(sql.PredicateAtom, @tagName(tag), value), source_qualifier, columns);
+                const atom = try lowerAtomDiagnostic(@unionInit(sql.PredicateAtom, @tagName(tag), value), source_qualifier, columns, diagnostic);
                 break :blk switch (atom) {
                     inline else => |item, kind| @unionInit(@FieldType(Shape, "predicate"), @tagName(kind), item),
                 };
@@ -107,20 +113,31 @@ pub fn lower(ast: *const sql.Ast, source: []const u8, columns: []const []const u
 /// Shared column scope and operator binding for native and local file profiles.
 /// The selected plan owns literal conversion and type admission.
 pub fn lowerAtom(atom: sql.PredicateAtom, source: []const u8, columns: []const []const u8) !Atom {
+    return lowerAtomDiagnostic(atom, source, columns, null);
+}
+pub fn lowerAtomDiagnostic(atom: sql.PredicateAtom, source: []const u8, columns: []const []const u8, diagnostic: ?*sql.Binding) !Atom {
     return switch (atom) {
         .all => .all,
-        .state => |state| .{ .state = .{ .column = try resolve(state.column, source, columns), .value = state.value } },
-        .compare => |value| .{ .compare = .{ .column = try resolve(value.column, source, columns), .op = value.op, .literal = value.literal } },
+        .state => |state| .{ .state = .{ .column = try resolve(state.column, source, columns, diagnostic), .value = state.value } },
+        .compare => |value| .{ .compare = .{ .column = try resolve(value.column, source, columns, diagnostic), .op = value.op, .literal = value.literal } },
     };
 }
 
-fn resolve(column: sql.Column, source: []const u8, columns: []const []const u8) !u8 {
-    if (column.qualifier) |qualifier| if (!std.mem.eql(u8, qualifier.slice(), source)) return error.UnknownQualifier;
+fn resolve(column: sql.Column, source: []const u8, columns: []const []const u8, diagnostic: ?*sql.Binding) !u8 {
+    sql.Binding.at(diagnostic, column, source);
+    if (column.qualifier) |qualifier| if (!std.mem.eql(u8, qualifier.slice(), source)) {
+        sql.Binding.atError(diagnostic, column, source, error.UnknownQualifier);
+        return error.UnknownQualifier;
+    };
     for (columns, 0..) |name, i| if (std.mem.eql(u8, name, column.name.slice())) return @intCast(i);
     return error.UnknownColumn;
 }
-fn resolveProjected(column: sql.Column, source: []const u8, projection: *const Projection, columns: []const []const u8) !u8 {
-    if (column.qualifier) |qualifier| if (!std.mem.eql(u8, qualifier.slice(), source)) return error.UnknownQualifier;
+fn resolveProjected(column: sql.Column, source: []const u8, projection: *const Projection, columns: []const []const u8, diagnostic: ?*sql.Binding) !u8 {
+    sql.Binding.at(diagnostic, column, source);
+    if (column.qualifier) |qualifier| if (!std.mem.eql(u8, qualifier.slice(), source)) {
+        sql.Binding.atError(diagnostic, column, source, error.UnknownQualifier);
+        return error.UnknownQualifier;
+    };
     // Resolve one aggregate input directly through its projection. COUNT(*) does
     // not resolve a column, and direct queries need no derived name workspace.
     for (projection.columns, 0..) |index, i| {
@@ -131,7 +148,7 @@ fn resolveProjected(column: sql.Column, source: []const u8, projection: *const P
 fn validName(name: *const @import("model.zig").Name) !void {
     if (name.len > name.bytes.len or !std.meta.eql(name.*, try @import("model.zig").Name.init(name.slice()))) return error.InvalidColumnName;
 }
-fn project(value: *const sql.Projection, source: []const u8, columns: []const []const u8, output: []u8) !Projection {
+fn project(value: *const sql.Projection, source: []const u8, columns: []const []const u8, output: []u8, diagnostic: ?*sql.Binding) !Projection {
     if (columns.len == 0 or columns.len > output.len or columns.len > 255) return error.InvalidColumnCount;
     if (value[0] == null) {
         for (value[1..]) |column| if (column != null) return error.InvalidProjection;
@@ -143,7 +160,7 @@ fn project(value: *const sql.Projection, source: []const u8, columns: []const []
     for (value) |*column| {
         if (column.*) |*selected| {
             if (count == output.len) return error.InvalidProjection;
-            const index = try resolve(selected.column, source, columns);
+            const index = try resolve(selected.column, source, columns, diagnostic);
             output[count] = index;
             if (selected.alias) |*alias| {
                 try validName(alias);

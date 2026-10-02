@@ -315,3 +315,33 @@ test "completed selections reject collisions and free owned atoms on binding fai
         "SELECT count(*) FROM (SELECT id AS key, value AS key FROM items WHERE value = 'owned') AS chosen",
     }) |text| try t.expectError(error.DuplicateColumn, m.Sql.plan(t.allocator, text, src));
 }
+
+test "binding diagnostics retain failing name scope location and types across later Boolean atoms" {
+    const columns = [_]m.Column{
+        .{ .name = try .init("id"), .type = .int64 },
+        .{ .name = try .init("value"), .type = .utf8 },
+    };
+    const binding_source: m.Sql.Source = .{ .name = try .init("items"), .schema = .{ .columns = &columns } };
+    const cases = .{
+        .{ "SELECT typo FROM items", error.UnknownColumn, "typo", "items", "typo" },
+        .{ "SELECT x.id FROM items AS i", error.UnknownQualifier, "x", "i", "x.id" },
+        .{ "SELECT id FROM absent", error.UnknownSource, "absent", "items", "absent" },
+        .{ "SELECT SUM(i.value) FROM items AS i", error.UnsupportedAggregate, "value", "i", "i.value" },
+        .{ "SELECT COUNT(d.value) FROM (SELECT id FROM items LIMIT 1) AS d", error.UnknownColumn, "value", "d", "d.value" },
+        .{ "SELECT id FROM items WHERE id=1 OR value=2", error.TypeMismatch, "value", "items", "value=2" },
+        .{ "SELECT id FROM items WHERE id=1 AND typo=2", error.UnknownColumn, "typo", "items", "typo=2" },
+    };
+    inline for (cases) |case| {
+        var binding: f.Sql.Binding = .{};
+        try t.expectError(case[1], m.Sql.planDiagnostic(t.allocator, case[0], binding_source, &binding));
+        try t.expectEqualStrings(case[2], binding.subject.?.slice());
+        try t.expectEqualStrings(case[3], binding.scope[0..binding.scope_len]);
+        try t.expectEqual(std.mem.indexOf(u8, case[0], case[4]).?, binding.location.?.offset);
+        const diagnostic = f.SqlDiagnostic.bound(case[0], case[1], true, binding).?;
+        try t.expect(std.mem.indexOf(u8, diagnostic.detail[0..diagnostic.detail_len], case[2]) != null);
+        if (case[1] == error.TypeMismatch) {
+            try t.expectEqualStrings("utf8", binding.expected.?);
+            try t.expectEqualStrings("int64", binding.actual.?);
+        }
+    }
+}

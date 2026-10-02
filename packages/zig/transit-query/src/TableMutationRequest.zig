@@ -26,7 +26,10 @@ pub fn validate(self: Self) !void {
     try self.plan.validate();
 }
 pub fn fromSql(realm: u64, writer: u64, table: Table, name: f.model.Name, text: []const u8) !Self {
-    const result: Self = .{ .realm = realm, .writer = writer, .resource = table.resource, .table = table.id, .plan = try f.TableMutation.compile(text, .{ .name = name, .schema = table.schema }) };
+    return fromSqlDiagnostic(realm, writer, table, name, text, null);
+}
+pub fn fromSqlDiagnostic(realm: u64, writer: u64, table: Table, name: f.model.Name, text: []const u8, diagnostic: ?*f.Sql.Binding) !Self {
+    const result: Self = .{ .realm = realm, .writer = writer, .resource = table.resource, .table = table.id, .plan = try f.TableMutation.compileDiagnostic(text, .{ .name = name, .schema = table.schema }, diagnostic) };
     try result.validate();
     return result;
 }

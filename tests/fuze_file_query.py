@@ -292,6 +292,28 @@ def main():
             invoke(args, expected=2, env=env)
         help_result = subprocess.run([CLI, 'file-query', '--help'], capture_output=True, env=env, timeout=10)
         assert help_result.returncode == 0 and b'TMPDIR' in help_result.stdout and not help_result.stderr
+        # SQL context and late file failures retain precise, independent
+        # coordinates without manufacturing success after a prefix or LIMIT.
+        for sql, fragments in [
+            ('SELECT typo FROM input', [b'Subject: "typo"', b'column 8']),
+            ("SELECT n FROM input WHERE n='wrong'", [b'Expected int64; supplied utf8', b'Value: "wrong"']),
+        ]:
+            result = subprocess.run([CLI, 'file-query', '--format', 'csv', '-c', sql, '-'], input=b'n\n1\n', capture_output=True, env=env, timeout=10)
+            assert result.returncode == 1 and not result.stdout, (result.stdout,result.stderr)
+            assert all(fragment in result.stderr for fragment in fragments), result.stderr
+            assert b'.schema' not in result.stderr and b'.resume' not in result.stderr
+            CASES += 1
+        first = work/'good.csv'; second = work/'bad.csv'
+        first.write_bytes(b'n\n1\n'); second.write_bytes(b'n\n1\nbad\n')
+        for limit in (0, 1):
+            result = subprocess.run([CLI, 'file-query', '--format', 'csv', '--sample-records', '1', '-c', f'SELECT n FROM input LIMIT {limit}', str(first), str(second)], capture_output=True, env=env, timeout=10)
+            assert result.returncode == 1, result.stderr
+            assert str(second).encode() in result.stderr, result.stderr
+            assert b'logical record: 3' in result.stderr and b'record starts at byte: 4' in result.stderr, result.stderr
+            assert b'field: "n"' in result.stderr and b'output is incomplete' in result.stderr, result.stderr
+            assert b'LIMIT does not skip required validation' in result.stderr
+            assert not any('complete' in json.loads(line) for line in result.stdout.splitlines())
+            CASES += 1
         # Input cancellation while idle and while captured bytes await EOF; all
         # captures are already unlinked even if killed without normal cleanup.
         for hard, prefix in [(False, b''), (False, b'n\n1\n'), (True, b'n\n1\n')]:

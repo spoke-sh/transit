@@ -332,7 +332,9 @@ pub const Console = struct {
                 }
                 return self.sqlFailure(text, error.UnsupportedStatement);
             }
-            if (self.writes) |writer| if (writer.unresolved() and (q.fuze.Sql.parseInspection(text) catch |err| return self.sqlFailure(text, err)) == null) return error.UnresolvedSubmission;
+            const inspection_ = q.fuze.Sql.parseInspection(text) catch |err| return self.sqlFailure(text, err);
+            if (inspection_) |statement| if (statement == .show and statement.show != .tables) return self.sqlFailure(text, error.UnsupportedCatalog);
+            if (self.writes) |writer| if (writer.unresolved() and inspection_ == null) return error.UnresolvedSubmission;
         }
         if (self.writes) |writer| if (writer.record.operation != null and (std.mem.eql(u8, text, ".resume") or std.mem.eql(u8, text, ".cancel") or std.mem.eql(u8, text, ".status"))) {
             // A saved write owns these commands until replaced by a new query.
