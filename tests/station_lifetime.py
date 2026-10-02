@@ -1,5 +1,6 @@
 """Station state survives worker loss, while opted-in recovery bounds stay final."""
 import json
+import os
 from pathlib import Path
 import time
 
@@ -25,10 +26,13 @@ def run(node, cli, worker):
         def once(generation, error=None):
             config.write_text(json.dumps({"url": s.url, "realm": 72, "principal": 1,
                 "pid": pid, "generation": generation, "seed_file": str(seed)}))
-            child = s.start(worker, "--once", config)
+            # Zig's build runner can force color even in redirected child logs.
+            # This fixture compares an exact error, so use unstyled diagnostics.
+            child = s.start(worker, "--once", config, env=dict(os.environ, NO_COLOR="1"))
             status = child.wait(timeout=20)
-            if error: assert status != 0 and f"error: {error}" in Path(s.logs[-1].name).read_text()
-            else: assert status == 0
+            output = Path(s.logs[-1].name).read_text()
+            if error: assert status != 0 and f"error: {error}" in output, (status, output)
+            else: assert status == 0, (status, output)
 
         def query(kind, **values):
             # Reclamation can publish between acquiring and validating a

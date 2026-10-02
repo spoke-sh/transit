@@ -6,6 +6,25 @@ earlier entry refers to that entry's source, not automatically to HEAD. The late
 records its reruns and remaining qualification separately; earlier consolidation
 results do not qualify the changed stored layout by inheritance.
 
+## Station lifetime diagnostics under forced color — 2026-10-02
+
+The Station lifetime worker exits with `ProcessExpired` as expected, but Zig's
+forced color inserts ANSI escapes inside its human `error:` prefix. The fixture's
+plain-text assertion therefore fails when the build runner enables child colors.
+The lifetime fixture sets `NO_COLOR=1` for its worker and includes the exit status
+and captured output when an assertion fails. It still requires a failing exit
+and the exact expected error, with unchanged expiry and recovery checks.
+
+`nix develop --command env -u NO_COLOR CLICOLOR_FORCE=1 just test::station`
+reproduces the original failure before the fix and passes afterward, including
+permanent expiry and reclaimed state after authority restart. The ordinary
+color-disabled Station run passes before the fix; full `just check` passes
+afterward in `nix develop`.
+Logs: `/tmp/transit-station-ci-color-before.log`,
+`/tmp/transit-station-ci-color-after.log`,
+`/tmp/transit-station-ci-reproduction.log` and `/tmp/transit-station-ci-check.log`.
+The complete `just ci` inventory and committed-HEAD clean suite are not rerun.
+
 ## Console timing follows command output — 2026-10-02
 
 Timing measurements finish at their existing execution boundary and remain as one
