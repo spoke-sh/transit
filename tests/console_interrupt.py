@@ -45,6 +45,9 @@ def check(binary, path, root, kind, invoke, fault):
 
     def idle(message):
         terminal.expect(message, timeout=60)
+        terminal.expect('ms)\r\n')
+        assert terminal.screen.count(b'Time: ') == 1, terminal.screen
+        assert terminal.screen.index(message.encode()) < terminal.screen.index(b'Time: '), terminal.screen
         terminal.expect('\rtransit> ', timeout=10)
         assert terminal.process.poll() is None
         assert not terminal.buffer
@@ -70,6 +73,8 @@ def check(binary, path, root, kind, invoke, fault):
         terminal.expect('\rtransit> \r')
 
     try:
+        terminal.send('.timing on\r')
+        terminal.expect('transit> .timing on\r\n')
         # No upload exists yet: Ctrl-C must not cancel the previous saved query.
         before = recovery.read_bytes()
         sends = fault['console_sends']
@@ -194,6 +199,8 @@ def check(binary, path, root, kind, invoke, fault):
         terminal.send('\x03')
         page_gate.release.set()
         terminal.expect(f'Query {query} already completed; result display interrupted.')
+        terminal.expect('ms)\r\n')
+        assert terminal.screen.index(b'result display interrupted.') < terminal.screen.index(b'Time: '), terminal.screen
         terminal.expect('\rtransit> ')
         displayed = first_line+b'\n'+terminal.buffer
         terminal.buffer = b''
@@ -250,7 +257,9 @@ def check(binary, path, root, kind, invoke, fault):
         # Noninteractive invocation uses the same cancellation path and exits
         # 130; diagnostics must not leak into machine stdout.
         fault['console_waiting'].clear(); fault['console_delay'].set()
-        batch = subprocess.Popen([binary, 'console', '--no-rc', '--config', str(path),
+        timing_rc = root/'timing.rc'
+        timing_rc.write_text('.timing on\n')
+        batch = subprocess.Popen([binary, 'console', '--init', str(timing_rc), '--config', str(path),
                                   '-c', 'SELECT COUNT(*) FROM items'],
                                  stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         try:
@@ -259,6 +268,7 @@ def check(binary, path, root, kind, invoke, fault):
             out, err = batch.communicate(timeout=30)
             assert batch.returncode == 130 and not out, (batch.returncode, out, err)
             assert b'Query cancelled before submission.' in err and b'not cancelled' not in err, err
+            assert err.count(b'Time: ') == 1 and err.splitlines()[-1].startswith(b'Time: '), err
         finally:
             if batch.poll() is None:
                 batch.kill(); batch.communicate(timeout=10)

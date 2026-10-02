@@ -162,7 +162,7 @@ fn identity(io: std.Io) !u64 {
 pub fn start(self: *Self, console: *Console, text: []const u8, route: q.fuze.SqlDiagnostic.Route) !void {
     if (self.unresolved() or console.session.pending != null or console.session.input != null or (console.session.namespace != null and !console.session.complete)) return error.UnresolvedSubmission;
     var timing = @import("Timing.zig").start(console.init, console.preferences.timing);
-    defer timing.report();
+    defer console.finishTiming(&timing);
     self.read_deadline = std.Io.Clock.boot.now(self.io).toMilliseconds() + 300000;
     defer self.read_deadline = null;
     timing.enter(.prepare);
@@ -252,7 +252,7 @@ test "write observation retries only unavailable reads within its original deadl
 }
 pub fn recover(self: *Self, console: *Console) !void {
     var timing = @import("Timing.zig").start(console.init, console.preferences.timing);
-    defer timing.report();
+    defer console.finishTiming(&timing);
     try self.advance(console, &timing);
 }
 fn advance(self: *Self, console: *Console, timing: *Timing) !void {

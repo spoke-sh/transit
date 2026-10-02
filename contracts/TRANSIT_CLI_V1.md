@@ -365,7 +365,10 @@ per-request deadlines, without the completion-wait budget. Bounds and supported 
 [console guide](../apps/transit-cli/docs/console.md).
 
 Timing is off by default. `.timing on` reports monotonic wall milliseconds after
-SQL and resume attempts, including failures, to stderr. The total and preparation,
+SQL and resume attempts, including failures, to stderr. The timing line follows
+all result and diagnostic output for that command, including cancellation messages,
+and precedes the next interactive prompt. Diagnostic presentation is outside the
+measured interval. The total and preparation,
 compilation, submission/advancement, wait, fetch/verification, render/output and
 persistence phases describe client-observed work, not engine-only execution.
 Sub-millisecond phases can report zero. Reporting does not change result stdout

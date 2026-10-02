@@ -478,20 +478,43 @@ with tempfile.TemporaryDirectory(prefix='transit-cli-diagnostics-') as directory
     shown = invoke(['console', '--no-rc', '--config', connection], 0, env=environment, cwd=project,
                    data=b'.timing\ton\n.show\n')
     assert parse_show(shown.stdout)['timing'] == 'on'
+    # Both early declaration validation and query compilation report timing
+    # after the entire diagnostic, in one-shot and streamed batch input.
+    timed_errors = (
+        ('CREATE TABLE people (id INT64, name BINARY);', '.help CREATE TABLE'),
+        ('SELECT;', '.help SQL'),
+    )
+    for format in ('table', 'json'):
+        for statement, hint in timed_errors:
+            for one_shot in (False, True):
+                result = invoke(['console', '--config', connection, '--format', format,
+                                 *(['-c', statement] if one_shot else [])], 1,
+                                contains=(hint,), env=environment, cwd=project,
+                                data=b'' if one_shot else statement.encode())
+                assert result.stderr.count(b'Time: ') == 1, result.stderr
+                assert result.stderr.splitlines()[-1].startswith(b'Time: '), result.stderr
     # Local settings need no server. Real terminals keep the setting and prompt
     # after usage errors, with no status JSON accidentally left on stdout.
-    from console_terminal import Terminal
+    from console_terminal import ANSI, Terminal
     for format in ('table', 'json'):
         terminal = Terminal(CLI, connection, format=format, cwd=project)
         try:
             terminal.send('.timing on\r')
             terminal.expect('transit> .timing on\r\n')
+            for statement, hint in timed_errors:
+                terminal.send(statement+'\r')
+                terminal.expect(hint)
+                terminal.expect('ms)\r\n')
+                display = ANSI.sub(b'', terminal.screen)
+                assert display.count(b'Time: ') == 1, display
+                assert display.index(b'error: ') < display.index(hint.encode()) < display.index(b'Time: '), display
             for text in ('.timing', '.timing off on'):
                 terminal.send(text+'\r')
                 terminal.expect('Usage: .timing on|off\r\n')
                 terminal.send('.show\r')
                 settings = read_show(terminal)
                 assert settings['timing'] == 'on' and settings['format'] == format, settings
+                assert b'Time: ' not in terminal.screen, terminal.screen
             terminal.send('.timing off\r')
             terminal.expect('transit> .timing off\r\n')
             terminal.send('.show\r')

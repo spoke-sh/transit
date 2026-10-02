@@ -10,7 +10,7 @@ const Timing = @import("Timing.zig");
 pub fn sql(console: *Console, request: @import("SqlInput.zig").Request) !void {
     const statement = request.sql;
     var timing = Timing.start(console.init, console.preferences.timing);
-    defer timing.report();
+    defer console.finishTiming(&timing);
     const session = console.session;
     if (console.recovery == null) return error.ConsoleRecoveryRequired;
     if (session.pending != null or session.input != null) return error.UnresolvedSubmission;
@@ -53,7 +53,7 @@ pub fn sql(console: *Console, request: @import("SqlInput.zig").Request) !void {
 }
 pub fn recover(console: *Console, selected: ?u64) !void {
     var timing = Timing.start(console.init, console.preferences.timing);
-    defer timing.report();
+    defer console.finishTiming(&timing);
     const session = console.session;
     if (selected) |id| {
         if (id == 0 or id > q.protocol.max_counter) return error.InvalidQueryIdentity;

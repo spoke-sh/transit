@@ -232,11 +232,22 @@ pub const Console = struct {
         return self.executeWithParameters(raw, null);
     }
     pub fn executeWithParameters(self: *Console, raw: []const u8, parameters: ?@import("SqlInput.zig").Parameters) !bool {
+        // Interactive errors are emitted inside executeCommand; batch errors
+        // reach main with their timing attached to the diagnostic.
+        const more = try self.executeCommand(raw, parameters);
+        self.diagnostic.reportTiming();
+        return more;
+    }
+    pub fn finishTiming(self: *Console, timing: *@import("Timing.zig")) void {
+        if (timing.finish()) |report| self.diagnostic.timing = report;
+    }
+    fn executeCommand(self: *Console, raw: []const u8, parameters: ?@import("SqlInput.zig").Parameters) !bool {
         const text = std.mem.trim(u8, raw, " \t\r\n");
         if (text.len == 0) return true;
         if (std.mem.eql(u8, text, ".quit")) return false;
         self.query_interrupted = false;
         self.diagnostic.sql = null;
+        self.diagnostic.timing = null;
         defer {
             self.query_running = false;
             self.write_running = false;
@@ -300,7 +311,7 @@ pub const Console = struct {
         };
         if (!isMeta(text)) {
             var syntax_timing = @import("Timing.zig").start(self.init, self.preferences.timing);
-            errdefer syntax_timing.report();
+            errdefer self.finishTiming(&syntax_timing);
             if ((q.fuze.Sql.parseMutation(text) catch |err| return self.sqlFailure(text, err)) != null) {
                 self.write_running = true;
                 const writer = self.writes orelse return error.ConsoleWriterRequired;

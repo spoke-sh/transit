@@ -6,6 +6,37 @@ earlier entry refers to that entry's source, not automatically to HEAD. The late
 records its reruns and remaining qualification separately; earlier consolidation
 results do not qualify the changed stored layout by inheritance.
 
+## Console timing follows command output — 2026-10-02
+
+Timing measurements finish at their existing execution boundary and remain as one
+owned report until command output completes. Interactive diagnostics consume the
+report after their guidance; batch failures carry it to the final CLI diagnostic.
+Successful commands and cancellation messages precede the same timing footer.
+
+Pinned `just test::cli-diagnostics` and full `just check` pass, including 442 real
+CLI cases. New cases cover declaration validation and SELECT compilation through
+stdin, `-c` and a real PTY in table and JSON modes, with exactly one final timing
+line and no timing carried into a later settings command. Running the new checks
+against the earlier executable first reproduced timing before the CREATE TABLE
+error. Logs: `/tmp/transit-console-timing-before.log`,
+`/tmp/transit-console-timing-diagnostics.log` and
+`/tmp/transit-console-timing-check.log`.
+
+The first `just test::console table` attempt passed saved-query recovery and read
+denial, then stopped because its built console executable disappeared from the
+shared Zig cache. That incomplete run is recorded in
+`/tmp/transit-console-timing-integration.log`.
+
+The isolated-cache rerun passes:
+`ZIG_LOCAL_CACHE_DIR=/tmp/transit-console-timing-cache just test::console table`
+inside `nix develop`. It verifies timing after runtime failures, successful
+results on a combined stdout/stderr stream, saved-query resume, cancellation
+messages and failed cancellation diagnostics. Repeated Ctrl-C, partial-result
+interruption, batch exit 130, terminal recovery and explicit-CA TLS also pass.
+The console schedule completes in 290.58 seconds; the full Table fixture in
+325.29 seconds. Log: `/tmp/transit-console-timing-integration-isolated.log`.
+These are working-tree checks; committed-HEAD clean qualification is separate.
+
 ## Console error guidance — 2026-10-02
 
 Console diagnostics direct users to statement help and source/schema inspection.

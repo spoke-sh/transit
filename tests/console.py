@@ -64,6 +64,7 @@ def check(binary, root, kind, invoke, expected, fault, config, tls=False):
         before = fault['console_sends']
         invalid = run(b'.timing on\nCREATE KV items (UTF8);', expected_code=1)
         assert b'Time: ' in invalid.stderr and b'error: ' in invalid.stderr and not invalid.stdout
+        assert invalid.stderr.count(b'Time: ') == 1 and invalid.stderr.splitlines()[-1].startswith(b'Time: '), invalid.stderr
         assert fault['console_sends'] == before
         for statement, fragments in (
             ('SELECT;', (b'[syntax]', b'line 1, column 7', b'^--- error here')),
@@ -77,8 +78,9 @@ def check(binary, root, kind, invoke, expected, fault, config, tls=False):
         fault['lost'], fault['retry'] = None, False
         sql = 'SELECT *' if kind == 'document' else 'SELECT value'
         statement = sql+'\n/* ; .quit /* nested ; */ */ FROM items\nLIMIT 33;\n'
-        result = run(statement.encode(), expected_code=1)
+        result = run(('.timing on\n'+statement).encode(), expected_code=1)
         assert not result.stdout and b'InvalidAuthorityResponse' in result.stderr, result
+        assert result.stderr.count(b'Time: ') == 1 and result.stderr.splitlines()[-1].startswith(b'Time: '), result.stderr
         record = json.loads(recovery.read_text())
         query_id = record['namespace']
         assert query_id and record['bundle']
@@ -95,7 +97,7 @@ def check(binary, root, kind, invoke, expected, fault, config, tls=False):
         assert parse_show(shown)['format'] == 'json'
         assert recovery.read_bytes() == saved and fault['console_sends'] == before
         assert not fault['retry'], 'settings inspection retried uncertain work'
-        result = run(b'.resume\n', args=('--format', 'json'))
+        result = run(b'.timing on\n.resume\n', args=('--format', 'json'), timed=True)
         assert fault['retry'], 'resume did not retry the original signed request'
         pages = [json.loads(line) for line in result.stdout.splitlines()]
         assert pages and pages[-1]['complete_coverage']
@@ -154,6 +156,14 @@ def check(binary, root, kind, invoke, expected, fault, config, tls=False):
         settings = parse_show(shown+b'\n')
         assert settings['format'] == 'json' and settings['timing'] == 'on'
         assert json.loads(page)['complete_coverage']
+        # A shared destination observes result output before the timing footer.
+        combined = subprocess.run([binary, 'console', '--no-rc', '--config', str(path), '--format', 'json'],
+                                  input=('.timing on\n'+count_sql).encode(), stdout=subprocess.PIPE,
+                                  stderr=subprocess.STDOUT, timeout=420)
+        assert combined.returncode == 0, combined
+        lines = combined.stdout.splitlines()
+        assert json.loads(lines[0])['complete_coverage'], combined.stdout
+        assert len(lines) == 2 and lines[-1].startswith(b'Time: '), combined.stdout
         # Batch stops after the first invalid statement; no later dispatch.
         before = fault['console_sends']
         result = run(('CREATE KV nope (UTF8);'+count_sql+';').encode(), expected_code=1)

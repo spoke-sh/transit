@@ -3,6 +3,7 @@ const std = @import("std");
 const Self = @This();
 command: []const u8 = "transit",
 sql: ?@import("transit_query").fuze.SqlDiagnostic = null,
+timing: ?@import("Timing.zig").Report = null,
 argument: ?usize = null,
 option: ?[]const u8 = null,
 file: ?[]const u8 = null,
@@ -257,7 +258,13 @@ fn reason(err: anyerror) []const u8 {
         else => @errorName(err),
     };
 }
-pub fn emit(self: Self, io: std.Io, err: anyerror) void {
+pub fn reportTiming(self: *Self) void {
+    const timing = self.timing orelse return;
+    self.timing = null;
+    timing.emit();
+}
+pub fn emit(self: *Self, io: std.Io, err: anyerror) void {
+    defer self.reportTiming();
     var buffer: [4096]u8 = undefined;
     var writer = std.Io.File.stderr().writerStreaming(io, &buffer);
     self.render(&writer.interface, err) catch return;

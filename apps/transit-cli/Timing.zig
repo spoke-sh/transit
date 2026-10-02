@@ -19,23 +19,34 @@ pub fn enter(self: *Self, phase: Phase) void {
     self.last = now;
     self.phase = phase;
 }
-pub fn report(self: *Self) void {
-    if (!self.enabled) return;
+/// Freeze the measurements before command diagnostics and deferred reporting.
+pub fn finish(self: *Self) ?Report {
+    if (!self.enabled) return null;
     self.enter(self.phase);
-    var total: u64 = 0;
-    for (self.elapsed) |elapsed| total += elapsed;
-    var buffer: [1024]u8 = undefined;
-    var text: std.Io.Writer = .fixed(&buffer);
-    text.print("Time: {d} ms (", .{total}) catch return;
-    const phases: []const Phase = if (self.interactive)
-        &.{ .compile, .open, .fetch, .render, .release }
-    else
-        &.{ .prepare, .compile, .submit, .wait, .fetch, .render, .persist };
-    for (phases, 0..) |phase, i| {
-        text.print("{s}{s} {d} ms", .{ if (i == 0) "" else ", ", @tagName(phase), self.elapsed[@backingInt(phase)] }) catch return;
-    }
-    text.writeAll(")\n") catch return;
-    var output_buffer: [1024]u8 = undefined;
-    var output = std.Io.File.stderr().writerStreaming(self.init.io, &output_buffer);
-    @import("Output.zig").write(self.init, &output.interface, text.buffered()) catch {};
+    return .{ .init = self.init, .interactive = self.interactive, .elapsed = self.elapsed };
 }
+
+pub const Report = struct {
+    init: std.process.Init,
+    interactive: bool,
+    elapsed: [@typeInfo(Phase).@"enum".field_names.len]u64,
+
+    pub fn emit(self: Report) void {
+        var total: u64 = 0;
+        for (self.elapsed) |elapsed| total += elapsed;
+        var buffer: [1024]u8 = undefined;
+        var text: std.Io.Writer = .fixed(&buffer);
+        text.print("Time: {d} ms (", .{total}) catch return;
+        const phases: []const Phase = if (self.interactive)
+            &.{ .compile, .open, .fetch, .render, .release }
+        else
+            &.{ .prepare, .compile, .submit, .wait, .fetch, .render, .persist };
+        for (phases, 0..) |phase, i| {
+            text.print("{s}{s} {d} ms", .{ if (i == 0) "" else ", ", @tagName(phase), self.elapsed[@backingInt(phase)] }) catch return;
+        }
+        text.writeAll(")\n") catch return;
+        var output_buffer: [1024]u8 = undefined;
+        var output = std.Io.File.stderr().writerStreaming(self.init.io, &output_buffer);
+        @import("Output.zig").write(self.init, &output.interface, text.buffered()) catch {};
+    }
+};

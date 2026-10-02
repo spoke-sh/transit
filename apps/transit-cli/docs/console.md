@@ -339,7 +339,10 @@ client and read under current grants. Rows are released after each page; the
 console never accumulates the whole result. Prompts and diagnostics use stderr.
 
 `.timing on` reports monotonic elapsed milliseconds to stderr after each SQL or
-`.resume` attempt, including failed attempts. The total includes preparation,
+`.resume` attempt, including failed attempts. The timing line is the final output
+for the command, after results, errors, recovery guidance and cancellation messages,
+before the next prompt. Measurements finish before diagnostic presentation.
+The total includes preparation,
 compilation, snapshot acquisition, fetching/executing pages, rendering/output
 and release. Interactive timing reports `compile`, `open`, `fetch`, `render`
 and `release`. Compilation uses the configured declaration without I/O; opening

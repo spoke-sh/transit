@@ -14,7 +14,7 @@ pub fn sql(console: *Console, request: @import("SqlInput.zig").Request) !void {
     try interrupted();
     var timing = Timing.start(console.init, console.preferences.timing);
     timing.interactive = true;
-    defer timing.report();
+    defer console.finishTiming(&timing);
     var arena: std.heap.ArenaAllocator = .init(console.init.gpa);
     defer arena.deinit();
     const allocator = arena.allocator();
