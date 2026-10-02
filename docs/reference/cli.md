@@ -156,8 +156,10 @@ Diagnostics show coordinates without dumping command arguments, configuration
 bodies, credentials, SQL or result payloads. Displayed file paths are limited to
 256 input bytes, with an explicit `...` suffix when truncated. Quotes,
 backslashes, control bytes and non-ASCII bytes are escaped, including invalid
-UTF-8, so paths cannot control the terminal. Output is plain text and needs no
-color, terminal width or interactive prompt to be understood. A file path is a
+UTF-8, so paths cannot control the terminal. Console diagnostics add color when
+stderr is a terminal, unless `NO_COLOR` is nonempty or `TERM=dumb`. Redirected
+diagnostics remain plain text. Output needs no color, terminal width or
+interactive prompt to be understood. A file path is a
 reference, not permission to disclose its contents.
 
 ## Console commands

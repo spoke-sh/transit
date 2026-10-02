@@ -86,6 +86,7 @@ fn validate(config: Config, allocator: std.mem.Allocator, diagnostic: *Diagnosti
     diagnostic.field = null;
 }
 pub fn run(init: std.process.Init, options: Options.Options, diagnostic: *Diagnostic) !void {
+    diagnostic.style = @import("Style.zig").detect(init);
     var preferences = try Preferences.load(init, options, diagnostic);
     while (try connection(init, options, preferences, diagnostic)) |next| preferences = next;
 }

@@ -2,6 +2,7 @@
 const std = @import("std");
 const Self = @This();
 command: []const u8 = "transit",
+style: @import("Style.zig") = .{},
 sql: ?@import("transit_query").fuze.SqlDiagnostic = null,
 timing: ?@import("Timing.zig").Report = null,
 argument: ?usize = null,
@@ -153,10 +154,11 @@ fn quoted(out: *std.Io.Writer, value: []const u8) !void {
 }
 pub fn render(self: Self, out: *std.Io.Writer, err: anyerror) !void {
     if (self.sql) |diagnostic| {
-        try out.writeAll("error: ");
-        return diagnostic.render(out);
+        try self.style.text(out, .failure, "error:");
+        try out.writeByte(' ');
+        return diagnostic.renderStyled(out, self.style);
     }
-    if (err == error.InvalidTimingCommand) return out.writeAll("Usage: .timing on|off\n");
+    if (err == error.InvalidTimingCommand) return self.style.hint(out, "Usage: .timing on|off\n");
     const Advice = struct { []const u8, ?[]const u8 };
     const advice: ?Advice = switch (err) {
         error.InstallationInUse => .{ "another server manages this installation", "Stop the existing manager before starting another server for this installation." },
@@ -178,7 +180,8 @@ pub fn render(self: Self, out: *std.Io.Writer, err: anyerror) !void {
         else => null,
     };
     const cause = self.cause orelse err;
-    try out.writeAll("error: ");
+    try self.style.text(out, .failure, "error:");
+    try out.writeByte(' ');
     switch (self.presentation) {
         .invocation => try out.writeAll(self.summary.?),
         .option => try out.print("{s} {s}", .{ self.option.?, self.summary.? }),
@@ -219,13 +222,15 @@ pub fn render(self: Self, out: *std.Io.Writer, err: anyerror) !void {
             } else if (self.port) |port| {
                 try out.print("cannot bind 127.0.0.1:{d}: {s}", .{ port, reason(cause) });
             } else if (self.summary) |summary| {
-                try out.print("{s}: {s}", .{ summary, reason(cause) });
+                try out.print("{s}: ", .{summary});
+                try self.style.text(out, .failure, reason(cause));
                 if (cause != err and advice == null and err != error.InvalidConfiguration and err != error.InvalidConfigurationPath and err != error.InvalidCredentialFile) try out.print(" ({s})", .{@errorName(err)});
             } else if (advice) |known| {
                 try out.writeAll(known[0]);
                 if (cause != err) try out.print(": {s}", .{reason(cause)});
             } else {
-                try out.print("{s} failed: {s}", .{ self.command, reason(cause) });
+                try out.print("{s} failed: ", .{self.command});
+                try self.style.text(out, .failure, reason(cause));
                 if (cause != err) try out.print(" ({s})", .{@errorName(err)});
             }
             const exhausted_listener = self.port != null and err == error.RestartBudgetExhausted;
@@ -240,7 +245,11 @@ pub fn render(self: Self, out: *std.Io.Writer, err: anyerror) !void {
     }
     try out.writeByte('\n');
     const next = if (err == error.RestartBudgetExhausted) advice.?[1] else self.next orelse if (self.presentation == .general and advice != null) advice.?[1] else null;
-    if (next) |hint| try out.print("\n{s}\n", .{hint});
+    if (next) |hint| {
+        try out.writeByte('\n');
+        try self.style.hint(out, hint);
+        try out.writeByte('\n');
+    }
     if (self.usage) |usage| try out.print("\nUsage: {s}\n", .{usage}) else if (self.show_help) try out.print("\nRun {s} for options.\n", .{self.help});
 }
 fn reason(err: anyerror) []const u8 {

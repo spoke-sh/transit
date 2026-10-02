@@ -3,6 +3,8 @@
 import copy
 import json
 import os
+import re
+import select
 import shutil
 from pathlib import Path
 import socket
@@ -522,6 +524,83 @@ with tempfile.TemporaryDirectory(prefix='transit-cli-diagnostics-') as directory
         finally:
             terminal.close()
         CASES += 1
+    # Inspect the committed scrollback echo, not the editor's transient redraws.
+    # SQL errors retain the same text and caret with and without presentation.
+    def committed_display(terminal, statement):
+        expected = ('transit> '+statement.replace('\n', '\r\n   ...> ')+'\r\n').encode()
+        for redraw in terminal.screen.split(b'\r\x1b[2K'):
+            if ANSI.sub(b'', redraw).startswith(expected):
+                lines = redraw.split(b'\r\n')
+                count = statement.count('\n')+1
+                return b'\r\n'.join(lines[:count])+b'\r\n', b'\r\n'.join(lines[count:])
+        raise AssertionError(('missing submitted echo', expected, terminal.screen))
+
+    sgr = re.compile(rb'\x1b\[[0-9;]*m')
+    reset = b'\x1b[0m'
+    plain_diagnostics = {}
+    for format in ('table', 'json'):
+        for color_env, colored in (
+            ({'TERM': 'xterm-256color', 'NO_COLOR': '', 'CLICOLOR_FORCE': ''}, True),
+            ({'TERM': 'xterm-256color', 'NO_COLOR': '1', 'CLICOLOR_FORCE': '1'}, False),
+            ({'TERM': 'dumb', 'NO_COLOR': '', 'CLICOLOR_FORCE': '1'}, False),
+        ):
+            terminal = Terminal(CLI, connection, format=format, cwd=project, env=color_env)
+            try:
+                terminal.send('.timing on\r')
+                terminal.expect('transit> .timing on\r\n')
+                echo, _ = committed_display(terminal, '.timing on')
+                assert (b'\x1b[36mtiming'+reset in echo) == colored, echo
+                for statement, hint, category, cause in (
+                    ('.unknown', '.help', None, 'UnknownConsoleCommand'),
+                    ('CREATE TABLE people (id INT64, name BINARY);', '.help CREATE TABLE', 'binding', 'UnspecifiedNullability'),
+                    ('CREATE TABLE people (id INTEGER, name TEXT);', '.help CREATE TABLE', 'syntax', 'UnsupportedDeclarationType'),
+                    ("SELECT /* private-comment */\n'private-literal', 12;", '.help SQL', 'syntax', 'InvalidSqlSyntax'),
+                ):
+                    terminal.send('\x1b[200~'+statement+'\x1b[201~\r')
+                    terminal.expect(hint)
+                    if category is not None:
+                        terminal.expect('ms)\r\n')
+                    echo, diagnostic = committed_display(terminal, statement)
+                    plain = ANSI.sub(b'', diagnostic)
+                    # Timing values vary; all other diagnostic bytes must agree.
+                    content = plain.split(b'Time: ')[0]
+                    if statement in plain_diagnostics:
+                        assert content == plain_diagnostics[statement], (content, plain_diagnostics[statement])
+                    else:
+                        plain_diagnostics[statement] = content
+                    assert b'private-' not in diagnostic, diagnostic
+                    if category is not None:
+                        assert plain.count(b'Time: ') == 1 and plain.splitlines()[-1].startswith(b'Time: '), plain
+                    if colored:
+                        assert b'\x1b[36m'+statement.lstrip('.').split()[0].encode()+reset in echo, echo
+                        assert b'\x1b[1;31merror:'+reset in diagnostic, diagnostic
+                        assert b'\x1b[1;31m'+cause.encode()+reset in diagnostic, diagnostic
+                        assert b'\x1b[36m.help'+reset in diagnostic, diagnostic
+                        if category:
+                            assert b'[\x1b[33m'+category.encode()+reset+b']' in diagnostic, diagnostic
+                        if category == 'syntax':
+                            assert b'\x1b[1;31m^--- error here'+reset in diagnostic, diagnostic
+                            location = b'line 1, column 25' if statement.startswith('CREATE') else b'line 2, column 1'
+                            assert b'\x1b[36m'+location+reset in diagnostic, diagnostic
+                        if '\n' in statement:
+                            for token in (b'\x1b[2m/* private-comment */'+reset, b"\x1b[32m'private-literal'"+reset, b'\x1b[35m12'+reset):
+                                assert token in echo, echo
+                        assert echo.endswith(reset+b'\r\n'), echo
+                    else:
+                        assert not sgr.search(terminal.screen), terminal.screen
+                    assert not select.select([terminal.process.stdout], [], [], .05)[0], 'diagnostic leaked to stdout'
+                terminal.send('.show\r')
+                assert read_show(terminal)['timing'] == 'on'
+                assert b'Time: ' not in terminal.screen, terminal.screen
+            finally:
+                terminal.close()
+            CASES += 1
+    # Color forcing inherited from a build runner must not decorate redirected
+    # diagnostics or either machine result format.
+    for format in ('table', 'json'):
+        result = invoke(['console', '--config', connection, '--format', format, '-c', 'SELECT;'], 1,
+                        env=dict(environment, TERM='xterm-256color', NO_COLOR='', CLICOLOR_FORCE='1'), cwd=project)
+        assert b'\x1b' not in result.stderr and b'\x1b' not in result.stdout, result
     (project/'.transitrc').write_text('.timing invalid\n')
     invoke(['console', '--config', connection], env=environment, cwd=project, contains=('.timing must be on or off',))
     (project/'.transitrc').write_text('SELECT private-must-not-appear;\n')

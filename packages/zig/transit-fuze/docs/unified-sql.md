@@ -63,9 +63,12 @@ state-declaration syntax is checked through its production parser; grammar-only
 families are labeled without claiming full syntax validation.
 
 The returned diagnostic owns a bounded, redacted context buffer and borrows only
-static vocabulary. `render` emits an ASCII excerpt/caret and guidance;
+static vocabulary. `render` emits an ASCII excerpt/caret and guidance.
+`renderStyled` supplies the same semantic parts to the caller's
+`style.write(out, part, text)` renderer; terminal colors and environment detection
+stay with the interface. Both use the same redacted and escaped excerpt.
 `renderRemote` emits at most 128 printable ASCII bytes, with only static vocabulary
-and numeric coordinates. Neither performs I/O or copies source into telemetry.
+and numeric coordinates. These renderers perform no I/O or telemetry capture.
 Diagnostic rendering does not change ASTs, plan bytes or saved requests.
 
 The SQL proof checks the production parser and current compiler. It independently evaluates 70 rows with

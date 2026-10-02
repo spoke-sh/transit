@@ -198,15 +198,42 @@ pub fn renderRemote(self: *const Self, out: *std.Io.Writer) !void {
 }
 
 pub fn render(self: *const Self, out: *std.Io.Writer) !void {
-    try out.print("{s} [{s}] ({s})", .{ self.summary, @tagName(self.kind), @errorName(self.cause) });
-    if (self.location) |location| {
-        try out.print(" at line {d}, column {d}", .{ self.line, self.column });
-        if (location.expected) |expected| try out.print(": expected {s}", .{expected});
-        try out.print("\n  {s}\n  ", .{self.context[0..self.context_len]});
-        try out.splatByteAll(' ', self.caret);
-        try out.writeAll("^--- error here");
+    return self.renderStyled(out, Plain{});
+}
+
+pub const Part = enum { summary, category, cause, location, expected, source, marker, hint };
+const Plain = struct {
+    pub fn write(_: Plain, out: *std.Io.Writer, _: Part, text: []const u8) !void {
+        try out.writeAll(text);
     }
-    try out.print("\n\n{s}\n", .{self.hint});
+};
+
+/// The caller decorates semantic parts through style.write(out, part, text).
+/// Excerpts remain owned, escaped and redacted; terminal policy stays with the caller.
+pub fn renderStyled(self: *const Self, out: *std.Io.Writer, style: anytype) !void {
+    try style.write(out, .summary, self.summary);
+    try out.writeAll(" [");
+    try style.write(out, .category, @tagName(self.kind));
+    try out.writeAll("] (");
+    try style.write(out, .cause, @errorName(self.cause));
+    try out.writeByte(')');
+    if (self.location) |location| {
+        var buffer: [80]u8 = undefined;
+        try out.writeAll(" at ");
+        try style.write(out, .location, try std.fmt.bufPrint(&buffer, "line {d}, column {d}", .{ self.line, self.column }));
+        if (location.expected) |expected| {
+            try out.writeAll(": expected ");
+            try style.write(out, .expected, expected);
+        }
+        try out.writeAll("\n  ");
+        try style.write(out, .source, self.context[0..self.context_len]);
+        try out.writeAll("\n  ");
+        try out.splatByteAll(' ', self.caret);
+        try style.write(out, .marker, "^--- error here");
+    }
+    try out.writeAll("\n\n");
+    try style.write(out, .hint, self.hint);
+    try out.writeByte('\n');
 }
 
 test "query boundaries distinguish parser evidence, grammar families and binding" {

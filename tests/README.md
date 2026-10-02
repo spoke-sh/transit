@@ -6,6 +6,28 @@ earlier entry refers to that entry's source, not automatically to HEAD. The late
 records its reruns and remaining qualification separately; earlier consolidation
 results do not qualify the changed stored layout by inheritance.
 
+## Console scrollback and diagnostic highlighting — 2026-10-02
+
+Submitted SQL and dot commands use the draft's token colors when committed to
+terminal scrollback. The shared SQL diagnostic renderer exposes semantic parts;
+the CLI supplies color while retaining the same redacted excerpt, coordinates,
+caret and corrective text. Color is disabled for redirected stderr, nonempty
+`NO_COLOR` and `TERM=dumb`, independently of table/JSON result mode.
+
+After locked dependencies are installed, pinned `just test::cli-diagnostics` and
+full `just check` pass with **450 real CLI cases**. PTY assertions distinguish the
+submitted echo from transient editor redraws, including multiline comments,
+literals and numbers. They check colored SQL and dot-command errors, unchanged
+diagnostic text across color settings, literal/comment redaction, no diagnostic
+stdout, and one final timing footer. Forced color does not decorate redirected
+output. Existing history, Unicode, resize and scheduled terminal signal checks
+also pass. `just build::debug transit` rebuilds the local executable.
+
+Logs: `/tmp/transit-console-highlight-diagnostics.log`,
+`/tmp/transit-console-highlight-check.log` and
+`/tmp/transit-console-highlight-build.log`. These are working-tree checks; the
+full service integration inventory and committed-HEAD clean suite are not rerun.
+
 ## Station lifetime diagnostics under forced color — 2026-10-02
 
 The Station lifetime worker exits with `ProcessExpired` as expected, but Zig's

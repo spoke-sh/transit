@@ -269,10 +269,11 @@ FROM items LIMIT 8;
 Interactive SQL submits on Enter after a semicolon outside literals and nested
 comments. Bracketed paste stays in the draft until Enter. Dot commands start an
 empty statement and end at newline/Enter. Slash commands are unsupported.
-Submitted statements stay visible in terminal scrollback above their results,
-with continuation prompts for multiline input. The transcript uses stderr so
-redirected stdout contains results only. An unfinished multiline draft uses a
-continuation prompt until its terminating semicolon.
+Submitted SQL and dot commands retain their syntax highlighting in terminal
+scrollback above their results, with continuation prompts for multiline input.
+The transcript uses stderr so redirected stdout contains results only. An
+unfinished multiline draft uses a continuation prompt until its terminating
+semicolon.
 Typing or accepting completion never submits. Unsupported SQL fails before a
 query identity is allocated or any mutation is sent.
 
@@ -403,6 +404,12 @@ history.
 
 The horizontally scrolling, highlighted draft renders newline, Unicode
 and control bytes as visible escapes; the underlying SQL remains unchanged.
+Diagnostics emphasize the error label and identifier, category, location and
+caret, and highlight SQL vocabulary and dot commands in corrective guidance.
+Color uses stderr's terminal status independently of the result format; redirected
+stderr stays plain. Set a nonempty `NO_COLOR` or `TERM=dumb` to disable color in
+both drafts and output. All diagnostic text and coordinates remain available
+without color, and timing stays after the complete diagnostic.
 The display responds to terminal resize and restores the original terminal
 attributes on normal and handled-signal exit.
 

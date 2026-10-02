@@ -5,6 +5,7 @@ const Console = @import("Console.zig");
 const Signals = @import("Signals.zig");
 const Output = @import("Output.zig");
 const History = @import("History.zig");
+const Style = @import("Style.zig");
 const input = q.fuze.SqlInput;
 const max_bytes = q.fuze.Sql.max_statement_bytes;
 pub fn run(console: *Console.Console) !void {
@@ -37,7 +38,8 @@ pub fn run(console: *Console.Console) !void {
     try Output.write(console.init, &output.interface, "");
     defer {
         Signals.clear(); // Restore display modes even after the handled signal.
-        Output.write(console.init, &output.interface, "\x1b[0m\x1b[?2004l\r\x1b[2K\n") catch {};
+        output.interface.writeAll(console.diagnostic.style.code(.plain)) catch {};
+        Output.write(console.init, &output.interface, "\x1b[?2004l\r\x1b[2K\n") catch {};
     }
     try editor.loop();
 }
@@ -305,18 +307,33 @@ const Editor = struct {
     fn echo(self: *Editor, statement: []const u8) !void {
         // Commit the full submitted draft to terminal scrollback before output.
         // Keep stdout exclusively for results, including when it is redirected.
-        var storage: [max_bytes * 10 + 64]u8 = undefined;
+        // Bound escaped code points plus token colors and continuation prompts,
+        // including an alternating token or newline at every input byte.
+        var storage: [max_bytes * 20 + 64]u8 = undefined;
         var transcript: std.Io.Writer = .fixed(&storage);
-        try transcript.writeAll("\r\x1b[2K\x1b[0mtransit> ");
+        const style = self.console.diagnostic.style;
+        try transcript.writeAll("\r\x1b[2K");
+        try transcript.writeAll(style.code(.plain));
+        try transcript.writeAll("transit> ");
+        var syntax = Style.Syntax.init(statement);
+        var active: Style.Color = .plain;
         var offset: usize = 0;
         var buffer: [16]u8 = undefined;
         while (offset < statement.len) {
             const length = try std.unicode.utf8ByteSequenceLength(statement[offset]);
             if (statement[offset] == '\n') {
+                try transcript.writeAll(style.code(.plain));
                 try transcript.writeAll("\n   ...> ");
-            } else try transcript.writeAll(try printable(statement[offset..][0..length], &buffer));
+                active = .plain;
+            } else {
+                const color = syntax.at(offset);
+                if (color != active) try transcript.writeAll(style.code(color));
+                active = color;
+                try transcript.writeAll(try printable(statement[offset..][0..length], &buffer));
+            }
             offset += length;
         }
+        try transcript.writeAll(style.code(.plain));
         try transcript.writeByte('\n');
         try Output.write(self.console.init, self.out, transcript.buffered());
     }
@@ -352,7 +369,11 @@ const Editor = struct {
                 if (err == error.ConsoleInterrupted or err == error.InteractiveQueryCancelled or err == error.ConsoleOutputTimeout or err == error.WriteFailed) return err;
                 if (self.console.recovery) |file| if (file.failed) return err;
                 self.dismiss();
-                try self.out.print("\r\x1b[2Kerror: {s}\n", .{@errorName(err)});
+                try self.out.writeAll("\r\x1b[2K");
+                try self.console.diagnostic.style.text(self.out, .failure, "error:");
+                try self.out.writeByte(' ');
+                try self.console.diagnostic.style.text(self.out, .failure, @errorName(err));
+                try self.out.writeByte('\n');
             };
             if (!Signals.pending()) try self.draw();
         }
@@ -511,34 +532,27 @@ const Editor = struct {
         }
         var used: usize = 0;
         var i = start;
-        var scan = input.Scan.init(self.text()) catch null;
-        var token: ?input.Token = null;
+        var syntax = Style.Syntax.init(self.text());
+        var active: Style.Color = .plain;
+        const style = self.console.diagnostic.style;
         while (i < self.length) {
             const length = try std.unicode.utf8ByteSequenceLength(self.bytes[i]);
             const visible = try printable(self.bytes[i..][0..length], &buffer);
             if (used + visible.len > available) break;
-            if (scan) |*scanner| while (token == null or token.?.end <= i) {
-                token = scanner.next() catch null;
-                if (token == null) break;
-            };
-            const color: []const u8 = if (token) |value| switch (value.kind) {
-                .word => "\x1b[36m",
-                .string, .quoted => "\x1b[32m",
-                .comment => "\x1b[2m",
-                .number => "\x1b[35m",
-                else => "\x1b[0m",
-            } else "\x1b[0m";
-            try self.out.writeAll(color);
+            const color = syntax.at(i);
+            if (color != active) try self.out.writeAll(style.code(color));
+            active = color;
             try self.out.writeAll(visible);
             i += length;
             used += visible.len;
         }
-        try self.out.print("\x1b[0m\r\x1b[{d}C", .{prefix_length + left_width});
+        try self.out.writeAll(style.code(.plain));
+        try self.out.print("\r\x1b[{d}C", .{prefix_length + left_width});
         try Output.write(self.console.init, self.out, "");
     }
     fn drawSearch(self: *Editor) !void {
         const label = if (self.columns < 24) "/" else "search ";
-        try self.out.writeAll("\x1b[0m");
+        try self.out.writeAll(self.console.diagnostic.style.code(.plain));
         try self.out.writeAll(label);
         var used: usize = label.len;
         var buffer: [16]u8 = undefined;

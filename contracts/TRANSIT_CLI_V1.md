@@ -293,6 +293,12 @@ are mutually exclusive and do not read stdin. Batch execution stops on the first
 error. Dot commands start an empty input statement; slash commands are rejected.
 TTY editing supports movement, deletion, Up/Down recall, Ctrl-R reverse substring
 history search, completion accept/dismiss/undo, resize and Ctrl-C draft clearing.
+Submitted SQL and dot commands retain the draft's token colors in scrollback.
+Console diagnostics highlight error labels, identifiers, categories, coordinates,
+carets and correction commands on terminal stderr. Nonempty `NO_COLOR` or
+`TERM=dumb` disables color; redirected stderr is plain even with
+`CLICOLOR_FORCE`. Color does not change text, redaction, caret alignment, result
+stdout or timing-footer order.
 Search acceptance returns the match to the editor; submitting requires another
 Enter. SQL and dot-command submissions append to `$HOME/.transit_history` as
 newline-delimited JSON strings with owner-only file permissions. Batch and startup
