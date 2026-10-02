@@ -50,6 +50,7 @@ def records(requests):
     statuses = []
     for phase,count,reason,input_id in [(1,0,0,0),(2,0,0,0),(3,3,0,123),(4,0,1,124),(5,0,0,125)]:
         value = b'TMS1'+reference+struct.pack('<QI',10,9)+declaration+struct.pack('<QBBBQ',4,phase,count,reason,input_id)
+        value += struct.pack('<Bq', 2 if reason == 1 else 0, -1 if reason == 1 else 0)
         statuses.append(dict(phase=phase,affected=count,reason=reason,input=input_id,wire_hex=value.hex()))
     commands = [b'TMB1'+reference+struct.pack('<IQ',9,4),
                 b'TMP1'+reference+struct.pack('<IB',0,0)+data[:128],

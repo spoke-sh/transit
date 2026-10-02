@@ -85,9 +85,10 @@ pub const Status = struct {
     affected_rows: u8,
     reason: r.Reason,
     input: u64,
+    conflict: ?struct { key: []const u8, row: u8 },
     pub fn fromNative(alloc: Allocator, value: r.Status) !Status {
         _ = try value.encode();
-        return .{ .reference = try c.hex(alloc, (try value.reference.encode()).slice()), .principal = value.principal, .table = value.table, .declaration = try c.hex(alloc, &value.declaration), .policy_revision = try c.decimal(alloc, value.policy_revision), .phase = value.phase, .affected_rows = value.affected_rows, .reason = value.reason, .input = value.input };
+        return .{ .reference = try c.hex(alloc, (try value.reference.encode()).slice()), .principal = value.principal, .table = value.table, .declaration = try c.hex(alloc, &value.declaration), .policy_revision = try c.decimal(alloc, value.policy_revision), .phase = value.phase, .affected_rows = value.affected_rows, .reason = value.reason, .input = value.input, .conflict = if (value.conflict) |conflict| .{ .key = try std.fmt.allocPrint(alloc, "{d}", .{conflict.key}), .row = conflict.row } else null };
     }
 };
 pub const Result = union(enum) {

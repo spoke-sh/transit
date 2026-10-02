@@ -57,7 +57,7 @@ int main(int argc,char **argv) {
         } else {
             assert(!strcmp(command,"status"));transit_station_table_mutation_status out;memset(&out,0xa5,sizeof(out));
             error=transit_station_table_mutation_status_read(client,reference(first),&out);
-            if(!error.kind){const char *phases[]={"uploading","sealed","applied","rejected","cancelled"};const char *reasons[]={"none","row_exists","source_changed","invalid_request","denied","budget"};printf("{\"status\":0,\"value\":{\"status\":");if(out.found){printf("{\"reference\":\"");print_hex((transit_sdk_bytes){out.reference.bytes,72});printf("\",\"phase\":\"%s\",\"affected_rows\":%u,\"reason\":\"%s\",\"input\":%llu}",phases[out.phase],out.affected_rows,reasons[out.reason],(unsigned long long)out.input);}else printf("null");puts("}}");}
+            if(!error.kind){const char *phases[]={"uploading","sealed","applied","rejected","cancelled"};const char *reasons[]={"none","row_exists","source_changed","invalid_request","denied","budget"};printf("{\"status\":0,\"value\":{\"status\":");if(out.found){printf("{\"reference\":\"");print_hex((transit_sdk_bytes){out.reference.bytes,72});printf("\",\"phase\":\"%s\",\"affected_rows\":%u,\"reason\":\"%s\",\"input\":%llu,\"conflict\":",phases[out.phase],out.affected_rows,reasons[out.reason],(unsigned long long)out.input);if(out.has_conflict) printf("{\"key\":\"%lld\",\"row\":%u}",(long long)out.conflict_key,out.conflict_row);else printf("null");printf("}");}else printf("null");puts("}}");}
             else assert(!out.found && out.table==0 && out.reference.bytes[0]==0);
         }
         if(error.kind)emit_error(error);

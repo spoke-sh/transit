@@ -63,7 +63,14 @@ public final class Mutations {
     public record Description(ResourceRef resource,long table,List<String> names,Type valueType,long resourceRevision,long policyRevision,Bytes declaration,Set<Permission> permissions,Optional<BigInteger> active) {
         public Description { names=List.copyOf(names);permissions=Set.copyOf(permissions); }
     }
-    public record Status(Reference reference,long principal,long table,Bytes declaration,long policyRevision,Phase phase,int affectedRows,Reason reason,long input) {}
+    public record Conflict(long key,int row) {}
+    private static Optional<Conflict> conflict(JsonElement value) {
+        if(value.isJsonNull())return Optional.empty();
+        var v=value.getAsJsonObject();long row=number(v.get("row"),1);
+        if(row>3)throw incompatible("conflict-row");
+        return Optional.of(new Conflict(NativeValues.signed(v.get("key")),(int)row));
+    }
+    public record Status(Reference reference,long principal,long table,Bytes declaration,long policyRevision,Phase phase,int affectedRows,Reason reason,long input,Optional<Conflict> conflict) {}
     private static Optional<Prepared> prepared(JsonElement value) {
         if(value==null)throw incompatible("mutation-prepared");
         return value.isJsonNull()?Optional.empty():Optional.of(new Prepared(new Bytes(string(value).getBytes(StandardCharsets.UTF_8))));
@@ -133,7 +140,7 @@ public final class Mutations {
                 Reference actual=new Reference(fixed(v.get("reference"),72));
                 if(!actual.equals(reference) || number(v.get("table"),1)!=connection.table())throw incompatible("mutation-status-target");
                 long affected=number(v.get("affected_rows"),0);if(affected>3)throw incompatible("mutation-row-count");
-                return Optional.of(new Status(actual,number(v.get("principal"),1),connection.table(),fixed(v.get("declaration"),32),revision(v.get("policy_revision")),variant(Phase.class,v.get("phase")),(int)affected,variant(Reason.class,v.get("reason")),number(v.get("input"),0)));
+                return Optional.of(new Status(actual,number(v.get("principal"),1),connection.table(),fixed(v.get("declaration"),32),revision(v.get("policy_revision")),variant(Phase.class,v.get("phase")),(int)affected,variant(Reason.class,v.get("reason")),number(v.get("input"),0),conflict(v.get("conflict"))));
             });
         }
         @Override public void close() { worker.close(); }

@@ -21,9 +21,10 @@ struct Description {
     uint64_t resource_revision, policy_revision; std::array<uint8_t, 32> declaration;
     Permissions permissions; std::optional<uint64_t> active;
 };
+struct Conflict { int64_t key; uint8_t row; };
 struct Status {
     Reference reference; uint64_t principal; uint32_t table; std::array<uint8_t, 32> declaration;
-    uint64_t policy_revision; Phase phase; uint8_t affected_rows; Reason reason; uint64_t input;
+    uint64_t policy_revision; Phase phase; uint8_t affected_rows; Reason reason; uint64_t input; std::optional<Conflict> conflict;
 };
 namespace detail {
 inline transit_station_table_mutation_reference native(const Reference &reference) {
@@ -109,7 +110,8 @@ public:
     std::optional<Status> status(const Reference &reference) {
         transit_station_table_mutation_status out{}; check(transit_station_table_mutation_status_read(value_.get(), detail::native(reference), &out));
         if (!out.found) return {};
-        Status result{{}, out.principal, out.table, {}, out.policy_revision, static_cast<Phase>(out.phase), out.affected_rows, static_cast<Reason>(out.reason), out.input};
+        Status result{{}, out.principal, out.table, {}, out.policy_revision, static_cast<Phase>(out.phase), out.affected_rows, static_cast<Reason>(out.reason), out.input, {}};
+        if(out.has_conflict) result.conflict=Conflict{out.conflict_key,out.conflict_row};
         std::copy_n(out.reference.bytes, 72, result.reference.begin()); std::copy_n(out.declaration, 32, result.declaration.begin()); return result;
     }
     void close() { check(transit_station_table_mutation_close(value_.get())); }

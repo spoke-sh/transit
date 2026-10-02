@@ -38,9 +38,9 @@ action(A,C,#{<<"rejection">>:=#{<<"prepared">>:=Bytes,<<"input">>:=Input}})->
 action(A,C,#{<<"status">>:=Reference})->
     #{status=>optional(result(A:status(C,ref(Reference))),fun(#transit_mutation_status{
         reference=#transit_mutation_reference{bytes=R},principal=P,table=T,declaration=D,policy_revision=Policy,
-        phase=Phase,affected_rows=Rows,reason=Reason,input=Input})->
+        phase=Phase,affected_rows=Rows,reason=Reason,input=Input,conflict=Conflict})->
         #{reference=>hex(R),principal=>P,table=>T,declaration=>hex(D),policy_revision=>integer_to_binary(Policy),
-          phase=>atom_to_binary(Phase),affected_rows=>Rows,reason=>atom_to_binary(Reason),input=>Input} end)}.
+          phase=>atom_to_binary(Phase),affected_rows=>Rows,reason=>atom_to_binary(Reason),input=>Input,conflict=>optional(Conflict,fun(#transit_mutation_conflict{key=Key,row=Row})->#{key=>integer_to_binary(Key),row=>Row} end)} end)}.
 loop(A,C,Saved)->case io:get_line("") of
     eof->Saved;
     Line->Action=json:decode(unicode:characters_to_binary(Line)),case maps:is_key(<<"close">>,Action) of

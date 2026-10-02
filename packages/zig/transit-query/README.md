@@ -44,7 +44,9 @@ dispositions for the explicit host role. Read-query routes do not dispatch
 mutations. `TableMutationBridge` supplies owned neutral actions/results
 over the same caller, including exact compiled-reference validation and opaque
 saved commands. Its [neutral value contract](../../../contracts/TABLE_MUTATION_V1.md#neutral-caller-values)
-keeps full-width namespaces out of JSON numbers. The
+keeps full-width namespaces and conflicting signed keys out of JSON numbers.
+Rejected INSERT status includes the actual key and one-based input row from the
+rejecting execution, retained atomically with the outcome. The
 [native ABI/port caller](../transit-station-bindings/docs/table-mutations.md)
 exposes these actions through an explicit profile.
 [Typed SDK callers](../../../docs/reference/sdks.md#table-mutation-callers) use the same owner;

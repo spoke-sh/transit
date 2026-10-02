@@ -49,7 +49,8 @@ def result(action, value):
     if name == 'status':
         return {'status':None if value is None else dict(reference=value.reference.data.hex(),principal=value.principal,table=value.table,
             declaration=value.declaration.hex(),policy_revision=str(value.policy_revision),phase=value.phase.value,
-            affected_rows=value.affected_rows,reason=value.reason.value,input=value.input)}
+            affected_rows=value.affected_rows,reason=value.reason.value,input=value.input,
+            conflict=None if value.conflict is None else dict(key=str(value.conflict.key),row=value.conflict.row))}
     raise ValueError('Unsupported result')
 
 

@@ -55,7 +55,7 @@ static class Program
         }
         Check(action.ContainsKey("status")); var status = await client.StatusAsync(Reference(Text(action, "status")));
         return Obj(("status", status is null ? null : Obj(("reference", Hex(status.Reference.Bytes)), ("principal", status.Principal), ("table", status.Table), ("declaration", Hex(status.Declaration)),
-            ("policy_revision", status.PolicyRevision.ToString()), ("phase", Name(status.Phase)), ("affected_rows", status.AffectedRows), ("reason", Name(status.Reason)), ("input", status.Input))));
+            ("policy_revision", status.PolicyRevision.ToString()), ("phase", Name(status.Phase)), ("affected_rows", status.AffectedRows), ("reason", Name(status.Reason)), ("input", status.Input), ("conflict", status.Conflict is {} c ? Obj(("key", c.Key.ToString()), ("row", c.Row)) : null))));
     }
     static async Task Main(string[] args) {
         var config = JsonNode.Parse(File.ReadAllText(args[0]))!; var c = config["connection"]!; ulong realm = Number(c, "realm");

@@ -8,15 +8,25 @@ pub const Result = struct { affected_rows: u8 };
 /// The caller owns authorization and admission; this helper neither commits nor
 /// routes work. Any failure restores the complete proposal. Read poison remains.
 pub fn apply(turn: anytype, table: Table, plan: Plan) !Result {
+    return applyDetailed(turn, table, plan, null);
+}
+
+pub fn applyDetailed(turn: anytype, table: Table, plan: Plan, conflict: ?*?f.TableMutation.Conflict) !Result {
+    if (conflict) |detail| detail.* = null;
     try plan.validate();
     if (!std.meta.eql(table.schema, plan.schema)) return error.TableSchemaChanged;
     const before = turn.decision;
     errdefer turn.decision = before;
     var affected: u8 = 0;
     switch (plan.operation) {
-        .insert => |rows| for (rows) |slot| {
+        .insert => |rows| for (rows, 1..) |slot, ordinal| {
             const row = slot orelse break;
-            try table.insert(turn, row);
+            table.insert(turn, row) catch |err| {
+                if (err == error.RowExists) if (conflict) |detail| {
+                    detail.* = .{ .key = row.key, .row = @intCast(ordinal) };
+                };
+                return err;
+            };
             affected += 1;
         },
         .update => |row| if (try table.get(turn, row.key) != null) {

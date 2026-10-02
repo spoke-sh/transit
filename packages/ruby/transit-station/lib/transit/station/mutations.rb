@@ -49,8 +49,9 @@ module Transit
       end
       Description = Data.define(:resource, :table, :names, :value_type, :resource_revision, :policy_revision,
         :declaration, :permissions, :active)
+      Conflict = Data.define(:key, :row)
       Status = Data.define(:reference, :principal, :table, :declaration, :policy_revision, :phase,
-        :affected_rows, :reason, :input)
+        :affected_rows, :reason, :input, :conflict)
       module Values
         module_function
         def reference(value)
@@ -152,7 +153,10 @@ module Transit
           Status.new(reference: Reference.new(data: Internal.unhex(v.fetch('reference'), 72)), principal: Internal.integer(v.fetch('principal')),
             table: connection.table, declaration: Values.digest(v.fetch('declaration')), policy_revision: Values.revision(v.fetch('policy_revision')),
             phase: v.fetch('phase').to_sym, affected_rows: Internal.integer(v.fetch('affected_rows'), min: 0, max: 3),
-            reason: v.fetch('reason').to_sym, input: Internal.integer(v.fetch('input'), min: 0))
+            reason: v.fetch('reason').to_sym, input: Internal.integer(v.fetch('input'), min: 0),
+            conflict: v.fetch('conflict').then { |c| c.nil? ? nil : Conflict.new(
+              key: Internal.integer(Integer(c.fetch('key'), 10), min: -(1 << 63), max: (1 << 63)-1),
+              row: Internal.integer(c.fetch('row'), min: 1, max: 3)) })
         end
         def close = @worker.close
         private

@@ -47,7 +47,7 @@ async function call(action) {
     const v = await client.status(ref(action.status));
     return { status:v === undefined ? null : { reference:hex(v.reference.data),principal:v.principal,table:v.table,
       declaration:hex(v.declaration),policy_revision:v.policyRevision.toString(),phase:v.phase,affected_rows:v.affectedRows,
-      reason:v.reason,input:v.input } };
+      reason:v.reason,input:v.input,conflict:v.conflict === undefined ? null : {key:v.conflict.key.toString(),row:v.conflict.row} } };
   }
   throw new Error('Unsupported mutation test action');
 }

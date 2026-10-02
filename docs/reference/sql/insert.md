@@ -42,6 +42,12 @@ writes. The helper inserts into the supplied private Station turn and returns a
 provisional affected-row count. Any existing key rejects the whole statement;
 there is no upsert or implicit overwrite.
 
+The durable rejection includes the attempted primary key and its one-based
+input-row position. It identifies the first conflicting row in statement order,
+even when earlier rows would have succeeded. The witness is recorded with the
+rejection and remains the same after retries, restarts and later Table changes.
+It contains no stored value. Status reads still require current access.
+
 An accepted enclosing turn commits all rows, input progress and its outputs
 atomically. The helper restores the entire prior proposal on error, including
 budget exhaustion. The three-row bound leaves one of a fresh turn's four

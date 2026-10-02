@@ -46,7 +46,7 @@ def call(client,action)
     v = client.status(reference(value))
     {status: v && {reference: v.reference.data.unpack1('H*'),principal: v.principal,table: v.table,
       declaration: v.declaration.unpack1('H*'),policy_revision: v.policy_revision.to_s,phase: v.phase,
-      affected_rows: v.affected_rows,reason: v.reason,input: v.input}}
+      affected_rows: v.affected_rows,reason: v.reason,input: v.input,conflict: v.conflict && {key: v.conflict.key.to_s,row: v.conflict.row}}}
   else raise 'Unsupported mutation test action'
   end
 end

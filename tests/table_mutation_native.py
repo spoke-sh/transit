@@ -443,6 +443,7 @@ def run(node, proof, host, port_host, library, cli, *, sdks=(), cold=False):
                     outcome = owner.call({'status':request['reference']})['status']
                     assert outcome['reference'] == request['reference']
                     assert (outcome['phase'],outcome['reason'],outcome['affected_rows']) == (phase,reason,affected), (label,profile,outcome)
+                    assert outcome['conflict'] == (dict(key='2',row=2) if reason == 'row_exists' else None), (label,profile,outcome)
                     rows = snapshot(profile_namespace,phase,[('replacement',),value,(None,)],affected)
                     assert rows['reason'] == reason and rows['input'] == receipt['position']
                     assert rows['rows'][0] == previous_rows[0] and rows['rows'][2] == previous_rows[2]

@@ -114,6 +114,12 @@ class Description:
 
 
 @dataclass(frozen=True, slots=True)
+class Conflict:
+    key: int
+    row: int
+
+
+@dataclass(frozen=True, slots=True)
 class Status:
     reference: Reference
     principal: int
@@ -122,6 +128,7 @@ class Status:
     policy_revision: int
     phase: Phase
     affected_rows: int
+    conflict: Conflict | None
     reason: Reason
     input: int
 
@@ -152,7 +159,10 @@ def _status(value: dict[str, Any] | None) -> Status | None:
     return Status(Reference(bytes.fromhex(value['reference'])), integer(value['principal'], 'principal'),
                   integer(value['table'], 'table', maximum=(1 << 32)-1), _digest(value['declaration']),
                   integer(int(value['policy_revision']), 'policy revision'), Phase(value['phase']),
-                  integer(value['affected_rows'], 'affected rows', minimum=0, maximum=3), Reason(value['reason']),
+                  integer(value['affected_rows'], 'affected rows', minimum=0, maximum=3),
+                  None if value['conflict'] is None else Conflict(
+                      integer(int(value['conflict']['key']), 'conflict key', minimum=-(1 << 63), maximum=(1 << 63)-1),
+                      integer(value['conflict']['row'], 'conflict row', minimum=1, maximum=3)), Reason(value['reason']),
                   integer(value['input'], 'input', minimum=0))
 
 

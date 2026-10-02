@@ -1,5 +1,5 @@
 //! Typed, owned mutation callers over the shared Zig policy/staging/recovery owner.
-use crate::bridge::{MutationNative, counter, field, wide};
+use crate::bridge::{MutationNative, counter, field, wide, signed};
 use crate::{CellType, abi};
 use serde_json::{Value, json};
 use transit_client::internal::{Worker, hex, number, string, unhex};
@@ -203,6 +203,11 @@ pub struct Description {
     pub permissions: Permissions,
     pub active: Option<u64>,
 }
+#[derive(Clone, Debug)]
+pub struct Conflict {
+    pub key: i64,
+    pub row: u8,
+}
 #[derive(Clone)]
 pub struct Status {
     pub reference: Reference,
@@ -212,6 +217,7 @@ pub struct Status {
     pub policy_revision: u64,
     pub phase: Phase,
     pub affected_rows: u8,
+    pub conflict: Option<Conflict>,
     pub reason: Reason,
     pub input: u64,
 }
@@ -402,6 +408,14 @@ impl Client {
             policy_revision: revision(field(v, "policy_revision")?)?,
             phase: Phase::parse(field(v, "phase")?)?,
             affected_rows: affected_rows as u8,
+            conflict: match field(v, "conflict")? {
+                Value::Null => None,
+                detail => {
+                    let row = number(field(detail, "row")?, "conflict-row", false)?;
+                    if row > 3 { return Err(malformed()); }
+                    Some(Conflict { key: signed(field(detail, "key")?)?, row: row as u8 })
+                }
+            },
             reason: Reason::parse(field(v, "reason")?)?,
             input: number(field(v, "input")?, "input", true)?,
         }))

@@ -130,10 +130,14 @@ fn applyRequest(turn: *Turn, current: *r.Status, request: Request) !void {
     if (request.realm != turn.delivery.realm or request.writer != turn.delivery.pid or request.resource != turn.view.resource or request.table != current.table) return close(turn, current, .rejected, .invalid_request, 0);
     if (!std.mem.eql(u8, &current.declaration, &try r.declaration(request.target()))) return close(turn, current, .rejected, .source_changed, 0);
     if (!grant.permits(request.plan.operation)) return close(turn, current, .rejected, .denied, 0);
-    const result = s.TableMutation.apply(turn, request.target(), request.plan) catch |err| {
+    var conflict: ?q.fuze.TableMutation.Conflict = null;
+    const result = s.TableMutation.applyDetailed(turn, request.target(), request.plan, &conflict) catch |err| {
         if (turn.read_error != null) return err;
         return switch (err) {
-            error.RowExists => close(turn, current, .rejected, .row_exists, 0),
+            error.RowExists => blk: {
+                current.conflict = conflict orelse return error.InvalidMutationRecord;
+                break :blk close(turn, current, .rejected, .row_exists, 0);
+            },
             error.TableNotFound, error.TableSchemaChanged => close(turn, current, .rejected, .source_changed, 0),
             error.MutationBudgetExceeded => close(turn, current, .rejected, .budget, 0),
             else => err,

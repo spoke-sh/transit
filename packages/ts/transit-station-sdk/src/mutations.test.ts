@@ -55,6 +55,7 @@ test("runtime schema rejects a foreign mutation phase", async () => {
         policy_revision: "1",
         phase: "complete",
         affected_rows: 1,
+        conflict: null,
         reason: "none",
         input: 1,
       },

@@ -476,3 +476,51 @@ test "inline denial, duplicate rollback, no-op counts and upload exclusion" {
     try t.expectError(error.MutationBusy, admission.dispatch(&blocked));
     try t.expectEqual(0, mutations(blocked));
 }
+
+test "conflict witness is the first rejecting input row and survives later data changes and recovery" {
+    for ([_]i64{ std.math.minInt(i64), -1, std.math.maxInt(i64) }) |key| {
+        for (1..4) |ordinal| {
+            var store: Store = .{};
+            defer store.deinit();
+            const table = try setup(&store);
+            var seed = try sql(&store, table, "INSERT INTO items (id,value) VALUES(2,'old')");
+            seed.plan.operation.insert[0].?.key = key;
+            _ = try execute(&store, .{ .execute = .{ .namespace = 1, .policy_revision = 1, .request = seed } });
+            var request = try sql(&store, table, "INSERT INTO items (value,id) VALUES('a',10),('b',11),('c',12)");
+            request.plan.operation.insert[ordinal - 1].?.key = key;
+            const command: r.Command = .{ .execute = .{ .namespace = 2, .policy_revision = 1, .request = request } };
+            const rejected = try execute(&store, command);
+            try t.expectEqual(.rejected, rejected.phase);
+            try t.expectEqual(0, rejected.affected_rows);
+            try t.expectEqual(key, rejected.conflict.?.key);
+            try t.expectEqual(ordinal, rejected.conflict.?.row);
+            for (10..13) |absent| try t.expectEqual(null, try row(&store, table, @intCast(absent)));
+            // Remove the conflicting stored row. Recovery still reports the
+            // witness from the original execution, not the current Table.
+            var deletion = try sql(&store, table, "DELETE FROM items WHERE id=2");
+            deletion.plan.operation.delete = key;
+            _ = try execute(&store, .{ .execute = .{ .namespace = 3, .policy_revision = 1, .request = deletion } });
+            var recovered = try store.clone();
+            defer recovered.deinit();
+            try t.expect(std.meta.eql(rejected, try execute(&recovered, command)));
+            var turn = try recovered.capture();
+            try t.expect(std.meta.eql(rejected, (try admission.status(&turn, 2)).?));
+            try t.expectEqual(null, try row(&recovered, table, key));
+            // Every truncated record, including the previous 139-byte shape,
+            // fails rather than synthesizing an absent witness.
+            const encoded = try rejected.encode();
+            for (0..encoded.len) |length| {
+                if (r.Status.decode(try q.protocol.Value.init(encoded.slice()[0..length]))) |_| return error.AcceptedTruncation else |_| {}
+            }
+            var invalid = rejected;
+            invalid.conflict = null;
+            try t.expectError(error.InvalidMutationRecord, invalid.encode());
+            invalid = rejected;
+            invalid.conflict.?.row = 4;
+            try t.expectError(error.InvalidMutationRecord, invalid.encode());
+            invalid = rejected;
+            invalid.reason = .denied;
+            try t.expectError(error.InvalidMutationRecord, invalid.encode());
+        }
+    }
+}

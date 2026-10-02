@@ -12048,3 +12048,21 @@ Both failed-job annotations identify account billing/spending-limit refusal;
 the remaining jobs are skipped. This is not a hosted code/test failure or a
 hosted pass. The submitted SDK PR can be reviewed independently of the
 remaining complete clean-lane and milestone qualification.
+
+### Semantic mutation conflict witnesses
+
+The mutation status records the actual attempted key and one-based input row at
+atomic rejection. Package tests cover each of three conflict positions, signed
+int64 extrema, rollback of earlier proposed rows, exact replay after deleting
+the conflicting stored row, recovered state and rejection of truncated or
+inconsistent status records. The independent mutation byte fixture includes the
+148-byte status. Native/port/CLI conformance checks the witness after lost replies.
+
+On 2026-10-02, the diagnostic implementation working tree passed `just check`,
+`just bindings::node-check`, the query package's `zig build test`,
+`just test::query` and `just test::table-mutation`. The latter completed in
+29.571 seconds with 3,340 reads, 99 turns, at most four mutations per turn,
+256-byte native values and eight resident authority pages; all seven profiles
+passed for native, port and CLI callers. All ten SDK packages built in the
+bindings shell. These results do not establish the remaining diagnostic matrix
+in [M44](../docs/roadmap/M44.md); installed SDK witness qualification is separate.

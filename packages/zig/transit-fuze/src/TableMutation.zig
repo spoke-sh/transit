@@ -1,5 +1,8 @@
 //! Typed, allocation-free Table mutation plans. No I/O, authority or execution.
 const std = @import("std");
+/// Witness from the rejecting private execution, never a subsequent lookup.
+/// `row` is the one-based position in the submitted INSERT.
+pub const Conflict = struct { key: i64, row: u8 };
 const sql = @import("Sql.zig");
 const m = @import("model.zig");
 pub const max_rows = sql.max_mutation_rows;

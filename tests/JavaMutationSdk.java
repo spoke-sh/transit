@@ -56,7 +56,7 @@ public final class JavaMutationSdk {
         if(action.has("rejection")) {
             var v=action.getAsJsonObject("rejection");return json("rejection",await(client.rejection(prepared(text(v,"prepared")),v.get("input").getAsLong())).map(JavaMutationSdk::tag).orElse(null));
         }
-        check(action.has("status"));return json("status",await(client.status(reference(text(action,"status")))).map(v -> json("reference",hex(v.reference().bytes()),"principal",v.principal(),"table",v.table(),"declaration",hex(v.declaration()),"policy_revision",Long.toString(v.policyRevision()),"phase",tag(v.phase()),"affected_rows",v.affectedRows(),"reason",tag(v.reason()),"input",v.input())).orElse(null));
+        check(action.has("status"));return json("status",await(client.status(reference(text(action,"status")))).map(v -> json("reference",hex(v.reference().bytes()),"principal",v.principal(),"table",v.table(),"declaration",hex(v.declaration()),"policy_revision",Long.toString(v.policyRevision()),"phase",tag(v.phase()),"affected_rows",v.affectedRows(),"reason",tag(v.reason()),"input",v.input(),"conflict",v.conflict().map(c -> json("key",Long.toString(c.key()),"row",c.row())).orElse(null))).orElse(null));
     }
     public static void main(String[] args) throws Exception {
         JsonObject config=new Gson().fromJson(Files.readString(Path.of(args[0])),JsonObject.class);var c=config.getAsJsonObject("connection");long realm=c.get("realm").getAsLong();

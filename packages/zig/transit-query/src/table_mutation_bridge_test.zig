@@ -43,7 +43,7 @@ test "neutral mutation values retain independent bytes, wide identities and owne
         }
     }
     for (object.get("statuses").?.array.items) |case| {
-        var native = try r.Status.decode(try q.protocol.Value.init(try c.unhex(alloc, case.object.get("wire_hex").?.string, 139)));
+        var native = try r.Status.decode(try q.protocol.Value.init(try c.unhex(alloc, case.object.get("wire_hex").?.string, 148)));
         native.policy_revision = q.protocol.max_counter;
         const value = try b.Status.fromNative(alloc, native);
         try t.expectEqualStrings("9007199254740991", value.policy_revision);

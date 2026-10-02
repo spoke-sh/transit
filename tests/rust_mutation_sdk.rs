@@ -81,7 +81,7 @@ fn call(client: &mut m::Client, action: &Value) -> transit_client::Result<Value>
     } else if let Some(v) = action.get("status") {
         json!({"status":client.status(&reference(v.as_str().unwrap()))?.map(|v|json!({
             "reference":hex(v.reference.data()),"principal":v.principal,"table":v.table,"declaration":hex(&v.declaration),
-            "policy_revision":v.policy_revision.to_string(),"phase":tag(v.phase),"affected_rows":v.affected_rows,"reason":tag(v.reason),"input":v.input}))})
+            "policy_revision":v.policy_revision.to_string(),"phase":tag(v.phase),"affected_rows":v.affected_rows,"reason":tag(v.reason),"input":v.input,"conflict":v.conflict.map(|c| json!({"key":c.key.to_string(),"row":c.row}))}))})
     } else {
         panic!("Unsupported test action")
     })

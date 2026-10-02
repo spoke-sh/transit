@@ -119,6 +119,11 @@ export interface Description {
   readonly permissions: number;
   readonly active: bigint | undefined;
 }
+export interface Conflict {
+  readonly key: bigint;
+  /** One-based input row in the rejected INSERT. */
+  readonly row: number;
+}
 export interface Status {
   readonly reference: Reference;
   readonly principal: number;
@@ -127,6 +132,7 @@ export interface Status {
   readonly policyRevision: bigint;
   readonly phase: Phase;
   readonly affectedRows: number;
+  readonly conflict: Conflict | undefined;
   readonly reason: Reason;
   readonly input: number;
 }
@@ -297,6 +303,13 @@ export class Client {
       policyRevision: revision(v.policy_revision),
       phase: v.phase,
       affectedRows: integer(v.affected_rows, "affected rows", 0, 3),
+      conflict:
+        v.conflict === null
+          ? undefined
+          : Object.freeze({
+              key: nativeWide(v.conflict.key, true),
+              row: integer(v.conflict.row, "conflict row", 1, 3),
+            }),
       reason: v.reason,
       input: integer(v.input, "input", 0),
     });

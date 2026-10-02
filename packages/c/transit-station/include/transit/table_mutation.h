@@ -46,6 +46,7 @@ typedef struct transit_station_table_mutation_status {
     uint64_t principal; uint32_t table; uint8_t declaration[32]; uint64_t policy_revision;
     transit_station_table_mutation_phase phase; uint8_t affected_rows;
     transit_station_table_mutation_reason reason; uint64_t input;
+    bool has_conflict; int64_t conflict_key; uint8_t conflict_row; /* one-based */
 } transit_station_table_mutation_status;
 
 /* Imports copy input. Compiled request <=799 bytes, prepared UTF-8 <=8192 bytes.

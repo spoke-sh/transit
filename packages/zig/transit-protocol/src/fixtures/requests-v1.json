@@ -37,7 +37,7 @@
   ],
   "cases": [
     {
-      "canonical": "{\"version\":1,\"definition\":\"e412a074bf01f92cb62c7953051930d81a78cc1a0f45472b7eff17d9931f8633\",\"realm\":42,\"principal\":0,\"sequence\":1,\"command\":{\"send\":{\"pid\":3,\"value\":\"37\"}}}",
+      "canonical": "{\"version\":1,\"definition\":\"72b041c9c88b99dc14e6be68318faf397d451f851f9ef2b6d52faf2c4714d6c5\",\"realm\":42,\"principal\":0,\"sequence\":1,\"command\":{\"send\":{\"pid\":3,\"value\":\"37\"}}}",
       "sha256": "13ecaf49e053b662ec550eea46e5996e2ef28465c03a93970d2379e172b3b213",
       "signature": [
         74,
@@ -107,7 +107,7 @@
       ]
     },
     {
-      "canonical": "{\"version\":1,\"definition\":\"e412a074bf01f92cb62c7953051930d81a78cc1a0f45472b7eff17d9931f8633\",\"realm\":42,\"principal\":0,\"sequence\":2,\"command\":{\"spawn\":{\"allow_collection\":false,\"code\":1,\"work_before_ms\":null,\"settle_before_ms\":null}}}",
+      "canonical": "{\"version\":1,\"definition\":\"72b041c9c88b99dc14e6be68318faf397d451f851f9ef2b6d52faf2c4714d6c5\",\"realm\":42,\"principal\":0,\"sequence\":2,\"command\":{\"spawn\":{\"allow_collection\":false,\"code\":1,\"work_before_ms\":null,\"settle_before_ms\":null}}}",
       "sha256": "b64090a4eb1bb8b9a88a7f59b69e1e32bbe1e78520d3aeee65f60359c2e13f17",
       "signature": [
         158,
@@ -177,7 +177,7 @@
       ]
     },
     {
-      "canonical": "{\"version\":1,\"definition\":\"e412a074bf01f92cb62c7953051930d81a78cc1a0f45472b7eff17d9931f8633\",\"realm\":42,\"principal\":0,\"sequence\":3,\"command\":{\"turn\":{\"pid\":3,\"generation\":1,\"input\":5,\"expected_revision\":0,\"permit\":null,\"views\":[null,null,null,null],\"write_view\":null,\"mutations\":[null,null,null,null],\"outputs\":[null,null,null,null],\"effect\":null,\"failed\":false}}}",
+      "canonical": "{\"version\":1,\"definition\":\"72b041c9c88b99dc14e6be68318faf397d451f851f9ef2b6d52faf2c4714d6c5\",\"realm\":42,\"principal\":0,\"sequence\":3,\"command\":{\"turn\":{\"pid\":3,\"generation\":1,\"input\":5,\"expected_revision\":0,\"permit\":null,\"views\":[null,null,null,null],\"write_view\":null,\"mutations\":[null,null,null,null],\"outputs\":[null,null,null,null],\"effect\":null,\"failed\":false}}}",
       "sha256": "49abd17e24b532242990a8bbdf55e3de1eea04587b83ba2fa1991b7f219ed2bc",
       "signature": [
         168,
@@ -247,7 +247,7 @@
       ]
     },
     {
-      "canonical": "{\"version\":1,\"definition\":\"e412a074bf01f92cb62c7953051930d81a78cc1a0f45472b7eff17d9931f8633\",\"realm\":42,\"principal\":0,\"sequence\":4,\"command\":{\"deliver\":4}}",
+      "canonical": "{\"version\":1,\"definition\":\"72b041c9c88b99dc14e6be68318faf397d451f851f9ef2b6d52faf2c4714d6c5\",\"realm\":42,\"principal\":0,\"sequence\":4,\"command\":{\"deliver\":4}}",
       "sha256": "1148b213524d7b3c60bf0726458dee2c088ff2c4fb6ea1067ab4005af0b6ce2e",
       "signature": [
         237,
@@ -317,7 +317,7 @@
       ]
     },
     {
-      "canonical": "{\"version\":1,\"definition\":\"e412a074bf01f92cb62c7953051930d81a78cc1a0f45472b7eff17d9931f8633\",\"realm\":42,\"principal\":0,\"sequence\":5,\"command\":{\"spawn\":{\"allow_collection\":true,\"code\":1,\"work_before_ms\":null,\"settle_before_ms\":null}}}",
+      "canonical": "{\"version\":1,\"definition\":\"72b041c9c88b99dc14e6be68318faf397d451f851f9ef2b6d52faf2c4714d6c5\",\"realm\":42,\"principal\":0,\"sequence\":5,\"command\":{\"spawn\":{\"allow_collection\":true,\"code\":1,\"work_before_ms\":null,\"settle_before_ms\":null}}}",
       "sha256": "87359cbddb8f082ef5a6d861ecc9da77ad9156c13ebb0f15710e4901c407915a",
       "signature": [
         82,
@@ -387,7 +387,7 @@
       ]
     },
     {
-      "canonical": "{\"version\":1,\"definition\":\"e412a074bf01f92cb62c7953051930d81a78cc1a0f45472b7eff17d9931f8633\",\"realm\":42,\"principal\":0,\"sequence\":6,\"command\":{\"collect\":{\"pid\":3,\"id\":4,\"kind\":\"output\"}}}",
+      "canonical": "{\"version\":1,\"definition\":\"72b041c9c88b99dc14e6be68318faf397d451f851f9ef2b6d52faf2c4714d6c5\",\"realm\":42,\"principal\":0,\"sequence\":6,\"command\":{\"collect\":{\"pid\":3,\"id\":4,\"kind\":\"output\"}}}",
       "sha256": "162010fb40c86b3c15716460992cc29be7e7934d0a9ef63e05e7a29f2ef711d8",
       "signature": [
         114,
@@ -457,7 +457,7 @@
       ]
     },
     {
-      "canonical": "{\"version\":1,\"definition\":\"e412a074bf01f92cb62c7953051930d81a78cc1a0f45472b7eff17d9931f8633\",\"realm\":42,\"principal\":0,\"sequence\":7,\"command\":{\"create\":{\"process\":{\"allow_collection\":false,\"code\":1,\"work_before_ms\":null,\"settle_before_ms\":null},\"required\":[\"7374617465\",null,null,null]}}}",
+      "canonical": "{\"version\":1,\"definition\":\"72b041c9c88b99dc14e6be68318faf397d451f851f9ef2b6d52faf2c4714d6c5\",\"realm\":42,\"principal\":0,\"sequence\":7,\"command\":{\"create\":{\"process\":{\"allow_collection\":false,\"code\":1,\"work_before_ms\":null,\"settle_before_ms\":null},\"required\":[\"7374617465\",null,null,null]}}}",
       "sha256": "9493704571f6c71005664442990a4da0175e23835a1941cb3a53a8bd2c734c1a",
       "signature": [
         106,
@@ -527,7 +527,7 @@
       ]
     },
     {
-      "canonical": "{\"version\":1,\"definition\":\"e412a074bf01f92cb62c7953051930d81a78cc1a0f45472b7eff17d9931f8633\",\"realm\":42,\"principal\":0,\"sequence\":8,\"command\":{\"initialize\":{\"pid\":3,\"expected_generation\":1}}}",
+      "canonical": "{\"version\":1,\"definition\":\"72b041c9c88b99dc14e6be68318faf397d451f851f9ef2b6d52faf2c4714d6c5\",\"realm\":42,\"principal\":0,\"sequence\":8,\"command\":{\"initialize\":{\"pid\":3,\"expected_generation\":1}}}",
       "sha256": "7277c88b2d0bf5fc3e3b474169bb18741a3831c5094c0b2a1c2fefb268ca755f",
       "signature": [
         49,
@@ -597,7 +597,7 @@
       ]
     },
     {
-      "canonical": "{\"version\":1,\"definition\":\"e412a074bf01f92cb62c7953051930d81a78cc1a0f45472b7eff17d9931f8633\",\"realm\":42,\"principal\":0,\"sequence\":9,\"command\":{\"suspend\":{\"pid\":3,\"expected_generation\":2,\"resume_before_ms\":2000}}}",
+      "canonical": "{\"version\":1,\"definition\":\"72b041c9c88b99dc14e6be68318faf397d451f851f9ef2b6d52faf2c4714d6c5\",\"realm\":42,\"principal\":0,\"sequence\":9,\"command\":{\"suspend\":{\"pid\":3,\"expected_generation\":2,\"resume_before_ms\":2000}}}",
       "sha256": "59a7339305c58b034777a73ce2964bd6c3142333bce98ce13c8753fb267aaa3c",
       "signature": [
         204,
@@ -667,7 +667,7 @@
       ]
     },
     {
-      "canonical": "{\"version\":1,\"definition\":\"e412a074bf01f92cb62c7953051930d81a78cc1a0f45472b7eff17d9931f8633\",\"realm\":42,\"principal\":0,\"sequence\":10,\"command\":{\"resume\":{\"pid\":3,\"expected_generation\":3}}}",
+      "canonical": "{\"version\":1,\"definition\":\"72b041c9c88b99dc14e6be68318faf397d451f851f9ef2b6d52faf2c4714d6c5\",\"realm\":42,\"principal\":0,\"sequence\":10,\"command\":{\"resume\":{\"pid\":3,\"expected_generation\":3}}}",
       "sha256": "e7cfe541c10679505817fe1cc2a33ad41c4232c6980d99446d5327c0ee977ba2",
       "signature": [
         49,
@@ -737,7 +737,7 @@
       ]
     },
     {
-      "canonical": "{\"version\":1,\"definition\":\"e412a074bf01f92cb62c7953051930d81a78cc1a0f45472b7eff17d9931f8633\",\"realm\":42,\"principal\":0,\"sequence\":11,\"command\":{\"retry\":{\"pid\":3,\"expected_generation\":4,\"failure_input\":12}}}",
+      "canonical": "{\"version\":1,\"definition\":\"72b041c9c88b99dc14e6be68318faf397d451f851f9ef2b6d52faf2c4714d6c5\",\"realm\":42,\"principal\":0,\"sequence\":11,\"command\":{\"retry\":{\"pid\":3,\"expected_generation\":4,\"failure_input\":12}}}",
       "sha256": "d786281fc6a4ac1e0a3c034eefb7bb656487409c34ee68a5c6cca87eb5349445",
       "signature": [
         32,
@@ -807,7 +807,7 @@
       ]
     },
     {
-      "canonical": "{\"version\":1,\"definition\":\"e412a074bf01f92cb62c7953051930d81a78cc1a0f45472b7eff17d9931f8633\",\"realm\":42,\"principal\":0,\"sequence\":12,\"command\":{\"expire_suspension\":3}}",
+      "canonical": "{\"version\":1,\"definition\":\"72b041c9c88b99dc14e6be68318faf397d451f851f9ef2b6d52faf2c4714d6c5\",\"realm\":42,\"principal\":0,\"sequence\":12,\"command\":{\"expire_suspension\":3}}",
       "sha256": "556d10393cf8b9f0c07a4dc53eaa06d0ec65970fb85999f60f74ec12cca67cea",
       "signature": [
         5,

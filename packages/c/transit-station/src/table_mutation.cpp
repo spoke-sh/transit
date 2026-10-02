@@ -135,7 +135,15 @@ transit_sdk_error transit_station_table_mutation_status_read(transit_station_tab
         result.table=client->connection.table;require(r.number(v,"status/table")==result.table,"mutation-status-table");result.principal=r.number(v,"status/principal");fixed(r,v,"status/declaration",result.declaration,32);result.policy_revision=revision(r,v,"status/policy_revision");
         const char *phases[]={"uploading","sealed","applied","rejected","cancelled"};result.phase=static_cast<transit_station_table_mutation_phase>(variant(r.field(v,"status/phase",true),phases,5));
         const auto affected=r.number(v,"status/affected_rows",true);require(affected<=3,"mutation-row-count");result.affected_rows=static_cast<uint8_t>(affected);
-        const char *reasons[]={"none","row_exists","source_changed","invalid_request","denied","budget"};result.reason=static_cast<transit_station_table_mutation_reason>(variant(r.field(v,"status/reason",true),reasons,6));result.input=r.number(v,"status/input",true);*out=result;
+        const char *reasons[]={"none","row_exists","source_changed","invalid_request","denied","budget"};result.reason=static_cast<transit_station_table_mutation_reason>(variant(r.field(v,"status/reason",true),reasons,6));result.input=r.number(v,"status/input",true);
+        result.has_conflict=r.field(v,"status/conflict")!="null";
+        if(result.has_conflict){
+            result.conflict_key=signed_number(r,v,"status/conflict/key");
+            const auto row=r.number(v,"status/conflict/row");require(row>=1 && row<=3,"conflict-row");
+            result.conflict_row=static_cast<uint8_t>(row);
+        }
+        require(result.has_conflict==(result.reason==TRANSIT_TABLE_MUTATION_ROW_EXISTS),"mutation-conflict");
+        *out=result;
     });
 }
 }

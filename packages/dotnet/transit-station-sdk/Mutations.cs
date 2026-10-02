@@ -72,7 +72,14 @@ public static class Mutations
     public enum Rejection { InvalidCommand, Denied, IdentityConflict, Busy, NotFound, NotActive, UploadClosed, NotSealed, InvalidPart, IncompleteUpload, SourceChanged, StalePolicy }
     public enum Control { Apply, Cancel }
     public sealed record Description(ResourceRef Resource, uint Table, IReadOnlyList<string> Names, Type ValueType, ulong ResourceRevision, ulong PolicyRevision, Bytes Declaration, Permissions Permissions, ulong? Active);
-    public sealed record Status(Reference Reference, ulong Principal, uint Table, Bytes Declaration, ulong PolicyRevision, Phase Phase, byte AffectedRows, Reason Reason, ulong Input);
+    public sealed record Conflict(long Key, byte Row);
+    private static Conflict? ReadConflict(JsonNode? value) {
+        if (value is null) return null;
+        ulong row = V.Number(value["row"], 1);
+        if (row > 3) throw V.Incompatible("conflict-row");
+        return new Conflict(NativeValues.Signed(value["key"]), (byte)row);
+    }
+    public sealed record Status(Reference Reference, ulong Principal, uint Table, Bytes Declaration, ulong PolicyRevision, Phase Phase, byte AffectedRows, Reason Reason, ulong Input, Conflict? Conflict);
     private static Prepared? ParsePrepared(JsonNode? value) => value is null ? null : new(new Bytes(V.Utf8.GetBytes(V.String(value))));
 
     /// <summary>One bounded operation. Dispose joins after local wait cancellation.</summary>
@@ -129,7 +136,7 @@ public static class Mutations
                 Reference actual = new(Fixed(v["reference"], 72));
                 if (actual != reference || V.Number(v["table"], 1) != Connection.Table) throw V.Incompatible("mutation-status-target");
                 ulong affected = V.Number(v["affected_rows"]); if (affected > 3) throw V.Incompatible("mutation-row-count");
-                return new Status(actual, V.Number(v["principal"], 1), Connection.Table, Fixed(v["declaration"], 32), V.Counter(NativeValues.Wide(v["policy_revision"], true)), Variant<Phase>(v["phase"]), (byte)affected, Variant<Reason>(v["reason"]), V.Number(v["input"]));
+                return new Status(actual, V.Number(v["principal"], 1), Connection.Table, Fixed(v["declaration"], 32), V.Counter(NativeValues.Wide(v["policy_revision"], true)), Variant<Phase>(v["phase"]), (byte)affected, Variant<Reason>(v["reason"]), V.Number(v["input"]), ReadConflict(v["conflict"]));
             }, cancellation);
         }
         public async ValueTask DisposeAsync() { try { await worker.CloseAsync().ConfigureAwait(false); } finally { worker.CloseSnapshot(); } }

@@ -81,6 +81,7 @@ pub const Status = struct {
     affected_rows: u8 = 0,
     reason: Reason = .none,
     input: u64 = 0,
+    conflict: ?q.fuze.TableMutation.Conflict = null,
     pub fn terminal(self: Status) bool {
         return self.phase != .uploading and self.phase != .sealed;
     }
@@ -89,6 +90,8 @@ pub const Status = struct {
         try identity(self.principal);
         try identity(self.policy_revision);
         if (self.table == 0 or self.affected_rows > q.fuze.TableMutation.max_rows) return error.InvalidMutationRecord;
+        if ((self.reason == .row_exists) != (self.conflict != null)) return error.InvalidMutationRecord;
+        if (self.conflict) |conflict| if (conflict.row == 0 or conflict.row > q.fuze.TableMutation.max_rows) return error.InvalidMutationRecord;
         if (self.terminal()) {
             try identity(self.input);
         } else if (self.input != 0 or self.reason != .none or self.affected_rows != 0) return error.InvalidMutationRecord;
@@ -101,7 +104,7 @@ pub const Status = struct {
     }
     pub fn encode(self: Status) !p.Value {
         try self.validate();
-        var bytes: [139]u8 = undefined;
+        var bytes: [148]u8 = undefined;
         var writer: std.Io.Writer = .fixed(&bytes);
         try writer.writeAll("TMS1");
         try writer.writeAll((try self.reference.encode()).slice());
@@ -111,13 +114,15 @@ pub const Status = struct {
         try writer.writeInt(u64, self.policy_revision, .little);
         try writer.writeAll(&.{ @backingInt(self.phase), self.affected_rows, @backingInt(self.reason) });
         try writer.writeInt(u64, self.input, .little);
+        try writer.writeByte(if (self.conflict) |conflict| conflict.row else 0);
+        try writer.writeInt(i64, if (self.conflict) |conflict| conflict.key else 0, .little);
         return p.Value.init(writer.buffered());
     }
     pub fn decode(value: p.Value) !Status {
         try value.validate();
         var reader: std.Io.Reader = .fixed(value.slice());
         try magic(&reader, "TMS1");
-        const result: Status = .{
+        var result: Status = .{
             .reference = try Ref.decode(try p.Value.init(try reader.take(Ref.encoded_bytes))),
             .principal = try reader.takeInt(u64, .little),
             .table = try reader.takeInt(u32, .little),
@@ -128,6 +133,9 @@ pub const Status = struct {
             .reason = std.enums.fromInt(Reason, try reader.takeByte()) orelse return error.InvalidMutationRecord,
             .input = try reader.takeInt(u64, .little),
         };
+        const row = try reader.takeByte();
+        const conflict_key = try reader.takeInt(i64, .little);
+        if (row != 0) result.conflict = .{ .row = row, .key = conflict_key } else if (conflict_key != 0) return error.InvalidMutationRecord;
         try finish(&reader);
         try result.validate();
         return result;

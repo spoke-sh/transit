@@ -35,7 +35,7 @@
     210,
     44
   ],
-  "canonical": "{\"version\":1,\"definition\":\"e412a074bf01f92cb62c7953051930d81a78cc1a0f45472b7eff17d9931f8633\",\"realm\":42,\"principal\":0,\"kind\":{\"inspection\":{\"resource\":\"mailbox\",\"pid\":3,\"cut\":null,\"after\":0}}}",
+  "canonical": "{\"version\":1,\"definition\":\"72b041c9c88b99dc14e6be68318faf397d451f851f9ef2b6d52faf2c4714d6c5\",\"realm\":42,\"principal\":0,\"kind\":{\"inspection\":{\"resource\":\"mailbox\",\"pid\":3,\"cut\":null,\"after\":0}}}",
   "sha256": "264f086d7f4d0f48d0a3d99e65c1d26ce80bf51ac8fd7c6b97b7adba6d0c0c92",
   "signature": [
     177,

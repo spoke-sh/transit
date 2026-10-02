@@ -233,7 +233,10 @@ it becomes a durable result only when the native turn commits. The active pointe
 is not cleared in this turn, so the existing four-mutation bound is preserved.
 No timestamp, journal position or resource commit revision is invented locally.
 
-An existing row rejects an entire INSERT with `row_exists`. Policy revocation or
+An existing row rejects an entire INSERT with `row_exists`. The terminal status
+records the attempted key and one-based input row from that rejecting execution.
+No rows in the statement are applied. This witness survives replay and restart;
+it is not reconstructed from a later read. It contains no stored row value. Policy revocation or
 revision change rejects with `denied`; declaration changes reject with
 `source_changed`; verified but malformed/incompatible request bytes reject with
 `invalid_request`. A helper mutation-budget rejection uses `budget`. Unavailable
@@ -260,10 +263,17 @@ existing domain. All integers below are little-endian and fields are contiguous.
 | Record | Fields after four-byte magic |
 | --- | --- |
 | Policy `TML1`, 57 bytes | principal u64, Table u32, revision u64, declaration 32 bytes, permissions u8 |
-| Status `TMS1`, 139 bytes | existing `SPF1` reference 72 bytes, principal u64, Table u32, declaration 32 bytes, policy revision u64, phase u8, affected rows u8, reason u8, terminal input u64 |
+| Status `TMS1`, 148 bytes | existing `SPF1` reference 72 bytes, principal u64, Table u32, declaration 32 bytes, policy revision u64, phase u8, affected rows u8, reason u8, terminal input u64, conflicting input row u8, conflicting key i64 |
 
 Phases are uploading=1, sealed=2, applied=3, rejected=4, cancelled=5. Reasons are
 none=0, row_exists=1, source_changed=2, invalid_request=3, denied=4, budget=5.
+For `row_exists`, conflicting input row is 1 through 3 and key is the signed
+int64 attempted key. For all other reasons both fields are zero. A missing,
+out-of-range or extraneous witness is invalid. The neutral status includes a
+required `conflict` field: `{ "key": "<signed decimal>", "row": <1..3> }` for
+`row_exists`, otherwise `null`. Native SDKs expose the key as a signed 64-bit
+integer and preserve its full range. Reading a retained witness requires the
+same current authorization as reading the original terminal status.
 Uploading/sealed require zero count, reason and terminal input. Applied has reason
 none and zero to three affected rows. Rejected has a nonzero reason and zero
 count. Cancelled has reason none and zero count. Every terminal phase requires a
