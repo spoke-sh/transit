@@ -12066,3 +12066,17 @@ On 2026-10-02, the diagnostic implementation working tree passed `just check`,
 passed for native, port and CLI callers. All ten SDK packages built in the
 bindings shell. These results do not establish the remaining diagnostic matrix
 in [M44](../docs/roadmap/M44.md); installed SDK witness qualification is separate.
+
+The same working tree subsequently passed the installed mutation witness proof
+for Python (sync and async), TypeScript/Node, Rust, Ruby, C, C++, Java, .NET,
+Erlang and Elixir. Every caller preserved key `2`, input row `2` and atomic
+rejection through lost-reply recovery; subsequent apply/cancel controls retained
+that exact outcome. The first attempt exhausted the shared `/tmp` filesystem
+while compiling Rust and is not counted as a pass; the completed run used a
+private directory under `/var/tmp`.
+
+The combined Table query/writer proof passed in 32.712 seconds with the console
+presentation change. It checks one human conflict diagnostic, empty human
+result stdout on rejection, exact key/row in JSON, `.status` parity, absence of
+uncertainty advice on terminal rejection, rollback and existing interruption,
+lost-reply and policy-race recovery schedules.

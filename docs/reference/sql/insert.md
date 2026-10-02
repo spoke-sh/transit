@@ -48,6 +48,23 @@ even when earlier rows would have succeeded. The witness is recorded with the
 rejection and remains the same after retries, restarts and later Table changes.
 It contains no stored value. Status reads still require current access.
 
+The console presents a confirmed rejection as:
+
+```text
+Constraint Error:
+Duplicate key "id: 1" violates the primary key constraint on "items".
+Input row: 1. No rows were inserted.
+```
+
+The attempted key is caller-owned correction context. The message does not
+disclose the existing row's value. A confirmed terminal rejection needs no
+resume or cancel instruction. `.status` displays the same recorded conflict;
+JSON mutation status includes `conflict` with a decimal-string `key` and numeric
+`row`, or `null` when there is no primary-key conflict. Rejected upload inputs
+remain distinct from the mutation outcome: an active upload can still need
+inspection and cancellation. A preparation failure says that no new command
+was submitted; an unresolved send directs the caller to its saved command.
+
 An accepted enclosing turn commits all rows, input progress and its outputs
 atomically. The helper restores the entire prior proposal on error, including
 budget exhaustion. The three-row bound leaves one of a fresh turn's four

@@ -314,6 +314,17 @@ def run(node, host, proof, library, cli, *, sdks=()):
                 assert result['phase'] == 'applied' and result['affected_rows'] == affected, result
             rejected = console_run("INSERT INTO items (id,value) VALUES (1,'duplicate'),(101,'atomic')", code=1)
             assert json.loads(rejected.stdout)['mutation']['reason'] == 'row_exists'
+            assert json.loads(rejected.stdout)['mutation']['conflict'] == dict(key='1', row=1)
+            assert 'Duplicate key "id: 1" violates the primary key constraint on "items".' in rejected.stderr
+            assert 'No rows were inserted.' in rejected.stderr
+            assert '.resume' not in rejected.stderr and 'MutationRejected' not in rejected.stderr
+            human = console_run(data=".mode table\nINSERT INTO items (value,id) VALUES ('atomic',101),('duplicate',1);\n", code=1)
+            assert not human.stdout, human.stdout
+            assert human.stderr.count('Constraint Error:') == 1, human.stderr
+            assert 'Input row: 2. No rows were inserted.' in human.stderr
+            assert '.resume' not in human.stderr and 'uncertain' not in human.stderr
+            status = console_run(data='.mode table\n.status\n')
+            assert 'Duplicate key "id: 1"' in status.stdout and 'Input row: 2.' in status.stdout
             assert console_rows(console_run('SELECT * FROM items').stdout) == current
             send_fault.update(lose=True, recovered=False)
             lost = console_run("INSERT INTO items (id,value) VALUES (102,'recovered')", code=1)

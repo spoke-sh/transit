@@ -4,6 +4,7 @@ const Self = @This();
 command: []const u8 = "transit",
 style: @import("Style.zig") = .{},
 sql: ?@import("transit_query").fuze.SqlDiagnostic = null,
+write: ?@import("WriteDiagnostic.zig") = null,
 timing: ?@import("Timing.zig").Report = null,
 argument: ?usize = null,
 option: ?[]const u8 = null,
@@ -27,6 +28,7 @@ pub fn fail(self: *Self, err: anyerror, summary: []const u8, next: ?[]const u8) 
 }
 pub fn setFailure(self: *Self, err: anyerror, summary: []const u8, next: ?[]const u8) void {
     self.sql = null;
+    self.write = null;
     self.presentation = .general;
     self.summary = summary;
     self.next = next;
@@ -153,6 +155,7 @@ fn quoted(out: *std.Io.Writer, value: []const u8) !void {
     try out.writeByte('"');
 }
 pub fn render(self: Self, out: *std.Io.Writer, err: anyerror) !void {
+    if (self.write) |diagnostic| return diagnostic.render(out, self.style);
     if (self.sql) |diagnostic| {
         try self.style.text(out, .failure, "error:");
         try out.writeByte(' ');

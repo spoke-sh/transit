@@ -6,6 +6,7 @@ const q = @import("transit_query");
 const c = @import("transit_catalog");
 const Console = @import("Console.zig").Console;
 const Signals = @import("Signals.zig");
+const WriteDiagnostic = @import("WriteDiagnostic.zig");
 const g = q.protocol.Growth;
 const Self = @This();
 pub const Config = struct {
@@ -161,6 +162,7 @@ fn identity(io: std.Io) !u64 {
 }
 pub fn start(self: *Self, console: *Console, text: []const u8, route: q.fuze.SqlDiagnostic.Route) !void {
     if (self.unresolved() or console.session.pending != null or console.session.input != null or (console.session.namespace != null and !console.session.complete)) return error.UnresolvedSubmission;
+    console.write_preparing = true;
     var timing = @import("Timing.zig").start(console.init, console.preferences.timing);
     defer console.finishTiming(&timing);
     self.read_deadline = std.Io.Clock.boot.now(self.io).toMilliseconds() + 300000;
@@ -195,6 +197,7 @@ pub fn start(self: *Self, console: *Console, text: []const u8, route: q.fuze.Sql
     self.record.complete = false;
     self.record.cancelling = false;
     try self.saveTimed(&timing);
+    console.write_preparing = false;
     try self.advance(console, &timing);
 }
 fn check(self: *Self, deadline: i64) !void {
@@ -277,7 +280,7 @@ fn advance(self: *Self, console: *Console, timing: *Timing) !void {
                         continue;
                     }
                     timing.enter(.fetch);
-                    if (try self.readOnly(q.TableMutationClient.rejection, .{ writer, pending, value.input.? })) |_| {
+                    if (try self.readOnly(q.TableMutationClient.rejection, .{ writer, pending, value.input.? })) |reason| {
                         // Keep the frozen command and input for current-authorized
                         // inspection of the rejection on subsequent .status.
                         const current = try self.readOnly(q.TableMutationClient.status, .{ writer, try value.request.reference(value.namespace) });
@@ -286,7 +289,8 @@ fn advance(self: *Self, console: *Console, timing: *Timing) !void {
                         if (current == null or current.?.terminal() or !self.record.cancelling) {
                             self.record.complete = current == null or current.?.terminal();
                             try self.saveTimed(timing);
-                            _ = try self.statusTimed(console, timing);
+                            console.diagnostic.write = WriteDiagnostic.input(reason, !self.record.complete);
+                            if (console.session.format == .json) try self.emitMutation(console, value.*, current, reason);
                             return error.MutationInputRejected;
                         }
                     }
@@ -311,8 +315,12 @@ fn advance(self: *Self, console: *Console, timing: *Timing) !void {
                     if (!outcome.terminal()) return error.InvalidConsoleRecovery;
                     self.record.complete = true;
                     try self.saveTimed(timing);
+                    if (outcome.phase == .rejected) {
+                        console.diagnostic.write = try WriteDiagnostic.mutation(self.record.name.?, value.request, outcome);
+                        if (console.session.format == .json) try self.emitMutation(console, value.*, outcome, null);
+                        return error.MutationRejected;
+                    }
                     _ = try self.statusTimed(console, timing);
-                    if (outcome.phase == .rejected) return error.MutationRejected;
                     return;
                 }
                 try self.saveTimed(timing);
@@ -335,6 +343,16 @@ fn advance(self: *Self, console: *Console, timing: *Timing) !void {
                 if (receipt == null and disposition == null) return error.CatalogOutcomeMissing;
                 self.record.complete = true;
                 try self.saveTimed(timing);
+                if (disposition) |result| {
+                    console.diagnostic.write = try WriteDiagnostic.catalogInput(result.outcome);
+                    if (console.session.format == .json) _ = try self.statusTimed(console, timing);
+                    return error.CatalogCreateRejected;
+                }
+                if (receipt) |result| if (result.outcome != .applied) {
+                    console.diagnostic.write = try WriteDiagnostic.creation(value.request, result.outcome);
+                    if (console.session.format == .json) _ = try self.statusTimed(console, timing);
+                    return error.CatalogCreateRejected;
+                };
                 _ = try self.statusTimed(console, timing);
                 if (disposition != null or receipt.?.outcome != .applied) return error.CatalogCreateRejected;
                 return;
@@ -379,14 +397,7 @@ fn statusInto(self: *Self, console: *Console) !bool {
             const writer = &self.mutation.?;
             const status_value = try self.readOnly(q.TableMutationClient.status, .{ writer, try value.request.reference(value.namespace) });
             const rejection = if (value.input != null and value.pending != null) try self.readOnly(q.TableMutationClient.rejection, .{ writer, value.pending.?, value.input.? }) else null;
-            const phase = if (rejection != null) "input_rejected" else if (status_value) |status_value_| @tagName(status_value_.phase) else "unconfirmed";
-            const reason = if (rejection) |reason| @tagName(reason) else if (status_value) |s| @tagName(s.reason) else "none";
-            const affected = if (rejection != null) null else if (status_value) |s| if (s.phase == .applied) @as(?u8, s.affected_rows) else null else null;
-            const uncertain = value.pending != null and value.input == null;
-            if (console.session.format == .json) {
-                var id: [20]u8 = undefined;
-                try console.json(.{ .mutation = .{ .id = try std.fmt.bufPrint(&id, "{d}", .{value.namespace}), .phase = phase, .reason = reason, .affected_rows = affected, .uncertain = uncertain } });
-            } else if (affected) |count| try console.out.print("{d} {s} affected\n", .{ count, if (count == 1) "row" else "rows" }) else try console.out.print("Mutation: {s} ({s}); uncertain send: {s}\n", .{ phase, reason, if (uncertain) "yes" else "no" });
+            try self.mutationStatus(console, value, status_value, rejection);
         },
         .creation => |value| {
             const catalog = &self.catalog.?;
@@ -396,8 +407,40 @@ fn statusInto(self: *Self, console: *Console) !bool {
             if (console.session.format == .json) {
                 var id: [20]u8 = undefined;
                 try console.json(.{ .creation = .{ .id = try std.fmt.bufPrint(&id, "{d}", .{value.request.operation}), .name = value.request.name.slice(), .phase = phase, .uncertain = value.input == null } });
+            } else if (disposition) |result| {
+                try (try WriteDiagnostic.catalogInput(result.outcome)).render(console.out, console.diagnostic.style);
+            } else if (receipt != null and receipt.?.outcome != .applied) {
+                try (try WriteDiagnostic.creation(value.request, receipt.?.outcome)).render(console.out, console.diagnostic.style);
             } else try console.out.print("CREATE TABLE {s}: {s}\n", .{ value.request.name.slice(), phase });
         },
     }
     return true;
+}
+
+fn mutationStatus(self: *Self, console: *Console, value: Mutation, status_value: ?q.TableMutationRecords.Status, rejection: ?q.TableMutationWriter.Rejection) !void {
+    const phase = if (rejection != null) "input_rejected" else if (status_value) |status_value_| @tagName(status_value_.phase) else "unconfirmed";
+    const reason = if (rejection) |reason| @tagName(reason) else if (status_value) |s| @tagName(s.reason) else "none";
+    const affected = if (rejection != null) null else if (status_value) |s| if (s.phase == .applied) @as(?u8, s.affected_rows) else null else null;
+    const uncertain = (status_value == null or !status_value.?.terminal()) and value.pending != null and value.input == null;
+    if (console.session.format == .json) {
+        var id: [20]u8 = undefined;
+        var key: [20]u8 = undefined;
+        const conflict = if (status_value) |status_| if (status_.conflict) |detail| .{ .key = try std.fmt.bufPrint(&key, "{d}", .{detail.key}), .row = detail.row } else null else null;
+        try console.json(.{ .mutation = .{ .id = try std.fmt.bufPrint(&id, "{d}", .{value.namespace}), .phase = phase, .reason = reason, .affected_rows = affected, .uncertain = uncertain, .conflict = conflict } });
+    } else if (rejection) |reason_| {
+        try WriteDiagnostic.input(reason_, status_value != null and !status_value.?.terminal()).render(console.out, console.diagnostic.style);
+        if (status_value) |status_| if (status_.terminal()) try console.out.print("Recorded mutation outcome: {s}; affected rows: {d}.\n", .{ @tagName(status_.phase), status_.affected_rows });
+    } else if (status_value != null and status_value.?.phase == .rejected) {
+        try (try WriteDiagnostic.mutation(self.record.name.?, value.request, status_value.?)).render(console.out, console.diagnostic.style);
+    } else if (affected) |count| try console.out.print("{d} {s} affected\n", .{ count, if (count == 1) "row" else "rows" }) else try console.out.print("Mutation: {s} ({s}); uncertain send: {s}\n", .{ phase, reason, if (uncertain) "yes" else "no" });
+}
+
+fn emitMutation(self: *Self, console: *Console, value: Mutation, status_value: ?q.TableMutationRecords.Status, rejection: ?q.TableMutationWriter.Rejection) !void {
+    var buffer: [4096]u8 = undefined;
+    var out: std.Io.Writer = .fixed(&buffer);
+    const destination = console.out;
+    console.out = &out;
+    defer console.out = destination;
+    try self.mutationStatus(console, value, status_value, rejection);
+    try @import("Output.zig").write(console.init, destination, out.buffered());
 }

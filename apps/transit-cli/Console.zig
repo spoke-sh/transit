@@ -219,6 +219,7 @@ pub const Console = struct {
     recovery: ?*Recovery,
     writes: ?*Writes = null,
     write_running: bool = false,
+    write_preparing: bool = false,
     batch: bool,
     preferences: Preferences,
     diagnostic: *Diagnostic,
@@ -248,6 +249,8 @@ pub const Console = struct {
         if (std.mem.eql(u8, text, ".quit")) return false;
         self.query_interrupted = false;
         self.diagnostic.sql = null;
+        self.diagnostic.write = null;
+        self.write_preparing = false;
         self.diagnostic.timing = null;
         defer {
             self.query_running = false;
@@ -401,7 +404,7 @@ pub const Console = struct {
     }
     fn queryFailure(self: *Console, err: anyerror) anyerror {
         self.had_error = true;
-        if (err == error.InvalidTimingCommand or self.diagnostic.sql != null) return err;
+        if (err == error.InvalidTimingCommand or self.diagnostic.sql != null or self.diagnostic.write != null) return err;
         if (denied(err)) {
             self.access_lost = true;
             self.session.cursor = null;
@@ -425,7 +428,8 @@ pub const Console = struct {
             error.MutationDenied, error.CatalogDenied => return self.diagnostic.fail(err, "the current writer or catalog policy does not permit this operation", "Check the configured principal's native grants and separate writer/catalog policy. Use .help for connection requirements; query read access does not grant writes."),
             else => {},
         }
-        if (self.write_running or (self.writes != null and self.writes.?.unresolved())) return self.diagnostic.fail(err, "write could not complete", "Use .status to inspect the saved outcome and .resume to reconcile exact pending work. Use .cancel for a saved Table mutation. Do not repeat the SQL after an uncertain result.");
+        if (self.write_preparing) return self.diagnostic.fail(err, "write preparation failed; no new command was submitted", "Correct the preparation error before submitting a new statement.");
+        if (self.writes != null and self.writes.?.unresolved()) return self.diagnostic.fail(err, "the saved write has an unresolved outcome", if (self.writes.?.record.operation.? == .mutation) "Use .status to inspect the saved outcome and .resume to reconcile exact pending work. Use .cancel to request closure of the saved Table mutation. Do not repeat the SQL while its outcome is unresolved." else "Use .status to inspect the saved creation and .resume to reconcile its exact command. CREATE TABLE cannot be cancelled. Do not repeat the SQL while its outcome is unresolved.");
         if (self.interactive and err == error.ConsoleInterrupted) {
             self.diagnostic.summary = null;
             self.diagnostic.cause = null;
