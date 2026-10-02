@@ -345,3 +345,16 @@ test "binding diagnostics retain failing name scope location and types across la
         }
     }
 }
+
+test "type diagnostics bound extreme float rendering without replacing the original error" {
+    const columns = [_]m.Column{.{ .name = try .init("value"), .type = .boolean }};
+    const src = try source(&columns);
+    for ([_][]const u8{ "1.7976931348623157e308", "-1.7976931348623157e308", "5e-324", "-0.0" }) |literal| {
+        const text = try std.fmt.allocPrint(t.allocator, "SELECT value FROM items WHERE value = '{s}'::float64", .{literal});
+        defer t.allocator.free(text);
+        var binding: f.Sql.Binding = .{};
+        try t.expectError(error.TypeMismatch, m.Sql.planDiagnostic(t.allocator, text, src, &binding));
+        try t.expect(binding.literal_len <= 32);
+        try t.expectEqual(@as(u64, @bitCast(try std.fmt.parseFloat(f64, literal))), @as(u64, @bitCast(try std.fmt.parseFloat(f64, binding.literal[0..binding.literal_len]))));
+    }
+}

@@ -36,7 +36,8 @@ pub fn supplied(self: ?*Self, value: anytype) void {
     const detail = self orelse return;
     var out: std.Io.Writer = .fixed(&detail.literal);
     switch (value) {
-        inline .int64, .uint64, .float64 => |number| out.print("{d}", .{number}) catch unreachable,
+        inline .int64, .uint64 => |number| out.print("{d}", .{number}) catch unreachable,
+        .float64 => |number| out.print("{e}", .{number}) catch unreachable,
         .boolean => |boolean| out.writeAll(if (boolean) "TRUE" else "FALSE") catch unreachable,
         .utf8, .binary => |bytes| {
             out.writeByte('"') catch unreachable;
