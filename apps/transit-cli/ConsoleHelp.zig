@@ -9,7 +9,24 @@ pub fn write(console: *Console, topic: []const u8) !void {
     else if (creation)
         "CREATE TABLE items (id INT64 NOT NULL, value INT64 NULL);\nExactly two columns: an int64 NOT NULL key and a NULL value of INT64, BOOL, UTF8 or BINARY.\nConfigure writes.recovery_file and writes.catalog: {scope: {realm, resource, catalog}, owner, principal}.\nUse provisioned identities; realm/principal must match the console credential.\nNative grants and current catalog create/inspect policy are required.\nCreation publishes the definition and Table descriptor. Query sources and writer policies remain explicitly configured.\n.status observes; .resume reconciles exact saved creation. CREATE TABLE has no cancellation operation.\n"
     else if (topic.len == 0 or std.ascii.eqlIgnoreCase(topic, "SQL"))
-        "SQL: SELECT; DESCRIBE name; SHOW TABLES; EXPLAIN SELECT ...;\nWrites: INSERT, UPDATE, DELETE and CREATE TABLE through explicitly configured authorized routes.\n.help [SQL|INSERT|UPDATE|DELETE|CREATE TABLE] .tables .schema .sources .mode table|json\n.timing on|off .connect PATH .show .info .quit\n.execute FILE runs one JSON query object: sql and optional parameters.\nRecovery: .status .resume [query ID] .cancel\nCtrl-R searches SQL and dot-command history in ~/.transit_history. Enter accepts a match for editing.\nSELECT uses the configured source. Write recovery is available in both execution modes.\nReference-only families (including GRANT/REVOKE, CREATE CONNECTION/SOURCE/SINK) do not execute.\n"
+        \\SQL: SELECT; DESCRIBE name; SHOW TABLES; EXPLAIN SELECT ...;
+        \\Use .sources and .schema to find the configured source, column names and types.
+        \\Examples for a source named items with id and value columns:
+        \\  SELECT * FROM items LIMIT 8;
+        \\  SELECT id, value FROM items WHERE id >= 0;
+        \\  SELECT COUNT(*) FROM items;
+        \\  SELECT SUM(chosen.value) FROM (SELECT value FROM items LIMIT 8) AS chosen;
+        \\SUM requires INT64 values. An outer aggregate LIMIT is not an input limit.
+        \\SQL is limited to 4096 UTF-8 bytes and eight output columns.
+        \\Writes: INSERT, UPDATE, DELETE and CREATE TABLE through explicitly configured authorized routes.
+        \\.help [SQL|INSERT|UPDATE|DELETE|CREATE TABLE] .tables .schema .sources .mode table|json
+        \\.timing on|off .connect PATH .show .info .quit
+        \\.execute FILE runs one JSON query object: sql and optional parameters.
+        \\Recovery: .status .resume [query ID] .cancel
+        \\Ctrl-R searches SQL and dot-command history in ~/.transit_history. Enter accepts a match for editing.
+        \\SELECT uses the configured source. Write recovery is available in both execution modes.
+        \\GRANT/REVOKE and CREATE CONNECTION/SOURCE/SINK/KV/DOCUMENT do not execute in the console.
+        \\
     else
         return error.UnknownHelpTopic;
     const writer = console.writes != null and console.writes.?.mutation != null;

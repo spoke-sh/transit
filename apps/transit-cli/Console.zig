@@ -125,7 +125,7 @@ fn connection(init: std.process.Init, options: Options.Options, preferences: Pre
             error.InvalidRequestTimeout => diagnostic.invalidField("request_timeout_ms", "must be an integer from 1 through 60000", null),
             error.InvalidEndpoint => diagnostic.invalidField("url / transport / ca_file", "must select a matching endpoint and trust profile", "Loopback uses http://127.0.0.1 or http://[::1]; TLS uses https. Omit userinfo, query and fragment; tls_ca requires ca_file."),
             else => failure: {
-                diagnostic.setFailure(err, "invalid console configuration", "Correct the named field using apps/transit-cli/docs/console.md; connection identities must be nonzero and match the workspace source.");
+                diagnostic.setFailure(err, "invalid console configuration", "Correct the named field; connection identities must be nonzero and match the workspace source.");
                 break :failure error.InvalidConfiguration;
             },
         };

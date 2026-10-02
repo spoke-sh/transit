@@ -358,7 +358,7 @@ with tempfile.TemporaryDirectory(prefix='transit-cli-diagnostics-') as directory
             ('INSERT INTO items (id, value) VALUES (1, 100);', ('no writer is configured', '.help INSERT')),
             ('SELECT * FROM items WHERE value = \'private-must-not-appear', ('SQL parse error', '^--- error here')),
             ('SELECT * /* private-must-not-appear', ('SQL parse error', '^--- error here')),
-            ('CREATE KV items (UTF8);', ('[interface]', 'offline Declaration compiler')),
+            ('CREATE KV items (UTF8);', ('[interface]', 'SQL publication of KV and Document definitions is unavailable', '.help SQL')),
             ('CREATE TABLE items (id INT64 NOT NULL, value INT64 NULL);', ('no catalog is configured', '.help CREATE TABLE')),
             ('CREATE TABLE items (id INT64, value INT64);', ('[binding]', 'INT64 NOT NULL', '.help CREATE TABLE')),
             ('CREATE TABLE items (id BOOLEAN);', ('[syntax]', 'INT64, BOOL, UTF8 or BINARY')),

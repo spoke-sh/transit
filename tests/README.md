@@ -6,6 +6,22 @@ earlier entry refers to that entry's source, not automatically to HEAD. The late
 records its reruns and remaining qualification separately; earlier consolidation
 results do not qualify the changed stored layout by inheritance.
 
+## Console error guidance — 2026-10-02
+
+Console diagnostics direct users to statement help and source/schema inspection.
+With locked frontend dependencies installed through `just transit-board::install`,
+full `just check` passes in `nix develop`, including 434 real CLI diagnostic cases,
+terminal history/signal checks, shared Zig units, contract checks, frontend checks,
+5049 documentation links and the documentation build. The log is
+`/tmp/transit-console-help-check.log`.
+
+`just build::debug transit` also passes. An offline invocation of the built
+console with `CREATE TABLE people (id INTEGER, name TEXT);` retains the parse
+category, expected types and line 1/column 25 caret, and points to
+`.help CREATE TABLE` without a documentation link. `.help SQL` and
+`.help CREATE TABLE` both succeed offline and contain their syntax examples.
+These are working-tree checks; committed-HEAD clean qualification is separate.
+
 ## SQL parameter integration with Boolean main — 2026-10-01
 
 The SQL stack rebases onto main `fe2fbd81` through the combined COUNT branch

@@ -59,6 +59,11 @@ Errors name the problem once. A location or next step appears when it helps
 resolve that problem. Routine option errors usually take one line; missing
 required input can add the minimum invocation. Full option lists belong in help.
 
+Console guidance stays in the console: errors point to `.help`, statement help
+such as `.help CREATE TABLE`, or inspection commands such as `.schema`, `.sources`
+and `.status`. Console output does not refer users to documentation pages or
+repository paths.
+
 A correction that fits in the error needs no additional guidance:
 
 ```text
@@ -96,8 +101,9 @@ Help requires no configuration file, credentials, network or running server.
 It skips required-option checks but still rejects malformed supplied arguments,
 unknown options and duplicates. Help and version output exit successfully on
 stdout. The query shell accepts its standalone `--help` invocation.
-Configuration links in help name repository guides; installed bundles need not
-contain those relative paths. The CLI has no `--verbose` option.
+Other commands' configuration links in help name repository guides; installed
+bundles need not contain those relative paths. Console help uses `.help` and
+console inspection commands. The CLI has no `--verbose` option.
 
 ### Coordinates that lead to the problem
 

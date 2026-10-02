@@ -70,8 +70,6 @@ pub const console =
     \\Each SELECT gets a fresh snapshot. Ctrl-C cancels active reads.
     \\Use console .help for write routes and exact recovery after interruption.
     \\
-    \\Configuration: apps/transit-cli/docs/console.md
-    \\
 ;
 pub fn query() []const u8 {
     return

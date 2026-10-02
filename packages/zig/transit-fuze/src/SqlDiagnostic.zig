@@ -21,19 +21,19 @@ context_len: usize = 0,
 caret: usize = 0,
 
 const mutation_hint = "Use explicit column names for INSERT, for example INSERT INTO items (id, value) VALUES (1, 100). Use .help INSERT in the console to configure an authorized Table writer and discover execution and recovery. A query connection does not grant writes.";
-const read_hint = "Use SELECT for finite reads; check /reference/sql/ for the supported syntax and interface for each operation.";
-const grammar_hint = "This statement family exists in the reference grammar only; its submitted syntax has not been validated and there is no executable SQL route. See /reference/sql/grammar-surface/.";
+const read_hint = "Use .help SQL in the console for supported syntax; .schema and .sources show the configured columns and source.";
+const grammar_hint = "This statement family has no executable SQL route; its submitted syntax has not been validated. Use .help SQL in the console for supported statements.";
 
 /// Call only at a SQL compilation/inspection failure boundary. Unknown errors
 /// return null so transport, permission and uncertain-outcome advice survives.
 /// `inspection` means this interface accepts DESCRIBE/SHOW TABLES/EXPLAIN.
 pub fn query(text: []const u8, cause: anyerror, inspection: bool) ?Self {
     const semantic = switch (cause) {
-        error.UnknownSource => "The source is not the configured source or Table writer name. Inspect the configured source and use its exact name; CREATE TABLE does not configure a query source.",
-        error.UnknownColumn, error.UnknownQualifier => "Inspect the configured schema and use its exact column names and source qualifier.",
+        error.UnknownSource => "The source is not the configured source or Table writer name. Use .sources in the console and use the exact configured name; CREATE TABLE does not configure a query source.",
+        error.UnknownColumn, error.UnknownQualifier => "Use .schema and .sources in the console to check exact column names and the source qualifier.",
         error.DuplicateProjection, error.InvalidProjection, error.InvalidOutputNames => "Select one to eight output positions with distinct result names. Use explicit AS names when selecting an input column more than once.",
         error.UnsupportedNullComparison => "Use IS NULL to test explicit nulls; use IS MISSING for missing Document fields.",
-        error.UnsupportedAggregateLimit => "To limit aggregate input, use the documented aggregate over a limited derived table; an outer LIMIT is not an input limit.",
+        error.UnsupportedAggregateLimit => "To limit aggregate input, use an aggregate over a limited derived table; an outer LIMIT is not an input limit. Use .help SQL in the console for an example.",
         error.UnsupportedAggregate => "Use COUNT(*), COUNT(column), or SUM on an int64 column; other aggregate forms are unsupported.",
         error.UnsupportedTableColumnCount, error.UnspecifiedNullability, error.UnsupportedTableKey, error.UnsupportedTableNullability, error.UnsupportedTableType => "CREATE TABLE requires exactly two columns: an INT64 NOT NULL key and a nullable INT64, BOOL, UTF8 or BINARY value. Use .help CREATE TABLE in the console.",
         error.DuplicateColumn => "Use distinct result names in SELECT, assigning names with AS where needed. Declarations also require distinct column names.",
@@ -82,8 +82,9 @@ pub fn query(text: []const u8, cause: anyerror, inspection: bool) ?Self {
         _ = sql.parseMutationLocated(text, &location) catch |err| return parseFailure(text, err, location, mutation_hint, .mutation);
         result = .{ .kind = .interface, .route = .mutation, .cause = cause, .summary = "Table mutation syntax is supported, but this query interface is read-only", .hint = mutation_hint };
     } else if (word(text, first, "CREATE") and (word(text, second, "TABLE") or word(text, second, "KV") or word(text, second, "DOCUMENT"))) {
-        _ = sql.parseDeclarationLocated(text, &location) catch |err| return parseFailure(text, err, location, "Check the state declaration syntax in /reference/sql/. Use .help CREATE TABLE in the console for executable Table declarations.", .declaration);
-        result = .{ .kind = .interface, .route = .declaration, .cause = cause, .summary = "State declaration syntax is supported, but query interfaces do not publish definitions", .hint = if (word(text, second, "TABLE")) "Use .help CREATE TABLE in the console to configure an authorized catalog and discover the supported schema and recovery." else "Use the offline Declaration compiler for review. SQL publication of KV and Document definitions is unavailable." };
+        const hint = if (word(text, second, "TABLE")) "Use .help CREATE TABLE in the console for supported types, nullability, catalog configuration and recovery." else "SQL publication of KV and Document definitions is unavailable. Use .help SQL in the console for supported statements.";
+        _ = sql.parseDeclarationLocated(text, &location) catch |err| return parseFailure(text, err, location, hint, .declaration);
+        result = .{ .kind = .interface, .route = .declaration, .cause = cause, .summary = "State declaration syntax is supported, but query interfaces do not publish definitions", .hint = hint };
     } else if (word(text, first, "GRANT") or word(text, first, "REVOKE") or (word(text, first, "CREATE") and (word(text, second, "CONNECTION") or word(text, second, "SOURCE") or word(text, second, "SINK")))) {
         result = .{ .kind = .grammar_only, .cause = cause, .summary = "Statement family has reference grammar but no SQL execution", .hint = grammar_hint };
     } else if (word(text, first, "SHOW") or word(text, first, "DESCRIBE") or word(text, first, "EXPLAIN")) {

@@ -464,7 +464,9 @@ error: SQL parse error [syntax] (InvalidSqlSyntax) at line 1, column 7: expected
         ^--- error here
 ```
 
-The following guidance points to the supported SQL reference. Coordinates count
+Error guidance uses `.help SQL`, statement help such as `.help CREATE TABLE`,
+and console inspection commands such as `.schema` and `.sources`. Console output
+does not direct users to documentation pages or repository paths. Coordinates count
 UTF-8 bytes within the submitted statement, starting at one; script coordinates
 are relative to each statement, not the whole file. The caret follows the escaped
 display. At most 120 source bytes around the failure are shown. Literal values,
