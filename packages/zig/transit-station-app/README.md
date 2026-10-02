@@ -27,6 +27,11 @@ just test::application-grammar
 `parse` returns the complete validated model. `format` rejects unknown JSON
 fields and emits canonical SQL only after bounded whole-program validation.
 Neither command publishes, grants access, submits queries or dispatches effects.
+Failures use a bounded stderr diagnostic with the member, option, cause and
+source location when available. `Sql.parseDiagnostic` and
+`Model.Definition.validateDiagnostic` expose owned context to local callers.
+Embedded SELECT positions are relative to that SELECT; arbitrary option values
+are not copied into the diagnostic.
 The generated structural schema still requires the owning semantic validator
 for graph references and source capabilities. The independent grammar proof and
 allocation-failure suite cover this boundary; runtime qualification is separate.

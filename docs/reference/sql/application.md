@@ -7,6 +7,14 @@ definition. These statements use the separate
 query console's `SELECT` grammar. Parsing, formatting and generating a module
 perform no publication, query submission, grant change or effect dispatch.
 
+Compiler failures identify the declaration member, option and cause when known.
+SQL input uses one-based lines and byte columns; an embedded SELECT reports its
+own coordinates separately. Missing references name the attempted target. JSON
+formatting performs the same semantic validation without inventing SQL locations.
+Diagnostics use stderr and do not emit a partial model on declaration rejection.
+Compiling never publishes an application. Output failures explicitly mark any
+emitted prefix incomplete.
+
 ## Program syntax
 
 ```text

@@ -21,3 +21,5 @@ test {
     _ = @import("migration_test.zig");
     @import("std").testing.refAllDecls(@This());
 }
+
+pub const Diagnostic = @import("Diagnostic.zig");

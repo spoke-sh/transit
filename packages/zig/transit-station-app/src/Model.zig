@@ -79,38 +79,84 @@ pub const Definition = struct {
         return null;
     }
     pub fn validate(self: Definition) !void {
+        return self.validateDiagnostic(null);
+    }
+    pub fn validateDiagnostic(self: Definition, diagnostic: ?*@import("Diagnostic.zig")) !void {
+        const Diagnostic = @import("Diagnostic.zig");
+        Diagnostic.subject(diagnostic, "interface", self.name);
+        if (diagnostic) |detail| detail.stage = .validate;
         if (self.version != 1 or self.components != 1) return error.UnsupportedInterfaceVersion;
         try native(self.realm);
         if (self.revision.value == 0) return error.InvalidInterfaceRevision;
         try identifier(self.name);
         if (self.themes.len == 0 or self.themes.len > 2 or self.screens.len == 0 or self.screens.len > max_members or self.bindings.len > max_members or self.actions.len > max_members) return error.InterfaceCapacity;
-        try unique(self.themes);
-        try unique(self.screens);
-        try unique(self.bindings);
-        try unique(self.actions);
-        if (!named(self.themes, self.theme) or !named(self.screens, self.entry)) return error.MissingInterfaceReference;
-        for (self.bindings) |item| switch (item.source) {
-            .inspection => |value| if (value.page_budget != 1) return error.UnsupportedInspectionBudget,
-            .query => |value| {
-                try native(value.resource);
-                try identifier(value.name);
-                try text(value.sql, 4096);
-                _ = try root.serving.query.fuze.Sql.parse(value.sql);
-                if (value.starts == 0 or value.starts > 8 or (value.refresh == .snapshot and value.starts != 1)) return error.InvalidQueryBudget;
-                if (value.refresh == .follow and (value.profile != .unified_v1 or value.source_kind != .table)) return error.UnsupportedInterfaceWatch;
-            },
-            .command => |value| {
-                try native(value.service);
-                try native(value.target);
-                try native(value.revision);
-                if (value.codec == 0) return error.InvalidInterfaceCommand;
-            },
-        };
+        try unique(self.themes, diagnostic, "theme");
+        try unique(self.screens, diagnostic, "screen");
+        try unique(self.bindings, diagnostic, "binding");
+        try unique(self.actions, diagnostic, "action");
+        Diagnostic.subject(diagnostic, "interface", self.name);
+        if (!named(self.themes, self.theme)) {
+            Diagnostic.subject(diagnostic, "interface", self.name);
+            Diagnostic.field(diagnostic, "theme", null);
+            Diagnostic.target(diagnostic, self.theme);
+            return error.MissingInterfaceReference;
+        }
+        if (!named(self.screens, self.entry)) {
+            Diagnostic.subject(diagnostic, "interface", self.name);
+            Diagnostic.field(diagnostic, "entry", null);
+            Diagnostic.target(diagnostic, self.entry);
+            return error.MissingInterfaceReference;
+        }
+        for (self.bindings) |item| {
+            Diagnostic.subject(diagnostic, "binding", item.name);
+            switch (item.source) {
+                .inspection => |value| {
+                    Diagnostic.field(diagnostic, "page_budget", null);
+                    if (value.page_budget != 1) return error.UnsupportedInspectionBudget;
+                },
+                .query => |value| {
+                    Diagnostic.field(diagnostic, "resource", null);
+                    try native(value.resource);
+                    Diagnostic.field(diagnostic, "source", null);
+                    try identifier(value.name);
+                    Diagnostic.field(diagnostic, "query", null);
+                    try text(value.sql, 4096);
+                    _ = root.serving.query.fuze.Sql.parse(value.sql) catch |err| {
+                        Diagnostic.field(diagnostic, "query", null);
+                        if (diagnostic) |detail| {
+                            detail.sql = root.serving.query.fuze.SqlDiagnostic.query(value.sql, err, false);
+                            if (detail.sql) |*nested| nested.hint = "Correct the SELECT in this binding and compile the declaration again.";
+                        }
+                        return err;
+                    };
+                    Diagnostic.field(diagnostic, "starts", null);
+                    if (value.starts == 0 or value.starts > 8 or (value.refresh == .snapshot and value.starts != 1)) return error.InvalidQueryBudget;
+                    Diagnostic.field(diagnostic, "refresh", null);
+                    if (value.refresh == .follow and (value.profile != .unified_v1 or value.source_kind != .table)) return error.UnsupportedInterfaceWatch;
+                },
+                .command => |value| {
+                    Diagnostic.field(diagnostic, "service", null);
+                    try native(value.service);
+                    Diagnostic.field(diagnostic, "target", null);
+                    try native(value.target);
+                    Diagnostic.field(diagnostic, "revision", null);
+                    try native(value.revision);
+                    Diagnostic.field(diagnostic, "codec", null);
+                    if (value.codec == 0) return error.InvalidInterfaceCommand;
+                },
+            }
+        }
         for (self.screens, 0..) |screen, index| {
+            Diagnostic.subject(diagnostic, "screen", screen.name);
+            Diagnostic.field(diagnostic, "label", null);
             try text(screen.label, 128);
+            Diagnostic.field(diagnostic, "path", null);
             try path(screen.path);
             for (self.screens[0..index]) |prior| if (std.mem.eql(u8, screen.path, prior.path)) return error.DuplicateInterfacePath;
+            Diagnostic.field(diagnostic, "binding", null);
+            Diagnostic.target(diagnostic, screen.binding);
             const bound = self.binding(screen.binding) orelse return error.MissingInterfaceReference;
+            Diagnostic.field(diagnostic, "renderer", null);
             switch (screen.renderer) {
                 .worksheet, .work_items => if (bound.source != .query) return error.IncompatibleRenderer,
                 else => {
@@ -128,7 +174,13 @@ pub const Definition = struct {
             }
         }
         for (self.actions) |action| {
+            Diagnostic.subject(diagnostic, "action", action.name);
+            Diagnostic.field(diagnostic, "label", null);
             try text(action.label, 128);
+            Diagnostic.field(diagnostic, "target", null);
+            Diagnostic.target(diagnostic, switch (action.target) {
+                inline else => |name| name,
+            });
             switch (action.target) {
                 .navigate => |name| if (!named(self.screens, name)) return error.MissingInterfaceReference,
                 .command => |name| if ((self.binding(name) orelse return error.MissingInterfaceReference).source != .command) return error.IncompatibleAction,
@@ -159,8 +211,9 @@ pub fn path(value: []const u8) !void {
         if (std.mem.eql(u8, value, reserved) or (std.mem.startsWith(u8, value, reserved) and value.len > reserved.len and value[reserved.len] == '/')) return error.ReservedInterfacePath;
     }
 }
-fn unique(items: anytype) !void {
+fn unique(items: anytype, diagnostic: ?*@import("Diagnostic.zig"), kind: []const u8) !void {
     for (items, 0..) |item, index| {
+        @import("Diagnostic.zig").subject(diagnostic, kind, item.name);
         try identifier(item.name);
         for (items[0..index]) |prior| if (std.mem.eql(u8, prior.name, item.name)) return error.DuplicateInterfaceName;
     }

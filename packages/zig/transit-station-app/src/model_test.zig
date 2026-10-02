@@ -74,7 +74,8 @@ test "owned parse remains valid after source storage is released and rejects inc
     try t.expectError(error.UnterminatedInterfaceComment, sql.parse(t.allocator, comment));
 }
 fn allocations(allocator: std.mem.Allocator) !void {
-    var parsed = try sql.parse(allocator, fixture);
+    var diagnostic: root.Diagnostic = .{};
+    var parsed = try sql.parseDiagnostic(allocator, fixture, &diagnostic);
     defer parsed.deinit();
     try parsed.definition.validate();
 }
@@ -86,4 +87,18 @@ test "system and recovery routes cannot be replaced by declarations" {
     for ([_][]const u8{ "/api", "/api/v1/x", "/assets/x", "/health", "/openapi/x", "/recovery/definition", "/processes/3" }) |value| try std.testing.expectError(error.ReservedInterfacePath, m.path(value));
     try m.path("/neighborhood");
     try m.path("/healthcare");
+}
+
+test "failed declaration diagnostics own their member and option after parse storage is freed" {
+    const source = try std.mem.replaceOwned(u8, t.allocator, fixture, "starts = 8", "starts = 9");
+    var diagnostic: root.Diagnostic = .{};
+    try t.expectError(error.InvalidQueryBudget, sql.parseDiagnostic(t.allocator, source, &diagnostic));
+    t.allocator.free(source);
+    var bytes: [4096]u8 = undefined;
+    var out: std.Io.Writer = .fixed(&bytes);
+    try diagnostic.render(&out, error.InvalidQueryBudget);
+    try t.expectEqualStrings("items", diagnostic.member[0..diagnostic.member_len]);
+    try t.expectEqualStrings("starts", diagnostic.option[0..diagnostic.option_len]);
+    try t.expectEqual(8, diagnostic.line);
+    try t.expect(std.mem.indexOf(u8, out.buffered(), "No application was published.") != null);
 }

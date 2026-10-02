@@ -1,6 +1,7 @@
 //! Bounded declaration grammar; embedded SELECT remains Fuze's responsibility.
 const std = @import("std");
 const m = @import("Model.zig");
+const Diagnostic = @import("Diagnostic.zig");
 pub const Parsed = struct {
     arena: std.heap.ArenaAllocator,
     definition: m.Definition,
@@ -10,21 +11,35 @@ pub const Parsed = struct {
     }
 };
 pub fn parse(gpa: std.mem.Allocator, source: []const u8) !Parsed {
+    return parseDiagnostic(gpa, source, null);
+}
+pub fn parseDiagnostic(gpa: std.mem.Allocator, source: []const u8, diagnostic: ?*Diagnostic) !Parsed {
+    if (diagnostic) |detail| detail.* = .{ .stage = .parse };
     try m.text(source, m.max_program_bytes);
     var arena = std.heap.ArenaAllocator.init(gpa);
     errdefer arena.deinit();
-    var parser: Parser = .{ .allocator = arena.allocator(), .source = source };
+    var parser: Parser = .{ .allocator = arena.allocator(), .source = source, .diagnostic = diagnostic };
+    errdefer if (diagnostic) |detail| {
+        if (detail.stage == .parse and detail.offset == null) detail.offset = parser.index;
+        detail.locate(source);
+    };
     const definition = try parser.program();
-    try definition.validate();
+    definition.validateDiagnostic(diagnostic) catch |err| {
+        if (diagnostic) |detail| parser.locateValidation(detail);
+        return err;
+    };
     return .{ .arena = arena, .definition = definition };
 }
 const Value = struct { text: []const u8, integer: bool };
-const Option = struct { name: []const u8, value: Value, used: bool = false };
+const Option = struct { name: []const u8, value: Value, offset: usize, used: bool = false };
 const Options = struct {
+    diagnostic: ?*Diagnostic = null,
     values: [16]Option = undefined,
     length: usize = 0,
     fn take(self: *Options, key: []const u8) !Value {
+        Diagnostic.field(self.diagnostic, key, null);
         for (self.values[0..self.length]) |*item| if (std.mem.eql(u8, item.name, key)) {
+            Diagnostic.field(self.diagnostic, key, item.offset);
             item.used = true;
             return item.value;
         };
@@ -32,11 +47,13 @@ const Options = struct {
     }
     fn string(self: *Options, key: []const u8) ![]const u8 {
         const value = try self.take(key);
+        if (self.diagnostic) |detail| detail.expected = "a quoted string";
         if (value.integer) return error.InvalidInterfaceOption;
         return value.text;
     }
     fn number(self: *Options, key: []const u8, comptime T: type) !T {
         const value = try self.take(key);
+        if (self.diagnostic) |detail| detail.expected = "an unsigned decimal integer within the option range";
         if (!value.integer or (value.text.len > 1 and value.text[0] == '0')) return error.InvalidInterfaceOption;
         return std.fmt.parseInt(T, value.text, 10) catch error.InvalidInterfaceOption;
     }
@@ -44,13 +61,28 @@ const Options = struct {
         return std.meta.stringToEnum(T, try self.string(key)) orelse error.UnsupportedInterfaceOption;
     }
     fn finish(self: *Options) !void {
-        for (self.values[0..self.length]) |item| if (!item.used) return error.UnknownInterfaceOption;
+        for (self.values[0..self.length]) |item| if (!item.used) {
+            Diagnostic.field(self.diagnostic, item.name, item.offset);
+            return error.UnknownInterfaceOption;
+        };
     }
 };
+const Site = struct { kind: []const u8, name: []const u8, offset: usize, options: Options };
 const Parser = struct {
+    sites: std.ArrayList(Site) = .empty,
+    diagnostic: ?*Diagnostic = null,
     allocator: std.mem.Allocator,
     source: []const u8,
     index: usize = 0,
+    fn locateValidation(self: *Parser, detail: *Diagnostic) void {
+        for (self.sites.items) |site| {
+            if (!std.mem.eql(u8, site.kind, detail.kind) or !std.mem.eql(u8, site.name, detail.member[0..detail.member_len])) continue;
+            detail.offset = site.offset;
+            for (site.options.values[0..site.options.length]) |option_value| {
+                if (std.mem.eql(u8, option_value.name, detail.option[0..detail.option_len])) detail.offset = option_value.offset;
+            }
+        }
+    }
     fn space(self: *Parser) !void {
         while (self.index < self.source.len) {
             if (std.ascii.isWhitespace(self.source[self.index])) {
@@ -119,10 +151,13 @@ const Parser = struct {
     fn options(self: *Parser) !Options {
         try self.word("with");
         try self.require('(');
-        var result: Options = .{};
+        var result: Options = .{ .diagnostic = self.diagnostic };
         while (true) {
             if (result.length == result.values.len) return error.InterfaceOptionCapacity;
+            try self.space();
+            const offset = self.index;
             const key = try self.name();
+            Diagnostic.field(self.diagnostic, key, offset);
             for (result.values[0..result.length]) |item| if (std.mem.eql(u8, item.name, key)) return error.DuplicateInterfaceOption;
             try self.require('=');
             try self.space();
@@ -135,7 +170,7 @@ const Parser = struct {
                 if (self.index == start) return error.InvalidInterfaceOption;
                 value = .{ .text = try self.allocator.dupe(u8, self.source[start..self.index]), .integer = true };
             }
-            result.values[result.length] = .{ .name = key, .value = value };
+            result.values[result.length] = .{ .name = key, .value = value, .offset = offset };
             result.length += 1;
             if (!try self.take(',')) break;
         }
@@ -146,8 +181,12 @@ const Parser = struct {
     fn program(self: *Parser) !m.Definition {
         try self.word("create");
         try self.word("interface");
+        try self.space();
+        const interface_offset = self.index;
         const interface_name = try self.name();
+        Diagnostic.subject(self.diagnostic, "interface", interface_name);
         var initial = try self.options();
+        if (self.diagnostic != null) try self.sites.append(self.allocator, .{ .kind = "interface", .name = interface_name, .offset = interface_offset, .options = initial });
         var definition: m.Definition = .{ .name = interface_name, .realm = try initial.number("realm", u64), .revision = .{ .value = try initial.number("revision", u64) }, .components = try initial.number("components", u16), .entry = try initial.string("entry"), .theme = try initial.string("theme"), .themes = &.{}, .screens = &.{}, .bindings = &.{}, .actions = &.{} };
         try initial.finish();
         var themes: std.ArrayList(m.Theme) = .empty;
@@ -162,8 +201,12 @@ const Parser = struct {
             const kind = try self.name();
             if (!std.mem.eql(u8, try self.name(), interface_name)) return error.ForeignInterfaceDeclaration;
             try self.require('.');
+            try self.space();
+            const member_offset = self.index;
             const name_value = try self.name();
+            Diagnostic.subject(self.diagnostic, kind, name_value);
             var fields = try self.options();
+            if (self.diagnostic != null) try self.sites.append(self.allocator, .{ .kind = kind, .name = name_value, .offset = member_offset, .options = fields });
             if (std.mem.eql(u8, kind, "theme")) {
                 if (themes.items.len == 2) return error.InterfaceCapacity;
                 try themes.append(self.allocator, .{ .name = name_value, .density = try fields.enumeration("density", @FieldType(m.Theme, "density")) });

@@ -12098,3 +12098,17 @@ not presented as Unicode display columns or physical file lines.
 These results establish local compiler and file presentation. They do not
 establish retained runtime query causes or a shared structured diagnostic
 contract across remote adapters; those remain in M44.
+
+
+### Offline application diagnostic attribution
+
+On 2026-10-02, `just test::application-grammar` and `just test::unit` pass with
+owned application compiler diagnostics. The real binary proof checks unknown,
+duplicate and wrongly typed options; missing theme/binding targets; invalid
+query budgets; reserved paths; and embedded SELECT errors. SQL failures name
+the member/option and actual outer source position, with nested coordinates
+explicitly relative to the binding SQL. JSON semantic failures retain member
+context without fabricated SQL spans. Rejections leave stdout empty and do not
+print stack traces or arbitrary option values. Allocation-failure checks now
+exercise diagnostic provenance allocation, and a unit renders failure context
+after the input and parser arena have both been freed.

@@ -71,13 +71,19 @@ def reference(source):
     return model
 
 
-def run(command, data, directory, success=True):
+def run(command, data, directory, success=True, expected=()):
     path = directory / 'input'
     path.write_text(data)
     result = subprocess.run([CLI, command, path], capture_output=True, text=True)
     assert (result.returncode == 0) == success, result.stderr
     if not success:
         assert not result.stdout, 'invalid program leaked partial output'
+        assert 'Application Declaration Error:' in result.stderr, result.stderr
+        assert 'No application was published.' in result.stderr, result.stderr
+        assert 'private-value' not in result.stderr, result.stderr
+        assert 'stack trace' not in result.stderr and '/src/' not in result.stderr, result.stderr
+        for message in expected:
+            assert message in result.stderr, (message, result.stderr)
     return result.stdout
 
 
@@ -119,6 +125,30 @@ def main():
                        fixture.replace("projection = 'atlas'", "unknown = 'atlas'"),
                        fixture.replace('page_budget = 1', 'page_budget = 1, page_budget = 1')]:
             run('parse', source, directory, False)
+        diagnostics = [
+            (fixture.replace("theme = 'mono'", "theme = 'missing'"),
+             ('MissingInterfaceReference', 'interface: "board"', 'option: "theme"', 'Referenced name: "missing"', 'line 2,')),
+            (fixture.replace('starts = 8', 'starts = 9'),
+             ('InvalidQueryBudget', 'binding: "items"', 'option: "starts"', 'line 8,')),
+            (fixture.replace("projection = 'atlas'", "projection = 'atlas', unknown = 'private-value'"),
+             ('UnknownInterfaceOption', 'binding: "catalog"', 'option: "unknown"', 'line 5,')),
+            (fixture.replace('page_budget = 1', 'page_budget = 1, page_budget = 1'),
+             ('DuplicateInterfaceOption', 'binding: "catalog"', 'option: "page_budget"', 'line 5,')),
+            (fixture.replace('page_budget = 1', "page_budget = 'private-value'"),
+             ('InvalidInterfaceOption', 'option: "page_budget"', 'Expected an unsigned decimal integer')),
+            (fixture.replace("binding = 'items'", "binding = 'absent'"),
+             ('screen: "explore"', 'option: "binding"', 'Referenced name: "absent"', 'line 11,')),
+            (fixture.replace('SELECT id, value FROM items', 'SELECT id FROM'),
+             ('binding: "items"', 'option: "query"', 'Embedded SELECT (coordinates within the binding SQL)', 'line 8,')),
+            (fixture.replace("path = '/explore'", "path = '/api/internal'"),
+             ('ReservedInterfacePath', 'screen: "explore"', 'option: "path"', 'line 11,')),
+        ]
+        for source, messages in diagnostics:
+            run('parse', source, directory, False, messages)
+        missing_binding = json.loads(json.dumps(model))
+        missing_binding['screens'][1]['binding'] = 'missing'
+        run('format', json.dumps(missing_binding), directory, False,
+            ('screen: "explore"', 'option: "binding"', 'Referenced name: "missing"'))
         for changed in [{**model, 'unknown': 1}, {**model, 'realm': 9007199254740992},
                         {**model, 'revision': '018'}]:
             run('format', json.dumps(changed), directory, False)
