@@ -26,8 +26,11 @@ budget diagnostic. Paths address descriptor members from `/type`, including
 zero-based field positions, without relying on valid or unique field names.
 The record includes the violated rule, measured values, permitted maximum,
 duplicate origin and a bounded supplied-value preview. It allocates no memory;
-256-byte paths/previews report truncation explicitly. JSON syntax/member decoding
-failures before descriptor validation do not yet have this recursive witness.
+256-byte paths/previews report truncation explicitly. Member decoding also retains
+missing/unknown/duplicate member paths, expected JSON shape or scalar range and
+the byte offset of a present member/value. Scalar parsing uses the pinned JSON
+decoder. Lexical preflight failures before member decoding retain their original
+cause and measured budget without inventing a descriptor path.
 
 `Type.clone(allocator)` validates descriptor and encoding budgets and returns a
 `Decoded` owner with independent copies of every name and recursive child.

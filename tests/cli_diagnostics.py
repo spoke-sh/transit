@@ -824,6 +824,39 @@ with tempfile.TemporaryDirectory(prefix='transit-cli-json-') as directory:
             assert facts(detail)['object']['text'] == str(schema), detail
         else:
             assert facts(detail)['field_path'] == {'text':'id'} and facts(detail)['actual_type'] == {'text':'structure'}
+    # Decode failures identify the actual JSON member before semantic validation.
+    member_cases = [
+        ({'decimal':{'precision':3}}, 'file.invalid_schema_descriptor', '/decimal/scale', 'integer from 0 to 255', None),
+        ({'decimal':{'precision':256,'scale':0}}, 'file.scalar_out_of_range', '/decimal/precision', 'integer from 0 to 255', '256'),
+        ({'decimal':{'precision':True,'scale':0}}, 'file.invalid_schema_descriptor', '/decimal/precision', 'integer from 0 to 255', 'true'),
+        ({'timestamp':'local'}, 'file.invalid_schema_descriptor', '/timestamp', 'one of: civil, utc', '"local"'),
+        ({'mystery/~':{}}, 'file.invalid_schema_descriptor', '/mystery~1~0', 'declared logical type tag', 'mystery/~'),
+        ({'list':{'type':{'int64':{}},'nullable':1}}, 'file.invalid_schema_descriptor', '/list/nullable', 'boolean', '1'),
+        ({'array':{'length':1,'element':{}}}, 'file.invalid_schema_descriptor', '/array/element/type', 'object containing exactly one logical type tag', None),
+        ({'structure':[{'name':'x','type':{'int64':{}},'extra/~':True}]}, 'file.invalid_schema_descriptor', '/structure/0/extra~1~0', 'declared descriptor member', 'extra/~'),
+    ]
+    for kind,code,pointer,expected,supplied in member_cases:
+        content = json.dumps(schema_value(kind), ensure_ascii=False).replace('"id"', '"界"')
+        schema.write_text(content)
+        result,detail,_ = machine(['file-query','--format','csv','--mode','explicit','--schema',schema,'-c','SELECT * FROM input',csv])
+        observed = facts(detail)
+        assert detail['code'] == code and detail['stage'] == 'decode' and not result.stdout, detail
+        assert observed['field_path'] == {'text':'/type/structure/0/type'+pointer}, detail
+        assert observed['expected_type'] == {'text':expected}, detail
+        if supplied is not None:
+            assert observed['supplied_value'] == {'text':supplied}, detail
+            offset = int(observed['byte_offset']['unsigned'])
+            token = json.dumps(supplied, ensure_ascii=False) if expected.startswith('declared ') else supplied
+            assert content.encode()[offset:].startswith(token.encode()), detail
+        else:
+            assert 'supplied_value' not in observed and 'byte_offset' not in observed, detail
+    content = json.dumps(schema_value({'decimal':{'precision':3,'scale':0}})).replace('"precision": 3','"precision": 3, "precisi\\u006fn": 4')
+    schema.write_text(content)
+    result,detail,_ = machine(['file-query','--format','csv','--mode','explicit','--schema',schema,'-c','SELECT * FROM input',csv])
+    observed = facts(detail)
+    assert detail['code'] == 'file.invalid_schema_descriptor' and detail['cause'] == 'DuplicateField' and not result.stdout, detail
+    assert observed['field_path'] == {'text':'/type/structure/0/type/decimal/precision'} and observed['supplied_value'] == {'text':'precision'}, detail
+    assert content[int(observed['byte_offset']['unsigned']):].startswith('"precisi\\u006fn"'), detail
     # Recursive descriptor evidence survives release of the JSON parser owner.
     descriptor_cases = [
         ({'decimal':{'precision':0,'scale':0}}, 'file.invalid_decimal_type', '/decimal/precision', {'actual_count':{'unsigned':'0'}, 'limit':{'unsigned':'38'}, 'supplied_value':{'text':'decimal(0,0)'}}),

@@ -18,15 +18,36 @@ pub const Kind = enum {
     nodes,
     name_bytes,
     root,
+    json_value,
+    json_missing,
+    json_unknown,
+    json_duplicate,
 };
 path: Path,
 kind: Kind,
+offset: ?usize = null,
 actual: ?usize = null,
 limit: ?usize = null,
 earlier: ?usize = null,
 value: [256]u8 = @splat(0),
 value_len: u16 = 0,
 value_truncated: bool = false,
+expected: [128]u8 = @splat(0),
+expected_len: u8 = 0,
+pub fn expectation(self: *Self, bytes: []const u8) void {
+    std.debug.assert(bytes.len <= self.expected.len);
+    @memcpy(self.expected[0..bytes.len], bytes);
+    self.expected_len = @intCast(bytes.len);
+}
+pub fn expectedType(self: *const Self) []const u8 {
+    return self.expected[0..self.expected_len];
+}
+pub fn jsonMember(self: Self) bool {
+    return switch (self.kind) {
+        .json_value, .json_missing, .json_unknown, .json_duplicate => true,
+        else => false,
+    };
+}
 pub fn capture(self: *Self, bytes: []const u8) void {
     var length = @min(bytes.len, self.value.len);
     if (std.unicode.utf8ValidateSlice(bytes)) while (!std.unicode.utf8ValidateSlice(bytes[0..length])) {
@@ -56,6 +77,10 @@ pub fn constraint(self: Self) []const u8 {
         .nodes => "The descriptor exceeds its total type-node budget.",
         .name_bytes => "The descriptor exceeds its total field-name byte budget.",
         .root => "An explicit file schema must have a structure at its root.",
+        .json_value => "The schema member does not match its expected JSON type or value range.",
+        .json_missing => "A required schema member is missing.",
+        .json_unknown => "The schema contains an unrecognized member or logical type tag.",
+        .json_duplicate => "The schema object contains a duplicate member.",
     };
 }
 pub fn unit(self: Self) ?[]const u8 {

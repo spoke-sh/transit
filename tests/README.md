@@ -6,6 +6,25 @@ earlier entry refers to that entry's source, not automatically to HEAD. The late
 records its reruns and remaining qualification separately; earlier consolidation
 results do not qualify the changed stored layout by inheritance.
 
+## Descriptor JSON member evidence — 2026-10-03
+
+The descriptor reader records failures during recursive decoding, with member
+paths, expected JSON shapes/integer ranges/enumeration values, original supplied
+bytes and byte offsets for present members. Missing members have neither a
+fabricated supplied value nor a byte offset. Scalar parsing uses the pinned
+standard implementation. Differential native fixtures check its acceptance,
+defaults and first-error precedence for recursive descriptors, numeric forms,
+duplicate/escaped names, invalid tags and malformed shapes. Allocation-failure
+checks release the entire parse and do not turn OOM into an input rejection.
+
+`just test::unit` and full `just check` pass. The **545-case real CLI matrix**
+checks paths, expected values, duplicate decoded members, schema disposal and
+exact UTF-8 byte offsets. Full checks also pass generated/native validation,
+75 Board unit cases, 6 shared diagnostic boundary tests, frontend checks and
+the handbook. Logs: `/var/tmp/transit-descriptor-json-{focused,full}.log`.
+Lexical preflight attribution and committed-HEAD clean qualification remain
+outside this evidence.
+
 ## Recursive descriptor diagnostic evidence — 2026-10-03
 
 `Types.validateDiagnostic` and `LogicalJson.decodeTypeContext` retain the first

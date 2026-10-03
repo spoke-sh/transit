@@ -5434,6 +5434,20 @@
         "std"
       ]
     },
+    "packages/zig/transit-fuze/src/DescriptorJson.zig": {
+      "errors": {
+        "DuplicateField": 1,
+        "MissingField": 1,
+        "OutOfMemory": 2,
+        "UnexpectedToken": 9,
+        "UnknownField": 2
+      },
+      "outcomes": {},
+      "imports": [
+        "TypeDiagnostic.zig",
+        "std"
+      ]
+    },
     "packages/zig/transit-fuze/src/DiagnosticPath.zig": {
       "errors": {},
       "outcomes": {},
@@ -5696,6 +5710,7 @@
         "InvalidUnion": 1,
         "InvalidUuid": 1,
         "JsonByteBudgetExceeded": 1,
+        "OutOfMemory": 1,
         "Overflow": 8,
         "TypeMismatch": 7,
         "ValueBudgetExceeded": 3
@@ -5733,6 +5748,7 @@
         ]
       },
       "imports": [
+        "DescriptorJson.zig",
         "Types.zig",
         "std"
       ]
@@ -6292,7 +6308,11 @@
           "depth",
           "nodes",
           "name_bytes",
-          "root"
+          "root",
+          "json_value",
+          "json_missing",
+          "json_unknown",
+          "json_duplicate"
         ]
       },
       "imports": [

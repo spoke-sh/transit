@@ -69,12 +69,13 @@ pub fn decodeTypeDiagnostic(allocator: std.mem.Allocator, bytes: []const u8, dia
 }
 pub fn decodeTypeContext(allocator: std.mem.Allocator, bytes: []const u8, diagnostic: ?*?types.Json.BudgetDiagnostic, failure: ?*?types.Diagnostic) !types.Decoded {
     try types.Json.preflightDiagnostic(bytes, .{ .bytes = 65536, .depth = 64, .tokens = 4096 }, diagnostic);
-    const parsed = try std.json.parseFromSlice(TypeEnvelope, allocator, bytes, .{ .allocate = .alloc_always });
-    defer parsed.deinit();
-    if (!std.mem.eql(u8, parsed.value.definition, types.definition)) return error.IncompatibleDefinition;
-    try parsed.value.type.validateDiagnostic(.{}, failure);
+    var arena: std.heap.ArenaAllocator = .init(allocator);
+    defer arena.deinit();
+    const parsed = try @import("DescriptorJson.zig").parse(TypeEnvelope, arena.allocator(), bytes, failure);
+    if (!std.mem.eql(u8, parsed.definition, types.definition)) return error.IncompatibleDefinition;
+    try parsed.type.validateDiagnostic(.{}, failure);
     var buffer: [types.max_encoding_bytes]u8 = undefined;
-    return types.decode(allocator, try parsed.value.type.encode(&buffer));
+    return types.decode(allocator, try parsed.type.encode(&buffer));
 }
 pub fn encode(allocator: std.mem.Allocator, cell: values.Cell, field: types.Field) ![]const u8 {
     try cell.validate(field, .{});
@@ -327,4 +328,55 @@ test "neutral JSON rejects missing definitions noncanonical numbers and mismatch
     try t.expectError(error.InvalidIntegerEncoding, unsigned("001"));
     try t.expectError(error.InvalidIntegerEncoding, signed("-0"));
     try t.expectError(error.InvalidIntegerEncoding, signed("+1"));
+}
+
+fn compareDescriptorJson(bytes: []const u8) !void {
+    const t = std.testing;
+    var arena: std.heap.ArenaAllocator = .init(t.allocator);
+    defer arena.deinit();
+    var failure: ?types.Diagnostic = null;
+    const instrumented = @import("DescriptorJson.zig").parse(TypeEnvelope, arena.allocator(), bytes, &failure);
+    if (std.json.parseFromSlice(TypeEnvelope, t.allocator, bytes, .{ .allocate = .alloc_always })) |reference| {
+        defer reference.deinit();
+        const actual = try instrumented;
+        const original_json = try std.json.Stringify.valueAlloc(t.allocator, reference.value, .{});
+        defer t.allocator.free(original_json);
+        const actual_json = try std.json.Stringify.valueAlloc(t.allocator, actual, .{});
+        defer t.allocator.free(actual_json);
+        try t.expectEqualStrings(original_json, actual_json);
+        try t.expect(failure == null);
+    } else |err| {
+        try t.expectError(err, instrumented);
+    }
+}
+test "descriptor attribution preserves standard typed JSON acceptance and first error" {
+    for ([_][]const u8{
+        "{}",                                                   "[]",                                                                  "null", "{\"definition\":\"foreign\"}",
+        "{\"type\":{\"int64\":{}},\"definition\":\"foreign\"}", "{\"definition\":\"a\",\"definition\":\"b\",\"type\":{\"int64\":{}}}",
+    }) |bytes| try compareDescriptorJson(bytes);
+    for ([_][]const u8{
+        "null",                                                          "[]",                                                                        "{}",                                                          "{\"mystery\":{}}",                                                                "{\"int64\":true}",
+        "{\"int64\":{},\"uint64\":{}}",                                  "{\"int64\":{},\"int64\":{}}",                                               "{\"decimal\":{\"precision\":256,\"scale\":0}}",               "{\"decimal\":{\"precision\":3}}",                                                 "{\"decimal\":{\"precision\":\"3\",\"scale\":\"0\"}}",
+        "{\"decimal\":{\"precision\":3.0,\"scale\":0e0}}",               "{\"decimal\":{\"precision\":3.5,\"scale\":0}}",                             "{\"decimal\":{\"precision\":3,\"precision\":4,\"scale\":0}}", "{\"timestamp\":\"utc\"}",                                                         "{\"timestamp\":\"local\"}",
+        "{\"timestamp\":0}",                                             "{\"list\":{}}",                                                             "{\"list\":{\"type\":{\"int64\":{}}}}",                        "{\"array\":{\"element\":{\"type\":{\"utf8\":{}}},\"length\":2}}",                 "{\"map\":{\"key\":{\"utf8\":{}},\"value\":{\"type\":{\"int64\":{}}}}}",
+        "{\"tagged_union\":[{\"name\":\"a\",\"type\":{\"int64\":{}}}]}", "{\"structure\":[{\"name\":\"a\",\"type\":{\"int64\":{}},\"nullable\":1}]}", "{\"structure\":[{\"name\":[65],\"type\":{\"int64\":{}}}]}",   "{\"structure\":[{\"name\":\"a\",\"na\\u006de\":\"b\",\"type\":{\"int64\":{}}}]}", "{\"structure\":[{\"name\":\"a\",\"type\":{\"decimal\":{\"precision\":3,\"scale\":0}},\"optional\":true}]}",
+    }) |descriptor| {
+        const bytes = try std.fmt.allocPrint(std.testing.allocator, "{{\"definition\":\"{s}\",\"type\":{s}}}", .{ types.definition, descriptor });
+        defer std.testing.allocator.free(bytes);
+        try compareDescriptorJson(bytes);
+    }
+}
+fn descriptorAllocation(allocator: std.mem.Allocator, bytes: []const u8) !void {
+    var failure: ?types.Diagnostic = null;
+    var owner = decodeTypeContext(allocator, bytes, null, &failure) catch |err| {
+        if (err == error.OutOfMemory) try std.testing.expect(failure == null);
+        return err;
+    };
+    defer owner.deinit();
+}
+test "descriptor diagnostic decode releases all allocations without inventing input rejection on OOM" {
+    const descriptor: types.Type = .{ .structure = &.{.{ .name = "α/~", .type = .{ .list = .{ .type = &.{ .decimal = .{ .precision = 5, .scale = 2 } } } }, .optional = true }} };
+    const bytes = try encodeType(std.testing.allocator, descriptor);
+    defer std.testing.allocator.free(bytes);
+    try std.testing.checkAllAllocationFailures(std.testing.allocator, descriptorAllocation, .{bytes});
 }

@@ -57,6 +57,8 @@ pub fn render(self: Self, out: *std.Io.Writer, err: anyerror, style: @import("St
         try quoted(out, detail.path.slice());
         if (detail.path.truncated) try out.writeAll(" [truncated]");
         try out.print(".\n{s}\n", .{detail.constraint()});
+        if (detail.offset) |offset| try out.print("Schema byte offset (zero-based): {d}.\n", .{offset});
+        if (detail.expected_len != 0) try out.print("Expected: {s}.\n", .{detail.expectedType()});
         if (detail.value_len != 0 or detail.kind == .name_empty) {
             try out.writeAll("Supplied: ");
             try quoted(out, detail.supplied());
@@ -200,7 +202,7 @@ fn quoted(out: *std.Io.Writer, value: []const u8) !void {
 pub fn structured(self: Self, err: anyerror) !@import("transit_query").protocol.Diagnostic {
     const d = @import("transit_query").protocol.Diagnostic;
     const storage = if (self.capture_failure) |capture| capture.storage() and err != error.OutOfMemory and err != error.FileQueryInterrupted else false;
-    const code: []const u8 = if (storage) "file.capture_storage_unavailable" else if (self.schema_file and err == error.WriteFailed) "file.schema_encoding_limit" else if (self.schema_file and self.schema_failure == null and (err == error.UnknownField or err == error.DuplicateField or err == error.MissingField or err == error.UnexpectedToken or err == error.InvalidEnumTag)) "file.invalid_schema_descriptor" else switch (err) {
+    const code: []const u8 = if (storage) "file.capture_storage_unavailable" else if (self.schema_file and err == error.WriteFailed) "file.schema_encoding_limit" else if (self.schema_file and (self.schema_failure == null or self.schema_failure.?.jsonMember()) and (err == error.UnknownField or err == error.DuplicateField or err == error.MissingField or err == error.UnexpectedToken or err == error.InvalidEnumTag)) "file.invalid_schema_descriptor" else switch (err) {
         error.RaggedCsvRow => "file.ragged_csv_row",
         error.DuplicateField => "file.duplicate_field",
         error.UnknownField => "file.unknown_field",
@@ -220,7 +222,7 @@ pub fn structured(self: Self, err: anyerror) !@import("transit_query").protocol.
         error.MapKeyOrder => "file.map_key_collision",
         error.QueryTypeError => "file.type_error_cell",
         error.QueryConflict => "file.conflict_cell",
-        error.Overflow => if (self.location.conversion != null) "file.scalar_out_of_range" else "file.arithmetic_overflow",
+        error.Overflow => if (self.location.conversion != null or self.schema_failure != null) "file.scalar_out_of_range" else "file.arithmetic_overflow",
         error.RecordTooLarge => "file.record_byte_limit",
         error.SourceWorkExceeded => "file.record_count_limit",
         error.SourceBudgetExceeded => "file.scan_byte_limit",
@@ -307,7 +309,9 @@ pub fn structured(self: Self, err: anyerror) !@import("transit_query").protocol.
     // never invent line/column coordinates from its ordinal.
     if (self.schema_failure) |detail| {
         try bounded(&value, .field_path, detail.path.slice(), detail.path.truncated);
+        if (detail.offset) |offset| try value.fact(.byte_offset, .caller, .{ .unsigned = .init(offset) });
         try value.text(.constraint, .schema, detail.constraint());
+        if (detail.expected_len != 0) try value.text(.expected_type, .schema, detail.expectedType());
         if (detail.value_len != 0 or detail.kind == .name_empty) try bounded(&value, .supplied_value, detail.supplied(), detail.value_truncated);
         if (detail.earlier) |earlier| try value.fact(.first_occurrence, .schema, .{ .unsigned = .init(earlier) });
         if (detail.unit()) |unit| {

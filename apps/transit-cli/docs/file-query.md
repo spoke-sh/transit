@@ -65,8 +65,11 @@ array length, invalid map-key type or the exact exhausted descriptor budget.
 Paths use descriptor field positions, so invalid and duplicate names remain
 unambiguous. Paths and supplied values are bounded to 256 bytes with explicit
 truncation. These schema-file paths differ from the row-value paths reported
-during conversion. JSON syntax and member-decoding failures retain their cause
-and schema file but do not currently carry a nested descriptor path.
+during conversion. Missing members, unknown tags, duplicate JSON object members
+and invalid scalar types/ranges retain their own member paths and expected
+shape/type. Present members/values also carry zero-based schema byte offsets;
+missing members do not claim a source position. Lexical failures before member
+decoding retain their original cause and any measured budget.
 
 UTF-8 IDs preserve leading zeros. Decimal values use exact coefficients; they
 do not select an application's monetary policy. Quoted `"NULL"` remains text;
