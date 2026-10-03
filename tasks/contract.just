@@ -14,8 +14,10 @@ generate:
     trap 'rm -rf "$generated"' EXIT
     zig build contract > "$generated/transit-v1.schema.json"
     zig build application-installation-contract > "$generated/application-installation-v1.schema.json"
+    zig build diagnostic-contract > "$generated/diagnostic-v1.schema.json"
     mv "$generated/transit-v1.schema.json" contracts/transit-v1.schema.json
     mv "$generated/application-installation-v1.schema.json" contracts/application-installation-v1.schema.json
+    mv "$generated/diagnostic-v1.schema.json" contracts/diagnostic-v1.schema.json
     zig build application-installation-fixture > contracts/application-installation-v1.fixture.json
 
 # Detect public schema/default/signing changes that were not reviewed together.
@@ -23,6 +25,7 @@ check:
     zig build contract | python3 -B tests/contract.py
     zig build application-installation-contract | python3 -B tests/contract.py --installation
     zig build application-installation-fixture | python3 -B tests/installation_contract.py
+    zig build diagnostic-contract | python3 -B tests/diagnostic_contract.py
     just contract::client-check
     just contract::station-check
     just contract::logical-check

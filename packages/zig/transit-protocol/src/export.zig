@@ -8,6 +8,12 @@ pub fn main(init: std.process.Init) !void {
     var buffer: [8192]u8 = undefined;
     var writer = std.Io.File.stdout().writerStreaming(init.io, &buffer);
     var out: std.json.Stringify = .{ .writer = &writer.interface, .options = .{ .whitespace = .indent_2 } };
+    const args = try init.minimal.args.toSlice(init.arena.allocator());
+    if (args.len == 2 and std.mem.eql(u8, args[1], "--diagnostic")) {
+        try p.Schema.write(p.Diagnostic, &out, .{ .safe_integers = true });
+        try writer.interface.writeByte('\n');
+        return writer.interface.flush();
+    }
     try out.beginObject();
     try field(&out, "$schema", "https://json-schema.org/draft/2020-12/schema");
     try field(&out, "title", "Transit native protocol v1");

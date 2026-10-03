@@ -1,0 +1,58 @@
+{
+  "version": 1,
+  "definition": "63f0ffc698c8620bc478c33c49d61efbcff689140cf439d412336ffa694d22bc",
+  "code": "mutation.primary_key_conflict",
+  "category": "constraint",
+  "stage": "execute",
+  "outcome": "rejected",
+  "evidence": "domain_status",
+  "message": "Duplicate primary key; no rows were inserted.",
+  "cause": null,
+  "identity": {
+    "domain": "mutation",
+    "id": "18446744073709551615",
+    "realm": "1",
+    "resource": "2",
+    "sequence": "3"
+  },
+  "location": null,
+  "facts": [
+    {
+      "field": "key",
+      "origin": "caller",
+      "availability": "provided",
+      "value": {
+        "signed": "-9223372036854775808"
+      }
+    },
+    {
+      "field": "constraint",
+      "origin": "schema",
+      "availability": "unrecorded",
+      "value": null
+    },
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null
+  ],
+  "actions": [
+    {
+      "kind": "correct_input",
+      "target": null
+    },
+    null,
+    null,
+    null
+  ]
+}

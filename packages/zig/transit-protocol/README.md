@@ -61,6 +61,12 @@ Public scalar types can supply `jsonSchema`; versioned structs can override a
 field with `json_schema_fields` beside their runtime declarations. These helpers
 do not replace the native protocol's canonical digest/signing functions.
 
+`Diagnostic` defines the shared bounded [diagnostic v1](../../../contracts/DIAGNOSTICS_V1.md)
+value: stable code, stage, outcome/evidence, identity, typed context and recovery
+actions. It validates evidence/action consistency and owns all returned context.
+Domain owners retain error classification, current disclosure checks and durable
+outcome authority; the protocol type performs no I/O or recovery operation.
+
 Host decoding checks scalar JSON kinds too: integer fields reject quoted numbers,
 booleans keep their declared shape, enum strings must exactly match a declared
 name, and empty payloads require an empty object. Quoted numeric enum ordinals

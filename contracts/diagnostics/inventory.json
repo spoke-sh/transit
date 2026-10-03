@@ -6137,6 +6137,170 @@
         "zarrow_compute"
       ]
     },
+    "packages/zig/transit-protocol/src/Diagnostic.zig": {
+      "errors": {
+        "DiagnosticCapacity": 3,
+        "IncompatibleDiagnostic": 1,
+        "InvalidCharacter": 1,
+        "InvalidDiagnostic": 23,
+        "InvalidDiagnosticNumber": 2,
+        "InvalidDiagnosticText": 3,
+        "InvalidNumber": 1,
+        "UnexpectedToken": 1,
+        "WriteFailed": 3
+      },
+      "outcomes": {
+        "Category": [
+          "syntax",
+          "binding",
+          "unsupported",
+          "constraint",
+          "access",
+          "conflict",
+          "limit",
+          "lifecycle",
+          "integrity",
+          "unavailable",
+          "internal"
+        ],
+        "Stage": [
+          "input",
+          "parse",
+          "compile",
+          "bind",
+          "prepare",
+          "submit",
+          "admission",
+          "execute",
+          "read",
+          "decode",
+          "output",
+          "reconcile",
+          "cleanup",
+          "control"
+        ],
+        "Outcome": [
+          "not_applicable",
+          "not_submitted",
+          "prepared",
+          "unknown",
+          "pending",
+          "input_rejected",
+          "rejected",
+          "applied",
+          "cancelled",
+          "retired",
+          "closed_unknown"
+        ],
+        "Evidence": [
+          "none",
+          "local_before_dispatch",
+          "saved_intent",
+          "native_receipt",
+          "domain_status"
+        ],
+        "Domain": [
+          "sql",
+          "query",
+          "mutation",
+          "catalog",
+          "application",
+          "publication",
+          "migration",
+          "reactive",
+          "effect",
+          "transport",
+          "internal"
+        ],
+        "Availability": [
+          "provided",
+          "truncated",
+          "unrecorded",
+          "unavailable",
+          "withheld",
+          "inapplicable"
+        ],
+        "Origin": [
+          "caller",
+          "execution",
+          "schema",
+          "authority",
+          "owner"
+        ],
+        "ActionKind": [
+          "correct_input",
+          "inspect_status",
+          "resume_exact",
+          "cancel_wait",
+          "cancel_mutation",
+          "refresh",
+          "recompile",
+          "retry_read",
+          "inspect_scope",
+          "reconcile_effect",
+          "contact_operator"
+        ],
+        "Field": [
+          "object",
+          "scope",
+          "column",
+          "qualifier",
+          "constraint",
+          "key",
+          "input_row",
+          "first_occurrence",
+          "parameter",
+          "parameter_use",
+          "expected_count",
+          "actual_count",
+          "expected_type",
+          "actual_type",
+          "supplied_value",
+          "expression",
+          "source_kind",
+          "source_basis",
+          "source_key",
+          "source_row",
+          "field_path",
+          "byte_offset",
+          "expected_revision",
+          "actual_revision",
+          "expected_schema",
+          "actual_schema",
+          "expected_policy",
+          "actual_policy",
+          "budget",
+          "limit",
+          "required",
+          "unit",
+          "completed_statements",
+          "emitted_rows",
+          "emitted_segments",
+          "completion",
+          "proposal",
+          "step",
+          "generation",
+          "attachment",
+          "lease",
+          "schema_origin",
+          "sampling_records",
+          "operation",
+          "native_cause"
+        ],
+        "Value": [
+          "text",
+          "signed",
+          "unsigned",
+          "boolean",
+          "digest",
+          "location"
+        ]
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
     "packages/zig/transit-protocol/src/Growth.zig": {
       "errors": {
         "DuplicateStateKey": 1,
@@ -6428,6 +6592,7 @@
         ]
       },
       "imports": [
+        "Diagnostic.zig",
         "Growth.zig",
         "Json.zig",
         "Lifecycle.zig",

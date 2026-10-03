@@ -5,6 +5,7 @@ pub const Value = @import("Value.zig");
 pub const Ed25519 = std.crypto.sign.Ed25519;
 pub const Json = @import("Json.zig");
 pub const Schema = @import("Schema.zig");
+pub const Diagnostic = @import("Diagnostic.zig");
 pub const Runtime = @import("Runtime.zig");
 pub const State = @import("State.zig");
 pub const Growth = @import("Growth.zig");
@@ -48,6 +49,7 @@ test {
     _ = Schema;
     _ = Growth;
     _ = Value;
+    _ = Diagnostic;
 }
 
 /// Stable wire rejection codes. Unknown internal failures map to AuthorityUnavailable.

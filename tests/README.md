@@ -12209,3 +12209,17 @@ This check establishes a reviewed source surface, not whole-program reachability
 or semantic diagnostic completeness. Propagated external errors, mapping quality,
 failure witnesses and executable negative-case coverage require their owning
 contracts and proofs; recording an inventory does not pass those gates.
+
+### Neutral diagnostic contract
+
+On 2026-10-02, the standalone `transit-protocol` package tests and the generated
+diagnostic-schema check pass. The independent JSON fixture retains signed and
+unsigned 64-bit extrema after input ownership ends. Allocation-failure testing
+exercises every decoder allocation; negatives reject missing mandatory fields,
+noncanonical numeric strings, mismatched outcome evidence, forbidden recovery
+actions and withheld details containing values. Digest arrays preserve their
+declared JSON shape. UTF-8 truncation preserves whole code points. Documentation
+validation passes 5,057 links across 508 files.
+
+These tests establish the neutral value's construction/decoding rules. They do
+not establish domain mapping completeness or delivery through every adapter.
