@@ -69,6 +69,7 @@ check-core:
     python3 -B tests/verification/check.py
     just test::diagnostic-inventory
     just test::diagnostic-mappings
+    just test::diagnostic-outcomes
     nix flake check
     zig fmt --check build.zig packages/zig apps examples tests/*.zig tests/fuze_benchmarks
     just contract::check

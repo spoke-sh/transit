@@ -377,6 +377,10 @@ diagnostic-inventory:
 diagnostic-mappings:
     python3 -B tests/diagnostic_mappings.py
 
+# Execute every declared retained-outcome variant against reviewed semantic mappings.
+diagnostic-outcomes:
+    zig build test-diagnostic-outcomes
+
 # Measure the default local empty Table with consistently optimized executables.
 console-latency *args:
     zig build transit transit-node transit-query-host transit-board -Doptimize=ReleaseSafe --prefix .cache/transit-latency/release

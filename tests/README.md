@@ -13478,3 +13478,23 @@ The test includes a maximum uint64 exchange identity. Log:
 wrong build directory and an incorrect Decimal accessor did not pass; the recorded
 run includes the corrected fixture. No wire/persisted layout changed. Full clean
 committed-HEAD qualification remains separate.
+
+### Retained outcome semantic gate (2026-10-03)
+
+`just test::diagnostic-outcomes` passed in the pinned shell: **498 projections**
+cover **208 enum variants in 14 declared surfaces**. Query failures cross both
+recorded stages and denied/rejected/retired presentation. Independent reviewed
+expectations check stable codes/categories, stages, outcomes, evidence, complete
+identities, fact origins/availability and exact recovery targets. Negative checker
+mutations reject missing/duplicate cases, new enum tags, changed meaning, wrong
+targets, hidden facts and fresh-retry advice for unknown outcomes.
+
+The executable uses valid synthetic owner records; its first serving/effect
+fixtures were rejected by production validators and were corrected before this
+passing run. This is projection coverage, not additional transition/restart or
+current-authority proof. The source inventory and documentation checks also
+passed (5,135 local links in 510 files). Final log:
+`/var/tmp/transit-diagnostic-outcomes-check2.log`. The first check invocation used
+a nonexistent documentation task after the outcome/inventory checks passed;
+the documented rerun executes the actual documentation checker. Clean CI remains
+separate and unclaimed.

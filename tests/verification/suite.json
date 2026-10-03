@@ -225,6 +225,7 @@
     "check-core": [
       "test::diagnostic-inventory",
       "test::diagnostic-mappings",
+      "test::diagnostic-outcomes",
       "test::unit",
       "test::cli-diagnostics",
       "contract::check"

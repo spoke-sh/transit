@@ -53,3 +53,29 @@ only establishes ownership; it does not count as executing that test. The mappin
 manifest currently certifies the named compiler boundary, not every inventoried
 runtime/adapter boundary or every grammar alternative. Those remaining mappings
 must be added with their own executable cases before completeness is claimed.
+
+
+`outcomes.json` owns reviewed semantic expectations for retained query failures,
+mutation phases/reasons/input rejections, catalog receipts/input dispositions,
+serving waits/input rejections, Follow stops, exchange capture closure, native
+effect phases/closures and publication phases/input rejections. Each family names
+its actual source enum, projection, context, disclosure and recovery contract.
+Every enum tag requires an executable projection. Query codes run across both
+recorded stages and all three supported failure phases.
+
+`just test::diagnostic-outcomes` executes those public projections and checks the
+stable code/category, stage/outcome, evidence, complete operation identity, fact
+origin/availability and exact action targets. Expectations are separate from the
+implementation and source inventory; updating `inventory.json` cannot admit a
+new outcome or change its meaning. There is no automatic expectation-recording
+mode. Review changes against the owner contract and its transition evidence.
+Negative mutations check omitted/duplicate cases, new enum tags, changed semantic
+fields, wrong recovery targets, withheld facts and unsafe retry advice.
+
+The projection fixture uses valid synthetic retained records. It does not execute
+an authority, prove current access, reproduce a rejecting turn or verify all
+optional witness values. Owner tests and restart/commit/disclosure proofs retain
+those responsibilities. A listed enum's completeness is not completeness across
+all runtime adapters or grammar alternatives. In particular, migration inputs,
+query lifecycle status without a failure and application-owned transform errors
+remain separate coverage obligations.

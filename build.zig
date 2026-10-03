@@ -69,6 +69,19 @@ pub fn build(b: *std.Build) void {
     }) });
     b.step("six-benchmark", "Build the specialized six-type execution control").dependOn(&b.addInstallArtifact(six_benchmark, .{}).step);
     const catalog = b.dependency("transit_catalog", .{ .target = target, .optimize = optimize });
+    const diagnostic_outcomes = b.addExecutable(.{ .name = "transit-diagnostic-outcomes", .root_module = b.createModule(.{
+        .root_source_file = b.path("tests/diagnostic_outcomes.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{ .{ .name = "transit_station_app", .module = application.module("transit_station_app") }, .{ .name = "transit_query", .module = query.module("transit_query") }, .{ .name = "transit_catalog", .module = catalog.module("transit_catalog") }, .{ .name = "transit_serving", .module = serving.module("transit_serving") }, .{ .name = "transit_exchange", .module = exchange.module("transit_exchange") } },
+    }) });
+    b.step("diagnostic-outcomes", "Build executable semantic outcome projections").dependOn(&b.addInstallArtifact(diagnostic_outcomes, .{}).step);
+    const diagnostic_outcomes_test = b.addSystemCommand(&.{ "python3", "-B" });
+    diagnostic_outcomes_test.addFileArg(b.path("tests/diagnostic_outcomes.py"));
+    diagnostic_outcomes_test.addArtifactArg(diagnostic_outcomes);
+    diagnostic_outcomes_test.has_side_effects = true;
+    diagnostic_outcomes_test.stdio = .inherit;
+    b.step("test-diagnostic-outcomes", "Check reviewed semantic outcomes and exact recovery targets").dependOn(&diagnostic_outcomes_test.step);
     b.step("query-api", "Export reflected query workspace declarations").dependOn(&b.addInstallArtifact(query.artifact("transit-query-api"), .{}).step);
     const station = b.dependency("transit_station", .{ .target = target, .optimize = optimize });
     const station_bindings = b.dependency("transit_station_bindings", .{ .target = target, .optimize = optimize });

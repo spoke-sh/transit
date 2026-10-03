@@ -1,0 +1,715 @@
+{
+  "version": 1,
+  "families": {
+    "query.failure": {
+      "source": "packages/zig/transit-query/src/QueryFailure.zig",
+      "type": "Code",
+      "projection": "packages/zig/transit-query/src/QueryFailure.zig",
+      "profile": "Finite native Table/KV/Document query",
+      "context": "Original failure code, optional runtime/source/budget witnesses; fixture omits optional witnesses",
+      "durable_evidence": "Projection uses the retained owner record. This executable checks the mapping; owner commit/replay/restart proofs verify persistence.",
+      "disclosure": "Project only after the owning read has established current authority. Fixture values are synthetic; additional payloads/credentials are not inferred.",
+      "recovery": "Inspect saved namespace; correct/recompile only from a confirmed rejection; current access/lifecycle remains separate",
+      "defaults": {
+        "evidence": "domain_status",
+        "identity": {
+          "domain": "query",
+          "id": "19",
+          "realm": null,
+          "resource": null,
+          "sequence": null
+        },
+        "facts": [
+          [
+            "completion",
+            "execution",
+            "provided"
+          ]
+        ]
+      },
+      "scenarios": {
+        "admission.denied": {
+          "stage": "admission",
+          "outcome": "rejected"
+        },
+        "admission.rejected": {
+          "stage": "admission",
+          "outcome": "rejected"
+        },
+        "admission.retired": {
+          "stage": "admission",
+          "outcome": "retired"
+        },
+        "execution.denied": {
+          "stage": "execute",
+          "outcome": "rejected"
+        },
+        "execution.rejected": {
+          "stage": "execute",
+          "outcome": "rejected"
+        },
+        "execution.retired": {
+          "stage": "execute",
+          "outcome": "retired"
+        }
+      },
+      "cases": {
+        "policy_denied": {"code": "query.policy_denied","category": "access","actions": ["inspect_status","inspect_scope"]},
+        "access_denied": {"code": "query.access_denied","category": "access","actions": ["inspect_status","inspect_scope"]},
+        "resource_unavailable": {"code": "query.resource_unavailable","category": "unavailable","actions": ["inspect_status","inspect_scope"]},
+        "request_unpublished": {"code": "query.request_unpublished","category": "lifecycle","actions": ["inspect_status","inspect_scope"]},
+        "publisher_mismatch": {"code": "query.publisher_mismatch","category": "access","actions": ["inspect_status","inspect_scope"]},
+        "document_history_gap": {"code": "query.document_history_gap","category": "lifecycle","actions": ["inspect_status","inspect_scope"]},
+        "document_retired": {"code": "query.document_retired","category": "lifecycle","actions": ["inspect_status","inspect_scope"]},
+        "document_resync_required": {"code": "query.document_resync_required","category": "lifecycle","actions": ["inspect_status","inspect_scope"]},
+        "budget_exceeded": {"code": "query.budget_exceeded","category": "limit","actions": ["inspect_status","correct_input"]},
+        "projection_budget": {"code": "query.projection_budget","category": "limit","actions": ["inspect_status","correct_input"]},
+        "expansion_missing": {"code": "query.expansion_missing","category": "binding","actions": ["inspect_status","correct_input"]},
+        "expansion_null": {"code": "query.expansion_null","category": "binding","actions": ["inspect_status","correct_input"]},
+        "expansion_conflict": {"code": "query.expansion_conflict","category": "conflict","actions": ["inspect_status","correct_input"]},
+        "expansion_type_error": {"code": "query.expansion_type_error","category": "binding","actions": ["inspect_status","correct_input"]},
+        "cell_type_error": {"code": "query.cell_type_error","category": "binding","actions": ["inspect_status","correct_input"]},
+        "cell_conflict": {"code": "query.cell_conflict","category": "conflict","actions": ["inspect_status","correct_input"]},
+        "arithmetic_overflow": {"code": "query.arithmetic_overflow","category": "limit","actions": ["inspect_status","correct_input"]},
+        "segment_byte_limit": {"code": "query.segment_byte_limit","category": "limit","actions": ["inspect_status","correct_input"]},
+        "type_mismatch": {"code": "query.type_mismatch","category": "binding","actions": ["inspect_status","correct_input"]},
+        "unsupported_aggregate": {"code": "query.unsupported_aggregate","category": "unsupported","actions": ["inspect_status","correct_input"]},
+        "unknown_column": {"code": "query.unknown_column","category": "binding","actions": ["inspect_status","correct_input"]},
+        "invalid_projection": {"code": "query.invalid_projection","category": "binding","actions": ["inspect_status","correct_input"]},
+        "duplicate_projection": {"code": "query.duplicate_projection","category": "binding","actions": ["inspect_status","correct_input"]},
+        "invalid_bundle": {"code": "query.invalid_bundle","category": "binding","actions": ["inspect_status","correct_input"]},
+        "invalid_source": {"code": "query.invalid_source","category": "binding","actions": ["inspect_status","correct_input"]},
+        "invalid_prefix": {"code": "query.invalid_prefix","category": "binding","actions": ["inspect_status","correct_input"]},
+        "invalid_path": {"code": "query.invalid_path","category": "binding","actions": ["inspect_status","correct_input"]},
+        "invalid_projection_budget": {"code": "query.invalid_projection_budget","category": "binding","actions": ["inspect_status","correct_input"]},
+        "invalid_text_projection": {"code": "query.invalid_text_projection","category": "binding","actions": ["inspect_status","correct_input"]},
+        "invalid_element_projection": {"code": "query.invalid_element_projection","category": "binding","actions": ["inspect_status","correct_input"]},
+        "unsupported_source": {"code": "query.unsupported_source","category": "unsupported","actions": ["inspect_status","correct_input"]},
+        "unsupported_decoder": {"code": "query.unsupported_decoder","category": "unsupported","actions": ["inspect_status","correct_input"]},
+        "unsupported_document_source": {"code": "query.unsupported_document_source","category": "unsupported","actions": ["inspect_status","correct_input"]},
+        "invalid_source_encoding": {"code": "query.invalid_source_encoding","category": "integrity","actions": ["inspect_status","contact_operator"]},
+        "invalid_plan_encoding": {"code": "query.invalid_plan_encoding","category": "integrity","actions": ["inspect_status","contact_operator"]},
+        "plan_definition_mismatch": {"code": "query.plan_definition_mismatch","category": "integrity","actions": ["inspect_status","contact_operator"]},
+        "invalid_output_names": {"code": "query.invalid_output_names","category": "binding","actions": ["inspect_status","correct_input"]},
+        "unsupported_plan": {"code": "query.unsupported_plan","category": "unsupported","actions": ["inspect_status","correct_input"]},
+        "plan_too_large": {"code": "query.plan_too_large","category": "limit","actions": ["inspect_status","correct_input"]},
+        "bundle_too_large": {"code": "query.bundle_too_large","category": "limit","actions": ["inspect_status","correct_input"]},
+        "truncated_input": {"code": "query.truncated_input","category": "integrity","actions": ["inspect_status","contact_operator"]},
+        "source_changed": {"code": "query.source_changed","category": "conflict","actions": ["inspect_status","recompile"]},
+        "table_schema_changed": {"code": "query.table_schema_changed","category": "conflict","actions": ["inspect_status","recompile"]},
+        "invalid_budget": {"code": "query.invalid_budget","category": "binding","actions": ["inspect_status","correct_input"]},
+        "namespace_in_use": {"code": "query.namespace_in_use","category": "conflict","actions": ["inspect_status","correct_input"]},
+        "query_after_mutation": {"code": "query.query_after_mutation","category": "binding","actions": ["inspect_status","correct_input"]},
+        "nonfinite_value": {"code": "query.nonfinite_value","category": "binding","actions": ["inspect_status","correct_input"]},
+        "invalid_utf8": {"code": "query.invalid_utf8","category": "binding","actions": ["inspect_status","correct_input"]},
+        "cell_too_large": {"code": "query.cell_too_large","category": "limit","actions": ["inspect_status","correct_input"]},
+        "invalid_column_name": {"code": "query.invalid_column_name","category": "binding","actions": ["inspect_status","correct_input"]},
+        "invalid_column_count": {"code": "query.invalid_column_count","category": "binding","actions": ["inspect_status","correct_input"]},
+        "duplicate_column": {"code": "query.duplicate_column","category": "binding","actions": ["inspect_status","correct_input"]},
+        "unsupported_schema": {"code": "query.unsupported_schema","category": "unsupported","actions": ["inspect_status","correct_input"]},
+        "peer_mismatch": {"code": "query.peer_mismatch","category": "access","actions": ["inspect_status","inspect_scope"]},
+        "invalid_request_reference": {"code": "query.invalid_request_reference","category": "binding","actions": ["inspect_status","correct_input"]},
+        "writer_not_ready": {"code": "query.writer_not_ready","category": "unavailable","actions": ["inspect_status","inspect_scope"]},
+        "request_resource_expired": {"code": "query.request_resource_expired","category": "lifecycle","actions": ["inspect_status","inspect_scope"]},
+        "request_resource_missing": {"code": "query.request_resource_missing","category": "lifecycle","actions": ["inspect_status","inspect_scope"]}
+      }
+    },
+    "mutation.phase": {
+      "source": "packages/zig/transit-query/src/TableMutationRecords.zig",
+      "type": "Phase",
+      "projection": "packages/zig/transit-query/src/MutationDiagnostic.zig",
+      "profile": "Atomic Table mutation",
+      "context": "Original reference, Table identity, declaration, policy and terminal input; rejected fixture is invalid_request",
+      "durable_evidence": "Projection uses the retained owner record. This executable checks the mapping; owner commit/replay/restart proofs verify persistence.",
+      "disclosure": "Project only after the owning read has established current authority. Fixture values are synthetic; additional payloads/credentials are not inferred.",
+      "recovery": "Uploading/sealed can resume exact bytes or request supported cancellation; terminal outcomes cannot resume",
+      "defaults": {
+        "evidence": "domain_status",
+        "identity": {
+          "domain": "mutation",
+          "id": "19",
+          "realm": null,
+          "resource": "7",
+          "sequence": null
+        }
+      },
+      "scenarios": {
+        "default": {}
+      },
+      "cases": {
+        "uploading": {"code": "mutation.uploading","category": "lifecycle","stage": "admission","outcome": "pending","facts": [["table","owner","provided"],["source_basis","owner","provided"],["expected_schema","owner","provided"],["expected_policy","owner","provided"]],"actions": ["inspect_status","resume_exact","cancel_mutation"]},
+        "sealed": {"code": "mutation.sealed","category": "lifecycle","stage": "admission","outcome": "pending","facts": [["table","owner","provided"],["source_basis","owner","provided"],["expected_schema","owner","provided"],["expected_policy","owner","provided"]],"actions": ["inspect_status","resume_exact","cancel_mutation"]},
+        "applied": {"code": "mutation.applied","category": "lifecycle","stage": "execute","outcome": "applied","facts": [["table","owner","provided"],["native_input","owner","provided"],["affected_rows","execution","provided"],["source_basis","owner","provided"],["expected_schema","owner","provided"],["expected_policy","owner","provided"]],"actions": ["inspect_status"]},
+        "rejected": {"code": "mutation.invalid_request","category": "integrity","stage": "execute","outcome": "rejected","facts": [["table","owner","provided"],["native_input","owner","provided"],["affected_rows","execution","provided"],["source_basis","owner","provided"],["expected_schema","owner","provided"],["expected_policy","owner","provided"]],"actions": ["inspect_status","contact_operator"]},
+        "cancelled": {"code": "mutation.cancelled","category": "lifecycle","stage": "control","outcome": "cancelled","facts": [["table","owner","provided"],["native_input","owner","provided"],["affected_rows","execution","provided"],["source_basis","owner","provided"],["expected_schema","owner","provided"],["expected_policy","owner","provided"]],"actions": ["inspect_status"]}
+      }
+    },
+    "mutation.reason": {
+      "source": "packages/zig/transit-query/src/TableMutationRecords.zig",
+      "type": "Reason",
+      "projection": "packages/zig/transit-query/src/MutationDiagnostic.zig",
+      "profile": "Atomic Table mutation",
+      "context": "Original terminal reason; row_exists has original row/key, denied has missing-policy witness, source_changed has missing-Table witness",
+      "durable_evidence": "Projection uses the retained owner record. This executable checks the mapping; owner commit/replay/restart proofs verify persistence.",
+      "disclosure": "Project only after the owning read has established current authority. Fixture values are synthetic; additional payloads/credentials are not inferred.",
+      "recovery": "Confirmed rejection permits only its relevant correction or inspection; none is valid with applied",
+      "defaults": {
+        "stage": "execute",
+        "evidence": "domain_status",
+        "identity": {
+          "domain": "mutation",
+          "id": "19",
+          "realm": null,
+          "resource": "7",
+          "sequence": null
+        }
+      },
+      "scenarios": {
+        "default": {}
+      },
+      "cases": {
+        "none": {"code": "mutation.applied","category": "lifecycle","outcome": "applied","facts": [["table","owner","provided"],["native_input","owner","provided"],["affected_rows","execution","provided"],["source_basis","owner","provided"],["expected_schema","owner","provided"],["expected_policy","owner","provided"]],"actions": ["inspect_status"]},
+        "row_exists": {"code": "mutation.primary_key_conflict","category": "constraint","outcome": "rejected","facts": [["table","owner","provided"],["native_input","owner","provided"],["affected_rows","execution","provided"],["source_basis","owner","provided"],["expected_schema","owner","provided"],["expected_policy","owner","provided"],["constraint","schema","provided"],["column","schema","unrecorded"],["key","execution","provided"],["input_row","execution","provided"]],"actions": ["inspect_status","correct_input"]},
+        "source_changed": {"code": "mutation.source_changed","category": "conflict","outcome": "rejected","facts": [["table","owner","provided"],["native_input","owner","provided"],["affected_rows","execution","provided"],["source_basis","owner","provided"],["expected_schema","owner","provided"],["expected_policy","owner","provided"],["native_cause","owner","provided"],["actual_schema","schema","provided"]],"actions": ["inspect_status","inspect_scope"]},
+        "invalid_request": {"code": "mutation.invalid_request","category": "integrity","outcome": "rejected","facts": [["table","owner","provided"],["native_input","owner","provided"],["affected_rows","execution","provided"],["source_basis","owner","provided"],["expected_schema","owner","provided"],["expected_policy","owner","provided"]],"actions": ["inspect_status","contact_operator"]},
+        "denied": {"code": "mutation.policy_denied","category": "access","outcome": "rejected","facts": [["table","owner","provided"],["native_input","owner","provided"],["affected_rows","execution","provided"],["source_basis","owner","provided"],["expected_schema","owner","provided"],["expected_policy","owner","provided"],["native_cause","owner","provided"],["actual_policy","authority","provided"]],"actions": ["inspect_status","inspect_scope"]},
+        "budget": {"code": "mutation.turn_budget_exceeded","category": "limit","outcome": "rejected","facts": [["table","owner","provided"],["native_input","owner","provided"],["affected_rows","execution","provided"],["source_basis","owner","provided"],["expected_schema","owner","provided"],["expected_policy","owner","provided"],["budget","owner","provided"],["limit","owner","unrecorded"],["required","owner","unrecorded"]],"actions": ["inspect_status","contact_operator"]}
+      }
+    },
+    "mutation.input": {
+      "source": "packages/zig/transit-query/src/TableMutationWriter.zig",
+      "type": "Rejection",
+      "projection": "packages/zig/transit-query/src/MutationDiagnostic.zig",
+      "profile": "Table writer rejected input",
+      "context": "Original principal, processed input and payload commitment; rejection does not establish the operation outcome",
+      "durable_evidence": "Projection uses the retained owner record. This executable checks the mapping; owner commit/replay/restart proofs verify persistence.",
+      "disclosure": "Project only after the owning read has established current authority. Fixture values are synthetic; additional payloads/credentials are not inferred.",
+      "recovery": "Inspect exact pending operation before acting; no automatic resume, cancellation or fresh submission",
+      "defaults": {
+        "stage": "admission",
+        "outcome": "input_rejected",
+        "evidence": "domain_status",
+        "identity": {
+          "domain": "transport",
+          "id": "11",
+          "realm": null,
+          "resource": null,
+          "sequence": null
+        },
+        "facts": [
+          [
+            "source_basis",
+            "owner",
+            "provided"
+          ],
+          [
+            "operation",
+            "owner",
+            "provided"
+          ]
+        ]
+      },
+      "scenarios": {
+        "default": {}
+      },
+      "cases": {
+        "invalid_command": {"code": "mutation.input.invalid_command","category": "binding","actions": ["inspect_status"]},
+        "denied": {"code": "mutation.input.denied","category": "access","actions": ["inspect_status","inspect_scope"]},
+        "identity_conflict": {"code": "mutation.input.identity_conflict","category": "conflict","actions": ["inspect_status"]},
+        "busy": {"code": "mutation.input.busy","category": "conflict","actions": ["inspect_status"]},
+        "not_found": {"code": "mutation.input.not_found","category": "lifecycle","actions": ["inspect_status"]},
+        "not_active": {"code": "mutation.input.not_active","category": "lifecycle","actions": ["inspect_status"]},
+        "upload_closed": {"code": "mutation.input.upload_closed","category": "lifecycle","actions": ["inspect_status"]},
+        "not_sealed": {"code": "mutation.input.not_sealed","category": "lifecycle","actions": ["inspect_status"]},
+        "invalid_part": {"code": "mutation.input.invalid_part","category": "binding","actions": ["inspect_status"]},
+        "incomplete_upload": {"code": "mutation.input.incomplete_upload","category": "lifecycle","actions": ["inspect_status"]},
+        "source_changed": {"code": "mutation.input.source_changed","category": "conflict","actions": ["inspect_status","inspect_scope"]},
+        "stale_policy": {"code": "mutation.input.stale_policy","category": "conflict","actions": ["inspect_status","inspect_scope"]}
+      }
+    },
+    "catalog.receipt": {
+      "source": "packages/zig/transit-catalog/src/Model.zig",
+      "type": "Outcome",
+      "projection": "packages/zig/transit-catalog/src/Diagnostic.zig",
+      "profile": "Declarative Table catalog",
+      "context": "Original reviewed definition, operation and receipt identity; applied versus name/object/Table collision",
+      "durable_evidence": "Projection uses the retained owner record. This executable checks the mapping; owner commit/replay/restart proofs verify persistence.",
+      "disclosure": "Project only after the owning read has established current authority. Fixture values are synthetic; additional payloads/credentials are not inferred.",
+      "recovery": "Inspect the selected catalog; confirmed conflict permits correcting a new request",
+      "defaults": {
+        "stage": "execute",
+        "evidence": "domain_status",
+        "identity": {
+          "domain": "catalog",
+          "id": "19",
+          "realm": "1",
+          "resource": "7",
+          "sequence": null
+        },
+        "facts": [
+          [
+            "native_input",
+            "owner",
+            "provided"
+          ],
+          [
+            "scope",
+            "owner",
+            "provided"
+          ],
+          [
+            "object",
+            "caller",
+            "provided"
+          ],
+          [
+            "table",
+            "caller",
+            "provided"
+          ],
+          [
+            "name",
+            "caller",
+            "provided"
+          ]
+        ]
+      },
+      "scenarios": {
+        "default": {}
+      },
+      "cases": {
+        "applied": {"code": "catalog.applied","category": "lifecycle","outcome": "applied","actions": ["inspect_status"]},
+        "name_conflict": {"code": "catalog.name_conflict","category": "constraint","outcome": "rejected","actions": ["inspect_status","inspect_scope","correct_input"]},
+        "object_conflict": {"code": "catalog.object_conflict","category": "constraint","outcome": "rejected","actions": ["inspect_status","inspect_scope","correct_input"]},
+        "table_conflict": {"code": "catalog.table_conflict","category": "constraint","outcome": "rejected","actions": ["inspect_status","inspect_scope","correct_input"]}
+      }
+    },
+    "catalog.input": {
+      "source": "packages/zig/transit-catalog/src/Model.zig",
+      "type": "Disposition.outcome",
+      "projection": "packages/zig/transit-catalog/src/Diagnostic.zig",
+      "profile": "Catalog control input",
+      "context": "Original origin, principal, input and payload commitment; bootstrap/policy success is separate from CREATE receipt",
+      "durable_evidence": "Projection uses the retained owner record. This executable checks the mapping; owner commit/replay/restart proofs verify persistence.",
+      "disclosure": "Project only after the owning read has established current authority. Fixture values are synthetic; additional payloads/credentials are not inferred.",
+      "recovery": "Inspect original control input and current scope; no CREATE cancellation or implicit retry",
+      "defaults": {
+        "stage": "admission",
+        "evidence": "domain_status",
+        "identity": {
+          "domain": "transport",
+          "id": "11",
+          "realm": "1",
+          "resource": "7",
+          "sequence": null
+        },
+        "facts": [
+          [
+            "native_input",
+            "owner",
+            "provided"
+          ],
+          [
+            "scope",
+            "owner",
+            "provided"
+          ],
+          [
+            "source_basis",
+            "owner",
+            "provided"
+          ],
+          [
+            "operation",
+            "owner",
+            "provided"
+          ]
+        ]
+      },
+      "scenarios": {
+        "default": {}
+      },
+      "cases": {
+        "initialized": {"code": "catalog.input.initialized","category": "lifecycle","outcome": "applied","actions": ["inspect_status"]},
+        "policy_applied": {"code": "catalog.input.policy_applied","category": "lifecycle","outcome": "applied","actions": ["inspect_status"]},
+        "invalid_command": {"code": "catalog.input.invalid_command","category": "binding","outcome": "input_rejected","actions": ["inspect_status"]},
+        "denied": {"code": "catalog.input.denied","category": "access","outcome": "input_rejected","actions": ["inspect_status","inspect_scope"]},
+        "identity_conflict": {"code": "catalog.input.identity_conflict","category": "conflict","outcome": "input_rejected","actions": ["inspect_status"]},
+        "stale_policy": {"code": "catalog.input.stale_policy","category": "conflict","outcome": "input_rejected","actions": ["inspect_status","inspect_scope"]}
+      }
+    },
+    "serving.phase": {
+      "source": "packages/zig/transit-serving/src/Model.zig",
+      "type": "Phase",
+      "projection": "packages/zig/transit-serving/src/OperationDiagnostic.zig",
+      "profile": "Declared service wait",
+      "context": "Original accepted command identity and resolution; oversized reply fixture records first disallowed byte count",
+      "durable_evidence": "Projection uses the retained owner record. This executable checks the mapping; owner commit/replay/restart proofs verify persistence.",
+      "disclosure": "Project only after the owning read has established current authority. Fixture values are synthetic; additional payloads/credentials are not inferred.",
+      "recovery": "Only admitted wait offers cancel_wait; timeout remains closed_unknown and cancellation cannot undo the command",
+      "defaults": {
+        "evidence": "domain_status",
+        "identity": {
+          "domain": "serving",
+          "id": "19",
+          "realm": "1",
+          "resource": "7",
+          "sequence": null
+        }
+      },
+      "scenarios": {
+        "default": {}
+      },
+      "cases": {
+        "admitted": {"code": "serving.operation_admitted","category": "lifecycle","stage": "admission","outcome": "pending","facts": [["object","owner","provided"],["scope","authority","provided"],["actual_source","owner","provided"],["actual_revision","owner","provided"],["actual_policy","owner","provided"],["actual_codec","owner","provided"],["lease","owner","provided"],["proposal","caller","provided"],["native_input","authority","provided"]],"actions": ["inspect_status","cancel_wait"]},
+        "completed": {"code": "serving.reply_recorded","category": "lifecycle","stage": "execute","outcome": "completed","facts": [["object","owner","provided"],["scope","authority","provided"],["actual_source","owner","provided"],["actual_revision","owner","provided"],["actual_policy","owner","provided"],["actual_codec","owner","provided"],["lease","owner","provided"],["proposal","caller","provided"],["native_input","authority","provided"]],"actions": ["inspect_status"]},
+        "cancelled": {"code": "serving.wait_cancelled","category": "lifecycle","stage": "control","outcome": "cancelled","facts": [["object","owner","provided"],["scope","authority","provided"],["actual_source","owner","provided"],["actual_revision","owner","provided"],["actual_policy","owner","provided"],["actual_codec","owner","provided"],["lease","owner","provided"],["proposal","caller","provided"],["native_input","authority","provided"]],"actions": ["inspect_status"]},
+        "timed_out": {"code": "serving.wait_timed_out","category": "lifecycle","stage": "execute","outcome": "closed_unknown","facts": [["object","owner","provided"],["scope","authority","provided"],["actual_source","owner","provided"],["actual_revision","owner","provided"],["actual_policy","owner","provided"],["actual_codec","owner","provided"],["lease","owner","provided"],["proposal","caller","provided"],["native_input","authority","provided"]],"actions": ["inspect_status"]},
+        "failed": {"code": "serving.reply_too_large","category": "limit","stage": "output","outcome": "failed","facts": [["object","owner","provided"],["scope","authority","provided"],["actual_source","owner","provided"],["actual_revision","owner","provided"],["actual_policy","owner","provided"],["actual_codec","owner","provided"],["lease","owner","provided"],["proposal","caller","provided"],["native_input","authority","provided"],["required","execution","provided"],["limit","owner","provided"],["unit","owner","provided"]],"actions": ["inspect_status"]}
+      }
+    },
+    "serving.input": {
+      "source": "packages/zig/transit-serving/src/ServingFailure.zig",
+      "type": "Reason",
+      "projection": "packages/zig/transit-serving/src/ServingFailure.zig",
+      "profile": "Serving/reactive/Follow input rejection",
+      "context": "Original input, command kind, subject/generation, commitment and cause; fixture omits optional check witnesses",
+      "durable_evidence": "Projection uses the retained owner record. This executable checks the mapping; owner commit/replay/restart proofs verify persistence.",
+      "disclosure": "Project only after the owning read has established current authority. Fixture values are synthetic; additional payloads/credentials are not inferred.",
+      "recovery": "Inspect retained input and current scope; earlier commands and independent query outcomes are unchanged",
+      "defaults": {
+        "outcome": "input_rejected",
+        "evidence": "domain_status",
+        "identity": {
+          "domain": "application",
+          "id": "19",
+          "realm": "1",
+          "resource": "7",
+          "sequence": null
+        },
+        "facts": [
+          [
+            "native_input",
+            "owner",
+            "provided"
+          ],
+          [
+            "source_basis",
+            "owner",
+            "provided"
+          ],
+          [
+            "source_kind",
+            "owner",
+            "provided"
+          ],
+          [
+            "object",
+            "caller",
+            "provided"
+          ]
+        ]
+      },
+      "scenarios": {
+        "default": {}
+      },
+      "cases": {
+        "InvalidServingFrame": {"code": "serving.invalid_frame","category": "syntax","stage": "input","actions": ["inspect_status"]},
+        "ServingExternalOriginRequired": {"code": "serving.external_origin_required","category": "access","stage": "input","actions": ["inspect_status","inspect_scope"]},
+        "UnexpectedServingOrigin": {"code": "serving.unexpected_origin","category": "access","stage": "input","actions": ["inspect_status","inspect_scope"]},
+        "InvalidServingCommand": {"code": "serving.invalid_command","category": "syntax","stage": "input","actions": ["inspect_status"]},
+        "InvalidServingIdentity": {"code": "serving.invalid_identity","category": "binding","stage": "input","actions": ["inspect_status"]},
+        "InvalidServiceBinding": {"code": "serving.invalid_binding","category": "binding","stage": "input","actions": ["inspect_status"]},
+        "InvalidServicePolicy": {"code": "serving.invalid_policy","category": "binding","stage": "input","actions": ["inspect_status"]},
+        "ServingDenied": {"code": "serving.denied","category": "access","stage": "admission","actions": ["inspect_status","inspect_scope"]},
+        "ServiceRevisionConflict": {"code": "serving.revision_conflict","category": "conflict","stage": "admission","actions": ["inspect_status"]},
+        "ServingIdentityConflict": {"code": "serving.identity_conflict","category": "conflict","stage": "admission","actions": ["inspect_status"]},
+        "ServingCapacity": {"code": "serving.active_limit","category": "limit","stage": "admission","actions": ["inspect_status"]},
+        "ServiceUnpublished": {"code": "serving.unpublished","category": "lifecycle","stage": "admission","actions": ["inspect_status"]},
+        "InvalidWaitLifetime": {"code": "serving.wait_limit","category": "limit","stage": "admission","actions": ["inspect_status"]},
+        "ServingOperationNotFound": {"code": "serving.operation_absent","category": "lifecycle","stage": "admission","actions": ["inspect_status"]},
+        "UnknownServingCorrelation": {"code": "serving.correlation_absent","category": "lifecycle","stage": "input","actions": ["inspect_status"]},
+        "UnexpectedServingReplySource": {"code": "serving.reply_source","category": "access","stage": "input","actions": ["inspect_status","inspect_scope"]},
+        "UnexpectedTimerObserver": {"code": "serving.timer_observer","category": "access","stage": "input","actions": ["inspect_status","inspect_scope"]},
+        "InvalidTimerObservation": {"code": "serving.invalid_timer","category": "binding","stage": "input","actions": ["inspect_status"]},
+        "PrematureTimer": {"code": "serving.premature_timer","category": "conflict","stage": "input","actions": ["inspect_status"]},
+        "UnsupportedServingFrame": {"code": "serving.unsupported_frame","category": "unsupported","stage": "input","actions": ["inspect_status"]},
+        "InvalidReactiveSource": {"code": "reactive.invalid_source","category": "binding","stage": "input","actions": ["inspect_status"]},
+        "ReactiveSessionNotFound": {"code": "reactive.session_absent","category": "lifecycle","stage": "admission","actions": ["inspect_status"]},
+        "ReactiveGenerationConflict": {"code": "reactive.generation_conflict","category": "conflict","stage": "admission","actions": ["inspect_status"]},
+        "ReactiveSessionClosed": {"code": "reactive.session_closed","category": "lifecycle","stage": "admission","actions": ["inspect_status"]},
+        "ReactiveSessionExpired": {"code": "reactive.session_expired","category": "lifecycle","stage": "admission","actions": ["inspect_status"]},
+        "ReactiveResetRequired": {"code": "reactive.watch_changed","category": "conflict","stage": "admission","actions": ["inspect_status"]},
+        "InvalidReactiveLease": {"code": "reactive.invalid_lease","category": "limit","stage": "admission","actions": ["inspect_status"]},
+        "ReactiveCapacity": {"code": "reactive.active_limit","category": "limit","stage": "admission","actions": ["inspect_status"]},
+        "InvalidReactiveAttachment": {"code": "reactive.invalid_attachment","category": "binding","stage": "input","actions": ["inspect_status"]},
+        "ReactiveAttachmentConflict": {"code": "reactive.attachment_conflict","category": "conflict","stage": "admission","actions": ["inspect_status"]},
+        "ReactiveSubscriptionConflict": {"code": "reactive.subscription_conflict","category": "conflict","stage": "admission","actions": ["inspect_status"]},
+        "ReactiveLeaseConflict": {"code": "reactive.lease_conflict","category": "conflict","stage": "admission","actions": ["inspect_status"]},
+        "InvalidRefreshBudget": {"code": "refresh.invalid_budget","category": "limit","stage": "input","actions": ["inspect_status"]},
+        "InvalidRefreshTemplate": {"code": "refresh.invalid_template","category": "binding","stage": "admission","actions": ["inspect_status"]},
+        "RefreshGenerationConflict": {"code": "refresh.generation_conflict","category": "conflict","stage": "admission","actions": ["inspect_status"]},
+        "RefreshNotFound": {"code": "refresh.absent","category": "lifecycle","stage": "admission","actions": ["inspect_status"]},
+        "RefreshResultConflict": {"code": "refresh.result_conflict","category": "conflict","stage": "admission","actions": ["inspect_status"]},
+        "UnexpectedRefreshWake": {"code": "refresh.unexpected_wake","category": "access","stage": "input","actions": ["inspect_status","inspect_scope"]},
+        "AccessDenied": {"code": "serving.native_denied","category": "access","stage": "admission","actions": ["inspect_status","inspect_scope"]},
+        "QueryDenied": {"code": "refresh.query_denied","category": "access","stage": "admission","actions": ["inspect_status","inspect_scope"]},
+        "ResourceUnavailable": {"code": "serving.resource_unavailable","category": "lifecycle","stage": "admission","actions": ["inspect_status"]},
+        "QuerySourceUnavailable": {"code": "refresh.source_unavailable","category": "lifecycle","stage": "admission","actions": ["inspect_status"]},
+        "ResultUnavailable": {"code": "refresh.result_unavailable","category": "lifecycle","stage": "admission","actions": ["inspect_status"]},
+        "PublicationNotPublished": {"code": "refresh.result_unpublished","category": "lifecycle","stage": "admission","actions": ["inspect_status"]},
+        "UnsupportedReactiveSource": {"code": "reactive.unsupported_source","category": "unsupported","stage": "admission","actions": ["inspect_status"]},
+        "InvalidReactiveProgress": {"code": "reactive.invalid_progress","category": "integrity","stage": "admission","actions": ["inspect_status"]},
+        "TableNotFound": {"code": "reactive.table_absent","category": "lifecycle","stage": "admission","actions": ["inspect_status"]}
+      }
+    },
+    "exchange.capture": {
+      "source": "packages/zig/transit-exchange/src/Failure.zig",
+      "type": "Reason",
+      "projection": "packages/zig/transit-exchange/src/Failure.zig",
+      "profile": "HTTP/gRPC exchange capture closure",
+      "context": "Original exchange, resource, process, input and cause; preparation closure retains original request input",
+      "durable_evidence": "Projection uses the retained owner record. This executable checks the mapping; owner commit/replay/restart proofs verify persistence.",
+      "disclosure": "Project only after the owning read has established current authority. Fixture values are synthetic; additional payloads/credentials are not inferred.",
+      "recovery": "Inspect original capture evidence; native effect outcome is independent and closure permits no fresh retry",
+      "defaults": {
+        "category": "lifecycle",
+        "outcome": "not_applicable",
+        "evidence": "domain_status",
+        "actions": [
+          "inspect_status"
+        ]
+      },
+      "scenarios": {
+        "default": {}
+      },
+      "cases": {
+        "caller_closed": {"code": "exchange.capture_closed","stage": "execute","identity": {"domain": "exchange","id": "19","realm": "1","resource": "7","sequence": null},"facts": [["object","execution","provided"],["actual_resource","execution","provided"],["native_input","execution","provided"],["principal","execution","provided"],["source_basis","execution","provided"],["emitted_segments","execution","provided"],["actual_count","execution","provided"],["unit","owner","provided"],["completion","execution","provided"]]},
+        "controller_release": {"code": "exchange.preparation_released","stage": "execute","identity": {"domain": "exchange","id": "19","realm": "1","resource": "7","sequence": null},"facts": [["object","execution","provided"],["actual_resource","execution","provided"],["native_input","execution","provided"],["principal","execution","provided"],["source_basis","execution","provided"],["emitted_segments","execution","provided"],["actual_count","execution","provided"],["unit","owner","provided"],["completion","execution","provided"]]},
+        "recovered_incomplete": {"code": "exchange.recovered_incomplete","stage": "execute","identity": {"domain": "exchange","id": "19","realm": "1","resource": "7","sequence": null},"facts": [["object","execution","provided"],["actual_resource","execution","provided"],["native_input","execution","provided"],["principal","execution","provided"],["source_basis","execution","provided"],["emitted_segments","execution","provided"],["actual_count","execution","provided"],["unit","owner","provided"],["completion","execution","provided"]]},
+        "transport_failure": {"code": "exchange.transport_failed","stage": "execute","identity": {"domain": "exchange","id": "19","realm": "1","resource": "7","sequence": null},"facts": [["object","execution","provided"],["actual_resource","execution","provided"],["native_input","execution","provided"],["principal","execution","provided"],["source_basis","execution","provided"],["emitted_segments","execution","provided"],["actual_count","execution","provided"],["unit","owner","provided"],["completion","execution","provided"]]},
+        "capture_failure": {"code": "exchange.capture_failed","stage": "output","identity": {"domain": "exchange","id": "19","realm": "1","resource": "7","sequence": null},"facts": [["object","execution","provided"],["actual_resource","execution","provided"],["native_input","execution","provided"],["principal","execution","provided"],["source_basis","execution","provided"],["emitted_segments","execution","provided"],["actual_count","execution","provided"],["unit","owner","provided"],["completion","execution","provided"],["operation","execution","provided"]]},
+        "preparation_failure": {"code": "exchange.preparation_failed","stage": "prepare","identity": {"domain": "exchange","id": "19","realm": "1","resource": "7","sequence": null},"facts": [["object","execution","provided"],["actual_resource","execution","provided"],["native_input","execution","provided"],["principal","execution","provided"],["source_basis","execution","provided"],["emitted_segments","execution","provided"],["actual_count","execution","provided"],["unit","owner","provided"],["completion","execution","provided"],["first_occurrence","execution","provided"]]}
+      }
+    },
+    "effect.phase": {
+      "source": "packages/zig/transit-protocol/src/Growth.zig",
+      "type": "Effect.phase",
+      "projection": "packages/zig/transit-protocol/src/EffectDiagnostic.zig",
+      "profile": "Native recorded effect",
+      "context": "Original effect, process, authorization, observation count and closure evidence",
+      "durable_evidence": "Projection uses the retained owner record. This executable checks the mapping; owner commit/replay/restart proofs verify persistence.",
+      "disclosure": "Project only after the owning read has established current authority. Fixture values are synthetic; additional payloads/credentials are not inferred.",
+      "recovery": "Inspect only; authorization is not dispatch proof, accepted observation is not business success, closure is not remote cancellation",
+      "defaults": {
+        "category": "lifecycle",
+        "stage": "reconcile",
+        "evidence": "domain_status",
+        "identity": {
+          "domain": "effect",
+          "id": "2",
+          "realm": "1",
+          "resource": null,
+          "sequence": null
+        },
+        "actions": [
+          "inspect_status"
+        ]
+      },
+      "scenarios": {
+        "default": {}
+      },
+      "cases": {
+        "pending": {"code": "effect.intent_pending","outcome": "pending","facts": [["object","execution","provided"],["operation","execution","provided"],["budget","authority","provided"],["actual_count","execution","provided"],["limit","authority","provided"]]},
+        "authorized": {"code": "effect.attempt_authorized","outcome": "unknown","facts": [["object","execution","provided"],["operation","execution","provided"],["attempt","authority","provided"],["executor","authority","provided"],["authorization_policy","authority","provided"],["budget","authority","provided"],["actual_count","execution","provided"],["limit","authority","provided"]]},
+        "unknown": {"code": "effect.observation_unknown","outcome": "unknown","facts": [["object","execution","provided"],["operation","execution","provided"],["attempt","authority","provided"],["executor","authority","provided"],["authorization_policy","authority","provided"],["budget","authority","provided"],["actual_count","execution","provided"],["limit","authority","provided"],["native_input","authority","provided"],["resolution_policy","authority","provided"]]},
+        "observed": {"code": "effect.result_recorded","outcome": "completed","facts": [["object","execution","provided"],["operation","execution","provided"],["attempt","authority","provided"],["executor","authority","provided"],["authorization_policy","authority","provided"],["budget","authority","provided"],["actual_count","execution","provided"],["limit","authority","provided"],["native_input","authority","provided"],["resolution_reason","authority","provided"],["principal","authority","provided"],["resolution_policy","authority","provided"]]},
+        "cancelled": {"code": "effect.unattempted_cancelled","outcome": "cancelled","facts": [["object","execution","provided"],["operation","execution","provided"],["budget","authority","provided"],["actual_count","execution","provided"],["limit","authority","provided"],["native_input","authority","provided"],["resolution_reason","authority","provided"],["principal","authority","provided"],["resolution_policy","authority","provided"]]},
+        "closed_unknown": {"code": "effect.reconciliation_abandoned","outcome": "closed_unknown","facts": [["object","execution","provided"],["operation","execution","provided"],["attempt","authority","provided"],["executor","authority","provided"],["authorization_policy","authority","provided"],["budget","authority","provided"],["actual_count","execution","provided"],["limit","authority","provided"],["native_input","authority","provided"],["resolution_reason","authority","provided"],["principal","authority","provided"],["resolution_policy","authority","provided"]]}
+      }
+    },
+    "effect.closure": {
+      "source": "packages/zig/transit-protocol/src/Growth.zig",
+      "type": "EffectClosure.reason",
+      "projection": "packages/zig/transit-protocol/src/EffectDiagnostic.zig",
+      "profile": "Native effect terminal closure",
+      "context": "Original executor/principal, policy, last observation, limit and trusted clock when applicable",
+      "durable_evidence": "Projection uses the retained owner record. This executable checks the mapping; owner commit/replay/restart proofs verify persistence.",
+      "disclosure": "Project only after the owning read has established current authority. Fixture values are synthetic; additional payloads/credentials are not inferred.",
+      "recovery": "Inspect only; every unknown closure retains uncertainty and forbids fresh retry",
+      "defaults": {
+        "stage": "reconcile",
+        "evidence": "domain_status",
+        "identity": {
+          "domain": "effect",
+          "id": "2",
+          "realm": "1",
+          "resource": null,
+          "sequence": null
+        },
+        "actions": [
+          "inspect_status"
+        ]
+      },
+      "scenarios": {
+        "default": {}
+      },
+      "cases": {
+        "observed": {"code": "effect.result_recorded","category": "lifecycle","outcome": "completed","facts": [["object","execution","provided"],["operation","execution","provided"],["attempt","authority","provided"],["executor","authority","provided"],["authorization_policy","authority","provided"],["budget","authority","provided"],["actual_count","execution","provided"],["limit","authority","provided"],["native_input","authority","provided"],["resolution_reason","authority","provided"],["principal","authority","provided"],["resolution_policy","authority","provided"]]},
+        "observation_budget": {"code": "effect.observation_limit","category": "limit","outcome": "closed_unknown","facts": [["object","execution","provided"],["operation","execution","provided"],["attempt","authority","provided"],["executor","authority","provided"],["authorization_policy","authority","provided"],["budget","authority","provided"],["actual_count","execution","provided"],["limit","authority","provided"],["native_input","authority","provided"],["resolution_reason","authority","provided"],["principal","authority","provided"],["resolution_policy","authority","provided"]]},
+        "abandoned": {"code": "effect.reconciliation_abandoned","category": "lifecycle","outcome": "closed_unknown","facts": [["object","execution","provided"],["operation","execution","provided"],["attempt","authority","provided"],["executor","authority","provided"],["authorization_policy","authority","provided"],["budget","authority","provided"],["actual_count","execution","provided"],["limit","authority","provided"],["native_input","authority","provided"],["resolution_reason","authority","provided"],["principal","authority","provided"],["resolution_policy","authority","provided"]]},
+        "deadline": {"code": "effect.reconciliation_expired","category": "lifecycle","outcome": "closed_unknown","facts": [["object","execution","provided"],["operation","execution","provided"],["attempt","authority","provided"],["executor","authority","provided"],["authorization_policy","authority","provided"],["budget","authority","provided"],["actual_count","execution","provided"],["limit","authority","provided"],["deadline","authority","provided"],["native_input","authority","provided"],["resolution_reason","authority","provided"],["principal","authority","provided"],["resolution_policy","authority","provided"],["observed_clock","authority","provided"]]},
+        "unattempted_cancel": {"code": "effect.unattempted_cancelled","category": "lifecycle","outcome": "cancelled","facts": [["object","execution","provided"],["operation","execution","provided"],["budget","authority","provided"],["actual_count","execution","provided"],["limit","authority","provided"],["native_input","authority","provided"],["resolution_reason","authority","provided"],["principal","authority","provided"],["resolution_policy","authority","provided"]]}
+      }
+    },
+    "refresh.stop": {
+      "source": "packages/zig/transit-serving/src/RefreshFailure.zig",
+      "type": "Reason",
+      "projection": "packages/zig/transit-serving/src/RefreshFailure.zig",
+      "profile": "Follow scheduler stop",
+      "context": "Original session/generation, namespace and input; budget exhaustion includes starts/limit; optional source witnesses omitted",
+      "durable_evidence": "Projection uses the retained owner record. This executable checks the mapping; owner commit/replay/restart proofs verify persistence.",
+      "disclosure": "Project only after the owning read has established current authority. Fixture values are synthetic; additional payloads/credentials are not inferred.",
+      "recovery": "Inspect scheduler and independent selected query; pause/lease/reset never rewrites query outcome",
+      "defaults": {
+        "stage": "control",
+        "outcome": "not_applicable",
+        "evidence": "domain_status",
+        "identity": {
+          "domain": "reactive",
+          "id": "19",
+          "realm": "1",
+          "resource": "7",
+          "sequence": null
+        }
+      },
+      "scenarios": {
+        "default": {}
+      },
+      "cases": {
+        "paused": {"code": "refresh.paused","category": "lifecycle","facts": [["native_input","owner","provided"],["generation","owner","provided"],["proposal","owner","provided"],["source_kind","owner","provided"]],"actions": ["inspect_status"]},
+        "budget_exhausted": {"code": "refresh.budget_exhausted","category": "limit","facts": [["native_input","owner","provided"],["generation","owner","provided"],["proposal","owner","provided"],["source_kind","owner","provided"],["actual_count","owner","provided"],["limit","owner","provided"],["unit","owner","provided"]],"actions": ["inspect_status"]},
+        "session_closed": {"code": "refresh.session_closed","category": "lifecycle","facts": [["native_input","owner","provided"],["generation","owner","provided"],["proposal","owner","provided"],["source_kind","owner","provided"]],"actions": ["inspect_status"]},
+        "session_expired": {"code": "refresh.session_expired","category": "lifecycle","facts": [["native_input","owner","provided"],["generation","owner","provided"],["proposal","owner","provided"],["source_kind","owner","provided"]],"actions": ["inspect_status"]},
+        "source_changed": {"code": "refresh.source_changed","category": "conflict","facts": [["native_input","owner","provided"],["generation","owner","provided"],["proposal","owner","provided"],["source_kind","owner","provided"]],"actions": ["inspect_status"]},
+        "binding_unpublished": {"code": "refresh.binding_unpublished","category": "lifecycle","facts": [["native_input","owner","provided"],["generation","owner","provided"],["proposal","owner","provided"],["source_kind","owner","provided"]],"actions": ["inspect_status"]},
+        "service_denied": {"code": "refresh.service_denied","category": "access","facts": [["native_input","owner","provided"],["generation","owner","provided"],["proposal","owner","provided"],["source_kind","owner","provided"]],"actions": ["inspect_status","inspect_scope"]},
+        "native_denied": {"code": "refresh.native_denied","category": "access","facts": [["native_input","owner","provided"],["generation","owner","provided"],["proposal","owner","provided"],["source_kind","owner","provided"]],"actions": ["inspect_status","inspect_scope"]},
+        "query_denied": {"code": "refresh.query_denied","category": "access","facts": [["native_input","owner","provided"],["generation","owner","provided"],["proposal","owner","provided"],["source_kind","owner","provided"]],"actions": ["inspect_status","inspect_scope"]},
+        "resource_unavailable": {"code": "refresh.resource_unavailable","category": "unavailable","facts": [["native_input","owner","provided"],["generation","owner","provided"],["proposal","owner","provided"],["source_kind","owner","provided"]],"actions": ["inspect_status"]},
+        "query_source_unavailable": {"code": "refresh.query_source_unavailable","category": "unavailable","facts": [["native_input","owner","provided"],["generation","owner","provided"],["proposal","owner","provided"],["source_kind","owner","provided"]],"actions": ["inspect_status"]},
+        "result_unavailable": {"code": "refresh.result_unavailable","category": "unavailable","facts": [["native_input","owner","provided"],["generation","owner","provided"],["proposal","owner","provided"],["source_kind","owner","provided"]],"actions": ["inspect_status"]},
+        "result_unpublished": {"code": "refresh.result_unpublished","category": "lifecycle","facts": [["native_input","owner","provided"],["generation","owner","provided"],["proposal","owner","provided"],["source_kind","owner","provided"]],"actions": ["inspect_status"]},
+        "template_invalid": {"code": "refresh.template_invalid","category": "binding","facts": [["native_input","owner","provided"],["generation","owner","provided"],["proposal","owner","provided"],["source_kind","owner","provided"]],"actions": ["inspect_status"]},
+        "upload_closed": {"code": "refresh.upload_closed","category": "lifecycle","facts": [["native_input","owner","provided"],["generation","owner","provided"],["proposal","owner","provided"],["source_kind","owner","provided"]],"actions": ["inspect_status"]},
+        "namespace_occupied": {"code": "refresh.namespace_occupied","category": "conflict","facts": [["native_input","owner","provided"],["generation","owner","provided"],["proposal","owner","provided"],["source_kind","owner","provided"]],"actions": ["inspect_status"]},
+        "query_rejected": {"code": "refresh.query_rejected","category": "lifecycle","facts": [["native_input","owner","provided"],["generation","owner","provided"],["proposal","owner","provided"],["source_kind","owner","provided"]],"actions": ["inspect_status"]},
+        "query_cancelled": {"code": "refresh.query_cancelled","category": "lifecycle","facts": [["native_input","owner","provided"],["generation","owner","provided"],["proposal","owner","provided"],["source_kind","owner","provided"]],"actions": ["inspect_status"]},
+        "query_retired": {"code": "refresh.query_retired","category": "lifecycle","facts": [["native_input","owner","provided"],["generation","owner","provided"],["proposal","owner","provided"],["source_kind","owner","provided"]],"actions": ["inspect_status"]}
+      }
+    },
+    "publication.phase": {
+      "source": "packages/zig/transit-station-app/src/Publication.zig",
+      "type": "Phase",
+      "projection": "packages/zig/transit-station-app/src/PublicationDiagnostic.zig",
+      "profile": "Conditional interface publication",
+      "context": "Original operation, reviewed proposal and base; conflict fixture retains original absent head",
+      "durable_evidence": "Projection uses the retained owner record. This executable checks the mapping; owner commit/replay/restart proofs verify persistence.",
+      "disclosure": "Project only after the owning read has established current authority. Fixture values are synthetic; additional payloads/credentials are not inferred.",
+      "recovery": "Resume only exact staging proposal; confirmed conflict permits reviewing a new proposal; abandonment cannot roll back activation",
+      "defaults": {
+        "stage": "execute",
+        "evidence": "domain_status",
+        "identity": {
+          "domain": "publication",
+          "id": "20",
+          "realm": "1",
+          "resource": "7",
+          "sequence": null
+        }
+      },
+      "scenarios": {
+        "default": {}
+      },
+      "cases": {
+        "staging": {"code": "publication.staging","category": "lifecycle","outcome": "pending","facts": [["object","owner","provided"],["proposal","owner","provided"],["native_input","owner","provided"],["expected_revision","owner","provided"],["expected_schema","owner","provided"],["required","owner","provided"],["source_basis","owner","provided"],["operation","owner","provided"]],"actions": ["inspect_status","resume_exact"]},
+        "applied": {"code": "publication.applied","category": "lifecycle","outcome": "applied","facts": [["object","owner","provided"],["proposal","owner","provided"],["native_input","owner","provided"],["expected_revision","owner","provided"],["expected_schema","owner","provided"],["required","owner","provided"],["source_basis","owner","provided"],["operation","owner","provided"]],"actions": ["inspect_status"]},
+        "conflict": {"code": "publication.base_conflict","category": "conflict","outcome": "rejected","facts": [["object","owner","provided"],["proposal","owner","provided"],["native_input","owner","provided"],["expected_revision","owner","provided"],["expected_schema","owner","provided"],["required","owner","provided"],["source_basis","owner","provided"],["operation","owner","provided"],["actual_revision","owner","provided"],["actual_schema","owner","provided"]],"actions": ["inspect_status","refresh"]},
+        "abandoned": {"code": "publication.abandoned","category": "lifecycle","outcome": "cancelled","facts": [["object","owner","provided"],["proposal","owner","provided"],["native_input","owner","provided"],["expected_revision","owner","provided"],["expected_schema","owner","provided"],["required","owner","provided"],["source_basis","owner","provided"],["operation","owner","provided"]],"actions": ["inspect_status"]}
+      }
+    },
+    "publication.input": {
+      "source": "packages/zig/transit-station-app/src/PublicationFailure.zig",
+      "type": "Reason",
+      "projection": "packages/zig/transit-station-app/src/PublicationFailure.zig",
+      "profile": "Interface publication rejected input",
+      "context": "Original input, operation, body commitment, cause/code/category/stage; fixture omits optional compiler/policy/upload witnesses",
+      "durable_evidence": "Projection uses the retained owner record. This executable checks the mapping; owner commit/replay/restart proofs verify persistence.",
+      "disclosure": "Project only after the owning read has established current authority. Fixture values are synthetic; additional payloads/credentials are not inferred.",
+      "recovery": "Inspect original operation and current scope; rejection never replaces earlier staging or applied receipt",
+      "defaults": {
+        "outcome": "input_rejected",
+        "evidence": "domain_status",
+        "identity": {
+          "domain": "publication",
+          "id": "20",
+          "realm": "1",
+          "resource": "7",
+          "sequence": null
+        },
+        "facts": [
+          [
+            "native_input",
+            "owner",
+            "provided"
+          ],
+          [
+            "source_basis",
+            "owner",
+            "provided"
+          ],
+          [
+            "operation",
+            "owner",
+            "provided"
+          ],
+          [
+            "source_kind",
+            "owner",
+            "unrecorded"
+          ]
+        ]
+      },
+      "scenarios": {
+        "default": {}
+      },
+      "cases": {
+        "InvalidApplicationFrame": {"code": "publication.invalid_frame","category": "syntax","stage": "input","actions": ["inspect_status"]},
+        "ApplicationExternalOriginRequired": {"code": "publication.external_origin_required","category": "access","stage": "input","actions": ["inspect_status","inspect_scope"]},
+        "InvalidApplicationCommand": {"code": "publication.invalid_command","category": "syntax","stage": "input","actions": ["inspect_status"]},
+        "ApplicationDenied": {"code": "publication.denied","category": "access","stage": "admission","actions": ["inspect_status","inspect_scope"]},
+        "ApplicationPolicyConflict": {"code": "publication.policy_conflict","category": "conflict","stage": "control","actions": ["inspect_status"]},
+        "ApplicationIdentityConflict": {"code": "publication.identity_conflict","category": "conflict","stage": "admission","actions": ["inspect_status"]},
+        "ApplicationRecordOccupied": {"code": "publication.record_occupied","category": "conflict","stage": "admission","actions": ["inspect_status"]},
+        "ApplicationOperationNotFound": {"code": "publication.operation_absent","category": "lifecycle","stage": "admission","actions": ["inspect_status"]},
+        "ApplicationAlreadyApplied": {"code": "publication.already_applied","category": "lifecycle","stage": "cleanup","actions": ["inspect_status"]},
+        "ApplicationNotAbandoned": {"code": "publication.not_abandoned","category": "lifecycle","stage": "cleanup","actions": ["inspect_status"]},
+        "ApplicationDigestMismatch": {"code": "publication.digest_mismatch","category": "integrity","stage": "execute","actions": ["inspect_status"]},
+        "ApplicationDefinitionMismatch": {"code": "publication.definition_mismatch","category": "binding","stage": "bind","actions": ["inspect_status"]},
+        "NoncanonicalApplicationProgram": {"code": "publication.noncanonical_program","category": "binding","stage": "compile","actions": ["inspect_status"]},
+        "ApplicationUploadPartConflict": {"code": "publication.part_conflict","category": "conflict","stage": "admission","actions": ["inspect_status"]},
+        "InvalidApplicationPart": {"code": "publication.invalid_part","category": "binding","stage": "admission","actions": ["inspect_status"]},
+        "InvalidApplicationOperation": {"code": "publication.invalid_operation","category": "binding","stage": "admission","actions": ["inspect_status"]},
+        "InvalidApplicationPolicy": {"code": "publication.invalid_policy","category": "binding","stage": "admission","actions": ["inspect_status"]},
+        "InvalidApplicationProposal": {"code": "publication.invalid_proposal","category": "binding","stage": "admission","actions": ["inspect_status"]},
+        "PublicationQuotaExceeded": {"code": "publication.staging_quota","category": "limit","stage": "admission","actions": ["inspect_status"]},
+        "PublicationGap": {"code": "publication.part_gap","category": "conflict","stage": "admission","actions": ["inspect_status"]},
+        "InvalidPublicationPart": {"code": "publication.invalid_part","category": "binding","stage": "admission","actions": ["inspect_status"]},
+        "PublicationPartConflict": {"code": "publication.part_conflict","category": "conflict","stage": "admission","actions": ["inspect_status"]},
+        "IncompletePublication": {"code": "publication.incomplete_upload","category": "conflict","stage": "execute","actions": ["inspect_status"]},
+        "InvalidApplicationProgram": {"code": "publication.invalid_program","category": "binding","stage": "compile","actions": ["inspect_status"]},
+        "InterfaceProgramTooLarge": {"code": "publication.program_limit","category": "limit","stage": "compile","actions": ["inspect_status"]}
+      }
+    }
+  }
+}
