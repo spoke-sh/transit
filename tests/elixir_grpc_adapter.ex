@@ -123,7 +123,7 @@ defmodule ElixirGrpcAdapter do
           {:ok, %Rejected{reason: :denied, diagnostic: detail}} =
             Grpc.decode_reply(72, bytes)
 
-          facts = Map.new(Enum.reject(detail["facts"], &is_nil/1), &{&1["field"], &1})
+          facts = Map.new(Enum.filter(detail["facts"], &is_map/1), &{&1["field"], &1})
           "provided" = facts["field_path"]["availability"]
           true = String.to_integer(facts["native_input"]["value"]["unsigned"]) > 0
           32 = length(facts["proposal"]["value"]["digest"])

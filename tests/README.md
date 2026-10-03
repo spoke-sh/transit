@@ -13268,3 +13268,23 @@ immutable capture. Full **`just check` passes**, including 75 Board tests,
 generated contracts and the handbook. Logs:
 `/var/tmp/transit-json-witness-{unit3,cli3,files,check}.log`.
 No wire definition changes or committed-HEAD clean qualification are claimed.
+
+### Installed connector admission parity — 2026-10-03
+
+All **20 installed SDK schedules pass** against the connector-admission native
+definition in `dcf06d21`: HTTP and gRPC for Python, TypeScript, Rust, Ruby, C,
+C++, Java, .NET, Erlang and Elixir. The application receives the original input
+commitment and provided failing field through the owned diagnostic. Independent
+wire assertions compare that commitment to the actual submitted follow-up and
+check the original expected/observed parent disposition. Rejection allocates no
+child and performs no send. Existing staged-host recovery, full-width identity,
+binary TLS, owned replay, current revocation, joined local disposal and durable
+authenticated disposal schedules also pass.
+
+An initial C fixture used the diagnostic structure instead of its JSON buffer;
+an initial Elixir fixture filtered `nil` rather than the neutral decoder's null
+atom. Both fixture checks are corrected and the affected installed schedules
+pass. Logs: `/var/tmp/transit-admission-installed{,2}.log` and
+`/var/tmp/transit-admission-{beam-http,grpc-languages,grpc-native,grpc-managed}.log`.
+These artifacts predate later definition changes; they do not qualify future
+ABI/schema cutovers or replace committed-HEAD clean verification.
