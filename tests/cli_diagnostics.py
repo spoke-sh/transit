@@ -824,6 +824,53 @@ with tempfile.TemporaryDirectory(prefix='transit-cli-json-') as directory:
             assert facts(detail)['object']['text'] == str(schema), detail
         else:
             assert facts(detail)['field_path'] == {'text':'id'} and facts(detail)['actual_type'] == {'text':'structure'}
+    # Recursive descriptor evidence survives release of the JSON parser owner.
+    descriptor_cases = [
+        ({'decimal':{'precision':0,'scale':0}}, 'file.invalid_decimal_type', '/decimal/precision', {'actual_count':{'unsigned':'0'}, 'limit':{'unsigned':'38'}, 'supplied_value':{'text':'decimal(0,0)'}}),
+        ({'decimal':{'precision':3,'scale':4}}, 'file.invalid_decimal_type', '/decimal/scale', {'actual_count':{'unsigned':'4'}, 'limit':{'unsigned':'3'}, 'supplied_value':{'text':'decimal(3,4)'}}),
+        ({'array':{'length':0,'element':{'type':{'int64':{}}}}}, 'file.invalid_array_length', '/array/length', {'actual_count':{'unsigned':'0'}}),
+        ({'structure':[]}, 'file.invalid_schema_field_count', '/structure', {'actual_count':{'unsigned':'0'},'limit':{'unsigned':'255'}}),
+        ({'tagged_union':[{'name':'x','type':{'int64':{}},'optional':True}]}, 'file.invalid_union_type', '/tagged_union/0/optional', {'supplied_value':{'text':'true'}}),
+        ({'map':{'key':{'json':{}},'value':{'type':{'int64':{}}}}}, 'file.invalid_map_key_type', '/map/key', {'supplied_value':{'text':'json'}}),
+        ({'structure':[{'name':'a/~','type':{'int64':{}}},{'name':'a/~','type':{'int8':{}}}]}, 'file.duplicate_field', '/structure/1/name', {'supplied_value':{'text':'a/~'},'column':{'unsigned':'1'},'first_occurrence':{'unsigned':'0'}}),
+    ]
+    for name in ('', 'a\x00b', '界'*86):
+        descriptor_cases.append(({'structure':[{'name':name,'type':{'int64':{}}}]}, 'file.invalid_field_name', '/structure/0/name', {}))
+    # Every recursive edge points at the descriptor, not an imagined row path.
+    for nested,pointer in [
+        (lambda t: {'list':{'type':t}}, '/list/type'),
+        (lambda t: {'array':{'length':1,'element':{'type':t}}}, '/array/element/type'),
+        (lambda t: {'map':{'key':{'utf8':{}},'value':{'type':t}}}, '/map/value/type'),
+        (lambda t: {'map':{'key':t,'value':{'type':{'utf8':{}}}}}, '/map/key'),
+        (lambda t: {'tagged_union':[{'name':'nested','type':t}]}, '/tagged_union/0/type'),
+    ]:
+        descriptor_cases.append((nested({'decimal':{'precision':39,'scale':0}}), 'file.invalid_decimal_type', pointer+'/decimal/precision', {'supplied_value':{'text':'decimal(39,0)'}}))
+    for kind,code,pointer,expected in descriptor_cases:
+        schema.write_text(json.dumps(schema_value(kind)))
+        result,detail,_ = machine(['file-query','--format','csv','--mode','explicit','--schema',schema,'-c','SELECT * FROM input',csv])
+        assert detail['code'] == code and detail['stage'] == 'decode' and not result.stdout, detail
+        observed = facts(detail)
+        assert observed['field_path'] == {'text':'/type/structure/0/type'+pointer}, detail
+        assert observed['completion'] == {'boolean':False} and 'constraint' in observed
+        assert all(observed[key] == value for key,value in expected.items()), detail
+        assert [a['kind'] for a in detail['actions'] if a] == ['correct_input'], detail
+    schema.write_text(json.dumps({'definition':schema_definition,'type':{'int64':{}}}))
+    _,detail,_ = machine(['file-query','--format','csv','--mode','explicit','--schema',schema,'-c','SELECT * FROM input',csv])
+    assert detail['code'] == 'file.invalid_schema' and facts(detail)['field_path'] == {'text':'/type'}
+    assert facts(detail)['supplied_value'] == {'text':'int64'}
+    # Distinct default descriptor budgets, including their measured first excess.
+    many_fields = [{'name':str(i),'type':{'int64':{}}} for i in range(255)]
+    many_fields[0]['type'] = {'list':{'type':{'int64':{}}}}
+    long_names = [{'name':str(i)+'x'*253,'type':{'int64':{}}} for i in range(17)]
+    deep = {'int64':{}}
+    for _ in range(16): deep = {'list':{'type':deep}}
+    for kind,dimension,required,limit in [({'structure':many_fields},'nodes',257,256), ({'structure':long_names},'name_bytes',4325,4096), (deep,'depth',17,16)]:
+        schema.write_text(json.dumps({'definition':schema_definition,'type':kind}))
+        result,detail,_ = machine(['file-query','--format','csv','--mode','explicit','--schema',schema,'-c','SELECT * FROM input',csv])
+        assert detail['code'] == 'file.schema_limit' and not result.stdout, detail
+        observed = facts(detail)
+        assert observed['budget'] == {'text':dimension} and observed['required'] == {'unsigned':str(required)} and observed['limit'] == {'unsigned':str(limit)}, detail
+        assert not any(detail['actions']), detail
     for option,value,explanation in [('--max-record-bytes','65537','65536'),('--max-fields','129','128'),('--delimiter','\t','printable ASCII')]:
         _,detail,_ = machine(['file-query','--format','csv',option,value,'-c','SELECT * FROM input',csv],2)
         assert facts(detail)['option'] == {'text':option} and explanation in detail['message'], detail

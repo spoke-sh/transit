@@ -1,6 +1,7 @@
 //! Logical descriptors, independent of physical execution/transport layouts.
 //! All slices borrow their owner. Decode and clone return an explicit arena owner.
 const std = @import("std");
+pub const Diagnostic = @import("TypeDiagnostic.zig");
 pub const Query = @import("Scalar.zig");
 pub const State = Query.State;
 pub const definition = "transit.fuze.types.v1.2026-09-30";
@@ -101,8 +102,11 @@ pub const Type = union(Tag) {
         };
     }
     pub fn validate(self: Type, limits: Limits) !void {
-        var budget: Budget = .{ .limits = limits };
-        try validateType(self, 0, &budget);
+        try self.validateDiagnostic(limits, null);
+    }
+    pub fn validateDiagnostic(self: Type, limits: Limits, failure: ?*?Diagnostic) !void {
+        var budget: Budget = .{ .limits = limits, .failure = failure };
+        try validateType(self, 0, &budget, (Diagnostic.Path{}).field("type"));
     }
     pub fn encode(self: Type, output: []u8) ![]const u8 {
         try self.validate(.{});
@@ -139,46 +143,82 @@ pub const Type = union(Tag) {
 };
 const Budget = struct {
     limits: Limits,
+    failure: ?*?Diagnostic = null,
+    path: Diagnostic.Path = .{},
     nodes: usize = 0,
     names: usize = 0,
     bytes: usize = 0,
     children: usize = 0,
+    fn reject(self: *Budget, kind: Diagnostic.Kind, actual: ?usize, limit: ?usize, bytes: []const u8, earlier: ?usize, err: anyerror) anyerror {
+        if (self.failure) |failure| if (failure.* == null) {
+            var detail: Diagnostic = .{ .path = self.path, .kind = kind, .actual = actual, .limit = limit, .earlier = earlier };
+            detail.capture(bytes);
+            failure.* = detail;
+        };
+        return err;
+    }
     fn node(self: *Budget, depth: usize) !void {
-        if (depth >= self.limits.depth or self.nodes >= self.limits.nodes) return error.TypeBudgetExceeded;
+        if (depth >= self.limits.depth) return self.reject(.depth, depth +| 1, self.limits.depth, "", null, error.TypeBudgetExceeded);
+        if (self.nodes >= self.limits.nodes) return self.reject(.nodes, self.nodes +| 1, self.limits.nodes, "", null, error.TypeBudgetExceeded);
         self.nodes += 1;
     }
     fn name(self: *Budget, bytes: []const u8) !void {
-        if (bytes.len == 0 or bytes.len > 255 or !std.unicode.utf8ValidateSlice(bytes) or std.mem.indexOfScalar(u8, bytes, 0) != null) return error.InvalidFieldName;
-        if (bytes.len > self.limits.name_bytes -| self.names) return error.TypeBudgetExceeded;
+        if (bytes.len == 0) return self.reject(.name_empty, 0, null, bytes, null, error.InvalidFieldName);
+        if (bytes.len > 255) return self.reject(.name_length, bytes.len, 255, bytes, null, error.InvalidFieldName);
+        if (!std.unicode.utf8ValidateSlice(bytes)) return self.reject(.name_utf8, null, null, bytes, null, error.InvalidFieldName);
+        if (std.mem.indexOfScalar(u8, bytes, 0) != null) return self.reject(.name_nul, null, null, bytes, null, error.InvalidFieldName);
+        if (bytes.len > self.limits.name_bytes -| self.names) return self.reject(.name_bytes, self.names +| bytes.len, self.limits.name_bytes, bytes, null, error.TypeBudgetExceeded);
         self.names += bytes.len;
     }
 };
-fn validateType(value: Type, depth: usize, budget: *Budget) anyerror!void {
+fn validateType(value: Type, depth: usize, budget: *Budget, path: Diagnostic.Path) anyerror!void {
+    budget.path = path;
     try budget.node(depth);
     switch (value) {
-        .decimal => |d| if (d.precision == 0 or d.precision > 38 or d.scale > d.precision) return error.InvalidDecimal,
-        .structure, .tagged_union => |fields| {
-            if (fields.len == 0 or fields.len > 255) return error.InvalidFieldCount;
-            for (fields, 0..) |field, i| {
-                try budget.name(field.name);
-                for (fields[0..i]) |earlier| if (std.mem.eql(u8, field.name, earlier.name)) return error.DuplicateField;
-                if (value == .tagged_union and field.optional) return error.InvalidUnion;
-                try validateType(field.type, depth + 1, budget);
+        .decimal => |d| {
+            var buffer: [32]u8 = undefined;
+            const supplied = std.fmt.bufPrint(&buffer, "decimal({d},{d})", .{ d.precision, d.scale }) catch unreachable;
+            if (d.precision == 0 or d.precision > 38) {
+                budget.path = path.field("decimal").field("precision");
+                return budget.reject(.precision, d.precision, 38, supplied, null, error.InvalidDecimal);
+            }
+            if (d.scale > d.precision) {
+                budget.path = path.field("decimal").field("scale");
+                return budget.reject(.scale, d.scale, d.precision, supplied, null, error.InvalidDecimal);
             }
         },
-        .list => |element| try validateType(element.type.*, depth + 1, budget),
+        .structure, .tagged_union => |fields| {
+            const members = path.field(@tagName(value));
+            budget.path = members;
+            if (fields.len == 0 or fields.len > 255) return budget.reject(.field_count, fields.len, 255, "", null, error.InvalidFieldCount);
+            for (fields, 0..) |field, i| {
+                const member = members.index(i);
+                budget.path = member.field("name");
+                try budget.name(field.name);
+                for (fields[0..i], 0..) |earlier, index| if (std.mem.eql(u8, field.name, earlier.name)) return budget.reject(.duplicate_name, i, null, field.name, index, error.DuplicateField);
+                if (value == .tagged_union and field.optional) {
+                    budget.path = member.field("optional");
+                    return budget.reject(.optional_variant, null, null, "true", null, error.InvalidUnion);
+                }
+                try validateType(field.type, depth + 1, budget, member.field("type"));
+            }
+        },
+        .list => |element| try validateType(element.type.*, depth + 1, budget, path.field("list").field("type")),
         .array => |array| {
-            if (array.length == 0) return error.InvalidArrayLength;
-            try validateType(array.element.type.*, depth + 1, budget);
+            budget.path = path.field("array").field("length");
+            if (array.length == 0) return budget.reject(.array_length, 0, null, "", null, error.InvalidArrayLength);
+            try validateType(array.element.type.*, depth + 1, budget, path.field("array").field("element").field("type"));
         },
         .map => |map| {
-            if (!isMapKey(map.key.*)) return error.InvalidMapKey;
-            try validateType(map.key.*, depth + 1, budget);
-            try validateType(map.value.type.*, depth + 1, budget);
+            budget.path = path.field("map").field("key");
+            if (!isMapKey(map.key.*)) return budget.reject(.map_key, null, null, @tagName(map.key.*), null, error.InvalidMapKey);
+            try validateType(map.key.*, depth + 1, budget, path.field("map").field("key"));
+            try validateType(map.value.type.*, depth + 1, budget, path.field("map").field("value").field("type"));
         },
         else => {},
     }
 }
+
 pub fn isMapKey(value: Type) bool {
     return switch (value) {
         .structure, .list, .array, .map, .tagged_union, .json, .interval => false,

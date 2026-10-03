@@ -58,6 +58,16 @@ transit file-query --format csv --mode explicit --schema schema.json \
   --null-token NULL -c 'SELECT * FROM input' data.csv
 ```
 
+Invalid recursive descriptors identify their schema-file member using a JSON
+Pointer, such as `/type/structure/1/type/decimal/scale`. Errors show the violated
+rule and available values: decimal precision/scale, duplicate field positions,
+array length, invalid map-key type or the exact exhausted descriptor budget.
+Paths use descriptor field positions, so invalid and duplicate names remain
+unambiguous. Paths and supplied values are bounded to 256 bytes with explicit
+truncation. These schema-file paths differ from the row-value paths reported
+during conversion. JSON syntax and member-decoding failures retain their cause
+and schema file but do not currently carry a nested descriptor path.
+
 UTF-8 IDs preserve leading zeros. Decimal values use exact coefficients; they
 do not select an application's monetary policy. Quoted `"NULL"` remains text;
 only the unquoted configured token is null. CSV defaults to comma, double quotes,

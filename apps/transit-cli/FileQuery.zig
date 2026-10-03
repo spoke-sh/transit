@@ -201,11 +201,12 @@ pub fn run(init: std.process.Init, args: []const []const u8, diagnostic: *Diagno
     var runtime_failure: ?f.FileQuery.Failure = null;
     var output_budget: ?f.FileSource.BudgetDiagnostic = null;
     var schema_file = false;
+    var schema_failure: ?f.Types.Diagnostic = null;
     var capture_failure: Capture.Failure = .{ .phase = .source_open };
     var output_started = false;
     var limited = false;
     errdefer if (diagnostic.sql == null) {
-        diagnostic.source = .{ .stage = stage, .capture_failure = if (stage == .capture) capture_failure else null, .schema_file = schema_file, .output_budget = output_budget, .runtime_failure = runtime_failure, .path = if (location.source) |index| options.paths[index] else diagnostic.file, .location = location, .output_started = output_started, .limited = limited, .max_record_bytes = options.source.max_record_bytes, .max_records = options.source.max_records, .max_scan_bytes = options.source.max_scan_bytes };
+        diagnostic.source = .{ .stage = stage, .capture_failure = if (stage == .capture) capture_failure else null, .schema_file = schema_file, .schema_failure = schema_failure, .output_budget = output_budget, .runtime_failure = runtime_failure, .path = if (location.source) |index| options.paths[index] else diagnostic.file, .location = location, .output_started = output_started, .limited = limited, .max_record_bytes = options.source.max_record_bytes, .max_records = options.source.max_records, .max_scan_bytes = options.source.max_scan_bytes };
     };
     var explicit: ?f.Types.Decoded = null;
     defer if (explicit) |*owner| owner.deinit();
@@ -215,8 +216,12 @@ pub fn run(init: std.process.Init, args: []const []const u8, diagnostic: *Diagno
         diagnostic.atFile(path);
         const bytes = try std.Io.Dir.cwd().readFileAlloc(init.io, path, init.gpa, .limited(65536));
         defer init.gpa.free(bytes);
-        explicit = try f.LogicalJson.decodeTypeDiagnostic(init.gpa, bytes, &location.budget);
-        if (explicit.?.type != .structure) return error.InvalidExplicitSchema;
+        explicit = try f.LogicalJson.decodeTypeContext(init.gpa, bytes, &location.budget, &schema_failure);
+        if (explicit.?.type != .structure) {
+            schema_failure = .{ .path = (f.Types.Diagnostic.Path{}).field("type"), .kind = .root };
+            schema_failure.?.capture(@tagName(explicit.?.type));
+            return error.InvalidExplicitSchema;
+        }
     }
     schema_file = false;
     stage = .capture;

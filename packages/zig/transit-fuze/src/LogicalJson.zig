@@ -65,10 +65,14 @@ pub fn decodeType(allocator: std.mem.Allocator, bytes: []const u8) !types.Decode
     return decodeTypeDiagnostic(allocator, bytes, null);
 }
 pub fn decodeTypeDiagnostic(allocator: std.mem.Allocator, bytes: []const u8, diagnostic: ?*?types.Json.BudgetDiagnostic) !types.Decoded {
+    return decodeTypeContext(allocator, bytes, diagnostic, null);
+}
+pub fn decodeTypeContext(allocator: std.mem.Allocator, bytes: []const u8, diagnostic: ?*?types.Json.BudgetDiagnostic, failure: ?*?types.Diagnostic) !types.Decoded {
     try types.Json.preflightDiagnostic(bytes, .{ .bytes = 65536, .depth = 64, .tokens = 4096 }, diagnostic);
     const parsed = try std.json.parseFromSlice(TypeEnvelope, allocator, bytes, .{ .allocate = .alloc_always });
     defer parsed.deinit();
     if (!std.mem.eql(u8, parsed.value.definition, types.definition)) return error.IncompatibleDefinition;
+    try parsed.value.type.validateDiagnostic(.{}, failure);
     var buffer: [types.max_encoding_bytes]u8 = undefined;
     return types.decode(allocator, try parsed.value.type.encode(&buffer));
 }

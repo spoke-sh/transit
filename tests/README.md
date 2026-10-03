@@ -6,6 +6,26 @@ earlier entry refers to that entry's source, not automatically to HEAD. The late
 records its reruns and remaining qualification separately; earlier consolidation
 results do not qualify the changed stored layout by inheritance.
 
+## Recursive descriptor diagnostic evidence — 2026-10-03
+
+`Types.validateDiagnostic` and `LogicalJson.decodeTypeContext` retain the first
+recursive validation witness without borrowing schema memory. Unit cases cover
+nested container edges, first-failure preservation, owned duplicate names,
+invalid UTF-8/NUL/empty/oversized names, separate depth/node/name budgets and a
+cyclic descriptor with explicit path truncation. `just test::fuze-types` passes
+16 native tests and 46 independent scalar fixtures. The real CLI matrix passes
+**536 cases**, including descriptor member paths, decimal parameters, duplicate
+positions, union/array/map constraints, root type and measured budget excess.
+Schema failures emit no result output. Logs:
+`/var/tmp/transit-schema-witness-{check,focused}.log`.
+
+Full `just check` passes, including native/generated checks, 536 CLI cases,
+75 Board unit cases, 6 shared diagnostic boundary tests, frontend checks and
+the handbook; log `/var/tmp/transit-schema-witness-full.log`. The initial CLI
+assertion used an unbounded action-list shape and was corrected to inspect the
+contract's bounded optional action slots. JSON member-decoding attribution and
+committed-HEAD clean qualification remain outside this evidence.
+
 ## Connector reply diagnostic evidence — 2026-10-03
 
 The `connector-outcome-diagnostic` definition adds scoped exchange identities,

@@ -13,6 +13,7 @@ max_records: u64,
 max_scan_bytes: u64,
 runtime_failure: ?f.FileQuery.Failure = null,
 schema_file: bool = false,
+schema_failure: ?f.Types.Diagnostic = null,
 capture_failure: ?@import("FileCapture.zig").Failure = null,
 output_budget: ?f.FileSource.BudgetDiagnostic = null,
 
@@ -51,6 +52,21 @@ pub fn render(self: Self, out: *std.Io.Writer, err: anyerror, style: @import("St
     if (self.location.earlier_field_index) |index| try out.print("Conflicting earlier field position (zero-based): {d}.\n", .{index});
     if (self.location.unsupported_type) |kind| try out.print("Unsupported CSV field type: {s}. Use a supported scalar type or JSONL.\n", .{@tagName(kind)});
     if (self.schema_file and err == error.IncompatibleDefinition) try out.print("Required type definition: {s}.\n", .{f.Types.definition});
+    if (self.schema_failure) |detail| {
+        try out.writeAll("Descriptor path (JSON Pointer): ");
+        try quoted(out, detail.path.slice());
+        if (detail.path.truncated) try out.writeAll(" [truncated]");
+        try out.print(".\n{s}\n", .{detail.constraint()});
+        if (detail.value_len != 0 or detail.kind == .name_empty) {
+            try out.writeAll("Supplied: ");
+            try quoted(out, detail.supplied());
+            if (detail.value_truncated) try out.writeAll(" [truncated]");
+            try out.writeAll(".\n");
+        }
+        if (detail.actual) |actual| try out.print("Actual {s}: {d}.\n", .{ if (detail.kind == .duplicate_name) "field position (zero-based)" else "value/count", actual });
+        if (detail.limit) |limit| try out.print("Maximum: {d}{s}{s}.\n", .{ limit, if (detail.unit() != null) " " else "", detail.unit() orelse "" });
+        if (detail.earlier) |earlier| try out.print("Conflicting earlier field position (zero-based): {d}.\n", .{earlier});
+    }
     if (self.location.conversion) |detail| {
         try out.writeAll("Field path (JSON Pointer): ");
         try quoted(out, detail.path.slice());
@@ -82,6 +98,7 @@ pub fn render(self: Self, out: *std.Io.Writer, err: anyerror, style: @import("St
     if (self.limited and self.stage == .execute) try out.writeAll("LIMIT does not skip required validation of the remaining file records.\n");
 }
 fn explanation(self: Self, err: anyerror) []const u8 {
+    if (self.schema_failure) |detail| return detail.constraint();
     if (self.capture_failure) |capture| {
         if (capture.storage() and err != error.OutOfMemory and err != error.FileQueryInterrupted) return "Private temporary capture storage could not be opened, created, unlinked or written. Check TMPDIR access, capacity and the reported operation.";
     }
@@ -183,7 +200,7 @@ fn quoted(out: *std.Io.Writer, value: []const u8) !void {
 pub fn structured(self: Self, err: anyerror) !@import("transit_query").protocol.Diagnostic {
     const d = @import("transit_query").protocol.Diagnostic;
     const storage = if (self.capture_failure) |capture| capture.storage() and err != error.OutOfMemory and err != error.FileQueryInterrupted else false;
-    const code: []const u8 = if (storage) "file.capture_storage_unavailable" else if (self.schema_file and err == error.WriteFailed) "file.schema_encoding_limit" else if (self.schema_file and (err == error.UnknownField or err == error.DuplicateField or err == error.MissingField or err == error.UnexpectedToken or err == error.InvalidEnumTag)) "file.invalid_schema_descriptor" else switch (err) {
+    const code: []const u8 = if (storage) "file.capture_storage_unavailable" else if (self.schema_file and err == error.WriteFailed) "file.schema_encoding_limit" else if (self.schema_file and self.schema_failure == null and (err == error.UnknownField or err == error.DuplicateField or err == error.MissingField or err == error.UnexpectedToken or err == error.InvalidEnumTag)) "file.invalid_schema_descriptor" else switch (err) {
         error.RaggedCsvRow => "file.ragged_csv_row",
         error.DuplicateField => "file.duplicate_field",
         error.UnknownField => "file.unknown_field",
@@ -288,7 +305,18 @@ pub fn structured(self: Self, err: anyerror) !@import("transit_query").protocol.
     if (self.location.byte) |byte| try value.fact(.byte_offset, .execution, .{ .unsigned = .init(byte) });
     // A logical record can span physical lines. Its byte offset is a fact;
     // never invent line/column coordinates from its ordinal.
-    if (self.location.conversion) |detail| {
+    if (self.schema_failure) |detail| {
+        try bounded(&value, .field_path, detail.path.slice(), detail.path.truncated);
+        try value.text(.constraint, .schema, detail.constraint());
+        if (detail.value_len != 0 or detail.kind == .name_empty) try bounded(&value, .supplied_value, detail.supplied(), detail.value_truncated);
+        if (detail.earlier) |earlier| try value.fact(.first_occurrence, .schema, .{ .unsigned = .init(earlier) });
+        if (detail.unit()) |unit| {
+            try value.text(.budget, .owner, @tagName(detail.kind));
+            try value.text(.unit, .owner, unit);
+        }
+        if (detail.actual) |actual| try value.fact(if (detail.unit() != null) .required else if (detail.kind == .duplicate_name) .column else .actual_count, .schema, .{ .unsigned = .init(actual) });
+        if (detail.limit) |limit| try value.fact(.limit, .owner, .{ .unsigned = .init(limit) });
+    } else if (self.location.conversion) |detail| {
         try bounded(&value, .field_path, detail.path.slice(), detail.path.truncated);
         try value.text(.expected_type, .schema, detail.expectedType());
         try value.text(.actual_type, .execution, @tagName(detail.actual));

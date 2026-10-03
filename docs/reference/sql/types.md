@@ -19,6 +19,11 @@ codec. JSON parsing preserves numeric lexemes and rejects duplicate decoded keys
 Map entries use strictly increasing typed keys, rejecting duplicates including
 positive/negative floating zero.
 
+Recursive descriptor validation can retain an owned first-failure witness with
+the exact descriptor-member path, violated rule, supplied values and measured
+budget. File queries expose this context in human and structured diagnostics;
+see the [schema-file guide](../../../apps/transit-cli/docs/file-query.md#schemas-and-exact-values).
+
 These are local type/codec APIs. Native query plans, catalogs, stored Tables,
 native Arrow query transports and SDK queries accept the narrower profiles below.
 Local file queries can export the rich values through the separately identified

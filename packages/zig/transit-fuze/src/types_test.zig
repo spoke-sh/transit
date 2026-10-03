@@ -153,3 +153,68 @@ test "Python independent scalar oracle matches literal binding fingerprints and 
         try t.expectEqual(std.math.Order.eq, try m.Values.atomOrder(atom, decoded.cell.value.atom, descriptor.type));
     }
 }
+
+test "descriptor validation retains first exact nested rule and owned values" {
+    const bad: m.Type = .{ .decimal = .{ .precision = 7, .scale = 8 } };
+    const descriptor: m.Type = .{ .map = .{ .key = &.utf8, .value = .{ .type = &.{ .array = .{ .length = 2, .element = .{ .type = &.{ .list = .{ .type = &bad } } } } } } } };
+    var failure: ?m.Diagnostic = null;
+    try t.expectError(error.InvalidDecimal, descriptor.validateDiagnostic(.{}, &failure));
+    try t.expectEqualStrings("/type/map/value/type/array/element/type/list/type/decimal/scale", failure.?.path.slice());
+    try t.expectEqual(m.Diagnostic.Kind.scale, failure.?.kind);
+    try t.expectEqual(@as(?usize, 8), failure.?.actual);
+    try t.expectEqual(@as(?usize, 7), failure.?.limit);
+    try t.expectEqualStrings("decimal(7,8)", failure.?.supplied());
+    const other: m.Type = .{ .decimal = .{ .precision = 0, .scale = 0 } };
+    try t.expectError(error.InvalidDecimal, other.validateDiagnostic(.{}, &failure));
+    try t.expectEqual(m.Diagnostic.Kind.scale, failure.?.kind);
+    failure = null;
+    var name = [_]u8{ 'x', '/', '~' };
+    const duplicate: m.Type = .{ .structure = &.{ .{ .name = &name, .type = .int8 }, .{ .name = &name, .type = .int64 } } };
+    try t.expectError(error.DuplicateField, duplicate.validateDiagnostic(.{}, &failure));
+    @memset(&name, '?');
+    try t.expectEqualStrings("/type/structure/1/name", failure.?.path.slice());
+    try t.expectEqualStrings("x/~", failure.?.supplied());
+    try t.expectEqual(@as(?usize, 1), failure.?.actual);
+    try t.expectEqual(@as(?usize, 0), failure.?.earlier);
+}
+
+test "descriptor budgets report stopping dimension and preserve cyclic input bounds" {
+    for ([_]struct { limits: m.Limits, kind: m.Diagnostic.Kind, actual: usize, limit: usize, path: []const u8 }{
+        .{ .limits = .{ .depth = 1 }, .kind = .depth, .actual = 2, .limit = 1, .path = "/type/structure/0/type" },
+        .{ .limits = .{ .nodes = 1 }, .kind = .nodes, .actual = 2, .limit = 1, .path = "/type/structure/0/type" },
+        .{ .limits = .{ .name_bytes = 1 }, .kind = .name_bytes, .actual = 2, .limit = 1, .path = "/type/structure/0/name" },
+    }) |case| {
+        var failure: ?m.Diagnostic = null;
+        try t.expectError(error.TypeBudgetExceeded, nested.validateDiagnostic(case.limits, &failure));
+        try t.expectEqual(case.kind, failure.?.kind);
+        try t.expectEqual(@as(?usize, case.actual), failure.?.actual);
+        try t.expectEqual(@as(?usize, case.limit), failure.?.limit);
+        try t.expectEqualStrings(case.path, failure.?.path.slice());
+    }
+    var cycle: m.Type = undefined;
+    cycle = .{ .array = .{ .length = 1, .element = .{ .type = &cycle } } };
+    var failure: ?m.Diagnostic = null;
+    try t.expectError(error.TypeBudgetExceeded, cycle.validateDiagnostic(.{}, &failure));
+    try t.expectEqual(m.Diagnostic.Kind.depth, failure.?.kind);
+    try t.expectEqual(@as(?usize, 17), failure.?.actual);
+    try t.expect(failure.?.path.truncated);
+    try t.expect(std.unicode.utf8ValidateSlice(failure.?.path.slice()));
+}
+
+test "descriptor names retain invalid bytes safely and bound owned previews" {
+    const long: [300]u8 = @splat('x');
+    for ([_]struct { name: []const u8, kind: m.Diagnostic.Kind }{
+        .{ .name = "", .kind = .name_empty },
+        .{ .name = &long, .kind = .name_length },
+        .{ .name = "\xff", .kind = .name_utf8 },
+        .{ .name = "a\x00b", .kind = .name_nul },
+    }) |case| {
+        const descriptor: m.Type = .{ .structure = &.{.{ .name = case.name, .type = .int64 }} };
+        var failure: ?m.Diagnostic = null;
+        try t.expectError(error.InvalidFieldName, descriptor.validateDiagnostic(.{}, &failure));
+        try t.expectEqual(case.kind, failure.?.kind);
+        try t.expectEqualStrings("/type/structure/0/name", failure.?.path.slice());
+        try t.expectEqualSlices(u8, case.name[0..@min(256, case.name.len)], failure.?.supplied());
+        try t.expectEqual(case.name.len > 256, failure.?.value_truncated);
+    }
+}

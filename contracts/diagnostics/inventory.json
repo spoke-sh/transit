@@ -5434,6 +5434,13 @@
         "std"
       ]
     },
+    "packages/zig/transit-fuze/src/DiagnosticPath.zig": {
+      "errors": {},
+      "outcomes": {},
+      "imports": [
+        "std"
+      ]
+    },
     "packages/zig/transit-fuze/src/FileFraming.zig": {
       "errors": {
         "EmptyJsonRecord": 1,
@@ -5581,6 +5588,7 @@
         ]
       },
       "imports": [
+        "DiagnosticPath.zig",
         "Types.zig",
         "std"
       ]
@@ -6266,6 +6274,32 @@
         "std"
       ]
     },
+    "packages/zig/transit-fuze/src/TypeDiagnostic.zig": {
+      "errors": {},
+      "outcomes": {
+        "Kind": [
+          "precision",
+          "scale",
+          "field_count",
+          "name_empty",
+          "name_length",
+          "name_utf8",
+          "name_nul",
+          "duplicate_name",
+          "optional_variant",
+          "array_length",
+          "map_key",
+          "depth",
+          "nodes",
+          "name_bytes",
+          "root"
+        ]
+      },
+      "imports": [
+        "DiagnosticPath.zig",
+        "std"
+      ]
+    },
     "packages/zig/transit-fuze/src/TypeOps.zig": {
       "errors": {
         "QueryConflict": 1,
@@ -6332,13 +6366,13 @@
         "DuplicateField": 1,
         "IncompatibleDefinition": 1,
         "InvalidArrayLength": 1,
-        "InvalidDecimal": 1,
+        "InvalidDecimal": 2,
         "InvalidFieldCount": 1,
-        "InvalidFieldName": 1,
+        "InvalidFieldName": 4,
         "InvalidMapKey": 1,
         "InvalidTypeEncoding": 6,
         "InvalidUnion": 1,
-        "TypeBudgetExceeded": 4,
+        "TypeBudgetExceeded": 5,
         "UnsupportedQueryType": 1,
         "WriteFailed": 1
       },
@@ -6409,6 +6443,7 @@
       "imports": [
         "BoundedJson.zig",
         "Scalar.zig",
+        "TypeDiagnostic.zig",
         "TypeOps.zig",
         "TypeSemantics.zig",
         "ValueCodec.zig",
