@@ -886,6 +886,15 @@ with tempfile.TemporaryDirectory(prefix='transit-cli-json-') as directory:
         assert '--schema' in detail['message'] and '--mode raw' in detail['message'], detail
         assert f'entered {entered} records' in observed['source_basis']['text'] and f'complete: {str(complete).lower()}' in observed['source_basis']['text'], detail
         assert 'source_row' not in observed and 'byte_offset' not in observed and 'field_path' not in observed, detail
+    missing_data = root/'absent-input.csv'
+    result,detail,_ = machine(['file-query','--format','csv','-c','SELECT * FROM input',missing_data])
+    assert detail['code'] == 'file.source_unavailable' and detail['cause'] == 'NOENT', detail
+    assert facts(detail)['object'] == {'text':str(missing_data)} and not result.stdout, detail
+    missing_schema = root/'absent-schema.json'
+    result,detail,_ = machine(['file-query','--format','csv','--mode','explicit','--schema',missing_schema,'-c','SELECT * FROM input',csv])
+    assert detail['code'] == 'file.schema_read_unavailable' and detail['stage'] == 'input' and detail['cause'] == 'FileNotFound', detail
+    assert facts(detail)['object'] == {'text':str(missing_schema)} and not result.stdout, detail
+    assert [a['kind'] for a in detail['actions'] if a] == ['retry_read'], detail
     schema = root/'schema.json'
     schema_definition = 'transit.fuze.types.v1.2026-09-30'
     def schema_value(type):

@@ -14,6 +14,7 @@ max_records: u64,
 max_scan_bytes: u64,
 runtime_failure: ?f.FileQuery.Failure = null,
 schema_file: bool = false,
+schema_read_failure: bool = false,
 schema_failure: ?f.Types.Diagnostic = null,
 capture_failure: ?@import("FileCapture.zig").Failure = null,
 output_budget: ?f.FileSource.BudgetDiagnostic = null,
@@ -21,6 +22,10 @@ output_budget: ?f.FileSource.BudgetDiagnostic = null,
 pub fn render(self: Self, out: *std.Io.Writer, err: anyerror, style: @import("Style.zig")) !void {
     try style.text(out, .failure, "error: File Query Error");
     try out.print(":\n{s} ({s})\n", .{ if (self.location.conversion != null and err == error.Overflow) "The input scalar is outside the declared type's range." else self.explanation(err), @errorName(err) });
+    if (self.capture_failure) |capture| {
+        var cause_buffer: [64]u8 = undefined;
+        if (capture.systemCause(&cause_buffer)) |cause| try out.print("System cause: {s} ({d}). {s}\n", .{ cause, capture.system_errno.?, capture.systemExplanation() });
+    }
     if (self.output_budget orelse self.location.budget) |budget| {
         try out.print("Budget: {s}; required{s}: {d} {s}; limit: {d} {s}.\n", .{ @tagName(budget.dimension), if (budget.minimum) " at least" else "", budget.required, budget.unit(), budget.limit, budget.unit() });
     } else switch (err) {
@@ -116,6 +121,7 @@ pub fn render(self: Self, out: *std.Io.Writer, err: anyerror, style: @import("St
     if (self.limited and self.stage == .execute) try out.writeAll("LIMIT does not skip required validation of the remaining file records.\n");
 }
 fn explanation(self: Self, err: anyerror) []const u8 {
+    if (self.schema_read_failure) return "The schema file could not be read completely. Check its path and local read permissions.";
     if (self.location.json) |detail| return detail.constraint();
     if (self.schema_failure orelse self.location.descriptor orelse self.location.inference) |detail| return detail.constraint();
     if (self.capture_failure) |capture| {
@@ -145,10 +151,10 @@ fn quoted(out: *std.Io.Writer, value: []const u8) !void {
 pub fn structured(self: Self, err: anyerror) !@import("transit_query").protocol.Diagnostic {
     const d = @import("transit_query").protocol.Diagnostic;
     const storage = if (self.capture_failure) |capture| capture.storage() and err != error.OutOfMemory and err != error.FileQueryInterrupted else false;
-    const code: []const u8 = if (storage) "file.capture_storage_unavailable" else if (self.schema_file and err == error.WriteFailed) "file.schema_encoding_limit" else if (self.schema_file and (self.schema_failure == null or self.schema_failure.?.jsonMember()) and (err == error.UnknownField or err == error.DuplicateField or err == error.MissingField or err == error.UnexpectedToken or err == error.InvalidEnumTag)) "file.invalid_schema_descriptor" else if (err == error.Overflow and (self.location.conversion != null or self.schema_failure != null)) "file.scalar_out_of_range" else codes.fromError(err).code;
+    const code: []const u8 = if (self.schema_read_failure) "file.schema_read_unavailable" else if (err == error.EndOfStream and self.capture_failure != null and self.capture_failure.?.phase == .decompress) "file.invalid_gzip" else if (storage) "file.capture_storage_unavailable" else if (self.schema_file and err == error.WriteFailed) "file.schema_encoding_limit" else if (self.schema_file and (self.schema_failure == null or self.schema_failure.?.jsonMember()) and (err == error.UnknownField or err == error.DuplicateField or err == error.MissingField or err == error.UnexpectedToken or err == error.InvalidEnumTag)) "file.invalid_schema_descriptor" else if (err == error.Overflow and (self.location.conversion != null or self.schema_failure != null)) "file.scalar_out_of_range" else codes.fromError(err).code;
     const output = self.output_budget != null or err == error.ArrowShapeTooLarge or err == error.ArrowSegmentTooLarge or err == error.ArrowWorkspaceExceeded or err == error.BrokenPipe or err == error.OutputWriteFailed;
-    const category: d.Category = if (storage) .unavailable else if (self.schema_file and err == error.WriteFailed) .limit else codes.fromError(err).category;
-    var value = try d.init(code, category, if (output) .output else switch (self.stage) {
+    const category: d.Category = if (self.schema_read_failure or storage) .unavailable else if (self.schema_file and err == error.WriteFailed) .limit else codes.fromError(err).category;
+    var value = try d.init(code, category, if (self.schema_read_failure) .input else if (output) .output else switch (self.stage) {
         .capture => .input,
         .schema => .decode,
         .compile => .compile,
@@ -159,6 +165,10 @@ pub fn structured(self: Self, err: anyerror) !@import("transit_query").protocol.
         error.ArrowWorkspaceExceeded => error.OutOfMemory,
         else => err,
     }));
+    if (self.capture_failure) |capture| {
+        var cause_buffer: [64]u8 = undefined;
+        if (capture.systemCause(&cause_buffer)) |cause| value.cause = try d.Code.init(cause);
+    }
     try value.fact(.completion, .execution, .{ .boolean = false });
     if (self.path) |path| try @import("StructuredDiagnostic.zig").pathFact(&value, path);
     if (self.capture_failure) |capture| {
@@ -250,6 +260,7 @@ pub fn structured(self: Self, err: anyerror) !@import("transit_query").protocol.
     }
     if (self.limited and self.stage == .execute) try value.text(.operation, .owner, "LIMIT does not skip validation of remaining file records.");
     if (category == .binding or category == .syntax or category == .unsupported) try value.action(.correct_input);
+    if (self.schema_read_failure) try value.action(.retry_read);
     if (category == .internal) try value.action(.contact_operator);
     if (category == .access) try value.action(.inspect_scope);
     try value.validate();

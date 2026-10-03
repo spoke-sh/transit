@@ -190,3 +190,9 @@ A socket `AccessDenied` is normalized to `AuthorityTransportDenied` before cross
 caller boundaries. A real injected connection failure exercises the pinned HTTP
 stack; ABI and semantic matrix cases check unavailable reads versus uncertain
 commands. Local network policy cannot masquerade as native rejection.
+
+File source open/read failures retain the original OS errno; schema-file read
+failures preserve their cause under an explicit read boundary even when the OS
+error set is open. The actual CLI checks absent input/schema paths. Unqualified
+`EndOfStream` is truncated input; only recorded gzip-decompression context
+classifies it as invalid gzip. These distinctions do not change result stdout.

@@ -201,12 +201,13 @@ pub fn run(init: std.process.Init, args: []const []const u8, diagnostic: *Diagno
     var runtime_failure: ?f.FileQuery.Failure = null;
     var output_budget: ?f.FileSource.BudgetDiagnostic = null;
     var schema_file = false;
+    var schema_read_failure = false;
     var schema_failure: ?f.Types.Diagnostic = null;
     var capture_failure: Capture.Failure = .{ .phase = .source_open };
     var output_started = false;
     var limited = false;
     errdefer if (diagnostic.sql == null) {
-        diagnostic.source = .{ .stage = stage, .capture_failure = if (stage == .capture) capture_failure else null, .schema_file = schema_file, .schema_failure = schema_failure, .output_budget = output_budget, .runtime_failure = runtime_failure, .path = if (location.source) |index| options.paths[index] else diagnostic.file, .location = location, .output_started = output_started, .limited = limited, .max_record_bytes = options.source.max_record_bytes, .max_records = options.source.max_records, .max_scan_bytes = options.source.max_scan_bytes };
+        diagnostic.source = .{ .stage = stage, .capture_failure = if (stage == .capture) capture_failure else null, .schema_file = schema_file, .schema_read_failure = schema_read_failure, .schema_failure = schema_failure, .output_budget = output_budget, .runtime_failure = runtime_failure, .path = if (location.source) |index| options.paths[index] else diagnostic.file, .location = location, .output_started = output_started, .limited = limited, .max_record_bytes = options.source.max_record_bytes, .max_records = options.source.max_records, .max_scan_bytes = options.source.max_scan_bytes };
     };
     var explicit: ?f.Types.Decoded = null;
     defer if (explicit) |*owner| owner.deinit();
@@ -214,7 +215,10 @@ pub fn run(init: std.process.Init, args: []const []const u8, diagnostic: *Diagno
         schema_file = true;
         stage = .schema;
         diagnostic.atFile(path);
-        const bytes = try std.Io.Dir.cwd().readFileAlloc(init.io, path, init.gpa, .limited(65536));
+        const bytes = std.Io.Dir.cwd().readFileAlloc(init.io, path, init.gpa, .limited(65536)) catch |err| {
+            schema_read_failure = err != error.OutOfMemory and err != error.StreamTooLong;
+            return err;
+        };
         defer init.gpa.free(bytes);
         explicit = try f.LogicalJson.decodeTypeFullContext(init.gpa, bytes, &location.budget, &schema_failure, &location.json);
         if (explicit.?.type != .structure) {

@@ -69,3 +69,29 @@ test "file unknown callbacks and storage context preserve original failure and i
     try std.testing.expectEqual(.decode, overflow.stage);
     try std.testing.expectEqualStrings("file.arithmetic_overflow", (try base.structured(error.Overflow)).code.slice());
 }
+
+test "file I/O context retains OS causes and distinguishes schema reads and gzip framing" {
+    const t = std.testing;
+    var context = base;
+    context.stage = .capture;
+    context.capture_failure = .{ .phase = .source_open, .system_errno = @backingInt(std.c.E.ACCES) };
+    const denied = try context.structured(error.SourceOpenFailed);
+    try t.expectEqualStrings("file.source_unavailable", denied.code.slice());
+    try t.expectEqualStrings("ACCES", denied.cause.?.slice());
+    var bytes: [4096]u8 = undefined;
+    var writer: std.Io.Writer = .fixed(&bytes);
+    try context.render(&writer, error.SourceOpenFailed, .{});
+    try t.expect(std.mem.indexOf(u8, writer.buffered(), "Local filesystem permissions denied access") != null);
+    context.capture_failure = .{ .phase = .decompress };
+    try t.expectEqualStrings("file.invalid_gzip", (try context.structured(error.EndOfStream)).code.slice());
+    try t.expectEqualStrings("file.truncated_input", (try base.structured(error.EndOfStream)).code.slice());
+    context.capture_failure = null;
+    context.schema_read_failure = true;
+    const schema = try context.structured(error.UnregisteredCallbackFailure);
+    try t.expectEqualStrings("file.schema_read_unavailable", schema.code.slice());
+    try t.expectEqual(.input, schema.stage);
+    try t.expectEqual(.unavailable, schema.category);
+    try t.expectEqualStrings("UnregisteredCallbackFailure", schema.cause.?.slice());
+    try t.expectEqual(.retry_read, schema.actions[0].?.kind);
+    try t.expect(schema.identity == null);
+}

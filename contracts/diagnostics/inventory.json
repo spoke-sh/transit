@@ -735,7 +735,7 @@
       "open_error_set_uses": 1,
       "propagation": {
         "try": 25,
-        "catch": 3
+        "catch": 4
       },
       "imports": [
         "Signals.zig",
@@ -887,6 +887,7 @@
         "ArrowWorkspaceExceeded": 3,
         "BrokenPipe": 1,
         "DuplicateField": 2,
+        "EndOfStream": 1,
         "FileQueryInterrupted": 2,
         "IncompatibleDefinition": 2,
         "InvalidEnumTag": 2,
@@ -920,7 +921,7 @@
       },
       "open_error_set_uses": 3,
       "propagation": {
-        "try": 143,
+        "try": 146,
         "catch": 0
       },
       "imports": [
@@ -938,9 +939,10 @@
         "ArrowWorkspaceExceeded": 1,
         "IncompleteSource": 2,
         "InvalidExplicitSchema": 1,
-        "OutOfMemory": 2,
+        "OutOfMemory": 3,
         "OutputRecordTooLarge": 1,
         "OutputWriteFailed": 3,
+        "StreamTooLong": 1,
         "WriteFailed": 2
       },
       "outcomes": {
@@ -961,8 +963,8 @@
       },
       "open_error_set_uses": 3,
       "propagation": {
-        "try": 35,
-        "catch": 5
+        "try": 34,
+        "catch": 6
       },
       "imports": [
         "Diagnostic.zig",

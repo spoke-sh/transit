@@ -85,7 +85,7 @@ pub const entries = [_]Entry{
     .{ .cause = error.InvalidGzipHeader, .code = "file.invalid_gzip", .category = .integrity, .message = "The gzip header is invalid or fails its checksum." },
     .{ .cause = error.InvalidGzipHeaderCrc, .code = "file.invalid_gzip", .category = .integrity, .message = "The gzip header is invalid or fails its checksum." },
     .{ .cause = error.GzipTrailingData, .code = "file.invalid_gzip", .category = .integrity, .message = "The input contains trailing data after its single gzip member." },
-    .{ .cause = error.EndOfStream, .code = "file.invalid_gzip", .category = .integrity, .message = "The captured input ended before its required framing was complete." },
+    .{ .cause = error.EndOfStream, .code = "file.truncated_input", .category = .integrity, .message = "The captured input ended before its required framing was complete." },
     .{ .cause = error.SourceOpenFailed, .code = "file.source_unavailable", .category = .unavailable, .message = "The selected source could not be opened. Check its path and read permissions." },
     .{ .cause = error.FileNotFound, .code = "file.source_unavailable", .category = .unavailable, .message = "The selected source could not be opened. Check its path and read permissions." },
     .{ .cause = error.NonRegularSourcePath, .code = "file.nonregular_source", .category = .binding, .message = "The selected path is not a regular file. Pipe streaming input through stdin." },

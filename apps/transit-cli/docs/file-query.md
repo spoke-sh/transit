@@ -167,7 +167,10 @@ Record, field, JSON shape and output-record limits retain measurements from the
 failing boundary. A measured prefix is explicitly a minimum; the command does
 not read the rest of an oversized input to invent a total. Unrecorded required
 amounts are explicitly absent. Temporary capture failures identify their storage
-operation and directory. Invalid DEFLATE data, bounded Arrow encoding failures
+operation and directory. Source open/read failures retain the original OS errno
+name (or numeric errno when unnamed). A schema-file read failure identifies its
+path and original I/O cause separately from schema decoding. Truncated input is
+classified as gzip framing only when the failure occurs in gzip decompression. Invalid DEFLATE data, bounded Arrow encoding failures
 and downstream output failures have separate codes. Its
 `completion: false` fact describes the result; it never claims a durable mutation
 outcome. Successful JSON/Arrow stdout is unchanged. Scalar previews truncate at

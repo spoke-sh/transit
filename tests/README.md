@@ -13774,3 +13774,14 @@ The pinned Flight suite passes real finite statements, exact full-width/null row
 metadata and retries, installed Python and C ADBC, and original overflow detail
 after gateway replacement with current-disclosure denial. Documentation links
 pass. This changes no ticket bytes, ABI layout or current definition.
+
+### File I/O cause and framing attribution (2026-10-03)
+
+Native units and all 2,868 semantic projections pass. Component cases retain a
+local permission errno through human and structured rendering, distinguish an
+unknown schema-read cause from an internal callback failure, and separate generic
+truncation from actual gzip-decompression context. `just test::cli-diagnostics`
+passes **568 real commands**, including absent input and schema paths with original
+OS/read causes and no result output. `just test::file-query` passes all **190 cases**,
+including checked gzip, exact codecs, cancellation, immutable capture and the
+192 MiB input under a 96 MiB address-space bound. No wire format changes.

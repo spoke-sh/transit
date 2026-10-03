@@ -2461,7 +2461,7 @@
         "InvalidGzipHeader": {"code": "file.invalid_gzip","category": "integrity","stage": "execute","actions": [],"scenarios": {"schema_file": {"stage": "decode"}}},
         "InvalidGzipHeaderCrc": {"code": "file.invalid_gzip","category": "integrity","stage": "execute","actions": [],"scenarios": {"schema_file": {"stage": "decode"}}},
         "GzipTrailingData": {"code": "file.invalid_gzip","category": "integrity","stage": "execute","actions": [],"scenarios": {"schema_file": {"stage": "decode"}}},
-        "EndOfStream": {"code": "file.invalid_gzip","category": "integrity","stage": "execute","actions": [],"scenarios": {"schema_file": {"stage": "decode"}}},
+        "EndOfStream": {"code": "file.truncated_input","category": "integrity","stage": "execute","actions": [],"scenarios": {"schema_file": {"stage": "decode"}}},
         "SourceOpenFailed": {"code": "file.source_unavailable","category": "unavailable","stage": "execute","actions": [],"scenarios": {"schema_file": {"stage": "decode"}}},
         "FileNotFound": {"code": "file.source_unavailable","category": "unavailable","stage": "execute","actions": [],"scenarios": {"schema_file": {"stage": "decode"}}},
         "NonRegularSourcePath": {"code": "file.nonregular_source","category": "binding","stage": "execute","actions": ["correct_input"],"scenarios": {"schema_file": {"stage": "decode"}}},

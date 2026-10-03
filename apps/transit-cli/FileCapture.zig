@@ -27,6 +27,27 @@ pub fn source(self: *Self) f.FileSource.Source {
 pub const Failure = struct {
     phase: enum { source_open, source_stat, capture_directory, capture_create, capture_unlink, source_read, capture_write, decompress, capture_read },
     directory: ?[]const u8 = null,
+    system_errno: ?c_int = null,
+    pub fn systemCause(self: Failure, buffer: *[64]u8) ?[]const u8 {
+        const number = self.system_errno orelse return null;
+        inline for (comptime std.meta.tags(std.c.E)) |code| {
+            if (@backingInt(code) == number) return @tagName(code);
+        }
+        return std.fmt.bufPrint(buffer, "errno.{d}", .{number}) catch unreachable;
+    }
+    pub fn systemExplanation(self: Failure) []const u8 {
+        return switch (self.system_errno orelse return "") {
+            @backingInt(std.c.E.NOENT) => "The path does not exist.",
+            @backingInt(std.c.E.ACCES), @backingInt(std.c.E.PERM) => "Local filesystem permissions denied access.",
+            @backingInt(std.c.E.NOTDIR) => "A path component is not a directory.",
+            @backingInt(std.c.E.ISDIR) => "The selected path is a directory.",
+            @backingInt(std.c.E.LOOP) => "Symbolic-link resolution exceeded the filesystem limit.",
+            @backingInt(std.c.E.NAMETOOLONG) => "The path exceeds a filesystem name-length limit.",
+            @backingInt(std.c.E.MFILE), @backingInt(std.c.E.NFILE) => "The process or system has exhausted its open-file limit.",
+            @backingInt(std.c.E.IO) => "The filesystem reported an I/O failure.",
+            else => "The operating system rejected this file operation.",
+        };
+    }
     pub fn storage(self: Failure) bool {
         return switch (self.phase) {
             .capture_directory, .capture_create, .capture_unlink, .capture_write => true,
@@ -35,7 +56,10 @@ pub const Failure = struct {
     }
 };
 fn mark(diagnostic: ?*Failure, phase: @FieldType(Failure, "phase")) void {
-    if (diagnostic) |value| value.phase = phase;
+    if (diagnostic) |value| {
+        value.phase = phase;
+        value.system_errno = null;
+    }
 }
 fn temporary(init: std.process.Init, diagnostic: ?*Failure) !Self {
     mark(diagnostic, .capture_directory);
@@ -66,7 +90,10 @@ pub fn acquireDiagnostic(init: std.process.Init, path: []const u8, encoded_remai
         const name = try init.gpa.dupeSentinel(u8, path, 0);
         defer init.gpa.free(name);
         const fd = std.c.open(name, .{ .ACCMODE = .RDONLY, .CLOEXEC = true, .NONBLOCK = true });
-        if (fd < 0) return error.SourceOpenFailed;
+        if (fd < 0) {
+            if (diagnostic) |value| value.system_errno = std.c._errno().*;
+            return error.SourceOpenFailed;
+        }
         break :blk .{ .handle = fd, .flags = .{ .nonblocking = true } };
     };
     defer if (!stdin) input.close(init.io);
@@ -86,12 +113,14 @@ pub fn acquireDiagnostic(init: std.process.Init, path: []const u8, encoded_remai
             if (ready == 0) continue;
             if (ready < 0) {
                 if (std.c._errno().* == @backingInt(std.c.E.INTR)) continue;
+                if (diagnostic) |value| value.system_errno = std.c._errno().*;
                 return error.SourceReadFailed;
             }
         }
         const count = std.c.read(input.handle, &bytes, bytes.len);
         if (count < 0) {
             if (std.c._errno().* == @backingInt(std.c.E.INTR)) continue;
+            if (diagnostic) |value| value.system_errno = std.c._errno().*;
             return error.SourceReadFailed;
         }
         if (count == 0) break;
