@@ -265,6 +265,19 @@ def main():
         for predicate in ('id > 0 OR n > 0', 'id < 0 AND n > 0'):
             invoke(['--format', 'csv', '--sample-records', '1', '--mismatch', 'type_error', '-c', 'SELECT id FROM input WHERE ' + predicate, '-'], b'id,n\n1,1\n2,bad\n', 1, env)
         invoke(['--format', 'csv', '--sample-records', '1', '-c', 'SELECT id FROM input WHERE id = 1 OR id = 2 LIMIT 1', '-'], b'id,n\n1,1\n2,bad\n', 1, env)
+        for sql, contents, fragments in (
+            ('SELECT id FROM input WHERE id > 0 OR n > 0', b'id,n\n1,1\n2,bad\n', [b'Operation: predicate; scan row: 2; column: "n"; predicate instruction: 1', b'cell state: type_error']),
+            ('SELECT COUNT(n) FROM input', b'id,n\n1,1\n2,bad\n', [b'Operation: count; scan row: 2; column: "n"', b'cell state: type_error']),
+            ('SELECT SUM(n) FROM input', b'id,n\n1,9223372036854775807\n2,1\n', [b'Operation: sum; scan row: 2; column: "n"', b'cell state: value', b'Checked query arithmetic']),
+        ):
+            result = subprocess.run([CLI, 'file-query', '--format', 'csv', '--sample-records', '1', '--mismatch', 'type_error', '-c', sql, '-'], input=contents, capture_output=True, env=env, timeout=10)
+            assert result.returncode == 1, result.stderr
+            assert all(fragment in result.stderr for fragment in fragments), result.stderr
+            header = json.loads(result.stdout.splitlines()[0])
+            assert header['binding'].encode() in result.stderr and header['plan'].encode() in result.stderr, result.stderr
+            assert b'Supplied scalar:' not in result.stderr and b'Field path' not in result.stderr, result.stderr
+            assert not any('complete' in json.loads(line) for line in result.stdout.splitlines())
+            CASES += 1
         compressed = gzip.compress(data)
         zipped = invoke(base + ['--gzip'], compressed, env=env)
         assert ordinary == zipped
@@ -312,6 +325,26 @@ def main():
             assert b'logical record: 3' in result.stderr and b'record starts at byte: 4' in result.stderr, result.stderr
             assert b'field: "n"' in result.stderr and b'output is incomplete' in result.stderr, result.stderr
             assert b'LIMIT does not skip required validation' in result.stderr
+            for fragment in (b'Field path (JSON Pointer): "/n"', b'Expected: int64; actual: string',
+                    b'Supplied scalar: "bad"', b'Schema origin: inferred', b'Discovery examined 1 data records',
+                    b'The schema was inferred from a prefix'):
+                assert fragment in result.stderr, result.stderr
+            assert not any('complete' in json.loads(line) for line in result.stdout.splitlines())
+            CASES += 1
+        schema = work/'nested-diagnostic-schema.json'
+        schema.write_text(json.dumps({'definition': DEFINITION.decode(), 'type': {'structure': [
+            {'name': 'payload', 'type': {'structure': [{'name': 'items', 'type': {'list': {
+                'type': {'structure': [{'name': 'price', 'type': {'decimal': {'precision': 4, 'scale': 2}}}]}}}}]}}
+        ]}}))
+        for data, fragments in (
+            (b'{"payload":{"items":[{"price":1.234}]}}\n', [b'Expected: decimal(4,2); actual: number', b'Supplied scalar: "1.234"', b'cannot be represented exactly']),
+            (b'{"payload":{"items":[{"price":null}]}}\n', [b'actual: null_value', b'NULL permitted: no']),
+            (b'{"payload":{"items":[{}]}}\n', [b'actual: missing', b'Missing field permitted: no']),
+        ):
+            result = subprocess.run([CLI, 'file-query', '--format', 'jsonl', '--mode', 'explicit', '--schema', str(schema), '-c', 'SELECT * FROM input', '-'], input=data, capture_output=True, env=env, timeout=10)
+            assert result.returncode == 1, result.stderr
+            for fragment in [b'Field path (JSON Pointer): "/payload/items/0/price"', b'Schema origin: specified', *fragments]:
+                assert fragment in result.stderr, result.stderr
             assert not any('complete' in json.loads(line) for line in result.stdout.splitlines())
             CASES += 1
         # Input cancellation while idle and while captured bytes await EOF; all

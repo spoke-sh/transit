@@ -517,10 +517,20 @@
         "DuplicateField": 1,
         "FieldBudgetExceeded": 1,
         "IncompleteSource": 1,
+        "Inexact": 1,
+        "InvalidArrayLength": 1,
+        "InvalidDate": 1,
         "InvalidLiteral": 1,
+        "InvalidTime": 1,
+        "InvalidTimestamp": 1,
+        "InvalidUuid": 1,
         "JsonObjectRequired": 1,
+        "MapKeyOrder": 1,
         "MissingCsvHeader": 1,
-        "Overflow": 1,
+        "MissingRequiredField": 1,
+        "NonFiniteValue": 1,
+        "NullNotAllowed": 1,
+        "Overflow": 2,
         "QueryConflict": 1,
         "QueryTypeError": 1,
         "RaggedCsvRow": 1,
@@ -5097,6 +5107,7 @@
         "InvalidTimestamp": 1,
         "InvalidUuid": 1,
         "JsonObjectRequired": 1,
+        "MapKeyOrder": 1,
         "MissingCsvHeader": 1,
         "NonFiniteValue": 1,
         "Overflow": 1,
@@ -5129,7 +5140,31 @@
       },
       "imports": [
         "FileFraming.zig",
+        "FileValueDiagnostic.zig",
         "Inference.zig",
+        "Types.zig",
+        "std"
+      ]
+    },
+    "packages/zig/transit-fuze/src/FileValueDiagnostic.zig": {
+      "errors": {},
+      "outcomes": {
+        "Origin": [
+          "inferred",
+          "specified",
+          "raw"
+        ],
+        "Actual": [
+          "missing",
+          "null_value",
+          "boolean",
+          "string",
+          "number",
+          "array",
+          "object"
+        ]
+      },
+      "imports": [
         "Types.zig",
         "std"
       ]

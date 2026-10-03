@@ -6,6 +6,7 @@ const types = @import("Types.zig");
 const framing = @import("FileFraming.zig");
 const inference = @import("Inference.zig");
 const values = types.Values;
+pub const ValueDiagnostic = @import("FileValueDiagnostic.zig");
 pub const definition = "transit.fuze.source.v1.2026-09-30";
 pub const Mode = enum(u8) { explicit, sampled, full, raw };
 pub const Mismatch = enum(u8) { fail, type_error };
@@ -312,6 +313,11 @@ pub const Location = struct {
     field: [128]u8 = @splat(0),
     field_len: usize = 0,
     field_truncated: bool = false,
+    conversion: ?ValueDiagnostic = null,
+    pub fn context(self: *Location, name_value: []const u8) ValueDiagnostic.Context {
+        self.name(name_value);
+        return .{ .failure = &self.conversion, .path = (ValueDiagnostic.Path{}).field(name_value) };
+    }
     pub fn name(self: *Location, value: []const u8) void {
         self.field_len = @min(value.len, self.field.len);
         @memcpy(self.field[0..self.field_len], value[0..self.field_len]);
@@ -347,10 +353,29 @@ pub const Scan = struct {
         }
         return result;
     }
+    fn conversionOrigin(self: *Scan, column: usize) void {
+        if (self.location.conversion) |*value| {
+            value.origin = switch (self.binding.origins[column]) {
+                .inferred => .inferred,
+                .specified => .specified,
+                .raw => .raw,
+            };
+            value.sampling_records = self.binding.evidence.records;
+            value.sampling_bytes = self.binding.evidence.sampled_bytes;
+            value.sampling_complete = self.binding.evidence.complete;
+        }
+    }
     pub fn next(self: *Scan) !?Row {
         if (self.failed) return error.FailedSource;
         if (self.complete) return null;
-        errdefer self.failed = true;
+        errdefer {
+            self.failed = true;
+            if (self.location.conversion) |*detail| {
+                detail.sampling_records = self.binding.evidence.records;
+                detail.sampling_bytes = self.binding.evidence.sampled_bytes;
+                detail.sampling_complete = self.binding.evidence.complete;
+            }
+        }
         try self.binding.validate(self.sources);
         while (self.file < self.sources.len) {
             if (self.reader == null) {
@@ -375,7 +400,7 @@ pub const Scan = struct {
                 if (self.header.count == 0) {
                     try self.header.fromFields(parsed, self.binding.options.dialect.header);
                     for (self.header.names[0..self.header.count]) |name| if (findField(schema, name) == null) {
-                        self.location.name(name);
+                        self.location.context(name).capture(null, .{ .string = name });
                         return error.UnknownField;
                     };
                     if (self.binding.options.dialect.header) {
@@ -383,30 +408,45 @@ pub const Scan = struct {
                         continue;
                     }
                 }
-                if (parsed.len != self.header.count) return error.RaggedCsvRow;
-                for (schema, cells) |field, *cell| {
-                    self.location.name(field.name);
+                if (parsed.len != self.header.count) {
+                    self.location.conversion = ValueDiagnostic.init(.{}, .{ .structure = schema }, null);
+                    self.location.conversion.?.actual = .array;
+                    self.location.conversion.?.expected_count = self.header.count;
+                    self.location.conversion.?.actual_count = parsed.len;
+                    return error.RaggedCsvRow;
+                }
+                for (schema, cells, 0..) |field, *cell, column| {
+                    const context = self.location.context(field.name);
+                    errdefer self.conversionOrigin(column);
                     const index = for (self.header.names[0..self.header.count], 0..) |name, i| {
                         if (std.mem.eql(u8, field.name, name)) break i;
                     } else null;
                     if (index) |i| {
-                        if (parsed[i].is_null) cell.* = .null else cell.* = try textCell(alloc, parsed[i].text, field.type, self.binding.options.mismatch);
+                        if (parsed[i].is_null) cell.* = .null else cell.* = textCell(alloc, parsed[i].text, field.type, self.binding.options.mismatch) catch |err| {
+                            context.capture(field.type, .{ .string = parsed[i].text });
+                            return err;
+                        };
                     } else cell.* = .missing;
-                    try cell.validate(field, .{});
+                    try context.validate(cell.*, field, if (index) |i| if (parsed[i].is_null) .null else .{ .string = parsed[i].text } else null);
                 }
             } else {
                 var parsed = try types.Json.parse(alloc, record, .{ .bytes = self.binding.options.max_record_bytes, .fields = self.binding.options.max_fields });
                 defer parsed.deinit();
-                if (parsed.value != .object) return error.JsonObjectRequired;
+                if (parsed.value != .object) {
+                    self.location.conversion = ValueDiagnostic.init(.{}, .{ .structure = schema }, parsed.value);
+                    return error.JsonObjectRequired;
+                }
                 if (self.binding.options.mode == .raw) cells[0] = .{ .value = .{ .json = try alloc.dupe(u8, record) } } else {
                     for (parsed.value.object.keys()) |key| if (findField(schema, key) == null) {
-                        self.location.name(key);
+                        self.location.context(key).capture(null, parsed.value.object.get(key));
                         return error.UnknownField;
                     };
-                    for (schema, cells) |field, *cell| {
-                        self.location.name(field.name);
-                        cell.* = if (parsed.value.object.get(field.name)) |value| try jsonCell(alloc, value, field.type, self.binding.options.mismatch, 0) else .missing;
-                        try cell.validate(field, .{});
+                    for (schema, cells, 0..) |field, *cell, column| {
+                        const context = self.location.context(field.name);
+                        errdefer self.conversionOrigin(column);
+                        const actual = parsed.value.object.get(field.name);
+                        cell.* = if (actual) |value| try jsonCell(alloc, value, field.type, self.binding.options.mismatch, 0, context) else .missing;
+                        try context.validate(cell.*, field, actual);
                     }
                 }
             }
@@ -441,10 +481,11 @@ fn actualKind(value: std.json.Value) types.Tag {
         else => .json,
     };
 }
-fn jsonCell(allocator: std.mem.Allocator, value: std.json.Value, expected: types.Type, mismatch: Mismatch, depth: usize) anyerror!values.Cell {
+fn jsonCell(allocator: std.mem.Allocator, value: std.json.Value, expected: types.Type, mismatch: Mismatch, depth: usize, context: ValueDiagnostic.Context) anyerror!values.Cell {
     if (depth >= 16) return error.ValueBudgetExceeded;
     if (value == .null) return .null;
-    const result = jsonValue(allocator, value, expected, mismatch, depth) catch |err| {
+    const before = context.failure.*;
+    const result = jsonValue(allocator, value, expected, mismatch, depth, context) catch |err| {
         // Allocation, shape budgets and unknown fields are terminal. A policy
         // cannot convert capacity/authorization failures into data values.
         switch (err) {
@@ -458,23 +499,32 @@ fn jsonCell(allocator: std.mem.Allocator, value: std.json.Value, expected: types
             error.InvalidTimestamp,
             error.InvalidUuid,
             error.UnsupportedLiteralType,
-            => if (mismatch == .type_error) return .{ .type_error = actualKind(value) },
+            => if (mismatch == .type_error) {
+                context.failure.* = before;
+                return .{ .type_error = actualKind(value) };
+            },
             else => {},
         }
+        context.capture(expected, value);
         return err;
     };
     return .{ .value = result };
 }
-fn jsonValue(allocator: std.mem.Allocator, value: std.json.Value, expected: types.Type, mismatch: Mismatch, depth: usize) anyerror!values.Value {
+fn jsonValue(allocator: std.mem.Allocator, value: std.json.Value, expected: types.Type, mismatch: Mismatch, depth: usize, context: ValueDiagnostic.Context) anyerror!values.Value {
     switch (expected) {
         .json => return .{ .json = try std.json.Stringify.valueAlloc(allocator, value, .{}) },
         .structure => |fields| {
             if (value != .object) return error.TypeMismatch;
-            for (value.object.keys()) |key| if (findField(fields, key) == null) return error.UnknownField;
+            for (value.object.keys()) |key| if (findField(fields, key) == null) {
+                context.child(key).capture(null, value.object.get(key));
+                return error.UnknownField;
+            };
             const cells = try allocator.alloc(values.Cell, fields.len);
             for (fields, cells) |field, *cell| {
-                cell.* = if (value.object.get(field.name)) |child| try jsonCell(allocator, child, field.type, mismatch, depth + 1) else .missing;
-                try cell.validate(field, .{});
+                const at = context.child(field.name);
+                const actual = value.object.get(field.name);
+                cell.* = if (actual) |child| try jsonCell(allocator, child, field.type, mismatch, depth + 1, at) else .missing;
+                try at.validate(cell.*, field, actual);
             }
             return .{ .structure = cells };
         },
@@ -483,9 +533,10 @@ fn jsonValue(allocator: std.mem.Allocator, value: std.json.Value, expected: type
             if (expected == .array and value.array.items.len != expected.array.length) return error.InvalidArrayLength;
             const element = if (expected == .list) expected.list else expected.array.element;
             const cells = try allocator.alloc(values.Cell, value.array.items.len);
-            for (cells, value.array.items) |*cell, child| {
-                cell.* = try jsonCell(allocator, child, element.type.*, mismatch, depth + 1);
-                try cell.validate(.{ .name = "element", .type = element.type.*, .nullable = element.nullable }, .{});
+            for (cells, value.array.items, 0..) |*cell, child, ordinal| {
+                const at = context.index(ordinal);
+                cell.* = try jsonCell(allocator, child, element.type.*, mismatch, depth + 1, at);
+                try at.validate(cell.*, .{ .name = "element", .type = element.type.*, .nullable = element.nullable }, child);
             }
             return if (expected == .list) .{ .list = cells } else .{ .array = cells };
         },
@@ -493,13 +544,33 @@ fn jsonValue(allocator: std.mem.Allocator, value: std.json.Value, expected: type
             if (value != .object) return error.TypeMismatch;
             const entries = try allocator.alloc(values.Entry, value.object.count());
             for (value.object.keys(), value.object.values(), entries) |key, child, *entry| {
-                entry.* = .{ .key = try types.Semantics.bind(key, map.key.*), .value = try jsonCell(allocator, child, map.value.type.*, mismatch, depth + 1) };
+                const at = context.child(key);
+                const bound_key = types.Semantics.bind(key, map.key.*) catch |err| {
+                    var key_context = at;
+                    key_context.map_key = true;
+                    key_context.capture(map.key.*, .{ .string = key });
+                    return err;
+                };
+                entry.* = .{ .key = bound_key, .value = try jsonCell(allocator, child, map.value.type.*, mismatch, depth + 1, at) };
+                try at.validate(entry.value, .{ .name = "value", .type = map.value.type.*, .nullable = map.value.nullable }, child);
                 if (entry.key == .bytes) entry.key = .{ .bytes = try allocator.dupe(u8, entry.key.bytes) };
             }
             // Bounded insertion sort admits checked ordering and duplicate errors.
             for (1..@max(1, entries.len)) |i| {
                 var j = i;
-                while (j > 0 and try values.atomOrder(entries[j - 1].key, entries[j].key, map.key.*) == .gt) : (j -= 1) std.mem.swap(values.Entry, &entries[j - 1], &entries[j]);
+                while (j > 0) : (j -= 1) {
+                    switch (try values.atomOrder(entries[j - 1].key, entries[j].key, map.key.*)) {
+                        .lt => break,
+                        .eq => {
+                            const key = value.object.keys()[i];
+                            var at = context.child(key);
+                            at.map_key = true;
+                            at.capture(map.key.*, .{ .string = key });
+                            return error.MapKeyOrder;
+                        },
+                        .gt => std.mem.swap(values.Entry, &entries[j - 1], &entries[j]),
+                    }
+                }
             }
             return .{ .map = entries };
         },
@@ -510,7 +581,11 @@ fn jsonValue(allocator: std.mem.Allocator, value: std.json.Value, expected: type
             const index = findField(alternatives, tag.string) orelse return error.TypeMismatch;
             const child = value.object.get("value") orelse return error.TypeMismatch;
             const cell = try allocator.create(values.Cell);
-            cell.* = try jsonCell(allocator, child, alternatives[index].type, mismatch, depth + 1);
+            const at = context.child("value");
+            cell.* = try jsonCell(allocator, child, alternatives[index].type, mismatch, depth + 1, at);
+            var field = alternatives[index];
+            field.optional = false;
+            try at.validate(cell.*, field, child);
             return .{ .tagged_union = .{ .index = @intCast(index), .value = cell } };
         },
         .interval => {
@@ -518,8 +593,17 @@ fn jsonValue(allocator: std.mem.Allocator, value: std.json.Value, expected: type
             var components: [3]i64 = undefined;
             for ([_][]const u8{ "months", "days", "nanos" }, 0..) |name, i| {
                 const child = value.object.get(name) orelse return error.TypeMismatch;
-                if (child != .number_string) return error.TypeMismatch;
-                components[i] = @intCast((try types.Semantics.bind(child.number_string, if (i == 2) .int64 else .int32)).signed);
+                const at = context.child(name);
+                const kind: types.Type = if (i == 2) .int64 else .int32;
+                if (child != .number_string) {
+                    at.capture(kind, child);
+                    return error.TypeMismatch;
+                }
+                const atom = types.Semantics.bind(child.number_string, kind) catch |err| {
+                    at.capture(kind, child);
+                    return err;
+                };
+                components[i] = @intCast(atom.signed);
             }
             return .{ .atom = .{ .interval = .{ .months = @intCast(components[0]), .days = @intCast(components[1]), .nanos = components[2] } } };
         },
@@ -824,4 +908,62 @@ test "independent Python CSV JSON decimal oracles agree with full discovery and 
             try t.expect(scan.complete);
         }
     }
+}
+
+test "file conversion failure retains exact nested path type scalar and schema provenance" {
+    const t = std.testing;
+    const decimal: types.Type = .{ .decimal = .{ .precision = 4, .scale = 2 } };
+    const item: types.Type = .{ .structure = &.{.{ .name = "price", .type = decimal }} };
+    const nested: types.Type = .{ .structure = &.{.{ .name = "list", .type = .{ .list = .{ .type = &item } } }} };
+    const number: types.Type = .int8;
+    const Case = struct { input: []const u8, type: types.Type, cause: anyerror, path: []const u8, expected: []const u8, scalar: ?[]const u8 = null, map_key: bool = false };
+    for ([_]Case{
+        .{ .input = "{\"payload\":{\"tag\":\"price\",\"value\":null}}\n", .type = .{ .tagged_union = item.structure }, .cause = error.NullNotAllowed, .path = "/payload/value", .expected = "decimal(4,2)", .scalar = "null" },
+        .{ .input = "{\"payload\":{\"01\":1,\"1\":2}}\n", .type = .{ .map = .{ .key = &number, .value = .{ .type = &number } } }, .cause = error.MapKeyOrder, .path = "/payload/1", .expected = "int8", .scalar = "1", .map_key = true },
+        .{ .input = "{\"payload\":{\"list\":[{\"price\":1.234}]}}\n", .type = nested, .cause = error.Inexact, .path = "/payload/list/0/price", .expected = "decimal(4,2)", .scalar = "1.234" },
+        .{ .input = "{\"payload\":{\"list\":[{\"price\":null}]}}\n", .type = nested, .cause = error.NullNotAllowed, .path = "/payload/list/0/price", .expected = "decimal(4,2)", .scalar = "null" },
+        .{ .input = "{\"payload\":{\"list\":[{}]}}\n", .type = nested, .cause = error.MissingRequiredField, .path = "/payload/list/0/price", .expected = "decimal(4,2)" },
+        .{ .input = "{\"payload\":{\"list\":[{\"price\":1.20,\"bad/~\":\"x\"}]}}\n", .type = nested, .cause = error.UnknownField, .path = "/payload/list/0/bad~1~0", .expected = "declared field", .scalar = "x" },
+        .{ .input = "{\"payload\":[1]}\n", .type = .{ .array = .{ .length = 2, .element = .{ .type = &number } } }, .cause = error.InvalidArrayLength, .path = "/payload", .expected = "array(2)" },
+        .{ .input = "{\"payload\":{\"months\":999999999999999,\"days\":0,\"nanos\":0}}\n", .type = .interval, .cause = error.Overflow, .path = "/payload/months", .expected = "int32", .scalar = "999999999999999" },
+        .{ .input = "{\"payload\":{\"wat\":2}}\n", .type = .{ .map = .{ .key = &number, .value = .{ .type = &number } } }, .cause = error.InvalidLiteral, .path = "/payload/wat", .expected = "int8", .scalar = "wat", .map_key = true },
+    }) |case| {
+        var memory: Memory = .{ .bytes = case.input, .width = 1 };
+        const sources = [_]Source{memory.source()};
+        var binding = try discover(t.allocator, &sources, .{ .format = .jsonl, .mode = .explicit }, &.{.{ .name = "payload", .type = case.type }});
+        defer binding.deinit();
+        var scan = try Scan.init(t.allocator, &binding, &sources);
+        defer scan.deinit();
+        try t.expectError(case.cause, scan.next());
+        const detail = scan.position().conversion.?;
+        try t.expectEqualStrings(case.path, detail.path.slice());
+        try t.expectEqualStrings(case.expected, detail.expectedType());
+        try t.expectEqual(ValueDiagnostic.Origin.specified, detail.origin.?);
+        try t.expectEqual(case.map_key, detail.map_key);
+        if (case.scalar) |scalar| try t.expectEqualStrings(scalar, detail.scalar()) else try t.expect(!detail.has_preview);
+        try t.expectEqual(@as(?u64, 1), scan.position().record);
+        try t.expectEqual(@as(?u64, 0), scan.position().byte);
+        try t.expect(!scan.complete);
+        try t.expectError(error.FailedSource, scan.next());
+        try t.expectEqualDeep(detail, scan.position().conversion.?);
+    }
+}
+
+test "tolerated nested conversion does not replace a later terminal field failure" {
+    const t = std.testing;
+    const number: types.Type = .int8;
+    var memory: Memory = .{ .bytes = "{\"payload\":{\"wat\":2}}\n" };
+    const sources = [_]Source{memory.source()};
+    var binding = try discover(t.allocator, &sources, .{ .format = .jsonl, .mode = .explicit, .mismatch = .type_error }, &.{
+        .{ .name = "payload", .type = .{ .map = .{ .key = &number, .value = .{ .type = &number } } } },
+        .{ .name = "required", .type = .int8 },
+    });
+    defer binding.deinit();
+    var scan = try Scan.init(t.allocator, &binding, &sources);
+    defer scan.deinit();
+    try t.expectError(error.MissingRequiredField, scan.next());
+    const detail = scan.position().conversion.?;
+    try t.expectEqualStrings("/required", detail.path.slice());
+    try t.expectEqual(ValueDiagnostic.Actual.missing, detail.actual);
+    try t.expect(!detail.map_key and !detail.has_preview);
 }

@@ -12283,3 +12283,29 @@ compiling an isolated Rust consumer; a disk-backed rerun found missing `const`
 support in SDK schema validators. Ruby, Java, .NET and BEAM validators now check
 that keyword. The corrected complete installed schedule remains in progress at
 this source commit; these unit and build results do not certify that schedule.
+
+### Installed runtime witness recovery
+
+On 2026-10-02, the complete installed lifecycle schedule passes for KV, Table and
+Document with all ten SDKs, Python asynchronous calls, native ABI and local port
+(13 callers). The result-byte failure envelope remains identical across a lost
+receipt, exact retry, source/requester/node/disk restart and retirement except
+for the observed lifecycle outcome and its recovery actions. The KV predicate
+case also preserves the first failing row/column/instruction, binary key, binding
+and invalid-UTF-8 decoder reason after the live input is repaired. Table completes
+in 200.35 seconds and Document in 618.53 seconds. The command uses the pinned
+`ci-bindings` shell and disk-backed `TMPDIR=/var/tmp`; its exit status is zero.
+Log: `/var/tmp/transit-witness-all-sdk3.log`. These results supersede the pending
+installed schedule recorded above; they do not certify unfinished adapters.
+
+### File scalar and runtime failure witnesses
+
+On 2026-10-02, the Fuze package tests and `just test::file-query` pass. The real
+CLI proof executes 190 cases, including nested decimal inexactness, explicit
+NULL/missing rules, inferred-prefix failures after LIMIT, a failing second eager
+predicate atom, COUNT over a type-error cell and checked SUM overflow. Runtime
+binding/plan hashes equal the output header; failure emits no completion marker.
+Owned unit evidence covers escaped/truncated JSON Pointer paths, scalar preview
+ownership, map keys, tagged unions, array lengths, interval components and
+clearing tolerated conversion evidence. The existing allocation-failure and
+192 MiB source under a 96 MiB address-space-limit schedules also pass.

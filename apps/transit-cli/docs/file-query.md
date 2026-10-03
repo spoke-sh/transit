@@ -127,6 +127,22 @@ by projection, predicates or LIMIT. A late failure can leave a prefix on stdout;
 it never emits completion. Cancellation or a broken downstream pipe can leave
 an incomplete final JSON line. Aggregates appear only after source verification.
 
+Conversion failures report the failing file, logical record, record-start byte,
+and nested field path as a JSON Pointer (zero-based array indices). They include
+the declared type, actual input kind, a quoted scalar preview of at most 128
+bytes, and known nullability/required-field rules. Scalar/path truncation is
+explicit. Inferred columns identify the discovery sample and whether it covered
+the full input; a later incompatible value does not silently widen that schema.
+
+Predicate and aggregate failures report the first failing scan row, source
+column, operation and cell state. Predicates identify the zero-based postfix
+instruction, including an error in the second operand of an eager Boolean
+expression. Binding and plan hashes identify the exact frozen execution. A
+`TYPE_ERROR` cell does not retain its original scalar or decoder cause. Conversion
+previews describe caller-provided file content; they are escaped on stderr and
+are excluded from telemetry. These diagnostics do not change stdout or its
+completion requirement.
+
 Successful completion/help returns 0, invalid invocation returns 2, runtime
 failure returns 1, and SIGINT/SIGTERM cancellation returns 130. Cancellation is
 checked while acquiring, decoding, scanning and waiting on stdin/stdout pipes.

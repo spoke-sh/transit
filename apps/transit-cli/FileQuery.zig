@@ -188,10 +188,11 @@ pub fn run(init: std.process.Init, args: []const []const u8, diagnostic: *Diagno
     defer signals.close();
     var stage: @import("FileDiagnostic.zig").Stage = .capture;
     var location: f.FileSource.Location = .{};
+    var runtime_failure: ?f.FileQuery.Failure = null;
     var output_started = false;
     var limited = false;
     errdefer if (diagnostic.sql == null) {
-        diagnostic.source = .{ .stage = stage, .path = if (location.source) |index| options.paths[index] else diagnostic.file, .location = location, .output_started = output_started, .limited = limited, .max_record_bytes = options.source.max_record_bytes, .max_records = options.source.max_records, .max_scan_bytes = options.source.max_scan_bytes };
+        diagnostic.source = .{ .stage = stage, .runtime_failure = runtime_failure, .path = if (location.source) |index| options.paths[index] else diagnostic.file, .location = location, .output_started = output_started, .limited = limited, .max_record_bytes = options.source.max_record_bytes, .max_records = options.source.max_records, .max_scan_bytes = options.source.max_scan_bytes };
     };
     var explicit: ?f.Types.Decoded = null;
     defer if (explicit) |*owner| owner.deinit();
@@ -232,6 +233,7 @@ pub fn run(init: std.process.Init, args: []const []const u8, diagnostic: *Diagno
     limited = compiled.plan.limit != null;
     errdefer {
         location = execution.scan.position();
+        runtime_failure = execution.failure;
         if (!execution.scan.failed) location.field_len = 0;
     }
     var fields: [128]f.Types.Field = undefined;

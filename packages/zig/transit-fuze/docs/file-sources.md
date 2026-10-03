@@ -149,6 +149,22 @@ nullability/required-field violations, allocation/work limits, denial or
 cancellation. No row is skipped. The schema's missing/null/value/error/conflict
 model stays intact, although file readers do not create conflict assignments.
 
+`Scan.position()` retains an owned `ValueDiagnostic` for the first terminal
+conversion failure. It includes a 256-byte JSON Pointer path, a 128-byte input
+scalar preview, exact scalar type parameters, known field rules and discovery
+origin/evidence. Truncation is explicit. Nested structures follow schema order,
+lists follow input order, and map conversion follows input-key order; converted
+map keys are then sorted and checked for duplicates. Tolerated conversions clear
+their sidecar before scanning continues. Allocation and source errors remain
+errors and cannot become successful type-error cells.
+
+`FileQuery.Execution.failure` retains the first operator failure's scan row,
+column, operation, cell state and frozen binding/plan fingerprints. Predicate
+instructions use the shared eager postfix evaluation order. The sidecar owns its
+bytes after the failed row is released, allocates no diagnostic memory and
+preserves the original error. It supplies no source value reconstructed from a
+later read.
+
 ## Independent bounds
 
 A binding has 1–128 source handles, at most 128 root fields, the type model's

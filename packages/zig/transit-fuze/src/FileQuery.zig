@@ -198,12 +198,36 @@ pub const Plan = struct {
         // Repeated recursive inputs must still fit the descriptor budget.
         try (types.Type{ .structure = fields[0..self.projection.len] }).validate(.{});
     }
-    fn matches(self: Plan, cells: []const values.Cell) !bool {
+    const PredicateFailure = struct { column: u8, instruction: u8 };
+    fn matches(self: Plan, cells: []const values.Cell, failed: *?PredicateFailure) !bool {
+        failed.* = null;
+        const row: PredicateRow = .{ .schema = self.schema, .cells = cells };
         const truth = switch (self.predicate) {
-            .program => |program| try program.truth(self.schema, cells),
-            inline else => |value, tag| try @as(Atom, @unionInit(Atom, @tagName(tag), value)).truth(.{ .schema = self.schema, .cells = cells }),
+            .program => |program| result: {
+                var instruction: ?u8 = null;
+                break :result machine.truthDiagnostic(program.instructions, row, &instruction) catch |err| {
+                    if (instruction) |index| if (atomColumn(program.instructions[index].atom)) |column| {
+                        failed.* = .{ .column = column, .instruction = index };
+                    };
+                    return err;
+                };
+            },
+            inline else => |value, tag| result: {
+                const atom: Atom = @unionInit(Atom, @tagName(tag), value);
+                break :result atom.truth(row) catch |err| {
+                    if (atomColumn(atom)) |column| failed.* = .{ .column = column, .instruction = 0 };
+                    return err;
+                };
+            },
         };
         return truth.selects();
+    }
+    fn atomColumn(atom: Atom) ?u8 {
+        return switch (atom) {
+            .all => null,
+            .state => |item| item.column,
+            .compare => |item| item.column,
+        };
     }
 };
 pub const Compiled = struct {
@@ -298,6 +322,27 @@ fn namesView(names: lowering.OutputNames, output: *[@import("Unified.zig").max_c
     for (output[0..width], 0..) |*item, i| item.* = if (names.get(i)) |value| value.slice() else null;
     return output[0..width];
 }
+/// First operator failure, copied before the row and schema owners are released.
+/// It describes the frozen execution, never a later read of the source.
+pub const Failure = struct {
+    operation: enum { predicate, count, sum },
+    row: u64,
+    column: [128]u8 = @splat(0),
+    column_len: u8,
+    column_truncated: bool,
+    expected: [64]u8,
+    expected_len: u8,
+    state: types.State,
+    instruction: ?u8,
+    binding: [32]u8,
+    plan: [32]u8,
+    pub fn columnName(self: *const Failure) []const u8 {
+        return self.column[0..self.column_len];
+    }
+    pub fn expectedType(self: *const Failure) []const u8 {
+        return self.expected[0..self.expected_len];
+    }
+};
 pub const Execution = struct {
     scan: source.Scan,
     plan: Plan,
@@ -309,6 +354,7 @@ pub const Execution = struct {
     sum: ?i64 = null,
     complete: bool = false,
     failed: bool = false,
+    failure: ?Failure = null,
     pub fn init(allocator: std.mem.Allocator, binding: *const source.Binding, sources: []const source.Source, plan: Plan) !Execution {
         try plan.validate();
         if (!std.mem.eql(u8, &plan.source_basis, &binding.digest) or !try plan.schema.eql(binding.schema.type)) return error.SourceChanged;
@@ -328,18 +374,30 @@ pub const Execution = struct {
             var row = owned;
             errdefer row.deinit();
             self.scanned = try std.math.add(u64, self.scanned, 1);
-            if ((self.plan.limit != null and self.selected == self.plan.limit.?) or !try self.plan.matches(row.cells)) {
+            var predicate_failure: ?Plan.PredicateFailure = null;
+            const matches = (self.plan.limit == null or self.selected != self.plan.limit.?) and
+                (self.plan.matches(row.cells, &predicate_failure) catch |err| {
+                    if (predicate_failure) |item| self.capture(.predicate, row.cells, item.column, item.instruction);
+                    return err;
+                });
+            if (!matches) {
                 row.deinit();
                 continue;
             }
             self.selected = try std.math.add(u64, self.selected, 1);
-            if (self.plan.aggregate == .count_values) self.value_count = try finite.countValue(self.value_count, row.cells[self.plan.projection[0]]);
-            if (self.plan.aggregate == .sum) self.sum = try finite.sum(self.sum, row.cells[self.plan.projection[0]], struct {
+            if (self.plan.aggregate == .count_values) self.value_count = finite.countValue(self.value_count, row.cells[self.plan.projection[0]]) catch |err| {
+                self.capture(.count, row.cells, self.plan.projection[0], null);
+                return err;
+            };
+            if (self.plan.aggregate == .sum) self.sum = finite.sum(self.sum, row.cells[self.plan.projection[0]], struct {
                 fn integer(value: values.Value) !i64 {
                     if (value != .atom or value.atom != .signed) return error.TypeMismatch;
                     return std.math.cast(i64, value.atom.signed) orelse error.Overflow;
                 }
-            }.integer);
+            }.integer) catch |err| {
+                self.capture(.sum, row.cells, self.plan.projection[0], null);
+                return err;
+            };
             if (self.plan.aggregate == .rows) {
                 const projected = try row.arena.allocator().alloc(values.Cell, self.plan.projection.len);
                 for (self.plan.projection, projected) |index, *cell| cell.* = row.cells[index];
@@ -366,6 +424,25 @@ pub const Execution = struct {
         }
         self.complete = true;
         return null;
+    }
+    fn capture(self: *Execution, operation: @FieldType(Failure, "operation"), cells: []const values.Cell, column: u8, instruction: ?u8) void {
+        if (self.failure != null or column >= self.plan.schema.structure.len or column >= cells.len) return;
+        const field = self.plan.schema.structure[column];
+        const typed = source.ValueDiagnostic.init(.{}, field.type, null);
+        var detail: Failure = .{
+            .operation = operation,
+            .row = self.scanned,
+            .column_len = @intCast(@min(field.name.len, 128)),
+            .column_truncated = field.name.len > 128,
+            .expected = typed.expected,
+            .expected_len = typed.expected_len,
+            .state = std.meta.activeTag(cells[column]),
+            .instruction = instruction,
+            .binding = self.plan.source_basis,
+            .plan = self.fingerprint,
+        };
+        @memcpy(detail.column[0..detail.column_len], field.name[0..detail.column_len]);
+        self.failure = detail;
     }
 };
 
@@ -647,4 +724,39 @@ test "file compound filtering never hides a late changed source digest" {
 
 test {
     _ = @import("file_predicate_test.zig");
+}
+
+test "file runtime witness retains first eager atom, count and sum failure independently of row owners" {
+    const t = std.testing;
+    for ([_]struct { sql: []const u8, bytes: []const u8, cause: anyerror, operation: @FieldType(Failure, "operation"), instruction: ?u8, state: types.State }{
+        .{ .sql = "SELECT id FROM input WHERE id > 0 OR n > 0", .bytes = "id,n\n1,1\n2,bad\n", .cause = error.QueryTypeError, .operation = .predicate, .instruction = 1, .state = .type_error },
+        .{ .sql = "SELECT COUNT(n) FROM input", .bytes = "id,n\n1,1\n2,bad\n", .cause = error.QueryTypeError, .operation = .count, .instruction = null, .state = .type_error },
+        .{ .sql = "SELECT SUM(n) FROM input", .bytes = "id,n\n1,9223372036854775807\n2,1\n", .cause = error.Overflow, .operation = .sum, .instruction = null, .state = .value },
+    }) |fixture| {
+        var memory: Memory = .{ .bytes = fixture.bytes };
+        const sources = [_]source.Source{memory.handle()};
+        var binding = try source.discover(t.allocator, &sources, .{ .format = .csv, .sample_records = 1, .mismatch = .type_error }, &.{});
+        defer binding.deinit();
+        var compiled = try compile(t.allocator, fixture.sql, "input", &binding);
+        defer compiled.deinit();
+        var execution = try Execution.init(t.allocator, &binding, &sources, compiled.plan);
+        defer execution.deinit();
+        if (fixture.operation == .predicate) {
+            var row = (try execution.next()).?;
+            row.deinit();
+        }
+        try t.expectError(fixture.cause, execution.next());
+        const evidence = execution.failure.?;
+        try t.expectEqual(@as(u64, 2), evidence.row);
+        try t.expectEqualStrings("n", evidence.columnName());
+        try t.expectEqualStrings("int64", evidence.expectedType());
+        try t.expectEqual(fixture.operation, evidence.operation);
+        try t.expectEqual(fixture.instruction, evidence.instruction);
+        try t.expectEqual(fixture.state, evidence.state);
+        try t.expectEqualDeep(binding.digest, evidence.binding);
+        try t.expectEqualDeep(execution.fingerprint, evidence.plan);
+        try t.expectError(error.FailedQuery, execution.next());
+        try t.expectEqualDeep(evidence, execution.failure.?);
+        try t.expect(!execution.complete and !execution.scan.failed);
+    }
 }
