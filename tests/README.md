@@ -12195,3 +12195,17 @@ not a general structured Flight diagnostic extension.
 No new installed SDK mutation/query proof is claimed for these local compiler
 and Flight renderer increments; the retained-outcome SDK evidence above remains
 the executed qualification for that contract.
+
+### Declarative diagnostic source inventory
+
+On 2026-10-02, `just test::diagnostic-inventory` passes over 476 production owner
+files, 2,535 owner/error pairs, 286 named enum/union surfaces and 153 checked
+SQL/application grammar productions. The lexical checker excludes comments,
+strings and inline tests. Its negative checks detect a newly added error, another
+occurrence of an existing error, a changed outcome tag/import and a changed
+grammar alternative. `just check` includes the inventory drift gate.
+
+This check establishes a reviewed source surface, not whole-program reachability
+or semantic diagnostic completeness. Propagated external errors, mapping quality,
+failure witnesses and executable negative-case coverage require their owning
+contracts and proofs; recording an inventory does not pass those gates.

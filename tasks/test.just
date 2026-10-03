@@ -369,6 +369,10 @@ console source="table":
 cli-diagnostics:
     zig build test-cli-diagnostics
 
+# Review changes to public failure owners, outcomes, imports and checked grammar.
+diagnostic-inventory:
+    python3 -B tests/diagnostic_inventory.py
+
 # Measure the default local empty Table with consistently optimized executables.
 console-latency *args:
     zig build transit transit-node transit-query-host transit-board -Doptimize=ReleaseSafe --prefix .cache/transit-latency/release
