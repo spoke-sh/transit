@@ -52,8 +52,8 @@ pub fn render(self: Self, out: *std.Io.Writer, err: anyerror, style: @import("St
     if (self.location.earlier_field_index) |index| try out.print("Conflicting earlier field position (zero-based): {d}.\n", .{index});
     if (self.location.unsupported_type) |kind| try out.print("Unsupported CSV field type: {s}. Use a supported scalar type or JSONL.\n", .{@tagName(kind)});
     if (self.schema_file and err == error.IncompatibleDefinition) try out.print("Required type definition: {s}.\n", .{f.Types.definition});
-    if (self.schema_failure) |detail| {
-        try out.writeAll("Descriptor path (JSON Pointer): ");
+    if (self.schema_failure orelse self.location.descriptor orelse self.location.inference) |detail| {
+        try out.writeAll(if (self.location.inference != null) "Discovery field path (JSON Pointer): " else "Descriptor path (JSON Pointer): ");
         try quoted(out, detail.path.slice());
         if (detail.path.truncated) try out.writeAll(" [truncated]");
         try out.print(".\n{s}\n", .{detail.constraint()});
@@ -68,6 +68,10 @@ pub fn render(self: Self, out: *std.Io.Writer, err: anyerror, style: @import("St
         if (detail.actual) |actual| try out.print("Actual {s}: {d}.\n", .{ if (detail.kind == .duplicate_name) "field position (zero-based)" else "value/count", actual });
         if (detail.limit) |limit| try out.print("Maximum: {d}{s}{s}.\n", .{ limit, if (detail.unit() != null) " " else "", detail.unit() orelse "" });
         if (detail.earlier) |earlier| try out.print("Conflicting earlier field position (zero-based): {d}.\n", .{earlier});
+    }
+    if (self.location.discovery) |discovery| {
+        try out.print("Discovery entered {d} records / {d} bytes; complete: {}.\n", .{ discovery.records, discovery.sampled_bytes, discovery.complete });
+        if (err == error.UnresolvedSchema and !discovery.complete) try out.writeAll("Increase the discovery sample or use --mode full to inspect later records.\n");
     }
     if (self.location.conversion) |detail| {
         try out.writeAll("Field path (JSON Pointer): ");
@@ -100,7 +104,7 @@ pub fn render(self: Self, out: *std.Io.Writer, err: anyerror, style: @import("St
     if (self.limited and self.stage == .execute) try out.writeAll("LIMIT does not skip required validation of the remaining file records.\n");
 }
 fn explanation(self: Self, err: anyerror) []const u8 {
-    if (self.schema_failure) |detail| return detail.constraint();
+    if (self.schema_failure orelse self.location.descriptor orelse self.location.inference) |detail| return detail.constraint();
     if (self.capture_failure) |capture| {
         if (capture.storage() and err != error.OutOfMemory and err != error.FileQueryInterrupted) return "Private temporary capture storage could not be opened, created, unlinked or written. Check TMPDIR access, capacity and the reported operation.";
     }
@@ -123,6 +127,7 @@ fn explanation(self: Self, err: anyerror) []const u8 {
         error.DuplicateField => "The input contains a duplicate field name.",
         error.UnknownField => "An input field is absent from the frozen schema.",
         error.MissingCsvHeader => "The CSV source has no required header.",
+        error.UnresolvedSchema => "Discovery found no columns. Supply an explicit --schema or use --mode raw to query raw records.",
         error.UnterminatedCsvQuote => "A quoted CSV field reaches the end of the source without its closing quote.",
         error.InvalidCsvQuote => "CSV quoting is malformed. Quote complete fields and escape an embedded quote by doubling it.",
         error.InvalidUtf8 => "The input contains invalid UTF-8 bytes. Decode the source to UTF-8 before querying it.",
@@ -207,6 +212,7 @@ pub fn structured(self: Self, err: anyerror) !@import("transit_query").protocol.
         error.DuplicateField => "file.duplicate_field",
         error.UnknownField => "file.unknown_field",
         error.MissingCsvHeader => "file.missing_csv_header",
+        error.UnresolvedSchema => "file.unresolved_schema",
         error.JsonObjectRequired => "file.json_object_required",
         error.InvalidLiteral => "file.invalid_literal",
         error.TypeMismatch => "file.type_mismatch",
@@ -307,7 +313,7 @@ pub fn structured(self: Self, err: anyerror) !@import("transit_query").protocol.
     if (self.location.byte) |byte| try value.fact(.byte_offset, .execution, .{ .unsigned = .init(byte) });
     // A logical record can span physical lines. Its byte offset is a fact;
     // never invent line/column coordinates from its ordinal.
-    if (self.schema_failure) |detail| {
+    if (self.schema_failure orelse self.location.descriptor orelse self.location.inference) |detail| {
         try bounded(&value, .field_path, detail.path.slice(), detail.path.truncated);
         if (detail.offset) |offset| try value.fact(.byte_offset, .caller, .{ .unsigned = .init(offset) });
         try value.text(.constraint, .schema, detail.constraint());
@@ -349,6 +355,11 @@ pub fn structured(self: Self, err: anyerror) !@import("transit_query").protocol.
         try value.fact(.source_basis, .execution, .{ .digest = detail.binding });
         try value.fact(.proposal, .execution, .{ .digest = detail.plan });
     } else if (self.location.field_len != 0) try bounded(&value, .field_path, self.location.field[0..self.location.field_len], self.location.field_truncated);
+    if (self.location.discovery) |discovery| {
+        var text: [192]u8 = undefined;
+        try value.text(.source_basis, .execution, try std.fmt.bufPrint(&text, "Discovery entered {d} records / {d} bytes; complete: {}", .{ discovery.records, discovery.sampled_bytes, discovery.complete }));
+    }
+    if (self.location.inference != null) try value.text(.schema_origin, .schema, "inferred");
     if (self.location.field_index) |index| try value.fact(.column, .execution, .{ .unsigned = .init(index) });
     if (self.location.earlier_field_index) |index| try value.fact(.first_occurrence, .execution, .{ .unsigned = .init(index) });
     if (self.location.unsupported_type) |kind| try value.text(.actual_type, .schema, @tagName(kind));

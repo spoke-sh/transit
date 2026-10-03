@@ -158,6 +158,21 @@ map keys are then sorted and checked for duplicates. Tolerated conversions clear
 their sidecar before scanning continues. Allocation and source errors remain
 errors and cannot become successful type-error cells.
 
+Discovery retains an owned `Location.inference` at the first failing input field
+or list index. It separates depth, type-node and field-name byte limits with
+measured stopping counts and preserves invalid field names after the JSON row is
+released. `Location.discovery` records the entered record/byte counts; failure
+while examining a row marks discovery incomplete. The location uses that source's
+record ordinal and record-start byte offset, including when several files share
+one inferred schema. Paths and names have explicit 256-byte truncation.
+
+After sampling, `Location.descriptor` can retain a failure in the resolved schema
+combined with overrides. Its path addresses descriptor members, and it has no
+invented input-row position. Empty input or a sample containing no columns returns
+`UnresolvedSchema`; callers may provide an explicit schema, inspect a larger
+sample or use raw mode. Discovery completeness concerns examined input and is
+separate from query completion.
+
 `FileQuery.Execution.failure` retains the first operator failure's scan row,
 column, operation, cell state and frozen binding/plan fingerprints. Predicate
 instructions use the shared eager postfix evaluation order. The sidecar owns its

@@ -6,6 +6,26 @@ earlier entry refers to that entry's source, not automatically to HEAD. The late
 records its reruns and remaining qualification separately; earlier consolidation
 results do not qualify the changed stored layout by inheritance.
 
+## Schema discovery diagnostic evidence — 2026-10-03
+
+Discovery retains the first input-field/list-index witness, invalid name and
+measured depth/node/name-byte excess. A failed observation records incomplete
+discovery even when the parser read the whole row. Resolved schemas combined
+with overrides use descriptor-member paths without invented row coordinates.
+The count-overflow unit injects the maximum counter and verifies rejection before
+mutation; it does not claim a physical scan of that many rows.
+
+`just test::unit` and the **554-case CLI diagnostic matrix** pass, including
+cross-file cumulative node exhaustion, exact name/depth excess, escaped nested
+names, UTF-8 truncation, empty input and complete versus incomplete column-free
+samples. `just test::file-query` passes **190 real CLI cases**, including a
+192 MiB input under a 96 MiB address-space limit, independent result/codecs,
+gzip, quotas, cancellation, cleanup and immutable capture. Full `just check`
+passes native/generated checks, 554 CLI cases, 75 Board unit cases, 6 shared
+diagnostic boundary cases, frontend checks and the handbook. Logs:
+`/var/tmp/transit-inference-diagnostic-{focused,file,full}.log`.
+This is not committed-HEAD clean qualification.
+
 ## Descriptor JSON member evidence — 2026-10-03
 
 The descriptor reader records failures during recursive decoding, with member

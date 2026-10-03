@@ -79,6 +79,17 @@ a header and no null tokens. `--delimiter`, `--quote`, `--no-header` and one
 `--mismatch type_error` explicitly represents supported conversion failures;
 framing errors, unknown fields and violated missing/null constraints still fail.
 
+Discovery failures identify the input field or list index that exceeded a type
+node, nesting or field-name limit, with the measured count and permitted maximum.
+They retain the failing file's record number and record-start byte offset, even
+when discovery combines several files. Entered record/byte counts describe the
+work attempted; a failed record does not establish complete discovery.
+
+If discovery finds no columns, the error explains how to supply `--schema` or use
+`--mode raw`. An incomplete sample can also be enlarged or replaced by `--mode
+full`. A resolved-schema failure after combining fields and overrides identifies
+the descriptor member without inventing an input-row location.
+
 ## Acquisition and limits
 
 At most 128 paths are accepted. `-` reads stdin once; `--` ends option parsing.

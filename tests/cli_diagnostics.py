@@ -801,6 +801,49 @@ with tempfile.TemporaryDirectory(prefix='transit-cli-json-') as directory:
             assert facts(detail)['required'] == {'unsigned':'3'} and facts(detail)['limit'] == {'unsigned':'2'}
         if code == 'file.record_byte_limit':
             assert facts(detail)['required'] == {'unsigned':'9'} and facts(detail)['limit'] == {'unsigned':'8'}
+    # Discovery witnesses refer to input fields/indices and the first excess.
+    discovery_file = root/'discovery.jsonl'
+    discovery_cases = [
+        ({'a':[[[[[[[[[[[[[[[1]]]]]]]]]]]]]]]}, 'file.inference_depth_limit', '/a'+'/0'*15, 'depth', 17, 16),
+        ({f'{i:02d}'+'x'*253: 1 for i in range(17)}, 'file.inference_name_limit', '/16'+'x'*253, 'name_bytes', 4335, 4096),
+    ]
+    for content,code,pointer,dimension,required,limit in discovery_cases:
+        discovery_file.write_text(json.dumps(content)+'\n')
+        result,detail,_ = machine(['file-query','--format','jsonl','--mode','full','-c','SELECT * FROM input',discovery_file])
+        observed = facts(detail)
+        assert detail['code'] == code and not result.stdout, detail
+        assert observed['field_path'] == {'text':pointer} and observed['schema_origin'] == {'text':'inferred'}, detail
+        assert observed['budget'] == {'text':dimension} and observed['required'] == {'unsigned':str(required)} and observed['limit'] == {'unsigned':str(limit)}, detail
+        assert observed['source_row'] == {'unsigned':'1'} and observed['byte_offset'] == {'unsigned':'0'}, detail
+        assert 'complete: false' in observed['source_basis']['text'], detail
+    earlier = root/'earlier-discovery.jsonl'
+    earlier.write_text(json.dumps({f'l{i}':1 for i in range(128)})+'\n')
+    discovery_file.write_text(json.dumps({f'r{i}':1 for i in range(128)})+'\n')
+    result,detail,_ = machine(['file-query','--format','jsonl','--mode','full','-c','SELECT * FROM input',earlier,discovery_file])
+    observed = facts(detail)
+    assert detail['code'] == 'file.inference_node_limit' and not result.stdout, detail
+    assert observed['object'] == {'text':str(discovery_file)} and observed['source_row'] == {'unsigned':'1'}, detail
+    assert observed['field_path'] == {'text':'/r127'} and observed['required'] == {'unsigned':'257'} and observed['limit'] == {'unsigned':'256'}, detail
+    assert 'entered 2 records' in observed['source_basis']['text'] and 'complete: false' in observed['source_basis']['text'], detail
+    for bad_name in ('', 'nul\x00name', '界'*86):
+        discovery_file.write_text(json.dumps({'outer/~':{bad_name:1}}, ensure_ascii=False)+'\n')
+        result,detail,_ = machine(['file-query','--format','jsonl','-c','SELECT * FROM input',discovery_file])
+        observed = facts(detail)
+        assert detail['code'] == 'file.invalid_field_name' and not result.stdout, detail
+        pointer = '/outer~1~0/'+bad_name
+        actual = observed['field_path']['text']
+        assert pointer.startswith(actual) and len(actual.encode()) <= 256, detail
+        field = next(item for item in detail['facts'] if item and item['field'] == 'field_path')
+        assert field['availability'] == ('truncated' if len(pointer.encode()) > 256 else 'provided'), detail
+        assert observed['schema_origin'] == {'text':'inferred'}, detail
+    for content,options,entered,complete in [('',[] ,0,True), ('{}\n',[],1,True), ('{}\n{"id":1}\n',['--sample-records','1'],1,False)]:
+        discovery_file.write_text(content)
+        result,detail,_ = machine(['file-query','--format','jsonl',*options,'-c','SELECT * FROM input',discovery_file])
+        observed = facts(detail)
+        assert detail['code'] == 'file.unresolved_schema' and not result.stdout, detail
+        assert '--schema' in detail['message'] and '--mode raw' in detail['message'], detail
+        assert f'entered {entered} records' in observed['source_basis']['text'] and f'complete: {str(complete).lower()}' in observed['source_basis']['text'], detail
+        assert 'source_row' not in observed and 'byte_offset' not in observed and 'field_path' not in observed, detail
     schema = root/'schema.json'
     schema_definition = 'transit.fuze.types.v1.2026-09-30'
     def schema_value(type):

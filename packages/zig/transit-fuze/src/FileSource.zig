@@ -234,6 +234,7 @@ pub fn discoverDiagnostic(allocator: std.mem.Allocator, sources: []const Source,
     if (options.mode == .raw and overrides.len != 0) return error.InvalidExplicitSchema;
     if (overrides.len > options.max_fields or (options.mode == .explicit and overrides.len == 0)) return error.InvalidExplicitSchema;
     var builder = inference.Builder.init();
+    builder.failure = if (diagnostic) |location| &location.inference else null;
     var evidence: Evidence = .{};
     const record_buffer = try allocator.alloc(u8, options.max_record_bytes);
     defer allocator.free(record_buffer);
@@ -241,6 +242,7 @@ pub fn discoverDiagnostic(allocator: std.mem.Allocator, sources: []const Source,
         if (diagnostic) |location| location.* = .{ .source = source_index };
         var reader = try Reader.init(source, options, record_buffer);
         errdefer if (diagnostic) |location| {
+            location.discovery = .{ .records = evidence.records, .sampled_bytes = evidence.sampled_bytes, .complete = false };
             location.record = reader.logical_record;
             location.byte = reader.record_start;
             if (reader.budget) |budget| location.budget = budget;
@@ -286,14 +288,14 @@ pub fn discoverDiagnostic(allocator: std.mem.Allocator, sources: []const Source,
         if (first and options.format == .csv and options.dialect.header and options.mode != .explicit) return error.MissingCsvHeader;
         try source.check(source.context);
     }
-    if (diagnostic) |location| location.* = .{};
+    if (diagnostic) |location| location.* = .{ .discovery = evidence };
     var schema = if (options.mode == .explicit) blk: {
         var buffer: [types.max_encoding_bytes]u8 = undefined;
         break :blk try types.decode(allocator, try (types.Type{ .structure = overrides }).encode(&buffer));
     } else if (options.mode == .raw and options.format == .jsonl) blk: {
         var buffer: [types.max_encoding_bytes]u8 = undefined;
         break :blk try types.decode(allocator, try (types.Type{ .structure = &.{.{ .name = "record", .type = .json }} }).encode(&buffer));
-    } else try builder.freeze(allocator, options.format == .csv, overrides);
+    } else try builder.freezeDiagnostic(allocator, options.format == .csv, overrides, if (diagnostic) |location| &location.descriptor else null);
     errdefer schema.deinit();
     if (schema.type.structure.len > options.max_fields) {
         if (diagnostic) |location| location.budget = .{ .dimension = .schema_fields, .required = schema.type.structure.len, .limit = options.max_fields };
@@ -351,6 +353,9 @@ pub const Location = struct {
     field_len: usize = 0,
     field_truncated: bool = false,
     conversion: ?ValueDiagnostic = null,
+    inference: ?types.Diagnostic = null,
+    descriptor: ?types.Diagnostic = null,
+    discovery: ?Evidence = null,
     budget: ?BudgetDiagnostic = null,
     field_index: ?usize = null,
     earlier_field_index: ?usize = null,
