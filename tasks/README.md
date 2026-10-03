@@ -61,6 +61,8 @@ reference deployment and physical-capacity tests remain explicit commands.
 | `just test::unified-query` | Run signed v1 source/requester recovery fixtures; optionally select a source with `-Dunified-source=kv`, `table` or `document` |
 | `just test::server` | Exercise the native local server and independent console, with disk providers, fresh worker activations and owned process failures |
 | `just test::cli-diagnostics` | Check real CLI errors, argument/file/field/listener coordinates, next steps, privacy and stdout/stderr separation without starting services; included in `just check` |
+| `just test::diagnostic-inventory` | Detect changes to qualified outcome types, error declarations/returns, literal causes, propagation, imports and grammar; excludes dependency caches |
+| `just test::diagnostic-mappings` | Require reviewed stable compiler codes and explicit boundary exceptions independently of inventory recording; owning executable cases run through `test::unit` |
 | `just test::console-history` | Check real PTY reverse search, SQL/dot-command persistence, concurrent consoles, malformed records and file-failure fallback; included in `just check` |
 | `just test::console-latency [--single --resident-pages N --worker-interval-ms N]` | Measure idle CPU and empty-Table SQL with frozen ReleaseSafe executables and isolated disk providers; optional cache/polling controls, no latency threshold |
 | `just test::server-board`, `just test::server-board-package` | Qualify default embedded Board, explicit headless operation, retained inspection grants, recovery and the Nix downstream manifest |

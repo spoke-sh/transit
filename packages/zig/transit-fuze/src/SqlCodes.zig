@@ -20,6 +20,7 @@ pub const entries = [_]Entry{
     .{ .cause = error.InvalidParameterIndex, .code = "sql.invalid_parameter_index", .category = .binding },
     .{ .cause = error.InvalidParameterSite, .code = "sql.invalid_parameter_site", .category = .binding },
     .{ .cause = error.InvalidPredicate, .code = "sql.invalid_predicate", .category = .binding },
+    .{ .cause = error.InvalidPredicateProgram, .code = "sql.invalid_predicate_program", .category = .integrity },
     .{ .cause = error.InvalidProjection, .code = "sql.invalid_projection", .category = .binding },
     .{ .cause = error.InvalidQueryInteger, .code = "sql.invalid_query_integer", .category = .binding },
     .{ .cause = error.InvalidQueryScalar, .code = "sql.invalid_query_scalar", .category = .binding },

@@ -1,0 +1,307 @@
+{
+  "version": 1,
+  "boundaries": [
+    {
+      "id": "sql-compilation",
+      "profile": "Finite SQL, prepared parameters, literal Table mutations, offline state declarations and cursor assistance",
+      "owners": [
+        "packages/zig/transit-fuze/src/Sql*.zig",
+        "packages/zig/transit-fuze/src/Prepared.zig",
+        "packages/zig/transit-fuze/src/Declaration.zig"
+      ],
+      "exclude": [
+        "packages/zig/transit-fuze/src/SqlCodes.zig",
+        "packages/zig/transit-fuze/src/SqlDiagnostic.zig"
+      ],
+      "registry": "packages/zig/transit-fuze/src/SqlCodes.zig",
+      "projection": "packages/zig/transit-fuze/src/SqlDiagnostic.zig",
+      "stage": "parse or bind, from the original compiler boundary",
+      "outcome": "not_submitted",
+      "durable_evidence": "No dispatch occurs during compilation; previously saved work remains separate.",
+      "context": "Owned source location, name/scope, expected/supplied type or scalar, parameter sites, row/key, counts and schema commitments when supplied by the failing owner",
+      "disclosure": "Bounded caller input and authorized schema context; no new stored-data lookup, credentials or telemetry payloads",
+      "recovery": "Correct input, inspect the supported scope or recompile a changed source; never resume/cancel a fresh command for a compile failure",
+      "propagation": "Allocation, imported I/O and unexpected inferred failures bypass SQL classification and retain the actual caller attempt/outcome boundary.",
+      "tests": [
+        {
+          "source": "packages/zig/transit-fuze/src/SqlDiagnostic.zig",
+          "name": "SQL code registry is unique and every entry projects a valid bounded value"
+        },
+        {
+          "source": "packages/zig/transit-query/src/ApiDiagnostic.zig",
+          "name": "caller diagnostics distinguish local rejection, unknown send and failed status inspection"
+        }
+      ],
+      "exceptions": [
+        {
+          "source": "packages/zig/transit-fuze/src/Sql.zig",
+          "cause": "IncompleteSql",
+          "disposition": "control_flow",
+          "reason": "Only the synthetic cursor token with an active assistance sink produces this sentinel; hint collection consumes it without executing SQL.",
+          "tests": [
+            {
+              "source": "packages/zig/transit-query/src/Assistance.zig",
+              "name": "independent cursor fixtures preserve grammar, scope, type and range boundaries"
+            }
+          ]
+        },
+        {
+          "source": "packages/zig/transit-fuze/src/SqlInput.zig",
+          "cause": "InvalidSqlCursor",
+          "disposition": "mapped_boundary",
+          "reason": "Editor cursor failure is an observational input error, separate from a submitted SQL statement or result cursor.",
+          "projection": "packages/zig/transit-query/src/ApiDiagnostic.zig",
+          "code": "query.invalid_sql_cursor",
+          "tests": [
+            {
+              "source": "packages/zig/transit-query/src/ApiDiagnostic.zig",
+              "name": "editor and typed predicate failures keep their own meaning without overriding uncertain submission"
+            },
+            {
+              "source": "packages/zig/transit-fuze/src/SqlInput.zig",
+              "name": "cursor ranges replace whole tokens and reject split UTF-8 or protected lexical context"
+            }
+          ]
+        }
+      ],
+      "codes": {
+        "CellTooLarge": {
+          "code": "sql.cell_too_large",
+          "category": "limit"
+        },
+        "CommentTooDeep": {
+          "code": "sql.comment_too_deep",
+          "category": "limit"
+        },
+        "DeclarationTooManyColumns": {
+          "code": "sql.declaration_too_many_columns",
+          "category": "limit"
+        },
+        "DuplicateColumn": {
+          "code": "sql.duplicate_column",
+          "category": "binding"
+        },
+        "DuplicateMutationKey": {
+          "code": "sql.duplicate_mutation_key",
+          "category": "constraint"
+        },
+        "DuplicateProjection": {
+          "code": "sql.duplicate_projection",
+          "category": "binding"
+        },
+        "ImmutablePrimaryKey": {
+          "code": "sql.immutable_primary_key",
+          "category": "constraint"
+        },
+        "InvalidBinaryLiteral": {
+          "code": "sql.invalid_binary_literal",
+          "category": "syntax"
+        },
+        "InvalidColumnCount": {
+          "code": "sql.invalid_column_count",
+          "category": "binding"
+        },
+        "InvalidColumnName": {
+          "code": "sql.invalid_column_name",
+          "category": "syntax"
+        },
+        "InvalidDocumentInteger": {
+          "code": "sql.invalid_document_integer",
+          "category": "binding"
+        },
+        "InvalidHex": {
+          "code": "sql.invalid_hex",
+          "category": "binding"
+        },
+        "InvalidMutationColumns": {
+          "code": "sql.invalid_mutation_columns",
+          "category": "binding"
+        },
+        "InvalidMutationPlan": {
+          "code": "sql.invalid_mutation_plan",
+          "category": "binding"
+        },
+        "InvalidNumericLiteral": {
+          "code": "sql.invalid_numeric_literal",
+          "category": "syntax"
+        },
+        "InvalidOutputNames": {
+          "code": "sql.invalid_output_names",
+          "category": "binding"
+        },
+        "InvalidParameterIndex": {
+          "code": "sql.invalid_parameter_index",
+          "category": "binding"
+        },
+        "InvalidParameterSite": {
+          "code": "sql.invalid_parameter_site",
+          "category": "binding"
+        },
+        "InvalidPredicate": {
+          "code": "sql.invalid_predicate",
+          "category": "binding"
+        },
+        "InvalidPredicateProgram": {
+          "code": "sql.invalid_predicate_program",
+          "category": "integrity"
+        },
+        "InvalidProjection": {
+          "code": "sql.invalid_projection",
+          "category": "binding"
+        },
+        "InvalidQueryInteger": {
+          "code": "sql.invalid_query_integer",
+          "category": "binding"
+        },
+        "InvalidQueryScalar": {
+          "code": "sql.invalid_query_scalar",
+          "category": "binding"
+        },
+        "InvalidSqlEncoding": {
+          "code": "sql.invalid_sql_encoding",
+          "category": "syntax"
+        },
+        "InvalidSqlSyntax": {
+          "code": "sql.invalid_sql_syntax",
+          "category": "syntax"
+        },
+        "InvalidUtf8": {
+          "code": "sql.invalid_utf8",
+          "category": "binding"
+        },
+        "LiteralOutOfRange": {
+          "code": "sql.literal_out_of_range",
+          "category": "binding"
+        },
+        "LiteralTooLarge": {
+          "code": "sql.literal_too_large",
+          "category": "limit"
+        },
+        "MutationBatchTooLarge": {
+          "code": "sql.mutation_batch_too_large",
+          "category": "limit"
+        },
+        "NonFiniteValue": {
+          "code": "sql.non_finite_value",
+          "category": "binding"
+        },
+        "NotTableDeclaration": {
+          "code": "sql.not_table_declaration",
+          "category": "unsupported"
+        },
+        "NullPrimaryKey": {
+          "code": "sql.null_primary_key",
+          "category": "constraint"
+        },
+        "ParameterCountMismatch": {
+          "code": "sql.parameter_count_mismatch",
+          "category": "binding"
+        },
+        "ParameterGap": {
+          "code": "sql.parameter_gap",
+          "category": "binding"
+        },
+        "ParameterTypeConflict": {
+          "code": "sql.parameter_type_conflict",
+          "category": "binding"
+        },
+        "PredicateTooComplex": {
+          "code": "sql.predicate_too_complex",
+          "category": "limit"
+        },
+        "QuerySourceChanged": {
+          "code": "sql.query_source_changed",
+          "category": "conflict"
+        },
+        "SourceChanged": {
+          "code": "sql.source_changed",
+          "category": "conflict"
+        },
+        "StatementTooLarge": {
+          "code": "sql.statement_too_large",
+          "category": "limit"
+        },
+        "TypeMismatch": {
+          "code": "sql.type_mismatch",
+          "category": "binding"
+        },
+        "UnboundParameters": {
+          "code": "sql.unbound_parameters",
+          "category": "binding"
+        },
+        "UnknownColumn": {
+          "code": "sql.unknown_column",
+          "category": "binding"
+        },
+        "UnknownQualifier": {
+          "code": "sql.unknown_qualifier",
+          "category": "binding"
+        },
+        "UnknownSource": {
+          "code": "sql.unknown_source",
+          "category": "binding"
+        },
+        "UnspecifiedNullability": {
+          "code": "sql.unspecified_nullability",
+          "category": "binding"
+        },
+        "UnsupportedAggregate": {
+          "code": "sql.unsupported_aggregate",
+          "category": "unsupported"
+        },
+        "UnsupportedAggregateLimit": {
+          "code": "sql.unsupported_aggregate_limit",
+          "category": "unsupported"
+        },
+        "UnsupportedCatalog": {
+          "code": "sql.unsupported_catalog",
+          "category": "unsupported"
+        },
+        "UnsupportedConstruct": {
+          "code": "sql.unsupported_construct",
+          "category": "unsupported"
+        },
+        "UnsupportedDeclaration": {
+          "code": "sql.unsupported_declaration",
+          "category": "unsupported"
+        },
+        "UnsupportedDeclarationType": {
+          "code": "sql.unsupported_declaration_type",
+          "category": "unsupported"
+        },
+        "UnsupportedLiteral": {
+          "code": "sql.unsupported_literal",
+          "category": "unsupported"
+        },
+        "UnsupportedMutationPredicate": {
+          "code": "sql.unsupported_mutation_predicate",
+          "category": "unsupported"
+        },
+        "UnsupportedNullComparison": {
+          "code": "sql.unsupported_null_comparison",
+          "category": "unsupported"
+        },
+        "UnsupportedStatement": {
+          "code": "sql.unsupported_statement",
+          "category": "unsupported"
+        },
+        "UnsupportedTableColumnCount": {
+          "code": "sql.unsupported_table_column_count",
+          "category": "unsupported"
+        },
+        "UnsupportedTableKey": {
+          "code": "sql.unsupported_table_key",
+          "category": "unsupported"
+        },
+        "UnsupportedTableNullability": {
+          "code": "sql.unsupported_table_nullability",
+          "category": "unsupported"
+        },
+        "UnsupportedTableType": {
+          "code": "sql.unsupported_table_type",
+          "category": "unsupported"
+        }
+      }
+    }
+  ]
+}

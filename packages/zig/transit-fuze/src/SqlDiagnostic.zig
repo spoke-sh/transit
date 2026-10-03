@@ -87,6 +87,16 @@ test "SQL code registry is unique and every entry projects a valid bounded value
         }
         const value: Self = .{ .kind = .binding, .cause = entry.cause, .summary = "Invalid SQL.", .hint = "Inspect the supplied statement." };
         _ = try value.structured();
+        const routed = query("SELECT * FROM items", entry.cause, true) orelse {
+            std.debug.print("Missing public SQL diagnostic route: {s}\n", .{@errorName(entry.cause)});
+            return error.UnmappedExpectedSqlCause;
+        };
+        const envelope = try routed.structured();
+        try std.testing.expectEqualStrings(entry.code, envelope.code.slice());
+        try std.testing.expectEqual(d.Outcome.not_submitted, envelope.outcome);
+        for (envelope.actions) |slot| if (slot) |action| {
+            try std.testing.expect(action.kind != .resume_exact and action.kind != .cancel_mutation and action.kind != .cancel_wait);
+        };
     }
     try std.testing.expect(query("SELECT * FROM items", error.OutOfMemory, true) == null);
 }
@@ -114,6 +124,7 @@ pub fn query(text: []const u8, cause: anyerror, inspection: bool) ?Self {
         error.InvalidDocumentInteger, error.InvalidQueryInteger, error.InvalidQueryScalar, error.InvalidHex => "Supply the exact canonical scalar encoding required by the parameter type; integer bindings use decimal strings and binary bindings use hexadecimal bytes.",
         error.ImmutablePrimaryKey, error.UnsupportedMutationPredicate, error.InvalidMutationColumns, error.DuplicateMutationKey => "Use .help INSERT, .help UPDATE or .help DELETE in the console for bounded literal mutations and key equality.",
         error.TypeMismatch, error.InvalidPredicate => "Match the literal type to the declared column type; implicit conversions are unsupported.",
+        error.InvalidPredicateProgram => "The typed predicate has invalid instruction, literal-storage or stack bounds. Preserve the original plan and correct its construction before submission.",
         else => null,
     };
     if (semantic) |hint| return .{ .kind = .binding, .cause = cause, .summary = switch (cause) {
@@ -138,6 +149,7 @@ pub fn query(text: []const u8, cause: anyerror, inspection: bool) ?Self {
         error.NonFiniteValue => "The SQL value must be finite",
         error.CellTooLarge => "The SQL value exceeds the cell byte bound",
         error.InvalidDocumentInteger, error.InvalidQueryInteger, error.InvalidQueryScalar, error.InvalidHex => "The parameter binding has an invalid scalar encoding",
+        error.InvalidPredicateProgram => "The typed SQL predicate program is invalid",
         else => "SQL cannot be bound to the configured source",
     }, .hint = hint };
     switch (cause) {

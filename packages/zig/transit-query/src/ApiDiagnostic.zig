@@ -9,7 +9,8 @@ pub fn category(action: q.Bridge.Action, cause: anyerror) d.Category {
     if (q.QueryFailure.fromError(cause, .admission)) |failure| return failure.category();
     return switch (cause) {
         error.QueryReadConflict, error.Conflict, error.Rejected => .conflict,
-        error.InvalidQueryRequest, error.QueryIdentityMismatch, error.InvalidQueryCursor => .binding,
+        error.InvalidQueryRequest, error.QueryIdentityMismatch, error.InvalidQueryCursor, error.InvalidSqlCursor => .binding,
+        error.InvalidPredicateProgram => .integrity,
         error.IncompleteResult => .lifecycle,
         error.OutOfMemory => .unavailable,
         else => .internal,
@@ -48,6 +49,8 @@ pub fn attempt(operation: []const u8, stage: d.Stage, source: ?[]const u8, cause
         error.QueryReadConflict, error.Conflict => try d.init("query.read_conflict", .conflict, stage, .not_applicable, .none, "The source changed during this read. Retry the read without replacing any saved command."),
         error.InvalidQueryRequest, error.QueryIdentityMismatch => try d.init("query.invalid_command", .binding, stage, .not_submitted, .local_before_dispatch, "The saved command does not match this query connection or has an invalid encoding. No command was sent."),
         error.InvalidQueryCursor => try d.init("query.invalid_cursor", .binding, .read, .not_applicable, .none, "The result cursor is invalid. Use the cursor returned for this exact saved query."),
+        error.InvalidSqlCursor => try d.init("query.invalid_sql_cursor", .binding, .read, .not_applicable, .none, "The SQL editor cursor is outside the statement or splits a UTF-8 character. Supply a byte offset at a character boundary within this statement."),
+        error.InvalidPredicateProgram => try d.init("query.invalid_predicate_program", .integrity, stage, if (stage == .read) .not_applicable else .not_submitted, if (stage == .read) .none else .local_before_dispatch, "The typed predicate has invalid instruction, literal-storage or stack bounds. Preserve the original plan and correct its construction before submission."),
         error.IncompleteResult => try d.init("query.result_incomplete", .lifecycle, .read, .not_applicable, .none, "The saved query does not have a complete result. Inspect its current status."),
         error.OutOfMemory => try d.init("query.memory_unavailable", .unavailable, stage, .not_applicable, .none, "The caller could not allocate memory for this operation. Preserve any saved command and previously observed outcome."),
         else => try d.init("query.internal_failure", .internal, stage, .not_applicable, .none, "The query caller could not complete this operation. Preserve any saved command and inspect its status; this failure does not establish the query's outcome."),
@@ -92,4 +95,19 @@ test "caller diagnostics distinguish local rejection, unknown send and failed st
     try t.expectEqual(.read, denied.stage);
     const unexpected = try project(.{ .status = "9" }, error.UnexpectedFixtureFailure, .{}, false, null);
     try t.expectEqual(.internal, unexpected.category);
+}
+
+test "editor and typed predicate failures keep their own meaning without overriding uncertain submission" {
+    const t = std.testing;
+    const cursor = try attempt("assist", .read, null, error.InvalidSqlCursor, .{}, false, null);
+    try t.expectEqualStrings("query.invalid_sql_cursor", cursor.code.slice());
+    try t.expectEqual(.not_applicable, cursor.outcome);
+    const predicate = try attempt("prepare", .prepare, null, error.InvalidPredicateProgram, .{}, false, null);
+    try t.expectEqualStrings("query.invalid_predicate_program", predicate.code.slice());
+    try t.expectEqual(.not_submitted, predicate.outcome);
+    try t.expectEqual(.integrity, predicate.category);
+    const uncertain = try attempt("submit", .submit, null, error.InvalidPredicateProgram, .{}, true, .{ .domain = .transport, .id = .init(42), .sequence = .init(42) });
+    try t.expectEqualStrings("query.send_unknown", uncertain.code.slice());
+    try t.expectEqual(.unknown, uncertain.outcome);
+    try t.expectEqual(.resume_exact, uncertain.actions[1].?.kind);
 }

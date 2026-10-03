@@ -223,6 +223,8 @@
   },
   "nested_tasks": {
     "check-core": [
+      "test::diagnostic-inventory",
+      "test::diagnostic-mappings",
       "test::unit",
       "test::cli-diagnostics",
       "contract::check"

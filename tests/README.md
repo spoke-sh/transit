@@ -13449,3 +13449,20 @@ are excluded rather than required in a clean checkout. Documentation links and
 `git diff --check` pass. Log: `/var/tmp/transit-diagnostic-declarations-check.log`.
 This is a source review gate, not a whole-program reachability or executed
 semantic-mapping completeness claim.
+
+### Closed compiler semantic mapping gate — 2026-10-03
+
+`just test::diagnostic-mappings` and full `just check` passed. The independent
+manifest covers 59 stable SQL codes/categories and all 60 literal owner/error
+pairs in the selected compiler/cursor sources, including two reviewed boundary
+exceptions. Negative mutations reject a new error, missing/stale exception,
+changed code, missing executable owner and newly matching source file even if
+the source inventory is recorded. The owning runtime case now sends every code
+through the public SQL classifier, validates its envelope and rejects resume or
+cancel advice for compilation failure. Query units distinguish editor cursors
+and malformed typed predicates while retaining unknown submission evidence.
+The CLI suite passed 566 actual command cases. Logs:
+`/var/tmp/transit-diagnostic-mappings-{unit,check}.log`.
+The gate's declared scope is compiler semantics. Runtime/adapter and grammar
+alternative completeness, and final committed-HEAD clean evidence, remain
+separate requirements.

@@ -35,3 +35,21 @@ Run `just test::diagnostic-inventory` in the pinned development shell. After
 reviewing a changed surface and its mappings/evidence, use
 `python3 -B tests/diagnostic_inventory.py --record` to update the source record.
 Recording does not certify diagnostic implementation or test coverage.
+
+`mappings.json` records the implemented semantic coverage boundaries separately.
+Each entry owns its source patterns, stable codes/categories, stage, outcome,
+available context, disclosure, recovery, propagation policy and executable test
+owners. The SQL compiler boundary covers every literal cause in its selected
+owners; a consumed cursor sentinel and the separately mapped editor-cursor
+failure are explicit exceptions with rationale and cases. A new matching source
+file participates automatically. Changing the inventory cannot make an unmapped
+cause, changed stable code or untested exception pass this independent gate.
+
+Run `just test::diagnostic-mappings` for mapping drift and mutation checks. Full
+`just check` also executes the owning unit cases. The SQL registry case routes
+every registered cause through the public classifier and validates its resulting
+envelope, outcome and absence of unsafe recovery actions. Finding a test in source
+only establishes ownership; it does not count as executing that test. The mapping
+manifest currently certifies the named compiler boundary, not every inventoried
+runtime/adapter boundary or every grammar alternative. Those remaining mappings
+must be added with their own executable cases before completeness is claimed.

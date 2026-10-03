@@ -373,6 +373,10 @@ cli-diagnostics:
 diagnostic-inventory:
     python3 -B tests/diagnostic_inventory.py
 
+# Check closed compiler mappings and explicit boundary exceptions independently of inventory recording.
+diagnostic-mappings:
+    python3 -B tests/diagnostic_mappings.py
+
 # Measure the default local empty Table with consistently optimized executables.
 console-latency *args:
     zig build transit transit-node transit-query-host transit-board -Doptimize=ReleaseSafe --prefix .cache/transit-latency/release

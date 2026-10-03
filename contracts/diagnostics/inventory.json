@@ -5539,6 +5539,7 @@
         "InvalidParameterIndex": 1,
         "InvalidParameterSite": 1,
         "InvalidPredicate": 1,
+        "InvalidPredicateProgram": 1,
         "InvalidProjection": 1,
         "InvalidQueryInteger": 1,
         "InvalidQueryScalar": 1,
@@ -5612,6 +5613,7 @@
         "InvalidParameterIndex": 2,
         "InvalidParameterSite": 2,
         "InvalidPredicate": 1,
+        "InvalidPredicateProgram": 2,
         "InvalidProjection": 2,
         "InvalidQueryInteger": 2,
         "InvalidQueryScalar": 2,
@@ -7700,8 +7702,10 @@
         "AccessDenied": 2,
         "Conflict": 3,
         "IncompleteResult": 2,
+        "InvalidPredicateProgram": 2,
         "InvalidQueryCursor": 2,
         "InvalidQueryRequest": 2,
+        "InvalidSqlCursor": 2,
         "OutOfMemory": 2,
         "QueryIdentityMismatch": 2,
         "QueryReadConflict": 2,
@@ -7715,7 +7719,7 @@
       },
       "open_error_set_uses": 3,
       "propagation": {
-        "try": 21,
+        "try": 23,
         "catch": 0
       },
       "imports": [

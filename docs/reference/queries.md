@@ -5,6 +5,12 @@ to the same typed plans. Source adapters acquire authorized data; query executio
 does not acquire kernel authority or raw storage credentials. Neither DataFusion
 nor Acero is a runtime dependency.
 
+Invalid editor cursor offsets identify the byte-offset/UTF-8 boundary requirement
+separately from invalid saved-result cursors. Invalid typed predicate programs
+identify instruction, literal-storage or stack bounds as a plan-construction
+failure. These local failures do not replace an already uncertain submission or
+authorize retrying a new command.
+
 ## Source declarations
 
 A query selects one explicit KV decoder, Table schema or accepted Document
