@@ -12546,3 +12546,13 @@ recipe, then variadic arguments consuming subsequent task names); they did not
 execute the intended integration proof. The successful invocation runs the
 three `just` recipes separately. Clean committed-HEAD qualification remains a
 separate gate.
+
+The subsequent Table unified-shell proof passes both ordinary SQL and parameter
+file recovery after revocation while a signed command is pending. It verifies
+that `.bundle` and `.pending` remain byte-identical, `.new` cannot replace that
+work, and restoration/retry after shell replacement uses the original identity.
+Current denied result reads stay denied instead of becoming namespace loss.
+The disk-backed proof reports 102.56 seconds, 41 rows, six segments and eight
+resident authority pages; no installed SDK variants were selected. Command:
+`just test::unified-query -Doptimize=ReleaseSafe -Dunified-source=table -Dunified-shell=true`.
+Log: `/var/tmp/transit-cli-json-legacy-recovery.log`.
