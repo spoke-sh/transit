@@ -127,16 +127,19 @@ def check(native, port, callers, root, invoke, restart, fault, kind):
             observe(native.call({'prepare': {'retire': namespace}})['prepared'])
             parity(failure, diagnostic)
             print(f'Unified {kind} runtime: original row/column/instruction/key/binding/decoder witness survives lost receipt, exact retry, repaired live data, disk restart and retirement across {len(owners)} callers.', flush=True)
-        # A well-formed bundle can exceed policy without a source job ever
-        # being admitted. Preserve the policy limit and requested measurement.
+        # Prepare the final submission before a real source policy change.
+        # Submit those exact saved bytes afterwards, bypassing no owner check.
         namespace = '55003'
-        requested = bytearray((root / 'bundle.bin').read_bytes())
-        struct.pack_into('<Q', requested, 8, 1001)
+        requested = (root / 'bundle.bin').read_bytes()
         for _ in range(140):
             prepared = native.call({'next': dict(namespace=namespace, bundle=requested.hex())})['prepared']
-            if prepared is None: break
+            assert prepared is not None
+            status = native.call({'status': namespace})['status']
+            if status and status['phase'] == 'sealed': break
             observe(prepared)
         else: raise AssertionError('policy denial upload exceeded bounded steps')
+        restart(label='policy-lowered', before_workers=lambda: invoke('lower-policy', direct=True))
+        observe(prepared)
         until = time.monotonic() + 120
         while True:
             status = native.call({'status': namespace})['status']
@@ -148,11 +151,13 @@ def check(native, port, callers, root, invoke, restart, fault, kind):
         assert diagnostic['category'] == 'limit', diagnostic
         facts = {fact['field']: fact['value'] for fact in diagnostic['facts'] if fact}
         assert facts['native_cause'] == {'text': 'policy_budget'} and facts['budget'] == {'text': 'pages'}, facts
-        assert facts['limit'] == {'unsigned': '1000'} and facts['required'] == {'unsigned': '1001'}, facts
+        assert facts['limit'] == {'unsigned': '999'} and facts['required'] == {'unsigned': '1000'}, facts
         parity(failure, diagnostic)
         restart(label='policy-budget')
         parity(failure, diagnostic)
         observe(native.call({'prepare': {'retire': namespace}})['prepared'])
+        parity(failure, diagnostic)
+        restart(label='policy-restored', before_workers=lambda: invoke('restore-policy', direct=True))
         parity(failure, diagnostic)
         print(f'Unified {kind} policy: admitted request retains source admission denial and exact allowed/requested budgets through disk restart and retirement across {len(owners)} callers.', flush=True)
     finally:

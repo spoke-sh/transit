@@ -93,6 +93,12 @@ const Seed = struct {
             try turn.put(try p.Value.init(&key), try p.Value.init(if (command == -5) "\xff" else try value(0, &bytes, 128)));
             return;
         }
+        if (command == -7 or command == -8) {
+            var limits = budgets;
+            limits.pages = if (command == -7) 999 else 1000;
+            try q.UnifiedCapture.setPolicy(turn, .{ .peer = self.peer, .requests = self.requests, .revision = if (command == -7) 2 else 3, .allow = true, .limits = limits, .declaration = try q.Bundle.declaration(try definition(self.kind, turn.view.resource)) });
+            return;
+        }
         if (command == -2 or command == -3) {
             try q.UnifiedCapture.setPolicy(turn, .{ .peer = self.peer, .requests = self.requests, .revision = if (command == -2) 1 else 2, .allow = command == -2, .limits = budgets, .declaration = try q.Bundle.declaration(try definition(self.kind, turn.view.resource)) });
             if (command == -2) {
@@ -298,12 +304,12 @@ pub fn main(init: std.process.Init) !void {
     }
     const parsed = try std.json.parseFromSlice(Config, init.arena.allocator(), try std.Io.Dir.cwd().readFileAlloc(init.io, try file(init, directory, "client.json"), init.arena.allocator(), .limited(8192)), .{});
     const config = parsed.value;
-    if (std.mem.eql(u8, command, "invalidate-kv") or std.mem.eql(u8, command, "repair-kv")) {
-        if (config.kind != .kv) return error.ExpectedKvSource;
+    if (std.mem.eql(u8, command, "invalidate-kv") or std.mem.eql(u8, command, "repair-kv") or std.mem.eql(u8, command, "lower-policy") or std.mem.eql(u8, command, "restore-policy")) {
+        if (!std.mem.eql(u8, command, "lower-policy") and !std.mem.eql(u8, command, "restore-policy") and config.kind != .kv) return error.ExpectedKvSource;
         const process = (try admin.query(.{ .process = config.connection.source })).body.process.process;
         var server = try s.GenServer.init(.{ .client = &transport, .realm = 46, .principal = 65536, .pid = config.connection.source, .generation = process.generation, .key = try p.Ed25519.KeyPair.generateDeterministic(@splat(8)) }, "state");
-        var seed: Seed = .{ .kind = .kv, .peer = config.connection.requester, .requests = config.connection.requests };
-        try admin.send(config.connection.source, if (std.mem.eql(u8, command, "invalidate-kv")) -5 else -6);
+        var seed: Seed = .{ .kind = config.kind, .peer = config.connection.requester, .requests = config.connection.requests };
+        try admin.send(config.connection.source, if (std.mem.eql(u8, command, "restore-policy")) -8 else if (std.mem.eql(u8, command, "lower-policy")) -7 else if (std.mem.eql(u8, command, "invalidate-kv")) -5 else -6);
         return drive(init, &server, .{ .context = &seed, .initialize = Seed.initialize, .handle = Seed.handle });
     }
     if (std.mem.startsWith(u8, command, "combined-")) return Combined.execute(init, &transport, &admin, directory, command, config.connection);

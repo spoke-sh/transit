@@ -12345,10 +12345,17 @@ failure at the correct absolute position, and labels its escaped byte path.
 Partial/malformed byte escapes reject at diagnostic validation. The first
 installed-SDK rerun encountered a stale Python wheel; the new authority rejected
 its previous definition at the initial metadata read. All installed artifacts
-are rebuilt before the corrected run. That run remains pending here.
+were rebuilt. The corrected KV lifecycle run passes across native, port and
+all ten installed SDKs (13 caller variants). A real policy change after signed
+preparation rejects source admission with the original allowed/requested page
+budgets, 999/1000. All callers retain the exact diagnostic through node/store/
+worker restart, retirement and restoration of the live policy. The ordinary
+lifecycle schedules pass afterwards. The first budget fixture was rejected by
+local preflight before source admission and was replaced with this race.
 Logs: `/var/tmp/transit-source-witness-full-check.log`,
 `/var/tmp/transit-source-witness-check.log` and
-`/var/tmp/transit-source-witness-installed-kv2.log`.
+`/var/tmp/transit-source-witness-installed-kv2.log` (failed fixture) and
+`/var/tmp/transit-policy-race-proof2.log` (passing corrected run).
 
 ### Query caller attempt diagnostics
 
