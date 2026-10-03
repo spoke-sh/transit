@@ -10,3 +10,4 @@ pub const Page = b.Page;
 pub const Result = b.Result;
 pub const prepared = b.prepared;
 pub const apply = b.apply;
+pub const applyDiagnostic = b.applyDiagnostic;

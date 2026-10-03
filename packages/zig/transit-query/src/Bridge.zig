@@ -137,11 +137,15 @@ fn cursor(alloc: Allocator, bytes: []const u8) !q.UnifiedResult.Cursor {
     return parsed.value;
 }
 pub fn apply(alloc: Allocator, client: *q.UnifiedClient, action: Action) !Result {
+    return applyDiagnostic(alloc, client, action, null);
+}
+pub fn applyDiagnostic(alloc: Allocator, client: *q.UnifiedClient, action: Action, detail: ?*q.fuze.Sql.Binding) !Result {
+    if (detail) |value| value.* = .{};
     switch (action) {
         .capabilities => return .{ .capabilities = .{} },
         .sql_capabilities => return .{ .sql_capabilities = .{} },
-        .inspect => |request| return .{ .inspection = try client.inspectSql(alloc, request) },
-        .compile => |request| return .{ .compiled = try q.SqlCompilation.apply(alloc, client, request) },
+        .inspect => |request| return .{ .inspection = try q.SqlInspection.applyDiagnostic(alloc, client, request, detail) },
+        .compile => |request| return .{ .compiled = try q.SqlCompilation.applyDiagnostic(alloc, client, request, detail) },
         .describe => |v| {
             const result = try client.describe(try v.native(alloc));
             return .{ .description = .{ .capabilities = result.capabilities, .source = try c.Source.fromNative(alloc, result.definition), .resource_revision = result.resource_revision, .policy_revision = try a.decimal(alloc, result.policy_revision), .limits = try c.Limits.fromNative(alloc, result.limits), .active = if (result.active) |id| try a.decimal(alloc, id) else null } };

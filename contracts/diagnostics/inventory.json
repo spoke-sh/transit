@@ -6740,6 +6740,24 @@
         "std"
       ]
     },
+    "packages/zig/transit-query/src/ApiDiagnostic.zig": {
+      "errors": {
+        "AccessDenied": 2,
+        "Conflict": 2,
+        "IncompleteResult": 1,
+        "InvalidQueryCursor": 1,
+        "InvalidQueryRequest": 1,
+        "OutOfMemory": 1,
+        "QueryIdentityMismatch": 1,
+        "QueryReadConflict": 1,
+        "Rejected": 1
+      },
+      "outcomes": {},
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
     "packages/zig/transit-query/src/Assistance.zig": {
       "errors": {
         "InvalidSqlCursor": 1
@@ -7746,6 +7764,7 @@
       "errors": {},
       "outcomes": {},
       "imports": [
+        "ApiDiagnostic.zig",
         "Assistance.zig",
         "Bridge.zig",
         "Bundle.zig",
@@ -9218,6 +9237,7 @@
       "errors": {
         "AccessDenied": 1,
         "Conflict": 1,
+        "InvalidQueryRequest": 1,
         "QueryDenied": 1,
         "QueryReadConflict": 1,
         "Rejected": 1

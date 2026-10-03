@@ -115,3 +115,21 @@ all calls before destroy. Foreign cancellation of an await does not cancel
 durable work; an explicit prepared cancellation is a separate command. Native
 buffers own their data independently of the handle. Calls use bounded request,
 bundle, Arrow workspace and segment sizes from the codec profile above.
+
+## Failed caller operations
+
+Query ABI and port failures retain `err` and `protocol_error` when available,
+and add a nullable shared `diagnostic` envelope. Compilation and EXPLAIN binding
+errors include the original compiler's subject, scope, SQL byte position,
+parameter sites and expected/supplied type evidence. These details are returned
+to the caller; they are not telemetry or automatic exception text.
+
+The diagnostic describes the failed attempt. A locally rejected saved command
+has `not_submitted` evidence. An unconfirmed dispatched command has `unknown`
+outcome and its exact native sequence identity; retain the saved signed bytes.
+A native command rejection does not establish a query's terminal outcome.
+Status/page read failures have no new domain outcome and cannot replace a saved
+receipt or terminal status. Unrecognized failures are internal diagnostics,
+mapped to native `invalid_response`, rather than SQL input errors. Failure to
+allocate diagnostic output preserves the native status and original recovery
+obligations. SDK exception adoption is documented by each caller interface.

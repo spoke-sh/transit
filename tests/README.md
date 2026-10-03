@@ -12349,3 +12349,16 @@ are rebuilt before the corrected run. That run remains pending here.
 Logs: `/var/tmp/transit-source-witness-full-check.log`,
 `/var/tmp/transit-source-witness-check.log` and
 `/var/tmp/transit-source-witness-installed-kv2.log`.
+
+### Query caller attempt diagnostics
+
+On 2026-10-02, `just test::unit` and the standalone query package tests pass
+with native query attempt diagnostics. The native boundary test compares local
+foreign-command rejection with an actual failed connection after explicit
+submission: the former is `not_submitted`, while the latter retains `unknown`
+and the exact sequence recovery target. Query tests retain EXPLAIN's original
+unknown-column subject and byte offset and verify that denied metadata access
+produces no binding witness. Unknown causes are internal; failed status reads
+produce no terminal query outcome. These component checks do not establish
+SDK exception retention. Logs: `/var/tmp/transit-api-diagnostic-root-unit.log`
+and `/var/tmp/transit-api-inspection-unit.log`.

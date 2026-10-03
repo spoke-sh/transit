@@ -79,16 +79,31 @@ pub const Result = struct {
 /// Slices belong to the supplied result arena. The generic client boundary also
 /// lets tests assert that failures never call an execution/admission interface.
 pub fn apply(allocator: Allocator, client: anytype, request: Request) !Result {
+    return applyDiagnostic(allocator, client, request, null);
+}
+pub fn applyDiagnostic(allocator: Allocator, client: anytype, request: Request, detail: ?*q.fuze.Sql.Binding) !Result {
+    if (detail) |value| value.* = .{};
     const definition = try request.scope.source.native(allocator);
     const name = try m.Name.init(request.scope.name);
     const limits = try request.scope.limits.native();
     _ = try client.describe(definition);
-    const ast = (try q.fuze.Sql.parseInspection(request.sql)) orelse return error.UnsupportedStatement;
+    var location: q.fuze.Sql.Location = .{ .offset = 0 };
+    const ast = (q.fuze.Sql.parseInspectionLocated(request.sql, &location) catch |err| {
+        if (detail) |value| value.location = location;
+        return err;
+    }) orelse return error.UnsupportedStatement;
     var columns: [m.max_columns]m.Column = undefined;
     const schema = try definition.schema(&columns);
     const details: Details = switch (ast) {
         .describe => |target| blk: {
-            if (!std.mem.eql(u8, target.slice(), name.slice())) return error.UnknownSource;
+            if (!std.mem.eql(u8, target.slice(), name.slice())) {
+                if (detail) |value| {
+                    value.subject = target;
+                    @memcpy(value.scope[0..name.slice().len], name.slice());
+                    value.scope_len = name.slice().len;
+                }
+                return error.UnknownSource;
+            }
             break :blk .{ .description = .{ .columns = try v.foreignColumns(allocator, schema) } };
         },
         .show => |catalog| blk: {
@@ -97,7 +112,7 @@ pub fn apply(allocator: Allocator, client: anytype, request: Request) !Result {
             if (names.len != 0) names[0] = try allocator.dupe(u8, name.slice());
             break :blk .{ .tables = names };
         },
-        .explain => |select| .{ .explanation = try explain(allocator, try m.Sql.compile(allocator, select, .{ .name = name, .schema = schema }), schema, limits) },
+        .explain => |select| .{ .explanation = try explain(allocator, try m.Sql.compileDiagnostic(allocator, select, .{ .name = name, .schema = schema }, detail), schema, limits) },
     };
     const current = try client.describe(definition);
     if (details == .explanation and !current.limits.permits(limits)) return error.QueryBudgetExceeded;
@@ -211,6 +226,17 @@ test "inspection fixtures share typed lowering and final authority without an ex
     try t.expectError(error.UnknownSource, apply(allocator, &client, .{ .scope = fixture.scope, .sql = "DESCRIBE private" }));
     try t.expectError(error.UnknownSource, apply(allocator, &client, .{ .scope = fixture.scope, .sql = "EXPLAIN SELECT * FROM private" }));
     try t.expectError(error.UnsupportedCatalog, apply(allocator, &client, .{ .scope = fixture.scope, .sql = "SHOW SOURCES" }));
+    var detail: q.fuze.Sql.Binding = .{};
+    const invalid: Request = .{ .scope = fixture.scope, .sql = "EXPLAIN SELECT missing FROM items" };
+    try t.expectError(error.UnknownColumn, applyDiagnostic(allocator, &client, invalid, &detail));
+    const diagnostic = try q.ApiDiagnostic.project(.{ .inspect = invalid }, error.UnknownColumn, detail, false, null);
+    try t.expectEqualStrings("sql.unknown_column", diagnostic.code.slice());
+    try t.expectEqualStrings("missing", diagnostic.facts[0].?.value.?.text.slice());
+    try t.expectEqual(@as(u64, 15), try diagnostic.location.?.offset.value());
+    var denied_detail: q.fuze.Sql.Binding = .{};
+    var private: TestClient = .{ .deny_at = 1 };
+    try t.expectError(error.QueryDenied, applyDiagnostic(allocator, &private, invalid, &denied_detail));
+    try t.expect(denied_detail.subject == null and denied_detail.location == null);
     var kv_scope = fixture.scope;
     kv_scope.source.source = .{ .kv = .{ .prefix = "", .key = .{ .type = .utf8 }, .value = .{ .type = .uint64 } } };
     const empty = try apply(allocator, &client, .{ .scope = kv_scope, .sql = "SHOW TABLES" });
