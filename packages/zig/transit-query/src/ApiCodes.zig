@@ -2,6 +2,7 @@
 const d = @import("root.zig").protocol.Diagnostic;
 pub const Entry = struct { cause: anyerror, code: []const u8, category: d.Category, action: d.ActionKind, message: []const u8 };
 pub const entries = [_]Entry{
+    .{ .cause = error.AuthorityTransportDenied, .code = "query.transport_denied", .category = .unavailable, .action = .retry_read, .message = "Local network or operating-system policy denied the connection to the authority. No authority rejection was received. Check the connection policy; preserve any exact saved command and reconcile its outcome before preparing new work." },
     .{ .cause = error.QueryReadConflict, .code = "query.read_conflict", .category = .conflict, .action = .retry_read, .message = "The resource or policy changed during the bounded read. Retry the read under current rights without replacing any saved command." },
     .{ .cause = error.Conflict, .code = "query.authority_conflict", .category = .conflict, .action = .inspect_status, .message = "The authority rejected this attempt as conflicting. Inspect its native cause and any saved query; this response alone does not identify a changed source or settle earlier work." },
     .{ .cause = error.Rejected, .code = "query.authority_rejected", .category = .conflict, .action = .inspect_status, .message = "The authority rejected this attempt. Inspect its native cause and the exact saved query. This is not a terminal query outcome or permission to replace an uncertain command." },

@@ -410,3 +410,32 @@ test "diagnostic validation is bounded and rejects unsafe outcome substitutions"
     try t.expectEqual(@as(u32, 0), Api.transit_diagnostic_validate(foreign.ptr, foreign.len));
     try t.expectEqual(@as(u32, 0), Api.transit_diagnostic_validate(bytes.ptr, p.Diagnostic.max_json_bytes + 1));
 }
+
+test "transport denial remains uncertain for commands and unavailable for reads" {
+    const t = std.testing;
+    const Denied = struct {
+        last_rejection: ?p.ErrorCode = null,
+        fn submit(_: *@This(), _: p.Growth.SignedRequest) anyerror!p.Receipt {
+            return error.AuthorityTransportDenied;
+        }
+        fn call(_: *@This(), comptime T: type, _: []const u8, _: anytype) anyerror!T {
+            return error.AuthorityTransportDenied;
+        }
+    };
+    const cases = [_]Signed{
+        .{ .growing_command = .{ .request = .{ .realm = 42, .principal = 65536, .sequence = 1, .command = .{ .spawn = .{} } }, .signature = @splat(0) } },
+        .{ .growing_query = .{ .query = .{ .realm = 42, .principal = 65536, .kind = .capabilities }, .signature = @splat(0) } },
+    };
+    for (cases) |signed| {
+        var denied: Denied = .{};
+        var out: ?*Buffer = null;
+        const status = exchange(t.allocator, &denied, signed, &out);
+        defer if (out) |pointer| {
+            const owned = cast(BufferImpl, pointer);
+            t.allocator.free(owned.bytes);
+            t.allocator.destroy(owned);
+        };
+        try t.expectEqual(if (signed == .growing_command) Status.uncertain else Status.unavailable, status);
+        try t.expectEqualStrings("{\"err\":\"AuthorityTransportDenied\"}", cast(BufferImpl, out.?).bytes);
+    }
+}

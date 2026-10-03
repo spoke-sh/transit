@@ -6,6 +6,7 @@ const d = p.Diagnostic;
 const Class = struct { code: []const u8, category: d.Category, message: []const u8 };
 
 pub const entries = [_]struct { cause: anyerror, code: []const u8, category: d.Category, message: []const u8 }{
+    .{ .cause = error.AuthorityTransportDenied, .code = "application.transport_denied", .category = .unavailable, .message = "Local network or operating-system policy denied the connection to the authority. No authority rejection was received. Check the connection policy; preserve any exact saved command and reconcile its outcome before preparing new work." },
     .{ .cause = error.InvalidApplicationOperators, .code = "application.invalid_operators", .category = .binding, .message = "Configure one through sixteen distinct nonzero native operator principals without gaps. No host operation can run until this configuration is valid." },
     .{ .cause = error.MessageTooLarge, .code = "application.command_too_large", .category = .limit, .message = "The encoded application command exceeds the native message boundary. Keep the original proposal and use its bounded upload continuation; do not split or change an already signed command." },
     .{ .cause = error.ApplicationPartTooLarge, .code = "application.record_part_too_large", .category = .integrity, .message = "An application record part exceeds its 128-byte record boundary. Preserve the exact record and proposal for inspection; this failure does not establish publication or abandonment." },

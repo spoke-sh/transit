@@ -184,3 +184,9 @@ evidence and actions. Every retained query code also crosses both recorded stage
 and all three failure phases through Flight's actual detail/status projector,
 including retirement's status override. These cases supplement the real durable
 query/restart proofs rather than simulating their storage transitions.
+
+The native HTTP client reserves `AccessDenied` for a validated authority response.
+A socket `AccessDenied` is normalized to `AuthorityTransportDenied` before crossing
+caller boundaries. A real injected connection failure exercises the pinned HTTP
+stack; ABI and semantic matrix cases check unavailable reads versus uncertain
+commands. Local network policy cannot masquerade as native rejection.

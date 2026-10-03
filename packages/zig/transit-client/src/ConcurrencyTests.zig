@@ -18,6 +18,7 @@ const Admission = struct {
     reject_from: usize,
     reject_count: usize,
     connections: std.atomic.Value(usize) = .init(0),
+    connect_error: Io.net.IpAddress.ConnectError = error.ConnectionRefused,
 
     fn init(reject_from: usize, reject_count: usize) Admission {
         return .{
@@ -64,7 +65,7 @@ const Admission = struct {
         _ = self.connections.fetchAdd(1, .monotonic);
         // A real transport failure must return to the caller, never trigger
         // another request as part of retrying worker-slot acquisition.
-        return error.ConnectionRefused;
+        return self.connect_error;
     }
 };
 
@@ -99,5 +100,22 @@ test "persistent admission failure has one deadline and leaves the client reusab
         caller.timeout_ms = 1000;
         try std.testing.expectError(error.ConnectionRefused, caller.call(client.Receipt, "/v1/command", .{}));
         try std.testing.expectEqual(@as(usize, 1), admission.connections.load(.monotonic));
+    }
+}
+
+test "local connection denial cannot masquerade as an authority rejection" {
+    const t = std.testing;
+    for ([_][]const u8{ "/v1/command", "/v1/query" }) |route| {
+        var admission: Admission = .init(0, 0);
+        defer admission.threaded.deinit();
+        admission.connect_error = error.AccessDenied;
+        var caller = client.Client.init(t.allocator, admission.io(), "http://127.0.0.1:1");
+        defer caller.deinit();
+        caller.timeout_ms = 1000;
+        try t.expectError(error.AuthorityTransportDenied, caller.call(client.Receipt, route, .{}));
+        try t.expect(caller.last_rejection == null and caller.last_status == null);
+        try t.expectEqual(@as(usize, 1), admission.connections.load(.monotonic));
+        try t.expect(client.Client.unavailable(error.AuthorityTransportDenied));
+        try t.expect(!client.Client.unavailable(error.AccessDenied));
     }
 }

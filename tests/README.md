@@ -13736,3 +13736,27 @@ preserves the original cause and returns FAILED_PRECONDITION. An initial checker
 assumed every observation had an outcome field; it was fixed to accommodate
 explicit diagnostic absence and rerun. Documentation links pass. This fixture
 does not replace authorization, durable transition or restart proofs.
+
+### Local transport denial versus authority rejection (2026-10-03)
+
+The pinned socket API declares `AccessDenied` for local firewall/OS refusal. A
+real injected `netConnectIp` denial through the HTTP client now produces
+`AuthorityTransportDenied`, with one connection attempt and no native rejection
+or HTTP status. The ABI projects it as uncertain for commands and unavailable for
+reads; the original cause remains in the owned error buffer. Valid authority
+rejection behavior is unchanged. All caller registries and shared Board/Flight
+projections retain the local-denial meaning and exact uncertain-send guidance.
+
+Native units, inferred-boundary/mapping gates and **2,868 semantic projections
+across 30 surfaces** pass. `just test::client-abi` passes actual authority grants,
+host-loss recovery, malformed/lost replies and revoked retry. Full `just check`
+passes, including generated contracts, frontends and documentation. The existing
+TypeScript catch-parameter warning remains nonfatal; no new warning is introduced.
+There is no wire, persisted record or ABI layout change.
+
+The earlier clean run at `74fea68e` was deliberately interrupted during growth
+qualification after all core tasks passed. Its metadata has `completed: false`
+and is retained at `/var/tmp/transit-ci-b97ktvkx/src/.cache/ci/complete.meta.json`.
+The concurrent connector run completed nine HTTP consumers before interruption;
+it is not counted as an all-language/all-protocol pass. Both are superseded by
+qualification of the corrected committed revision.

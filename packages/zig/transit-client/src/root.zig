@@ -23,6 +23,7 @@ pub const Client = struct {
         return switch (err) {
             error.AuthorityTimeout,
             error.AuthorityUnavailable,
+            error.AuthorityTransportDenied,
             error.NameServerFailure,
             error.ConnectionRefused,
             error.ConnectionTimedOut,
@@ -168,7 +169,7 @@ pub const Client = struct {
             headers[header_count] = .{ .name = "x-transit-control", .value = "snapshot" };
             header_count += 1;
         }
-        const response = try self.http.fetch(.{
+        const response = self.http.fetch(.{
             .location = .{ .url = url },
             .method = .POST,
             .payload = body,
@@ -177,7 +178,13 @@ pub const Client = struct {
             .extra_headers = headers[0..header_count],
             .keep_alive = true,
             .response_writer = &writer,
-        });
+        }) catch |err| switch (err) {
+            // The pinned socket API uses AccessDenied for a local firewall or
+            // OS refusal. Reserve AccessDenied below for a validated authority
+            // response; transport failure cannot establish command rejection.
+            error.AccessDenied => return error.AuthorityTransportDenied,
+            else => return err,
+        };
         self.last_status = response.status;
         if (response.status != .ok) {
             var failure = std.json.parseFromSlice(protocol.ErrorResponse, allocator, writer.buffered(), .{}) catch return error.InvalidAuthorityResponse;

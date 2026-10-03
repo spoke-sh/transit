@@ -74,3 +74,12 @@ credential scopes. See [installation](applications.md) for that boundary.
 
 Exact native/ABI ownership lives in the [client binding guide](../../packages/zig/transit-client/docs/bindings.md)
 and [Station binding guide](../../packages/zig/transit-station-bindings/README.md).
+
+## Local transport denial
+
+A local socket or firewall denial has cause `AuthorityTransportDenied`; it is
+separate from a validated authority `AccessDenied` response. Reads are unavailable.
+A command attempt remains uncertain unless its original outcome is established
+separately; retain and reconcile the exact signed work. The native ABI preserves
+these read/command distinctions, and query, mutation, catalog, application, Board
+and serving diagnostics identify the local connection policy as the failed boundary.

@@ -2,6 +2,7 @@
 const d = @import("root.zig").protocol.Diagnostic;
 pub const Entry = struct { cause: anyerror, code: []const u8, category: d.Category, message: []const u8 };
 pub const entries = [_]Entry{
+    .{ .cause = error.AuthorityTransportDenied, .code = "mutation.transport_denied", .category = .unavailable, .message = "Local network or operating-system policy denied the connection to the authority. No authority rejection was received. Check the connection policy; preserve any exact saved command and reconcile its outcome before preparing new work." },
     .{ .cause = error.MutationDenied, .code = "mutation.access_denied", .category = .access, .message = "The current principal or writer policy does not permit this operation. Query read access does not grant writes." },
     .{ .cause = error.MutationPrincipalMismatch, .code = "mutation.access_denied", .category = .access, .message = "The current principal or writer policy does not permit this operation. Query read access does not grant writes." },
     .{ .cause = error.AccessDenied, .code = "mutation.access_denied", .category = .access, .message = "The current principal or writer policy does not permit this operation. Query read access does not grant writes." },

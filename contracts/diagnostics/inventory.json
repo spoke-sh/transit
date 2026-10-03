@@ -2491,6 +2491,7 @@
       "errors": {
         "AccessDenied": 1,
         "AuthorityTimeout": 1,
+        "AuthorityTransportDenied": 1,
         "AuthorityUnavailable": 1,
         "Canceled": 1,
         "Conflict": 1,
@@ -2842,6 +2843,7 @@
       "errors": {
         "AccessDenied": 1,
         "AuthorityTimeout": 1,
+        "AuthorityTransportDenied": 1,
         "AuthorityUnavailable": 1,
         "Canceled": 1,
         "CatalogConfigurationChanged": 1,
@@ -3584,8 +3586,9 @@
     },
     "packages/zig/transit-client/src/root.zig": {
       "errors": {
-        "AccessDenied": 2,
+        "AccessDenied": 3,
         "AuthorityTimeout": 4,
+        "AuthorityTransportDenied": 2,
         "AuthorityUnavailable": 2,
         "ConcurrencyUnavailable": 1,
         "Conflict": 2,
@@ -3624,8 +3627,8 @@
       },
       "open_error_set_uses": 6,
       "propagation": {
-        "try": 12,
-        "catch": 7
+        "try": 11,
+        "catch": 8
       },
       "imports": [
         "Application.zig",
@@ -7821,6 +7824,7 @@
     },
     "packages/zig/transit-query/src/ApiCodes.zig": {
       "errors": {
+        "AuthorityTransportDenied": 1,
         "Canceled": 1,
         "Cancelled": 1,
         "Conflict": 1,
@@ -8203,6 +8207,7 @@
       "errors": {
         "AccessDenied": 1,
         "AuthorityTimeout": 1,
+        "AuthorityTransportDenied": 1,
         "AuthorityUnavailable": 1,
         "Canceled": 1,
         "Conflict": 1,
@@ -9914,6 +9919,7 @@
       "errors": {
         "AccessDenied": 1,
         "AuthorityTimeout": 1,
+        "AuthorityTransportDenied": 1,
         "AuthorityUnavailable": 1,
         "BrokenPipe": 1,
         "Canceled": 1,
@@ -11248,6 +11254,7 @@
         "ApplicationScopeChanged": 1,
         "ApplicationUploadUnavailable": 1,
         "AuthorityTimeout": 1,
+        "AuthorityTransportDenied": 1,
         "AuthorityUnavailable": 1,
         "Conflict": 2,
         "ConnectionRefused": 1,

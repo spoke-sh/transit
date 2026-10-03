@@ -2,6 +2,7 @@
 const d = @import("root.zig").protocol.Diagnostic;
 pub const Entry = struct { cause: anyerror, code: []const u8, category: d.Category, message: []const u8 };
 pub const entries = [_]Entry{
+    .{ .cause = error.AuthorityTransportDenied, .code = "catalog.transport_denied", .category = .unavailable, .message = "Local network or operating-system policy denied the connection to the authority. No authority rejection was received. Check the connection policy; preserve any exact saved command and reconcile its outcome before preparing new work." },
     .{ .cause = error.CatalogDenied, .code = "catalog.access_denied", .category = .access, .message = "The current native grant or catalog policy does not permit this operation. Create and inspect permissions are separate." },
     .{ .cause = error.AccessDenied, .code = "catalog.access_denied", .category = .access, .message = "The current native grant or catalog policy does not permit this operation. Create and inspect permissions are separate." },
     .{ .cause = error.CatalogOwnerUnavailable, .code = "catalog.owner_unavailable", .category = .unavailable, .message = "The configured catalog owner is unavailable. Preserve the original saved command and inspect its owner before continuing." },

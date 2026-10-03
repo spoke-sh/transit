@@ -467,7 +467,8 @@
         }
       ],
       "overrides": [
-        "EndOfStream"
+        "EndOfStream",
+        "AuthorityTransportDenied"
       ],
       "shared_codes": true,
       "profile": "Non-SQL query caller attempts, with recorded query-failure and native transport classifiers; SQL compilation retains its own boundary",
@@ -946,6 +947,10 @@
         "QuerySourceChanged": {
           "code": "query.source_changed",
           "category": "conflict"
+        },
+        "AuthorityTransportDenied": {
+          "code": "query.transport_denied",
+          "category": "unavailable"
         }
       },
       "exceptions": [],
@@ -1395,6 +1400,10 @@
         "WriteFailed": {
           "code": "application.unavailable",
           "category": "unavailable"
+        },
+        "AuthorityTransportDenied": {
+          "code": "application.transport_denied",
+          "category": "unavailable"
         }
       },
       "exceptions": [],
@@ -1641,6 +1650,10 @@
         "NoPreparedMutation": {
           "code": "mutation.no_prepared_command",
           "category": "lifecycle"
+        },
+        "AuthorityTransportDenied": {
+          "code": "mutation.transport_denied",
+          "category": "unavailable"
         }
       },
       "exceptions": [],
@@ -1868,6 +1881,10 @@
         "CatalogDefinitionMissing": {
           "code": "catalog.definition_missing",
           "category": "integrity"
+        },
+        "AuthorityTransportDenied": {
+          "code": "catalog.transport_denied",
+          "category": "unavailable"
         }
       },
       "exceptions": [],
@@ -1933,7 +1950,8 @@
         "ReadFailed",
         "Rejected",
         "ResourceUnavailable",
-        "WriteFailed"
+        "WriteFailed",
+        "AuthorityTransportDenied"
       ],
       "profile": "Board authorized read-only inspection",
       "stage": "Read",
@@ -2495,6 +2513,10 @@
         "RequestResourceMissing": {
           "code": "query.request_resource_missing",
           "category": "lifecycle"
+        },
+        "AuthorityTransportDenied": {
+          "code": "inspection.transport_denied",
+          "category": "unavailable"
         }
       },
       "exceptions": [],
@@ -3066,6 +3088,10 @@
         "IncompatibleDefinition": {
           "code": "serving.incompatible_definition",
           "category": "integrity"
+        },
+        "AuthorityTransportDenied": {
+          "code": "serving.transport_denied",
+          "category": "unavailable"
         }
       },
       "exceptions": [],

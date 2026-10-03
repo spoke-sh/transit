@@ -918,6 +918,7 @@
         }
       },
       "cases": {
+        "AuthorityTransportDenied": {"code": "query.transport_denied","category": "unavailable","actions": ["retry_read"]},
         "QueryReadConflict": {"code": "query.read_conflict","category": "conflict","actions": ["retry_read"]},
         "Conflict": {"code": "query.authority_conflict","category": "conflict","actions": ["inspect_status"],"scenarios": {"dispatched": {"code": "query.command_rejected","category": "conflict","outcome": "not_applicable","evidence": "none","actions": ["inspect_status","inspect_scope"]}}},
         "Rejected": {"code": "query.authority_rejected","category": "conflict","actions": ["inspect_status"],"scenarios": {"dispatched": {"code": "query.command_rejected","category": "conflict","outcome": "not_applicable","evidence": "none","actions": ["inspect_status","inspect_scope"]}}},
@@ -1188,6 +1189,7 @@
         }
       },
       "cases": {
+        "AuthorityTransportDenied": {"code": "application.transport_denied","category": "unavailable","actions": ["inspect_status","retry_read"]},
         "InvalidApplicationOperators": {"code": "application.invalid_operators","category": "binding","actions": ["inspect_status"]},
         "MessageTooLarge": {"code": "application.command_too_large","category": "limit","actions": ["inspect_status"]},
         "ApplicationPartTooLarge": {"code": "application.record_part_too_large","category": "integrity","actions": ["inspect_status","contact_operator"]},
@@ -1270,6 +1272,7 @@
         }
       },
       "cases": {
+        "AuthorityTransportDenied": {"code": "query.transport_denied","category": "unavailable","actions": ["retry_read"],"transport_status": 503},
         "QueryReadConflict": {"code": "query.read_conflict","category": "conflict","actions": ["retry_read"],"transport_status": 409},
         "Conflict": {"code": "query.authority_conflict","category": "conflict","actions": ["inspect_status"],"transport_status": 409},
         "Rejected": {"code": "query.authority_rejected","category": "conflict","actions": ["inspect_status"],"transport_status": 409},
@@ -1417,6 +1420,7 @@
         }
       },
       "cases": {
+        "AuthorityTransportDenied": {"code": "query.transport_denied","category": "unavailable","actions": ["retry_read"],"transport_status": 14},
         "QueryReadConflict": {"code": "query.read_conflict","category": "conflict","actions": ["retry_read"],"transport_status": 10},
         "Conflict": {"code": "query.authority_conflict","category": "conflict","actions": ["inspect_status"],"transport_status": 10},
         "Rejected": {"code": "query.authority_rejected","category": "conflict","actions": ["inspect_status"],"transport_status": 10},
@@ -1587,6 +1591,7 @@
         }
       },
       "cases": {
+        "AuthorityTransportDenied": {"code": "mutation.transport_denied","category": "unavailable","actions": ["retry_read"]},
         "MutationDenied": {"code": "mutation.access_denied","category": "access","actions": ["inspect_scope"]},
         "MutationPrincipalMismatch": {"code": "mutation.access_denied","category": "access","actions": ["inspect_scope"]},
         "AccessDenied": {"code": "mutation.access_denied","category": "access","actions": ["inspect_scope"],"scenarios": {"dispatched": {"code": "mutation.command_rejected","category": "access","outcome": "not_applicable","evidence": "none","actions": ["inspect_status","inspect_scope"]}}},
@@ -1694,6 +1699,7 @@
         }
       },
       "cases": {
+        "AuthorityTransportDenied": {"code": "catalog.transport_denied","category": "unavailable","actions": ["retry_read"]},
         "CatalogDenied": {"code": "catalog.access_denied","category": "access","actions": ["inspect_scope"]},
         "AccessDenied": {"code": "catalog.access_denied","category": "access","actions": ["inspect_scope"],"scenarios": {"dispatched": {"code": "catalog.command_rejected","category": "access","outcome": "not_applicable","evidence": "none","actions": ["inspect_status","inspect_scope"]}}},
         "CatalogOwnerUnavailable": {"code": "catalog.owner_unavailable","category": "unavailable","actions": ["retry_read"]},
@@ -1799,6 +1805,7 @@
         }
       },
       "cases": {
+        "AuthorityTransportDenied": {"code": "inspection.transport_denied","category": "unavailable","actions": ["retry_read"]},
         "AccessDenied": {"code": "inspection.denied","category": "access","actions": ["inspect_scope"]},
         "QueryAccessDenied": {"code": "inspection.denied","category": "access","actions": ["inspect_scope"]},
         "QueryDenied": {"code": "inspection.denied","category": "access","actions": ["inspect_scope"]},
@@ -2250,6 +2257,7 @@
         }
       },
       "cases": {
+        "AuthorityTransportDenied": {"code": "serving.transport_denied","category": "unavailable","actions": ["inspect_status"],"scenarios": {"input": {"transport_status": 503},"read": {"transport_status": 503,"actions": ["retry_read"]}}},
         "ReactiveChallengeTimeout": {"code": "reactive.challenge_timeout","category": "lifecycle","actions": ["inspect_status"],"scenarios": {"input": {"transport_status": 408},"read": {"transport_status": 408,"actions": ["inspect_status"]}}},
         "HttpDeadline": {"code": "serving.transport_deadline","category": "unavailable","actions": ["inspect_status"],"scenarios": {"input": {"transport_status": 504},"read": {"transport_status": 504,"actions": ["retry_read"]}}},
         "InvalidServingCommand": {"code": "serving.invalid_command","category": "syntax","actions": ["correct_input"],"scenarios": {"input": {"transport_status": 400},"read": {"transport_status": 400,"actions": ["correct_input"]}}},
