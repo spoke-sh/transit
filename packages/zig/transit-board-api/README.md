@@ -124,3 +124,9 @@ value bytes, names of hidden associations, global count or traffic rate is
 inferred. The host performs only public client reads. See the
 [Atlas guide](../../../apps/transit-board/docs/application.md#bounded-atlas-evidence)
 for cursor and failure semantics.
+
+`InspectionDiagnostic.project` classifies failed public read attempts separately
+from write outcomes. It retains the native cause and distinguishes missing capture
+members, invalid coverage, protocol mismatch, decoding failure and inspector
+capacity. It supplies no domain receipt or replay authorization. The host attaches
+this envelope only to read routes; query/application submission uses its owner.

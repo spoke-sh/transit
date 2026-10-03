@@ -64,9 +64,12 @@ class DocumentBoard:
         cursor = "?" + urlencode(dict(revision=page["source"]["resource_revision"], after=after))
         assert self.request(self.path+cursor)["registers"]["count"] == 1
         self.request(self.path+"?after="+after, 400)
-        self.request(self.path+"?revision=0&after="+after, 409)
+        changed = self.request(self.path+"?revision=0&after="+after, 409)
+        assert changed["diagnostic"]["code"] == "inspection.observation_changed", changed
         self.grant(0)
-        assert self.request(status=403)["err"] == "Forbidden"
+        denied = self.request(status=403)
+        assert denied["err"] == "Forbidden" and denied["diagnostic"]["code"] == "inspection.denied", denied
+        assert denied["diagnostic"]["outcome"] == "not_applicable", denied
         self.request(self.path+cursor, 403)
         self.grant(3)
         self.inspect(3, 0, conflicts=1)

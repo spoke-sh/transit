@@ -54,7 +54,12 @@ shape, current definition, byte/encoding/number bounds, evidence consistency and
 recovery targets. Invalid detail cannot replace the primary HTTP status/code or
 change the retry policy. Error messages used by ordinary logging contain only
 the finite identifier; caller-facing views explicitly render the detail. Other
-inspection errors may have no diagnostic envelope.
+inspection reads preserve their own semantic code for current denial, changed
+cuts, reclaimed history, unavailable resources, replay gaps, coverage mismatch,
+invalid capture, protocol mismatch and inspector capacity. A failed inspection
+reports no complete observation and never changes the outcome of earlier work.
+Read retries and fresh observations remain separate from signed-command recovery.
+Errors before selecting an inspection route may have no diagnostic envelope.
 
 ## Read evidence, not assumptions
 

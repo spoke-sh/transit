@@ -77,11 +77,14 @@ def inspect_capture(fixture, admin, authority, saved, board, provision, state, b
         assert next(item['obligations'] for item in details if 'obligations' in item)['disposition'] == 'observed'
         assert next(item['attempts'] for item in details if 'attempts' in item)['used'] == 1
         subprocess.run(['node', 'tests/board_records_client.mjs'], input=json.dumps(dict(pages=pages, metadata=metadata)).encode(), check=True, timeout=20)
-        request(path + '?revision=0&after=00', status=409)
+        changed = request(path + '?revision=0&after=00', status=409)
+        assert changed['diagnostic']['code'] == 'inspection.observation_changed', changed
         for suffix in ('?after=00', '?revision=1&after=ff0', '?revision=1&after=', '?view=1'):
             request(path + suffix, status=400)
         admin('board-revoke')
-        assert request(status=403)['err'] == 'Forbidden'
+        denied = request(status=403)
+        assert denied['err'] == 'Forbidden' and denied['diagnostic']['code'] == 'inspection.denied', denied
+        assert denied['diagnostic']['outcome'] == 'not_applicable', denied
         request(metadata_path, status=403)
         # Knowing a previous key/revision cannot bypass the current read grant.
         request(path + '?revision=' + str(pages[0]['resource']['revision']) + '&after=00', status=403)

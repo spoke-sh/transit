@@ -1,3 +1,4 @@
+import fixture from "../../../packages/zig/transit-protocol/src/fixtures/diagnostic-v1.json" with { type: "json" };
 import { describe, expect, it } from "vite-plus/test";
 import { text } from "./components";
 import {
@@ -21,6 +22,17 @@ describe("inspection semantics", () => {
     expect(message(new BoardError(409, "HistoryReclaimed"))).toContain("Retention");
     expect(message(new BoardError(409, "QueryExpired"))).toContain("cannot be combined");
     expect(message(new Error("offline"))).toContain("No new observation");
+  });
+  it("renders owned inspection detail and keeps the primary fallback for invalid detail", () => {
+    const detail = structuredClone(fixture);
+    detail.message = "Missing <capture> member; no complete observation.";
+    const failure = new BoardError(409, "IncompleteResult", detail);
+    detail.message = "replaced";
+    expect(message(failure)).toContain("Missing <capture> member");
+    expect(message(failure)).not.toContain("replaced");
+    const malformed = new BoardError(409, "HistoryReclaimed", { code: "invented" });
+    expect(malformed.diagnosticInvalid).toBe(true);
+    expect(message(malformed)).toContain("Retention");
   });
   it("validates exact integer identity at the TypeScript boundary", () => {
     const caps = {

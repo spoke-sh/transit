@@ -80,6 +80,16 @@ def run(node, cli, board, browser=False):
             body, _ = request("/api/v1/" + path, **kwargs)
             return json.loads(body)
 
+        def failure(path, status, code, action, **kwargs):
+            result = api(path, status=status, **kwargs)
+            detail = result["diagnostic"]
+            assert detail["code"] == code, result
+            assert detail["stage"] == "read" and detail["outcome"] == "not_applicable", detail
+            assert detail["evidence"] == "none" and detail["identity"] is None, detail
+            assert [item["kind"] for item in detail["actions"] if item] == [action], detail
+            assert any(item and item["field"] == "completion" and item["value"] == {"boolean": False} for item in detail["facts"]), detail
+            return result
+
         # The only running file in this cwd is the binary. Static dependencies
         # are loaded from it, including lazy chunks and the versioned OpenAPI.
         html, headers = request("/processes/1/journey")
@@ -113,8 +123,8 @@ def run(node, cli, board, browser=False):
         assert "lens" not in detail
         assert [r["id"] for r in api("resources")["observation"]["resources"] if r] == [resource]
         assert [a["resource"] for a in api(f"processes/{pids[1]}/associations")["observation"]["associations"] if a] == [resource]
-        api(f"resources/{hidden}", status=403)
-        api(f"resources/{resource}/entries", status=403)
+        failure(f"resources/{hidden}", 403, "inspection.denied", "inspect_scope")
+        failure(f"resources/{resource}/entries", 403, "inspection.denied", "inspect_scope")
         s.command({"grant_resource": {"resource": resource, "subject": 1, "permissions": 3}})
         assert not any(api(f"resources/{resource}/entries")["observation"]["entries"])
         writer_generation = s.inspect("process", pids[1])["processes"][0]["generation"]
@@ -133,7 +143,7 @@ def run(node, cli, board, browser=False):
         assert len(lenses) == 2 and {next(iter(item["declaration"])) for item in lenses} == {"behavior", "table"}
         assert all(item["source"]["pid"] == pids[1] and item["source"]["resource"] == resource for item in lenses)
         s.command({"grant_resource": {"resource": resource, "subject": 1, "permissions": 1}})
-        api(f"resources/{resource}/entries", status=403)  # lenses cannot bypass read revocation
+        failure(f"resources/{resource}/entries", 403, "inspection.denied", "inspect_scope")  # lenses cannot bypass read revocation
         s.command({"grant_resource": {"resource": resource, "subject": 1, "permissions": 3}})
         process = detail["observation"]["processes"][0]
         assert process["failure"] == blocked and process["admitted"] - process["consumed"] == 1
@@ -168,12 +178,12 @@ def run(node, cli, board, browser=False):
         api("processes", status=403)
         api("processes", headers=ignored, status=403)
         s.command({"grant": {"subject": 1, "public_key": public, "permissions": 17}})
-        assert api("capabilities", status=403)["err"] == "UnsafePrincipal"
+        assert failure("capabilities", 403, "inspection.unsafe_principal", "contact_operator")["err"] == "UnsafePrincipal"
         s.command({"grant": {"subject": 1, "public_key": public, "permissions": 16}})
         # No stale response is served during an authority/storage outage.
         s.authority.kill()
         s.authority.wait(timeout=10)
-        api("processes", status=503)
+        failure("processes", 503, "inspection.authority_unavailable", "retry_read")
         s.store.stop()
         s.store.start()
         s.authority = s.start(s.node, s.config)
@@ -230,7 +240,7 @@ def run(node, cli, board, browser=False):
             s.command({"terminate": pid})
         s.command({"checkpoint": {}})
         from urllib.parse import urlencode
-        assert api(f"processes/{pids[0]}/history?" + urlencode(before), status=409)["err"] == "HistoryReclaimed"
+        assert failure(f"processes/{pids[0]}/history?" + urlencode(before), 409, "inspection.history_reclaimed", "refresh")["err"] == "HistoryReclaimed"
         trimmed = api(f"processes/{pids[0]}/history")["observation"]
         assert trimmed["history"] == "prefix_reclaimed" and not any(trimmed["events"])
         assert api(f"processes/{pids[0]}")["observation"]["processes"][0]["lifecycle"] == "terminated"

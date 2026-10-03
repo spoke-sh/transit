@@ -1,3 +1,4 @@
+import { diagnosticLines } from "@rey/transit-query-client";
 import { InterfaceShell } from "./interface";
 import { Link } from "@tanstack/react-router";
 import {
@@ -111,6 +112,7 @@ export function Access({ children }: { children: ReactNode }) {
 }
 export function message(cause: unknown): string {
   if (cause instanceof BoardError) {
+    if (cause.diagnostic) return diagnosticLines(cause.diagnostic).join(" ");
     if (cause.code === "QueryExpired")
       return "The authority changed. Refresh to start a new observation; these pages cannot be combined.";
     if (cause.code === "HistoryReclaimed")

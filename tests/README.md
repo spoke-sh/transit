@@ -12683,3 +12683,23 @@ port, CLI and Board/browser callers retain exact signed retries across worker,
 node and disk-store restart. The two Board instances exercise concurrent prepared
 sequences, current prefix denial, finite draft budgets and browser recovery.
 Installed SDK profiles were not selected in this run.
+
+### Board inspection diagnostics — 2026-10-03
+
+Inspection errors retain separate semantic codes for authority denial, unsafe
+principal, changed cuts, reclaimed history, unavailable sources, replay gaps,
+coverage mismatch, invalid capture, protocol mismatch and inspector capacity.
+Every projection describes a failed read with no complete observation, never a
+domain write result or permission to repeat an external effect. The browser
+renders owned validated detail and preserves primary errors when detail is invalid.
+
+Executed Board API package units, Board ingress units and frontend formatting,
+lint, types and 39 tests: **passed**. Executed `just transit-board::browser`: **passed**,
+five browser cases in 20.3 seconds. Real HTTP assertions cover current grant
+denial, read-only principal enforcement, native history reclamation and authority
+outage, preserving primary status and exact safe next actions.
+
+Full `just check` passes, including 481 CLI cases and the production handbook
+build. The HTTP browser and Document metadata portions have also passed their new
+changed-cut/current-denial assertions; the enclosing HTTP, gRPC and Document
+recovery schedules are still running and are not yet counted as complete proofs.

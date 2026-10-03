@@ -76,7 +76,7 @@ const Server = struct {
         return self.json(req, status, api.Error{ .err = code, .diagnostic = diagnostic });
     }
     fn queryFailure(self: *Server, req: *std.http.Server.Request, upstream: *client.Client, err: anyerror) !void {
-        return self.queryFailureDiagnostic(req, upstream, err, null);
+        return self.queryFailureDiagnostic(req, upstream, err, api.InspectionDiagnostic.project(err, upstream.last_rejection) catch null);
     }
     fn queryFailureDiagnostic(self: *Server, req: *std.http.Server.Request, upstream: *client.Client, err: anyerror, diagnostic: ?client.protocol.Diagnostic) !void {
         if (err == error.AccessDenied or err == error.QueryAccessDenied or err == error.QueryDenied) return self.failureDiagnostic(req, .forbidden, .Forbidden, diagnostic);

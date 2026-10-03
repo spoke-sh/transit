@@ -8,8 +8,10 @@ pub const GrpcResponse = Grpc.Response;
 pub const Document = @import("Document.zig");
 pub const DocumentResponse = Document.Response;
 pub const Query = @import("Query.zig");
+pub const InspectionDiagnostic = @import("InspectionDiagnostic.zig");
 pub const Json = @import("Json.zig");
 test {
+    _ = InspectionDiagnostic;
     _ = Json;
     _ = Exchange;
     _ = Document;
