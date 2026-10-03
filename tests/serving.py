@@ -42,12 +42,12 @@ class Key:
 
 
 def native_query(key, principal, kind):
-    query = dict(version=1, definition='4f6cb811c01a0e89111f7c5e4ff0425d91a7bd6eeaf0ca77c6d6d66399da4cbc', realm=REALM, principal=principal, kind=kind)
+    query = dict(version=1, definition='b83b6c75eae067d04b938425305a4a03c04193b4499e059405fa42ae63b9fec5', realm=REALM, principal=principal, kind=kind)
     return dict(query=query, signature=key.sign(hashlib.sha256(b'transit.query.v1\0' + compact(query)).digest()))
 
 
 def native_command(key, principal, sequence, command):
-    request = dict(version=1, definition='4f6cb811c01a0e89111f7c5e4ff0425d91a7bd6eeaf0ca77c6d6d66399da4cbc', realm=REALM, principal=principal, sequence=sequence, command=command)
+    request = dict(version=1, definition='b83b6c75eae067d04b938425305a4a03c04193b4499e059405fa42ae63b9fec5', realm=REALM, principal=principal, sequence=sequence, command=command)
     return dict(request=request, signature=key.sign(hashlib.sha256(b'transit.request.v1\0' + compact(request)).digest()))
 
 
@@ -331,6 +331,13 @@ def run(node, example, courier, tls=False, capacity=False, lifetimes=False, grow
             assert receipts[0] == receipts[1] and receipts[0]['stage'] == 'ingress_accepted' and fault['retried'], receipts
             sequences[65536] = 1
 
+            def operation_diagnostic(value, code, outcome):
+                detail = value['diagnostic']
+                assert (detail['code'], detail['outcome'], detail['evidence']) == (code, outcome, 'domain_status'), detail
+                assert detail['identity'] == dict(domain='serving', id=str(value['operation']['operation']), realm=str(REALM), resource=str(ingress_resource), sequence=None), detail
+                assert not any(action and action['kind'] in ('resume_exact', 'correct_input', 'reconcile_effect') for action in detail['actions']), detail
+                return detail
+
             def completed(operation, expected):
                 until = time.monotonic() + 45
                 while time.monotonic() < until:
@@ -339,6 +346,8 @@ def run(node, example, courier, tls=False, capacity=False, lifetimes=False, grow
                         if status['stage'] == 'completed':
                             value = read('result', operation)
                             assert struct.unpack('<q', bytes.fromhex(value['operation']['result']))[0] == expected, value
+                            assert value['operation']['reply_bytes'] == 8, value
+                            operation_diagnostic(value, 'serving.reply_recorded', 'completed')
                             return value
                     except AssertionError as error:
                         if isinstance(error.args[0], tuple) and error.args[0][1] in (404, 409, 503, 504):
@@ -449,7 +458,10 @@ def run(node, example, courier, tls=False, capacity=False, lifetimes=False, grow
             post(gateway_ports[0], '/serving/v1/command', second_request, public_host, 202)
             sequences[65536] += 1
             drained(ingress)
-            assert read('status', 2)['stage'] == 'service_admitted'
+            admitted = read('status', 2)
+            assert admitted['stage'] == 'service_admitted'
+            pending_detail = operation_diagnostic(admitted, 'serving.operation_admitted', 'pending')
+            assert read('result', 2, expected=409)['diagnostic'] == pending_detail
             correlation = read('status', 2)['operation']['correlation']
             premature = send({'send': dict(pid=ingress, value=frame(b'TMO1' + struct.pack('<Q', deadline_ms - 1), 8, correlation))}, 34)
             spoofed = send({'send': dict(pid=ingress, value=frame(b'forged', 3, correlation))}, 65536)
@@ -466,7 +478,10 @@ def run(node, example, courier, tls=False, capacity=False, lifetimes=False, grow
                 assert read('status', 7, principal=65537)['stage'] == 'service_admitted'
                 cast(ingress, b'SV1c\x04' + struct.pack('<Q', 7), 65537)
                 drained(ingress)
-                assert read('status', 7, principal=65537)['stage'] == 'cancelled'
+                cancelled = read('status', 7, principal=65537)
+                assert cancelled['stage'] == 'cancelled'
+                cancelled_detail = operation_diagnostic(cancelled, 'serving.wait_cancelled', 'cancelled')
+                assert read('result', 7, principal=65537, expected=409)['diagnostic'] == cancelled_detail
                 timeout_at = int(time.time() * 1000) + 1000
                 cast(ingress, submit(8, timeout_at, row=2), 65537)
                 drained(ingress)
@@ -477,6 +492,8 @@ def run(node, example, courier, tls=False, capacity=False, lifetimes=False, grow
                 drained(ingress)
                 terminal = read('status', 8, principal=65537)
                 assert terminal['stage'] == 'timed_out'
+                timeout_detail = operation_diagnostic(terminal, 'serving.wait_timed_out', 'closed_unknown')
+                assert read('result', 8, principal=65537, expected=409)['diagnostic'] == timeout_detail
                 send({'send': dict(pid=ingress, value=observation)}, 34)
                 drained(ingress)
                 assert read('status', 8, principal=65537)['operation'] == terminal['operation']
@@ -500,7 +517,8 @@ def run(node, example, courier, tls=False, capacity=False, lifetimes=False, grow
             completed(1, 1)
             assert read('disposition', conflict_input)['disposition'] == original_conflict
             if lifetimes:
-                assert read('status', 7, principal=65537)['stage'] == 'cancelled'
+                assert read('status', 7, principal=65537)['diagnostic'] == cancelled_detail
+                assert read('status', 8, principal=65537)['diagnostic'] == timeout_detail
                 assert read('status', 8, principal=65537)['operation'] == terminal['operation']
                 # Late application replies are consumed by Station without
                 # reopening either terminal wait after physical recovery.

@@ -12940,3 +12940,41 @@ TypeScript and **44/44** focused browser cases; log
 `/var/tmp/transit-serving-adapter-browser-unit4.log`. No committed-HEAD clean qualification is claimed by
 these focused results. Semantic inventory and operation/effect outcomes remain
 separate work.
+
+### Serving operation outcomes and original reply limits — 2026-10-03
+
+Component tests cover all five serving phases, exact outcome/evidence/actions,
+maximum safe-counter identities, a maximum 170-byte record and complete
+SSE/WebSocket operation messages within 8192 bytes. An authenticated 65-byte
+reply retains its exact count against the 64-byte result limit, clears its active
+slot, preserves its failed outcome across exact retry/metadata changes and
+rejects inconsistent stored phase/count/result evidence. Diagnostic projection
+neither resends work nor treats wait cancellation as remote rollback.
+
+Executed `just test::serving-lifetimes`: **passed**, 22.95 seconds excluding
+compilation. Independent peers compare cancelled/timed-out diagnostics through
+worker/gateway/node/disk replacement and late replies, and compare status/result
+read evidence. Current service/native revocation remains enforced. Executed
+`just test::reactive-browser`: **passed**, 13.47 seconds, including identical
+serving status and SSE operation detail, actual Chromium/TLS and exact recovery.
+Logs: `/var/tmp/transit-serving-outcome-native.log`.
+
+Strict TypeScript and **50/50** reactive/live-view tests pass. They preserve
+primary outcomes with malformed/wrong-resource/wrong-input/wrong-phase optional
+evidence, and retain operation failure detail across continued snapshot updates.
+An initial test callback used the generated wire type instead of the owned client
+type; the public callback now exposes the validation flag. A subsequent fixture
+lacked cursor progress and timed out; the corrected fixture passes. Logs:
+`/var/tmp/transit-serving-outcome-browser-unit4.log` and
+`/var/tmp/transit-serving-outcome-unit2.log`.
+
+Full-check attempts first stopped on definition-identifier formatting and then
+its lexical inventory drift. A later run reached frontend validation and exposed
+the callback type issue. One redundant check was terminated after the fixture
+failure; it is not passed evidence. Final full-check qualification is recorded
+below when complete. Effect mappings and full semantic inventory remain separate
+work; these results are not committed-HEAD clean qualification.
+
+Final full **`just check` passes**, including native units, generated contracts
+and bindings, 481 real CLI diagnostics, strict frontend checks/tests and the
+production handbook; log `/var/tmp/transit-serving-outcome-check5.log`.

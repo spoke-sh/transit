@@ -6,12 +6,75 @@ import type {
   HostRequest,
   HostResponse,
   ReactiveRead,
-  ReactiveResponse,
-  ServerMessage,
+  ReactiveResponse as WireResponse,
+  ServerMessage as WireMessage,
   SseItem,
   Error as ErrorResponse,
 } from "./types";
 export type * from "./types";
+
+export type OperationOutcome = NonNullable<NonNullable<WireResponse["event"]>["outcome"]> & {
+  diagnosticInvalid?: boolean;
+};
+type Event = Omit<NonNullable<WireResponse["event"]>, "outcome"> & {
+  outcome?: OperationOutcome | null;
+};
+export type ReactiveResponse = Omit<WireResponse, "event"> & { event?: Event | null };
+export type ServerMessage =
+  | Exclude<WireMessage, { event: unknown } | { observation: unknown }>
+  | { observation: ReactiveResponse }
+  | { event: { cursor: NonNullable<WireResponse["cursor"]>; event: Event } };
+
+function primaryResponse(value: unknown): unknown {
+  if (
+    !value ||
+    typeof value !== "object" ||
+    !("event" in value) ||
+    !value.event ||
+    typeof value.event !== "object"
+  )
+    return value;
+  const event = value.event;
+  if (!("outcome" in event) || !event.outcome || typeof event.outcome !== "object") return value;
+  return { ...value, event: { ...event, outcome: { ...event.outcome, diagnostic: null } } };
+}
+function ownOutcome(
+  value: OperationOutcome,
+  cursor: NonNullable<WireResponse["cursor"]> | null | undefined,
+): OperationOutcome {
+  const owned = ownedDiagnostic(value.diagnostic);
+  const detail = owned.diagnostic;
+  const scope = cursor?.position.scope;
+  const outcomes = {
+    admitted: "pending",
+    completed: "completed",
+    cancelled: "cancelled",
+    timed_out: "closed_unknown",
+    failed: "failed",
+  };
+  const fact = (field: string) => detail?.facts.find((item) => item?.field === field)?.value;
+  const number = (field: string, expected: number) => {
+    const value = fact(field);
+    return value && "unsigned" in value && value.unsigned === String(expected);
+  };
+  const matching =
+    !detail ||
+    (scope &&
+      detail.evidence === "domain_status" &&
+      detail.outcome === outcomes[value.phase] &&
+      detail.identity?.domain === "serving" &&
+      detail.identity.id === String(value.operation) &&
+      detail.identity.realm === String(scope.realm) &&
+      detail.identity.resource === String(value.resource) &&
+      number("object", scope.service) &&
+      number("scope", scope.principal) &&
+      (value.phase === "admitted" || number("native_input", value.resolution_input)));
+  return {
+    ...value,
+    diagnostic: matching ? (detail ?? null) : null,
+    diagnosticInvalid: owned.invalid || !matching,
+  };
+}
 
 export class ReactiveError extends Error {
   readonly diagnostic?: Diagnostic;
@@ -67,7 +130,7 @@ function requestFailure(status: number, value?: unknown): ReactiveError {
     reset_required: [409],
     not_found: [404],
     conflict: [409],
-    pending: [409],
+    result_not_completed: [409],
     unavailable: [409, 410, 503, 504],
     capacity: [429],
     invalid_request: [400, 408, 413],
@@ -85,27 +148,42 @@ function integer(value: string) {
   if (number < -9223372036854775808n || number > 9223372036854775807n) invalid();
 }
 export function response(value: unknown): ReactiveResponse {
-  if (!validate.ReactiveResponse(value)) invalid();
+  if (!validate.ReactiveResponse(primaryResponse(value))) invalid();
   const result = value as ReactiveResponse;
   for (const row of result.snapshot?.rows ?? []) {
     if (!row) continue;
     integer(row.key);
     if (row.value !== null) integer(row.value);
   }
+  if (result.event?.outcome)
+    return {
+      ...result,
+      event: { ...result.event, outcome: ownOutcome(result.event.outcome, result.cursor) },
+    };
   return result;
 }
 export function message(value: unknown): ServerMessage {
-  const primary =
-    value &&
-    typeof value === "object" &&
-    "terminal" in value &&
-    value.terminal &&
-    typeof value.terminal === "object"
-      ? { ...value, terminal: { ...value.terminal, diagnostic: null } }
-      : value;
+  let primary: unknown = value;
+  if (value && typeof value === "object") {
+    if ("terminal" in value && value.terminal && typeof value.terminal === "object")
+      primary = { ...value, terminal: { ...value.terminal, diagnostic: null } };
+    else if ("event" in value) primary = { ...value, event: primaryResponse(value.event) };
+    else if ("observation" in value)
+      primary = { ...value, observation: primaryResponse(value.observation) };
+  }
   if (!validate.ServerMessage(primary)) invalid();
   const result = value as ServerMessage;
-  if ("observation" in result) response(result.observation);
+  if ("observation" in result) return { observation: response(result.observation) };
+  if ("event" in result && result.event.event.outcome)
+    return {
+      event: {
+        ...result.event,
+        event: {
+          ...result.event.event,
+          outcome: ownOutcome(result.event.event.outcome, result.event.cursor),
+        },
+      },
+    };
   return result;
 }
 

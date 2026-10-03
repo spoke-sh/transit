@@ -25,7 +25,11 @@ pub fn policy(reader: anytype, principal: u64) !?m.Policy {
     return if (try reader.read(m.key('p', principal, 0))) |value| try c.decode(m.Policy, 'p', value) else null;
 }
 pub fn operation(reader: anytype, principal: u64, id: u64) !?m.Operation {
-    return if (try reader.read(m.key('o', principal, id))) |value| try c.decode(m.Operation, 'o', value) else null;
+    const value = (try reader.read(m.key('o', principal, id))) orelse return null;
+    const record = c.decode(m.Operation, 'o', value) catch return error.InvalidServingRecord;
+    try record.validate();
+    if (record.principal != principal or record.operation != id) return error.InvalidServingRecord;
+    return record;
 }
 pub fn active(reader: anytype) !m.Active {
     return if (try reader.read(m.key('a', 0, 0))) |value| try c.decode(m.Active, 'a', value) else .{};
@@ -212,6 +216,7 @@ fn complete(turn: *Turn, record: *m.Operation) !void {
     if (!found) return error.ServingStateConflict;
     record.resolution_input = turn.delivery.input.position;
     try turn.write(m.key('a', 0, 0), try c.encode('a', slots));
+    try record.validate();
     try turn.write(m.key('o', record.principal, record.operation), try c.encode('o', record.*));
 }
 fn resolve(self: Self, turn: *Turn, frame: s.Frame) !void {
@@ -226,7 +231,8 @@ fn resolve(self: Self, turn: *Turn, frame: s.Frame) !void {
     if (frame.kind == .reply) {
         if (wait.phase != .replied or (try s.Frame.source(turn.delivery.input)) != record.target) return error.ServingStateConflict;
         record.phase = if (frame.payload.len <= m.inline_bytes) .completed else .failed;
-        record.result = if (frame.payload.len <= m.inline_bytes) frame.payload else try p.Value.init("ServingResultTooLarge");
+        record.reply_bytes = frame.payload.len;
+        record.result = if (frame.payload.len <= m.inline_bytes) frame.payload else .{};
     } else {
         if (wait.phase != .timed_out) return error.ServingStateConflict;
         record.phase = .timed_out;

@@ -22,6 +22,7 @@ export type ViewState<T> = {
   snapshot: Snapshot<T> | null;
   refresh: RefreshView | null;
   detail: string;
+  operationDetail: string;
 };
 export type ViewReader<T> = (signal: AbortSignal, namespace?: string) => Promise<Snapshot<T>>;
 const sleep = (ms: number, signal: AbortSignal) =>
@@ -45,6 +46,7 @@ export class LiveView<T> {
     snapshot: null,
     refresh: null,
     detail: "Follow is off.",
+    operationDetail: "",
   };
   private listeners = new Set<() => void>();
   private abort: AbortController | null = null;
@@ -92,6 +94,7 @@ export class LiveView<T> {
             : "paused",
         snapshot: null,
         refresh: null,
+        operationDetail: "",
         detail:
           (error.diagnostic ? diagnosticLines(error.diagnostic).join("\n") : error.reason) +
           (error.scopeFailure ? `\nCurrent scope: ${error.scopeFailure.reason}.` : ""),
@@ -135,6 +138,7 @@ export class LiveView<T> {
       this.publish({
         phase: "loading",
         detail: "Acquiring an authorized snapshot…",
+        operationDetail: "",
         refresh: null,
         snapshot:
           template && this.state.snapshot?.namespace !== template ? null : this.state.snapshot,
@@ -326,6 +330,17 @@ export class LiveView<T> {
     if ("event" in message) {
       this.dirty = Math.max(this.dirty, message.event.cursor.position.data_revision);
       this.connected = true;
+      const outcome = message.event.event.outcome;
+      if (outcome)
+        this.publish({
+          operationDetail:
+            (outcome.diagnostic
+              ? diagnosticLines(outcome.diagnostic).join("\n")
+              : `Serving operation ${outcome.operation}: ${outcome.phase.replaceAll("_", " ")}.`) +
+            (outcome.diagnosticInvalid
+              ? " Diagnostic detail is invalid; the recorded phase remains unchanged."
+              : ""),
+        });
     }
     if ("terminal" in message) {
       this.connected = false;

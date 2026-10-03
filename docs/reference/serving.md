@@ -77,3 +77,15 @@ hosting is unsupported. Use the [serving wire contract](../../contracts/SERVING_
 [HTTP host](../../packages/zig/transit-serving-http/README.md) and
 [compatibility matrix](../../packages/zig/transit-serving/docs/compatibility.md)
 for exact fields, deployment configuration and tested combinations.
+
+
+Operation status includes the original target, binding, codec, deadline and
+resolution input with a semantic diagnostic. A completed operation has a recorded
+application reply; the reply's codec determines its business meaning. Cancelling
+or timing out the serving wait leaves the application's work independent. An
+oversized reply reports its exact byte count and the 64-byte result limit without
+claiming rollback. Read the exact operation before considering any new command.
+A result request for a cancelled, timed-out or failed operation returns its
+retained outcome detail instead of implying it is still awaiting admission.
+Reactive events preserve that same detail; Live views display operation outcomes
+separately from snapshot freshness and refresh scheduling.

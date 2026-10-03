@@ -26,6 +26,7 @@ export function LiveTable() {
       <p role="status">
         {view.phase.replaceAll("_", " ")} · {view.detail}
       </p>
+      {view.operationDetail && <p>{view.operationDetail}</p>}
       <button
         disabled={metadata.following || metadata.stopping || !!session.pending}
         onClick={() => void metadata.start().catch(() => {})}

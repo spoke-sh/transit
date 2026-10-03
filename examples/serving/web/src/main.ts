@@ -21,7 +21,7 @@ const view = new LiveView<NonNullable<ReactiveResponse["snapshot"]>>(session, as
 });
 function render() {
   const state = view.getSnapshot();
-  status.textContent = `${state.phase.replaceAll("_", " ")} · ${state.detail}`;
+  status.textContent = `${state.phase.replaceAll("_", " ")} · ${state.detail}${state.operationDetail ? `\n${state.operationDetail}` : ""}`;
   status.dataset.phase = state.phase;
   recover.hidden = !session.pending;
   follow.disabled = view.following || view.stopping || !!session.pending;

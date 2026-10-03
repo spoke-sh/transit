@@ -357,3 +357,51 @@ test.each(["closed", "expired"])(
     await view.pause();
   },
 );
+
+test("operation failure detail survives ordinary snapshot updates without stopping Follow", async () => {
+  const session = attachedSession();
+  session.open = async () => {
+    session.scope = scope;
+  };
+  session.close = async () => {
+    session.scope = null;
+  };
+  session.inspect = async () =>
+    ({
+      observation: { data_revision: 10, basis: snapshot.basis, schema: { columns: [] } },
+    }) as never;
+  const previous = session.follow;
+  session.follow = async (consume, signal) => {
+    consume({
+      event: {
+        cursor: { position: { data_revision: 10 } } as never,
+        event: {
+          source_changed: true,
+          resource: 9,
+          data_revision: 10,
+          outcome: {
+            resource: 11,
+            operation: 12,
+            phase: "failed",
+            resolution_input: 13,
+            diagnostic: null,
+            diagnosticInvalid: true,
+          },
+        },
+      },
+    });
+    return previous(consume, signal);
+  };
+  const current = deferred<void>();
+  const view = new LiveView(session, async () => snapshot);
+  view.subscribe(() => {
+    if (view.getSnapshot().phase === "current") current.resolve();
+  });
+  await view.start();
+  await current.promise;
+  expect(view.getSnapshot().operationDetail).toContain("Serving operation 12: failed");
+  expect(view.getSnapshot().operationDetail).toContain("Diagnostic detail is invalid");
+  expect(view.getSnapshot().snapshot).toEqual(snapshot);
+  expect(view.following).toBe(true);
+  await view.pause();
+});

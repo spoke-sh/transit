@@ -543,3 +543,45 @@ test "all serving rejection classes fit bounded diagnostics and maximum witnesse
         for (diagnostic.actions) |action| if (action) |value| try t.expect(value.kind == .inspect_status or value.kind == .inspect_scope);
     };
 }
+
+test "oversized authenticated replies retain the original measurement through exact retry and metadata changes" {
+    var store: Store = .{};
+    defer store.entries.deinit();
+    var owner = service();
+    try store.setup(&owner);
+    var admitted = try store.command(&owner, 65536, command(1));
+    const correlation = admitted.delivery.input.position;
+    try store.commit(&admitted);
+    const bytes: [65]u8 = @splat(255);
+    var reply = try store.turn(0, .{ .kind = .reply, .correlation = correlation, .payload = try p.Value.init(&bytes) });
+    reply.delivery.input.origin = .{ .process = .{ .pid = 88, .turn = 100, .output = 101 } };
+    const guard = owner.guard();
+    const handler = owner.interface();
+    try t.expect(!try guard.reject(guard.context, &reply));
+    _ = try reply.acceptReply();
+    try handler.handle(handler.context, &reply, try s.Frame.decode(reply.delivery.input.value));
+    try store.commit(&reply);
+    const original = (try Service.operation(&reply, 65536, 1)).?;
+    try t.expectEqual(m.Phase.failed, original.phase);
+    try t.expectEqual(@as(u16, 65), original.reply_bytes);
+    try t.expectEqual(@as(u16, 0), original.result.len);
+    const detail = try root.OperationDiagnostic.project(1, 9, 7, original);
+    try t.expectEqualStrings("serving.reply_too_large", detail.code.slice());
+    try t.expectEqual(diagnosticNumber(detail, .required), 65);
+    try t.expectEqual(diagnosticNumber(detail, .limit), 64);
+    var publication = try store.command(&owner, 33, .{ .publish = .{ .expected = 1, .binding = binding(2, false) } });
+    try store.commit(&publication);
+    owner = service();
+    var retried = try store.command(&owner, 65536, command(1));
+    try t.expectEqualDeep(original, (try Service.operation(&retried, 65536, 1)).?);
+    for (retried.decision.outputs) |slot| try t.expect(slot == null);
+    for ((try Service.active(&retried)).slots) |slot| try t.expectEqual(@as(u64, 0), slot.correlation);
+    var malformed = original;
+    malformed.reply_bytes = 64;
+    try store.entries.put(m.key('o', 65536, 1), try c.encode('o', malformed));
+    try t.expectError(error.InvalidServingRecord, Service.operation(&retried, 65536, 1));
+}
+fn diagnosticNumber(detail: p.Diagnostic, field: p.Diagnostic.Field) u64 {
+    for (detail.facts) |slot| if (slot) |fact| if (fact.field == field) return fact.value.?.unsigned.value() catch unreachable;
+    unreachable;
+}

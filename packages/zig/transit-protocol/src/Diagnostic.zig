@@ -7,9 +7,9 @@ pub const max_json_bytes = 32768;
 pub const json_schema_fields = .{ .version = .{ .@"const" = 1 } };
 pub const Category = enum { syntax, binding, unsupported, constraint, access, conflict, limit, lifecycle, integrity, unavailable, internal };
 pub const Stage = enum { input, parse, compile, bind, prepare, submit, admission, execute, read, decode, output, reconcile, cleanup, control };
-pub const Outcome = enum { not_applicable, not_submitted, prepared, unknown, pending, input_rejected, rejected, applied, cancelled, retired, closed_unknown };
+pub const Outcome = enum { not_applicable, not_submitted, prepared, unknown, pending, input_rejected, rejected, applied, completed, failed, cancelled, retired, closed_unknown };
 pub const Evidence = enum { none, local_before_dispatch, saved_intent, native_receipt, domain_status };
-pub const Domain = enum { sql, query, mutation, catalog, application, publication, migration, reactive, effect, transport, internal };
+pub const Domain = enum { sql, query, mutation, catalog, application, publication, migration, reactive, serving, effect, transport, internal };
 pub const Availability = enum { provided, truncated, unrecorded, unavailable, withheld, inapplicable };
 pub const Origin = enum { caller, execution, schema, authority, owner };
 pub const ActionKind = enum { correct_input, inspect_status, resume_exact, cancel_wait, cancel_mutation, refresh, recompile, retry_read, inspect_scope, reconcile_effect, contact_operator };
@@ -191,7 +191,7 @@ pub fn validate(self: Self) !void {
     switch (self.outcome) {
         .not_submitted => if (self.evidence != .local_before_dispatch) return error.InvalidDiagnostic,
         .prepared => if (self.evidence != .saved_intent) return error.InvalidDiagnostic,
-        .rejected, .applied, .cancelled, .retired, .input_rejected, .closed_unknown => if (self.evidence != .domain_status) return error.InvalidDiagnostic,
+        .rejected, .applied, .completed, .failed, .cancelled, .retired, .input_rejected, .closed_unknown => if (self.evidence != .domain_status) return error.InvalidDiagnostic,
         .pending => if (self.evidence != .domain_status and self.evidence != .native_receipt) return error.InvalidDiagnostic,
         .unknown => if (self.evidence == .domain_status or self.evidence == .native_receipt) return error.InvalidDiagnostic,
         .not_applicable => {},

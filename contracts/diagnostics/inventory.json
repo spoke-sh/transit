@@ -6535,6 +6535,8 @@
           "input_rejected",
           "rejected",
           "applied",
+          "completed",
+          "failed",
           "cancelled",
           "retired",
           "closed_unknown"
@@ -6555,6 +6557,7 @@
           "publication",
           "migration",
           "reactive",
+          "serving",
           "effect",
           "transport",
           "internal"
@@ -6682,7 +6685,7 @@
       },
       "outcomes": {
         "Definition": [
-          "@\"4f6cb811c01a0e89111f7c5e4ff0425d91a7bd6eeaf0ca77c6d6d66399da4cbc\""
+          "b83b6c75eae067d04b938425305a4a03c04193b4499e059405fa42ae63b9fec5"
         ],
         "Command": [
           "grant",
@@ -8247,6 +8250,7 @@
         "InvalidServingCommand": 1,
         "InvalidServingIdentity": 1,
         "InvalidServingRead": 1,
+        "InvalidServingRecord": 7,
         "ServingDenied": 1
       },
       "outcomes": {
@@ -8267,6 +8271,14 @@
           "failed"
         ]
       },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
+    "packages/zig/transit-serving/src/OperationDiagnostic.zig": {
+      "errors": {},
+      "outcomes": {},
       "imports": [
         "root.zig",
         "std"
@@ -8615,6 +8627,7 @@
         "InvalidServicePolicy": 1,
         "InvalidServingCommand": 2,
         "InvalidServingIdentity": 1,
+        "InvalidServingRecord": 2,
         "InvalidWaitLifetime": 3,
         "ServiceRevisionConflict": 4,
         "ServiceUnpublished": 2,
@@ -8691,7 +8704,7 @@
         "ServingDenied": 1,
         "ServingOperationNotFound": 1,
         "ServingPayloadTooLarge": 1,
-        "ServingResultPending": 1,
+        "ServingResultPending": 2,
         "ServingSequenceConflict": 1,
         "SignatureVerificationFailed": 1,
         "StreamTooLong": 1,
@@ -8718,7 +8731,7 @@
           "reset_required",
           "not_found",
           "conflict",
-          "pending",
+          "result_not_completed",
           "unavailable",
           "capacity",
           "invalid_request",
@@ -8874,6 +8887,7 @@
         "FiniteService.zig",
         "LiveService.zig",
         "Model.zig",
+        "OperationDiagnostic.zig",
         "ReactiveAdapter.zig",
         "ReactiveClient.zig",
         "ReactiveModel.zig",

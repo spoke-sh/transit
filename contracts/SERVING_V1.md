@@ -148,3 +148,33 @@ claim the earlier operation failed, permit replacement work or retry a command.
 Current caller/native/service read authority is rechecked before release. A
 changed policy never rewrites the original witness or grants access to it.
 Bare error-string records are not decoded as the current record layout.
+
+
+## Operation outcome evidence
+
+Every `SV1o` operation retains its original target, binding/codec, policy revision,
+command commitment, wait deadline and admission correlation. Terminal resolution
+retains its native input and, for an authenticated reply, its exact payload byte
+count. The record is at most 170 bytes. A reply of at most 64 bytes is retained;
+a larger reply closes the serving operation as `failed`, retaining its count
+without retaining the oversized payload. This is a result-delivery failure and
+does not establish application rollback or business failure. Missing or invalid
+phase/count/result combinations reject as invalid stored evidence.
+
+Current-authorized status and result reads include the shared operation
+diagnostic. A result request for a non-completed operation returns HTTP 409 with
+reason `result_not_completed` and that same retained outcome after the final
+authority check. It never describes cancellation or timeout as pending admission.
+Reactive outcome events include the same diagnostic and its serving resource.
+The browser validates optional detail against the phase, operation, resource,
+realm, caller/service scope and resolution input. Invalid detail leaves the
+primary outcome intact and is marked invalid.
+
+Codes are `serving.operation_admitted`, `serving.reply_recorded`,
+`serving.wait_cancelled`, `serving.wait_timed_out` and `serving.reply_too_large`.
+Their respective shared outcomes are pending, completed, cancelled,
+closed_unknown and failed, all backed by domain status. Only admission offers
+cancellation of the local wait. Terminal states offer inspection and never fresh
+resubmission, generic resume, remote cancellation or rollback. A recorded reply
+remains opaque to serving: its declared application codec determines the business
+meaning. Exact retries and later binding changes do not replace original detail.

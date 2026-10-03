@@ -216,6 +216,10 @@ def run_trace(env, tls):
         assert stream.until('attached')['attachment'] == 2
         changed = stream.until('event')
         assert changed['event']['source_changed'] and changed['event']['outcome']['operation'] == 1, changed
+        outcome = changed['event']['outcome']
+        assert outcome['diagnostic'] == response['diagnostic'], outcome
+        assert outcome['diagnostic']['code'] == 'serving.reply_recorded' and outcome['diagnostic']['outcome'] == 'completed', outcome
+        assert str(outcome['resource']) == outcome['diagnostic']['identity']['resource'], outcome
         assert changed['cursor']['position']['data_revision'] > first['cursor']['position']['data_revision']
         post(port, '/reactive/v1/read', request['read'], host, 409)
         # Consume-once challenge cannot reattach a second live socket.

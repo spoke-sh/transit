@@ -16,6 +16,7 @@ pub const station = @import("transit_station");
 pub const protocol = station.protocol;
 pub const Model = @import("Model.zig");
 pub const Codec = @import("Codec.zig");
+pub const OperationDiagnostic = @import("OperationDiagnostic.zig");
 pub const ServingDiagnostic = @import("ServingDiagnostic.zig");
 pub const ServingFailure = @import("ServingFailure.zig");
 pub const Service = @import("Service.zig");

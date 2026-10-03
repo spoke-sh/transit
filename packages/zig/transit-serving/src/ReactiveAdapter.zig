@@ -8,7 +8,7 @@ base: root.Adapter,
 /// Returns a conservative upper bound on wall clock milliseconds. The host owns
 /// clock qualification; it must fail if its configured bound is unavailable.
 clock: struct { context: ?*anyopaque, upper: *const fn (?*anyopaque) anyerror!u64 },
-pub const Outcome = struct { operation: u64, phase: root.Model.Phase, resolution_input: u64 };
+pub const Outcome = struct { resource: u64, operation: u64, phase: root.Model.Phase, resolution_input: u64, diagnostic: ?p.Diagnostic = null };
 pub const Event = struct {
     source_changed: bool,
     resource: u64,
@@ -85,7 +85,7 @@ fn readOnce(self: Self, signed: r.SignedRead, public_key: [32]u8) !Acquisition {
         if (before.session.operation != 0) {
             var scoped = try self.base.reader(signed.read.scope.principal);
             if (try root.Service.operation(&scoped.data, signed.read.scope.principal, before.session.operation)) |operation| {
-                if (operation.phase != .admitted) outcome = .{ .operation = operation.operation, .phase = operation.phase, .resolution_input = operation.resolution_input };
+                if (operation.phase != .admitted) outcome = .{ .resource = self.base.resource, .operation = operation.operation, .phase = operation.phase, .resolution_input = operation.resolution_input, .diagnostic = root.OperationDiagnostic.project(self.base.resources.realm, self.base.service, self.base.resource, operation) catch null };
             }
         }
         const position: r.Position = .{ .scope = signed.read.scope, .watch_revision = source.revision, .resource = source.resource, .schema = source.schema, .data_revision = observation.data_revision, .outcome_position = if (outcome) |v| v.resolution_input else 0 };

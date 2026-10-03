@@ -4,7 +4,7 @@ const std = @import("std");
 const root = @import("root.zig");
 const p = root.protocol;
 const d = p.Diagnostic;
-pub const Reason = enum { denied, closed, expired, fenced, reset_required, not_found, conflict, pending, unavailable, capacity, invalid_request, internal_failure };
+pub const Reason = enum { denied, closed, expired, fenced, reset_required, not_found, conflict, result_not_completed, unavailable, capacity, invalid_request, internal_failure };
 pub const Class = struct { code: []const u8, reason: Reason, category: d.Category, status: u16, message: []const u8 };
 pub fn classification(cause: anyerror) Class {
     return switch (cause) {
@@ -27,7 +27,7 @@ pub fn classification(cause: anyerror) Class {
         error.InvalidReactiveProgress => .{ .code = "reactive.invalid_progress", .reason = .reset_required, .category = .integrity, .status = 409, .message = "The watch progress marker is invalid for the acquired source revision. No continuity or replacement coverage was established. Inspect the application owner's progress update and source basis." },
         error.ServingOperationNotFound, error.ReactiveSessionNotFound, error.RefreshNotFound, error.TableNotFound => .{ .code = "serving.object_absent", .reason = .not_found, .category = .lifecycle, .status = 404, .message = "The requested operation, session, Follow view or Table was absent in this authorized observation. Inspect the exact original identity and any saved input receipt; absence does not prove an uncertain command was never admitted." },
         error.ServiceUnpublished => .{ .code = "serving.unpublished", .reason = .reset_required, .category = .lifecycle, .status = 409, .message = "The required service or watch publication is absent, unpublished or targets another source. Inspect the accepted declarations. This read establishes no replacement coverage or application outcome." },
-        error.ServingResultPending => .{ .code = "serving.result_not_completed", .reason = .pending, .category = .lifecycle, .status = 409, .message = "The selected operation has no completed reply to return. Inspect its exact status: admission, cancellation, timeout and failed result delivery are distinct. Do not submit the application command again to obtain a result." },
+        error.ServingResultPending => .{ .code = "serving.result_not_completed", .reason = .result_not_completed, .category = .lifecycle, .status = 409, .message = "The selected operation has no completed reply to return. Inspect its exact status: admission, cancellation, timeout and failed result delivery are distinct. Do not submit the application command again to obtain a result." },
         error.ServingSequenceConflict => .{ .code = "serving.sequence_conflict", .reason = .conflict, .category = .conflict, .status = 409, .message = "Native sequence or exact-retry identity validation rejected the submitted command. Preserve its original bytes and inspect its native receipt and domain status before preparing another sequence." },
         error.ServiceReadConflict => .{ .code = "serving.read_conflict", .reason = .conflict, .category = .conflict, .status = 409, .message = "The resource cut, selected namespace or service policy changed during the bounded read. No complete observation is available. Retry the read under current rights; this does not authorize repeating a command." },
         error.ResourceUnavailable, error.QuerySourceUnavailable, error.ResultUnavailable => .{ .code = "serving.resource_unavailable", .reason = .unavailable, .category = .unavailable, .status = 410, .message = "A required process, source or retained result is unavailable. This is not evidence of session expiry, permission revocation or command completion. Inspect the original resource and saved work under current authority." },
@@ -53,6 +53,7 @@ pub const Attempt = struct {
     native_cause: ?p.ErrorCode = null,
     authority_rejected: bool = false,
     input_cause: ?anyerror = null,
+    domain_diagnostic: ?d = null,
     pub fn label(self: *Attempt, mode: @FieldType(Attempt, "mode"), operation: []const u8) !void {
         self.mode = mode;
         self.operation = try d.Code.init(operation);
@@ -62,6 +63,7 @@ pub const Attempt = struct {
         self.authority_rejected = native != null and (cause == error.Rejected or cause == error.Conflict or cause == error.AccessDenied);
     }
     pub fn project(self: Attempt, cause: anyerror) !d {
+        if (cause == error.ServingResultPending) if (self.domain_diagnostic) |detail| return detail;
         const info = classification(cause);
         var result = if (self.receipt != null)
             try d.init("serving.ingress_accepted", .lifecycle, .submit, .pending, .native_receipt, "The authority accepted this exact native input. Its application or control outcome still requires an authorized disposition/status read. Preserve the original signed work; do not prepare a replacement command.")

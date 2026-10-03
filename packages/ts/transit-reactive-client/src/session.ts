@@ -1,14 +1,7 @@
 import { ownedDiagnostic, type Diagnostic } from "@rey/transit-diagnostics";
-import { ReactiveError, Transport } from "./index";
+import { ReactiveError, Transport, type ServerMessage } from "./index";
 import { acquireCaller, type AcquireCaller } from "./caller-gate";
-import type {
-  Bootstrap,
-  HostRequest,
-  HostResponse,
-  ReactiveRead,
-  ServerMessage,
-  SignedCommand,
-} from "./types";
+import type { Bootstrap, HostRequest, HostResponse, ReactiveRead, SignedCommand } from "./types";
 type Command = Extract<HostRequest, { prepare: unknown }>["prepare"];
 export type RefreshCommand = Extract<HostRequest, { refresh_prepare: unknown }>["refresh_prepare"];
 type RefreshStatus = Extract<HostResponse, { refresh_status: unknown }>["refresh_status"];

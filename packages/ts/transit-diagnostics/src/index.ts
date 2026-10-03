@@ -77,6 +77,8 @@ function validEvidence(d: Diagnostic): boolean {
     pending: ["native_receipt", "domain_status"],
     rejected: ["domain_status"],
     applied: ["domain_status"],
+    completed: ["domain_status"],
+    failed: ["domain_status"],
     cancelled: ["domain_status"],
     retired: ["domain_status"],
     input_rejected: ["domain_status"],

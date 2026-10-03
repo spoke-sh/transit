@@ -1,7 +1,13 @@
 import reactiveFixture from "../../../packages/zig/transit-serving/src/fixtures/reactive-v1.json" with { type: "json" };
 import diagnosticFixture from "../../../packages/zig/transit-protocol/src/fixtures/diagnostic-v1.json" with { type: "json" };
 import { describe, expect, test } from "vite-plus/test";
-import { SseDecoder, ReactiveError, Session, Transport } from "@rey/transit-reactive-client";
+import {
+  SseDecoder,
+  ReactiveError,
+  Session,
+  Transport,
+  message,
+} from "@rey/transit-reactive-client";
 
 describe("generated reactive transport boundary", () => {
   test("incremental framing validates the wrapper and its JSON payload", () => {
@@ -39,7 +45,7 @@ describe("generated reactive transport boundary", () => {
     const signed = {
       request: {
         version: 1,
-        definition: "4f6cb811c01a0e89111f7c5e4ff0425d91a7bd6eeaf0ca77c6d6d66399da4cbc",
+        definition: "b83b6c75eae067d04b938425305a4a03c04193b4499e059405fa42ae63b9fec5",
         realm: 49,
         principal: 65536,
         sequence: 1,
@@ -132,7 +138,7 @@ describe("generated reactive transport boundary", () => {
       const signed = {
         request: {
           version: 1,
-          definition: "4f6cb811c01a0e89111f7c5e4ff0425d91a7bd6eeaf0ca77c6d6d66399da4cbc",
+          definition: "b83b6c75eae067d04b938425305a4a03c04193b4499e059405fa42ae63b9fec5",
           realm: 49,
           principal: 65536,
           sequence: 1,
@@ -564,3 +570,73 @@ test.each([
     clearsProtectedState: false,
   });
 });
+
+test.each(["valid", "malformed", "foreign_resource", "foreign_input", "wrong_phase"])(
+  "operation terminal preserves its phase and validates optional evidence (%s)",
+  (variant) => {
+    const cursor = reactiveFixture.cursor;
+    const diagnostic = {
+      ...structuredClone(diagnosticFixture),
+      code: "serving.reply_too_large",
+      category: "limit",
+      stage: "output",
+      outcome: variant === "wrong_phase" ? "completed" : "failed",
+      evidence: "domain_status",
+      identity: {
+        domain: "serving",
+        id: "1",
+        realm: String(cursor.position.scope.realm),
+        resource: variant === "foreign_resource" ? "8" : "7",
+        sequence: null,
+      },
+      location: null,
+      facts: [
+        {
+          field: "object",
+          origin: "owner",
+          availability: "provided",
+          value: { unsigned: String(cursor.position.scope.service) },
+        },
+        {
+          field: "scope",
+          origin: "authority",
+          availability: "provided",
+          value: { unsigned: String(cursor.position.scope.principal) },
+        },
+        {
+          field: "native_input",
+          origin: "authority",
+          availability: "provided",
+          value: { unsigned: variant === "foreign_input" ? "10" : "9" },
+        },
+        ...Array(13).fill(null),
+      ],
+      actions: [{ kind: "inspect_status", target: null }, null, null, null],
+    };
+    const value = message({
+      event: {
+        cursor,
+        event: {
+          source_changed: false,
+          resource: cursor.position.resource,
+          data_revision: cursor.position.data_revision,
+          outcome: {
+            resource: 7,
+            operation: 1,
+            phase: "failed",
+            resolution_input: 9,
+            diagnostic: variant === "malformed" ? {} : diagnostic,
+          },
+        },
+      },
+    });
+    if (!("event" in value)) throw new Error("Missing event");
+    expect(value.event.event.outcome).toMatchObject({
+      operation: 1,
+      phase: "failed",
+      resolution_input: 9,
+      diagnosticInvalid: variant !== "valid",
+      diagnostic: variant === "valid" ? diagnostic : null,
+    });
+  },
+);

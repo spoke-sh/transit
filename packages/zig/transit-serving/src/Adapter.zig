@@ -21,6 +21,7 @@ pub const ReadResult = struct {
     stage: Stage = .not_observed,
     binding: ?m.Binding = null,
     operation: ?m.Operation = null,
+    diagnostic: ?p.Diagnostic = null,
     disposition: ?root.ServingFailure.Disposition = null,
     capabilities: struct { http: bool = true, sse: bool = false, websocket: bool = false, grpc: bool = false, flight: bool = false } = .{},
 };
@@ -128,8 +129,8 @@ fn readOnce(self: Self, signed: m.SignedRead, public_key: [32]u8) !ReadResult {
         .status, .result => {
             const operation = (try root.Service.operation(&scoped.data, signed.read.principal, signed.read.operation)) orelse return error.ServingOperationNotFound;
             if (operation.principal != signed.read.principal or operation.operation != signed.read.operation) return error.InvalidServingRecord;
-            if (signed.read.kind == .result and operation.phase != .completed) return error.ServingResultPending;
             result.operation = operation;
+            result.diagnostic = root.OperationDiagnostic.project(self.resources.realm, self.service, self.resource, operation) catch null;
             result.stage = switch (operation.phase) {
                 .admitted => .service_admitted,
                 .completed => .completed,
@@ -144,5 +145,9 @@ fn readOnce(self: Self, signed: m.SignedRead, public_key: [32]u8) !ReadResult {
     try self.identity(signed, public_key);
     const latest = try self.readerFor(signed.read.principal, &.{});
     if (latest.policy.revision != scoped.policy.revision) return error.ServiceReadConflict;
+    if (signed.read.kind == .result and result.operation.?.phase != .completed) {
+        if (self.diagnostic) |attempt| attempt.domain_diagnostic = result.diagnostic;
+        return error.ServingResultPending;
+    }
     return result;
 }

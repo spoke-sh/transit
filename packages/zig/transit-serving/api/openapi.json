@@ -319,7 +319,7 @@
           "definition": {
             "type": "string",
             "enum": [
-              "4f6cb811c01a0e89111f7c5e4ff0425d91a7bd6eeaf0ca77c6d6d66399da4cbc"
+              "b83b6c75eae067d04b938425305a4a03c04193b4499e059405fa42ae63b9fec5"
             ]
           },
           "code": {
@@ -373,6 +373,8 @@
               "input_rejected",
               "rejected",
               "applied",
+              "completed",
+              "failed",
               "cancelled",
               "retired",
               "closed_unknown"
@@ -429,6 +431,7 @@
                       "publication",
                       "migration",
                       "reactive",
+                      "serving",
                       "effect",
                       "transport",
                       "internal"
@@ -944,6 +947,7 @@
                                 "publication",
                                 "migration",
                                 "reactive",
+                                "serving",
                                 "effect",
                                 "transport",
                                 "internal"
@@ -1096,7 +1100,7 @@
               "definition": {
                 "type": "string",
                 "enum": [
-                  "4f6cb811c01a0e89111f7c5e4ff0425d91a7bd6eeaf0ca77c6d6d66399da4cbc"
+                  "b83b6c75eae067d04b938425305a4a03c04193b4499e059405fa42ae63b9fec5"
                 ]
               },
               "realm": {
@@ -1306,7 +1310,7 @@
                   "definition": {
                     "type": "string",
                     "enum": [
-                      "4f6cb811c01a0e89111f7c5e4ff0425d91a7bd6eeaf0ca77c6d6d66399da4cbc"
+                      "b83b6c75eae067d04b938425305a4a03c04193b4499e059405fa42ae63b9fec5"
                     ]
                   },
                   "realm": {
@@ -1348,7 +1352,7 @@
                 ],
                 "x-transit-defaults": {
                   "version": 1,
-                  "definition": "4f6cb811c01a0e89111f7c5e4ff0425d91a7bd6eeaf0ca77c6d6d66399da4cbc"
+                  "definition": "b83b6c75eae067d04b938425305a4a03c04193b4499e059405fa42ae63b9fec5"
                 }
               },
               "signature": {
@@ -1389,6 +1393,7 @@
           "stage",
           "binding",
           "operation",
+          "diagnostic",
           "disposition",
           "capabilities"
         ],
@@ -1520,7 +1525,8 @@
                   "policy_revision",
                   "phase",
                   "resolution_input",
-                  "result"
+                  "result",
+                  "reply_bytes"
                 ],
                 "properties": {
                   "principal": {
@@ -1613,6 +1619,13 @@
                     "pattern": "^(?:[0-9a-f]{2})*$",
                     "maxLength": 512,
                     "x-transit-encoding": "lowercase-hex"
+                  },
+                  "reply_bytes": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 65535,
+                    "x-transit-bits": 16,
+                    "x-transit-signed": false
                   }
                 },
                 "required": [
@@ -1629,8 +1642,19 @@
                 "x-transit-defaults": {
                   "phase": "admitted",
                   "resolution_input": 0,
-                  "result": ""
+                  "result": "",
+                  "reply_bytes": 0
                 }
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "diagnostic": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Diagnostic"
               },
               {
                 "type": "null"
@@ -1836,6 +1860,7 @@
           "stage": "not_observed",
           "binding": null,
           "operation": null,
+          "diagnostic": null,
           "disposition": null,
           "capabilities": {
             "http": true,
@@ -2261,7 +2286,7 @@
                   "definition": {
                     "type": "string",
                     "enum": [
-                      "4f6cb811c01a0e89111f7c5e4ff0425d91a7bd6eeaf0ca77c6d6d66399da4cbc"
+                      "b83b6c75eae067d04b938425305a4a03c04193b4499e059405fa42ae63b9fec5"
                     ]
                   },
                   "realm": {
@@ -2303,7 +2328,7 @@
                 ],
                 "x-transit-defaults": {
                   "version": 1,
-                  "definition": "4f6cb811c01a0e89111f7c5e4ff0425d91a7bd6eeaf0ca77c6d6d66399da4cbc"
+                  "definition": "b83b6c75eae067d04b938425305a4a03c04193b4499e059405fa42ae63b9fec5"
                 }
               },
               "signature": {
@@ -2843,11 +2868,20 @@
                         "type": "object",
                         "additionalProperties": false,
                         "x-transit-field-order": [
+                          "resource",
                           "operation",
                           "phase",
-                          "resolution_input"
+                          "resolution_input",
+                          "diagnostic"
                         ],
                         "properties": {
+                          "resource": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991,
+                            "x-transit-bits": 64,
+                            "x-transit-signed": false
+                          },
                           "operation": {
                             "type": "integer",
                             "minimum": 0,
@@ -2871,14 +2905,27 @@
                             "maximum": 9007199254740991,
                             "x-transit-bits": 64,
                             "x-transit-signed": false
+                          },
+                          "diagnostic": {
+                            "anyOf": [
+                              {
+                                "$ref": "#/components/schemas/Diagnostic"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
                           }
                         },
                         "required": [
+                          "resource",
                           "operation",
                           "phase",
                           "resolution_input"
                         ],
-                        "x-transit-defaults": {}
+                        "x-transit-defaults": {
+                          "diagnostic": null
+                        }
                       },
                       {
                         "type": "null"
@@ -3137,7 +3184,7 @@
                   "definition": {
                     "type": "string",
                     "enum": [
-                      "4f6cb811c01a0e89111f7c5e4ff0425d91a7bd6eeaf0ca77c6d6d66399da4cbc"
+                      "b83b6c75eae067d04b938425305a4a03c04193b4499e059405fa42ae63b9fec5"
                     ]
                   },
                   "realm": {
@@ -3599,7 +3646,7 @@
                       "definition": {
                         "type": "string",
                         "enum": [
-                          "4f6cb811c01a0e89111f7c5e4ff0425d91a7bd6eeaf0ca77c6d6d66399da4cbc"
+                          "b83b6c75eae067d04b938425305a4a03c04193b4499e059405fa42ae63b9fec5"
                         ]
                       },
                       "realm": {
@@ -3641,7 +3688,7 @@
                     ],
                     "x-transit-defaults": {
                       "version": 1,
-                      "definition": "4f6cb811c01a0e89111f7c5e4ff0425d91a7bd6eeaf0ca77c6d6d66399da4cbc"
+                      "definition": "b83b6c75eae067d04b938425305a4a03c04193b4499e059405fa42ae63b9fec5"
                     }
                   },
                   "signature": {
@@ -3727,7 +3774,7 @@
                           "definition": {
                             "type": "string",
                             "enum": [
-                              "4f6cb811c01a0e89111f7c5e4ff0425d91a7bd6eeaf0ca77c6d6d66399da4cbc"
+                              "b83b6c75eae067d04b938425305a4a03c04193b4499e059405fa42ae63b9fec5"
                             ]
                           },
                           "realm": {
@@ -4189,7 +4236,7 @@
                               "definition": {
                                 "type": "string",
                                 "enum": [
-                                  "4f6cb811c01a0e89111f7c5e4ff0425d91a7bd6eeaf0ca77c6d6d66399da4cbc"
+                                  "b83b6c75eae067d04b938425305a4a03c04193b4499e059405fa42ae63b9fec5"
                                 ]
                               },
                               "realm": {
@@ -4231,7 +4278,7 @@
                             ],
                             "x-transit-defaults": {
                               "version": 1,
-                              "definition": "4f6cb811c01a0e89111f7c5e4ff0425d91a7bd6eeaf0ca77c6d6d66399da4cbc"
+                              "definition": "b83b6c75eae067d04b938425305a4a03c04193b4499e059405fa42ae63b9fec5"
                             }
                           },
                           "signature": {
@@ -4305,7 +4352,7 @@
                       "definition": {
                         "type": "string",
                         "enum": [
-                          "4f6cb811c01a0e89111f7c5e4ff0425d91a7bd6eeaf0ca77c6d6d66399da4cbc"
+                          "b83b6c75eae067d04b938425305a4a03c04193b4499e059405fa42ae63b9fec5"
                         ]
                       },
                       "realm": {
@@ -4436,7 +4483,7 @@
                       "definition": {
                         "type": "string",
                         "enum": [
-                          "4f6cb811c01a0e89111f7c5e4ff0425d91a7bd6eeaf0ca77c6d6d66399da4cbc"
+                          "b83b6c75eae067d04b938425305a4a03c04193b4499e059405fa42ae63b9fec5"
                         ]
                       },
                       "realm": {
@@ -4907,7 +4954,7 @@
                           "definition": {
                             "type": "string",
                             "enum": [
-                              "4f6cb811c01a0e89111f7c5e4ff0425d91a7bd6eeaf0ca77c6d6d66399da4cbc"
+                              "b83b6c75eae067d04b938425305a4a03c04193b4499e059405fa42ae63b9fec5"
                             ]
                           },
                           "realm": {
@@ -4949,7 +4996,7 @@
                         ],
                         "x-transit-defaults": {
                           "version": 1,
-                          "definition": "4f6cb811c01a0e89111f7c5e4ff0425d91a7bd6eeaf0ca77c6d6d66399da4cbc"
+                          "definition": "b83b6c75eae067d04b938425305a4a03c04193b4499e059405fa42ae63b9fec5"
                         }
                       },
                       "signature": {
@@ -5656,11 +5703,20 @@
                                 "type": "object",
                                 "additionalProperties": false,
                                 "x-transit-field-order": [
+                                  "resource",
                                   "operation",
                                   "phase",
-                                  "resolution_input"
+                                  "resolution_input",
+                                  "diagnostic"
                                 ],
                                 "properties": {
+                                  "resource": {
+                                    "type": "integer",
+                                    "minimum": 0,
+                                    "maximum": 9007199254740991,
+                                    "x-transit-bits": 64,
+                                    "x-transit-signed": false
+                                  },
                                   "operation": {
                                     "type": "integer",
                                     "minimum": 0,
@@ -5684,14 +5740,27 @@
                                     "maximum": 9007199254740991,
                                     "x-transit-bits": 64,
                                     "x-transit-signed": false
+                                  },
+                                  "diagnostic": {
+                                    "anyOf": [
+                                      {
+                                        "$ref": "#/components/schemas/Diagnostic"
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
+                                    ]
                                   }
                                 },
                                 "required": [
+                                  "resource",
                                   "operation",
                                   "phase",
                                   "resolution_input"
                                 ],
-                                "x-transit-defaults": {}
+                                "x-transit-defaults": {
+                                  "diagnostic": null
+                                }
                               },
                               {
                                 "type": "null"
@@ -6142,11 +6211,20 @@
                             "type": "object",
                             "additionalProperties": false,
                             "x-transit-field-order": [
+                              "resource",
                               "operation",
                               "phase",
-                              "resolution_input"
+                              "resolution_input",
+                              "diagnostic"
                             ],
                             "properties": {
+                              "resource": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 9007199254740991,
+                                "x-transit-bits": 64,
+                                "x-transit-signed": false
+                              },
                               "operation": {
                                 "type": "integer",
                                 "minimum": 0,
@@ -6170,14 +6248,27 @@
                                 "maximum": 9007199254740991,
                                 "x-transit-bits": 64,
                                 "x-transit-signed": false
+                              },
+                              "diagnostic": {
+                                "anyOf": [
+                                  {
+                                    "$ref": "#/components/schemas/Diagnostic"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
                               }
                             },
                             "required": [
+                              "resource",
                               "operation",
                               "phase",
                               "resolution_input"
                             ],
-                            "x-transit-defaults": {}
+                            "x-transit-defaults": {
+                              "diagnostic": null
+                            }
                           },
                           {
                             "type": "null"
@@ -6413,7 +6504,7 @@
                   "reset_required",
                   "not_found",
                   "conflict",
-                  "pending",
+                  "result_not_completed",
                   "unavailable",
                   "capacity",
                   "invalid_request",

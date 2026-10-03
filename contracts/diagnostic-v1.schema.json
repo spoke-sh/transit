@@ -23,7 +23,7 @@
     "definition": {
       "type": "string",
       "enum": [
-        "4f6cb811c01a0e89111f7c5e4ff0425d91a7bd6eeaf0ca77c6d6d66399da4cbc"
+        "b83b6c75eae067d04b938425305a4a03c04193b4499e059405fa42ae63b9fec5"
       ]
     },
     "code": {
@@ -77,6 +77,8 @@
         "input_rejected",
         "rejected",
         "applied",
+        "completed",
+        "failed",
         "cancelled",
         "retired",
         "closed_unknown"
@@ -133,6 +135,7 @@
                 "publication",
                 "migration",
                 "reactive",
+                "serving",
                 "effect",
                 "transport",
                 "internal"
@@ -648,6 +651,7 @@
                           "publication",
                           "migration",
                           "reactive",
+                          "serving",
                           "effect",
                           "transport",
                           "internal"

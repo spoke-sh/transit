@@ -116,3 +116,11 @@ Current authorized disposition reads project it through the shared diagnostic
 contract. See [serving semantics](../../../docs/reference/serving.md) for recovery
 and the [wire contract](../../../contracts/SERVING_V1.md#rejected-input-evidence)
 for encoding and disclosure rules.
+
+
+`OperationDiagnostic` projects each retained operation phase independently of
+HTTP delivery. Operation records retain original authenticated reply sizes;
+`Service.operation` validates phase/count/result consistency before use.
+Status/results and reactive terminal operation events use the same projection.
+Result reads with no completed reply still perform the final current-authority
+check before exposing their outcome diagnostic.

@@ -91,6 +91,22 @@ pub const Operation = struct {
     phase: Phase = .admitted,
     resolution_input: u64 = 0,
     result: p.Value = .{},
+    reply_bytes: u16 = 0,
+    pub fn validate(self: Operation) !void {
+        inline for (.{ "principal", "operation", "binding", "deadline_ms", "target", "correlation", "policy_revision" }) |field| {
+            identity(@field(self, field)) catch return error.InvalidServingRecord;
+        }
+        try self.result.validate();
+        if (self.codec == 0 or self.reply_bytes > root.station.Frame.max_payload) return error.InvalidServingRecord;
+        if (self.phase == .admitted) {
+            if (self.resolution_input != 0) return error.InvalidServingRecord;
+        } else identity(self.resolution_input) catch return error.InvalidServingRecord;
+        switch (self.phase) {
+            .admitted, .cancelled, .timed_out => if (self.result.len != 0 or self.reply_bytes != 0) return error.InvalidServingRecord,
+            .completed => if (self.result.len > inline_bytes or self.reply_bytes != self.result.len) return error.InvalidServingRecord,
+            .failed => if (self.reply_bytes <= inline_bytes or self.result.len != 0) return error.InvalidServingRecord,
+        }
+    }
 };
 pub const Slot = struct { correlation: u64 = 0, principal: u64 = 0, operation: u64 = 0 };
 pub const Active = struct { slots: [max_active]Slot = @splat(.{}) };

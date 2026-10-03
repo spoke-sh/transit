@@ -48,7 +48,7 @@ Four nullable action slots likewise form a prefix. Action kinds are typed;
 adapters supply their own correct command spelling. Repeated action kinds reject.
 `resume_exact` and cancellation actions require the exact identity in the
 diagnostic and an unresolved operation. They are forbidden for applied, rejected,
-cancelled or retired outcomes. Effect identities permit `reconcile_effect`, not
+completed, failed, cancelled or retired outcomes. Effect identities permit `reconcile_effect`, not
 generic resume or cancellation. `correct_input` and `recompile` cannot recommend
 fresh work while an operation is unresolved or has rejected input still requiring
 reconciliation. Read/inspection actions do not grant access.
@@ -57,8 +57,13 @@ reconciliation. Read/inspection actions do not grant access.
 
 `not_submitted` requires local before-dispatch evidence; `prepared` requires saved
 intent; pending requires native acceptance or domain status. Applied, rejected,
-cancelled, retired, input-rejected and closed-with-unknown-outcome require domain
-status. Unknown send cannot carry a fabricated receipt or terminal domain result.
+completed, failed, cancelled, retired, input-rejected and closed-with-unknown-outcome
+require domain status. `completed` and `failed` describe the named owner's
+completion boundary; they do not assert the success or failure of a downstream
+business operation. For the `serving` domain, completion means an authenticated
+reply is retained; failure means reply delivery exceeded its recorded bound.
+Wait timeout is `closed_unknown`, while explicit local wait cancellation is
+`cancelled`. Neither establishes remote cancellation or rollback. Unknown send cannot carry a fabricated receipt or terminal domain result.
 Failures during result reading/output/cleanup do not change a saved domain outcome.
 
 Relevant caller-owned names, values, parameter indices and attempted keys are
