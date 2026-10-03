@@ -12,15 +12,30 @@ shape: rpc.Shape,
 descriptor_digest: [32]u8,
 metadata: []const Entry = &.{},
 pub fn validate(self: Self) !void {
-    if (self.metadata.len > 64) return error.InvalidGrpcMetadata;
+    return self.validateDiagnostic(null);
+}
+fn reject(context: ?*?rpc.Service.Rejection, check: rpc.exchange.AdmissionRejection.Check, field: []const u8, expected: rpc.exchange.AdmissionRejection.Scalar, actual: rpc.exchange.AdmissionRejection.Scalar, cause: anyerror) anyerror {
+    if (context) |slot| slot.* = rpc.Service.Rejection.detail(.invalid_request, check, field, expected, actual, cause);
+    return cause;
+}
+pub fn validateDiagnostic(self: Self, context: ?*?rpc.Service.Rejection) !void {
+    if (self.metadata.len > 64) return reject(context, .maximum, "request.metadata.count", .{ .unsigned = 64 }, .{ .unsigned = self.metadata.len }, error.InvalidGrpcMetadata);
     var fields: [64]rpc.transport.Entry = undefined;
     for (self.metadata, 0..) |entry, index| {
-        if (entry.value == .literal and rpc.Policy.sensitive(entry.name)) return error.GrpcCredentialReferenceRequired;
+        var path_bytes: [64]u8 = undefined;
+        const path = try std.fmt.bufPrint(&path_bytes, "metadata[{d}].value", .{index});
+        if (entry.value == .literal and rpc.Policy.sensitive(entry.name)) return reject(context, .policy, path, .{ .text = "credential reference" }, .redacted, error.GrpcCredentialReferenceRequired);
         fields[index] = .{ .name = entry.name, .value = switch (entry.value) {
             .literal => |bytes| bytes,
             .secret => |secret| blk: {
-                if (secret.binding.len == 0 or secret.binding.len > 128 or secret.version == 0) return error.InvalidGrpcSecret;
-                for (secret.binding) |byte| if (!std.ascii.isAlphanumeric(byte) and byte != '_' and byte != '-' and byte != '.') return error.InvalidGrpcSecret;
+                var binding_path: [64]u8 = undefined;
+                const binding = try std.fmt.bufPrint(&binding_path, "metadata[{d}].binding.bytes", .{index});
+                var version_path: [64]u8 = undefined;
+                const version = try std.fmt.bufPrint(&version_path, "metadata[{d}].version", .{index});
+                if (secret.binding.len == 0) return reject(context, .different, binding, .{ .unsigned = 0 }, .{ .unsigned = 0 }, error.InvalidGrpcSecret);
+                if (secret.binding.len > 128) return reject(context, .maximum, binding, .{ .unsigned = 128 }, .{ .unsigned = secret.binding.len }, error.InvalidGrpcSecret);
+                if (secret.version == 0) return reject(context, .different, version, .{ .unsigned = 0 }, .{ .unsigned = 0 }, error.InvalidGrpcSecret);
+                for (secret.binding) |byte| if (!std.ascii.isAlphanumeric(byte) and byte != '_' and byte != '-' and byte != '.') return reject(context, .policy, binding, .{ .text = "binding: letters/digits/_/./-" }, .redacted, error.InvalidGrpcSecret);
                 break :blk "";
             },
         } };
@@ -67,6 +82,9 @@ pub const Owned = struct {
 /// Accept only canonical bytes. A fixed input limit bounds JSON allocations;
 /// the caller chooses the parent allocator (workers use a bounded arena).
 pub fn parse(gpa: std.mem.Allocator, bytes: []const u8) !Owned {
+    return parseDiagnostic(gpa, bytes, null);
+}
+pub fn parseDiagnostic(gpa: std.mem.Allocator, bytes: []const u8, context: ?*?rpc.Service.Rejection) !Owned {
     if (bytes.len == 0 or bytes.len > maximum_bytes) return error.InvalidGrpcRequest;
     var arena: std.heap.ArenaAllocator = .init(gpa);
     errdefer arena.deinit();
@@ -88,6 +106,7 @@ pub fn parse(gpa: std.mem.Allocator, bytes: []const u8) !Owned {
         } };
     }
     request.metadata = entries;
+    try request.validateDiagnostic(context);
     var canonical: [maximum_bytes]u8 = undefined;
     if (!std.mem.eql(u8, bytes, try request.provenance(&canonical))) return error.NonCanonicalGrpcRequest;
     return .{ .arena = arena, .request = request };

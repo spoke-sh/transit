@@ -4224,7 +4224,7 @@
         "HttpCredentialRequiresTls": 1,
         "HttpEndpointChanged": 3,
         "HttpExplicitTrustRequired": 1,
-        "HttpFollowupChanged": 2,
+        "HttpFollowupChanged": 3,
         "HttpFollowupNotGranted": 3,
         "HttpFollowupNotSettled": 2,
         "HttpFollowupTargetChanged": 1,
@@ -5046,6 +5046,14 @@
         "std"
       ]
     },
+    "packages/zig/transit-exchange/src/PolicyDifference.zig": {
+      "errors": {},
+      "outcomes": {},
+      "imports": [
+        "AdmissionRejection.zig",
+        "std"
+      ]
+    },
     "packages/zig/transit-exchange/src/Service.zig": {
       "errors": {
         "ExchangeAttemptBudgetExceeded": 1,
@@ -5130,6 +5138,7 @@
         "Exchange.zig",
         "Failure.zig",
         "OutcomeDiagnostic.zig",
+        "PolicyDifference.zig",
         "Service.zig",
         "Worker.zig",
         "codec.zig",
@@ -10914,11 +10923,11 @@
         "GrpcCredentialNotGranted": 2,
         "GrpcCredentialReferenceRequired": 2,
         "GrpcCredentialRequiresTls": 2,
-        "GrpcFollowupChanged": 1,
+        "GrpcFollowupChanged": 3,
         "GrpcFollowupNotGranted": 3,
         "GrpcRequestChanged": 1,
-        "GrpcRequestNotGranted": 1,
-        "InvalidGrpcIdempotencyKey": 3,
+        "GrpcRequestNotGranted": 3,
+        "InvalidGrpcIdempotencyKey": 5,
         "InvalidGrpcPolicy": 2,
         "NonCanonicalGrpcPolicy": 1
       },
@@ -10954,7 +10963,7 @@
         "GrpcSecretUnresolved": 1,
         "InvalidGrpcMetadata": 2,
         "InvalidGrpcRequest": 2,
-        "InvalidGrpcSecret": 2,
+        "InvalidGrpcSecret": 4,
         "NonCanonicalGrpcRequest": 1
       },
       "outcomes": {
@@ -11064,14 +11073,14 @@
     },
     "packages/zig/transit-station-http/src/Policy.zig": {
       "errors": {
-        "HttpFollowupChanged": 1,
-        "HttpFollowupNotGranted": 5,
+        "HttpFollowupChanged": 3,
+        "HttpFollowupNotGranted": 7,
         "HttpFollowupTargetChanged": 1,
         "HttpRedirectChanged": 1,
         "HttpRedirectNotCaptured": 2,
         "HttpRedirectScope": 1,
         "HttpReplayGap": 1,
-        "InvalidHttpIdempotencyKey": 2,
+        "InvalidHttpIdempotencyKey": 5,
         "UnsupportedHttpCancellation": 1,
         "UnsupportedHttpReconciliation": 1,
         "UnsupportedHttpRedirect": 1

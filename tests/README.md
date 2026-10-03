@@ -13315,3 +13315,31 @@ Full `just check` also passes: generated-contract/binding drift checks, 566 real
 CLI diagnostic cases, 75 Board tests, shared frontend suites and production
 handbook build. Log: `/var/tmp/transit-refresh-reader-check.log`. These runs do
 not replace the final committed-HEAD clean checkout verification.
+
+### Original connector follow-up policy fields — 2026-10-03
+
+HTTP/gRPC follow-up checks retain original failed field, check, cause and permitted
+comparison values. Component tests cover nested canonical policy differences,
+separate method/shape/schema/provenance gates, credential-reference redaction,
+retry key count and 0/128/129-byte bounds, missing/disallowed HTTP status/Location,
+redirect scope and missing policy. Equal slices in different buffers compare by
+contents; retained witnesses own their field/value bytes. Final unit checks also
+verify private routing is withheld while permitted byte limits remain exact.
+
+Executed full `just test::http-worker`: passed in 593.45 seconds excluding
+compilation, with disk recovery, lost receipts, original cause retention and
+retirement. The actual rejected follow-up replies expose the changed request
+target and exact retry-policy revision 1 versus 2, remain `input_rejected`, and
+cause no extra remote send. The existing full schedule records seventeen sends,
+nine applications and two cancellation requests. Executed full
+`just test::grpc-worker`: passed in 419.07 seconds, nine sends/eight applications.
+Both use disk-backed captures beyond the 8 MiB hot-memory bound.
+
+Executed `just test::unit`, both debug worker builds and full `just check`: passed.
+The final routing-disclosure restriction received another unit run after those
+integration binaries were built; it changes only withheld scalar projection.
+An attempted unsupported `-Dtest-component` selector and an intermediate use of
+an obsolete Zig reflection member did not pass; corrected tasks use the pinned
+compiler's field-name reflection. Logs:
+`/var/tmp/transit-policy-detail-{unit2,unit3,unit4,http-proof,grpc-proof,check}.log`.
+Final committed-HEAD clean checkout verification remains separate.

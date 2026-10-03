@@ -66,3 +66,11 @@ is excluded from telemetry and unrelated logs under the
 The scalar field bounds are independent of the 243-byte Station frame payload
 bound. SDK reply codecs admit up to 232 bytes and delegate exact record length,
 magic, enum, padding and semantic validation to the shared native implementation.
+
+Follow-up validators retain original retry-key count, kind and length; captured
+HTTP status/Location availability; redirect scope; and the first changed frozen
+policy field. gRPC method, shape, descriptor and provenance comparisons retain
+separate witnesses. Nested policy paths include list indexes and preserve bounded
+truncation. Private routing, header, credential and target values are withheld by frozen-policy
+comparison. The diagnostic walk runs only after canonical comparison fails; it
+neither changes policy equality nor performs a later reconstruction.

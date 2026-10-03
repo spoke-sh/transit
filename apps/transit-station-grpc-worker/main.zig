@@ -103,7 +103,7 @@ const Driver = struct {
         }
         const request = input.request.request;
         const result: rpc.Policy.Prepared = .{ .endpoint_revision = config.endpoint_revision, .host = config.endpoint.host, .address = config.endpoint.address, .port = config.endpoint.port, .tls = config.endpoint.tls, .timeout_ms = config.endpoint.timeout_ms, .limits = config.endpoint.limits, .response_metadata = config.response_metadata, .credentials = credentials[0..config.credentials.len], .trust_digest = try trustDigest(self.gpa, self.io, config.endpoint), .method = request.method, .shape = request.shape, .descriptor_digest = request.descriptor_digest, .metadata_digest = (try x.Publication.Digest.of(2, input.metadata)).digest, .batch_digest = (try x.Publication.Digest.of(2, input.batch)).digest, .retry_policy = config.retry_policy };
-        result.validateRequest(request) catch |err| return validationFailure(failure, rpc.Service.Rejection.detail(.denied, .policy, "request.policy", .unrecorded, .unrecorded, err), err);
+        result.validateRequestDiagnostic(request, failure) catch |err| return validationFailure(failure, rpc.Service.Rejection.detail(.denied, .policy, "request.policy", .unrecorded, .unrecorded, err), err);
         _ = rpc.Batch.decode(input.batch, request.shape, config.endpoint.limits) catch |err| return validationFailure(failure, rpc.Service.Rejection.detail(.invalid_request, .decode, "request.batch", .unrecorded, .{ .unsigned = input.batch.len }, err), err);
         if (config.admission) |policy| try rpc.Service.validateRequestDiagnostic(policy.scope, request, failure);
         return result;
@@ -117,7 +117,7 @@ const Driver = struct {
         if (resource.writer != policy.caller) return validationFailure(failure, rpc.Service.Rejection.detail(.denied, .equal, "request.resource.writer", .{ .unsigned = policy.caller }, .redacted, error.GrpcAdmissionDenied), error.GrpcAdmissionDenied);
         const meta_bytes = try rpc.RequestRecord.read(&self.reader, reference, rpc.RequestRecord.metadata_id, metadata);
         const batch_bytes = try rpc.RequestRecord.read(&self.reader, reference, rpc.RequestRecord.batch_id, batch);
-        const request = rpc.RequestRecord.validateContent(self.gpa, reference, meta_bytes, batch_bytes) catch |err| return validationFailure(failure, rpc.Service.Rejection.detail(.invalid_request, .decode, "request.content", .unrecorded, .unrecorded, err), err);
+        const request = rpc.RequestRecord.validateContentDiagnostic(self.gpa, reference, meta_bytes, batch_bytes, failure) catch |err| return validationFailure(failure, rpc.Service.Rejection.detail(.invalid_request, .decode, "request.content", .unrecorded, .unrecorded, err), err);
         return .{ .request = request, .metadata = meta_bytes, .batch = batch_bytes };
     }
     fn policyOrdinal(self: *Driver, ex: x.Exchange) !u32 {
@@ -151,7 +151,7 @@ const Driver = struct {
         var buffer: [8192]u8 = undefined;
         var original = try rpc.Policy.parse(self.gpa, try self.loadFrom(parent, try self.policyOrdinal(parent), &buffer));
         defer original.deinit();
-        return try rpc.Policy.followup(follow.reason, original.policy, prepared_value, request);
+        return try rpc.Policy.followupDiagnostic(follow.reason, original.policy, prepared_value, request, failure);
     }
     pub fn validateAdmission(self: *Driver, follow: rpc.Service.Followup) !rpc.Service.FollowupValidation {
         var metadata: [8192]u8 = undefined;

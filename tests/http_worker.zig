@@ -79,7 +79,8 @@ pub fn main(init: std.process.Init) !void {
             if (args.len != 5) return error.MissingRequestConfiguration;
             try Caller.followup(init, &admin, &saved.caller.?, saved.pid, saved.resource, args[4]);
         } else if (std.mem.eql(u8, args[2], "receive-rejection")) {
-            try std.json.Stringify.value(try Caller.receiveRejection(init, &admin, saved.caller.?, saved.pid), .{}, &output.interface);
+            const rejected = try Caller.receiveRejection(init, &admin, saved.caller.?, saved.pid);
+            try std.json.Stringify.value(.{ .record = rejected, .diagnostic = try rejected.diagnostic() }, .{}, &output.interface);
             return output.interface.flush();
         } else if (std.mem.eql(u8, args[2], "receive-release")) {
             try std.json.Stringify.value(try Caller.receiveRelease(init, &admin, saved.caller.?, saved.pid), .{}, &output.interface);

@@ -226,3 +226,46 @@ test "independent RPC capture layouts preserve binary metadata and full-width ti
     try t.expectEqualSlices(u8, &digest, &header.digest);
     try t.expectEqual(body.len, header.length);
 }
+
+test "grpc policy witnesses distinguish route, shape, schema, credential and frozen batch" {
+    const request: rpc.Request = .{ .method = "/service.Remote/Apply", .shape = .unary, .descriptor_digest = @splat(9), .metadata = &.{ .{ .name = "idempotency-key", .value = .{ .literal = "fixed-operation" } }, .{ .name = "authorization", .value = .{ .secret = .{ .binding = "token", .version = 3 } } } } };
+    var buffer: [8192]u8 = undefined;
+    const spec = try x.Publication.Digest.of(2, try request.provenance(&buffer));
+    const parent: rpc.Policy.Prepared = .{ .endpoint_revision = 1, .host = "peer.test", .address = "127.0.0.1", .port = 443, .tls = true, .timeout_ms = 1000, .limits = .{}, .trust_digest = @splat(1), .method = request.method, .shape = request.shape, .descriptor_digest = request.descriptor_digest, .metadata_digest = spec.digest, .batch_digest = @splat(7), .credentials = &.{.{ .binding = "token", .version = 3, .metadata = "authorization" }}, .retry_policy = .{ .id = 1, .revision = std.math.maxInt(u64), .key_metadata = "idempotency-key" } };
+    var context: ?rpc.Service.Rejection = null;
+    var next = parent;
+    next.method = "/service.Remote/Other";
+    try t.expectError(error.GrpcRequestNotGranted, rpc.Policy.followupDiagnostic(.retry, parent, next, request, &context));
+    try t.expectEqualStrings("request.method", context.?.field[0..context.?.field_len]);
+    next = parent;
+    next.shape = .server_streaming;
+    try t.expectError(error.GrpcRequestNotGranted, rpc.Policy.followupDiagnostic(.retry, parent, next, request, &context));
+    try t.expectEqualStrings("request.shape", context.?.field[0..context.?.field_len]);
+    next = parent;
+    next.descriptor_digest[0] ^= 1;
+    try t.expectError(error.GrpcRequestNotGranted, rpc.Policy.followupDiagnostic(.retry, parent, next, request, &context));
+    try t.expectEqualStrings("request.descriptor_digest", context.?.field[0..context.?.field_len]);
+    try t.expectEqualSlices(u8, &next.descriptor_digest, &context.?.expected_text);
+    next = parent;
+    next.credentials = &.{.{ .binding = "token", .version = 4, .metadata = "authorization" }};
+    try t.expectError(error.GrpcCredentialNotGranted, next.validateRequestDiagnostic(request, &context));
+    try t.expectEqualStrings("request.metadata[1]", context.?.field[0..context.?.field_len]);
+    try t.expectEqual(.redacted, context.?.expected_kind);
+    try t.expectEqual(.redacted, context.?.actual_kind);
+    next = parent;
+    next.batch_digest[0] ^= 1;
+    try t.expectError(error.GrpcFollowupChanged, rpc.Policy.followupDiagnostic(.retry, parent, next, request, &context));
+    try t.expectEqualStrings("policy.batch_digest", context.?.field[0..context.?.field_len]);
+    try t.expectEqualSlices(u8, &parent.batch_digest, &context.?.expected_text);
+    try t.expectEqualSlices(u8, &next.batch_digest, &context.?.actual_text);
+    try t.expectError(error.GrpcFollowupNotGranted, rpc.Policy.followupDiagnostic(.redirect, parent, parent, request, &context));
+    try t.expectEqualStrings("followup.reason", context.?.field[0..context.?.field_len]);
+    var literal = request;
+    literal.metadata = &.{.{ .name = "authorization", .value = .{ .literal = "private-credential" } }};
+    try t.expectError(error.GrpcCredentialReferenceRequired, parent.validateRequestDiagnostic(literal, &context));
+    try t.expectEqualStrings("metadata[0].value", context.?.field[0..context.?.field_len]);
+    try t.expectEqual(.redacted, context.?.actual_kind);
+    const encoded = try x.codec.encode(context.?);
+    try t.expectEqual(null, std.mem.indexOf(u8, encoded.slice(), "private-credential"));
+    try t.expectEqualDeep(context.?, try x.codec.decode(rpc.Service.Rejection, encoded));
+}

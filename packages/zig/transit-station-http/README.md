@@ -122,3 +122,10 @@ failing field and check, expected/supplied values, and original validation cause
 Strings are bounded with explicit truncation; credential values and foreign-caller
 state remain withheld. See the [shared admission layout](../../../contracts/CONNECTOR_ADMISSION_V1.md)
 and [connector semantics](../../../docs/reference/connectors.md).
+
+`Policy.followupDiagnostic` retains the exact failed policy field and safe
+expected/supplied values in the existing admission witness. Retry-key counts,
+piece kinds and byte limits are distinct; redirect failures identify captured
+status, missing Location, scope and target checks. Canonical policy comparison
+still decides acceptance. Its diagnostic names the first differing nested field
+without borrowing policy memory or returning private routing/header/target values.

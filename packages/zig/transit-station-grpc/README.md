@@ -121,3 +121,11 @@ failing field and check, expected/supplied values, and original validation cause
 Strings are bounded with explicit truncation; credential values and foreign-caller
 state remain withheld. See the [shared admission layout](../../../contracts/CONNECTOR_ADMISSION_V1.md)
 and [connector semantics](../../../docs/reference/connectors.md).
+
+`Policy.followupDiagnostic` and `Prepared.validateRequestDiagnostic` separate
+method, stream shape, descriptor commitment, credential reference and provenance
+checks. Frozen policy differences identify the first changed nested field,
+including batch digest and endpoint limits. Request parsing carries optional
+original metadata/credential validation evidence through admission; credential
+contents are withheld. The canonical comparison still decides acceptance and a
+policy correction never rewrites a delivered rejection.

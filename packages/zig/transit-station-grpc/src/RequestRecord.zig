@@ -108,9 +108,12 @@ pub fn read(client: *x.Client, reference: Reference, id: u64, buffer: []u8) ![]c
 /// Admission reads both records under current grants, then validates the exact
 /// reference against content before committing an independently owned intent.
 pub fn validateContent(gpa: std.mem.Allocator, reference: Reference, metadata: []const u8, batch: []const u8) !rpc.Request.Owned {
+    return validateContentDiagnostic(gpa, reference, metadata, batch, null);
+}
+pub fn validateContentDiagnostic(gpa: std.mem.Allocator, reference: Reference, metadata: []const u8, batch: []const u8, context: ?*?rpc.Service.Rejection) !rpc.Request.Owned {
     try reference.validate();
     if (!std.meta.eql(reference.metadataSpec(), try Pub.Digest.of(rpc.protocol_format, metadata)) or !std.meta.eql(reference.batchSpec(), try Pub.Digest.of(rpc.protocol_format, batch))) return error.InvalidGrpcRequestReference;
-    var owned = try rpc.Request.parse(gpa, metadata);
+    var owned = try rpc.Request.parseDiagnostic(gpa, metadata, context);
     errdefer owned.deinit();
     if (owned.request.shape != reference.shape or !std.mem.eql(u8, &owned.request.descriptor_digest, &reference.descriptor_digest)) return error.InvalidGrpcRequestReference;
     _ = try rpc.Batch.decode(batch, reference.shape, .{});

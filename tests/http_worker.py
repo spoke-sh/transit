@@ -587,7 +587,13 @@ def run(node, provision, worker, library, board=None, browser=False):
             config.write_text(json.dumps(changed))
             refused = subprocess.run([worker, str(config)], capture_output=True, timeout=30)
             assert refused.returncode != 0 and b"MissingHttpCall" in refused.stderr, refused
-            assert admin("receive-rejection") == {"reason": "denied"}
+            rejection = admin("receive-rejection")
+            assert rejection["record"]["reason"] == "denied", rejection
+            facts = {item["field"]: item["value"] for item in rejection["diagnostic"]["facts"] if item}
+            assert facts["field_path"] == {"text": "request.target"}, rejection
+            assert facts["expected_value"] == {"text": "/admin"}, rejection
+            assert facts["supplied_value"] == {"text": "/public-retry"}, rejection
+            assert rejection["diagnostic"]["outcome"] == "input_rejected", rejection
             assert requests.count("/public-retry") == 1
 
             saved = admin("followup-call")
@@ -598,7 +604,15 @@ def run(node, provision, worker, library, board=None, browser=False):
             config.write_text(json.dumps(changed))
             refused = subprocess.run([worker, str(config)], capture_output=True, timeout=30)
             assert refused.returncode != 0 and b"MissingHttpCall" in refused.stderr, refused
-            assert admin("receive-rejection") == {"reason": "denied"}
+            rejection = admin("receive-rejection")
+            assert rejection["record"]["reason"] == "denied", rejection
+            facts = {item["field"]: item["value"] for item in rejection["diagnostic"]["facts"] if item}
+            assert facts["field_path"] == {"text": "policy.retry_policy.revision"}, rejection
+            assert facts["expected_value"] == {"unsigned": "1"}, rejection
+            assert facts["supplied_value"] == {"unsigned": "2"}, rejection
+            assert rejection["diagnostic"]["cause"] == "HttpFollowupChanged", rejection
+            assert rejection["diagnostic"]["outcome"] == "input_rejected", rejection
+            assert requests.count("/public-retry") == 1
 
             saved = admin("followup-call")
             followup_correlation = saved["caller"]["correlation"]

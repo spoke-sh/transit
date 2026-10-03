@@ -51,6 +51,13 @@ truncation; withheld and unrecorded values remain distinct. Another caller's
 parent and a missing parent produce the same unavailable result. Credential
 contents are never included. See the [admission record](../../contracts/CONNECTOR_ADMISSION_V1.md).
 
+Follow-up policy failures distinguish missing policy, retry-key count/kind/byte
+limits, redirect status/Location/scope and the first changed frozen policy field.
+gRPC checks separate method, stream shape, descriptor digest, credential reference
+and request provenance. Private routing, credential/header payloads and redirect targets are
+withheld in policy comparisons; their field paths still identify the failed
+check. Correcting a policy does not change an already delivered rejection.
+
 Reply diagnostics mark absent capture causes as unrecorded; retained capture
 and native effect inspection supply their own evidence under current rights.
 Allocation, storage and trust-file read failures propagate without committing

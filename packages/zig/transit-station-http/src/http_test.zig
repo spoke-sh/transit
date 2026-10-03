@@ -134,3 +134,57 @@ test "trailer capture enforces the same finite field count as response heads" {
     try writer.writeAll("\r\n");
     try t.expectError(error.HttpHeadersOversize, http.Transport.captureHeaders(.{ .host = "example.test", .address = "127.0.0.1", .port = 443, .tls = true }, writer.buffered(), true, &output));
 }
+
+test "followup diagnostics retain exact policy differences, key bounds and redirect failures" {
+    const parent: http.Policy.Prepared = .{ .endpoint_revision = 7, .host = "example.test", .address = "127.0.0.1", .port = 443, .tls = true, .timeout_ms = 1000, .request_bytes = 64, .response_bytes = 64, .response_headers = &.{"location"}, .trust_digest = @splat(1), .request = .{ .method = .POST, .target = &.{.{ .literal = "/operation" }}, .body_bytes = 4, .headers = &.{.{ .name = "Idempotency-Key", .value = &.{.{ .literal = "stable" }} }} }, .retry_policy = .{ .id = 1, .revision = 1, .key_header = "Idempotency-Key" }, .redirect_policy = .{ .id = 2, .revision = 1 } };
+    var context: ?http.Service.Rejection = null;
+    var next = parent;
+    next.address = "169.254.169.254";
+    try t.expectError(error.HttpFollowupChanged, http.Policy.followupDiagnostic(t.allocator, .retry, parent, next, null, null, &context));
+    try t.expectEqualStrings("policy.address", context.?.field[0..context.?.field_len]);
+    try t.expectEqual(.redacted, context.?.expected_kind);
+    try t.expectEqual(.redacted, context.?.actual_kind);
+    try t.expect(std.mem.allEqual(u8, &context.?.expected_text, 0));
+    next = parent;
+    next.response_bytes += 1;
+    try t.expectError(error.HttpFollowupChanged, http.Policy.followupDiagnostic(t.allocator, .retry, parent, next, null, null, &context));
+    try t.expectEqualStrings("policy.response_bytes", context.?.field[0..context.?.field_len]);
+    try t.expectEqual(@as(u64, 64), context.?.expected_number);
+    try t.expectEqual(@as(u64, 65), context.?.actual_number);
+    const saved = try http.exchange.codec.encode(context.?);
+    next = parent;
+    _ = try http.Policy.followupDiagnostic(t.allocator, .retry, parent, next, null, null, null);
+    try t.expectEqualDeep(context.?, try http.exchange.codec.decode(http.Service.Rejection, saved));
+    var key: [129]u8 = @splat('x');
+    for ([_]usize{ 0, 128, 129 }) |length| {
+        next = parent;
+        next.request.headers = &.{.{ .name = "Idempotency-Key", .value = &.{.{ .literal = key[0..length] }} }};
+        // At 128 the key is well formed but different from the frozen request.
+        const expected = if (length == 128) error.HttpFollowupChanged else error.InvalidHttpIdempotencyKey;
+        try t.expectError(expected, http.Policy.followupDiagnostic(t.allocator, .retry, parent, next, null, null, &context));
+        if (length != 128) {
+            try t.expectEqualStrings("retry.key.bytes", context.?.field[0..context.?.field_len]);
+            try t.expectEqual(length, context.?.actual_number);
+            try t.expectEqual(@as(u64, if (length == 0) 0 else 128), context.?.expected_number);
+        } else {
+            try t.expectEqual(.redacted, context.?.actual_kind);
+            try t.expect(context.?.field_truncated == 1);
+        }
+    }
+    next = parent;
+    next.request.headers = &.{};
+    try t.expectError(error.InvalidHttpIdempotencyKey, http.Policy.followupDiagnostic(t.allocator, .retry, parent, next, null, null, &context));
+    try t.expectEqualStrings("retry.key.count", context.?.field[0..context.?.field_len]);
+    try t.expectEqual(@as(u64, 0), context.?.actual_number);
+    try t.expectError(error.HttpRedirectNotCaptured, http.Policy.followupDiagnostic(t.allocator, .redirect, parent, parent, 200, null, &context));
+    try t.expectEqualStrings("parent.http_status", context.?.field[0..context.?.field_len]);
+    try t.expectEqual(@as(u64, 200), context.?.actual_number);
+    try t.expectError(error.HttpReplayGap, http.Policy.followupDiagnostic(t.allocator, .redirect, parent, parent, 307, null, &context));
+    try t.expectEqual(.inapplicable, context.?.actual_kind);
+    try t.expectError(error.HttpRedirectScope, http.Policy.followupDiagnostic(t.allocator, .redirect, parent, parent, 307, "https://private.invalid/?token=private", &context));
+    try t.expectEqual(.redacted, context.?.actual_kind);
+    try t.expect(std.mem.allEqual(u8, &context.?.actual_text, 0));
+    try t.expectError(error.HttpFollowupNotGranted, http.Policy.followupDiagnostic(t.allocator, .cancel, parent, parent, null, null, &context));
+    try t.expectEqualStrings("policy.cancel", context.?.field[0..context.?.field_len]);
+    try context.?.validate();
+}

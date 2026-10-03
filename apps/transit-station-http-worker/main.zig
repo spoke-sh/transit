@@ -239,9 +239,12 @@ const Driver = struct {
         defer parsed.deinit();
         var head_buffer: [8192]u8 = undefined;
         const location = if (follow.reason == .redirect) try self.capturedLocation(parent, descriptor, &head_buffer) else null;
-        const policy = try http.Policy.followup(gpa, follow.reason, parsed.value, prepared_value, if (follow.reason == .redirect) @intCast(descriptor.terminal_code) else null, location);
+        const policy = try http.Policy.followupDiagnostic(gpa, follow.reason, parsed.value, prepared_value, if (follow.reason == .redirect) @intCast(descriptor.terminal_code) else null, location, failure);
         if (follow.reason == .reconcile or follow.reason == .cancel) {
-            if (body.len != 0) return error.HttpFollowupChanged;
+            if (body.len != 0) {
+                if (failure) |slot| slot.* = http.Service.Rejection.detail(.denied, .equal, "followup.body_bytes", .{ .unsigned = 0 }, .{ .unsigned = body.len }, error.HttpFollowupChanged);
+                return error.HttpFollowupChanged;
+            }
             return policy;
         }
         var offset: usize = 0;
