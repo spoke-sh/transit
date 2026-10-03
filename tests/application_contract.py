@@ -1,4 +1,5 @@
 """Independent AP1 binary fixtures; layout examples do not claim body validity."""
+import hashlib
 import json
 from pathlib import Path
 import struct
@@ -31,9 +32,20 @@ def fixture():
         ({'abandon': str(maximum)}, b'\x05' + struct.pack('<Q', maximum)),
         ({'collect': str(maximum)}, b'\x06' + struct.pack('<Q', maximum)),
     ]
+    frame = b'STN1\x01' + bytes(8) + b'AP1i\x04' + struct.pack('<Q', maximum)
+    payload = hashlib.sha256(b'transit.application.input.v1\0' + frame).digest()
+    cause, code = b'ApplicationDenied', b'publication.denied'
+    disposition = dict(reason='ApplicationDenied', input=59, operation=str(maximum), payload=list(payload),
+                       cause=cause.hex(), code=code.hex(), category='access', stage='admission')
+    disposition_bytes = (b'AP1e\x03' + struct.pack('<QQ', 59, maximum) + payload
+                         + bytes([len(cause)]) + cause + bytes([len(code)]) + code + b'\x04\x06')
+    witness = dict(policy=dict(principal=44, expected='0', actual='2', present=True, publish=False))
+    witness_bytes = b'AP1f\x01' + struct.pack('<QQQ??', 44, 0, 2, True, False)
     return {'version': 1, 'proposal': proposal, 'proposal_hex': (b'AP1r' + proposal_bytes).hex(),
             'receipt': receipt, 'receipt_hex': (b'AP1o' + proposal_bytes + b'\x02' + struct.pack('<Q', 57) + b'\x01\x00').hex(),
             'head': head, 'head_hex': (b'AP1h' + head_bytes).hex(),
+            'disposition': disposition, 'disposition_hex': disposition_bytes.hex(),
+            'witness': witness, 'witness_hex': witness_bytes.hex(),
             'commands': [{'command': command, 'hex': (b'AP1i' + encoded).hex()} for command, encoded in commands],
             'key_hex': (b'\x00A' + struct.pack('>Q', 9) + b'o' + struct.pack('>QQ', 44, maximum)).hex()}
 

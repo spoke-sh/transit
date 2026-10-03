@@ -154,7 +154,7 @@ Invalid programs never activate. Each finish performs at most 256 chunk reads
 plus bounded metadata reads; deployment deadlines still govern progress.
 
 `Behavior` provides the real Station handler and pre-frame guard. Malformed or
-unauthorized inputs produce retained, payload-free dispositions keyed by the
+unauthorized inputs produce retained dispositions without payload values, keyed by the
 actual operator and native input position. Unavailable reads and allocation
 failures remain unresolved infrastructure failures; they cannot be reported as
 successful publication or terminal caller rejection. Bootstrap config must be
@@ -231,3 +231,30 @@ conflict did not activate; abandonment cannot undo publication or imply collecti
 The browser stops a conflicted reviewed publication and displays this owner detail;
 cleanup remains an explicit operation. Optional invalid presentation detail cannot
 replace the primary receipt or alter saved signed work.
+
+Rejected publication inputs retain two atomic bounded values at the exact operator
+and native input: `AP1e` stores the reason, input, operation, input-frame commitment,
+original cause, semantic code, category and stage; `AP1f` stores the original
+witness. The input commitment is SHA-256 over `transit.application.input.v1` plus
+a NUL byte and the complete Station frame. The finite reason tags follow
+`PublicationFailure.Reason` declaration order. The primary record occupies at most
+249 bytes; each witness fits one 256-byte value. A missing/old/malformed companion
+record rejects; a later policy or head cannot reconstruct it.
+
+Witness variants are none=0, policy=1, declaration=2, embedded SQL=3 and upload=4.
+Policy records distinguish absent policy from a recorded revision and permission;
+conditional policy updates also retain the requested revision. Declaration records
+retain the verified assembled-body commitment, original byte location, member,
+option and expected form or referenced name. Embedded SELECT records keep both
+parent and decoded-SQL locations. Locations refer to the assembled body, whose
+canonical formatting can differ from an earlier editor draft. Incomplete uploads
+record actual and required complete chunks and the expected body byte length.
+
+`Native.State.disposition` returns the typed primary record, witness and nullable
+diagnostic under the same current read grant. The complete selected state uses at
+most eight requested keys in one native read. Its `input_rejected` diagnostic is
+independent of `receipt_diagnostic`: an input may be rejected while an upload
+remains staging or an earlier receipt remains applied. The browser preserves both
+outcomes and renders the exact input's detail. It never interprets this rejection
+as cancellation, rollback, or permission to replace saved work. Infrastructure
+read/allocation failures leave the input unresolved.

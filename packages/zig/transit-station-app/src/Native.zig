@@ -24,6 +24,7 @@ pub const Selection = union(enum) { identity: void, state: struct { operation: W
 pub const PreparedRead = struct { scope: Scope, principal: u64, selection: Selection, digest: [32]u8 };
 pub const SignedRead = struct { prepared: PreparedRead, signature: [64]u8 };
 pub const Identity = struct { principal: u64, sequence: Wide, permissions: u16, pid: ?u64, policy_revision: Wide };
+pub const Disposition = struct { record: root.PublicationFailure.Record, witness: root.PublicationFailure.Witness, diagnostic: ?p.Diagnostic };
 pub const State = struct {
     revision: Wide,
     configuration: Pub.Configuration,
@@ -31,7 +32,7 @@ pub const State = struct {
     head: ?Pub.Head,
     receipt: ?Pub.Receipt,
     upload: ?struct { written: u32, collected: u32, reserved: bool, first_half: bool, state: root.station.Publication.State },
-    disposition: ?p.Value,
+    disposition: ?Disposition,
     receipt_diagnostic: ?p.Diagnostic = null,
 };
 pub const Observation = union(enum) { identity: Identity, state: State };
@@ -74,7 +75,8 @@ fn keys(scope: Scope, principal: u64, selected: @FieldType(Selection, "state")) 
     }
     if (selected.input != 0) {
         result[used] = root.Records.key(scope.application, 'e', principal, selected.input);
-        used += 1;
+        result[used + 1] = root.Records.key(scope.application, 'f', principal, selected.input);
+        used += 2;
     }
     if (selected.record.value != 0) result[used] = root.station.Publication.key(.application_definition, scope.namespace.value, 'r', selected.record.value, 0);
     return result;
@@ -115,7 +117,15 @@ pub fn read(wire: *client.Client, scope: Scope, signed: SignedRead) !Observation
             if (config.application != scope.application or config.realm != scope.realm or config.namespace.value != scope.namespace.value or body.resource.writer != scope.pid) return error.ApplicationScopeChanged;
             const owner: Pub = .{ .configuration = config };
             const receipt = if (selected.operation.value != 0) try owner.receipt(&batch, signed.prepared.principal, selected.operation) else null;
-            var result: State = .{ .revision = .{ .value = body.resource.revision }, .configuration = config, .policy = try owner.policy(&batch, signed.prepared.principal), .head = try owner.head(&batch), .receipt = receipt, .upload = null, .disposition = if (selected.input != 0) try batch.read(root.Records.key(scope.application, 'e', signed.prepared.principal, selected.input)) else null };
+            var result: State = .{ .revision = .{ .value = body.resource.revision }, .configuration = config, .policy = try owner.policy(&batch, signed.prepared.principal), .head = try owner.head(&batch), .receipt = receipt, .upload = null, .disposition = null };
+            if (selected.input != 0) {
+                if (try batch.read(root.Records.key(scope.application, 'e', signed.prepared.principal, selected.input))) |encoded| {
+                    const record = try root.Records.decode(root.PublicationFailure.Record, 'e', encoded);
+                    if (record.input != selected.input) return error.InvalidApplicationRecord;
+                    const witness = try root.Records.decode(root.PublicationFailure.Witness, 'f', (try batch.read(root.Records.key(scope.application, 'f', signed.prepared.principal, selected.input))) orelse return error.InvalidApplicationRecord);
+                    result.disposition = .{ .record = record, .witness = witness, .diagnostic = try root.PublicationFailure.project(scope, record, witness) };
+                }
+            }
             if (selected.record.value != 0 and receipt != null) {
                 const operation = receipt.?;
                 if (operation.proposal.record.value != selected.record.value) return error.InvalidApplicationSelection;

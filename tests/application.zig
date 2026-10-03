@@ -12,7 +12,7 @@ const Realm = 49;
 const Worker = 65536;
 const Operator = 65537;
 const Admin = @import("growing_support.zig").Admin(Realm);
-const Saved = struct { phase: []const u8, pid: u64, resource: u64, generation: u64, stale: ?g.SignedRequest = null, conflict: ?Owner.Receipt = null };
+const Saved = struct { phase: []const u8, pid: u64, resource: u64, generation: u64, stale: ?g.SignedRequest = null, conflict: ?Owner.Receipt = null, denied_input: u64 = 0, invalid_input: u64 = 0 };
 fn owner() Owner {
     return .{ .configuration = .{ .application = 9, .namespace = .{ .value = 19 }, .realm = Realm, .administrator = Operator, .name_digest = Owner.nameDigest("board") } };
 }
@@ -100,7 +100,12 @@ fn sendPart(caller: *Caller, io: std.Io, server: *Server, handler: *Handler, pro
 fn expectDenied(source: client.ResourceReader, resource: u64, input: u64) !void {
     var reader = try source.open(resource);
     const value = (try reader.read(app.Records.key(9, 'e', Operator, input))) orelse return error.MissingDisposition;
-    try t.expectEqualStrings("ApplicationDenied", value.slice());
+    const record = try app.Records.decode(app.PublicationFailure.Record, 'e', value);
+    try t.expectEqual(app.PublicationFailure.Reason.ApplicationDenied, record.reason);
+    try t.expectEqual(input, record.input);
+    const witness = try app.Records.decode(app.PublicationFailure.Witness, 'f', (try reader.read(app.Records.key(9, 'f', Operator, input))).?);
+    try t.expectEqual(@as(u64, 2), witness.policy.actual.value);
+    try t.expect(!witness.policy.publish);
 }
 fn observe(source: client.ResourceReader, scope: app.Native.Scope, selection: app.Native.Selection) !app.Native.Observation {
     const prepared = try app.Native.prepareRead(scope, source.principal, selection);
@@ -215,6 +220,19 @@ pub fn main(init: std.process.Init) !void {
         try t.expectEqual(head.input, receipt.input);
         var bytes: [app.Model.max_program_bytes]u8 = undefined;
         try t.expectEqualStrings(body, try owner().reference(saved.resource, head).read(source, &bytes));
+        const invalid_body = "CREATE INTERFACE board WITH (realm = 49);";
+        const invalid_proposal: Owner.Proposal = .{ .operation = .{ .value = 3 }, .record = .{ .value = 102 }, .expected = head.revision, .expected_digest = head.spec.digest, .revision = .{ .value = 2 }, .spec = try s.Publication.Digest.of(Owner.format, invalid_body) };
+        try caller.send(init.io, &server, &handler, .{ .begin = invalid_proposal }, false);
+        try sendPart(&caller, init.io, &server, &handler, invalid_proposal, invalid_body, 0, false, false);
+        try caller.send(init.io, &server, &handler, .{ .publish = invalid_proposal.operation }, false);
+        saved.invalid_input = caller.last_input;
+        const invalid = (try observe(source, native_scope, .{ .state = .{ .operation = invalid_proposal.operation, .record = invalid_proposal.record, .input = saved.invalid_input } })).state;
+        try t.expectEqual(Owner.Phase.staging, invalid.receipt.?.phase);
+        try t.expectEqualStrings("MissingInterfaceOption", invalid.disposition.?.record.cause.slice());
+        try t.expectEqualStrings("application.missing_interface_option", invalid.disposition.?.diagnostic.?.code.slice());
+        try t.expectEqualStrings("revision", invalid.disposition.?.witness.declaration.option.slice());
+        try t.expectEqual(@as(u64, invalid_body.len), try invalid.disposition.?.diagnostic.?.location.?.offset.value());
+        try t.expectEqualSlices(u8, &invalid_proposal.spec.digest, &invalid.disposition.?.witness.declaration.body_digest);
         var stale_proposal = proposal;
         stale_proposal.operation.value = 2;
         stale_proposal.record.value = 101;
@@ -228,6 +246,7 @@ pub fn main(init: std.process.Init) !void {
         try caller.send(init.io, &server, &handler, .{ .policy = .{ .principal = Operator, .expected = .{ .value = 1 }, .next = .{ .revision = .{ .value = 2 }, .publish = false } } }, false);
         try caller.send(init.io, &server, &handler, .{ .publish = proposal.operation }, false);
         try expectDenied(source, saved.resource, caller.last_input);
+        saved.denied_input = caller.last_input;
         _ = try admin.submit(.{ .checkpoint = {} });
     } else if (std.mem.eql(u8, phase, "finish")) {
         try caller.send(init.io, &server, &handler, .{ .publish = proposal.operation }, false);
@@ -243,6 +262,22 @@ pub fn main(init: std.process.Init) !void {
         var bytes: [app.Model.max_program_bytes]u8 = undefined;
         const reference = owner().reference(saved.resource, head);
         try t.expectEqualStrings(body, try reference.read(source, &bytes));
+        const invalid = (try observe(source, native_scope, .{ .state = .{ .operation = .{ .value = 3 }, .record = .{ .value = 102 }, .input = saved.invalid_input } })).state;
+        try t.expectEqual(Owner.Phase.staging, invalid.receipt.?.phase);
+        try t.expectEqualStrings("application.missing_interface_option", invalid.disposition.?.diagnostic.?.code.slice());
+        try t.expectEqualStrings("revision", invalid.disposition.?.witness.declaration.option.slice());
+        const original_failure = invalid.disposition.?;
+        try caller.send(init.io, &server, &handler, .{ .abandon = .{ .value = 3 } }, false);
+        try caller.send(init.io, &server, &handler, .{ .collect = .{ .value = 3 } }, false);
+        const closed_invalid = (try observe(source, native_scope, .{ .state = .{ .operation = .{ .value = 3 }, .record = .{ .value = 102 }, .input = saved.invalid_input } })).state;
+        try t.expectEqual(Owner.Phase.abandoned, closed_invalid.receipt.?.phase);
+        try t.expectEqualDeep(original_failure, closed_invalid.disposition.?);
+        const denied = (try observe(source, native_scope, .{ .state = .{ .operation = proposal.operation, .input = saved.denied_input } })).state;
+        try t.expectEqual(saved.denied_input, denied.disposition.?.record.input);
+        try t.expectEqual(@as(u64, 2), denied.disposition.?.witness.policy.actual.value);
+        try t.expectEqualStrings("publication.denied", denied.disposition.?.diagnostic.?.code.slice());
+        try t.expectEqual(.input_rejected, denied.disposition.?.diagnostic.?.outcome);
+        try t.expectEqual(.applied, denied.receipt_diagnostic.?.outcome);
         const conflicted = (try observe(source, native_scope, .{ .state = .{ .operation = .{ .value = 2 }, .record = .{ .value = 101 } } })).state;
         try t.expectEqualDeep(saved.conflict.?, conflicted.receipt.?);
         try t.expectEqualStrings("publication.base_conflict", conflicted.receipt_diagnostic.?.code.slice());
@@ -256,6 +291,7 @@ pub fn main(init: std.process.Init) !void {
         try t.expectError(error.AccessDenied, app.Host.published(init.gpa, source, native_scope));
         try t.expectError(error.AccessDenied, observe(source, native_scope, .{ .state = .{} }));
         try t.expectError(error.AccessDenied, observe(source, native_scope, .{ .state = .{ .operation = .{ .value = 2 } } }));
+        try t.expectError(error.AccessDenied, observe(source, native_scope, .{ .state = .{ .input = saved.denied_input } }));
         try output.interface.print("Application: {d} body bytes, signed operator={d}, four mutations, exact retries, policy and resource denial passed\n", .{ body.len, Operator });
     } else return error.UnknownPhase;
     const encoded = try p.Json.valueAlloc(init.gpa, saved);

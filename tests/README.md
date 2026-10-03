@@ -12739,3 +12739,33 @@ mutation/catalog commitments and reactive signature fixture. Earlier qualificati
 stopped on those stale fixtures and a TypeScript test annotation; they are not
 counted as passing runs. Durable publication input-rejection detail, migration and
 reactive/effect mappings remain separate increments.
+
+### Retained publication input rejection — 2026-10-03
+
+The owner commits a bounded primary failure record and original witness after
+rolling back the rejected input's entire attempted transition. It retains a frame
+commitment, exact input/operation identities, policy revision, upload counts or
+compiler member/option and assembled-body/nested-SQL coordinates. The compiler
+witness binds the verified body digest. Infrastructure/read failures remain
+unresolved. The primary record and witness occupy at most 249 and 245 bytes;
+the signed status selection uses all eight available keys when fully populated.
+
+Executed package tests, independent publication/signing fixtures, 12 browser-client
+tests, full `just check` and an explicit root unit build summary: **passed** (71/71
+root build steps succeeded). Tests cover every finite publication rejection,
+maximum record sizes, absent/malformed optional browser detail, old bare reasons,
+policy restoration, incomplete chunks, invalid declarations and nested SQL.
+
+Executed `just test::application`: **passed**. Restart phases take
+1.207/1.057/1.158/1.318 seconds, with 26 turns, 187 reads, three killed workers and
+one recovery resident page. Original invalid-program detail survives staging,
+node/store restart and later abandonment/collection. Original policy denial
+survives policy restoration alongside an independently applied receipt. Current
+resource revocation prevents later disclosure of both records.
+
+Executed `just test::application-browser`: **passed**, 56.2-second browser case;
+executed `just test::work-items-browser`: **passed**, 77.99 seconds. Both use actual
+native publication, browser recovery and disk-backed Ursula. An earlier package
+invocation used an invalid build-file working directory; corrected package and
+root checks passed. Migration, reactive/effect mappings and complete semantic
+inventory coverage remain separate increments.

@@ -67,6 +67,14 @@ admission identifies the exact saved sequence; native rejection and failed reads
 do not imply a terminal publication outcome. Board's definition editor displays
 this shared evidence and retains pending signed work for explicit recovery.
 
+Publication status retains rejected-input detail separately from the operation's
+receipt. Original compiler locations refer to the verified assembled body;
+policy denials retain the rejecting policy, and incomplete uploads retain their
+written and required chunk counts. Later policy changes, activation or explicit
+cleanup do not rewrite those explanations. A rejected input alone does not settle
+a staged operation or undo an applied interface. Current read access is required
+to disclose either the receipt or its diagnostic evidence.
+
 ## Data migration
 
 Migration belongs to the data owner. Its separate policy and ledger bind a

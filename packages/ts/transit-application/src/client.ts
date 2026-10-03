@@ -57,21 +57,37 @@ export async function request(value: HostRequest): Promise<HostResponse> {
     }
     // Optional detail cannot invalidate an otherwise authoritative observation.
     let detail: unknown;
+    let inputDetail: unknown;
     if (typeof result === "object" && result !== null && "observation" in result) {
       const observation = result.observation;
       if (typeof observation === "object" && observation !== null && "state" in observation) {
         const state = observation.state;
-        if (typeof state === "object" && state !== null && "receipt_diagnostic" in state) {
-          detail = state.receipt_diagnostic;
-          state.receipt_diagnostic = null;
+        if (typeof state === "object" && state !== null) {
+          if ("receipt_diagnostic" in state) {
+            detail = state.receipt_diagnostic;
+            state.receipt_diagnostic = null;
+          }
+          if (
+            "disposition" in state &&
+            typeof state.disposition === "object" &&
+            state.disposition !== null &&
+            "diagnostic" in state.disposition
+          ) {
+            inputDetail = state.disposition.diagnostic;
+            state.disposition.diagnostic = null;
+          }
         }
       }
     }
     if (!validate.HostResponse(result)) throw new Error("Invalid application response");
     const responseValue = result as HostResponse;
-    if ("observation" in responseValue && "state" in responseValue.observation)
+    if ("observation" in responseValue && "state" in responseValue.observation) {
       responseValue.observation.state.receipt_diagnostic =
         ownedDiagnostic(detail).diagnostic ?? null;
+      if (responseValue.observation.state.disposition)
+        responseValue.observation.state.disposition.diagnostic =
+          ownedDiagnostic(inputDetail).diagnostic ?? null;
+    }
     return responseValue;
   }
 }
@@ -305,8 +321,10 @@ async function advancePublication(
     if (!("state" in observation)) throw new Error("Missing application state");
     const state = observation.state;
     if (state.disposition !== null)
-      throw new Error(
-        "The application retained a rejected input; review current policy and operation status",
+      throw new ApplicationTransportError(
+        409,
+        "ApplicationInputRejected",
+        state.disposition.diagnostic,
       );
     if (!cleanup && (state.receipt?.phase === "conflict" || state.receipt?.phase === "abandoned"))
       throw new ApplicationTransportError(409, "PublicationConflict", state.receipt_diagnostic);

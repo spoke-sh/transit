@@ -40,7 +40,8 @@ field, origin (caller, execution, schema, authority or owner) and availability.
 `provided` and `truncated` require a value; `unrecorded`, `unavailable`, `withheld`
 and `inapplicable` forbid one. Bounded text contains at most 256 UTF-8 bytes;
 truncation preserves complete code points. Missing detail is never replaced by
-an inferred value. Entire JSON input/output is bounded to 32 KiB. Validation includes the encoded
+an inferred value. `expected_bytes` names an exact required byte length separately
+from row, chunk or element counts; its value is an unsigned decimal integer. Entire JSON input/output is bounded to 32 KiB. Validation includes the encoded
 size after Unicode/control escaping, including locations nested inside facts.
 
 Four nullable action slots likewise form a prefix. Action kinds are typed;

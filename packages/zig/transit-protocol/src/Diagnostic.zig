@@ -70,6 +70,7 @@ pub const Field = enum {
     sampling_records,
     operation,
     native_cause,
+    expected_bytes,
 };
 pub const Text = BoundedText(256);
 pub const Code = BoundedText(96);

@@ -192,3 +192,88 @@ test("publication receipt survives invalid optional diagnostic detail", async ()
     observation: { state: { receipt: publicationFixture.receipt, receipt_diagnostic: null } },
   });
 });
+
+test("rejected input remains separate from an applied receipt when optional detail is malformed", async () => {
+  const detail = structuredClone(fixture) as Diagnostic;
+  detail.code = "publication.denied";
+  detail.category = "access";
+  detail.stage = "admission";
+  detail.outcome = "input_rejected";
+  detail.cause = "ApplicationDenied";
+  detail.identity = {
+    domain: "publication",
+    id: publicationFixture.proposal.operation,
+    realm: "49",
+    resource: "19",
+    sequence: null,
+  };
+  detail.facts.fill(null);
+  detail.actions.fill(null);
+  detail.location = null;
+  const state = {
+    revision: "101",
+    configuration: {
+      application: 9,
+      namespace: "23",
+      realm: 49,
+      administrator: 44,
+      name_digest: Array(32).fill(1),
+    },
+    policy: null,
+    head: publicationFixture.head,
+    receipt: publicationFixture.receipt,
+    upload: null,
+    disposition: {
+      record: publicationFixture.disposition,
+      witness: publicationFixture.witness,
+      diagnostic: detail,
+    },
+    receipt_diagnostic: null,
+  };
+  const read: HostRequest = {
+    read: {
+      prepared: {
+        scope,
+        principal: 44,
+        selection: { state: { operation: publicationFixture.proposal.operation, input: 59 } },
+        digest: Array(32).fill(0),
+      },
+      signature: Array(64).fill(0),
+    },
+  };
+  const fetcher = vi.fn();
+  vi.stubGlobal("fetch", fetcher);
+  fetcher.mockResolvedValueOnce(Response.json({ observation: { state } }));
+  expect(await request(read)).toMatchObject({
+    observation: {
+      state: {
+        receipt: { phase: "applied" },
+        disposition: { record: { reason: "ApplicationDenied", input: 59 }, diagnostic: detail },
+      },
+    },
+  });
+  fetcher.mockResolvedValueOnce(
+    Response.json({
+      observation: {
+        state: {
+          ...state,
+          disposition: { ...state.disposition, diagnostic: { code: "invented" } },
+        },
+      },
+    }),
+  );
+  expect(await request(read)).toMatchObject({
+    observation: {
+      state: {
+        receipt: { phase: "applied" },
+        disposition: { record: { reason: "ApplicationDenied", input: 59 }, diagnostic: null },
+      },
+    },
+  });
+  fetcher.mockResolvedValueOnce(
+    Response.json({
+      observation: { state: { ...state, disposition: "4170706c69636174696f6e44656e696564" } },
+    }),
+  );
+  await expect(request(read)).rejects.toThrow("Invalid application response");
+});

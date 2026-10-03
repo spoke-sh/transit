@@ -147,3 +147,10 @@ original conditional conflict. `Native.State.receipt_diagnostic` projects that
 receipt separately from any input disposition. It survives a later head, restart
 and explicit abandonment/collection; current native read grants still gate access.
 The record remains below one 256-byte value and activation still uses four writes.
+
+`PublicationFailure` records rejected-input causes and witnesses in two bounded
+values after rolling back the attempted publication transition. Original policy,
+compiler and incomplete-upload evidence survives later state changes. Native
+observations expose the typed input disposition alongside the independent receipt;
+all selected fields fit one eight-key read. The input commitment contains no
+payload values. Infrastructure failure still leaves accepted work unresolved.

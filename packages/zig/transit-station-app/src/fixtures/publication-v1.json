@@ -212,6 +212,60 @@
     "input": 57
   },
   "head_hex": "41503168fefffffffffffffffeffffffffffffff3150504111000000000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f2c00000000000000ffffffffffffffff3900000000000000",
+  "disposition": {
+    "reason": "ApplicationDenied",
+    "input": 59,
+    "operation": "18446744073709551615",
+    "payload": [
+      28,
+      37,
+      245,
+      108,
+      57,
+      8,
+      240,
+      166,
+      217,
+      159,
+      112,
+      194,
+      137,
+      94,
+      78,
+      60,
+      132,
+      241,
+      129,
+      78,
+      235,
+      54,
+      174,
+      158,
+      204,
+      33,
+      176,
+      64,
+      47,
+      227,
+      180,
+      199
+    ],
+    "cause": "4170706c69636174696f6e44656e696564",
+    "code": "7075626c69636174696f6e2e64656e696564",
+    "category": "access",
+    "stage": "admission"
+  },
+  "disposition_hex": "41503165033b00000000000000ffffffffffffffff1c25f56c3908f0a6d99f70c2895e4e3c84f1814eeb36ae9ecc21b0402fe3b4c7114170706c69636174696f6e44656e696564127075626c69636174696f6e2e64656e6965640406",
+  "witness": {
+    "policy": {
+      "principal": 44,
+      "expected": "0",
+      "actual": "2",
+      "present": true,
+      "publish": false
+    }
+  },
+  "witness_hex": "41503166012c00000000000000000000000000000002000000000000000100",
   "commands": [
     {
       "command": {

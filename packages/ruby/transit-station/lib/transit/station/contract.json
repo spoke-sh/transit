@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "definition": "1eeeb5cd033defd5dcbcd0ce764b2fbb6b163eac17109dee4589f37bd5f4a463",
+  "definition": "682928908924c932d9281f8e4fa5ed4adff2c704e39bb4bf11aba4bd2cbeeeda",
   "minimum_stack_bytes": 8388608,
   "statuses": {
     "ok": 0,
@@ -6001,7 +6001,7 @@
                             "definition": {
                               "type": "string",
                               "enum": [
-                                "1eeeb5cd033defd5dcbcd0ce764b2fbb6b163eac17109dee4589f37bd5f4a463"
+                                "682928908924c932d9281f8e4fa5ed4adff2c704e39bb4bf11aba4bd2cbeeeda"
                               ]
                             },
                             "scope": {
@@ -14661,7 +14661,7 @@
         "definition": {
           "type": "string",
           "enum": [
-            "1eeeb5cd033defd5dcbcd0ce764b2fbb6b163eac17109dee4589f37bd5f4a463"
+            "682928908924c932d9281f8e4fa5ed4adff2c704e39bb4bf11aba4bd2cbeeeda"
           ]
         },
         "profile": {
@@ -14916,7 +14916,7 @@
       ],
       "x-transit-defaults": {
         "version": 1,
-        "definition": "1eeeb5cd033defd5dcbcd0ce764b2fbb6b163eac17109dee4589f37bd5f4a463",
+        "definition": "682928908924c932d9281f8e4fa5ed4adff2c704e39bb4bf11aba4bd2cbeeeda",
         "profile": "native_v1",
         "gated_dispatch": true,
         "retained_confirmation": true,
@@ -28547,7 +28547,7 @@
                             "definition": {
                               "type": "string",
                               "enum": [
-                                "1eeeb5cd033defd5dcbcd0ce764b2fbb6b163eac17109dee4589f37bd5f4a463"
+                                "682928908924c932d9281f8e4fa5ed4adff2c704e39bb4bf11aba4bd2cbeeeda"
                               ]
                             },
                             "code": {
@@ -28889,7 +28889,8 @@
                                           "schema_origin",
                                           "sampling_records",
                                           "operation",
-                                          "native_cause"
+                                          "native_cause",
+                                          "expected_bytes"
                                         ]
                                       },
                                       "origin": {
@@ -30441,7 +30442,7 @@
                         "definition": {
                           "type": "string",
                           "enum": [
-                            "1eeeb5cd033defd5dcbcd0ce764b2fbb6b163eac17109dee4589f37bd5f4a463"
+                            "682928908924c932d9281f8e4fa5ed4adff2c704e39bb4bf11aba4bd2cbeeeda"
                           ]
                         },
                         "code": {
@@ -30783,7 +30784,8 @@
                                       "schema_origin",
                                       "sampling_records",
                                       "operation",
-                                      "native_cause"
+                                      "native_cause",
+                                      "expected_bytes"
                                     ]
                                   },
                                   "origin": {
@@ -31345,7 +31347,7 @@
                         "definition": {
                           "type": "string",
                           "enum": [
-                            "1eeeb5cd033defd5dcbcd0ce764b2fbb6b163eac17109dee4589f37bd5f4a463"
+                            "682928908924c932d9281f8e4fa5ed4adff2c704e39bb4bf11aba4bd2cbeeeda"
                           ]
                         },
                         "code": {
@@ -31687,7 +31689,8 @@
                                       "schema_origin",
                                       "sampling_records",
                                       "operation",
-                                      "native_cause"
+                                      "native_cause",
+                                      "expected_bytes"
                                     ]
                                   },
                                   "origin": {
@@ -32296,7 +32299,7 @@
                     "definition": {
                       "type": "string",
                       "enum": [
-                        "1eeeb5cd033defd5dcbcd0ce764b2fbb6b163eac17109dee4589f37bd5f4a463"
+                        "682928908924c932d9281f8e4fa5ed4adff2c704e39bb4bf11aba4bd2cbeeeda"
                       ]
                     },
                     "scope": {
@@ -32940,7 +32943,7 @@
                 "definition": {
                   "type": "string",
                   "enum": [
-                    "1eeeb5cd033defd5dcbcd0ce764b2fbb6b163eac17109dee4589f37bd5f4a463"
+                    "682928908924c932d9281f8e4fa5ed4adff2c704e39bb4bf11aba4bd2cbeeeda"
                   ]
                 },
                 "initialize": {
@@ -32982,7 +32985,7 @@
               ],
               "x-transit-defaults": {
                 "version": 1,
-                "definition": "1eeeb5cd033defd5dcbcd0ce764b2fbb6b163eac17109dee4589f37bd5f4a463",
+                "definition": "682928908924c932d9281f8e4fa5ed4adff2c704e39bb4bf11aba4bd2cbeeeda",
                 "initialize": true,
                 "create_table": true,
                 "conditional_policy": true,
@@ -33551,7 +33554,7 @@
                         "definition": {
                           "type": "string",
                           "enum": [
-                            "1eeeb5cd033defd5dcbcd0ce764b2fbb6b163eac17109dee4589f37bd5f4a463"
+                            "682928908924c932d9281f8e4fa5ed4adff2c704e39bb4bf11aba4bd2cbeeeda"
                           ]
                         },
                         "scope": {
@@ -33943,7 +33946,7 @@
                         "definition": {
                           "type": "string",
                           "enum": [
-                            "1eeeb5cd033defd5dcbcd0ce764b2fbb6b163eac17109dee4589f37bd5f4a463"
+                            "682928908924c932d9281f8e4fa5ed4adff2c704e39bb4bf11aba4bd2cbeeeda"
                           ]
                         },
                         "code": {
@@ -34285,7 +34288,8 @@
                                       "schema_origin",
                                       "sampling_records",
                                       "operation",
-                                      "native_cause"
+                                      "native_cause",
+                                      "expected_bytes"
                                     ]
                                   },
                                   "origin": {
@@ -34882,7 +34886,7 @@
                         "definition": {
                           "type": "string",
                           "enum": [
-                            "1eeeb5cd033defd5dcbcd0ce764b2fbb6b163eac17109dee4589f37bd5f4a463"
+                            "682928908924c932d9281f8e4fa5ed4adff2c704e39bb4bf11aba4bd2cbeeeda"
                           ]
                         },
                         "code": {
@@ -35224,7 +35228,8 @@
                                       "schema_origin",
                                       "sampling_records",
                                       "operation",
-                                      "native_cause"
+                                      "native_cause",
+                                      "expected_bytes"
                                     ]
                                   },
                                   "origin": {

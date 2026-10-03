@@ -130,12 +130,12 @@ test "cleanup continuation closes exact staging work and releases its reservatio
     try t.expect(try configured().head(&final) == null);
 }
 test "independent AP1 layouts preserve full-width identities and reject unknown record data" {
-    const Fixture = struct { version: u8, proposal: Pub.Proposal, proposal_hex: p.Value, receipt: Pub.Receipt, receipt_hex: p.Value, head: Pub.Head, head_hex: p.Value, key_hex: p.Value, commands: []const struct { command: root.Request.Command, hex: p.Value } };
+    const Fixture = struct { version: u8, proposal: Pub.Proposal, proposal_hex: p.Value, receipt: Pub.Receipt, receipt_hex: p.Value, head: Pub.Head, head_hex: p.Value, key_hex: p.Value, disposition: root.PublicationFailure.Record, disposition_hex: p.Value, witness: root.PublicationFailure.Witness, witness_hex: p.Value, commands: []const struct { command: root.Request.Command, hex: p.Value } };
     const fixture = try p.Json.parseFromSlice(Fixture, t.allocator, @embedFile("fixtures/publication-v1.json"));
     defer fixture.deinit();
     const value = fixture.value;
     try t.expectEqual(@as(u8, 1), value.version);
-    inline for (.{ .{ "proposal", "proposal_hex", 'r', Pub.Proposal }, .{ "receipt", "receipt_hex", 'o', Pub.Receipt }, .{ "head", "head_hex", 'h', Pub.Head } }) |item| {
+    inline for (.{ .{ "proposal", "proposal_hex", 'r', Pub.Proposal }, .{ "receipt", "receipt_hex", 'o', Pub.Receipt }, .{ "head", "head_hex", 'h', Pub.Head }, .{ "disposition", "disposition_hex", 'e', root.PublicationFailure.Record }, .{ "witness", "witness_hex", 'f', root.PublicationFailure.Witness } }) |item| {
         const expected = @field(value, item[1]);
         try t.expect(expected.eql(try root.Records.encode(item[2], @field(value, item[0]))));
         try t.expectEqualDeep(@field(value, item[0]), try root.Records.decode(item[3], item[2], expected));
@@ -153,6 +153,12 @@ test "independent AP1 layouts preserve full-width identities and reject unknown 
         _ = try (s.Frame{ .kind = .cast, .payload = item.hex }).encode();
     }
     try t.expect(value.key_hex.eql(root.Records.key(9, 'o', 44, std.math.maxInt(u64))));
+    var store: Store = .{};
+    defer store.entries.deinit();
+    var input = try store.turn(44);
+    input.delivery.input.position = 59;
+    input.delivery.input.value = try (s.Frame{ .kind = .cast, .payload = try value.commands[4].command.encode() }).encode();
+    try t.expectEqualDeep(value.disposition, try root.PublicationFailure.capture(&input, value.commands[4].command, .ApplicationDenied, .{}));
 }
 test "publication stages bounded chunks then atomically activates body head and attributed receipt" {
     var store: Store = .{};
@@ -351,7 +357,8 @@ test "public behavior records denial but does not turn infrastructure failure in
     const command: root.Request.Command = .{ .publish = .{ .value = 1 } };
     try handler.handle(handler.context, &denied, .{ .kind = .cast, .payload = try command.encode() });
     try store.commit(&denied);
-    try t.expectEqualStrings("ApplicationDenied", (try denied.read(root.Records.key(9, 'e', 46, denied.delivery.input.position))).?.slice());
+    const rejected = try root.Records.decode(root.PublicationFailure.Record, 'e', (try denied.read(root.Records.key(9, 'e', 46, denied.delivery.input.position))).?);
+    try t.expectEqual(root.PublicationFailure.Reason.ApplicationDenied, rejected.reason);
     var unavailable = try store.turn(44);
     store.fail_at = store.reads + 1;
     try t.expectError(error.Unavailable, handler.handle(handler.context, &unavailable, .{ .kind = .cast, .payload = try command.encode() }));
@@ -361,7 +368,7 @@ test "public behavior records denial but does not turn infrastructure failure in
     var malformed = try store.turn(44);
     const guard = behavior.guard();
     try t.expect(try guard.reject(guard.context, &malformed));
-    try t.expectEqual(@as(usize, 1), mutationCount(&malformed));
+    try t.expectEqual(@as(usize, 2), mutationCount(&malformed));
 }
 
 test "original publication conflict basis survives a new head and explicit cleanup" {
@@ -405,4 +412,124 @@ test "original publication conflict basis survives a new head and explicit clean
     try t.expect(encoded.len <= p.Value.max_bytes);
     const old = try p.Value.init(encoded.slice()[0 .. encoded.len - 41]);
     try t.expectError(error.EndOfStream, root.Records.decode(Pub.Receipt, 'o', old));
+}
+
+fn handleCommand(store: *Store, who: u64, command: root.Request.Command) !u64 {
+    var behavior: root.Behavior = .{ .allocator = t.allocator, .owner = configured() };
+    const handler = behavior.interface();
+    const frame: s.Frame = .{ .kind = .cast, .payload = try command.encode() };
+    var turn = try store.turn(who);
+    turn.delivery.input.value = try frame.encode();
+    try handler.handle(handler.context, &turn, frame);
+    try store.commit(&turn);
+    return turn.delivery.input.position;
+}
+test "rejected publication input keeps compiler context while its upload remains staging" {
+    var store: Store = .{};
+    defer store.entries.deinit();
+    try store.setup();
+    const body = "CREATE INTERFACE board WITH (realm = 49);";
+    const proposal = try makeProposal(10, 100, null, body);
+    _ = try handleCommand(&store, 44, .{ .begin = proposal });
+    try uploadParts(&store, 44, proposal, body);
+    const input = try handleCommand(&store, 44, .{ .publish = proposal.operation });
+    var read = try store.turn(44);
+    const record = try root.Records.decode(root.PublicationFailure.Record, 'e', (try read.read(root.Records.key(9, 'e', 44, input))).?);
+    const witness = try root.Records.decode(root.PublicationFailure.Witness, 'f', (try read.read(root.Records.key(9, 'f', 44, input))).?);
+    try t.expectEqual(root.PublicationFailure.Reason.InvalidApplicationProgram, record.reason);
+    try t.expectEqualStrings("MissingInterfaceOption", record.cause.slice());
+    try t.expectEqualStrings("application.missing_interface_option", record.code.slice());
+    try t.expectEqualStrings("board", witness.declaration.member.slice());
+    try t.expectEqualSlices(u8, &proposal.spec.digest, &witness.declaration.body_digest);
+    try t.expectEqualStrings("revision", witness.declaration.option.slice());
+    try t.expectEqual(@as(u32, body.len), witness.declaration.location.offset);
+    try t.expectEqual(Pub.Phase.staging, (try configured().receipt(&read, 44, proposal.operation)).?.phase);
+    try t.expect(try configured().head(&read) == null);
+    const detail = try root.PublicationFailure.project(.{ .realm = 49, .application = 9, .pid = 2, .resource = 7, .namespace = .{ .value = 19 } }, record, witness);
+    try t.expectEqual(.input_rejected, detail.outcome);
+    try t.expectEqual(.domain_status, detail.evidence);
+    try t.expectEqual(@as(u64, 10), try detail.identity.?.id.value());
+    try t.expectEqual(@as(u64, body.len), try detail.location.?.offset.value());
+    for (detail.actions) |slot| if (slot) |action| try t.expect(action.kind != .correct_input and action.kind != .recompile and action.kind != .resume_exact);
+}
+test "input policy denial and incomplete-upload quantities retain the rejecting turn" {
+    var store: Store = .{};
+    defer store.entries.deinit();
+    try store.setup();
+    const body = try canonicalBody(1, false);
+    defer t.allocator.free(body);
+    const proposal = try makeProposal(10, 100, null, body);
+    _ = try handleCommand(&store, 44, .{ .begin = proposal });
+    const incomplete = try handleCommand(&store, 44, .{ .publish = proposal.operation });
+    var read = try store.turn(44);
+    const progress = try root.Records.decode(root.PublicationFailure.Witness, 'f', (try read.read(root.Records.key(9, 'f', 44, incomplete))).?);
+    try t.expectEqual(@as(u32, 0), progress.upload.written);
+    try t.expectEqual(proposal.spec.chunks(), progress.upload.required);
+    var revoke = try store.turn(33);
+    try configured().setPolicy(&revoke, 44, .{ .value = 1 }, .{ .revision = .{ .value = 2 }, .publish = false });
+    try store.commit(&revoke);
+    const denied = try handleCommand(&store, 44, .{ .publish = proposal.operation });
+    const original = (try read.read(root.Records.key(9, 'f', 44, denied))).?;
+    const policy = try root.Records.decode(root.PublicationFailure.Witness, 'f', original);
+    try t.expectEqual(@as(u64, 2), policy.policy.actual.value);
+    try t.expect(!policy.policy.publish);
+    var restore = try store.turn(33);
+    try configured().setPolicy(&restore, 44, .{ .value = 2 }, .{ .revision = .{ .value = 3 }, .publish = true });
+    try store.commit(&restore);
+    try t.expectEqualDeep(original, (try read.read(root.Records.key(9, 'f', 44, denied))).?);
+    try t.expectEqual(Pub.Phase.staging, (try configured().receipt(&read, 44, proposal.operation)).?.phase);
+}
+
+test "all retained publication input reasons project bounded safe guidance" {
+    var store: Store = .{};
+    defer store.entries.deinit();
+    var turn = try store.turn(44);
+    const scope: root.Native.Scope = .{ .realm = 49, .application = 9, .pid = 2, .resource = 7, .namespace = .{ .value = 19 } };
+    inline for (@typeInfo(root.PublicationFailure.Reason).@"enum".field_names) |name| {
+        const reason = @field(root.PublicationFailure.Reason, name);
+        const record = try root.PublicationFailure.capture(&turn, .{ .publish = .{ .value = 1 } }, reason, .{});
+        const encoded = try root.Records.encode('e', record);
+        try t.expectEqualDeep(record, try root.Records.decode(root.PublicationFailure.Record, 'e', encoded));
+        const detail = try root.PublicationFailure.project(scope, record, .none);
+        try t.expectEqual(.input_rejected, detail.outcome);
+        try t.expectEqual(.domain_status, detail.evidence);
+        try t.expect(detail.actions[0].?.kind == .inspect_status);
+        for (detail.actions) |slot| if (slot) |action| try t.expect(action.kind != .correct_input and action.kind != .recompile and action.kind != .resume_exact);
+    }
+}
+
+test "retained embedded SQL positions identify the verified body and the decoded query" {
+    var store: Store = .{};
+    defer store.entries.deinit();
+    try store.setup();
+    const canonical = try canonicalBody(1, false);
+    defer t.allocator.free(canonical);
+    const body = try std.mem.replaceOwned(u8, t.allocator, canonical, "SELECT id, value FROM items", "SELECT FROM items");
+    defer t.allocator.free(body);
+    const proposal = try makeProposal(11, 101, null, body);
+    _ = try handleCommand(&store, 44, .{ .begin = proposal });
+    try uploadParts(&store, 44, proposal, body);
+    const input = try handleCommand(&store, 44, .{ .publish = proposal.operation });
+    var read = try store.turn(44);
+    const record = try root.Records.decode(root.PublicationFailure.Record, 'e', (try read.read(root.Records.key(9, 'e', 44, input))).?);
+    const witness = try root.Records.decode(root.PublicationFailure.Witness, 'f', (try read.read(root.Records.key(9, 'f', 44, input))).?);
+    try t.expectEqualStrings("items", witness.sql.member.slice());
+    try t.expectEqualSlices(u8, &proposal.spec.digest, &witness.sql.body_digest);
+    try t.expectEqualStrings("query", body[witness.sql.location.offset..][0..5]);
+    try t.expect(witness.sql.sql.offset <= "SELECT FROM items".len);
+    try t.expect(witness.sql.location.offset > witness.sql.sql.offset);
+    const projected = try root.PublicationFailure.project(.{ .realm = 49, .application = 9, .pid = 2, .resource = 7, .namespace = .{ .value = 19 } }, record, witness);
+    try t.expectEqualStrings("assembled interface body", projected.location.?.source.?.slice());
+    try t.expectEqual(.input_rejected, projected.outcome);
+    try t.expect(std.mem.startsWith(u8, projected.code.slice(), "sql."));
+    try t.expectEqual(Pub.Phase.staging, (try configured().receipt(&read, 44, proposal.operation)).?.phase);
+}
+test "retained publication failure bounds fit two values and old bare reasons reject" {
+    const Failure = root.PublicationFailure;
+    const record: Failure.Record = .{ .reason = .InvalidApplicationProgram, .input = p.max_counter, .operation = .{ .value = std.math.maxInt(u64) }, .payload = @splat(1), .cause = try p.Value.init(&@as([96]u8, @splat('a'))), .code = try p.Value.init(&@as([96]u8, @splat('a'))), .category = .binding, .stage = .parse };
+    try t.expectEqual(@as(usize, 249), (try root.Records.encode('e', record)).len);
+    const witness: Failure.Witness = .{ .declaration = .{ .body_digest = @splat(2), .location = .{ .offset = root.Model.max_program_bytes, .line = 1, .column = root.Model.max_program_bytes + 1 }, .member = try p.Value.init(&@as([64]u8, @splat('m'))), .option = try p.Value.init(&@as([64]u8, @splat('o'))), .extra = .{ .reference = try p.Value.init(&@as([64]u8, @splat('r'))) } } };
+    try t.expectEqual(@as(usize, 245), (try root.Records.encode('f', witness)).len);
+    _ = try Failure.project(.{ .realm = 49, .application = 9, .pid = 2, .resource = 7, .namespace = .{ .value = 19 } }, record, witness);
+    try t.expectError(error.InvalidApplicationRecord, root.Records.decode(Failure.Record, 'e', try p.Value.init("ApplicationDenied")));
 }

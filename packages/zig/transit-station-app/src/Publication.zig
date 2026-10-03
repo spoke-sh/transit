@@ -27,6 +27,7 @@ pub const ConflictBasis = union(enum(u8)) { none = 0, absent = 1, head: struct {
 pub const Receipt = struct { proposal: Proposal, phase: Phase, input: u64, owns_record: bool, conflict_basis: ConflictBasis = .none };
 pub const Head = struct { revision: m.Wide, record: m.Wide, spec: Pub.Spec, principal: u64, operation: m.Wide, input: u64 };
 configuration: Configuration,
+failure: ?*root.PublicationFailure.Context = null,
 
 pub fn nameDigest(name: []const u8) [32]u8 {
     var digest: [32]u8 = undefined;
@@ -69,14 +70,16 @@ pub fn setPolicy(self: Self, turn: *Turn, who: u64, expected: m.Wide, next: Poli
     if (try principal(turn) != self.configuration.administrator) return error.ApplicationDenied;
     if (who == 0 or who > p.max_counter or next.revision.value != try std.math.add(u64, expected.value, 1)) return error.InvalidApplicationPolicy;
     const previous = try self.policy(turn, who);
+    if (self.failure) |detail| detail.witness = .{ .policy = .{ .principal = who, .expected = expected, .actual = if (previous) |value| value.revision else .{}, .present = previous != null, .publish = if (previous) |value| value.publish else false } };
     if ((if (previous) |value| value.revision.value else 0) != expected.value) return error.ApplicationPolicyConflict;
     try turn.write(self.key('p', who, 0), try c.encode('p', next));
 }
 fn authorize(self: Self, turn: *Turn) !u64 {
     try self.check(turn);
     const who = try principal(turn);
-    const rights = (try self.policy(turn, who)) orelse return error.ApplicationDenied;
-    if (!rights.publish) return error.ApplicationDenied;
+    const rights = try self.policy(turn, who);
+    if (self.failure) |detail| detail.witness = .{ .policy = .{ .principal = who, .expected = .{}, .actual = if (rights) |value| value.revision else .{}, .present = rights != null, .publish = if (rights) |value| value.publish else false } };
+    if (rights == null or !rights.?.publish) return error.ApplicationDenied;
     return who;
 }
 pub fn head(self: Self, reader: anytype) !?Head {
@@ -164,6 +167,7 @@ pub fn finishUpload(self: Self, allocator: std.mem.Allocator, turn: *Turn, opera
     if (!baseMatches(observed, current.proposal)) return self.conflict(turn, who, current.proposal, true, observed);
     const descriptor = try self.publication(turn).inspect(turn, current.proposal.record.value);
     if (descriptor.state != .staging or !std.meta.eql(descriptor.spec, current.proposal.spec)) return error.ApplicationPublicationChanged;
+    if (self.failure) |detail| detail.witness = .{ .upload = .{ .record = current.proposal.record, .written = descriptor.written, .required = descriptor.spec.chunks(), .length = descriptor.spec.length } };
     if (descriptor.written != descriptor.spec.chunks()) return error.IncompletePublication;
     var bytes: [m.max_program_bytes]u8 = undefined;
     for (0..descriptor.written) |i| {
@@ -189,7 +193,11 @@ pub fn step(self: Self, allocator: std.mem.Allocator, turn: *Turn, proposal: Pro
         if (receipt_value.phase != .staging) return receipt_value.phase;
     }
     // Reject complete invalid programs before even reserving staging quota.
-    var program = root.Sql.parse(allocator, body) catch |err| return if (err == error.OutOfMemory) err else error.InvalidApplicationProgram;
+    var compiler: root.Diagnostic = .{};
+    var program = root.Sql.parseDiagnostic(allocator, body, &compiler) catch |err| {
+        if (self.failure) |detail| detail.program(compiler, err, proposal.spec.digest);
+        return if (err == error.OutOfMemory) err else error.InvalidApplicationProgram;
+    };
     defer program.deinit();
     var canonical: [m.max_program_bytes]u8 = undefined;
     if (!std.mem.eql(u8, body, try root.Api.canonical(program.definition, &canonical))) return error.NoncanonicalApplicationProgram;
