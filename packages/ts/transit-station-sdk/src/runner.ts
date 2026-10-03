@@ -12,6 +12,7 @@ import {
 } from "@transit/client";
 import { Serial } from "@transit/client/internal";
 import { Bridge } from "./bridge.ts";
+import type { Diagnostic } from "./unified.ts";
 import { DocumentReader } from "./document.ts";
 import { context } from "./context.ts";
 import { unhex } from "./framing.ts";
@@ -62,6 +63,7 @@ export interface Handler<M> {
   handleGrpcReply?(turn: Turn, input: Reply<GrpcReply>): Promise<void>;
   handleHttpReply?(turn: Turn, input: Reply<HttpReply>): Promise<void>;
 }
+export type ExchangeDiagnosticKind = "capture-failure" | "native-effect";
 export interface RunnerOptions {
   readonly failure: FailurePolicy;
   readonly recovery: Recovery;
@@ -415,6 +417,27 @@ export class Runner<M> implements AsyncDisposable {
       return await this.#bridge.httpRead(action);
     });
   }
+  async httpDiagnostic(
+    outcome: HttpOutcome,
+    kind: ExchangeDiagnosticKind = "capture-failure",
+  ): Promise<Diagnostic | undefined> {
+    if (
+      !(outcome instanceof HttpOutcome) ||
+      outcome.resource.realm !== this.#config.activation.process.realm
+    )
+      throw new TypeError("Expected a Http outcome in this realm");
+    if (kind !== "capture-failure" && kind !== "native-effect")
+      throw new TypeError("Select capture-failure or native-effect evidence");
+    const result = await this.#httpRead({
+      diagnostic: {
+        identity: { resource: outcome.resource.resource, exchange: outcome.exchange.toString() },
+        kind: kind === "capture-failure" ? "capture_failure" : "native_effect",
+      },
+    });
+    if (!("diagnostic" in result))
+      throw new IncompatibleNative("Expected exchange diagnostic evidence");
+    return result.diagnostic === null ? undefined : structuredClone(result.diagnostic);
+  }
   async openHttp(outcome: HttpOutcome, policy: HttpReplayPolicy = "captured"): Promise<HttpReader> {
     if (
       !(outcome instanceof HttpOutcome) ||
@@ -441,6 +464,27 @@ export class Runner<M> implements AsyncDisposable {
       if (this.#pending) throw new Busy("Resolve the saved mutation before reading RPC capture");
       return await this.#bridge.grpcRead(action);
     });
+  }
+  async grpcDiagnostic(
+    outcome: GrpcOutcome,
+    kind: ExchangeDiagnosticKind = "capture-failure",
+  ): Promise<Diagnostic | undefined> {
+    if (
+      !(outcome instanceof GrpcOutcome) ||
+      outcome.resource.realm !== this.#config.activation.process.realm
+    )
+      throw new TypeError("Expected a Grpc outcome in this realm");
+    if (kind !== "capture-failure" && kind !== "native-effect")
+      throw new TypeError("Select capture-failure or native-effect evidence");
+    const result = await this.#grpcRead({
+      diagnostic: {
+        identity: { resource: outcome.resource.resource, exchange: outcome.exchange.toString() },
+        kind: kind === "capture-failure" ? "capture_failure" : "native_effect",
+      },
+    });
+    if (!("diagnostic" in result))
+      throw new IncompatibleNative("Expected exchange diagnostic evidence");
+    return result.diagnostic === null ? undefined : structuredClone(result.diagnostic);
   }
   async openGrpc(outcome: GrpcOutcome, policy: GrpcReplayPolicy = "captured"): Promise<GrpcReader> {
     if (

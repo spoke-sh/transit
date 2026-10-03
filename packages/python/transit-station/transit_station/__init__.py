@@ -5,7 +5,7 @@ from .models import (Activation as Activation, ServiceConfig as ServiceConfig, C
     Cast as Cast, Call as Call, Reply as Reply, Incoming as Incoming, Control as Control,
     FrozenMutation as FrozenMutation, Recovery as Recovery, RecoveryStore as RecoveryStore,
     Committed as Committed, Blocked as Blocked, NeedsRecovery as NeedsRecovery,
-    Idle as Idle, Progress as Progress, Stopped as Stopped, RunnerEvent as RunnerEvent)
+    Idle as Idle, Progress as Progress, Stopped as Stopped, RunnerEvent as RunnerEvent, ExchangeDiagnosticKind as ExchangeDiagnosticKind)
 from .turn import (Turn as Turn, State as State, U64 as U64, Budgets as Budgets,
     ReadVersion as ReadVersion, CellType as CellType, Cell as Cell,
     TableSchema as TableSchema, Table as Table, Row as Row, Source as Source)

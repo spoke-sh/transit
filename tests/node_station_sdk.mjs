@@ -371,6 +371,11 @@ async function httpConsumer() {
         result = handler.result;
       } else if (action === 'open') {
         outcome = await decodeHttpReply(72, new Uint8Array(Buffer.from(cfg.outcome, 'hex')));
+        assert.equal(await runner.httpDiagnostic(outcome), undefined);
+        const evidence = await runner.httpDiagnostic(outcome, 'native-effect');
+        assert.equal(evidence.code, 'effect.result_recorded');
+        assert.equal(evidence.outcome, 'completed');
+        assert.equal(evidence.identity.id, String(outcome.effect));
         reader = await runner.openHttp(outcome);
         await assert.rejects(runner.openHttp(outcome), Busy);
         const first = await reader.read(); assert.ok(first.data.length); assert.ok(!first.complete);
@@ -499,6 +504,11 @@ async function grpcConsumer() {
         result = handler.result;
       } else if (action === 'open') {
         outcome = await decodeGrpcReply(72, new Uint8Array(Buffer.from(cfg.outcome, 'hex')));
+        assert.equal(await runner.grpcDiagnostic(outcome), undefined);
+        const evidence = await runner.grpcDiagnostic(outcome, 'native-effect');
+        assert.equal(evidence.code, 'effect.result_recorded');
+        assert.equal(evidence.outcome, 'completed');
+        assert.equal(evidence.identity.id, String(outcome.effect));
         reader = await runner.openGrpc(outcome);
         await assert.rejects(runner.openGrpc(outcome), Busy);
         const first = await reader.read(); assert.ok(first.data.length); assert.ok(!first.complete);

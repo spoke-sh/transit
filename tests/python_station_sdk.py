@@ -504,6 +504,11 @@ def http_consumer(mode, cfg):
                 result = handler.result
             elif action == 'open':
                 outcome = decode_http_reply(72, bytes.fromhex(cfg['outcome']))
+                from transit_station import ExchangeDiagnosticKind
+                assert runner.http_diagnostic(outcome) is None
+                evidence = runner.http_diagnostic(outcome, ExchangeDiagnosticKind.NATIVE_EFFECT)
+                assert evidence['code'] == 'effect.result_recorded' and evidence['outcome'] == 'completed', evidence
+                assert evidence['identity']['id'] == str(outcome.effect), evidence
                 reader = runner.open_http(outcome)
                 try: runner.open_http(outcome)
                 except Busy: pass
@@ -512,6 +517,10 @@ def http_consumer(mode, cfg):
                 assert first.data and not first.complete
                 result = {'prefix': True}
             elif action == 'denied':
+                for kind in ExchangeDiagnosticKind:
+                    try: runner.http_diagnostic(outcome, kind)
+                    except AccessDenied: pass
+                    else: raise AssertionError('Revoked diagnostic returned evidence')
                 try: reader.read()
                 except AccessDenied: pass
                 else: raise AssertionError('Revoked HTTP capture returned data')
@@ -681,6 +690,11 @@ def grpc_consumer(mode, cfg):
                 result = handler.result
             elif action == 'open':
                 outcome = decode_grpc_reply(72, bytes.fromhex(cfg['outcome']))
+                from transit_station import ExchangeDiagnosticKind
+                assert runner.grpc_diagnostic(outcome) is None
+                evidence = runner.grpc_diagnostic(outcome, ExchangeDiagnosticKind.NATIVE_EFFECT)
+                assert evidence['code'] == 'effect.result_recorded' and evidence['outcome'] == 'completed', evidence
+                assert evidence['identity']['id'] == str(outcome.effect), evidence
                 reader = runner.open_grpc(outcome)
                 try: runner.open_grpc(outcome)
                 except Busy: pass
@@ -689,6 +703,10 @@ def grpc_consumer(mode, cfg):
                 assert first.data and not first.complete
                 result = {'prefix': True}
             elif action == 'denied':
+                for kind in ExchangeDiagnosticKind:
+                    try: runner.grpc_diagnostic(outcome, kind)
+                    except AccessDenied: pass
+                    else: raise AssertionError('Revoked diagnostic returned evidence')
                 try: reader.read()
                 except AccessDenied: pass
                 else: raise AssertionError('Revoked RPC capture returned data')

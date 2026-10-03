@@ -94,6 +94,13 @@ defmodule Transit.Station.Sdk.Http do
         :transit_http.release(turn, Client.native(peer), Client.native(resource), exchange)
       )
 
+  def diagnostic(runner, %Outcome{} = outcome, kind \\ :capture_failure) do
+    case :transit_http.diagnostic(runner, outcome(outcome), kind) do
+      {:ok, :null} -> {:ok, nil}
+      result -> Client.convert(result)
+    end
+  end
+
   def open(runner, %Outcome{} = outcome, policy \\ :captured) do
     case :transit_http.open(runner, outcome(outcome), policy) do
       {:ok, reader} -> {:ok, %Reader{native: reader}}

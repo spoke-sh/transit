@@ -2,7 +2,7 @@
 -module(transit_http).
 -include("transit_station_sdk.hrl").
 -export([prepare/5, prepare/6, decode_reply/2, decode_reply/3, stage/2, call/3,
-         release/4, followup/5, open/2, open/3, read/1, complete/1, close/1, part/2]).
+         release/4, followup/5, diagnostic/2, diagnostic/3, open/2, open/3, read/1, complete/1, close/1, part/2]).
 -export_type([reader/0, piece/0, followup_reason/0]).
 -type followup_reason() :: retry | redirect | reconcile | cancel.
 -opaque reader() :: {transit_http_reader, transit_station_sdk:runner(), pos_integer(), non_neg_integer(), boolean()}.
@@ -100,6 +100,13 @@ followup(Turn, Peer, Parent, Reason, #transit_http_prepared{reference = Referenc
     Result = transit_turn:raw(Turn, #{<<"http_followup">> => #{<<"pid">> => transit_turn:peer(Turn, Peer), <<"resource">> => Resource,
         <<"parent">> => integer_to_binary(Exchange), <<"reason">> => Name, <<"reference">> => transit_sdk_value:hex(transit_sdk_value:bytes(Reference, 112))}}),
     positive(transit_sdk_value:wide(maps:get(<<"correlation">>, Result))) end).
+diagnostic(Runner, Outcome) -> diagnostic(Runner, Outcome, capture_failure).
+diagnostic(Runner, #transit_http_outcome{resource = #transit_resource{realm = Realm, resource = Resource}, exchange = Exchange}, Kind) ->
+    case transit_sdk_value:protect(fun() -> {transit_sdk_value:counter(Resource), positive(Exchange), transit_station_value:enum(Kind, [capture_failure, native_effect])} end) of
+        {ok, {Id, Ex, Selected}} -> transit_sdk_worker:invoke(Runner, {http, {diagnostic, Realm, Id, Ex, Selected}});
+        Error -> Error
+    end;
+diagnostic(_, _, _) -> {error, transit_sdk_value:error(invalid_argument, http_outcome)}.
 open(Runner, Outcome) -> open(Runner, Outcome, captured).
 open(Runner, #transit_http_outcome{phase = observed, resource = #transit_resource{realm = Realm}, reference = Reference}, Policy) ->
     case transit_sdk_value:protect(fun() -> {transit_sdk_value:bytes(Reference, 256), transit_station_value:enum(Policy, [captured, require_unredacted])} end) of

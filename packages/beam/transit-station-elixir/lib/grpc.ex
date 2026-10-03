@@ -112,6 +112,13 @@ defmodule Transit.Station.Sdk.Grpc do
         :transit_grpc.release(turn, Client.native(peer), Client.native(resource), exchange)
       )
 
+  def diagnostic(runner, %Outcome{} = outcome, kind \\ :capture_failure) do
+    case :transit_grpc.diagnostic(runner, outcome(outcome), kind) do
+      {:ok, :null} -> {:ok, nil}
+      result -> Client.convert(result)
+    end
+  end
+
   def open(runner, %Outcome{} = outcome, policy \\ :captured) do
     case :transit_grpc.open(runner, outcome(outcome), policy) do
       {:ok, reader} -> {:ok, %Reader{native: reader}}

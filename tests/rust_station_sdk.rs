@@ -937,6 +937,11 @@ fn http_consumer(cfg: Value, mode: &str) -> Result<()> {
     }
     let mut owned = Vec::new();
     {
+        assert!(runner.http_diagnostic(&outcome, transit_station_sdk::ExchangeDiagnosticKind::CaptureFailure)?.is_none());
+        let evidence = runner.http_diagnostic(&outcome, transit_station_sdk::ExchangeDiagnosticKind::NativeEffect)?.unwrap();
+        assert_eq!(evidence["code"], "effect.result_recorded");
+        assert_eq!(evidence["outcome"], "completed");
+        assert_eq!(evidence["identity"]["id"], outcome.effect.get().to_string());
         let mut reader = runner.open_http(&outcome, HttpReplayPolicy::Captured)?;
         for action in io::stdin().lock().lines() {
             match action.map_err(io_error)?.as_str() {
@@ -1234,6 +1239,11 @@ fn grpc_consumer(cfg: Value, mode: &str) -> Result<()> {
     }
     let mut owned = Vec::new();
     {
+        assert!(runner.grpc_diagnostic(&outcome, transit_station_sdk::ExchangeDiagnosticKind::CaptureFailure)?.is_none());
+        let evidence = runner.grpc_diagnostic(&outcome, transit_station_sdk::ExchangeDiagnosticKind::NativeEffect)?.unwrap();
+        assert_eq!(evidence["code"], "effect.result_recorded");
+        assert_eq!(evidence["outcome"], "completed");
+        assert_eq!(evidence["identity"]["id"], outcome.effect.get().to_string());
         let mut reader = runner.open_grpc(&outcome, GrpcReplayPolicy::Captured)?;
         for action in io::stdin().lock().lines() {
             match action.map_err(io_error)?.as_str() {

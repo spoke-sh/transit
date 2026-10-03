@@ -328,3 +328,15 @@ failure remain distinct. No whole Document, retained permission or hidden cursor
 lives in the native handle. Resynchronization returns accepted replica/clock facts
 without replaying tentative changes. Runner destruction must join in-flight reads,
 and local cancellation never retires the durable Document.
+
+## Exchange diagnostic reads
+
+`station_growing_http_read` and `station_growing_grpc_read` accept
+`{"diagnostic":{"identity":{"resource":7,"exchange":"18446744073709551615"},"kind":"capture_failure"}}`.
+Use `native_effect` for the independent native effect evidence. The result is
+`{"diagnostic": Diagnostic | null}` and owns the complete bounded envelope.
+The read obeys the handle's busy, closed and pending-mutation guards and leaves
+any replay cursor unchanged. It requires current resource read/inspection;
+native effect evidence also requires inspection of the connector PID.
+See the [exchange contract](../../../../contracts/STATION_EXCHANGE_V1.md#capture-failure-evidence)
+for absent evidence, retired exchanges, identity binding and stale-cut errors.

@@ -36,12 +36,13 @@ loop(A, R, S, Cfg, Request, Reader, Outcome, Owned) ->
             loop(A, R, S, Cfg, Request, Reader, Outcome, Owned);
         <<"open\n">> ->
             Decoded = ok(A, A:outcome(binary:decode_hex(maps:get(<<"outcome">>, Cfg)))),
+            ok = A:diagnostics(R, Decoded),
             Opened = ok(A, A:open_capture(R, Decoded)), expect(A, busy, A:open_capture(R, Decoded)),
             {First, Advanced} = ok(A, A:read(Opened)), false = maps:get(complete, First), true = byte_size(maps:get(bytes, First)) > 0,
             %% Copies of old immutable handles cannot skip a returned part.
             expect(A, read_failed, A:read(Opened)), report(#{prefix => true}),
             loop(A, R, S, Cfg, Request, Advanced, Decoded, Owned);
-        <<"denied\n">> -> expect(A, access_denied, A:read(Reader)), report(#{denied => true}), loop(A, R, S, Cfg, Request, Reader, Outcome, Owned);
+        <<"denied\n">> -> ok = A:diagnostic_denied(R, Outcome), expect(A, access_denied, A:read(Reader)), report(#{denied => true}), loop(A, R, S, Cfg, Request, Reader, Outcome, Owned);
         <<"reopen\n">> ->
             {error, Error} = A:read(Reader), #{kind := read_failed, code := Code} = A:view(Error),
             Code = A:replay_error(),

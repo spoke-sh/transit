@@ -21,6 +21,9 @@ protocol completion; `closeUnknown(turn, failure)` retains the original reason,
 owned cause and bounded capture context atomically with partial evidence.
 `failure` and `Client.failure` expose that record under current read authority;
 missing or inconsistent retained evidence fails visibly.
+`Client.diagnostic` separately projects the retained capture failure or the exact
+native effect under current resource and process inspection permissions. It
+checks the protocol and immutable intent identity, including after retirement.
 Kernel observation/closure is a separate authority decision. `settle` records
 that terminal decision against the preserved frozen intent; incomplete or
 possibly-in-flight effects cannot be retired by claiming capture is terminal.

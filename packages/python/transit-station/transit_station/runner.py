@@ -12,7 +12,7 @@ from transit_client.errors import Busy, Closed, HandlerError, TransitError, Unce
 from ._growing import Growing
 from .models import (Blocked, Call, Cast, Codec, Committed, Control, FailurePolicy, FrozenMutation,
                      Idle, Incoming, NeedsRecovery, Origin, Progress, Recovery, Reply, RunnerEvent,
-                     ServiceConfig, Stopped, decoded)
+                     ServiceConfig, Stopped, ExchangeDiagnosticKind, decoded)
 from .query import ResultReader
 from .turn import Turn
 from .http import HttpOutcome, HttpPhase, HttpReplayPolicy, HttpReader, AsyncHttpReader
@@ -159,6 +159,17 @@ class Runner(Generic[M]):
         result = self._http_action({'open': {'reference': outcome.reference.hex(), 'policy': policy.value}})
         return int(result['opened'])
 
+    def _http_diagnostic(self, outcome: HttpOutcome, kind: ExchangeDiagnosticKind) -> dict[str, Any] | None:
+        if not isinstance(outcome, HttpOutcome) or outcome.resource.realm != self.config.activation.process.realm:
+            raise ValueError('Expected a Http outcome in this realm')
+        if not isinstance(kind, ExchangeDiagnosticKind):
+            raise TypeError('Select capture-failure or native-effect evidence')
+        return cast(dict[str, Any] | None, self._http_action({'diagnostic': {'identity': {'resource': outcome.resource.resource,
+            'exchange': str(outcome.exchange)}, 'kind': kind.value}})['diagnostic'])
+
+    def http_diagnostic(self, outcome: HttpOutcome, kind: ExchangeDiagnosticKind = ExchangeDiagnosticKind.CAPTURE_FAILURE) -> dict[str, Any] | None:
+        return self._public(lambda: self._http_diagnostic(outcome, kind))
+
     def open_http(self, outcome: HttpOutcome, *, policy: HttpReplayPolicy = HttpReplayPolicy.CAPTURED) -> HttpReader:
         identity = self._public(lambda: self._http_open(outcome, policy))
         return HttpReader(identity, lambda action: self._public(lambda: self._http_action(action)))
@@ -178,6 +189,17 @@ class Runner(Generic[M]):
             raise TypeError('Select an RPC replay policy')
         result = self._grpc_action({'open': {'reference': outcome.reference.hex(), 'policy': policy.value}})
         return int(result['opened'])
+
+    def _grpc_diagnostic(self, outcome: GrpcOutcome, kind: ExchangeDiagnosticKind) -> dict[str, Any] | None:
+        if not isinstance(outcome, GrpcOutcome) or outcome.resource.realm != self.config.activation.process.realm:
+            raise ValueError('Expected a Grpc outcome in this realm')
+        if not isinstance(kind, ExchangeDiagnosticKind):
+            raise TypeError('Select capture-failure or native-effect evidence')
+        return cast(dict[str, Any] | None, self._grpc_action({'diagnostic': {'identity': {'resource': outcome.resource.resource,
+            'exchange': str(outcome.exchange)}, 'kind': kind.value}})['diagnostic'])
+
+    def grpc_diagnostic(self, outcome: GrpcOutcome, kind: ExchangeDiagnosticKind = ExchangeDiagnosticKind.CAPTURE_FAILURE) -> dict[str, Any] | None:
+        return self._public(lambda: self._grpc_diagnostic(outcome, kind))
 
     def open_grpc(self, outcome: GrpcOutcome, *, policy: GrpcReplayPolicy = GrpcReplayPolicy.CAPTURED) -> GrpcReader:
         identity = self._public(lambda: self._grpc_open(outcome, policy))
@@ -402,11 +424,17 @@ class AsyncRunner(Generic[M]):
             return await self._public(lambda: self._runner._document_action(action))
         return AsyncDocumentReader(read, self._runner.config.activation.process.realm, self._runner.config.native_directory)
 
+    async def http_diagnostic(self, outcome: HttpOutcome, kind: ExchangeDiagnosticKind = ExchangeDiagnosticKind.CAPTURE_FAILURE) -> dict[str, Any] | None:
+        return await self._public(lambda: self._runner._http_diagnostic(outcome, kind))
+
     async def open_http(self, outcome: HttpOutcome, *, policy: HttpReplayPolicy = HttpReplayPolicy.CAPTURED) -> AsyncHttpReader:
         identity = await self._public(lambda: self._runner._http_open(outcome, policy))
         async def read(action: object) -> dict[str, Any]:
             return await self._public(lambda: self._runner._http_action(action))
         return AsyncHttpReader(identity, read)
+
+    async def grpc_diagnostic(self, outcome: GrpcOutcome, kind: ExchangeDiagnosticKind = ExchangeDiagnosticKind.CAPTURE_FAILURE) -> dict[str, Any] | None:
+        return await self._public(lambda: self._runner._grpc_diagnostic(outcome, kind))
 
     async def open_grpc(self, outcome: GrpcOutcome, *, policy: GrpcReplayPolicy = GrpcReplayPolicy.CAPTURED) -> AsyncGrpcReader:
         identity = await self._public(lambda: self._runner._grpc_open(outcome, policy))

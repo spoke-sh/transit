@@ -81,11 +81,12 @@ pub const Result = union(enum) {
     followup: p.Value,
 };
 pub const ReadAction = union(enum) {
+    diagnostic: struct { identity: Identity, kind: grpc.exchange.Client.DiagnosticKind },
     open: struct { reference: p.Value, policy: grpc.Replay.Policy = .captured },
     next: u64,
     close: u64,
 };
-pub const ReadResult = union(enum) { opened: u64, part: ?grpc.Replay.Part, closed: bool };
+pub const ReadResult = union(enum) { diagnostic: ?p.Diagnostic, opened: u64, part: ?grpc.Replay.Part, closed: bool };
 pub fn apply(alloc: std.mem.Allocator, action: Action) !Result {
     switch (action) {
         .descriptor => |input| {

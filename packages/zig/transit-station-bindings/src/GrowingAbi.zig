@@ -359,6 +359,13 @@ fn replayRead(comptime Codec: type, comptime prefix: []const u8, pointer: *Serve
     const parsed = std.json.parseFromSlice(h.ReadAction, allocator, json[0..len], .{}) catch |err| return base.failure(err, out);
     defer parsed.deinit();
     switch (parsed.value) {
+        .diagnostic => |value| {
+            const identity = value.identity.native() catch |err| return base.failure(err, out);
+            const session = server.behavior.session;
+            var client: adapter.exchange.Client = .{ .wire = &server.client, .realm = session.realm, .principal = session.principal, .key = session.key };
+            const detail = client.diagnostic(identity.resource, identity.exchange, adapter.protocol_format, value.kind) catch |err| return failure(server, err, false, out);
+            base.output(h.ReadResult{ .diagnostic = detail }, out) catch |err| return base.status(err);
+        },
         .open => |value| {
             if (@field(server, prefix ++ "_reader") != null) return .busy;
             if (@field(server, prefix ++ "_reader_id") == p.max_counter) return .budget_exceeded;

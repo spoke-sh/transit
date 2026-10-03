@@ -182,6 +182,10 @@ public:
     void close() { transit_station_event *out = nullptr; check(transit_station_runner_close(value_.get(), &out)); transit_station_event_destroy(out); }
     void stop() { transit_station_runner_stop(value_.get()); }
     Reader open(const HttpOutcome &outcome) { transit_station_http_reader *out = nullptr; check(transit_station_http_open(value_.get(), &outcome.native(), TRANSIT_HTTP_CAPTURED, &out)); return Reader(out); }
+    std::optional<std::string> diagnostic(const HttpOutcome &outcome, ExchangeDiagnosticKind kind) {
+        transit_sdk_diagnostic out{}; check(transit_station_http_diagnostic(value_.get(), &outcome.native(), static_cast<transit_station_exchange_diagnostic_kind>(kind), &out));
+        if (!out.size) return {}; return std::string(out.json, out.size);
+    }
     unsigned result() const { return context_.result; }
     void expired(const PreparedHttpRequest &request) {
         bool ready = false; expect(TRANSIT_SDK_TURN_EXPIRED, [&] { check(transit_station_turn_http_stage(context_.escaped, request.native(), &ready)); });
@@ -201,6 +205,7 @@ public:
     void close() { value_.close(); }
     void stop() { value_.stop(); }
     Reader open(const HttpOutcome &outcome) { return value_.open_http(outcome); }
+    std::optional<std::string> diagnostic(const HttpOutcome &outcome, ExchangeDiagnosticKind kind) { return value_.http_diagnostic(outcome, kind); }
     unsigned result() const { return shared_.result; }
     void expired(const PreparedHttpRequest &request) {
         expect(TRANSIT_SDK_TURN_EXPIRED, [&] { shared_.escaped->stage_http(request); });
@@ -230,9 +235,15 @@ static void drive(const Config &cfg) {
             assert(committed); runner->expired(request);
             report(runner->result() == 6 ? "{\"followup\":true}" : runner->result() == 5 ? "{\"followup\":false}" : runner->result() == 4 ? "{\"released\":true}" : runner->result() == 3 ? "{\"released\":false}" : runner->result() == 2 ? "{\"observed\":true}" : runner->result() == 1 ? "{\"called\":true}" : "{\"called\":false}");
         } else if (line == "open") {
-            outcome = decode(unhex(cfg.outcome)); reader = runner->open(*outcome);
+            outcome = decode(unhex(cfg.outcome));
+            assert(!runner->diagnostic(*outcome, ExchangeDiagnosticKind::CaptureFailure));
+            const auto evidence = runner->diagnostic(*outcome, ExchangeDiagnosticKind::NativeEffect); assert(evidence);
+            assert(evidence->find("effect.result_recorded") != std::string::npos && evidence->find("completed") != std::string::npos);
+            assert(evidence->find("\"id\":\"" + std::to_string(outcome->effect()) + "\"") != std::string::npos); reader = runner->open(*outcome);
             expect(TRANSIT_SDK_BUSY, [&] { runner->open(*outcome); }); const auto first = reader->read(); assert(first && !first->data.empty() && !first->complete); report("{\"prefix\":true}");
         } else if (line == "denied") {
+            expect(TRANSIT_SDK_ACCESS_DENIED, [&] { runner->diagnostic(*outcome, ExchangeDiagnosticKind::CaptureFailure); });
+            expect(TRANSIT_SDK_ACCESS_DENIED, [&] { runner->diagnostic(*outcome, ExchangeDiagnosticKind::NativeEffect); });
             expect(TRANSIT_SDK_ACCESS_DENIED, [&] { reader->read(); }); report("{\"denied\":true}");
         } else if (line == "reopen") {
             expect(TRANSIT_SDK_READ_FAILED, [&] { reader->read(); }, "HttpReplayFailed"); reader->close(); reader->close(); reader = runner->open(*outcome);

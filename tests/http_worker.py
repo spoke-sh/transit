@@ -486,11 +486,18 @@ def run(node, provision, worker, library, board=None, browser=False):
                 data = json.dumps({"outcome": received["wire"]}).encode()
                 converted = reader.api.call("station_http_codec", data, len(data))["outcome"]
                 reference = converted["reference"]
+                evidence_read = {"diagnostic": {"identity": {"resource": converted["resource"], "exchange": converted["exchange"]}, "kind": "capture_failure"}}
+                assert native_read(evidence_read) == {"diagnostic": None}
+                # Capture grants do not confer inspection of the service PID.
+                effect_read = {"diagnostic": {**evidence_read["diagnostic"], "kind": "native_effect"}}
+                rejects(4, native_read, effect_read)
                 identity = native_read({"open": {"reference": reference}})["opened"]
                 rejects(9, native_read, {"open": {"reference": reference}})
                 first = native_read({"next": identity})["part"]
                 assert first["bytes"] and not first["complete"]
                 admin("revoke-capture")
+                rejects(4, native_read, evidence_read)
+                rejects(4, native_read, effect_read)
                 rejects(4, native_read, {"next": identity})
                 admin("restore-capture")
                 failed = rejects(7, native_read, {"next": identity})
@@ -806,10 +813,21 @@ def run(node, provision, worker, library, board=None, browser=False):
             assert facts["native_input"] == {"unsigned": str(failure_input)}
             assert unknown["effect_diagnostic"]["code"] == "effect.reconciliation_abandoned"
             assert requests.count("/failure-send") == 1
+            def read_original_evidence(expected):
+                inspection = Native(libraries, url, seed, {"profile": "native_v1", "realm": 47, "principal": 65536,
+                    "pid": saved["pid"], "generation": saved["generation"], "association": "state", "failure_policy": "stop"})
+                try:
+                    for kind, field in (("capture_failure", "capture_diagnostic"), ("native_effect", "effect_diagnostic")):
+                        action = json.dumps({"diagnostic": {"identity": {"resource": saved["resource"], "exchange": "1"}, "kind": kind}}).encode()
+                        actual = inspection.api.call("station_growing_http_read", inspection.pointer, action, len(action))
+                        assert actual["diagnostic"] == expected[field], (kind, actual, expected)
+                finally: inspection.close()
+            read_original_evidence(unknown)
             saved = admin("own")
             configure(saved, "/failure-send", "release")
             retired = invoke()
             assert retired["phase"] == "retired" and retired["capture_diagnostic"] == diagnostic
+            read_original_evidence(retired)
             assert requests.count("/failure-send") == 1
             assert len(requests) == 17 and len(applied) == 9
             assert cold.data_objects() > 0, "Exchange history never spilled to durable cold storage"

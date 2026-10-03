@@ -352,6 +352,7 @@ inline PreparedHttpRequest prepare_http(ResourceRef resource, uint64_t namespace
     check(transit_station_http_prepare(&description, bytes_view(body), &settings, native_directory, &out));
     return PreparedHttpRequest(out);
 }
+enum class ExchangeDiagnosticKind : uint32_t { CaptureFailure = TRANSIT_EXCHANGE_CAPTURE_FAILURE, NativeEffect = TRANSIT_EXCHANGE_NATIVE_EFFECT };
 class HttpOutcome {
     transit_station_http_outcome value_{};
 public:

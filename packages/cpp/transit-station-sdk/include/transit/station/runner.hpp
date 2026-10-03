@@ -118,10 +118,22 @@ public:
         transit_station_document_reader *out = nullptr;
         check(transit_station_documents_open(value_.get(), &out)); return DocumentReader(out);
     }
+    std::optional<std::string> http_diagnostic(const HttpOutcome &outcome, ExchangeDiagnosticKind kind = ExchangeDiagnosticKind::CaptureFailure) {
+        transit_sdk_diagnostic out{};
+        check(transit_station_http_diagnostic(value_.get(), &outcome.native(), static_cast<transit_station_exchange_diagnostic_kind>(kind), &out));
+        if (out.size == 0) return std::nullopt;
+        return std::string(out.json, out.size);
+    }
     HttpReader open_http(const HttpOutcome &outcome, HttpReplayPolicy policy = HttpReplayPolicy::Captured) {
         transit_station_http_reader *out = nullptr;
         check(transit_station_http_open(value_.get(), &outcome.native(), static_cast<transit_station_http_replay_policy>(policy), &out));
         return HttpReader(out);
+    }
+    std::optional<std::string> grpc_diagnostic(const GrpcOutcome &outcome, ExchangeDiagnosticKind kind = ExchangeDiagnosticKind::CaptureFailure) {
+        transit_sdk_diagnostic out{};
+        check(transit_station_grpc_diagnostic(value_.get(), &outcome.native(), static_cast<transit_station_exchange_diagnostic_kind>(kind), &out));
+        if (out.size == 0) return std::nullopt;
+        return std::string(out.json, out.size);
     }
     GrpcReader open_grpc(const GrpcOutcome &outcome, GrpcReplayPolicy policy = GrpcReplayPolicy::Captured) {
         transit_station_grpc_reader *out = nullptr;

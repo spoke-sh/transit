@@ -234,6 +234,9 @@ typedef struct transit_station_http_request_view {
     uint64_t namespace_id;
     transit_sdk_bytes reference, metadata, body;
 } transit_station_http_request_view;
+/* Select independent evidence; a read never dispatches or resumes work. */
+typedef uint32_t transit_station_exchange_diagnostic_kind;
+enum { TRANSIT_EXCHANGE_CAPTURE_FAILURE, TRANSIT_EXCHANGE_NATIVE_EFFECT };
 typedef enum transit_station_http_phase { TRANSIT_HTTP_OBSERVED, TRANSIT_HTTP_CLOSED_UNKNOWN, TRANSIT_HTTP_NOT_DISPATCHED } transit_station_http_phase;
 typedef enum transit_station_http_rejection { TRANSIT_HTTP_DENIED, TRANSIT_HTTP_INVALID_REQUEST, TRANSIT_HTTP_BUSY } transit_station_http_rejection;
 /* Integer input keeps unknown values defined across the C/C++ boundary so they
@@ -277,6 +280,7 @@ transit_sdk_error transit_station_turn_http_release(transit_station_turn *turn, 
 transit_sdk_error transit_station_turn_http_followup(transit_station_turn *turn, transit_sdk_process peer, const transit_station_http_outcome *parent, transit_station_http_followup_reason reason, const transit_station_http_request *request, uint64_t *correlation);
 /* Reader retains local runner lifetime. Runner destroy/close joins native work;
  * caller must join concurrent uses before destroying any public handle. */
+transit_sdk_error transit_station_http_diagnostic(transit_station_runner *runner, const transit_station_http_outcome *outcome, transit_station_exchange_diagnostic_kind kind, transit_sdk_diagnostic *out);
 transit_sdk_error transit_station_http_open(transit_station_runner *runner, const transit_station_http_outcome *outcome, transit_station_http_replay_policy policy, transit_station_http_reader **out);
 transit_sdk_error transit_station_http_read(transit_station_http_reader *reader, transit_station_http_part *out);
 transit_sdk_error transit_station_http_close(transit_station_http_reader *reader);
@@ -355,6 +359,7 @@ transit_sdk_error transit_station_turn_grpc_release(transit_station_turn *turn, 
 transit_sdk_error transit_station_turn_grpc_retry(transit_station_turn *turn, transit_sdk_process peer, const transit_station_grpc_outcome *parent, const transit_station_grpc_request *request, uint64_t *correlation);
 /* Reader retains local runner lifetime. Runner destroy/close joins native work;
  * caller must join concurrent uses before destroying any public handle. */
+transit_sdk_error transit_station_grpc_diagnostic(transit_station_runner *runner, const transit_station_grpc_outcome *outcome, transit_station_exchange_diagnostic_kind kind, transit_sdk_diagnostic *out);
 transit_sdk_error transit_station_grpc_open(transit_station_runner *runner, const transit_station_grpc_outcome *outcome, transit_station_grpc_replay_policy policy, transit_station_grpc_reader **out);
 transit_sdk_error transit_station_grpc_read(transit_station_grpc_reader *reader, transit_station_grpc_part *out);
 transit_sdk_error transit_station_grpc_close(transit_station_grpc_reader *reader);

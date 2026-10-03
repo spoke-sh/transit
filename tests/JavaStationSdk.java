@@ -344,6 +344,10 @@ public final class JavaStationSdk {
                     }
                     case "open" -> {
                         outcome = (Http.Outcome)Http.decodeReply(72, HexFormat.of().parseHex(cfg.get("outcome").getAsString()));
+                        check(await(runner.httpDiagnostic(outcome, ExchangeDiagnosticKind.CAPTURE_FAILURE)).isEmpty());
+                        JsonObject evidence = await(runner.httpDiagnostic(outcome, ExchangeDiagnosticKind.NATIVE_EFFECT)).orElseThrow();
+                        check(evidence.get("code").getAsString().equals("effect.result_recorded") && evidence.get("outcome").getAsString().equals("completed"));
+                        check(evidence.getAsJsonObject("identity").get("id").getAsString().equals(Long.toUnsignedString(outcome.effect())));
                         reader = await(runner.openHttp(outcome)); Http.Outcome selected = outcome;
                         expect(TransitException.Kind.BUSY, () -> await(runner.openHttp(selected)));
                         Http.Part first = await(reader.read()).orElseThrow(); check(first.data().size() > 0 && !first.complete()); report(Values.obj("prefix", true));
@@ -484,6 +488,10 @@ public final class JavaStationSdk {
                     }
                     case "open" -> {
                         outcome = (Grpc.Outcome)Grpc.decodeReply(72, HexFormat.of().parseHex(cfg.get("outcome").getAsString()));
+                        check(await(runner.grpcDiagnostic(outcome, ExchangeDiagnosticKind.CAPTURE_FAILURE)).isEmpty());
+                        JsonObject evidence = await(runner.grpcDiagnostic(outcome, ExchangeDiagnosticKind.NATIVE_EFFECT)).orElseThrow();
+                        check(evidence.get("code").getAsString().equals("effect.result_recorded") && evidence.get("outcome").getAsString().equals("completed"));
+                        check(evidence.getAsJsonObject("identity").get("id").getAsString().equals(Long.toUnsignedString(outcome.effect())));
                         reader = await(runner.openGrpc(outcome)); Grpc.Outcome selected = outcome;
                         expect(TransitException.Kind.BUSY, () -> await(runner.openGrpc(selected)));
                         Grpc.Part first = await(reader.read()).orElseThrow(); check(first.data().size() > 0 && !first.complete()); report(Values.obj("prefix", true));

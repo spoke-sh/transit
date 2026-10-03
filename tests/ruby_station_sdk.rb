@@ -290,12 +290,18 @@ def http_consumer(mode, cfg)
         report(handler.result)
       when 'open'
         outcome = S.decode_http_reply(72, [cfg.fetch('outcome')].pack('H*'))
+        check runner.http_diagnostic(outcome).nil?
+        evidence = runner.http_diagnostic(outcome, kind: :native_effect)
+        check evidence['code'] == 'effect.result_recorded' && evidence['outcome'] == 'completed'
+        check evidence['identity']['id'] == outcome.effect.to_s
         reader = runner.open_http(outcome)
         expect(Busy) { runner.open_http(outcome) }
         first = reader.read
         check !first.data.empty? && !first.complete
         report(prefix: true)
       when 'denied'
+        expect(AccessDenied) { runner.http_diagnostic(outcome) }
+        expect(AccessDenied) { runner.http_diagnostic(outcome, kind: :native_effect) }
         expect(AccessDenied) { reader.read }
         report(denied: true)
       when 'reopen'
@@ -456,12 +462,18 @@ def grpc_consumer(mode, cfg)
         report(handler.result)
       when 'open'
         outcome = S.decode_grpc_reply(72, [cfg.fetch('outcome')].pack('H*'))
+        check runner.grpc_diagnostic(outcome).nil?
+        evidence = runner.grpc_diagnostic(outcome, kind: :native_effect)
+        check evidence['code'] == 'effect.result_recorded' && evidence['outcome'] == 'completed'
+        check evidence['identity']['id'] == outcome.effect.to_s
         reader = runner.open_grpc(outcome)
         expect(Busy) { runner.open_grpc(outcome) }
         first = reader.read
         check !first.data.empty? && !first.complete
         report(prefix: true)
       when 'denied'
+        expect(AccessDenied) { runner.grpc_diagnostic(outcome) }
+        expect(AccessDenied) { runner.grpc_diagnostic(outcome, kind: :native_effect) }
         expect(AccessDenied) { reader.read }
         report(denied: true)
       when 'reopen'

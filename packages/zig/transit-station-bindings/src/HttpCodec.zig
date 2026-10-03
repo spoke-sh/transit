@@ -84,11 +84,13 @@ pub const Result = union(enum) {
     followup: p.Value,
 };
 pub const ReadAction = union(enum) {
+    diagnostic: struct { identity: Identity, kind: http.exchange.Client.DiagnosticKind },
     open: struct { reference: p.Value, policy: http.Replay.Policy = .captured },
     next: u64,
     close: u64,
 };
 pub const ReadResult = union(enum) {
+    diagnostic: ?p.Diagnostic,
     opened: u64,
     part: ?http.Replay.Part,
     closed: bool,

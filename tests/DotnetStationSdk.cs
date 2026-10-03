@@ -254,7 +254,12 @@ static class Proof
                     Expect(ErrorKind.TurnExpired, () => handler.Escaped!.ReleaseHttp(new ProcessRef(72, Number(cfg, "peer")), request.Resource, 1));
                     Expect(ErrorKind.TurnExpired, () => handler.Escaped!.FollowupHttp(new ProcessRef(72, Number(cfg, "peer")), disposal!, reason, request)); Report(handler.Result!); break;
                 case "open":
-                    outcome = (Http.Outcome)await Http.DecodeReplyAsync(72, Convert.FromHexString(Text(cfg, "outcome"))); reader = await runner.OpenHttpAsync(outcome);
+                    outcome = (Http.Outcome)await Http.DecodeReplyAsync(72, Convert.FromHexString(Text(cfg, "outcome")));
+                    Check(await runner.HttpDiagnosticAsync(outcome) is null);
+                    var evidence = (await runner.HttpDiagnosticAsync(outcome, ExchangeDiagnosticKind.NativeEffect))!;
+                    Check(evidence["code"]!.GetValue<string>() == "effect.result_recorded" && evidence["outcome"]!.GetValue<string>() == "completed");
+                    Check(evidence["identity"]!["id"]!.GetValue<string>() == outcome.Effect.ToString());
+                    reader = await runner.OpenHttpAsync(outcome);
                     Expect(ErrorKind.Busy, () => runner.OpenHttpAsync(outcome).GetAwaiter().GetResult());
                     var first = (await reader.ReadAsync())!; Check(first.Data.Length > 0 && !first.Complete); Report(new() { ["prefix"] = true }); break;
                 case "denied": Expect(ErrorKind.AccessDenied, () => reader!.ReadAsync().GetAwaiter().GetResult()); Report(new() { ["denied"] = true }); break;
@@ -369,7 +374,12 @@ static class Proof
                     Expect(ErrorKind.TurnExpired, () => handler.Escaped!.ReleaseGrpc(new ProcessRef(72, Number(cfg, "peer")), request.Resource, 1));
                     Expect(ErrorKind.TurnExpired, () => handler.Escaped!.RetryGrpc(new ProcessRef(72, Number(cfg, "peer")), disposal!, request)); Report(handler.Result!); break;
                 case "open":
-                    outcome = (Grpc.Outcome)await Grpc.DecodeReplyAsync(72, Convert.FromHexString(Text(cfg, "outcome"))); reader = await runner.OpenGrpcAsync(outcome);
+                    outcome = (Grpc.Outcome)await Grpc.DecodeReplyAsync(72, Convert.FromHexString(Text(cfg, "outcome")));
+                    Check(await runner.GrpcDiagnosticAsync(outcome) is null);
+                    var evidence = (await runner.GrpcDiagnosticAsync(outcome, ExchangeDiagnosticKind.NativeEffect))!;
+                    Check(evidence["code"]!.GetValue<string>() == "effect.result_recorded" && evidence["outcome"]!.GetValue<string>() == "completed");
+                    Check(evidence["identity"]!["id"]!.GetValue<string>() == outcome.Effect.ToString());
+                    reader = await runner.OpenGrpcAsync(outcome);
                     Expect(ErrorKind.Busy, () => runner.OpenGrpcAsync(outcome).GetAwaiter().GetResult());
                     var first = (await reader.ReadAsync())!; Check(first.Data.Length > 0 && !first.Complete); Report(new() { ["prefix"] = true }); break;
                 case "denied": Expect(ErrorKind.AccessDenied, () => reader!.ReadAsync().GetAwaiter().GetResult()); Report(new() { ["denied"] = true }); break;

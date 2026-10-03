@@ -4953,11 +4953,19 @@
     "packages/zig/transit-exchange/src/Client.zig": {
       "errors": {
         "ExchangeUnavailable": 1,
+        "InvalidExchangeAttempt": 5,
         "InvalidExchangeCoverage": 3,
         "InvalidExchangeRecord": 1,
-        "StaleExchangeSource": 1
+        "StaleExchangeSource": 1,
+        "UnknownEffect": 1,
+        "WrongExchangeProtocol": 1
       },
-      "outcomes": {},
+      "outcomes": {
+        "DiagnosticKind": [
+          "capture_failure",
+          "native_effect"
+        ]
+      },
       "imports": [
         "root.zig",
         "std"
@@ -7187,7 +7195,7 @@
       },
       "outcomes": {
         "Definition": [
-          "@\"692358a0bda42413cb14638010c0adea7edaa238aff1275e9557fcb38a37e741\""
+          "@\"4dab48676c92875019edb9a3c8e3e6e9071ebfe22000fe513c5efe66b16734f6\""
         ],
         "Command": [
           "grant",
@@ -10298,11 +10306,13 @@
           "followup"
         ],
         "ReadAction": [
+          "diagnostic",
           "open",
           "next",
           "close"
         ],
         "ReadResult": [
+          "diagnostic",
           "opened",
           "part",
           "closed"
@@ -10386,11 +10396,13 @@
           "followup"
         ],
         "ReadAction": [
+          "diagnostic",
           "open",
           "next",
           "close"
         ],
         "ReadResult": [
+          "diagnostic",
           "opened",
           "part",
           "closed"

@@ -66,3 +66,16 @@ guidance. A completed response does not establish business success or permit a
 retry; rejected input does not settle earlier work. Original details absent from
 the reply are explicitly unrecorded. See the
 [shared SDK diagnostic contract](../../../../docs/reference/sdks.md#structured-failure-details).
+
+## Original diagnostic evidence
+
+Use `transit_station_grpc_diagnostic(runner, &outcome, kind, &detail)` after the runner has no pending
+mutation. Select `TRANSIT_EXCHANGE_CAPTURE_FAILURE` or `TRANSIT_EXCHANGE_NATIVE_EFFECT`; the result is a `transit_sdk_diagnostic` with owned JSON bytes; `size == 0` means no record.
+Capture evidence is the original retained local failure; native effect evidence
+reports the independently recorded effect outcome. Absence does not establish
+success. Reads work after exchange retirement while the evidence remains readable.
+They require current capture-resource access; native effect reads additionally
+require inspection of the connector PID. Permission, stale-cut and integrity
+failures remain read errors. These operations do not open a replay cursor,
+resolve credentials, dispatch, resume or retry an effect. See the
+[shared diagnostic semantics](../../../../docs/reference/sdks.md#structured-failure-details).

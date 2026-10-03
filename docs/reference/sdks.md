@@ -217,6 +217,20 @@ An exchange without an authorized attempt is `not_dispatched`. Rejected calls
 use `input_rejected` and do not replace a prior exchange outcome. The pure reply
 codec has no realm input, so the diagnostic's exchange identity retains resource
 and full-width ID with an absent realm; the owned outcome has the caller's
-explicit `ResourceRef`. Original capture/closure causes and rejected field
-details absent from the reply are marked unrecorded. Inspect their owning
-records under current authority instead of inferring them from a later read.
+explicit `ResourceRef`. Original capture/closure causes absent from the reply
+are marked unrecorded. All ten SDKs expose separate HTTP/gRPC diagnostic reads
+on a decoded outcome: `capture_failure` returns the original retained local
+failure, while `native_effect` projects the independently recorded native effect.
+The language guides name each API and kind spelling. These reads work without a
+complete capture reference, including after exchange retirement while its resource
+and evidence remain readable. A null/empty result means no record of the requested
+kind; it does not establish success or justify a fresh attempt.
+
+Each call checks current capture-resource inspection/read grants. Native effect
+reads additionally require native inspection scoped to the connector PID;
+a caller's own PID grant and resource association do not confer that permission.
+The read binds the effect to the immutable intent and checks current capture
+access again before returning. Revocation, a changed authority cut, unavailable
+evidence or inconsistent history remains a read error; it never rewrites a saved
+outcome. The runner must have no pending mutation. Reads create no replay cursor,
+resolve no credentials, and dispatch, resume or retry no effect.

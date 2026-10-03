@@ -2,7 +2,7 @@
 -include_lib("transit_station_sdk/include/transit_station_sdk.hrl").
 -behaviour(transit_station_codec).
 -behaviour(transit_station_handler).
--export([replay_error/0, prepare/1, open/3, next/1, close/1, stop/1, stage/2, open_capture/2, read/1, close_capture/1,
+-export([diagnostics/2, diagnostic_denied/2, replay_error/0, prepare/1, open/3, next/1, close/1, stop/1, stage/2, open_capture/2, read/1, close_capture/1,
          complete/1, decode/1, outcome/1, view/1, event/1, golden/1, release_expired/1, followup_expired/2,
          type_id/0, version/0, max_encoded_bytes/0, encode/1, handle_message/3]).
 %% The application codec owns ordinary bytes. Decode RPC only on an authenticated reply.
@@ -102,3 +102,11 @@ golden(Fixture) ->
     {ok,#transit_grpc_released{resource=#transit_resource{realm=72,resource=7},exchange=18446744073709551615}} = transit_grpc:decode_reply(72,binary:decode_hex(maps:get(<<"released_hex">>,Fixture))),
     {error,_} = transit_grpc:decode_reply(72,binary:part(Bytes,0,72)),ok.
 replay_error() -> <<"GrpcReplayFailed">>.
+
+diagnostics(R, Outcome = #transit_grpc_outcome{effect = Effect}) ->
+    {ok, null} = transit_grpc:diagnostic(R, Outcome),
+    {ok, #{<<"code">> := <<"effect.result_recorded">>, <<"outcome">> := <<"completed">>, <<"identity">> := #{<<"id">> := Id}}} = transit_grpc:diagnostic(R, Outcome, native_effect),
+    Effect = binary_to_integer(Id), ok.
+diagnostic_denied(R, Outcome) ->
+    {error, #transit_error{kind = access_denied}} = transit_grpc:diagnostic(R, Outcome),
+    {error, #transit_error{kind = access_denied}} = transit_grpc:diagnostic(R, Outcome, native_effect), ok.

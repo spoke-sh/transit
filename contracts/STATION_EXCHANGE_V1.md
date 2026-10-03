@@ -108,6 +108,20 @@ inspectable. The finite workers emit both nullable `capture_diagnostic` and
 `effect_diagnostic` alongside their primary phase/outcome JSON. Diagnostic
 construction failure cannot replace that primary result.
 
+The shared client and Station HTTP/gRPC read boundaries accept a diagnostic
+identity `{resource, exchange}` and kind `capture_failure` or `native_effect`.
+Exchange IDs use canonical full-width decimal strings at the host boundary.
+The result is `{diagnostic: Diagnostic | null}`. Protocol identity is checked
+against the descriptor. Missing evidence is nullable only when the recorded
+state permits absence; missing failure for an unknown capture and missing effect
+for an existing intent are errors. The native effect is bound to the immutable
+intent entry's committing revision, owner and exact payload. Effect paging uses
+the authority position captured with the resource read; concurrent changes can
+expire that cut. Capture permission is rechecked after independent effect reads.
+Current resource inspection/read grants and, for native effects, connector-PID
+inspection are required. Retired exchanges retain this evidence. Reads do not
+create a replay cursor or perform mutations, credential resolution or external I/O.
+
 ## Explicit followups
 
 Root exchanges default to one attempt. `configureAttempts` can set an immutable

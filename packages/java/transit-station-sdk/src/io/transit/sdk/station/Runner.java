@@ -159,6 +159,15 @@ public final class Runner<T> implements AutoCloseable {
         });
     }
     void httpBlockingClose() { worker.checkBlockingClose(); }
+    public CompletableFuture<Optional<JsonObject>> httpDiagnostic(Http.Outcome outcome, ExchangeDiagnosticKind kind) {
+        Objects.requireNonNull(outcome); Objects.requireNonNull(kind);
+        if (outcome.resource().realm() != realm) throw new IllegalArgumentException("Expected an outcome in this realm");
+        return httpAccess(bridge -> {
+            JsonElement value = bridge.httpRead(obj("diagnostic", obj("identity", obj("resource", outcome.resource().resource(),
+                "exchange", outcome.exchange().toString()), "kind", kind.name().toLowerCase(Locale.ROOT)))).get("diagnostic");
+            return value.isJsonNull() ? Optional.empty() : Optional.of(object(value).deepCopy());
+        });
+    }
     public CompletableFuture<Http.Reader> openHttp(Http.Outcome outcome) { return openHttp(outcome, Http.ReplayPolicy.CAPTURED); }
     public CompletableFuture<Http.Reader> openHttp(Http.Outcome outcome, Http.ReplayPolicy policy) {
         Objects.requireNonNull(outcome); Objects.requireNonNull(policy);
@@ -177,6 +186,15 @@ public final class Runner<T> implements AutoCloseable {
         });
     }
     void grpcBlockingClose() { worker.checkBlockingClose(); }
+    public CompletableFuture<Optional<JsonObject>> grpcDiagnostic(Grpc.Outcome outcome, ExchangeDiagnosticKind kind) {
+        Objects.requireNonNull(outcome); Objects.requireNonNull(kind);
+        if (outcome.resource().realm() != realm) throw new IllegalArgumentException("Expected an outcome in this realm");
+        return grpcAccess(bridge -> {
+            JsonElement value = bridge.grpcRead(obj("diagnostic", obj("identity", obj("resource", outcome.resource().resource(),
+                "exchange", outcome.exchange().toString()), "kind", kind.name().toLowerCase(Locale.ROOT)))).get("diagnostic");
+            return value.isJsonNull() ? Optional.empty() : Optional.of(object(value).deepCopy());
+        });
+    }
     public CompletableFuture<Grpc.Reader> openGrpc(Grpc.Outcome outcome) { return openGrpc(outcome, Grpc.ReplayPolicy.CAPTURED); }
     public CompletableFuture<Grpc.Reader> openGrpc(Grpc.Outcome outcome, Grpc.ReplayPolicy policy) {
         Objects.requireNonNull(outcome); Objects.requireNonNull(policy);

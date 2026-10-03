@@ -110,9 +110,11 @@ def run(node, cli, raw_library, worker, install, label, *, public_release=False,
         threads = [threading.Thread(target=server.serve_forever, daemon=True) for server in ((proxy,) if rpc else (peer, proxy))]
         for thread in threads: thread.start()
         url = f'http://127.0.0.1:{proxy.server_port}'
+        public_keys = {}
         def process(principal, owned):
             pid = command({'spawn': {}})
             seed, public = system.key(f'http-{principal}')
+            public_keys[principal] = public
             command({'grant': {'subject': principal, 'public_key': public,
                 'permissions': 88 if owned else 124, 'pid': pid}})
             resource = command({'create_resource': {'writer': pid, 'owned': owned}})
@@ -258,6 +260,13 @@ def run(node, cli, raw_library, worker, install, label, *, public_release=False,
             assert action(child, 'step') == {'observed': True}
             close(child)
             credential.unlink()
+            # Native effect evidence has its own process-inspection boundary.
+            # The ordinary caller grant is scoped to its own PID; this reader
+            # receives an explicit inspection scope spanning the connector PID.
+            command({'grant': {'subject': caller['principal'], 'public_key': public_keys[caller['principal']],
+                'permissions': 88, 'pid': None}})
+            command({'grant_resource': {'resource': caller['resource'], 'subject': caller['principal'], 'permissions': 7}})
+            command({'grant_resource': {'resource': service['resource'], 'subject': caller['principal'], 'permissions': 3}})
             child = start('http-reader', caller)
             assert action(child, 'open') == {'prefix': True}
             command({'grant_resource': {'resource': service['resource'], 'subject': caller['principal'], 'permissions': 0}})
@@ -277,6 +286,10 @@ def run(node, cli, raw_library, worker, install, label, *, public_release=False,
             assert json.loads(child.communicate(timeout=30)[0]) == {'joined': True}
             assert child.returncode == 0
             children.remove(child)
+            command({'grant': {'subject': caller['principal'], 'public_key': public_keys[caller['principal']],
+                'permissions': 88, 'pid': caller['pid']}})
+            command({'grant_resource': {'resource': caller['resource'], 'subject': caller['principal'], 'permissions': 7}})
+            command({'grant_resource': {'resource': service['resource'], 'subject': caller['principal'], 'permissions': 3}})
             if public_followup:
                 # A public typed helper records an ordinary correlated call;
                 # the service refuses unsupported followups without allocating
@@ -311,7 +324,7 @@ def run(node, cli, raw_library, worker, install, label, *, public_release=False,
                         assert rejection[157:157 + rejection[155]] == b'closed_unknown'
                         assert rejection[200:200 + rejection[198]] == b'observed'
                     else:
-                        assert rejection[80] > 0 and field == 'followup.policy'
+                        assert rejection[80] > 0 and field == 'policy.redirect'
                     assert action(child, 'step') == {'followup': True}
                     close(child)
                 worker_config['exchange'] = 2**64-1

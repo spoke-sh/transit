@@ -11,6 +11,20 @@ use transit_client::{
     Correlation, Error, ErrorKind, MutationReceipt, ProcessRef, Result, StopToken,
 };
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ExchangeDiagnosticKind {
+    CaptureFailure,
+    NativeEffect,
+}
+impl ExchangeDiagnosticKind {
+    fn wire(self) -> &'static str {
+        match self {
+            Self::CaptureFailure => "capture_failure",
+            Self::NativeEffect => "native_effect",
+        }
+    }
+}
+
 pub trait Handler<M>: Send + 'static {
     fn initialize(&mut self, turn: &mut Turn<'_>) -> Result<()>;
     fn handle(&mut self, turn: &mut Turn<'_>, input: Incoming<M>) -> Result<()>;
@@ -390,6 +404,31 @@ impl<M: 'static> Runner<M> {
             state.bridge.http_read(action)
         })
     }
+    pub fn http_diagnostic(
+        &mut self,
+        outcome: &crate::HttpOutcome,
+        kind: ExchangeDiagnosticKind,
+    ) -> Result<Option<Value>> {
+        let realm = outcome.resource.realm();
+        let action = json!({"diagnostic":{"identity":{"resource":outcome.resource.resource(), "exchange":outcome.exchange.to_string()}, "kind":kind.wire()}});
+        self.worker.call(move |state| {
+            if state.process.realm() != realm {
+                return Err(Error::new(ErrorKind::InvalidArgument, "http-realm"));
+            }
+            if state.pending.is_some() {
+                return Err(Error::new(ErrorKind::Busy, "pending-mutation"));
+            }
+            let value = state.bridge.http_read(action)?;
+            let detail = value
+                .get("diagnostic")
+                .ok_or_else(|| Error::new(ErrorKind::IncompatibleNative, "exchange-diagnostic"))?;
+            Ok(if detail.is_null() {
+                None
+            } else {
+                Some(detail.clone())
+            })
+        })
+    }
     pub fn open_http(
         &mut self,
         outcome: &crate::HttpOutcome,
@@ -447,6 +486,31 @@ impl<M: 'static> Runner<M> {
                 return Err(Error::new(ErrorKind::Busy, "pending-mutation"));
             }
             state.bridge.grpc_read(action)
+        })
+    }
+    pub fn grpc_diagnostic(
+        &mut self,
+        outcome: &crate::GrpcOutcome,
+        kind: ExchangeDiagnosticKind,
+    ) -> Result<Option<Value>> {
+        let realm = outcome.resource.realm();
+        let action = json!({"diagnostic":{"identity":{"resource":outcome.resource.resource(), "exchange":outcome.exchange.to_string()}, "kind":kind.wire()}});
+        self.worker.call(move |state| {
+            if state.process.realm() != realm {
+                return Err(Error::new(ErrorKind::InvalidArgument, "grpc-realm"));
+            }
+            if state.pending.is_some() {
+                return Err(Error::new(ErrorKind::Busy, "pending-mutation"));
+            }
+            let value = state.bridge.grpc_read(action)?;
+            let detail = value
+                .get("diagnostic")
+                .ok_or_else(|| Error::new(ErrorKind::IncompatibleNative, "exchange-diagnostic"))?;
+            Ok(if detail.is_null() {
+                None
+            } else {
+                Some(detail.clone())
+            })
         })
     }
     pub fn open_grpc(

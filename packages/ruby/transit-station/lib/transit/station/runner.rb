@@ -205,12 +205,28 @@ module Transit
         DocumentReader.new(@realm, ->(action) { @worker.call { |state| state.document_read(action) } },
           ->(action) { @worker.call { |state| state.document_codec(action) } })
       end
+      def http_diagnostic(outcome, kind: :capture_failure)
+        raise ArgumentError, 'Expected a Http outcome in this realm' unless outcome.is_a?(HttpOutcome) && outcome.resource.realm == @realm
+        raise ArgumentError, 'Invalid exchange diagnostic kind' unless %i[capture_failure native_effect].include?(kind)
+        @worker.call do |state|
+          value = state.http_read({ 'diagnostic' => { 'identity' => { 'resource' => outcome.resource.resource, 'exchange' => outcome.exchange.to_s }, 'kind' => kind.to_s } }).fetch('diagnostic')
+          value.nil? ? nil : Value.diagnostic(value)
+        end
+      end
       def open_http(outcome, policy: :captured)
         # Avoid interruption between acquiring the native slot and returning its
         # wrapper. The enclosing runner owns joined cleanup after host wait loss.
         Thread.handle_interrupt(Object => :never) do
           identity = @worker.call { |state| state.http_open(outcome, policy) }
           HttpReader.new(identity) { |action| @worker.call { |state| state.http_read(action) } }
+        end
+      end
+      def grpc_diagnostic(outcome, kind: :capture_failure)
+        raise ArgumentError, 'Expected a Grpc outcome in this realm' unless outcome.is_a?(GrpcOutcome) && outcome.resource.realm == @realm
+        raise ArgumentError, 'Invalid exchange diagnostic kind' unless %i[capture_failure native_effect].include?(kind)
+        @worker.call do |state|
+          value = state.grpc_read({ 'diagnostic' => { 'identity' => { 'resource' => outcome.resource.resource, 'exchange' => outcome.exchange.to_s }, 'kind' => kind.to_s } }).fetch('diagnostic')
+          value.nil? ? nil : Value.diagnostic(value)
         end
       end
       def open_grpc(outcome, policy: :captured)

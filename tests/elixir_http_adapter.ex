@@ -177,6 +177,19 @@ defmodule ElixirHttpAdapter do
         1
       )
 
+  def diagnostics(runner, outcome) do
+    {:ok, nil} = Http.diagnostic(runner, outcome)
+    {:ok, %{"code" => "effect.result_recorded", "outcome" => "completed", "identity" => %{"id" => id}}} = Http.diagnostic(runner, outcome, :native_effect)
+    true = String.to_integer(id) == outcome.effect
+    :ok
+  end
+
+  def diagnostic_denied(runner, outcome) do
+    {:error, %Client.Error{kind: :access_denied}} = Http.diagnostic(runner, outcome)
+    {:error, %Client.Error{kind: :access_denied}} = Http.diagnostic(runner, outcome, :native_effect)
+    :ok
+  end
+
   def open_capture(runner, outcome), do: Http.open(runner, outcome)
 
   def followup_expired(turn, request),

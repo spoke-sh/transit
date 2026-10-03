@@ -179,6 +179,17 @@ public sealed class Runner<T> : IDisposable, IAsyncDisposable, IHttpOwner, IGrpc
     Task<R> IDocumentOwner.DocumentAccess<R>(Func<StationBridge, R> action, CancellationToken cancellation) => worker.Invoke(state => state.ReplayAccess(action), cancellation);
     Task<R> IHttpOwner.HttpAccess<R>(Func<StationBridge, R> action, CancellationToken cancellation) => worker.Invoke(state => state.ReplayAccess(action), cancellation);
     void IHttpOwner.CheckClose() => worker.CheckClose();
+    public Task<JsonObject?> HttpDiagnosticAsync(Http.Outcome outcome, ExchangeDiagnosticKind kind = ExchangeDiagnosticKind.CaptureFailure, CancellationToken cancellation = default)
+    {
+        ArgumentNullException.ThrowIfNull(outcome);
+        if (outcome.Resource.Realm != realm) throw new ArgumentException("Expected an outcome in this realm");
+        string selected = kind switch { ExchangeDiagnosticKind.CaptureFailure => "capture_failure", ExchangeDiagnosticKind.NativeEffect => "native_effect", _ => throw new ArgumentException("Invalid exchange diagnostic kind") };
+        return worker.Invoke(state => state.ReplayAccess<JsonObject?>(bridge => {
+            JsonNode? value = bridge.HttpRead(Value.Obj(("diagnostic", Value.Obj(("identity", Value.Obj(("resource", outcome.Resource.Resource),
+                ("exchange", outcome.Exchange.ToString(System.Globalization.CultureInfo.InvariantCulture)))), ("kind", selected)))))["diagnostic"];
+            return value?.DeepClone().AsObject();
+        }), cancellation);
+    }
     public Task<Http.Reader> OpenHttpAsync(Http.Outcome outcome, Http.ReplayPolicy policy = Http.ReplayPolicy.Captured, CancellationToken cancellation = default)
     {
         ArgumentNullException.ThrowIfNull(outcome);
@@ -187,6 +198,17 @@ public sealed class Runner<T> : IDisposable, IAsyncDisposable, IHttpOwner, IGrpc
     }
     Task<R> IGrpcOwner.GrpcAccess<R>(Func<StationBridge, R> action, CancellationToken cancellation) => worker.Invoke(state => state.ReplayAccess(action), cancellation);
     void IGrpcOwner.CheckClose() => worker.CheckClose();
+    public Task<JsonObject?> GrpcDiagnosticAsync(Grpc.Outcome outcome, ExchangeDiagnosticKind kind = ExchangeDiagnosticKind.CaptureFailure, CancellationToken cancellation = default)
+    {
+        ArgumentNullException.ThrowIfNull(outcome);
+        if (outcome.Resource.Realm != realm) throw new ArgumentException("Expected an outcome in this realm");
+        string selected = kind switch { ExchangeDiagnosticKind.CaptureFailure => "capture_failure", ExchangeDiagnosticKind.NativeEffect => "native_effect", _ => throw new ArgumentException("Invalid exchange diagnostic kind") };
+        return worker.Invoke(state => state.ReplayAccess<JsonObject?>(bridge => {
+            JsonNode? value = bridge.GrpcRead(Value.Obj(("diagnostic", Value.Obj(("identity", Value.Obj(("resource", outcome.Resource.Resource),
+                ("exchange", outcome.Exchange.ToString(System.Globalization.CultureInfo.InvariantCulture)))), ("kind", selected)))))["diagnostic"];
+            return value?.DeepClone().AsObject();
+        }), cancellation);
+    }
     public Task<Grpc.Reader> OpenGrpcAsync(Grpc.Outcome outcome, Grpc.ReplayPolicy policy = Grpc.ReplayPolicy.Captured, CancellationToken cancellation = default)
     {
         ArgumentNullException.ThrowIfNull(outcome);

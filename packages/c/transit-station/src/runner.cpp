@@ -196,6 +196,23 @@ void transit_station_document_reader_destroy(transit_station_document_reader *re
     Uninterruptible guard; if (!reader) return;
     auto *runner = reader->runner; delete reader; runner_release(runner);
 }
+transit_sdk_error transit_station_http_diagnostic(transit_station_runner *runner, const transit_station_http_outcome *outcome, transit_station_exchange_diagnostic_kind kind, transit_sdk_diagnostic *out) {
+    Uninterruptible guard; if (out) *out = {};
+    return boundary([&] {
+        require(runner && outcome && out && !outcome->rejected, "http-diagnostic");
+        require(kind == TRANSIT_EXCHANGE_CAPTURE_FAILURE || kind == TRANSIT_EXCHANGE_NATIVE_EFFECT, "exchange-diagnostic-kind");
+        runner->worker.run([&] {
+            auto &state = *runner->state;
+            require(outcome->resource.realm == state.process.realm, "http-realm");
+            if (state.pending) fail(TRANSIT_SDK_BUSY, "pending-mutation");
+            const auto action = "{\"diagnostic\":{\"identity\":{\"resource\":" + decimal(outcome->resource.resource) +
+                ",\"exchange\":" + quote(decimal(outcome->exchange)) + "},\"kind\":" +
+                quote(kind == TRANSIT_EXCHANGE_CAPTURE_FAILURE ? "capture_failure" : "native_effect") + "}}";
+            const auto value = state.bridge.http_read(action);
+            if (state.bridge.local.raw.field(value, "diagnostic") != "null") *out = diagnostic(state.bridge.local.raw, value, "diagnostic");
+        });
+    });
+}
 transit_sdk_error transit_station_http_open(transit_station_runner *runner, const transit_station_http_outcome *outcome, transit_station_http_replay_policy policy, transit_station_http_reader **out) {
     Uninterruptible guard; if (out) *out = nullptr;
     return boundary([&] {
@@ -268,6 +285,23 @@ void transit_station_http_reader_destroy(transit_station_http_reader *reader) {
     if (!reader) return;
     (void)transit_station_http_close(reader);
     auto *runner = reader->runner; delete reader; runner_release(runner);
+}
+transit_sdk_error transit_station_grpc_diagnostic(transit_station_runner *runner, const transit_station_grpc_outcome *outcome, transit_station_exchange_diagnostic_kind kind, transit_sdk_diagnostic *out) {
+    Uninterruptible guard; if (out) *out = {};
+    return boundary([&] {
+        require(runner && outcome && out && !outcome->rejected, "grpc-diagnostic");
+        require(kind == TRANSIT_EXCHANGE_CAPTURE_FAILURE || kind == TRANSIT_EXCHANGE_NATIVE_EFFECT, "exchange-diagnostic-kind");
+        runner->worker.run([&] {
+            auto &state = *runner->state;
+            require(outcome->resource.realm == state.process.realm, "grpc-realm");
+            if (state.pending) fail(TRANSIT_SDK_BUSY, "pending-mutation");
+            const auto action = "{\"diagnostic\":{\"identity\":{\"resource\":" + decimal(outcome->resource.resource) +
+                ",\"exchange\":" + quote(decimal(outcome->exchange)) + "},\"kind\":" +
+                quote(kind == TRANSIT_EXCHANGE_CAPTURE_FAILURE ? "capture_failure" : "native_effect") + "}}";
+            const auto value = state.bridge.grpc_read(action);
+            if (state.bridge.local.raw.field(value, "diagnostic") != "null") *out = diagnostic(state.bridge.local.raw, value, "diagnostic");
+        });
+    });
 }
 transit_sdk_error transit_station_grpc_open(transit_station_runner *runner, const transit_station_grpc_outcome *outcome, transit_station_grpc_replay_policy policy, transit_station_grpc_reader **out) {
     Uninterruptible guard; if (out) *out = nullptr;

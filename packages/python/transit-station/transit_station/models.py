@@ -258,3 +258,8 @@ class Stopped:
 
 
 type RunnerEvent = Committed | Blocked | NeedsRecovery | Idle | Progress | Stopped
+
+
+class ExchangeDiagnosticKind(Enum):
+    CAPTURE_FAILURE = 'capture_failure'
+    NATIVE_EFFECT = 'native_effect'

@@ -13343,3 +13343,26 @@ an obsolete Zig reflection member did not pass; corrected tasks use the pinned
 compiler's field-name reflection. Logs:
 `/var/tmp/transit-policy-detail-{unit2,unit3,unit4,http-proof,grpc-proof,check}.log`.
 Final committed-HEAD clean checkout verification remains separate.
+
+### Exchange diagnostic read boundary — 2026-10-03
+
+The shared HTTP/gRPC native and port read action projects original capture failure
+or native effect evidence independently. Installed fixtures for all ten SDKs
+assert absent capture failure and the exact observed native effect identity/code;
+revocation fixtures exercise the new read where the language permits access while
+a replay cursor is borrowed. The HTTP disk schedule additionally compares the
+original cause after lost failure-input receipt, worker/node/store replacement and
+retirement, and verifies that capture grants alone cannot inspect the connector PID.
+
+Executed `just test::unit` and full `just check`: passed. The first integration
+attempt exposed a missing paging position; the next attempts exposed the distinct
+PID scope and principal-epoch/resource-grant requirements. Those attempts did not
+pass. A stale redirect fixture now expects the original `policy.redirect` field.
+The first full check found the C public API definition needed regeneration;
+`just bindings::generate` followed by the complete check passed. Logs:
+`/var/tmp/transit-exchange-diagnostic-{build,check2,regenerate}.log`.
+
+The installed HTTP/gRPC language matrix and full HTTP disk schedule are running
+at this increment; they are not yet passed evidence. Their completion results
+must be recorded before final qualification. Committed-HEAD clean checkout
+verification remains outstanding.

@@ -35,6 +35,11 @@ execute(evidence, State) -> {{ok, evidence(State)}, State};
 execute(next, State) -> next(State, 16);
 execute(reconcile, #state{pending = undefined}) -> transit_sdk_value:fail(closed, no_pending_mutation);
 execute(reconcile, State) -> attempt(State).
+replay(Protocol, {diagnostic, Realm, Resource, Exchange, Kind}, #state{process = #transit_process{realm = Realm}, bridge = Bridge} = State) ->
+    Result = replay_read(Protocol, Bridge, #{<<"diagnostic">> => #{<<"identity">> => #{<<"resource">> => Resource,
+        <<"exchange">> => integer_to_binary(Exchange)}, <<"kind">> => Kind}}),
+    {{ok, maps:get(<<"diagnostic">>, Result)}, State};
+replay(_, {diagnostic, _, _, _, _}, _) -> transit_sdk_value:fail(invalid_argument, diagnostic_realm);
 replay(Protocol, {open, Realm, Reference, Policy}, #state{process = #transit_process{realm = Realm}, bridge = Bridge, readers = Readers} = State) ->
     Result = replay_read(Protocol, Bridge, #{<<"open">> => #{<<"reference">> => transit_sdk_value:hex(Reference), <<"policy">> => Policy}}),
     Id = transit_sdk_value:counter(maps:get(<<"opened">>, Result)),

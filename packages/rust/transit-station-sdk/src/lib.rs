@@ -30,7 +30,7 @@ pub use query::{
     Aggregate, Column, Comparison, IpcSegment, Predicate, Projection, QueryCloseReason, QueryJob,
     QueryPlan, ResultComplete, ResultManifest, ResultReader,
 };
-pub use runner::{CloseError, Handler, Runner, Shutdown};
+pub use runner::{CloseError, ExchangeDiagnosticKind, Handler, Runner, Shutdown};
 pub use table::{Cell, CellType, Row, Table, TableSchema, TableValue};
 pub use transit_client::{Correlation, Counter};
 pub use turn::{Source, State, Turn};
