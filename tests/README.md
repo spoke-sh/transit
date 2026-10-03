@@ -13435,3 +13435,17 @@ Logs: `/var/tmp/transit-connector-field-{final-build,recovery,grpc-worker,check}
 `/var/tmp/transit-grpc-transport-field-unit.log` and
 `/var/tmp/transit-http-field-unit.log`. Clean committed-HEAD qualification remains
 separate; source inventory enhancements made afterward have their own check.
+
+### Diagnostic declaration drift inventory — 2026-10-03
+
+`just test::diagnostic-inventory` passes over 328 production owners, 2,924
+owner/error pairs, 406 qualified enum/union surfaces, 13 declared error sets,
+2,405 error-return boundaries and 153 grammar productions. Nested/anonymous tags,
+changed explicit error sets and aliases, open/inferred returns, propagation and
+new source owners all participate in drift detection. Synthetic filesystem tests
+verify that ignored dependency/output directories do not affect the result.
+The prior inventory accidentally included 193 local dependency-cache files; those
+are excluded rather than required in a clean checkout. Documentation links and
+`git diff --check` pass. Log: `/var/tmp/transit-diagnostic-declarations-check.log`.
+This is a source review gate, not a whole-program reachability or executed
+semantic-mapping completeness claim.
