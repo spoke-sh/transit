@@ -169,6 +169,15 @@ and downstream output failures have separate codes. Its
 outcome. Successful JSON/Arrow stdout is unchanged. Scalar previews truncate at
 whole UTF-8 code points.
 
+JSON syntax failures identify the byte where parsing stopped. Duplicate decoded
+member names include the nested JSON Pointer and both original member byte
+positions, including escaped spellings of the same name. UTF-8 failures identify
+the beginning of the invalid sequence. Human output distinguishes record-relative
+positions from the record's file offset; structured `byte_offset` and duplicate
+`first_occurrence` are absolute within the failing source file, including its
+optional BOM. A missing input token has no invented field path. These details
+remain available during discovery and after an emitted result prefix.
+
 Conversion failures report the failing file, logical record, record-start byte,
 and nested field path as a JSON Pointer (zero-based array indices). They include
 the declared type, actual input kind, a quoted scalar preview of at most 128

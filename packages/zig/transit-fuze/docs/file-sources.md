@@ -166,6 +166,17 @@ while examining a row marks discovery incomplete. The location uses that source'
 record ordinal and record-start byte offset, including when several files share
 one inferred schema. Paths and names have explicit 256-byte truncation.
 
+`Location.json` retains original syntax/encoding positions, decoded duplicate
+member paths and the earlier member position. `BoundedJson.parseContext` observes
+the pinned parser's token stream; that parser still decides syntax, duplicate
+semantics and number lexemes. The observer uses the caller's allocator and owns
+its final bounded path independently of parsed values. Allocation failures do not
+become malformed-input evidence. A JSON field-count failure identifies its object
+path; preflight shape failures can lack a path when no member was decoded.
+Offsets are relative to the framed record; `Location.prefix_bytes` accounts for
+an omitted BOM when a caller combines them with `Location.byte`. A record ordinal
+is never used as a physical line number.
+
 After sampling, `Location.descriptor` can retain a failure in the resolved schema
 combined with overrides. Its path addresses descriptor members, and it has no
 invented input-row position. Empty input or a sample containing no columns returns

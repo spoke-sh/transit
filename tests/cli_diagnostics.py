@@ -801,6 +801,48 @@ with tempfile.TemporaryDirectory(prefix='transit-cli-json-') as directory:
             assert facts(detail)['required'] == {'unsigned':'3'} and facts(detail)['limit'] == {'unsigned':'2'}
         if code == 'file.record_byte_limit':
             assert facts(detail)['required'] == {'unsigned':'9'} and facts(detail)['limit'] == {'unsigned':'8'}
+    # Token diagnostics retain original bytes and decoded nested member paths.
+    lexical = root/'lexical.jsonl'
+    lexical_cases = [
+        ('{"雪":[{"a/b~":1,"a\\u002fb~":{"child":2}}]}'.encode(), 'file.duplicate_field', '/雪/0/a~1b~0', b'"a\\u002fb~"', b'"a/b~"'),
+        (b'{"x":[1,truX]}', 'file.invalid_json', '/x/1', b'X', None),
+        ('{"雪":"ok","x":truX}'.encode(), 'file.invalid_json', '/x', b'X', None),
+        (b'{"x":"a\xff"}', 'file.invalid_utf8', None, b'\xff', None),
+        (b'{"x":1', 'file.invalid_json', None, b'', None),
+    ]
+    for content,code,pointer,token,earlier in lexical_cases:
+        lexical.write_bytes(content+b'\n')
+        result,detail,_ = machine(['file-query','--format','jsonl','-c','SELECT * FROM input',lexical])
+        observed = facts(detail)
+        assert detail['code'] == code and not result.stdout, detail
+        assert observed['completion'] == {'boolean':False}, detail
+        if pointer is not None:
+            assert observed['field_path'] == {'text':pointer}, detail
+        offset = int(observed['byte_offset']['unsigned'])
+        assert offset == (content.index(token) if token else len(content)), detail
+        if earlier:
+            assert observed['first_occurrence'] == {'unsigned':str(content.index(earlier))}, detail
+    # A later source/record has file-local absolute byte evidence, including LIMIT 0.
+    first_json = root/'first-json.jsonl'; first_json.write_bytes(b'{"ok":1}\n')
+    prefix = b'{"ok":2}\n'
+    bad = b'{"nested":[{"a":1,"\\u0061":2}]}'
+    lexical.write_bytes(prefix+bad+b'\n')
+    for limit in ('', ' LIMIT 0', ' LIMIT 1'):
+        result,detail,_ = machine(['file-query','--format','jsonl','--mode','raw','-c','SELECT * FROM input'+limit,first_json,lexical])
+        observed = facts(detail)
+        assert detail['code'] == 'file.duplicate_field' and result.stdout, detail
+        assert observed['object'] == {'text':str(lexical)} and observed['source_row'] == {'unsigned':'2'}, detail
+        assert observed['field_path'] == {'text':'/nested/0/a'}, detail
+        assert observed['byte_offset'] == {'unsigned':str(len(prefix)+bad.index(b'"\\u0061"'))}, detail
+        assert observed['first_occurrence'] == {'unsigned':str(len(prefix)+bad.index(b'"a"'))}, detail
+        assert observed['completion'] == {'boolean':False} and b'"complete":true' not in result.stdout, result.stdout
+    lexical.write_bytes(b'\xef\xbb\xbf'+bad+b'\n')
+    _,detail,_ = machine(['file-query','--format','jsonl','-c','SELECT * FROM input',lexical])
+    assert facts(detail)['byte_offset'] == {'unsigned':str(3+bad.index(b'"\\u0061"'))}, detail
+    assert facts(detail)['first_occurrence'] == {'unsigned':str(3+bad.index(b'"a"'))}, detail
+    lexical.write_bytes(bad+b'\n')
+    invoke(['file-query','--format','jsonl','-c','SELECT * FROM input',lexical],1,
+           contains=('JSON path (JSON Pointer): "/nested/0/a"', 'Record byte offset (zero-based): 18', 'Earlier member byte offset in record (zero-based): 12'))
     # Discovery witnesses refer to input fields/indices and the first excess.
     discovery_file = root/'discovery.jsonl'
     discovery_cases = [
@@ -867,6 +909,15 @@ with tempfile.TemporaryDirectory(prefix='transit-cli-json-') as directory:
             assert facts(detail)['object']['text'] == str(schema), detail
         else:
             assert facts(detail)['field_path'] == {'text':'id'} and facts(detail)['actual_type'] == {'text':'structure'}
+    for content,pointer in [('{"definition":"'+schema_definition+'","type":{"structure":[{"name":"界","type":{"int64":{}},"nullable":truX}]}}', '/type/structure/0/nullable'), ('{"definition":', None)]:
+        schema.write_text(content)
+        result,detail,_ = machine(['file-query','--format','csv','--mode','explicit','--schema',schema,'-c','SELECT * FROM input',csv])
+        observed = facts(detail)
+        assert detail['code'] == 'file.invalid_json' and not result.stdout, detail
+        assert observed['object'] == {'text':str(schema)}, detail
+        if pointer:
+            assert observed['field_path'] == {'text':pointer}, detail
+        assert observed['byte_offset'] == {'unsigned':str(content.encode().index(b'X') if pointer else len(content))}, detail
     # Decode failures identify the actual JSON member before semantic validation.
     member_cases = [
         ({'decimal':{'precision':3}}, 'file.invalid_schema_descriptor', '/decimal/scale', 'integer from 0 to 255', None),

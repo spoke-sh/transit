@@ -13240,3 +13240,31 @@ are the evidence above. Logs: `/var/tmp/transit-admission-context2.log`,
 All installed SDK packages build; their new recovery/admission schedules are
 running and are not yet passed evidence. No committed-HEAD clean qualification
 is claimed by this increment.
+
+### Original JSON syntax and duplicate-member coordinates — 2026-10-03
+
+The token observer retains an owned JSON Pointer, parser stop byte and both
+original duplicate-member positions while the pinned `std.json` parser retains
+syntax, duplicate and number-lexeme authority. Framing preserves invalid UTF-8
+positions and BOM length. CLI machine offsets are absolute within the failing
+file; human output labels record-relative positions. Missing tokens and preflight
+failures do not acquire fabricated member paths.
+
+Executed Fuze component tests: **passed**, including parser differential cases,
+escaped duplicate names with nested values, Unicode paths and allocation-failure
+cleanup. The initial observer omitted `BufferUnderrun` from its declared peek
+error set; a later allocation test allowed nondeterministic allocator resizing.
+The corrected test disables backing-allocator resizing while exhausting each
+allocation failure. All 141 component tests pass. Executed CLI diagnostics:
+**566 real cases passed**, including twelve new source/schema cases, BOM/Unicode
+coordinates, later source/record attribution and required validation after
+`LIMIT 0` and `LIMIT 1`. Earlier CLI invocations exposed UTF-8 validation at the
+framer before JSON parsing, and an old wording expectation; the framer now retains
+its own original position and the final suite passes.
+
+Executed `just test::file-query`: **190 cases passed**, including a 192 MiB source
+under a 96 MiB address-space limit, exact codecs, gzip, quotas, cancellation and
+immutable capture. Full **`just check` passes**, including 75 Board tests,
+generated contracts and the handbook. Logs:
+`/var/tmp/transit-json-witness-{unit3,cli3,files,check}.log`.
+No wire definition changes or committed-HEAD clean qualification are claimed.

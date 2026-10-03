@@ -52,6 +52,17 @@ pub fn render(self: Self, out: *std.Io.Writer, err: anyerror, style: @import("St
     if (self.location.earlier_field_index) |index| try out.print("Conflicting earlier field position (zero-based): {d}.\n", .{index});
     if (self.location.unsupported_type) |kind| try out.print("Unsupported CSV field type: {s}. Use a supported scalar type or JSONL.\n", .{@tagName(kind)});
     if (self.schema_file and err == error.IncompatibleDefinition) try out.print("Required type definition: {s}.\n", .{f.Types.definition});
+    if (self.location.json) |detail| {
+        if (detail.path) |path| {
+            try out.writeAll("JSON path (JSON Pointer): ");
+            try quoted(out, path.slice());
+            if (path.truncated) try out.writeAll(" [truncated]");
+            try out.writeAll(".\n");
+        }
+        if (detail.offset) |offset| try out.print("{s} byte offset (zero-based): {d}.\n", .{ if (self.schema_file) "Schema" else "Record", self.location.prefix_bytes + offset });
+        if (detail.earlier) |offset| try out.print("Earlier member byte offset in record (zero-based): {d}.\n", .{self.location.prefix_bytes + offset});
+        try out.print("{s}\n", .{detail.constraint()});
+    }
     if (self.schema_failure orelse self.location.descriptor orelse self.location.inference) |detail| {
         try out.writeAll(if (self.location.inference != null) "Discovery field path (JSON Pointer): " else "Descriptor path (JSON Pointer): ");
         try quoted(out, detail.path.slice());
@@ -104,6 +115,7 @@ pub fn render(self: Self, out: *std.Io.Writer, err: anyerror, style: @import("St
     if (self.limited and self.stage == .execute) try out.writeAll("LIMIT does not skip required validation of the remaining file records.\n");
 }
 fn explanation(self: Self, err: anyerror) []const u8 {
+    if (self.location.json) |detail| return detail.constraint();
     if (self.schema_failure orelse self.location.descriptor orelse self.location.inference) |detail| return detail.constraint();
     if (self.capture_failure) |capture| {
         if (capture.storage() and err != error.OutOfMemory and err != error.FileQueryInterrupted) return "Private temporary capture storage could not be opened, created, unlinked or written. Check TMPDIR access, capacity and the reported operation.";
@@ -310,9 +322,15 @@ pub fn structured(self: Self, err: anyerror) !@import("transit_query").protocol.
         if (storage) if (capture.directory) |directory| try bounded(&value, .scope, directory, false);
     }
     if (self.location.record) |record| try value.fact(.source_row, .execution, .{ .unsigned = .init(record) });
-    if (self.location.byte) |byte| try value.fact(.byte_offset, .execution, .{ .unsigned = .init(byte) });
+    if (self.location.byte) |byte| if (self.location.json == null or self.location.json.?.offset == null) try value.fact(.byte_offset, .execution, .{ .unsigned = .init(byte) });
     // A logical record can span physical lines. Its byte offset is a fact;
     // never invent line/column coordinates from its ordinal.
+    if (self.location.json) |detail| {
+        if (detail.path) |path| try bounded(&value, .field_path, path.slice(), path.truncated);
+        if (detail.offset) |offset| try value.fact(.byte_offset, .execution, .{ .unsigned = .init((self.location.byte orelse 0) + self.location.prefix_bytes + offset) });
+        if (detail.earlier) |offset| try value.fact(.first_occurrence, .execution, .{ .unsigned = .init((self.location.byte orelse 0) + self.location.prefix_bytes + offset) });
+        try value.text(.constraint, .owner, detail.constraint());
+    }
     if (self.schema_failure orelse self.location.descriptor orelse self.location.inference) |detail| {
         try bounded(&value, .field_path, detail.path.slice(), detail.path.truncated);
         if (detail.offset) |offset| try value.fact(.byte_offset, .caller, .{ .unsigned = .init(offset) });

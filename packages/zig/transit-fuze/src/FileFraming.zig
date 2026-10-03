@@ -33,6 +33,8 @@ pub const Framer = struct {
     preamble: [3]u8 = undefined,
     preamble_length: u8 = 0,
     preamble_done: bool = false,
+    prefix_bytes: u8 = 0,
+    encoding_offset: ?usize = null,
     pub fn init(format: Format, dialect: Dialect, buffer: []u8) !Framer {
         try dialect.validate();
         if (buffer.len == 0 or buffer.len > 65536) return error.InvalidRecordBudget;
@@ -49,7 +51,10 @@ pub const Framer = struct {
                 self.preamble_length += 1;
                 if ((self.preamble_length == 1 and byte == 0xef) or (self.preamble_length == 2 and self.preamble[0] == 0xef and byte == 0xbb)) continue;
                 self.preamble_done = true;
-                if (self.preamble_length == 3 and std.mem.eql(u8, &self.preamble, "\xef\xbb\xbf")) continue;
+                if (self.preamble_length == 3 and std.mem.eql(u8, &self.preamble, "\xef\xbb\xbf")) {
+                    self.prefix_bytes = 3;
+                    continue;
+                }
                 for (self.preamble[0..self.preamble_length]) |initial| try self.push(initial);
             } else try self.push(byte);
             if (self.ready) return i + 1;
@@ -107,7 +112,8 @@ pub const Framer = struct {
     pub fn record(self: *Framer) ![]u8 {
         if (!self.ready or self.failed) return error.InvalidFramerState;
         if (self.format == .jsonl and self.length == 0) return error.EmptyJsonRecord;
-        if (!std.unicode.utf8ValidateSlice(self.buffer[0..self.length])) return error.InvalidUtf8;
+        self.encoding_offset = @import("JsonDiagnostic.zig").invalidUtf8Offset(self.buffer[0..self.length]);
+        if (self.encoding_offset != null) return error.InvalidUtf8;
         return self.buffer[0..self.length];
     }
     pub fn release(self: *Framer) !void {

@@ -245,6 +245,8 @@ pub fn discoverDiagnostic(allocator: std.mem.Allocator, sources: []const Source,
             location.discovery = .{ .records = evidence.records, .sampled_bytes = evidence.sampled_bytes, .complete = false };
             location.record = reader.logical_record;
             location.byte = reader.record_start;
+            location.prefix_bytes = if (reader.logical_record == 1) reader.framer.prefix_bytes else 0;
+            if (reader.framer.encoding_offset) |offset| location.json = .{ .kind = .encoding, .offset = offset };
             if (reader.budget) |budget| location.budget = budget;
         };
         var header: Header = .{};
@@ -280,7 +282,7 @@ pub fn discoverDiagnostic(allocator: std.mem.Allocator, sources: []const Source,
             evidence.records += 1;
             evidence.sampled_bytes = std.math.add(u64, evidence.sampled_bytes, reader.record_bytes) catch return error.SourceBudgetExceeded;
             if (options.format == .csv) try builder.csvRow(header.names[0..header.count], row, false) else {
-                var parsed = try types.Json.parseDiagnostic(allocator, record, .{ .bytes = options.max_record_bytes, .fields = options.max_fields }, if (diagnostic) |location| &location.budget else null);
+                var parsed = try types.Json.parseContext(allocator, record, .{ .bytes = options.max_record_bytes, .fields = options.max_fields }, if (diagnostic) |location| &location.budget else null, if (diagnostic) |location| &location.json else null);
                 defer parsed.deinit();
                 try builder.jsonRow(parsed.value);
             }
@@ -349,12 +351,14 @@ pub const Location = struct {
     source: ?usize = null,
     record: ?u64 = null,
     byte: ?u64 = null,
+    prefix_bytes: u8 = 0,
     field: [128]u8 = @splat(0),
     field_len: usize = 0,
     field_truncated: bool = false,
     conversion: ?ValueDiagnostic = null,
     inference: ?types.Diagnostic = null,
     descriptor: ?types.Diagnostic = null,
+    json: ?types.Json.Diagnostic = null,
     discovery: ?Evidence = null,
     budget: ?BudgetDiagnostic = null,
     field_index: ?usize = null,
@@ -396,6 +400,8 @@ pub const Scan = struct {
         if (self.reader) |reader| {
             result.record = reader.logical_record;
             result.byte = reader.record_start;
+            result.prefix_bytes = if (reader.logical_record == 1) reader.framer.prefix_bytes else 0;
+            if (reader.framer.encoding_offset) |offset| result.json = .{ .kind = .encoding, .offset = offset };
             if (reader.budget) |budget| result.budget = budget;
         }
         return result;
@@ -478,7 +484,7 @@ pub const Scan = struct {
                     try context.validate(cell.*, field, if (index) |i| if (parsed[i].is_null) .null else .{ .string = parsed[i].text } else null);
                 }
             } else {
-                var parsed = try types.Json.parseDiagnostic(alloc, record, .{ .bytes = self.binding.options.max_record_bytes, .fields = self.binding.options.max_fields }, &self.location.budget);
+                var parsed = try types.Json.parseContext(alloc, record, .{ .bytes = self.binding.options.max_record_bytes, .fields = self.binding.options.max_fields }, &self.location.budget, &self.location.json);
                 defer parsed.deinit();
                 if (parsed.value != .object) {
                     self.location.conversion = ValueDiagnostic.init(.{}, .{ .structure = schema }, parsed.value);

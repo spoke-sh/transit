@@ -5430,6 +5430,7 @@
       "outcomes": {},
       "imports": [
         "BudgetDiagnostic.zig",
+        "JsonDiagnostic.zig",
         "std"
       ]
     },
@@ -5488,11 +5489,14 @@
         "DuplicateField": 1,
         "MissingField": 1,
         "OutOfMemory": 2,
+        "SyntaxError": 1,
+        "UnexpectedEndOfInput": 1,
         "UnexpectedToken": 9,
         "UnknownField": 2
       },
       "outcomes": {},
       "imports": [
+        "JsonDiagnostic.zig",
         "TypeDiagnostic.zig",
         "std"
       ]
@@ -5531,6 +5535,7 @@
       },
       "imports": [
         "BudgetDiagnostic.zig",
+        "JsonDiagnostic.zig",
         "std"
       ]
     },
@@ -5699,6 +5704,25 @@
       "imports": [
         "FileFraming.zig",
         "Types.zig",
+        "std"
+      ]
+    },
+    "packages/zig/transit-fuze/src/JsonDiagnostic.zig": {
+      "errors": {
+        "DuplicateField": 1,
+        "OutOfMemory": 1
+      },
+      "outcomes": {
+        "Kind": [
+          "syntax",
+          "encoding",
+          "duplicate",
+          "fields",
+          "budget"
+        ]
+      },
+      "imports": [
+        "DiagnosticPath.zig",
         "std"
       ]
     },

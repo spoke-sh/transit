@@ -3,18 +3,27 @@
 //! descriptor types. The caller owns an arena and has checked lexical budgets.
 const std = @import("std");
 const Diagnostic = @import("TypeDiagnostic.zig");
+const JsonDiagnostic = @import("JsonDiagnostic.zig");
 const Self = @This();
 allocator: std.mem.Allocator,
 scanner: std.json.Scanner,
 bytes: []const u8,
 failure: ?*?Diagnostic,
+lexical: ?*?JsonDiagnostic = null,
 const options: std.json.ParseOptions = .{ .allocate = .alloc_always, .max_value_len = 65536 };
 
 pub fn parse(comptime T: type, allocator: std.mem.Allocator, bytes: []const u8, failure: ?*?Diagnostic) !T {
-    var self: Self = .{ .allocator = allocator, .scanner = .initCompleteInput(allocator, bytes), .bytes = bytes, .failure = failure };
+    return parseContext(T, allocator, bytes, failure, null);
+}
+pub fn parseContext(comptime T: type, allocator: std.mem.Allocator, bytes: []const u8, failure: ?*?Diagnostic, lexical: ?*?JsonDiagnostic) !T {
+    var self: Self = .{ .allocator = allocator, .scanner = .initCompleteInput(allocator, bytes), .bytes = bytes, .failure = failure, .lexical = lexical };
     defer self.scanner.deinit();
     const result = try self.read(T, .{});
-    if (try self.scanner.next() != .end_of_document) return error.UnexpectedToken;
+    const end = self.scanner.next() catch |err| {
+        _ = self.lexicalFailure(err, .{});
+        return err;
+    };
+    if (end != .end_of_document) return error.UnexpectedToken;
     return result;
 }
 fn remember(self: *Self, path: Diagnostic.Path, kind: Diagnostic.Kind, expectation: []const u8, supplied: []const u8, offset: ?usize) void {
@@ -41,14 +50,19 @@ fn expected(comptime T: type) []const u8 {
         else => @compileError("unsupported descriptor JSON type"),
     };
 }
+fn lexicalFailure(self: *Self, err: anyerror, path: Diagnostic.Path) bool {
+    if (err != error.SyntaxError and err != error.UnexpectedEndOfInput) return false;
+    JsonDiagnostic.remember(self.lexical, .{ .kind = .syntax, .path = path, .offset = self.scanner.cursor });
+    return true;
+}
 fn read(self: *Self, comptime T: type, path: Diagnostic.Path) anyerror!T {
     _ = self.scanner.peekNextTokenType() catch |err| {
-        if (err != error.OutOfMemory) self.remember(path, .json_value, expected(T), "", null);
+        if (err != error.OutOfMemory and !self.lexicalFailure(err, path)) self.remember(path, .json_value, expected(T), "", null);
         return err;
     };
     const start = self.scanner.cursor;
     return self.readInner(T, path) catch |err| {
-        if (err != error.OutOfMemory) self.remember(path, .json_value, expected(T), self.bytes[start..self.scanner.cursor], start);
+        if (err != error.OutOfMemory and !self.lexicalFailure(err, path)) self.remember(path, .json_value, expected(T), self.bytes[start..self.scanner.cursor], start);
         return err;
     };
 }

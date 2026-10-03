@@ -216,7 +216,7 @@ pub fn run(init: std.process.Init, args: []const []const u8, diagnostic: *Diagno
         diagnostic.atFile(path);
         const bytes = try std.Io.Dir.cwd().readFileAlloc(init.io, path, init.gpa, .limited(65536));
         defer init.gpa.free(bytes);
-        explicit = try f.LogicalJson.decodeTypeContext(init.gpa, bytes, &location.budget, &schema_failure);
+        explicit = try f.LogicalJson.decodeTypeFullContext(init.gpa, bytes, &location.budget, &schema_failure, &location.json);
         if (explicit.?.type != .structure) {
             schema_failure = .{ .path = (f.Types.Diagnostic.Path{}).field("type"), .kind = .root };
             schema_failure.?.capture(@tagName(explicit.?.type));

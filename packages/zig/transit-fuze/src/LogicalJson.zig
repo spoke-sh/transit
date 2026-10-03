@@ -68,10 +68,13 @@ pub fn decodeTypeDiagnostic(allocator: std.mem.Allocator, bytes: []const u8, dia
     return decodeTypeContext(allocator, bytes, diagnostic, null);
 }
 pub fn decodeTypeContext(allocator: std.mem.Allocator, bytes: []const u8, diagnostic: ?*?types.Json.BudgetDiagnostic, failure: ?*?types.Diagnostic) !types.Decoded {
-    try types.Json.preflightDiagnostic(bytes, .{ .bytes = 65536, .depth = 64, .tokens = 4096 }, diagnostic);
+    return decodeTypeFullContext(allocator, bytes, diagnostic, failure, null);
+}
+pub fn decodeTypeFullContext(allocator: std.mem.Allocator, bytes: []const u8, diagnostic: ?*?types.Json.BudgetDiagnostic, failure: ?*?types.Diagnostic, lexical: ?*?types.Json.Diagnostic) !types.Decoded {
+    try types.Json.preflightContext(bytes, .{ .bytes = 65536, .depth = 64, .tokens = 4096 }, diagnostic, lexical);
     var arena: std.heap.ArenaAllocator = .init(allocator);
     defer arena.deinit();
-    const parsed = try @import("DescriptorJson.zig").parse(TypeEnvelope, arena.allocator(), bytes, failure);
+    const parsed = try @import("DescriptorJson.zig").parseContext(TypeEnvelope, arena.allocator(), bytes, failure, lexical);
     if (!std.mem.eql(u8, parsed.definition, types.definition)) return error.IncompatibleDefinition;
     try parsed.type.validateDiagnostic(.{}, failure);
     var buffer: [types.max_encoding_bytes]u8 = undefined;
