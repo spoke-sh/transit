@@ -30,6 +30,7 @@ pub const entries = [_]Entry{
     .{ .cause = error.LiteralTooLarge, .code = "sql.literal_too_large", .category = .limit },
     .{ .cause = error.MutationBatchTooLarge, .code = "sql.mutation_batch_too_large", .category = .limit },
     .{ .cause = error.NonFiniteValue, .code = "sql.non_finite_value", .category = .binding },
+    .{ .cause = error.NotTableDeclaration, .code = "sql.not_table_declaration", .category = .unsupported },
     .{ .cause = error.NullPrimaryKey, .code = "sql.null_primary_key", .category = .constraint },
     .{ .cause = error.ParameterCountMismatch, .code = "sql.parameter_count_mismatch", .category = .binding },
     .{ .cause = error.ParameterGap, .code = "sql.parameter_gap", .category = .binding },

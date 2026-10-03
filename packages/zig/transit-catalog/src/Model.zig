@@ -49,8 +49,12 @@ pub const CreateTable = struct {
         try self.schema.validate();
     }
     pub fn compile(scope: Scope, operation: u64, object: u64, table: u32, sql: []const u8) !CreateTable {
-        const declaration = try c.fuze.Declaration.compile(sql);
-        const result: CreateTable = .{ .scope = scope, .operation = operation, .object = object, .table = table, .name = declaration.name, .schema = try declaration.tableSchema() };
+        return compileDiagnostic(scope, operation, object, table, sql, null);
+    }
+    pub fn compileDiagnostic(scope: Scope, operation: u64, object: u64, table: u32, sql: []const u8, binding: ?*c.fuze.Sql.Binding) !CreateTable {
+        if (binding) |detail| detail.* = .{};
+        const compiled = try c.fuze.Declaration.compileTableDiagnostic(sql, binding);
+        const result: CreateTable = .{ .scope = scope, .operation = operation, .object = object, .table = table, .name = compiled.definition.name, .schema = compiled.schema };
         try result.validate();
         return result;
     }

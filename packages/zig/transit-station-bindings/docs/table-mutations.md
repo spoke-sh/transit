@@ -53,6 +53,15 @@ identity, source or policy conflicts return `conflict`. Missing/failed writers
 return `unavailable`. Retain the original request and signed command on errors;
 an error code never authorizes reconstruction of accepted work.
 
+Error buffers include an optional owned `diagnostic` envelope. Compiler failures
+retain the original column, scalar/type context and SQL coordinates after the
+current writer metadata checks. Other failures identify the attempted operation
+and preserve local-before-dispatch, unknown-send and failed-inspection evidence.
+An unknown send targets exact recovery at its original native sequence; a failed
+read never fabricates a mutation outcome. The envelope is caller-facing data,
+excluded from ordinary exception messages and telemetry. Losing optional detail
+does not change the primary status or saved-command recovery obligation.
+
 ## Port profile
 
 The configuration selects one of `mutation_client`, `query_client`, a server,

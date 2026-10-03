@@ -77,7 +77,7 @@ def write(value): print(json.dumps(value), flush=True)
 
 def failed(action, error):
     if isinstance(error, UncertainOperation): assert error.recovery == action['submit'].encode()
-    return dict(status=error.status, value=dict(err=error.code))
+    return dict(status=error.status, value=dict(err=error.code,diagnostic=error.diagnostic,diagnostic_invalid=error.diagnostic_invalid))
 
 
 def run(mode, path):

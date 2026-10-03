@@ -12458,3 +12458,19 @@ component suites and documentation build (5,062 local links). All eight witness
 fixtures and their malformed-record checks ran in this full check. The lexical
 inventory gate was updated explicitly; it remains separate from semantic case
 completeness. `ci-clean` has not yet qualified this increment.
+
+### Mutation and catalog caller-attempt diagnostics — 2026-10-02
+
+`just test::unit` and `just check` passed the native compiler/attempt projections.
+Real catalog ABI calls, with an unavailable configured endpoint, retain the
+original column and byte offset for invalid key/nullability and duplicate-name
+failures, column-count evidence and the unsupported KV declaration category.
+Both write ABIs distinguish malformed local saved commands from a failed
+validated send, preserving unknown outcome, signed sequence and exact-resume
+instructions. Classification does not depend on allocating optional detail.
+
+Installed consumer controllers now retain optional error envelopes for all ten
+language SDKs. Their mutation/catalog schedules assert compiler context and
+lost-reply recovery detail; installed execution is tracked separately from the
+unit/full-check result above. The catalog installer selects the pinned 0.2.0
+wheels explicitly when unrelated older artifacts remain in the local cache.

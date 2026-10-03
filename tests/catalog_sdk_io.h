@@ -31,7 +31,7 @@ static inline void print_hex(transit_sdk_bytes v){for(size_t i=0;i<v.size;++i)pr
 static inline void equal(transit_sdk_bytes a,transit_sdk_bytes b){assert(a.size==b.size && (!a.size || !memcmp(a.data,b.data,a.size)));}
 static inline void emit_error(transit_sdk_error e) {
     unsigned status=e.has_native_status?e.native_status:(e.kind==TRANSIT_SDK_UNKNOWN_OUTCOME?6:1);
-    printf("{\"status\":%u,\"value\":{\"err\":\"%s\"}}\n",status,e.code);
+    printf("{\"status\":%u,\"value\":{\"err\":\"%s\",\"diagnostic\":%s,\"diagnostic_invalid\":%s}}\n",status,e.code,e.diagnostic.size?e.diagnostic.json:"null",e.diagnostic_invalid?"true":"false");
 }
 static inline void emit_prepared(transit_sdk_bytes v){printf("{\"status\":0,\"value\":{\"prepared_hex\":\"");print_hex(v);puts("\"}}");}
 static inline transit_station_catalog_scope scope(size_t at){transit_station_catalog_scope s={{number(args[at]),number(args[at+1])},number(args[at+2])};return s;}

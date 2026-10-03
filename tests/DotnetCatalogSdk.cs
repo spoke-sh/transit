@@ -80,7 +80,7 @@ static class Program
             while (Console.ReadLine() is {} line) {
                 var action = JsonNode.Parse(line)!.AsObject(); if (action.ContainsKey("close")) break;
                 try { Console.WriteLine(Obj(("status", 0), ("value", await Call(client, action))).ToJsonString()); }
-                catch (TransitException error) { Console.WriteLine(Obj(("status", error.Status ?? (error.Kind == ErrorKind.UnknownOutcome ? 6u : 1u)), ("value", Obj(("err", error.Code)))).ToJsonString()); }
+                catch (TransitException error) { Console.WriteLine(Obj(("status", error.Status ?? (error.Kind == ErrorKind.UnknownOutcome ? 6u : 1u)), ("value", Obj(("err", error.Code),("diagnostic",error.Diagnostic),("diagnostic_invalid",error.DiagnosticInvalid)))).ToJsonString()); }
             }
         }
         Console.WriteLine("{\"closed\":true}");

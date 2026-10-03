@@ -54,7 +54,7 @@ pub fn observe(pointer: *Client, observer: *wire.observability.telemetry.Runtime
 }
 pub fn call(pointer: *Client, json: [*]const u8, len: usize, out: *?*base.Buffer) callconv(.c) base.Status {
     out.* = null;
-    if (len == 0 or len > p.max_body) return .invalid_argument;
+    if (len == 0 or len > p.max_body) return invalidEnvelope(error.InvalidCatalogPrepared, out);
     const client = cast(pointer);
     if (client.busy.swap(true, .acquire)) return .busy;
     defer client.busy.store(false, .release);
@@ -62,26 +62,48 @@ pub fn call(pointer: *Client, json: [*]const u8, len: usize, out: *?*base.Buffer
     var arena = std.heap.ArenaAllocator.init(allocator);
     defer arena.deinit();
     const alloc = arena.allocator();
-    const action = p.Json.parseFromSlice(bridge.Action, alloc, json[0..len]) catch |err| return base.failure(err, out);
+    const action = p.Json.parseFromSlice(bridge.Action, alloc, json[0..len]) catch |err| return invalidEnvelope(err, out);
     // Malformed recovery cannot be dispatched. Once a validated submit starts,
     // unconfirmed transport or result-allocation failures remain uncertain.
+    var identity: ?p.Diagnostic.Identity = null;
     if (action.value == .submit) {
-        const command = bridge.prepared(alloc, action.value.submit) catch |err| return base.failure(err, out);
-        client.client.validate(command) catch |err| return base.failure(err, out);
+        const command = bridge.prepared(alloc, action.value.submit) catch |err| return localFailure(action.value, err, out);
+        client.client.validate(command) catch |err| return localFailure(action.value, err, out);
+        identity = .{ .domain = .transport, .id = .init(command.signed.request.sequence), .sequence = .init(command.signed.request.sequence), .realm = .init(command.signed.request.realm) };
     }
-    const result = bridge.apply(alloc, &client.client, action.value) catch |err| {
-        base.output(.{ .err = @errorName(err), .protocol_error = client.transport.last_rejection }, out) catch {};
+    var binding: catalog.fuze.Sql.Binding = .{};
+    const result = bridge.applyDiagnostic(alloc, &client.client, action.value, &binding) catch |err| {
+        const diagnostic = catalog.Diagnostic.attempt(action.value, err, binding, action.value == .submit, identity) catch null;
+        base.output(.{ .err = @errorName(err), .protocol_error = client.transport.last_rejection, .diagnostic = diagnostic }, out) catch {};
         if (action.value == .submit and err != error.AccessDenied and err != error.Rejected and err != error.Conflict) return .uncertain;
         return switch (err) {
             error.CatalogDenied => .denied,
             error.CatalogOwnerUnavailable, error.ResourceUnavailable => .unavailable,
             error.CatalogNotInitialized => .not_ready,
             error.CatalogIdentityConflict, error.CatalogScopeChanged, error.CatalogOwnerChanged, error.CatalogConfigurationChanged, error.CatalogPolicyConflict, error.CatalogCursorChanged, error.CatalogDefinitionChanged, error.CatalogSourceChanged => .conflict,
-            else => base.status(err),
+            error.OutOfMemory => .out_of_memory,
+            else => switch (catalog.Diagnostic.category(action.value, err)) {
+                .access => .denied,
+                .conflict => .conflict,
+                .limit => .budget_exceeded,
+                .unavailable => .unavailable,
+                .integrity, .internal => .invalid_response,
+                else => base.status(err),
+            },
         };
     };
     base.output(result, out) catch |err| return if (action.value == .submit) .uncertain else base.status(err);
     return .ok;
+}
+fn invalidEnvelope(err: anyerror, out: *?*base.Buffer) base.Status {
+    const diagnostic = catalog.Diagnostic.invalidEnvelope(err) catch null;
+    base.output(.{ .err = @errorName(err), .diagnostic = diagnostic }, out) catch {};
+    return if (err == error.OutOfMemory) .out_of_memory else .invalid_argument;
+}
+fn localFailure(action: bridge.Action, err: anyerror, out: *?*base.Buffer) base.Status {
+    const diagnostic = catalog.Diagnostic.attempt(action, err, .{}, false, null) catch null;
+    base.output(.{ .err = @errorName(err), .diagnostic = diagnostic }, out) catch {};
+    return base.status(err);
 }
 
 test "catalog ABI owns outputs and validates before its uncertain dispatch boundary" {
@@ -104,6 +126,26 @@ test "catalog ABI owns outputs and validates before its uncertain dispatch bound
     const decoded = try p.Json.parseFromSlice(bridge.Result, alloc, base.Api.station_buffer_data(buffer.?)[0..base.Api.station_buffer_size(buffer.?)]);
     const request = try decoded.value.compiled.request.native();
     try t.expectEqual(std.math.maxInt(u64), request.operation);
+    // These calls execute the real offline compiler while the configured
+    // endpoint is unavailable. No admission or metadata read is necessary.
+    for ([_]struct { sql: []const u8, code: []const u8, subject: ?[]const u8, offset: ?usize }{
+        .{ .sql = "CREATE TABLE items (id UTF8 NOT NULL,value UTF8 NULL)", .code = "sql.unsupported_table_key", .subject = "id", .offset = 20 },
+        .{ .sql = "CREATE TABLE items (id INT64 NOT NULL,value UTF8 NOT NULL)", .code = "sql.unsupported_table_nullability", .subject = "value", .offset = 38 },
+        .{ .sql = "CREATE TABLE items (id INT64 NOT NULL,id UTF8 NULL)", .code = "sql.duplicate_column", .subject = "id", .offset = 38 },
+        .{ .sql = "CREATE TABLE items (id INT64 NOT NULL)", .code = "sql.unsupported_table_column_count", .subject = null, .offset = null },
+        .{ .sql = "CREATE KV items (UTF8)", .code = "sql.not_table_declaration", .subject = null, .offset = null },
+    }) |case| {
+        const input = try p.Json.valueAlloc(alloc, bridge.Action{ .compile = .{ .operation = "1", .object = "1", .table = 9, .sql = case.sql } });
+        var rejected_compile: ?*base.Buffer = null;
+        try t.expectEqual(.invalid_argument, call(pointer.?, input.ptr, input.len, &rejected_compile));
+        defer base.Api.station_buffer_destroy(rejected_compile);
+        const detail = try p.Json.parseFromSlice(struct { err: []const u8, protocol_error: ?[]const u8, diagnostic: p.Diagnostic }, alloc, base.Api.station_buffer_data(rejected_compile.?)[0..base.Api.station_buffer_size(rejected_compile.?)]);
+        try detail.value.diagnostic.validate();
+        try t.expectEqualStrings(case.code, detail.value.diagnostic.code.slice());
+        try t.expectEqual(.not_submitted, detail.value.diagnostic.outcome);
+        if (case.subject) |subject| try t.expectEqualStrings(subject, detail.value.diagnostic.facts[0].?.value.?.text.slice());
+        if (case.offset) |offset| try t.expectEqual(offset, try detail.value.diagnostic.location.?.offset.value());
+    }
     cast(pointer.?).busy.store(true, .release);
     var overlap: ?*base.Buffer = null;
     try t.expectEqual(.busy, call(pointer.?, compile_action.ptr, compile_action.len, &overlap));
@@ -113,12 +155,18 @@ test "catalog ABI owns outputs and validates before its uncertain dispatch bound
     var rejected: ?*base.Buffer = null;
     try t.expectEqual(.invalid_argument, call(pointer.?, invalid.ptr, invalid.len, &rejected));
     defer base.Api.station_buffer_destroy(rejected);
+    const local = try p.Json.parseFromSlice(struct { err: []const u8, diagnostic: p.Diagnostic }, alloc, base.Api.station_buffer_data(rejected.?)[0..base.Api.station_buffer_size(rejected.?)]);
+    try t.expectEqual(.not_submitted, local.value.diagnostic.outcome);
     const signed: catalog.Client.Prepared = .{ .version = 1, .definition = p.Growth.current_definition, .connection = cast(pointer.?).client.connection, .signed = try p.Growth.sign(.{ .realm = 46, .principal = 17, .sequence = 1, .command = .{ .send = .{ .pid = 3, .value = try (catalog.station.Frame{ .kind = .cast, .payload = try catalog.Records.encode('q', request) }).encode() } } }, try p.Ed25519.KeyPair.generateDeterministic(seed)) };
     const token = try signed.save(alloc);
     const action = try p.Json.valueAlloc(alloc, bridge.Action{ .submit = token });
     var failure: ?*base.Buffer = null;
     try t.expectEqual(.uncertain, call(pointer.?, action.ptr, action.len, &failure));
     defer base.Api.station_buffer_destroy(failure);
+    const remote = try p.Json.parseFromSlice(struct { err: []const u8, protocol_error: ?[]const u8, diagnostic: p.Diagnostic }, alloc, base.Api.station_buffer_data(failure.?)[0..base.Api.station_buffer_size(failure.?)]);
+    try t.expectEqual(.unknown, remote.value.diagnostic.outcome);
+    try t.expectEqual(.resume_exact, remote.value.diagnostic.actions[1].?.kind);
+    try t.expectEqual(@as(u64, 1), try remote.value.diagnostic.identity.?.sequence.?.value());
     var forged = signed;
     forged.signed.signature[0] ^= 1;
     const tampered = try p.Json.valueAlloc(alloc, bridge.Action{ .submit = try forged.save(alloc) });

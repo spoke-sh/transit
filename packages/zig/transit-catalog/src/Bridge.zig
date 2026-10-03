@@ -281,11 +281,18 @@ pub fn prepared(allocator: Allocator, bytes: []const u8) !c.Client.Prepared {
 }
 /// Offline compilation needs an explicit identity scope, never credentials or transport.
 pub fn compile(allocator: Allocator, connection: c.Client.Connection, value: @FieldType(Action, "compile")) !Compiled {
+    return compileDiagnostic(allocator, connection, value, null);
+}
+pub fn compileDiagnostic(allocator: Allocator, connection: c.Client.Connection, value: @FieldType(Action, "compile"), binding: ?*c.fuze.Sql.Binding) !Compiled {
     try connection.validate();
-    const request = try m.CreateTable.compile(connection.scope, try unsigned(value.operation), try unsigned(value.object), value.table, value.sql);
+    const request = try m.CreateTable.compileDiagnostic(connection.scope, try unsigned(value.operation), try unsigned(value.object), value.table, value.sql, binding);
     return .{ .request = try CreateTable.fromNative(allocator, request), .canonical = try c.Records.encode('q', request) };
 }
 pub fn apply(allocator: Allocator, client: *c.Client, action: Action) !Result {
+    return applyDiagnostic(allocator, client, action, null);
+}
+pub fn applyDiagnostic(allocator: Allocator, client: *c.Client, action: Action, binding: ?*c.fuze.Sql.Binding) !Result {
+    if (binding) |detail| detail.* = .{};
     return switch (action) {
         .capabilities => .{ .capabilities = .{} },
         .describe => blk: {
@@ -295,7 +302,7 @@ pub fn apply(allocator: Allocator, client: *c.Client, action: Action) !Result {
         .lookup => |value| .{ .definition = if (try client.lookup(try .init(value))) |result| try Definition.fromNative(allocator, result) else null },
         .definition => |value| .{ .definition = if (try client.definition(try unsigned(value.object), try unsigned(value.revision))) |result| try Definition.fromNative(allocator, result) else null },
         .list => |value| .{ .page = try Page.fromNative(allocator, try client.list(if (value) |cursor| try cursor.native() else null)) },
-        .compile => |value| .{ .compiled = try compile(allocator, client.connection, value) },
+        .compile => |value| .{ .compiled = try compileDiagnostic(allocator, client.connection, value, binding) },
         .prepare_initialize => |value| .{ .prepared = try (try client.prepareInitialize(try value.native())).save(allocator) },
         .prepare_create => |value| .{ .prepared = try (try client.prepareCreate(try value.native())).save(allocator) },
         .prepare_policy => |value| .{ .prepared = try (try client.preparePolicy(try value.native())).save(allocator) },

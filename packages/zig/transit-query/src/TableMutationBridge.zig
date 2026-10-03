@@ -110,13 +110,17 @@ pub fn prepared(alloc: Allocator, bytes: []const u8) !Client.Prepared {
     return Client.Prepared.restore(alloc, bytes);
 }
 pub fn apply(alloc: Allocator, client: *Client, action: Action) !Result {
+    return applyDiagnostic(alloc, client, action, null);
+}
+pub fn applyDiagnostic(alloc: Allocator, client: *Client, action: Action, binding: ?*q.fuze.Sql.Binding) !Result {
+    if (binding) |detail| detail.* = .{};
     return switch (action) {
         .capabilities => .{ .capabilities = .{} },
         .describe => .{ .description = try Description.fromNative(alloc, try client.describe()) },
         .compile => |v| blk: {
             const namespace = try c.unsigned(v.namespace);
             if (namespace == 0) return error.InvalidTableMutationRequest;
-            const request = try client.compileSql(try .init(v.name), v.sql);
+            const request = try client.compileSqlDiagnostic(try .init(v.name), v.sql, binding);
             break :blk .{ .compiled = try Compiled.fromNative(alloc, request, namespace) };
         },
         .prepare => |v| .{ .prepared = try (try client.prepare(try v.native(alloc))).save(alloc) },

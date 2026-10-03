@@ -118,8 +118,12 @@ pub fn describe(self: *Self) !Description {
     return self.grant(&current);
 }
 pub fn compileSql(self: *Self, name: q.fuze.model.Name, text: []const u8) !Request {
+    return self.compileSqlDiagnostic(name, text, null);
+}
+pub fn compileSqlDiagnostic(self: *Self, name: q.fuze.model.Name, text: []const u8, binding: ?*q.fuze.Sql.Binding) !Request {
+    if (binding) |detail| detail.* = .{};
     const description = try self.describe();
-    const request = try Request.fromSql(self.connection.realm, self.connection.writer, description.table, name, text);
+    const request = try Request.fromSqlDiagnostic(self.connection.realm, self.connection.writer, description.table, name, text, binding);
     if (!description.policy.permits(request.plan.operation)) return error.MutationDenied;
     return request;
 }

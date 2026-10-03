@@ -169,12 +169,12 @@ and framework APIs; the local supervisor has no worker adapter for those languag
 
 ### Structured failure details
 
-Query compilation, inspection and caller-attempt failures can carry the shared
+Query, Table mutation and catalog compiler or caller-attempt failures can carry the shared
 [diagnostic envelope](../../contracts/DIAGNOSTICS_V1.md). SDK error values retain
 it independently of the raw native buffer. Error text stays concise; callers
 explicitly render detail when appropriate. A failed send keeps its original
 uncertainty and exact saved command. A failed status read does not establish a
-new query outcome. Optional malformed detail is discarded and flagged; it does
+new domain outcome. Optional malformed detail is discarded and flagged; it does
 not replace the primary native error.
 
 | SDK | Diagnostic access | Invalid optional detail |

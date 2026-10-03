@@ -110,7 +110,14 @@ pub fn parseDeclaration(text: []const u8) !?f.Declaration.Definition {
     return parseDeclarationLocated(text, null);
 }
 pub fn parseDeclarationLocated(text: []const u8, location: ?*Location) !?f.Declaration.Definition {
+    return parseDeclarationDetailed(text, location, null);
+}
+pub const DeclarationLocations = struct {
+    columns: [f.Declaration.max_columns]?usize = @splat(null),
+};
+pub fn parseDeclarationDetailed(text: []const u8, location: ?*Location, locations: ?*DeclarationLocations) !?f.Declaration.Definition {
     if (location) |value| value.* = .{};
+    if (locations) |value| value.* = .{};
     try validateText(text);
     var parser: Parser = .{ .lexer = .{ .text = text }, .location = location };
     try parser.advance();
@@ -125,6 +132,7 @@ pub fn parseDeclarationLocated(text: []const u8, location: ?*Location) !?f.Decla
         var columns: f.Declaration.Columns = @splat(null);
         try parser.require(.left);
         for (&columns, 0..) |*slot, index| {
+            if (locations) |value| value.columns[index] = parser.lexer.start;
             const column_name = try parser.name();
             const data_type = try parser.declarationType();
             const nullability: f.Declaration.Nullability = if (parser.word("NOT")) nullable: {

@@ -52,7 +52,7 @@ pub fn observe(pointer: *Client, observer: *q.wire.observability.telemetry.Runti
 }
 pub fn call(pointer: *Client, json: [*]const u8, len: usize, out: *?*base.Buffer) callconv(.c) base.Status {
     out.* = null;
-    if (len == 0 or len > q.protocol.max_body) return .invalid_argument;
+    if (len == 0 or len > q.protocol.max_body) return invalidEnvelope(error.InvalidMutationCommand, out);
     const client = cast(pointer);
     if (client.busy.swap(true, .acquire)) return .busy;
     defer client.busy.store(false, .release);
@@ -60,24 +60,47 @@ pub fn call(pointer: *Client, json: [*]const u8, len: usize, out: *?*base.Buffer
     var arena = std.heap.ArenaAllocator.init(allocator);
     defer arena.deinit();
     const alloc = arena.allocator();
-    const action = std.json.parseFromSlice(bridge.Action, alloc, json[0..len], .{}) catch |err| return base.failure(err, out);
+    const action = std.json.parseFromSlice(bridge.Action, alloc, json[0..len], .{}) catch |err| return invalidEnvelope(err, out);
     // Local envelope validation happens before the dispatch boundary. Any
     // later unconfirmed transport/result failure retains the exact token.
+    var identity: ?q.protocol.Diagnostic.Identity = null;
     if (action.value == .submit) {
-        const signed = bridge.prepared(alloc, action.value.submit) catch |err| return base.failure(err, out);
-        client.client.validate(signed) catch |err| return base.failure(err, out);
+        const signed = bridge.prepared(alloc, action.value.submit) catch |err| return localFailure(action.value, err, out);
+        client.client.validate(signed) catch |err| return localFailure(action.value, err, out);
+        identity = .{ .domain = .transport, .id = .init(signed.signed.request.sequence), .sequence = .init(signed.signed.request.sequence), .realm = .init(signed.signed.request.realm) };
     }
-    const result = bridge.apply(alloc, &client.client, action.value) catch |err| {
-        base.output(.{ .err = @errorName(err), .protocol_error = client.wire.last_rejection }, out) catch {};
+    var binding: q.fuze.Sql.Binding = .{};
+    const result = bridge.applyDiagnostic(alloc, &client.client, action.value, &binding) catch |err| {
+        const diagnostic = q.MutationDiagnostic.attempt(action.value, err, binding, action.value == .submit, identity) catch null;
+        base.output(.{ .err = @errorName(err), .protocol_error = client.wire.last_rejection, .diagnostic = diagnostic }, out) catch {};
         if (action.value == .submit and err != error.AccessDenied and err != error.Rejected and err != error.Conflict) return .uncertain;
         if (err == error.MutationDenied) return .denied;
         if (err == error.MutationWriterUnavailable) return .unavailable;
         if (err == error.MutationBusy) return .busy;
         if (err == error.MutationIdentityConflict or err == error.StaleMutationPolicy or err == error.MutationSourceChanged) return .conflict;
+        if (err == error.OutOfMemory) return .out_of_memory;
+        switch (q.MutationDiagnostic.category(action.value, err)) {
+            .access => return .denied,
+            .conflict => return .conflict,
+            .limit => return .budget_exceeded,
+            .unavailable => return .unavailable,
+            .integrity, .internal => return .invalid_response,
+            else => {},
+        }
         return base.status(err);
     };
     base.output(result, out) catch |err| return if (action.value == .submit) .uncertain else base.status(err);
     return .ok;
+}
+fn invalidEnvelope(err: anyerror, out: *?*base.Buffer) base.Status {
+    const diagnostic = q.MutationDiagnostic.invalidEnvelope(err) catch null;
+    base.output(.{ .err = @errorName(err), .diagnostic = diagnostic }, out) catch {};
+    return if (err == error.OutOfMemory) .out_of_memory else .invalid_argument;
+}
+fn localFailure(action: bridge.Action, err: anyerror, out: *?*base.Buffer) base.Status {
+    const diagnostic = q.MutationDiagnostic.attempt(action, err, .{}, false, null) catch null;
+    base.output(.{ .err = @errorName(err), .diagnostic = diagnostic }, out) catch {};
+    return base.status(err);
 }
 
 test "mutation ABI owns results, separates caller profiles and preserves dispatch uncertainty" {
@@ -108,6 +131,9 @@ test "mutation ABI owns results, separates caller profiles and preserves dispatc
     var rejected: ?*base.Buffer = null;
     try t.expectEqual(.invalid_argument, call(pointer.?, invalid.ptr, invalid.len, &rejected));
     defer base.Api.station_buffer_destroy(rejected);
+    const local = try std.json.parseFromSlice(struct { err: []const u8, diagnostic: q.protocol.Diagnostic }, alloc, base.Api.station_buffer_data(rejected.?)[0..base.Api.station_buffer_size(rejected.?)], .{});
+    try t.expectEqual(.not_submitted, local.value.diagnostic.outcome);
+    try t.expectEqual(.local_before_dispatch, local.value.diagnostic.evidence);
     const table: q.station.Table = .{ .resource = 7, .id = 1, .schema = .{ .names = .{ try .init("id"), try .init("value") }, .value_type = .int64 } };
     const request = try q.TableMutationRequest.fromSql(46, 65536, table, try .init("items"), "DELETE FROM items WHERE id=1");
     const signed: q.TableMutationClient.Prepared = .{ .version = 1, .definition = q.protocol.Growth.current_definition, .connection = .{ .realm = 46, .principal = 1234, .writer = 65536, .resource = 7, .table = 1 }, .signed = try q.protocol.Growth.sign(.{ .realm = 46, .principal = 1234, .sequence = 1, .command = .{ .send = .{ .pid = 65536, .value = try (q.station.Frame{ .kind = .cast, .payload = try (q.TableMutationRecords.Command{ .apply = try request.reference(99) }).encode() }).encode() } } }, try q.protocol.Ed25519.KeyPair.generateDeterministic(seed)) };
@@ -116,6 +142,10 @@ test "mutation ABI owns results, separates caller profiles and preserves dispatc
     var failure: ?*base.Buffer = null;
     try t.expectEqual(.uncertain, call(pointer.?, action.ptr, action.len, &failure));
     defer base.Api.station_buffer_destroy(failure);
+    const remote = try std.json.parseFromSlice(struct { err: []const u8, protocol_error: ?[]const u8, diagnostic: q.protocol.Diagnostic }, alloc, base.Api.station_buffer_data(failure.?)[0..base.Api.station_buffer_size(failure.?)], .{});
+    try t.expectEqual(.unknown, remote.value.diagnostic.outcome);
+    try t.expectEqual(.resume_exact, remote.value.diagnostic.actions[1].?.kind);
+    try t.expectEqual(@as(u64, 1), try remote.value.diagnostic.identity.?.sequence.?.value());
     try t.expect(std.meta.eql(signed, try bridge.prepared(alloc, token)));
     var foreign = signed;
     foreign.connection.table += 1;

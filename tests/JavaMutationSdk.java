@@ -67,7 +67,7 @@ public final class JavaMutationSdk {
             for(String line;(line=reader.readLine())!=null;) {
                 JsonObject action=new Gson().fromJson(line,JsonObject.class);if(action.has("close"))break;
                 try {System.out.println(json("status",0,"value",call(client,action)));}
-                catch(TransitException error){System.out.println(json("status",error.status()>=0?error.status():error.kind()==TransitException.Kind.UNKNOWN_OUTCOME?6:1,"value",json("err",error.code())));}
+                catch(TransitException error){System.out.println(json("status",error.status()>=0?error.status():error.kind()==TransitException.Kind.UNKNOWN_OUTCOME?6:1,"value",json("err",error.code(),"diagnostic",error.diagnostic(),"diagnostic_invalid",error.diagnosticInvalid())));}
             }
         }
         System.out.println("{\"closed\":true}");

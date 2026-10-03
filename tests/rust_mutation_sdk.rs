@@ -114,7 +114,7 @@ fn main() -> AnyResult<()> {
         let output = match call(&mut client, &action) {
             Ok(value) => json!({"status":0,"value":value}),
             Err(error) => {
-                json!({"status":error.status.unwrap_or(if error.kind == ErrorKind::UnknownOutcome {6} else {1}),"value":{"err":error.code}})
+                json!({"status":error.status.unwrap_or(if error.kind == ErrorKind::UnknownOutcome {6} else {1}),"value":{"err":error.code,"diagnostic":error.diagnostic,"diagnostic_invalid":error.diagnostic_invalid}})
             }
         };
         println!("{output}");

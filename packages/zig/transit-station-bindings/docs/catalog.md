@@ -90,6 +90,15 @@ All ten public language SDKs expose typed metadata methods over these actions.
 Host definitions, bounded pages and cursors retain their original scope, identity
 and compatibility fields; the signed Zig caller owns authority and execution.
 
+Native and port errors carry an optional owned diagnostic envelope. Offline SQL
+compilation identifies duplicate columns and unsupported key/nullability profiles
+at their original SQL byte positions, without contacting the catalog. Typed-input
+and metadata failures retain their own cause and attempted operation. A validated
+submit that loses confirmation remains unknown with its original signed sequence
+and exact-recovery action. A rejected command or failed inspection does not
+establish a CREATE TABLE outcome. These caller-facing details are excluded from
+ordinary exception messages and telemetry, and never enable CREATE cancellation.
+
 ## Port configuration
 
 Configure an explicit `url`, private `seed_file` and `catalog_client` containing

@@ -47,9 +47,9 @@ loop(A,C,Saved)->case io:get_line("") of
         true->Saved;
         false->
             try action(A,C,Action) of Value->report(#{status=>0,value=>Value})
-            catch throw:{failure,#transit_error{kind=Kind,status=Status,code=Code}}->
+            catch throw:{failure,#transit_error{kind=Kind,status=Status,code=Code,diagnostic=Diagnostic,diagnostic_invalid=Invalid}}->
                 Native=case Status of undefined->case Kind of unknown_outcome->6; _->1 end; _->Status end,
-                report(#{status=>Native,value=>#{err=>optional(Code,fun(X)->X end)}})
+                report(#{status=>Native,value=>#{err=>optional(Code,fun(X)->X end),diagnostic=>optional(Diagnostic,fun(X)->X end),diagnostic_invalid=>Invalid}})
             end,
             Next=case Action of #{<<"submit">>:=Bytes}->prepared(Bytes); _->Saved end,
             loop(A,C,Next)

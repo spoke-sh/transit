@@ -26,6 +26,6 @@ static inline void emit_prepared(transit_sdk_bytes data,int found) {
 }
 static inline void emit_error(transit_sdk_error error) {
     unsigned status=error.has_native_status?error.native_status:(error.kind==TRANSIT_SDK_UNKNOWN_OUTCOME?6:1);
-    printf("{\"status\":%u,\"value\":{\"err\":\"%s\"}}\n",status,error.code);
+    printf("{\"status\":%u,\"value\":{\"err\":\"%s\",\"diagnostic\":%s,\"diagnostic_invalid\":%s}}\n",status,error.code,error.diagnostic.size?error.diagnostic.json:"null",error.diagnostic_invalid?"true":"false");
 }
 #endif

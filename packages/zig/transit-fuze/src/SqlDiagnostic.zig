@@ -105,6 +105,7 @@ pub fn query(text: []const u8, cause: anyerror, inspection: bool) ?Self {
         error.UnsupportedAggregateLimit => "To limit aggregate input, use an aggregate over a limited derived table; an outer LIMIT is not an input limit. Use .help SQL in the console for an example.",
         error.UnsupportedAggregate => "Use COUNT(*), COUNT(column), or SUM on an int64 column; other aggregate forms are unsupported.",
         error.UnsupportedTableColumnCount, error.UnspecifiedNullability, error.UnsupportedTableKey, error.UnsupportedTableNullability, error.UnsupportedTableType => "CREATE TABLE requires exactly two columns: an INT64 NOT NULL key and a nullable INT64, BOOL, UTF8 or BINARY value. Use .help CREATE TABLE in the console.",
+        error.NotTableDeclaration => "This catalog compiler accepts CREATE TABLE. KV and Document SQL declarations have no publication route.",
         error.DuplicateColumn => "Use distinct result names in SELECT, assigning names with AS where needed. Declarations also require distinct column names.",
         error.NullPrimaryKey => "Supply a non-NULL INT64 primary key. No mutation command was prepared.",
         error.ParameterCountMismatch, error.ParameterGap, error.ParameterTypeConflict, error.InvalidParameterIndex, error.InvalidParameterSite, error.UnboundParameters => "Use consecutive positional parameters beginning with $1 and supply one exact scalar binding for each index. Repeated indices must have the same type.",
@@ -232,6 +233,19 @@ pub fn bound(text: []const u8, cause: anyerror, inspection: bool, binding: sql.B
     if (binding.actual_schema) |fingerprint| out.print(" Current schema: {x}.", .{&fingerprint}) catch unreachable;
     result.detail_len = out.end;
     if (binding.location) |location| result.source(text, location);
+    return result;
+}
+
+/// A write compiler has already selected its owning route. Do not describe a
+/// valid declaration or mutation as unavailable on a read-only query interface.
+pub fn writeCompiler(text: []const u8, cause: anyerror, route: Route, binding: sql.Binding) ?Self {
+    var result = bound(text, cause, false, binding) orelse return null;
+    result.route = route;
+    if (cause == error.UnsupportedStatement or cause == error.NotTableDeclaration) {
+        result.kind = .unsupported;
+        result.summary = if (route == .declaration) "This catalog compiler requires a supported CREATE TABLE declaration" else "This writer compiler requires a supported INSERT, UPDATE or DELETE statement";
+        result.hint = if (route == .declaration) "Supply CREATE TABLE with an INT64 NOT NULL key and a nullable value column." else mutation_hint;
+    }
     return result;
 }
 

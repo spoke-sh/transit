@@ -13,7 +13,7 @@ pub fn status(value: r.Status) !d {
         .rejected => .rejected,
         .cancelled => .cancelled,
     };
-    const category: d.Category = switch (value.reason) {
+    const classification: d.Category = switch (value.reason) {
         .none => .lifecycle,
         .row_exists => .constraint,
         .source_changed => .conflict,
@@ -49,7 +49,7 @@ pub fn status(value: r.Status) !d {
         .cancelled => "The saved mutation was cancelled before application. No rows were changed by this mutation.",
         .rejected => unreachable,
     };
-    var result = try d.init(code, category, if (value.phase == .cancelled) .control else if (!value.terminal()) .admission else .execute, outcome, .domain_status, message);
+    var result = try d.init(code, classification, if (value.phase == .cancelled) .control else if (!value.terminal()) .admission else .execute, outcome, .domain_status, message);
     result.identity = .{ .domain = .mutation, .id = .init(value.reference.namespace), .resource = .init(value.reference.resource) };
     try result.fact(.table, .owner, .{ .unsigned = .init(value.table) });
     if (value.input != 0) try result.fact(.native_input, .owner, .{ .unsigned = .init(value.input) });
@@ -154,5 +154,72 @@ pub fn bound(value: r.Status, request: q.TableMutationRequest, name: ?q.fuze.mod
         };
     }
     try result.validate();
+    return result;
+}
+
+// Caller attempt evidence is independent of a saved domain outcome.
+const AttemptInfo = struct { code: []const u8, category: d.Category, message: []const u8 };
+fn attemptInfo(cause: anyerror) AttemptInfo {
+    return switch (cause) {
+        error.MutationDenied, error.MutationPrincipalMismatch, error.AccessDenied => .{ .code = "mutation.access_denied", .category = .access, .message = "The current principal or writer policy does not permit this operation. Query read access does not grant writes." },
+        error.MutationWriterUnavailable, error.ResourceUnavailable => .{ .code = "mutation.writer_unavailable", .category = .unavailable, .message = "The configured writer is unavailable. Preserve the original saved command and inspect the writer before continuing." },
+        error.MutationBusy => .{ .code = "mutation.writer_busy", .category = .lifecycle, .message = "The writer has an active mutation upload. Inspect and reconcile that upload before preparing different work." },
+        error.MutationIdentityConflict, error.Conflict => .{ .code = "mutation.identity_conflict", .category = .conflict, .message = "The supplied identity conflicts with the original mutation or writer scope. Preserve the original request and inspect its status." },
+        error.StaleMutationPolicy => .{ .code = "mutation.stale_policy", .category = .conflict, .message = "The expected mutation policy revision changed. Inspect current writer policy and the original saved mutation separately." },
+        error.MutationSourceChanged, error.TableSchemaChanged => .{ .code = "mutation.source_changed", .category = .conflict, .message = "The Table descriptor does not match the configured mutation policy or request. Inspect the write target before preparing another statement." },
+        error.MutationNotFound, error.TableNotFound => .{ .code = "mutation.target_missing", .category = .lifecycle, .message = "The requested mutation or Table is absent in the configured writer scope. Check that scope and preserve any original saved identity." },
+        error.MutationNotActive, error.MutationUploadClosed => .{ .code = "mutation.upload_not_active", .category = .lifecycle, .message = "This upload cannot accept the requested step. Inspect its saved status and reconcile the original request." },
+        error.InvalidMutationPrepared, error.InvalidMutationConnection, error.InvalidTableMutationRequest, error.InvalidMutationCommand, error.InvalidMutationPlan, error.InvalidQueryInteger, error.InvalidHex, error.InvalidColumnName, error.InvalidMutationColumns => .{ .code = "mutation.invalid_command", .category = .binding, .message = "The mutation input, scope or saved command is invalid. Use the original connection and canonical request bytes." },
+        error.InvalidMutationRecord => .{ .code = "mutation.invalid_record", .category = .integrity, .message = "The recorded mutation metadata is inconsistent. Preserve the original request and records for inspection." },
+        error.SignatureVerificationFailed => .{ .code = "mutation.invalid_signature", .category = .integrity, .message = "The saved command signature is invalid. Preserve the original bytes and signing identity; no command was sent." },
+        error.IncompatibleDefinition => .{ .code = "mutation.incompatible_definition", .category = .integrity, .message = "The saved command or peer uses a different contract definition. Use matching binaries and preserve the original bytes; no fallback reinterprets accepted work." },
+        error.OutOfMemory, error.Unavailable, error.ConnectionRefused, error.ConnectionResetByPeer, error.ConnectionTimedOut, error.Timeout, error.Canceled => .{ .code = "mutation.unavailable", .category = .unavailable, .message = "The operation could not complete because a required resource or transport is unavailable. Preserve any saved command and its previously observed outcome." },
+        else => .{ .code = "mutation.internal_failure", .category = .internal, .message = "The caller could not complete this operation. Preserve saved work and inspect its original status; this failure does not establish its outcome." },
+    };
+}
+pub fn category(action: q.TableMutationBridge.Action, cause: anyerror) d.Category {
+    if (action == .compile) if (q.fuze.SqlDiagnostic.category(cause)) |value| return value;
+    return attemptInfo(cause).category;
+}
+pub fn attempt(action: q.TableMutationBridge.Action, cause: anyerror, binding: q.fuze.Sql.Binding, dispatched: bool, identity: ?d.Identity) !d {
+    if (action == .compile) if (q.fuze.SqlDiagnostic.writeCompiler(action.compile.sql, cause, .mutation, binding)) |detail| return detail.structured();
+    const stage: d.Stage = switch (action) {
+        .compile => .compile,
+        .prepare, .next => .prepare,
+        .submit => if (dispatched) .submit else .prepare,
+        else => .read,
+    };
+    const info = attemptInfo(cause);
+    const sending = dispatched and action == .submit;
+    const rejected = cause == error.AccessDenied or cause == error.Rejected or cause == error.Conflict;
+    var result = if (sending and !rejected)
+        try d.init("mutation.send_unknown", .unavailable, .submit, .unknown, .saved_intent, "The signed command outcome is unknown. Retain its exact saved bytes and reconcile before preparing another command.")
+    else if (sending)
+        try d.init("mutation.command_rejected", if (cause == error.AccessDenied) .access else .conflict, .submit, .not_applicable, .none, "The authority rejected this signed command. This does not establish the original operation outcome; inspect its saved status.")
+    else
+        try d.init(info.code, info.category, stage, if (stage == .read) .not_applicable else .not_submitted, if (stage == .read) .none else .local_before_dispatch, info.message);
+    result.cause = try d.Code.init(@errorName(cause));
+    result.identity = identity;
+    try result.text(.operation, .caller, @tagName(action));
+    if (sending) {
+        try result.action(.inspect_status);
+        if (!rejected and identity != null) try result.action(.resume_exact);
+        if (rejected) try result.action(.inspect_scope);
+    } else switch (info.category) {
+        .access, .conflict => try result.action(.inspect_scope),
+        .lifecycle => try result.action(.inspect_status),
+        .unavailable => try result.action(if (stage == .read) .retry_read else .inspect_status),
+        .binding, .syntax, .unsupported, .limit, .constraint => try result.action(.correct_input),
+        .internal, .integrity => try result.action(.contact_operator),
+    }
+    try result.validate();
+    return result;
+}
+pub fn invalidEnvelope(cause: anyerror) !d {
+    var result = if (cause == error.OutOfMemory)
+        try d.init("mutation.memory_unavailable", .unavailable, .input, .not_submitted, .local_before_dispatch, "The caller could not allocate memory to read this request. No command was sent.")
+    else
+        try d.init("mutation.invalid_envelope", .syntax, .input, .not_submitted, .local_before_dispatch, "The action is not a valid bounded request object. No command was sent.");
+    result.cause = try d.Code.init(@errorName(cause));
     return result;
 }

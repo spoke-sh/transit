@@ -91,7 +91,7 @@ M::Client.open(config, credential, connection) do |client|
       if error.is_a?(M::Uncertain)
         raise 'Uncertainty lost the original command' unless error.prepared.data == action.fetch('submit')
       end
-      puts JSON.generate(status: error.status, value: { err: error.code })
+      puts JSON.generate(status: error.status, value: { err: error.code, diagnostic: error.diagnostic, diagnostic_invalid: error.diagnostic_invalid })
     end
   end
 end

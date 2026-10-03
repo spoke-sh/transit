@@ -60,7 +60,7 @@ try {
     catch (error) {
       if (!(error instanceof TransitError)) throw error;
       if (error instanceof m.Uncertain) assert.equal(error.prepared.data,action.submit);
-      console.log(JSON.stringify({ status:error.status,value:{ err:error.code } }));
+      console.log(JSON.stringify({ status:error.status,value:{ err:error.code,diagnostic:error.diagnostic ?? null,diagnostic_invalid:error.diagnosticInvalid } }));
     }
   }
 } finally { await client.close(); }

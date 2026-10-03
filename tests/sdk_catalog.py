@@ -47,7 +47,7 @@ def install(root, languages):
         wheels = target / 'wheels'
         wheels.mkdir()
         for path in (ROOT / '.cache/bindings/wheels').glob('*.whl'):
-            if path.name.split('-')[0] in ('transit_client', 'transit_native_client', 'transit_station', 'transit_native_station'):
+            if path.name.split('-')[1] == '0.2.0' and path.name.split('-')[0] in ('transit_client', 'transit_native_client', 'transit_station', 'transit_native_station'):
                 shutil.copy2(path, wheels / path.name)
         artifacts = {path.name: hashlib.sha256(path.read_bytes()).hexdigest() for path in wheels.glob('*.whl')}
         assert len(artifacts) == 4

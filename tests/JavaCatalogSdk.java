@@ -72,7 +72,7 @@ public final class JavaCatalogSdk {
             for(String line;(line=reader.readLine())!=null;) {
                 JsonObject action=new Gson().fromJson(line,JsonObject.class);if(action.has("close"))break;
                 try{System.out.println(json("status",0,"value",call(client,action)));}
-                catch(TransitException e){System.out.println(json("status",e.status()>=0?e.status():e.kind()==TransitException.Kind.UNKNOWN_OUTCOME?6:1,"value",json("err",e.code())));}
+                catch(TransitException e){System.out.println(json("status",e.status()>=0?e.status():e.kind()==TransitException.Kind.UNKNOWN_OUTCOME?6:1,"value",json("err",e.code(),"diagnostic",e.diagnostic(),"diagnostic_invalid",e.diagnosticInvalid())));}
             }
         }
         System.out.println("{\"closed\":true}");
