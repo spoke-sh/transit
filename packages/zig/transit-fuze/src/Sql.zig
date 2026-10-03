@@ -51,13 +51,14 @@ pub const Ast = struct {
 };
 /// Parameter positions in the finite SELECT grammar, not a prepared-query catalog.
 pub const ParameterSites = struct {
-    comparison: ?u32 = null,
-    limit: ?u32 = null,
-    input_limit: ?u32 = null,
+    comparison: ?Parameter = null,
+    limit: ?Parameter = null,
+    input_limit: ?Parameter = null,
     pub fn any(self: ParameterSites) bool {
         return self.comparison != null or self.limit != null or self.input_limit != null;
     }
 };
+pub const Parameter = struct { index: u32, offset: usize };
 pub const TemplateAst = struct { ast: Ast, parameters: ParameterSites };
 pub const Catalog = enum { tables, sources, sinks, connections };
 pub const Inspection = union(enum) { describe: m.Name, show: Catalog, explain: Ast };
@@ -714,13 +715,14 @@ const Parser = struct {
         try self.advance();
         return .{ .int64 = result };
     }
-    fn parameter(self: *Parser) !?u32 {
+    fn parameter(self: *Parser) !?Parameter {
         if (self.token.tag != .integer or self.token.text.len == 0 or self.token.text[0] != '$') return null;
         if (self.parameters == null) return error.UnboundParameters;
         const index = std.fmt.parseInt(u32, self.token.text[1..], 10) catch return error.InvalidParameterIndex;
         if (index == 0) return error.InvalidParameterIndex;
+        const offset = self.lexer.start;
         try self.advance();
-        return index;
+        return .{ .index = index, .offset = offset };
     }
     fn limit(self: *Parser, comptime inner: bool) !?u64 {
         if (!self.word("LIMIT")) return null;

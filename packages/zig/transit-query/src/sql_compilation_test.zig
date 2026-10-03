@@ -127,3 +127,30 @@ test "neutral compilation validates binding shape and does not reinterpret ordin
     const old_request = (try std.json.parseFromSlice(q.Workspace.Request, alloc, "{\"compile\":{\"sql\":\"SELECT value FROM items\"}}", .{})).value;
     try t.expectEqual(null, old_request.compile.parameters);
 }
+
+test "neutral compilation retains original parameter context without admitting work" {
+    var arena = std.heap.ArenaAllocator.init(t.allocator);
+    defer arena.deinit();
+    const alloc = arena.allocator();
+    const fixtures = (try std.json.parseFromSlice(Fixture, alloc, fixture_bytes, .{})).value;
+    var request = fixtures.cases[0].request;
+    request.sql = "SELECT value FROM items WHERE value = $1 LIMIT $2";
+    request.parameters = &.{ .{ .int64 = "1" }, .{ .uint64 = "02" } };
+    var client: ReadOnlyClient = .{};
+    var detail: q.fuze.Sql.Binding = .{};
+    try t.expectError(error.InvalidDocumentInteger, q.SqlCompilation.applyDiagnostic(alloc, &client, request, &detail));
+    try t.expectEqual(@as(usize, 1), client.reads);
+    try t.expectEqual(@as(?u32, 2), detail.parameter);
+    try t.expectEqualStrings("uint64", detail.expected.?);
+    const diagnostic = q.fuze.SqlDiagnostic.bound(request.sql, error.InvalidDocumentInteger, true, detail).?;
+    try t.expect(std.mem.indexOf(u8, diagnostic.detail[0..diagnostic.detail_len], "02") != null);
+    request.parameters = &.{};
+    try t.expectError(error.ParameterCountMismatch, q.SqlCompilation.applyDiagnostic(alloc, &client, request, &detail));
+    try t.expectEqual(@as(?usize, 2), detail.expected_count);
+    try t.expectEqual(@as(?usize, 0), detail.actual_count);
+    request.sql = "SELECT unknown_column FROM items";
+    request.parameters = null;
+    try t.expectError(error.UnknownColumn, q.SqlCompilation.applyDiagnostic(alloc, &client, request, &detail));
+    try t.expectEqualStrings("unknown_column", detail.subject.?.slice());
+    try t.expectEqual(null, detail.parameter);
+}

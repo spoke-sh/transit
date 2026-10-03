@@ -23,6 +23,10 @@ pub const Result = struct { bundle: []const u8, source: v.Source, plan: v.Plan, 
 /// values, templates and native plans are released before returning, including
 /// on denial, changed source, invalid binding and allocation failure.
 pub fn apply(allocator: std.mem.Allocator, client: anytype, request: Request) !Result {
+    return applyDiagnostic(allocator, client, request, null);
+}
+pub fn applyDiagnostic(allocator: std.mem.Allocator, client: anytype, request: Request, detail: ?*q.fuze.Sql.Binding) !Result {
+    if (detail) |value| value.* = .{};
     var scratch = std.heap.ArenaAllocator.init(allocator);
     defer scratch.deinit();
     const temporary = scratch.allocator();
@@ -35,14 +39,31 @@ pub fn apply(allocator: std.mem.Allocator, client: anytype, request: Request) !R
     var bound: ?q.SqlTemplate.Bound = null;
     defer if (bound) |*owner| owner.deinit();
     const bundle = if (request.parameters) |parameters| blk: {
-        if (parameters.len > q.fuze.Prepared.max_parameters) return error.ParameterCountMismatch;
-        var values: [q.fuze.Prepared.max_parameters]m.Scalar = undefined;
-        for (parameters, 0..) |value, i| values[i] = try value.native(temporary);
-        var template = try q.SqlTemplate.init(temporary, definition, name, request.sql);
+        var template = try q.SqlTemplate.initDiagnostic(temporary, definition, name, request.sql, detail);
         defer template.deinit();
-        bound = try template.bind(temporary, definition, values[0..parameters.len], limits);
+        if (parameters.len != template.parameterTypes().len) {
+            if (detail) |value| {
+                value.expected_count = template.parameterTypes().len;
+                value.actual_count = parameters.len;
+            }
+            return error.ParameterCountMismatch;
+        }
+        var values: [q.fuze.Prepared.max_parameters]m.Scalar = undefined;
+        for (parameters, 0..) |value, i| values[i] = value.native(temporary) catch |err| {
+            if (detail) |context| {
+                q.fuze.Sql.Binding.parameterAt(context, template.template.sites, @intCast(i + 1));
+                context.expected = @tagName(template.parameterTypes()[i]);
+                context.actual = @tagName(value);
+                switch (value) {
+                    .boolean => |boolean| q.fuze.Sql.Binding.supplied(context, m.Scalar{ .boolean = boolean }),
+                    inline else => |bytes| q.fuze.Sql.Binding.supplied(context, m.Scalar{ .utf8 = bytes }),
+                }
+            }
+            return err;
+        };
+        bound = try template.bindDiagnostic(temporary, definition, values[0..parameters.len], limits, detail);
         break :blk bound.?.bundle;
-    } else try q.Bundle.fromSql(temporary, definition, name, request.sql, limits);
+    } else try q.Bundle.fromSqlDiagnostic(temporary, definition, name, request.sql, limits, detail);
 
     var bytes: [q.Bundle.max_bytes]u8 = undefined;
     const encoded = try bundle.encode(&bytes);

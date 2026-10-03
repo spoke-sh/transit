@@ -10,10 +10,37 @@ actual: ?[]const u8 = null,
 key: ?i64 = null,
 input_row: ?usize = null,
 previous_row: ?usize = null,
+parameter: ?u32 = null,
+missing_parameter: ?u32 = null,
+parameter_sites: [3]?usize = @splat(null),
+expected_count: ?usize = null,
+actual_count: ?usize = null,
+expected_schema: ?[32]u8 = null,
+actual_schema: ?[32]u8 = null,
 scope: [64]u8 = @splat(0),
 scope_len: usize = 0,
 literal: [192]u8 = @splat(0),
 literal_len: usize = 0,
+
+pub fn parameterAt(self: ?*Self, sites: sql.ParameterSites, index: u32) void {
+    const value = self orelse return;
+    value.parameter = index;
+    value.parameter_sites = @splat(null);
+    var count: usize = 0;
+    inline for (comptime std.meta.fieldNames(sql.ParameterSites)) |field| {
+        if (@field(sites, field)) |site| if (site.index == index) {
+            value.parameter_sites[count] = site.offset;
+            count += 1;
+        };
+    }
+    // Site fields follow grammar roles; display occurrences in source order.
+    if (count != 0) {
+        for (0..count) |i| for (i + 1..count) |j| {
+            if (value.parameter_sites[i].? > value.parameter_sites[j].?) std.mem.swap(?usize, &value.parameter_sites[i], &value.parameter_sites[j]);
+        };
+        value.location = .{ .offset = value.parameter_sites[0].? };
+    }
+}
 
 pub fn at(self: ?*Self, column: sql.Column, scope: []const u8) void {
     const value = self orelse return;

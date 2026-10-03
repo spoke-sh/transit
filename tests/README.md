@@ -12154,3 +12154,21 @@ proof records 4,637 reads and 83 turns while retaining the four-mutation,
 256-byte-value and eight-resident-page bounds. No installed SDK variants were
 selected in that combined Table run. These checks run in the pinned Nix
 environment; no push or clean committed-HEAD qualification is claimed.
+
+### Prepared parameter diagnostic provenance
+
+On 2026-10-02, `just test::unit test::cli-diagnostics` passes (456 real CLI
+cases). Added unit evidence checks parameter indices, original repeated-use
+offsets, incompatible type requirements, missing indices, expected/supplied
+counts, bounded escaped values, canonical scalar encoding and changed schema
+fingerprints. Context resets between failed operations and owns its bytes.
+
+`just test::console table` passes in 323.08 seconds, including 289.01 seconds
+for the console schedule. New negative cases execute through both interactive
+and durable compilation: type, count and gap failures disclose the right
+parameter context while making no submission and leaving the saved recovery
+file unchanged. The same run preserves exact binding-file recovery after input
+change/deletion, worker/node/store restart, current denial, PTY and signal
+schedules, and explicit private-CA TLS checks. It returns 41 rows in six segments
+with eight resident authority pages and an 8 MiB hot store. No installed SDK
+variants are selected by this run.

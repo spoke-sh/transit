@@ -98,6 +98,13 @@ object selects ordinary SQL; `[]` selects a template without placeholders.
 The `--parameters` file must always contain an array. Named SQL
 `PREPARE`/`EXECUTE` and parameters for captured file sources remain unsupported.
 
+Template errors identify the parameter index and its original SQL use sites.
+Conflicting repeated uses report both required types; a binding count mismatch
+reports expected and supplied counts. Type and scalar-encoding failures include
+the expected type and at most 32 bytes of the supplied value, escaped for terminal
+safety. These details come from the failing compilation and do not read stored
+values. SQL locations use one-based lines and byte columns.
+
 Values are owned for the current execution and are never SQL text substitution
 or session defaults. Dot-command history records the file command, not its
 contents. Compilation checks current source permission and budgets; execution

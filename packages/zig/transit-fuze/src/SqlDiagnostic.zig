@@ -19,7 +19,7 @@ column: usize = 1,
 context: [512]u8 = @splat(0),
 context_len: usize = 0,
 caret: usize = 0,
-detail: [512]u8 = @splat(0),
+detail: [1024]u8 = @splat(0),
 detail_len: usize = 0,
 
 const mutation_hint = "Use explicit column names for INSERT, for example INSERT INTO items (id, value) VALUES (1, 100). Use .help INSERT in the console to configure an authorized Table writer and discover execution and recovery. A query connection does not grant writes.";
@@ -43,7 +43,9 @@ pub fn query(text: []const u8, cause: anyerror, inspection: bool) ?Self {
         error.DuplicateColumn => "Use distinct result names in SELECT, assigning names with AS where needed. Declarations also require distinct column names.",
         error.NullPrimaryKey => "Supply a non-NULL INT64 primary key. No mutation command was prepared.",
         error.ParameterCountMismatch, error.ParameterGap, error.ParameterTypeConflict, error.InvalidParameterIndex, error.InvalidParameterSite, error.UnboundParameters => "Use consecutive positional parameters beginning with $1 and supply one exact scalar binding for each index. Repeated indices must have the same type.",
-        error.SourceChanged => "Inspect the current source declaration and explicitly prepare the statement again against it.",
+        error.SourceChanged, error.QuerySourceChanged => "Inspect the current source declaration and explicitly prepare the statement again against it.",
+        error.InvalidUtf8, error.NonFiniteValue, error.CellTooLarge => "Supply a finite scalar with valid UTF-8 text and within the configured cell byte bound.",
+        error.InvalidDocumentInteger, error.InvalidQueryInteger, error.InvalidQueryScalar, error.InvalidHex => "Supply the exact canonical scalar encoding required by the parameter type; integer bindings use decimal strings and binary bindings use hexadecimal bytes.",
         error.ImmutablePrimaryKey, error.UnsupportedMutationPredicate, error.InvalidMutationColumns, error.DuplicateMutationKey => "Use .help INSERT, .help UPDATE or .help DELETE in the console for bounded literal mutations and key equality.",
         error.TypeMismatch, error.InvalidPredicate => "Match the literal type to the declared column type; implicit conversions are unsupported.",
         else => null,
@@ -65,7 +67,11 @@ pub fn query(text: []const u8, cause: anyerror, inspection: bool) ?Self {
         error.InvalidParameterIndex => "SQL parameter indices start at $1",
         error.InvalidParameterSite => "A parameter is not supported at this SQL position",
         error.UnboundParameters => "SQL parameters require explicit bindings",
-        error.SourceChanged => "The prepared SQL source or schema changed",
+        error.SourceChanged, error.QuerySourceChanged => "The prepared SQL source or schema changed",
+        error.InvalidUtf8 => "The SQL value contains invalid UTF-8",
+        error.NonFiniteValue => "The SQL value must be finite",
+        error.CellTooLarge => "The SQL value exceeds the cell byte bound",
+        error.InvalidDocumentInteger, error.InvalidQueryInteger, error.InvalidQueryScalar, error.InvalidHex => "The parameter binding has an invalid scalar encoding",
         else => "SQL cannot be bound to the configured source",
     }, .hint = hint };
     switch (cause) {
@@ -144,6 +150,20 @@ pub fn bound(text: []const u8, cause: anyerror, inspection: bool, binding: sql.B
     if (binding.key) |key| out.print(" Key: {d}.", .{key}) catch unreachable;
     if (binding.input_row) |row| out.print(" Input row: {d}.", .{row}) catch unreachable;
     if (binding.previous_row) |row| out.print(" First occurrence: row {d}.", .{row}) catch unreachable;
+    if (binding.parameter) |index| out.print(" Parameter: ${d}.", .{index}) catch unreachable;
+    if (binding.missing_parameter) |index| out.print(" Missing parameter: ${d}.", .{index}) catch unreachable;
+    if (binding.expected_count) |count| out.print(" Expected bindings: {d}; supplied: {d}.", .{ count, binding.actual_count orelse 0 }) catch unreachable;
+    for (binding.parameter_sites) |site| if (site) |offset| {
+        var line: usize = 1;
+        var begin: usize = 0;
+        for (text[0..@min(offset, text.len)], 0..) |byte, i| if (byte == '\n') {
+            line += 1;
+            begin = i + 1;
+        };
+        out.print(" Use at line {d}, byte column {d}.", .{ line, offset -| begin + 1 }) catch unreachable;
+    };
+    if (binding.expected_schema) |fingerprint| out.print(" Expected schema: {x}.", .{&fingerprint}) catch unreachable;
+    if (binding.actual_schema) |fingerprint| out.print(" Current schema: {x}.", .{&fingerprint}) catch unreachable;
     result.detail_len = out.end;
     if (binding.location) |location| result.source(text, location);
     return result;
@@ -174,6 +194,9 @@ fn parseFailure(text: []const u8, cause: anyerror, location: sql.Location, hint:
 /// byte is ASCII and caret width follows escaping, not raw UTF-8 byte width.
 fn source(self: *Self, text: []const u8, location: sql.Location) void {
     self.location = location;
+    self.line = 1;
+    self.caret = 0;
+    self.context_len = 0;
     const offset = @min(location.offset, text.len);
     var line_start: usize = 0;
     for (text[0..offset], 0..) |byte, i| if (byte == '\n') {

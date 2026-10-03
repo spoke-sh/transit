@@ -20,8 +20,8 @@ test "parameter syntax is opt-in, owned and rejected by ordinary lowering until 
     const parsed = try f.Sql.parseTemplate(&text, null);
     @memset(&text, 0);
     try t.expect(parsed.ast.unbound_parameters);
-    try t.expectEqual(@as(?u32, 1), parsed.parameters.comparison);
-    try t.expectEqual(@as(?u32, 2), parsed.parameters.limit);
+    try t.expectEqual(@as(u32, 1), parsed.parameters.comparison.?.index);
+    try t.expectEqual(@as(u32, 2), parsed.parameters.limit.?.index);
     try t.expectEqualStrings("items", parsed.ast.source.slice());
     const fields = try columns(.int64);
     const src = try source(&fields);
@@ -198,4 +198,48 @@ test "constant templates preserve literals after releasing the template" {
     defer bound.deinit();
     try t.expectEqualStrings("owned $1", bound.plan.predicate.compare.value.utf8);
     try bound.plan.validate(src.schema);
+}
+
+test "parameter diagnostics retain actual use sites types counts and schema evidence" {
+    var fields = try columns(.int64);
+    const src = try source(&fields);
+    const conflicting = "SELECT value FROM items WHERE id = $1\nLIMIT $1";
+    var detail: f.Sql.Binding = .{};
+    try t.expectError(error.ParameterTypeConflict, f.Prepared.initDiagnostic(t.allocator, conflicting, src, &detail));
+    try t.expectEqual(@as(?u32, 1), detail.parameter);
+    try t.expectEqualStrings("int64", detail.expected.?);
+    try t.expectEqualStrings("uint64", detail.actual.?);
+    try t.expectEqual(std.mem.indexOf(u8, conflicting, "$1"), detail.parameter_sites[0]);
+    try t.expectEqual(std.mem.lastIndexOf(u8, conflicting, "$1"), detail.parameter_sites[1]);
+    try t.expectEqual(detail.parameter_sites[1].?, detail.location.?.offset);
+    const diagnostic = f.SqlDiagnostic.bound(conflicting, error.ParameterTypeConflict, true, detail).?;
+    try t.expectEqual(@as(usize, 2), diagnostic.line);
+    try t.expect(std.mem.indexOf(u8, diagnostic.detail[0..diagnostic.detail_len], "Use at line 2, byte column 7") != null);
+
+    try t.expectError(error.ParameterGap, f.Prepared.initDiagnostic(t.allocator, "SELECT * FROM items LIMIT $2", src, &detail));
+    try t.expectEqual(@as(?u32, 1), detail.missing_parameter);
+    try t.expectEqual(@as(?u32, 2), detail.parameter);
+    try t.expectError(error.InvalidParameterIndex, f.Prepared.initDiagnostic(t.allocator, "SELECT *\nFROM items LIMIT $0", src, &detail));
+    try t.expectEqual(@as(usize, 26), detail.location.?.offset);
+
+    const sql = "SELECT value FROM items WHERE id = $1 LIMIT $2";
+    var prepared = try f.Prepared.initDiagnostic(t.allocator, sql, src, &detail);
+    defer prepared.deinit();
+    try t.expectError(error.ParameterCountMismatch, prepared.bindDiagnostic(t.allocator, src, &.{}, &detail));
+    try t.expectEqual(@as(?usize, 2), detail.expected_count);
+    try t.expectEqual(@as(?usize, 0), detail.actual_count);
+    try t.expectEqual(null, detail.parameter);
+    try t.expectError(error.TypeMismatch, prepared.bindDiagnostic(t.allocator, src, &.{ .{ .int64 = 3 }, .{ .utf8 = "\x1b[31m\n$1'" } }, &detail));
+    try t.expectEqual(@as(?u32, 2), detail.parameter);
+    try t.expectEqualStrings("uint64", detail.expected.?);
+    try t.expectEqualStrings("utf8", detail.actual.?);
+    try t.expect(std.mem.indexOf(u8, detail.literal[0..detail.literal_len], "\\x1b") != null);
+    try t.expectEqual(std.mem.indexOf(u8, sql, "$2"), detail.parameter_sites[0]);
+    try t.expectEqual(null, detail.parameter_sites[1]);
+
+    fields[1].type = .utf8;
+    try t.expectError(error.SourceChanged, prepared.bindDiagnostic(t.allocator, src, &.{ .{ .int64 = 3 }, .{ .uint64 = 1 } }, &detail));
+    try t.expectEqual(prepared.schema_fingerprint, detail.expected_schema.?);
+    try t.expectEqual(try src.schema.fingerprint(), detail.actual_schema.?);
+    try t.expectEqual(null, detail.parameter);
 }

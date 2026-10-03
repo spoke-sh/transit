@@ -81,6 +81,10 @@ through `Unified.Plan` and `Unified.Stream`, including Station Table delivery.
 `Prepared` compiles explicitly requested typed parameter templates and binds
 owned values into that same plan. Its [template API](docs/unified-sql.md#typed-templates)
 checks name/schema compatibility; callers retain resource identity and admission.
+`Prepared.initDiagnostic` and `bindDiagnostic` retain owned parameter indices,
+all use-site byte offsets, expected/supplied types and counts, and changed-schema
+fingerprints in an optional `Sql.Binding`. Ordinary and diagnostic entry points
+produce the same plans and errors; diagnostic storage requires no allocation.
 
 `Sql.parseMutation` and `TableMutation.compile/lower` produce owned, exactly
 typed plans for literal INSERT, UPDATE and DELETE against one declared Table.

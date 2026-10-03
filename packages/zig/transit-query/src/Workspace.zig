@@ -73,6 +73,9 @@ pub const Response = union(enum) {
     draft: ?Draft,
 };
 pub fn apply(allocator: std.mem.Allocator, client: *q.UnifiedClient, config: Config, request: Request) !Response {
+    return applyDiagnostic(allocator, client, config, request, null);
+}
+pub fn applyDiagnostic(allocator: std.mem.Allocator, client: *q.UnifiedClient, config: Config, request: Request, detail: ?*q.fuze.Sql.Binding) !Response {
     const definition = try config.source.native(allocator);
     if (definition.resource != client.connection.resource) return error.QueryIdentityMismatch;
     const limits = try config.limits.native();
@@ -98,11 +101,11 @@ pub fn apply(allocator: std.mem.Allocator, client: *q.UnifiedClient, config: Con
             var columns: [m.max_columns]m.Column = undefined;
             return .{ .description = .{ .connection = client.connection, .name = config.name, .source = description, .budgets = config.limits, .columns = try v.foreignColumns(allocator, try definition.schema(&columns)) } };
         },
-        .compile => |input| return .{ .compiled = try q.SqlCompilation.apply(allocator, client, .{
+        .compile => |input| return .{ .compiled = try q.SqlCompilation.applyDiagnostic(allocator, client, .{
             .scope = .{ .name = config.name, .source = config.source, .limits = config.limits },
             .sql = input.sql,
             .parameters = input.parameters,
-        }) },
+        }, detail) },
         inline .next, .next_draft => |input, tag| {
             const bundle = try q.Bundle.decode(allocator, try v.unhex(allocator, input.bundle, q.Bundle.max_bytes));
             if (!std.mem.eql(u8, &try bundle.source.fingerprint(), &try definition.fingerprint())) return error.QueryIdentityMismatch;

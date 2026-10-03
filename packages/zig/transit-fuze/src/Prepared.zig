@@ -18,6 +18,7 @@ types: [max_parameters]m.Type,
 count: u8,
 comparison: ?u32,
 limit: ?u32,
+sites: sql.ParameterSites,
 
 pub const Bound = struct {
     arena: std.heap.ArenaAllocator,
@@ -29,8 +30,16 @@ pub const Bound = struct {
 };
 
 pub fn init(allocator: std.mem.Allocator, text: []const u8, source: m.Sql.Source) !Self {
+    return initDiagnostic(allocator, text, source, null);
+}
+pub fn initDiagnostic(allocator: std.mem.Allocator, text: []const u8, source: m.Sql.Source, detail: ?*sql.Binding) !Self {
+    if (detail) |value| value.* = .{};
     try validSource(source);
-    var syntax = try sql.parseTemplate(text, null);
+    var location: sql.Location = .{};
+    var syntax = sql.parseTemplate(text, &location) catch |err| {
+        if (detail) |value| value.location = location;
+        return err;
+    };
     // Only this construction pass replaces unresolved values with typed
     // witnesses. The public template AST remains rejected by ordinary lowering.
     syntax.ast.unbound_parameters = false;
@@ -38,22 +47,26 @@ pub fn init(allocator: std.mem.Allocator, text: []const u8, source: m.Sql.Source
     for (source.schema.columns, 0..) |*column, i| names[i] = column.name.slice();
     var input: [m.max_columns]u8 = undefined;
     var output: [m.max_columns]u8 = undefined;
-    const shape = try lowering.lower(&syntax.ast, source.name.slice(), names[0..source.schema.columns.len], &input, &output);
+    const shape = try lowering.lowerDiagnostic(&syntax.ast, source.name.slice(), names[0..source.schema.columns.len], &input, &output, detail);
     var types: [max_parameters]m.Type = @splat(.int64);
     var present: [max_parameters]bool = @splat(false);
     var count: u8 = 0;
-    if (syntax.parameters.comparison) |index| {
+    if (syntax.parameters.comparison) |site| {
         if (shape.predicate != .compare) return error.InvalidParameterSite;
         const kind = source.schema.columns[shape.predicate.compare.column].type;
-        try register(&types, &present, &count, index, kind);
+        try register(&types, &present, &count, site, kind, syntax.parameters, detail);
         syntax.ast.predicate.compare.literal = witness(kind);
     }
-    if (syntax.parameters.limit) |index| try register(&types, &present, &count, index, .uint64);
-    if (syntax.parameters.input_limit) |index| try register(&types, &present, &count, index, .uint64);
-    for (present[0..count]) |used| if (!used) return error.ParameterGap;
+    if (syntax.parameters.limit) |site| try register(&types, &present, &count, site, .uint64, syntax.parameters, detail);
+    if (syntax.parameters.input_limit) |site| try register(&types, &present, &count, site, .uint64, syntax.parameters, detail);
+    for (present[0..count], 0..) |used, i| if (!used) {
+        if (detail) |value| value.missing_parameter = @intCast(i + 1);
+        return error.ParameterGap;
+    };
     var arena = std.heap.ArenaAllocator.init(allocator);
     errdefer arena.deinit();
-    const plan = try m.Sql.compile(arena.allocator(), syntax.ast, source);
+    if (detail) |value| value.* = .{};
+    const plan = try m.Sql.compileDiagnostic(arena.allocator(), syntax.ast, source, detail);
     return .{
         .arena = arena,
         .prototype = plan,
@@ -61,8 +74,9 @@ pub fn init(allocator: std.mem.Allocator, text: []const u8, source: m.Sql.Source
         .schema_fingerprint = try source.schema.fingerprint(),
         .types = types,
         .count = count,
-        .comparison = syntax.parameters.comparison,
-        .limit = if (syntax.ast.input != null) syntax.parameters.input_limit else syntax.parameters.limit,
+        .comparison = if (syntax.parameters.comparison) |site| site.index else null,
+        .limit = if (if (syntax.ast.input != null) syntax.parameters.input_limit else syntax.parameters.limit) |site| site.index else null,
+        .sites = syntax.parameters,
     };
 }
 
@@ -79,10 +93,36 @@ pub fn parameterTypes(self: *const Self) []const m.Type {
 /// permission or resource identity. Values and source schema may be released
 /// after this call. The returned plan owns its projection and literal bytes.
 pub fn bind(self: *const Self, allocator: std.mem.Allocator, source: m.Sql.Source, values: []const m.Scalar) !Bound {
+    return self.bindDiagnostic(allocator, source, values, null);
+}
+pub fn bindDiagnostic(self: *const Self, allocator: std.mem.Allocator, source: m.Sql.Source, values: []const m.Scalar, detail: ?*sql.Binding) !Bound {
+    if (detail) |value| value.* = .{};
     try validSource(source);
-    if (!std.meta.eql(source.name, self.source_name) or !std.mem.eql(u8, &try source.schema.fingerprint(), &self.schema_fingerprint)) return error.SourceChanged;
-    if (self.count > max_parameters or values.len != self.count) return error.ParameterCountMismatch;
-    for (values, self.parameterTypes()) |value, kind| try value.validate(kind);
+    const actual_schema = try source.schema.fingerprint();
+    if (!std.meta.eql(source.name, self.source_name) or !std.mem.eql(u8, &actual_schema, &self.schema_fingerprint)) {
+        if (detail) |value| {
+            value.subject = try @import("model.zig").Name.init(self.source_name.slice());
+            value.expected_schema = self.schema_fingerprint;
+            value.actual_schema = actual_schema;
+        }
+        return error.SourceChanged;
+    }
+    if (self.count > max_parameters or values.len != self.count) {
+        if (detail) |value| {
+            value.expected_count = self.count;
+            value.actual_count = values.len;
+        }
+        return error.ParameterCountMismatch;
+    }
+    for (values, self.parameterTypes(), 0..) |value, kind, i| value.validate(kind) catch |err| {
+        sql.Binding.parameterAt(detail, self.sites, @intCast(i + 1));
+        if (detail) |context| {
+            context.expected = @tagName(kind);
+            context.actual = @tagName(value);
+            sql.Binding.supplied(context, value);
+        }
+        return err;
+    };
     var arena = std.heap.ArenaAllocator.init(allocator);
     errdefer arena.deinit();
     const alloc = arena.allocator();
@@ -101,12 +141,36 @@ pub fn bind(self: *const Self, allocator: std.mem.Allocator, source: m.Sql.Sourc
     return .{ .arena = arena, .plan = plan };
 }
 
-fn register(types: *[max_parameters]m.Type, present: *[max_parameters]bool, count: *u8, index: u32, kind: m.Type) !void {
+fn register(types: *[max_parameters]m.Type, present: *[max_parameters]bool, count: *u8, site: sql.Parameter, kind: m.Type, sites: sql.ParameterSites, detail: ?*sql.Binding) !void {
+    const index = site.index;
+    sql.Binding.parameterAt(detail, sites, index);
+    if (detail) |value| value.location = .{ .offset = site.offset };
     if (index == 0) return error.InvalidParameterIndex;
     // More distinct ordinals than grammar sites necessarily leave a gap.
-    if (index > max_parameters) return error.ParameterGap;
+    if (index > max_parameters) {
+        if (detail) |value| {
+            var missing: u32 = 1;
+            while (missing <= max_parameters) : (missing += 1) {
+                var found = false;
+                inline for (comptime std.meta.fieldNames(sql.ParameterSites)) |field| {
+                    if (@field(sites, field)) |used| if (used.index == missing) {
+                        found = true;
+                    };
+                }
+                if (!found) break;
+            }
+            value.missing_parameter = missing;
+        }
+        return error.ParameterGap;
+    }
     const offset = index - 1;
-    if (present[offset] and types[offset] != kind) return error.ParameterTypeConflict;
+    if (present[offset] and types[offset] != kind) {
+        if (detail) |value| {
+            value.expected = @tagName(types[offset]);
+            value.actual = @tagName(kind);
+        }
+        return error.ParameterTypeConflict;
+    }
     types[offset] = kind;
     present[offset] = true;
     count.* = @max(count.*, @as(u8, @intCast(index)));

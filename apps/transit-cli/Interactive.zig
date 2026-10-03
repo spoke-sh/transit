@@ -25,7 +25,10 @@ pub fn sql(console: *Console, request: @import("SqlInput.zig").Request) !void {
     // independently before acquiring any data.
     var binding: q.fuze.Sql.Binding = .{};
     const bundle = if (request.parameters != null) compiled: {
-        const result = (q.Workspace.apply(allocator, console.client, console.config, .{ .compile = request }) catch |err| return console.sqlFailure(statement, err)).compiled;
+        const result = (q.Workspace.applyDiagnostic(allocator, console.client, console.config, .{ .compile = request }, &binding) catch |err| {
+            console.diagnostic.sql = q.fuze.SqlDiagnostic.bound(statement, err, true, binding);
+            return err;
+        }).compiled;
         break :compiled try q.Bundle.decode(allocator, try q.Values.unhex(allocator, result.bundle, q.Bundle.max_bytes));
     } else q.Bundle.fromSqlDiagnostic(allocator, source, try .init(console.config.name), statement, try console.config.limits.native(), &binding) catch |err| {
         console.diagnostic.sql = q.fuze.SqlDiagnostic.bound(statement, err, true, binding);

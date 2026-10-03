@@ -12,14 +12,20 @@ pub fn planDiagnostic(allocator: std.mem.Allocator, text: []const u8, source: So
     if (diagnostic) |value| value.* = .{};
     var ast: sql.Ast = undefined;
     var location: sql.Location = .{};
-    try sql.parseInto(text, &ast, if (diagnostic != null) &location else null);
+    sql.parseInto(text, &ast, if (diagnostic != null) &location else null) catch |err| {
+        if (diagnostic) |value| value.location = location;
+        return err;
+    };
     var result: m.Plan = undefined;
     try compileInto(allocator, &ast, source, &result, diagnostic);
     return result;
 }
 pub fn compile(allocator: std.mem.Allocator, ast: sql.Ast, source: Source) !m.Plan {
+    return compileDiagnostic(allocator, ast, source, null);
+}
+pub fn compileDiagnostic(allocator: std.mem.Allocator, ast: sql.Ast, source: Source, diagnostic: ?*sql.Binding) !m.Plan {
     var result: m.Plan = undefined;
-    try compileInto(allocator, &ast, source, &result, null);
+    try compileInto(allocator, &ast, source, &result, diagnostic);
     return result;
 }
 fn compileInto(allocator: std.mem.Allocator, ast: *const sql.Ast, source: Source, result: *m.Plan, diagnostic: ?*sql.Binding) !void {

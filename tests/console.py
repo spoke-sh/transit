@@ -117,6 +117,25 @@ def check(binary, root, kind, invoke, expected, fault, config, tls=False):
         assert table.startswith('┌'.encode()) and b' rows\n' in table and b'\x1b' not in table
 
         print(f'Transit console {kind}: saved-intent resume, all result pages and current read denial passed.', flush=True)
+        parameter_file = root / 'console diagnostic parameters.json'
+        retained_before = recovery.read_bytes()
+        before = fault['console_sends']
+        for mode in ('durable', 'interactive'):
+            diagnostic_config = root / ('console-diagnostic-' + mode + '.json')
+            diagnostic_config.write_text(json.dumps(dict(config, execution=mode)))
+            for template, bindings, fragments in (
+                ('SELECT * FROM items LIMIT $1', [], (b'Expected bindings: 1; supplied: 0',)),
+                ('SELECT * FROM items LIMIT $1', [{'int64': '2'}], (b'Parameter: $1', b'Expected uint64; supplied int64', b'Value: 2')),
+                ('SELECT * FROM items LIMIT $2', [{'uint64': '1'}, {'uint64': '2'}], (b'Missing parameter: $1', b'Parameter: $2')),
+            ):
+                parameter_file.write_text(json.dumps(bindings))
+                invalid = run(args=('-c', template, '--parameters', str(parameter_file)), selected=diagnostic_config, expected_code=1)
+                assert all(fragment in invalid.stderr for fragment in fragments), invalid
+                assert not invalid.stdout and fault['console_sends'] == before
+                assert recovery.read_bytes() == retained_before
+                assert b'Use .resume' not in invalid.stderr
+        parameter_file.unlink()
+        print(f'Transit console {kind}: parameter type/count/gap context in both execution modes, with no send or recovery mutation.', flush=True)
         for query_file in (False, True):
             parameter_file = root / 'console query input.json'
             template = sql + ' FROM items LIMIT $1'

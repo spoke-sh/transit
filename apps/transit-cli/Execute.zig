@@ -26,7 +26,11 @@ pub fn sql(console: *Console, request: @import("SqlInput.zig").Request) !void {
     defer arena.deinit();
     // Compile before changing identity; invalid SQL cannot start durable work.
     timing.enter(.compile);
-    _ = q.Workspace.apply(arena.allocator(), console.client, console.config, .{ .compile = request }) catch |err| return console.sqlFailure(statement, err);
+    var binding: q.fuze.Sql.Binding = .{};
+    _ = q.Workspace.applyDiagnostic(arena.allocator(), console.client, console.config, .{ .compile = request }, &binding) catch |err| {
+        console.diagnostic.sql = q.fuze.SqlDiagnostic.bound(statement, err, true, binding);
+        return err;
+    };
     if (Signals.interrupted()) return error.ConsoleInterrupted;
     if (console.writes) |writer| try writer.clearComplete();
     timing.enter(.prepare);
