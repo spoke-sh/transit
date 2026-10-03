@@ -64,6 +64,9 @@ outcome after kernel settlement. Both compose with growing turns under the four
 mutation budget. `Service.validateRequest` enforces exact method/serialized-target
 and allowed header names; endpoint, credential and current resource grants remain
 separate worker checks. `Outcome.reference` refuses unknown/not-dispatched results.
+`Outcome.diagnostic(realm)` and `Rejection.diagnostic()` project the shared owned
+diagnostic. HTTP status is retained separately from capture completion; a
+completed 4xx/5xx response does not authorize retry or prove remote rollback.
 The [worker admission guide](../../../apps/transit-station-http-worker/docs/admission.md)
 describes the finite service profile and recovery limits.
 

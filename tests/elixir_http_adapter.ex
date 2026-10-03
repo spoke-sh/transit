@@ -128,7 +128,10 @@ defmodule ElixirHttpAdapter do
         %Incoming{kind: :reply, value: <<"HTF1", _::binary>> = bytes} ->
           {:ok, correlation} = State.require(state, followup_key)
           {:ok, :ok} = Turn.require_reply(turn, input, peer, correlation)
-          {:ok, %Rejected{reason: :denied}} = Http.decode_reply(72, bytes)
+
+          {:ok, %Rejected{reason: :denied, diagnostic: %{"code" => "http.request_denied"}}} =
+            Http.decode_reply(72, bytes)
+
           {:ok, denied} = Turn.key("http-followup-denied", U64Codec)
           {:ok, :ok} = State.put(state, denied, correlation)
           %{followup: true}
@@ -224,12 +227,18 @@ defmodule ElixirHttpAdapter do
     bytes = Base.decode16!(fixture["outcome"], case: :mixed)
 
     {:ok,
-     %Outcome{phase: :observed, status: 200, exchange: 18_446_744_073_709_551_615, reference: ref}} =
+     %Outcome{
+       phase: :observed,
+       status: 200,
+       exchange: 18_446_744_073_709_551_615,
+       reference: ref,
+       diagnostic: %{"code" => "http.response_observed", "outcome" => "completed"}
+     }} =
       Http.decode_reply(72, bytes)
 
     true = is_binary(ref)
 
-    {:ok, %Rejected{reason: :denied}} =
+    {:ok, %Rejected{reason: :denied, diagnostic: %{"code" => "http.request_denied"}}} =
       Http.decode_reply(72, Base.decode16!(fixture["rejection"], case: :mixed))
 
     {:error, _} = Http.decode_reply(72, binary_part(bytes, 0, 70))

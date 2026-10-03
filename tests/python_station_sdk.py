@@ -78,7 +78,12 @@ def consumer(mode, config_path):
         outcome = decode_http_reply(72, bytes.fromhex(http_fixture['outcome']))
         assert isinstance(outcome, HttpOutcome) and outcome.phase is HttpPhase.OBSERVED
         assert outcome.exchange == 2**64-1 and outcome.status == 200 and outcome.reference
-        assert decode_http_reply(72, bytes.fromhex(http_fixture['rejection'])) == HttpRejected(HttpRejection.DENIED)
+        rejected = decode_http_reply(72, bytes.fromhex(http_fixture['rejection']))
+        assert isinstance(rejected, HttpRejected) and rejected.reason is HttpRejection.DENIED
+        assert rejected.diagnostic['code'] == 'http.request_denied'
+        assert rejected.diagnostic['outcome'] == 'input_rejected'
+        assert outcome.diagnostic['code'] == 'http.response_observed'
+        assert outcome.diagnostic['identity']['id'] == str(2**64-1)
         union = HttpReplyCodec(codecs.counter_codec, 72)
         assert union.decode(bytes.fromhex(http_fixture['outcome'])) == outcome
         disposal = json.loads(Path(cfg['http_release_fixtures']).read_bytes())
@@ -434,6 +439,8 @@ def http_consumer(mode, cfg):
                 assert isinstance(incoming.value, HttpOutcome)
                 turn.require_reply(incoming, peer=peer, correlation=turn.state.require(correlation))
                 assert incoming.value.phase is HttpPhase.OBSERVED and incoming.value.status == 200
+                assert incoming.value.diagnostic['code'] == 'http.response_observed'
+                assert incoming.value.diagnostic['outcome'] == 'completed'
                 turn.state.put(status, incoming.value.status)
                 self.result = {'observed': True}
     handler = Handler()
@@ -591,6 +598,7 @@ def grpc_consumer(mode, cfg):
                 if isinstance(incoming.value, GrpcRejected):
                     turn.require_reply(incoming, peer=peer, correlation=turn.state.require(followup))
                     assert incoming.value.reason is GrpcRejection.DENIED
+                    assert incoming.value.diagnostic['code'] == 'grpc.request_denied'
                     turn.state.put(Key(b'grpc-followup-denied', u64), incoming.correlation)
                     self.result = {'followup': True}
                     return
@@ -604,6 +612,8 @@ def grpc_consumer(mode, cfg):
                 assert isinstance(incoming.value, GrpcOutcome)
                 turn.require_reply(incoming, peer=peer, correlation=turn.state.require(correlation))
                 assert incoming.value.phase is GrpcPhase.OBSERVED and incoming.value.status == 0
+                assert incoming.value.diagnostic['code'] == 'grpc.ok_observed'
+                assert incoming.value.diagnostic['outcome'] == 'completed'
                 turn.state.put(status, incoming.value.status)
                 self.result = {'observed': True}
     handler = Handler()

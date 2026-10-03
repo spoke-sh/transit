@@ -201,6 +201,7 @@ pub struct GrpcOutcome {
     pub attempt: Counter,
     pub status: Option<u32>,
     pub(crate) reference: Option<Box<[u8]>>,
+    pub diagnostic: Value,
 }
 impl GrpcOutcome {
     pub fn reference(&self) -> Option<&[u8]> {
@@ -215,9 +216,14 @@ impl fmt::Debug for GrpcOutcome {
     }
 }
 #[derive(Clone, Debug)]
+pub struct GrpcRejected {
+    pub reason: GrpcRejection,
+    pub diagnostic: Value,
+}
+#[derive(Clone, Debug)]
 pub enum GrpcReply {
     Outcome(GrpcOutcome),
-    Rejected(GrpcRejection),
+    Rejected(GrpcRejected),
     Released(GrpcReleased),
 }
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -236,15 +242,16 @@ pub fn decode_grpc_reply(
         native_directory,
         bytes.starts_with(b"GRK1"),
     )?;
-    if let Some(reason) = value.get("rejected") {
-        return Ok(GrpcReply::Rejected(
-            match string(reason, "grpc-rejection")? {
+    if let Some(rejected) = value.get("rejected") {
+        return Ok(GrpcReply::Rejected(GrpcRejected {
+            reason: match string(field(rejected, "reason")?, "grpc-rejection")? {
                 "denied" => GrpcRejection::Denied,
                 "invalid_request" => GrpcRejection::InvalidRequest,
                 "busy" => GrpcRejection::Busy,
                 _ => return Err(invalid()),
             },
-        ));
+            diagnostic: field(rejected, "diagnostic")?.clone(),
+        }));
     }
     if let Some(released) = value.get("released") {
         return Ok(GrpcReply::Released(GrpcReleased {
@@ -275,6 +282,7 @@ pub fn decode_grpc_reply(
                     .map_err(|_| invalid())?,
             )
         },
+        diagnostic: field(value, "diagnostic")?.clone(),
         reference: if value["reference"].is_null() {
             None
         } else {

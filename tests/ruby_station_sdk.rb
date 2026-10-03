@@ -211,6 +211,8 @@ class HttpHandler < S::Handler
       check input.is_a?(S::Reply) && input.value.is_a?(S::HttpOutcome)
       turn.require_reply(input, peer: @peer, correlation: turn.state.require(@correlation))
       check input.value.phase == :observed && input.value.status == 200
+      check input.value.diagnostic.fetch('code') == 'http.response_observed'
+      check input.value.diagnostic.fetch('outcome') == 'completed'
       turn.state.put(S::Key.new('http-status'.b, codec: E::U64), 200)
       @result = { observed: true }
     end
@@ -371,6 +373,8 @@ class GrpcHandler < S::Handler
       check input.is_a?(S::Reply) && input.value.is_a?(S::GrpcOutcome)
       turn.require_reply(input, peer: @peer, correlation: turn.state.require(@correlation))
       check input.value.phase == :observed && input.value.status == 0
+      check input.value.diagnostic.fetch('code') == 'grpc.ok_observed'
+      check input.value.diagnostic.fetch('outcome') == 'completed'
       turn.state.put(S::Key.new('grpc-status'.b, codec: E::U64), 0)
       @result = { observed: true }
     end
@@ -643,7 +647,10 @@ if mode == 'codecs'
   check prepared.reference.unpack1('H*') == fixture.fetch('reference') && prepared.metadata == fixture.fetch('metadata')
   outcome = S.decode_http_reply(72, [fixture.fetch('outcome')].pack('H*'))
   check outcome.exchange == (1 << 64) - 1 && outcome.status == 200 && outcome.phase == :observed && outcome.reference
-  check S.decode_http_reply(72, [fixture.fetch('rejection')].pack('H*')).reason == :denied
+  check outcome.diagnostic.fetch('code') == 'http.response_observed' && outcome.diagnostic.frozen?
+  check outcome.diagnostic.fetch('identity').fetch('id') == ((1 << 64) - 1).to_s
+  rejected = S.decode_http_reply(72, [fixture.fetch('rejection')].pack('H*'))
+  check rejected.reason == :denied && rejected.diagnostic.fetch('code') == 'http.request_denied'
   codec = S::HttpReplyCodec.new(E::U64, realm: 72)
   check codec.decode([fixture.fetch('outcome')].pack('H*')) == outcome
   release = [JSON.parse(File.read(cfg.fetch('http_release_fixtures'))).fetch('reply')].pack('H*')

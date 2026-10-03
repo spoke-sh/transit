@@ -90,3 +90,10 @@ owned replay after disposal and joining a delayed read. The same schedule runs
 through compiled C11 callbacks. Host allocation poisoning is implemented but
 fault-injected host allocation qualification remains separate from the shared
 native allocation proofs.
+
+Outcome and rejection values own `diagnostic()` after the codec/native buffer is
+released. It retains the exact protocol status, exchange identity and inspection
+guidance. A completed response does not establish business success or permit a
+retry; rejected input does not settle earlier work. Original details absent from
+the reply are explicitly unrecorded. See the
+[shared SDK diagnostic contract](../../../../docs/reference/sdks.md#structured-failure-details).

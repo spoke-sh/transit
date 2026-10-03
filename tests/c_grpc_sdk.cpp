@@ -67,6 +67,9 @@ static void golden(const Config &cfg) {
     const auto uncertain = decode(unhex(unknown));
     assert(uncertain.phase() == TRANSIT_GRPC_CLOSED_UNKNOWN && !uncertain.status() && !uncertain.reference());
     assert(decode(unhex(rejected)).rejection() == TRANSIT_GRPC_DENIED);
+    assert(result.diagnostic().find("grpc.ok_observed") != std::string::npos);
+    assert(result.diagnostic().find("18446744073709551615") != std::string::npos);
+    assert(decode(unhex(rejected)).diagnostic().find("grpc.request_denied") != std::string::npos);
     bool failed = false; try { decode(unhex(outcome.substr(0,outcome.size()-2))); } catch (const Error &) { failed=true; } assert(failed);
     const auto acknowledgement = decode_released(unhex(released));
     assert(acknowledgement.resource().realm() == 72 && acknowledgement.exchange() == UINT64_MAX);

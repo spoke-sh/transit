@@ -6,6 +6,35 @@ earlier entry refers to that entry's source, not automatically to HEAD. The late
 records its reruns and remaining qualification separately; earlier consolidation
 results do not qualify the changed stored layout by inheritance.
 
+## Connector reply diagnostic evidence — 2026-10-03
+
+The `connector-outcome-diagnostic` definition adds scoped exchange identities,
+owner-confirmed not-dispatched evidence and owned HTTP/gRPC outcome/rejection
+detail in all ten SDKs. Protocol status is separate from completed capture;
+gRPC UNKNOWN is not a missing remote outcome. Reply-absent capture causes and
+rejection fields remain explicitly unrecorded. Binary service reply sizes stay
+unchanged; the neutral result, shared diagnostic and public C layouts cut over
+together with generated schemas, symbol names and signing fixtures.
+
+`just test::unit` and `just bindings::native` pass. **427 independent native/port
+cases** construct all HTTP 200–599 and gRPC 0–16 replies, both non-observed
+settlements and all three input rejection variants. Assertions cover code,
+status, full-width identity, completion evidence, absent facts and inspection
+actions without a service endpoint or signing credential. Native integration
+also passes exact host/disk recovery, scoped reads, HTTP/gRPC calls, query
+recovery/current revocation and materialization.
+
+All ten SDK package builds and strict Python typing pass. Full `just check`
+passes, including **517 CLI cases**, **75 Board unit cases**, **6 shared diagnostic
+boundary tests**, generated/native/frontend checks and the handbook. Logs:
+`/var/tmp/transit-connector-outcome-{native,build2,mypy,check}.log`.
+The first format invocation incorrectly followed an installed Rust helper path;
+formatting the standalone test with `skip_children` corrected it. Installed
+HTTP/gRPC worker schedules are still running in
+`/var/tmp/transit-connector-outcome-sdk.log`; no completed installed-schedule or
+committed-HEAD clean qualification is claimed yet. The focused reproducible
+entry is `just bindings::connector-outcomes` in the bindings shell.
+
 ## HTTP chunk diagnostic evidence — 2026-10-03
 
 The owned bounded chunk parser replaces the pinned standard-library parser for

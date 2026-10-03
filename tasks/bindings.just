@@ -201,6 +201,12 @@ sdk-interop: python-build node-build rust-build ruby-build c-build java-build do
     zig build transit-node rey-cli
     python3 -B tests/sdk_public_interop.py zig-out/bin/transit-node zig-out/bin/rey-cli zig-out/lib/libtransit_client.so .cache/bindings .cache/verification/m11-public-interop.json
 
+# Qualify installed HTTP/gRPC outcome diagnostics and recovery in every SDK.
+connector-outcomes: python-build node-build rust-build ruby-build c-build java-build dotnet-build beam-build
+    zig build transit-node rey-cli transit-station-http-worker transit-station-grpc-worker
+    python3 -B tests/sdk_grpc_runner.py zig-out/bin/transit-node zig-out/bin/rey-cli zig-out/lib/libtransit_client.so zig-out/bin/transit-station-http-worker .cache/bindings --protocol http
+    python3 -B tests/sdk_grpc_runner.py zig-out/bin/transit-node zig-out/bin/rey-cli zig-out/lib/libtransit_client.so zig-out/bin/transit-station-grpc-worker .cache/bindings
+
 # Crash after public RPC output commit and preserve a retired caller destination.
 grpc-faults: python-build
     zig build transit-node rey-cli transit-station-grpc-worker

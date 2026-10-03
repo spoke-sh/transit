@@ -73,3 +73,24 @@ test("recorded effect uncertainty has owner evidence without authorizing fresh w
   value.actions[0]!.target = value.identity;
   expect(ownedDiagnostic(value).invalid).toBe(true);
 });
+
+test("not-dispatched evidence requires a scoped exchange and cannot resume it", () => {
+  const value = fixture();
+  value.outcome = "not_dispatched";
+  value.identity = {
+    domain: "exchange",
+    id: "18446744073709551615",
+    resource: "7",
+    realm: null,
+    sequence: null,
+  };
+  value.actions = [{ kind: "inspect_status", target: value.identity }, null, null, null];
+  expect(ownedDiagnostic(value).invalid).toBe(false);
+  value.actions[0]!.kind = "resume_exact";
+  expect(ownedDiagnostic(value).invalid).toBe(true);
+  value.actions[0]!.kind = "inspect_status";
+  value.identity.resource = null;
+  expect(ownedDiagnostic(value).invalid).toBe(true);
+  value.identity.domain = "effect";
+  expect(ownedDiagnostic(value).invalid).toBe(true);
+});

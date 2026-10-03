@@ -80,13 +80,15 @@ transit_sdk_error transit_station_http_decode(uint64_t realm, transit_sdk_bytes 
         worker.run([&] {
             Local local(native_directory); const auto value = codec(local, action); const auto &raw = local.raw;
             if (exists(raw, value, "rejected")) {
-                decoded.rejected = true; const auto reason = raw.field(value, "rejected", true);
+                decoded.rejected = true; const auto reason = raw.field(value, "rejected/reason", true);
+                decoded.diagnostic = diagnostic(raw, value, "rejected/diagnostic");
                 if (reason == "denied") decoded.rejection = TRANSIT_HTTP_DENIED;
                 else if (reason == "invalid_request") decoded.rejection = TRANSIT_HTTP_INVALID_REQUEST;
                 else if (reason == "busy") decoded.rejection = TRANSIT_HTTP_BUSY;
                 else fail(TRANSIT_SDK_INCOMPATIBLE_NATIVE, "http-rejection");
                 return;
             }
+            decoded.diagnostic = diagnostic(raw, value, "outcome/diagnostic");
             const auto phase = raw.field(value, "outcome/phase", true);
             if (phase == "observed") decoded.phase = TRANSIT_HTTP_OBSERVED;
             else if (phase == "closed_unknown") decoded.phase = TRANSIT_HTTP_CLOSED_UNKNOWN;

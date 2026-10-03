@@ -146,11 +146,13 @@ class GrpcOutcome:
     attempt: int
     status: int | None
     reference: bytes | None = field(repr=False)
+    diagnostic: dict[str, Any] = field(repr=False)
 
 
 @dataclass(frozen=True, slots=True)
 class GrpcRejected:
     reason: GrpcRejection
+    diagnostic: dict[str, Any] = field(repr=False)
 
 
 @dataclass(frozen=True, slots=True)
@@ -165,13 +167,13 @@ def decode_grpc_reply(realm: int, data: bytes, *, native_directory: Path | None 
     value = _codec({'outcome': data.hex()}, native_directory,
                    capability='grpc_release' if data[:4] == b'GRK1' else 'grpc_requests')
     if 'rejected' in value:
-        return GrpcRejected(GrpcRejection(value['rejected']))
+        return GrpcRejected(GrpcRejection(value['rejected']['reason']), value['rejected']['diagnostic'])
     if 'released' in value:
         return GrpcReleased(ResourceRef(realm, value['released']['resource']), int(value['released']['exchange']))
     result = value['outcome']
     return GrpcOutcome(GrpcPhase(result['phase']), ResourceRef(realm, result['resource']),
                        int(result['exchange']), result['effect'], result['attempt'], result['status'],
-                       None if result['reference'] is None else bytes.fromhex(result['reference']))
+                       None if result['reference'] is None else bytes.fromhex(result['reference']), result['diagnostic'])
 
 
 class GrpcReplyCodec(Generic[T]):

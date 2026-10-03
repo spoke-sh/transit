@@ -36,6 +36,16 @@ restart; current rights still govern disclosure. An accepted opaque result
 completes the native observation boundary, without interpreting business success.
 Board displays this evidence and its shared diagnostic beside the recorded phase.
 
+HTTP and gRPC outcomes also expose an owned diagnostic through every SDK. It
+includes the resource-local exchange identity, native effect/attempt and exact
+protocol status. A complete HTTP 409/500 or non-OK gRPC response remains an
+observed response; it does not establish rollback or make a retry safe. A gRPC
+UNKNOWN status differs from an exchange whose remote outcome remains unknown.
+Not-dispatched exchanges have no authorized attempt. Rejected calls retain their
+admission reason separately from the outcome of earlier work. Reply diagnostics
+mark absent capture causes and validation fields as unrecorded; retained capture
+and native effect inspection supply their own evidence under current rights.
+
 ## Capture and publication
 
 HTTP and gRPC reuse the [Exchange contract](../../contracts/STATION_EXCHANGE_V1.md)

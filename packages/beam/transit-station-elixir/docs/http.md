@@ -74,3 +74,10 @@ the original deadline and total attempt budget. The original outcome stays
 unchanged. No retry, redirect, status query or remote cancellation is automatic.
 Cross-realm parents, unknown reasons and expired turns fail locally. The installed
 consumer covers all four policy refusals and correlation handling.
+
+Outcome and rejection values own `diagnostic` after the codec/native buffer is
+released. It retains the exact protocol status, exchange identity and inspection
+guidance. A completed response does not establish business success or permit a
+retry; rejected input does not settle earlier work. Original details absent from
+the reply are explicitly unrecorded. See the
+[shared SDK diagnostic contract](../../../../docs/reference/sdks.md#structured-failure-details).

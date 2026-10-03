@@ -56,6 +56,9 @@ pub const Outcome = struct {
     pub fn decode(value: x.p.Value) !Outcome {
         return x.codec.decode(Outcome, value);
     }
+    pub fn diagnostic(self: Outcome, realm: ?u64) !x.p.Diagnostic {
+        return x.OutcomeDiagnostic.outcome(.http, self, realm);
+    }
     pub fn reference(self: Outcome) !x.Client.Reference {
         try self.validate();
         if (self.phase != .observed) return error.IncompleteExchange;
@@ -66,6 +69,9 @@ pub const Rejection = struct {
     pub const magic = "HTF1";
     reason: enum(u8) { denied = 1, invalid_request = 2, busy = 3 },
     pub fn validate(_: Rejection) !void {}
+    pub fn diagnostic(self: Rejection) !x.p.Diagnostic {
+        return x.OutcomeDiagnostic.rejection(.http, self);
+    }
 };
 /// Explicit durable disposal of the original caller's replay hold. This is not
 /// local reader disposal, remote cancellation or permission to delete history.

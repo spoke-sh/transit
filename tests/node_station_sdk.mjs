@@ -72,7 +72,11 @@ async function main() {
     const reply = await decodeHttpReply(72, new Uint8Array(Buffer.from(fixture.outcome, 'hex')));
     assert.ok(reply instanceof HttpOutcome); assert.equal(reply.exchange, (1n << 64n) - 1n);
     assert.equal(reply.phase, 'observed'); assert.equal(reply.status, 200);
-    assert.deepEqual(await decodeHttpReply(72, new Uint8Array(Buffer.from(fixture.rejection, 'hex'))), { kind: 'http-rejected', reason: 'denied' });
+    assert.equal(reply.diagnostic.code, 'http.response_observed');
+    assert.equal(reply.diagnostic.identity.id, ((1n << 64n) - 1n).toString());
+    const rejected = await decodeHttpReply(72, new Uint8Array(Buffer.from(fixture.rejection, 'hex')));
+    assert.equal(rejected.reason, 'denied'); assert.equal(rejected.diagnostic.code, 'http.request_denied');
+    assert.equal(rejected.diagnostic.outcome, 'input_rejected');
     const disposal = JSON.parse(await readFile(cfg.http_release_fixtures, 'utf8'));
     const released = await decodeHttpReply(72, new Uint8Array(Buffer.from(disposal.reply, 'hex')));
     assert.deepEqual(released, { kind: 'http-released', resource: new ResourceRef(72, 7), exchange: (1n << 64n) - 1n });
@@ -323,6 +327,8 @@ async function httpConsumer() {
       turn.requireReply(input, { peer, correlation: await turn.state.require(correlation) });
       assert.ok(input.value instanceof HttpOutcome);
       assert.equal(input.value.phase, 'observed'); assert.equal(input.value.status, 200);
+      assert.equal(input.value.diagnostic.code, 'http.response_observed');
+      assert.equal(input.value.diagnostic.outcome, 'completed');
       await turn.state.put(status, BigInt(input.value.status));
       this.result = { observed: true };
     },
@@ -426,6 +432,7 @@ async function grpcConsumer() {
     async handleGrpcReply(turn, input) {
       this.escaped = turn;
       if (input.value.kind === 'grpc-rejected') {
+        assert.equal(input.value.diagnostic.code, 'grpc.request_denied');
         turn.requireReply(input, { peer, correlation: await turn.state.require(followup) });
         assert.equal(input.value.reason, 'denied');
         await turn.state.put(new Key(new TextEncoder().encode('grpc-followup-denied'), u64Codec), input.correlation);
@@ -444,6 +451,8 @@ async function grpcConsumer() {
       turn.requireReply(input, { peer, correlation: await turn.state.require(correlation) });
       assert.ok(input.value instanceof GrpcOutcome);
       assert.equal(input.value.phase, 'observed'); assert.equal(input.value.status, 0);
+      assert.equal(input.value.diagnostic.code, 'grpc.ok_observed');
+      assert.equal(input.value.diagnostic.outcome, 'completed');
       await turn.state.put(status, BigInt(input.value.status));
       this.result = { observed: true };
     },

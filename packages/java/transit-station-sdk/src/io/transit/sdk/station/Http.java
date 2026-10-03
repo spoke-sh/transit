@@ -85,7 +85,10 @@ public final class Http {
     public enum FollowupReason { RETRY, REDIRECT, RECONCILE, CANCEL }
     public enum Rejection { DENIED, INVALID_REQUEST, BUSY }
     public sealed interface Reply permits Outcome, Rejected, Released {}
-    public record Rejected(Rejection reason) implements Reply { public Rejected { Objects.requireNonNull(reason); } }
+    public record Rejected(Rejection reason, JsonObject diagnostic) implements Reply {
+        public Rejected { Objects.requireNonNull(reason); diagnostic = Objects.requireNonNull(diagnostic).deepCopy(); }
+        @Override public JsonObject diagnostic() { return diagnostic.deepCopy(); }
+    }
     public record Released(ResourceRef resource, BigInteger exchange) implements Reply {
         public Released { Objects.requireNonNull(resource); positive(exchange); }
     }
@@ -96,7 +99,9 @@ public final class Http {
         private final long effect, attempt;
         private final Integer status;
         private final Bytes reference;
+        private final JsonObject diagnostic;
         private Outcome(long realm, JsonObject value) {
+            diagnostic = object(value.get("diagnostic")).deepCopy();
             phase = Phase.valueOf(string(value.get("phase")).toUpperCase(Locale.ROOT));
             resource = new ResourceRef(realm, number(value.get("resource"), 1)); exchange = NativeValues.wide(value.get("exchange"), true);
             effect = number(value.get("effect"), 0); attempt = number(value.get("attempt"), 0);
@@ -104,6 +109,7 @@ public final class Http {
             reference = value.get("reference").isJsonNull() ? null : new Bytes(unhex(value.get("reference"), 256));
             if (status != null && status > 599) throw incompatible("http-status");
         }
+        public JsonObject diagnostic() { return diagnostic.deepCopy(); }
         public Phase phase() { return phase; }
         public ResourceRef resource() { return resource; }
         public BigInteger exchange() { return exchange; }
@@ -122,7 +128,11 @@ public final class Http {
             JsonObject released = object(decoded.get("released"));
             return new Released(new ResourceRef(realm, number(released.get("resource"), 1)), NativeValues.wide(released.get("exchange"), true));
         }
-        return decoded.has("rejected") ? new Rejected(Rejection.valueOf(string(decoded.get("rejected")).toUpperCase(Locale.ROOT))) : new Outcome(realm, object(decoded.get("outcome")));
+        if (decoded.has("rejected")) {
+            JsonObject rejected = object(decoded.get("rejected"));
+            return new Rejected(Rejection.valueOf(string(rejected.get("reason")).toUpperCase(Locale.ROOT)), object(rejected.get("diagnostic")));
+        }
+        return new Outcome(realm, object(decoded.get("outcome")));
     }
     public sealed interface Message<T> permits Application, Received {}
     public record Application<T>(T value) implements Message<T> { public Application { Objects.requireNonNull(value); } }

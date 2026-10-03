@@ -158,6 +158,7 @@ static class Proof
         byte[] encoded = Convert.FromHexString(Text(http, "outcome"));
         var outcome = (Http.Outcome)await Http.DecodeReplyAsync(72, encoded);
         Check(outcome.Exchange == ulong.MaxValue && outcome.Status == 200 && outcome.Phase == Http.Phase.Observed && outcome.Reference is not null);
+        Check(((Http.Outcome)await Http.DecodeReplyAsync(72, Convert.FromHexString(Text(http, "outcome")))).Diagnostic["code"]!.GetValue<string>() == "http.response_observed");
         Check(await Http.DecodeReplyAsync(72, Convert.FromHexString(Text(http, "rejection"))) is Http.Rejected { Reason: Http.Rejection.Denied });
         Http.ReplyCodec<ulong> httpCodec = new(Codecs.U64, 72);
         Check(httpCodec.Decode(httpCodec.Encode(new Http.Application<ulong>(ulong.MaxValue))) is Http.Application<ulong> { Value: ulong.MaxValue });
@@ -269,8 +270,10 @@ static class Proof
     static async Task GrpcGolden(JsonObject cfg) {
         var fixture=Read(Text(cfg,"grpc_fixtures")); byte[] encoded=Convert.FromHexString(Text(fixture,"outcome_ok_hex"));
         var ok=(Grpc.Outcome)await Grpc.DecodeReplyAsync(72,encoded);
+        Check(ok.Diagnostic["code"]!.GetValue<string>() == "grpc.ok_observed");
         Check(ok.Phase==Grpc.Phase.Observed && ok.Status==0 && ok.Exchange==ulong.MaxValue && ok.Reference is not null);
         var unknown=(Grpc.Outcome)await Grpc.DecodeReplyAsync(72,Convert.FromHexString(Text(fixture,"outcome_unknown_hex")));
+        Check(unknown.Diagnostic["outcome"]!.GetValue<string>() == "closed_unknown");
         Check(unknown.Phase==Grpc.Phase.ClosedUnknown && unknown.Status is null && unknown.Reference is null);
         Check(await Grpc.DecodeReplyAsync(72,Convert.FromHexString(Text(fixture,"rejection_hex"))) is Grpc.Rejected {Reason: Grpc.Rejection.Denied});
         Check(await Grpc.DecodeReplyAsync(72,Convert.FromHexString(Text(fixture,"released_hex"))) == new Grpc.Released(new ResourceRef(72,7),ulong.MaxValue));

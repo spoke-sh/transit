@@ -1,5 +1,11 @@
 # transit-station-grpc
 
+`Service.Outcome.diagnostic(realm)` and `Service.Rejection.diagnostic()` project
+the shared owned diagnostic. All 17 observed gRPC statuses retain their own code
+and numeric status, separate from capture completion. Observed UNKNOWN differs
+from an exchange closed without a remote outcome. Inspection advice never grants
+retry or remote cancellation; missing original reply detail stays unrecorded.
+
 The M16 Zig adapter composes [Exchange](../transit-exchange/README.md), Station
 Publication and the finite [RPC transport](../transit-grpc/README.md). Its
 [versioned contract](../../../contracts/STATION_GRPC_V1.md) describes the finite

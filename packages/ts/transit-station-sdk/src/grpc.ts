@@ -167,6 +167,7 @@ export async function prepareGrpc(
 }
 export type GrpcPhase = "observed" | "closed-unknown" | "not-dispatched";
 export type GrpcRejection = "denied" | "invalid-request" | "busy";
+type Diagnostic = import("./unified.ts").Diagnostic;
 export class GrpcOutcome {
   readonly kind = "grpc-outcome";
   readonly phase: GrpcPhase;
@@ -175,6 +176,7 @@ export class GrpcOutcome {
   readonly effect: number;
   readonly attempt: number;
   readonly status: number | undefined;
+  readonly diagnostic: Diagnostic;
   readonly #reference: Uint8Array | undefined;
   constructor(
     secret: typeof construction,
@@ -193,6 +195,7 @@ export class GrpcOutcome {
     this.effect = value.effect;
     this.attempt = value.attempt;
     this.status = value.status ?? undefined;
+    this.diagnostic = structuredClone(value.diagnostic);
     this.#reference = value.reference === null ? undefined : unhex(value.reference, 256);
     Object.freeze(this);
   }
@@ -206,6 +209,7 @@ export class GrpcOutcome {
 export interface GrpcRejected {
   readonly kind: "grpc-rejected";
   readonly reason: GrpcRejection;
+  readonly diagnostic: Diagnostic;
 }
 export interface GrpcReleased {
   readonly kind: "grpc-released";
@@ -225,7 +229,9 @@ export async function decodeGrpcWithBridge(
   if ("rejected" in result)
     return Object.freeze({
       kind: "grpc-rejected",
-      reason: result.rejected === "invalid_request" ? "invalid-request" : result.rejected,
+      reason:
+        result.rejected.reason === "invalid_request" ? "invalid-request" : result.rejected.reason,
+      diagnostic: structuredClone(result.rejected.diagnostic),
     });
   if ("released" in result)
     return Object.freeze({

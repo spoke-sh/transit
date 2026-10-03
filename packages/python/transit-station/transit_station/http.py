@@ -157,11 +157,13 @@ class HttpOutcome:
     attempt: int
     status: int | None
     reference: bytes | None = field(repr=False)
+    diagnostic: dict[str, Any] = field(repr=False)
 
 
 @dataclass(frozen=True, slots=True)
 class HttpRejected:
     reason: HttpRejection
+    diagnostic: dict[str, Any] = field(repr=False)
 
 
 @dataclass(frozen=True, slots=True)
@@ -176,13 +178,13 @@ def decode_http_reply(realm: int, data: bytes, *, native_directory: Path | None 
     value = _codec({'outcome': data.hex()}, native_directory,
                    capability='http_release' if data[:4] == b'HTK1' else 'http_requests')
     if 'rejected' in value:
-        return HttpRejected(HttpRejection(value['rejected']))
+        return HttpRejected(HttpRejection(value['rejected']['reason']), value['rejected']['diagnostic'])
     if 'released' in value:
         return HttpReleased(ResourceRef(realm, value['released']['resource']), int(value['released']['exchange']))
     result = value['outcome']
     return HttpOutcome(HttpPhase(result['phase']), ResourceRef(realm, result['resource']),
                        int(result['exchange']), result['effect'], result['attempt'], result['status'],
-                       None if result['reference'] is None else bytes.fromhex(result['reference']))
+                       None if result['reference'] is None else bytes.fromhex(result['reference']), result['diagnostic'])
 
 
 class HttpReplyCodec(Generic[T]):

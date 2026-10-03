@@ -17,12 +17,12 @@ end
 
 defmodule Transit.Station.Sdk.Grpc.Outcome do
   @enforce_keys [:phase, :resource, :exchange, :effect, :attempt]
-  defstruct [:phase, :resource, :exchange, :effect, :attempt, :status, :reference]
+  defstruct [:phase, :resource, :exchange, :effect, :attempt, :status, :reference, :diagnostic]
 end
 
 defmodule Transit.Station.Sdk.Grpc.Rejected do
   @enforce_keys [:reason]
-  defstruct [:reason]
+  defstruct [:reason, :diagnostic]
 end
 
 defmodule Transit.Station.Sdk.Grpc.Part do
@@ -133,7 +133,8 @@ defmodule Transit.Station.Sdk.Grpc do
   defp outcome(%Outcome{} = value),
     do:
       {:transit_grpc_outcome, value.phase, Client.native(value.resource), value.exchange,
-       value.effect, value.attempt, Value.optional(value.status), Value.optional(value.reference)}
+       value.effect, value.attempt, Value.optional(value.status), Value.optional(value.reference),
+       value.diagnostic}
 
   defp prepared(%Prepared{} = value),
     do:
@@ -157,7 +158,8 @@ defmodule Transit.Station.Sdk.Grpc do
     }
 
   def convert(
-        {:transit_grpc_outcome, phase, resource, exchange, effect, attempt, status, reference}
+        {:transit_grpc_outcome, phase, resource, exchange, effect, attempt, status, reference,
+         diagnostic}
       ),
       do: %Outcome{
         phase: phase,
@@ -166,10 +168,12 @@ defmodule Transit.Station.Sdk.Grpc do
         effect: effect,
         attempt: attempt,
         status: Value.convert(status),
-        reference: Value.convert(reference)
+        reference: Value.convert(reference),
+        diagnostic: diagnostic
       }
 
-  def convert({:transit_grpc_rejected, reason}), do: %Rejected{reason: reason}
+  def convert({:transit_grpc_rejected, reason, diagnostic}),
+    do: %Rejected{reason: reason, diagnostic: diagnostic}
 
   def convert({:transit_grpc_released, resource, exchange}),
     do: %Released{resource: Client.convert(resource), exchange: exchange}

@@ -104,3 +104,10 @@ and drives the direct C APIs through the shared TLS/recovery/replay schedule.
 It also runs the C++ wrapper and existing client/Station regressions. See the
 [proof guide](../../../../tests/README.md#m15-connector-work-in-progress) for
 executed evidence and remaining M15 limits.
+
+Outcome and rejection values own `diagnostic.json` and `diagnostic.size` after the codec/native buffer is
+released. It retains the exact protocol status, exchange identity and inspection
+guidance. A completed response does not establish business success or permit a
+retry; rejected input does not settle earlier work. Original details absent from
+the reply are explicitly unrecorded. See the
+[shared SDK diagnostic contract](../../../../docs/reference/sdks.md#structured-failure-details).

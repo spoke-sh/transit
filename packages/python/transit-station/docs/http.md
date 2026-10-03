@@ -97,3 +97,10 @@ original caller, current scope and parent's frozen policy before allocating a
 child; the helper neither retries automatically nor decides that a retry is safe.
 Use a fresh configured child exchange in the finite worker's admission profile.
 Neither a successful child nor a cancellation request rewrites the parent outcome.
+
+Outcome and rejection values own `diagnostic` after the codec/native buffer is
+released. It retains the exact protocol status, exchange identity and inspection
+guidance. A completed response does not establish business success or permit a
+retry; rejected input does not settle earlier work. Original details absent from
+the reply are explicitly unrecorded. See the
+[shared SDK diagnostic contract](../../../../docs/reference/sdks.md#structured-failure-details).

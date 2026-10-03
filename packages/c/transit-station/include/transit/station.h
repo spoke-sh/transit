@@ -249,6 +249,7 @@ typedef struct transit_station_http_outcome {
     uint16_t status; /* Zero unless observed. HTTP status is not business success. */
     size_t reference_size; /* Zero unless complete; not a bearer grant. */
     uint8_t reference[256];
+    transit_sdk_diagnostic diagnostic;
 } transit_station_http_outcome;
 typedef struct transit_station_http_released {
     transit_sdk_resource resource;
@@ -326,6 +327,7 @@ typedef struct transit_station_grpc_outcome {
     bool has_status;
     size_t reference_size; /* Zero unless complete; not a bearer grant. */
     uint8_t reference[256];
+    transit_sdk_diagnostic diagnostic;
 } transit_station_grpc_outcome;
 typedef struct transit_station_grpc_released {
     transit_sdk_resource resource;

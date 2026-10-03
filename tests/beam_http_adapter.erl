@@ -55,7 +55,7 @@ handle_message(Turn, Input, {S, Peer, Request, Disposal, Reason} = Context) ->
             case Input#transit_incoming.value of
                 <<"HTF1", _/binary>> ->
                     {ok, Correlation} = transit_turn:require(State, FollowupKey), {ok, ok} = transit_turn:require_reply(Turn, Input, Peer, Correlation),
-                    {ok, #transit_http_rejected{reason = denied}} = transit_http:decode_reply(72, Input#transit_incoming.value),
+                    {ok, #transit_http_rejected{reason = denied, diagnostic = #{<<"code">> := <<"http.request_denied">>}}} = transit_http:decode_reply(72, Input#transit_incoming.value),
                     {ok, Denied} = transit_turn:key(<<"http-followup-denied">>, transit_example_u64_codec),
                     {ok, ok} = transit_turn:put(State, Denied, Correlation), #{followup => true};
                 <<"HTK1", _/binary>> ->
@@ -94,8 +94,8 @@ golden(Fixture) ->
     true = Prepared#transit_http_prepared.reference =:= binary:decode_hex(maps:get(<<"reference">>, Fixture)),
     true = Prepared#transit_http_prepared.metadata =:= maps:get(<<"metadata">>, Fixture),
     Bytes = binary:decode_hex(maps:get(<<"outcome">>, Fixture)),
-    {ok, #transit_http_outcome{phase = observed, status = 200, exchange = 18446744073709551615, reference = Ref}} = transit_http:decode_reply(72, Bytes), true = is_binary(Ref),
-    {ok, #transit_http_rejected{reason = denied}} = transit_http:decode_reply(72, binary:decode_hex(maps:get(<<"rejection">>, Fixture))),
+    {ok, #transit_http_outcome{phase = observed, status = 200, exchange = 18446744073709551615, reference = Ref, diagnostic = #{<<"code">> := <<"http.response_observed">>, <<"outcome">> := <<"completed">>}}} = transit_http:decode_reply(72, Bytes), true = is_binary(Ref),
+    {ok, #transit_http_rejected{reason = denied, diagnostic = #{<<"code">> := <<"http.request_denied">>}}} = transit_http:decode_reply(72, binary:decode_hex(maps:get(<<"rejection">>, Fixture))),
     {error, _} = transit_http:decode_reply(72, binary:part(Bytes, 0, 70)),
     Released = binary:decode_hex(maps:get(<<"released">>, Fixture)),
     {ok, #transit_http_released{resource = #transit_resource{realm = 72, resource = 7}, exchange = 18446744073709551615}} = transit_http:decode_reply(72, Released),

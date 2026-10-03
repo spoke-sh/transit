@@ -89,10 +89,10 @@ event(#transit_committed{}) -> committed;
 event(Value) -> Value.
 golden(Fixture) ->
     Bytes = binary:decode_hex(maps:get(<<"outcome_ok_hex">>,Fixture)),
-    {ok,#transit_grpc_outcome{phase=observed,status=0,exchange=18446744073709551615,reference=Ref}} = transit_grpc:decode_reply(72,Bytes),
+    {ok,#transit_grpc_outcome{phase=observed,status=0,exchange=18446744073709551615,reference=Ref,diagnostic=#{<<"code">> := <<"grpc.ok_observed">>, <<"outcome">> := <<"completed">>}}} = transit_grpc:decode_reply(72,Bytes),
     true = is_binary(Ref),
-    {ok,#transit_grpc_outcome{phase=closed_unknown,status=undefined,reference=undefined}} = transit_grpc:decode_reply(72,binary:decode_hex(maps:get(<<"outcome_unknown_hex">>,Fixture))),
-    {ok,#transit_grpc_rejected{reason=denied}} = transit_grpc:decode_reply(72,binary:decode_hex(maps:get(<<"rejection_hex">>,Fixture))),
+    {ok,#transit_grpc_outcome{phase=closed_unknown,status=undefined,reference=undefined,diagnostic=#{<<"outcome">> := <<"closed_unknown">>}}} = transit_grpc:decode_reply(72,binary:decode_hex(maps:get(<<"outcome_unknown_hex">>,Fixture))),
+    {ok,#transit_grpc_rejected{reason=denied,diagnostic=#{<<"code">> := <<"grpc.request_denied">>}}} = transit_grpc:decode_reply(72,binary:decode_hex(maps:get(<<"rejection_hex">>,Fixture))),
     {ok,#transit_grpc_released{resource=#transit_resource{realm=72,resource=7},exchange=18446744073709551615}} = transit_grpc:decode_reply(72,binary:decode_hex(maps:get(<<"released_hex">>,Fixture))),
     {error,_} = transit_grpc:decode_reply(72,binary:part(Bytes,0,72)),ok.
 replay_error() -> <<"GrpcReplayFailed">>.

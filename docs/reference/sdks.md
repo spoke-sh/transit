@@ -206,3 +206,17 @@ Current read authorization applies to all retained detail. A failed read never
 replaces previously saved evidence with an inferred outcome. C embeds diagnostic
 JSON and byte count in the status/disposition struct; C++ owns a JSON string;
 the other SDKs retain their language's JSON object or map.
+
+HTTP and gRPC outcome/rejection models also own `diagnostic` (`Diagnostic` in
+.NET, `diagnostic()` in C++/Java). C embeds its JSON bytes and size in the outcome
+struct for either variant. Rust's `Rejected` reply variant contains a value with
+`reason` and `diagnostic`. The detail outlives the local codec host/native buffer.
+Observed HTTP errors and non-OK gRPC statuses have a completed capture and their
+exact protocol status; this does not certify business success or permit retry.
+An exchange without an authorized attempt is `not_dispatched`. Rejected calls
+use `input_rejected` and do not replace a prior exchange outcome. The pure reply
+codec has no realm input, so the diagnostic's exchange identity retains resource
+and full-width ID with an absent realm; the owned outcome has the caller's
+explicit `ResourceRef`. Original capture/closure causes and rejected field
+details absent from the reply are marked unrecorded. Inspect their owning
+records under current authority instead of inferring them from a later read.

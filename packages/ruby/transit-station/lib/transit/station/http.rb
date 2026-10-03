@@ -74,17 +74,21 @@ module Transit
       PreparedHttpRequest.new(resource: resource, namespace: namespace,
         reference: Internal.unhex(result.fetch('reference'), 112), metadata: Internal.unhex(result.fetch('metadata'), 8192), body: bytes)
     end
-    HttpOutcome = Data.define(:phase, :resource, :exchange, :effect, :attempt, :status, :reference) do
-      def initialize(phase:, resource:, exchange:, effect:, attempt:, status:, reference:)
+    HttpOutcome = Data.define(:phase, :resource, :exchange, :effect, :attempt, :status, :reference, :diagnostic) do
+      def initialize(phase:, resource:, exchange:, effect:, attempt:, status:, reference:, diagnostic:)
         raise ArgumentError, 'Invalid HTTP phase or resource' unless %i[observed closed_unknown not_dispatched].include?(phase) && resource.is_a?(ResourceRef)
         super(phase: phase, resource: resource, exchange: Internal.integer(exchange, max: U64_MAX),
           effect: Internal.integer(effect, min: 0), attempt: Internal.integer(attempt, min: 0),
           status: status.nil? ? nil : Internal.integer(status, min: 200, max: 599),
-          reference: reference.nil? ? nil : Internal.bytes(reference, 256).freeze)
+          reference: reference.nil? ? nil : Internal.bytes(reference, 256).freeze, diagnostic: Value.diagnostic(diagnostic))
       end
       def inspect = "#<Transit::Station::HttpOutcome #{phase}>"
     end
-    HttpRejected = Data.define(:reason)
+    HttpRejected = Data.define(:reason, :diagnostic) do
+      def initialize(reason:, diagnostic:)
+        super(reason: reason, diagnostic: Value.diagnostic(diagnostic))
+      end
+    end
     HttpReleased = Data.define(:resource, :exchange) do
       def initialize(resource:, exchange:)
         raise ArgumentError, 'Expected ResourceRef' unless resource.is_a?(ResourceRef)
@@ -95,7 +99,7 @@ module Transit
       Internal.integer(realm)
       bytes = Internal.bytes(bytes, 71)
       result = HttpValue.codec({ 'outcome' => bytes.unpack1('H*') }, native_host, release: bytes.start_with?('HTK1'.b))
-      return HttpRejected.new(reason: result.fetch('rejected').to_sym) if result.key?('rejected')
+      return HttpRejected.new(reason: result.fetch('rejected').fetch('reason').to_sym, diagnostic: result.fetch('rejected').fetch('diagnostic')) if result.key?('rejected')
       if result.key?('released')
         value = result.fetch('released')
         return HttpReleased.new(resource: ResourceRef.new(realm: realm, resource: value.fetch('resource')),
@@ -105,7 +109,7 @@ module Transit
       HttpOutcome.new(phase: value.fetch('phase').to_sym,
         resource: ResourceRef.new(realm: realm, resource: value.fetch('resource')),
         exchange: Value.wide(value.fetch('exchange'), min: 1), effect: value.fetch('effect'), attempt: value.fetch('attempt'),
-        status: value.fetch('status'), reference: value['reference'] && Internal.unhex(value['reference'], 256))
+        status: value.fetch('status'), reference: value['reference'] && Internal.unhex(value['reference'], 256), diagnostic: value.fetch('diagnostic'))
     end
     class HttpReplyCodec
       attr_reader :type_id

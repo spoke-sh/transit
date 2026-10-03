@@ -74,3 +74,10 @@ or `HttpRejected`. The service checks the original caller, current scope and
 frozen parent policy before allocating a child. The helper performs no automatic
 retry or retry-safety inference. Select a fresh child exchange and matching
 parent/reason on the finite worker. The parent outcome remains unchanged.
+
+Outcome and rejection values own `diagnostic` after the codec/native buffer is
+released. It retains the exact protocol status, exchange identity and inspection
+guidance. A completed response does not establish business success or permit a
+retry; rejected input does not settle earlier work. Original details absent from
+the reply are explicitly unrecorded. See the
+[shared SDK diagnostic contract](../../../../docs/reference/sdks.md#structured-failure-details).

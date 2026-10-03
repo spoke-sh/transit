@@ -16,15 +16,15 @@ pub mod unified;
 pub use bridge::encode_cast;
 pub use grpc::{
     GrpcMessage, GrpcMetadata, GrpcMetadataValue, GrpcMethod, GrpcOutcome, GrpcPart, GrpcPartKind,
-    GrpcPhase, GrpcReader, GrpcRejection, GrpcReleased, GrpcReplayPolicy, GrpcReply,
+    GrpcPhase, GrpcReader, GrpcRejected, GrpcRejection, GrpcReleased, GrpcReplayPolicy, GrpcReply,
     GrpcReplyCodec, GrpcRequest, GrpcRequestOptions, GrpcShape, PreparedGrpcRequest,
     decode_grpc_reply, grpc_method, prepare_grpc,
 };
 pub use http::{
     HttpFollowupReason, HttpHeader, HttpMessage, HttpMethod, HttpOutcome, HttpPart, HttpPartKind,
-    HttpPhase, HttpPiece, HttpReader, HttpRejection, HttpReleased, HttpReplayPolicy, HttpReply,
-    HttpReplyCodec, HttpRequest, HttpRequestOptions, PreparedHttpRequest, decode_http_reply,
-    prepare_http,
+    HttpPhase, HttpPiece, HttpReader, HttpRejected, HttpRejection, HttpReleased, HttpReplayPolicy,
+    HttpReply, HttpReplyCodec, HttpRequest, HttpRequestOptions, PreparedHttpRequest,
+    decode_http_reply, prepare_http,
 };
 pub use query::{
     Aggregate, Column, Comparison, IpcSegment, Predicate, Projection, QueryCloseReason, QueryJob,

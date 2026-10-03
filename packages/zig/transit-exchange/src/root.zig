@@ -4,6 +4,7 @@ pub const station = @import("transit_station");
 pub const p = station.protocol;
 pub const Publication = station.Publication;
 pub const Failure = @import("Failure.zig");
+pub const OutcomeDiagnostic = @import("OutcomeDiagnostic.zig");
 pub const Exchange = @import("Exchange.zig");
 pub const Client = @import("Client.zig");
 pub const Caller = @import("Caller.zig").For;

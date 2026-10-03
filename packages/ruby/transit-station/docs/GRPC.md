@@ -38,3 +38,10 @@ upload recovery, binary/Unicode/full-width messages, duplicate metadata, revoked
 prefixes, replay without secrets, joined interruption, retry refusal and disposal
 before/after cleanup. The [shared contract](../../../../contracts/STATION_GRPC_V1.md)
 and [proof guide](../../../../tests/README.md) separate native, transport and deployment evidence.
+
+Outcome and rejection values own `diagnostic` after the codec/native buffer is
+released. It retains the exact protocol status, exchange identity and inspection
+guidance. A completed response does not establish business success or permit a
+retry; rejected input does not settle earlier work. Original details absent from
+the reply are explicitly unrecorded. See the
+[shared SDK diagnostic contract](../../../../docs/reference/sdks.md#structured-failure-details).

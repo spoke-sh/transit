@@ -231,6 +231,7 @@ public final class JavaStationSdk {
         byte[] encoded = HexFormat.of().parseHex(http.get("outcome").getAsString());
         Http.Outcome outcome = (Http.Outcome)Http.decodeReply(72, encoded);
         check(outcome.exchange().equals(Values.U64_MAX) && outcome.status().orElseThrow() == 200 && outcome.phase() == Http.Phase.OBSERVED && outcome.reference().isPresent());
+        check(((Http.Outcome)Http.decodeReply(72, HexFormat.of().parseHex(http.get("outcome").getAsString()))).diagnostic().get("code").getAsString().equals("http.response_observed"));
         check(((Http.Rejected)Http.decodeReply(72, HexFormat.of().parseHex(http.get("rejection").getAsString()))).reason() == Http.Rejection.DENIED);
         Http.ReplyCodec<BigInteger> codec = new Http.ReplyCodec<>(Codecs.U64, 72);
         check(((Http.Application<BigInteger>)codec.decode(codec.encode(new Http.Application<>(Values.U64_MAX)))).value().equals(Values.U64_MAX));
@@ -363,8 +364,10 @@ public final class JavaStationSdk {
         JsonObject fixture=read(Path.of(cfg.get("grpc_fixtures").getAsString()));
         byte[] encoded=HexFormat.of().parseHex(fixture.get("outcome_ok_hex").getAsString());
         Grpc.Outcome ok=(Grpc.Outcome)Grpc.decodeReply(72,encoded);
+        check(ok.diagnostic().get("code").getAsString().equals("grpc.ok_observed"));
         check(ok.phase()==Grpc.Phase.OBSERVED && ok.status().orElseThrow()==0 && ok.exchange().equals(Values.U64_MAX) && ok.reference().isPresent());
         Grpc.Outcome unknown=(Grpc.Outcome)Grpc.decodeReply(72,HexFormat.of().parseHex(fixture.get("outcome_unknown_hex").getAsString()));
+        check(unknown.diagnostic().get("outcome").getAsString().equals("closed_unknown"));
         check(unknown.phase()==Grpc.Phase.CLOSED_UNKNOWN && unknown.status().isEmpty() && unknown.reference().isEmpty());
         check(Grpc.decodeReply(72,HexFormat.of().parseHex(fixture.get("rejection_hex").getAsString())) instanceof Grpc.Rejected rejected && rejected.reason()==Grpc.Rejection.DENIED);
         check(Grpc.decodeReply(72,HexFormat.of().parseHex(fixture.get("released_hex").getAsString())).equals(new Grpc.Released(new ResourceRef(72,7),Values.U64_MAX)));

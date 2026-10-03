@@ -74,6 +74,17 @@ opaque result does not establish business success. Projection offers inspection,
 without claiming a connector-specific retry or cancellation policy exists.
 Failures during result reading/output/cleanup do not change a saved domain outcome.
 
+The `exchange` identity uses a full-width resource-local exchange ID and requires
+its resource; the realm can be absent in a pure reply codec. Its `not_dispatched`
+outcome requires domain evidence that no attempt was authorized. Observed HTTP
+and gRPC replies are `completed` at the capture boundary, including HTTP errors
+and non-OK gRPC statuses. The exact numeric `protocol_status` remains separate
+from outcome certainty; gRPC UNKNOWN is an observed status, distinct from a
+connector's `closed_unknown`. `native_effect` and `attempt` identify the separate
+native evidence when present. Reply projection cannot reconstruct a capture cause
+or closure reason absent from that reply. It marks those details unrecorded and
+offers inspection without fresh dispatch, automatic retry or cancellation advice.
+
 Relevant caller-owned names, values, parameter indices and attempted keys are
 valid correction context. Owners must not enrich them with unauthorized stored
 values, inaccessible catalog names or credential/SECRET contents. Retained

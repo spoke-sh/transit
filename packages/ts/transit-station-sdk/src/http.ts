@@ -137,6 +137,7 @@ export async function prepareHttp(
 export type HttpPhase = "observed" | "closed-unknown" | "not-dispatched";
 export type HttpFollowupReason = "retry" | "redirect" | "reconcile" | "cancel";
 export type HttpRejection = "denied" | "invalid-request" | "busy";
+type Diagnostic = import("./unified.ts").Diagnostic;
 export class HttpOutcome {
   readonly kind = "http-outcome";
   readonly phase: HttpPhase;
@@ -145,6 +146,7 @@ export class HttpOutcome {
   readonly effect: number;
   readonly attempt: number;
   readonly status: number | undefined;
+  readonly diagnostic: Diagnostic;
   readonly #reference: Uint8Array | undefined;
   constructor(
     secret: typeof construction,
@@ -163,6 +165,7 @@ export class HttpOutcome {
     this.effect = value.effect;
     this.attempt = value.attempt;
     this.status = value.status ?? undefined;
+    this.diagnostic = structuredClone(value.diagnostic);
     this.#reference = value.reference === null ? undefined : unhex(value.reference, 256);
     Object.freeze(this);
   }
@@ -176,6 +179,7 @@ export class HttpOutcome {
 export interface HttpRejected {
   readonly kind: "http-rejected";
   readonly reason: HttpRejection;
+  readonly diagnostic: Diagnostic;
 }
 export interface HttpReleased {
   readonly kind: "http-released";
@@ -195,7 +199,9 @@ export async function decodeHttpWithBridge(
   if ("rejected" in result)
     return Object.freeze({
       kind: "http-rejected",
-      reason: result.rejected === "invalid_request" ? "invalid-request" : result.rejected,
+      reason:
+        result.rejected.reason === "invalid_request" ? "invalid-request" : result.rejected.reason,
+      diagnostic: structuredClone(result.rejected.diagnostic),
     });
   if ("released" in result)
     return Object.freeze({

@@ -52,7 +52,7 @@ decode_reply(Realm, Bytes, Override) -> transit_sdk_value:protect(fun() ->
     Capability = case Owned of <<"HTK1", _/binary>> -> <<"http_release">>; _ -> <<"http_requests">> end,
     Value = local(#{<<"outcome">> => transit_sdk_value:hex(Owned)}, Override, Capability),
     case Value of
-        #{<<"rejected">> := Rejection} -> #transit_http_rejected{reason = known(Rejection, [denied, invalid_request, busy])};
+        #{<<"rejected">> := Rejection} -> #transit_http_rejected{reason = known(maps:get(<<"reason">>, Rejection), [denied, invalid_request, busy]), diagnostic = maps:get(<<"diagnostic">>, Rejection)};
         #{<<"released">> := Released} -> #transit_http_released{
             resource = #transit_resource{realm = Realm, resource = transit_sdk_value:counter(maps:get(<<"resource">>, Released))},
             exchange = positive(transit_sdk_value:wide(maps:get(<<"exchange">>, Released)))};
@@ -62,7 +62,7 @@ decode_reply(Realm, Bytes, Override) -> transit_sdk_value:protect(fun() ->
                 exchange = positive(transit_sdk_value:wide(maps:get(<<"exchange">>, Result))), effect = transit_sdk_value:counter(maps:get(<<"effect">>, Result), 0),
                 attempt = transit_sdk_value:counter(maps:get(<<"attempt">>, Result), 0),
                 status = case maps:get(<<"status">>, Result) of null -> undefined; Code -> transit_sdk_value:integer(Code, 200, 599) end,
-                reference = case maps:get(<<"reference">>, Result) of null -> undefined; Ref -> transit_sdk_value:unhex(Ref, 256) end}
+                reference = case maps:get(<<"reference">>, Result) of null -> undefined; Ref -> transit_sdk_value:unhex(Ref, 256) end, diagnostic = maps:get(<<"diagnostic">>, Result)}
     end end).
 known(Value, Allowed) ->
     case [Atom || Atom <- Allowed, atom_to_binary(Atom, utf8) =:= Value] of [Result] -> Result; _ -> transit_sdk_value:fail(incompatible_native, http_enum) end.

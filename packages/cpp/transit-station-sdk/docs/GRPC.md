@@ -52,3 +52,10 @@ full-width identity, original protobuf, correlated status zero, prefix revocatio
 sticky failure, credential-free replay, joined close, explicit retry refusal and
 authenticated disposal before and after cleanup without a read grant. See the
 [proof details](../../../../tests/README.md).
+
+Outcome and rejection values own `diagnostic()` after the codec/native buffer is
+released. It retains the exact protocol status, exchange identity and inspection
+guidance. A completed response does not establish business success or permit a
+retry; rejected input does not settle earlier work. Original details absent from
+the reply are explicitly unrecorded. See the
+[shared SDK diagnostic contract](../../../../docs/reference/sdks.md#structured-failure-details).

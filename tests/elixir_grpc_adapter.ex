@@ -119,7 +119,10 @@ defmodule ElixirGrpcAdapter do
         %Incoming{kind: :reply, value: <<"GRF1", _::binary>> = bytes} ->
           {:ok, correlation} = State.require(state, followup_key)
           {:ok, :ok} = Turn.require_reply(turn, input, peer, correlation)
-          {:ok, %Rejected{reason: :denied}} = Grpc.decode_reply(72, bytes)
+
+          {:ok, %Rejected{reason: :denied, diagnostic: %{"code" => "grpc.request_denied"}}} =
+            Grpc.decode_reply(72, bytes)
+
           {:ok, denied} = Turn.key("grpc-followup-denied", U64Codec)
           {:ok, :ok} = State.put(state, denied, correlation)
           %{followup: true}
@@ -199,7 +202,13 @@ defmodule ElixirGrpcAdapter do
     bytes = Base.decode16!(fixture["outcome_ok_hex"], case: :mixed)
 
     {:ok,
-     %Outcome{phase: :observed, status: 0, exchange: 18_446_744_073_709_551_615, reference: ref}} =
+     %Outcome{
+       phase: :observed,
+       status: 0,
+       exchange: 18_446_744_073_709_551_615,
+       reference: ref,
+       diagnostic: %{"code" => "grpc.ok_observed", "outcome" => "completed"}
+     }} =
       Grpc.decode_reply(72, bytes)
 
     true = is_binary(ref)
@@ -207,7 +216,7 @@ defmodule ElixirGrpcAdapter do
     {:ok, %Outcome{phase: :closed_unknown, status: nil, reference: nil}} =
       Grpc.decode_reply(72, Base.decode16!(fixture["outcome_unknown_hex"], case: :mixed))
 
-    {:ok, %Rejected{reason: :denied}} =
+    {:ok, %Rejected{reason: :denied, diagnostic: %{"code" => "grpc.request_denied"}}} =
       Grpc.decode_reply(72, Base.decode16!(fixture["rejection_hex"], case: :mixed))
 
     {:ok,

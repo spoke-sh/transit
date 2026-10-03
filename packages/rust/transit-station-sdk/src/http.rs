@@ -196,6 +196,7 @@ pub struct HttpOutcome {
     pub attempt: Counter,
     pub status: Option<u16>,
     pub(crate) reference: Option<Box<[u8]>>,
+    pub diagnostic: Value,
 }
 impl HttpOutcome {
     pub fn reference(&self) -> Option<&[u8]> {
@@ -210,9 +211,14 @@ impl fmt::Debug for HttpOutcome {
     }
 }
 #[derive(Clone, Debug)]
+pub struct HttpRejected {
+    pub reason: HttpRejection,
+    pub diagnostic: Value,
+}
+#[derive(Clone, Debug)]
 pub enum HttpReply {
     Outcome(HttpOutcome),
-    Rejected(HttpRejection),
+    Rejected(HttpRejected),
     Released(HttpReleased),
 }
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -231,15 +237,16 @@ pub fn decode_http_reply(
         native_directory,
         bytes.starts_with(b"HTK1"),
     )?;
-    if let Some(reason) = value.get("rejected") {
-        return Ok(HttpReply::Rejected(
-            match string(reason, "http-rejection")? {
+    if let Some(rejected) = value.get("rejected") {
+        return Ok(HttpReply::Rejected(HttpRejected {
+            reason: match string(field(rejected, "reason")?, "http-rejection")? {
                 "denied" => HttpRejection::Denied,
                 "invalid_request" => HttpRejection::InvalidRequest,
                 "busy" => HttpRejection::Busy,
                 _ => return Err(invalid()),
             },
-        ));
+            diagnostic: field(rejected, "diagnostic")?.clone(),
+        }));
     }
     if let Some(released) = value.get("released") {
         return Ok(HttpReply::Released(HttpReleased {
@@ -270,6 +277,7 @@ pub fn decode_http_reply(
                     .map_err(|_| invalid())?,
             )
         },
+        diagnostic: field(value, "diagnostic")?.clone(),
         reference: if value["reference"].is_null() {
             None
         } else {

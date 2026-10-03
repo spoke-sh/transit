@@ -1,4 +1,4 @@
-use serde_json::{Value, json};
+use serde_json::{json, Value};
 use std::{
     collections::{BTreeSet, HashMap},
     fs,
@@ -13,7 +13,7 @@ use transit_client::{
     OperationIdentity, ProcessRef, ResourceRef, Result,
 };
 use transit_sdk_examples::codecs::*;
-use transit_sdk_examples::{Counter, QueryRequester, Requester, TABLE, TOTAL, TableService};
+use transit_sdk_examples::{Counter, QueryRequester, Requester, TableService, TABLE, TOTAL};
 use transit_station_sdk::*;
 
 fn number(cfg: &Value, name: &str) -> u64 {
@@ -597,6 +597,8 @@ fn codecs(cfg: &Value) -> Result<()> {
     assert_eq!(outcome.exchange, u64::MAX);
     assert_eq!(outcome.status, Some(200));
     assert_eq!(outcome.phase, HttpPhase::Observed);
+    assert_eq!(outcome.diagnostic["code"], "http.response_observed");
+    assert_eq!(outcome.diagnostic["identity"]["id"], u64::MAX.to_string());
     assert!(outcome.reference().is_some());
     assert!(matches!(
         decode_http_reply(
@@ -604,7 +606,7 @@ fn codecs(cfg: &Value) -> Result<()> {
             &transit_client::internal::unhex(fixture["rejection"].as_str().unwrap(), 71)?,
             None
         )?,
-        HttpReply::Rejected(HttpRejection::Denied)
+        HttpReply::Rejected(rejected) if rejected.reason == HttpRejection::Denied && rejected.diagnostic["code"] == "http.request_denied"
     ));
     let codec = HttpReplyCodec::new(U64Codec, 72, None)?;
     assert!(matches!(
@@ -625,31 +627,27 @@ fn codecs(cfg: &Value) -> Result<()> {
     };
     assert_eq!(released.resource, ResourceRef::new(72, 7)?);
     assert_eq!(released.exchange, u64::MAX);
-    assert!(
-        codec
-            .encode(&HttpMessage::Reply(HttpReply::Released(released)))
-            .is_err()
-    );
+    assert!(codec
+        .encode(&HttpMessage::Reply(HttpReply::Released(released)))
+        .is_err());
     assert!(decode_http_reply(72, &released_bytes[..19], None).is_err());
-    assert!(
-        prepare_http(
-            ResourceRef::new(72, 8)?,
-            1,
-            &HttpRequest {
-                method: HttpMethod::Get,
-                target: vec![HttpPiece::Literal("//other/".into())],
-                headers: vec![],
-            },
-            b"",
-            HttpRequestOptions {
-                endpoint_revision: 1,
-                reconcile_before_ms: Count::new(9000)?,
-                max_attempts: 1
-            },
-            None
-        )
-        .is_err()
-    );
+    assert!(prepare_http(
+        ResourceRef::new(72, 8)?,
+        1,
+        &HttpRequest {
+            method: HttpMethod::Get,
+            target: vec![HttpPiece::Literal("//other/".into())],
+            headers: vec![],
+        },
+        b"",
+        HttpRequestOptions {
+            endpoint_revision: 1,
+            reconcile_before_ms: Count::new(9000)?,
+            max_attempts: 1
+        },
+        None
+    )
+    .is_err());
     Ok(())
 }
 
@@ -740,7 +738,8 @@ impl Handler<HttpMessage<Vec<u8>>> for HttpHandler {
                 if let HttpMessage::Reply(HttpReply::Rejected(reason)) = &reply.value {
                     let saved = turn.state().require(&followup_correlation)?;
                     turn.require_reply(&reply, self.peer, Correlation::new(saved)?)?;
-                    assert_eq!(*reason, HttpRejection::Denied);
+                    assert_eq!(reason.reason, HttpRejection::Denied);
+                    assert_eq!(reason.diagnostic["code"], "http.request_denied");
                     turn.state()
                         .put(&Key::new(b"http-followup-denied", U64Codec)?, &saved)?;
                     *self.observed.lock().unwrap() = json!({"followup":true});
@@ -761,6 +760,8 @@ impl Handler<HttpMessage<Vec<u8>>> for HttpHandler {
                     panic!("HTTP outcome");
                 };
                 assert_eq!(outcome.phase, HttpPhase::Observed);
+                assert_eq!(outcome.diagnostic["code"], "http.response_observed");
+                assert_eq!(outcome.diagnostic["identity"]["id"], u64::MAX.to_string());
                 assert_eq!(outcome.status, Some(200));
                 turn.state()
                     .put(&Key::new(b"http-status", U64Codec)?, &200)?;
@@ -1026,7 +1027,8 @@ impl Handler<GrpcMessage<Vec<u8>>> for GrpcHandler {
                 if let GrpcMessage::Reply(GrpcReply::Rejected(reason)) = &reply.value {
                     let saved = turn.state().require(&followup_correlation)?;
                     turn.require_reply(&reply, self.peer, Correlation::new(saved)?)?;
-                    assert_eq!(*reason, GrpcRejection::Denied);
+                    assert_eq!(reason.reason, GrpcRejection::Denied);
+                    assert_eq!(reason.diagnostic["code"], "grpc.request_denied");
                     turn.state()
                         .put(&Key::new(b"grpc-followup-denied", U64Codec)?, &saved)?;
                     *self.observed.lock().unwrap() = json!({"followup":true});
@@ -1047,6 +1049,7 @@ impl Handler<GrpcMessage<Vec<u8>>> for GrpcHandler {
                     panic!("RPC outcome");
                 };
                 assert_eq!(outcome.phase, GrpcPhase::Observed);
+                assert_eq!(outcome.diagnostic["code"], "grpc.ok_observed");
                 assert_eq!(outcome.status, Some(0));
                 turn.state().put(&Key::new(b"grpc-status", U64Codec)?, &0)?;
                 *self.observed.lock().unwrap() = json!({"observed":true});

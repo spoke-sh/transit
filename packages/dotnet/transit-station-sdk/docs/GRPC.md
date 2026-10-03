@@ -57,3 +57,10 @@ outcome/control replies, prefix revocation, sticky replay, joined cancellation,
 retry refusal without a child/send and disposal before/after cleanup. Shared
 fixtures also distinguish unknown from zero and reject truncated outcomes. See
 [executed proof details](../../../../tests/README.md).
+
+Outcome and rejection values own `Diagnostic` after the codec/native buffer is
+released. It retains the exact protocol status, exchange identity and inspection
+guidance. A completed response does not establish business success or permit a
+retry; rejected input does not settle earlier work. Original details absent from
+the reply are explicitly unrecorded. See the
+[shared SDK diagnostic contract](../../../../docs/reference/sdks.md#structured-failure-details).

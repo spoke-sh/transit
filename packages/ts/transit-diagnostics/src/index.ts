@@ -27,6 +27,7 @@ function validIdentity(id: NonNullable<Diagnostic["identity"]>): boolean {
   return (
     BigInt(id.id) > 0n &&
     u64(id.id) &&
+    (id.domain !== "exchange" || id.resource !== null) &&
     [id.realm, id.resource, id.sequence].every(
       (n) => n === null || (BigInt(n) > 0n && BigInt(n) <= 9007199254740991n),
     )
@@ -73,6 +74,7 @@ function validValues(d: Diagnostic): boolean {
 function validEvidence(d: Diagnostic): boolean {
   const expected = {
     not_submitted: ["local_before_dispatch"],
+    not_dispatched: ["domain_status"],
     prepared: ["saved_intent"],
     pending: ["native_receipt", "domain_status"],
     rejected: ["domain_status"],
@@ -93,6 +95,7 @@ function validEvidence(d: Diagnostic): boolean {
     ],
   } satisfies Record<Diagnostic["outcome"], string[]>;
   if (!(expected[d.outcome] as string[]).includes(d.evidence)) return false;
+  if (d.outcome === "not_dispatched" && d.identity?.domain !== "exchange") return false;
   if (d.outcome === "unknown" && d.evidence === "domain_status" && d.identity?.domain !== "effect")
     return false;
   let end = false;

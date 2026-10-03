@@ -359,6 +359,7 @@ public:
     const transit_station_http_outcome &native() const { return value_; }
     bool rejected() const { return value_.rejected; }
     transit_station_http_rejection rejection() const { if (!rejected()) throw failure(TRANSIT_SDK_INVALID_ARGUMENT, "http-not-rejected"); return value_.rejection; }
+    std::string diagnostic() const { return std::string(value_.diagnostic.json, value_.diagnostic.size); }
     transit_station_http_phase phase() const { if (rejected()) throw failure(TRANSIT_SDK_INVALID_ARGUMENT, "http-rejected"); return value_.phase; }
     uint64_t exchange() const { return value_.exchange; }
     ResourceRef resource() const { return ResourceRef(value_.resource.realm, value_.resource.resource); }
@@ -498,6 +499,7 @@ public:
     const transit_station_grpc_outcome &native() const { return value_; }
     bool rejected() const { return value_.rejected; }
     transit_station_grpc_rejection rejection() const { if (!rejected()) throw failure(TRANSIT_SDK_INVALID_ARGUMENT, "grpc-not-rejected"); return value_.rejection; }
+    std::string diagnostic() const { return std::string(value_.diagnostic.json, value_.diagnostic.size); }
     transit_station_grpc_phase phase() const { if (rejected()) throw failure(TRANSIT_SDK_INVALID_ARGUMENT, "grpc-rejected"); return value_.phase; }
     uint64_t exchange() const { return value_.exchange; }
     ResourceRef resource() const { return ResourceRef(value_.resource.realm, value_.resource.resource); }

@@ -116,7 +116,13 @@ public static class Http
     public enum FollowupReason { Retry, Redirect, Reconcile, Cancel }
     public enum Rejection { Denied, InvalidRequest, Busy }
     public abstract record Reply { private protected Reply() { } }
-    public sealed record Rejected(Rejection Reason) : Reply;
+    public sealed record Rejected : Reply
+    {
+        public Rejection Reason { get; }
+        private readonly JsonObject diagnostic;
+        public JsonObject Diagnostic => diagnostic.DeepClone().AsObject();
+        public Rejected(Rejection reason, JsonObject detail) { Reason = reason; diagnostic = detail.DeepClone().AsObject(); }
+    }
     public sealed record Released : Reply
     {
         public ResourceRef Resource { get; }
@@ -133,8 +139,11 @@ public static class Http
         public ulong Attempt { get; }
         public ushort? Status { get; }
         public Bytes? Reference { get; }
+        private readonly JsonObject diagnostic;
+        public JsonObject Diagnostic => diagnostic.DeepClone().AsObject();
         internal Outcome(ulong realm, JsonObject value)
         {
+            diagnostic = Value.Object(value["diagnostic"]).DeepClone().AsObject();
             Phase = Value.String(value["phase"]) switch { "observed" => Phase.Observed, "closed_unknown" => Phase.ClosedUnknown, "not_dispatched" => Phase.NotDispatched, _ => throw Value.Incompatible("http-phase") };
             Resource = new ResourceRef(realm, Value.Number(value["resource"], 1)); Exchange = NativeValues.Wide(value["exchange"], true);
             Effect = Value.Number(value["effect"]); Attempt = Value.Number(value["attempt"]);
@@ -148,8 +157,8 @@ public static class Http
         byte[] owned = Value.Bytes(bytes, 71);
         bool release = owned.Length >= 4 && owned[0] == 'H' && owned[1] == 'T' && owned[2] == 'K' && owned[3] == '1';
         JsonObject value = await LocalAsync(Value.Obj(("outcome", Value.Hex(owned))), nativeDirectory, release).ConfigureAwait(false);
-        if (value["rejected"] is { } rejection) return new Rejected(Value.String(rejection) switch {
-            "denied" => Rejection.Denied, "invalid_request" => Rejection.InvalidRequest, "busy" => Rejection.Busy, _ => throw Value.Incompatible("http-rejection") });
+        if (value["rejected"] is { } rejection) return new Rejected(Value.String(rejection["reason"]) switch {
+            "denied" => Rejection.Denied, "invalid_request" => Rejection.InvalidRequest, "busy" => Rejection.Busy, _ => throw Value.Incompatible("http-rejection") }, Value.Object(rejection["diagnostic"]));
         if (value["released"] is { } acknowledgement) {
             JsonObject released = Value.Object(acknowledgement);
             return new Released(new ResourceRef(realm, Value.Number(released["resource"], 1)), NativeValues.Wide(released["exchange"], true));

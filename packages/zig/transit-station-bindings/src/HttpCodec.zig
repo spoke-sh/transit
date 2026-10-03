@@ -73,11 +73,12 @@ pub const Outcome = struct {
     attempt: u64,
     status: ?u16,
     reference: ?p.Value,
+    diagnostic: p.Diagnostic,
 };
 pub const Result = union(enum) {
     prepared: struct { reference: p.Value, metadata: []const u8, metadata_spec: http.exchange.Publication.Spec, body_spec: http.exchange.Publication.Spec },
     outcome: Outcome,
-    rejected: @FieldType(http.Service.Rejection, "reason"),
+    rejected: struct { reason: @FieldType(http.Service.Rejection, "reason"), diagnostic: p.Diagnostic },
     release: p.Value,
     released: Identity,
     followup: p.Value,
@@ -103,10 +104,13 @@ pub fn apply(alloc: std.mem.Allocator, action: Action) !Result {
             return .{ .prepared = .{ .reference = try prepared.reference.encode(), .metadata = try a.hex(alloc, prepared.metadata), .metadata_spec = prepared.reference.metadataSpec(), .body_spec = prepared.reference.bodySpec() } };
         },
         .outcome => |wire| {
-            if (std.mem.startsWith(u8, wire.slice(), http.Service.Rejection.magic)) return .{ .rejected = (try http.exchange.codec.decode(http.Service.Rejection, wire)).reason };
+            if (std.mem.startsWith(u8, wire.slice(), http.Service.Rejection.magic)) {
+                const value = try http.exchange.codec.decode(http.Service.Rejection, wire);
+                return .{ .rejected = .{ .reason = value.reason, .diagnostic = try value.diagnostic() } };
+            }
             if (std.mem.startsWith(u8, wire.slice(), http.Service.Released.magic)) return apply(alloc, .{ .released = wire });
             const value = try http.Service.Outcome.decode(wire);
-            return .{ .outcome = .{ .phase = value.phase, .resource = value.resource, .exchange = try a.decimal(alloc, value.exchange), .effect = value.effect, .attempt = value.attempt, .status = if (value.phase == .observed) value.status else null, .reference = if (value.phase == .observed) try (try value.reference()).encode() else null } };
+            return .{ .outcome = .{ .phase = value.phase, .resource = value.resource, .exchange = try a.decimal(alloc, value.exchange), .effect = value.effect, .attempt = value.attempt, .status = if (value.phase == .observed) value.status else null, .reference = if (value.phase == .observed) try (try value.reference()).encode() else null, .diagnostic = try value.diagnostic(null) } };
         },
         .release => |identity| return .{ .release = try (try identity.native()).encode() },
         .released => |wire| {
@@ -144,4 +148,47 @@ test "HTTP host conversion preserves unsigned identity and calls shared request 
     try t.expectEqualStrings("18446744073709551615", decoded.exchange);
     try t.expectEqual(null, decoded.reference);
     try t.expectEqual(null, decoded.status);
+}
+
+test "Http reply diagnostics retain every status and distinguish capture completion from retry authority" {
+    const t = std.testing;
+    var arena = std.heap.ArenaAllocator.init(t.allocator);
+    defer arena.deinit();
+    const alloc = arena.allocator();
+    var value: http.Service.Outcome = .{ .phase = .observed, .resource = 7, .exchange = std.math.maxInt(u64), .effect = 19, .attempt = 20, .status = 200, .chain = @splat(1) };
+    for (200..600) |status| {
+        value.status = @intCast(status);
+        const detail = (try apply(alloc, .{ .outcome = try value.encode() })).outcome.diagnostic;
+        try t.expectEqual(.completed, detail.outcome);
+        try t.expectEqual(.domain_status, detail.evidence);
+        try t.expectEqual(.exchange, detail.identity.?.domain);
+        try t.expectEqual(std.math.maxInt(u64), try detail.identity.?.id.value());
+        try t.expectEqual(@as(u64, 7), try detail.identity.?.resource.?.value());
+        try t.expectEqual(@as(u64, status), try detail.facts[3].?.value.?.unsigned.value());
+        try t.expectEqual(.inspect_status, detail.actions[0].?.kind);
+        try t.expectEqual(null, detail.actions[1]);
+    }
+    inline for (.{ .closed_unknown, .not_dispatched }) |phase| {
+        value.phase = phase;
+        value.status = 0;
+        value.chain = @splat(0);
+        value.attempt = if (phase == .closed_unknown) 20 else 0;
+        const decoded = (try apply(alloc, .{ .outcome = try value.encode() })).outcome;
+        try t.expectEqual(null, decoded.status);
+        try t.expectEqual(null, decoded.reference);
+        try t.expectEqual(if (phase == .closed_unknown) .closed_unknown else .not_dispatched, decoded.diagnostic.outcome);
+        try t.expectEqual(null, decoded.diagnostic.cause);
+        var wire: [8192]u8 = undefined;
+        _ = try decoded.diagnostic.encode(&wire);
+    }
+    inline for (.{ .denied, .invalid_request, .busy }) |reason| {
+        const rejected: http.Service.Rejection = .{ .reason = reason };
+        const decoded = (try apply(alloc, .{ .outcome = try http.exchange.codec.encode(rejected) })).rejected;
+        try t.expectEqual(reason, decoded.reason);
+        try t.expectEqual(.input_rejected, decoded.diagnostic.outcome);
+        try t.expectEqual(null, decoded.diagnostic.identity);
+        try t.expectEqual(null, decoded.diagnostic.cause);
+        var detail = decoded.diagnostic;
+        try t.expectError(error.InvalidDiagnostic, detail.action(.correct_input));
+    }
 }

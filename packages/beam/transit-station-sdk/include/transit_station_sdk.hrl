@@ -25,15 +25,15 @@
 -record(transit_runner_shutdown, {pending = undefined :: undefined | #transit_frozen{}, last_event = undefined :: term()}).
 -record(transit_http_request, {method, target = [], headers = []}).
 -record(transit_http_prepared, {resource, namespace, reference, metadata, body}).
--record(transit_http_outcome, {phase, resource, exchange, effect, attempt, status = undefined, reference = undefined}).
--record(transit_http_rejected, {reason}).
+-record(transit_http_outcome, {phase, resource, exchange, effect, attempt, status = undefined, reference = undefined, diagnostic}).
+-record(transit_http_rejected, {reason, diagnostic}).
 -record(transit_http_released, {resource, exchange}).
 -record(transit_http_part, {kind, bytes, complete = false}).
 -record(transit_grpc_method, {path, shape, descriptor_digest}).
 -record(transit_grpc_request, {method, metadata = []}).
 -record(transit_grpc_prepared, {resource, namespace, reference, metadata, batch}).
--record(transit_grpc_outcome, {phase, resource, exchange, effect, attempt, status = undefined, reference = undefined}).
--record(transit_grpc_rejected, {reason}).
+-record(transit_grpc_outcome, {phase, resource, exchange, effect, attempt, status = undefined, reference = undefined, diagnostic}).
+-record(transit_grpc_rejected, {reason, diagnostic}).
 -record(transit_grpc_released, {resource, exchange}).
 -record(transit_grpc_part, {kind, bytes, complete = false}).
 -record(transit_document_dot, {counter = 0 :: non_neg_integer(), replica = 0 :: non_neg_integer()}).
