@@ -12494,3 +12494,16 @@ owner/node/store replacement, and preserved native/catalog policy revocation.
 These executions qualify the projections in `e75e092e`; the mutation run started
 from the same code before that commit was made. Neither execution replaces the
 final committed-HEAD `ci-clean` gate or the issue's full semantic inventory.
+
+### Offline application JSON diagnostics — 2026-10-02
+
+`just test::application-grammar` passed with both human and
+`--diagnostics=json` output for every existing accepted/rejected grammar and
+model fixture. Successful model/SQL output matched byte for byte. Failures
+emitted one JSON stderr record, no model prefix, `not_submitted` evidence and no
+resume/cancellation action or unrelated option value. Additional real compiler
+cases verified encoded non-UTF-8 file paths, missing files, malformed JSON,
+separate parent and nested-SELECT coordinates, and `/dev/full` output failure
+with `completion: false` and no stale member attribution. The shared path helper
+retains the existing bounded UTF-8/byte-path representation; no wire shape changed.
+This focused execution does not replace the final full check and clean-HEAD gate.

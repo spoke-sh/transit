@@ -32,6 +32,16 @@ source location when available. `Sql.parseDiagnostic` and
 `Model.Definition.validateDiagnostic` expose owned context to local callers.
 Embedded SELECT positions are relative to that SELECT; arbitrary option values
 are not copied into the diagnostic.
+
+`transit-app --diagnostics=json parse|format|module FILE` writes one shared
+diagnostic envelope per failure on stderr and exits with status 1. The option
+also applies to `schema`. Successful stdout remains the requested model, SQL,
+module or schema. Diagnostic outcomes are `not_submitted`: offline compilation
+never publishes. The primary location identifies the original declaration;
+an `expression` location fact identifies a nested SELECT in its own coordinates.
+Invalid JSON syntax retains its scanner byte offset; valid JSON rejected by
+schema or graph validation has no invented position. Paths preserve non-UTF-8
+bytes with explicit encoding, and output failures set `completion` to false.
 The generated structural schema still requires the owning semantic validator
 for graph references and source capabilities. The independent grammar proof and
 allocation-failure suite cover this boundary; runtime qualification is separate.

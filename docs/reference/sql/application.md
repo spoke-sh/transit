@@ -15,6 +15,15 @@ Diagnostics use stderr and do not emit a partial model on declaration rejection.
 Compiling never publishes an application. Output failures explicitly mark any
 emitted prefix incomplete.
 
+Use `transit-app --diagnostics=json parse FILE` (also `format`, `module` or
+`schema`) for a single JSON diagnostic on stderr and exit status 1 on failure.
+It carries a stable code/category, `not_submitted` outcome, member/option facts
+and source coordinates. Nested SELECT coordinates appear in an `expression`
+location fact, separately from the enclosing declaration. Invalid JSON syntax
+retains the scanner position; schema and reference errors do not invent one.
+The requested successful output stays on stdout. Output failures record
+`completion: false` as a diagnostic fact; any emitted prefix is incomplete.
+
 ## Program syntax
 
 ```text

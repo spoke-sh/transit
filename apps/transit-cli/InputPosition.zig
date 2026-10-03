@@ -24,23 +24,8 @@ completed: u64 = 0,
 sql: bool = true,
 
 pub fn init(source: []const u8) !Self {
-    if (std.unicode.utf8ValidateSlice(source)) {
-        const path = try d.Path.truncate(source);
-        return .{ .source = path, .source_truncated = path.slice().len != source.len };
-    }
-    // POSIX paths are bytes. Do not reject readable input because its name is
-    // not UTF-8, and do not substitute a different Unicode filename.
-    var buffer: [512]u8 = undefined;
-    var out: std.Io.Writer = .fixed(&buffer);
-    var copied: usize = 0;
-    for (source) |byte| {
-        const printable = byte >= 0x20 and byte <= 0x7e and byte != '\\' and byte != '"';
-        const needed: usize = if (printable) 1 else 4;
-        if (out.buffer.len - out.end < needed) break;
-        if (printable) try out.writeByte(byte) else try out.print("\\x{x:0>2}", .{byte});
-        copied += 1;
-    }
-    return .{ .source = try d.Path.init(out.buffered()), .source_truncated = copied != source.len, .source_encoding = .escaped_bytes };
+    const path = try d.SourcePath.init(source);
+    return .{ .source = path.path, .source_truncated = path.truncated, .source_encoding = path.encoding };
 }
 pub fn absolute(self: Self, location: d.Location) !d.Location {
     var result = location;

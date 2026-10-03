@@ -94,6 +94,35 @@ pub const Location = struct {
     line: Unsigned,
     byte_column: Unsigned,
 };
+/// Owned filesystem names preserve POSIX bytes without inventing a Unicode
+/// filename. Truncation never splits UTF-8 or a four-byte escape.
+pub const SourcePath = struct {
+    path: Path,
+    truncated: bool,
+    encoding: @FieldType(Location, "source_encoding"),
+    pub fn init(source: []const u8) !SourcePath {
+        if (std.unicode.utf8ValidateSlice(source)) {
+            const path = try Path.truncate(source);
+            return .{ .path = path, .truncated = path.slice().len != source.len, .encoding = .utf8 };
+        }
+        var buffer: [512]u8 = undefined;
+        var out: std.Io.Writer = .fixed(&buffer);
+        var copied: usize = 0;
+        for (source) |byte| {
+            const printable = byte >= 0x20 and byte <= 0x7e and byte != '\\' and byte != '"';
+            const needed: usize = if (printable) 1 else 4;
+            if (out.buffer.len - out.end < needed) break;
+            if (printable) try out.writeByte(byte) else try out.print("\\x{x:0>2}", .{byte});
+            copied += 1;
+        }
+        return .{ .path = try Path.init(out.buffered()), .truncated = copied != source.len, .encoding = .escaped_bytes };
+    }
+    pub fn apply(self: SourcePath, location: *Location) void {
+        location.source = self.path;
+        location.source_truncated = self.truncated;
+        location.source_encoding = self.encoding;
+    }
+};
 pub const Value = union(enum) { text: Text, signed: Signed, unsigned: Unsigned, boolean: bool, digest: [32]u8, location: Location };
 pub const Fact = struct { field: Field, origin: Origin, availability: Availability, value: ?Value };
 pub const Action = struct { kind: ActionKind, target: ?Identity = null };

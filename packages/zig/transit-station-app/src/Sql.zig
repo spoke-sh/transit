@@ -14,7 +14,7 @@ pub fn parse(gpa: std.mem.Allocator, source: []const u8) !Parsed {
     return parseDiagnostic(gpa, source, null);
 }
 pub fn parseDiagnostic(gpa: std.mem.Allocator, source: []const u8, diagnostic: ?*Diagnostic) !Parsed {
-    if (diagnostic) |detail| detail.* = .{ .stage = .parse };
+    if (diagnostic) |detail| detail.reset(.parse);
     try m.text(source, m.max_program_bytes);
     var arena = std.heap.ArenaAllocator.init(gpa);
     errdefer arena.deinit();

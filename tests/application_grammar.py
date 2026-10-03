@@ -1,5 +1,6 @@
 """Independent ANTLR/typed-model agreement through the actual application CLI."""
 import json
+import os
 import re
 from pathlib import Path
 import subprocess
@@ -84,6 +85,21 @@ def run(command, data, directory, success=True, expected=()):
         assert 'stack trace' not in result.stderr and '/src/' not in result.stderr, result.stderr
         for message in expected:
             assert message in result.stderr, (message, result.stderr)
+        machine = subprocess.run([CLI, '--diagnostics=json', command, path], capture_output=True, text=True)
+        assert machine.returncode == result.returncode and not machine.stdout
+        assert len(machine.stderr.splitlines()) == 1, machine.stderr
+        diagnostic = json.loads(machine.stderr)
+        assert diagnostic['version'] == 1 and diagnostic['definition']
+        assert diagnostic['outcome'] == 'not_submitted' and diagnostic['evidence'] == 'local_before_dispatch'
+        assert diagnostic['code'].startswith(('application.', 'sql.')) and diagnostic['code'] != 'application.diagnostic_unavailable'
+        assert 'private-value' not in machine.stderr
+        assert not any(action and action['kind'] in ('resume_exact','cancel_mutation','reconcile_effect') for action in diagnostic['actions'])
+        if diagnostic['location']:
+            assert diagnostic['location']['source'] == str(path)
+            assert int(diagnostic['location']['line']) >= 1 and int(diagnostic['location']['byte_column']) >= 1
+    else:
+        machine = subprocess.run([CLI, '--diagnostics=json', command, path], capture_output=True, text=True)
+        assert machine.returncode == 0 and machine.stdout == result.stdout and not machine.stderr
     return result.stdout
 
 
@@ -145,6 +161,34 @@ def main():
         ]
         for source, messages in diagnostics:
             run('parse', source, directory, False, messages)
+        malformed_json = subprocess.run([CLI, '--diagnostics=json', 'format', directory/'absent'], capture_output=True, text=True)
+        assert malformed_json.returncode == 1 and not malformed_json.stdout
+        detail = json.loads(malformed_json.stderr)
+        assert detail['code'] == 'application.file_not_found' and detail['location'] is None
+        run('format', '{\n"name":', directory, False)
+        byte_path = directory / os.fsdecode(b'bad-\xff.sql')
+        byte_path.write_text(fixture.replace('starts = 8', 'starts = 9'))
+        byte_failure = subprocess.run([CLI, '--diagnostics=json', 'parse', byte_path], capture_output=True, text=True)
+        assert byte_failure.returncode == 1 and not byte_failure.stdout
+        detail = json.loads(byte_failure.stderr)
+        assert detail['code'] == 'application.invalid_query_budget'
+        assert detail['location']['source_encoding'] == 'escaped_bytes'
+        assert detail['location']['source'].endswith('bad-\\xff.sql')
+        assert detail['location']['line'] == '8'
+        nested_path = directory / 'nested.sql'
+        nested_path.write_text(fixture.replace('SELECT id, value FROM items', 'SELECT id FROM'))
+        nested_failure = subprocess.run([CLI, '--diagnostics=json', 'parse', nested_path], capture_output=True, text=True)
+        nested = json.loads(nested_failure.stderr)
+        assert nested_failure.returncode == 1 and nested['location']['line'] == '8'
+        positions = [fact['value']['location'] for fact in nested['facts'] if fact and fact['field'] == 'expression']
+        assert len(positions) == 1 and positions[0]['line'] == '1' and positions[0]['source'] is None
+        with open('/dev/full', 'wb') as full:
+            output_failure = subprocess.run([CLI, '--diagnostics=json', 'schema'], stdout=full, stderr=subprocess.PIPE, text=True)
+        assert output_failure.returncode == 1
+        detail = json.loads(output_failure.stderr)
+        assert detail['stage'] == 'output' and detail['outcome'] == 'not_submitted' and detail['location'] is None
+        assert any(fact and fact['field'] == 'completion' and fact['value'] == {'boolean':False} for fact in detail['facts'])
+        assert not any(fact and fact['field'] in ('name','option','expression') for fact in detail['facts'])
         missing_binding = json.loads(json.dumps(model))
         missing_binding['screens'][1]['binding'] = 'missing'
         run('format', json.dumps(missing_binding), directory, False,
