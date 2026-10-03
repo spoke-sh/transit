@@ -12700,6 +12700,12 @@ denial, read-only principal enforcement, native history reclamation and authorit
 outage, preserving primary status and exact safe next actions.
 
 Full `just check` passes, including 481 CLI cases and the production handbook
-build. The HTTP browser and Document metadata portions have also passed their new
-changed-cut/current-denial assertions; the enclosing HTTP, gRPC and Document
-recovery schedules are still running and are not yet counted as complete proofs.
+build. The complete `just transit-board::http-browser`, `grpc-test` and `document-test`
+proofs also pass. HTTP took 661.59 seconds, including its browser case, sixteen
+sends/eight applications, explicit retry/redirect/reconciliation/cancellation,
+partial capture, exact recovery and disk restart. gRPC took 492.85 seconds for
+all four RPC shapes, nine sends/eight applications and source-bound metadata.
+Document took 449.65 seconds, including reordered edits, conflict resolution,
+worker/store recovery, exact cuts and current grant revocation. Each metadata
+adapter now asserts semantic changed-cut and denied-read detail. These times
+exclude compilation; all use disk-backed Ursula.
