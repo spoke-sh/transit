@@ -77,6 +77,8 @@ pub const Field = enum {
     expected_codec,
     actual_codec,
     observed_clock,
+    expected_namespace,
+    actual_namespace,
 };
 pub const Text = BoundedText(256);
 pub const Code = BoundedText(96);

@@ -38,7 +38,7 @@ describe("generated reactive transport boundary", () => {
     const signed = {
       request: {
         version: 1,
-        definition: "8d2c6617b339418cf2d3afa6259009e4b3efc5308e40fe65757ca9385c227803",
+        definition: "75a5efed41df165c680b9d13116d10b3c72357e542eca9b96195d6b520714cb1",
         realm: 49,
         principal: 65536,
         sequence: 1,
@@ -131,7 +131,7 @@ describe("generated reactive transport boundary", () => {
       const signed = {
         request: {
           version: 1,
-          definition: "8d2c6617b339418cf2d3afa6259009e4b3efc5308e40fe65757ca9385c227803",
+          definition: "75a5efed41df165c680b9d13116d10b3c72357e542eca9b96195d6b520714cb1",
           realm: 49,
           principal: 65536,
           sequence: 1,
@@ -296,6 +296,112 @@ test.each(["valid", "malformed", "foreign", "wrong_input", "wrong_outcome", "abs
       diagnosticInvalid: kind !== "valid" && kind !== "absent",
       diagnostic: kind === "valid" ? original : undefined,
     });
+    expect(session.pending).toBeNull();
+    expect(calls).toBe(1);
+  },
+);
+
+test.each(["valid", "foreign_generation", "foreign_resource", "foreign_query", "malformed"])(
+  "Follow retains primary status and independently owns optional diagnostics (%s)",
+  async (variant) => {
+    const identity = {
+      domain: "reactive",
+      id: "5",
+      realm: "1",
+      resource: variant === "foreign_resource" ? "99" : "9",
+      sequence: null,
+    };
+    const scheduler = {
+      ...structuredClone(diagnosticFixture),
+      code: "refresh.query_rejected",
+      category: "lifecycle",
+      stage: "control",
+      outcome: "not_applicable",
+      identity,
+      facts: [
+        {
+          field: "native_input",
+          origin: "owner",
+          availability: "provided",
+          value: { unsigned: "12" },
+        },
+        {
+          field: "generation",
+          origin: "owner",
+          availability: "provided",
+          value: { unsigned: variant === "foreign_generation" ? "99" : "7" },
+        },
+        ...Array(14).fill(null),
+      ],
+      actions: [{ kind: "inspect_status", target: identity }, null, null, null],
+    };
+    const queryIdentity = {
+      domain: "query",
+      id: variant === "foreign_query" ? "1" : "18446744073709551615",
+      realm: null,
+      resource: null,
+      sequence: null,
+    };
+    const query = {
+      ...structuredClone(diagnosticFixture),
+      code: "query.arithmetic_overflow",
+      category: "limit",
+      identity: queryIdentity,
+      actions: [{ kind: "inspect_status", target: queryIdentity }, null, null, null],
+    };
+    const primary = {
+      resource: 9,
+      revision: 20,
+      policy_revision: 3,
+      view: {
+        principal: 2,
+        session: { session: 5, generation: 6 },
+        generation: 7,
+        source: {
+          revision: 1,
+          target: 4,
+          resource: 9,
+          table: 1,
+          progress_key: "00",
+          schema: Array(32).fill(0),
+          published: true,
+        },
+        template: "1",
+        namespace: "18446744073709551615",
+        dirty: 10,
+        covered: 9,
+        starts: 1,
+        limit: 2,
+        next_start_ms: 0,
+        enabled: false,
+        phase: "failed",
+        failure: { stopped: { reason: "query_rejected", input: 12, witness: { none: {} } } },
+      },
+      diagnostic: variant === "malformed" ? { broken: true } : scheduler,
+      query_diagnostic: query,
+    };
+    let calls = 0;
+    const session = new Session(
+      new Transport(async (_url, options) => {
+        ++calls;
+        expect(JSON.parse(options!.body as string)).toEqual({ refresh_status: session.selection });
+        return new Response(JSON.stringify({ refresh_status: primary }), {
+          headers: { "Content-Type": "application/json" },
+        });
+      }),
+    );
+    session.selection = { session: { session: 5, generation: 6 }, generation: 7 };
+    const status = await session.refreshStatus();
+    expect(status.phase).toBe("failed");
+    expect(status.namespace).toBe("18446744073709551615");
+    expect(status.failure).toEqual(primary.view.failure);
+    expect(status.diagnosticInvalid).toBe(
+      variant === "malformed" || variant === "foreign_generation" || variant === "foreign_resource",
+    );
+    expect(status.queryDiagnosticInvalid).toBe(variant === "foreign_query");
+    if (!status.diagnosticInvalid) expect(status.diagnostic?.code).toBe("refresh.query_rejected");
+    if (!status.queryDiagnosticInvalid)
+      expect(status.queryDiagnostic?.code).toBe("query.arithmetic_overflow");
     expect(session.pending).toBeNull();
     expect(calls).toBe(1);
   },

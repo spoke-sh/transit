@@ -106,14 +106,22 @@ fn handle(raw: ?*anyopaque, turn: *Turn, frame: s.Frame) anyerror!void {
         if (command == .refresh) {
             wake = true;
             const before = turn.decision;
-            self.refresh().apply(turn, if (turn.delivery.input.origin == .external) turn.delivery.input.origin.external.principal else 0, command.refresh, self.reader(turn), self.upper_ms) catch |err| {
+            var context: root.ServingFailure.Context = .{};
+            var owner = self.refresh();
+            owner.diagnostic = &context;
+            owner.apply(turn, if (turn.delivery.input.origin == .external) turn.delivery.input.origin.external.principal else 0, command.refresh, self.reader(turn), self.upper_ms) catch |err| {
                 turn.decision = before;
                 if (turn.read_error != null or !root.Refresh.requestError(err)) return err;
-                try root.ServingFailure.record(turn, command, root.ServingFailure.reason(err) orelse return err, .{});
+                try root.ServingFailure.record(turn, command, root.ServingFailure.reason(err) orelse return err, context);
             };
         } else {
-            const handler = base.interface();
-            try handler.handle(handler.context, turn, frame);
+            const principal = if (turn.delivery.input.origin == .external) turn.delivery.input.origin.external.principal else 0;
+            const applied = try base.dispatchCommand(turn, command, principal);
+            if (applied and command == .reactive) switch (command.reactive) {
+                .close => |identity| try root.Refresh.sessionStopped(turn, principal, identity),
+                .expire => |request| try root.Refresh.sessionStopped(turn, request.principal, request.identity),
+                else => {},
+            };
             // Session attachment/renewal and ordinary application traffic do
             // not create query demand. A clock tick can release recorded
             // spacing only after the scheduler has selected work at least once.

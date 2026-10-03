@@ -18,6 +18,13 @@ const Reader = struct {
     requests: *Store,
     denied: bool = false,
     unavailable: bool = false,
+    diagnostic: ?*root.ServingFailure.Context = null,
+    pub fn withDiagnostic(self: @This(), context: ?*root.ServingFailure.Context) @This() {
+        var scoped_reader = self;
+        scoped_reader.diagnostic = context;
+        return scoped_reader;
+    }
+
     pub fn open(self: @This(), resource: u64) !s.Turn {
         if (self.unavailable) return error.AuthorityUnavailable;
         const store = if (resource == self.source.resource) self.source else if (resource == self.requests.resource) self.requests else return error.AccessDenied;
@@ -43,7 +50,7 @@ const Reader = struct {
     pub fn observe(self: @This(), source: r.Source) !root.TableWatch.Observation {
         const turn = try self.open(source.resource);
         var watch: Watch = .{ .turn = turn, .store = self.source, .view = turn.view };
-        return root.TableWatch.observe(&watch, source);
+        return root.TableWatch.observeDiagnostic(&watch, source, self.diagnostic);
     }
     pub fn result(self: @This(), turn: *s.Turn, namespace: u64, source: r.Source) !q.fuze.Unified.Basis {
         const status = (try q.UnifiedUpload.status(turn, namespace)) orelse return error.InvalidRefreshTemplate;
@@ -69,6 +76,11 @@ const Rig = struct {
         var turn = try self.requests.capture();
         turn.delivery.input.origin = .{ .external = .{ .principal = caller, .policy_revision = 1 } };
         try (root.Service{ .configuration = configuration }).apply(&turn, input, caller);
+        if (input == .reactive) switch (input.reactive) {
+            .close => |identity| try root.Refresh.sessionStopped(&turn, caller, identity),
+            .expire => |request| try root.Refresh.sessionStopped(&turn, request.principal, request.identity),
+            else => {},
+        };
         try self.requests.commit(turn);
     }
     fn mutate(self: *@This()) !void {
@@ -423,4 +435,137 @@ test "Follow reports an explicitly closed session independently of lease expiry"
     try t.expectError(error.ReactiveSessionClosed, rig.follow(identity, selection.generation, 2));
     try rig.apply(.{ .pause = selection });
     try t.expectEqual(.paused, (try rig.view(selection)).phase);
+}
+
+test "closure retains original stop and does not cancel selected work" {
+    var rig: Rig = .{};
+    defer rig.deinit();
+    try rig.init();
+    const identity = try rig.session(1);
+    const selected = try rig.follow(identity, 0, 2);
+    try rig.mutate();
+    try rig.apply(.{ .invalidate = selected });
+    try t.expect(try rig.drive());
+    try rig.command(principal, .{ .reactive = .{ .close = identity } });
+    const stopped = try rig.view(selected);
+    try t.expect(!stopped.enabled);
+    try t.expectEqual(.copying, stopped.phase);
+    try t.expectEqual(.session_closed, stopped.failure.stopped.reason);
+    try t.expectEqual(.closed, stopped.failure.stopped.witness.session.phase);
+    try rig.command(principal, .{ .reactive = .{ .close = identity } });
+    try rig.apply(.{ .pause = selected });
+    try t.expectEqualDeep(stopped.failure, (try rig.view(selected)).failure);
+    try rig.drain();
+    const admitted = try rig.view(selected);
+    try t.expectEqual(.admitted, admitted.phase);
+    try rig.finish(admitted.namespace.value, false);
+    try rig.drain();
+    const ready = try rig.view(selected);
+    try t.expectEqual(.ready, ready.phase);
+    try t.expectEqualDeep(stopped.failure, ready.failure);
+}
+
+test "original service policy denial survives restored rights and owner reconstruction" {
+    var rig: Rig = .{};
+    defer rig.deinit();
+    try rig.init();
+    const selected = try rig.follow(try rig.session(1), 0, 2);
+    try rig.mutate();
+    try rig.apply(.{ .invalidate = selected });
+    try rig.command(11, .{ .policy = .{ .principal = principal, .expected = 1, .policy = .{ .revision = 2, .reads = false, .commands = true, .active_limit = 2 } } });
+    try rig.drain();
+    const stopped = try rig.view(selected);
+    try t.expectEqual(.denied, stopped.phase);
+    try t.expectEqual(.service_denied, stopped.failure.stopped.reason);
+    try t.expectEqual(@as(u64, 2), stopped.failure.stopped.witness.policy.revision);
+    try t.expect(!stopped.failure.stopped.witness.policy.reads);
+    try rig.command(11, .{ .policy = .{ .principal = principal, .expected = 2, .policy = .{ .revision = 3, .reads = true, .commands = true, .active_limit = 2 } } });
+    try rig.drain();
+    try t.expectEqualDeep(stopped, try rig.view(selected));
+}
+
+test "cancelled selected upload stops Follow before bounded collection" {
+    var rig: Rig = .{};
+    defer rig.deinit();
+    try rig.init();
+    const selected = try rig.follow(try rig.session(1), 0, 2);
+    try rig.mutate();
+    try rig.apply(.{ .invalidate = selected });
+    try t.expect(try rig.drive());
+    try t.expect(try rig.drive()); // Begins the owned upload.
+    const copying = try rig.view(selected);
+    var turn = try rig.requests.capture();
+    try q.UnifiedUpload.cancel(&turn, copying.namespace.value);
+    try rig.requests.commit(turn);
+    try rig.drain();
+    const stopped = try rig.view(selected);
+    try t.expectEqual(.paused, stopped.phase);
+    try t.expect(!stopped.enabled);
+    try t.expectEqual(.query_cancelled, stopped.failure.stopped.reason);
+    turn = try rig.requests.capture();
+    const work = (try q.UnifiedUpload.status(&turn, copying.namespace.value)).?;
+    try t.expectEqual(.cancelled, work.phase);
+    try t.expect(work.collected);
+    try t.expectEqual(@as(u64, 0), (try root.Refresh.scheduler(&turn)).generation);
+}
+
+test "watch failures retain original schema and progress evidence at the failing read" {
+    var rig: Rig = .{};
+    defer rig.deinit();
+    try rig.init();
+    var context: root.ServingFailure.Context = .{};
+    const reader = rig.reader().withDiagnostic(&context);
+    var declaration = rig.declaration;
+    declaration.schema = @splat(255);
+    try t.expectError(error.ReactiveResetRequired, reader.observe(declaration));
+    try t.expectEqualDeep(declaration.schema, context.witness.basis.expected);
+    try t.expectEqualDeep(rig.declaration.schema, context.witness.basis.actual);
+    declaration = rig.declaration;
+    declaration.progress_key = try p.Value.init("absent");
+    try t.expectError(error.ReactiveResetRequired, reader.observe(declaration));
+    try t.expect(!context.witness.progress.present);
+    try t.expectEqualStrings("absent", context.witness.progress.key[0..context.witness.progress.length]);
+    declaration = rig.declaration;
+    try rig.source.revisions.put(t.allocator, declaration.progress_key, p.max_counter);
+    try t.expectError(error.InvalidReactiveProgress, reader.observe(declaration));
+    try t.expect(context.witness.progress.present);
+    try t.expectEqual(p.max_counter, context.witness.progress.actual);
+    try t.expect(context.witness.progress.limit < context.witness.progress.actual);
+    declaration.table = 2;
+    try t.expectError(error.TableNotFound, reader.observe(declaration));
+    try t.expectEqual(@as(u32, 2), context.witness.table);
+}
+
+test "selected query failure stays independent of earlier stop and classifies only permission denial as denied" {
+    for ([_]q.QueryFailure.Code{ .resource_unavailable, .policy_denied, .arithmetic_overflow }) |code| {
+        var rig: Rig = .{};
+        defer rig.deinit();
+        try rig.init();
+        const selected = try rig.follow(try rig.session(1), 0, 2);
+        try rig.mutate();
+        try rig.apply(.{ .invalidate = selected });
+        try rig.drain();
+        const admitted = try rig.view(selected);
+        try t.expectEqual(.admitted, admitted.phase);
+        if (code == .arithmetic_overflow) try rig.apply(.{ .pause = selected });
+        const prior = try rig.view(selected);
+        var turn = try rig.requests.capture();
+        const work = (try q.UnifiedUpload.status(&turn, admitted.namespace.value)).?;
+        const failure: q.QueryFailure = .{ .code = code, .stage = .execution };
+        const reply: s.Frame = .{ .kind = .reply, .correlation = work.correlation, .payload = try failure.encode() };
+        turn.delivery.input.value = try reply.encode();
+        turn.delivery.input.origin = .{ .process = .{ .pid = 3, .turn = 1, .output = 0 } };
+        try t.expect(try turn.acceptReply() == .accepted);
+        try q.UnifiedUpload.reply(&turn, reply, 3);
+        try rig.requests.commit(turn);
+        try rig.drain();
+        const stopped = try rig.view(selected);
+        try t.expectEqual(if (code == .policy_denied) m.Phase.denied else m.Phase.failed, stopped.phase);
+        if (code == .arithmetic_overflow) try t.expectEqualDeep(prior.failure, stopped.failure) else try t.expectEqual(.query_rejected, stopped.failure.stopped.reason);
+        turn = try rig.requests.capture();
+        const outcome = (try q.UnifiedUpload.status(&turn, admitted.namespace.value)).?;
+        try t.expectEqual(code, outcome.failure.?.code);
+        const diagnostic = (try q.Bridge.statusDiagnostic(outcome)).?;
+        try t.expectEqual(.rejected, diagnostic.outcome);
+    }
 }

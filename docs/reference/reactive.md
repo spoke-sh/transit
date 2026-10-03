@@ -64,6 +64,15 @@ assuming a quota slot is free. The browser preserves the original control reason
 and separately reports any later current-scope failure; denial clears protected
 state. Neither diagnosis causes an automatic replacement session or command.
 
+Follow status retains the original scheduling stop independently of the selected
+query outcome. It distinguishes explicit pause, closure or expiry, exhausted
+budget, changed source, unavailable resources, authority denial, occupied
+namespace and rejected/cancelled/retired queries. A query failure includes its
+own original code and witness. Restoring permission or closing the session does
+not rewrite the earlier stop or restart the generation. The browser keeps the
+last exact result on non-authority failures and shows the retained detail; current
+denial still clears protected state.
+
 ## Budgets and transport
 
 Follow uses one active refresh and bounded coalesced work per admitted scope,

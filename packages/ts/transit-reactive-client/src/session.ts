@@ -1,4 +1,4 @@
-import { ownedDiagnostic } from "@rey/transit-diagnostics";
+import { ownedDiagnostic, type Diagnostic } from "@rey/transit-diagnostics";
 import { ReactiveError, Transport } from "./index";
 import { acquireCaller, type AcquireCaller } from "./caller-gate";
 import type {
@@ -11,7 +11,14 @@ import type {
 } from "./types";
 type Command = Extract<HostRequest, { prepare: unknown }>["prepare"];
 export type RefreshCommand = Extract<HostRequest, { refresh_prepare: unknown }>["refresh_prepare"];
-export type RefreshView = Extract<HostResponse, { refresh_status: unknown }>["refresh_status"];
+type RefreshStatus = Extract<HostResponse, { refresh_status: unknown }>["refresh_status"];
+export type RefreshView = RefreshStatus["view"] &
+  Pick<RefreshStatus, "resource" | "revision" | "policy_revision"> & {
+    diagnostic?: Diagnostic;
+    queryDiagnostic?: Diagnostic;
+    diagnosticInvalid: boolean;
+    queryDiagnosticInvalid: boolean;
+  };
 export type Selection = Extract<HostRequest, { refresh_status: unknown }>["refresh_status"];
 type Control = Command | { refresh: RefreshCommand };
 type Read = ReactiveRead["read"];
@@ -154,14 +161,57 @@ export class Session {
     if (!this.selection) return invalid();
     const response = await this.transport.host({ refresh_status: this.selection }, signal);
     if (!("refresh_status" in response)) return invalid();
+    const { view, diagnostic: supplied, query_diagnostic: querySupplied } = response.refresh_status;
     if (
-      response.refresh_status.generation !== this.selection.generation ||
-      response.refresh_status.session.session !== this.selection.session.session ||
-      response.refresh_status.session.generation !== this.selection.session.generation
+      view.generation !== this.selection.generation ||
+      view.session.session !== this.selection.session.session ||
+      view.session.generation !== this.selection.session.generation
     )
       return invalid();
-    return response.refresh_status;
+    let detail = ownedDiagnostic(supplied);
+    const stop = view.failure && "stopped" in view.failure ? view.failure.stopped : null;
+    const nativeInput = detail.diagnostic?.facts.find(
+      (fact) => fact?.field === "native_input",
+    )?.value;
+    const generation = detail.diagnostic?.facts.find((fact) => fact?.field === "generation")?.value;
+    if (
+      detail.diagnostic &&
+      (!stop ||
+        detail.diagnostic.outcome !== "not_applicable" ||
+        detail.diagnostic.evidence !== "domain_status" ||
+        detail.diagnostic.identity?.domain !== "reactive" ||
+        detail.diagnostic.identity.id !== String(view.session.session) ||
+        detail.diagnostic.identity.resource !== String(response.refresh_status.resource) ||
+        !nativeInput ||
+        !("unsigned" in nativeInput) ||
+        nativeInput.unsigned !== String(stop.input) ||
+        !generation ||
+        !("unsigned" in generation) ||
+        generation.unsigned !== String(view.generation))
+    )
+      detail = { invalid: true };
+    let queryDetail = ownedDiagnostic(querySupplied);
+    if (
+      queryDetail.diagnostic &&
+      (view.starts === 0 ||
+        queryDetail.diagnostic.evidence !== "domain_status" ||
+        !["rejected", "cancelled", "retired"].includes(queryDetail.diagnostic.outcome) ||
+        queryDetail.diagnostic.identity?.domain !== "query" ||
+        queryDetail.diagnostic.identity.id !== view.namespace)
+    )
+      queryDetail = { invalid: true };
+    return {
+      ...view,
+      resource: response.refresh_status.resource,
+      revision: response.refresh_status.revision,
+      policy_revision: response.refresh_status.policy_revision,
+      diagnostic: detail.diagnostic,
+      queryDiagnostic: queryDetail.diagnostic,
+      diagnosticInvalid: detail.invalid,
+      queryDiagnosticInvalid: queryDetail.invalid,
+    };
   }
+
   private async perform(command: Control, signal?: AbortSignal) {
     if (this.activeControl || this.pending) throw new ReactiveError(409, "control_uncertain");
     this.activeControl = true;

@@ -86,16 +86,24 @@ fn handle(raw: ?*anyopaque, turn: *Turn, frame: s.Frame) anyerror!void {
     }
     if (frame.kind != .cast or turn.delivery.input.origin != .external) return disposition(turn, null, .UnexpectedServingOrigin, .{});
     const command = m.Command.decode(frame.payload) catch |err| return disposition(turn, null, .InvalidServingCommand, .{ .cause = err });
+    _ = try self.dispatchCommand(turn, command, turn.delivery.input.origin.external.principal);
+}
+/// Returns false only for a committed input rejection. Composed owners may add
+/// their own successful control transition to this same atomic proposal.
+pub fn dispatchCommand(self: Self, turn: *Turn, command: m.Command, principal: u64) !bool {
     const before = turn.decision;
     var context: f.Context = .{};
-    var owner = self.*;
+    var owner = self;
     owner.diagnostic = &context;
-    owner.apply(turn, command, turn.delivery.input.origin.external.principal) catch |err| {
+    owner.apply(turn, command, principal) catch |err| {
         turn.decision = before;
         if (turn.read_error != null or !requestError(err)) return err;
         try disposition(turn, command, f.reason(err).?, context);
+        return false;
     };
+    return true;
 }
+
 pub fn apply(self: Self, turn: *Turn, command: m.Command, principal: u64) !void {
     // Public composition still requires the authority-derived external identity.
     if (turn.delivery.input.origin != .external or turn.delivery.input.origin.external.principal != principal) return error.ServingDenied;

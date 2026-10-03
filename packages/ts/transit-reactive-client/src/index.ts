@@ -205,10 +205,21 @@ export class Transport {
           "rejected" in value.observation
             ? value.observation.rejected
             : null;
-        const primary =
+        let primary =
           rejected && typeof rejected === "object" && "diagnostic" in rejected
             ? { ...(value as object), observation: { rejected: { ...rejected, diagnostic: null } } }
             : value;
+        if (
+          primary &&
+          typeof primary === "object" &&
+          "refresh_status" in primary &&
+          primary.refresh_status &&
+          typeof primary.refresh_status === "object"
+        )
+          primary = {
+            ...primary,
+            refresh_status: { ...primary.refresh_status, diagnostic: null, query_diagnostic: null },
+          };
         if (!validate.HostResponse(primary)) invalid();
         return value as HostResponse;
       } catch (error) {

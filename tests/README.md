@@ -12858,3 +12858,45 @@ name, an unquoted digit-leading definition identifier, a redundant `try` around
 not pass; corrected invocations are the evidence above. Follow terminal causes,
 adapter read/transport witnesses, effects and semantic inventory completion remain
 separate work. No committed-HEAD clean qualification is claimed here.
+
+### Original Follow stop and independent query failure — 2026-10-03
+
+Follow retains its original scheduling stop, committed input and bounded witness
+separately from the selected query status. Session closure records its stop in
+the same successful transition before removing the scheduler's session slot.
+Cancelled/retired uploads stop stale copying/admitted presentation before bounded
+collection; resource unavailability does not masquerade as permission denial.
+Private reads acquire head/view/query together and recheck current disclosure
+rights. A current-v1 definition cutover replaces the stored view and status shape.
+
+Executed serving package tests: **passed**. All 19 scheduler reason projections
+fit a maximum 251-byte view; combined status JSON with a maximum-field runtime
+query witness stays within 16 KiB. All 47 serving reason projections crossed with
+21 witness variants pass the existing 194-byte control-record and JSON bounds.
+Original policy evidence survives restoration and requester reconstruction;
+closure/pause preserves accepted query completion; cancellation collects within
+the existing four-write turns. Watch schema, absent/future progress marker and
+Table absence retain the evidence from the failing read.
+
+Executed `just test::reactive-refresh`: **passed**, 96.26 seconds excluding
+compilation. Independent peers exercise two shared-principal views, lost Follow
+receipt, fair progress, worker replacement, exact full-width namespaces and
+current entry-read denial. Pause retains its original input through closure. A
+fresh complete template establishes an idle Follow before policy revocation;
+a subsequent invalidation produces the separate original source-policy query
+rejection. Restoring policy leaves both diagnostics unchanged. An earlier 88.32 s
+run passed but used a potentially racing policy transition. Moving revocation
+before template acquisition instead rejected the Follow input, correctly, and
+that test invocation failed; the deterministic fixture above distinguishes the
+two boundaries.
+
+Full `just check`: **passed**, including 481 CLI cases, 52 Board tests, generated
+contracts, 5078 documentation links and the handbook build. Final focused browser
+checks pass all 30 reactive/live-view cases and strict types, including wrong
+resource/generation/namespace and malformed optional details, and failed refresh
+without replacement query or loss of the exact snapshot. A test-fixture edit
+initially failed to alter the foreign resource; the corrected fixture passes.
+Final package tests also exercise the maximal runtime witness. The real browser
+live-view proof is still running at this commit; it is not counted as passed here.
+Adapter read/transport diagnostics, effects and semantic inventory completion
+remain separate work. No committed-HEAD clean qualification is claimed here.

@@ -1,6 +1,6 @@
 # Durable finite refresh
 
-M21's qualified `LiveService` composes `Service`, M20 sessions
+`LiveService` composes `Service`, reactive sessions
 and the v1 query requester in one Station owner/resource. Install its handler and
 input guard together, initialize privately, and provision caller, worker and
 resource grants before exposing ingress. Standalone `Service` rejects refreshes.
@@ -23,7 +23,7 @@ query records or self-polling. Fairness is among eligible automatic views; an
 unbounded stream of manual admissions has no automatic-service guarantee.
 
 Each explicit follow generation permits one to eight refresh intents, with
-1000 ms between its starts, measured by the authenticated M20 observer clock.
+1000 ms between its starts, measured by the authenticated observer clock.
 A start reserves a new namespace from the committed input's high-bit domain;
 existing identities cannot be overwritten. `UnifiedUpload` copies one 256-byte
 template chunk per turn, seals and submits. Selection, copying, admission,
@@ -77,7 +77,29 @@ refresh wakeups. Query inputs and follow controls schedule separate refresh turn
 clock inputs can release recorded spacing after a scheduler exists. Thus an idle
 metadata-only view does not pay for query wakeup/delivery cycles.
 
-The private caller reads refresh head/view records in one bounded native cut,
+Each view retains its first scheduling stop as a finite reason, original committed
+input and bounded witness. The record fits 251 bytes including the maximum watch
+key and witness. Closing or expiring a session records its stop in the same turn,
+before removing the active slot; it does not cancel selected work. Cancelled or
+retired query uploads stop progress before separate bounded cleanup. Only actual
+permission denial receives the denied phase; resource unavailability and query
+execution errors remain distinct. A later query rejection has its own diagnostic
+and does not replace an earlier pause or closure witness.
+
+`refresh_status` returns the view, requester resource/revision, policy revision,
+optional scheduler diagnostic and separate optional query diagnostic. Scheduler
+outcome is `not_applicable`: it is not a claim about query completion. The query
+diagnostic projects its retained status and original failure. Full-width query
+namespaces remain decimal strings in witnesses and diagnostic facts. Lease stop
+witnesses record the comparison clock, the maximum of the committed observer
+sample and conservative host bound; recorded expiry and an observed deadline
+remain distinct. Missing retained query evidence is explicit, never reconstructed
+from a later source read.
+
+The private caller discovers the selected namespace, then reads refresh head,
+view and selected query status together in one bounded native cut (five keys
+including configuration and policy). A changed namespace restarts this read,
+with at most three attempts. It
 then rechecks current caller identity, resource read rights and service policy
 before disclosure. Receipt observation reads the caller-authorized process once
 and performs one protected disposition read with its own before/after checks.

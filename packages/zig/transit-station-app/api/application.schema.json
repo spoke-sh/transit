@@ -3601,7 +3601,7 @@
                                 "definition": {
                                   "type": "string",
                                   "enum": [
-                                    "8d2c6617b339418cf2d3afa6259009e4b3efc5308e40fe65757ca9385c227803"
+                                    "75a5efed41df165c680b9d13116d10b3c72357e542eca9b96195d6b520714cb1"
                                   ]
                                 },
                                 "code": {
@@ -3943,7 +3943,9 @@
                                               "subscription",
                                               "expected_codec",
                                               "actual_codec",
-                                              "observed_clock"
+                                              "observed_clock",
+                                              "expected_namespace",
+                                              "actual_namespace"
                                             ]
                                           },
                                           "origin": {
@@ -4375,7 +4377,7 @@
                         "definition": {
                           "type": "string",
                           "enum": [
-                            "8d2c6617b339418cf2d3afa6259009e4b3efc5308e40fe65757ca9385c227803"
+                            "75a5efed41df165c680b9d13116d10b3c72357e542eca9b96195d6b520714cb1"
                           ]
                         },
                         "code": {
@@ -4717,7 +4719,9 @@
                                       "subscription",
                                       "expected_codec",
                                       "actual_codec",
-                                      "observed_clock"
+                                      "observed_clock",
+                                      "expected_namespace",
+                                      "actual_namespace"
                                     ]
                                   },
                                   "origin": {
@@ -6455,7 +6459,7 @@
                                     "definition": {
                                       "type": "string",
                                       "enum": [
-                                        "8d2c6617b339418cf2d3afa6259009e4b3efc5308e40fe65757ca9385c227803"
+                                        "75a5efed41df165c680b9d13116d10b3c72357e542eca9b96195d6b520714cb1"
                                       ]
                                     },
                                     "code": {
@@ -6797,7 +6801,9 @@
                                                   "subscription",
                                                   "expected_codec",
                                                   "actual_codec",
-                                                  "observed_clock"
+                                                  "observed_clock",
+                                                  "expected_namespace",
+                                                  "actual_namespace"
                                                 ]
                                               },
                                               "origin": {
@@ -7229,7 +7235,7 @@
                             "definition": {
                               "type": "string",
                               "enum": [
-                                "8d2c6617b339418cf2d3afa6259009e4b3efc5308e40fe65757ca9385c227803"
+                                "75a5efed41df165c680b9d13116d10b3c72357e542eca9b96195d6b520714cb1"
                               ]
                             },
                             "code": {
@@ -7571,7 +7577,9 @@
                                           "subscription",
                                           "expected_codec",
                                           "actual_codec",
-                                          "observed_clock"
+                                          "observed_clock",
+                                          "expected_namespace",
+                                          "actual_namespace"
                                         ]
                                       },
                                       "origin": {
@@ -9156,7 +9164,7 @@
                                     "definition": {
                                       "type": "string",
                                       "enum": [
-                                        "8d2c6617b339418cf2d3afa6259009e4b3efc5308e40fe65757ca9385c227803"
+                                        "75a5efed41df165c680b9d13116d10b3c72357e542eca9b96195d6b520714cb1"
                                       ]
                                     },
                                     "code": {
@@ -9498,7 +9506,9 @@
                                                   "subscription",
                                                   "expected_codec",
                                                   "actual_codec",
-                                                  "observed_clock"
+                                                  "observed_clock",
+                                                  "expected_namespace",
+                                                  "actual_namespace"
                                                 ]
                                               },
                                               "origin": {
@@ -9930,7 +9940,7 @@
                             "definition": {
                               "type": "string",
                               "enum": [
-                                "8d2c6617b339418cf2d3afa6259009e4b3efc5308e40fe65757ca9385c227803"
+                                "75a5efed41df165c680b9d13116d10b3c72357e542eca9b96195d6b520714cb1"
                               ]
                             },
                             "code": {
@@ -10272,7 +10282,9 @@
                                           "subscription",
                                           "expected_codec",
                                           "actual_codec",
-                                          "observed_clock"
+                                          "observed_clock",
+                                          "expected_namespace",
+                                          "actual_namespace"
                                         ]
                                       },
                                       "origin": {
@@ -14794,7 +14806,7 @@
                                         "definition": {
                                           "type": "string",
                                           "enum": [
-                                            "8d2c6617b339418cf2d3afa6259009e4b3efc5308e40fe65757ca9385c227803"
+                                            "75a5efed41df165c680b9d13116d10b3c72357e542eca9b96195d6b520714cb1"
                                           ]
                                         },
                                         "code": {
@@ -15136,7 +15148,9 @@
                                                       "subscription",
                                                       "expected_codec",
                                                       "actual_codec",
-                                                      "observed_clock"
+                                                      "observed_clock",
+                                                      "expected_namespace",
+                                                      "actual_namespace"
                                                     ]
                                                   },
                                                   "origin": {
@@ -15568,7 +15582,7 @@
                                 "definition": {
                                   "type": "string",
                                   "enum": [
-                                    "8d2c6617b339418cf2d3afa6259009e4b3efc5308e40fe65757ca9385c227803"
+                                    "75a5efed41df165c680b9d13116d10b3c72357e542eca9b96195d6b520714cb1"
                                   ]
                                 },
                                 "code": {
@@ -15910,7 +15924,9 @@
                                               "subscription",
                                               "expected_codec",
                                               "actual_codec",
-                                              "observed_clock"
+                                              "observed_clock",
+                                              "expected_namespace",
+                                              "actual_namespace"
                                             ]
                                           },
                                           "origin": {

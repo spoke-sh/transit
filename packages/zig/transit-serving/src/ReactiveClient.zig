@@ -47,7 +47,7 @@ pub const Response = union(enum) {
     receipt: root.Adapter.Receipt,
     observation: Observation,
     signed_read: r.SignedRead,
-    refresh_status: root.RefreshModel.View,
+    refresh_status: root.RefreshFailure.Status,
 };
 fn query(self: Self, kind: @FieldType(p.Growth.Query, "kind")) !p.Growth.Response {
     const signed = try p.Growth.signQuery(.{ .realm = self.connection.realm, .principal = self.connection.principal, .kind = kind }, self.key);
@@ -112,14 +112,14 @@ fn refreshPrepare(self: Self, adapter: root.Adapter, input: root.RefreshModel.In
     if (current.body.identity.pid != self.connection.ingress) return error.ServingDenied;
     return self.nativeAt(.{ .refresh = command }, try std.math.add(u64, current.principal_sequence, 1));
 }
-fn refreshStatus(self: Self, adapter: root.Adapter, selection: root.RefreshModel.Selection) !root.RefreshModel.View {
+fn refreshStatus(self: Self, adapter: root.Adapter, selection: root.RefreshModel.Selection) !root.RefreshFailure.Status {
     for (0..3) |_| return self.refreshStatusOnce(adapter, selection) catch |err| {
-        if ((err == error.Rejected or err == error.Conflict) and (self.wire.last_rejection == .StaleStateResource or self.wire.last_rejection == .QueryExpired)) continue;
+        if (err == error.ServiceReadConflict or ((err == error.Rejected or err == error.Conflict) and (self.wire.last_rejection == .StaleStateResource or self.wire.last_rejection == .QueryExpired))) continue;
         return err;
     };
     return error.ServiceReadConflict;
 }
-fn refreshStatusOnce(self: Self, adapter: root.Adapter, selection: root.RefreshModel.Selection) !root.RefreshModel.View {
+fn refreshStatusOnce(self: Self, adapter: root.Adapter, selection: root.RefreshModel.Selection) !root.RefreshFailure.Status {
     if (!self.refresh) return error.ServingDenied;
     const identity = try p.Growth.signQuery(.{ .realm = self.connection.realm, .principal = self.connection.principal, .kind = .identity }, self.key);
     try adapter.authorize(identity, self.key.public_key.toBytes());
@@ -128,8 +128,29 @@ fn refreshStatusOnce(self: Self, adapter: root.Adapter, selection: root.RefreshM
         root.RefreshModel.viewKey(self.connection.principal, selection.generation),
     });
     if (try root.Refresh.head(&scoped.data, self.connection.principal, selection.session.session) != selection.generation) return error.RefreshGenerationConflict;
-    const view = (try root.Refresh.view(&scoped.data, self.connection.principal, selection.generation)) orelse return error.RefreshNotFound;
+    var view = (try root.Refresh.view(&scoped.data, self.connection.principal, selection.generation)) orelse return error.RefreshNotFound;
     if (!std.meta.eql(view.session, selection.session)) return error.ReactiveGenerationConflict;
+    if (view.starts != 0) {
+        const namespace = view.namespace.value;
+        // Discover the dynamic query key, then acquire head/view/query at one
+        // bounded cut. A newly selected namespace requires an explicit reread.
+        scoped = try adapter.readerFor(self.connection.principal, &.{
+            root.RefreshModel.headKey(self.connection.principal, selection.session.session),
+            root.RefreshModel.viewKey(self.connection.principal, selection.generation),
+            root.query.UnifiedRecords.key('u', namespace, 0),
+        });
+        if (try root.Refresh.head(&scoped.data, self.connection.principal, selection.session.session) != selection.generation) return error.RefreshGenerationConflict;
+        view = (try root.Refresh.view(&scoped.data, self.connection.principal, selection.generation)) orelse return error.RefreshNotFound;
+        if (!std.meta.eql(view.session, selection.session)) return error.ReactiveGenerationConflict;
+        if (view.namespace.value != namespace) return error.ServiceReadConflict;
+    }
+    var result: root.RefreshFailure.Status = .{ .resource = adapter.resource, .revision = scoped.data.view.revision, .policy_revision = scoped.policy.revision, .view = view, .diagnostic = try root.RefreshFailure.project(self.connection.realm, adapter.resource, view) };
+    if (view.starts != 0) {
+        if (try root.query.UnifiedUpload.status(&scoped.data, view.namespace.value)) |status| {
+            result.query_diagnostic = try root.query.Bridge.statusDiagnostic(status);
+        }
+        if (result.query_diagnostic == null and view.failure == .stopped and view.failure.stopped.reason == .query_rejected) if (result.diagnostic) |*diagnostic| try diagnostic.absent(.native_cause, .owner, .unavailable);
+    }
     const source = (try self.query(.{ .read_access = view.source.resource })).body.read_access;
     const requester = (try self.query(.{ .read_access = adapter.resource })).body.read_access;
     if (source.writer != view.source.target or source.phase != .active or requester.writer != self.connection.ingress or requester.phase != .active) return error.ResourceUnavailable;
@@ -139,7 +160,7 @@ fn refreshStatusOnce(self: Self, adapter: root.Adapter, selection: root.RefreshM
     try adapter.authorize(identity, self.key.public_key.toBytes());
     const latest = try adapter.readerFor(self.connection.principal, &.{});
     if (latest.policy.revision != scoped.policy.revision) return error.ServiceReadConflict;
-    return view;
+    return result;
 }
 /// A clock sample for lease renewal does not rediscover source schemas or
 /// compute an API-description digest. All reads retain current caller/service

@@ -274,8 +274,21 @@ export class LiveView<T> {
     const refresh = await this.session.refreshStatus(signal);
     if (signal.aborted || epoch !== this.epoch) return;
     this.publish({ refresh });
-    if (refresh.phase === "denied") throw new ReactiveError(403, "denied");
-    if (refresh.phase === "failed") throw new ReactiveError(409, "reset_required");
+    if (refresh.phase === "denied")
+      throw new ReactiveError(403, "denied", refresh.queryDiagnostic ?? refresh.diagnostic);
+    const detail = [refresh.diagnostic, refresh.queryDiagnostic]
+      .flatMap((value) => (value ? diagnosticLines(value) : []))
+      .join("\n");
+    if (refresh.phase === "failed") {
+      this.publish({
+        phase: "paused",
+        detail:
+          detail ||
+          "Refresh stopped without replacement coverage. Inspect the selected query outcome before continuing.",
+      });
+      this.abort?.abort();
+      return;
+    }
     if (refresh.phase === "ready") {
       // read() must traverse full coverage, discard prefixes and reread the
       // visible page under current authority. No rows are published in between.
@@ -291,9 +304,10 @@ export class LiveView<T> {
       this.publish({
         phase: "paused",
         detail:
-          refresh.phase === "exhausted"
-            ? "Refresh budget used. Follow explicitly to grant another budget."
-            : "Scheduling paused.",
+          detail ||
+          (refresh.phase === "exhausted"
+            ? "Refresh budget used. Inspect the selected query before explicitly granting another budget."
+            : "Scheduling paused; selected query work remains independent."),
       });
       this.abort?.abort();
     }

@@ -91,3 +91,24 @@ An explicitly closed session reports `ReactiveSessionClosed` and a stream
 terminal `closed`. An expired lease reports `ReactiveSessionExpired`/`expired`.
 An observed deadline with recorded phase `open` does not prove the owner has
 reclaimed its active slot. Neither condition cancels accepted application work.
+
+
+Follow status has a `view`, requester `resource`/`revision`, `policy_revision`,
+optional `diagnostic` for the original scheduler stop, and optional
+`query_diagnostic` for the selected query. Head, view and query status are copied
+at one native cut after discovering the namespace. A changing selection retries
+at most three reads. Current native identity, source/requester read access and
+service policy are rechecked before disclosure, including after session closure.
+
+The stored view includes a finite stop reason, original committed input and
+check-time witness. No stop is represented explicitly by the `none` variant.
+Scheduler diagnostics use `not_applicable` outcome; the independent query
+projection uses its retained rejection, cancellation or retirement outcome. Its
+absence does not assert successful completion. Namespaces use exact decimal
+strings throughout. The combined response remains within the 16 KiB client bound.
+
+The browser validates scheduler input, view generation and session identity, and
+binds query diagnostics to the selected namespace. Malformed optional details
+are flagged independently without losing primary progress or scheduling work.
+A failed query pauses presentation with the last exact result; authority denial
+clears protected state. No diagnostic implicitly submits SQL or grants a budget.

@@ -235,7 +235,7 @@ pub fn applyDiagnostic(configuration: m.Configuration, turn: *Turn, principal: u
 }
 pub fn requestError(err: anyerror) bool {
     return switch (err) {
-        error.InvalidReactiveSource, error.ReactiveSessionNotFound, error.ReactiveGenerationConflict, error.ReactiveSessionClosed, error.ReactiveSessionExpired, error.ReactiveResetRequired, error.InvalidReactiveLease, error.ReactiveCapacity, error.InvalidReactiveAttachment, error.ReactiveAttachmentConflict, error.ReactiveSubscriptionConflict, error.ReactiveLeaseConflict => true,
+        error.InvalidReactiveSource, error.UnsupportedReactiveSource, error.InvalidReactiveProgress, error.TableNotFound, error.ReactiveSessionNotFound, error.ReactiveGenerationConflict, error.ReactiveSessionClosed, error.ReactiveSessionExpired, error.ReactiveResetRequired, error.InvalidReactiveLease, error.ReactiveCapacity, error.InvalidReactiveAttachment, error.ReactiveAttachmentConflict, error.ReactiveSubscriptionConflict, error.ReactiveLeaseConflict => true,
         else => false,
     };
 }

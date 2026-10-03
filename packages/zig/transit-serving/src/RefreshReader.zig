@@ -9,6 +9,12 @@ resources: root.station.client.ResourceReader,
 ingress: u64,
 resource: u64,
 scratch: []u8,
+diagnostic: ?*root.ServingFailure.Context = null,
+pub fn withDiagnostic(self: Self, context: ?*root.ServingFailure.Context) Self {
+    var scoped_reader = self;
+    scoped_reader.diagnostic = context;
+    return scoped_reader;
+}
 
 fn signedQuery(self: Self, principal: u64, kind: @FieldType(p.Growth.Query, "kind"), signature: [64]u8) !p.Growth.Response {
     const request: p.Growth.SignedQuery = .{ .query = .{ .realm = self.resources.realm, .principal = principal, .kind = kind }, .signature = signature };
@@ -16,7 +22,7 @@ fn signedQuery(self: Self, principal: u64, kind: @FieldType(p.Growth.Query, "kin
     // and grant. A retained proof is neither an access token nor a cached grant.
     const response = self.resources.wire.call(p.Growth.Response, "/v1/query", request) catch |err| {
         if (err == error.Rejected or err == error.Conflict) switch (self.resources.wire.last_rejection orelse return err) {
-            .AccessDenied, .Forbidden => return error.ServingDenied,
+            .AccessDenied, .Forbidden => return error.AccessDenied,
             .StateResourceExpired, .UnknownStateResource, .DeadlineExpired, .RetiredProcess => return error.ResourceUnavailable,
             else => {},
         };
@@ -35,7 +41,7 @@ pub fn authorize(self: Self, principal: u64, source: root.ReactiveModel.Source, 
 }
 pub fn observe(self: Self, source: root.ReactiveModel.Source) !root.TableWatch.Observation {
     var reader = try self.resources.open(source.resource);
-    return root.TableWatch.observe(&reader, source);
+    return root.TableWatch.observeDiagnostic(&reader, source, self.diagnostic);
 }
 pub fn result(self: Self, turn: *root.station.Turn, namespace: u64, source: root.ReactiveModel.Source) !q.fuze.Unified.Basis {
     if (turn.view.resource != self.resource or turn.delivery.pid != self.ingress) return error.ServingDenied;

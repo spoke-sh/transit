@@ -283,3 +283,52 @@ test("later denial clears protected state and presents the original rejected con
   });
   await view.pause();
 });
+
+test("failed refresh pauses with the exact snapshot and makes no replacement query", async () => {
+  const session = attachedSession();
+  session.open = async () => {
+    session.scope = scope;
+  };
+  session.close = async () => {
+    session.scope = null;
+  };
+  session.inspect = async () =>
+    ({
+      observation: { data_revision: 11, basis: snapshot.basis, schema: { columns: [] } },
+    }) as never;
+  const selection = { session: { session: 5, generation: 6 }, generation: 7 };
+  let controls = 0;
+  session.refresh = async (command) => {
+    expect("follow" in command || "invalidate" in command || "pause" in command).toBe(true);
+    ++controls;
+    session.selection = selection;
+    return 7;
+  };
+  session.refreshStatus = async () =>
+    ({
+      phase: "failed",
+      generation: 7,
+      session: selection.session,
+      namespace: "9223372036854775809",
+      failure: { stopped: { reason: "resource_unavailable", input: 12 } },
+    }) as never;
+  let reads = 0;
+  const view = new LiveView(session, async (_signal, namespace) => {
+    ++reads;
+    expect(namespace).toBe("1");
+    return { ...snapshot, namespace };
+  });
+  const failed = deferred<void>();
+  view.subscribe(() => {
+    if (view.getSnapshot().phase === "paused" && view.getSnapshot().refresh?.phase === "failed")
+      failed.resolve();
+  });
+  await view.start("1");
+  await failed.promise;
+  expect(view.getSnapshot().snapshot?.value).toBe("protected");
+  expect(view.getSnapshot().detail).toContain("Inspect the selected query outcome");
+  expect(view.following).toBe(false);
+  expect(reads).toBe(1);
+  expect(controls).toBe(2);
+  await view.pause();
+});

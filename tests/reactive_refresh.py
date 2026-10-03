@@ -82,7 +82,7 @@ def run(env, _tls):
         raise AssertionError('Refresh condition timed out')
 
     def view(selection):
-        return client({'refresh_status': selection})['refresh_status']
+        return client({'refresh_status': selection})['refresh_status']['view']
 
     def mutate(operation):
         cast(ingress, submit(operation, env['deadline_ms']), principal)
@@ -109,18 +109,21 @@ def run(env, _tls):
     for ordinal, offset in enumerate(range(0, len(bundle), 256)):
         part = bundle[offset:offset+256]
         digest = hashlib.sha256(b'\1' + digest + struct.pack('<IH', ordinal, len(part)) + part).digest()
-    reference = b'SPF1' + struct.pack('<QIQQII', requests, 2, 1, 1, 0x31425155, len(bundle)) + digest
-    cast(ingress, b'UQB1' + reference, principal)
-    drained(ingress)
-    for ordinal, offset in enumerate(range(0, len(bundle), 256)):
-        part = bundle[offset:offset+256]
-        for half in range(0, len(part), 128):
-            cast(ingress, b'UQP1' + struct.pack('<QIB', 1, ordinal, int(half != 0)) + part[half:half+128], principal)
-            drained(ingress)
-    cast(ingress, b'UQS1' + struct.pack('<Q', 1), principal)
-    drained(ingress)
-    cast(ingress, b'UQX1' + struct.pack('<Q', 1), principal)
-    wait(lambda: (current := status(1)) is not None and current[76] == 4)
+    def complete_template(namespace):
+        reference = b'SPF1' + struct.pack('<QIQQII', requests, 2, namespace, 1, 0x31425155, len(bundle)) + digest
+        cast(ingress, b'UQB1' + reference, principal)
+        drained(ingress)
+        for ordinal, offset in enumerate(range(0, len(bundle), 256)):
+            part = bundle[offset:offset+256]
+            for half in range(0, len(part), 128):
+                cast(ingress, b'UQP1' + struct.pack('<QIB', namespace, ordinal, int(half != 0)) + part[half:half+128], principal)
+                drained(ingress)
+        cast(ingress, b'UQS1' + struct.pack('<Q', namespace), principal)
+        drained(ingress)
+        cast(ingress, b'UQX1' + struct.pack('<Q', namespace), principal)
+        wait(lambda: (current := status(namespace)) is not None and current[76] == 4)
+
+    complete_template(1)
     now = int(time.time() * 1000)
     cast(ingress, reactive(1, struct.pack('<Q', now)), 34)
     drained(ingress)
@@ -177,9 +180,46 @@ def run(env, _tls):
     env['resource_grant'](resource, principal, 3)
     for selection in selections:
         assert view(selection)['starts'] == 1
-        command({'pause': selection}, refresh=True, control=True)
+        paused_input = command({'pause': selection}, refresh=True, control=True)
+        original = client({'refresh_status': selection})['refresh_status']
+        assert original['view']['failure']['stopped']['reason'] == 'paused', original
+        assert original['view']['failure']['stopped']['input'] == paused_input, original
+        assert original['diagnostic']['code'] == 'refresh.paused', original
+        assert original['diagnostic']['outcome'] == 'not_applicable', original
+        assert original['query_diagnostic'] is None, original
         command({'close': selection['session']}, control=True)
+        retained = client({'refresh_status': selection})['refresh_status']
+        assert retained['view']['failure'] == original['view']['failure'], retained
+        assert retained['diagnostic'] == original['diagnostic'], retained
     for namespace in ('1', frozen, ready_second['namespace']):
         assert status(namespace)[76] == 4
+    complete_template(2) # A current template makes the new Follow initially idle.
+    # A source-policy rejection is a query outcome, independently retained from
+    # the scheduler stop. Restoring policy cannot rewrite either original cause.
+    now = int(time.time() * 1000)
+    cast(ingress, reactive(1, struct.pack('<Q', now)), 34)
+    drained(ingress)
+    generation = command({'open': dict(session=3, source_revision=1, lease_before_ms=now + 28000)})
+    identity = dict(session=3, generation=generation)
+    leases[3] = identity, now + 28000
+    selected = dict(session=identity, generation=command({'follow': dict(session=identity, expected=0, template='2', limit=1)}, refresh=True))
+    assert view(selected)['starts'] == 0
+    cast(application, b'UQA1' + struct.pack('<QQQ', ingress, requests, 2) + declaration + b'\0' + limits)
+    drained(application)
+    mutate(4)
+    command({'invalidate': selected}, refresh=True)
+    failed = wait(lambda: (value if (value := client({'refresh_status': selected})['refresh_status'])['view']['phase'] == 'denied' else None))
+    assert failed['view']['failure']['stopped']['reason'] == 'query_rejected', failed
+    assert failed['diagnostic']['code'] == 'refresh.query_rejected', failed
+    assert failed['diagnostic']['outcome'] == 'not_applicable', failed
+    assert failed['query_diagnostic']['code'] == 'query.policy_denied', failed
+    assert failed['query_diagnostic']['outcome'] == 'rejected', failed
+    assert failed['query_diagnostic']['identity']['id'] == failed['view']['namespace'], failed
+    cast(application, b'UQA1' + struct.pack('<QQQ', ingress, requests, 3) + declaration + b'\1' + limits)
+    drained(application)
+    restored = client({'refresh_status': selected})['refresh_status']
+    assert restored['diagnostic'] == failed['diagnostic'], restored
+    assert restored['query_diagnostic'] == failed['query_diagnostic'], restored
+    command({'close': identity}, control=True)
     Path('.cache/verification/m21-refresh-trace.json').write_text(json.dumps(trace))
     print(f'Reactive durable refresh: two shared-principal views, exact lost follow receipt, one admitted query, fair successor, worker replacement, full-width identities and current entry-read denial with metadata still permitted passed in {time.monotonic() - started:.2f}s', flush=True)

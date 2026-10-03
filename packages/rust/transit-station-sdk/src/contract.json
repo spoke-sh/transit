@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "definition": "8d2c6617b339418cf2d3afa6259009e4b3efc5308e40fe65757ca9385c227803",
+  "definition": "75a5efed41df165c680b9d13116d10b3c72357e542eca9b96195d6b520714cb1",
   "minimum_stack_bytes": 8388608,
   "statuses": {
     "ok": 0,
@@ -6001,7 +6001,7 @@
                             "definition": {
                               "type": "string",
                               "enum": [
-                                "8d2c6617b339418cf2d3afa6259009e4b3efc5308e40fe65757ca9385c227803"
+                                "75a5efed41df165c680b9d13116d10b3c72357e542eca9b96195d6b520714cb1"
                               ]
                             },
                             "scope": {
@@ -14661,7 +14661,7 @@
         "definition": {
           "type": "string",
           "enum": [
-            "8d2c6617b339418cf2d3afa6259009e4b3efc5308e40fe65757ca9385c227803"
+            "75a5efed41df165c680b9d13116d10b3c72357e542eca9b96195d6b520714cb1"
           ]
         },
         "profile": {
@@ -14916,7 +14916,7 @@
       ],
       "x-transit-defaults": {
         "version": 1,
-        "definition": "8d2c6617b339418cf2d3afa6259009e4b3efc5308e40fe65757ca9385c227803",
+        "definition": "75a5efed41df165c680b9d13116d10b3c72357e542eca9b96195d6b520714cb1",
         "profile": "native_v1",
         "gated_dispatch": true,
         "retained_confirmation": true,
@@ -28547,7 +28547,7 @@
                             "definition": {
                               "type": "string",
                               "enum": [
-                                "8d2c6617b339418cf2d3afa6259009e4b3efc5308e40fe65757ca9385c227803"
+                                "75a5efed41df165c680b9d13116d10b3c72357e542eca9b96195d6b520714cb1"
                               ]
                             },
                             "code": {
@@ -28896,7 +28896,9 @@
                                           "subscription",
                                           "expected_codec",
                                           "actual_codec",
-                                          "observed_clock"
+                                          "observed_clock",
+                                          "expected_namespace",
+                                          "actual_namespace"
                                         ]
                                       },
                                       "origin": {
@@ -30448,7 +30450,7 @@
                         "definition": {
                           "type": "string",
                           "enum": [
-                            "8d2c6617b339418cf2d3afa6259009e4b3efc5308e40fe65757ca9385c227803"
+                            "75a5efed41df165c680b9d13116d10b3c72357e542eca9b96195d6b520714cb1"
                           ]
                         },
                         "code": {
@@ -30797,7 +30799,9 @@
                                       "subscription",
                                       "expected_codec",
                                       "actual_codec",
-                                      "observed_clock"
+                                      "observed_clock",
+                                      "expected_namespace",
+                                      "actual_namespace"
                                     ]
                                   },
                                   "origin": {
@@ -31359,7 +31363,7 @@
                         "definition": {
                           "type": "string",
                           "enum": [
-                            "8d2c6617b339418cf2d3afa6259009e4b3efc5308e40fe65757ca9385c227803"
+                            "75a5efed41df165c680b9d13116d10b3c72357e542eca9b96195d6b520714cb1"
                           ]
                         },
                         "code": {
@@ -31708,7 +31712,9 @@
                                       "subscription",
                                       "expected_codec",
                                       "actual_codec",
-                                      "observed_clock"
+                                      "observed_clock",
+                                      "expected_namespace",
+                                      "actual_namespace"
                                     ]
                                   },
                                   "origin": {
@@ -32317,7 +32323,7 @@
                     "definition": {
                       "type": "string",
                       "enum": [
-                        "8d2c6617b339418cf2d3afa6259009e4b3efc5308e40fe65757ca9385c227803"
+                        "75a5efed41df165c680b9d13116d10b3c72357e542eca9b96195d6b520714cb1"
                       ]
                     },
                     "scope": {
@@ -32961,7 +32967,7 @@
                 "definition": {
                   "type": "string",
                   "enum": [
-                    "8d2c6617b339418cf2d3afa6259009e4b3efc5308e40fe65757ca9385c227803"
+                    "75a5efed41df165c680b9d13116d10b3c72357e542eca9b96195d6b520714cb1"
                   ]
                 },
                 "initialize": {
@@ -33003,7 +33009,7 @@
               ],
               "x-transit-defaults": {
                 "version": 1,
-                "definition": "8d2c6617b339418cf2d3afa6259009e4b3efc5308e40fe65757ca9385c227803",
+                "definition": "75a5efed41df165c680b9d13116d10b3c72357e542eca9b96195d6b520714cb1",
                 "initialize": true,
                 "create_table": true,
                 "conditional_policy": true,
@@ -33572,7 +33578,7 @@
                         "definition": {
                           "type": "string",
                           "enum": [
-                            "8d2c6617b339418cf2d3afa6259009e4b3efc5308e40fe65757ca9385c227803"
+                            "75a5efed41df165c680b9d13116d10b3c72357e542eca9b96195d6b520714cb1"
                           ]
                         },
                         "scope": {
@@ -33964,7 +33970,7 @@
                         "definition": {
                           "type": "string",
                           "enum": [
-                            "8d2c6617b339418cf2d3afa6259009e4b3efc5308e40fe65757ca9385c227803"
+                            "75a5efed41df165c680b9d13116d10b3c72357e542eca9b96195d6b520714cb1"
                           ]
                         },
                         "code": {
@@ -34313,7 +34319,9 @@
                                       "subscription",
                                       "expected_codec",
                                       "actual_codec",
-                                      "observed_clock"
+                                      "observed_clock",
+                                      "expected_namespace",
+                                      "actual_namespace"
                                     ]
                                   },
                                   "origin": {
@@ -34910,7 +34918,7 @@
                         "definition": {
                           "type": "string",
                           "enum": [
-                            "8d2c6617b339418cf2d3afa6259009e4b3efc5308e40fe65757ca9385c227803"
+                            "75a5efed41df165c680b9d13116d10b3c72357e542eca9b96195d6b520714cb1"
                           ]
                         },
                         "code": {
@@ -35259,7 +35267,9 @@
                                       "subscription",
                                       "expected_codec",
                                       "actual_codec",
-                                      "observed_clock"
+                                      "observed_clock",
+                                      "expected_namespace",
+                                      "actual_namespace"
                                     ]
                                   },
                                   "origin": {

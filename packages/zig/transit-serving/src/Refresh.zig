@@ -8,9 +8,12 @@ const r = root.ReactiveModel;
 const c = root.Codec;
 const q = root.query;
 const Turn = root.station.Turn;
+const f = root.ServingFailure;
+const failure = root.RefreshFailure;
 const Self = @This();
 principal: u64,
 source: u64,
+diagnostic: ?*f.Context = null,
 
 pub fn head(reader: anytype, principal: u64, session: u64) !u64 {
     return if (try reader.read(m.headKey(principal, session))) |value| try c.decode(u64, 'F', value) else 0;
@@ -35,64 +38,114 @@ fn save(turn: *Turn, value: m.View) !void {
 fn saveScheduler(turn: *Turn, value: m.Scheduler) !void {
     try turn.write(m.scheduler_key, try c.encode('J', value));
 }
-fn policy(turn: *Turn, principal: u64) !void {
-    if (!(try root.Service.policy(turn, principal) orelse return error.ServingDenied).reads) return error.ServingDenied;
+fn policy(turn: *Turn, principal: u64, context: ?*f.Context) !void {
+    _ = try root.Service.rights(turn, principal, true, context);
 }
-fn ownedSession(turn: *Turn, principal: u64, identity: r.SessionIdentity) !r.Session {
+fn ownedSession(turn: *Turn, principal: u64, identity: r.SessionIdentity, context: ?*f.Context) !r.Session {
     const value = (try root.ReactiveService.session(turn, principal, identity.session)) orelse return error.ReactiveSessionNotFound;
-    if (value.generation != identity.generation) return error.ReactiveGenerationConflict;
+    if (value.generation != identity.generation) {
+        f.remember(context, .{ .generation = .{ .expected = identity.generation, .actual = value.generation } });
+        return error.ReactiveGenerationConflict;
+    }
     return value;
 }
-fn live(turn: *Turn, principal: u64, identity: r.SessionIdentity, upper_ms: u64) !r.Source {
-    try policy(turn, principal);
-    const owner = try ownedSession(turn, principal, identity);
-    if (owner.phase == .closed) return error.ReactiveSessionClosed;
-    if (owner.phase == .expired or owner.lease_before_ms <= @max(upper_ms, try root.ReactiveService.clock(turn))) return error.ReactiveSessionExpired;
-    const watch = (try root.ReactiveService.source(turn)) orelse return error.ReactiveResetRequired;
-    const binding = (try root.Service.binding(turn)) orelse return error.ServiceUnpublished;
-    if (!watch.published or !binding.published or binding.target != watch.target or owner.source_revision != watch.revision) return error.ReactiveResetRequired;
-    return watch;
+fn live(turn: *Turn, principal: u64, identity: r.SessionIdentity, upper_ms: u64, context: ?*f.Context) !r.Source {
+    try policy(turn, principal, context);
+    const owner = try ownedSession(turn, principal, identity, context);
+    if (owner.phase != .open) {
+        f.remember(context, .{ .session = .{ .phase = owner.phase, .deadline = owner.lease_before_ms, .observed = 0, .clock_known = false } });
+        return if (owner.phase == .closed) error.ReactiveSessionClosed else error.ReactiveSessionExpired;
+    }
+    const observed = @max(upper_ms, try root.ReactiveService.clock(turn));
+    if (owner.lease_before_ms <= observed) {
+        f.remember(context, .{ .session = .{ .phase = owner.phase, .deadline = owner.lease_before_ms, .observed = observed, .clock_known = true } });
+        return error.ReactiveSessionExpired;
+    }
+    const watch = try root.ReactiveService.source(turn);
+    if (watch == null or !watch.?.published or owner.source_revision != watch.?.revision) {
+        f.remember(context, f.sourceWitness(watch, owner.source_revision));
+        return error.ReactiveResetRequired;
+    }
+    const binding = try root.Service.binding(turn);
+    if (binding == null or !binding.?.published) {
+        f.remember(context, f.bindingWitness(binding, 0, 0));
+        return error.ServiceUnpublished;
+    }
+    if (binding.?.target != watch.?.target) {
+        f.remember(context, .{ .target = .{ .expected = watch.?.target, .actual = binding.?.target, .kind = .source } });
+        return error.ReactiveResetRequired;
+    }
+    return watch.?;
 }
-fn selected(turn: *Turn, principal: u64, selection: m.Selection) !m.View {
-    if (try head(turn, principal, selection.session.session) != selection.generation) return error.RefreshGenerationConflict;
+fn selected(turn: *Turn, principal: u64, selection: m.Selection, context: ?*f.Context) !m.View {
+    const generation = try head(turn, principal, selection.session.session);
+    if (generation != selection.generation) {
+        f.remember(context, .{ .revision = .{ .kind = .refresh, .expected = selection.generation, .actual = generation, .proposed = selection.generation, .present = generation != 0 } });
+        return error.RefreshGenerationConflict;
+    }
     const value = (try view(turn, principal, selection.generation)) orelse return error.RefreshNotFound;
-    if (!std.meta.eql(value.session, selection.session)) return error.ReactiveGenerationConflict;
+    if (!std.meta.eql(value.session, selection.session)) {
+        f.remember(context, .{ .generation = .{ .expected = selection.session.generation, .actual = value.session.generation } });
+        return error.ReactiveGenerationConflict;
+    }
     return value;
 }
 fn proof(turn: *Turn, value: m.View) !m.Proof {
     return c.decode(m.Proof, 'I', (try turn.read(m.proofKey(value.principal, value.generation))) orelse return error.InvalidServingRecord);
 }
-fn sameBasis(watch: root.TableWatch.Observation, captured: q.fuze.Unified.Basis) !void {
+fn sameBasis(watch: root.TableWatch.Observation, captured: q.fuze.Unified.Basis, context: ?*f.Context) !void {
     var basis = captured;
     basis.revision = watch.data_revision;
-    if (!root.TableWatch.covered(watch, basis)) return error.InvalidRefreshTemplate;
+    if (!root.TableWatch.covered(watch, basis)) {
+        const witness: f.Witness = if (captured.kind != .table)
+            .{ .source_kind = .{ .expected = .table, .actual = captured.kind } }
+        else if (captured.resource != watch.basis.resource)
+            .{ .target = .{ .expected = watch.basis.resource, .actual = captured.resource, .kind = .resource } }
+        else if (!std.mem.eql(u8, &captured.contract, &watch.basis.contract))
+            .{ .basis = .{ .kind = .contract, .expected = watch.basis.contract, .actual = captured.contract } }
+        else
+            .{ .basis = .{ .kind = .schema, .expected = watch.basis.schema, .actual = captured.schema } };
+        f.remember(context, witness);
+        return error.InvalidRefreshTemplate;
+    }
 }
 /// Reader contract: authorize(principal, source, proof), observe(source), and
 /// result(turn, namespace, source). Result must use the shared manifest/current
 /// result reader. No caller-supplied watermark is trusted for scheduling.
-pub fn apply(self: Self, turn: *Turn, principal: u64, command: m.Command, reader: anytype, upper_ms: u64) !void {
+pub fn apply(self: Self, turn: *Turn, principal: u64, command: m.Command, input_reader: anytype, upper_ms: u64) !void {
     const before = turn.decision;
     errdefer turn.decision = before;
+    const reader = input_reader.withDiagnostic(self.diagnostic);
     if (principal != self.principal or turn.delivery.input.origin != .external or turn.delivery.input.origin.external.principal != principal) return error.ServingDenied;
     switch (command) {
         .follow => |input| {
             if (input.view.limit == 0 or input.view.limit > m.max_starts or input.view.template.value == 0) return error.InvalidRefreshBudget;
-            const watch = try live(turn, principal, input.view.session, upper_ms);
-            if (watch.target != self.source) return error.InvalidRefreshTemplate;
-            if (input.view.expected != try head(turn, principal, input.view.session.session)) return error.RefreshGenerationConflict;
+            const watch = try live(turn, principal, input.view.session, upper_ms, self.diagnostic);
+            if (watch.target != self.source) {
+                f.remember(self.diagnostic, .{ .target = .{ .expected = self.source, .actual = watch.target, .kind = .source } });
+                return error.InvalidRefreshTemplate;
+            }
+            const generation = try head(turn, principal, input.view.session.session);
+            if (input.view.expected != generation) {
+                f.remember(self.diagnostic, .{ .revision = .{ .kind = .refresh, .expected = input.view.expected, .actual = generation, .proposed = turn.delivery.input.position, .present = generation != 0 } });
+                return error.RefreshGenerationConflict;
+            }
             try reader.authorize(principal, watch, input.proof);
             const captured = try reader.result(turn, input.view.template.value, watch);
             const observed = try reader.observe(watch);
-            try sameBasis(observed, captured);
+            try sameBasis(observed, captured, self.diagnostic);
             const value: m.View = .{ .principal = principal, .session = input.view.session, .generation = turn.delivery.input.position, .source = watch, .template = input.view.template, .namespace = input.view.template, .dirty = observed.data_revision, .covered = captured.revision, .limit = input.view.limit };
             try save(turn, value);
             try turn.write(m.proofKey(principal, value.generation), try c.encode('I', input.proof));
             try turn.write(m.headKey(principal, value.session.session), try c.encode('F', value.generation));
         },
         .invalidate => |selection| {
-            const watch = try live(turn, principal, selection.session, upper_ms);
-            var value = try selected(turn, principal, selection);
-            if (!std.meta.eql(watch, value.source)) return error.ReactiveResetRequired;
+            const watch = try live(turn, principal, selection.session, upper_ms, self.diagnostic);
+            var value = try selected(turn, principal, selection, self.diagnostic);
+            if (!std.meta.eql(watch, value.source)) {
+                f.remember(self.diagnostic, f.sourceWitness(watch, value.source.revision));
+                return error.ReactiveResetRequired;
+            }
             if (!value.enabled) return;
             try reader.authorize(principal, watch, try proof(turn, value));
             const observed = try reader.observe(watch);
@@ -102,27 +155,47 @@ pub fn apply(self: Self, turn: *Turn, principal: u64, command: m.Command, reader
             }
         },
         .acknowledged => |input| {
-            try policy(turn, principal);
-            var value = try selected(turn, principal, input.selection);
-            if (value.namespace.value != input.namespace.value or value.phase != .ready) return error.RefreshResultConflict;
+            try policy(turn, principal, self.diagnostic);
+            var value = try selected(turn, principal, input.selection, self.diagnostic);
+            if (value.namespace.value != input.namespace.value or value.phase != .ready) {
+                f.remember(self.diagnostic, .{ .refresh = .{ .expected = input.namespace, .actual = value.namespace, .phase = value.phase } });
+                return error.RefreshResultConflict;
+            }
             try reader.authorize(principal, value.source, try proof(turn, value));
             const captured = try reader.result(turn, value.namespace.value, value.source);
             const observed = try reader.observe(value.source);
-            try sameBasis(observed, captured);
+            try sameBasis(observed, captured, self.diagnostic);
             value.covered = captured.revision;
             value.dirty = @max(value.dirty, observed.data_revision);
             value.phase = if (!value.enabled) .paused else if (value.starts >= value.limit) .exhausted else .idle;
+            if (value.phase == .exhausted) value.failure = failure.record(turn.delivery.input.position, .budget_exhausted, .{});
             try save(turn, value);
         },
         .pause => |selection| {
             // Releasing scheduling never authorizes disclosure or cancellation.
-            _ = try ownedSession(turn, principal, selection.session);
-            var value = try selected(turn, principal, selection);
+            _ = try ownedSession(turn, principal, selection.session, self.diagnostic);
+            var value = try selected(turn, principal, selection, self.diagnostic);
             value.enabled = false;
+            if (value.failure == .none) value.failure = failure.record(turn.delivery.input.position, .paused, .{});
             if (value.phase == .idle) value.phase = .paused;
             try save(turn, value);
         },
     }
+}
+/// Composed with the successful session closure/expiry in the same turn. No
+/// query cancellation or replacement is inferred. At most one additional write.
+pub fn sessionStopped(turn: *Turn, principal: u64, identity: r.SessionIdentity) !void {
+    const generation = try head(turn, principal, identity.session);
+    if (generation == 0) return;
+    var value = (try view(turn, principal, generation)) orelse return error.InvalidServingRecord;
+    if (!std.meta.eql(value.session, identity)) return; // A different session generation owns this view.
+    const owner = try ownedSession(turn, principal, identity, null);
+    if (owner.phase == .open) return error.InvalidServingRecord;
+    const before = value;
+    value.enabled = false;
+    if (value.failure == .none) value.failure = failure.record(turn.delivery.input.position, if (owner.phase == .closed) .session_closed else .session_expired, .{ .witness = .{ .session = .{ .phase = owner.phase, .deadline = owner.lease_before_ms, .observed = 0, .clock_known = false } } });
+    if (value.phase == .idle) value.phase = .paused;
+    if (!std.meta.eql(value, before)) try save(turn, value);
 }
 fn denial(err: anyerror) bool {
     return switch (err) {
@@ -143,11 +216,11 @@ pub fn drive(self: Self, turn: *Turn, reader: anytype, upper_ms: u64) !bool {
         if (active) |work| switch (work.phase) {
             .admitted => return false,
             .complete, .denied, .rejected => {
-                value.phase = switch (work.phase) {
-                    .complete => .ready,
-                    .denied => .denied,
-                    else => .failed,
-                };
+                value.phase = if (work.phase == .complete) .ready else if (work.failure.?.category() == .access) .denied else .failed;
+                if (work.phase != .complete) {
+                    value.enabled = false;
+                    if (value.failure == .none) value.failure = failure.record(turn.delivery.input.position, .query_rejected, .{});
+                }
                 try save(turn, value);
                 state.principal = 0;
                 state.generation = 0;
@@ -155,6 +228,16 @@ pub fn drive(self: Self, turn: *Turn, reader: anytype, upper_ms: u64) !bool {
                 return true;
             },
             .cancelled, .retired => {
+                const previous = value;
+                value.enabled = false;
+                if (value.phase == .copying or value.phase == .admitted or value.phase == .ready) value.phase = .paused;
+                if (value.failure == .none) value.failure = failure.record(turn.delivery.input.position, if (work.phase == .cancelled) .query_cancelled else .query_retired, .{});
+                if (!std.meta.eql(previous, value)) {
+                    // Record the stop separately from bounded upload cleanup,
+                    // which may already consume the complete mutation budget.
+                    try save(turn, value);
+                    return true;
+                }
                 if (!work.collected) {
                     _ = try q.UnifiedUpload.collect(turn, value.namespace.value);
                     return true;
@@ -168,10 +251,15 @@ pub fn drive(self: Self, turn: *Turn, reader: anytype, upper_ms: u64) !bool {
         };
         // Already selected work is independent of pause/socket/session closure.
         // Current caller, service and resource grants still gate source admission.
-        return self.advance(turn, value, reader) catch |err| {
+        var context: f.Context = .{};
+        var owner = self;
+        owner.diagnostic = &context;
+        return owner.advance(turn, value, reader.withDiagnostic(&context)) catch |err| {
             turn.decision = before;
             if (turn.read_error != null or (!denial(err) and err != error.QueryUploadClosed and err != error.InvalidRefreshTemplate)) return err;
-            value.phase = if (denial(err)) .denied else .failed;
+            const why = failure.reason(err) orelse return err;
+            value.phase = if (failure.denied(why)) .denied else .failed;
+            value.failure = failure.record(turn.delivery.input.position, why, context);
             value.enabled = false;
             try save(turn, value);
             if (active != null) try q.UnifiedUpload.cancel(turn, value.namespace.value) else {
@@ -191,28 +279,35 @@ pub fn drive(self: Self, turn: *Turn, reader: anytype, upper_ms: u64) !bool {
         if (slot.principal != self.principal) continue;
         var value = (try view(turn, slot.principal, try head(turn, slot.principal, slot.session))) orelse continue;
         if (!value.enabled or value.phase != .idle or value.dirty <= value.covered or value.next_start_ms > now) continue;
-        const watch = live(turn, slot.principal, value.session, upper_ms) catch |err| {
+        var context: f.Context = .{};
+        const watch = live(turn, slot.principal, value.session, upper_ms, &context) catch |err| {
             if (turn.read_error != null or (!denial(err) and err != error.ReactiveSessionClosed and err != error.ReactiveSessionExpired and err != error.ReactiveResetRequired and err != error.ServiceUnpublished)) return err;
             value.enabled = false;
-            value.phase = if (denial(err)) .denied else .paused;
+            const why = failure.reason(err) orelse return err;
+            value.phase = if (failure.denied(why)) .denied else .paused;
+            value.failure = failure.record(turn.delivery.input.position, why, context);
             try save(turn, value);
             return true;
         };
         if (!std.meta.eql(watch, value.source)) {
             value.enabled = false;
             value.phase = .paused;
+            value.failure = failure.record(turn.delivery.input.position, .source_changed, .{ .witness = f.sourceWitness(watch, value.source.revision) });
             try save(turn, value);
             return true;
         }
         if (value.starts >= value.limit) {
             value.phase = .exhausted;
+            value.failure = failure.record(turn.delivery.input.position, .budget_exhausted, .{});
             try save(turn, value);
             return true;
         }
-        reader.authorize(slot.principal, watch, try proof(turn, value)) catch |err| {
+        reader.withDiagnostic(&context).authorize(slot.principal, watch, try proof(turn, value)) catch |err| {
             if (!denial(err)) return err;
             value.enabled = false;
-            value.phase = .denied;
+            const why = failure.reason(err) orelse return err;
+            value.phase = if (failure.denied(why)) .denied else .failed;
+            value.failure = failure.record(turn.delivery.input.position, why, context);
             try save(turn, value);
             return true;
         };
@@ -222,6 +317,7 @@ pub fn drive(self: Self, turn: *Turn, reader: anytype, upper_ms: u64) !bool {
         if (try q.UnifiedUpload.status(turn, namespace) != null or try turn.read(root.station.Publication.key(.query_request, namespace, 'b', 0, 0)) != null) {
             value.enabled = false;
             value.phase = .failed;
+            value.failure = failure.record(turn.delivery.input.position, .namespace_occupied, .{ .witness = .{ .refresh = .{ .expected = .{ .value = namespace }, .actual = .{ .value = namespace }, .phase = value.phase } } });
             try save(turn, value);
             state.next = @intCast((index + 1) % slots.len);
             try saveScheduler(turn, state);
@@ -241,7 +337,7 @@ pub fn drive(self: Self, turn: *Turn, reader: anytype, upper_ms: u64) !bool {
     return false;
 }
 fn advance(self: Self, turn: *Turn, value: m.View, reader: anytype) !bool {
-    try policy(turn, value.principal);
+    try policy(turn, value.principal, self.diagnostic);
     try reader.authorize(value.principal, value.source, try proof(turn, value));
     if (try q.UnifiedUpload.active(turn)) |other| if (other != value.namespace.value) return false; // Explicit manual query won the intervening turn.
     if (!try q.UnifiedUpload.copyNext(turn, value.template.value, value.namespace.value)) return true;

@@ -6650,7 +6650,9 @@
           "subscription",
           "expected_codec",
           "actual_codec",
-          "observed_clock"
+          "observed_clock",
+          "expected_namespace",
+          "actual_namespace"
         ],
         "Value": [
           "text",
@@ -6680,7 +6682,7 @@
       },
       "outcomes": {
         "Definition": [
-          "@\"8d2c6617b339418cf2d3afa6259009e4b3efc5308e40fe65757ca9385c227803\""
+          "@\"75a5efed41df165c680b9d13116d10b3c72357e542eca9b96195d6b520714cb1\""
         ],
         "Command": [
           "grant",
@@ -8342,14 +8344,14 @@
         "InvalidServingCommand": 3,
         "InvalidServingReceipt": 1,
         "ReactiveAdapterRequired": 1,
-        "ReactiveGenerationConflict": 1,
+        "ReactiveGenerationConflict": 2,
         "ReactiveResetRequired": 1,
         "ReadAccessUnavailable": 1,
-        "RefreshGenerationConflict": 1,
-        "RefreshNotFound": 1,
+        "RefreshGenerationConflict": 2,
+        "RefreshNotFound": 2,
         "Rejected": 2,
         "ResourceUnavailable": 3,
-        "ServiceReadConflict": 2,
+        "ServiceReadConflict": 4,
         "ServingDenied": 10
       },
       "outcomes": {
@@ -8428,6 +8430,7 @@
       "errors": {
         "InvalidReactiveAttachment": 2,
         "InvalidReactiveLease": 6,
+        "InvalidReactiveProgress": 1,
         "InvalidReactiveSource": 2,
         "InvalidServingIdentity": 1,
         "ReactiveAttachmentConflict": 2,
@@ -8443,7 +8446,9 @@
         "ServiceUnpublished": 3,
         "ServingDenied": 3,
         "ServingIdentityConflict": 1,
-        "ServingStateConflict": 2
+        "ServingStateConflict": 2,
+        "TableNotFound": 1,
+        "UnsupportedReactiveSource": 1
       },
       "outcomes": {},
       "imports": [
@@ -8521,7 +8526,7 @@
         "AccessDenied": 1,
         "InvalidRefreshBudget": 2,
         "InvalidRefreshTemplate": 4,
-        "InvalidServingRecord": 3,
+        "InvalidServingRecord": 5,
         "PublicationNotPublished": 1,
         "QueryDenied": 1,
         "QuerySourceUnavailable": 1,
@@ -8529,7 +8534,7 @@
         "ReactiveGenerationConflict": 3,
         "ReactiveResetRequired": 4,
         "ReactiveSessionClosed": 2,
-        "ReactiveSessionExpired": 2,
+        "ReactiveSessionExpired": 3,
         "ReactiveSessionNotFound": 1,
         "RefreshGenerationConflict": 3,
         "RefreshNotFound": 2,
@@ -8537,12 +8542,59 @@
         "ResourceUnavailable": 1,
         "ResultUnavailable": 1,
         "ServiceUnpublished": 2,
-        "ServingDenied": 4
+        "ServingDenied": 2
       },
       "outcomes": {},
       "imports": [
         "root.zig",
         "std"
+      ]
+    },
+    "packages/zig/transit-serving/src/RefreshFailure.zig": {
+      "errors": {
+        "AccessDenied": 1,
+        "InvalidRefreshTemplate": 1,
+        "PublicationNotPublished": 1,
+        "QueryDenied": 1,
+        "QuerySourceUnavailable": 1,
+        "QueryUploadClosed": 1,
+        "ReactiveResetRequired": 1,
+        "ReactiveSessionClosed": 1,
+        "ReactiveSessionExpired": 1,
+        "ResourceUnavailable": 1,
+        "ResultUnavailable": 1,
+        "ServiceUnpublished": 1,
+        "ServingDenied": 1
+      },
+      "outcomes": {
+        "Reason": [
+          "paused",
+          "budget_exhausted",
+          "session_closed",
+          "session_expired",
+          "source_changed",
+          "binding_unpublished",
+          "service_denied",
+          "native_denied",
+          "query_denied",
+          "resource_unavailable",
+          "query_source_unavailable",
+          "result_unavailable",
+          "result_unpublished",
+          "template_invalid",
+          "upload_closed",
+          "namespace_occupied",
+          "query_rejected",
+          "query_cancelled",
+          "query_retired"
+        ],
+        "Record": [
+          "none",
+          "stopped"
+        ]
+      },
+      "imports": [
+        "root.zig"
       ]
     },
     "packages/zig/transit-serving/src/RefreshModel.zig": {
@@ -8580,11 +8632,12 @@
     },
     "packages/zig/transit-serving/src/RefreshReader.zig": {
       "errors": {
+        "AccessDenied": 1,
         "Conflict": 1,
         "InvalidRefreshTemplate": 2,
         "Rejected": 1,
         "ResourceUnavailable": 2,
-        "ServingDenied": 3
+        "ServingDenied": 2
       },
       "outcomes": {},
       "imports": [
@@ -8617,7 +8670,7 @@
     },
     "packages/zig/transit-serving/src/ServingFailure.zig": {
       "errors": {
-        "InvalidServingRecord": 3
+        "InvalidServingRecord": 5
       },
       "outcomes": {
         "Reason": [
@@ -8664,7 +8717,10 @@
           "ResourceUnavailable",
           "QuerySourceUnavailable",
           "ResultUnavailable",
-          "PublicationNotPublished"
+          "PublicationNotPublished",
+          "UnsupportedReactiveSource",
+          "InvalidReactiveProgress",
+          "TableNotFound"
         ],
         "Kind": [
           "service",
@@ -8707,7 +8763,13 @@
           "renewal",
           "binding",
           "refresh",
-          "frame"
+          "frame",
+          "target",
+          "basis",
+          "source_kind",
+          "table",
+          "watch_type",
+          "progress"
         ]
       },
       "imports": [
@@ -8719,7 +8781,8 @@
       "errors": {
         "InvalidReactiveCursor": 2,
         "InvalidReactiveProgress": 1,
-        "ReactiveResetRequired": 5,
+        "ReactiveResetRequired": 6,
+        "TableNotFound": 1,
         "UnsupportedReactiveSource": 1
       },
       "outcomes": {},
@@ -8755,6 +8818,7 @@
         "ReactiveService.zig",
         "ReactiveWire.zig",
         "Refresh.zig",
+        "RefreshFailure.zig",
         "RefreshModel.zig",
         "RefreshReader.zig",
         "Service.zig",

@@ -520,8 +520,15 @@ test "all serving rejection classes fit bounded diagnostics and maximum witnesse
         .{ .subscription = .{ .expected = p.max_counter, .actual = p.max_counter, .requested = p.max_counter, .active = p.max_counter } },
         .{ .renewal = .{ .expected = p.max_counter, .actual = p.max_counter, .proposed = p.max_counter } },
         .{ .binding = .{ .expected = p.max_counter, .actual = p.max_counter, .expected_codec = 65535, .actual_codec = 65535, .target = p.max_counter, .present = true, .published = false } },
-        .{ .refresh = .{ .expected = p.max_counter, .actual = p.max_counter, .namespace = p.max_counter, .phase = .failed } },
+        .{ .refresh = .{ .expected = .{ .value = std.math.maxInt(u64) }, .actual = .{ .value = std.math.maxInt(u64) }, .phase = .failed } },
+        .{ .target = .{ .expected = p.max_counter, .actual = 1, .kind = .resource } },
+        .{ .basis = .{ .expected = @splat(255), .actual = @splat(254), .kind = .schema } },
+        .{ .source_kind = .{ .expected = .table, .actual = .kv } },
+        .{ .table = std.math.maxInt(u32) },
+        .{ .watch_type = .{ .expected = .int64, .actual = .utf8 } },
+        try f.progressWitness(try p.Value.init(&@as([32]u8, @splat(255))), p.max_counter, p.max_counter),
     };
+    try t.expectEqual(std.enums.values(std.meta.Tag(f.Witness)).len, witnesses.len);
     for (std.enums.values(f.Reason)) |reason| for (witnesses) |witness| {
         const record: f.Record = .{ .reason = reason, .input = p.max_counter, .kind = .reactive, .subject = p.max_counter, .generation = p.max_counter, .payload = @splat(255), .cause = try p.Value.init(&@as([64]u8, @splat('X'))), .witness = witness };
         const encoded = try c.encode('e', record);

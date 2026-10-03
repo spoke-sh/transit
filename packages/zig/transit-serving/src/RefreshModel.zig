@@ -54,6 +54,7 @@ pub const View = struct {
     next_start_ms: u64 = 0,
     enabled: bool = true,
     phase: Phase = .idle,
+    failure: root.RefreshFailure.Record = .none,
 };
 pub const Scheduler = struct {
     next: u8 = 0,

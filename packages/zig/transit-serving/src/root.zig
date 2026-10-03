@@ -3,6 +3,7 @@ pub const ClientApi = @import("ClientApi.zig");
 pub const Api = @import("Api.zig");
 pub const query = @import("transit_query");
 pub const TableWatch = @import("TableWatch.zig");
+pub const RefreshFailure = @import("RefreshFailure.zig");
 pub const Refresh = @import("Refresh.zig");
 pub const RefreshModel = @import("RefreshModel.zig");
 pub const RefreshReader = @import("RefreshReader.zig");
