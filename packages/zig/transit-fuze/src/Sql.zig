@@ -241,6 +241,10 @@ pub fn parseInspectionLocated(text: []const u8, location: ?*Location) !?Inspecti
                 return .{ .show = @field(Catalog, name) };
             }
         }
+        if (parser.token.tag == .eof or parser.token.tag == .semi) {
+            if (location) |value| value.expected = "TABLES, SOURCES, SINKS or CONNECTIONS";
+            return error.InvalidSqlSyntax;
+        }
         return error.UnsupportedCatalog;
     }
     return null;
@@ -369,7 +373,7 @@ const Lexer = struct {
             },
             1 => if (self.cursor_enabled) .cursor else return error.UnsupportedConstruct,
             '$' => blk: {
-                if (!self.parameters_enabled) return error.UnsupportedConstruct;
+                if (!self.parameters_enabled) return error.UnboundParameters;
                 const first = self.position;
                 while (self.position < self.text.len and std.ascii.isDigit(self.text[self.position])) self.position += 1;
                 if (self.position == first) return error.InvalidParameterIndex;

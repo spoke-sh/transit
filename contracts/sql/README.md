@@ -40,6 +40,7 @@ From the pinned development shell:
 just test::sql             # includes grammar + Zig AST/plan + Arrow checks
 just test::sql-grammar     # reference-only focused check
 just test::sql-rewrites
+just test::diagnostic-grammar # parser branches and actual compiler diagnostics
 ```
 
 [sql-tools.nix](../../nix/sql-tools.nix), exported by `flake.nix`, selects ANTLR

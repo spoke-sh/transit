@@ -196,7 +196,7 @@ pub fn query(text: []const u8, cause: anyerror, inspection: bool) ?Self {
         _ = sql.parseDeclarationLocated(text, &location) catch |err| return parseFailure(text, err, location, hint, .declaration);
         result = .{ .kind = .interface, .route = .declaration, .cause = cause, .summary = "State declaration syntax is supported, but query interfaces do not publish definitions", .hint = hint };
     } else if (word(text, first, "GRANT") or word(text, first, "REVOKE") or (word(text, first, "CREATE") and (word(text, second, "CONNECTION") or word(text, second, "SOURCE") or word(text, second, "SINK")))) {
-        result = .{ .kind = .grammar_only, .cause = cause, .summary = "Statement family has reference grammar but no SQL execution", .hint = grammar_hint };
+        result = .{ .kind = .grammar_only, .cause = cause, .summary = "Statement family has reference grammar but no SQL execution; its submitted syntax has not been validated", .hint = grammar_hint };
     } else if (word(text, first, "SHOW") or word(text, first, "DESCRIBE") or word(text, first, "EXPLAIN")) {
         const parsed = (sql.parseInspectionLocated(text, &location) catch |err| return parseFailure(text, err, location, read_hint, .query)).?;
         if (parsed == .show and parsed.show != .tables) {

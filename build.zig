@@ -41,6 +41,13 @@ pub fn build(b: *std.Build) void {
     const fuze = b.dependency("transit_fuze", .{ .target = target, .optimize = optimize });
     b.step("logical-contract", "Export reflected logical type and value schemas").dependOn(&b.addRunArtifact(fuze.artifact("transit-logical-contract")).step);
     const query = b.dependency("transit_query", .{ .target = target, .optimize = optimize });
+    const diagnostic_grammar = b.addExecutable(.{ .name = "transit-diagnostic-grammar", .root_module = b.createModule(.{
+        .root_source_file = b.path("tests/diagnostic_grammar.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{ .{ .name = "transit_query", .module = query.module("transit_query") }, .{ .name = "transit_station_app", .module = application.module("transit_station_app") } },
+    }) });
+    b.step("diagnostic-grammar", "Build the public compiler diagnostic corpus consumer").dependOn(&b.addInstallArtifact(diagnostic_grammar, .{}).step);
     const mutation_latency_client = b.addExecutable(.{ .name = "transit-mutation-latency-client", .root_module = b.createModule(.{
         .root_source_file = b.path("tests/mutation_latency_client.zig"),
         .target = target,

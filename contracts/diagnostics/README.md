@@ -93,3 +93,22 @@ Invalid/changed owner configuration, absent initialization and oversized transfo
 output are explicit unresolved exceptions, tested for unchanged decisions and
 rollback. Allocation/storage and application-defined transform failures still
 propagate to their owning boundary; the shared ledger cannot invent their meaning.
+
+`grammar.json` connects the two checked reference grammars to actual public
+query/template, mutation, state-declaration and application compiler outcomes.
+`just test::diagnostic-grammar` regenerates independent ANTLR parsers and checks
+every parser rule, every nested alternative, both optional branches, and zero,
+one and multiple repetitions where admitted. Coverage follows actual parse-tree
+children; a declared case label cannot assert that an unvisited branch ran.
+New parser rules/branches fail unless the reviewed corpus exercises them.
+
+The public compiler consumer checks the same inputs against reviewed acceptance,
+semantic codes/categories, no-send outcomes, safe actions and selected original
+context. Cases include malformed complete inputs and valid-but-unavailable
+routes. Grammar-only families explicitly preserve unvalidated syntax; reference
+acceptance never makes them executable. The corpus also covers token framing,
+comments, quotes, full-width literals, constraints and source/type attribution.
+The EBNF gate measures parser alternatives, not every possible lexical byte,
+combination, implementation budget or authority schedule. Those continue to use
+the owning unit, CLI and runtime proofs. No execution authority is present in
+this compiler-only fixture. Expected semantics have no automatic record mode.

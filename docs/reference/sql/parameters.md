@@ -7,7 +7,10 @@ interpreted as SQL text. Templates support one comparison or cell-state test;
 Boolean predicate composition remains available through ordinary SQL submission.
 
 These templates are accepted through explicit compiler, SDK or CLI bindings; ordinary
-console and SQL-shell text does not supply their parameter values:
+console and SQL-shell text does not supply their parameter values.
+
+Unbound placeholders report `sql.unbound_parameters` and require explicit
+bindings. This diagnostic does not prepare or submit a query. For example:
 
 ```sql
 SELECT value FROM items WHERE id > $1 LIMIT $2;

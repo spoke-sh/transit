@@ -18,6 +18,11 @@ The [grammar surface inventory](sql/grammar-surface.md) labels implemented and
 planned operations, including the intended graph, foreign-relation and historical
 schema syntax. Planned examples are proposals, not runnable SQL.
 
+Diagnostics distinguish malformed executable syntax from syntax unavailable on
+the selected interface. Grammar-only connection, source, sink and grant families
+report that their submitted syntax has not been validated. An incomplete `SHOW`
+requires a catalog name; it is not evidence that a named catalog is unsupported.
+
 ## Find an operation
 
 | Task                                                    | Reference                                                                                                                                                                                                                                                                                |

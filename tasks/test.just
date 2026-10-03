@@ -381,6 +381,11 @@ diagnostic-mappings:
 diagnostic-outcomes:
     zig build test-diagnostic-outcomes
 
+# Reference parser alternatives and reviewed public compiler diagnostics.
+diagnostic-grammar:
+    zig build diagnostic-grammar
+    nix shell .#sql-tools --command python3 -B tests/diagnostic_grammar.py zig-out/bin/transit-diagnostic-grammar
+
 # Measure the default local empty Table with consistently optimized executables.
 console-latency *args:
     zig build transit transit-node transit-query-host transit-board -Doptimize=ReleaseSafe --prefix .cache/transit-latency/release

@@ -70,6 +70,7 @@ check-core:
     just test::diagnostic-inventory
     just test::diagnostic-mappings
     just test::diagnostic-outcomes
+    just test::diagnostic-grammar
     nix flake check
     zig fmt --check build.zig packages/zig apps examples tests/*.zig tests/fuze_benchmarks
     just contract::check

@@ -139,7 +139,7 @@ test "neutral compilation validates binding shape and does not reinterpret ordin
     request.parameters = &.{ .{ .int64 = "0" }, .{ .uint64 = "2" }, .{ .uint64 = "3" }, .{ .uint64 = "4" } };
     try t.expectError(error.ParameterCountMismatch, q.SqlCompilation.apply(alloc, &client, request));
     request.parameters = null;
-    try t.expectError(error.UnsupportedConstruct, q.SqlCompilation.apply(alloc, &client, request));
+    try t.expectError(error.UnboundParameters, q.SqlCompilation.apply(alloc, &client, request));
     const old_request = (try std.json.parseFromSlice(q.Workspace.Request, alloc, "{\"compile\":{\"sql\":\"SELECT value FROM items\"}}", .{})).value;
     try t.expectEqual(null, old_request.compile.parameters);
 }

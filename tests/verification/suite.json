@@ -226,6 +226,7 @@
       "test::diagnostic-inventory",
       "test::diagnostic-mappings",
       "test::diagnostic-outcomes",
+      "test::diagnostic-grammar",
       "test::unit",
       "test::cli-diagnostics",
       "contract::check"

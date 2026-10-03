@@ -13543,3 +13543,22 @@ first run exposed stale expectations that denial erased the selected namespace;
 those were corrected to the documented retained-work behavior before the passing
 rerun (`/var/tmp/transit-query-caller-public-proof2.log`). These are focused/local
 checks; committed-HEAD clean CI remains separate.
+
+### Grammar alternatives and semantic diagnostics (2026-10-03)
+
+`just test::diagnostic-grammar` passes **197 actual public compiler cases** and
+**243 parser rule/alternative/boundary obligations** across both checked grammars.
+ANTLR regenerates without diagnostics; coverage follows actual trees independently
+of Zig. Reviewed expectations distinguish accepted offline compilation, binding
+failures, malformed inputs, unavailable interfaces and unvalidated grammar-only
+families. They check stable codes/categories, no-send outcomes, action safety and
+original source/type/key context. Checker mutations reject changed semantic
+meaning; EBNF fixtures verify branch and repetition accounting.
+
+Pinned `just test::unit` and the **566-case CLI diagnostic matrix** pass in
+`/var/tmp/transit-diagnostic-grammar-check5.log`. Initial fixtures exposed missing
+reference branch examples and differences between guessed cause names and the
+actual public classifier; those were reviewed and corrected. The first unit run
+after the placeholder improvement exposed two assertions expecting the previous
+generic cause; both now require `UnboundParameters`. These tests contain no
+authority or submission and do not replace runtime/restart qualification.

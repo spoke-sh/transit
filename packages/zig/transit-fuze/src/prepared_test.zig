@@ -34,8 +34,8 @@ test "parameter syntax is opt-in, owned and rejected by ordinary lowering until 
     const quoted = try f.Sql.parseTemplate("SELECT value FROM items WHERE value = '$1''; -- $2' /* $3 */", null);
     try t.expect(!quoted.ast.unbound_parameters and !quoted.parameters.any());
     try t.expectEqualStrings("$1'; -- $2", quoted.ast.predicate.compare.literal.utf8.slice());
-    try t.expectError(error.UnsupportedConstruct, f.Sql.parse("SELECT * FROM items LIMIT $1"));
-    try t.expectError(error.UnsupportedConstruct, f.Sql.parse("SELECT * FROM items WHERE id = $1"));
+    try t.expectError(error.UnboundParameters, f.Sql.parse("SELECT * FROM items LIMIT $1"));
+    try t.expectError(error.UnboundParameters, f.Sql.parse("SELECT * FROM items WHERE id = $1"));
     for ([_][]const u8{
         "SELECT * FROM items LIMIT $0",
         "SELECT * FROM items LIMIT $",
