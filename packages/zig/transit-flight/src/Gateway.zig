@@ -107,17 +107,7 @@ pub fn handle(self: *Self, io: Io, allocator: std.mem.Allocator, request: server
             };
             return root.DiagnosticDetail.finish(response, status, message.buffered(), diagnostic.structured() catch null);
         }
-        const status: u8 = switch (err) {
-            error.FlightUnauthenticated => 16,
-            error.AccessDenied, error.QueryAccessDenied, error.ServingDenied, error.FlightTicketScope, error.SignatureVerificationFailed => 7,
-            error.FlightTicketExpired, error.ResourceUnavailable, error.QuerySourceUnavailable, error.ServiceUnpublished, error.ProcessTerminated, error.ProcessExpired => 9,
-            error.UnsupportedFlightCommand, error.UnsupportedFlightMetadata, error.UnsupportedQuery, error.UnsupportedFlightType => 12,
-            error.FlightCallerCapacity, error.OutOfMemory, error.GrpcBudgetExceeded, error.QueryBudgetExceeded => 8,
-            error.QueryBusy, error.FlightSequenceConflict => 10,
-            error.QueryChanged, error.ServiceReadConflict => 14,
-            error.InvalidFlightTicket, error.InvalidFlightCommand, error.InvalidFlightMetadata, error.InvalidQueryIdentity, error.DuplicateGrpcHeader, error.Truncated, error.VarintOverflow, error.FieldNumberZero, error.FieldNumberOutOfRange, error.UnsupportedWireType, error.NonMinimalTag, error.DepthExceeded, error.InvalidUtf8, error.InvalidEnumValue, error.UnknownField => 3,
-            else => if (q.wire.Client.unavailable(err)) 14 else 13,
-        };
+        const status = root.DiagnosticDetail.statusFor(err);
         return root.DiagnosticDetail.finish(response, status, switch (status) {
             16 => "credential required",
             7 => "current access denied",
@@ -126,6 +116,7 @@ pub fn handle(self: *Self, io: Io, allocator: std.mem.Allocator, request: server
             8 => "bounded capacity exhausted",
             10 => "admission conflict; retain request identity",
             14 => "unavailable; retain request identity",
+            15 => "invalid result evidence; retain request identity",
             3 => "invalid request",
             else => "finite query failed",
         }, attempt_diagnostic orelse (root.DiagnosticDetail.attempt(err, status) catch null));

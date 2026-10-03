@@ -13582,3 +13582,25 @@ Independent application grammar/model agreement and visual formatting round trip
 still pass. Logs: `/var/tmp/transit-app-semantic-{unit,check,final}.log`.
 These local checks do not claim committed-HEAD clean or installed adapter recovery
 qualification.
+
+### Board and Flight caller diagnostic parity (2026-10-03)
+
+Pinned native units, semantic mappings, inventory, documentation and the independent
+outcome matrix pass. The matrix checks **1,174 projections across 21 declared
+surfaces**, including all 117 shared query caller causes through Board's HTTP
+fallback and Flight's RPC projection. Specific native dispositions retain their
+priority; corrupt result evidence maps to Flight DATA_LOSS and unavailable memory
+to UNAVAILABLE. These projections invent no selected query identity.
+
+`just transit-board::query-test` passes actual unbound-parameter/editor-cursor
+errors, current grant and cut enforcement, and exact recovery after unavailable
+submit/next replies (`/var/tmp/transit-adapter-board-query.log`). An earlier command
+used the nonexistent `test::board-query` task; this corrected invocation passed.
+The pinned Flight shell's `zig build test-flight -Doptimize=ReleaseSafe` passes
+finite schemas/rows/metadata/retry, installed Python and C ADBC consumers, saved
+arithmetic failure after gateway replacement, exact retry and current-disclosure
+denial. The first run exposed a stale assertion requiring no caller facts after
+denial; the test now allows only the literal caller label while rejecting any
+retained identity or execution facts. The complete rerun passed in
+`/var/tmp/transit-adapter-flight2.log`. Clean committed-HEAD qualification remains
+separate from these focused results.

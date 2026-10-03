@@ -331,6 +331,11 @@ def run(node, host, proof, board, browser=False):
                 assert all(a is None or a['kind'] != 'resume_exact' for a in failure['diagnostic']['actions'])
             failure = api({"compile": {"sql": "SELECT value FROM items LIMIT $0", "parameters": []}}, status=400)
             assert failure['err'] == 'UnsupportedQuery' and failure['diagnostic']['code'] == 'sql.invalid_parameter_index'
+            failure = api({"compile": {"sql": "SELECT value FROM items LIMIT $1"}}, status=400, retry=False)
+            assert failure['err'] == 'UnsupportedQuery' and failure['diagnostic']['code'] == 'sql.unbound_parameters'
+            assert failure['diagnostic']['outcome'] == 'not_submitted'
+            invalid_cursor = api({"assist": {"sql": "SELECT value FROM items", "cursor": 1000, "generation": 1}}, status=400, retry=False)
+            assert invalid_cursor['diagnostic']['code'] == 'query.invalid_sql_cursor'
             assert admin("next-sequence").stdout == before, 'parameter compilation allocated a command sequence'
             compiled = parameterized
             assert "9007199254740994" in json.dumps(compiled["plan"])

@@ -66,7 +66,11 @@ def verify(context):
         assert 'query.arithmetic_overflow' not in str(error)
         denied = details.diagnostic()
         assert denied['category'] == 'access' and denied['outcome'] == 'not_applicable'
-        assert denied['identity'] is None and all(fact is None for fact in denied['facts']), denied
+        assert denied['identity'] is None, denied
+        assert [fact for fact in denied['facts'] if fact] == [{
+            'field': 'operation', 'origin': 'caller', 'availability': 'provided',
+            'value': {'text': 'Flight RPC'},
+        }], denied
     else:
         raise AssertionError('retained diagnostic disclosed after current access was revoked')
     client.close()

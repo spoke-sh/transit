@@ -21,6 +21,8 @@ MANIFEST = ROOT / 'contracts/diagnostics/outcomes.json'
 def normalize(row):
     result = {key: value for key, value in row.items()
               if key not in ('family', 'variant', 'scenario', 'facts', 'actions')}
+    if result.get('transport_status') is None:
+        result.pop('transport_status', None)
     result['facts'] = [[fact['field'], fact['origin'], fact['availability']]
                        for fact in row['facts'] if fact is not None]
     result['actions'] = []

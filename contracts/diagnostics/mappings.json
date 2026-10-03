@@ -440,7 +440,14 @@
         "packages/zig/transit-query/src/UnifiedResult.zig",
         "packages/zig/transit-query/src/Workspace.zig",
         "packages/zig/transit-query/src/Interactive.zig",
-        "packages/zig/transit-query/src/Editor.zig"
+        "packages/zig/transit-query/src/Editor.zig",
+        "packages/zig/transit-query/src/Values.zig",
+        "packages/zig/transit-query/src/Draft.zig",
+        "packages/zig/transit-query/src/UnifiedRequest.zig",
+        "packages/zig/transit-query/src/Bundle.zig",
+        "packages/zig/transit-query/src/SourceDefinition.zig",
+        "packages/zig/transit-query/src/SqlCompilation.zig",
+        "packages/zig/transit-query/src/SqlTemplate.zig"
       ],
       "exclude": [],
       "registry": "packages/zig/transit-query/src/ApiCodes.zig",
@@ -466,7 +473,7 @@
       "context": "Selected namespace and draft generation; original cause, specific result/upload/requester failure; raw EndOfStream lacks origin attribution and says so",
       "disclosure": "No extra metadata lookup, payload, credential or unrelated row disclosure; only existing original caller/owner evidence",
       "recovery": "Exact namespace inspection, current scope or read retry according to cause; unknown submission reconciles only exact signed transport identity",
-      "propagation": "Unlisted dynamic/I/O errors remain internal or unknown after dispatch. Error names shared with source execution use the caller classifier first, including ambiguous EndOfStream. This is not a transitive whole-program proof.",
+      "propagation": "Unlisted dynamic/I/O errors remain internal or unknown after dispatch. Error names shared with source execution use the caller classifier first, including ambiguous EndOfStream. This is not a transitive whole-program proof. The selected typed-value, draft, source/bundle, template and compilation owners also participate; imported frame and decimal failures have explicit caller mappings.",
       "codes": {
         "QueryReadConflict": {
           "code": "query.read_conflict",
@@ -887,6 +894,54 @@
         "WriteFailed": {
           "code": "query.transport_unavailable",
           "category": "unavailable"
+        },
+        "InvalidFrame": {
+          "code": "query.invalid_frame",
+          "category": "integrity"
+        },
+        "InvalidDocumentInteger": {
+          "code": "query.invalid_integer",
+          "category": "binding"
+        },
+        "InvalidQueryInteger": {
+          "code": "query.invalid_integer",
+          "category": "binding"
+        },
+        "InvalidQueryScalar": {
+          "code": "query.invalid_scalar",
+          "category": "binding"
+        },
+        "PredicateTooLarge": {
+          "code": "query.predicate_too_large",
+          "category": "limit"
+        },
+        "InvalidQueryDraft": {
+          "code": "query.invalid_draft",
+          "category": "binding"
+        },
+        "InvalidQueryDraftRecord": {
+          "code": "query.invalid_draft_record",
+          "category": "integrity"
+        },
+        "PublicationReferenceChanged": {
+          "code": "query.publication_reference_changed",
+          "category": "conflict"
+        },
+        "QueryDraftActive": {
+          "code": "query.draft_active",
+          "category": "conflict"
+        },
+        "SourceDefinitionTooLarge": {
+          "code": "query.source_definition_too_large",
+          "category": "limit"
+        },
+        "ParameterCountMismatch": {
+          "code": "query.parameter_count_mismatch",
+          "category": "binding"
+        },
+        "QuerySourceChanged": {
+          "code": "query.source_changed",
+          "category": "conflict"
         }
       },
       "exceptions": [],

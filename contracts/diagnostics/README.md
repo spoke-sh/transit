@@ -120,3 +120,11 @@ also own named explanations, avoiding a second cause shortlist. Owner unit and
 actual compiler fixtures verify first-dimension capacity witnesses and no-send
 configuration validation. These mappings do not certify arbitrary application
 transform errors or unlisted external-library failures.
+
+The query boundary includes typed values, draft records, source/bundle codecs and
+template callers. The matrix also projects every mapped query cause through
+Board's HTTP fallback and Flight's RPC adapter, checking actual transport status
+against reviewed expectations. Flight sequence/protobuf mappings are explicit
+profile differences. Native route dispositions and actual admission/disclosure
+remain covered by their real adapter proofs. A passing shared-cause matrix does
+not certify unrelated adapter startup/configuration or arbitrary library errors.

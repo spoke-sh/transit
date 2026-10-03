@@ -11,6 +11,12 @@ Errors retain standard gRPC status/message and a bounded `transit-diagnostic-bin
 application trailer with the shared semantic envelope. PyArrow middleware and
 ADBC error details expose its JSON bytes under the current disclosure checks.
 
+`DiagnosticDetail.statusFor` owns attempt status mapping, including shared query
+caller causes. Invalid result evidence is DATA_LOSS; unavailable allocation or
+transport is UNAVAILABLE. Native Flight ticket/sequence/protobuf cases keep their
+specific input semantics. Original compiler, retained outcome and actual dispatch
+witnesses take precedence over the outer attempt projection.
+
 `proto/` contains Apache Arrow 23.0.0's Flight and Flight SQL definitions with
 their original Apache-2.0 notices. `proto/manifest.json` records source URLs and
 SHA-256 hashes. `generate.py` derives selected Zig wire declarations through

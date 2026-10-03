@@ -90,6 +90,30 @@ test "metadata detail retains full normal evidence and bounds adversarial locati
 }
 
 /// The failed RPC alone establishes no outcome for earlier accepted work.
+pub fn statusFor(cause: anyerror) u8 {
+    return switch (cause) {
+        error.FlightUnauthenticated => 16,
+        error.AccessDenied, error.QueryAccessDenied, error.ServingDenied, error.FlightTicketScope, error.SignatureVerificationFailed => 7,
+        error.FlightTicketExpired, error.ResourceUnavailable, error.QuerySourceUnavailable, error.ServiceUnpublished, error.ProcessTerminated, error.ProcessExpired => 9,
+        error.UnsupportedFlightCommand, error.UnsupportedFlightMetadata, error.UnsupportedQuery, error.UnsupportedFlightType => 12,
+        error.FlightCallerCapacity, error.GrpcBudgetExceeded, error.QueryBudgetExceeded => 8,
+        error.QueryBusy, error.FlightSequenceConflict => 10,
+        error.QueryChanged, error.ServiceReadConflict => 14,
+        error.InvalidFlightTicket, error.InvalidFlightCommand, error.InvalidFlightMetadata, error.InvalidQueryIdentity, error.DuplicateGrpcHeader, error.Truncated, error.VarintOverflow, error.FieldNumberZero, error.FieldNumberOutOfRange, error.UnsupportedWireType, error.NonMinimalTag, error.DepthExceeded, error.InvalidUtf8, error.InvalidEnumValue, error.UnknownField => 3,
+        else => switch (root.query.ApiDiagnostic.category(.capabilities, cause)) {
+            .syntax, .binding => 3,
+            .access => 7,
+            .limit => 8,
+            .lifecycle => 9,
+            .constraint, .conflict => 10,
+            .unsupported => 12,
+            .internal => 13,
+            .unavailable => 14,
+            .integrity => 15,
+        },
+    };
+}
+
 pub fn attempt(cause: anyerror, status: u8) !d {
     const info: struct { []const u8, d.Category, d.Stage, []const u8 } = switch (cause) {
         error.FlightUnauthenticated => .{ "flight.authentication_required", .access, .input, "Supply the configured Flight bearer credential. No protected source or saved result is disclosed." },
@@ -103,18 +127,28 @@ pub fn attempt(cause: anyerror, status: u8) !d {
         error.UnsupportedFlightCommand, error.UnsupportedFlightMetadata, error.UnsupportedFlightType, error.UnsupportedQuery => .{ "flight.unsupported_operation", .unsupported, .input, "This Flight interface supports finite read-only queries and its advertised metadata operations. Table writes require an authorized mutation interface." },
         error.DuplicateGrpcHeader => .{ "flight.duplicate_header", .syntax, .input, "An identity or framing header was supplied more than once. Supply each header exactly once." },
         error.Truncated, error.VarintOverflow, error.FieldNumberZero, error.FieldNumberOutOfRange, error.UnsupportedWireType, error.NonMinimalTag, error.DepthExceeded, error.InvalidUtf8, error.InvalidEnumValue, error.UnknownField => .{ "flight.invalid_encoding", .syntax, .decode, "The request violates the bounded protobuf command encoding. Check its declared message type and field encoding." },
-        else => switch (status) {
-            7 => .{ "flight.access_denied", .access, .read, "Current authorization does not permit this operation. Losing access does not establish the outcome of earlier work." },
-            9 => .{ "flight.resource_unavailable", .lifecycle, .read, "The service or retained result is unavailable under its current lifecycle. Inspect its original identity; this read does not establish rollback or nonexistence." },
-            8 => .{ "flight.capacity_exceeded", .limit, .admission, "The request exceeds bounded capacity or an allocation is unavailable. Preserve the original statement and request identity." },
-            10 => .{ "flight.admission_conflict", .conflict, .admission, "Admission conflicts with current work. Preserve the original statement and request identity while inspecting its state." },
-            14 => .{ "flight.unavailable", .unavailable, .read, "The RPC could not complete. Preserve the original statement and first request sequence; this failure does not establish its outcome." },
-            else => .{ "flight.internal_failure", .internal, .read, "The Flight operation failed. Preserve original query identity and inspect its status; this failure does not establish its domain outcome." },
+        else => fallback: {
+            if (root.query.ApiDiagnostic.category(.capabilities, cause) != .internal)
+                return root.query.ApiDiagnostic.attempt("Flight RPC", .read, null, cause, .{}, false, null);
+            break :fallback switch (status) {
+                7 => .{ "flight.access_denied", .access, .read, "Current authorization does not permit this operation. Losing access does not establish the outcome of earlier work." },
+                9 => .{ "flight.resource_unavailable", .lifecycle, .read, "The service or retained result is unavailable under its current lifecycle. Inspect its original identity; this read does not establish rollback or nonexistence." },
+                8 => .{ "flight.capacity_exceeded", .limit, .admission, "The request exceeds bounded capacity or an allocation is unavailable. Preserve the original statement and request identity." },
+                10 => .{ "flight.admission_conflict", .conflict, .admission, "Admission conflicts with current work. Preserve the original statement and request identity while inspecting its state." },
+                14 => .{ "flight.unavailable", .unavailable, .read, "The RPC could not complete. Preserve the original statement and first request sequence; this failure does not establish its outcome." },
+                else => .{ "flight.internal_failure", .internal, .read, "The Flight operation failed. Preserve original query identity and inspect its status; this failure does not establish its domain outcome." },
+            };
         },
     };
     var result = try d.init(info[0], info[1], info[2], .not_applicable, .none, info[3]);
     result.cause = try d.Code.init(@errorName(cause));
-    if (info[1] == .access) try result.action(.inspect_scope) else if (info[1] == .internal or info[1] == .integrity) try result.action(.contact_operator);
+    try result.action(switch (info[1]) {
+        .access, .limit => .inspect_scope,
+        .internal, .integrity => .contact_operator,
+        .syntax, .binding, .unsupported => .correct_input,
+        .constraint, .conflict, .lifecycle => .inspect_status,
+        .unavailable => .retry_read,
+    });
     try result.validate();
     return result;
 }
@@ -151,4 +185,20 @@ test "Flight policy budget retains exact first exceeding dimension without saved
         _ = index;
     }
     try std.testing.expectError(error.InvalidDiagnosticBudget, budget(limits, limits));
+}
+
+test "Flight preserves shared caller semantics and separates corrupt results from invalid input" {
+    const t = std.testing;
+    for (root.query.ApiDiagnostic.entries) |entry| {
+        const detail = try attempt(entry.cause, statusFor(entry.cause));
+        try t.expectEqualStrings(if (entry.cause == error.InvalidQueryIdentity) "flight.invalid_sequence" else entry.code, detail.code.slice());
+        try t.expectEqual(.not_applicable, detail.outcome);
+        try t.expect(detail.identity == null);
+        for (detail.actions) |slot| if (slot) |action| try t.expect(action.kind != .resume_exact);
+    }
+    try t.expectEqual(@as(u8, 15), statusFor(error.InvalidResultDigest));
+    try t.expectEqual(@as(u8, 3), statusFor(error.InvalidQueryCursor));
+    try t.expectEqual(@as(u8, 14), statusFor(error.OutOfMemory));
+    try t.expectEqual(@as(u8, 16), statusFor(error.FlightUnauthenticated));
+    try t.expectEqual(@as(u8, 13), statusFor(error.UnexpectedFixtureFailure));
 }

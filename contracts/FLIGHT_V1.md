@@ -132,6 +132,13 @@ INVALID_ARGUMENT. Cancellation maps to CANCELLED and retirement to
 FAILED_PRECONDITION. These statuses summarize the domain failure; they do not
 authorize fresh submission or imply rollback.
 
+At the caller boundary, invalid retained manifest/segment/digest/coverage evidence
+maps to DATA_LOSS. Invalid caller fields/cursors map to INVALID_ARGUMENT, and
+allocation or transport failure maps to UNAVAILABLE. Flight-specific ticket,
+sequence and protobuf checks retain their own mappings. The shared query cause
+and safe read action survive this presentation; they never override an original
+compiler witness, retained failure or actual uncertain-dispatch witness.
+
 Failures also carry the shared [Diagnostic v1](DIAGNOSTICS_V1.md) in the
 `transit-diagnostic-bin` application trailer. Its value is UTF-8 JSON, at most
 4096 decoded bytes; gRPC binary metadata base64-encodes those bytes on HTTP/2.

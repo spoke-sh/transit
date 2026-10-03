@@ -13,13 +13,16 @@ fn emit(out: *std.Io.Writer, family: []const u8, variant: []const u8, detail: d)
     return emitScenario(out, family, variant, "default", detail);
 }
 fn emitScenario(out: *std.Io.Writer, family: []const u8, variant: []const u8, scenario: []const u8, detail: d) !void {
+    return emitTransport(out, family, variant, scenario, detail, null);
+}
+fn emitTransport(out: *std.Io.Writer, family: []const u8, variant: []const u8, scenario: []const u8, detail: d, transport_status: ?u16) !void {
     try detail.validate();
     const Fact = struct { field: d.Field, origin: d.Origin, availability: d.Availability };
     var facts: [16]?Fact = @splat(null);
     for (detail.facts, 0..) |slot, index| if (slot) |fact| {
         facts[index] = .{ .field = fact.field, .origin = fact.origin, .availability = fact.availability };
     };
-    try std.json.Stringify.value(.{ .family = family, .variant = variant, .scenario = scenario, .code = detail.code.slice(), .category = detail.category, .stage = detail.stage, .outcome = detail.outcome, .evidence = detail.evidence, .identity = detail.identity, .facts = facts, .actions = detail.actions }, .{}, out);
+    try std.json.Stringify.value(.{ .family = family, .variant = variant, .scenario = scenario, .code = detail.code.slice(), .category = detail.category, .stage = detail.stage, .outcome = detail.outcome, .evidence = detail.evidence, .identity = detail.identity, .facts = facts, .actions = detail.actions, .transport_status = transport_status }, .{}, out);
     try out.writeByte('\n');
 }
 fn queries(out: *std.Io.Writer) !void {
@@ -183,6 +186,12 @@ fn queryCallers(out: *std.Io.Writer) !void {
     for (@import("diagnostic_cases").query_caller) |cause| {
         try emitScenario(out, "query.caller", @errorName(cause), "read", try q.ApiDiagnostic.project(.{ .status = "19" }, cause, .{}, false, null));
         try emitScenario(out, "query.caller", @errorName(cause), "dispatched", try q.ApiDiagnostic.project(.{ .submit = "saved" }, cause, .{}, true, .{ .domain = .transport, .id = .init(42), .sequence = .init(42) }));
+        const board = @import("transit_board_api");
+        const read = try q.ApiDiagnostic.project(.{ .status = "19" }, cause, .{}, false, null);
+        try emitTransport(out, "query.board", @errorName(cause), "read", read, @backingInt(board.FailureResponse.project(read).status));
+        const flight = @import("transit_flight").DiagnosticDetail;
+        const status = flight.statusFor(cause);
+        try emitTransport(out, "query.flight", @errorName(cause), "read", try flight.attempt(cause, status), status);
     }
 }
 

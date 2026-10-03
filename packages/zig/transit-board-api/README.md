@@ -35,6 +35,12 @@ decoder. These inspection projections do not interpret Table rows or Arrow data.
 The separately authorized query route returns verified typed Arrow cells through
 the shared query client.
 
+`FailureResponse.project` maps shared diagnostic categories and submission
+evidence to HTTP presentation after specific native inspection dispositions.
+The executable does not maintain a second compiler-cause shortlist. Adding a
+known binding failure cannot silently turn it into service unavailability;
+unknown sends retain unavailable status and their exact recovery identity.
+
 ## Public API and extension workflow
 
 | Export | Meaning |

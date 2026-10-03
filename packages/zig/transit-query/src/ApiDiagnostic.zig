@@ -58,13 +58,14 @@ pub fn qualify(out: *?d, connection: q.UnifiedClient.Connection) void {
 pub fn attempt(operation: []const u8, stage: d.Stage, source: ?[]const u8, cause: anyerror, binding: q.fuze.Sql.Binding, dispatched: bool, identity: ?d.Identity) !d {
     if (source) |sql| if (q.fuze.SqlDiagnostic.bound(sql, cause, true, binding)) |detail| return detail.structured();
     const sending = stage == .submit and dispatched;
+    const local_input = stage != .read and (cause == error.InvalidQueryRequest or cause == error.InvalidPredicateProgram or cause == error.InvalidFrame);
     const rejected = cause == error.AccessDenied or cause == error.Rejected or cause == error.Conflict;
     var result = if (sending and !rejected)
         try d.init("query.send_unknown", .unavailable, .submit, .unknown, .saved_intent, "The signed command's outcome is unknown. Retain its exact saved bytes and reconcile before preparing another command.")
     else if (sending)
         try d.init("query.command_rejected", if (cause == error.AccessDenied) .access else .conflict, .submit, .not_applicable, .none, "The authority rejected this signed command. This does not establish the saved query's outcome; inspect its status.")
     else if (codes.fromError(cause)) |entry|
-        try d.init(entry.code, entry.category, if (cause == error.InvalidSqlCursor or cause == error.InvalidQueryCursor) .read else stage, if (stage != .read and (cause == error.InvalidQueryRequest or cause == error.InvalidPredicateProgram)) .not_submitted else .not_applicable, if (stage != .read and (cause == error.InvalidQueryRequest or cause == error.InvalidPredicateProgram)) .local_before_dispatch else .none, entry.message)
+        try d.init(entry.code, entry.category, if (cause == error.InvalidSqlCursor or cause == error.InvalidQueryCursor) .read else stage, if (local_input) .not_submitted else .not_applicable, if (local_input) .local_before_dispatch else .none, entry.message)
     else if (q.wire.Client.unavailable(cause))
         try d.init("query.transport_unavailable", .unavailable, stage, .not_applicable, .none, "The authority transport could not complete this attempt. Preserve the exact saved query and any observed receipts. Retry only the applicable read; a failed read never authorizes resubmitting SQL.")
     else if (q.QueryFailure.fromError(cause, .admission)) |failure|

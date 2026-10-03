@@ -49,6 +49,13 @@ is explicitly truncated or marked unavailable, while numeric evidence remains
 exact. The [wire contract](../../contracts/FLIGHT_V1.md#capacity-and-qualification)
 specifies metadata encoding and optional-detail failure behavior.
 
+Caller failures retain shared query codes for drafts, cursors, uploads, source
+changes and result integrity. Malformed result evidence maps to DATA_LOSS;
+invalid input maps to INVALID_ARGUMENT. Allocation/transport failure maps to
+UNAVAILABLE and preserves any earlier work. Flight ticket, sequence and protobuf
+validation keep their specific profile diagnostics. These failed attempts do
+not replace a retained domain outcome or an already unknown submission.
+
 ## Connect with ADBC
 
 Provision the query hosts, service binding, dedicated caller/requester and

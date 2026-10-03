@@ -41,6 +41,14 @@ that attempt separately from the saved query's outcome. Unknown submissions
 retain the exact native sequence and recovery guidance; diagnostics never cause
 automatic submission or replace frozen work.
 
+HTTP presentation follows the shared semantic category after specific native
+inspection dispositions. Invalid syntax/bindings and unsupported query profiles
+return 400; conflicts and incompatible lifecycle operations return 409. Current
+denial returns 403 and unavailability returns 503. Invalid remote result evidence
+returns 502; an invalid locally supplied frame remains 400. Internal failures
+return 500. An unknown submission always remains 503 with its exact recovery
+identity. The diagnostic's stable code supplies the specific reason.
+
 The worksheet displays the semantic message, byte location, exact counters,
 provided or unavailable facts and permitted recovery guidance. Saved query
 failures and Live draft failures use the same display. Current denial clears

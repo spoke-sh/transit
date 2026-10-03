@@ -97,6 +97,10 @@ const Server = struct {
         if (upstream.last_rejection == .UnknownProcess) return self.failureDiagnostic(req, .not_found, .NotFound, diagnostic);
         if (upstream.last_rejection == .InvalidRead) return self.failureDiagnostic(req, .bad_request, .InvalidQuery, diagnostic);
         if (err == error.Conflict) return self.failureDiagnostic(req, .conflict, .QueryConflict, diagnostic);
+        if (diagnostic) |detail| {
+            const response = api.FailureResponse.project(detail);
+            return self.failureDiagnostic(req, response.status, response.code, detail);
+        }
         return self.failureDiagnostic(req, .service_unavailable, .Unavailable, diagnostic);
     }
     fn applicationRequest(self: *Server, req: *std.http.Server.Request, body: []const u8) !void {
@@ -176,13 +180,6 @@ const Server = struct {
         upstream.parent_context = self.observation.span.context;
         var diagnostic: ?client.protocol.Diagnostic = null;
         const result = growing.unifiedQueryDiagnostic(&upstream, self.io, config, parsed.value, arena.allocator(), &diagnostic) catch |err| {
-            // Telemetry retains only the finite code; owned detail is returned to the caller.
-            switch (err) {
-                error.StatementTooLarge, error.InvalidSqlEncoding, error.UnsupportedStatement, error.UnsupportedCatalog, error.UnsupportedLiteral, error.InvalidNumericLiteral, error.InvalidSqlSyntax, error.UnsupportedConstruct, error.CommentTooDeep, error.LiteralTooLarge, error.LiteralOutOfRange, error.InvalidColumnName, error.UnknownSource, error.UnknownColumn, error.UnknownQualifier, error.DuplicateProjection, error.InvalidProjection, error.UnsupportedAggregate, error.UnsupportedAggregateLimit, error.UnsupportedNullComparison, error.TypeMismatch, error.CellTooLarge, error.InvalidBinaryLiteral, error.InvalidParameterIndex, error.ParameterGap, error.ParameterTypeConflict, error.ParameterCountMismatch, error.InvalidParameterSite, error.InvalidQueryScalar, error.InvalidQueryInteger, error.InvalidUtf8, error.NonFiniteValue => return self.failureDiagnostic(req, .bad_request, .UnsupportedQuery, diagnostic),
-                else => {},
-            }
-            if (err == error.QueryDraftConflict or err == error.QueryDraftActive or err == error.QueryDraftClosed or err == error.QueryDraftExhausted) return self.failureDiagnostic(req, .conflict, .QueryConflict, diagnostic);
-            if (err == error.InvalidSqlCursor or err == error.InvalidQuerySearch or err == error.InvalidQueryDraft or err == error.QueryDraftNotFound or err == error.InvalidQueryRequest or err == error.InvalidQueryUpload or err == error.InvalidFrame or err == error.InvalidQueryIdentity or err == error.QueryIdentityMismatch or err == error.QueryBudgetExceeded or err == error.InvalidQueryCursor or err == error.InvalidDocumentInteger or err == error.DocumentEncodingCapacity) return self.failureDiagnostic(req, .bad_request, .InvalidQuery, diagnostic);
             return self.queryFailureDiagnostic(req, &upstream, err, diagnostic);
         };
         return self.json(req, .ok, result);

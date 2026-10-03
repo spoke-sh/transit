@@ -9,9 +9,11 @@ pub const Document = @import("Document.zig");
 pub const DocumentResponse = Document.Response;
 pub const Query = @import("Query.zig");
 pub const InspectionDiagnostic = @import("InspectionDiagnostic.zig");
+pub const FailureResponse = @import("FailureResponse.zig");
 pub const Json = @import("Json.zig");
 test {
     _ = InspectionDiagnostic;
+    _ = FailureResponse;
     _ = Json;
     _ = Exchange;
     _ = Document;
