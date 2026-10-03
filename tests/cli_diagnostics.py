@@ -25,13 +25,17 @@ ISOLATED_CLI = NO_TOOLS / 'transit'
 shutil.copy2(CLI, ISOLATED_CLI)
 
 
-def invoke(args, expected=2, contains=(), env=None, data=b'', stderr=None, cwd=None, binary=None):
+def invoke(args, expected=2, contains=(), env=None, data=b'', stderr=None, cwd=None, binary=None, stdout_contains=()):
     global CASES
     result = subprocess.run([binary or CLI, *map(str, args)], input=data, capture_output=True,
                             timeout=10, env=ENV if env is None else env, cwd=cwd or ISOLATED.name)
     assert result.returncode == expected, (args, result.returncode, result.stdout, result.stderr)
     if expected:
-        assert result.stdout == b'', (args, result.stdout)
+        if stdout_contains:
+            for fragment in stdout_contains:
+                assert fragment.encode() in result.stdout, (args, result.stdout)
+        else:
+            assert result.stdout == b'', (args, result.stdout)
         prefix = b'Usage: ' if stderr is not None and stderr.startswith('Usage: ') else b'error: '
         assert result.stderr.startswith(prefix), (args, result.stderr)
         for label in (b'\n  at: ', b'\n  cause: ', b'\n  next: ', b'\n  help: '):
@@ -383,6 +387,13 @@ with tempfile.TemporaryDirectory(prefix='transit-cli-diagnostics-') as directory
         script = root/'bad.sql'
         script.write_text('SELECT *\nFROM;')
         invoke(['console', '--no-rc', '--config', path, '-f', script], 1, ('line 2, column 5', '^--- error here'))
+        script.write_text('-- 東京\r\n\r\n.show\r\n  SELECT absent FROM items;')
+        invoke(['console', '--no-rc', '--config', path, '-f', script], 1,
+               ('bad.sql', 'statement 2', 'line 4, column 10', 'Previously completed commands: 1'),
+               stdout_contains=('format',))
+        invoke(['console', '--no-rc', '--config', path], 1,
+               ('<stdin>', 'statement 2', 'line 2, column 8', 'Previously completed commands: 1'),
+               data=b'.show\nSELECT absent FROM items;', stdout_contains=('format',))
         invoke(['console', '--no-rc', '--config', path], 1, ('line 1, column 7',), data=b'SELECT;')
         for data in (b"SELECT * FROM items WHERE value = 'private-must-not-appear", b'SELECT * /* private-must-not-appear'):
             invoke(['console', '--no-rc', '--config', path], 1, ('SQL parse error', '^--- error here'), data=data)
@@ -482,7 +493,7 @@ with tempfile.TemporaryDirectory(prefix='transit-cli-diagnostics-') as directory
     for format in ('table', 'json'):
         for text in (b'.timing\n', b'.timing \t\n', b'.timing private-must-not-appear\n', b'.timing on off\n'):
             invoke(['console', '--no-rc', '--config', connection, '--format', format], 1,
-                   env=environment, cwd=project, data=text+b'.show\n', stderr='Usage: .timing on|off\n')
+                   env=environment, cwd=project, data=text+b'.show\n', stderr='Usage: .timing on|off\nInput: "<stdin>"; statement 1 starts at byte 0, line 1, byte column 1.\nPreviously completed commands: 0; their effects are not rolled back by this failure.\n')
     shown = invoke(['console', '--no-rc', '--config', connection], 0, env=environment, cwd=project,
                    data=b'.timing\ton\n.show\n')
     assert parse_show(shown.stdout)['timing'] == 'on'

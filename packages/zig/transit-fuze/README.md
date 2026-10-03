@@ -150,3 +150,9 @@ dependency; no C++ query engine is linked into Fuze.
 [Integration notes](docs/integration.md) record pins, compatibility changes and
 measured limits. [Tables](../../../docs/reference/tables.md) owns transaction and result
 semantics; [Arrow](../../../docs/reference/arrow.md) owns Arrow interchange.
+
+`SqlDiagnostic.structured()` projects the compiler's original binding context into
+the shared [diagnostic value](../../../contracts/DIAGNOSTICS_V1.md): stable SQL
+codes, source coordinates, expected/actual types, parameter sites and typed
+correction actions. It does not perform additional catalog reads. Human console
+hints remain a separate presentation; structured actions contain no dot commands.

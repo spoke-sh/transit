@@ -2,6 +2,7 @@
 //! authorization or runtime capability negotiation. Never put source in logs.
 const std = @import("std");
 const sql = @import("Sql.zig");
+const d = @import("transit_protocol").Diagnostic;
 const input = @import("SqlInput.zig");
 const Self = @This();
 
@@ -13,6 +14,7 @@ cause: anyerror,
 summary: []const u8,
 hint: []const u8,
 location: ?sql.Location = null,
+binding: sql.Binding = .{},
 line: usize = 1,
 column: usize = 1,
 // Owned, redacted and escaped context survives the caller's input buffer.
@@ -25,6 +27,63 @@ detail_len: usize = 0,
 const mutation_hint = "Use explicit column names for INSERT, for example INSERT INTO items (id, value) VALUES (1, 100). Use .help INSERT in the console to configure an authorized Table writer and discover execution and recovery. A query connection does not grant writes.";
 const read_hint = "Use .help SQL in the console for supported syntax; .schema and .sources show the configured columns and source.";
 const grammar_hint = "This statement family has no executable SQL route; its submitted syntax has not been validated. Use .help SQL in the console for supported statements.";
+
+/// Project only the compiler's original evidence. No follow-up metadata reads.
+pub fn structured(self: Self) !d {
+    const category: d.Category = switch (self.kind) {
+        .syntax => .syntax,
+        .binding => .binding,
+        .limit => .limit,
+        .unsupported, .grammar_only, .interface => .unsupported,
+    };
+    var value = try d.init(@import("SqlCodes.zig").fromError(self.cause) orelse return error.UnmappedSqlDiagnostic, category, if (self.kind == .binding) .bind else .parse, .not_submitted, .local_before_dispatch, self.summary);
+    value.cause = try d.Code.init(@errorName(self.cause));
+    if (self.location) |location| value.location = .{ .offset = .init(location.offset), .length = .init(0), .line = .init(self.line), .byte_column = .init(self.column) };
+    const context = self.binding;
+    if (context.subject) |subject| try value.text(if (self.cause == error.UnknownQualifier) .qualifier else .column, .caller, subject.slice());
+    if (context.scope_len != 0) try value.text(.scope, .caller, context.scope[0..context.scope_len]);
+    if (context.expected) |expected| try value.text(.expected_type, .schema, expected);
+    if (context.actual) |actual| try value.text(.actual_type, .caller, actual);
+    if (context.literal_len != 0) try value.text(.supplied_value, .caller, context.literal[0..context.literal_len]);
+    if (context.key) |key| try value.fact(.key, .caller, .{ .signed = .init(key) });
+    inline for (.{ .{ "input_row", d.Field.input_row }, .{ "previous_row", d.Field.first_occurrence }, .{ "parameter", d.Field.parameter }, .{ "expected_count", d.Field.expected_count }, .{ "actual_count", d.Field.actual_count } }) |mapping| {
+        if (@field(context, mapping[0])) |number| try value.fact(mapping[1], .caller, .{ .unsigned = .init(number) });
+    }
+    if (context.missing_parameter) |index| try value.fact(.parameter, .caller, .{ .unsigned = .init(index) });
+    for (context.parameter_sites) |site| if (site) |offset| try value.fact(.parameter_use, .caller, .{ .unsigned = .init(offset) });
+    if (context.expected_schema) |digest| try value.fact(.expected_schema, .caller, .{ .digest = digest });
+    if (context.actual_schema) |digest| try value.fact(.actual_schema, .schema, .{ .digest = digest });
+    try value.action(if (self.cause == error.SourceChanged or self.cause == error.QuerySourceChanged) .recompile else if (self.kind == .interface or self.kind == .grammar_only) .inspect_scope else .correct_input);
+    try value.validate();
+    return value;
+}
+
+test "SQL structured diagnostics preserve binding evidence without console commands" {
+    var context: sql.Binding = .{ .subject = try @import("model.zig").Name.init("value"), .expected = "int64", .actual = "utf8", .parameter = 1, .parameter_sites = .{ 12, 35, null }, .location = .{ .offset = 12 } };
+    sql.Binding.supplied(&context, @import("Unified.zig").Scalar{ .utf8 = "secret-is-caller-input" });
+    const diagnostic = bound("SELECT $1 FROM items WHERE value = $1", error.TypeMismatch, false, context).?;
+    const result = try diagnostic.structured();
+    try std.testing.expectEqualStrings("sql.type_mismatch", result.code.slice());
+    try std.testing.expectEqual(d.Outcome.not_submitted, result.outcome);
+    try std.testing.expectEqual(@as(u64, 12), try result.location.?.offset.value());
+    try std.testing.expectEqual(d.Field.parameter_use, result.facts[5].?.field);
+    try std.testing.expectEqual(@as(u64, 35), try result.facts[6].?.value.?.unsigned.value());
+    try std.testing.expectEqual(d.ActionKind.correct_input, result.actions[0].?.kind);
+    try std.testing.expect(std.mem.indexOf(u8, result.message.slice(), ".help") == null);
+}
+
+test "SQL code registry is unique and every entry projects a valid bounded value" {
+    const entries = @import("SqlCodes.zig").entries;
+    for (entries, 0..) |entry, i| {
+        for (entries[0..i]) |previous| {
+            try std.testing.expect(entry.cause != previous.cause);
+            try std.testing.expect(!std.mem.eql(u8, entry.code, previous.code));
+        }
+        const value: Self = .{ .kind = .binding, .cause = entry.cause, .summary = "Invalid SQL.", .hint = "Inspect the supplied statement." };
+        _ = try value.structured();
+    }
+    try std.testing.expect(query("SELECT * FROM items", error.OutOfMemory, true) == null);
+}
 
 /// Call only at a SQL compilation/inspection failure boundary. Unknown errors
 /// return null so transport, permission and uncertain-outcome advice survives.
@@ -139,6 +198,7 @@ pub fn query(text: []const u8, cause: anyerror, inspection: bool) ?Self {
 /// later catalog read or a guess at similarly spelled source text.
 pub fn bound(text: []const u8, cause: anyerror, inspection: bool, binding: sql.Binding) ?Self {
     var result = query(text, cause, inspection) orelse return null;
+    result.binding = binding;
     var out: std.Io.Writer = .fixed(&result.detail);
     if (binding.subject) |subject| {
         out.print("Subject: \"{s}\"", .{subject.slice()}) catch unreachable;

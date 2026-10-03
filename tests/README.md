@@ -12223,3 +12223,16 @@ validation passes 5,057 links across 508 files.
 
 These tests establish the neutral value's construction/decoding rules. They do
 not establish domain mapping completeness or delivery through every adapter.
+
+### Structured owner projections and script attribution
+
+On 2026-10-02, standalone Fuze and query package tests pass. The SQL registry
+checks unique stable codes and typed binding projections; all 58 retained query
+codes project valid evidence/actions through denied, rejected and retired phases.
+Maximum-width measured counters retain precision. These are owner-value tests,
+not yet ABI/SDK structured-envelope parity.
+
+`just test::cli-diagnostics` passes 458 real CLI cases. New script and stdin cases
+complete `.show`, then fail SQL binding, checking the second statement, completed
+command count and absolute source line/column after comments, CRLF and Unicode.
+Existing machine stdout, timing order, PTY/color and no-send negatives pass.

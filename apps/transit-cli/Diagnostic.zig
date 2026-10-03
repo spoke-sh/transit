@@ -3,6 +3,7 @@ const std = @import("std");
 const Self = @This();
 command: []const u8 = "transit",
 style: @import("Style.zig") = .{},
+input: ?@import("InputPosition.zig") = null,
 sql: ?@import("transit_query").fuze.SqlDiagnostic = null,
 write: ?@import("WriteDiagnostic.zig") = null,
 source: ?@import("FileDiagnostic.zig") = null,
@@ -63,6 +64,7 @@ pub fn atArgument(self: *Self, index: ?usize, option: ?[]const u8) void {
     self.option = option;
 }
 pub fn atFile(self: *Self, file: []const u8) void {
+    self.input = null;
     self.sql = null;
     self.argument = null;
     self.option = null;
@@ -159,13 +161,22 @@ fn quoted(out: *std.Io.Writer, value: []const u8) !void {
     try out.writeByte('"');
 }
 pub fn render(self: Self, out: *std.Io.Writer, err: anyerror) !void {
+    try self.renderFailure(out, err);
+    if (self.input) |input| try input.render(out);
+}
+fn renderFailure(self: Self, out: *std.Io.Writer, err: anyerror) !void {
     if (self.write) |diagnostic| return diagnostic.render(out, self.style);
     if (self.query) |query| {
         try self.style.text(out, .failure, "error: ");
         return query.render(out);
     }
     if (self.source) |diagnostic| return diagnostic.render(out, err, self.style);
-    if (self.sql) |diagnostic| {
+    if (self.sql) |original| {
+        var diagnostic = original;
+        if (self.input) |input| if (input.sql) {
+            if (diagnostic.line == 1) diagnostic.column += @intCast(input.start.column - 1);
+            diagnostic.line += @intCast(input.start.line - 1);
+        };
         try self.style.text(out, .failure, "error:");
         try out.writeByte(' ');
         return diagnostic.renderStyled(out, self.style);

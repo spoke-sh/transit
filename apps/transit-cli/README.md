@@ -83,3 +83,12 @@ does not cancel accepted durable work.
 The default console instead uses fresh interactive snapshot sessions. See
 [console behavior](docs/console.md) for session lifetime and cancellation, and
 [local applications](docs/applications.md) for installation and replacement.
+
+Script and piped-input failures identify their source, one-based statement number,
+zero-based statement-start byte offset and one-based line/byte column. SQL carets
+use absolute input lines and columns, including skipped comments and UTF-8 bytes.
+The diagnostic reports how many prior commands completed; SQL and dot commands
+each count once, while blank lines/comments do not. Earlier effects remain
+committed. SQL embedded in `.execute` input retains its own local coordinates;
+the enclosing script command is reported separately. Paths are bounded and
+escaped before terminal rendering. These diagnostics go to stderr.

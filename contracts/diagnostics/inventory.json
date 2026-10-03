@@ -308,6 +308,7 @@
         "ConsoleWrites.zig",
         "Diagnostic.zig",
         "Execute.zig",
+        "InputPosition.zig",
         "Interactive.zig",
         "Options.zig",
         "Output.zig",
@@ -439,6 +440,7 @@
       "outcomes": {},
       "imports": [
         "FileDiagnostic.zig",
+        "InputPosition.zig",
         "QueryDiagnostic.zig",
         "Style.zig",
         "Timing.zig",
@@ -575,6 +577,14 @@
       "outcomes": {},
       "imports": [
         "Signals.zig",
+        "std",
+        "transit_query"
+      ]
+    },
+    "apps/transit-cli/InputPosition.zig": {
+      "errors": {},
+      "outcomes": {},
+      "imports": [
         "std",
         "transit_query"
       ]
@@ -5512,6 +5522,69 @@
         "std"
       ]
     },
+    "packages/zig/transit-fuze/src/SqlCodes.zig": {
+      "errors": {
+        "CellTooLarge": 1,
+        "CommentTooDeep": 1,
+        "DeclarationTooManyColumns": 1,
+        "DuplicateColumn": 1,
+        "DuplicateMutationKey": 1,
+        "DuplicateProjection": 1,
+        "ImmutablePrimaryKey": 1,
+        "InvalidBinaryLiteral": 1,
+        "InvalidColumnCount": 1,
+        "InvalidColumnName": 1,
+        "InvalidDocumentInteger": 1,
+        "InvalidHex": 1,
+        "InvalidMutationColumns": 1,
+        "InvalidMutationPlan": 1,
+        "InvalidNumericLiteral": 1,
+        "InvalidOutputNames": 1,
+        "InvalidParameterIndex": 1,
+        "InvalidParameterSite": 1,
+        "InvalidPredicate": 1,
+        "InvalidProjection": 1,
+        "InvalidQueryInteger": 1,
+        "InvalidQueryScalar": 1,
+        "InvalidSqlEncoding": 1,
+        "InvalidSqlSyntax": 1,
+        "InvalidUtf8": 1,
+        "LiteralOutOfRange": 1,
+        "LiteralTooLarge": 1,
+        "MutationBatchTooLarge": 1,
+        "NonFiniteValue": 1,
+        "NullPrimaryKey": 1,
+        "ParameterCountMismatch": 1,
+        "ParameterGap": 1,
+        "ParameterTypeConflict": 1,
+        "PredicateTooComplex": 1,
+        "QuerySourceChanged": 1,
+        "SourceChanged": 1,
+        "StatementTooLarge": 1,
+        "TypeMismatch": 1,
+        "UnboundParameters": 1,
+        "UnknownColumn": 1,
+        "UnknownQualifier": 1,
+        "UnknownSource": 1,
+        "UnspecifiedNullability": 1,
+        "UnsupportedAggregate": 1,
+        "UnsupportedAggregateLimit": 1,
+        "UnsupportedCatalog": 1,
+        "UnsupportedConstruct": 1,
+        "UnsupportedDeclaration": 1,
+        "UnsupportedDeclarationType": 1,
+        "UnsupportedLiteral": 1,
+        "UnsupportedMutationPredicate": 1,
+        "UnsupportedNullComparison": 1,
+        "UnsupportedStatement": 1,
+        "UnsupportedTableColumnCount": 1,
+        "UnsupportedTableKey": 1,
+        "UnsupportedTableNullability": 1,
+        "UnsupportedTableType": 1
+      },
+      "outcomes": {},
+      "imports": []
+    },
     "packages/zig/transit-fuze/src/SqlDiagnostic.zig": {
       "errors": {
         "CellTooLarge": 2,
@@ -5548,14 +5621,15 @@
         "ParameterGap": 2,
         "ParameterTypeConflict": 2,
         "PredicateTooComplex": 2,
-        "QuerySourceChanged": 2,
-        "SourceChanged": 2,
+        "QuerySourceChanged": 3,
+        "SourceChanged": 3,
         "StatementTooLarge": 3,
         "TypeMismatch": 2,
         "UnboundParameters": 2,
         "UnknownColumn": 3,
-        "UnknownQualifier": 3,
+        "UnknownQualifier": 4,
         "UnknownSource": 3,
+        "UnmappedSqlDiagnostic": 1,
         "UnspecifiedNullability": 1,
         "UnsupportedAggregate": 2,
         "UnsupportedAggregateLimit": 1,
@@ -5600,8 +5674,10 @@
       },
       "imports": [
         "Sql.zig",
+        "SqlCodes.zig",
         "SqlInput.zig",
-        "std"
+        "std",
+        "transit_protocol"
       ]
     },
     "packages/zig/transit-fuze/src/SqlInput.zig": {
@@ -6765,6 +6841,7 @@
         "InvalidPublicationReference": 1,
         "InvalidQueryBudget": 1,
         "InvalidQueryBundle": 1,
+        "InvalidQueryDiagnostic": 1,
         "InvalidQueryFailure": 6,
         "InvalidQueryPath": 1,
         "InvalidQueryPrefix": 1,

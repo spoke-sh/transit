@@ -195,8 +195,8 @@ fn connection(init: std.process.Init, options: Options.Options, preferences: Pre
         defer file.close(init.io);
         var buffer: [8192]u8 = undefined;
         var reader = file.reader(init.io, &buffer);
-        try console.pipe(&reader.interface);
-    } else if (terminal) try @import("Terminal.zig").run(&console) else try console.pipe(null);
+        try console.pipe(&reader.interface, file_name);
+    } else if (terminal) try @import("Terminal.zig").run(&console) else try console.pipe(null, "<stdin>");
     if (console.next_connection) |next| {
         var result = console.preferences;
         result.connection = next;
@@ -500,7 +500,10 @@ pub const Console = struct {
         return error.UnknownConsoleCommand;
     }
 
-    fn pipe(self: *Console, source: ?*std.Io.Reader) !void {
+    fn pipe(self: *Console, source: ?*std.Io.Reader, source_name: []const u8) !void {
+        const Position = @import("InputPosition.zig");
+        var position = try Position.init(source_name);
+        var cursor: Position.Cursor = .{};
         var buffer: [65536]u8 = undefined;
         defer std.crypto.secureZero(u8, &buffer);
         var length: usize = 0;
@@ -509,14 +512,21 @@ pub const Console = struct {
             else => return err,
         } else try Signals.readByte(.stream)) |byte| {
             if (Signals.interrupted()) return error.ConsoleInterrupted;
+            const byte_position = cursor;
+            cursor.advance(byte);
             if (length == buffer.len) return error.ConsoleInputTooLarge;
             buffer[length] = byte;
             length += 1;
             const text = std.mem.trimStart(u8, buffer[0..length], " \t\r\n");
             const meta = isMeta(text);
+            if (text.len == 1) position.start = byte_position;
+            position.sql = !meta;
+            self.diagnostic.input = position;
             if (!meta and text.len > q.fuze.Sql.max_statement_bytes) return self.sqlFailure(text, error.StatementTooLarge);
             if ((meta and byte == '\n') or (!meta and byte == ';' and (sql_input.terminator(text) catch |err| return self.sqlFailure(text, err)) != null)) {
                 const more = try self.execute(text);
+                position.statement += 1;
+                position.completed += 1;
                 length = 0;
                 if (!more) break;
             } else if (byte == '\n' and !meta and !(sql_input.significant(text) catch |err| return self.sqlFailure(text, err))) {

@@ -71,6 +71,48 @@ dimension: Dimension = .none,
 limit: u64 = 0,
 observed: u64 = 0,
 pub const encoded_bytes = 24;
+pub fn category(self: Self) p.Diagnostic.Category {
+    return switch (self.code) {
+        .policy_denied, .access_denied, .publisher_mismatch, .peer_mismatch => .access,
+        .resource_unavailable, .writer_not_ready => .unavailable,
+        .request_unpublished, .document_history_gap, .document_retired, .document_resync_required, .request_resource_expired, .request_resource_missing => .lifecycle,
+        .budget_exceeded, .projection_budget, .segment_byte_limit, .plan_too_large, .bundle_too_large, .cell_too_large, .arithmetic_overflow => .limit,
+        .source_changed, .table_schema_changed, .namespace_in_use, .expansion_conflict, .cell_conflict => .conflict,
+        .unsupported_aggregate, .unsupported_source, .unsupported_decoder, .unsupported_document_source, .unsupported_plan, .unsupported_schema => .unsupported,
+        .invalid_source_encoding, .invalid_plan_encoding, .plan_definition_mismatch, .truncated_input => .integrity,
+        .expansion_missing, .expansion_null, .expansion_type_error, .cell_type_error, .type_mismatch, .unknown_column, .invalid_projection, .duplicate_projection, .invalid_bundle, .invalid_source, .invalid_prefix, .invalid_path, .invalid_projection_budget, .invalid_text_projection, .invalid_element_projection, .invalid_output_names, .invalid_budget, .query_after_mutation, .nonfinite_value, .invalid_utf8, .invalid_column_name, .invalid_column_count, .duplicate_column, .invalid_request_reference => .binding,
+    };
+}
+
+/// Invoke only after current access has authorized disclosure of this status.
+/// Retirement preserves the original cause, while actions follow current phase.
+pub fn diagnostic(self: Self, namespace: u64, phase: q.UnifiedRequest.Phase) !p.Diagnostic {
+    try self.validate();
+    const outcome: p.Diagnostic.Outcome = switch (phase) {
+        .denied, .rejected => .rejected,
+        .retired => .retired,
+        else => return error.InvalidQueryDiagnostic,
+    };
+    const code = switch (self.code) {
+        inline else => |code| "query." ++ @tagName(code),
+    };
+    var result = try p.Diagnostic.init(code, self.category(), if (self.stage == .admission) .admission else .execute, outcome, .domain_status, self.message());
+    result.identity = .{ .domain = .query, .id = .init(namespace) };
+    if (self.dimension != .none) {
+        try result.text(.budget, .owner, @tagName(self.dimension));
+        try result.fact(.limit, .execution, .{ .unsigned = .init(self.limit) });
+        try result.fact(.required, .execution, .{ .unsigned = .init(self.observed) });
+    }
+    try result.fact(.completion, .execution, .{ .boolean = false });
+    try result.action(.inspect_status);
+    switch (self.category()) {
+        .access, .lifecycle, .unavailable => try result.action(.inspect_scope),
+        .integrity => try result.action(.contact_operator),
+        else => try result.action(.correct_input),
+    }
+    try result.validate();
+    return result;
+}
 pub fn fromError(cause: anyerror, stage: Stage) ?Self {
     return .{ .stage = stage, .code = switch (cause) {
         error.QueryDenied => .policy_denied,
@@ -239,4 +281,24 @@ pub fn decode(value: p.Value) !Self {
     };
     try result.validate();
     return result;
+}
+
+test "every saved query failure projects stable evidence and safe actions" {
+    const t = std.testing;
+    inline for (comptime std.meta.tags(Code)) |code| {
+        const failure: Self = .{ .code = code, .stage = .execution };
+        for ([_]q.UnifiedRequest.Phase{ .denied, .rejected, .retired }) |phase| {
+            const value = try failure.diagnostic(p.max_counter, phase);
+            try t.expectEqualStrings("query." ++ @tagName(code), value.code.slice());
+            try t.expectEqual(p.Diagnostic.Evidence.domain_status, value.evidence);
+            try t.expectEqual(p.Diagnostic.ActionKind.inspect_status, value.actions[0].?.kind);
+            for (value.actions) |slot| if (slot) |action| {
+                try t.expect(action.kind != .resume_exact and action.kind != .cancel_wait);
+            };
+        }
+        try t.expectError(error.InvalidQueryDiagnostic, failure.diagnostic(1, .complete));
+    }
+    const measured: Self = .{ .code = .budget_exceeded, .stage = .execution, .dimension = .result_bytes, .limit = std.math.maxInt(u64) - 1, .observed = std.math.maxInt(u64) };
+    const value = try measured.diagnostic(1, .rejected);
+    try t.expectEqual(std.math.maxInt(u64), try value.facts[2].?.value.?.unsigned.value());
 }

@@ -230,3 +230,10 @@ handler pointer or later source read substitutes for the recorded cause. See
 [retained query failures](../../../contracts/UNIFIED_QUERY_V1.md#retained-query-failures)
 for code identities, exact bytes and authorization. Source expression/column
 witnesses are not recorded by this profile.
+
+`QueryFailure.diagnostic(namespace, phase)` projects an authorized saved failure
+into the shared [diagnostic value](../../../contracts/DIAGNOSTICS_V1.md). Every
+retained code has an explicit category. Measured budgets retain full-width limit
+and required counters. Rejected and retired failures offer inspection/correction,
+never resubmission of the old operation. This projection requires the caller to
+complete current-access validation before disclosing it.

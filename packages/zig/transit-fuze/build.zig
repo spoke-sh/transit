@@ -3,6 +3,7 @@ const std = @import("std");
 pub fn build(b: *std.Build) !void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
+    const protocol = b.dependency("transit_protocol", .{ .target = target, .optimize = optimize }).module("transit_protocol");
     const dependency = b.dependency("zarrow", .{ .target = target, .optimize = optimize });
     const arrow = dependency.module("zarrow");
     try @import("patches.zig").apply(b, dependency, arrow);
@@ -22,7 +23,7 @@ pub fn build(b: *std.Build) !void {
         .root_source_file = b.path("src/root.zig"),
         .target = target,
         .optimize = optimize,
-        .imports = &.{ .{ .name = "zarrow", .module = arrow }, .{ .name = "zarrow_compute", .module = compute } },
+        .imports = &.{ .{ .name = "transit_protocol", .module = protocol }, .{ .name = "zarrow", .module = arrow }, .{ .name = "zarrow_compute", .module = compute } },
     });
     const tests = b.step("test", "Qualify Fuze and the pinned Arrow compute dependency");
     const contract = b.addExecutable(.{ .name = "transit-logical-contract", .root_module = b.createModule(.{
