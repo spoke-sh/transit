@@ -377,6 +377,10 @@ diagnostic-inventory:
 diagnostic-mappings:
     python3 -B tests/diagnostic_mappings.py
 
+# Compiler-inferred finite/open sets and unknown-callback recovery evidence.
+diagnostic-errors:
+    zig build test-diagnostic-errors
+
 # Execute every declared retained-outcome variant against reviewed semantic mappings.
 diagnostic-outcomes:
     zig build test-diagnostic-outcomes

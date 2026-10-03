@@ -47,6 +47,7 @@ pub const entries = [_]Entry{
     .{ .cause = error.UnknownSource, .code = "sql.unknown_source", .category = .binding },
     .{ .cause = error.UnspecifiedNullability, .code = "sql.unspecified_nullability", .category = .binding },
     .{ .cause = error.UnsupportedAggregate, .code = "sql.unsupported_aggregate", .category = .unsupported },
+    .{ .cause = error.UnsupportedSchema, .code = "sql.unsupported_schema", .category = .unsupported },
     .{ .cause = error.UnsupportedAggregateLimit, .code = "sql.unsupported_aggregate_limit", .category = .unsupported },
     .{ .cause = error.UnsupportedCatalog, .code = "sql.unsupported_catalog", .category = .unsupported },
     .{ .cause = error.UnsupportedConstruct, .code = "sql.unsupported_construct", .category = .unsupported },

@@ -69,6 +69,7 @@ check-core:
     python3 -B tests/verification/check.py
     just test::diagnostic-inventory
     just test::diagnostic-mappings
+    just test::diagnostic-errors
     just test::diagnostic-outcomes
     just test::diagnostic-grammar
     nix flake check

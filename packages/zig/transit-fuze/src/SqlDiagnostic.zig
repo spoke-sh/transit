@@ -41,6 +41,11 @@ pub fn structured(self: Self) !d {
     value.cause = try d.Code.init(@errorName(self.cause));
     if (self.location) |location| value.location = .{ .offset = .init(location.offset), .length = .init(0), .line = .init(self.line), .byte_column = .init(self.column) };
     const context = self.binding;
+    if (context.schema_version) |version| {
+        try value.text(.field_path, .caller, "schema.version");
+        try value.fact(.expected_value, .owner, .{ .unsigned = .init(1) });
+        try value.fact(.supplied_value, .caller, .{ .unsigned = .init(version) });
+    }
     if (context.subject) |subject| try value.text(if (self.cause == error.UnknownQualifier) .qualifier else .column, .caller, subject.slice());
     if (context.scope_len != 0) try value.text(.scope, .caller, context.scope[0..context.scope_len]);
     if (context.expected) |expected| try value.text(.expected_type, .schema, expected);
@@ -125,6 +130,7 @@ pub fn query(text: []const u8, cause: anyerror, inspection: bool) ?Self {
         error.ImmutablePrimaryKey, error.UnsupportedMutationPredicate, error.InvalidMutationColumns, error.DuplicateMutationKey => "Use .help INSERT, .help UPDATE or .help DELETE in the console for bounded literal mutations and key equality.",
         error.TypeMismatch, error.InvalidPredicate => "Match the literal type to the declared column type; implicit conversions are unsupported.",
         error.InvalidPredicateProgram => "The typed predicate has invalid instruction, literal-storage or stack bounds. Preserve the original plan and correct its construction before submission.",
+        error.UnsupportedSchema => "This SQL compiler requires schema version 1. Check the original source or target schema; this failure does not authorize reinterpreting saved work.",
         else => null,
     };
     if (semantic) |hint| return .{ .kind = .binding, .cause = cause, .summary = switch (cause) {
@@ -138,6 +144,7 @@ pub fn query(text: []const u8, cause: anyerror, inspection: bool) ?Self {
         error.DuplicateMutationKey => "INSERT repeats a primary key within the statement",
         error.NullPrimaryKey => "The primary key cannot be NULL",
         error.UnsupportedAggregate => "Unsupported aggregate function or input type",
+        error.UnsupportedSchema => "The supplied SQL schema version is unsupported",
         error.ParameterCountMismatch => "The number of bindings does not match the SQL parameters",
         error.ParameterGap => "SQL parameter indices must be consecutive from $1",
         error.ParameterTypeConflict => "A repeated parameter requires incompatible types",
@@ -219,6 +226,7 @@ pub fn bound(text: []const u8, cause: anyerror, inspection: bool, binding: sql.B
     var result = query(text, cause, inspection) orelse return null;
     result.binding = binding;
     var out: std.Io.Writer = .fixed(&result.detail);
+    if (binding.schema_version) |version| out.print("Schema version: {d}; required: 1.", .{version}) catch unreachable;
     if (binding.subject) |subject| {
         out.print("Subject: \"{s}\"", .{subject.slice()}) catch unreachable;
         if (binding.scope_len != 0) out.print("; scope: \"{s}\"", .{binding.scope[0..binding.scope_len]}) catch unreachable;

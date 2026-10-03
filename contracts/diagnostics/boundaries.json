@@ -1,0 +1,422 @@
+{
+  "version": 1,
+  "boundaries": {
+    "query": {
+      "causes": null,
+      "mappings": [],
+      "reason": "Transport, allocator or callback APIs expose anyerror. Selected known causes are mapped separately; arbitrary external causes cannot be enumerated.",
+      "exceptions": {},
+      "fallback": "query"
+    },
+    "mutation": {
+      "causes": null,
+      "mappings": [],
+      "reason": "Transport, allocator or callback APIs expose anyerror. Selected known causes are mapped separately; arbitrary external causes cannot be enumerated.",
+      "exceptions": {},
+      "fallback": "mutation"
+    },
+    "catalog": {
+      "causes": null,
+      "mappings": [],
+      "reason": "Transport, allocator or callback APIs expose anyerror. Selected known causes are mapped separately; arbitrary external causes cannot be enumerated.",
+      "exceptions": {},
+      "fallback": "catalog"
+    },
+    "application": {
+      "causes": null,
+      "mappings": [],
+      "reason": "Transport, allocator or callback APIs expose anyerror. Selected known causes are mapped separately; arbitrary external causes cannot be enumerated.",
+      "exceptions": {},
+      "fallback": "application"
+    },
+    "application-compiler": {
+      "causes": [
+        "CommentTooDeep",
+        "DuplicateInterfaceName",
+        "DuplicateInterfaceOption",
+        "DuplicateInterfacePath",
+        "ForeignInterfaceDeclaration",
+        "IncompatibleAction",
+        "IncompatibleRenderer",
+        "IncompleteSql",
+        "InterfaceCapacity",
+        "InterfaceCommentDepth",
+        "InterfaceLiteralTooLarge",
+        "InterfaceOptionCapacity",
+        "InterfaceProgramTooLarge",
+        "InvalidApplicationProgram",
+        "InvalidColumnName",
+        "InvalidInterfaceCommand",
+        "InvalidInterfaceIdentity",
+        "InvalidInterfaceName",
+        "InvalidInterfaceOption",
+        "InvalidInterfacePath",
+        "InvalidInterfaceRevision",
+        "InvalidInterfaceSchema",
+        "InvalidInterfaceSyntax",
+        "InvalidInterfaceText",
+        "InvalidNumericLiteral",
+        "InvalidParameterIndex",
+        "InvalidPredicateProgram",
+        "InvalidProjection",
+        "InvalidPublicationChunk",
+        "InvalidPublicationFormat",
+        "InvalidPublicationOrdinal",
+        "InvalidQueryBudget",
+        "InvalidSqlEncoding",
+        "InvalidSqlSyntax",
+        "LiteralOutOfRange",
+        "LiteralTooLarge",
+        "MissingInterfaceOption",
+        "MissingInterfaceReference",
+        "OutOfMemory",
+        "PredicateTooComplex",
+        "PublicationTooLarge",
+        "ReservedInterfacePath",
+        "StatementTooLarge",
+        "UnboundParameters",
+        "UnknownInterfaceOption",
+        "UnsupportedAggregate",
+        "UnsupportedConstruct",
+        "UnsupportedInspectionBudget",
+        "UnsupportedInterfaceOption",
+        "UnsupportedInterfaceStatement",
+        "UnsupportedInterfaceVersion",
+        "UnsupportedInterfaceWatch",
+        "UnsupportedStatement",
+        "UnterminatedInterfaceComment",
+        "UnterminatedInterfaceLiteral"
+      ],
+      "mappings": [
+        "application-compiler",
+        "application-host",
+        "sql-compilation"
+      ],
+      "reason": "Compiler-inferred set is conservative; it includes errors normalized by the enclosing compiler.",
+      "exceptions": {
+        "IncompleteSql": "Consumed editor cursor sentinel; public parse paths do not provide the cursor assistance that creates it. The SQL mapping manifest owns its control-flow tests.",
+        "InvalidPublicationFormat": "Internal publication digest invariant: fixed positive application format, canonical program bounded at 65536 bytes and computed chunk indices. Host canonicalization/round-trip tests execute the owner; no caller correction is invented.",
+        "PublicationTooLarge": "Internal publication digest invariant: fixed positive application format, canonical program bounded at 65536 bytes and computed chunk indices. Host canonicalization/round-trip tests execute the owner; no caller correction is invented.",
+        "InvalidPublicationOrdinal": "Internal publication digest invariant: fixed positive application format, canonical program bounded at 65536 bytes and computed chunk indices. Host canonicalization/round-trip tests execute the owner; no caller correction is invented.",
+        "InvalidPublicationChunk": "Internal publication digest invariant: fixed positive application format, canonical program bounded at 65536 bytes and computed chunk indices. Host canonicalization/round-trip tests execute the owner; no caller correction is invented."
+      }
+    },
+    "sql-select": {
+      "causes": [
+        "CommentTooDeep",
+        "IncompleteSql",
+        "InvalidColumnName",
+        "InvalidNumericLiteral",
+        "InvalidParameterIndex",
+        "InvalidPredicateProgram",
+        "InvalidProjection",
+        "InvalidSqlEncoding",
+        "InvalidSqlSyntax",
+        "LiteralOutOfRange",
+        "LiteralTooLarge",
+        "PredicateTooComplex",
+        "StatementTooLarge",
+        "UnboundParameters",
+        "UnsupportedAggregate",
+        "UnsupportedConstruct",
+        "UnsupportedStatement"
+      ],
+      "mappings": [
+        "sql-compilation"
+      ],
+      "reason": "Compiler-inferred set is conservative; it includes errors normalized by the enclosing compiler.",
+      "exceptions": {
+        "IncompleteSql": "Consumed editor cursor sentinel; public parse paths do not provide the cursor assistance that creates it. The SQL mapping manifest owns its control-flow tests."
+      }
+    },
+    "sql-template": {
+      "causes": [
+        "CommentTooDeep",
+        "IncompleteSql",
+        "InvalidColumnName",
+        "InvalidNumericLiteral",
+        "InvalidParameterIndex",
+        "InvalidPredicateProgram",
+        "InvalidProjection",
+        "InvalidSqlEncoding",
+        "InvalidSqlSyntax",
+        "LiteralOutOfRange",
+        "LiteralTooLarge",
+        "PredicateTooComplex",
+        "StatementTooLarge",
+        "UnboundParameters",
+        "UnsupportedAggregate",
+        "UnsupportedConstruct",
+        "UnsupportedStatement"
+      ],
+      "mappings": [
+        "sql-compilation"
+      ],
+      "reason": "Compiler-inferred set is conservative; it includes errors normalized by the enclosing compiler.",
+      "exceptions": {
+        "IncompleteSql": "Consumed editor cursor sentinel; public parse paths do not provide the cursor assistance that creates it. The SQL mapping manifest owns its control-flow tests."
+      }
+    },
+    "sql-declaration": {
+      "causes": [
+        "CommentTooDeep",
+        "DeclarationTooManyColumns",
+        "DuplicateColumn",
+        "IncompleteSql",
+        "InvalidColumnCount",
+        "InvalidColumnName",
+        "InvalidParameterIndex",
+        "InvalidSqlEncoding",
+        "InvalidSqlSyntax",
+        "NotTableDeclaration",
+        "StatementTooLarge",
+        "UnboundParameters",
+        "UnspecifiedNullability",
+        "UnsupportedConstruct",
+        "UnsupportedDeclaration",
+        "UnsupportedDeclarationType",
+        "UnsupportedSchema",
+        "UnsupportedStatement",
+        "UnsupportedTableColumnCount",
+        "UnsupportedTableKey",
+        "UnsupportedTableNullability"
+      ],
+      "mappings": [
+        "sql-compilation"
+      ],
+      "reason": "Compiler-inferred set is conservative; it includes errors normalized by the enclosing compiler.",
+      "exceptions": {
+        "IncompleteSql": "Consumed editor cursor sentinel; public parse paths do not provide the cursor assistance that creates it. The SQL mapping manifest owns its control-flow tests."
+      }
+    },
+    "sql-mutation": {
+      "causes": [
+        "CellTooLarge",
+        "CommentTooDeep",
+        "DuplicateColumn",
+        "DuplicateMutationKey",
+        "ImmutablePrimaryKey",
+        "IncompleteSql",
+        "InvalidBinaryLiteral",
+        "InvalidColumnName",
+        "InvalidMutationPlan",
+        "InvalidNumericLiteral",
+        "InvalidParameterIndex",
+        "InvalidSqlEncoding",
+        "InvalidSqlSyntax",
+        "InvalidUtf8",
+        "LiteralOutOfRange",
+        "LiteralTooLarge",
+        "MutationBatchTooLarge",
+        "NullPrimaryKey",
+        "StatementTooLarge",
+        "TypeMismatch",
+        "UnboundParameters",
+        "UnknownColumn",
+        "UnknownQualifier",
+        "UnknownSource",
+        "UnsupportedConstruct",
+        "UnsupportedLiteral",
+        "UnsupportedMutationPredicate",
+        "UnsupportedSchema",
+        "UnsupportedStatement"
+      ],
+      "mappings": [
+        "sql-compilation"
+      ],
+      "reason": "Compiler-inferred set is conservative; it includes errors normalized by the enclosing compiler.",
+      "exceptions": {
+        "IncompleteSql": "Consumed editor cursor sentinel; public parse paths do not provide the cursor assistance that creates it. The SQL mapping manifest owns its control-flow tests."
+      }
+    },
+    "sql-inspection": {
+      "causes": [
+        "CommentTooDeep",
+        "IncompleteSql",
+        "InvalidColumnName",
+        "InvalidNumericLiteral",
+        "InvalidParameterIndex",
+        "InvalidPredicateProgram",
+        "InvalidProjection",
+        "InvalidSqlEncoding",
+        "InvalidSqlSyntax",
+        "LiteralOutOfRange",
+        "LiteralTooLarge",
+        "PredicateTooComplex",
+        "StatementTooLarge",
+        "UnboundParameters",
+        "UnsupportedAggregate",
+        "UnsupportedCatalog",
+        "UnsupportedConstruct",
+        "UnsupportedStatement"
+      ],
+      "mappings": [
+        "sql-compilation"
+      ],
+      "reason": "Compiler-inferred set is conservative; it includes errors normalized by the enclosing compiler.",
+      "exceptions": {
+        "IncompleteSql": "Consumed editor cursor sentinel; public parse paths do not provide the cursor assistance that creates it. The SQL mapping manifest owns its control-flow tests."
+      }
+    },
+    "file-compiler": {
+      "causes": null,
+      "mappings": [],
+      "reason": "Transport, allocator or callback APIs expose anyerror. Selected known causes are mapped separately; arbitrary external causes cannot be enumerated.",
+      "exceptions": {},
+      "fallback": "file"
+    },
+    "file-discovery": {
+      "causes": null,
+      "mappings": [],
+      "reason": "Transport, allocator or callback APIs expose anyerror. Selected known causes are mapped separately; arbitrary external causes cannot be enumerated.",
+      "exceptions": {},
+      "fallback": "file"
+    },
+    "serving-read": {
+      "causes": null,
+      "mappings": [],
+      "reason": "Transport, allocator or callback APIs expose anyerror. Selected known causes are mapped separately; arbitrary external causes cannot be enumerated.",
+      "exceptions": {},
+      "fallback": "serving"
+    },
+    "serving-submit": {
+      "causes": null,
+      "mappings": [],
+      "reason": "Transport, allocator or callback APIs expose anyerror. Selected known causes are mapped separately; arbitrary external causes cannot be enumerated.",
+      "exceptions": {},
+      "fallback": "serving"
+    },
+    "reactive-read": {
+      "causes": null,
+      "mappings": [],
+      "reason": "Transport, allocator or callback APIs expose anyerror. Selected known causes are mapped separately; arbitrary external causes cannot be enumerated.",
+      "exceptions": {},
+      "fallback": "serving"
+    },
+    "reactive-caller": {
+      "causes": null,
+      "mappings": [],
+      "reason": "Transport, allocator or callback APIs expose anyerror. Selected known causes are mapped separately; arbitrary external causes cannot be enumerated.",
+      "exceptions": {},
+      "fallback": "serving"
+    }
+  },
+  "fallbacks": {
+    "query.read": {
+      "code": "query.internal_failure",
+      "category": "internal",
+      "stage": "read",
+      "outcome": "not_applicable",
+      "evidence": "none",
+      "actions": [
+        "contact_operator"
+      ]
+    },
+    "query.dispatched": {
+      "code": "query.send_unknown",
+      "category": "unavailable",
+      "stage": "submit",
+      "outcome": "unknown",
+      "evidence": "saved_intent",
+      "actions": [
+        "inspect_status",
+        "resume_exact"
+      ]
+    },
+    "mutation.read": {
+      "code": "mutation.internal_failure",
+      "category": "internal",
+      "stage": "read",
+      "outcome": "not_applicable",
+      "evidence": "none",
+      "actions": [
+        "contact_operator"
+      ]
+    },
+    "mutation.dispatched": {
+      "code": "mutation.send_unknown",
+      "category": "unavailable",
+      "stage": "submit",
+      "outcome": "unknown",
+      "evidence": "saved_intent",
+      "actions": [
+        "inspect_status",
+        "resume_exact"
+      ]
+    },
+    "catalog.read": {
+      "code": "catalog.internal_failure",
+      "category": "internal",
+      "stage": "read",
+      "outcome": "not_applicable",
+      "evidence": "none",
+      "actions": [
+        "contact_operator"
+      ]
+    },
+    "catalog.dispatched": {
+      "code": "catalog.send_unknown",
+      "category": "unavailable",
+      "stage": "submit",
+      "outcome": "unknown",
+      "evidence": "saved_intent",
+      "actions": [
+        "inspect_status",
+        "resume_exact"
+      ]
+    },
+    "application.read": {
+      "code": "application.host_internal_failure",
+      "category": "internal",
+      "stage": "read",
+      "outcome": "not_applicable",
+      "evidence": "none",
+      "actions": [
+        "inspect_status",
+        "contact_operator"
+      ]
+    },
+    "application.dispatched": {
+      "code": "application.send_unknown",
+      "category": "unavailable",
+      "stage": "submit",
+      "outcome": "unknown",
+      "evidence": "saved_intent",
+      "actions": [
+        "inspect_status",
+        "resume_exact"
+      ]
+    },
+    "serving.read": {
+      "code": "serving.adapter_internal_failure",
+      "category": "internal",
+      "stage": "read",
+      "outcome": "not_applicable",
+      "evidence": "none",
+      "actions": [
+        "contact_operator"
+      ]
+    },
+    "serving.dispatched": {
+      "code": "serving.send_unknown",
+      "category": "unavailable",
+      "stage": "submit",
+      "outcome": "unknown",
+      "evidence": "saved_intent",
+      "actions": [
+        "inspect_status",
+        "resume_exact"
+      ]
+    },
+    "serving.receipt": {
+      "code": "serving.ingress_accepted",
+      "category": "lifecycle",
+      "stage": "submit",
+      "outcome": "pending",
+      "evidence": "native_receipt",
+      "actions": [
+        "inspect_status"
+      ]
+    }
+  }
+}

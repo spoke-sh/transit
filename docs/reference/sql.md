@@ -84,6 +84,8 @@ escape controls and show at most 32 bytes with explicit truncation. These local
 details are correction context, not telemetry. They do not fetch stored values
 or inaccessible catalog candidates. Parameter failures distinguish index gaps,
 incompatible repeated types, missing bindings and changed prepared sources.
+A typed mutation target with an unsupported schema version reports its supplied
+version and the required version without inventing a SQL source position.
 
 File-query failures retain the source path, logical record and record-start byte
 when known, and the field for decoding failures. Record numbering is local to

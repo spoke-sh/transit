@@ -46,7 +46,12 @@ pub fn lower(ast: sql.Mutation, target: Target) !Plan {
     return lowerDiagnostic(ast, target, null);
 }
 pub fn lowerDiagnostic(ast: sql.Mutation, target: Target, diagnostic: ?*sql.Binding) !Plan {
-    try target.schema.validate();
+    target.schema.validate() catch |err| {
+        if (err == error.UnsupportedSchema) if (diagnostic) |detail| {
+            detail.schema_version = target.schema.version;
+        };
+        return err;
+    };
     try validName(target.name);
     try validName(ast.source);
     if (!sameName(ast.source, target.name)) {

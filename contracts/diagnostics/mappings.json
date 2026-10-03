@@ -300,6 +300,10 @@
         "UnsupportedTableType": {
           "code": "sql.unsupported_table_type",
           "category": "unsupported"
+        },
+        "UnsupportedSchema": {
+          "code": "sql.unsupported_schema",
+          "category": "unsupported"
         }
       }
     },

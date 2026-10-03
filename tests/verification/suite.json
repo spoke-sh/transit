@@ -225,6 +225,7 @@
     "check-core": [
       "test::diagnostic-inventory",
       "test::diagnostic-mappings",
+      "test::diagnostic-errors",
       "test::diagnostic-outcomes",
       "test::diagnostic-grammar",
       "test::unit",

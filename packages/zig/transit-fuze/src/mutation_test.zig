@@ -122,3 +122,24 @@ test "mutation compiler distinguishes submitted duplicate keys null keys and val
     try t.expectEqualStrings("utf8", detail.actual.?);
     try t.expectEqual(2, detail.input_row.?);
 }
+
+test "foreign mutation schema version retains the actual field without a SQL caret" {
+    var foreign = try target(.int64);
+    foreign.schema.version = 2;
+    var context: f.Sql.Binding = .{};
+    const text = "DELETE FROM items WHERE id=1";
+    try t.expectError(error.UnsupportedSchema, mutation.compileDiagnostic(text, foreign, &context));
+    const detail = f.SqlDiagnostic.writeCompiler(text, error.UnsupportedSchema, .mutation, context).?;
+    const value = try detail.structured();
+    try t.expectEqualStrings("sql.unsupported_schema", value.code.slice());
+    try t.expectEqual(.unsupported, value.category);
+    try t.expectEqual(.not_submitted, value.outcome);
+    try t.expect(value.location == null);
+    try t.expectEqualStrings("schema.version", value.facts[0].?.value.?.text.slice());
+    try t.expectEqual(@as(u64, 1), try value.facts[1].?.value.?.unsigned.value());
+    try t.expectEqual(@as(u64, 2), try value.facts[2].?.value.?.unsigned.value());
+    var buffer: [2048]u8 = undefined;
+    var output: std.Io.Writer = .fixed(&buffer);
+    try detail.render(&output);
+    try t.expect(std.mem.indexOf(u8, output.buffered(), "Schema version: 2; required: 1.") != null);
+}

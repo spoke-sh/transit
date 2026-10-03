@@ -13688,3 +13688,18 @@ recovery (**60.82 seconds**). These execute the corresponding `test-serving`
 flags with `TMPDIR=/var/tmp` after entering the pinned shell. Logs:
 `/var/tmp/transit-serving-caller-{client,limits}.log`. Browser and final clean
 committed-HEAD qualification remain separate.
+
+### Compiler-inferred diagnostic boundary coverage (2026-10-03)
+
+The pinned native unit suite and `just test::diagnostic-errors` pass. The gate
+checks sixteen public inferred error sets and eleven unknown-callback projections,
+including read versus exact uncertain dispatch and received native receipt.
+Changed/new finite causes, a newly open set, omitted projections, fabricated
+rejection and changed recovery targets fail mutation checks. An initial fixture
+used an incomplete catalog cursor; it was corrected to the public null first-page
+selection and rerun. File I/O remains an explicitly open boundary with separate
+CLI projection ownership. The gate does not prove every inferred cause reachable.
+
+The actual typed mutation compiler rejects a foreign target schema version with
+`sql.unsupported_schema`, original version 2, required version 1, no SQL caret
+and a no-send outcome. Existing native fixture and unit suites pass unchanged.

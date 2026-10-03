@@ -157,3 +157,13 @@ context changes malformed retained declarations to integrity failures with HTTP
 502. Transport closure remains distinct from durable session closure, and unknown
 byte-exhaustion origin is explicit. Receipt evidence has priority over a later
 transport or rendering failure.
+
+`boundaries.json` checks actual compiler-inferred public error sets using the
+pinned Zig compiler (`just test::diagnostic-errors`). Each finite cause belongs
+to a semantic mapping or a documented control-flow/internal invariant. These
+types are conservative: a conditional rethrow can retain causes normalized by
+the implementation. Open transport/callback error sets remain explicitly open.
+Unknown-cause projections check read, uncertain dispatch and receipt precedence;
+unknown callbacks cannot establish a terminal domain outcome. This type gate
+complements the lexical inventory and the independently reviewed outcome matrix;
+it does not enumerate arbitrary application callbacks or operating-system errors.
