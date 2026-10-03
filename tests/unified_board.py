@@ -70,8 +70,15 @@ def check(binary, root, kind, invoke, expected, fixture, start, browser=False):
     assert listed['details'] == {'tables': ['items'] if kind == 'table' else []}
     explained = api({'inspect': {'sql': 'EXPLAIN SELECT count(*) FROM items'}})['inspection']
     assert explained['details']['explanation']['operators'] == ['scan', 'count']
-    assert api({'inspect': {'sql': 'SHOW SOURCES'}}, status=400) == {'err': 'UnsupportedQuery'}
-    assert api({'inspect': {'sql': "EXPLAIN SELECT * FROM items WHERE id = 'oops'::uint64"}}, status=400) == {'err': 'UnsupportedQuery'}
+    unsupported = api({'inspect': {'sql': 'SHOW SOURCES'}}, status=400)
+    assert unsupported['err'] == 'UnsupportedQuery'
+    assert unsupported['diagnostic']['category'] == 'unsupported'
+    assert unsupported['diagnostic']['outcome'] == 'not_submitted'
+    literal = api({'inspect': {'sql': "EXPLAIN SELECT * FROM items WHERE id = 'oops'::uint64"}}, status=400)
+    assert literal['err'] == 'UnsupportedQuery' and literal['diagnostic']['code'] == 'sql.invalid_numeric_literal'
+    unknown = api({'inspect': {'sql': 'EXPLAIN SELECT missing FROM items'}}, status=400)['diagnostic']
+    assert unknown['code'] == 'sql.unknown_column' and unknown['location']['offset'] == '15'
+    assert any(f and f['field'] == 'column' and f['value'] == {'text': 'missing'} for f in unknown['facts'])
     assisted = api({'assist': {'sql':'SELECT * FROM it','cursor':16,'generation':7}})['assistance']
     assert assisted['version'] == 1 and assisted['generation'] == 7 and assisted['profile'] == 'unified_v1'
     assert assisted['resource'] == caller['connection']['resource']
@@ -90,8 +97,11 @@ def check(binary, root, kind, invoke, expected, fixture, start, browser=False):
     api({'describe': {}}, headers={'Origin': 'https://untrusted.example'}, status=403)
     api({'compile': {'sql': 'DELETE FROM items'}}, status=400)
     api({'submit': {'token': '{}'}}, status=400)
-    assert request('/api/v2/query', {'describe': {}}, status=400) == {'err': 'InvalidQuery'}
-    assert api({'status': '3'})['status'] is None
+    assert request('/api/v2/query', {'describe': {}}, status=400) == {'err': 'InvalidQuery', 'diagnostic': None}
+    # The shell proof retains namespaces 2 and 3, including parameterized work.
+    # Board must use fresh identities rather than erase or reuse that history.
+    namespace_base = 30000
+    assert api({'status': str(namespace_base)})['status'] is None
     first = api({'page': {'namespace': '1'}})['page']
     assert first['evidence']['next'] and first['cells']
     invoke('revoke', direct=True)
@@ -107,12 +117,12 @@ def check(binary, root, kind, invoke, expected, fixture, start, browser=False):
     deadline = time.monotonic()+300
     # Independent instances have disposable locks. The native sequence and
     # requester-owned active slot must arbitrate their actual competing work.
-    prepared = [api({'next': {'namespace': str(3+i), 'bundle': compiled['bundle']}}, instance=i)['prepared'] for i in range(2)]
+    prepared = [api({'next': {'namespace': str(namespace_base+i), 'bundle': compiled['bundle']}}, instance=i)['prepared'] for i in range(2)]
     with ThreadPoolExecutor(max_workers=2) as pool:
         admissions = list(pool.map(lambda i: api({'submit': prepared[i]}, instance=i, status=None), range(2)))
     assert sorted(code for code, _ in admissions) == [200, 409], admissions
     winner = next(i for i, (code, _) in enumerate(admissions) if code == 200)
-    namespace, refused = str(3+winner), str(4-winner)
+    namespace, refused = str(namespace_base+winner), str(namespace_base+1-winner)
     receipt = admissions[winner][1]['receipt']
     with ThreadPoolExecutor(max_workers=2) as pool:
         retries = list(pool.map(lambda i: api({'submit': prepared[winner]}, instance=i)['receipt'], range(2)))

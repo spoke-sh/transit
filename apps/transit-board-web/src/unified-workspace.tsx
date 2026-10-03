@@ -12,6 +12,8 @@ import { verifiedPage } from "./unified-result";
 import { liveQuery, liveDraft, querySession, selectLiveTemplate } from "./query-live";
 import { QueryCandidates } from "./query-candidates";
 import { SqlEditor } from "./sql-editor";
+import type { Diagnostic } from "@rey/transit-query-client";
+import { QueryDiagnostic } from "./query-diagnostic";
 import { QueryProfile } from "./query-profile";
 import { QueryInspection, type Inspection } from "./query-inspection";
 import { DraftControls } from "./draft-controls";
@@ -109,7 +111,16 @@ export function UnifiedWorkspace({
   const [inspectionDraft, setInspectionDraft] = useState("");
   const [status, setStatus] = useState<Status>(null);
   const [page, setPage] = useState<Page | null>(null);
-  const [error, setError] = useState("");
+  const [error, updateError] = useState("");
+  const [diagnostic, setDiagnostic] = useState<Diagnostic | null>(null);
+  const setError = (message: string) => {
+    updateError(message);
+    setDiagnostic(null);
+  };
+  const showError = (cause: unknown) => {
+    setError(errorText(cause));
+    if (cause instanceof BoardError) setDiagnostic(cause.diagnostic ?? null);
+  };
   const [authorized, setAuthorized] = useState(false);
   const [working, setWorking] = useState(false);
   const [revision, refresh] = useState(0);
@@ -138,6 +149,7 @@ export function UnifiedWorkspace({
     abort.current.abort();
     abort.current = new AbortController();
     verified.current = null;
+    setDiagnostic(null);
     setSource(null);
     setDraft("");
     setRunDraft("");
@@ -159,7 +171,7 @@ export function UnifiedWorkspace({
         await operation(signal);
       } catch (cause) {
         if (alive.current && !signal.aborted) {
-          setError(errorText(cause));
+          showError(cause);
           if (cause instanceof BoardError && cause.code === "BindingChanged") {
             setAuthorized(false);
             setPage(null);
@@ -385,7 +397,7 @@ export function UnifiedWorkspace({
       setPage(null);
       setInspection(null);
       setAuthorized(false);
-      setError(errorText(cause));
+      showError(cause);
       liveDraft.pause();
       return;
     }
@@ -426,7 +438,7 @@ export function UnifiedWorkspace({
         setPage(null);
         setInspection(null);
         setAuthorized(false);
-        setError(errorText(cause));
+        showError(cause);
         void liveQuery.pause();
         return;
       }
@@ -532,13 +544,18 @@ export function UnifiedWorkspace({
         </button>
       </div>
       <p role="status" className="query-status">
-        {error ||
+        {(!diagnostic && error) ||
           (working
             ? "Checking current query evidence…"
             : status
               ? `Query ${work.current.namespace}: ${status.phase}`
               : "Run is explicit; switching views does not execute.")}
       </p>
+      {diagnostic ? (
+        <QueryDiagnostic value={diagnostic} />
+      ) : status?.diagnostic ? (
+        <QueryDiagnostic value={status.diagnostic} />
+      ) : null}
       <DraftControls
         session={liveDraft}
         available={authorized && source !== null && "table" in source.source.source.source}

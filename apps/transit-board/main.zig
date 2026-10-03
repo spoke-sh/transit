@@ -69,29 +69,35 @@ const Server = struct {
         return self.respond(req, status, body.written(), "application/json");
     }
     fn failure(self: *Server, req: *std.http.Server.Request, status: std.http.Status, code: @FieldType(api.Error, "err")) !void {
+        return self.failureDiagnostic(req, status, code, null);
+    }
+    fn failureDiagnostic(self: *Server, req: *std.http.Server.Request, status: std.http.Status, code: @FieldType(api.Error, "err"), diagnostic: ?client.protocol.Diagnostic) !void {
         self.observation.error_type = @tagName(code);
-        return self.json(req, status, api.Error{ .err = code });
+        return self.json(req, status, api.Error{ .err = code, .diagnostic = diagnostic });
     }
     fn queryFailure(self: *Server, req: *std.http.Server.Request, upstream: *client.Client, err: anyerror) !void {
-        if (err == error.AccessDenied or err == error.QueryAccessDenied or err == error.QueryDenied) return self.failure(req, .forbidden, .Forbidden);
-        if (err == error.UnsafePrincipal) return self.failure(req, .forbidden, .UnsafePrincipal);
-        if (err == error.InvalidDocumentCursor) return self.failure(req, .bad_request, .InvalidQuery);
-        if (err == error.DocumentHistoryGap or err == error.DocumentResyncRequired) return self.failure(req, .conflict, .HistoryReclaimed);
-        if (err == error.QueryChanged or err == error.QueryReadConflict or upstream.last_rejection == .StaleStateResource or upstream.last_rejection == .QueryExpired) return self.failure(req, .conflict, .QueryExpired);
-        if (err == error.QuerySourceUnavailable or err == error.ExchangeUnavailable or err == error.ResourceUnavailable or err == error.DocumentRetired or upstream.last_rejection == .StateResourceExpired) return self.failure(req, .gone, .StateResourceExpired);
-        if (err == error.ExchangeNotFound or err == error.DocumentNotFound or upstream.last_rejection == .UnknownStateResource) return self.failure(req, .not_found, .NotFound);
-        if (err == error.QueryBusy) return self.failure(req, .conflict, .QueryBusy);
+        return self.queryFailureDiagnostic(req, upstream, err, null);
+    }
+    fn queryFailureDiagnostic(self: *Server, req: *std.http.Server.Request, upstream: *client.Client, err: anyerror, diagnostic: ?client.protocol.Diagnostic) !void {
+        if (err == error.AccessDenied or err == error.QueryAccessDenied or err == error.QueryDenied) return self.failureDiagnostic(req, .forbidden, .Forbidden, diagnostic);
+        if (err == error.UnsafePrincipal) return self.failureDiagnostic(req, .forbidden, .UnsafePrincipal, diagnostic);
+        if (err == error.InvalidDocumentCursor) return self.failureDiagnostic(req, .bad_request, .InvalidQuery, diagnostic);
+        if (err == error.DocumentHistoryGap or err == error.DocumentResyncRequired) return self.failureDiagnostic(req, .conflict, .HistoryReclaimed, diagnostic);
+        if (err == error.QueryChanged or err == error.QueryReadConflict or upstream.last_rejection == .StaleStateResource or upstream.last_rejection == .QueryExpired) return self.failureDiagnostic(req, .conflict, .QueryExpired, diagnostic);
+        if (err == error.QuerySourceUnavailable or err == error.ExchangeUnavailable or err == error.ResourceUnavailable or err == error.DocumentRetired or upstream.last_rejection == .StateResourceExpired) return self.failureDiagnostic(req, .gone, .StateResourceExpired, diagnostic);
+        if (err == error.ExchangeNotFound or err == error.DocumentNotFound or upstream.last_rejection == .UnknownStateResource) return self.failureDiagnostic(req, .not_found, .NotFound, diagnostic);
+        if (err == error.QueryBusy) return self.failureDiagnostic(req, .conflict, .QueryBusy, diagnostic);
         if ((err == error.Rejected or err == error.Conflict) and
             (upstream.last_rejection == .ConflictingRetry or upstream.last_rejection == .SequenceGap or upstream.last_rejection == .RetryHorizonExceeded))
-            return self.failure(req, .conflict, .QueryConflict);
-        if (err == error.IncompleteResult or err == error.HttpReplayGap or err == error.InvalidExchangeCoverage or err == error.GrpcReplayGap or err == error.GrpcInspectionCapacity or err == error.InvalidGrpcCapture or err == error.HttpInspectionCapacity or err == error.WrongExchangeProtocol) return self.failure(req, .conflict, .IncompleteResult);
-        if (err == error.InvalidQueryOrdinal) return self.failure(req, .bad_request, .InvalidQueryOrdinal);
-        if (err == error.QueryRequestTooLarge) return self.failure(req, .bad_request, .QueryRequestTooLarge);
-        if (upstream.last_rejection == .HistoryReclaimed) return self.failure(req, .conflict, .HistoryReclaimed);
-        if (upstream.last_rejection == .UnknownProcess) return self.failure(req, .not_found, .NotFound);
-        if (upstream.last_rejection == .InvalidRead) return self.failure(req, .bad_request, .InvalidQuery);
-        if (err == error.Conflict) return self.failure(req, .conflict, .QueryConflict);
-        return self.failure(req, .service_unavailable, .Unavailable);
+            return self.failureDiagnostic(req, .conflict, .QueryConflict, diagnostic);
+        if (err == error.IncompleteResult or err == error.HttpReplayGap or err == error.InvalidExchangeCoverage or err == error.GrpcReplayGap or err == error.GrpcInspectionCapacity or err == error.InvalidGrpcCapture or err == error.HttpInspectionCapacity or err == error.WrongExchangeProtocol) return self.failureDiagnostic(req, .conflict, .IncompleteResult, diagnostic);
+        if (err == error.InvalidQueryOrdinal) return self.failureDiagnostic(req, .bad_request, .InvalidQueryOrdinal, diagnostic);
+        if (err == error.QueryRequestTooLarge) return self.failureDiagnostic(req, .bad_request, .QueryRequestTooLarge, diagnostic);
+        if (upstream.last_rejection == .HistoryReclaimed) return self.failureDiagnostic(req, .conflict, .HistoryReclaimed, diagnostic);
+        if (upstream.last_rejection == .UnknownProcess) return self.failureDiagnostic(req, .not_found, .NotFound, diagnostic);
+        if (upstream.last_rejection == .InvalidRead) return self.failureDiagnostic(req, .bad_request, .InvalidQuery, diagnostic);
+        if (err == error.Conflict) return self.failureDiagnostic(req, .conflict, .QueryConflict, diagnostic);
+        return self.failureDiagnostic(req, .service_unavailable, .Unavailable, diagnostic);
     }
     fn applicationRequest(self: *Server, req: *std.http.Server.Request, body: []const u8) !void {
         const config = self.config.application orelse return self.failure(req, .not_found, .NotFound);
@@ -166,15 +172,16 @@ const Server = struct {
         upstream.timeout_ms = self.config.upstream_timeout_ms;
         upstream.observer = self.observation.span.runtime;
         upstream.parent_context = self.observation.span.context;
-        const result = growing.unifiedQuery(&upstream, self.io, config, parsed.value, arena.allocator()) catch |err| {
-            // Compiler diagnostics are finite errors, never SQL/payload text.
+        var diagnostic: ?client.protocol.Diagnostic = null;
+        const result = growing.unifiedQueryDiagnostic(&upstream, self.io, config, parsed.value, arena.allocator(), &diagnostic) catch |err| {
+            // Telemetry retains only the finite code; owned detail is returned to the caller.
             switch (err) {
-                error.StatementTooLarge, error.InvalidSqlEncoding, error.UnsupportedStatement, error.UnsupportedCatalog, error.UnsupportedLiteral, error.InvalidNumericLiteral, error.InvalidSqlSyntax, error.UnsupportedConstruct, error.CommentTooDeep, error.LiteralTooLarge, error.LiteralOutOfRange, error.InvalidColumnName, error.UnknownSource, error.UnknownColumn, error.UnknownQualifier, error.DuplicateProjection, error.InvalidProjection, error.UnsupportedAggregate, error.UnsupportedAggregateLimit, error.UnsupportedNullComparison, error.TypeMismatch, error.CellTooLarge, error.InvalidBinaryLiteral, error.InvalidParameterIndex, error.ParameterGap, error.ParameterTypeConflict, error.ParameterCountMismatch, error.InvalidParameterSite, error.InvalidQueryScalar, error.InvalidQueryInteger, error.InvalidUtf8, error.NonFiniteValue => return self.failure(req, .bad_request, .UnsupportedQuery),
+                error.StatementTooLarge, error.InvalidSqlEncoding, error.UnsupportedStatement, error.UnsupportedCatalog, error.UnsupportedLiteral, error.InvalidNumericLiteral, error.InvalidSqlSyntax, error.UnsupportedConstruct, error.CommentTooDeep, error.LiteralTooLarge, error.LiteralOutOfRange, error.InvalidColumnName, error.UnknownSource, error.UnknownColumn, error.UnknownQualifier, error.DuplicateProjection, error.InvalidProjection, error.UnsupportedAggregate, error.UnsupportedAggregateLimit, error.UnsupportedNullComparison, error.TypeMismatch, error.CellTooLarge, error.InvalidBinaryLiteral, error.InvalidParameterIndex, error.ParameterGap, error.ParameterTypeConflict, error.ParameterCountMismatch, error.InvalidParameterSite, error.InvalidQueryScalar, error.InvalidQueryInteger, error.InvalidUtf8, error.NonFiniteValue => return self.failureDiagnostic(req, .bad_request, .UnsupportedQuery, diagnostic),
                 else => {},
             }
-            if (err == error.QueryDraftConflict or err == error.QueryDraftActive or err == error.QueryDraftClosed or err == error.QueryDraftExhausted) return self.failure(req, .conflict, .QueryConflict);
-            if (err == error.InvalidSqlCursor or err == error.InvalidQuerySearch or err == error.InvalidQueryDraft or err == error.QueryDraftNotFound or err == error.InvalidQueryRequest or err == error.InvalidQueryUpload or err == error.InvalidFrame or err == error.InvalidQueryIdentity or err == error.QueryIdentityMismatch or err == error.QueryBudgetExceeded or err == error.InvalidQueryCursor or err == error.InvalidDocumentInteger or err == error.DocumentEncodingCapacity) return self.failure(req, .bad_request, .InvalidQuery);
-            return self.queryFailure(req, &upstream, err);
+            if (err == error.QueryDraftConflict or err == error.QueryDraftActive or err == error.QueryDraftClosed or err == error.QueryDraftExhausted) return self.failureDiagnostic(req, .conflict, .QueryConflict, diagnostic);
+            if (err == error.InvalidSqlCursor or err == error.InvalidQuerySearch or err == error.InvalidQueryDraft or err == error.QueryDraftNotFound or err == error.InvalidQueryRequest or err == error.InvalidQueryUpload or err == error.InvalidFrame or err == error.InvalidQueryIdentity or err == error.QueryIdentityMismatch or err == error.QueryBudgetExceeded or err == error.InvalidQueryCursor or err == error.InvalidDocumentInteger or err == error.DocumentEncodingCapacity) return self.failureDiagnostic(req, .bad_request, .InvalidQuery, diagnostic);
+            return self.queryFailureDiagnostic(req, &upstream, err, diagnostic);
         };
         return self.json(req, .ok, result);
     }

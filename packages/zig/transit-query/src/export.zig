@@ -10,7 +10,7 @@ pub fn main(init: std.process.Init) !void {
     try q.protocol.Schema.field(&out, "$id", "urn:transit:query-workspace:v1");
     try out.objectField("$defs");
     try out.beginObject();
-    inline for (.{ "Request", "Response", "Draft" }) |name| {
+    inline for (.{ "Request", "Response", "Draft", "Diagnostic" }) |name| {
         try out.objectField(name);
         try q.protocol.Schema.write(@field(q.Workspace, name), &out, if (comptime std.mem.eql(u8, name, "Request")) q.Workspace.request_schema_options else q.Workspace.schema_options);
     }

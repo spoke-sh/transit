@@ -12405,3 +12405,30 @@ original status and cannot become syntax failures.
 The final root unit run also passes with worst-case escaped JSON size validation:
 individually bounded fields cannot produce an envelope exceeding 32 KiB.
 Log: `/var/tmp/transit-diagnostic-escaped-bound.log`.
+
+
+### Board semantic diagnostic transport and presentation
+
+On 2026-10-02, `just test::unified-ingress table` passes with original compiler
+subjects and absolute EXPLAIN positions through the real HTTP host and embedded
+browser. Unsupported catalog syntax and missing columns remain local no-send
+failures. The browser displays their semantic codes, subjects, location and
+outcome without issuing submissions. The existing lost-reply schedule retains
+identical signed bytes; Live draft recovery after reload, current denial clearing,
+competing instances, active quotas and worker/node/disk restart all pass. The
+run uses native/port callers; no installed SDK variants were selected. It reports
+41 rows, six segments, 13,584 result bytes, eight resident authority pages and
+45,355,008 bytes combined Board RSS; total runtime 225.43 seconds.
+Log: `/var/tmp/transit-board-diagnostic-ingress3.log`.
+
+The preceding integration runs stopped at an obsolete coarse-error expectation
+and then at a fixture namespace reused by the parameterized shell schedule.
+The corrected Board fixture uses fresh identities and preserves shell history.
+`just check` passes, including root units, generated-contract checks, 460 CLI
+cases, browser component/type checks and documentation build. Browser boundary
+checks reject foreign definitions, malformed Unicode, oversized/contradictory
+optional detail, unsafe recovery actions and status/outcome disagreement without
+changing the transport retry rules. Rendering treats text as text and creates no
+action buttons. Logs: `/var/tmp/transit-board-diagnostic-full-check3.log` and
+`/var/tmp/transit-board-diagnostic-status-check.log`. This does not establish
+application-editor, reactive-adapter or every inspection error mapping.

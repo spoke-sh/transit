@@ -1,3 +1,4 @@
+import { ownedDiagnostic } from "./diagnostics";
 import type { Response as UnifiedQueryResponse } from "./types";
 import { Response as schema } from "./validators.js";
 
@@ -175,7 +176,19 @@ export function validateUnifiedQuery(input: unknown): input is UnifiedQueryRespo
       value.prepared === null ||
       (value.prepared.token.length > 0 && text(value.prepared.token, 8192))
     );
-  if ("status" in value) return value.status === null || unsigned(value.status.correlation);
+  if ("status" in value) {
+    if (value.status === null) return true;
+    if (!unsigned(value.status.correlation)) return false;
+    const diagnostic = value.status.diagnostic;
+    if (diagnostic === null) return true;
+    const phase = value.status.phase;
+    return (
+      !ownedDiagnostic(diagnostic).invalid &&
+      diagnostic.evidence === "domain_status" &&
+      diagnostic.identity?.domain === "query" &&
+      diagnostic.outcome === (phase === "denied" || phase === "rejected" ? "rejected" : phase)
+    );
+  }
   if ("receipt" in value) return value.receipt.position > 0;
   if ("page" in value) {
     const page = value.page,

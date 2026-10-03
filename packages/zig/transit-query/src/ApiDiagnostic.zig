@@ -17,18 +17,25 @@ pub fn category(action: q.Bridge.Action, cause: anyerror) d.Category {
 }
 
 pub fn project(action: q.Bridge.Action, cause: anyerror, binding: q.fuze.Sql.Binding, dispatched: bool, identity: ?d.Identity) !d {
-    if (action == .compile or action == .inspect) {
-        const source = if (action == .compile) action.compile.sql else action.inspect.sql;
-        if (q.fuze.SqlDiagnostic.bound(source, cause, true, binding)) |sql| return sql.structured();
-    }
-    const sending = action == .submit and dispatched;
-    const rejected = cause == error.AccessDenied or cause == error.Rejected or cause == error.Conflict;
     const stage: d.Stage = switch (action) {
         .compile => .compile,
         .prepare, .next => .prepare,
         .submit => if (dispatched) .submit else .prepare,
         else => .read,
     };
+    return attempt(@tagName(action), stage, switch (action) {
+        .compile => |input| input.sql,
+        .inspect => |input| input.sql,
+        else => null,
+    }, cause, binding, dispatched, identity);
+}
+
+/// The caller supplies the original compiler witness and the actual dispatch
+/// boundary. A failed inspection never implies a saved domain outcome.
+pub fn attempt(operation: []const u8, stage: d.Stage, source: ?[]const u8, cause: anyerror, binding: q.fuze.Sql.Binding, dispatched: bool, identity: ?d.Identity) !d {
+    if (source) |sql| if (q.fuze.SqlDiagnostic.bound(sql, cause, true, binding)) |detail| return detail.structured();
+    const sending = stage == .submit and dispatched;
+    const rejected = cause == error.AccessDenied or cause == error.Rejected or cause == error.Conflict;
     var result = if (sending and !rejected)
         try d.init("query.send_unknown", .unavailable, .submit, .unknown, .saved_intent, "The signed command's outcome is unknown. Retain its exact saved bytes and reconcile before preparing another command.")
     else if (sending)
@@ -47,7 +54,7 @@ pub fn project(action: q.Bridge.Action, cause: anyerror, binding: q.fuze.Sql.Bin
     };
     result.cause = try d.Code.init(@errorName(cause));
     result.identity = identity;
-    try result.text(.operation, .caller, @tagName(action));
+    try result.text(.operation, .caller, operation);
     if (sending) {
         try result.action(.inspect_status);
         if (!rejected and identity != null) try result.action(.resume_exact);

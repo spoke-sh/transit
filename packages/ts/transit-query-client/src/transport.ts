@@ -1,12 +1,19 @@
-import type { Request, Response } from "./types";
+import { ownedDiagnostic } from "./diagnostics";
+import type { Diagnostic, Request, Response } from "./types";
 import { Request as validRequest } from "./validators.js";
 import { validateUnifiedQuery } from "./values";
 export class QueryError extends Error {
+  readonly diagnostic: Diagnostic | undefined;
+  readonly diagnosticInvalid: boolean;
   constructor(
     readonly status: number,
     readonly code: string,
+    detail?: unknown,
   ) {
     super(code);
+    const owned = ownedDiagnostic(detail);
+    this.diagnostic = owned.diagnostic;
+    this.diagnosticInvalid = owned.invalid;
   }
 }
 export type Transport = (request: Request, signal?: AbortSignal) => Promise<Response>;
@@ -107,7 +114,13 @@ export function httpTransport(endpoint: string, timeoutMs = 6000): Transport {
           await new Promise((resolve) => setTimeout(resolve, delay));
           continue;
         }
-        throw new QueryError(response.status, code);
+        throw new QueryError(
+          response.status,
+          code,
+          typeof value === "object" && value !== null && "diagnostic" in value
+            ? value.diagnostic
+            : undefined,
+        );
       }
       if (!validateUnifiedQuery(value)) throw new QueryError(0, "InvalidResponse");
       return value;

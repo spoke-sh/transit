@@ -131,6 +131,15 @@ try {
   assert.equal((await unsupportedInspection).ok(), false);
   await expect(inspection).toHaveCount(0);
   assert.equal(submissions, 0);
+  const diagnostic = page.getByLabel("Query diagnostic", { exact: true });
+  await expect(diagnostic).toContainText("sql.unsupported_catalog");
+  await draft.fill("EXPLAIN SELECT missing FROM items");
+  await page.getByRole("button", { name: "Inspect SQL", exact: true }).click();
+  await expect(diagnostic).toContainText("sql.unknown_column");
+  await expect(diagnostic).toContainText('column: "missing"');
+  await expect(diagnostic).toContainText("byte 15");
+  await expect(diagnostic).toContainText("Outcome: not submitted");
+  assert.equal(submissions, 0, "diagnostic rendering must not submit work");
   const completion = page.getByRole("group", { name: "SQL completions", exact: true });
   await draft.fill("SE");
   const coldCompletion = performance.now();

@@ -31,6 +31,31 @@ return a bad-request response. The separate `sql_capabilities` request reports
 local parameter support and grammar bounds. The worksheet has no parameter-entry
 form; existing SQL drafts continue to use ordinary compilation.
 
+## Query diagnostics
+
+Error responses carry the finite `err` identifier and a nullable
+[`diagnostic`](../../contracts/DIAGNOSTICS_V1.md) envelope. Query compilation and
+inspection preserve the original compiler subject, source span, parameter sites
+and expected/actual types. Read, preparation and submission failures describe
+that attempt separately from the saved query's outcome. Unknown submissions
+retain the exact native sequence and recovery guidance; diagnostics never cause
+automatic submission or replace frozen work.
+
+The worksheet displays the semantic message, byte location, exact counters,
+provided or unavailable facts and permitted recovery guidance. Saved query
+failures and Live draft failures use the same display. Current denial clears
+protected source/results and prior diagnostic detail while preserving exact
+recovery intent. Detail is returned to the authorized caller; telemetry records
+only the finite error identifier.
+
+The browser query client retains owned detail on `QueryError.diagnostic` and
+flags invalid optional detail with `diagnosticInvalid`. It checks the generated
+shape, current definition, byte/encoding/number bounds, evidence consistency and
+recovery targets. Invalid detail cannot replace the primary HTTP status/code or
+change the retry policy. Error messages used by ordinary logging contain only
+the finite identifier; caller-facing views explicitly render the detail. Other
+inspection errors may have no diagnostic envelope.
+
 ## Read evidence, not assumptions
 
 Reads are paged and carry their observation basis. A source association is not

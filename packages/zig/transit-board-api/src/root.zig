@@ -120,7 +120,7 @@ pub const Capabilities = struct {
     reactive_table: bool = false,
     push: bool = false,
 };
-pub const Error = struct { err: enum { Forbidden, NotFound, InvalidQuery, QueryExpired, HistoryReclaimed, Unavailable, RateLimited, InvalidOrigin, UnsafePrincipal, StateResourceExpired, QueryDisabled, QueryBusy, UnsupportedQuery, QueryRequestTooLarge, IncompleteResult, InvalidQueryOrdinal, QueryConflict } };
+pub const Error = struct { err: enum { Forbidden, NotFound, InvalidQuery, QueryExpired, HistoryReclaimed, Unavailable, RateLimited, InvalidOrigin, UnsafePrincipal, StateResourceExpired, QueryDisabled, QueryBusy, UnsupportedQuery, QueryRequestTooLarge, IncompleteResult, InvalidQueryOrdinal, QueryConflict }, diagnostic: ?protocol.Diagnostic = null };
 
 pub const UnifiedQueryRequest = @import("transit_query").Workspace.Request;
 pub const UnifiedQueryResponse = @import("transit_query").Workspace.Response;

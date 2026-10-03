@@ -18,6 +18,17 @@ contracts and unknown failures do not acquire this retry policy. Keep frozen
 prepared tokens through every uncertain submission. Choose the timeout above the host's bounded request deadline; the
 default six seconds matches Board's five-second host profile.
 
+`QueryError` retains the primary HTTP `status` and finite `code`. Its optional
+`diagnostic` is an owned, bounded copy of the current diagnostic contract;
+`diagnosticInvalid` flags rejected detail without changing the primary failure
+or retry policy. Validation checks shape, definition, UTF-8/byte/number bounds,
+evidence and action targets. Saved status diagnostics must agree with their
+returned domain outcome. `diagnosticLines` produces caller-facing text, including
+unavailable facts and exact counters; it does not issue requests. Error messages
+contain the finite identifier so a caller chooses explicitly when to display
+detailed names or values. `DraftSnapshot.diagnostic` retains the failed attempt
+or saved outcome and clears on a new state transition.
+
 `{ inspect: { sql } }` reads scoped `DESCRIBE`, `SHOW TABLES` or `EXPLAIN SELECT`
 metadata through the same transport. Its `inspection` response remains separate
 from compiled bundles and Arrow results. Validation checks full-width revisions,

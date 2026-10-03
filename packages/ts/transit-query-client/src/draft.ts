@@ -1,5 +1,5 @@
 import { acquireCaller, type AcquireCaller } from "@rey/transit-reactive-client";
-import type { Draft, Request, Response } from "./types";
+import type { Diagnostic, Draft, Request, Response } from "./types";
 import { QueryError, type Transport } from "./transport";
 import { verifiedPage, type ResultPage } from "./result";
 import { Request as validRequest } from "./validators.js";
@@ -45,6 +45,7 @@ export type DraftSnapshot = {
     | "failed"
     | "denied";
   detail: string;
+  diagnostic: Diagnostic | null;
   budget: Draft | null;
   result: DraftResult | null;
   namespace: string | null;
@@ -83,6 +84,7 @@ export class DraftSession {
   private view: DraftSnapshot = {
     phase: "idle",
     detail: "Live draft is off.",
+    diagnostic: null,
     budget: null,
     result: null,
     namespace: null,
@@ -277,6 +279,7 @@ export class DraftSession {
   private change(value: Partial<DraftSnapshot>) {
     const next = {
       ...this.view,
+      diagnostic: null,
       ...value,
       recoverable: this.intent !== null,
       acceptedWork: this.job !== null || this.intent !== null,
@@ -419,6 +422,7 @@ export class DraftSession {
           ? "uncertain"
           : "failed",
       detail: error instanceof Error ? error.message : "Draft operation unavailable.",
+      diagnostic: error instanceof QueryError ? (error.diagnostic ?? null) : null,
       ...(denied || changed ? { result: null } : {}),
     });
   }
@@ -572,9 +576,10 @@ export class DraftSession {
           });
           return;
         }
-        if (observed.status?.phase === "denied") throw new QueryError(403, "DraftQueryDenied");
+        if (observed.status?.phase === "denied")
+          throw new QueryError(403, "DraftQueryDenied", observed.status.diagnostic);
         if (observed.status?.phase === "rejected" || observed.status?.phase === "retired")
-          throw new QueryError(409, "DraftQueryClosed");
+          throw new QueryError(409, "DraftQueryClosed", observed.status.diagnostic);
         if (observed.status?.phase !== "complete") return;
         if (!this.enabled && !this.observeWanted) return;
         const readyMs = job.recovered ? null : performance.now() - job.started;

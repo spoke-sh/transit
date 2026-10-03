@@ -71,8 +71,16 @@ export async function request<T>(
     throw new BoardError(0, "InvalidResponse");
   }
   if (!response.ok) {
-    const error = errorValidator(value) ? (value as ErrorBody).err : "InvalidResponse";
-    throw new BoardError(response.status, error);
+    const primary =
+      typeof value === "object" && value !== null ? { ...value, diagnostic: null } : value;
+    const error = errorValidator(primary) ? (primary as ErrorBody).err : "InvalidResponse";
+    throw new BoardError(
+      response.status,
+      error,
+      typeof value === "object" && value !== null && "diagnostic" in value
+        ? value.diagnostic
+        : undefined,
+    );
   }
   if (!validate(value)) throw new BoardError(0, "InvalidResponse");
   return value;

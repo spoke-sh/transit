@@ -38,6 +38,7 @@ pub const Draft = struct {
         return result;
     }
 };
+pub const Diagnostic = q.protocol.Diagnostic;
 pub const Compiled = q.SqlCompilation.Result;
 pub const Request = union(enum) {
     describe,
@@ -76,13 +77,14 @@ pub fn apply(allocator: std.mem.Allocator, client: *q.UnifiedClient, config: Con
     return applyDiagnostic(allocator, client, config, request, null);
 }
 pub fn applyDiagnostic(allocator: std.mem.Allocator, client: *q.UnifiedClient, config: Config, request: Request, detail: ?*q.fuze.Sql.Binding) !Response {
-    const definition = try config.source.native(allocator);
-    if (definition.resource != client.connection.resource) return error.QueryIdentityMismatch;
-    const limits = try config.limits.native();
-    const name = try m.Name.init(config.name);
+    if (detail) |value| value.* = .{};
+    const scope = try checkedConfig(allocator, client, config);
+    const definition = scope.definition;
+    const limits = scope.limits;
+    const name = scope.name;
     switch (request) {
         .sql_capabilities => return .{ .sql_capabilities = .{} },
-        .inspect => |value| return .{ .inspection = try client.inspectSql(allocator, .{ .scope = .{ .name = config.name, .source = config.source, .limits = config.limits }, .sql = value.sql }) },
+        .inspect => |value| return .{ .inspection = try q.SqlInspection.applyDiagnostic(allocator, client, .{ .scope = .{ .name = config.name, .source = config.source, .limits = config.limits }, .sql = value.sql }, detail) },
         .assist => |value| {
             _ = try client.describe(definition);
             var columns: [m.max_columns]m.Column = undefined;
@@ -142,4 +144,35 @@ pub fn applyDiagnostic(allocator: std.mem.Allocator, client: *q.UnifiedClient, c
             return .{ .page = .{ .evidence = page, .cells = cells } };
         },
     }
+}
+
+/// Read/prepare failures carry only evidence from this attempt. A dispatch
+/// witness is established by the host only after validating the frozen token.
+pub fn diagnostic(request: Request, cause: anyerror, binding: q.fuze.Sql.Binding, dispatched: bool, identity: ?Diagnostic.Identity) !Diagnostic {
+    const stage: Diagnostic.Stage = switch (request) {
+        .compile => .compile,
+        .next, .next_draft, .draft_open, .draft_close, .prepare_control => .prepare,
+        .submit => if (dispatched) .submit else .prepare,
+        else => .read,
+    };
+    return q.ApiDiagnostic.attempt(@tagName(request), stage, switch (request) {
+        .compile => |value| value.sql,
+        .inspect => |value| value.sql,
+        else => null,
+    }, cause, binding, dispatched, identity);
+}
+
+const Scope = struct { definition: q.SourceDefinition, limits: q.Bundle.Limits, name: m.Name };
+fn checkedConfig(allocator: std.mem.Allocator, client: *q.UnifiedClient, config: Config) !Scope {
+    const definition = try config.source.native(allocator);
+    if (definition.resource != client.connection.resource) return error.QueryIdentityMismatch;
+    return .{ .definition = definition, .limits = try config.limits.native(), .name = try m.Name.init(config.name) };
+}
+/// Preserve the workspace's local scope checks before recording a dispatch
+/// boundary. No native request or replacement command is prepared here.
+pub fn prepareSubmission(allocator: std.mem.Allocator, client: *q.UnifiedClient, config: Config, token: []const u8) !q.UnifiedClient.Prepared {
+    _ = try checkedConfig(allocator, client, config);
+    const prepared = try b.prepared(allocator, token);
+    try client.validate(prepared);
+    return prepared;
 }

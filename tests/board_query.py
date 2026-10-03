@@ -323,8 +323,14 @@ def run(node, host, proof, board, browser=False):
             assert admin("next-sequence").stdout == before, 'compilation recovery allocated a command sequence'
             before = admin("next-sequence").stdout
             for parameters in ([], [{"utf8": "wrong"}, {"uint64": "1"}]):
-                assert api({"compile": parameter_request | {"parameters": parameters}}, status=400) == {"err": "UnsupportedQuery"}
-            assert api({"compile": {"sql": "SELECT value FROM items LIMIT $0", "parameters": []}}, status=400) == {"err": "UnsupportedQuery"}
+                failure = api({"compile": parameter_request | {"parameters": parameters}}, status=400)
+                assert failure['err'] == 'UnsupportedQuery'
+                assert failure['diagnostic']['category'] == 'binding'
+                assert failure['diagnostic']['outcome'] == 'not_submitted'
+                assert failure['diagnostic']['evidence'] == 'local_before_dispatch'
+                assert all(a is None or a['kind'] != 'resume_exact' for a in failure['diagnostic']['actions'])
+            failure = api({"compile": {"sql": "SELECT value FROM items LIMIT $0", "parameters": []}}, status=400)
+            assert failure['err'] == 'UnsupportedQuery' and failure['diagnostic']['code'] == 'sql.invalid_parameter_index'
             assert admin("next-sequence").stdout == before, 'parameter compilation allocated a command sequence'
             compiled = parameterized
             assert "9007199254740994" in json.dumps(compiled["plan"])

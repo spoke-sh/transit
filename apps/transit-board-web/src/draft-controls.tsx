@@ -1,4 +1,5 @@
 import { useState, useSyncExternalStore } from "react";
+import { QueryDiagnostic } from "./query-diagnostic";
 import type { DraftSession } from "@rey/transit-query-client";
 export function DraftControls({
   session,
@@ -27,6 +28,7 @@ export function DraftControls({
       <p>
         {state.phase.replaceAll("_", " ")} · {error || state.detail}
       </p>
+      {state.diagnostic && <QueryDiagnostic value={state.diagnostic} />}
       <label>
         Evaluation intents{" "}
         <select
