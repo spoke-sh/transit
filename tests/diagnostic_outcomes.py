@@ -106,10 +106,12 @@ def self_test(manifest, surface, rows):
 def main():
     manifest = json.loads(MANIFEST.read_text())
     surface = inventory()
-    completed = subprocess.run([str(Path(sys.argv[1]).resolve())], check=True,
-                               capture_output=True, text=True, timeout=60)
-    assert not completed.stderr, completed.stderr
-    rows = [json.loads(line) for line in completed.stdout.splitlines()]
+    rows = []
+    for executable in sys.argv[1:]:
+        completed = subprocess.run([str(Path(executable).resolve())], check=True,
+                                   capture_output=True, text=True, timeout=60)
+        assert not completed.stderr, completed.stderr
+        rows.extend(json.loads(line) for line in completed.stdout.splitlines())
     count = validate(manifest, surface, rows)
     self_test(manifest, surface, rows)
     print(f'Diagnostic outcomes: {count} executed projections across '

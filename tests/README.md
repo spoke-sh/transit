@@ -13703,3 +13703,22 @@ CLI projection ownership. The gate does not prove every inferred cause reachable
 The actual typed mutation compiler rejects a foreign target schema version with
 `sql.unsupported_schema`, original version 2, required version 1, no SQL caret
 and a no-send outcome. Existing native fixture and unit suites pass unchanged.
+
+### File caller diagnostic registry (2026-10-03)
+
+The pinned native unit suite, semantic mapping/type gates and outcome matrix pass.
+The registry covers 122 causes and 139 selected owner/error pairs without mapping
+exceptions. Component-owned projections check every cause at execution and schema
+file decoding, bringing the complete declared matrix to **2,495 projections across
+28 surfaces**. Unit cases render every entry across four local stages, preserve
+incomplete-output truth and exercise unknown callbacks, capture-storage precedence,
+allocation/interruption and scalar-versus-arithmetic overflow. An initial test used
+an obsolete generic cancellation tag; it was corrected to the actual two action
+kinds before the passing run.
+
+`just test::file-query` passes **190 real CLI cases**, including independent exact
+codecs/results, checked gzip, quotas, cancellation/cleanup, immutable capture and
+192 MiB input under a 96 MiB address-space limit. `just test::cli-diagnostics`
+passes **566 real command cases** with no credential/configuration disclosure,
+stdout contamination or provisioning. Documentation links also pass. Open external
+callbacks and OS errors are not claimed to be a finite enumerated set.

@@ -87,9 +87,12 @@ pub fn build(b: *std.Build) void {
         .imports = &.{ .{ .name = "transit_board_api", .module = b.dependency("transit_board_api", .{ .target = target, .optimize = optimize }).module("transit_board_api") }, .{ .name = "transit_flight", .module = flight.module("transit_flight") }, .{ .name = "diagnostic_cases", .module = b.createModule(.{ .root_source_file = diagnostic_cases_file, .target = target, .optimize = optimize }) }, .{ .name = "transit_station_app", .module = application.module("transit_station_app") }, .{ .name = "transit_query", .module = query.module("transit_query") }, .{ .name = "transit_catalog", .module = catalog.module("transit_catalog") }, .{ .name = "transit_serving", .module = serving.module("transit_serving") }, .{ .name = "transit_exchange", .module = exchange.module("transit_exchange") } },
     }) });
     b.step("diagnostic-outcomes", "Build executable semantic outcome projections").dependOn(&b.addInstallArtifact(diagnostic_outcomes, .{}).step);
+    const file_diagnostic_module = b.createModule(.{ .root_source_file = b.path("apps/transit-cli/FileDiagnosticTests.zig"), .target = target, .optimize = optimize, .imports = &.{.{ .name = "transit_query", .module = query.module("transit_query") }} });
+    const file_diagnostics = b.addExecutable(.{ .name = "transit-file-diagnostics", .root_module = file_diagnostic_module });
     const diagnostic_outcomes_test = b.addSystemCommand(&.{ "python3", "-B" });
     diagnostic_outcomes_test.addFileArg(b.path("tests/diagnostic_outcomes.py"));
     diagnostic_outcomes_test.addArtifactArg(diagnostic_outcomes);
+    diagnostic_outcomes_test.addArtifactArg(file_diagnostics);
     diagnostic_outcomes_test.has_side_effects = true;
     diagnostic_outcomes_test.stdio = .inherit;
     b.step("test-diagnostic-outcomes", "Check reviewed semantic outcomes and exact recovery targets").dependOn(&diagnostic_outcomes_test.step);
@@ -175,6 +178,7 @@ pub fn build(b: *std.Build) void {
     const adapter = b.dependency("transit_backend_ursula", .{ .target = target, .optimize = optimize });
     const tests = b.addTest(.{ .root_module = adapter.module("transit_backend_ursula") });
     const test_step = b.step("test", "Run Zig unit and protocol tests");
+    test_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = file_diagnostic_module })).step);
     const work_items_module = b.createModule(.{ .root_source_file = b.path("examples/work-items/WorkItems.zig"), .target = target, .optimize = optimize, .imports = &.{ .{ .name = "transit_station_app", .module = application.module("transit_station_app") }, .{ .name = "transit_query", .module = query.module("transit_query") } } });
     const work_items_test = b.addRunArtifact(b.addTest(.{ .root_module = work_items_module }));
     const work_items = b.addExecutable(.{ .name = "transit-work-items", .root_module = b.createModule(.{ .root_source_file = b.path("examples/work-items/main.zig"), .target = target, .optimize = optimize, .imports = &.{.{ .name = "work_items", .module = work_items_module }} }) });

@@ -3075,6 +3075,538 @@
           "name": "every serving adapter cause preserves read input dispatch and receipt evidence"
         }
       ]
+    },
+    {
+      "id": "file-caller",
+      "profile": "Local file capture, framing, discovery, logical types, value conversion, execution and output",
+      "owners": [
+        "apps/transit-cli/FileCapture.zig",
+        "apps/transit-cli/FileQuery.zig",
+        "packages/zig/transit-fuze/src/FileFraming.zig",
+        "packages/zig/transit-fuze/src/FileQuery.zig",
+        "packages/zig/transit-fuze/src/FileSource.zig",
+        "packages/zig/transit-fuze/src/BoundedJson.zig",
+        "packages/zig/transit-fuze/src/DescriptorJson.zig",
+        "packages/zig/transit-fuze/src/Inference.zig",
+        "packages/zig/transit-fuze/src/JsonDiagnostic.zig",
+        "packages/zig/transit-fuze/src/LogicalArrow.zig",
+        "packages/zig/transit-fuze/src/LogicalCodec.zig",
+        "packages/zig/transit-fuze/src/LogicalJson.zig",
+        "packages/zig/transit-fuze/src/Types.zig",
+        "packages/zig/transit-fuze/src/ValueCodec.zig"
+      ],
+      "exclude": [],
+      "registry": "apps/transit-cli/FileCodes.zig",
+      "projection": "apps/transit-cli/FileDiagnostic.zig",
+      "shared_codes": true,
+      "stage": "Input, decode, compile, execute or output from the actual boundary",
+      "outcome": "not_applicable; completion false, no durable command",
+      "durable_evidence": "Local frozen capture and original decoding evidence; no remote outcome is implied.",
+      "context": "Original path, record, byte, JSON path, type/scalar, discovery and budget witnesses when recorded.",
+      "disclosure": "Bounded caller-owned file data, escaped and explicitly truncated; no telemetry payloads.",
+      "recovery": "Correct invalid input; preserve original failures and discard incomplete output. Never resume or cancel a nonexistent saved command.",
+      "propagation": "SQL compiler detail has priority at the CLI compilation boundary. Unknown callback/OS failures remain internal unless capture storage context establishes unavailability.",
+      "tests": [
+        {
+          "source": "apps/transit-cli/FileDiagnosticTests.zig",
+          "name": "file registry projects every known cause without fabricating completion or saved work"
+        },
+        {
+          "source": "apps/transit-cli/FileDiagnosticTests.zig",
+          "name": "file unknown callbacks and storage context preserve original failure and incomplete output"
+        }
+      ],
+      "exceptions": [],
+      "codes": {
+        "RaggedCsvRow": {
+          "code": "file.ragged_csv_row",
+          "category": "binding"
+        },
+        "DuplicateField": {
+          "code": "file.duplicate_field",
+          "category": "binding"
+        },
+        "UnknownField": {
+          "code": "file.unknown_field",
+          "category": "binding"
+        },
+        "MissingCsvHeader": {
+          "code": "file.missing_csv_header",
+          "category": "binding"
+        },
+        "UnresolvedSchema": {
+          "code": "file.unresolved_schema",
+          "category": "binding"
+        },
+        "JsonObjectRequired": {
+          "code": "file.json_object_required",
+          "category": "binding"
+        },
+        "InvalidLiteral": {
+          "code": "file.invalid_literal",
+          "category": "binding"
+        },
+        "TypeMismatch": {
+          "code": "file.type_mismatch",
+          "category": "binding"
+        },
+        "Inexact": {
+          "code": "file.inexact_value",
+          "category": "binding"
+        },
+        "NonFiniteValue": {
+          "code": "file.nonfinite_value",
+          "category": "binding"
+        },
+        "InvalidDate": {
+          "code": "file.invalid_date",
+          "category": "binding"
+        },
+        "InvalidTime": {
+          "code": "file.invalid_time",
+          "category": "binding"
+        },
+        "InvalidTimestamp": {
+          "code": "file.invalid_timestamp",
+          "category": "binding"
+        },
+        "InvalidUuid": {
+          "code": "file.invalid_uuid",
+          "category": "binding"
+        },
+        "NullNotAllowed": {
+          "code": "file.null_not_allowed",
+          "category": "binding"
+        },
+        "MissingRequiredField": {
+          "code": "file.missing_required_field",
+          "category": "binding"
+        },
+        "InvalidArrayLength": {
+          "code": "file.invalid_array_length",
+          "category": "binding"
+        },
+        "MapKeyOrder": {
+          "code": "file.map_key_collision",
+          "category": "binding"
+        },
+        "QueryTypeError": {
+          "code": "file.type_error_cell",
+          "category": "binding"
+        },
+        "QueryConflict": {
+          "code": "file.conflict_cell",
+          "category": "conflict"
+        },
+        "RecordTooLarge": {
+          "code": "file.record_byte_limit",
+          "category": "limit"
+        },
+        "SourceWorkExceeded": {
+          "code": "file.record_count_limit",
+          "category": "limit"
+        },
+        "SourceBudgetExceeded": {
+          "code": "file.scan_byte_limit",
+          "category": "limit"
+        },
+        "FieldBudgetExceeded": {
+          "code": "file.field_count_limit",
+          "category": "limit"
+        },
+        "HeaderNameBudgetExceeded": {
+          "code": "file.header_name_byte_limit",
+          "category": "limit"
+        },
+        "EmptyJsonRecord": {
+          "code": "file.empty_json_record",
+          "category": "syntax"
+        },
+        "InvalidLineEnding": {
+          "code": "file.invalid_line_ending",
+          "category": "syntax"
+        },
+        "InvalidFieldName": {
+          "code": "file.invalid_field_name",
+          "category": "binding"
+        },
+        "UnsupportedCsvType": {
+          "code": "file.unsupported_csv_type",
+          "category": "unsupported"
+        },
+        "UnsupportedLiteralType": {
+          "code": "file.unsupported_literal_type",
+          "category": "unsupported"
+        },
+        "IncompatibleDefinition": {
+          "code": "file.incompatible_type_definition",
+          "category": "integrity"
+        },
+        "InvalidDecimal": {
+          "code": "file.invalid_decimal_type",
+          "category": "binding"
+        },
+        "InvalidFieldCount": {
+          "code": "file.invalid_schema_field_count",
+          "category": "binding"
+        },
+        "InvalidMapKey": {
+          "code": "file.invalid_map_key_type",
+          "category": "binding"
+        },
+        "InvalidUnion": {
+          "code": "file.invalid_union_type",
+          "category": "binding"
+        },
+        "InvalidEnumTag": {
+          "code": "file.invalid_schema_descriptor",
+          "category": "binding"
+        },
+        "MissingField": {
+          "code": "file.invalid_schema_descriptor",
+          "category": "binding"
+        },
+        "UnexpectedToken": {
+          "code": "file.invalid_schema_descriptor",
+          "category": "binding"
+        },
+        "InvalidCharacter": {
+          "code": "file.invalid_scalar_encoding",
+          "category": "binding"
+        },
+        "InvalidNumber": {
+          "code": "file.invalid_scalar_encoding",
+          "category": "binding"
+        },
+        "LengthMismatch": {
+          "code": "file.invalid_scalar_encoding",
+          "category": "binding"
+        },
+        "JsonByteBudgetExceeded": {
+          "code": "file.json_byte_limit",
+          "category": "limit"
+        },
+        "JsonDepthExceeded": {
+          "code": "file.json_depth_limit",
+          "category": "limit"
+        },
+        "JsonTokenBudgetExceeded": {
+          "code": "file.json_token_limit",
+          "category": "limit"
+        },
+        "JsonFieldBudgetExceeded": {
+          "code": "file.json_field_limit",
+          "category": "limit"
+        },
+        "InferenceDepthExceeded": {
+          "code": "file.inference_depth_limit",
+          "category": "limit"
+        },
+        "InferenceNameBudgetExceeded": {
+          "code": "file.inference_name_limit",
+          "category": "limit"
+        },
+        "InferenceNodeBudgetExceeded": {
+          "code": "file.inference_node_limit",
+          "category": "limit"
+        },
+        "InferenceWorkExceeded": {
+          "code": "file.inference_work_limit",
+          "category": "limit"
+        },
+        "TypeBudgetExceeded": {
+          "code": "file.schema_limit",
+          "category": "limit"
+        },
+        "ValueBudgetExceeded": {
+          "code": "file.value_limit",
+          "category": "limit"
+        },
+        "CodecBudgetExceeded": {
+          "code": "file.value_limit",
+          "category": "limit"
+        },
+        "OutputRecordTooLarge": {
+          "code": "file.output_record_limit",
+          "category": "limit"
+        },
+        "ArrowShapeTooLarge": {
+          "code": "file.arrow_shape_limit",
+          "category": "limit"
+        },
+        "ArrowSegmentTooLarge": {
+          "code": "file.arrow_segment_limit",
+          "category": "limit"
+        },
+        "ArrowWorkspaceExceeded": {
+          "code": "file.arrow_workspace_limit",
+          "category": "limit"
+        },
+        "InvalidCode": {
+          "code": "file.invalid_deflate",
+          "category": "integrity"
+        },
+        "InvalidMatch": {
+          "code": "file.invalid_deflate",
+          "category": "integrity"
+        },
+        "WrongStoredBlockNlen": {
+          "code": "file.invalid_deflate",
+          "category": "integrity"
+        },
+        "InvalidBlockType": {
+          "code": "file.invalid_deflate",
+          "category": "integrity"
+        },
+        "InvalidDynamicBlockHeader": {
+          "code": "file.invalid_deflate",
+          "category": "integrity"
+        },
+        "OversubscribedHuffmanTree": {
+          "code": "file.invalid_deflate",
+          "category": "integrity"
+        },
+        "IncompleteHuffmanTree": {
+          "code": "file.invalid_deflate",
+          "category": "integrity"
+        },
+        "MissingEndOfBlockCode": {
+          "code": "file.invalid_deflate",
+          "category": "integrity"
+        },
+        "StreamTooLong": {
+          "code": "file.schema_file_limit",
+          "category": "limit"
+        },
+        "GzipHeaderTooLarge": {
+          "code": "file.gzip_header_limit",
+          "category": "limit"
+        },
+        "CaptureQuotaExceeded": {
+          "code": "file.capture_quota",
+          "category": "limit"
+        },
+        "SourceChanged": {
+          "code": "file.source_changed",
+          "category": "integrity"
+        },
+        "IncompleteSource": {
+          "code": "file.incomplete_source",
+          "category": "integrity"
+        },
+        "WriteFailed": {
+          "code": "file.output_incomplete",
+          "category": "unavailable"
+        },
+        "BrokenPipe": {
+          "code": "file.output_incomplete",
+          "category": "unavailable"
+        },
+        "OutputWriteFailed": {
+          "code": "file.output_incomplete",
+          "category": "unavailable"
+        },
+        "InvalidJson": {
+          "code": "file.invalid_json",
+          "category": "syntax"
+        },
+        "SyntaxError": {
+          "code": "file.invalid_json",
+          "category": "syntax"
+        },
+        "UnexpectedEndOfInput": {
+          "code": "file.invalid_json",
+          "category": "syntax"
+        },
+        "UnterminatedCsvQuote": {
+          "code": "file.invalid_csv_quote",
+          "category": "syntax"
+        },
+        "InvalidCsvQuote": {
+          "code": "file.invalid_csv_quote",
+          "category": "syntax"
+        },
+        "InvalidUtf8": {
+          "code": "file.invalid_utf8",
+          "category": "syntax"
+        },
+        "InvalidExplicitSchema": {
+          "code": "file.invalid_schema",
+          "category": "binding"
+        },
+        "InvalidGzipChecksum": {
+          "code": "file.invalid_gzip",
+          "category": "integrity"
+        },
+        "InvalidGzipHeader": {
+          "code": "file.invalid_gzip",
+          "category": "integrity"
+        },
+        "InvalidGzipHeaderCrc": {
+          "code": "file.invalid_gzip",
+          "category": "integrity"
+        },
+        "GzipTrailingData": {
+          "code": "file.invalid_gzip",
+          "category": "integrity"
+        },
+        "EndOfStream": {
+          "code": "file.invalid_gzip",
+          "category": "integrity"
+        },
+        "SourceOpenFailed": {
+          "code": "file.source_unavailable",
+          "category": "unavailable"
+        },
+        "FileNotFound": {
+          "code": "file.source_unavailable",
+          "category": "unavailable"
+        },
+        "NonRegularSourcePath": {
+          "code": "file.nonregular_source",
+          "category": "binding"
+        },
+        "SourceReadFailed": {
+          "code": "file.read_failed",
+          "category": "unavailable"
+        },
+        "ReadFailed": {
+          "code": "file.read_failed",
+          "category": "unavailable"
+        },
+        "NoSpaceLeft": {
+          "code": "file.storage_full",
+          "category": "unavailable"
+        },
+        "OutOfMemory": {
+          "code": "file.memory_unavailable",
+          "category": "unavailable"
+        },
+        "FileQueryInterrupted": {
+          "code": "file.interrupted",
+          "category": "lifecycle"
+        },
+        "Overflow": {
+          "code": "file.arithmetic_overflow",
+          "category": "binding"
+        },
+        "InvalidDialect": {
+          "code": "file.invalid_dialect",
+          "category": "binding"
+        },
+        "InvalidRecordBudget": {
+          "code": "file.invalid_record_budget",
+          "category": "binding"
+        },
+        "InvalidSourceBudget": {
+          "code": "file.invalid_source_budget",
+          "category": "binding"
+        },
+        "InvalidSourceCount": {
+          "code": "file.invalid_source_count",
+          "category": "binding"
+        },
+        "InvalidSourceEvidence": {
+          "code": "file.invalid_source_evidence",
+          "category": "integrity"
+        },
+        "InvalidFramerState": {
+          "code": "file.invalid_framer_state",
+          "category": "internal"
+        },
+        "FailedSource": {
+          "code": "file.source_failed",
+          "category": "lifecycle"
+        },
+        "FailedQuery": {
+          "code": "file.query_failed",
+          "category": "lifecycle"
+        },
+        "Cancelled": {
+          "code": "file.source_cancelled",
+          "category": "lifecycle"
+        },
+        "Denied": {
+          "code": "file.source_denied",
+          "category": "access"
+        },
+        "InvalidQuerySchema": {
+          "code": "file.invalid_query_schema",
+          "category": "binding"
+        },
+        "InvalidProjection": {
+          "code": "file.invalid_projection",
+          "category": "binding"
+        },
+        "InvalidOutputNames": {
+          "code": "file.invalid_output_names",
+          "category": "binding"
+        },
+        "DuplicateProjection": {
+          "code": "file.duplicate_projection",
+          "category": "binding"
+        },
+        "UnknownColumn": {
+          "code": "file.unknown_column",
+          "category": "binding"
+        },
+        "CellTooLarge": {
+          "code": "file.cell_byte_limit",
+          "category": "limit"
+        },
+        "UnsupportedComparison": {
+          "code": "file.unsupported_comparison",
+          "category": "unsupported"
+        },
+        "UnsupportedAggregate": {
+          "code": "file.unsupported_aggregate",
+          "category": "unsupported"
+        },
+        "InvalidInferenceValue": {
+          "code": "file.invalid_inference_value",
+          "category": "internal"
+        },
+        "IncompatibleTypes": {
+          "code": "file.incompatible_types",
+          "category": "binding"
+        },
+        "InvalidHexEncoding": {
+          "code": "file.invalid_hex_encoding",
+          "category": "binding"
+        },
+        "LiteralTooLarge": {
+          "code": "file.literal_byte_limit",
+          "category": "limit"
+        },
+        "NonScalarCast": {
+          "code": "file.nonscalar_cast",
+          "category": "unsupported"
+        },
+        "InvalidConflict": {
+          "code": "file.invalid_conflict",
+          "category": "binding"
+        },
+        "InvalidIntegerEncoding": {
+          "code": "file.invalid_integer_encoding",
+          "category": "binding"
+        },
+        "InvalidTypeEncoding": {
+          "code": "file.invalid_type_encoding",
+          "category": "integrity"
+        },
+        "UnsupportedQueryType": {
+          "code": "file.unsupported_query_type",
+          "category": "unsupported"
+        },
+        "InvalidValueEncoding": {
+          "code": "file.invalid_value_encoding",
+          "category": "integrity"
+        },
+        "UnsupportedAtomType": {
+          "code": "file.unsupported_atom_type",
+          "category": "unsupported"
+        }
+      }
     }
   ]
 }

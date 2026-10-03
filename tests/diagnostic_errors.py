@@ -28,7 +28,10 @@ def validate(manifest, rows):
             assert actual == boundary['causes'], ('inferred error set changed', name, actual)
             if actual is None:
                 owner = boundary['fallback']
-                assert owner == 'file' or owner + '.read' in manifest['fallbacks'], name
+                assert owner in manifest.get('external_fallbacks', {}) or owner + '.read' in manifest['fallbacks'], name
+                if owner in manifest.get('external_fallbacks', {}):
+                    case = manifest['external_fallbacks'][owner]
+                    assert 'test ' + json.dumps(case['name']) in (ROOT / case['source']).read_text(), case
                 assert not boundary['exceptions'], name
             else:
                 mapped = set().union(*(set(mappings[owner]) for owner in boundary['mappings']))

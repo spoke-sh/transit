@@ -157,7 +157,11 @@ known budget limits. CSV header errors identify the field and its zero-based
 position; duplicate headers also identify the first occurrence. Header-name bytes
 and field counts have separate limits. Unsupported CSV fields identify their
 logical type. Malformed schema files are attributed to schema decoding and to
-the schema path.
+the schema path. Known failures share one classification registry for human and
+machine output. Invalid typed framing/source configuration is distinct from
+malformed input, inconsistent frozen evidence and reuse of a failed scanner.
+An unknown callback failure remains an internal diagnostic and preserves the
+original cause; it cannot create a saved remote operation.
 
 Record, field, JSON shape and output-record limits retain measurements from the
 failing boundary. A measured prefix is explicitly a minimum; the command does

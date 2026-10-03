@@ -418,5 +418,11 @@
         "inspect_status"
       ]
     }
+  },
+  "external_fallbacks": {
+    "file": {
+      "source": "apps/transit-cli/FileDiagnosticTests.zig",
+      "name": "file unknown callbacks and storage context preserve original failure and incomplete output"
+    }
   }
 }

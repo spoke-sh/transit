@@ -167,3 +167,11 @@ Unknown-cause projections check read, uncertain dispatch and receipt precedence;
 unknown callbacks cannot establish a terminal domain outcome. This type gate
 complements the lexical inventory and the independently reviewed outcome matrix;
 it does not enumerate arbitrary application callbacks or operating-system errors.
+
+The file caller boundary covers 122 known causes across capture, framing,
+discovery, logical descriptors/values, query execution and output owners.
+Component-owned executable projections check ordinary execution and schema-file
+context; human rendering and unknown callbacks run in the unit suite. Capture
+storage and scalar overflow retain their original contextual overrides. No file
+projection manufactures a saved command, completion or remote outcome. External
+I/O/callback sets remain open under the compiler boundary gate.
