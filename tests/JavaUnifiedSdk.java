@@ -188,7 +188,7 @@ public final class JavaUnifiedSdk {
                             result=json("page",json("ordinal",page.ordinal().toString(),"ipc",hex(page.ipc()),"manifest",json("segments",page.manifest().segments().toString(),"selected",page.manifest().selected().toString(),"value_count",page.manifest().valueCount().toString()),"next",page.next().map(Cursor::opaque).orElse(null)));
                         }
                         System.out.println(json("status",0,"value",result));
-                    }catch(TransitException e) { check(e.status()>=0); System.out.println(json("status",e.status(),"value",json("err",e.code()))); }
+                    }catch(TransitException e) { check(e.status()>=0); System.out.println(json("status",e.status(),"value",json("err",e.code(),"diagnostic",e.diagnostic(),"diagnostic_invalid",e.diagnosticInvalid()))); }
                 }
             }
         }

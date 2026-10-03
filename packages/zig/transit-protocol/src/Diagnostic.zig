@@ -175,6 +175,12 @@ pub fn validate(self: Self) !void {
             for (self.actions[0..i]) |previous| if (previous.?.kind == item.kind) return error.InvalidDiagnostic;
         } else end = true;
     }
+    // Field byte limits alone do not bound JSON escaping (notably locations
+    // containing control bytes). Check the largest supported escaped form.
+    var bytes: [max_json_bytes]u8 = undefined;
+    var writer: std.Io.Writer = .fixed(&bytes);
+    var out: std.json.Stringify = .{ .writer = &writer, .options = .{ .escape_unicode = true } };
+    self.writeFields(&out) catch return error.DiagnosticCapacity;
 }
 fn validateIdentity(identity: Identity) !void {
     if (try identity.id.value() == 0) return error.InvalidDiagnostic;
@@ -221,6 +227,9 @@ fn validateAction(self: Self, item: Action) !void {
 }
 pub fn jsonStringify(self: Self, out: *std.json.Stringify) !void {
     self.validate() catch return error.WriteFailed;
+    return self.writeFields(out);
+}
+fn writeFields(self: Self, out: *std.json.Stringify) !void {
     try out.beginObject();
     inline for (@typeInfo(Self).@"struct".field_names) |name| {
         try out.objectField(name);
@@ -407,4 +416,14 @@ test "escaped byte paths reject ambiguous or partial escape sequences" {
         value.location.?.source = try Path.init(path);
         try std.testing.expectError(error.InvalidDiagnostic, value.validate());
     }
+}
+
+test "encoded diagnostic bounds include escaping inside fact locations" {
+    const t = std.testing;
+    var value = try init("sql.location_failure", .syntax, .parse, .not_submitted, .local_before_dispatch, "Input contains invalid locations.");
+    const location: Location = .{ .source = try Path.init(&@as([512]u8, @splat(1))), .offset = .init(0), .length = .init(0), .line = .init(1), .byte_column = .init(1) };
+    for (0..8) |_| try value.fact(.parameter_use, .caller, .{ .location = location });
+    try value.validate();
+    for (0..8) |_| try value.fact(.parameter_use, .caller, .{ .location = location });
+    try t.expectError(error.DiagnosticCapacity, value.validate());
 }

@@ -165,7 +165,7 @@ static class Program
                         result=Obj(("page",Obj(("ordinal",page.Ordinal.ToString()),("ipc",Hex(page.Ipc)),("manifest",Obj(("segments",page.Manifest.Segments.ToString()),("selected",page.Manifest.Selected.ToString()),("value_count",page.Manifest.ValueCount.ToString()))),("next",page.Next?.Opaque))));
                     }
                     Console.WriteLine(Obj(("status",0),("value",result)).ToJsonString());
-                }catch(TransitException e) { Check(e.Status.HasValue); Console.WriteLine(Obj(("status",e.Status!.Value),("value",Obj(("err",e.Code)))).ToJsonString()); }
+                }catch(TransitException e) { Check(e.Status.HasValue); Console.WriteLine(Obj(("status",e.Status!.Value),("value",Obj(("err",e.Code),("diagnostic",e.Diagnostic),("diagnostic_invalid",e.DiagnosticInvalid)))).ToJsonString()); }
             }
         }
         if(saved is not null)Check((await saved.DecodeAsync()).Count==saved.Rows);

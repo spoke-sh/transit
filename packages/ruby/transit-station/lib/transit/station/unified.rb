@@ -157,7 +157,7 @@ module Transit
         attr_reader :prepared
         def initialize(prepared, cause)
           @prepared = prepared
-          super('Query admission is uncertain; retain the identical command', status: 6, code: cause.code, phase: :submit_query)
+          super('Query admission is uncertain; retain the identical command', status: 6, code: cause.code, phase: :submit_query, diagnostic: cause.diagnostic, diagnostic_invalid: cause.diagnostic_invalid)
         end
       end
       Connection = Data.define(:source, :resource, :requester, :requests) do

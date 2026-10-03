@@ -168,7 +168,7 @@ static void serve(char **args) {
                 saved=std::move(page);
             }
             std::cout<<"{\"status\":0,\"value\":"<<result<<"}"<<std::endl;
-        }catch(const Error &error) { const auto &e=error.detail(); assert(e.has_native_status); std::cout<<"{\"status\":"<<e.native_status<<",\"value\":{\"err\":\""<<e.code<<"\"}}"<<std::endl; }
+        }catch(const Error &error) { const auto &e=error.detail(); assert(e.has_native_status); std::cout<<"{\"status\":"<<e.native_status<<",\"value\":{\"err\":\""<<e.code<<"\",\"diagnostic\":"<<(e.diagnostic.size?e.diagnostic.json:"null")<<",\"diagnostic_invalid\":"<<(e.diagnostic_invalid?"true":"false")<<"}}"<<std::endl; }
     }
     client.close(); bool closed=false; try { client.describe(definition); }catch(const Error &e) { closed=e.detail().kind==TRANSIT_SDK_CLOSED; } assert(closed); owner.reset();
     if(saved)assert(saved->decode().size()==saved->rows);

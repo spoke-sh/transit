@@ -65,6 +65,7 @@ pub fn failure(err: anyerror, out: *?*Buffer) Status {
     return status(err);
 }
 pub const Api = struct {
+    pub const station_diagnostic_validate = @import("client_abi").Api.transit_diagnostic_validate;
     pub const station_logical_codec = logical_codec.codec;
     pub const station_catalog_create = catalog_client.create;
     pub const station_catalog_destroy = catalog_client.destroy;

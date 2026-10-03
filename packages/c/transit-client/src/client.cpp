@@ -64,7 +64,7 @@ bool Raw::boolean(const Bytes &json, const std::string &path) const {
 transit_sdk_error Raw::native_error(uint32_t status, const Bytes &json, const char *phase) const {
     std::string code;
     for (const auto *name : {"protocol_error", "err"}) {
-        try { code = field(json, name, true); } catch (const Failure &) { continue; }
+        try { code = field(json, name, true); } catch (const Failure &) { continue; } catch (const std::bad_alloc &) { break; }
         if (!code.empty()) break;
     }
     transit_sdk_error_kind kind;
@@ -80,11 +80,21 @@ transit_sdk_error Raw::native_error(uint32_t status, const Bytes &json, const ch
         case 13: kind = TRANSIT_SDK_TURN_EXPIRED; break;
         default: kind = TRANSIT_SDK_INVALID_ARGUMENT;
     }
-    if (code == "ProcessExpired" || code == "ProcessTerminated") kind = TRANSIT_SDK_PROCESS_RETIRED;
-    if (code == "HistoryReclaimed" || code == "QueryExpired") kind = TRANSIT_SDK_HISTORY_UNAVAILABLE;
-    if (code == "StaleActivation") kind = TRANSIT_SDK_STALE_OWNERSHIP;
+    if (status != 6 && (code == "ProcessExpired" || code == "ProcessTerminated")) kind = TRANSIT_SDK_PROCESS_RETIRED;
+    if (status != 6 && (code == "HistoryReclaimed" || code == "QueryExpired")) kind = TRANSIT_SDK_HISTORY_UNAVAILABLE;
+    if (status != 6 && code == "StaleActivation") kind = TRANSIT_SDK_STALE_OWNERSHIP;
     auto result = error(kind, phase); result.has_native_status = true; result.native_status = status;
     if (code.size() <= 256 && code.find('\0') == std::string::npos) std::copy(code.begin(), code.end(), result.code);
+    try {
+        const auto detail = field(json, "diagnostic");
+        if (detail != "null") {
+            if (detail.size() <= 32768 && transit_diagnostic_validate(reinterpret_cast<const uint8_t *>(detail.data()), detail.size()) == 1) {
+                result.diagnostic.size = detail.size();
+                std::copy(detail.begin(), detail.end(), result.diagnostic.json);
+            } else result.diagnostic_invalid = true;
+        }
+    } catch (const Failure &) { /* No optional detail; retain the primary error. */ }
+    catch (const std::bad_alloc &) { result.diagnostic_invalid = true; }
     return result;
 }
 void Raw::check(uint32_t status, const Bytes &json, const char *phase) const {

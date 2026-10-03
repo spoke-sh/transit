@@ -28,6 +28,7 @@ test: native python-test node-sdk-test rust-sdk-test ruby-sdk-test c-sdk-test ja
 # Validate the current Node adapters and their asynchronous port transport.
 node-check:
     cd packages/ts/transit-client && vp check
+    vp exec --filter @transit/client node --test src/errors.test.ts
     # Station imports the package's emitted declarations and runtime exports.
     vp exec --filter @transit/client tsc
     cd packages/ts/transit-station-sdk && vp check
@@ -40,6 +41,7 @@ python-build: build
 
 # Type-check public APIs and run a clean wheel consumer outside the checkout.
 python-test: python-build
+    PYTHONPATH=packages/python/transit-client python3 -B tests/python_diagnostic_errors.py zig-out/lib/libtransit_client.so
     mypy --strict packages/python/transit-native-client/transit_native_client packages/python/transit-native-station/transit_native_station packages/python/transit-client/transit_client
     mypy --config-file packages/python/transit-station/pyproject.toml packages/python/transit-client/transit_client packages/python/transit-station/transit_station examples/station-sdk/python/transit_sdk_examples
     zig build transit-node rey-cli transit-station-http-worker

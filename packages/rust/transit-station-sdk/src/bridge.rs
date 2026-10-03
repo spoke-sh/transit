@@ -119,10 +119,22 @@ impl Buffer<'_> {
         let value = if bytes.is_empty() {
             Value::Null
         } else {
-            serde_json::from_slice(&bytes).map_err(|_| invalid())?
+            serde_json::from_slice(&bytes).map_err(|_| {
+                if status == 0 {
+                    return invalid();
+                }
+                let mut error = native_error(status, None, phase);
+                error.diagnostic_invalid = true;
+                error
+            })?
         };
         if status != 0 {
-            return Err(native_error(status, Some(&value), phase));
+            return Err(native_error(status, Some(&value), phase).with_diagnostic(
+                &value,
+                |bytes| unsafe {
+                    (self.api.station_diagnostic_validate)(bytes.as_ptr(), bytes.len()) == 1
+                },
+            ));
         }
         Ok(value)
     }

@@ -37,5 +37,7 @@ defmodule ElixirUnifiedAdapter do
   defp result({:error, value}), do: {:error, error(value)}
 
   defp error(%Client.Error{} = e),
-    do: {:transit_error, e.kind, e.phase, e.status || :undefined, e.code || :undefined}
+    do:
+      {:transit_error, e.kind, e.phase, e.status || :undefined, e.code || :undefined,
+       e.diagnostic || :undefined, e.diagnostic_invalid}
 end

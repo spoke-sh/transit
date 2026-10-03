@@ -91,7 +91,7 @@ loop(A,C,Cfg,Connection,Saved)->
                 false->
                     try action(A,C,Action,Connection,maps:get(<<"kind">>,Cfg)) of
                         {Result,Next}->report(#{status=>0,value=>Result}),loop(A,C,Cfg,Connection,case Next of undefined->Saved; _->Next end)
-                    catch throw:{failure,#transit_error{status=Status,code=Code}}->true=is_integer(Status),report(#{status=>Status,value=>#{err=>case Code of undefined->null; _->Code end}}),loop(A,C,Cfg,Connection,Saved) end
+                    catch throw:{failure,#transit_error{status=Status,code=Code,diagnostic=Diagnostic,diagnostic_invalid=Invalid}}->true=is_integer(Status),report(#{status=>Status,value=>#{err=>case Code of undefined->null; _->Code end,diagnostic=>case Diagnostic of undefined->null; _->Diagnostic end,diagnostic_invalid=>Invalid}}),loop(A,C,Cfg,Connection,Saved) end
             end
     end.
 result({ok,V})->V;

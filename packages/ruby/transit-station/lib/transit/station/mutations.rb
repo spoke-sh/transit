@@ -44,7 +44,7 @@ module Transit
         attr_reader :prepared
         def initialize(prepared, cause)
           @prepared = prepared
-          super('Mutation admission is uncertain; retain the identical command', status: 6, code: cause.code, phase: :submit_mutation)
+          super('Mutation admission is uncertain; retain the identical command', status: 6, code: cause.code, phase: :submit_mutation, diagnostic: cause.diagnostic, diagnostic_invalid: cause.diagnostic_invalid)
         end
       end
       Description = Data.define(:resource, :table, :names, :value_type, :resource_revision, :policy_revision,

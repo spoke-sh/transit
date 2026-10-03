@@ -1037,6 +1037,8 @@ mod tests {
         worker.close().unwrap();
         for kind in [ErrorKind::Busy, ErrorKind::Closed, ErrorKind::AccessDenied] {
             let definite = Error {
+                diagnostic: None,
+                diagnostic_invalid: false,
                 kind,
                 status: Some(4),
                 code: Some("Denied".into()),

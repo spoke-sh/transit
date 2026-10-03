@@ -86,7 +86,7 @@ internal static class Value
         });
         return value;
     }
-    internal static TransitException NativeError(uint status, JsonNode? value, string phase)
+    internal static TransitException NativeError(uint status, JsonNode? value, string phase, Func<byte[], bool>? validateDiagnostic = null)
     {
         string? code = null;
         if (value is JsonObject detail && (detail["protocol_error"] ?? detail["err"]) is JsonValue field && field.TryGetValue<string>(out var name) && name.Length <= 256) code = name;
@@ -96,10 +96,19 @@ internal static class Value
             11 => ErrorKind.StaleOwnership, 12 => ErrorKind.Blocked, 13 => ErrorKind.TurnExpired,
             14 => ErrorKind.BudgetExceeded, _ => ErrorKind.Handler
         };
-        kind = code switch {
+        kind = status == 6 ? ErrorKind.UnknownOutcome : code switch {
             "StaleActivation" => ErrorKind.StaleOwnership, "ProcessExpired" or "ProcessTerminated" => ErrorKind.ProcessRetired,
             "HistoryReclaimed" or "QueryExpired" => ErrorKind.HistoryUnavailable, _ => kind
         };
-        return new TransitException(kind, phase, status, code);
+        JsonObject? diagnostic = null;
+        bool invalid = false;
+        if (value is JsonObject envelope && envelope["diagnostic"] is JsonNode candidate) {
+            try {
+                byte[] bytes = Json(candidate);
+                if (candidate is JsonObject obj && bytes.Length <= 32768 && validateDiagnostic?.Invoke(bytes) == true) diagnostic = obj;
+                else invalid = true;
+            } catch (Exception) { invalid = true; }
+        }
+        return new TransitException(kind, phase, status, code, diagnostic, invalid);
     }
 }

@@ -126,3 +126,10 @@ current revocation and competing handles sharing one principal. The
 [proof ledger](../../../../tests/README.md) distinguishes executed outcomes from
 planned coverage. The [shared SDK scenarios](../../../../tests/verification/sdk.json)
 cover the separate admission, turn, reply delivery and consumption boundaries.
+
+`transit_diagnostic_validate(bytes, length)` validates a shared diagnostic without
+an authority connection. It returns 1 only for a current-definition envelope
+within 32 KiB that satisfies its field, evidence and recovery-action rules;
+otherwise it returns 0. The Station library exposes the same implementation as
+`station_diagnostic_validate`. Validation neither authenticates a diagnostic nor
+establishes a domain outcome. It makes no network requests.

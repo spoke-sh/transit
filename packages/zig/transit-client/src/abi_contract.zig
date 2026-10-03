@@ -56,9 +56,9 @@ pub fn main(init: std.process.Init) !void {
     try json.endArray();
     try json.objectField("schemas");
     try json.beginObject();
-    inline for (.{ "OperationMetadata", "ClientHostConfig", "ClientHostRequest", "ClientCapabilities" }, .{ abi.Metadata, abi.host.Config, abi.host.Request, abi.host.Capabilities }) |name, T| {
+    inline for (.{ "OperationMetadata", "ClientHostConfig", "ClientHostRequest", "ClientCapabilities", "Diagnostic" }, .{ abi.Metadata, abi.host.Config, abi.host.Request, abi.host.Capabilities, p.Diagnostic }) |name, T| {
         try json.objectField(name);
-        try p.Schema.write(T, &json, .{ .safe_integers = true, .text_max_length = p.max_body * 2, .output = T == abi.Metadata or T == abi.host.Capabilities });
+        try p.Schema.write(T, &json, .{ .safe_integers = true, .text_max_length = p.max_body * 2, .output = T == abi.Metadata or T == abi.host.Capabilities or T == p.Diagnostic });
     }
     try json.endObject();
     try json.endObject();

@@ -52,6 +52,7 @@ class Library:
             compatible = getattr(self.lib, 'transit_client_abi_definition_matches' if family == 'client' else 'station_abi_definition_matches')
             if compatible(definition, len(definition)) != 1:
                 raise ValueError('ABI definition')
+            self.validate_diagnostic = getattr(self.lib, prefix + "_diagnostic_validate")
             self.data = getattr(self.lib, prefix + '_buffer_data')
             self.size = getattr(self.lib, prefix + '_buffer_size')
             self.destroy = getattr(self.lib, prefix + '_buffer_destroy')
@@ -81,7 +82,22 @@ class Library:
         status = getattr(self.lib, name)(*args, c.byref(pointer))
         value = self.take(pointer)
         if status:
-            raise native_error(status, json.loads(value) if value else None, phase=name, recovery=recovery)
+            diagnostic, invalid = None, False
+            try:
+                detail = json.loads(value) if value else None
+            except (ValueError, UnicodeError, MemoryError):
+                detail, invalid = None, True
+            candidate = detail.get("diagnostic") if isinstance(detail, dict) else None
+            if candidate is not None:
+                try:
+                    encoded = encode(candidate)
+                    if isinstance(candidate, dict) and len(encoded) <= 32768 and self.validate_diagnostic(encoded, len(encoded)) == 1:
+                        diagnostic = candidate
+                    else:
+                        invalid = True
+                except (TypeError, ValueError, UnicodeError, MemoryError):
+                    invalid = True
+            raise native_error(status, detail, phase=name, recovery=recovery, diagnostic=diagnostic, diagnostic_invalid=invalid)
         return value
 
     def call(self, name: str, *args: object, recovery: bytes = b'') -> Any:

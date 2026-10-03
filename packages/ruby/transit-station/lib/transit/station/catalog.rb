@@ -171,7 +171,7 @@ module Transit
         def initialize(prepared, cause)
           @prepared = prepared
           super('Catalog admission is uncertain; retain the identical command', status: 6,
-            code: cause.respond_to?(:code) ? cause.code : nil, phase: :submit_catalog)
+            code: cause.respond_to?(:code) ? cause.code : nil, phase: :submit_catalog, diagnostic: cause.respond_to?(:diagnostic) ? cause.diagnostic : nil, diagnostic_invalid: cause.respond_to?(:diagnostic_invalid) && cause.diagnostic_invalid)
         end
       end
       Capabilities = Data.define(:version, :definition, :initialize_catalog, :create_table, :conditional_policy, :current_metadata,

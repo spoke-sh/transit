@@ -6272,7 +6272,7 @@
     },
     "packages/zig/transit-protocol/src/Diagnostic.zig": {
       "errors": {
-        "DiagnosticCapacity": 3,
+        "DiagnosticCapacity": 4,
         "IncompatibleDiagnostic": 1,
         "InvalidCharacter": 1,
         "InvalidDiagnostic": 26,
@@ -6452,7 +6452,7 @@
       },
       "outcomes": {
         "Definition": [
-          "@\"77066ddb9b55e863c78b6a583a14af1191ff9305c19f4cd3cf9e3d189c4f372c\""
+          "@\"507793689d34e313ae78caf98f3b3e14dd67c22facb07c6ac4f0d6861ce890ad\""
         ],
         "Command": [
           "grant",
@@ -6743,14 +6743,14 @@
     "packages/zig/transit-query/src/ApiDiagnostic.zig": {
       "errors": {
         "AccessDenied": 2,
-        "Conflict": 2,
-        "IncompleteResult": 1,
-        "InvalidQueryCursor": 1,
-        "InvalidQueryRequest": 1,
-        "OutOfMemory": 1,
-        "QueryIdentityMismatch": 1,
-        "QueryReadConflict": 1,
-        "Rejected": 1
+        "Conflict": 3,
+        "IncompleteResult": 2,
+        "InvalidQueryCursor": 2,
+        "InvalidQueryRequest": 2,
+        "OutOfMemory": 2,
+        "QueryIdentityMismatch": 2,
+        "QueryReadConflict": 2,
+        "Rejected": 2
       },
       "outcomes": {},
       "imports": [
@@ -9238,6 +9238,7 @@
         "AccessDenied": 1,
         "Conflict": 1,
         "InvalidQueryRequest": 1,
+        "OutOfMemory": 2,
         "QueryDenied": 1,
         "QueryReadConflict": 1,
         "Rejected": 1

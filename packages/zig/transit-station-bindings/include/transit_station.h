@@ -7,7 +7,7 @@
 extern "C" {
 #endif
 #define STATION_ABI_VERSION 1u
-#define STATION_ABI_DEFINITION "77066ddb9b55e863c78b6a583a14af1191ff9305c19f4cd3cf9e3d189c4f372c"
+#define STATION_ABI_DEFINITION "507793689d34e313ae78caf98f3b3e14dd67c22facb07c6ac4f0d6861ce890ad"
 #define STATION_MINIMUM_STACK_BYTES 8388608u
 typedef struct station_growing_server station_growing_server;
 typedef struct station_query_client station_query_client;
@@ -29,6 +29,7 @@ typedef struct station_buffer station_buffer;
 #define STATION_STATUS_BLOCKED 12u
 #define STATION_STATUS_NOT_READY 13u
 #define STATION_STATUS_BUDGET_EXCEEDED 14u
+uint32_t station_diagnostic_validate(const uint8_t * arg0, size_t arg1);
 uint32_t station_logical_codec(const uint8_t * arg0, size_t arg1, station_buffer ** arg2);
 uint32_t station_catalog_create(uint32_t arg0, const uint8_t * arg1, size_t arg2, const uint8_t * arg3, const uint8_t * arg4, size_t arg5, station_catalog_client ** arg6);
 void station_catalog_destroy(station_catalog_client * arg0);

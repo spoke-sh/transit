@@ -198,7 +198,7 @@ static void serve(char **args) {
                 checked(transit_station_unified_page_next(out,&cursor)); if(cursor) { checked(transit_station_unified_cursor_bytes(cursor,&data)); putchar('"'); print_hex(data); putchar('"'); }else printf("null"); puts("}}}"); transit_station_unified_cursor_destroy(cursor); transit_station_unified_page_destroy(saved); saved=out;
             }
         }
-        if(error.kind) { assert(error.has_native_status); printf("{\"status\":%u,\"value\":{\"err\":\"%s\"}}\n",error.native_status,error.code); }
+        if(error.kind) { assert(error.has_native_status); printf("{\"status\":%u,\"value\":{\"err\":\"%s\",\"diagnostic\":%s,\"diagnostic_invalid\":%s}}\n",error.native_status,error.code,error.diagnostic.size?error.diagnostic.json:"null",error.diagnostic_invalid?"true":"false"); }
         fflush(stdout);
     }
     checked(transit_station_unified_close(client)); assert(transit_station_unified_describe(client,&d.source,&description).kind==TRANSIT_SDK_CLOSED); transit_station_unified_client_destroy(client);

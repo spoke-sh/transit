@@ -166,3 +166,31 @@ Use [caller and SDK semantics](callers.md) for authority, scoped turns, native
 ownership, scheduling and exact recovery.
 `transit app` installs separately compiled Zig workers. Other SDKs provide client
 and framework APIs; the local supervisor has no worker adapter for those languages.
+
+### Structured failure details
+
+Query compilation, inspection and caller-attempt failures can carry the shared
+[diagnostic envelope](../../contracts/DIAGNOSTICS_V1.md). SDK error values retain
+it independently of the raw native buffer. Error text stays concise; callers
+explicitly render detail when appropriate. A failed send keeps its original
+uncertainty and exact saved command. A failed status read does not establish a
+new query outcome. Optional malformed detail is discarded and flagged; it does
+not replace the primary native error.
+
+| SDK | Diagnostic access | Invalid optional detail |
+| --- | --- | --- |
+| Python, Ruby | `error.diagnostic` | `error.diagnostic_invalid` |
+| TypeScript | `error.diagnostic` | `error.diagnosticInvalid` |
+| Rust | `Error.diagnostic` | `Error.diagnostic_invalid` |
+| C | `error.diagnostic.json` and `.size` | `error.diagnostic_invalid` |
+| C++ | `error.detail().diagnostic` | `error.detail().diagnostic_invalid` |
+| Java | `error.diagnostic()` | `error.diagnosticInvalid()` |
+| .NET | `error.Diagnostic` | `error.DiagnosticInvalid` |
+| Erlang, Elixir | Error record/struct `diagnostic` | `diagnostic_invalid` |
+
+Native SDKs use the shared Zig diagnostic validator. Port SDKs check the
+generated shape; the native port validates semantic evidence/action rules before
+emitting its response. These checks do not authorize recovery actions. C errors
+own a bounded 32 KiB JSON buffer, with zero size for absent detail. The error
+layout and generated binding resources require the matching current definition;
+foreign headers/libraries and native artifacts reject before use.

@@ -7,6 +7,7 @@ const input = @import("SqlInput.zig");
 const Self = @This();
 
 pub const Kind = enum { syntax, unsupported, grammar_only, interface, binding, limit };
+pub const category = @import("SqlCodes.zig").category;
 pub const Route = enum { query, mutation, declaration, inspection };
 kind: Kind,
 route: Route = .query,
@@ -30,13 +31,13 @@ const grammar_hint = "This statement family has no executable SQL route; its sub
 
 /// Project only the compiler's original evidence. No follow-up metadata reads.
 pub fn structured(self: Self) !d {
-    const category: d.Category = switch (self.kind) {
+    const classification: d.Category = switch (self.kind) {
         .syntax => .syntax,
         .binding => @import("SqlCodes.zig").category(self.cause) orelse return error.UnmappedSqlDiagnostic,
         .limit => .limit,
         .unsupported, .grammar_only, .interface => .unsupported,
     };
-    var value = try d.init(@import("SqlCodes.zig").fromError(self.cause) orelse return error.UnmappedSqlDiagnostic, category, if (self.kind == .binding) .bind else .parse, .not_submitted, .local_before_dispatch, self.summary);
+    var value = try d.init(@import("SqlCodes.zig").fromError(self.cause) orelse return error.UnmappedSqlDiagnostic, classification, if (self.kind == .binding) .bind else .parse, .not_submitted, .local_before_dispatch, self.summary);
     value.cause = try d.Code.init(@errorName(self.cause));
     if (self.location) |location| value.location = .{ .offset = .init(location.offset), .length = .init(0), .line = .init(self.line), .byte_column = .init(self.column) };
     const context = self.binding;

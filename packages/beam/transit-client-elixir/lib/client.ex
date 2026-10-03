@@ -1,12 +1,15 @@
 defmodule Transit.Client.Error do
   @enforce_keys [:kind, :phase]
-  defstruct [:kind, :phase, :status, :code]
+  @derive {Inspect, only: [:kind, :phase, :status, :code, :diagnostic_invalid]}
+  defstruct [:kind, :phase, :status, :code, :diagnostic, diagnostic_invalid: false]
 
   @type t :: %__MODULE__{
           kind: atom(),
           phase: atom(),
           status: non_neg_integer() | nil,
-          code: binary() | nil
+          code: binary() | nil,
+          diagnostic: map() | nil,
+          diagnostic_invalid: boolean()
         }
 end
 
@@ -153,12 +156,14 @@ defmodule Transit.Client do
   def convert({:uncertain, bytes, error}),
     do: {:uncertain, %Transit.Client.Uncertain{recovery: bytes, error: convert(error)}}
 
-  def convert({:transit_error, kind, phase, status, code}),
+  def convert({:transit_error, kind, phase, status, code, diagnostic, invalid}),
     do: %Transit.Client.Error{
       kind: kind,
       phase: phase,
       status: convert(status),
-      code: convert(code)
+      code: convert(code),
+      diagnostic: convert(diagnostic),
+      diagnostic_invalid: invalid
     }
 
   def convert({:transit_config, url, profile, timeout, host}),

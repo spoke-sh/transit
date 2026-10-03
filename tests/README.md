@@ -12369,3 +12369,39 @@ produces no binding witness. Unknown causes are internal; failed status reads
 produce no terminal query outcome. These component checks do not establish
 SDK exception retention. Logs: `/var/tmp/transit-api-diagnostic-root-unit.log`
 and `/var/tmp/transit-api-inspection-unit.log`.
+
+### SDK exception diagnostics and exact recovery
+
+On 2026-10-02, the installed KV lifecycle proof passes across all ten SDKs and
+native/port callers (13 variants). Invalid parameter counts, missing binding
+interfaces and wrong scalar types produce identical complete diagnostic envelopes,
+with local no-send evidence and no resume action. Each caller receives a lost
+reply after a committed native send, retains the original diagnostic and exact
+sequence, then retries identical saved bytes and obtains the original receipt.
+Rejected cancellation input for an absent namespace creates no query outcome.
+The retained runtime/policy failure, restart, retirement, denial and cancellation
+schedules also pass. The log is `/var/tmp/transit-sdk-exception-installed3.log`.
+The preceding run stopped because the test controllers did not expose generic
+command preparation; the corrected schedule prepares centrally and imports the
+same signed command through each public typed caller before testing submission.
+
+`just check`, `just test::unit` and `just bindings::node-check` pass after the
+SDK definition cutover. The native validator rejects foreign definitions,
+oversized envelopes and unsafe outcome/action substitutions. TypeScript checks
+owned detail, malformed shapes, foreign definitions and status-6 precedence.
+Python boundary injection checks malformed JSON/UTF-8 and unsafe recovery actions
+without losing primary uncertainty or saved bytes. Rust unit tests verify
+optional validation failure and exclusion of detail from Display/Debug. These
+are boundary/component checks, not an independent semantic validator in every
+port SDK. Logs: `/var/tmp/transit-sdk-exception-check.log`,
+`/var/tmp/transit-sdk-exception-units.log`,
+`/var/tmp/transit-sdk-exception-validation.log` (TypeScript passed; the initial
+Rust invocation lacked its native artifact directory), and
+`/var/tmp/transit-sdk-exception-boundary.log` (corrected Rust invocation passed).
+The subsequent full default-shell check also passes in
+`/var/tmp/transit-sdk-exception-final-check3.log`. Native classification is
+independent of optional detail construction; allocation failures keep their
+original status and cannot become syntax failures.
+The final root unit run also passes with worst-case escaped JSON size validation:
+individually bounded fields cannot produce an envelope exceeding 32 KiB.
+Log: `/var/tmp/transit-diagnostic-escaped-bound.log`.

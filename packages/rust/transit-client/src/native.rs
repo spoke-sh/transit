@@ -305,10 +305,24 @@ impl Native {
         let value: Value = if bytes.is_empty() {
             Value::Null
         } else {
-            serde_json::from_slice(&bytes).map_err(|_| invalid())?
+            serde_json::from_slice(&bytes).map_err(|_| {
+                if status == 0 {
+                    return invalid();
+                }
+                let mut error = Error::native(status, None, "dispatch");
+                error.diagnostic_invalid = true;
+                error
+            })?
         };
         if status != 0 {
-            return Err(Error::native(status, Some(&value), "dispatch"));
+            return Err(
+                Error::native(status, Some(&value), "dispatch").with_diagnostic(
+                    &value,
+                    |bytes| unsafe {
+                        (self.api.transit_diagnostic_validate)(bytes.as_ptr(), bytes.len()) == 1
+                    },
+                ),
+            );
         }
         Ok(value)
     }

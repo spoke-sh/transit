@@ -46,19 +46,32 @@ native(Status, Detail, Phase) ->
         _ -> undefined
     end,
     Kind = case {Status, Code} of
+        {6, _} -> unknown_outcome;
         {_, <<"StaleActivation">>} -> stale_ownership;
         {_, <<"ProcessExpired">>} -> process_retired;
         {_, <<"ProcessTerminated">>} -> process_retired;
         {_, <<"HistoryReclaimed">>} -> history_unavailable;
         {_, <<"QueryExpired">>} -> history_unavailable;
         {3, _} -> authority_rejected; {4, _} -> access_denied;
-        {5, _} -> authority_rejected; {6, _} -> unknown_outcome;
+        {5, _} -> authority_rejected;
         {7, _} -> read_failed; {8, _} -> read_failed; {9, _} -> busy;
         {10, _} -> incompatible_native; {11, _} -> stale_ownership;
         {12, _} -> blocked; {13, _} -> turn_expired; {14, _} -> budget_exceeded;
         _ -> handler
     end,
-    #transit_error{kind = Kind, status = Status, code = Code, phase = Phase}.
+    {Diagnostic, Invalid} = diagnostic(Detail),
+    #transit_error{kind = Kind, status = Status, code = Code, phase = Phase,
+                   diagnostic = Diagnostic, diagnostic_invalid = Invalid}.
+diagnostic(#{<<"diagnostic">> := null}) -> {undefined, false};
+diagnostic(#{<<"diagnostic">> := Candidate}) ->
+    try
+        Schema = maps:get(<<"Diagnostic">>, maps:get(<<"schemas">>, contract(transit_client))),
+        case byte_size(encode(Candidate)) =< 32768 andalso valid(Schema, Candidate) of
+            true -> {Candidate, false};
+            false -> {undefined, true}
+        end
+    catch _:_ -> {undefined, true} end;
+diagnostic(_) -> {undefined, false}.
 contract(App) ->
     case code:priv_dir(App) of
         Dir when is_list(Dir) ->

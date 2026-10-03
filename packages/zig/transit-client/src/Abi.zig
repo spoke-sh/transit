@@ -114,6 +114,17 @@ fn validate(signed: Signed) !void {
 /// This declaration is also the source of generated C prototypes. All integer
 /// tags enter as integers so malformed foreign enum values are checked safely.
 pub const Api = struct {
+    /// Validate owned diagnostic JSON using the shared contract, including
+    /// cross-field outcome/action rules. No handle, authority read or dispatch.
+    pub fn transit_diagnostic_validate(json: [*]const u8, len: usize) callconv(.c) u32 {
+        if (len == 0 or len > p.Diagnostic.max_json_bytes) return 0;
+        var arena = std.heap.ArenaAllocator.init(allocator);
+        defer arena.deinit();
+        const value = std.json.parseFromSlice(p.Diagnostic, arena.allocator(), json[0..len], .{}) catch return 0;
+        value.value.validate() catch return 0;
+        return 1;
+    }
+
     /// Compare the complete contract definition before constructing handles.
     pub fn transit_client_abi_definition_matches(definition: [*]const u8, len: usize) callconv(.c) u32 {
         const expected = @tagName(p.Growth.current_definition);
@@ -382,4 +393,20 @@ test "every post-commit response allocation failure remains uncertain and releas
         }
         try t.expect(completed);
     }
+}
+
+test "diagnostic validation is bounded and rejects unsafe outcome substitutions" {
+    const t = std.testing;
+    var diagnostic = try p.Diagnostic.init("sql.example", .binding, .bind, .not_submitted, .local_before_dispatch, "Caller input cannot be bound.");
+    try diagnostic.action(.correct_input);
+    const bytes = try std.json.Stringify.valueAlloc(t.allocator, diagnostic, .{});
+    defer t.allocator.free(bytes);
+    try t.expectEqual(@as(u32, 1), Api.transit_diagnostic_validate(bytes.ptr, bytes.len));
+    const unknown = try std.mem.replaceOwned(u8, t.allocator, bytes, "not_submitted", "unknown");
+    defer t.allocator.free(unknown);
+    try t.expectEqual(@as(u32, 0), Api.transit_diagnostic_validate(unknown.ptr, unknown.len));
+    const foreign = try std.mem.replaceOwned(u8, t.allocator, bytes, @tagName(p.Growth.current_definition), "foreign");
+    defer t.allocator.free(foreign);
+    try t.expectEqual(@as(u32, 0), Api.transit_diagnostic_validate(foreign.ptr, foreign.len));
+    try t.expectEqual(@as(u32, 0), Api.transit_diagnostic_validate(bytes.ptr, p.Diagnostic.max_json_bytes + 1));
 }

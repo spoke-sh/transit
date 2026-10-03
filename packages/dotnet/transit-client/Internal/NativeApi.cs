@@ -3,8 +3,11 @@ using System.Runtime.InteropServices;
 namespace Transit.Client.Internal;
 internal sealed class NativeApi {
     internal const uint Version = 1;
-    internal const string Definition = "77066ddb9b55e863c78b6a583a14af1191ff9305c19f4cd3cf9e3d189c4f372c";
+    internal const string Definition = "507793689d34e313ae78caf98f3b3e14dd67c22facb07c6ac4f0d6861ce890ad";
     internal const int MinimumStackBytes = 8388608;
+    [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+    internal delegate uint transit_diagnostic_validateDelegate([In] byte[] arg0, nuint arg1);
+    internal readonly transit_diagnostic_validateDelegate transit_diagnostic_validate;
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
     internal delegate uint transit_client_abi_definition_matchesDelegate([In] byte[] arg0, nuint arg1);
     internal readonly transit_client_abi_definition_matchesDelegate transit_client_abi_definition_matches;
@@ -51,6 +54,7 @@ internal sealed class NativeApi {
     internal delegate void transit_buffer_destroyDelegate(IntPtr arg0);
     internal readonly transit_buffer_destroyDelegate transit_buffer_destroy;
     internal NativeApi(IntPtr library) {
+        transit_diagnostic_validate = Marshal.GetDelegateForFunctionPointer<transit_diagnostic_validateDelegate>(NativeLibrary.GetExport(library, "transit_diagnostic_validate"));
         transit_client_abi_definition_matches = Marshal.GetDelegateForFunctionPointer<transit_client_abi_definition_matchesDelegate>(NativeLibrary.GetExport(library, "transit_client_abi_definition_matches"));
         transit_client_abi_version = Marshal.GetDelegateForFunctionPointer<transit_client_abi_versionDelegate>(NativeLibrary.GetExport(library, "transit_client_abi_version"));
         transit_client_supports_kind = Marshal.GetDelegateForFunctionPointer<transit_client_supports_kindDelegate>(NativeLibrary.GetExport(library, "transit_client_supports_kind"));

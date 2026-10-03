@@ -80,6 +80,8 @@ export class Uncertain extends UnknownOutcome {
     super("Mutation admission is uncertain; retain the identical prepared command", {
       status: 6,
       ...(cause.code === undefined ? {} : { code: cause.code }),
+      ...(cause.diagnostic === undefined ? {} : { diagnostic: cause.diagnostic }),
+      diagnosticInvalid: cause.diagnosticInvalid,
       phase: "submit-mutation",
     });
     this.prepared = prepared;

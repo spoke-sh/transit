@@ -194,7 +194,7 @@ async def serve(config, asynchronous):
                 else: raise AssertionError('unsupported test operation')
                 print(json.dumps({'status': 0, 'value': result}), flush=True)
             except TransitError as error:
-                print(json.dumps({'status': error.status, 'value': {'err': error.code}}), flush=True)
+                print(json.dumps({'status': error.status, 'value': {'err': error.code, 'diagnostic': error.diagnostic, 'diagnostic_invalid': error.diagnostic_invalid}}), flush=True)
     finally:
         await invoke('close')
     print(json.dumps({'closed': True}), flush=True)

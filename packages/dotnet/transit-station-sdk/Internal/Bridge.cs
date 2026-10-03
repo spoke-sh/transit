@@ -212,7 +212,7 @@ internal sealed class Bridge : IWorkerState<object?>
         if (status != 0) {
             JsonNode? detail = null;
             if (bytes.Length != 0) { try { detail = Value.Parse(bytes); } catch (TransitException) { } }
-            throw Value.NativeError(status, detail, phase);
+            throw Value.NativeError(status, detail, phase, payload => Api.station_diagnostic_validate(payload, (nuint)payload.Length) == 1);
         }
         return bytes;
     }

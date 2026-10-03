@@ -24,6 +24,8 @@ typedef struct transit_sdk_error {
     uint32_t native_status;
     char code[257];
     char phase[64];
+    transit_sdk_diagnostic diagnostic;
+    bool diagnostic_invalid;
 } transit_sdk_error;
 typedef struct transit_sdk_process { uint64_t realm, pid; } transit_sdk_process;
 typedef struct transit_sdk_resource { uint64_t realm, resource; } transit_sdk_resource;

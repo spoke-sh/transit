@@ -3,6 +3,19 @@ const std = @import("std");
 const q = @import("root.zig");
 const d = q.protocol.Diagnostic;
 
+/// Classification cannot depend on allocating or retaining optional detail.
+pub fn category(action: q.Bridge.Action, cause: anyerror) d.Category {
+    if (action == .compile or action == .inspect) if (q.fuze.SqlDiagnostic.category(cause)) |value| return value;
+    if (q.QueryFailure.fromError(cause, .admission)) |failure| return failure.category();
+    return switch (cause) {
+        error.QueryReadConflict, error.Conflict, error.Rejected => .conflict,
+        error.InvalidQueryRequest, error.QueryIdentityMismatch, error.InvalidQueryCursor => .binding,
+        error.IncompleteResult => .lifecycle,
+        error.OutOfMemory => .unavailable,
+        else => .internal,
+    };
+}
+
 pub fn project(action: q.Bridge.Action, cause: anyerror, binding: q.fuze.Sql.Binding, dispatched: bool, identity: ?d.Identity) !d {
     if (action == .compile or action == .inspect) {
         const source = if (action == .compile) action.compile.sql else action.inspect.sql;

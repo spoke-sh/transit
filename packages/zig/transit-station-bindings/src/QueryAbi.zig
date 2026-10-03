@@ -76,21 +76,25 @@ pub fn call(pointer: *Client, json: [*]const u8, len: usize, out: *?*base.Buffer
         if (action.value == .submit and err != error.AccessDenied and err != error.Rejected and err != error.Conflict) return .uncertain;
         if (err == error.QueryReadConflict) return .conflict;
         if (err == error.QueryDenied) return .denied;
-        if (diagnostic) |value| switch (value.category) {
+        if (err == error.OutOfMemory) return .out_of_memory;
+        switch (q.ApiDiagnostic.category(action.value, err)) {
             .access => return .denied,
             .conflict => return .conflict,
             .limit => return .budget_exceeded,
             .unavailable => return .unavailable,
             .integrity, .internal => return .invalid_response,
             else => {},
-        };
+        }
         return base.status(err);
     };
     base.output(result, out) catch |err| return if (action.value == .submit) .uncertain else base.status(err);
     return .ok;
 }
 fn invalidEnvelope(err: anyerror, out: *?*base.Buffer) base.Status {
-    const diagnostic = q.protocol.Diagnostic.init("query.invalid_envelope", .syntax, .input, .not_submitted, .local_before_dispatch, "The query action is not a valid bounded request object. No command was sent.") catch unreachable;
+    const diagnostic = if (err == error.OutOfMemory)
+        q.protocol.Diagnostic.init("query.memory_unavailable", .unavailable, .input, .not_submitted, .local_before_dispatch, "The caller could not allocate memory to read this request. No command was sent.") catch unreachable
+    else
+        q.protocol.Diagnostic.init("query.invalid_envelope", .syntax, .input, .not_submitted, .local_before_dispatch, "The query action is not a valid bounded request object. No command was sent.") catch unreachable;
     base.output(.{ .err = @errorName(err), .diagnostic = diagnostic }, out) catch {};
     return base.status(err);
 }
@@ -144,4 +148,15 @@ test "query caller handle needs no activation and preserves uncertainty after ex
     const local = try std.json.parseFromSlice(struct { err: []const u8, diagnostic: q.protocol.Diagnostic }, alloc, base.Api.station_buffer_data(rejection.?)[0..base.Api.station_buffer_size(rejection.?)], .{});
     try t.expectEqual(.not_submitted, local.value.diagnostic.outcome);
     try t.expect(local.value.diagnostic.identity == null);
+}
+
+test "failure to parse for lack of memory is not a syntax error" {
+    const t = std.testing;
+    var buffer: ?*base.Buffer = null;
+    try t.expectEqual(.out_of_memory, invalidEnvelope(error.OutOfMemory, &buffer));
+    defer base.Api.station_buffer_destroy(buffer);
+    const parsed = try std.json.parseFromSlice(struct { err: []const u8, diagnostic: q.protocol.Diagnostic }, t.allocator, base.Api.station_buffer_data(buffer.?)[0..base.Api.station_buffer_size(buffer.?)], .{});
+    defer parsed.deinit();
+    try t.expectEqual(.unavailable, parsed.value.diagnostic.category);
+    try t.expectEqual(.not_submitted, parsed.value.diagnostic.outcome);
 }

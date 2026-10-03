@@ -665,7 +665,7 @@ fn serve(config: &Value) -> AnyResult<()> {
             "{}",
             match result {
                 Ok(value) => json!({"status":0,"value":value}),
-                Err(error) => json!({"status":error.status,"value":{"err":error.code}}),
+                Err(error) => json!({"status":error.status,"value":{"err":error.code,"diagnostic":error.diagnostic,"diagnostic_invalid":error.diagnostic_invalid}}),
             }
         );
         io::stdout().flush()?;

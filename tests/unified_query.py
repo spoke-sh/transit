@@ -259,6 +259,9 @@ def run(node, host, proof, port_host, library, kinds=("kv", "table", "document")
                     raise AssertionError('lost upload response was reported as success')
                 except Failure as failure:
                     assert failure.status == 6 and failure.detail['err'] == 'InvalidAuthorityResponse', failure
+                    diagnostic = failure.detail['diagnostic']
+                    assert diagnostic['outcome'] == 'unknown' and diagnostic['evidence'] == 'saved_intent', diagnostic
+                    assert [a['kind'] for a in diagnostic['actions'] if a] == ['inspect_status', 'resume_exact'], diagnostic
                 invoke("resume")
                 assert fault["retry"], "uncertain upload did not retry identical signed bytes"
                 status = upload(uploader, root)
@@ -363,6 +366,8 @@ def run(node, host, proof, port_host, library, kinds=("kv", "table", "document")
                 if lifecycle:
                     from unified_failures import check as failure_check
                     failure_check(native, port_client, callers, root, invoke, restart, fault, kind)
+                    from unified_parameters import uncertain_commands
+                    uncertain_commands((native, port_client, *callers), native, fault)
                     from unified_lifecycle import check
                     check(native, root, invoke, fault, kind)
                 if example:

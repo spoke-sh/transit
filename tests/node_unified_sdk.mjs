@@ -177,7 +177,7 @@ async function serve() {
         console.log(JSON.stringify({status: 0, value: result}));
       } catch (error) {
         if (!(error instanceof TransitError)) throw error;
-        console.log(JSON.stringify({status: error.status, value: {err: error.code}}));
+        console.log(JSON.stringify({status: error.status, value: {err: error.code, diagnostic: error.diagnostic ?? null, diagnostic_invalid: error.diagnosticInvalid}}));
       }
     }
   } finally { await client.close(); }

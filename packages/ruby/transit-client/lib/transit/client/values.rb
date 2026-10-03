@@ -4,10 +4,12 @@ require 'uri'
 
 module Transit
   class Error < StandardError
-    attr_reader :status, :code, :phase
-    def initialize(message = 'Transit operation failed', status: nil, code: nil, phase: :preflight)
+    attr_reader :status, :code, :phase, :diagnostic, :diagnostic_invalid
+    def initialize(message = 'Transit operation failed', status: nil, code: nil, phase: :preflight, diagnostic: nil, diagnostic_invalid: false)
       super(message)
       @status, @code, @phase = status, code&.dup&.freeze, phase
+      @diagnostic = diagnostic.nil? ? nil : JSON.parse(JSON.generate(diagnostic))
+      @diagnostic_invalid = diagnostic_invalid
     end
   end
   class Busy < Error; end
@@ -74,7 +76,21 @@ module Transit
                         6 => UnknownOutcome, 7 => ReadFailed, 8 => ReadFailed, 9 => Busy,
                         10 => IncompatibleNative, 11 => StaleOwnership, 13 => TurnExpired }.fetch(status, Error)
                  end
-      category.new("Transit #{phase} failed", status: status, code: code, phase: phase)
+      category = UnknownOutcome if status == 6
+      diagnostic, invalid = nil, false
+      candidate = value.is_a?(Hash) ? value['diagnostic'] : nil
+      unless candidate.nil?
+        begin
+          if JSON.generate(candidate).bytesize <= 32768 && valid?(SCHEMAS.fetch('Diagnostic'), candidate)
+            diagnostic = candidate
+          else
+            invalid = true
+          end
+        rescue StandardError
+          invalid = true
+        end
+      end
+      category.new("Transit #{phase} failed", status: status, code: code, phase: phase, diagnostic: diagnostic, diagnostic_invalid: invalid)
     end
     # This small validator accepts only the keywords emitted by the Zig schema
     # generator. Unknown schema keywords fail closed, rather than being ignored.

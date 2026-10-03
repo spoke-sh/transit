@@ -121,7 +121,7 @@ public:
     void *symbol(const char *name) const;
 };
 #define TRANSIT_RAW_FUNCTIONS(X) \
-    X(transit_client_abi_definition_matches) X(transit_client_abi_version) X(transit_client_supports_kind) X(transit_json_extract) \
+    X(transit_client_abi_definition_matches) X(transit_client_abi_version) X(transit_client_supports_kind) X(transit_json_extract) X(transit_diagnostic_validate) \
     X(transit_client_create) X(transit_client_destroy) X(transit_operation_prepare) \
     X(transit_operation_export) X(transit_operation_metadata) X(transit_operation_import) \
     X(transit_operation_destroy) X(transit_client_call) X(transit_buffer_data) \

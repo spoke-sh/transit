@@ -1,11 +1,18 @@
-"""Errors preserve native status, authority code and attempt phase, without data."""
+"""Errors preserve native status, attempt phase and optional owned caller detail."""
 from __future__ import annotations
+from copy import deepcopy
 
 
 class TransitError(Exception):
     def __init__(self, message: str, *, status: int | None = None, code: str | None = None,
-                 phase: str = "preflight") -> None:
+                 phase: str = "preflight", diagnostic: dict[str, object] | None = None, diagnostic_invalid: bool = False) -> None:
         self.status, self.code, self.phase = status, code, phase
+        self.diagnostic: dict[str, object] | None = None
+        self.diagnostic_invalid = diagnostic_invalid
+        try:
+            self.diagnostic = deepcopy(diagnostic)
+        except MemoryError:
+            self.diagnostic_invalid = True
         super().__init__(message)
 
 
@@ -26,21 +33,21 @@ class HandlerError(TransitError): pass
 
 
 class UncertainOperation(TransitError):
-    def __init__(self, *, recovery: bytes, code: str | None = None, phase: str = "dispatch") -> None:
+    def __init__(self, *, recovery: bytes, code: str | None = None, phase: str = "dispatch", diagnostic: dict[str, object] | None = None, diagnostic_invalid: bool = False) -> None:
         self.recovery = bytes(recovery)
         super().__init__("Mutation outcome is unknown; retain exact recovery material", status=6,
-                         code=code, phase=phase)
+                         code=code, phase=phase, diagnostic=diagnostic, diagnostic_invalid=diagnostic_invalid)
 
 
 def native_error(status: int, detail: object = None, *, phase: str = "native",
-                 recovery: bytes = b"") -> TransitError:
+                 recovery: bytes = b"", diagnostic: dict[str, object] | None = None, diagnostic_invalid: bool = False) -> TransitError:
     code = None
     if isinstance(detail, dict):
         candidate = detail.get("protocol_error") or detail.get("err")
         if isinstance(candidate, str):
             code = candidate
     if status == 6:
-        return UncertainOperation(recovery=recovery, code=code, phase=phase)
+        return UncertainOperation(recovery=recovery, code=code, phase=phase, diagnostic=diagnostic, diagnostic_invalid=diagnostic_invalid)
     category: type[TransitError]
     if code in ("ProcessExpired", "ProcessTerminated"):
         category = ProcessRetired
@@ -54,4 +61,4 @@ def native_error(status: int, detail: object = None, *, phase: str = "native",
         category = {3: AuthorityRejected, 5: AuthorityRejected, 7: ReadFailed, 8: ReadFailed,
                     9: Busy, 10: IncompatibleNative, 13: TurnExpired}.get(status, TransitError)
     return category(f"Transit {phase} failed (status {status}, code {code or 'unavailable'})",
-                    status=status, code=code, phase=phase)
+                    status=status, code=code, phase=phase, diagnostic=diagnostic, diagnostic_invalid=diagnostic_invalid)

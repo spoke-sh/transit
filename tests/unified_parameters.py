@@ -52,12 +52,20 @@ def compile_requests(owners, scope, kind, root, fault, *, capability_owners=()):
     invalid_bindings.extend(([value], 'TypeMismatch') for value in wrong_types)
     for parameters, error in invalid_bindings:
         invalid = {**request, 'parameters': parameters}
+        original_diagnostic = None
         for owner in owners:
             try:
                 owner.call({'compile': invalid})
                 raise AssertionError('invalid parameter request compiled')
             except Failure as failure:
                 assert failure.detail['err'] == error, failure
+                diagnostic = failure.detail['diagnostic']
+                assert diagnostic is not None and not failure.detail.get('diagnostic_invalid', False), failure
+                assert diagnostic['outcome'] == 'not_submitted' and diagnostic['evidence'] == 'local_before_dispatch', diagnostic
+                assert diagnostic['cause'] == error and diagnostic['code'].startswith('sql.'), diagnostic
+                assert 'resume_exact' not in [a['kind'] for a in diagnostic['actions'] if a], diagnostic
+                if original_diagnostic is None: original_diagnostic = diagnostic
+                assert diagnostic == original_diagnostic, (type(owner), diagnostic, original_diagnostic)
     assert fault['console_sends'] == sends, 'compilation submitted query work'
     return requests
 
@@ -73,3 +81,51 @@ def rejected(owners, requests, *, retired=False):
                     assert failure.detail['err'] in ('QuerySourceUnavailable', 'ResourceUnavailable', 'Rejected', 'AccessDenied', 'StateResourceExpired'), failure
                 else:
                     assert failure.status == 4, failure
+
+
+def uncertain_commands(owners, native, fault):
+    """Every SDK keeps diagnostic + exact command after a committed lost reply."""
+    import time
+    previous = fault.get('count_hook')
+    attempt = {}
+
+    def hook(path, message, body, status, data):
+        if path != '/v1/command' or status != 200 or message['request']['principal'] != 1234:
+            return data
+        if not attempt:
+            attempt.update(body=body, receipt=data, retried=False)
+            return b'{"position":0}'
+        assert body == attempt['body'], 'uncertain caller invented another signed command'
+        assert data == attempt['receipt'], 'exact retry changed its native receipt'
+        attempt['retried'] = True
+        return data
+
+    fault['count_hook'] = hook
+    try:
+        for index, owner in enumerate(owners):
+            namespace = str(57000 + index)
+            prepared = native.call({'prepare': {'cancel': namespace}})['prepared']
+            attempt.clear()
+            try:
+                owner.call({'submit': prepared})
+                raise AssertionError('lost reply was reported as success')
+            except Failure as failure:
+                diagnostic = failure.detail['diagnostic']
+                assert failure.status == 6 and not failure.detail.get('diagnostic_invalid', False), failure
+                assert diagnostic['code'] == 'query.send_unknown' and diagnostic['outcome'] == 'unknown', diagnostic
+                assert diagnostic['identity']['sequence'] == str(json.loads(attempt['body'])['request']['sequence']), diagnostic
+                assert [a['kind'] for a in diagnostic['actions'] if a] == ['inspect_status', 'resume_exact'], diagnostic
+            receipt = owner.call({'submit': prepared})['receipt']
+            assert attempt['retried']
+            until = time.monotonic() + 60
+            while True:
+                observation = native.call({'observe': receipt['position']})['observation']
+                if 'pending' not in observation: break
+                assert time.monotonic() < until, observation
+                time.sleep(.02)
+            assert 'rejected' in observation, observation
+            assert native.call({'status': namespace})['status'] is None
+        print(f'Unified diagnostic recovery: unknown send and exact retry survive across {len(owners)} callers; rejected cancel input creates no query outcome.', flush=True)
+    finally:
+        if previous is None: fault.pop('count_hook', None)
+        else: fault['count_hook'] = previous

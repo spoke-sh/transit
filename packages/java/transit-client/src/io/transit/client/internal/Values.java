@@ -133,6 +133,17 @@ public final class Values {
         if ("ProcessExpired".equals(code) || "ProcessTerminated".equals(code)) kind = PROCESS_RETIRED;
         if ("HistoryReclaimed".equals(code) || "QueryExpired".equals(code)) kind = HISTORY_UNAVAILABLE;
         if ("StaleActivation".equals(code)) kind = STALE_OWNERSHIP;
-        return new TransitException(kind, status, code, phase);
+        if (status == 6) kind = UNKNOWN_OUTCOME;
+        JsonObject diagnostic = null;
+        boolean invalid = false;
+        JsonElement candidate = value.isJsonObject() ? value.getAsJsonObject().get("diagnostic") : null;
+        if (candidate != null && !candidate.isJsonNull()) {
+            try {
+                JsonObject schema = resource("/io/transit/sdk/client/schemas.json").getAsJsonObject("Diagnostic");
+                if (candidate.isJsonObject() && candidate.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8).length <= 32768 && Schema.valid(schema, candidate)) diagnostic = candidate.getAsJsonObject();
+                else invalid = true;
+            } catch (RuntimeException error) { invalid = true; }
+        }
+        return new TransitException(kind, status, code, phase, diagnostic, invalid);
     }
 }

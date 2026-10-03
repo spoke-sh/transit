@@ -41,7 +41,7 @@ internal sealed class Bridge : IDisposable
             if (bytes.Length != 0) {
                 try { detail = Value.Parse(bytes); } catch (TransitException) { }
             }
-            throw Value.NativeError(status, detail, phase);
+            throw Value.NativeError(status, detail, phase, payload => Api.transit_diagnostic_validate(payload, (nuint)payload.Length) == 1);
         }
         return bytes;
     }
