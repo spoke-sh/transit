@@ -69,7 +69,7 @@ test "admission commits a fixed caller route within four mutations and refuses c
     turn = try store.capture(9, 99, wire);
     try t.expectError(error.UnsettledExchange, Service.publish(&turn, ex));
     try t.expectEqual(null, turn.decision.outputs[0]);
-    _ = try ex.closeUnknown(&turn);
+    _ = try ex.closeUnknown(&turn, .{ .reason = .caller_closed });
     try store.commit(turn);
     turn = try store.capture(9, 99, wire);
     try t.expect(try Service.publish(&turn, ex));
@@ -128,7 +128,7 @@ test "outcome publication waits for settlement and atomically records its origin
             effect.phase = .observed;
             effect.result = try (try ex.reference(&turn)).encode();
         } else {
-            _ = try ex.closeUnknown(&turn);
+            _ = try ex.closeUnknown(&turn, .{ .reason = .caller_closed });
             effect.phase = .closed_unknown;
         }
         try store.commit(turn);

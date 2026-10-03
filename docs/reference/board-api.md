@@ -81,3 +81,11 @@ code, stage and any budget dimension/measurements. The optional query workspace
 status exposes the same neutral object. Observing these fields still requires
 current access through the relevant inspection or query identity; the lens does
 not fetch source payloads to enrich a failure.
+
+HTTP/RPC metadata and the allowlisted Exchange failure record expose the original
+capture cause, operation/input, original phase and sealed prefix. These fields
+come from the atomic first closure, survive worker replacement and remain distinct
+from native effect settlement. A replacement with no admitted cause says that it
+was not recorded. Board checks the resource/writer/exchange basis, displays the
+original cause and directs inspection of effect settlement and connector policy.
+It does not read captured bodies, destinations or credentials to enrich errors.

@@ -23,6 +23,7 @@ pub const Terminal = struct {
 };
 pub const Summary = struct {
     descriptor: x.Descriptor,
+    failure: ?x.Failure = null,
     policy: ?Record(Policy) = null,
     half_close: ?Record(rpc.Capture.HalfClose) = null,
     response_message_records: u32 = 0,
@@ -62,7 +63,7 @@ pub fn read(gpa: std.mem.Allocator, ex: x.Exchange, source: anytype) !Summary {
     if (d.protocol != rpc.protocol_format) return error.WrongExchangeProtocol;
     if (d.phase == .retired) return error.ExchangeUnavailable;
     if (d.segments > 256) return error.GrpcInspectionCapacity;
-    var result: Summary = .{ .descriptor = d };
+    var result: Summary = .{ .descriptor = d, .failure = try ex.failure(source) };
     var chain = x.Coverage.initial;
     var timing: ?Record(rpc.Capture.Timing) = null;
     var omission: ?Record(rpc.Capture.Omission) = null;

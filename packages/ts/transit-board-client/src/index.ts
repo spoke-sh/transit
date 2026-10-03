@@ -172,9 +172,55 @@ const wide = (text: string, zero = false) =>
   /^(0|[1-9][0-9]{0,19})$/.test(text) &&
   (zero || text !== "0") &&
   BigInt(text) <= 18446744073709551615n;
+/** Failure provenance describes capture only; it never resolves remote execution. */
+function validCaptureFailure(
+  failure: NonNullable<HttpResponse["failure"]>,
+  source: HttpResponse["source"],
+  exchange: string,
+): boolean {
+  const f = failure;
+  const hasCause = f.reason === "transport_failure" || f.reason === "capture_failure";
+  if (
+    f.exchange !== exchange ||
+    !wide(exchange) ||
+    f.resource !== source.resource ||
+    f.owner !== source.pid ||
+    f.owner === 0 ||
+    f.input === 0 ||
+    f.input > source.position ||
+    f.origin_input > source.position ||
+    !wide(f.bytes, true) ||
+    (f.effect === 0) !== (f.attempt === 0) ||
+    f.effect > source.position ||
+    f.attempt > source.position ||
+    !["preparing", "ready", "capturing"].includes(f.phase) ||
+    (f.phase === "preparing" && f.effect !== 0) ||
+    (f.phase === "capturing" && f.effect === 0) ||
+    hasCause !== (f.cause !== null) ||
+    (!hasCause && f.cause_truncated) ||
+    (f.cause !== null && (f.cause.length === 0 || new TextEncoder().encode(f.cause).length > 96))
+  )
+    return false;
+  if (
+    f.reason !== "capture_failure" &&
+    (f.operation !== "none" ||
+      f.origin_input !== 0 ||
+      f.kind !== 0 ||
+      f.member !== 0 ||
+      f.chunk !== 0 ||
+      f.requested_bytes !== 0)
+  )
+    return false;
+  return f.operation === "append" || f.chunk === 0;
+}
+function validCapturePage(page: HttpResponse | GrpcResponse): boolean {
+  if ((page.phase === "unknown") !== (page.failure !== null)) return false;
+  return page.failure === null || validCaptureFailure(page.failure, page.source, page.exchange);
+}
 export function validateHttp(value: unknown): value is HttpResponse {
   if (!httpValidator(value)) return false;
   const page = value as HttpResponse;
+  if (!validCapturePage(page)) return false;
   if (!wide(page.exchange) || page.phase === "retired") return false;
   const prefix = `0045${BigInt(page.exchange).toString(16).padStart(16, "0")}`;
   if (page.source.key !== `${prefix}6400000000`) return false;
@@ -228,6 +274,7 @@ export async function httpMetadata(resource: number, exchange: string, signal?: 
 export function validateGrpc(value: unknown): value is GrpcResponse {
   if (!grpcValidator(value)) return false;
   const page = value as GrpcResponse;
+  if (!validCapturePage(page)) return false;
   if (
     !wide(page.exchange) ||
     page.phase === "retired" ||
@@ -409,6 +456,13 @@ export function validateRecords(value: unknown): value is RecordsResponse {
     )
       return false;
     const detail = lens.declaration;
+    if ("failure" in detail) {
+      const f = detail.failure;
+      return (
+        validCaptureFailure(f, source, f.exchange) &&
+        source.key === `0045${BigInt(f.exchange).toString(16).padStart(16, "0")}6600000000`
+      );
+    }
     if ("capture" in detail) {
       const d = detail.capture;
       return (

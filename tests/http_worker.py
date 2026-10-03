@@ -6,6 +6,7 @@ import json
 import os
 from pathlib import Path
 import ssl
+import struct
 import subprocess
 import sys
 import threading
@@ -42,6 +43,10 @@ def run(node, provision, worker, library, board=None, browser=False):
         dropped = {}
         recovered = set()
         failures = []
+        failure_admitted = threading.Event()
+        release_failure = threading.Event()
+        failure_inputs = []
+        failure_kill_armed = False
         signal_names = set()
 
         class Peer(BaseHTTPRequestHandler):
@@ -61,6 +66,9 @@ def run(node, provision, worker, library, board=None, browser=False):
                     return
                 first_application = key not in applied
                 applied.add(key)
+                if self.path == "/failure-send":
+                    self.close_connection = True
+                    return
                 if self.path in ("/kill", "/public-kill", "/public-retry") and first_application:
                     blocked.set()
                     release.wait(timeout=30)
@@ -118,6 +126,11 @@ def run(node, provision, worker, library, board=None, browser=False):
                         if any(m and m["value"] and bytes.fromhex(m["value"]).startswith(b"EXL1") for m in turn.get("mutations", [])):
                             selected = "caller_followup"
                         if request["principal"] == 65536:
+                            sent = bytes.fromhex(command.get("send", {}).get("value", ""))
+                            if failure_kill_armed and sent[13:17] == b"EXF1" and not failure_admitted.is_set():
+                                failure_inputs.append((sent[13:], json.loads(data)["position"]))
+                                failure_admitted.set()
+                                release_failure.wait(timeout=60)
                             if observation_kill_armed and "observe" in command and not terminal_commit.is_set():
                                 terminal_commit.set()
                                 release_terminal.wait(timeout=30)
@@ -436,6 +449,7 @@ def run(node, provision, worker, library, board=None, browser=False):
             assert terminal_commit.wait(timeout=90), "Kernel outcome was not committed"
             child.kill(); child.wait(timeout=10); child = None
             release_terminal.set()
+            release_failure.set()
             assert admin("inspect")["effect"] == "observed"
             authority.kill(); authority.wait(timeout=10); authority = None
             fixture.stop(); fixture.start()
@@ -744,8 +758,48 @@ def run(node, provision, worker, library, board=None, browser=False):
             assert not failures, failures
             assert {'http.worker.operation', 'http.transport.completed', 'service.ready'} <= signal_names
             assert len(requests) == 16 and len(applied) == 8
+            # The remote application closes before responding. Admit the immutable
+            # failure input but lose its receipt and the entire worker activation.
+            # Replacement must retain that exact cause and must never redial.
+            saved = admin("provision")
+            configure(saved, "/failure-send", "prepare")
+            assert invoke()["phase"] == "ready"
+            saved = admin("own")
+            configure(saved, "/failure-send", "execute")
+            failure_kill_armed = True
+            child = subprocess.Popen([worker, str(config)], stdout=subprocess.PIPE)
+            assert failure_admitted.wait(timeout=60), "Failure input was never admitted"
+            child.kill(); child.wait(timeout=10); child = None
+            release_failure.set()
+            assert admin("inspect")["phase"] == "capturing"
+            authority.kill(); authority.wait(timeout=10); authority = None
+            fixture.stop(); fixture.start()
+            authority = start_node()
+            saved = admin("own")
+            configure(saved, "/failure-send", "execute")
+            unknown = invoke()
+            assert unknown["phase"] == "unknown" and unknown["outcome"] == "closed_unknown"
+            failure_bytes, failure_input = failure_inputs[0]
+            # Independent fixed-layout decode of the admitted payload.
+            witness = struct.unpack("<4s5QBBQ4IBB96sBQQIQ", failure_bytes)
+            assert witness[0] == b"EXF1" and witness[6] == 4  # transport_failure
+            original_cause = witness[15][:witness[13]].decode()
+            diagnostic = unknown["capture_diagnostic"]
+            assert diagnostic["code"] == "exchange.transport_failed", diagnostic
+            assert diagnostic["cause"] == original_cause and original_cause
+            assert diagnostic["outcome"] == "not_applicable"
+            facts = {f["field"]: f["value"] for f in diagnostic["facts"] if f}
+            assert facts["native_input"] == {"unsigned": str(failure_input)}
+            assert unknown["effect_diagnostic"]["code"] == "effect.reconciliation_abandoned"
+            assert requests.count("/failure-send") == 1
+            saved = admin("own")
+            configure(saved, "/failure-send", "release")
+            retired = invoke()
+            assert retired["phase"] == "retired" and retired["capture_diagnostic"] == diagnostic
+            assert requests.count("/failure-send") == 1
+            assert len(requests) == 17 and len(applied) == 9
             assert cold.data_objects() > 0, "Exchange history never spilled to durable cold storage"
-            print("HTTP worker: disk recovery, exact Transit retry, replay, cleanup, explicit and public retry/redirect/status/cancel, public admission/disposal, caller termination, name rebinding and partial-capture loss passed; sixteen sends, eight applications, two cancellation requests.")
+            print("HTTP worker: disk recovery, exact Transit retry, replay, cleanup, explicit and public retry/redirect/status/cancel, public admission/disposal, caller termination, name rebinding and partial-capture loss passed; failure-input receipt loss, original cause recovery and retirement; seventeen sends, nine applications, two cancellation requests.")
             print(f"HTTP capture storage: 8 MiB hot limit, {cold.data_objects()} persisted cold objects, {cold.file_bytes()} object-store bytes.")
             print(f"HTTP worker proof wall time: {time.monotonic() - started:.2f}s (excludes compilation).")
         finally:
@@ -753,6 +807,7 @@ def run(node, provision, worker, library, board=None, browser=False):
             release_preparation.set()
             release_capture.set()
             release_terminal.set()
+            release_failure.set()
             for process in (child, authority):
                 if process is not None:
                     process.kill(); process.wait(timeout=10)

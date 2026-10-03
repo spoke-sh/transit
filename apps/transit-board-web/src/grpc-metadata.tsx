@@ -1,3 +1,4 @@
+import { CaptureFailure } from "./capture-failure";
 import { grpcMetadata } from "@rey/transit-board-client";
 import { useMetadata } from "./use-metadata";
 const hex = (bytes: readonly number[]) =>
@@ -21,6 +22,7 @@ export function GrpcMetadata({ resource, exchange }: { resource: number; exchang
             Member commitments and selected metadata digests are verified. Protobuf bodies are not
             loaded. Indexed message records in a partial capture may lack complete bodies.
           </p>
+          {page.failure && <CaptureFailure value={page.failure} />}
           {policy ? (
             <dl>
               <dt>Method shape / TLS</dt>

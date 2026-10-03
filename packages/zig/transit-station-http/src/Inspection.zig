@@ -26,6 +26,7 @@ pub const Terminal = struct {
 };
 pub const Summary = struct {
     descriptor: x.Descriptor,
+    failure: ?x.Failure = null,
     policy: ?Record(Policy) = null,
     terminal: ?Terminal = null,
 };
@@ -84,7 +85,7 @@ pub fn read(gpa: std.mem.Allocator, ex: x.Exchange, source: anytype) !Summary {
     const d = try ex.inspect(source);
     if (d.protocol != http.protocol_format) return error.WrongExchangeProtocol;
     if (d.phase == .retired) return error.ExchangeUnavailable;
-    var result: Summary = .{ .descriptor = d };
+    var result: Summary = .{ .descriptor = d, .failure = try ex.failure(source) };
     if (d.segments > 0) {
         var buffer: [8192]u8 = undefined;
         const record = try load(ex, source, 0, .request_template, &buffer);

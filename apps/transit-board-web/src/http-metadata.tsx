@@ -1,3 +1,4 @@
+import { CaptureFailure } from "./capture-failure";
 import { httpMetadata } from "@rey/transit-board-client";
 import { useMetadata } from "./use-metadata";
 
@@ -20,6 +21,7 @@ export function HttpMetadata({ resource, exchange }: { resource: number; exchang
             Selected metadata digests are verified. Body contents and the full transcript are not
             loaded.
           </p>
+          {page.failure && <CaptureFailure value={page.failure} />}
           {policy ? (
             <dl>
               <dt>Endpoint policy revision</dt>

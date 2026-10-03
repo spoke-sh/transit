@@ -4178,9 +4178,12 @@
       ]
     },
     "packages/zig/transit-board-api/src/Exchange.zig": {
-      "errors": {},
+      "errors": {
+        "InvalidExchangeFailure": 1
+      },
       "outcomes": {
         "Detail": [
+          "failure",
           "capture",
           "obligations",
           "lineage",
@@ -4837,6 +4840,7 @@
         "InvalidExchangeAttempt": 5,
         "InvalidExchangeBudget": 4,
         "InvalidExchangeCoverage": 5,
+        "InvalidExchangeFailure": 3,
         "InvalidExchangeIdentity": 5,
         "InvalidExchangeLineage": 4,
         "InvalidExchangeRecord": 8,
@@ -4854,6 +4858,31 @@
           "redirect",
           "reconcile",
           "cancel"
+        ]
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
+    "packages/zig/transit-exchange/src/Failure.zig": {
+      "errors": {
+        "InvalidExchangeFailure": 14
+      },
+      "outcomes": {
+        "Reason": [
+          "caller_closed",
+          "controller_release",
+          "recovered_incomplete",
+          "transport_failure",
+          "capture_failure"
+        ],
+        "Operation": [
+          "none",
+          "callback",
+          "begin",
+          "append",
+          "seal"
         ]
       },
       "imports": [
@@ -4942,6 +4971,7 @@
         "Caller.zig",
         "Client.zig",
         "Exchange.zig",
+        "Failure.zig",
         "Service.zig",
         "Worker.zig",
         "codec.zig",
@@ -6771,7 +6801,7 @@
       },
       "outcomes": {
         "Definition": [
-          "@\"8473c39ff9d0cfda98692ce4c568f35ae158785fdfb86b8d04f08ad35fec2152\""
+          "@\"2a9d723001230edbae890c52dc06dd4b9e153fc3db0f8ff865f2cad73db72f1e\""
         ],
         "Command": [
           "grant",

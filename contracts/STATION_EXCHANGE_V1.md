@@ -66,6 +66,48 @@ recovers the original decision. A reference accepted by the kernel points to
 already sealed capture. Cleanup first retires current exchange availability and
 requires the owning application to discharge replay dependencies.
 
+## Capture failure evidence
+
+`closeUnknown(turn, failure)` atomically writes the descriptor and the first
+failure record (two mutations). A later closure preserves that original record;
+retirement and member cleanup retain it. Current-authorized `failure` reads
+verify resource, exchange, writer, sealed prefix and any already-bound attempt
+against the same descriptor cut. A terminal unknown capture without this record
+is invalid history, not an implicit generic failure. The current contract-set
+definition replaces the earlier stored semantics; old snapshots and peers are
+rejected before execution.
+
+Key tag `f`, ordinal zero, contains exactly 197 bytes: `EXF1`, resource:u64,
+exchange:u64, owner:u64, principal:u64, input:u64, reason:u8, operation:u8,
+origin_input:u64, kind:u32, member:u32, chunk:u32, requested_bytes:u32,
+cause_length:u8, cause_truncated:u8, cause:[96]u8, phase:u8, effect:u64,
+attempt:u64, segments:u32, bytes:u64. Integers are little endian; unused cause
+bytes are zero. The cause is an owned UTF-8 error name with explicit truncation,
+never request/response content, routing, credentials or secret references.
+Reasons are caller_closed=1, controller_release=2, recovered_incomplete=3,
+transport_failure=4 and capture_failure=5. Capture operations are none=0,
+callback=1, begin=2, append=3 and seal=4. Only transport/capture failures carry
+an error name; only capture failures carry operation context. Member and chunk
+indices are zero based. Zero origin_input means no confirmed receipt identified
+the failing capture operation. Input positions identify admission, not later turn
+commit order, and may precede the attempt that was eventually closed.
+
+The common worker admits the same bounded record as an authenticated private
+Station cast, with the exact target resource/exchange and zero owner, principal,
+input and retained-prefix fields. Its replay handler fills those fields from the
+original closing turn. Worker replacement can therefore retain an admitted
+failure even if its send receipt was lost; it does not need the previous process's
+memory and does not dispatch external I/O. If the original cause never reached
+admission, recovery explicitly records recovered_incomplete. Pending uncertain
+native work must still reconcile before another input can be sent.
+
+This witness closes capture only. Its diagnostic has outcome `not_applicable`;
+it does not settle the native effect, prove remote failure, or permit a new send.
+Native effect outcome and its original closure evidence remain independently
+inspectable. The finite workers emit both nullable `capture_diagnostic` and
+`effect_diagnostic` alongside their primary phase/outcome JSON. Diagnostic
+construction failure cannot replace that primary result.
+
 ## Explicit followups
 
 Root exchanges default to one attempt. `configureAttempts` can set an immutable

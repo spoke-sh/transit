@@ -25,7 +25,7 @@ pub fn For(comptime Host: type, comptime Adapter: type, comptime options: Option
             collect,
             publish,
             finish: u32,
-            unknown,
+            unknown: x.Failure,
         };
         pub fn admission(self: *Host) !Adapter.Service.Admission {
             const policy = self.config.admission orelse return options.admission_missing;
@@ -54,7 +54,7 @@ pub fn For(comptime Host: type, comptime Adapter: type, comptime options: Option
             // This first worker owns a private control mailbox. Application ingress
             // is a separately scoped service obligation, not arbitrary callback data.
             switch (turn.delivery.input.origin) {
-                .external => |origin| if (origin.principal != self.config.principal or frame.kind != .cast or !std.mem.eql(u8, frame.payload.slice(), "Adapter.tick.v1")) return error.UnexpectedWorkerInput,
+                .external => |origin| if (origin.principal != self.config.principal or frame.kind != .cast or (!std.mem.eql(u8, frame.payload.slice(), "Adapter.tick.v1") and !std.mem.startsWith(u8, frame.payload.slice(), x.Failure.magic))) return error.UnexpectedWorkerInput,
                 .effect => |origin| {
                     const descriptor = try ex.inspect(turn);
                     if (origin.id != descriptor.effect or origin.attempt != descriptor.attempt or origin.executor != descriptor.executor) return error.InvalidExchangeAttempt;
@@ -75,6 +75,11 @@ pub fn For(comptime Host: type, comptime Adapter: type, comptime options: Option
                     }
                     return;
                 },
+            }
+            if (std.mem.startsWith(u8, frame.payload.slice(), x.Failure.magic)) {
+                const failure = try x.Failure.decodeRequest(frame.payload);
+                _ = try ex.closeUnknown(turn, failure);
+                return;
             }
             switch (self.operation) {
                 .idle => {},
@@ -123,9 +128,10 @@ pub fn For(comptime Host: type, comptime Adapter: type, comptime options: Option
                 .finish => |code| {
                     _ = try ex.finish(turn, code);
                 },
-                .unknown => {
-                    _ = try ex.closeUnknown(turn);
-                },
+                // A prior generic tick may remain after a blocked capture step.
+                // Consume that scheduling signal; only the distinct immutable
+                // failure input below carries authority to retain this witness.
+                .unknown => {},
             }
         }
         pub fn drive(self: *Host) !void {
@@ -154,8 +160,45 @@ pub fn For(comptime Host: type, comptime Adapter: type, comptime options: Option
             if (self.server.pending != null) return error.AuthorityOutcomeUnknown;
             self.operation = operation;
             defer self.operation = .idle;
-            const sent = try self.command(.{ .send = .{ .pid = self.config.pid, .value = try (s.Frame{ .kind = .cast, .payload = try p.Value.init("Adapter.tick.v1") }).encode() } });
-            try self.driveUntil(sent.position);
+            const payload = if (operation == .unknown) blk: {
+                const ex = try self.exchange();
+                var failure = operation.unknown;
+                failure.resource = ex.resource;
+                failure.exchange = ex.id;
+                break :blk try failure.encodeRequest();
+            } else try p.Value.init("Adapter.tick.v1");
+            const sent = self.command(.{ .send = .{ .pid = self.config.pid, .value = try (s.Frame{ .kind = .cast, .payload = payload }).encode() } }) catch |err| {
+                captureFailure(self, operation, 0, err);
+                return err;
+            };
+            self.driveUntil(sent.position) catch |err| {
+                captureFailure(self, operation, sent.position, err);
+                return err;
+            };
+        }
+        fn captureFailure(self: *Host, operation: Operation, input: u64, err: anyerror) void {
+            var failure = x.Failure.failed(.capture_failure, err);
+            failure.origin_input = input;
+            switch (operation) {
+                .begin => |value| {
+                    failure.operation = .begin;
+                    failure.kind = @backingInt(value.kind);
+                    failure.member = value.ordinal;
+                    failure.requested_bytes = value.spec.length;
+                },
+                .append => |value| {
+                    failure.operation = .append;
+                    failure.member = value.ordinal;
+                    failure.chunk = value.chunk;
+                    failure.requested_bytes = value.bytes.len;
+                },
+                .seal => |ordinal| {
+                    failure.operation = .seal;
+                    failure.member = ordinal;
+                },
+                else => return,
+            }
+            if (self.capture_failure == null) self.capture_failure = failure;
         }
         pub fn stage(self: *Host, kind: Adapter.Kind, bytes: []const u8) !void {
             const ex = try self.exchange();
@@ -177,7 +220,15 @@ pub fn For(comptime Host: type, comptime Adapter: type, comptime options: Option
         }
         pub fn capture(raw: *anyopaque, kind: Adapter.Kind, bytes: []const u8) !void {
             const self: *Host = @ptrCast(@alignCast(raw));
-            try self.stage(kind, bytes);
+            self.stage(kind, bytes) catch |err| {
+                if (self.capture_failure == null) {
+                    var failure = x.Failure.failed(.capture_failure, err);
+                    failure.operation = .callback;
+                    failure.kind = @backingInt(kind);
+                    self.capture_failure = failure;
+                }
+                return err;
+            };
         }
         pub fn effect(self: *Host) !g.Effect {
             const ex = try self.exchange();

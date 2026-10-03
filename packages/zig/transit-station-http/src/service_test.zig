@@ -165,7 +165,7 @@ test "admission commits a fixed caller route within four mutations and refuses c
     turn = try store.capture(9, 99, wire);
     try t.expectError(error.UnsettledExchange, Service.publish(&turn, ex));
     try t.expectEqual(null, turn.decision.outputs[0]);
-    _ = try ex.closeUnknown(&turn);
+    _ = try ex.closeUnknown(&turn, .{ .reason = .caller_closed });
     try store.commit(turn);
     turn = try store.capture(9, 99, wire);
     try t.expect(try Service.publish(&turn, ex));
@@ -224,7 +224,7 @@ test "outcome publication waits for settlement and atomically records its origin
             effect.phase = .observed;
             effect.result = try (try ex.reference(&turn)).encode();
         } else {
-            _ = try ex.closeUnknown(&turn);
+            _ = try ex.closeUnknown(&turn, .{ .reason = .caller_closed });
             effect.phase = .closed_unknown;
         }
         try store.commit(turn);
@@ -291,7 +291,7 @@ test "caller release rejects unpublished routes wrong callers identities and cur
     try t.expectEqual(.busy, (try x.codec.decode(Service.Rejection, (try reply(turn)).payload)).reason);
     for (turn.decision.mutations) |slot| try t.expectEqual(null, slot);
     turn = try store.capture(9, 99, disposal);
-    _ = try ex.closeUnknown(&turn);
+    _ = try ex.closeUnknown(&turn, .{ .reason = .caller_closed });
     try store.commit(turn);
     turn = try store.capture(9, 99, disposal);
     _ = try Service.publish(&turn, ex);
@@ -376,7 +376,7 @@ fn settledParent(store: *Store) !Service.Followup {
     const effect: p.Growth.Effect = .{ .id = 19, .pid = 2, .payload = turn.decision.effect.?, .phase = .closed_unknown, .attempt = 20, .executor = 7, .reconcile_before_ms = 9000 };
     try store.commit(turn);
     turn = try store.capture(9, 99, wire);
-    _ = try ex.closeUnknown(&turn);
+    _ = try ex.closeUnknown(&turn, .{ .reason = .caller_closed });
     _ = try ex.settle(&turn, effect);
     try store.commit(turn);
     turn = try store.capture(9, 99, wire);
@@ -429,7 +429,7 @@ test "authenticated followup route shares child allocation and publishes to its 
     try t.expectEqual(.duplicate, try Service.admitFollowup(&turn, 2, policy, followup_target, limits, &validator));
     try t.expectEqual(calls, validator.calls);
     for (turn.decision.mutations) |slot| try t.expectEqual(null, slot);
-    _ = try child.closeUnknown(&turn);
+    _ = try child.closeUnknown(&turn, .{ .reason = .caller_closed });
     try store.commit(turn);
     turn = try store.capture(88, 999, wire);
     try t.expect(try Service.publish(&turn, child));
@@ -540,7 +540,7 @@ test "followup conflicts closed parents and exhausted budgets never allocate ano
     try store.commit(turn);
     const child: x.Exchange = .{ .resource = ex.resource, .id = 2 };
     turn = try store.capture(9, 99, try follow.encode());
-    _ = try child.closeUnknown(&turn);
+    _ = try child.closeUnknown(&turn, .{ .reason = .caller_closed });
     _ = try child.retire(&turn);
     try store.commit(turn);
     turn = try store.capture(9, 99, try follow.encode());

@@ -26,6 +26,7 @@ pub const Response = struct {
     exchange: []const u8,
     phase: x.Phase,
     coverage: [32]u8,
+    failure: ?api.Exchange.Failure = null,
     policy: ?Policy,
     half_close: ?struct { member: Member, messages: u32, wire_bytes: u32 },
     response_message_records: u32,
@@ -40,7 +41,9 @@ fn member(id: u64, value: x.Member) !Member {
 }
 pub fn project(gpa: std.mem.Allocator, source: @FieldType(Response, "source"), id: u64, summary: adapter.Inspection.Summary) !Response {
     if (summary.descriptor.owner != source.pid or !source.key.eql(x.Exchange.key(id, 'd', 0))) return error.InvalidObservation;
+    if (summary.failure) |failure| try failure.validateDescriptor(source.resource, id, summary.descriptor);
     return .{
+        .failure = if (summary.failure) |failure| try api.Exchange.projectFailure(gpa, failure) else null,
         .source = source,
         .exchange = try decimal(gpa, id),
         .phase = summary.descriptor.phase,

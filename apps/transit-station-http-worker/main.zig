@@ -107,6 +107,7 @@ const Driver = struct {
     io: std.Io,
     gpa: std.mem.Allocator,
     operation: Operation = .idle,
+    capture_failure: ?x.Failure = null,
     pub const admission = Engine.admission;
     pub const exchange = Engine.exchange;
     pub const command = Engine.command;
@@ -349,7 +350,7 @@ fn run(init: std.process.Init, diagnostics: *telemetry.Runtime) !void {
         // time, quota pressure, observation acceptance or caller termination.
         var current = try driver.reader.inspect(ex.resource, ex.id);
         if (current.phase == .preparing) {
-            try driver.apply(.unknown);
+            try driver.apply(.{ .unknown = .{ .reason = .controller_release } });
             current = try driver.reader.inspect(ex.resource, ex.id);
         }
         try driver.apply(.publish);
@@ -406,13 +407,13 @@ fn run(init: std.process.Init, diagnostics: *telemetry.Runtime) !void {
                 try driver.apply(.{ .finish = response.status });
             } else |err| {
                 transport.finish(.{ .name = "http.transport.completed", .operation = "execute", .level = .warn, .outcome = .uncertain, .error_type = @errorName(err), .realm = config.realm, .pid = config.pid, .generation = config.generation, .position = receipt.position });
-                try driver.apply(.unknown);
+                try driver.apply(.{ .unknown = driver.capture_failure orelse x.Failure.failed(.transport_failure, err) });
             }
             descriptor = try driver.reader.inspect(ex.resource, ex.id);
         } else if (descriptor.phase == .ready or descriptor.phase == .capturing) {
             // An authorized predecessor may have sent. A fresh activation closes
             // uncertainty; it cannot repeat that request, even before first capture.
-            try driver.apply(.unknown);
+            try driver.apply(.{ .unknown = .{ .reason = .recovered_incomplete } });
             descriptor = try driver.reader.inspect(ex.resource, ex.id);
         }
         effect = try driver.effect();
@@ -433,7 +434,22 @@ fn run(init: std.process.Init, diagnostics: *telemetry.Runtime) !void {
     const effect = if (descriptor != null) driver.effect() catch |err| if (err == error.UnknownEffect) null else return err else null;
     var output_buffer: [1024]u8 = undefined;
     var output = std.Io.File.stdout().writerStreaming(init.io, &output_buffer);
-    try output.interface.print("{{\"exchange\":\"{d}\",\"phase\":\"{s}\",\"outcome\":\"{s}\",\"segments\":{d},\"bytes\":{d}}}\n", .{ ex.id, if (descriptor) |value| @tagName(value.phase) else "not_admitted", if (effect) |value| @tagName(value.phase) else "not_committed", if (descriptor) |value| value.segments else 0, if (descriptor) |value| value.bytes else 0 });
+    const capture_failure = if (descriptor != null) try driver.reader.failure(ex.resource, ex.id) else null;
+    var exchange_buffer: [20]u8 = undefined;
+    const effect_diagnostic: ?p.Diagnostic = if (effect) |value| blk: {
+        const observed = driver.reader.query(.{ .capabilities = {} }) catch break :blk null;
+        break :blk p.EffectDiagnostic.from(config.realm, observed.position, value) catch null;
+    } else null;
+    try std.json.Stringify.value(.{
+        .exchange = try std.fmt.bufPrint(&exchange_buffer, "{d}", .{ex.id}),
+        .phase = if (descriptor) |value| @tagName(value.phase) else "not_admitted",
+        .outcome = if (effect) |value| @tagName(value.phase) else "not_committed",
+        .segments = if (descriptor) |value| value.segments else 0,
+        .bytes = if (descriptor) |value| value.bytes else 0,
+        .capture_diagnostic = if (capture_failure) |failure| failure.diagnostic(config.realm) catch null else null,
+        .effect_diagnostic = effect_diagnostic,
+    }, .{}, &output.interface);
+    try output.interface.writeByte('\n');
     try output.interface.flush();
     const uncertain = if (effect) |value| value.phase == .closed_unknown or value.phase == .unknown else false;
     operation.finish(.{ .name = "http.worker.operation", .operation = @tagName(config.mode), .level = if (uncertain) .warn else .info, .outcome = if (uncertain) .uncertain else .ok, .realm = config.realm, .pid = config.pid, .generation = config.generation });

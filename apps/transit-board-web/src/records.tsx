@@ -1,3 +1,4 @@
+import { CaptureFailure } from "./capture-failure";
 import { useEffect, useState } from "react";
 import { records, type RecordsResponse } from "@rey/transit-board-client";
 import { message } from "./state";
@@ -54,6 +55,7 @@ function QueryEvidence({ detail }: { detail: QueryDeclaration }) {
 
 type Declaration = NonNullable<RecordsResponse["exchanges"][number]>["declaration"];
 function ExchangeEvidence({ detail }: { detail: Declaration }) {
+  if ("failure" in detail) return <CaptureFailure value={detail.failure} />;
   if ("capture" in detail) {
     const d = detail.capture;
     return (

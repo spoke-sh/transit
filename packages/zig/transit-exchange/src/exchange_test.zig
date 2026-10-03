@@ -124,7 +124,7 @@ fn bind(store: *Store, ex: Exchange) !void {
 }
 fn closeAndSettle(store: *Store, ex: Exchange) !void {
     var turn = try store.capture();
-    _ = try ex.closeUnknown(&turn);
+    _ = try ex.closeUnknown(&turn, .{ .reason = .caller_closed });
     const d = try ex.inspect(&turn);
     _ = try ex.settle(&turn, .{ .id = d.effect, .pid = d.owner, .payload = (try turn.read(Exchange.key(ex.id, 'i', 0))).?, .phase = .closed_unknown, .attempt = d.attempt, .executor = d.executor, .reconcile_before_ms = d.reconcile_before_ms });
     try store.commit(turn);
@@ -154,18 +154,19 @@ test "simulation: Exchange closure races preserve unknown outcomes and replay ho
         try bind(&store, ex);
         try segment(&store, ex, 1, 2, "captured prefix");
         var turn = try store.capture();
+        var recovered = turn;
         const before = try ex.inspect(&turn);
         const complete = random.random().boolean();
-        _ = if (complete) try ex.finish(&turn, 200) else try ex.closeUnknown(&turn);
+        _ = if (complete) try ex.finish(&turn, 200) else try ex.closeUnknown(&turn, .{ .reason = .caller_closed });
         // A discarded private outcome neither completes nor closes capture.
-        var recovered = try store.capture();
+        // Exact replay uses the original admitted input, not a new request.
         try t.expectEqualDeep(before, try ex.inspect(&recovered));
-        _ = if (complete) try ex.finish(&recovered, 200) else try ex.closeUnknown(&recovered);
+        _ = if (complete) try ex.finish(&recovered, 200) else try ex.closeUnknown(&recovered, .{ .reason = .caller_closed });
         try t.expectEqualDeep(turn.decision.mutations, recovered.decision.mutations);
         try store.commit(recovered);
         turn = try store.capture();
         if (complete) {
-            try t.expectError(error.ExchangeClosed, ex.closeUnknown(&turn));
+            try t.expectError(error.ExchangeClosed, ex.closeUnknown(&turn, .{ .reason = .caller_closed }));
             _ = try ex.open(&turn, &turn);
         } else {
             try t.expectError(error.ExchangeClosed, ex.finish(&turn, 200));
@@ -267,7 +268,7 @@ test "durable dependency tokens block release across turns and never reacquire a
     }
     try bind(&store, ex);
     var turn = try store.capture();
-    _ = try ex.closeUnknown(&turn);
+    _ = try ex.closeUnknown(&turn, .{ .reason = .caller_closed });
     try store.commit(turn);
     turn = try store.capture();
     const effect: p.Growth.Effect = .{ .id = 19, .pid = 2, .payload = (try turn.read(Exchange.key(ex.id, 'i', 0))).?, .phase = .closed_unknown, .attempt = 20, .executor = 7, .reconcile_before_ms = 10000 };
@@ -311,7 +312,7 @@ test "terminal recovery after dispatch before bind preserves the original attemp
     const intent = turn.decision.effect.?;
     try store.commit(turn);
     turn = try store.capture();
-    _ = try ex.closeUnknown(&turn);
+    _ = try ex.closeUnknown(&turn, .{ .reason = .caller_closed });
     try store.commit(turn);
     turn = try store.capture();
     const effect: p.Growth.Effect = .{ .id = 19, .pid = 2, .payload = intent, .phase = .closed_unknown, .attempt = 20, .executor = 7, .reconcile_before_ms = 10000 };
@@ -359,7 +360,7 @@ test "gaps, conflicting duplicates, terminal races and atomic rollback preserve 
     try store.commit(turn);
     try bind(&store, ex);
     turn = try store.capture();
-    _ = try ex.closeUnknown(&turn);
+    _ = try ex.closeUnknown(&turn, .{ .reason = .caller_closed });
     try t.expectError(error.ExchangeClosed, ex.finish(&turn, 200));
     try store.commit(turn);
     turn = try store.capture();
@@ -377,7 +378,7 @@ test "quota refusal, interrupted staging cleanup and current read errors" {
     _ = try ex.beginSegment(&turn, 0, 1, try Pub.Digest.of(1, "incomplete"));
     try store.commit(turn);
     turn = try store.capture();
-    _ = try ex.closeUnknown(&turn);
+    _ = try ex.closeUnknown(&turn, .{ .reason = .caller_closed });
     _ = try ex.retire(&turn);
     try store.commit(turn);
     var done = false;
@@ -410,6 +411,51 @@ test "strict codecs reject unknown tags, trailing bytes and inconsistent counts"
     try t.expectError(error.InvalidExchangeRecord, invalid.encode());
     try t.expect(root.codec.size(root.Descriptor) <= 256);
     try t.expect(root.codec.size(root.Member) <= 256);
+}
+
+test "capture closure retains the first cause atomically through replay and refuses missing evidence" {
+    var store: Store = .{};
+    defer store.deinit();
+    const ex = try exchange(&store, 77);
+    try bind(&store, ex);
+    var turn = try store.capture();
+    var original = root.Failure.failed(.capture_failure, error.Unavailable);
+    original.operation = .append;
+    original.member = 1;
+    original.chunk = 2;
+    original.requested_bytes = 31;
+    original.origin_input = turn.delivery.input.position;
+    // Failure evidence must not spend a fifth mutation or partially close capture.
+    for ([_][]const u8{ "a", "b", "c" }) |name| try turn.put(try p.Value.init(name), .{});
+    const before = turn.decision;
+    try t.expectError(error.MutationBudgetExceeded, ex.closeUnknown(&turn, original));
+    try t.expectEqualDeep(before, turn.decision);
+    turn = try store.capture();
+    var wrong = original;
+    wrong.resource = ex.resource;
+    wrong.exchange = ex.id + 1;
+    try t.expectError(error.InvalidExchangeFailure, ex.closeUnknown(&turn, wrong));
+    try t.expectEqual(.changed, try ex.closeUnknown(&turn, original));
+    try t.expectEqual(null, turn.decision.effect);
+    try store.commit(turn);
+    turn = try store.capture();
+    const recorded = (try ex.failure(&turn)).?;
+    try t.expectEqualStrings("Unavailable", recorded.cause());
+    try t.expectEqual(original.origin_input, recorded.origin_input);
+    try t.expectEqual(turn.delivery.input.position - 1, recorded.input);
+    try t.expectEqual(@as(u32, 2), recorded.chunk);
+    try t.expectEqual(@as(u32, 31), recorded.requested_bytes);
+    try t.expectEqual(.not_applicable, (try recorded.diagnostic(1)).outcome);
+    try t.expectEqual(.duplicate, try ex.closeUnknown(&turn, .{ .reason = .recovered_incomplete }));
+    try t.expectEqualDeep(recorded, (try ex.failure(&turn)).?);
+    for (turn.decision.mutations) |slot| try t.expectEqual(null, slot);
+    store.fail_read = true;
+    try t.expectError(error.Unavailable, ex.failure(&turn));
+    store.fail_read = false;
+    _ = store.state.remove(Exchange.key(ex.id, 'f', 0));
+    turn = try store.capture();
+    try t.expectError(error.InvalidExchangeFailure, ex.failure(&turn));
+    try t.expectError(error.InvalidExchangeFailure, ex.closeUnknown(&turn, original));
 }
 
 test "linked followups share a finite original budget and never renew lineage or deadline" {
@@ -549,7 +595,7 @@ test "unsettled children protect ancestors and explicit abandonment releases onl
     try store.commit(turn);
     try bind(&store, parent);
     turn = try store.capture();
-    _ = try parent.closeUnknown(&turn);
+    _ = try parent.closeUnknown(&turn, .{ .reason = .caller_closed });
     try store.commit(turn);
     turn = try store.capture();
     try t.expectError(error.UnsettledExchange, parent.followup(&turn, 2, .retry, 7, 1, limits));
@@ -565,7 +611,7 @@ test "unsettled children protect ancestors and explicit abandonment releases onl
     try store.commit(turn);
     turn = try store.capture();
     try t.expectError(error.ExchangeHasDependents, parent.retire(&turn));
-    _ = try abandoned.closeUnknown(&turn);
+    _ = try abandoned.closeUnknown(&turn, .{ .reason = .caller_closed });
     try store.commit(turn);
     turn = try store.capture();
     try t.expectError(error.UnsettledExchange, abandoned.followup(&turn, 4, .retry, 7, 1, limits));
@@ -595,7 +641,7 @@ test "unsettled children protect ancestors and explicit abandonment releases onl
     turn = try store.capture();
     try t.expectError(error.ExchangeHasDependents, parent.retire(&turn));
     try t.expectError(error.ExchangeHasDependents, child.retire(&turn));
-    _ = try descendant.closeUnknown(&turn);
+    _ = try descendant.closeUnknown(&turn, .{ .reason = .caller_closed });
     try store.commit(turn);
     turn = try store.capture();
     _ = try descendant.retire(&turn);

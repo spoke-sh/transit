@@ -132,6 +132,28 @@ describe("exchange metadata boundary", () => {
   });
 });
 
+const captureFailure = (): NonNullable<HttpResponse["failure"]> => ({
+  exchange: "18446744073709551615",
+  resource: 3,
+  owner: 2,
+  principal: 4,
+  input: 11,
+  reason: "transport_failure",
+  operation: "none",
+  origin_input: 0,
+  kind: 0,
+  member: 0,
+  chunk: 0,
+  requested_bytes: 0,
+  cause: "ConnectionResetByPeer",
+  cause_truncated: false,
+  phase: "capturing",
+  effect: 7,
+  attempt: 8,
+  segments: 3,
+  bytes: "1024",
+});
+
 describe("HTTP metadata boundary", () => {
   const prefix = "0045ffffffffffffffff";
   const member = (
@@ -159,6 +181,7 @@ describe("HTTP metadata boundary", () => {
     exchange: "18446744073709551615",
     phase: "complete",
     coverage: Array(32).fill(1),
+    failure: null,
     policy: {
       member: member(0, "request_template"),
       endpoint_revision: "18446744073709551615",
@@ -204,7 +227,26 @@ describe("HTTP metadata boundary", () => {
     incomplete.phase = "unknown";
     expect(validateHttp(incomplete)).toBe(false);
     incomplete.terminal = null;
+    expect(validateHttp(incomplete)).toBe(false);
+    incomplete.failure = captureFailure();
     expect(validateHttp(incomplete)).toBe(true);
+    for (const invalid of [
+      { resource: 4 },
+      { owner: 3 },
+      { exchange: "1" },
+      { input: 13 },
+      { phase: "complete" },
+      { effect: 0 },
+      { cause: null },
+      { cause: "x".repeat(97) },
+      { chunk: 1 },
+      { reason: "recovered_incomplete" },
+      { origin_input: 2 },
+    ]) {
+      expect(validateHttp({ ...incomplete, failure: { ...incomplete.failure, ...invalid } })).toBe(
+        false,
+      );
+    }
     expect(validateHttp({ ...page(), raw_body: "private" })).toBe(false);
     const narrowed = page();
     narrowed.policy!.retry!.id = "0";
@@ -239,6 +281,7 @@ describe("RPC metadata boundary", () => {
     exchange: "18446744073709551615",
     phase: "complete",
     coverage: Array(32).fill(1),
+    failure: null,
     policy: {
       member: member(2, "endpoint_policy"),
       endpoint_revision: "18446744073709551615",
@@ -313,6 +356,8 @@ describe("RPC metadata boundary", () => {
     const partial = page();
     partial.phase = "unknown";
     partial.terminal = null;
+    expect(validateGrpc(partial)).toBe(false);
+    partial.failure = captureFailure();
     expect(validateGrpc(partial)).toBe(true);
     expect(validateGrpc({ ...page(), protobuf: "private" })).toBe(false);
     expect(

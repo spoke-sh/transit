@@ -17,7 +17,10 @@ identity and the new coverage commitment. Empty segments are explicit.
 resulting ready state prevents duplicate effect creation. `bind` checks the
 authorized effect's identity, exact request coverage and deadline before response
 capture. Neither method performs or authorizes socket I/O itself. `finish` seals
-protocol completion; `closeUnknown` preserves uncertainty and partial evidence.
+protocol completion; `closeUnknown(turn, failure)` retains the original reason,
+owned cause and bounded capture context atomically with partial evidence.
+`failure` and `Client.failure` expose that record under current read authority;
+missing or inconsistent retained evidence fails visibly.
 Kernel observation/closure is a separate authority decision. `settle` records
 that terminal decision against the preserved frozen intent; incomplete or
 possibly-in-flight effects cannot be retired by claiming capture is terminal.
@@ -75,7 +78,9 @@ the same implementation in both connectors.
 
 `Worker(Host, Adapter, options)` shares signed command retry, bounded host pumping,
 self-tick commits, segment staging/resume, exact intent-position effect lookup and
-current public reads. The host supplies its server/client/configuration, protocol
+current public reads. Failure closure uses an immutable admitted input, so a
+replacement retains an admitted cause after receipt loss. A cause lost before
+admission remains explicitly unrecorded. The host supplies its server/client/configuration, protocol
 policy and external transport. Options declare the tick and capture limits; there
 is no generic implicit quota. An uncertain authority command must stop the
 activation rather than reconstruct lost network state. Fresh ownership, external

@@ -40,6 +40,7 @@ def run(node, provision, worker, board=None, browser=None, *, control=False):
         key, cert = fixture.root / "peer.key", fixture.root / "peer.pem"
         subprocess.run(["openssl", "req", "-x509", "-newkey", "rsa:2048", "-nodes", "-keyout", str(key), "-out", str(cert), "-days", "1", "-subj", "/CN=localhost", "-addext", "subjectAltName=DNS:localhost"], check=True, capture_output=True, timeout=20)
         sends, applied, failures, dropped, recovered = [], set(), [], {}, set()
+        capture_diagnostics = {}
         capture_prefix = threading.Event(); release_capture = threading.Event()
         capture_armed = False
         blocked_peer = {}
@@ -185,6 +186,12 @@ def run(node, provision, worker, board=None, browser=None, *, control=False):
                     fixture.stop(); fixture.start(); authority = start_node()
                     before = len(sends); saved = admin("own"); configure(saved, exchange, shape, method, f"kill-{shape}", "execute")
                     result = invoke(); assert result["phase"] == "unknown" and result["outcome"] == "closed_unknown", result
+                    capture_diagnostics[exchange] = result["capture_diagnostic"]
+                    assert result["capture_diagnostic"]["code"] == "exchange.recovered_incomplete", result
+                    assert result["capture_diagnostic"]["cause"] is None
+                    assert result["capture_diagnostic"]["outcome"] == "not_applicable"
+                    assert result["effect_diagnostic"]["code"] == "effect.reconciliation_abandoned"
+                    assert all(a is None or a["kind"] == "inspect_status" for a in result["capture_diagnostic"]["actions"])
                     assert len(sends) == before
                     assert admin("replay", exchange, expect=False).returncode != 0
                 # An explicit new effect reuses the declared remote idempotency key;
@@ -200,7 +207,9 @@ def run(node, provision, worker, board=None, browser=None, *, control=False):
                 # Explicit disposal closes current replay before bounded reclamation.
                 for exchange in (9, 5, 1):
                     for _ in range(8):
-                        saved = admin("own"); value = configure(saved, exchange, "unary", "Unary", "unused", "release"); value["cleanup_steps"] = 8; config.write_text(json.dumps(value)); invoke()
+                        saved = admin("own"); value = configure(saved, exchange, "unary", "Unary", "unused", "release"); value["cleanup_steps"] = 8; config.write_text(json.dumps(value)); retired = invoke()
+                        if exchange in capture_diagnostics:
+                            assert retired["capture_diagnostic"] == capture_diagnostics[exchange]
                         status = admin("inspect", exchange)
                         assert status["phase"] == "retired"
                         assert admin("replay", exchange, expect=False).returncode != 0

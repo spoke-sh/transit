@@ -95,3 +95,11 @@ fields omit hosts, addresses, targets, headers, ordinary bindings and credential
 references. Partial captures have no terminal metadata; retired captures reject.
 The caller must maintain one resource revision and current access on every read.
 Board uses the public read adapter and does not acquire a retained owner view.
+
+Incomplete terminal capture includes the original Exchange failure witness:
+reason/cause, capture operation and input, original phase and sealed prefix.
+It requires current read authority and does not disclose routing, bodies or
+credentials. This evidence is separate from native effect settlement. A worker
+replays an admitted failure input after replacement; a cause lost before admission
+is explicitly unrecorded. The worker JSON returns separate nullable capture and
+effect diagnostics without claiming remote rollback or authorizing a fresh send.

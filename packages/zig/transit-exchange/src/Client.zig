@@ -45,6 +45,10 @@ pub fn inspect(self: *Self, resource: u64, id: u64) !x.Descriptor {
     var source = try self.reader(resource);
     return (x.Exchange{ .resource = resource, .id = id }).inspect(&source);
 }
+pub fn failure(self: *Self, resource: u64, id: u64) !?x.Failure {
+    var source = try self.reader(resource);
+    return (x.Exchange{ .resource = resource, .id = id }).failure(&source);
+}
 pub fn open(self: *Self, reference: Reference) !x.Exchange.Cursor {
     try reference.validate();
     var source = try self.reader(reference.resource);

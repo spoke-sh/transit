@@ -4381,7 +4381,7 @@
                     "definition": {
                       "type": "string",
                       "enum": [
-                        "8473c39ff9d0cfda98692ce4c568f35ae158785fdfb86b8d04f08ad35fec2152"
+                        "2a9d723001230edbae890c52dc06dd4b9e153fc3db0f8ff865f2cad73db72f1e"
                       ]
                     },
                     "code": {
@@ -6553,7 +6553,7 @@
                   "definition": {
                     "type": "string",
                     "enum": [
-                      "8473c39ff9d0cfda98692ce4c568f35ae158785fdfb86b8d04f08ad35fec2152"
+                      "2a9d723001230edbae890c52dc06dd4b9e153fc3db0f8ff865f2cad73db72f1e"
                     ]
                   },
                   "code": {
@@ -8896,6 +8896,201 @@
                           "type": "object",
                           "additionalProperties": false,
                           "required": [
+                            "failure"
+                          ],
+                          "properties": {
+                            "failure": {
+                              "type": "object",
+                              "additionalProperties": false,
+                              "x-transit-field-order": [
+                                "exchange",
+                                "resource",
+                                "owner",
+                                "principal",
+                                "input",
+                                "reason",
+                                "operation",
+                                "origin_input",
+                                "kind",
+                                "member",
+                                "chunk",
+                                "requested_bytes",
+                                "cause",
+                                "cause_truncated",
+                                "phase",
+                                "effect",
+                                "attempt",
+                                "segments",
+                                "bytes"
+                              ],
+                              "properties": {
+                                "exchange": {
+                                  "type": "string",
+                                  "maxLength": 256
+                                },
+                                "resource": {
+                                  "type": "integer",
+                                  "minimum": 0,
+                                  "maximum": 9007199254740991,
+                                  "x-transit-bits": 64,
+                                  "x-transit-signed": false
+                                },
+                                "owner": {
+                                  "type": "integer",
+                                  "minimum": 0,
+                                  "maximum": 9007199254740991,
+                                  "x-transit-bits": 64,
+                                  "x-transit-signed": false
+                                },
+                                "principal": {
+                                  "type": "integer",
+                                  "minimum": 0,
+                                  "maximum": 9007199254740991,
+                                  "x-transit-bits": 64,
+                                  "x-transit-signed": false
+                                },
+                                "input": {
+                                  "type": "integer",
+                                  "minimum": 0,
+                                  "maximum": 9007199254740991,
+                                  "x-transit-bits": 64,
+                                  "x-transit-signed": false
+                                },
+                                "reason": {
+                                  "type": "string",
+                                  "enum": [
+                                    "caller_closed",
+                                    "controller_release",
+                                    "recovered_incomplete",
+                                    "transport_failure",
+                                    "capture_failure"
+                                  ]
+                                },
+                                "operation": {
+                                  "type": "string",
+                                  "enum": [
+                                    "none",
+                                    "callback",
+                                    "begin",
+                                    "append",
+                                    "seal"
+                                  ]
+                                },
+                                "origin_input": {
+                                  "type": "integer",
+                                  "minimum": 0,
+                                  "maximum": 9007199254740991,
+                                  "x-transit-bits": 64,
+                                  "x-transit-signed": false
+                                },
+                                "kind": {
+                                  "type": "integer",
+                                  "minimum": 0,
+                                  "maximum": 4294967295,
+                                  "x-transit-bits": 32,
+                                  "x-transit-signed": false
+                                },
+                                "member": {
+                                  "type": "integer",
+                                  "minimum": 0,
+                                  "maximum": 4294967295,
+                                  "x-transit-bits": 32,
+                                  "x-transit-signed": false
+                                },
+                                "chunk": {
+                                  "type": "integer",
+                                  "minimum": 0,
+                                  "maximum": 4294967295,
+                                  "x-transit-bits": 32,
+                                  "x-transit-signed": false
+                                },
+                                "requested_bytes": {
+                                  "type": "integer",
+                                  "minimum": 0,
+                                  "maximum": 4294967295,
+                                  "x-transit-bits": 32,
+                                  "x-transit-signed": false
+                                },
+                                "cause": {
+                                  "anyOf": [
+                                    {
+                                      "type": "string",
+                                      "maxLength": 256
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
+                                },
+                                "cause_truncated": {
+                                  "type": "boolean"
+                                },
+                                "phase": {
+                                  "type": "string",
+                                  "enum": [
+                                    "preparing",
+                                    "capturing",
+                                    "complete",
+                                    "unknown",
+                                    "retired",
+                                    "ready"
+                                  ]
+                                },
+                                "effect": {
+                                  "type": "integer",
+                                  "minimum": 0,
+                                  "maximum": 9007199254740991,
+                                  "x-transit-bits": 64,
+                                  "x-transit-signed": false
+                                },
+                                "attempt": {
+                                  "type": "integer",
+                                  "minimum": 0,
+                                  "maximum": 9007199254740991,
+                                  "x-transit-bits": 64,
+                                  "x-transit-signed": false
+                                },
+                                "segments": {
+                                  "type": "integer",
+                                  "minimum": 0,
+                                  "maximum": 4294967295,
+                                  "x-transit-bits": 32,
+                                  "x-transit-signed": false
+                                },
+                                "bytes": {
+                                  "type": "string",
+                                  "maxLength": 256
+                                }
+                              },
+                              "required": [
+                                "exchange",
+                                "resource",
+                                "owner",
+                                "principal",
+                                "input",
+                                "reason",
+                                "operation",
+                                "origin_input",
+                                "kind",
+                                "member",
+                                "chunk",
+                                "requested_bytes",
+                                "cause",
+                                "cause_truncated",
+                                "phase",
+                                "effect",
+                                "attempt",
+                                "segments",
+                                "bytes"
+                              ],
+                              "x-transit-defaults": {}
+                            }
+                          }
+                        },
+                        {
+                          "type": "object",
+                          "additionalProperties": false,
+                          "required": [
                             "capture"
                           ],
                           "properties": {
@@ -10444,6 +10639,7 @@
           "exchange",
           "phase",
           "coverage",
+          "failure",
           "policy",
           "terminal"
         ],
@@ -10554,6 +10750,199 @@
               "x-transit-bits": 8,
               "x-transit-signed": false
             }
+          },
+          "failure": {
+            "anyOf": [
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "x-transit-field-order": [
+                  "exchange",
+                  "resource",
+                  "owner",
+                  "principal",
+                  "input",
+                  "reason",
+                  "operation",
+                  "origin_input",
+                  "kind",
+                  "member",
+                  "chunk",
+                  "requested_bytes",
+                  "cause",
+                  "cause_truncated",
+                  "phase",
+                  "effect",
+                  "attempt",
+                  "segments",
+                  "bytes"
+                ],
+                "properties": {
+                  "exchange": {
+                    "type": "string",
+                    "maxLength": 256
+                  },
+                  "resource": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991,
+                    "x-transit-bits": 64,
+                    "x-transit-signed": false
+                  },
+                  "owner": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991,
+                    "x-transit-bits": 64,
+                    "x-transit-signed": false
+                  },
+                  "principal": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991,
+                    "x-transit-bits": 64,
+                    "x-transit-signed": false
+                  },
+                  "input": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991,
+                    "x-transit-bits": 64,
+                    "x-transit-signed": false
+                  },
+                  "reason": {
+                    "type": "string",
+                    "enum": [
+                      "caller_closed",
+                      "controller_release",
+                      "recovered_incomplete",
+                      "transport_failure",
+                      "capture_failure"
+                    ]
+                  },
+                  "operation": {
+                    "type": "string",
+                    "enum": [
+                      "none",
+                      "callback",
+                      "begin",
+                      "append",
+                      "seal"
+                    ]
+                  },
+                  "origin_input": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991,
+                    "x-transit-bits": 64,
+                    "x-transit-signed": false
+                  },
+                  "kind": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 4294967295,
+                    "x-transit-bits": 32,
+                    "x-transit-signed": false
+                  },
+                  "member": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 4294967295,
+                    "x-transit-bits": 32,
+                    "x-transit-signed": false
+                  },
+                  "chunk": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 4294967295,
+                    "x-transit-bits": 32,
+                    "x-transit-signed": false
+                  },
+                  "requested_bytes": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 4294967295,
+                    "x-transit-bits": 32,
+                    "x-transit-signed": false
+                  },
+                  "cause": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 256
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "cause_truncated": {
+                    "type": "boolean"
+                  },
+                  "phase": {
+                    "type": "string",
+                    "enum": [
+                      "preparing",
+                      "capturing",
+                      "complete",
+                      "unknown",
+                      "retired",
+                      "ready"
+                    ]
+                  },
+                  "effect": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991,
+                    "x-transit-bits": 64,
+                    "x-transit-signed": false
+                  },
+                  "attempt": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991,
+                    "x-transit-bits": 64,
+                    "x-transit-signed": false
+                  },
+                  "segments": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 4294967295,
+                    "x-transit-bits": 32,
+                    "x-transit-signed": false
+                  },
+                  "bytes": {
+                    "type": "string",
+                    "maxLength": 256
+                  }
+                },
+                "required": [
+                  "exchange",
+                  "resource",
+                  "owner",
+                  "principal",
+                  "input",
+                  "reason",
+                  "operation",
+                  "origin_input",
+                  "kind",
+                  "member",
+                  "chunk",
+                  "requested_bytes",
+                  "cause",
+                  "cause_truncated",
+                  "phase",
+                  "effect",
+                  "attempt",
+                  "segments",
+                  "bytes"
+                ],
+                "x-transit-defaults": {}
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "policy": {
             "anyOf": [
@@ -11238,11 +11627,13 @@
           "exchange",
           "phase",
           "coverage",
+          "failure",
           "policy",
           "terminal"
         ],
         "x-transit-defaults": {
-          "version": 1
+          "version": 1,
+          "failure": null
         }
       },
       "GrpcResponse": {
@@ -11254,6 +11645,7 @@
           "exchange",
           "phase",
           "coverage",
+          "failure",
           "policy",
           "half_close",
           "response_message_records",
@@ -11367,6 +11759,199 @@
               "x-transit-bits": 8,
               "x-transit-signed": false
             }
+          },
+          "failure": {
+            "anyOf": [
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "x-transit-field-order": [
+                  "exchange",
+                  "resource",
+                  "owner",
+                  "principal",
+                  "input",
+                  "reason",
+                  "operation",
+                  "origin_input",
+                  "kind",
+                  "member",
+                  "chunk",
+                  "requested_bytes",
+                  "cause",
+                  "cause_truncated",
+                  "phase",
+                  "effect",
+                  "attempt",
+                  "segments",
+                  "bytes"
+                ],
+                "properties": {
+                  "exchange": {
+                    "type": "string",
+                    "maxLength": 256
+                  },
+                  "resource": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991,
+                    "x-transit-bits": 64,
+                    "x-transit-signed": false
+                  },
+                  "owner": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991,
+                    "x-transit-bits": 64,
+                    "x-transit-signed": false
+                  },
+                  "principal": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991,
+                    "x-transit-bits": 64,
+                    "x-transit-signed": false
+                  },
+                  "input": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991,
+                    "x-transit-bits": 64,
+                    "x-transit-signed": false
+                  },
+                  "reason": {
+                    "type": "string",
+                    "enum": [
+                      "caller_closed",
+                      "controller_release",
+                      "recovered_incomplete",
+                      "transport_failure",
+                      "capture_failure"
+                    ]
+                  },
+                  "operation": {
+                    "type": "string",
+                    "enum": [
+                      "none",
+                      "callback",
+                      "begin",
+                      "append",
+                      "seal"
+                    ]
+                  },
+                  "origin_input": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991,
+                    "x-transit-bits": 64,
+                    "x-transit-signed": false
+                  },
+                  "kind": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 4294967295,
+                    "x-transit-bits": 32,
+                    "x-transit-signed": false
+                  },
+                  "member": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 4294967295,
+                    "x-transit-bits": 32,
+                    "x-transit-signed": false
+                  },
+                  "chunk": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 4294967295,
+                    "x-transit-bits": 32,
+                    "x-transit-signed": false
+                  },
+                  "requested_bytes": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 4294967295,
+                    "x-transit-bits": 32,
+                    "x-transit-signed": false
+                  },
+                  "cause": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 256
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "cause_truncated": {
+                    "type": "boolean"
+                  },
+                  "phase": {
+                    "type": "string",
+                    "enum": [
+                      "preparing",
+                      "capturing",
+                      "complete",
+                      "unknown",
+                      "retired",
+                      "ready"
+                    ]
+                  },
+                  "effect": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991,
+                    "x-transit-bits": 64,
+                    "x-transit-signed": false
+                  },
+                  "attempt": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991,
+                    "x-transit-bits": 64,
+                    "x-transit-signed": false
+                  },
+                  "segments": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 4294967295,
+                    "x-transit-bits": 32,
+                    "x-transit-signed": false
+                  },
+                  "bytes": {
+                    "type": "string",
+                    "maxLength": 256
+                  }
+                },
+                "required": [
+                  "exchange",
+                  "resource",
+                  "owner",
+                  "principal",
+                  "input",
+                  "reason",
+                  "operation",
+                  "origin_input",
+                  "kind",
+                  "member",
+                  "chunk",
+                  "requested_bytes",
+                  "cause",
+                  "cause_truncated",
+                  "phase",
+                  "effect",
+                  "attempt",
+                  "segments",
+                  "bytes"
+                ],
+                "x-transit-defaults": {}
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "policy": {
             "anyOf": [
@@ -12174,6 +12759,7 @@
           "exchange",
           "phase",
           "coverage",
+          "failure",
           "policy",
           "half_close",
           "response_message_records",
@@ -12181,7 +12767,8 @@
           "terminal"
         ],
         "x-transit-defaults": {
-          "version": 1
+          "version": 1,
+          "failure": null
         }
       },
       "DocumentResponse": {
@@ -16017,7 +16604,7 @@
                               "definition": {
                                 "type": "string",
                                 "enum": [
-                                  "8473c39ff9d0cfda98692ce4c568f35ae158785fdfb86b8d04f08ad35fec2152"
+                                  "2a9d723001230edbae890c52dc06dd4b9e153fc3db0f8ff865f2cad73db72f1e"
                                 ]
                               },
                               "code": {

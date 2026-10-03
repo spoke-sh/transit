@@ -223,6 +223,11 @@ pub fn build(b: *std.Build) void {
     grpc_contract_test.has_side_effects = true;
     grpc_contract_test.stdio = .inherit;
     test_step.dependOn(&grpc_contract_test.step);
+    const exchange_failure_test = b.addSystemCommand(&.{ "python3", "-B" });
+    exchange_failure_test.addFileArg(b.path("tests/exchange_failure.py"));
+    exchange_failure_test.has_side_effects = true;
+    exchange_failure_test.stdio = .inherit;
+    test_step.dependOn(&exchange_failure_test.step);
     const build_test_step = b.step("test-build", "Compile applications and integration probes");
     build_test_step.dependOn(&work_items.step);
     build_test_step.dependOn(&work_items_gateway.step);

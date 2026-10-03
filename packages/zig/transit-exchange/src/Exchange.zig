@@ -411,10 +411,41 @@ pub fn reference(self: Self, source: anytype) !root.Client.Reference {
     if (d.phase != .complete) return error.IncompleteExchange;
     return .{ .resource = self.resource, .exchange = self.id, .chain = d.chain };
 }
-pub fn closeUnknown(self: Self, turn: *Turn) !Pub.Outcome {
+pub fn failure(self: Self, source: anytype) !?root.Failure {
+    const d = try self.inspect(source);
+    const value = (try source.read(key(self.id, 'f', 0))) orelse {
+        if (d.phase == .unknown or (d.phase == .retired and d.terminal_code == 0)) return error.InvalidExchangeFailure;
+        return null;
+    };
+    const record = try root.Failure.decode(value);
+    try record.validateDescriptor(self.resource, self.id, d);
+    return record;
+}
+/// First closure and its original cause are one atomic decision. Later closes
+/// preserve the first witness, including after a lost commit acknowledgement.
+pub fn closeUnknown(self: Self, turn: *Turn, proposal: root.Failure) !Pub.Outcome {
+    const before = turn.decision;
+    errdefer turn.decision = before;
     var d = try self.writable(turn);
-    if (d.phase == .unknown) return .duplicate;
+    try proposal.validate();
+    if (proposal.owner != 0 or (proposal.resource != 0 and (proposal.resource != self.resource or proposal.exchange != self.id))) return error.InvalidExchangeFailure;
+    if (d.phase == .unknown) {
+        _ = (try self.failure(turn)) orelse return error.InvalidExchangeFailure;
+        return .duplicate;
+    }
     if (d.phase != .preparing and d.phase != .ready and d.phase != .capturing) return error.ExchangeClosed;
+    var record = proposal;
+    record.resource = self.resource;
+    record.exchange = self.id;
+    record.owner = d.owner;
+    record.principal = turn.delivery.principal;
+    record.input = turn.delivery.input.position;
+    record.phase = d.phase;
+    record.effect = d.effect;
+    record.attempt = d.attempt;
+    record.segments = d.segments;
+    record.bytes = d.bytes;
+    try turn.write(key(self.id, 'f', 0), try record.encode());
     d.phase = .unknown;
     try self.save(turn, d);
     return .changed;

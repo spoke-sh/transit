@@ -6,6 +6,38 @@ earlier entry refers to that entry's source, not automatically to HEAD. The late
 records its reruns and remaining qualification separately; earlier consolidation
 results do not qualify the changed stored layout by inheritance.
 
+## Connector capture failure evidence — 2026-10-03
+
+The `exchange-failure-witness` current-v1 cutover retains a 197-byte first-closure
+record and an immutable authenticated worker input. `just test::unit` passes
+independent Python/Zig encoding, full-width exchange identities, exact replay,
+first-cause preservation, wrong-target refusal, mutation-budget rollback,
+missing/corrupt evidence refusal and current-read failure propagation. The real
+HTTP and gRPC workers compile. Full `just check` passes, including **517 CLI
+cases**, **75 Board unit cases**, generated contracts, native/frontends and the
+handbook build. A final focused strict-TypeScript/8-case Board boundary run
+passes after correcting the display of unrecorded callback context.
+
+`just test::http-worker` passes in **538.03 s** excluding compilation. Its new
+schedule loses the admitted failure input's receipt, kills the worker and
+restarts node/disk storage. Replacement retains the exact original transport
+cause and admission input, separately reports native abandonment, sends no
+second remote request and preserves the same failure through retirement/cleanup.
+The complete schedule observes **17 sends**, **9 remote applications** and
+**2 cancellation requests**, with an 8 MiB hot limit and **965 cold objects**.
+Existing lost-before-failure-admission recovery explicitly records an unrecorded
+cause. The first transport failure still uses its owner's `ReadFailed` wrapper;
+unwrapping available transport causes remains separate work.
+
+Logs: `/var/tmp/transit-exchange-native.log`,
+`/var/tmp/transit-exchange-check.log`,
+`/var/tmp/transit-exchange-board-unit.log` and
+`/var/tmp/transit-exchange-board-final.log`. The gRPC disk schedule is still
+running at this record; its new per-shape recovery/retirement assertions are
+not claimed passed here. Neither Board connector browser proofs, installed
+connector SDK adoption, complete semantic inventory nor committed-HEAD clean
+qualification is established by this increment.
+
 ## Native effect closure diagnostic evidence — 2026-10-03
 
 The `effect-closure-witness` current-v1 cutover retains original authorization,

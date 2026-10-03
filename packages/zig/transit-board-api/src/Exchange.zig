@@ -4,7 +4,54 @@ const x = @import("transit_exchange");
 const p = x.p;
 const Ex = x.Exchange;
 
+pub const Failure = struct {
+    exchange: []const u8,
+    resource: u64,
+    owner: u64,
+    principal: u64,
+    input: u64,
+    reason: x.Failure.Reason,
+    operation: x.Failure.Operation,
+    origin_input: u64,
+    kind: u32,
+    member: u32,
+    chunk: u32,
+    requested_bytes: u32,
+    cause: ?[]const u8,
+    cause_truncated: bool,
+    phase: x.Phase,
+    effect: u64,
+    attempt: u64,
+    segments: u32,
+    bytes: []const u8,
+};
+pub fn projectFailure(gpa: std.mem.Allocator, record: x.Failure) !Failure {
+    try record.validate();
+    if (record.owner == 0) return error.InvalidExchangeFailure;
+    return .{
+        .exchange = try decimal(gpa, record.exchange),
+        .resource = record.resource,
+        .owner = record.owner,
+        .principal = record.principal,
+        .input = record.input,
+        .reason = record.reason,
+        .operation = record.operation,
+        .origin_input = record.origin_input,
+        .kind = record.kind,
+        .member = record.member,
+        .chunk = record.chunk,
+        .requested_bytes = record.requested_bytes,
+        .cause = if (record.cause_len == 0) null else try gpa.dupe(u8, record.cause()),
+        .cause_truncated = record.cause_truncated != 0,
+        .phase = record.phase,
+        .effect = record.effect,
+        .attempt = record.attempt,
+        .segments = record.segments,
+        .bytes = try decimal(gpa, record.bytes),
+    };
+}
 pub const Detail = union(enum) {
+    failure: Failure,
     capture: struct {
         exchange: []const u8,
         protocol: u32,
@@ -48,13 +95,18 @@ pub const Detail = union(enum) {
 fn decimal(allocator: std.mem.Allocator, value: u64) ![]const u8 {
     return std.fmt.allocPrint(allocator, "{d}", .{value});
 }
-pub fn decode(allocator: std.mem.Allocator, writer: u64, key: p.Value, value: p.Value) !?Detail {
+pub fn decode(allocator: std.mem.Allocator, writer: u64, resource: u64, key: p.Value, value: p.Value) !?Detail {
     try key.validate();
     try value.validate();
     if (key.len != 15 or !std.mem.eql(u8, key.data[0..2], "\x00E")) return null;
     const id = std.mem.readInt(u64, key.data[2..10], .big);
     if (id == 0 or std.mem.readInt(u32, key.data[11..15], .big) != 0) return null;
     return switch (key.data[10]) {
+        'f' => blk: {
+            const record = x.Failure.decode(value) catch return null;
+            if (record.owner != writer or record.resource != resource or record.exchange != id) return null;
+            break :blk .{ .failure = try projectFailure(allocator, record) };
+        },
         'd' => blk: {
             const d = x.Descriptor.decode(value) catch return null;
             if (d.owner != writer) return null;
@@ -109,25 +161,25 @@ test "exchange evidence keeps wide identities and omits immutable adapter contex
     const allocator = arena.allocator();
     const id = std.math.maxInt(u64);
     const d: x.Descriptor = .{ .protocol = 1, .caller = 9, .input = 8, .parent = 0, .owner = 2, .reconcile_before_ms = 10000, .segment_bytes = 1024, .capture_bytes = 8192, .max_segments = 64 };
-    const result = (try decode(allocator, 2, Ex.key(id, 'd', 0), try d.encode())).?.capture;
+    const result = (try decode(allocator, 2, 7, Ex.key(id, 'd', 0), try d.encode())).?.capture;
     try t.expectEqualStrings("18446744073709551615", result.exchange);
     try t.expectEqualStrings("0", result.parent);
     try t.expectEqual(.preparing, result.phase);
     try t.expectEqual(@as(u64, 0), result.attempt);
-    try t.expectEqual(null, try decode(allocator, 3, Ex.key(id, 'd', 0), try d.encode()));
-    try t.expectEqual(null, try decode(allocator, 2, Ex.key(id, 'd', 1), try d.encode()));
+    try t.expectEqual(null, try decode(allocator, 3, 7, Ex.key(id, 'd', 0), try d.encode()));
+    try t.expectEqual(null, try decode(allocator, 2, 7, Ex.key(id, 'd', 1), try d.encode()));
     const link: Ex.Link = .{ .lineage = .{ .root = id, .parent = id, .ordinal = 2, .reason = .retry, .policy = id, .policy_revision = id }, .context = try p.Value.init("private-adapter-context") };
-    const lineage = (try decode(allocator, 2, Ex.key(1, 'l', 0), try link.encode())).?;
+    const lineage = (try decode(allocator, 2, 7, Ex.key(1, 'l', 0), try link.encode())).?;
     const json = try std.json.Stringify.valueAlloc(allocator, lineage, .{});
     try t.expect(std.mem.indexOf(u8, json, "private-adapter-context") == null);
     try t.expectEqualStrings("18446744073709551615", lineage.lineage.policy_revision);
     var bad = try d.encode();
     bad.data[3] = '9';
-    try t.expectEqual(null, try decode(allocator, 2, Ex.key(id, 'd', 0), bad));
+    try t.expectEqual(null, try decode(allocator, 2, 7, Ex.key(id, 'd', 0), bad));
     // Recognizing a magic inside an arbitrary application value is forbidden.
-    try t.expectEqual(null, try decode(allocator, 2, try p.Value.init("application"), try d.encode()));
+    try t.expectEqual(null, try decode(allocator, 2, 7, try p.Value.init("application"), try d.encode()));
     const budget: Ex.AttemptBudget = .{ .limit = 3, .used = 2, .unsettled = 1 };
-    try t.expectEqual(@as(u32, 1), (try decode(allocator, 2, Ex.key(id, 'b', 0), try x.codec.encode(budget))).?.attempts.unsettled);
+    try t.expectEqual(@as(u32, 1), (try decode(allocator, 2, 7, Ex.key(id, 'b', 0), try x.codec.encode(budget))).?.attempts.unsettled);
     const control: Ex.Control = .{ .dependents = id, .disposition = .closed_unknown, .caller = .held, .effect = 19 };
-    try t.expectEqualStrings("18446744073709551615", (try decode(allocator, 2, Ex.key(id, 'c', 0), try x.codec.encode(control))).?.obligations.dependents);
+    try t.expectEqualStrings("18446744073709551615", (try decode(allocator, 2, 7, Ex.key(id, 'c', 0), try x.codec.encode(control))).?.obligations.dependents);
 }

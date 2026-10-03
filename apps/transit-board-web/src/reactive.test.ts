@@ -45,7 +45,7 @@ describe("generated reactive transport boundary", () => {
     const signed = {
       request: {
         version: 1,
-        definition: "8473c39ff9d0cfda98692ce4c568f35ae158785fdfb86b8d04f08ad35fec2152",
+        definition: "2a9d723001230edbae890c52dc06dd4b9e153fc3db0f8ff865f2cad73db72f1e",
         realm: 49,
         principal: 65536,
         sequence: 1,
@@ -138,7 +138,7 @@ describe("generated reactive transport boundary", () => {
       const signed = {
         request: {
           version: 1,
-          definition: "8473c39ff9d0cfda98692ce4c568f35ae158785fdfb86b8d04f08ad35fec2152",
+          definition: "2a9d723001230edbae890c52dc06dd4b9e153fc3db0f8ff865f2cad73db72f1e",
           realm: 49,
           principal: 65536,
           sequence: 1,

@@ -101,3 +101,11 @@ parsing as documented by the transport package. Foreign SDKs resolve the same
 generated local descriptors through their typed method helper and shared Zig
 codec. `just test::grpc-codegen` regenerates, compiles and uses all four shapes,
 including malformed-descriptor rejection without partial output.
+
+Incomplete terminal capture includes the original Exchange failure witness:
+reason/cause, capture operation and input, original phase and sealed prefix.
+It requires current read authority and does not disclose routing, bodies or
+credentials. This evidence is separate from native effect settlement. A worker
+replays an admitted failure input after replacement; a cause lost before admission
+is explicitly unrecorded. The worker JSON returns separate nullable capture and
+effect diagnostics without claiming remote rollback or authorizing a fresh send.
