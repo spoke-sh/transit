@@ -13625,3 +13625,20 @@ interruption, policy-raced input rejection, cancellation and retained snapshots.
 It observes 84 turns, at most four mutations, 256-byte values and eight resident
 pages. Logs: `/var/tmp/transit-write-caller-{catalog,writer}.log`. These focused
 runs selected no installed SDK variants; they do not replace final clean CI.
+
+### Board inspection semantic coverage (2026-10-03)
+
+Pinned native units, mapping/inventory gates and documentation pass. The closed
+inspection boundary combines 48 Board causes with shared query mappings for 138
+reviewed causes and six selected local owner-error pairs. Independent projections
+cross every cause with current denial and check all 109 native error tags, for
+**1,765 total projections across 25 declared surfaces**. Native tags without an
+inspection-specific meaning remain explicit authority causes, not invented domain
+outcomes. Log: `/var/tmp/transit-inspection-semantic.log`.
+
+`just transit-board::test` passes the actual server, generated-client validation,
+private access, scope/revocation, gaps, effects, outage and load checks, with maximum
+control latency **0.100 seconds**. Log:
+`/var/tmp/transit-inspection-board-proof.log`. The asset build reports its existing
+large-chunk warning; the proof completes successfully. Browser and clean
+committed-HEAD qualification remain separate.

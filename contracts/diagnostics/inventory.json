@@ -2422,14 +2422,16 @@
         "transit_station_http"
       ]
     },
-    "packages/zig/transit-board-api/src/InspectionDiagnostic.zig": {
+    "packages/zig/transit-board-api/src/InspectionCodes.zig": {
       "errors": {
         "AccessDenied": 1,
         "AuthorityTimeout": 1,
         "AuthorityUnavailable": 1,
+        "Canceled": 1,
         "Conflict": 1,
         "ConnectionRefused": 1,
         "ConnectionResetByPeer": 1,
+        "ConnectionTimedOut": 1,
         "DocumentHistoryGap": 1,
         "DocumentNotFound": 1,
         "DocumentResyncRequired": 1,
@@ -2439,16 +2441,22 @@
         "ExchangeUnavailable": 1,
         "GrpcInspectionCapacity": 1,
         "GrpcReplayGap": 1,
+        "HostUnreachable": 1,
+        "HttpConnectionClosing": 1,
         "HttpInspectionCapacity": 1,
         "HttpReplayGap": 1,
+        "IncompatibleDefinition": 1,
         "IncompleteResult": 1,
         "InvalidAuthorityResponse": 1,
         "InvalidDocumentCursor": 1,
         "InvalidExchangeCoverage": 1,
+        "InvalidExchangeFailure": 1,
         "InvalidGrpcCapture": 1,
         "InvalidHttpCapture": 1,
         "InvalidObservation": 1,
         "InvalidQueryOrdinal": 1,
+        "InvalidResourceRead": 1,
+        "NameServerFailure": 1,
         "NetworkUnreachable": 1,
         "OutOfMemory": 1,
         "QueryAccessDenied": 1,
@@ -2458,10 +2466,42 @@
         "QueryReadConflict": 1,
         "QueryRequestTooLarge": 1,
         "QuerySourceUnavailable": 1,
+        "ReadFailed": 1,
         "Rejected": 1,
         "ResourceUnavailable": 1,
         "UnsafePrincipal": 1,
+        "WriteFailed": 1,
         "WrongExchangeProtocol": 1
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {},
+      "open_error_set_uses": 2,
+      "propagation": {
+        "try": 0,
+        "catch": 0
+      },
+      "imports": [
+        "transit_protocol"
+      ]
+    },
+    "packages/zig/transit-board-api/src/InspectionDiagnostic.zig": {
+      "errors": {
+        "AccessDenied": 2,
+        "DocumentHistoryGap": 2,
+        "DocumentNotFound": 1,
+        "DocumentResyncRequired": 1,
+        "DocumentRetired": 1,
+        "EndOfStream": 1,
+        "ExchangeNotFound": 2,
+        "ExchangeUnavailable": 1,
+        "QueryAccessDenied": 1,
+        "QueryChanged": 2,
+        "QueryDenied": 1,
+        "QueryReadConflict": 1,
+        "QuerySourceUnavailable": 2,
+        "ResourceUnavailable": 1,
+        "UnsafePrincipal": 2
       },
       "outcomes": {},
       "error_sets": {},
@@ -2470,12 +2510,14 @@
       },
       "open_error_set_uses": 2,
       "propagation": {
-        "try": 7,
+        "try": 12,
         "catch": 0
       },
       "imports": [
+        "InspectionCodes.zig",
         "std",
-        "transit_protocol"
+        "transit_protocol",
+        "transit_query"
       ]
     },
     "packages/zig/transit-board-api/src/Json.zig": {

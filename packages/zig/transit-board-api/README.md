@@ -142,3 +142,10 @@ from write outcomes. It retains the native cause and distinguishes missing captu
 members, invalid coverage, protocol mismatch, decoding failure and inspector
 capacity. It supplies no domain receipt or replay authorization. The host attaches
 this envelope only to read routes; query/application submission uses its owner.
+
+`InspectionDiagnostic.codes` classifies finite inspection failures. Native denial,
+changed cuts and lifecycle responses retain priority over caller fallbacks. Known
+query causes reuse the shared query classifier; failed reads report incomplete
+observation without inventing a query identity or a write outcome. Truncated input
+records its origin as unrecorded when the propagated cause cannot distinguish
+transport from stored encoding.

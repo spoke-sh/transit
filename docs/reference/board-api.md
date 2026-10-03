@@ -97,3 +97,9 @@ from native effect settlement. A replacement with no admitted cause says that it
 was not recorded. Board checks the resource/writer/exchange basis, displays the
 original cause and directs inspection of effect settlement and connector policy.
 It does not read captured bodies, destinations or credentials to enrich errors.
+
+Inspection failures distinguish unavailable transport, incompatible definitions,
+invalid resource responses and inconsistent retained exchange evidence. Known
+query failures retain their shared semantic codes. Current native denial and
+lifecycle evidence take priority. Every failed inspection remains an incomplete
+read: it cannot authorize resubmission, cancellation or repeating external effects.

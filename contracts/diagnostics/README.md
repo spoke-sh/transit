@@ -136,3 +136,9 @@ retain exact selected read targets, and preserve uncertainty after dispatch.
 Transport truncation records an unrecorded origin rather than inventing a remote
 outcome. Native ABI tests exercise real refused status reads; this mapping scope
 does not certify every transitive framework or application handler error.
+
+Board inspection combines its finite registry with the shared query caller
+mappings. The independent matrix checks each selected cause both as a failed read
+and under current denial, plus retention of every native error tag. Read-specific
+native meanings override generic rejection only where the owner defines them;
+other tags remain explicit native causes without inventing a domain outcome.

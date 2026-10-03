@@ -1873,6 +1873,633 @@
           "name": "every catalog caller cause preserves failed-read and dispatch evidence"
         }
       ]
+    },
+    {
+      "id": "board-inspection",
+      "owners": [
+        "packages/zig/transit-board-api/src/Document.zig",
+        "packages/zig/transit-board-api/src/Exchange.zig",
+        "packages/zig/transit-board-api/src/Grpc.zig",
+        "packages/zig/transit-board-api/src/Http.zig",
+        "packages/zig/transit-board-api/src/Query.zig",
+        "packages/zig/transit-board-api/src/root.zig"
+      ],
+      "exclude": [],
+      "registry": "packages/zig/transit-board-api/src/InspectionCodes.zig",
+      "projection": "packages/zig/transit-board-api/src/InspectionDiagnostic.zig",
+      "shared_codes": true,
+      "delegates": [
+        {
+          "source": "packages/zig/transit-query/src/ApiCodes.zig",
+          "kind": "error"
+        },
+        {
+          "source": "packages/zig/transit-query/src/QueryFailure.zig",
+          "kind": "query_failure"
+        },
+        {
+          "source": "packages/zig/transit-client/src/root.zig",
+          "kind": "transport_predicate"
+        }
+      ],
+      "overrides": [
+        "AccessDenied",
+        "AuthorityTimeout",
+        "AuthorityUnavailable",
+        "Canceled",
+        "Conflict",
+        "ConnectionRefused",
+        "ConnectionResetByPeer",
+        "ConnectionTimedOut",
+        "DocumentHistoryGap",
+        "DocumentResyncRequired",
+        "DocumentRetired",
+        "EndOfStream",
+        "HostUnreachable",
+        "HttpConnectionClosing",
+        "IncompleteResult",
+        "InvalidAuthorityResponse",
+        "InvalidResourceRead",
+        "NameServerFailure",
+        "NetworkUnreachable",
+        "OutOfMemory",
+        "QueryDenied",
+        "QueryReadConflict",
+        "QuerySourceUnavailable",
+        "ReadFailed",
+        "Rejected",
+        "ResourceUnavailable",
+        "WriteFailed"
+      ],
+      "profile": "Board authorized read-only inspection",
+      "stage": "Read",
+      "outcome": "not_applicable; failed reads never establish an earlier operation outcome",
+      "durable_evidence": "No new domain evidence; current native denial/lifecycle responses have priority",
+      "context": "Original finite cause and native authority rejection; transport or encoded-data truncation origin remains unrecorded",
+      "disclosure": "Caller operation label and current authority cause only; no protected query, resource or row details on denied reads",
+      "recovery": "Read retry or explicit fresh observation; never resume, cancel, dispatch effects or fabricate rollback",
+      "propagation": "Known shared query causes retain their classifier after Board-specific and native evidence. Unknown failures remain explicit internal errors.",
+      "codes": {
+        "AccessDenied": {
+          "code": "inspection.denied",
+          "category": "access"
+        },
+        "QueryAccessDenied": {
+          "code": "inspection.denied",
+          "category": "access"
+        },
+        "QueryDenied": {
+          "code": "inspection.denied",
+          "category": "access"
+        },
+        "UnsafePrincipal": {
+          "code": "inspection.unsafe_principal",
+          "category": "access"
+        },
+        "QueryChanged": {
+          "code": "inspection.observation_changed",
+          "category": "conflict"
+        },
+        "QueryReadConflict": {
+          "code": "inspection.observation_changed",
+          "category": "conflict"
+        },
+        "DocumentHistoryGap": {
+          "code": "inspection.history_reclaimed",
+          "category": "lifecycle"
+        },
+        "DocumentResyncRequired": {
+          "code": "inspection.history_reclaimed",
+          "category": "lifecycle"
+        },
+        "QuerySourceUnavailable": {
+          "code": "inspection.resource_unavailable",
+          "category": "lifecycle"
+        },
+        "ExchangeUnavailable": {
+          "code": "inspection.resource_unavailable",
+          "category": "lifecycle"
+        },
+        "ResourceUnavailable": {
+          "code": "inspection.resource_unavailable",
+          "category": "lifecycle"
+        },
+        "DocumentRetired": {
+          "code": "inspection.resource_unavailable",
+          "category": "lifecycle"
+        },
+        "ExchangeNotFound": {
+          "code": "inspection.object_not_found",
+          "category": "lifecycle"
+        },
+        "DocumentNotFound": {
+          "code": "inspection.object_not_found",
+          "category": "lifecycle"
+        },
+        "HttpReplayGap": {
+          "code": "inspection.replay_gap",
+          "category": "integrity"
+        },
+        "GrpcReplayGap": {
+          "code": "inspection.replay_gap",
+          "category": "integrity"
+        },
+        "InvalidExchangeCoverage": {
+          "code": "inspection.coverage_mismatch",
+          "category": "integrity"
+        },
+        "GrpcInspectionCapacity": {
+          "code": "inspection.capture_limit",
+          "category": "limit"
+        },
+        "HttpInspectionCapacity": {
+          "code": "inspection.capture_limit",
+          "category": "limit"
+        },
+        "InvalidGrpcCapture": {
+          "code": "inspection.invalid_capture",
+          "category": "integrity"
+        },
+        "InvalidHttpCapture": {
+          "code": "inspection.invalid_capture",
+          "category": "integrity"
+        },
+        "WrongExchangeProtocol": {
+          "code": "inspection.wrong_protocol",
+          "category": "binding"
+        },
+        "IncompleteResult": {
+          "code": "inspection.incomplete_result",
+          "category": "integrity"
+        },
+        "InvalidDocumentCursor": {
+          "code": "inspection.invalid_cursor",
+          "category": "binding"
+        },
+        "InvalidQueryOrdinal": {
+          "code": "inspection.invalid_cursor",
+          "category": "binding"
+        },
+        "QueryRequestTooLarge": {
+          "code": "inspection.request_too_large",
+          "category": "limit"
+        },
+        "QueryBusy": {
+          "code": "inspection.busy",
+          "category": "conflict"
+        },
+        "Conflict": {
+          "code": "inspection.authority_rejected",
+          "category": "conflict"
+        },
+        "Rejected": {
+          "code": "inspection.authority_rejected",
+          "category": "conflict"
+        },
+        "AuthorityTimeout": {
+          "code": "inspection.authority_unavailable",
+          "category": "unavailable"
+        },
+        "AuthorityUnavailable": {
+          "code": "inspection.authority_unavailable",
+          "category": "unavailable"
+        },
+        "ConnectionRefused": {
+          "code": "inspection.authority_unavailable",
+          "category": "unavailable"
+        },
+        "ConnectionResetByPeer": {
+          "code": "inspection.authority_unavailable",
+          "category": "unavailable"
+        },
+        "NetworkUnreachable": {
+          "code": "inspection.authority_unavailable",
+          "category": "unavailable"
+        },
+        "EndOfStream": {
+          "code": "inspection.read_truncated",
+          "category": "unavailable"
+        },
+        "InvalidAuthorityResponse": {
+          "code": "inspection.invalid_authority_response",
+          "category": "integrity"
+        },
+        "InvalidObservation": {
+          "code": "inspection.invalid_authority_response",
+          "category": "integrity"
+        },
+        "OutOfMemory": {
+          "code": "inspection.memory_unavailable",
+          "category": "unavailable"
+        },
+        "ConnectionTimedOut": {
+          "code": "inspection.authority_unavailable",
+          "category": "unavailable"
+        },
+        "HostUnreachable": {
+          "code": "inspection.authority_unavailable",
+          "category": "unavailable"
+        },
+        "NameServerFailure": {
+          "code": "inspection.authority_unavailable",
+          "category": "unavailable"
+        },
+        "HttpConnectionClosing": {
+          "code": "inspection.authority_unavailable",
+          "category": "unavailable"
+        },
+        "ReadFailed": {
+          "code": "inspection.authority_unavailable",
+          "category": "unavailable"
+        },
+        "WriteFailed": {
+          "code": "inspection.authority_unavailable",
+          "category": "unavailable"
+        },
+        "Canceled": {
+          "code": "inspection.authority_unavailable",
+          "category": "unavailable"
+        },
+        "InvalidResourceRead": {
+          "code": "inspection.invalid_resource_read",
+          "category": "integrity"
+        },
+        "InvalidExchangeFailure": {
+          "code": "inspection.invalid_exchange_failure",
+          "category": "integrity"
+        },
+        "IncompatibleDefinition": {
+          "code": "inspection.incompatible_definition",
+          "category": "integrity"
+        },
+        "InvalidQueryRequest": {
+          "code": "query.invalid_command",
+          "category": "binding"
+        },
+        "QueryIdentityMismatch": {
+          "code": "query.identity_mismatch",
+          "category": "conflict"
+        },
+        "InvalidQueryIdentity": {
+          "code": "query.invalid_identity",
+          "category": "binding"
+        },
+        "InvalidQueryCursor": {
+          "code": "query.invalid_cursor",
+          "category": "binding"
+        },
+        "InvalidSqlCursor": {
+          "code": "query.invalid_sql_cursor",
+          "category": "binding"
+        },
+        "InvalidPredicateProgram": {
+          "code": "query.invalid_predicate_program",
+          "category": "integrity"
+        },
+        "InvalidQueryUpload": {
+          "code": "query.invalid_upload_evidence",
+          "category": "integrity"
+        },
+        "QueryUploadIdentityConflict": {
+          "code": "query.upload_identity_conflict",
+          "category": "conflict"
+        },
+        "QueryUploadNotFound": {
+          "code": "query.upload_absent",
+          "category": "lifecycle"
+        },
+        "QueryRequesterUnavailable": {
+          "code": "query.requester_unavailable",
+          "category": "lifecycle"
+        },
+        "QueryRequesterFailed": {
+          "code": "query.requester_failed",
+          "category": "lifecycle"
+        },
+        "QueryDraftNotFound": {
+          "code": "query.draft_absent",
+          "category": "lifecycle"
+        },
+        "QueryDraftClosed": {
+          "code": "query.draft_closed",
+          "category": "lifecycle"
+        },
+        "QueryDraftConflict": {
+          "code": "query.draft_conflict",
+          "category": "conflict"
+        },
+        "QueryDraftExhausted": {
+          "code": "query.draft_start_limit",
+          "category": "limit"
+        },
+        "ResultUnavailable": {
+          "code": "query.result_unavailable",
+          "category": "lifecycle"
+        },
+        "InvalidQueryManifest": {
+          "code": "query.invalid_result_manifest",
+          "category": "integrity"
+        },
+        "MissingResultSegment": {
+          "code": "query.result_segment_missing",
+          "category": "integrity"
+        },
+        "InvalidResultSegment": {
+          "code": "query.invalid_result_segment",
+          "category": "integrity"
+        },
+        "InvalidResultDigest": {
+          "code": "query.result_digest_mismatch",
+          "category": "integrity"
+        },
+        "InvalidResultCoverage": {
+          "code": "query.result_coverage_mismatch",
+          "category": "integrity"
+        },
+        "InvalidQuerySearch": {
+          "code": "query.invalid_search",
+          "category": "binding"
+        },
+        "InteractiveQueriesUnavailable": {
+          "code": "query.interactive_unavailable",
+          "category": "unsupported"
+        },
+        "ResourceReadBatchUnavailable": {
+          "code": "query.batch_read_unavailable",
+          "category": "unsupported"
+        },
+        "QueryClosed": {
+          "code": "query.snapshot_closed",
+          "category": "lifecycle"
+        },
+        "Cancelled": {
+          "code": "query.read_cancelled",
+          "category": "lifecycle"
+        },
+        "QueryComplete": {
+          "code": "query.iteration_complete",
+          "category": "lifecycle"
+        },
+        "InvalidFrame": {
+          "code": "query.invalid_frame",
+          "category": "integrity"
+        },
+        "InvalidDocumentInteger": {
+          "code": "query.invalid_integer",
+          "category": "binding"
+        },
+        "InvalidQueryInteger": {
+          "code": "query.invalid_integer",
+          "category": "binding"
+        },
+        "InvalidQueryScalar": {
+          "code": "query.invalid_scalar",
+          "category": "binding"
+        },
+        "PredicateTooLarge": {
+          "code": "query.predicate_too_large",
+          "category": "limit"
+        },
+        "InvalidQueryDraft": {
+          "code": "query.invalid_draft",
+          "category": "binding"
+        },
+        "InvalidQueryDraftRecord": {
+          "code": "query.invalid_draft_record",
+          "category": "integrity"
+        },
+        "PublicationReferenceChanged": {
+          "code": "query.publication_reference_changed",
+          "category": "conflict"
+        },
+        "QueryDraftActive": {
+          "code": "query.draft_active",
+          "category": "conflict"
+        },
+        "SourceDefinitionTooLarge": {
+          "code": "query.source_definition_too_large",
+          "category": "limit"
+        },
+        "ParameterCountMismatch": {
+          "code": "query.parameter_count_mismatch",
+          "category": "binding"
+        },
+        "QuerySourceChanged": {
+          "code": "query.source_changed",
+          "category": "conflict"
+        },
+        "PublicationNotPublished": {
+          "code": "query.request_unpublished",
+          "category": "lifecycle"
+        },
+        "UnexpectedQueryPublisher": {
+          "code": "query.publisher_mismatch",
+          "category": "access"
+        },
+        "QueryBudgetExceeded": {
+          "code": "query.budget_exceeded",
+          "category": "limit"
+        },
+        "QueryProjectionBudget": {
+          "code": "query.projection_budget",
+          "category": "limit"
+        },
+        "QueryExpansionMissing": {
+          "code": "query.expansion_missing",
+          "category": "binding"
+        },
+        "QueryExpansionNull": {
+          "code": "query.expansion_null",
+          "category": "binding"
+        },
+        "QueryExpansionConflict": {
+          "code": "query.expansion_conflict",
+          "category": "conflict"
+        },
+        "QueryExpansionTypeError": {
+          "code": "query.expansion_type_error",
+          "category": "binding"
+        },
+        "QueryTypeError": {
+          "code": "query.cell_type_error",
+          "category": "binding"
+        },
+        "QueryConflict": {
+          "code": "query.cell_conflict",
+          "category": "conflict"
+        },
+        "Overflow": {
+          "code": "query.arithmetic_overflow",
+          "category": "limit"
+        },
+        "QuerySegmentBudgetExceeded": {
+          "code": "query.segment_byte_limit",
+          "category": "limit"
+        },
+        "TypeMismatch": {
+          "code": "query.type_mismatch",
+          "category": "binding"
+        },
+        "UnsupportedAggregate": {
+          "code": "query.unsupported_aggregate",
+          "category": "unsupported"
+        },
+        "UnknownColumn": {
+          "code": "query.unknown_column",
+          "category": "binding"
+        },
+        "InvalidProjection": {
+          "code": "query.invalid_projection",
+          "category": "binding"
+        },
+        "DuplicateProjection": {
+          "code": "query.duplicate_projection",
+          "category": "binding"
+        },
+        "InvalidQueryBundle": {
+          "code": "query.invalid_bundle",
+          "category": "binding"
+        },
+        "InvalidQuerySource": {
+          "code": "query.invalid_source",
+          "category": "binding"
+        },
+        "InvalidQueryPrefix": {
+          "code": "query.invalid_prefix",
+          "category": "binding"
+        },
+        "InvalidQueryPath": {
+          "code": "query.invalid_path",
+          "category": "binding"
+        },
+        "InvalidProjectionBudget": {
+          "code": "query.invalid_projection_budget",
+          "category": "binding"
+        },
+        "InvalidTextProjection": {
+          "code": "query.invalid_text_projection",
+          "category": "binding"
+        },
+        "InvalidElementProjection": {
+          "code": "query.invalid_element_projection",
+          "category": "binding"
+        },
+        "UnsupportedSource": {
+          "code": "query.unsupported_source",
+          "category": "unsupported"
+        },
+        "UnsupportedDecoder": {
+          "code": "query.unsupported_decoder",
+          "category": "unsupported"
+        },
+        "UnsupportedDocumentSource": {
+          "code": "query.unsupported_document_source",
+          "category": "unsupported"
+        },
+        "InvalidSourceEncoding": {
+          "code": "query.invalid_source_encoding",
+          "category": "integrity"
+        },
+        "InvalidPlanEncoding": {
+          "code": "query.invalid_plan_encoding",
+          "category": "integrity"
+        },
+        "UnsupportedPlanDefinition": {
+          "code": "query.plan_definition_mismatch",
+          "category": "integrity"
+        },
+        "InvalidOutputNames": {
+          "code": "query.invalid_output_names",
+          "category": "binding"
+        },
+        "UnsupportedPlan": {
+          "code": "query.unsupported_plan",
+          "category": "unsupported"
+        },
+        "PlanTooLarge": {
+          "code": "query.plan_too_large",
+          "category": "limit"
+        },
+        "QueryBundleTooLarge": {
+          "code": "query.bundle_too_large",
+          "category": "limit"
+        },
+        "SourceChanged": {
+          "code": "query.source_changed",
+          "category": "conflict"
+        },
+        "TableSchemaChanged": {
+          "code": "query.table_schema_changed",
+          "category": "conflict"
+        },
+        "InvalidQueryBudget": {
+          "code": "query.invalid_budget",
+          "category": "binding"
+        },
+        "QueryNamespaceInUse": {
+          "code": "query.namespace_in_use",
+          "category": "conflict"
+        },
+        "QueryAfterMutation": {
+          "code": "query.query_after_mutation",
+          "category": "binding"
+        },
+        "NonFiniteValue": {
+          "code": "query.nonfinite_value",
+          "category": "binding"
+        },
+        "InvalidUtf8": {
+          "code": "query.invalid_utf8",
+          "category": "binding"
+        },
+        "CellTooLarge": {
+          "code": "query.cell_too_large",
+          "category": "limit"
+        },
+        "InvalidColumnName": {
+          "code": "query.invalid_column_name",
+          "category": "binding"
+        },
+        "InvalidColumnCount": {
+          "code": "query.invalid_column_count",
+          "category": "binding"
+        },
+        "DuplicateColumn": {
+          "code": "query.duplicate_column",
+          "category": "binding"
+        },
+        "UnsupportedSchema": {
+          "code": "query.unsupported_schema",
+          "category": "unsupported"
+        },
+        "UnexpectedQueryPeer": {
+          "code": "query.peer_mismatch",
+          "category": "access"
+        },
+        "InvalidPublicationReference": {
+          "code": "query.invalid_request_reference",
+          "category": "binding"
+        },
+        "TableQueryWriterNotReady": {
+          "code": "query.writer_not_ready",
+          "category": "unavailable"
+        },
+        "RequestResourceExpired": {
+          "code": "query.request_resource_expired",
+          "category": "lifecycle"
+        },
+        "RequestResourceMissing": {
+          "code": "query.request_resource_missing",
+          "category": "lifecycle"
+        }
+      },
+      "exceptions": [],
+      "tests": [
+        {
+          "source": "packages/zig/transit-board-api/src/InspectionDiagnostic.zig",
+          "name": "every inspection cause preserves read evidence and native denial priority"
+        }
+      ]
     }
   ]
 }

@@ -215,6 +215,17 @@ fn writeCallers(out: *std.Io.Writer) !void {
     }
 }
 
+fn inspections(out: *std.Io.Writer) !void {
+    const owner = @import("transit_board_api").InspectionDiagnostic;
+    for (@import("diagnostic_cases").board_inspection) |cause| {
+        try emitScenario(out, "inspection.caller", @errorName(cause), "read", try owner.project(cause, null));
+        try emitScenario(out, "inspection.caller", @errorName(cause), "denied", try owner.project(cause, .AccessDenied));
+    }
+    inline for (comptime std.meta.tags(p.ErrorCode)) |native| {
+        try emit(out, "inspection.native", @tagName(native), try owner.project(error.Rejected, native));
+    }
+}
+
 pub fn main(init: std.process.Init) !void {
     var buffer: [8192]u8 = undefined;
     var stdout = std.Io.File.stdout().writerStreaming(init.io, &buffer);
@@ -230,6 +241,7 @@ pub fn main(init: std.process.Init) !void {
     try migrations(&stdout.interface);
     try queryCallers(&stdout.interface);
     try writeCallers(&stdout.interface);
+    try inspections(&stdout.interface);
     try applicationCallers(&stdout.interface);
     try stdout.interface.flush();
 }
