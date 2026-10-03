@@ -12664,3 +12664,22 @@ Full `just check` passes after the parser correction, including generated contra
 checks, 481 CLI diagnostic cases, frontend validation and the production handbook
 build. This host increment does not claim durable publication/migration failure
 witnesses or complete semantic inventory coverage.
+
+### Shared Workspace diagnostics in application gateways — 2026-10-03
+
+Board and the work-items gateway use `Workspace.applyStructured` to retain
+compiler detail and distinguish validation before dispatch from an actual unknown
+forwarding result. The work-items browser renders owned query/application detail
+and preserves exact saved request recovery.
+
+Executed root units, work-items frontend formatting/lint/types, full `just check`,
+and `just test::work-items-browser`: **passed**. The browser proof completed in
+77.29 seconds, including missing publication, unknown column with its original
+SQL offset, locally rejected malformed saved token, migration/publication, gateway
+replacement, exact upload recovery/cancellation and current denial.
+
+Executed `just test::unified-ingress table`: **passed**, 222.14 seconds. Native,
+port, CLI and Board/browser callers retain exact signed retries across worker,
+node and disk-store restart. The two Board instances exercise concurrent prepared
+sequences, current prefix denial, finite draft budgets and browser recovery.
+Installed SDK profiles were not selected in this run.

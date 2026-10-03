@@ -64,6 +64,15 @@ def run(node, worker, query_host, gateway, caller):
             assert request('/api/v1/interface')['published']['head']['revision']=='1'
             request('/api/v1/query',{'describe':{}},status=403,origin_header=None)
             request('/api/v1/application',{'info':{}},status=403,origin_header='https://untrusted.example')
+            invalid = request('/api/v1/application',{'compile':{'source':'CREATE INTERFACE broken WITH (realm = 51);'}},status=400)['diagnostic']
+            assert invalid['code'] == 'application.missing_interface_option' and invalid['outcome'] == 'not_submitted'
+            invalid = request('/api/v1/query',{'compile':{'sql':'SELECT missing FROM items'}},status=400)['diagnostic']
+            assert invalid['code'] == 'sql.unknown_column' and invalid['outcome'] == 'not_submitted'
+            assert invalid['location']['offset'] == '7'
+            assert any(f and f['field'] == 'column' and f['value'] == {'text':'missing'} for f in invalid['facts'])
+            invalid = request('/api/v1/query',{'submit':{'token':'{}'}},status=400)['diagnostic']
+            assert invalid['outcome'] == 'not_submitted' and invalid['evidence'] == 'local_before_dispatch'
+            assert not any(a and a['kind'] == 'resume_exact' for a in invalid['actions'])
             request('/api/v1/query',{'suggest':{'search':''}})
             marker=fixture.root/'browser'
             browser=start('browser',['node','examples/work-items/web/browser/proof.mjs',origin,str(marker)])

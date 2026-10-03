@@ -13,6 +13,13 @@ only the currently authorized publication and checks that its renderer artifacts
 exist in the build. An absent, denied or incompatible publication hides the
 application; the generated proposal is never a fallback or a grant.
 
+Application compilation and query failures carry the same owned diagnostics as
+Board, including original SQL locations, failed column names and exact signed
+submission identities. The gateway validates a saved token before forwarding it;
+malformed local input remains unsent. The browser displays diagnostic text without
+dispatching suggested actions. Existing recovery keeps the original pending work
+across gateway replacement and interface/data generation changes.
+
 ## Roles and configuration
 
 `zig build example-work-items work-items-gateway` installs the worker and the

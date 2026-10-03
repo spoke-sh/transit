@@ -3,6 +3,7 @@ import {
   presentation,
   readInterface,
   requireArtifacts,
+  ApplicationTransportError,
   type Compiled,
   type Definition,
 } from "@rey/transit-application";
@@ -11,6 +12,8 @@ import {
   httpTransport,
   unifiedCellText,
   verifiedPage,
+  QueryError,
+  diagnosticLines,
   type ResultPage,
 } from "@rey/transit-query-client";
 import { proposal } from "./proposal.generated";
@@ -100,7 +103,7 @@ function show(page: ResultPage, selected: string, cursor: string | null = null) 
 function render() {
   const state = session.getSnapshot();
   element("query-status").textContent =
-    `${state.phase} · ${state.detail}${state.budget ? ` · ${state.budget.starts}/${state.budget.limit} native intents used` : ""}`;
+    `${state.phase} · ${state.detail}${state.budget ? ` · ${state.budget.starts}/${state.budget.limit} native intents used` : ""}${state.diagnostic ? `\n${diagnosticLines(state.diagnostic).join("\n")}` : ""}`;
   const active = ["opening", "running", "active"].includes(state.phase);
   for (const id of ["run", "live"])
     element<HTMLButtonElement>(id).disabled = !current || state.acceptedWork || active;
@@ -123,8 +126,15 @@ function render() {
 }
 session.subscribe(render);
 function notice(error: unknown) {
-  element("recovery-status").textContent =
-    error instanceof Error ? error.message : "Operation unavailable";
+  element("recovery-status").textContent = errorMessage(error);
+}
+function errorMessage(error: unknown): string {
+  if (
+    (error instanceof QueryError || error instanceof ApplicationTransportError) &&
+    error.diagnostic
+  )
+    return diagnosticLines(error.diagnostic).join("\n");
+  return error instanceof Error ? error.message : "Operation unavailable";
 }
 async function attempt(action: () => Promise<unknown> | void) {
   element("recovery-status").textContent = "";
@@ -296,8 +306,7 @@ async function refresh() {
     else session.pause();
     element("workspace").hidden = true;
     element("navigation").replaceChildren();
-    element("interface-status").textContent =
-      error instanceof Error ? error.message : "Interface unavailable";
+    element("interface-status").textContent = errorMessage(error);
   } finally {
     reading = false;
     render();

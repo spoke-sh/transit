@@ -10,17 +10,14 @@ pub fn unifiedQuery(wire: *client.Client, io: std.Io, config: UnifiedQueryConfig
     return unifiedQueryDiagnostic(wire, io, config, request, allocator, null);
 }
 pub fn unifiedQueryDiagnostic(wire: *client.Client, io: std.Io, config: UnifiedQueryConfig, request: api.UnifiedQueryRequest, allocator: std.mem.Allocator, diagnostic: ?*?p.Diagnostic) !api.UnifiedQueryResponse {
-    if (diagnostic) |out| out.* = null;
-    var witness: QueryAttempt = .{};
-    return queryAttempt(wire, io, config, request, allocator, &witness) catch |err| {
-        if (diagnostic) |out| out.* = q.Workspace.diagnostic(request, err, witness.binding, witness.dispatched, witness.identity) catch null;
+    var local: ?p.Diagnostic = null;
+    const out = diagnostic orelse &local;
+    out.* = null;
+    wire.last_rejection = null;
+    var key = client.readKey(allocator, io, config.seed_file) catch |err| {
+        out.* = q.Workspace.diagnostic(request, err, .{}, false, null) catch null;
         return err;
     };
-}
-const QueryAttempt = struct { binding: q.fuze.Sql.Binding = .{}, dispatched: bool = false, identity: ?p.Diagnostic.Identity = null };
-fn queryAttempt(wire: *client.Client, io: std.Io, config: UnifiedQueryConfig, request: api.UnifiedQueryRequest, allocator: std.mem.Allocator, witness: *QueryAttempt) !api.UnifiedQueryResponse {
-    wire.last_rejection = null;
-    var key = try client.readKey(allocator, io, config.seed_file);
     defer std.crypto.secureZero(u8, std.mem.asBytes(&key));
     var caller: q.UnifiedClient = .{ .wire = wire, .connection = config.connection, .key = key };
     defer std.crypto.secureZero(u8, std.mem.asBytes(&caller.key));
@@ -32,17 +29,9 @@ fn queryAttempt(wire: *client.Client, io: std.Io, config: UnifiedQueryConfig, re
         .describe, .sql_capabilities, .suggest, .assist, .compile, .inspect, .next, .next_draft, .draft_open, .draft_close, .draft_status, .observe, .status, .page, .prepare_control => true,
         .submit => false,
     };
-    if (request == .submit) {
-        const prepared = try q.Workspace.prepareSubmission(allocator, &caller, config.workspace, request.submit.token);
-        witness.identity = .{ .domain = .transport, .id = .init(prepared.signed.request.sequence), .sequence = .init(prepared.signed.request.sequence), .realm = .init(prepared.signed.request.realm) };
-        // Only this exact validated token crosses the dispatch boundary.
-        witness.dispatched = true;
-        return .{ .receipt = try caller.submit(prepared) };
-    }
     var attempt: u2 = 0;
     while (true) {
-        witness.binding = .{};
-        return q.Workspace.applyDiagnostic(allocator, &caller, config.workspace, request, &witness.binding) catch |err| {
+        return q.Workspace.applyStructured(allocator, &caller, config.workspace, request, out) catch |err| {
             // HTTP 503 maps to AuthorityUnavailable; only the separately validated
             // rejection identifies a capacity refusal rather than an unknown loss.
             if (!read_only or err != error.AuthorityUnavailable or wire.last_rejection != .HttpCapacity or attempt == 3) return err;

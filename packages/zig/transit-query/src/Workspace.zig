@@ -76,6 +76,36 @@ pub const Response = union(enum) {
 pub fn apply(allocator: std.mem.Allocator, client: *q.UnifiedClient, config: Config, request: Request) !Response {
     return applyDiagnostic(allocator, client, config, request, null);
 }
+/// An owned envelope across compilation and the actual validated dispatch
+/// boundary. Hosts do not need to reconstruct submission evidence themselves.
+pub fn applyStructured(allocator: std.mem.Allocator, client: *q.UnifiedClient, config: Config, request: Request, out: *?Diagnostic) !Response {
+    out.* = null;
+    client.wire.last_rejection = null;
+    var binding: q.fuze.Sql.Binding = .{};
+    if (request == .submit) {
+        const prepared = prepareSubmission(allocator, client, config, request.submit.token) catch |err| {
+            out.* = diagnostic(request, err, binding, false, null) catch null;
+            return err;
+        };
+        const identity: Diagnostic.Identity = .{ .domain = .transport, .id = .init(prepared.signed.request.sequence), .sequence = .init(prepared.signed.request.sequence), .realm = .init(prepared.signed.request.realm) };
+        const receipt = client.submit(prepared) catch |err| {
+            out.* = diagnostic(request, err, binding, true, identity) catch null;
+            nativeCause(out, client.wire.last_rejection);
+            return err;
+        };
+        return .{ .receipt = receipt };
+    }
+    return applyDiagnostic(allocator, client, config, request, &binding) catch |err| {
+        out.* = diagnostic(request, err, binding, false, null) catch null;
+        nativeCause(out, client.wire.last_rejection);
+        return err;
+    };
+}
+fn nativeCause(out: *?Diagnostic, cause: ?q.protocol.ErrorCode) void {
+    if (out.*) |*detail| if (cause) |value| {
+        detail.text(.native_cause, .authority, @tagName(value)) catch {};
+    };
+}
 pub fn applyDiagnostic(allocator: std.mem.Allocator, client: *q.UnifiedClient, config: Config, request: Request, detail: ?*q.fuze.Sql.Binding) !Response {
     if (detail) |value| value.* = .{};
     const scope = try checkedConfig(allocator, client, config);

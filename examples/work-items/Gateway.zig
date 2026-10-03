@@ -56,7 +56,8 @@ pub fn connectionError(self: *Self, err: anyerror, started: bool) void {
     if (!started) self.diagnostics.event(.{ .name = "application.http.connection", .level = .warn, .outcome = .failed, .error_type = @errorName(err) });
 }
 pub fn handle(self: *Self, io: std.Io, allocator: std.mem.Allocator, request: *std.http.Server.Request) anyerror!void {
-    self.dispatch(io, allocator, request) catch |err| {
+    var diagnostic: ?app.protocol.Diagnostic = null;
+    self.dispatch(io, allocator, request, &diagnostic) catch |err| {
         self.diagnostics.event(.{ .name = "application.http.request", .operation = "dispatch", .level = .warn, .outcome = .failed, .error_type = @errorName(err) });
         const status: std.http.Status = switch (err) {
             error.AccessDenied, error.QueryAccessDenied, error.QueryDenied, error.ApplicationOperatorDenied, error.InvalidOrigin, error.UnsafePrincipal => .forbidden,
@@ -65,9 +66,14 @@ pub fn handle(self: *Self, io: std.Io, allocator: std.mem.Allocator, request: *s
             error.QueryIdentityMismatch, error.ApplicationScopeChanged, error.ApplicationPublicationChanged, error.QueryDraftConflict, error.QueryDraftActive, error.QueryDraftClosed, error.QueryDraftExhausted, error.QueryReadConflict, error.Conflict => .conflict,
             error.InvalidRequest, error.InvalidSqlCursor, error.InvalidQuerySearch, error.InvalidQueryDraft, error.QueryDraftNotFound, error.InvalidQueryRequest, error.InvalidQueryIdentity, error.QueryBudgetExceeded, error.InvalidQueryCursor, error.StatementTooLarge, error.InvalidSqlEncoding, error.UnsupportedStatement, error.InvalidSqlSyntax, error.UnknownSource, error.UnknownColumn, error.InvalidApplicationProgram => .bad_request,
             error.NotFound => .not_found,
-            else => .service_unavailable,
+            else => if (diagnostic) |detail| switch (detail.category) {
+                .syntax, .binding, .unsupported, .limit => .bad_request,
+                .access => .forbidden,
+                .conflict => .conflict,
+                else => .service_unavailable,
+            } else .service_unavailable,
         };
-        return json(allocator, request, status, .{ .err = @errorName(err) });
+        return json(allocator, request, status, .{ .err = @errorName(err), .diagnostic = diagnostic });
     };
 }
 fn respond(request: *std.http.Server.Request, status: std.http.Status, body: []const u8, mime: []const u8) !void {
@@ -86,16 +92,22 @@ fn json(allocator: std.mem.Allocator, request: *std.http.Server.Request, status:
     try app.protocol.Json.write(value, &encoder);
     return respond(request, status, writer.buffered(), "application/json");
 }
-fn published(self: *Self, allocator: std.mem.Allocator, wire: *client.Client) !app.Host.Owned {
+fn published(self: *Self, allocator: std.mem.Allocator, wire: *client.Client, diagnostic: *?app.protocol.Diagnostic) !app.Host.Owned {
+    return self.acquirePublished(allocator, wire) catch |err| {
+        diagnostic.* = app.HostDiagnostic.acquisition(self.config.application.scope, err, wire.last_rejection) catch null;
+        return err;
+    };
+}
+fn acquirePublished(self: *Self, allocator: std.mem.Allocator, wire: *client.Client) !app.Host.Owned {
     const identity = try wire.query(.{ .realm = self.config.data.realm, .principal = self.config.inspection.principal, .kind = .{ .identity = {} } }, self.inspection_key);
     if (identity.body.identity.permissions != app.protocol.permission(.inspect)) return error.UnsafePrincipal;
     return app.Host.published(allocator, .{ .wire = wire, .realm = self.config.data.realm, .principal = self.config.inspection.principal, .key = self.inspection_key }, self.config.application.scope);
 }
-fn workspace(self: *Self, allocator: std.mem.Allocator, wire: *client.Client, current: bool) !q.Workspace.Config {
+fn workspace(self: *Self, allocator: std.mem.Allocator, wire: *client.Client, current: bool, diagnostic: *?app.protocol.Diagnostic) !q.Workspace.Config {
     const owner: W = .{ .configuration = self.config.data };
     var definition = try owner.source(1);
     if (current) {
-        var interface = try self.published(allocator, wire);
+        var interface = try self.published(allocator, wire, diagnostic);
         defer interface.deinit();
         const declared = interface.value.published.compiled.definition;
         var binding: ?app.Model.Query = null;
@@ -113,7 +125,7 @@ fn workspace(self: *Self, allocator: std.mem.Allocator, wire: *client.Client, cu
     }
     return .{ .name = "items", .source = try q.Values.Source.fromNative(allocator, definition), .limits = self.config.query.limits };
 }
-fn dispatch(self: *Self, io: std.Io, allocator: std.mem.Allocator, request: *std.http.Server.Request) !void {
+fn dispatch(self: *Self, io: std.Io, allocator: std.mem.Allocator, request: *std.http.Server.Request, diagnostic: *?app.protocol.Diagnostic) !void {
     try http.validateHead(request);
     if (!std.mem.eql(u8, (try http.header(request, "host")).?, self.host)) return error.InvalidOrigin;
     if (try http.header(request, "origin")) |origin| if (!std.mem.eql(u8, origin, self.config.public_origin)) return error.InvalidOrigin;
@@ -132,7 +144,7 @@ fn dispatch(self: *Self, io: std.Io, allocator: std.mem.Allocator, request: *std
     defer wire.deinit();
     wire.timeout_ms = 3500;
     wire.observer = self.diagnostics;
-    return self.publicRequest(alloc, &wire, io, request) catch |err| {
+    return self.publicRequest(alloc, &wire, io, request, diagnostic) catch |err| {
         if (err == error.Conflict or err == error.Rejected) {
             if (wire.last_rejection == .StateResourceExpired) return error.StateResourceExpired;
             if (wire.last_rejection == .StaleStateResource or wire.last_rejection == .QueryExpired) return error.QueryReadConflict;
@@ -140,10 +152,10 @@ fn dispatch(self: *Self, io: std.Io, allocator: std.mem.Allocator, request: *std
         return err;
     };
 }
-fn publicRequest(self: *Self, alloc: std.mem.Allocator, wire: *client.Client, io: std.Io, request: *std.http.Server.Request) !void {
+fn publicRequest(self: *Self, alloc: std.mem.Allocator, wire: *client.Client, io: std.Io, request: *std.http.Server.Request, diagnostic: *?app.protocol.Diagnostic) !void {
     const target = request.head.target;
     if (request.head.method == .GET and std.mem.eql(u8, target, "/api/v1/interface")) {
-        var value = try self.published(alloc, wire);
+        var value = try self.published(alloc, wire, diagnostic);
         defer value.deinit();
         return json(alloc, request, .ok, value.value);
     }
@@ -153,8 +165,11 @@ fn publicRequest(self: *Self, alloc: std.mem.Allocator, wire: *client.Client, io
     const application = std.mem.eql(u8, target, "/api/v1/application");
     const body = request.readerExpectNone(&.{}).allocRemaining(alloc, .limited(if (application) app.Host.max_body_bytes else 49152)) catch return error.InvalidRequest;
     if (application) {
-        const input = app.protocol.Json.parseFromSlice(app.Host.Request, alloc, body) catch return error.InvalidRequest;
-        var result = try app.Host.run(alloc, wire, self.config.application, input.value);
+        const input = app.protocol.Json.parseFromSlice(app.Host.Request, alloc, body) catch |err| {
+            diagnostic.* = app.HostDiagnostic.input(err) catch null;
+            return error.InvalidRequest;
+        };
+        var result = try app.Host.runDiagnostic(alloc, wire, self.config.application, input.value, diagnostic);
         defer result.deinit();
         return json(alloc, request, .ok, result.value);
     }
@@ -171,8 +186,11 @@ fn publicRequest(self: *Self, alloc: std.mem.Allocator, wire: *client.Client, io
         .describe, .compile, .suggest, .assist, .next, .next_draft, .draft_open, .page => true,
         else => false,
     };
-    const config = try self.workspace(alloc, wire, current);
+    const config = self.workspace(alloc, wire, current, diagnostic) catch |err| {
+        if (diagnostic.* == null) diagnostic.* = q.Workspace.diagnostic(input.value, err, .{}, false, null) catch null;
+        return err;
+    };
     var caller: q.UnifiedClient = .{ .wire = wire, .connection = self.config.query.connection, .key = self.query_key };
-    const result = try q.Workspace.apply(alloc, &caller, config, input.value);
+    const result = try q.Workspace.applyStructured(alloc, &caller, config, input.value, diagnostic);
     return json(alloc, request, .ok, result);
 }

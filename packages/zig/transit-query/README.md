@@ -220,6 +220,11 @@ output-schema rules. Metadata is separate from Arrow query results; inspection
 does not create snapshots or requests. The [inspection contract](../../../contracts/SQL_INSPECTION_V1.md)
 defines scope, literal redaction and final access checks.
 
+`Workspace.applyStructured` returns owned shared diagnostics through an output
+pointer. It preserves original binding context and validates a saved token before
+recording its actual submission boundary. Unknown sends identify the exact
+sequence; a local malformed token remains unsent. Board and application gateways
+use this owner instead of reconstructing execution evidence from transport errors.
 
 `QueryFailure` owns the stable finite-query terminal codes and bounded `UQF1`
 codec. Source closure and requester status retain the same original failure.

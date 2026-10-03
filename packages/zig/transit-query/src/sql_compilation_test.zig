@@ -9,6 +9,22 @@ const Fixture = struct {
 };
 const fixture_bytes = @embedFile("fixtures/sql-compilation-v1.json");
 
+test "structured workspace rejects a malformed saved token before dispatch" {
+    var arena = std.heap.ArenaAllocator.init(t.allocator);
+    defer arena.deinit();
+    const alloc = arena.allocator();
+    const fixtures = (try std.json.parseFromSlice(Fixture, alloc, fixture_bytes, .{})).value;
+    const scope = fixtures.cases[0].request.scope;
+    var wire = q.station.client.Client.init(alloc, t.io, "http://127.0.0.1:1");
+    defer wire.deinit();
+    var client: q.UnifiedClient = .{ .wire = &wire, .connection = .{ .realm = 1, .principal = 17, .source = 2, .resource = scope.source.resource, .requester = 3, .requests = 7 }, .key = try q.protocol.Ed25519.KeyPair.generateDeterministic(@splat(9)) };
+    var detail: ?q.protocol.Diagnostic = null;
+    try t.expectError(error.InvalidQueryRequest, q.Workspace.applyStructured(alloc, &client, .{ .name = scope.name, .source = scope.source, .limits = scope.limits }, .{ .submit = .{ .token = "{}" } }, &detail));
+    try t.expectEqual(.not_submitted, detail.?.outcome);
+    try t.expectEqual(.local_before_dispatch, detail.?.evidence);
+    try t.expectEqual(@as(?q.protocol.Diagnostic.Identity, null), detail.?.identity);
+}
+
 // This boundary cannot dispatch, create a snapshot or allocate a sequence.
 const ReadOnlyClient = struct {
     reads: usize = 0,
