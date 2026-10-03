@@ -177,7 +177,16 @@ def run(env, _tls):
     drained(ingress)
     rejected = client({'observe': receipt['position']}, control=True)['observation']
     assert rejected['rejected']['record']['reason'] in ('ServingDenied', 'AccessDenied'), rejected
+    assert rejected['rejected']['record']['reason'] == 'AccessDenied', rejected
+    denial = rejected['rejected']['diagnostic']
+    assert denial['cause'] == 'AccessDenied', denial
+    original_facts = {fact['field']: fact['value'] for fact in denial['facts'] if fact}
+    assert original_facts['operation'] == {'text': 'source'}, denial
+    assert original_facts['actual_resource'] == {'unsigned': str(resource)}, denial
+    assert original_facts['principal'] == {'unsigned': str(principal)}, denial
+    assert original_facts['native_cause'] == {'text': 'AccessDenied'}, denial
     env['resource_grant'](resource, principal, 3)
+    assert client({'observe': receipt['position']}, control=True)['observation'] == rejected
     for selection in selections:
         assert view(selection)['starts'] == 1
         paused_input = command({'pause': selection}, refresh=True, control=True)

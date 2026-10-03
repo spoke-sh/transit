@@ -3,7 +3,7 @@ import lengthModule from "ajv/dist/runtime/ucs2length.js";
 const ucs2length = lengthModule.default ?? lengthModule;
 "use strict";
 export const Diagnostic = validate20;
-const schema31 = {"type":"object","additionalProperties":false,"properties":{"version":{"const":1},"definition":{"type":"string","enum":["2751c5ead29471b9675530a20cd0e364368ba79dee3ec6f00f8806d0accb94e7"]},"code":{"type":"string","maxLength":96},"category":{"type":"string","enum":["syntax","binding","unsupported","constraint","access","conflict","limit","lifecycle","integrity","unavailable","internal"]},"stage":{"type":"string","enum":["input","parse","compile","bind","prepare","submit","admission","execute","read","decode","output","reconcile","cleanup","control"]},"outcome":{"type":"string","enum":["not_applicable","not_submitted","not_dispatched","prepared","unknown","pending","input_rejected","rejected","applied","completed","failed","cancelled","retired","closed_unknown"]},"evidence":{"type":"string","enum":["none","local_before_dispatch","saved_intent","native_receipt","domain_status"]},"message":{"type":"string","maxLength":384},"cause":{"anyOf":[{"type":"string","maxLength":96},{"type":"null"}]},"identity":{"anyOf":[{"type":"object","additionalProperties":false,"properties":{"domain":{"type":"string","enum":["sql","query","mutation","catalog","application","publication","migration","reactive","serving","effect","exchange","transport","internal"]},"id":{"type":"string","maxLength":20,"pattern":"^(0|[1-9][0-9]*)$"},"realm":{"anyOf":[{"type":"string","maxLength":20,"pattern":"^(0|[1-9][0-9]*)$"},{"type":"null"}]},"resource":{"anyOf":[{"type":"string","maxLength":20,"pattern":"^(0|[1-9][0-9]*)$"},{"type":"null"}]},"sequence":{"anyOf":[{"type":"string","maxLength":20,"pattern":"^(0|[1-9][0-9]*)$"},{"type":"null"}]}},"required":["domain","id","realm","resource","sequence"]},{"type":"null"}]},"location":{"anyOf":[{"type":"object","additionalProperties":false,"properties":{"source":{"anyOf":[{"type":"string","maxLength":512},{"type":"null"}]},"source_encoding":{"type":"string","enum":["utf8","escaped_bytes"]},"source_truncated":{"type":"boolean"},"statement":{"anyOf":[{"type":"string","maxLength":20,"pattern":"^(0|[1-9][0-9]*)$"},{"type":"null"}]},"offset":{"type":"string","maxLength":20,"pattern":"^(0|[1-9][0-9]*)$"},"length":{"type":"string","maxLength":20,"pattern":"^(0|[1-9][0-9]*)$"},"line":{"type":"string","maxLength":20,"pattern":"^(0|[1-9][0-9]*)$"},"byte_column":{"type":"string","maxLength":20,"pattern":"^(0|[1-9][0-9]*)$"}},"required":["source","source_encoding","source_truncated","statement","offset","length","line","byte_column"]},{"type":"null"}]},"facts":{"type":"array","minItems":16,"maxItems":16,"items":{"anyOf":[{"type":"object","additionalProperties":false,"properties":{"field":{"type":"string","enum":["object","name","table","native_input","affected_rows","argument","option","permissions","scope","column","qualifier","constraint","key","input_row","first_occurrence","parameter","parameter_use","expected_count","actual_count","expected_type","actual_type","supplied_value","expected_value","expression","source_kind","source_basis","source_key","source_row","field_path","byte_offset","expected_resource","actual_resource","expected_source","actual_source","expected_revision","actual_revision","expected_schema","actual_schema","expected_policy","actual_policy","budget","limit","required","unit","completed_statements","emitted_rows","emitted_segments","completion","proposal","step","generation","attachment","lease","schema_origin","sampling_records","operation","native_cause","expected_bytes","presence","published","subscription","expected_codec","actual_codec","observed_clock","expected_namespace","actual_namespace","attempt","executor","resolution_reason","principal","deadline","authorization_policy","resolution_policy","protocol_status","native_effect"]},"origin":{"type":"string","enum":["caller","execution","schema","authority","owner"]},"availability":{"type":"string","enum":["provided","truncated","unrecorded","unavailable","withheld","inapplicable"]},"value":{"anyOf":[{"oneOf":[{"type":"object","additionalProperties":false,"required":["text"],"properties":{"text":{"type":"string","maxLength":256}}},{"type":"object","additionalProperties":false,"required":["signed"],"properties":{"signed":{"type":"string","maxLength":20,"pattern":"^(0|-?[1-9][0-9]*)$"}}},{"type":"object","additionalProperties":false,"required":["unsigned"],"properties":{"unsigned":{"type":"string","maxLength":20,"pattern":"^(0|[1-9][0-9]*)$"}}},{"type":"object","additionalProperties":false,"required":["boolean"],"properties":{"boolean":{"type":"boolean"}}},{"type":"object","additionalProperties":false,"required":["digest"],"properties":{"digest":{"type":"array","minItems":32,"maxItems":32,"items":{"type":"integer","minimum":0,"maximum":255}}}},{"type":"object","additionalProperties":false,"required":["location"],"properties":{"location":{"type":"object","additionalProperties":false,"properties":{"source":{"anyOf":[{"type":"string","maxLength":512},{"type":"null"}]},"source_encoding":{"type":"string","enum":["utf8","escaped_bytes"]},"source_truncated":{"type":"boolean"},"statement":{"anyOf":[{"type":"string","maxLength":20,"pattern":"^(0|[1-9][0-9]*)$"},{"type":"null"}]},"offset":{"type":"string","maxLength":20,"pattern":"^(0|[1-9][0-9]*)$"},"length":{"type":"string","maxLength":20,"pattern":"^(0|[1-9][0-9]*)$"},"line":{"type":"string","maxLength":20,"pattern":"^(0|[1-9][0-9]*)$"},"byte_column":{"type":"string","maxLength":20,"pattern":"^(0|[1-9][0-9]*)$"}},"required":["source","source_encoding","source_truncated","statement","offset","length","line","byte_column"]}}}]},{"type":"null"}]}},"required":["field","origin","availability","value"]},{"type":"null"}]}},"actions":{"type":"array","minItems":4,"maxItems":4,"items":{"anyOf":[{"type":"object","additionalProperties":false,"properties":{"kind":{"type":"string","enum":["correct_input","inspect_status","resume_exact","cancel_wait","cancel_mutation","refresh","recompile","retry_read","inspect_scope","reconcile_effect","contact_operator"]},"target":{"anyOf":[{"type":"object","additionalProperties":false,"properties":{"domain":{"type":"string","enum":["sql","query","mutation","catalog","application","publication","migration","reactive","serving","effect","exchange","transport","internal"]},"id":{"type":"string","maxLength":20,"pattern":"^(0|[1-9][0-9]*)$"},"realm":{"anyOf":[{"type":"string","maxLength":20,"pattern":"^(0|[1-9][0-9]*)$"},{"type":"null"}]},"resource":{"anyOf":[{"type":"string","maxLength":20,"pattern":"^(0|[1-9][0-9]*)$"},{"type":"null"}]},"sequence":{"anyOf":[{"type":"string","maxLength":20,"pattern":"^(0|[1-9][0-9]*)$"},{"type":"null"}]}},"required":["domain","id","realm","resource","sequence"]},{"type":"null"}]}},"required":["kind","target"]},{"type":"null"}]}}},"required":["version","definition","code","category","stage","outcome","evidence","message","cause","identity","location","facts","actions"]};
+const schema31 = {"type":"object","additionalProperties":false,"properties":{"version":{"const":1},"definition":{"type":"string","enum":["692358a0bda42413cb14638010c0adea7edaa238aff1275e9557fcb38a37e741"]},"code":{"type":"string","maxLength":96},"category":{"type":"string","enum":["syntax","binding","unsupported","constraint","access","conflict","limit","lifecycle","integrity","unavailable","internal"]},"stage":{"type":"string","enum":["input","parse","compile","bind","prepare","submit","admission","execute","read","decode","output","reconcile","cleanup","control"]},"outcome":{"type":"string","enum":["not_applicable","not_submitted","not_dispatched","prepared","unknown","pending","input_rejected","rejected","applied","completed","failed","cancelled","retired","closed_unknown"]},"evidence":{"type":"string","enum":["none","local_before_dispatch","saved_intent","native_receipt","domain_status"]},"message":{"type":"string","maxLength":384},"cause":{"anyOf":[{"type":"string","maxLength":96},{"type":"null"}]},"identity":{"anyOf":[{"type":"object","additionalProperties":false,"properties":{"domain":{"type":"string","enum":["sql","query","mutation","catalog","application","publication","migration","reactive","serving","effect","exchange","transport","internal"]},"id":{"type":"string","maxLength":20,"pattern":"^(0|[1-9][0-9]*)$"},"realm":{"anyOf":[{"type":"string","maxLength":20,"pattern":"^(0|[1-9][0-9]*)$"},{"type":"null"}]},"resource":{"anyOf":[{"type":"string","maxLength":20,"pattern":"^(0|[1-9][0-9]*)$"},{"type":"null"}]},"sequence":{"anyOf":[{"type":"string","maxLength":20,"pattern":"^(0|[1-9][0-9]*)$"},{"type":"null"}]}},"required":["domain","id","realm","resource","sequence"]},{"type":"null"}]},"location":{"anyOf":[{"type":"object","additionalProperties":false,"properties":{"source":{"anyOf":[{"type":"string","maxLength":512},{"type":"null"}]},"source_encoding":{"type":"string","enum":["utf8","escaped_bytes"]},"source_truncated":{"type":"boolean"},"statement":{"anyOf":[{"type":"string","maxLength":20,"pattern":"^(0|[1-9][0-9]*)$"},{"type":"null"}]},"offset":{"type":"string","maxLength":20,"pattern":"^(0|[1-9][0-9]*)$"},"length":{"type":"string","maxLength":20,"pattern":"^(0|[1-9][0-9]*)$"},"line":{"type":"string","maxLength":20,"pattern":"^(0|[1-9][0-9]*)$"},"byte_column":{"type":"string","maxLength":20,"pattern":"^(0|[1-9][0-9]*)$"}},"required":["source","source_encoding","source_truncated","statement","offset","length","line","byte_column"]},{"type":"null"}]},"facts":{"type":"array","minItems":16,"maxItems":16,"items":{"anyOf":[{"type":"object","additionalProperties":false,"properties":{"field":{"type":"string","enum":["object","name","table","native_input","affected_rows","argument","option","permissions","scope","column","qualifier","constraint","key","input_row","first_occurrence","parameter","parameter_use","expected_count","actual_count","expected_type","actual_type","supplied_value","expected_value","expression","source_kind","source_basis","source_key","source_row","field_path","byte_offset","expected_resource","actual_resource","expected_source","actual_source","expected_revision","actual_revision","expected_schema","actual_schema","expected_policy","actual_policy","budget","limit","required","unit","completed_statements","emitted_rows","emitted_segments","completion","proposal","step","generation","attachment","lease","schema_origin","sampling_records","operation","native_cause","expected_bytes","presence","published","subscription","expected_codec","actual_codec","observed_clock","expected_namespace","actual_namespace","attempt","executor","resolution_reason","principal","deadline","authorization_policy","resolution_policy","protocol_status","native_effect"]},"origin":{"type":"string","enum":["caller","execution","schema","authority","owner"]},"availability":{"type":"string","enum":["provided","truncated","unrecorded","unavailable","withheld","inapplicable"]},"value":{"anyOf":[{"oneOf":[{"type":"object","additionalProperties":false,"required":["text"],"properties":{"text":{"type":"string","maxLength":256}}},{"type":"object","additionalProperties":false,"required":["signed"],"properties":{"signed":{"type":"string","maxLength":20,"pattern":"^(0|-?[1-9][0-9]*)$"}}},{"type":"object","additionalProperties":false,"required":["unsigned"],"properties":{"unsigned":{"type":"string","maxLength":20,"pattern":"^(0|[1-9][0-9]*)$"}}},{"type":"object","additionalProperties":false,"required":["boolean"],"properties":{"boolean":{"type":"boolean"}}},{"type":"object","additionalProperties":false,"required":["digest"],"properties":{"digest":{"type":"array","minItems":32,"maxItems":32,"items":{"type":"integer","minimum":0,"maximum":255}}}},{"type":"object","additionalProperties":false,"required":["location"],"properties":{"location":{"type":"object","additionalProperties":false,"properties":{"source":{"anyOf":[{"type":"string","maxLength":512},{"type":"null"}]},"source_encoding":{"type":"string","enum":["utf8","escaped_bytes"]},"source_truncated":{"type":"boolean"},"statement":{"anyOf":[{"type":"string","maxLength":20,"pattern":"^(0|[1-9][0-9]*)$"},{"type":"null"}]},"offset":{"type":"string","maxLength":20,"pattern":"^(0|[1-9][0-9]*)$"},"length":{"type":"string","maxLength":20,"pattern":"^(0|[1-9][0-9]*)$"},"line":{"type":"string","maxLength":20,"pattern":"^(0|[1-9][0-9]*)$"},"byte_column":{"type":"string","maxLength":20,"pattern":"^(0|[1-9][0-9]*)$"}},"required":["source","source_encoding","source_truncated","statement","offset","length","line","byte_column"]}}}]},{"type":"null"}]}},"required":["field","origin","availability","value"]},{"type":"null"}]}},"actions":{"type":"array","minItems":4,"maxItems":4,"items":{"anyOf":[{"type":"object","additionalProperties":false,"properties":{"kind":{"type":"string","enum":["correct_input","inspect_status","resume_exact","cancel_wait","cancel_mutation","refresh","recompile","retry_read","inspect_scope","reconcile_effect","contact_operator"]},"target":{"anyOf":[{"type":"object","additionalProperties":false,"properties":{"domain":{"type":"string","enum":["sql","query","mutation","catalog","application","publication","migration","reactive","serving","effect","exchange","transport","internal"]},"id":{"type":"string","maxLength":20,"pattern":"^(0|[1-9][0-9]*)$"},"realm":{"anyOf":[{"type":"string","maxLength":20,"pattern":"^(0|[1-9][0-9]*)$"},{"type":"null"}]},"resource":{"anyOf":[{"type":"string","maxLength":20,"pattern":"^(0|[1-9][0-9]*)$"},{"type":"null"}]},"sequence":{"anyOf":[{"type":"string","maxLength":20,"pattern":"^(0|[1-9][0-9]*)$"},{"type":"null"}]}},"required":["domain","id","realm","resource","sequence"]},{"type":"null"}]}},"required":["kind","target"]},{"type":"null"}]}}},"required":["version","definition","code","category","stage","outcome","evidence","message","cause","identity","location","facts","actions"]};
 const func1 = Object.prototype.hasOwnProperty;
 const func2 = ucs2length;
 const pattern4 = new RegExp("^(0|[1-9][0-9]*)$", "u");
@@ -55,7 +55,7 @@ if(typeof data1 !== "string"){
 validate20.errors = [{instancePath:instancePath+"/definition",schemaPath:"#/properties/definition/type",keyword:"type",params:{type: "string"},message:"must be string"}];
 return false;
 }
-if(!(data1 === "2751c5ead29471b9675530a20cd0e364368ba79dee3ec6f00f8806d0accb94e7")){
+if(!(data1 === "692358a0bda42413cb14638010c0adea7edaa238aff1275e9557fcb38a37e741")){
 validate20.errors = [{instancePath:instancePath+"/definition",schemaPath:"#/properties/definition/enum",keyword:"enum",params:{allowedValues: schema31.properties.definition.enum},message:"must be equal to one of the allowed values"}];
 return false;
 }
@@ -3018,7 +3018,7 @@ return errors === 0;
 validate20.evaluated = {"props":true,"dynamicProps":false,"dynamicItems":false};
 
 export const SignedCommand = validate21;
-const schema32 = {"type":"object","additionalProperties":false,"properties":{"request":{"type":"object","additionalProperties":false,"properties":{"version":{"const":1},"definition":{"type":"string","enum":["2751c5ead29471b9675530a20cd0e364368ba79dee3ec6f00f8806d0accb94e7"]},"realm":{"type":"integer","minimum":0,"maximum":9007199254740991},"principal":{"type":"integer","minimum":0,"maximum":9007199254740991},"sequence":{"type":"integer","minimum":0,"maximum":9007199254740991},"command":{"type":"object","additionalProperties":false,"properties":{"send":{"type":"object","additionalProperties":false,"properties":{"pid":{"type":"integer","minimum":0,"maximum":9007199254740991},"value":{"type":"string","pattern":"^(?:[0-9a-f]{2})*$","maxLength":512}},"required":["pid","value"]}},"required":["send"]}},"required":["definition","realm","principal","sequence","command"]},"signature":{"type":"array","minItems":64,"maxItems":64,"items":{"type":"integer","minimum":0,"maximum":255}}},"required":["request","signature"]};
+const schema32 = {"type":"object","additionalProperties":false,"properties":{"request":{"type":"object","additionalProperties":false,"properties":{"version":{"const":1},"definition":{"type":"string","enum":["692358a0bda42413cb14638010c0adea7edaa238aff1275e9557fcb38a37e741"]},"realm":{"type":"integer","minimum":0,"maximum":9007199254740991},"principal":{"type":"integer","minimum":0,"maximum":9007199254740991},"sequence":{"type":"integer","minimum":0,"maximum":9007199254740991},"command":{"type":"object","additionalProperties":false,"properties":{"send":{"type":"object","additionalProperties":false,"properties":{"pid":{"type":"integer","minimum":0,"maximum":9007199254740991},"value":{"type":"string","pattern":"^(?:[0-9a-f]{2})*$","maxLength":512}},"required":["pid","value"]}},"required":["send"]}},"required":["definition","realm","principal","sequence","command"]},"signature":{"type":"array","minItems":64,"maxItems":64,"items":{"type":"integer","minimum":0,"maximum":255}}},"required":["request","signature"]};
 const pattern24 = new RegExp("^(?:[0-9a-f]{2})*$", "u");
 
 function validate21(data, {instancePath="", parentData, parentDataProperty, rootData=data, dynamicAnchors={}}={}){
@@ -3087,7 +3087,7 @@ if(typeof data2 !== "string"){
 validate21.errors = [{instancePath:instancePath+"/request/definition",schemaPath:"#/properties/request/properties/definition/type",keyword:"type",params:{type: "string"},message:"must be string"}];
 return false;
 }
-if(!(data2 === "2751c5ead29471b9675530a20cd0e364368ba79dee3ec6f00f8806d0accb94e7")){
+if(!(data2 === "692358a0bda42413cb14638010c0adea7edaa238aff1275e9557fcb38a37e741")){
 validate21.errors = [{instancePath:instancePath+"/request/definition",schemaPath:"#/properties/request/properties/definition/enum",keyword:"enum",params:{allowedValues: schema32.properties.request.properties.definition.enum},message:"must be equal to one of the allowed values"}];
 return false;
 }
@@ -3384,7 +3384,7 @@ return errors === 0;
 validate21.evaluated = {"props":true,"dynamicProps":false,"dynamicItems":false};
 
 export const ServingRead = validate22;
-const schema33 = {"type":"object","additionalProperties":false,"properties":{"read":{"type":"object","additionalProperties":false,"properties":{"realm":{"type":"integer","minimum":0,"maximum":9007199254740991},"principal":{"type":"integer","minimum":0,"maximum":9007199254740991},"service":{"type":"integer","minimum":0,"maximum":9007199254740991},"ingress":{"type":"integer","minimum":0,"maximum":9007199254740991},"kind":{"type":"string","enum":["discovery","status","result","disposition"]},"operation":{"type":"integer","minimum":0,"maximum":9007199254740991}},"required":["realm","principal","service","ingress","kind"]},"signature":{"type":"array","minItems":64,"maxItems":64,"items":{"type":"integer","minimum":0,"maximum":255}},"identity":{"type":"object","additionalProperties":false,"properties":{"query":{"type":"object","additionalProperties":false,"properties":{"version":{"const":1},"definition":{"type":"string","enum":["2751c5ead29471b9675530a20cd0e364368ba79dee3ec6f00f8806d0accb94e7"]},"realm":{"type":"integer","minimum":0,"maximum":9007199254740991},"principal":{"type":"integer","minimum":0,"maximum":9007199254740991},"kind":{"oneOf":[{"type":"object","additionalProperties":false,"required":["identity"],"properties":{"identity":{"type":"object","maxProperties":0}}}]}},"required":["realm","principal","kind"]},"signature":{"type":"array","minItems":64,"maxItems":64,"items":{"type":"integer","minimum":0,"maximum":255}}},"required":["query","signature"]}},"required":["read","signature","identity"]};
+const schema33 = {"type":"object","additionalProperties":false,"properties":{"read":{"type":"object","additionalProperties":false,"properties":{"realm":{"type":"integer","minimum":0,"maximum":9007199254740991},"principal":{"type":"integer","minimum":0,"maximum":9007199254740991},"service":{"type":"integer","minimum":0,"maximum":9007199254740991},"ingress":{"type":"integer","minimum":0,"maximum":9007199254740991},"kind":{"type":"string","enum":["discovery","status","result","disposition"]},"operation":{"type":"integer","minimum":0,"maximum":9007199254740991}},"required":["realm","principal","service","ingress","kind"]},"signature":{"type":"array","minItems":64,"maxItems":64,"items":{"type":"integer","minimum":0,"maximum":255}},"identity":{"type":"object","additionalProperties":false,"properties":{"query":{"type":"object","additionalProperties":false,"properties":{"version":{"const":1},"definition":{"type":"string","enum":["692358a0bda42413cb14638010c0adea7edaa238aff1275e9557fcb38a37e741"]},"realm":{"type":"integer","minimum":0,"maximum":9007199254740991},"principal":{"type":"integer","minimum":0,"maximum":9007199254740991},"kind":{"oneOf":[{"type":"object","additionalProperties":false,"required":["identity"],"properties":{"identity":{"type":"object","maxProperties":0}}}]}},"required":["realm","principal","kind"]},"signature":{"type":"array","minItems":64,"maxItems":64,"items":{"type":"integer","minimum":0,"maximum":255}}},"required":["query","signature"]}},"required":["read","signature","identity"]};
 
 function validate22(data, {instancePath="", parentData, parentDataProperty, rootData=data, dynamicAnchors={}}={}){
 let vErrors = null;
@@ -3719,7 +3719,7 @@ if(typeof data12 !== "string"){
 validate22.errors = [{instancePath:instancePath+"/identity/query/definition",schemaPath:"#/properties/identity/properties/query/properties/definition/type",keyword:"type",params:{type: "string"},message:"must be string"}];
 return false;
 }
-if(!(data12 === "2751c5ead29471b9675530a20cd0e364368ba79dee3ec6f00f8806d0accb94e7")){
+if(!(data12 === "692358a0bda42413cb14638010c0adea7edaa238aff1275e9557fcb38a37e741")){
 validate22.errors = [{instancePath:instancePath+"/identity/query/definition",schemaPath:"#/properties/identity/properties/query/properties/definition/enum",keyword:"enum",params:{allowedValues: schema33.properties.identity.properties.query.properties.definition.enum},message:"must be equal to one of the allowed values"}];
 return false;
 }
@@ -5280,7 +5280,7 @@ vErrors.push(err70);
 }
 errors++;
 }
-if(!(data29 === "2751c5ead29471b9675530a20cd0e364368ba79dee3ec6f00f8806d0accb94e7")){
+if(!(data29 === "692358a0bda42413cb14638010c0adea7edaa238aff1275e9557fcb38a37e741")){
 const err71 = {instancePath:instancePath+"/diagnostic/definition",schemaPath:"Diagnostic/properties/definition/enum",keyword:"enum",params:{allowedValues: schema31.properties.definition.enum},message:"must be equal to one of the allowed values"};
 if(vErrors === null){
 vErrors = [err71];
@@ -8881,7 +8881,7 @@ vErrors.push(err287);
 }
 errors++;
 }
-if(!(data94 === "2751c5ead29471b9675530a20cd0e364368ba79dee3ec6f00f8806d0accb94e7")){
+if(!(data94 === "692358a0bda42413cb14638010c0adea7edaa238aff1275e9557fcb38a37e741")){
 const err288 = {instancePath:instancePath+"/disposition/diagnostic/definition",schemaPath:"Diagnostic/properties/definition/enum",keyword:"enum",params:{allowedValues: schema31.properties.definition.enum},message:"must be equal to one of the allowed values"};
 if(vErrors === null){
 vErrors = [err288];
@@ -12276,7 +12276,7 @@ return errors === 0;
 validate24.evaluated = {"props":true,"dynamicProps":false,"dynamicItems":false};
 
 export const ReactiveRead = validate25;
-const schema38 = {"type":"object","additionalProperties":false,"properties":{"read":{"type":"object","additionalProperties":false,"properties":{"scope":{"type":"object","additionalProperties":false,"properties":{"realm":{"type":"integer","minimum":0,"maximum":9007199254740991},"principal":{"type":"integer","minimum":0,"maximum":9007199254740991},"service":{"type":"integer","minimum":0,"maximum":9007199254740991},"ingress":{"type":"integer","minimum":0,"maximum":9007199254740991},"session":{"type":"integer","minimum":0,"maximum":9007199254740991},"generation":{"type":"integer","minimum":0,"maximum":9007199254740991},"subscription":{"type":"integer","minimum":0,"maximum":9007199254740991},"subscription_generation":{"type":"integer","minimum":0,"maximum":9007199254740991}},"required":["realm","principal","service","ingress","session","generation"]},"kind":{"type":"string","enum":["session","snapshot","events"]},"attachment":{"type":"integer","minimum":0,"maximum":9007199254740991},"nonce":{"type":"array","minItems":16,"maxItems":16,"items":{"type":"integer","minimum":0,"maximum":255}},"cursor":{"anyOf":[{"type":"object","additionalProperties":false,"properties":{"position":{"type":"object","additionalProperties":false,"properties":{"version":{"const":1},"scope":{"type":"object","additionalProperties":false,"properties":{"realm":{"type":"integer","minimum":0,"maximum":9007199254740991},"principal":{"type":"integer","minimum":0,"maximum":9007199254740991},"service":{"type":"integer","minimum":0,"maximum":9007199254740991},"ingress":{"type":"integer","minimum":0,"maximum":9007199254740991},"session":{"type":"integer","minimum":0,"maximum":9007199254740991},"generation":{"type":"integer","minimum":0,"maximum":9007199254740991},"subscription":{"type":"integer","minimum":0,"maximum":9007199254740991},"subscription_generation":{"type":"integer","minimum":0,"maximum":9007199254740991}},"required":["realm","principal","service","ingress","session","generation"]},"watch_revision":{"type":"integer","minimum":0,"maximum":9007199254740991},"resource":{"type":"integer","minimum":0,"maximum":9007199254740991},"schema":{"type":"array","minItems":32,"maxItems":32,"items":{"type":"integer","minimum":0,"maximum":255}},"data_revision":{"type":"integer","minimum":0,"maximum":9007199254740991},"outcome_position":{"type":"integer","minimum":0,"maximum":9007199254740991}},"required":["scope","watch_revision","resource","schema","data_revision"]},"signature":{"type":"array","minItems":64,"maxItems":64,"items":{"type":"integer","minimum":0,"maximum":255}}},"required":["position","signature"]},{"type":"null"}]}},"required":["scope","kind"]},"signature":{"type":"array","minItems":64,"maxItems":64,"items":{"type":"integer","minimum":0,"maximum":255}},"identity":{"type":"object","additionalProperties":false,"properties":{"query":{"type":"object","additionalProperties":false,"properties":{"version":{"const":1},"definition":{"type":"string","enum":["2751c5ead29471b9675530a20cd0e364368ba79dee3ec6f00f8806d0accb94e7"]},"realm":{"type":"integer","minimum":0,"maximum":9007199254740991},"principal":{"type":"integer","minimum":0,"maximum":9007199254740991},"kind":{"oneOf":[{"type":"object","additionalProperties":false,"required":["identity"],"properties":{"identity":{"type":"object","maxProperties":0}}}]}},"required":["realm","principal","kind"]},"signature":{"type":"array","minItems":64,"maxItems":64,"items":{"type":"integer","minimum":0,"maximum":255}}},"required":["query","signature"]}},"required":["read","signature","identity"]};
+const schema38 = {"type":"object","additionalProperties":false,"properties":{"read":{"type":"object","additionalProperties":false,"properties":{"scope":{"type":"object","additionalProperties":false,"properties":{"realm":{"type":"integer","minimum":0,"maximum":9007199254740991},"principal":{"type":"integer","minimum":0,"maximum":9007199254740991},"service":{"type":"integer","minimum":0,"maximum":9007199254740991},"ingress":{"type":"integer","minimum":0,"maximum":9007199254740991},"session":{"type":"integer","minimum":0,"maximum":9007199254740991},"generation":{"type":"integer","minimum":0,"maximum":9007199254740991},"subscription":{"type":"integer","minimum":0,"maximum":9007199254740991},"subscription_generation":{"type":"integer","minimum":0,"maximum":9007199254740991}},"required":["realm","principal","service","ingress","session","generation"]},"kind":{"type":"string","enum":["session","snapshot","events"]},"attachment":{"type":"integer","minimum":0,"maximum":9007199254740991},"nonce":{"type":"array","minItems":16,"maxItems":16,"items":{"type":"integer","minimum":0,"maximum":255}},"cursor":{"anyOf":[{"type":"object","additionalProperties":false,"properties":{"position":{"type":"object","additionalProperties":false,"properties":{"version":{"const":1},"scope":{"type":"object","additionalProperties":false,"properties":{"realm":{"type":"integer","minimum":0,"maximum":9007199254740991},"principal":{"type":"integer","minimum":0,"maximum":9007199254740991},"service":{"type":"integer","minimum":0,"maximum":9007199254740991},"ingress":{"type":"integer","minimum":0,"maximum":9007199254740991},"session":{"type":"integer","minimum":0,"maximum":9007199254740991},"generation":{"type":"integer","minimum":0,"maximum":9007199254740991},"subscription":{"type":"integer","minimum":0,"maximum":9007199254740991},"subscription_generation":{"type":"integer","minimum":0,"maximum":9007199254740991}},"required":["realm","principal","service","ingress","session","generation"]},"watch_revision":{"type":"integer","minimum":0,"maximum":9007199254740991},"resource":{"type":"integer","minimum":0,"maximum":9007199254740991},"schema":{"type":"array","minItems":32,"maxItems":32,"items":{"type":"integer","minimum":0,"maximum":255}},"data_revision":{"type":"integer","minimum":0,"maximum":9007199254740991},"outcome_position":{"type":"integer","minimum":0,"maximum":9007199254740991}},"required":["scope","watch_revision","resource","schema","data_revision"]},"signature":{"type":"array","minItems":64,"maxItems":64,"items":{"type":"integer","minimum":0,"maximum":255}}},"required":["position","signature"]},{"type":"null"}]}},"required":["scope","kind"]},"signature":{"type":"array","minItems":64,"maxItems":64,"items":{"type":"integer","minimum":0,"maximum":255}},"identity":{"type":"object","additionalProperties":false,"properties":{"query":{"type":"object","additionalProperties":false,"properties":{"version":{"const":1},"definition":{"type":"string","enum":["692358a0bda42413cb14638010c0adea7edaa238aff1275e9557fcb38a37e741"]},"realm":{"type":"integer","minimum":0,"maximum":9007199254740991},"principal":{"type":"integer","minimum":0,"maximum":9007199254740991},"kind":{"oneOf":[{"type":"object","additionalProperties":false,"required":["identity"],"properties":{"identity":{"type":"object","maxProperties":0}}}]}},"required":["realm","principal","kind"]},"signature":{"type":"array","minItems":64,"maxItems":64,"items":{"type":"integer","minimum":0,"maximum":255}}},"required":["query","signature"]}},"required":["read","signature","identity"]};
 
 function validate25(data, {instancePath="", parentData, parentDataProperty, rootData=data, dynamicAnchors={}}={}){
 let vErrors = null;
@@ -13767,7 +13767,7 @@ if(typeof data39 !== "string"){
 validate25.errors = [{instancePath:instancePath+"/identity/query/definition",schemaPath:"#/properties/identity/properties/query/properties/definition/type",keyword:"type",params:{type: "string"},message:"must be string"}];
 return false;
 }
-if(!(data39 === "2751c5ead29471b9675530a20cd0e364368ba79dee3ec6f00f8806d0accb94e7")){
+if(!(data39 === "692358a0bda42413cb14638010c0adea7edaa238aff1275e9557fcb38a37e741")){
 validate25.errors = [{instancePath:instancePath+"/identity/query/definition",schemaPath:"#/properties/identity/properties/query/properties/definition/enum",keyword:"enum",params:{allowedValues: schema38.properties.identity.properties.query.properties.definition.enum},message:"must be equal to one of the allowed values"}];
 return false;
 }
@@ -16539,7 +16539,7 @@ vErrors.push(err125);
 }
 errors++;
 }
-if(!(data60 === "2751c5ead29471b9675530a20cd0e364368ba79dee3ec6f00f8806d0accb94e7")){
+if(!(data60 === "692358a0bda42413cb14638010c0adea7edaa238aff1275e9557fcb38a37e741")){
 const err126 = {instancePath:instancePath+"/event/outcome/diagnostic/definition",schemaPath:"Diagnostic/properties/definition/enum",keyword:"enum",params:{allowedValues: schema31.properties.definition.enum},message:"must be equal to one of the allowed values"};
 if(vErrors === null){
 vErrors = [err126];
@@ -20737,7 +20737,7 @@ return errors === 0;
 validate26.evaluated = {"props":true,"dynamicProps":false,"dynamicItems":false};
 
 export const Bootstrap = validate27;
-const schema41 = {"type":"object","additionalProperties":false,"properties":{"version":{"const":1},"attach":{"type":"object","additionalProperties":false,"properties":{"request":{"type":"object","additionalProperties":false,"properties":{"version":{"const":1},"definition":{"type":"string","enum":["2751c5ead29471b9675530a20cd0e364368ba79dee3ec6f00f8806d0accb94e7"]},"realm":{"type":"integer","minimum":0,"maximum":9007199254740991},"principal":{"type":"integer","minimum":0,"maximum":9007199254740991},"sequence":{"type":"integer","minimum":0,"maximum":9007199254740991},"command":{"type":"object","additionalProperties":false,"properties":{"send":{"type":"object","additionalProperties":false,"properties":{"pid":{"type":"integer","minimum":0,"maximum":9007199254740991},"value":{"type":"string","pattern":"^(?:[0-9a-f]{2})*$","maxLength":512}},"required":["pid","value"]}},"required":["send"]}},"required":["definition","realm","principal","sequence","command"]},"signature":{"type":"array","minItems":64,"maxItems":64,"items":{"type":"integer","minimum":0,"maximum":255}}},"required":["request","signature"]},"read":{"type":"object","additionalProperties":false,"properties":{"read":{"type":"object","additionalProperties":false,"properties":{"scope":{"type":"object","additionalProperties":false,"properties":{"realm":{"type":"integer","minimum":0,"maximum":9007199254740991},"principal":{"type":"integer","minimum":0,"maximum":9007199254740991},"service":{"type":"integer","minimum":0,"maximum":9007199254740991},"ingress":{"type":"integer","minimum":0,"maximum":9007199254740991},"session":{"type":"integer","minimum":0,"maximum":9007199254740991},"generation":{"type":"integer","minimum":0,"maximum":9007199254740991},"subscription":{"type":"integer","minimum":0,"maximum":9007199254740991},"subscription_generation":{"type":"integer","minimum":0,"maximum":9007199254740991}},"required":["realm","principal","service","ingress","session","generation"]},"kind":{"type":"string","enum":["session","snapshot","events"]},"attachment":{"type":"integer","minimum":0,"maximum":9007199254740991},"nonce":{"type":"array","minItems":16,"maxItems":16,"items":{"type":"integer","minimum":0,"maximum":255}},"cursor":{"anyOf":[{"type":"object","additionalProperties":false,"properties":{"position":{"type":"object","additionalProperties":false,"properties":{"version":{"const":1},"scope":{"type":"object","additionalProperties":false,"properties":{"realm":{"type":"integer","minimum":0,"maximum":9007199254740991},"principal":{"type":"integer","minimum":0,"maximum":9007199254740991},"service":{"type":"integer","minimum":0,"maximum":9007199254740991},"ingress":{"type":"integer","minimum":0,"maximum":9007199254740991},"session":{"type":"integer","minimum":0,"maximum":9007199254740991},"generation":{"type":"integer","minimum":0,"maximum":9007199254740991},"subscription":{"type":"integer","minimum":0,"maximum":9007199254740991},"subscription_generation":{"type":"integer","minimum":0,"maximum":9007199254740991}},"required":["realm","principal","service","ingress","session","generation"]},"watch_revision":{"type":"integer","minimum":0,"maximum":9007199254740991},"resource":{"type":"integer","minimum":0,"maximum":9007199254740991},"schema":{"type":"array","minItems":32,"maxItems":32,"items":{"type":"integer","minimum":0,"maximum":255}},"data_revision":{"type":"integer","minimum":0,"maximum":9007199254740991},"outcome_position":{"type":"integer","minimum":0,"maximum":9007199254740991}},"required":["scope","watch_revision","resource","schema","data_revision"]},"signature":{"type":"array","minItems":64,"maxItems":64,"items":{"type":"integer","minimum":0,"maximum":255}}},"required":["position","signature"]},{"type":"null"}]}},"required":["scope","kind"]},"signature":{"type":"array","minItems":64,"maxItems":64,"items":{"type":"integer","minimum":0,"maximum":255}},"identity":{"type":"object","additionalProperties":false,"properties":{"query":{"type":"object","additionalProperties":false,"properties":{"version":{"const":1},"definition":{"type":"string","enum":["2751c5ead29471b9675530a20cd0e364368ba79dee3ec6f00f8806d0accb94e7"]},"realm":{"type":"integer","minimum":0,"maximum":9007199254740991},"principal":{"type":"integer","minimum":0,"maximum":9007199254740991},"kind":{"oneOf":[{"type":"object","additionalProperties":false,"required":["identity"],"properties":{"identity":{"type":"object","maxProperties":0}}}]}},"required":["realm","principal","kind"]},"signature":{"type":"array","minItems":64,"maxItems":64,"items":{"type":"integer","minimum":0,"maximum":255}}},"required":["query","signature"]}},"required":["read","signature","identity"]}},"required":["attach","read"]};
+const schema41 = {"type":"object","additionalProperties":false,"properties":{"version":{"const":1},"attach":{"type":"object","additionalProperties":false,"properties":{"request":{"type":"object","additionalProperties":false,"properties":{"version":{"const":1},"definition":{"type":"string","enum":["692358a0bda42413cb14638010c0adea7edaa238aff1275e9557fcb38a37e741"]},"realm":{"type":"integer","minimum":0,"maximum":9007199254740991},"principal":{"type":"integer","minimum":0,"maximum":9007199254740991},"sequence":{"type":"integer","minimum":0,"maximum":9007199254740991},"command":{"type":"object","additionalProperties":false,"properties":{"send":{"type":"object","additionalProperties":false,"properties":{"pid":{"type":"integer","minimum":0,"maximum":9007199254740991},"value":{"type":"string","pattern":"^(?:[0-9a-f]{2})*$","maxLength":512}},"required":["pid","value"]}},"required":["send"]}},"required":["definition","realm","principal","sequence","command"]},"signature":{"type":"array","minItems":64,"maxItems":64,"items":{"type":"integer","minimum":0,"maximum":255}}},"required":["request","signature"]},"read":{"type":"object","additionalProperties":false,"properties":{"read":{"type":"object","additionalProperties":false,"properties":{"scope":{"type":"object","additionalProperties":false,"properties":{"realm":{"type":"integer","minimum":0,"maximum":9007199254740991},"principal":{"type":"integer","minimum":0,"maximum":9007199254740991},"service":{"type":"integer","minimum":0,"maximum":9007199254740991},"ingress":{"type":"integer","minimum":0,"maximum":9007199254740991},"session":{"type":"integer","minimum":0,"maximum":9007199254740991},"generation":{"type":"integer","minimum":0,"maximum":9007199254740991},"subscription":{"type":"integer","minimum":0,"maximum":9007199254740991},"subscription_generation":{"type":"integer","minimum":0,"maximum":9007199254740991}},"required":["realm","principal","service","ingress","session","generation"]},"kind":{"type":"string","enum":["session","snapshot","events"]},"attachment":{"type":"integer","minimum":0,"maximum":9007199254740991},"nonce":{"type":"array","minItems":16,"maxItems":16,"items":{"type":"integer","minimum":0,"maximum":255}},"cursor":{"anyOf":[{"type":"object","additionalProperties":false,"properties":{"position":{"type":"object","additionalProperties":false,"properties":{"version":{"const":1},"scope":{"type":"object","additionalProperties":false,"properties":{"realm":{"type":"integer","minimum":0,"maximum":9007199254740991},"principal":{"type":"integer","minimum":0,"maximum":9007199254740991},"service":{"type":"integer","minimum":0,"maximum":9007199254740991},"ingress":{"type":"integer","minimum":0,"maximum":9007199254740991},"session":{"type":"integer","minimum":0,"maximum":9007199254740991},"generation":{"type":"integer","minimum":0,"maximum":9007199254740991},"subscription":{"type":"integer","minimum":0,"maximum":9007199254740991},"subscription_generation":{"type":"integer","minimum":0,"maximum":9007199254740991}},"required":["realm","principal","service","ingress","session","generation"]},"watch_revision":{"type":"integer","minimum":0,"maximum":9007199254740991},"resource":{"type":"integer","minimum":0,"maximum":9007199254740991},"schema":{"type":"array","minItems":32,"maxItems":32,"items":{"type":"integer","minimum":0,"maximum":255}},"data_revision":{"type":"integer","minimum":0,"maximum":9007199254740991},"outcome_position":{"type":"integer","minimum":0,"maximum":9007199254740991}},"required":["scope","watch_revision","resource","schema","data_revision"]},"signature":{"type":"array","minItems":64,"maxItems":64,"items":{"type":"integer","minimum":0,"maximum":255}}},"required":["position","signature"]},{"type":"null"}]}},"required":["scope","kind"]},"signature":{"type":"array","minItems":64,"maxItems":64,"items":{"type":"integer","minimum":0,"maximum":255}},"identity":{"type":"object","additionalProperties":false,"properties":{"query":{"type":"object","additionalProperties":false,"properties":{"version":{"const":1},"definition":{"type":"string","enum":["692358a0bda42413cb14638010c0adea7edaa238aff1275e9557fcb38a37e741"]},"realm":{"type":"integer","minimum":0,"maximum":9007199254740991},"principal":{"type":"integer","minimum":0,"maximum":9007199254740991},"kind":{"oneOf":[{"type":"object","additionalProperties":false,"required":["identity"],"properties":{"identity":{"type":"object","maxProperties":0}}}]}},"required":["realm","principal","kind"]},"signature":{"type":"array","minItems":64,"maxItems":64,"items":{"type":"integer","minimum":0,"maximum":255}}},"required":["query","signature"]}},"required":["read","signature","identity"]}},"required":["attach","read"]};
 
 function validate27(data, {instancePath="", parentData, parentDataProperty, rootData=data, dynamicAnchors={}}={}){
 let vErrors = null;
@@ -20837,7 +20837,7 @@ if(typeof data4 !== "string"){
 validate27.errors = [{instancePath:instancePath+"/attach/request/definition",schemaPath:"#/properties/attach/properties/request/properties/definition/type",keyword:"type",params:{type: "string"},message:"must be string"}];
 return false;
 }
-if(!(data4 === "2751c5ead29471b9675530a20cd0e364368ba79dee3ec6f00f8806d0accb94e7")){
+if(!(data4 === "692358a0bda42413cb14638010c0adea7edaa238aff1275e9557fcb38a37e741")){
 validate27.errors = [{instancePath:instancePath+"/attach/request/definition",schemaPath:"#/properties/attach/properties/request/properties/definition/enum",keyword:"enum",params:{allowedValues: schema41.properties.attach.properties.request.properties.definition.enum},message:"must be equal to one of the allowed values"}];
 return false;
 }
@@ -22616,7 +22616,7 @@ if(typeof data54 !== "string"){
 validate27.errors = [{instancePath:instancePath+"/read/identity/query/definition",schemaPath:"#/properties/read/properties/identity/properties/query/properties/definition/type",keyword:"type",params:{type: "string"},message:"must be string"}];
 return false;
 }
-if(!(data54 === "2751c5ead29471b9675530a20cd0e364368ba79dee3ec6f00f8806d0accb94e7")){
+if(!(data54 === "692358a0bda42413cb14638010c0adea7edaa238aff1275e9557fcb38a37e741")){
 validate27.errors = [{instancePath:instancePath+"/read/identity/query/definition",schemaPath:"#/properties/read/properties/identity/properties/query/properties/definition/enum",keyword:"enum",params:{allowedValues: schema41.properties.read.properties.identity.properties.query.properties.definition.enum},message:"must be equal to one of the allowed values"}];
 return false;
 }
@@ -22910,7 +22910,7 @@ return errors === 0;
 validate27.evaluated = {"props":true,"dynamicProps":false,"dynamicItems":false};
 
 export const ClientMessage = validate28;
-const schema42 = {"oneOf":[{"type":"object","additionalProperties":false,"required":["attach"],"properties":{"attach":{"type":"object","additionalProperties":false,"properties":{"version":{"const":1},"attach":{"type":"object","additionalProperties":false,"properties":{"request":{"type":"object","additionalProperties":false,"properties":{"version":{"const":1},"definition":{"type":"string","enum":["2751c5ead29471b9675530a20cd0e364368ba79dee3ec6f00f8806d0accb94e7"]},"realm":{"type":"integer","minimum":0,"maximum":9007199254740991},"principal":{"type":"integer","minimum":0,"maximum":9007199254740991},"sequence":{"type":"integer","minimum":0,"maximum":9007199254740991},"command":{"type":"object","additionalProperties":false,"properties":{"send":{"type":"object","additionalProperties":false,"properties":{"pid":{"type":"integer","minimum":0,"maximum":9007199254740991},"value":{"type":"string","pattern":"^(?:[0-9a-f]{2})*$","maxLength":512}},"required":["pid","value"]}},"required":["send"]}},"required":["definition","realm","principal","sequence","command"]},"signature":{"type":"array","minItems":64,"maxItems":64,"items":{"type":"integer","minimum":0,"maximum":255}}},"required":["request","signature"]},"read":{"type":"object","additionalProperties":false,"properties":{"read":{"type":"object","additionalProperties":false,"properties":{"scope":{"type":"object","additionalProperties":false,"properties":{"realm":{"type":"integer","minimum":0,"maximum":9007199254740991},"principal":{"type":"integer","minimum":0,"maximum":9007199254740991},"service":{"type":"integer","minimum":0,"maximum":9007199254740991},"ingress":{"type":"integer","minimum":0,"maximum":9007199254740991},"session":{"type":"integer","minimum":0,"maximum":9007199254740991},"generation":{"type":"integer","minimum":0,"maximum":9007199254740991},"subscription":{"type":"integer","minimum":0,"maximum":9007199254740991},"subscription_generation":{"type":"integer","minimum":0,"maximum":9007199254740991}},"required":["realm","principal","service","ingress","session","generation"]},"kind":{"type":"string","enum":["session","snapshot","events"]},"attachment":{"type":"integer","minimum":0,"maximum":9007199254740991},"nonce":{"type":"array","minItems":16,"maxItems":16,"items":{"type":"integer","minimum":0,"maximum":255}},"cursor":{"anyOf":[{"type":"object","additionalProperties":false,"properties":{"position":{"type":"object","additionalProperties":false,"properties":{"version":{"const":1},"scope":{"type":"object","additionalProperties":false,"properties":{"realm":{"type":"integer","minimum":0,"maximum":9007199254740991},"principal":{"type":"integer","minimum":0,"maximum":9007199254740991},"service":{"type":"integer","minimum":0,"maximum":9007199254740991},"ingress":{"type":"integer","minimum":0,"maximum":9007199254740991},"session":{"type":"integer","minimum":0,"maximum":9007199254740991},"generation":{"type":"integer","minimum":0,"maximum":9007199254740991},"subscription":{"type":"integer","minimum":0,"maximum":9007199254740991},"subscription_generation":{"type":"integer","minimum":0,"maximum":9007199254740991}},"required":["realm","principal","service","ingress","session","generation"]},"watch_revision":{"type":"integer","minimum":0,"maximum":9007199254740991},"resource":{"type":"integer","minimum":0,"maximum":9007199254740991},"schema":{"type":"array","minItems":32,"maxItems":32,"items":{"type":"integer","minimum":0,"maximum":255}},"data_revision":{"type":"integer","minimum":0,"maximum":9007199254740991},"outcome_position":{"type":"integer","minimum":0,"maximum":9007199254740991}},"required":["scope","watch_revision","resource","schema","data_revision"]},"signature":{"type":"array","minItems":64,"maxItems":64,"items":{"type":"integer","minimum":0,"maximum":255}}},"required":["position","signature"]},{"type":"null"}]}},"required":["scope","kind"]},"signature":{"type":"array","minItems":64,"maxItems":64,"items":{"type":"integer","minimum":0,"maximum":255}},"identity":{"type":"object","additionalProperties":false,"properties":{"query":{"type":"object","additionalProperties":false,"properties":{"version":{"const":1},"definition":{"type":"string","enum":["2751c5ead29471b9675530a20cd0e364368ba79dee3ec6f00f8806d0accb94e7"]},"realm":{"type":"integer","minimum":0,"maximum":9007199254740991},"principal":{"type":"integer","minimum":0,"maximum":9007199254740991},"kind":{"oneOf":[{"type":"object","additionalProperties":false,"required":["identity"],"properties":{"identity":{"type":"object","maxProperties":0}}}]}},"required":["realm","principal","kind"]},"signature":{"type":"array","minItems":64,"maxItems":64,"items":{"type":"integer","minimum":0,"maximum":255}}},"required":["query","signature"]}},"required":["read","signature","identity"]}},"required":["attach","read"]}}},{"type":"object","additionalProperties":false,"required":["command"],"properties":{"command":{"type":"object","additionalProperties":false,"properties":{"request":{"type":"object","additionalProperties":false,"properties":{"version":{"const":1},"definition":{"type":"string","enum":["2751c5ead29471b9675530a20cd0e364368ba79dee3ec6f00f8806d0accb94e7"]},"realm":{"type":"integer","minimum":0,"maximum":9007199254740991},"principal":{"type":"integer","minimum":0,"maximum":9007199254740991},"sequence":{"type":"integer","minimum":0,"maximum":9007199254740991},"command":{"type":"object","additionalProperties":false,"properties":{"send":{"type":"object","additionalProperties":false,"properties":{"pid":{"type":"integer","minimum":0,"maximum":9007199254740991},"value":{"type":"string","pattern":"^(?:[0-9a-f]{2})*$","maxLength":512}},"required":["pid","value"]}},"required":["send"]}},"required":["definition","realm","principal","sequence","command"]},"signature":{"type":"array","minItems":64,"maxItems":64,"items":{"type":"integer","minimum":0,"maximum":255}}},"required":["request","signature"]}}},{"type":"object","additionalProperties":false,"required":["control"],"properties":{"control":{"type":"object","additionalProperties":false,"properties":{"request":{"type":"object","additionalProperties":false,"properties":{"version":{"const":1},"definition":{"type":"string","enum":["2751c5ead29471b9675530a20cd0e364368ba79dee3ec6f00f8806d0accb94e7"]},"realm":{"type":"integer","minimum":0,"maximum":9007199254740991},"principal":{"type":"integer","minimum":0,"maximum":9007199254740991},"sequence":{"type":"integer","minimum":0,"maximum":9007199254740991},"command":{"type":"object","additionalProperties":false,"properties":{"send":{"type":"object","additionalProperties":false,"properties":{"pid":{"type":"integer","minimum":0,"maximum":9007199254740991},"value":{"type":"string","pattern":"^(?:[0-9a-f]{2})*$","maxLength":512}},"required":["pid","value"]}},"required":["send"]}},"required":["definition","realm","principal","sequence","command"]},"signature":{"type":"array","minItems":64,"maxItems":64,"items":{"type":"integer","minimum":0,"maximum":255}}},"required":["request","signature"]}}},{"type":"object","additionalProperties":false,"required":["read"],"properties":{"read":{"type":"object","additionalProperties":false,"properties":{"read":{"type":"object","additionalProperties":false,"properties":{"scope":{"type":"object","additionalProperties":false,"properties":{"realm":{"type":"integer","minimum":0,"maximum":9007199254740991},"principal":{"type":"integer","minimum":0,"maximum":9007199254740991},"service":{"type":"integer","minimum":0,"maximum":9007199254740991},"ingress":{"type":"integer","minimum":0,"maximum":9007199254740991},"session":{"type":"integer","minimum":0,"maximum":9007199254740991},"generation":{"type":"integer","minimum":0,"maximum":9007199254740991},"subscription":{"type":"integer","minimum":0,"maximum":9007199254740991},"subscription_generation":{"type":"integer","minimum":0,"maximum":9007199254740991}},"required":["realm","principal","service","ingress","session","generation"]},"kind":{"type":"string","enum":["session","snapshot","events"]},"attachment":{"type":"integer","minimum":0,"maximum":9007199254740991},"nonce":{"type":"array","minItems":16,"maxItems":16,"items":{"type":"integer","minimum":0,"maximum":255}},"cursor":{"anyOf":[{"type":"object","additionalProperties":false,"properties":{"position":{"type":"object","additionalProperties":false,"properties":{"version":{"const":1},"scope":{"type":"object","additionalProperties":false,"properties":{"realm":{"type":"integer","minimum":0,"maximum":9007199254740991},"principal":{"type":"integer","minimum":0,"maximum":9007199254740991},"service":{"type":"integer","minimum":0,"maximum":9007199254740991},"ingress":{"type":"integer","minimum":0,"maximum":9007199254740991},"session":{"type":"integer","minimum":0,"maximum":9007199254740991},"generation":{"type":"integer","minimum":0,"maximum":9007199254740991},"subscription":{"type":"integer","minimum":0,"maximum":9007199254740991},"subscription_generation":{"type":"integer","minimum":0,"maximum":9007199254740991}},"required":["realm","principal","service","ingress","session","generation"]},"watch_revision":{"type":"integer","minimum":0,"maximum":9007199254740991},"resource":{"type":"integer","minimum":0,"maximum":9007199254740991},"schema":{"type":"array","minItems":32,"maxItems":32,"items":{"type":"integer","minimum":0,"maximum":255}},"data_revision":{"type":"integer","minimum":0,"maximum":9007199254740991},"outcome_position":{"type":"integer","minimum":0,"maximum":9007199254740991}},"required":["scope","watch_revision","resource","schema","data_revision"]},"signature":{"type":"array","minItems":64,"maxItems":64,"items":{"type":"integer","minimum":0,"maximum":255}}},"required":["position","signature"]},{"type":"null"}]}},"required":["scope","kind"]},"signature":{"type":"array","minItems":64,"maxItems":64,"items":{"type":"integer","minimum":0,"maximum":255}},"identity":{"type":"object","additionalProperties":false,"properties":{"query":{"type":"object","additionalProperties":false,"properties":{"version":{"const":1},"definition":{"type":"string","enum":["2751c5ead29471b9675530a20cd0e364368ba79dee3ec6f00f8806d0accb94e7"]},"realm":{"type":"integer","minimum":0,"maximum":9007199254740991},"principal":{"type":"integer","minimum":0,"maximum":9007199254740991},"kind":{"oneOf":[{"type":"object","additionalProperties":false,"required":["identity"],"properties":{"identity":{"type":"object","maxProperties":0}}}]}},"required":["realm","principal","kind"]},"signature":{"type":"array","minItems":64,"maxItems":64,"items":{"type":"integer","minimum":0,"maximum":255}}},"required":["query","signature"]}},"required":["read","signature","identity"]}}}]};
+const schema42 = {"oneOf":[{"type":"object","additionalProperties":false,"required":["attach"],"properties":{"attach":{"type":"object","additionalProperties":false,"properties":{"version":{"const":1},"attach":{"type":"object","additionalProperties":false,"properties":{"request":{"type":"object","additionalProperties":false,"properties":{"version":{"const":1},"definition":{"type":"string","enum":["692358a0bda42413cb14638010c0adea7edaa238aff1275e9557fcb38a37e741"]},"realm":{"type":"integer","minimum":0,"maximum":9007199254740991},"principal":{"type":"integer","minimum":0,"maximum":9007199254740991},"sequence":{"type":"integer","minimum":0,"maximum":9007199254740991},"command":{"type":"object","additionalProperties":false,"properties":{"send":{"type":"object","additionalProperties":false,"properties":{"pid":{"type":"integer","minimum":0,"maximum":9007199254740991},"value":{"type":"string","pattern":"^(?:[0-9a-f]{2})*$","maxLength":512}},"required":["pid","value"]}},"required":["send"]}},"required":["definition","realm","principal","sequence","command"]},"signature":{"type":"array","minItems":64,"maxItems":64,"items":{"type":"integer","minimum":0,"maximum":255}}},"required":["request","signature"]},"read":{"type":"object","additionalProperties":false,"properties":{"read":{"type":"object","additionalProperties":false,"properties":{"scope":{"type":"object","additionalProperties":false,"properties":{"realm":{"type":"integer","minimum":0,"maximum":9007199254740991},"principal":{"type":"integer","minimum":0,"maximum":9007199254740991},"service":{"type":"integer","minimum":0,"maximum":9007199254740991},"ingress":{"type":"integer","minimum":0,"maximum":9007199254740991},"session":{"type":"integer","minimum":0,"maximum":9007199254740991},"generation":{"type":"integer","minimum":0,"maximum":9007199254740991},"subscription":{"type":"integer","minimum":0,"maximum":9007199254740991},"subscription_generation":{"type":"integer","minimum":0,"maximum":9007199254740991}},"required":["realm","principal","service","ingress","session","generation"]},"kind":{"type":"string","enum":["session","snapshot","events"]},"attachment":{"type":"integer","minimum":0,"maximum":9007199254740991},"nonce":{"type":"array","minItems":16,"maxItems":16,"items":{"type":"integer","minimum":0,"maximum":255}},"cursor":{"anyOf":[{"type":"object","additionalProperties":false,"properties":{"position":{"type":"object","additionalProperties":false,"properties":{"version":{"const":1},"scope":{"type":"object","additionalProperties":false,"properties":{"realm":{"type":"integer","minimum":0,"maximum":9007199254740991},"principal":{"type":"integer","minimum":0,"maximum":9007199254740991},"service":{"type":"integer","minimum":0,"maximum":9007199254740991},"ingress":{"type":"integer","minimum":0,"maximum":9007199254740991},"session":{"type":"integer","minimum":0,"maximum":9007199254740991},"generation":{"type":"integer","minimum":0,"maximum":9007199254740991},"subscription":{"type":"integer","minimum":0,"maximum":9007199254740991},"subscription_generation":{"type":"integer","minimum":0,"maximum":9007199254740991}},"required":["realm","principal","service","ingress","session","generation"]},"watch_revision":{"type":"integer","minimum":0,"maximum":9007199254740991},"resource":{"type":"integer","minimum":0,"maximum":9007199254740991},"schema":{"type":"array","minItems":32,"maxItems":32,"items":{"type":"integer","minimum":0,"maximum":255}},"data_revision":{"type":"integer","minimum":0,"maximum":9007199254740991},"outcome_position":{"type":"integer","minimum":0,"maximum":9007199254740991}},"required":["scope","watch_revision","resource","schema","data_revision"]},"signature":{"type":"array","minItems":64,"maxItems":64,"items":{"type":"integer","minimum":0,"maximum":255}}},"required":["position","signature"]},{"type":"null"}]}},"required":["scope","kind"]},"signature":{"type":"array","minItems":64,"maxItems":64,"items":{"type":"integer","minimum":0,"maximum":255}},"identity":{"type":"object","additionalProperties":false,"properties":{"query":{"type":"object","additionalProperties":false,"properties":{"version":{"const":1},"definition":{"type":"string","enum":["692358a0bda42413cb14638010c0adea7edaa238aff1275e9557fcb38a37e741"]},"realm":{"type":"integer","minimum":0,"maximum":9007199254740991},"principal":{"type":"integer","minimum":0,"maximum":9007199254740991},"kind":{"oneOf":[{"type":"object","additionalProperties":false,"required":["identity"],"properties":{"identity":{"type":"object","maxProperties":0}}}]}},"required":["realm","principal","kind"]},"signature":{"type":"array","minItems":64,"maxItems":64,"items":{"type":"integer","minimum":0,"maximum":255}}},"required":["query","signature"]}},"required":["read","signature","identity"]}},"required":["attach","read"]}}},{"type":"object","additionalProperties":false,"required":["command"],"properties":{"command":{"type":"object","additionalProperties":false,"properties":{"request":{"type":"object","additionalProperties":false,"properties":{"version":{"const":1},"definition":{"type":"string","enum":["692358a0bda42413cb14638010c0adea7edaa238aff1275e9557fcb38a37e741"]},"realm":{"type":"integer","minimum":0,"maximum":9007199254740991},"principal":{"type":"integer","minimum":0,"maximum":9007199254740991},"sequence":{"type":"integer","minimum":0,"maximum":9007199254740991},"command":{"type":"object","additionalProperties":false,"properties":{"send":{"type":"object","additionalProperties":false,"properties":{"pid":{"type":"integer","minimum":0,"maximum":9007199254740991},"value":{"type":"string","pattern":"^(?:[0-9a-f]{2})*$","maxLength":512}},"required":["pid","value"]}},"required":["send"]}},"required":["definition","realm","principal","sequence","command"]},"signature":{"type":"array","minItems":64,"maxItems":64,"items":{"type":"integer","minimum":0,"maximum":255}}},"required":["request","signature"]}}},{"type":"object","additionalProperties":false,"required":["control"],"properties":{"control":{"type":"object","additionalProperties":false,"properties":{"request":{"type":"object","additionalProperties":false,"properties":{"version":{"const":1},"definition":{"type":"string","enum":["692358a0bda42413cb14638010c0adea7edaa238aff1275e9557fcb38a37e741"]},"realm":{"type":"integer","minimum":0,"maximum":9007199254740991},"principal":{"type":"integer","minimum":0,"maximum":9007199254740991},"sequence":{"type":"integer","minimum":0,"maximum":9007199254740991},"command":{"type":"object","additionalProperties":false,"properties":{"send":{"type":"object","additionalProperties":false,"properties":{"pid":{"type":"integer","minimum":0,"maximum":9007199254740991},"value":{"type":"string","pattern":"^(?:[0-9a-f]{2})*$","maxLength":512}},"required":["pid","value"]}},"required":["send"]}},"required":["definition","realm","principal","sequence","command"]},"signature":{"type":"array","minItems":64,"maxItems":64,"items":{"type":"integer","minimum":0,"maximum":255}}},"required":["request","signature"]}}},{"type":"object","additionalProperties":false,"required":["read"],"properties":{"read":{"type":"object","additionalProperties":false,"properties":{"read":{"type":"object","additionalProperties":false,"properties":{"scope":{"type":"object","additionalProperties":false,"properties":{"realm":{"type":"integer","minimum":0,"maximum":9007199254740991},"principal":{"type":"integer","minimum":0,"maximum":9007199254740991},"service":{"type":"integer","minimum":0,"maximum":9007199254740991},"ingress":{"type":"integer","minimum":0,"maximum":9007199254740991},"session":{"type":"integer","minimum":0,"maximum":9007199254740991},"generation":{"type":"integer","minimum":0,"maximum":9007199254740991},"subscription":{"type":"integer","minimum":0,"maximum":9007199254740991},"subscription_generation":{"type":"integer","minimum":0,"maximum":9007199254740991}},"required":["realm","principal","service","ingress","session","generation"]},"kind":{"type":"string","enum":["session","snapshot","events"]},"attachment":{"type":"integer","minimum":0,"maximum":9007199254740991},"nonce":{"type":"array","minItems":16,"maxItems":16,"items":{"type":"integer","minimum":0,"maximum":255}},"cursor":{"anyOf":[{"type":"object","additionalProperties":false,"properties":{"position":{"type":"object","additionalProperties":false,"properties":{"version":{"const":1},"scope":{"type":"object","additionalProperties":false,"properties":{"realm":{"type":"integer","minimum":0,"maximum":9007199254740991},"principal":{"type":"integer","minimum":0,"maximum":9007199254740991},"service":{"type":"integer","minimum":0,"maximum":9007199254740991},"ingress":{"type":"integer","minimum":0,"maximum":9007199254740991},"session":{"type":"integer","minimum":0,"maximum":9007199254740991},"generation":{"type":"integer","minimum":0,"maximum":9007199254740991},"subscription":{"type":"integer","minimum":0,"maximum":9007199254740991},"subscription_generation":{"type":"integer","minimum":0,"maximum":9007199254740991}},"required":["realm","principal","service","ingress","session","generation"]},"watch_revision":{"type":"integer","minimum":0,"maximum":9007199254740991},"resource":{"type":"integer","minimum":0,"maximum":9007199254740991},"schema":{"type":"array","minItems":32,"maxItems":32,"items":{"type":"integer","minimum":0,"maximum":255}},"data_revision":{"type":"integer","minimum":0,"maximum":9007199254740991},"outcome_position":{"type":"integer","minimum":0,"maximum":9007199254740991}},"required":["scope","watch_revision","resource","schema","data_revision"]},"signature":{"type":"array","minItems":64,"maxItems":64,"items":{"type":"integer","minimum":0,"maximum":255}}},"required":["position","signature"]},{"type":"null"}]}},"required":["scope","kind"]},"signature":{"type":"array","minItems":64,"maxItems":64,"items":{"type":"integer","minimum":0,"maximum":255}},"identity":{"type":"object","additionalProperties":false,"properties":{"query":{"type":"object","additionalProperties":false,"properties":{"version":{"const":1},"definition":{"type":"string","enum":["692358a0bda42413cb14638010c0adea7edaa238aff1275e9557fcb38a37e741"]},"realm":{"type":"integer","minimum":0,"maximum":9007199254740991},"principal":{"type":"integer","minimum":0,"maximum":9007199254740991},"kind":{"oneOf":[{"type":"object","additionalProperties":false,"required":["identity"],"properties":{"identity":{"type":"object","maxProperties":0}}}]}},"required":["realm","principal","kind"]},"signature":{"type":"array","minItems":64,"maxItems":64,"items":{"type":"integer","minimum":0,"maximum":255}}},"required":["query","signature"]}},"required":["read","signature","identity"]}}}]};
 
 function validate28(data, {instancePath="", parentData, parentDataProperty, rootData=data, dynamicAnchors={}}={}){
 let vErrors = null;
@@ -23100,7 +23100,7 @@ vErrors.push(err10);
 }
 errors++;
 }
-if(!(data5 === "2751c5ead29471b9675530a20cd0e364368ba79dee3ec6f00f8806d0accb94e7")){
+if(!(data5 === "692358a0bda42413cb14638010c0adea7edaa238aff1275e9557fcb38a37e741")){
 const err11 = {instancePath:instancePath+"/attach/attach/request/definition",schemaPath:"#/oneOf/0/properties/attach/properties/attach/properties/request/properties/definition/enum",keyword:"enum",params:{allowedValues: schema42.oneOf[0].properties.attach.properties.attach.properties.request.properties.definition.enum},message:"must be equal to one of the allowed values"};
 if(vErrors === null){
 vErrors = [err11];
@@ -25387,7 +25387,7 @@ vErrors.push(err155);
 }
 errors++;
 }
-if(!(data55 === "2751c5ead29471b9675530a20cd0e364368ba79dee3ec6f00f8806d0accb94e7")){
+if(!(data55 === "692358a0bda42413cb14638010c0adea7edaa238aff1275e9557fcb38a37e741")){
 const err156 = {instancePath:instancePath+"/attach/read/identity/query/definition",schemaPath:"#/oneOf/0/properties/attach/properties/read/properties/identity/properties/query/properties/definition/enum",keyword:"enum",params:{allowedValues: schema42.oneOf[0].properties.attach.properties.read.properties.identity.properties.query.properties.definition.enum},message:"must be equal to one of the allowed values"};
 if(vErrors === null){
 vErrors = [err156];
@@ -25921,7 +25921,7 @@ vErrors.push(err187);
 }
 errors++;
 }
-if(!(data65 === "2751c5ead29471b9675530a20cd0e364368ba79dee3ec6f00f8806d0accb94e7")){
+if(!(data65 === "692358a0bda42413cb14638010c0adea7edaa238aff1275e9557fcb38a37e741")){
 const err188 = {instancePath:instancePath+"/command/request/definition",schemaPath:"#/oneOf/1/properties/command/properties/request/properties/definition/enum",keyword:"enum",params:{allowedValues: schema42.oneOf[1].properties.command.properties.request.properties.definition.enum},message:"must be equal to one of the allowed values"};
 if(vErrors === null){
 vErrors = [err188];
@@ -26545,7 +26545,7 @@ vErrors.push(err226);
 }
 errors++;
 }
-if(!(data78 === "2751c5ead29471b9675530a20cd0e364368ba79dee3ec6f00f8806d0accb94e7")){
+if(!(data78 === "692358a0bda42413cb14638010c0adea7edaa238aff1275e9557fcb38a37e741")){
 const err227 = {instancePath:instancePath+"/control/request/definition",schemaPath:"#/oneOf/2/properties/control/properties/request/properties/definition/enum",keyword:"enum",params:{allowedValues: schema42.oneOf[2].properties.control.properties.request.properties.definition.enum},message:"must be equal to one of the allowed values"};
 if(vErrors === null){
 vErrors = [err227];
@@ -28884,7 +28884,7 @@ vErrors.push(err374);
 }
 errors++;
 }
-if(!(data128 === "2751c5ead29471b9675530a20cd0e364368ba79dee3ec6f00f8806d0accb94e7")){
+if(!(data128 === "692358a0bda42413cb14638010c0adea7edaa238aff1275e9557fcb38a37e741")){
 const err375 = {instancePath:instancePath+"/read/identity/query/definition",schemaPath:"#/oneOf/3/properties/read/properties/identity/properties/query/properties/definition/enum",keyword:"enum",params:{allowedValues: schema42.oneOf[3].properties.read.properties.identity.properties.query.properties.definition.enum},message:"must be equal to one of the allowed values"};
 if(vErrors === null){
 vErrors = [err375];
@@ -32837,7 +32837,7 @@ vErrors.push(err219);
 }
 errors++;
 }
-if(!(data74 === "2751c5ead29471b9675530a20cd0e364368ba79dee3ec6f00f8806d0accb94e7")){
+if(!(data74 === "692358a0bda42413cb14638010c0adea7edaa238aff1275e9557fcb38a37e741")){
 const err220 = {instancePath:instancePath+"/observation/event/outcome/diagnostic/definition",schemaPath:"Diagnostic/properties/definition/enum",keyword:"enum",params:{allowedValues: schema31.properties.definition.enum},message:"must be equal to one of the allowed values"};
 if(vErrors === null){
 vErrors = [err220];
@@ -38438,7 +38438,7 @@ vErrors.push(err561);
 }
 errors++;
 }
-if(!(data179 === "2751c5ead29471b9675530a20cd0e364368ba79dee3ec6f00f8806d0accb94e7")){
+if(!(data179 === "692358a0bda42413cb14638010c0adea7edaa238aff1275e9557fcb38a37e741")){
 const err562 = {instancePath:instancePath+"/event/event/outcome/diagnostic/definition",schemaPath:"Diagnostic/properties/definition/enum",keyword:"enum",params:{allowedValues: schema31.properties.definition.enum},message:"must be equal to one of the allowed values"};
 if(vErrors === null){
 vErrors = [err562];
@@ -41931,7 +41931,7 @@ vErrors.push(err769);
 }
 errors++;
 }
-if(!(data238 === "2751c5ead29471b9675530a20cd0e364368ba79dee3ec6f00f8806d0accb94e7")){
+if(!(data238 === "692358a0bda42413cb14638010c0adea7edaa238aff1275e9557fcb38a37e741")){
 const err770 = {instancePath:instancePath+"/terminal/diagnostic/definition",schemaPath:"Diagnostic/properties/definition/enum",keyword:"enum",params:{allowedValues: schema31.properties.definition.enum},message:"must be equal to one of the allowed values"};
 if(vErrors === null){
 vErrors = [err770];
@@ -45659,7 +45659,7 @@ vErrors.push(err7);
 }
 errors++;
 }
-if(!(data4 === "2751c5ead29471b9675530a20cd0e364368ba79dee3ec6f00f8806d0accb94e7")){
+if(!(data4 === "692358a0bda42413cb14638010c0adea7edaa238aff1275e9557fcb38a37e741")){
 const err8 = {instancePath:instancePath+"/diagnostic/definition",schemaPath:"Diagnostic/properties/definition/enum",keyword:"enum",params:{allowedValues: schema31.properties.definition.enum},message:"must be equal to one of the allowed values"};
 if(vErrors === null){
 vErrors = [err8];
@@ -48895,7 +48895,7 @@ return errors === 0;
 validate32.evaluated = {"props":true,"dynamicProps":false,"dynamicItems":false};
 
 export const HostRequest = validate33;
-const schema51 = {"oneOf":[{"type":"object","additionalProperties":false,"required":["describe"],"properties":{"describe":{"type":"object","maxProperties":0}}},{"type":"object","additionalProperties":false,"required":["clock"],"properties":{"clock":{"type":"object","maxProperties":0}}},{"type":"object","additionalProperties":false,"required":["inspect"],"properties":{"inspect":{"type":"object","additionalProperties":false,"properties":{"scope":{"type":"object","additionalProperties":false,"properties":{"realm":{"type":"integer","minimum":0,"maximum":9007199254740991},"principal":{"type":"integer","minimum":0,"maximum":9007199254740991},"service":{"type":"integer","minimum":0,"maximum":9007199254740991},"ingress":{"type":"integer","minimum":0,"maximum":9007199254740991},"session":{"type":"integer","minimum":0,"maximum":9007199254740991},"generation":{"type":"integer","minimum":0,"maximum":9007199254740991},"subscription":{"type":"integer","minimum":0,"maximum":9007199254740991},"subscription_generation":{"type":"integer","minimum":0,"maximum":9007199254740991}},"required":["realm","principal","service","ingress","session","generation"]},"kind":{"type":"string","enum":["session","snapshot","events"]},"attachment":{"type":"integer","minimum":0,"maximum":9007199254740991},"nonce":{"type":"array","minItems":16,"maxItems":16,"items":{"type":"integer","minimum":0,"maximum":255}},"cursor":{"anyOf":[{"type":"object","additionalProperties":false,"properties":{"position":{"type":"object","additionalProperties":false,"properties":{"version":{"const":1},"scope":{"type":"object","additionalProperties":false,"properties":{"realm":{"type":"integer","minimum":0,"maximum":9007199254740991},"principal":{"type":"integer","minimum":0,"maximum":9007199254740991},"service":{"type":"integer","minimum":0,"maximum":9007199254740991},"ingress":{"type":"integer","minimum":0,"maximum":9007199254740991},"session":{"type":"integer","minimum":0,"maximum":9007199254740991},"generation":{"type":"integer","minimum":0,"maximum":9007199254740991},"subscription":{"type":"integer","minimum":0,"maximum":9007199254740991},"subscription_generation":{"type":"integer","minimum":0,"maximum":9007199254740991}},"required":["realm","principal","service","ingress","session","generation"]},"watch_revision":{"type":"integer","minimum":0,"maximum":9007199254740991},"resource":{"type":"integer","minimum":0,"maximum":9007199254740991},"schema":{"type":"array","minItems":32,"maxItems":32,"items":{"type":"integer","minimum":0,"maximum":255}},"data_revision":{"type":"integer","minimum":0,"maximum":9007199254740991},"outcome_position":{"type":"integer","minimum":0,"maximum":9007199254740991}},"required":["scope","watch_revision","resource","schema","data_revision"]},"signature":{"type":"array","minItems":64,"maxItems":64,"items":{"type":"integer","minimum":0,"maximum":255}}},"required":["position","signature"]},{"type":"null"}]}},"required":["scope","kind"]}}},{"type":"object","additionalProperties":false,"required":["covered"],"properties":{"covered":{"type":"object","additionalProperties":false,"properties":{"observation":{"type":"object","additionalProperties":false,"properties":{"data_revision":{"type":"integer","minimum":0,"maximum":9007199254740991},"basis":{"type":"object","additionalProperties":false,"properties":{"kind":{"type":"string","enum":["kv","table","document"]},"resource":{"type":"integer","minimum":0,"maximum":9007199254740991},"revision":{"type":"integer","minimum":0,"maximum":9007199254740991},"contract":{"type":"array","minItems":32,"maxItems":32,"items":{"type":"integer","minimum":0,"maximum":255}},"schema":{"type":"array","minItems":32,"maxItems":32,"items":{"type":"integer","minimum":0,"maximum":255}}},"required":["kind","resource","revision","contract","schema"]},"schema":{"type":"object","additionalProperties":false,"properties":{"version":{"type":"integer","minimum":0,"maximum":255},"names":{"type":"array","minItems":2,"maxItems":2,"items":{"type":"object","additionalProperties":false,"properties":{"bytes":{"type":"array","minItems":16,"maxItems":16,"items":{"type":"integer","minimum":0,"maximum":255}},"len":{"type":"integer","minimum":0,"maximum":255}},"required":[]}},"value_type":{"type":"string","enum":["int64","boolean","utf8","binary"]}},"required":["names","value_type"]}},"required":["data_revision","basis","schema"]},"captured":{"type":"object","additionalProperties":false,"properties":{"kind":{"type":"string","enum":["kv","table","document"]},"resource":{"type":"integer","minimum":0,"maximum":9007199254740991},"revision":{"type":"integer","minimum":0,"maximum":9007199254740991},"contract":{"type":"array","minItems":32,"maxItems":32,"items":{"type":"integer","minimum":0,"maximum":255}},"schema":{"type":"array","minItems":32,"maxItems":32,"items":{"type":"integer","minimum":0,"maximum":255}}},"required":["kind","resource","revision","contract","schema"]}},"required":["observation","captured"]}}},{"type":"object","additionalProperties":false,"required":["prepare"],"properties":{"prepare":{"oneOf":[{"type":"object","additionalProperties":false,"required":["open"],"properties":{"open":{"type":"object","additionalProperties":false,"properties":{"session":{"type":"integer","minimum":0,"maximum":9007199254740991},"source_revision":{"type":"integer","minimum":0,"maximum":9007199254740991},"lease_before_ms":{"type":"integer","minimum":0,"maximum":9007199254740991}},"required":["session","source_revision","lease_before_ms"]}}},{"type":"object","additionalProperties":false,"required":["attach"],"properties":{"attach":{"type":"object","additionalProperties":false,"properties":{"identity":{"type":"object","additionalProperties":false,"properties":{"session":{"type":"integer","minimum":0,"maximum":9007199254740991},"generation":{"type":"integer","minimum":0,"maximum":9007199254740991}},"required":["session","generation"]},"expected":{"type":"integer","minimum":0,"maximum":9007199254740991},"nonce":{"type":"array","minItems":16,"maxItems":16,"items":{"type":"integer","minimum":0,"maximum":255}}},"required":["identity","expected","nonce"]}}},{"type":"object","additionalProperties":false,"required":["subscribe"],"properties":{"subscribe":{"type":"object","additionalProperties":false,"properties":{"identity":{"type":"object","additionalProperties":false,"properties":{"session":{"type":"integer","minimum":0,"maximum":9007199254740991},"generation":{"type":"integer","minimum":0,"maximum":9007199254740991}},"required":["session","generation"]},"expected":{"type":"integer","minimum":0,"maximum":9007199254740991},"subscription":{"type":"integer","minimum":0,"maximum":9007199254740991},"operation":{"type":"integer","minimum":0,"maximum":9007199254740991}},"required":["identity","expected","subscription"]}}},{"type":"object","additionalProperties":false,"required":["renew"],"properties":{"renew":{"type":"object","additionalProperties":false,"properties":{"identity":{"type":"object","additionalProperties":false,"properties":{"session":{"type":"integer","minimum":0,"maximum":9007199254740991},"generation":{"type":"integer","minimum":0,"maximum":9007199254740991}},"required":["session","generation"]},"expected":{"type":"integer","minimum":0,"maximum":9007199254740991},"lease_before_ms":{"type":"integer","minimum":0,"maximum":9007199254740991}},"required":["identity","expected","lease_before_ms"]}}},{"type":"object","additionalProperties":false,"required":["unsubscribe"],"properties":{"unsubscribe":{"type":"object","additionalProperties":false,"properties":{"identity":{"type":"object","additionalProperties":false,"properties":{"session":{"type":"integer","minimum":0,"maximum":9007199254740991},"generation":{"type":"integer","minimum":0,"maximum":9007199254740991}},"required":["session","generation"]},"subscription":{"type":"integer","minimum":0,"maximum":9007199254740991},"generation":{"type":"integer","minimum":0,"maximum":9007199254740991}},"required":["identity","subscription","generation"]}}},{"type":"object","additionalProperties":false,"required":["close"],"properties":{"close":{"type":"object","additionalProperties":false,"properties":{"session":{"type":"integer","minimum":0,"maximum":9007199254740991},"generation":{"type":"integer","minimum":0,"maximum":9007199254740991}},"required":["session","generation"]}}}]}}},{"type":"object","additionalProperties":false,"required":["submit"],"properties":{"submit":{"type":"object","additionalProperties":false,"properties":{"request":{"type":"object","additionalProperties":false,"properties":{"version":{"const":1},"definition":{"type":"string","enum":["2751c5ead29471b9675530a20cd0e364368ba79dee3ec6f00f8806d0accb94e7"]},"realm":{"type":"integer","minimum":0,"maximum":9007199254740991},"principal":{"type":"integer","minimum":0,"maximum":9007199254740991},"sequence":{"type":"integer","minimum":0,"maximum":9007199254740991},"command":{"type":"object","additionalProperties":false,"properties":{"send":{"type":"object","additionalProperties":false,"properties":{"pid":{"type":"integer","minimum":0,"maximum":9007199254740991},"value":{"type":"string","pattern":"^(?:[0-9a-f]{2})*$","maxLength":512}},"required":["pid","value"]}},"required":["send"]}},"required":["definition","realm","principal","sequence","command"]},"signature":{"type":"array","minItems":64,"maxItems":64,"items":{"type":"integer","minimum":0,"maximum":255}}},"required":["request","signature"]}}},{"type":"object","additionalProperties":false,"required":["observe"],"properties":{"observe":{"type":"integer","minimum":0,"maximum":9007199254740991}}},{"type":"object","additionalProperties":false,"required":["sign_read"],"properties":{"sign_read":{"type":"object","additionalProperties":false,"properties":{"scope":{"type":"object","additionalProperties":false,"properties":{"realm":{"type":"integer","minimum":0,"maximum":9007199254740991},"principal":{"type":"integer","minimum":0,"maximum":9007199254740991},"service":{"type":"integer","minimum":0,"maximum":9007199254740991},"ingress":{"type":"integer","minimum":0,"maximum":9007199254740991},"session":{"type":"integer","minimum":0,"maximum":9007199254740991},"generation":{"type":"integer","minimum":0,"maximum":9007199254740991},"subscription":{"type":"integer","minimum":0,"maximum":9007199254740991},"subscription_generation":{"type":"integer","minimum":0,"maximum":9007199254740991}},"required":["realm","principal","service","ingress","session","generation"]},"kind":{"type":"string","enum":["session","snapshot","events"]},"attachment":{"type":"integer","minimum":0,"maximum":9007199254740991},"nonce":{"type":"array","minItems":16,"maxItems":16,"items":{"type":"integer","minimum":0,"maximum":255}},"cursor":{"anyOf":[{"type":"object","additionalProperties":false,"properties":{"position":{"type":"object","additionalProperties":false,"properties":{"version":{"const":1},"scope":{"type":"object","additionalProperties":false,"properties":{"realm":{"type":"integer","minimum":0,"maximum":9007199254740991},"principal":{"type":"integer","minimum":0,"maximum":9007199254740991},"service":{"type":"integer","minimum":0,"maximum":9007199254740991},"ingress":{"type":"integer","minimum":0,"maximum":9007199254740991},"session":{"type":"integer","minimum":0,"maximum":9007199254740991},"generation":{"type":"integer","minimum":0,"maximum":9007199254740991},"subscription":{"type":"integer","minimum":0,"maximum":9007199254740991},"subscription_generation":{"type":"integer","minimum":0,"maximum":9007199254740991}},"required":["realm","principal","service","ingress","session","generation"]},"watch_revision":{"type":"integer","minimum":0,"maximum":9007199254740991},"resource":{"type":"integer","minimum":0,"maximum":9007199254740991},"schema":{"type":"array","minItems":32,"maxItems":32,"items":{"type":"integer","minimum":0,"maximum":255}},"data_revision":{"type":"integer","minimum":0,"maximum":9007199254740991},"outcome_position":{"type":"integer","minimum":0,"maximum":9007199254740991}},"required":["scope","watch_revision","resource","schema","data_revision"]},"signature":{"type":"array","minItems":64,"maxItems":64,"items":{"type":"integer","minimum":0,"maximum":255}}},"required":["position","signature"]},{"type":"null"}]}},"required":["scope","kind"]}}},{"type":"object","additionalProperties":false,"required":["refresh_prepare"],"properties":{"refresh_prepare":{"oneOf":[{"type":"object","additionalProperties":false,"required":["follow"],"properties":{"follow":{"type":"object","additionalProperties":false,"properties":{"session":{"type":"object","additionalProperties":false,"properties":{"session":{"type":"integer","minimum":0,"maximum":9007199254740991},"generation":{"type":"integer","minimum":0,"maximum":9007199254740991}},"required":["session","generation"]},"expected":{"type":"integer","minimum":0,"maximum":9007199254740991},"template":{"type":"string","pattern":"^(0|[1-9][0-9]*)$","maxLength":20},"limit":{"type":"integer","minimum":0,"maximum":255}},"required":["session","expected","template","limit"]}}},{"type":"object","additionalProperties":false,"required":["invalidate"],"properties":{"invalidate":{"type":"object","additionalProperties":false,"properties":{"session":{"type":"object","additionalProperties":false,"properties":{"session":{"type":"integer","minimum":0,"maximum":9007199254740991},"generation":{"type":"integer","minimum":0,"maximum":9007199254740991}},"required":["session","generation"]},"generation":{"type":"integer","minimum":0,"maximum":9007199254740991}},"required":["session","generation"]}}},{"type":"object","additionalProperties":false,"required":["acknowledged"],"properties":{"acknowledged":{"type":"object","additionalProperties":false,"properties":{"selection":{"type":"object","additionalProperties":false,"properties":{"session":{"type":"object","additionalProperties":false,"properties":{"session":{"type":"integer","minimum":0,"maximum":9007199254740991},"generation":{"type":"integer","minimum":0,"maximum":9007199254740991}},"required":["session","generation"]},"generation":{"type":"integer","minimum":0,"maximum":9007199254740991}},"required":["session","generation"]},"namespace":{"type":"string","pattern":"^(0|[1-9][0-9]*)$","maxLength":20}},"required":["selection","namespace"]}}},{"type":"object","additionalProperties":false,"required":["pause"],"properties":{"pause":{"type":"object","additionalProperties":false,"properties":{"session":{"type":"object","additionalProperties":false,"properties":{"session":{"type":"integer","minimum":0,"maximum":9007199254740991},"generation":{"type":"integer","minimum":0,"maximum":9007199254740991}},"required":["session","generation"]},"generation":{"type":"integer","minimum":0,"maximum":9007199254740991}},"required":["session","generation"]}}}]}}},{"type":"object","additionalProperties":false,"required":["refresh_status"],"properties":{"refresh_status":{"type":"object","additionalProperties":false,"properties":{"session":{"type":"object","additionalProperties":false,"properties":{"session":{"type":"integer","minimum":0,"maximum":9007199254740991},"generation":{"type":"integer","minimum":0,"maximum":9007199254740991}},"required":["session","generation"]},"generation":{"type":"integer","minimum":0,"maximum":9007199254740991}},"required":["session","generation"]}}}]};
+const schema51 = {"oneOf":[{"type":"object","additionalProperties":false,"required":["describe"],"properties":{"describe":{"type":"object","maxProperties":0}}},{"type":"object","additionalProperties":false,"required":["clock"],"properties":{"clock":{"type":"object","maxProperties":0}}},{"type":"object","additionalProperties":false,"required":["inspect"],"properties":{"inspect":{"type":"object","additionalProperties":false,"properties":{"scope":{"type":"object","additionalProperties":false,"properties":{"realm":{"type":"integer","minimum":0,"maximum":9007199254740991},"principal":{"type":"integer","minimum":0,"maximum":9007199254740991},"service":{"type":"integer","minimum":0,"maximum":9007199254740991},"ingress":{"type":"integer","minimum":0,"maximum":9007199254740991},"session":{"type":"integer","minimum":0,"maximum":9007199254740991},"generation":{"type":"integer","minimum":0,"maximum":9007199254740991},"subscription":{"type":"integer","minimum":0,"maximum":9007199254740991},"subscription_generation":{"type":"integer","minimum":0,"maximum":9007199254740991}},"required":["realm","principal","service","ingress","session","generation"]},"kind":{"type":"string","enum":["session","snapshot","events"]},"attachment":{"type":"integer","minimum":0,"maximum":9007199254740991},"nonce":{"type":"array","minItems":16,"maxItems":16,"items":{"type":"integer","minimum":0,"maximum":255}},"cursor":{"anyOf":[{"type":"object","additionalProperties":false,"properties":{"position":{"type":"object","additionalProperties":false,"properties":{"version":{"const":1},"scope":{"type":"object","additionalProperties":false,"properties":{"realm":{"type":"integer","minimum":0,"maximum":9007199254740991},"principal":{"type":"integer","minimum":0,"maximum":9007199254740991},"service":{"type":"integer","minimum":0,"maximum":9007199254740991},"ingress":{"type":"integer","minimum":0,"maximum":9007199254740991},"session":{"type":"integer","minimum":0,"maximum":9007199254740991},"generation":{"type":"integer","minimum":0,"maximum":9007199254740991},"subscription":{"type":"integer","minimum":0,"maximum":9007199254740991},"subscription_generation":{"type":"integer","minimum":0,"maximum":9007199254740991}},"required":["realm","principal","service","ingress","session","generation"]},"watch_revision":{"type":"integer","minimum":0,"maximum":9007199254740991},"resource":{"type":"integer","minimum":0,"maximum":9007199254740991},"schema":{"type":"array","minItems":32,"maxItems":32,"items":{"type":"integer","minimum":0,"maximum":255}},"data_revision":{"type":"integer","minimum":0,"maximum":9007199254740991},"outcome_position":{"type":"integer","minimum":0,"maximum":9007199254740991}},"required":["scope","watch_revision","resource","schema","data_revision"]},"signature":{"type":"array","minItems":64,"maxItems":64,"items":{"type":"integer","minimum":0,"maximum":255}}},"required":["position","signature"]},{"type":"null"}]}},"required":["scope","kind"]}}},{"type":"object","additionalProperties":false,"required":["covered"],"properties":{"covered":{"type":"object","additionalProperties":false,"properties":{"observation":{"type":"object","additionalProperties":false,"properties":{"data_revision":{"type":"integer","minimum":0,"maximum":9007199254740991},"basis":{"type":"object","additionalProperties":false,"properties":{"kind":{"type":"string","enum":["kv","table","document"]},"resource":{"type":"integer","minimum":0,"maximum":9007199254740991},"revision":{"type":"integer","minimum":0,"maximum":9007199254740991},"contract":{"type":"array","minItems":32,"maxItems":32,"items":{"type":"integer","minimum":0,"maximum":255}},"schema":{"type":"array","minItems":32,"maxItems":32,"items":{"type":"integer","minimum":0,"maximum":255}}},"required":["kind","resource","revision","contract","schema"]},"schema":{"type":"object","additionalProperties":false,"properties":{"version":{"type":"integer","minimum":0,"maximum":255},"names":{"type":"array","minItems":2,"maxItems":2,"items":{"type":"object","additionalProperties":false,"properties":{"bytes":{"type":"array","minItems":16,"maxItems":16,"items":{"type":"integer","minimum":0,"maximum":255}},"len":{"type":"integer","minimum":0,"maximum":255}},"required":[]}},"value_type":{"type":"string","enum":["int64","boolean","utf8","binary"]}},"required":["names","value_type"]}},"required":["data_revision","basis","schema"]},"captured":{"type":"object","additionalProperties":false,"properties":{"kind":{"type":"string","enum":["kv","table","document"]},"resource":{"type":"integer","minimum":0,"maximum":9007199254740991},"revision":{"type":"integer","minimum":0,"maximum":9007199254740991},"contract":{"type":"array","minItems":32,"maxItems":32,"items":{"type":"integer","minimum":0,"maximum":255}},"schema":{"type":"array","minItems":32,"maxItems":32,"items":{"type":"integer","minimum":0,"maximum":255}}},"required":["kind","resource","revision","contract","schema"]}},"required":["observation","captured"]}}},{"type":"object","additionalProperties":false,"required":["prepare"],"properties":{"prepare":{"oneOf":[{"type":"object","additionalProperties":false,"required":["open"],"properties":{"open":{"type":"object","additionalProperties":false,"properties":{"session":{"type":"integer","minimum":0,"maximum":9007199254740991},"source_revision":{"type":"integer","minimum":0,"maximum":9007199254740991},"lease_before_ms":{"type":"integer","minimum":0,"maximum":9007199254740991}},"required":["session","source_revision","lease_before_ms"]}}},{"type":"object","additionalProperties":false,"required":["attach"],"properties":{"attach":{"type":"object","additionalProperties":false,"properties":{"identity":{"type":"object","additionalProperties":false,"properties":{"session":{"type":"integer","minimum":0,"maximum":9007199254740991},"generation":{"type":"integer","minimum":0,"maximum":9007199254740991}},"required":["session","generation"]},"expected":{"type":"integer","minimum":0,"maximum":9007199254740991},"nonce":{"type":"array","minItems":16,"maxItems":16,"items":{"type":"integer","minimum":0,"maximum":255}}},"required":["identity","expected","nonce"]}}},{"type":"object","additionalProperties":false,"required":["subscribe"],"properties":{"subscribe":{"type":"object","additionalProperties":false,"properties":{"identity":{"type":"object","additionalProperties":false,"properties":{"session":{"type":"integer","minimum":0,"maximum":9007199254740991},"generation":{"type":"integer","minimum":0,"maximum":9007199254740991}},"required":["session","generation"]},"expected":{"type":"integer","minimum":0,"maximum":9007199254740991},"subscription":{"type":"integer","minimum":0,"maximum":9007199254740991},"operation":{"type":"integer","minimum":0,"maximum":9007199254740991}},"required":["identity","expected","subscription"]}}},{"type":"object","additionalProperties":false,"required":["renew"],"properties":{"renew":{"type":"object","additionalProperties":false,"properties":{"identity":{"type":"object","additionalProperties":false,"properties":{"session":{"type":"integer","minimum":0,"maximum":9007199254740991},"generation":{"type":"integer","minimum":0,"maximum":9007199254740991}},"required":["session","generation"]},"expected":{"type":"integer","minimum":0,"maximum":9007199254740991},"lease_before_ms":{"type":"integer","minimum":0,"maximum":9007199254740991}},"required":["identity","expected","lease_before_ms"]}}},{"type":"object","additionalProperties":false,"required":["unsubscribe"],"properties":{"unsubscribe":{"type":"object","additionalProperties":false,"properties":{"identity":{"type":"object","additionalProperties":false,"properties":{"session":{"type":"integer","minimum":0,"maximum":9007199254740991},"generation":{"type":"integer","minimum":0,"maximum":9007199254740991}},"required":["session","generation"]},"subscription":{"type":"integer","minimum":0,"maximum":9007199254740991},"generation":{"type":"integer","minimum":0,"maximum":9007199254740991}},"required":["identity","subscription","generation"]}}},{"type":"object","additionalProperties":false,"required":["close"],"properties":{"close":{"type":"object","additionalProperties":false,"properties":{"session":{"type":"integer","minimum":0,"maximum":9007199254740991},"generation":{"type":"integer","minimum":0,"maximum":9007199254740991}},"required":["session","generation"]}}}]}}},{"type":"object","additionalProperties":false,"required":["submit"],"properties":{"submit":{"type":"object","additionalProperties":false,"properties":{"request":{"type":"object","additionalProperties":false,"properties":{"version":{"const":1},"definition":{"type":"string","enum":["692358a0bda42413cb14638010c0adea7edaa238aff1275e9557fcb38a37e741"]},"realm":{"type":"integer","minimum":0,"maximum":9007199254740991},"principal":{"type":"integer","minimum":0,"maximum":9007199254740991},"sequence":{"type":"integer","minimum":0,"maximum":9007199254740991},"command":{"type":"object","additionalProperties":false,"properties":{"send":{"type":"object","additionalProperties":false,"properties":{"pid":{"type":"integer","minimum":0,"maximum":9007199254740991},"value":{"type":"string","pattern":"^(?:[0-9a-f]{2})*$","maxLength":512}},"required":["pid","value"]}},"required":["send"]}},"required":["definition","realm","principal","sequence","command"]},"signature":{"type":"array","minItems":64,"maxItems":64,"items":{"type":"integer","minimum":0,"maximum":255}}},"required":["request","signature"]}}},{"type":"object","additionalProperties":false,"required":["observe"],"properties":{"observe":{"type":"integer","minimum":0,"maximum":9007199254740991}}},{"type":"object","additionalProperties":false,"required":["sign_read"],"properties":{"sign_read":{"type":"object","additionalProperties":false,"properties":{"scope":{"type":"object","additionalProperties":false,"properties":{"realm":{"type":"integer","minimum":0,"maximum":9007199254740991},"principal":{"type":"integer","minimum":0,"maximum":9007199254740991},"service":{"type":"integer","minimum":0,"maximum":9007199254740991},"ingress":{"type":"integer","minimum":0,"maximum":9007199254740991},"session":{"type":"integer","minimum":0,"maximum":9007199254740991},"generation":{"type":"integer","minimum":0,"maximum":9007199254740991},"subscription":{"type":"integer","minimum":0,"maximum":9007199254740991},"subscription_generation":{"type":"integer","minimum":0,"maximum":9007199254740991}},"required":["realm","principal","service","ingress","session","generation"]},"kind":{"type":"string","enum":["session","snapshot","events"]},"attachment":{"type":"integer","minimum":0,"maximum":9007199254740991},"nonce":{"type":"array","minItems":16,"maxItems":16,"items":{"type":"integer","minimum":0,"maximum":255}},"cursor":{"anyOf":[{"type":"object","additionalProperties":false,"properties":{"position":{"type":"object","additionalProperties":false,"properties":{"version":{"const":1},"scope":{"type":"object","additionalProperties":false,"properties":{"realm":{"type":"integer","minimum":0,"maximum":9007199254740991},"principal":{"type":"integer","minimum":0,"maximum":9007199254740991},"service":{"type":"integer","minimum":0,"maximum":9007199254740991},"ingress":{"type":"integer","minimum":0,"maximum":9007199254740991},"session":{"type":"integer","minimum":0,"maximum":9007199254740991},"generation":{"type":"integer","minimum":0,"maximum":9007199254740991},"subscription":{"type":"integer","minimum":0,"maximum":9007199254740991},"subscription_generation":{"type":"integer","minimum":0,"maximum":9007199254740991}},"required":["realm","principal","service","ingress","session","generation"]},"watch_revision":{"type":"integer","minimum":0,"maximum":9007199254740991},"resource":{"type":"integer","minimum":0,"maximum":9007199254740991},"schema":{"type":"array","minItems":32,"maxItems":32,"items":{"type":"integer","minimum":0,"maximum":255}},"data_revision":{"type":"integer","minimum":0,"maximum":9007199254740991},"outcome_position":{"type":"integer","minimum":0,"maximum":9007199254740991}},"required":["scope","watch_revision","resource","schema","data_revision"]},"signature":{"type":"array","minItems":64,"maxItems":64,"items":{"type":"integer","minimum":0,"maximum":255}}},"required":["position","signature"]},{"type":"null"}]}},"required":["scope","kind"]}}},{"type":"object","additionalProperties":false,"required":["refresh_prepare"],"properties":{"refresh_prepare":{"oneOf":[{"type":"object","additionalProperties":false,"required":["follow"],"properties":{"follow":{"type":"object","additionalProperties":false,"properties":{"session":{"type":"object","additionalProperties":false,"properties":{"session":{"type":"integer","minimum":0,"maximum":9007199254740991},"generation":{"type":"integer","minimum":0,"maximum":9007199254740991}},"required":["session","generation"]},"expected":{"type":"integer","minimum":0,"maximum":9007199254740991},"template":{"type":"string","pattern":"^(0|[1-9][0-9]*)$","maxLength":20},"limit":{"type":"integer","minimum":0,"maximum":255}},"required":["session","expected","template","limit"]}}},{"type":"object","additionalProperties":false,"required":["invalidate"],"properties":{"invalidate":{"type":"object","additionalProperties":false,"properties":{"session":{"type":"object","additionalProperties":false,"properties":{"session":{"type":"integer","minimum":0,"maximum":9007199254740991},"generation":{"type":"integer","minimum":0,"maximum":9007199254740991}},"required":["session","generation"]},"generation":{"type":"integer","minimum":0,"maximum":9007199254740991}},"required":["session","generation"]}}},{"type":"object","additionalProperties":false,"required":["acknowledged"],"properties":{"acknowledged":{"type":"object","additionalProperties":false,"properties":{"selection":{"type":"object","additionalProperties":false,"properties":{"session":{"type":"object","additionalProperties":false,"properties":{"session":{"type":"integer","minimum":0,"maximum":9007199254740991},"generation":{"type":"integer","minimum":0,"maximum":9007199254740991}},"required":["session","generation"]},"generation":{"type":"integer","minimum":0,"maximum":9007199254740991}},"required":["session","generation"]},"namespace":{"type":"string","pattern":"^(0|[1-9][0-9]*)$","maxLength":20}},"required":["selection","namespace"]}}},{"type":"object","additionalProperties":false,"required":["pause"],"properties":{"pause":{"type":"object","additionalProperties":false,"properties":{"session":{"type":"object","additionalProperties":false,"properties":{"session":{"type":"integer","minimum":0,"maximum":9007199254740991},"generation":{"type":"integer","minimum":0,"maximum":9007199254740991}},"required":["session","generation"]},"generation":{"type":"integer","minimum":0,"maximum":9007199254740991}},"required":["session","generation"]}}}]}}},{"type":"object","additionalProperties":false,"required":["refresh_status"],"properties":{"refresh_status":{"type":"object","additionalProperties":false,"properties":{"session":{"type":"object","additionalProperties":false,"properties":{"session":{"type":"integer","minimum":0,"maximum":9007199254740991},"generation":{"type":"integer","minimum":0,"maximum":9007199254740991}},"required":["session","generation"]},"generation":{"type":"integer","minimum":0,"maximum":9007199254740991}},"required":["session","generation"]}}}]};
 
 function validate33(data, {instancePath="", parentData, parentDataProperty, rootData=data, dynamicAnchors={}}={}){
 let vErrors = null;
@@ -54072,7 +54072,7 @@ vErrors.push(err322);
 }
 errors++;
 }
-if(!(data100 === "2751c5ead29471b9675530a20cd0e364368ba79dee3ec6f00f8806d0accb94e7")){
+if(!(data100 === "692358a0bda42413cb14638010c0adea7edaa238aff1275e9557fcb38a37e741")){
 const err323 = {instancePath:instancePath+"/submit/request/definition",schemaPath:"#/oneOf/5/properties/submit/properties/request/properties/definition/enum",keyword:"enum",params:{allowedValues: schema51.oneOf[5].properties.submit.properties.request.properties.definition.enum},message:"must be equal to one of the allowed values"};
 if(vErrors === null){
 vErrors = [err323];
@@ -58073,7 +58073,7 @@ return errors === 0;
 validate33.evaluated = {"dynamicProps":true,"dynamicItems":false};
 
 export const HostResponse = validate34;
-const schema52 = {"oneOf":[{"type":"object","additionalProperties":false,"required":["description"],"properties":{"description":{"type":"object","additionalProperties":false,"properties":{"connection":{"type":"object","additionalProperties":false,"properties":{"realm":{"type":"integer","minimum":0,"maximum":9007199254740991},"principal":{"type":"integer","minimum":0,"maximum":9007199254740991},"service":{"type":"integer","minimum":0,"maximum":9007199254740991},"ingress":{"type":"integer","minimum":0,"maximum":9007199254740991}},"required":["realm","principal","service","ingress"]},"discovery":{"type":"object","additionalProperties":false,"properties":{"version":{"const":1},"service":{"type":"integer","minimum":0,"maximum":9007199254740991},"ingress":{"type":"integer","minimum":0,"maximum":9007199254740991},"resource":{"type":"integer","minimum":0,"maximum":9007199254740991},"binding_revision":{"type":"integer","minimum":0,"maximum":9007199254740991},"watch_revision":{"type":"integer","minimum":0,"maximum":9007199254740991},"sse":{"type":"boolean"},"websocket":{"type":"boolean"},"subprotocol":{"type":"string","maxLength":256},"openapi_sha256":{"type":"array","minItems":32,"maxItems":32,"items":{"type":"integer","minimum":0,"maximum":255}},"asyncapi_sha256":{"type":"array","minItems":32,"maxItems":32,"items":{"type":"integer","minimum":0,"maximum":255}}},"required":["service","ingress","resource","binding_revision","watch_revision","openapi_sha256","asyncapi_sha256"]},"observed_ms":{"type":"integer","minimum":0,"maximum":9007199254740991},"max_lease_ms":{"type":"integer","minimum":0,"maximum":4294967295}},"required":["connection","discovery","observed_ms"]}}},{"type":"object","additionalProperties":false,"required":["clock"],"properties":{"clock":{"type":"object","additionalProperties":false,"properties":{"observed_ms":{"type":"integer","minimum":0,"maximum":9007199254740991},"max_lease_ms":{"type":"integer","minimum":0,"maximum":4294967295}},"required":["observed_ms"]}}},{"type":"object","additionalProperties":false,"required":["inspection"],"properties":{"inspection":{"type":"object","additionalProperties":false,"properties":{"response":{"type":"object","additionalProperties":false,"properties":{"version":{"const":1},"session":{"type":"object","additionalProperties":false,"properties":{"principal":{"type":"integer","minimum":0,"maximum":9007199254740991},"session":{"type":"integer","minimum":0,"maximum":9007199254740991},"generation":{"type":"integer","minimum":0,"maximum":9007199254740991},"source_revision":{"type":"integer","minimum":0,"maximum":9007199254740991},"open_digest":{"type":"array","minItems":32,"maxItems":32,"items":{"type":"integer","minimum":0,"maximum":255}},"lease_before_ms":{"type":"integer","minimum":0,"maximum":9007199254740991},"phase":{"type":"string","enum":["open","closed","expired"]},"attachment":{"type":"integer","minimum":0,"maximum":9007199254740991},"nonce":{"type":"array","minItems":16,"maxItems":16,"items":{"type":"integer","minimum":0,"maximum":255}},"subscription":{"type":"integer","minimum":0,"maximum":9007199254740991},"subscription_generation":{"type":"integer","minimum":0,"maximum":9007199254740991},"operation":{"type":"integer","minimum":0,"maximum":9007199254740991}},"required":["principal","session","generation","source_revision","open_digest","lease_before_ms"]},"source":{"anyOf":[{"type":"object","additionalProperties":false,"properties":{"revision":{"type":"integer","minimum":0,"maximum":9007199254740991},"target":{"type":"integer","minimum":0,"maximum":9007199254740991},"resource":{"type":"integer","minimum":0,"maximum":9007199254740991},"table":{"type":"integer","minimum":0,"maximum":4294967295},"progress_key":{"type":"string","pattern":"^(?:[0-9a-f]{2})*$","maxLength":512},"schema":{"type":"array","minItems":32,"maxItems":32,"items":{"type":"integer","minimum":0,"maximum":255}},"published":{"type":"boolean"}},"required":["revision","target","resource","table","progress_key","schema"]},{"type":"null"}]},"snapshot":{"anyOf":[{"type":"object","additionalProperties":false,"properties":{"observation":{"type":"object","additionalProperties":false,"properties":{"data_revision":{"type":"integer","minimum":0,"maximum":9007199254740991},"basis":{"type":"object","additionalProperties":false,"properties":{"kind":{"type":"string","enum":["kv","table","document"]},"resource":{"type":"integer","minimum":0,"maximum":9007199254740991},"revision":{"type":"integer","minimum":0,"maximum":9007199254740991},"contract":{"type":"array","minItems":32,"maxItems":32,"items":{"type":"integer","minimum":0,"maximum":255}},"schema":{"type":"array","minItems":32,"maxItems":32,"items":{"type":"integer","minimum":0,"maximum":255}}},"required":["kind","resource","revision","contract","schema"]},"schema":{"type":"object","additionalProperties":false,"properties":{"version":{"type":"integer","minimum":0,"maximum":255},"names":{"type":"array","minItems":2,"maxItems":2,"items":{"type":"object","additionalProperties":false,"properties":{"bytes":{"type":"array","minItems":16,"maxItems":16,"items":{"type":"integer","minimum":0,"maximum":255}},"len":{"type":"integer","minimum":0,"maximum":255}},"required":[]}},"value_type":{"type":"string","enum":["int64","boolean","utf8","binary"]}},"required":["names","value_type"]}},"required":["data_revision","basis","schema"]},"rows":{"type":"array","minItems":8,"maxItems":8,"items":{"anyOf":[{"type":"object","additionalProperties":false,"properties":{"key":{"type":"string","pattern":"^(0|-[1-9][0-9]*|[1-9][0-9]*)$","maxLength":20},"value":{"anyOf":[{"type":"string","pattern":"^(0|-[1-9][0-9]*|[1-9][0-9]*)$","maxLength":20},{"type":"null"}]}},"required":["key","value"]},{"type":"null"}]}},"more":{"type":"boolean"}},"required":["observation"]},{"type":"null"}]},"event":{"anyOf":[{"type":"object","additionalProperties":false,"properties":{"source_changed":{"type":"boolean"},"resource":{"type":"integer","minimum":0,"maximum":9007199254740991},"data_revision":{"type":"integer","minimum":0,"maximum":9007199254740991},"outcome":{"anyOf":[{"type":"object","additionalProperties":false,"properties":{"resource":{"type":"integer","minimum":0,"maximum":9007199254740991},"operation":{"type":"integer","minimum":0,"maximum":9007199254740991},"phase":{"type":"string","enum":["admitted","completed","cancelled","timed_out","failed"]},"resolution_input":{"type":"integer","minimum":0,"maximum":9007199254740991},"diagnostic":{"anyOf":[{"type":"object","additionalProperties":false,"properties":{"version":{"const":1},"definition":{"type":"string","enum":["2751c5ead29471b9675530a20cd0e364368ba79dee3ec6f00f8806d0accb94e7"]},"code":{"type":"string","maxLength":96},"category":{"type":"string","enum":["syntax","binding","unsupported","constraint","access","conflict","limit","lifecycle","integrity","unavailable","internal"]},"stage":{"type":"string","enum":["input","parse","compile","bind","prepare","submit","admission","execute","read","decode","output","reconcile","cleanup","control"]},"outcome":{"type":"string","enum":["not_applicable","not_submitted","not_dispatched","prepared","unknown","pending","input_rejected","rejected","applied","completed","failed","cancelled","retired","closed_unknown"]},"evidence":{"type":"string","enum":["none","local_before_dispatch","saved_intent","native_receipt","domain_status"]},"message":{"type":"string","maxLength":384},"cause":{"anyOf":[{"type":"string","maxLength":96},{"type":"null"}]},"identity":{"anyOf":[{"type":"object","additionalProperties":false,"properties":{"domain":{"type":"string","enum":["sql","query","mutation","catalog","application","publication","migration","reactive","serving","effect","exchange","transport","internal"]},"id":{"type":"string","maxLength":20,"pattern":"^(0|[1-9][0-9]*)$"},"realm":{"anyOf":[{"type":"string","maxLength":20,"pattern":"^(0|[1-9][0-9]*)$"},{"type":"null"}]},"resource":{"anyOf":[{"type":"string","maxLength":20,"pattern":"^(0|[1-9][0-9]*)$"},{"type":"null"}]},"sequence":{"anyOf":[{"type":"string","maxLength":20,"pattern":"^(0|[1-9][0-9]*)$"},{"type":"null"}]}},"required":["domain","id"]},{"type":"null"}]},"location":{"anyOf":[{"type":"object","additionalProperties":false,"properties":{"source":{"anyOf":[{"type":"string","maxLength":512},{"type":"null"}]},"source_encoding":{"type":"string","enum":["utf8","escaped_bytes"]},"source_truncated":{"type":"boolean"},"statement":{"anyOf":[{"type":"string","maxLength":20,"pattern":"^(0|[1-9][0-9]*)$"},{"type":"null"}]},"offset":{"type":"string","maxLength":20,"pattern":"^(0|[1-9][0-9]*)$"},"length":{"type":"string","maxLength":20,"pattern":"^(0|[1-9][0-9]*)$"},"line":{"type":"string","maxLength":20,"pattern":"^(0|[1-9][0-9]*)$"},"byte_column":{"type":"string","maxLength":20,"pattern":"^(0|[1-9][0-9]*)$"}},"required":["offset","length","line","byte_column"]},{"type":"null"}]},"facts":{"type":"array","minItems":16,"maxItems":16,"items":{"anyOf":[{"type":"object","additionalProperties":false,"properties":{"field":{"type":"string","enum":["object","name","table","native_input","affected_rows","argument","option","permissions","scope","column","qualifier","constraint","key","input_row","first_occurrence","parameter","parameter_use","expected_count","actual_count","expected_type","actual_type","supplied_value","expected_value","expression","source_kind","source_basis","source_key","source_row","field_path","byte_offset","expected_resource","actual_resource","expected_source","actual_source","expected_revision","actual_revision","expected_schema","actual_schema","expected_policy","actual_policy","budget","limit","required","unit","completed_statements","emitted_rows","emitted_segments","completion","proposal","step","generation","attachment","lease","schema_origin","sampling_records","operation","native_cause","expected_bytes","presence","published","subscription","expected_codec","actual_codec","observed_clock","expected_namespace","actual_namespace","attempt","executor","resolution_reason","principal","deadline","authorization_policy","resolution_policy","protocol_status","native_effect"]},"origin":{"type":"string","enum":["caller","execution","schema","authority","owner"]},"availability":{"type":"string","enum":["provided","truncated","unrecorded","unavailable","withheld","inapplicable"]},"value":{"anyOf":[{"oneOf":[{"type":"object","additionalProperties":false,"required":["text"],"properties":{"text":{"type":"string","maxLength":256}}},{"type":"object","additionalProperties":false,"required":["signed"],"properties":{"signed":{"type":"string","maxLength":20,"pattern":"^(0|-?[1-9][0-9]*)$"}}},{"type":"object","additionalProperties":false,"required":["unsigned"],"properties":{"unsigned":{"type":"string","maxLength":20,"pattern":"^(0|[1-9][0-9]*)$"}}},{"type":"object","additionalProperties":false,"required":["boolean"],"properties":{"boolean":{"type":"boolean"}}},{"type":"object","additionalProperties":false,"required":["digest"],"properties":{"digest":{"type":"array","minItems":32,"maxItems":32,"items":{"type":"integer","minimum":0,"maximum":255}}}},{"type":"object","additionalProperties":false,"required":["location"],"properties":{"location":{"type":"object","additionalProperties":false,"properties":{"source":{"anyOf":[{"type":"string","maxLength":512},{"type":"null"}]},"source_encoding":{"type":"string","enum":["utf8","escaped_bytes"]},"source_truncated":{"type":"boolean"},"statement":{"anyOf":[{"type":"string","maxLength":20,"pattern":"^(0|[1-9][0-9]*)$"},{"type":"null"}]},"offset":{"type":"string","maxLength":20,"pattern":"^(0|[1-9][0-9]*)$"},"length":{"type":"string","maxLength":20,"pattern":"^(0|[1-9][0-9]*)$"},"line":{"type":"string","maxLength":20,"pattern":"^(0|[1-9][0-9]*)$"},"byte_column":{"type":"string","maxLength":20,"pattern":"^(0|[1-9][0-9]*)$"}},"required":["offset","length","line","byte_column"]}}}]},{"type":"null"}]}},"required":["field","origin","availability","value"]},{"type":"null"}]}},"actions":{"type":"array","minItems":4,"maxItems":4,"items":{"anyOf":[{"type":"object","additionalProperties":false,"properties":{"kind":{"type":"string","enum":["correct_input","inspect_status","resume_exact","cancel_wait","cancel_mutation","refresh","recompile","retry_read","inspect_scope","reconcile_effect","contact_operator"]},"target":{"anyOf":[{"type":"object","additionalProperties":false,"properties":{"domain":{"type":"string","enum":["sql","query","mutation","catalog","application","publication","migration","reactive","serving","effect","exchange","transport","internal"]},"id":{"type":"string","maxLength":20,"pattern":"^(0|[1-9][0-9]*)$"},"realm":{"anyOf":[{"type":"string","maxLength":20,"pattern":"^(0|[1-9][0-9]*)$"},{"type":"null"}]},"resource":{"anyOf":[{"type":"string","maxLength":20,"pattern":"^(0|[1-9][0-9]*)$"},{"type":"null"}]},"sequence":{"anyOf":[{"type":"string","maxLength":20,"pattern":"^(0|[1-9][0-9]*)$"},{"type":"null"}]}},"required":["domain","id"]},{"type":"null"}]}},"required":["kind"]},{"type":"null"}]}}},"required":["version","definition","code","category","stage","outcome","evidence","message"]},{"type":"null"}]}},"required":["resource","operation","phase","resolution_input"]},{"type":"null"}]}},"required":["source_changed","resource","data_revision"]},{"type":"null"}]},"cursor":{"anyOf":[{"type":"object","additionalProperties":false,"properties":{"position":{"type":"object","additionalProperties":false,"properties":{"version":{"const":1},"scope":{"type":"object","additionalProperties":false,"properties":{"realm":{"type":"integer","minimum":0,"maximum":9007199254740991},"principal":{"type":"integer","minimum":0,"maximum":9007199254740991},"service":{"type":"integer","minimum":0,"maximum":9007199254740991},"ingress":{"type":"integer","minimum":0,"maximum":9007199254740991},"session":{"type":"integer","minimum":0,"maximum":9007199254740991},"generation":{"type":"integer","minimum":0,"maximum":9007199254740991},"subscription":{"type":"integer","minimum":0,"maximum":9007199254740991},"subscription_generation":{"type":"integer","minimum":0,"maximum":9007199254740991}},"required":["realm","principal","service","ingress","session","generation"]},"watch_revision":{"type":"integer","minimum":0,"maximum":9007199254740991},"resource":{"type":"integer","minimum":0,"maximum":9007199254740991},"schema":{"type":"array","minItems":32,"maxItems":32,"items":{"type":"integer","minimum":0,"maximum":255}},"data_revision":{"type":"integer","minimum":0,"maximum":9007199254740991},"outcome_position":{"type":"integer","minimum":0,"maximum":9007199254740991}},"required":["scope","watch_revision","resource","schema","data_revision"]},"signature":{"type":"array","minItems":64,"maxItems":64,"items":{"type":"integer","minimum":0,"maximum":255}}},"required":["position","signature"]},{"type":"null"}]}},"required":["session"]},"observation":{"type":"object","additionalProperties":false,"properties":{"data_revision":{"type":"integer","minimum":0,"maximum":9007199254740991},"basis":{"type":"object","additionalProperties":false,"properties":{"kind":{"type":"string","enum":["kv","table","document"]},"resource":{"type":"integer","minimum":0,"maximum":9007199254740991},"revision":{"type":"integer","minimum":0,"maximum":9007199254740991},"contract":{"type":"array","minItems":32,"maxItems":32,"items":{"type":"integer","minimum":0,"maximum":255}},"schema":{"type":"array","minItems":32,"maxItems":32,"items":{"type":"integer","minimum":0,"maximum":255}}},"required":["kind","resource","revision","contract","schema"]},"schema":{"type":"object","additionalProperties":false,"properties":{"version":{"type":"integer","minimum":0,"maximum":255},"names":{"type":"array","minItems":2,"maxItems":2,"items":{"type":"object","additionalProperties":false,"properties":{"bytes":{"type":"array","minItems":16,"maxItems":16,"items":{"type":"integer","minimum":0,"maximum":255}},"len":{"type":"integer","minimum":0,"maximum":255}},"required":[]}},"value_type":{"type":"string","enum":["int64","boolean","utf8","binary"]}},"required":["names","value_type"]}},"required":["data_revision","basis","schema"]}},"required":["response","observation"]}}},{"type":"object","additionalProperties":false,"required":["covered"],"properties":{"covered":{"type":"boolean"}}},{"type":"object","additionalProperties":false,"required":["prepared"],"properties":{"prepared":{"type":"object","additionalProperties":false,"properties":{"request":{"type":"object","additionalProperties":false,"properties":{"version":{"const":1},"definition":{"type":"string","enum":["2751c5ead29471b9675530a20cd0e364368ba79dee3ec6f00f8806d0accb94e7"]},"realm":{"type":"integer","minimum":0,"maximum":9007199254740991},"principal":{"type":"integer","minimum":0,"maximum":9007199254740991},"sequence":{"type":"integer","minimum":0,"maximum":9007199254740991},"command":{"type":"object","additionalProperties":false,"properties":{"send":{"type":"object","additionalProperties":false,"properties":{"pid":{"type":"integer","minimum":0,"maximum":9007199254740991},"value":{"type":"string","pattern":"^(?:[0-9a-f]{2})*$","maxLength":512}},"required":["pid","value"]}},"required":["send"]}},"required":["definition","realm","principal","sequence","command"]},"signature":{"type":"array","minItems":64,"maxItems":64,"items":{"type":"integer","minimum":0,"maximum":255}}},"required":["request","signature"]}}},{"type":"object","additionalProperties":false,"required":["receipt"],"properties":{"receipt":{"type":"object","additionalProperties":false,"properties":{"stage":{"type":"string","enum":["ingress_accepted","not_observed","service_admitted","completed","cancelled","timed_out","failed","rejected"]},"receipt":{"type":"object","additionalProperties":false,"properties":{"position":{"type":"integer","minimum":0,"maximum":9007199254740991}},"required":["position"]}},"required":["receipt"]}}},{"type":"object","additionalProperties":false,"required":["observation"],"properties":{"observation":{"oneOf":[{"type":"object","additionalProperties":false,"required":["pending"],"properties":{"pending":{"type":"object","maxProperties":0}}},{"type":"object","additionalProperties":false,"required":["committed"],"properties":{"committed":{"type":"object","maxProperties":0}}},{"type":"object","additionalProperties":false,"required":["rejected"],"properties":{"rejected":{"type":"object","additionalProperties":false,"properties":{"record":{"type":"object","additionalProperties":false,"properties":{"reason":{"type":"string","enum":["InvalidServingFrame","ServingExternalOriginRequired","UnexpectedServingOrigin","InvalidServingCommand","InvalidServingIdentity","InvalidServiceBinding","InvalidServicePolicy","ServingDenied","ServiceRevisionConflict","ServingIdentityConflict","ServingCapacity","ServiceUnpublished","InvalidWaitLifetime","ServingOperationNotFound","UnknownServingCorrelation","UnexpectedServingReplySource","UnexpectedTimerObserver","InvalidTimerObservation","PrematureTimer","UnsupportedServingFrame","InvalidReactiveSource","ReactiveSessionNotFound","ReactiveGenerationConflict","ReactiveSessionClosed","ReactiveSessionExpired","ReactiveResetRequired","InvalidReactiveLease","ReactiveCapacity","InvalidReactiveAttachment","ReactiveAttachmentConflict","ReactiveSubscriptionConflict","ReactiveLeaseConflict","InvalidRefreshBudget","InvalidRefreshTemplate","RefreshGenerationConflict","RefreshNotFound","RefreshResultConflict","UnexpectedRefreshWake","AccessDenied","QueryDenied","ResourceUnavailable","QuerySourceUnavailable","ResultUnavailable","PublicationNotPublished","UnsupportedReactiveSource","InvalidReactiveProgress","TableNotFound"]},"input":{"type":"integer","minimum":0,"maximum":9007199254740991},"kind":{"type":"string","enum":["service","reactive","refresh"]},"subject":{"type":"string","maxLength":20,"pattern":"^(0|[1-9][0-9]*)$"},"generation":{"type":"string","maxLength":20,"pattern":"^(0|[1-9][0-9]*)$"},"payload":{"type":"array","minItems":32,"maxItems":32,"items":{"type":"integer","minimum":0,"maximum":255}},"cause":{"type":"string","pattern":"^(?:[0-9a-f]{2})*$","maxLength":512}},"required":["reason","input","kind","subject","generation","payload","cause"]},"diagnostic":{"anyOf":[{"type":"object","additionalProperties":false,"properties":{"version":{"const":1},"definition":{"type":"string","enum":["2751c5ead29471b9675530a20cd0e364368ba79dee3ec6f00f8806d0accb94e7"]},"code":{"type":"string","maxLength":96},"category":{"type":"string","enum":["syntax","binding","unsupported","constraint","access","conflict","limit","lifecycle","integrity","unavailable","internal"]},"stage":{"type":"string","enum":["input","parse","compile","bind","prepare","submit","admission","execute","read","decode","output","reconcile","cleanup","control"]},"outcome":{"type":"string","enum":["not_applicable","not_submitted","not_dispatched","prepared","unknown","pending","input_rejected","rejected","applied","completed","failed","cancelled","retired","closed_unknown"]},"evidence":{"type":"string","enum":["none","local_before_dispatch","saved_intent","native_receipt","domain_status"]},"message":{"type":"string","maxLength":384},"cause":{"anyOf":[{"type":"string","maxLength":96},{"type":"null"}]},"identity":{"anyOf":[{"type":"object","additionalProperties":false,"properties":{"domain":{"type":"string","enum":["sql","query","mutation","catalog","application","publication","migration","reactive","serving","effect","exchange","transport","internal"]},"id":{"type":"string","maxLength":20,"pattern":"^(0|[1-9][0-9]*)$"},"realm":{"anyOf":[{"type":"string","maxLength":20,"pattern":"^(0|[1-9][0-9]*)$"},{"type":"null"}]},"resource":{"anyOf":[{"type":"string","maxLength":20,"pattern":"^(0|[1-9][0-9]*)$"},{"type":"null"}]},"sequence":{"anyOf":[{"type":"string","maxLength":20,"pattern":"^(0|[1-9][0-9]*)$"},{"type":"null"}]}},"required":["domain","id"]},{"type":"null"}]},"location":{"anyOf":[{"type":"object","additionalProperties":false,"properties":{"source":{"anyOf":[{"type":"string","maxLength":512},{"type":"null"}]},"source_encoding":{"type":"string","enum":["utf8","escaped_bytes"]},"source_truncated":{"type":"boolean"},"statement":{"anyOf":[{"type":"string","maxLength":20,"pattern":"^(0|[1-9][0-9]*)$"},{"type":"null"}]},"offset":{"type":"string","maxLength":20,"pattern":"^(0|[1-9][0-9]*)$"},"length":{"type":"string","maxLength":20,"pattern":"^(0|[1-9][0-9]*)$"},"line":{"type":"string","maxLength":20,"pattern":"^(0|[1-9][0-9]*)$"},"byte_column":{"type":"string","maxLength":20,"pattern":"^(0|[1-9][0-9]*)$"}},"required":["offset","length","line","byte_column"]},{"type":"null"}]},"facts":{"type":"array","minItems":16,"maxItems":16,"items":{"anyOf":[{"type":"object","additionalProperties":false,"properties":{"field":{"type":"string","enum":["object","name","table","native_input","affected_rows","argument","option","permissions","scope","column","qualifier","constraint","key","input_row","first_occurrence","parameter","parameter_use","expected_count","actual_count","expected_type","actual_type","supplied_value","expected_value","expression","source_kind","source_basis","source_key","source_row","field_path","byte_offset","expected_resource","actual_resource","expected_source","actual_source","expected_revision","actual_revision","expected_schema","actual_schema","expected_policy","actual_policy","budget","limit","required","unit","completed_statements","emitted_rows","emitted_segments","completion","proposal","step","generation","attachment","lease","schema_origin","sampling_records","operation","native_cause","expected_bytes","presence","published","subscription","expected_codec","actual_codec","observed_clock","expected_namespace","actual_namespace","attempt","executor","resolution_reason","principal","deadline","authorization_policy","resolution_policy","protocol_status","native_effect"]},"origin":{"type":"string","enum":["caller","execution","schema","authority","owner"]},"availability":{"type":"string","enum":["provided","truncated","unrecorded","unavailable","withheld","inapplicable"]},"value":{"anyOf":[{"oneOf":[{"type":"object","additionalProperties":false,"required":["text"],"properties":{"text":{"type":"string","maxLength":256}}},{"type":"object","additionalProperties":false,"required":["signed"],"properties":{"signed":{"type":"string","maxLength":20,"pattern":"^(0|-?[1-9][0-9]*)$"}}},{"type":"object","additionalProperties":false,"required":["unsigned"],"properties":{"unsigned":{"type":"string","maxLength":20,"pattern":"^(0|[1-9][0-9]*)$"}}},{"type":"object","additionalProperties":false,"required":["boolean"],"properties":{"boolean":{"type":"boolean"}}},{"type":"object","additionalProperties":false,"required":["digest"],"properties":{"digest":{"type":"array","minItems":32,"maxItems":32,"items":{"type":"integer","minimum":0,"maximum":255}}}},{"type":"object","additionalProperties":false,"required":["location"],"properties":{"location":{"type":"object","additionalProperties":false,"properties":{"source":{"anyOf":[{"type":"string","maxLength":512},{"type":"null"}]},"source_encoding":{"type":"string","enum":["utf8","escaped_bytes"]},"source_truncated":{"type":"boolean"},"statement":{"anyOf":[{"type":"string","maxLength":20,"pattern":"^(0|[1-9][0-9]*)$"},{"type":"null"}]},"offset":{"type":"string","maxLength":20,"pattern":"^(0|[1-9][0-9]*)$"},"length":{"type":"string","maxLength":20,"pattern":"^(0|[1-9][0-9]*)$"},"line":{"type":"string","maxLength":20,"pattern":"^(0|[1-9][0-9]*)$"},"byte_column":{"type":"string","maxLength":20,"pattern":"^(0|[1-9][0-9]*)$"}},"required":["offset","length","line","byte_column"]}}}]},{"type":"null"}]}},"required":["field","origin","availability","value"]},{"type":"null"}]}},"actions":{"type":"array","minItems":4,"maxItems":4,"items":{"anyOf":[{"type":"object","additionalProperties":false,"properties":{"kind":{"type":"string","enum":["correct_input","inspect_status","resume_exact","cancel_wait","cancel_mutation","refresh","recompile","retry_read","inspect_scope","reconcile_effect","contact_operator"]},"target":{"anyOf":[{"type":"object","additionalProperties":false,"properties":{"domain":{"type":"string","enum":["sql","query","mutation","catalog","application","publication","migration","reactive","serving","effect","exchange","transport","internal"]},"id":{"type":"string","maxLength":20,"pattern":"^(0|[1-9][0-9]*)$"},"realm":{"anyOf":[{"type":"string","maxLength":20,"pattern":"^(0|[1-9][0-9]*)$"},{"type":"null"}]},"resource":{"anyOf":[{"type":"string","maxLength":20,"pattern":"^(0|[1-9][0-9]*)$"},{"type":"null"}]},"sequence":{"anyOf":[{"type":"string","maxLength":20,"pattern":"^(0|[1-9][0-9]*)$"},{"type":"null"}]}},"required":["domain","id"]},{"type":"null"}]}},"required":["kind"]},{"type":"null"}]}}},"required":["version","definition","code","category","stage","outcome","evidence","message"]},{"type":"null"}]}},"required":["record","diagnostic"]}}}]}}},{"type":"object","additionalProperties":false,"required":["signed_read"],"properties":{"signed_read":{"type":"object","additionalProperties":false,"properties":{"read":{"type":"object","additionalProperties":false,"properties":{"scope":{"type":"object","additionalProperties":false,"properties":{"realm":{"type":"integer","minimum":0,"maximum":9007199254740991},"principal":{"type":"integer","minimum":0,"maximum":9007199254740991},"service":{"type":"integer","minimum":0,"maximum":9007199254740991},"ingress":{"type":"integer","minimum":0,"maximum":9007199254740991},"session":{"type":"integer","minimum":0,"maximum":9007199254740991},"generation":{"type":"integer","minimum":0,"maximum":9007199254740991},"subscription":{"type":"integer","minimum":0,"maximum":9007199254740991},"subscription_generation":{"type":"integer","minimum":0,"maximum":9007199254740991}},"required":["realm","principal","service","ingress","session","generation"]},"kind":{"type":"string","enum":["session","snapshot","events"]},"attachment":{"type":"integer","minimum":0,"maximum":9007199254740991},"nonce":{"type":"array","minItems":16,"maxItems":16,"items":{"type":"integer","minimum":0,"maximum":255}},"cursor":{"anyOf":[{"type":"object","additionalProperties":false,"properties":{"position":{"type":"object","additionalProperties":false,"properties":{"version":{"const":1},"scope":{"type":"object","additionalProperties":false,"properties":{"realm":{"type":"integer","minimum":0,"maximum":9007199254740991},"principal":{"type":"integer","minimum":0,"maximum":9007199254740991},"service":{"type":"integer","minimum":0,"maximum":9007199254740991},"ingress":{"type":"integer","minimum":0,"maximum":9007199254740991},"session":{"type":"integer","minimum":0,"maximum":9007199254740991},"generation":{"type":"integer","minimum":0,"maximum":9007199254740991},"subscription":{"type":"integer","minimum":0,"maximum":9007199254740991},"subscription_generation":{"type":"integer","minimum":0,"maximum":9007199254740991}},"required":["realm","principal","service","ingress","session","generation"]},"watch_revision":{"type":"integer","minimum":0,"maximum":9007199254740991},"resource":{"type":"integer","minimum":0,"maximum":9007199254740991},"schema":{"type":"array","minItems":32,"maxItems":32,"items":{"type":"integer","minimum":0,"maximum":255}},"data_revision":{"type":"integer","minimum":0,"maximum":9007199254740991},"outcome_position":{"type":"integer","minimum":0,"maximum":9007199254740991}},"required":["scope","watch_revision","resource","schema","data_revision"]},"signature":{"type":"array","minItems":64,"maxItems":64,"items":{"type":"integer","minimum":0,"maximum":255}}},"required":["position","signature"]},{"type":"null"}]}},"required":["scope","kind"]},"signature":{"type":"array","minItems":64,"maxItems":64,"items":{"type":"integer","minimum":0,"maximum":255}},"identity":{"type":"object","additionalProperties":false,"properties":{"query":{"type":"object","additionalProperties":false,"properties":{"version":{"const":1},"definition":{"type":"string","enum":["2751c5ead29471b9675530a20cd0e364368ba79dee3ec6f00f8806d0accb94e7"]},"realm":{"type":"integer","minimum":0,"maximum":9007199254740991},"principal":{"type":"integer","minimum":0,"maximum":9007199254740991},"kind":{"oneOf":[{"type":"object","additionalProperties":false,"required":["identity"],"properties":{"identity":{"type":"object","maxProperties":0}}}]}},"required":["realm","principal","kind"]},"signature":{"type":"array","minItems":64,"maxItems":64,"items":{"type":"integer","minimum":0,"maximum":255}}},"required":["query","signature"]}},"required":["read","signature","identity"]}}},{"type":"object","additionalProperties":false,"required":["refresh_status"],"properties":{"refresh_status":{"type":"object","additionalProperties":false,"properties":{"resource":{"type":"integer","minimum":0,"maximum":9007199254740991},"revision":{"type":"integer","minimum":0,"maximum":9007199254740991},"policy_revision":{"type":"integer","minimum":0,"maximum":9007199254740991},"view":{"type":"object","additionalProperties":false,"properties":{"principal":{"type":"integer","minimum":0,"maximum":9007199254740991},"session":{"type":"object","additionalProperties":false,"properties":{"session":{"type":"integer","minimum":0,"maximum":9007199254740991},"generation":{"type":"integer","minimum":0,"maximum":9007199254740991}},"required":["session","generation"]},"generation":{"type":"integer","minimum":0,"maximum":9007199254740991},"source":{"type":"object","additionalProperties":false,"properties":{"revision":{"type":"integer","minimum":0,"maximum":9007199254740991},"target":{"type":"integer","minimum":0,"maximum":9007199254740991},"resource":{"type":"integer","minimum":0,"maximum":9007199254740991},"table":{"type":"integer","minimum":0,"maximum":4294967295},"progress_key":{"type":"string","pattern":"^(?:[0-9a-f]{2})*$","maxLength":512},"schema":{"type":"array","minItems":32,"maxItems":32,"items":{"type":"integer","minimum":0,"maximum":255}},"published":{"type":"boolean"}},"required":["revision","target","resource","table","progress_key","schema"]},"template":{"type":"string","pattern":"^(0|[1-9][0-9]*)$","maxLength":20},"namespace":{"type":"string","pattern":"^(0|[1-9][0-9]*)$","maxLength":20},"dirty":{"type":"integer","minimum":0,"maximum":9007199254740991},"covered":{"type":"integer","minimum":0,"maximum":9007199254740991},"starts":{"type":"integer","minimum":0,"maximum":255},"limit":{"type":"integer","minimum":0,"maximum":255},"next_start_ms":{"type":"integer","minimum":0,"maximum":9007199254740991},"enabled":{"type":"boolean"},"phase":{"type":"string","enum":["idle","copying","admitted","ready","paused","denied","exhausted","failed"]},"failure":{"oneOf":[{"type":"object","additionalProperties":false,"required":["none"],"properties":{"none":{"type":"object","maxProperties":0}}},{"type":"object","additionalProperties":false,"required":["stopped"],"properties":{"stopped":{"type":"object","additionalProperties":false,"properties":{"reason":{"type":"string","enum":["paused","budget_exhausted","session_closed","session_expired","source_changed","binding_unpublished","service_denied","native_denied","query_denied","resource_unavailable","query_source_unavailable","result_unavailable","result_unpublished","template_invalid","upload_closed","namespace_occupied","query_rejected","query_cancelled","query_retired"]},"input":{"type":"integer","minimum":0,"maximum":9007199254740991},"witness":{"oneOf":[{"type":"object","additionalProperties":false,"required":["none"],"properties":{"none":{"type":"object","maxProperties":0}}},{"type":"object","additionalProperties":false,"required":["revision"],"properties":{"revision":{"type":"object","additionalProperties":false,"properties":{"kind":{"type":"string","enum":["binding","policy","watch","refresh"]},"expected":{"type":"integer","minimum":0,"maximum":9007199254740991},"actual":{"type":"integer","minimum":0,"maximum":9007199254740991},"proposed":{"type":"integer","minimum":0,"maximum":9007199254740991},"present":{"type":"boolean"}},"required":["kind","expected","actual","proposed","present"]}}},{"type":"object","additionalProperties":false,"required":["policy"],"properties":{"policy":{"type":"object","additionalProperties":false,"properties":{"principal":{"type":"integer","minimum":0,"maximum":9007199254740991},"revision":{"type":"integer","minimum":0,"maximum":9007199254740991},"present":{"type":"boolean"},"commands":{"type":"boolean"},"reads":{"type":"boolean"}},"required":["principal","revision","present","commands","reads"]}}},{"type":"object","additionalProperties":false,"required":["identity"],"properties":{"identity":{"type":"object","additionalProperties":false,"properties":{"expected":{"type":"array","minItems":32,"maxItems":32,"items":{"type":"integer","minimum":0,"maximum":255}},"actual":{"type":"array","minItems":32,"maxItems":32,"items":{"type":"integer","minimum":0,"maximum":255}}},"required":["expected","actual"]}}},{"type":"object","additionalProperties":false,"required":["capacity"],"properties":{"capacity":{"type":"object","additionalProperties":false,"properties":{"kind":{"type":"string","enum":["service","caller","service_slots","sessions","caller_sessions"]},"actual":{"type":"integer","minimum":0,"maximum":255},"limit":{"type":"integer","minimum":0,"maximum":255}},"required":["kind","actual","limit"]}}},{"type":"object","additionalProperties":false,"required":["generation"],"properties":{"generation":{"type":"object","additionalProperties":false,"properties":{"expected":{"type":"integer","minimum":0,"maximum":9007199254740991},"actual":{"type":"integer","minimum":0,"maximum":9007199254740991}},"required":["expected","actual"]}}},{"type":"object","additionalProperties":false,"required":["session"],"properties":{"session":{"type":"object","additionalProperties":false,"properties":{"phase":{"type":"string","enum":["open","closed","expired"]},"deadline":{"type":"integer","minimum":0,"maximum":9007199254740991},"observed":{"type":"integer","minimum":0,"maximum":9007199254740991},"clock_known":{"type":"boolean"}},"required":["phase","deadline","observed","clock_known"]}}},{"type":"object","additionalProperties":false,"required":["source"],"properties":{"source":{"type":"object","additionalProperties":false,"properties":{"expected":{"type":"integer","minimum":0,"maximum":9007199254740991},"actual":{"type":"integer","minimum":0,"maximum":9007199254740991},"present":{"type":"boolean"},"published":{"type":"boolean"},"target":{"type":"integer","minimum":0,"maximum":9007199254740991},"resource":{"type":"integer","minimum":0,"maximum":9007199254740991},"schema":{"type":"array","minItems":32,"maxItems":32,"items":{"type":"integer","minimum":0,"maximum":255}}},"required":["expected","actual","present","published","target","resource","schema"]}}},{"type":"object","additionalProperties":false,"required":["lease"],"properties":{"lease":{"type":"object","additionalProperties":false,"properties":{"kind":{"type":"string","enum":["clock","interval","binding","process","resource","observer"]},"requested":{"type":"integer","minimum":0,"maximum":9007199254740991},"observed":{"type":"integer","minimum":0,"maximum":9007199254740991},"limit":{"type":"integer","minimum":0,"maximum":9007199254740991}},"required":["kind","requested","observed","limit"]}}},{"type":"object","additionalProperties":false,"required":["attachment"],"properties":{"attachment":{"type":"object","additionalProperties":false,"properties":{"expected":{"type":"integer","minimum":0,"maximum":9007199254740991},"actual":{"type":"integer","minimum":0,"maximum":9007199254740991}},"required":["expected","actual"]}}},{"type":"object","additionalProperties":false,"required":["subscription"],"properties":{"subscription":{"type":"object","additionalProperties":false,"properties":{"expected":{"type":"integer","minimum":0,"maximum":9007199254740991},"actual":{"type":"integer","minimum":0,"maximum":9007199254740991},"requested":{"type":"integer","minimum":0,"maximum":9007199254740991},"active":{"type":"integer","minimum":0,"maximum":9007199254740991}},"required":["expected","actual","requested","active"]}}},{"type":"object","additionalProperties":false,"required":["renewal"],"properties":{"renewal":{"type":"object","additionalProperties":false,"properties":{"expected":{"type":"integer","minimum":0,"maximum":9007199254740991},"actual":{"type":"integer","minimum":0,"maximum":9007199254740991},"proposed":{"type":"integer","minimum":0,"maximum":9007199254740991}},"required":["expected","actual","proposed"]}}},{"type":"object","additionalProperties":false,"required":["binding"],"properties":{"binding":{"type":"object","additionalProperties":false,"properties":{"expected":{"type":"integer","minimum":0,"maximum":9007199254740991},"actual":{"type":"integer","minimum":0,"maximum":9007199254740991},"expected_codec":{"type":"integer","minimum":0,"maximum":65535},"actual_codec":{"type":"integer","minimum":0,"maximum":65535},"target":{"type":"integer","minimum":0,"maximum":9007199254740991},"present":{"type":"boolean"},"published":{"type":"boolean"}},"required":["expected","actual","expected_codec","actual_codec","target","present","published"]}}},{"type":"object","additionalProperties":false,"required":["refresh"],"properties":{"refresh":{"type":"object","additionalProperties":false,"properties":{"expected":{"type":"string","pattern":"^(0|[1-9][0-9]*)$","maxLength":20},"actual":{"type":"string","pattern":"^(0|[1-9][0-9]*)$","maxLength":20},"phase":{"type":"string","enum":["idle","copying","admitted","ready","paused","denied","exhausted","failed"]}},"required":["expected","actual","phase"]}}},{"type":"object","additionalProperties":false,"required":["frame"],"properties":{"frame":{"type":"object","additionalProperties":false,"properties":{"correlation":{"type":"integer","minimum":0,"maximum":9007199254740991},"expected":{"type":"integer","minimum":0,"maximum":9007199254740991},"actual":{"type":"integer","minimum":0,"maximum":9007199254740991},"kind":{"type":"string","enum":["reply_source","observer","timer","administrator"]},"actual_known":{"type":"boolean"}},"required":["correlation","expected","actual","kind"]}}},{"type":"object","additionalProperties":false,"required":["target"],"properties":{"target":{"type":"object","additionalProperties":false,"properties":{"expected":{"type":"integer","minimum":0,"maximum":9007199254740991},"actual":{"type":"integer","minimum":0,"maximum":9007199254740991},"kind":{"type":"string","enum":["source","resource"]}},"required":["expected","actual","kind"]}}},{"type":"object","additionalProperties":false,"required":["basis"],"properties":{"basis":{"type":"object","additionalProperties":false,"properties":{"expected":{"type":"array","minItems":32,"maxItems":32,"items":{"type":"integer","minimum":0,"maximum":255}},"actual":{"type":"array","minItems":32,"maxItems":32,"items":{"type":"integer","minimum":0,"maximum":255}},"kind":{"type":"string","enum":["schema","contract"]}},"required":["expected","actual","kind"]}}},{"type":"object","additionalProperties":false,"required":["source_kind"],"properties":{"source_kind":{"type":"object","additionalProperties":false,"properties":{"expected":{"type":"string","enum":["kv","table","document"]},"actual":{"type":"string","enum":["kv","table","document"]}},"required":["expected","actual"]}}},{"type":"object","additionalProperties":false,"required":["table"],"properties":{"table":{"type":"integer","minimum":0,"maximum":4294967295}}},{"type":"object","additionalProperties":false,"required":["watch_type"],"properties":{"watch_type":{"type":"object","additionalProperties":false,"properties":{"expected":{"type":"string","enum":["int64","boolean","utf8","binary"]},"actual":{"type":"string","enum":["int64","boolean","utf8","binary"]}},"required":["expected","actual"]}}},{"type":"object","additionalProperties":false,"required":["progress"],"properties":{"progress":{"type":"object","additionalProperties":false,"properties":{"present":{"type":"boolean"},"actual":{"type":"integer","minimum":0,"maximum":9007199254740991},"limit":{"type":"integer","minimum":0,"maximum":9007199254740991},"key":{"type":"array","minItems":32,"maxItems":32,"items":{"type":"integer","minimum":0,"maximum":255}},"length":{"type":"integer","minimum":0,"maximum":255}},"required":["present","actual","limit","key","length"]}}}]}},"required":["reason","input"]}}}]}},"required":["principal","session","generation","source","template","namespace","dirty","covered","limit"]},"diagnostic":{"anyOf":[{"type":"object","additionalProperties":false,"properties":{"version":{"const":1},"definition":{"type":"string","enum":["2751c5ead29471b9675530a20cd0e364368ba79dee3ec6f00f8806d0accb94e7"]},"code":{"type":"string","maxLength":96},"category":{"type":"string","enum":["syntax","binding","unsupported","constraint","access","conflict","limit","lifecycle","integrity","unavailable","internal"]},"stage":{"type":"string","enum":["input","parse","compile","bind","prepare","submit","admission","execute","read","decode","output","reconcile","cleanup","control"]},"outcome":{"type":"string","enum":["not_applicable","not_submitted","not_dispatched","prepared","unknown","pending","input_rejected","rejected","applied","completed","failed","cancelled","retired","closed_unknown"]},"evidence":{"type":"string","enum":["none","local_before_dispatch","saved_intent","native_receipt","domain_status"]},"message":{"type":"string","maxLength":384},"cause":{"anyOf":[{"type":"string","maxLength":96},{"type":"null"}]},"identity":{"anyOf":[{"type":"object","additionalProperties":false,"properties":{"domain":{"type":"string","enum":["sql","query","mutation","catalog","application","publication","migration","reactive","serving","effect","exchange","transport","internal"]},"id":{"type":"string","maxLength":20,"pattern":"^(0|[1-9][0-9]*)$"},"realm":{"anyOf":[{"type":"string","maxLength":20,"pattern":"^(0|[1-9][0-9]*)$"},{"type":"null"}]},"resource":{"anyOf":[{"type":"string","maxLength":20,"pattern":"^(0|[1-9][0-9]*)$"},{"type":"null"}]},"sequence":{"anyOf":[{"type":"string","maxLength":20,"pattern":"^(0|[1-9][0-9]*)$"},{"type":"null"}]}},"required":["domain","id"]},{"type":"null"}]},"location":{"anyOf":[{"type":"object","additionalProperties":false,"properties":{"source":{"anyOf":[{"type":"string","maxLength":512},{"type":"null"}]},"source_encoding":{"type":"string","enum":["utf8","escaped_bytes"]},"source_truncated":{"type":"boolean"},"statement":{"anyOf":[{"type":"string","maxLength":20,"pattern":"^(0|[1-9][0-9]*)$"},{"type":"null"}]},"offset":{"type":"string","maxLength":20,"pattern":"^(0|[1-9][0-9]*)$"},"length":{"type":"string","maxLength":20,"pattern":"^(0|[1-9][0-9]*)$"},"line":{"type":"string","maxLength":20,"pattern":"^(0|[1-9][0-9]*)$"},"byte_column":{"type":"string","maxLength":20,"pattern":"^(0|[1-9][0-9]*)$"}},"required":["offset","length","line","byte_column"]},{"type":"null"}]},"facts":{"type":"array","minItems":16,"maxItems":16,"items":{"anyOf":[{"type":"object","additionalProperties":false,"properties":{"field":{"type":"string","enum":["object","name","table","native_input","affected_rows","argument","option","permissions","scope","column","qualifier","constraint","key","input_row","first_occurrence","parameter","parameter_use","expected_count","actual_count","expected_type","actual_type","supplied_value","expected_value","expression","source_kind","source_basis","source_key","source_row","field_path","byte_offset","expected_resource","actual_resource","expected_source","actual_source","expected_revision","actual_revision","expected_schema","actual_schema","expected_policy","actual_policy","budget","limit","required","unit","completed_statements","emitted_rows","emitted_segments","completion","proposal","step","generation","attachment","lease","schema_origin","sampling_records","operation","native_cause","expected_bytes","presence","published","subscription","expected_codec","actual_codec","observed_clock","expected_namespace","actual_namespace","attempt","executor","resolution_reason","principal","deadline","authorization_policy","resolution_policy","protocol_status","native_effect"]},"origin":{"type":"string","enum":["caller","execution","schema","authority","owner"]},"availability":{"type":"string","enum":["provided","truncated","unrecorded","unavailable","withheld","inapplicable"]},"value":{"anyOf":[{"oneOf":[{"type":"object","additionalProperties":false,"required":["text"],"properties":{"text":{"type":"string","maxLength":256}}},{"type":"object","additionalProperties":false,"required":["signed"],"properties":{"signed":{"type":"string","maxLength":20,"pattern":"^(0|-?[1-9][0-9]*)$"}}},{"type":"object","additionalProperties":false,"required":["unsigned"],"properties":{"unsigned":{"type":"string","maxLength":20,"pattern":"^(0|[1-9][0-9]*)$"}}},{"type":"object","additionalProperties":false,"required":["boolean"],"properties":{"boolean":{"type":"boolean"}}},{"type":"object","additionalProperties":false,"required":["digest"],"properties":{"digest":{"type":"array","minItems":32,"maxItems":32,"items":{"type":"integer","minimum":0,"maximum":255}}}},{"type":"object","additionalProperties":false,"required":["location"],"properties":{"location":{"type":"object","additionalProperties":false,"properties":{"source":{"anyOf":[{"type":"string","maxLength":512},{"type":"null"}]},"source_encoding":{"type":"string","enum":["utf8","escaped_bytes"]},"source_truncated":{"type":"boolean"},"statement":{"anyOf":[{"type":"string","maxLength":20,"pattern":"^(0|[1-9][0-9]*)$"},{"type":"null"}]},"offset":{"type":"string","maxLength":20,"pattern":"^(0|[1-9][0-9]*)$"},"length":{"type":"string","maxLength":20,"pattern":"^(0|[1-9][0-9]*)$"},"line":{"type":"string","maxLength":20,"pattern":"^(0|[1-9][0-9]*)$"},"byte_column":{"type":"string","maxLength":20,"pattern":"^(0|[1-9][0-9]*)$"}},"required":["offset","length","line","byte_column"]}}}]},{"type":"null"}]}},"required":["field","origin","availability","value"]},{"type":"null"}]}},"actions":{"type":"array","minItems":4,"maxItems":4,"items":{"anyOf":[{"type":"object","additionalProperties":false,"properties":{"kind":{"type":"string","enum":["correct_input","inspect_status","resume_exact","cancel_wait","cancel_mutation","refresh","recompile","retry_read","inspect_scope","reconcile_effect","contact_operator"]},"target":{"anyOf":[{"type":"object","additionalProperties":false,"properties":{"domain":{"type":"string","enum":["sql","query","mutation","catalog","application","publication","migration","reactive","serving","effect","exchange","transport","internal"]},"id":{"type":"string","maxLength":20,"pattern":"^(0|[1-9][0-9]*)$"},"realm":{"anyOf":[{"type":"string","maxLength":20,"pattern":"^(0|[1-9][0-9]*)$"},{"type":"null"}]},"resource":{"anyOf":[{"type":"string","maxLength":20,"pattern":"^(0|[1-9][0-9]*)$"},{"type":"null"}]},"sequence":{"anyOf":[{"type":"string","maxLength":20,"pattern":"^(0|[1-9][0-9]*)$"},{"type":"null"}]}},"required":["domain","id"]},{"type":"null"}]}},"required":["kind"]},{"type":"null"}]}}},"required":["version","definition","code","category","stage","outcome","evidence","message"]},{"type":"null"}]},"query_diagnostic":{"anyOf":[{"type":"object","additionalProperties":false,"properties":{"version":{"const":1},"definition":{"type":"string","enum":["2751c5ead29471b9675530a20cd0e364368ba79dee3ec6f00f8806d0accb94e7"]},"code":{"type":"string","maxLength":96},"category":{"type":"string","enum":["syntax","binding","unsupported","constraint","access","conflict","limit","lifecycle","integrity","unavailable","internal"]},"stage":{"type":"string","enum":["input","parse","compile","bind","prepare","submit","admission","execute","read","decode","output","reconcile","cleanup","control"]},"outcome":{"type":"string","enum":["not_applicable","not_submitted","not_dispatched","prepared","unknown","pending","input_rejected","rejected","applied","completed","failed","cancelled","retired","closed_unknown"]},"evidence":{"type":"string","enum":["none","local_before_dispatch","saved_intent","native_receipt","domain_status"]},"message":{"type":"string","maxLength":384},"cause":{"anyOf":[{"type":"string","maxLength":96},{"type":"null"}]},"identity":{"anyOf":[{"type":"object","additionalProperties":false,"properties":{"domain":{"type":"string","enum":["sql","query","mutation","catalog","application","publication","migration","reactive","serving","effect","exchange","transport","internal"]},"id":{"type":"string","maxLength":20,"pattern":"^(0|[1-9][0-9]*)$"},"realm":{"anyOf":[{"type":"string","maxLength":20,"pattern":"^(0|[1-9][0-9]*)$"},{"type":"null"}]},"resource":{"anyOf":[{"type":"string","maxLength":20,"pattern":"^(0|[1-9][0-9]*)$"},{"type":"null"}]},"sequence":{"anyOf":[{"type":"string","maxLength":20,"pattern":"^(0|[1-9][0-9]*)$"},{"type":"null"}]}},"required":["domain","id"]},{"type":"null"}]},"location":{"anyOf":[{"type":"object","additionalProperties":false,"properties":{"source":{"anyOf":[{"type":"string","maxLength":512},{"type":"null"}]},"source_encoding":{"type":"string","enum":["utf8","escaped_bytes"]},"source_truncated":{"type":"boolean"},"statement":{"anyOf":[{"type":"string","maxLength":20,"pattern":"^(0|[1-9][0-9]*)$"},{"type":"null"}]},"offset":{"type":"string","maxLength":20,"pattern":"^(0|[1-9][0-9]*)$"},"length":{"type":"string","maxLength":20,"pattern":"^(0|[1-9][0-9]*)$"},"line":{"type":"string","maxLength":20,"pattern":"^(0|[1-9][0-9]*)$"},"byte_column":{"type":"string","maxLength":20,"pattern":"^(0|[1-9][0-9]*)$"}},"required":["offset","length","line","byte_column"]},{"type":"null"}]},"facts":{"type":"array","minItems":16,"maxItems":16,"items":{"anyOf":[{"type":"object","additionalProperties":false,"properties":{"field":{"type":"string","enum":["object","name","table","native_input","affected_rows","argument","option","permissions","scope","column","qualifier","constraint","key","input_row","first_occurrence","parameter","parameter_use","expected_count","actual_count","expected_type","actual_type","supplied_value","expected_value","expression","source_kind","source_basis","source_key","source_row","field_path","byte_offset","expected_resource","actual_resource","expected_source","actual_source","expected_revision","actual_revision","expected_schema","actual_schema","expected_policy","actual_policy","budget","limit","required","unit","completed_statements","emitted_rows","emitted_segments","completion","proposal","step","generation","attachment","lease","schema_origin","sampling_records","operation","native_cause","expected_bytes","presence","published","subscription","expected_codec","actual_codec","observed_clock","expected_namespace","actual_namespace","attempt","executor","resolution_reason","principal","deadline","authorization_policy","resolution_policy","protocol_status","native_effect"]},"origin":{"type":"string","enum":["caller","execution","schema","authority","owner"]},"availability":{"type":"string","enum":["provided","truncated","unrecorded","unavailable","withheld","inapplicable"]},"value":{"anyOf":[{"oneOf":[{"type":"object","additionalProperties":false,"required":["text"],"properties":{"text":{"type":"string","maxLength":256}}},{"type":"object","additionalProperties":false,"required":["signed"],"properties":{"signed":{"type":"string","maxLength":20,"pattern":"^(0|-?[1-9][0-9]*)$"}}},{"type":"object","additionalProperties":false,"required":["unsigned"],"properties":{"unsigned":{"type":"string","maxLength":20,"pattern":"^(0|[1-9][0-9]*)$"}}},{"type":"object","additionalProperties":false,"required":["boolean"],"properties":{"boolean":{"type":"boolean"}}},{"type":"object","additionalProperties":false,"required":["digest"],"properties":{"digest":{"type":"array","minItems":32,"maxItems":32,"items":{"type":"integer","minimum":0,"maximum":255}}}},{"type":"object","additionalProperties":false,"required":["location"],"properties":{"location":{"type":"object","additionalProperties":false,"properties":{"source":{"anyOf":[{"type":"string","maxLength":512},{"type":"null"}]},"source_encoding":{"type":"string","enum":["utf8","escaped_bytes"]},"source_truncated":{"type":"boolean"},"statement":{"anyOf":[{"type":"string","maxLength":20,"pattern":"^(0|[1-9][0-9]*)$"},{"type":"null"}]},"offset":{"type":"string","maxLength":20,"pattern":"^(0|[1-9][0-9]*)$"},"length":{"type":"string","maxLength":20,"pattern":"^(0|[1-9][0-9]*)$"},"line":{"type":"string","maxLength":20,"pattern":"^(0|[1-9][0-9]*)$"},"byte_column":{"type":"string","maxLength":20,"pattern":"^(0|[1-9][0-9]*)$"}},"required":["offset","length","line","byte_column"]}}}]},{"type":"null"}]}},"required":["field","origin","availability","value"]},{"type":"null"}]}},"actions":{"type":"array","minItems":4,"maxItems":4,"items":{"anyOf":[{"type":"object","additionalProperties":false,"properties":{"kind":{"type":"string","enum":["correct_input","inspect_status","resume_exact","cancel_wait","cancel_mutation","refresh","recompile","retry_read","inspect_scope","reconcile_effect","contact_operator"]},"target":{"anyOf":[{"type":"object","additionalProperties":false,"properties":{"domain":{"type":"string","enum":["sql","query","mutation","catalog","application","publication","migration","reactive","serving","effect","exchange","transport","internal"]},"id":{"type":"string","maxLength":20,"pattern":"^(0|[1-9][0-9]*)$"},"realm":{"anyOf":[{"type":"string","maxLength":20,"pattern":"^(0|[1-9][0-9]*)$"},{"type":"null"}]},"resource":{"anyOf":[{"type":"string","maxLength":20,"pattern":"^(0|[1-9][0-9]*)$"},{"type":"null"}]},"sequence":{"anyOf":[{"type":"string","maxLength":20,"pattern":"^(0|[1-9][0-9]*)$"},{"type":"null"}]}},"required":["domain","id"]},{"type":"null"}]}},"required":["kind"]},{"type":"null"}]}}},"required":["version","definition","code","category","stage","outcome","evidence","message"]},{"type":"null"}]}},"required":["resource","revision","policy_revision","view"]}}}]};
+const schema52 = {"oneOf":[{"type":"object","additionalProperties":false,"required":["description"],"properties":{"description":{"type":"object","additionalProperties":false,"properties":{"connection":{"type":"object","additionalProperties":false,"properties":{"realm":{"type":"integer","minimum":0,"maximum":9007199254740991},"principal":{"type":"integer","minimum":0,"maximum":9007199254740991},"service":{"type":"integer","minimum":0,"maximum":9007199254740991},"ingress":{"type":"integer","minimum":0,"maximum":9007199254740991}},"required":["realm","principal","service","ingress"]},"discovery":{"type":"object","additionalProperties":false,"properties":{"version":{"const":1},"service":{"type":"integer","minimum":0,"maximum":9007199254740991},"ingress":{"type":"integer","minimum":0,"maximum":9007199254740991},"resource":{"type":"integer","minimum":0,"maximum":9007199254740991},"binding_revision":{"type":"integer","minimum":0,"maximum":9007199254740991},"watch_revision":{"type":"integer","minimum":0,"maximum":9007199254740991},"sse":{"type":"boolean"},"websocket":{"type":"boolean"},"subprotocol":{"type":"string","maxLength":256},"openapi_sha256":{"type":"array","minItems":32,"maxItems":32,"items":{"type":"integer","minimum":0,"maximum":255}},"asyncapi_sha256":{"type":"array","minItems":32,"maxItems":32,"items":{"type":"integer","minimum":0,"maximum":255}}},"required":["service","ingress","resource","binding_revision","watch_revision","openapi_sha256","asyncapi_sha256"]},"observed_ms":{"type":"integer","minimum":0,"maximum":9007199254740991},"max_lease_ms":{"type":"integer","minimum":0,"maximum":4294967295}},"required":["connection","discovery","observed_ms"]}}},{"type":"object","additionalProperties":false,"required":["clock"],"properties":{"clock":{"type":"object","additionalProperties":false,"properties":{"observed_ms":{"type":"integer","minimum":0,"maximum":9007199254740991},"max_lease_ms":{"type":"integer","minimum":0,"maximum":4294967295}},"required":["observed_ms"]}}},{"type":"object","additionalProperties":false,"required":["inspection"],"properties":{"inspection":{"type":"object","additionalProperties":false,"properties":{"response":{"type":"object","additionalProperties":false,"properties":{"version":{"const":1},"session":{"type":"object","additionalProperties":false,"properties":{"principal":{"type":"integer","minimum":0,"maximum":9007199254740991},"session":{"type":"integer","minimum":0,"maximum":9007199254740991},"generation":{"type":"integer","minimum":0,"maximum":9007199254740991},"source_revision":{"type":"integer","minimum":0,"maximum":9007199254740991},"open_digest":{"type":"array","minItems":32,"maxItems":32,"items":{"type":"integer","minimum":0,"maximum":255}},"lease_before_ms":{"type":"integer","minimum":0,"maximum":9007199254740991},"phase":{"type":"string","enum":["open","closed","expired"]},"attachment":{"type":"integer","minimum":0,"maximum":9007199254740991},"nonce":{"type":"array","minItems":16,"maxItems":16,"items":{"type":"integer","minimum":0,"maximum":255}},"subscription":{"type":"integer","minimum":0,"maximum":9007199254740991},"subscription_generation":{"type":"integer","minimum":0,"maximum":9007199254740991},"operation":{"type":"integer","minimum":0,"maximum":9007199254740991}},"required":["principal","session","generation","source_revision","open_digest","lease_before_ms"]},"source":{"anyOf":[{"type":"object","additionalProperties":false,"properties":{"revision":{"type":"integer","minimum":0,"maximum":9007199254740991},"target":{"type":"integer","minimum":0,"maximum":9007199254740991},"resource":{"type":"integer","minimum":0,"maximum":9007199254740991},"table":{"type":"integer","minimum":0,"maximum":4294967295},"progress_key":{"type":"string","pattern":"^(?:[0-9a-f]{2})*$","maxLength":512},"schema":{"type":"array","minItems":32,"maxItems":32,"items":{"type":"integer","minimum":0,"maximum":255}},"published":{"type":"boolean"}},"required":["revision","target","resource","table","progress_key","schema"]},{"type":"null"}]},"snapshot":{"anyOf":[{"type":"object","additionalProperties":false,"properties":{"observation":{"type":"object","additionalProperties":false,"properties":{"data_revision":{"type":"integer","minimum":0,"maximum":9007199254740991},"basis":{"type":"object","additionalProperties":false,"properties":{"kind":{"type":"string","enum":["kv","table","document"]},"resource":{"type":"integer","minimum":0,"maximum":9007199254740991},"revision":{"type":"integer","minimum":0,"maximum":9007199254740991},"contract":{"type":"array","minItems":32,"maxItems":32,"items":{"type":"integer","minimum":0,"maximum":255}},"schema":{"type":"array","minItems":32,"maxItems":32,"items":{"type":"integer","minimum":0,"maximum":255}}},"required":["kind","resource","revision","contract","schema"]},"schema":{"type":"object","additionalProperties":false,"properties":{"version":{"type":"integer","minimum":0,"maximum":255},"names":{"type":"array","minItems":2,"maxItems":2,"items":{"type":"object","additionalProperties":false,"properties":{"bytes":{"type":"array","minItems":16,"maxItems":16,"items":{"type":"integer","minimum":0,"maximum":255}},"len":{"type":"integer","minimum":0,"maximum":255}},"required":[]}},"value_type":{"type":"string","enum":["int64","boolean","utf8","binary"]}},"required":["names","value_type"]}},"required":["data_revision","basis","schema"]},"rows":{"type":"array","minItems":8,"maxItems":8,"items":{"anyOf":[{"type":"object","additionalProperties":false,"properties":{"key":{"type":"string","pattern":"^(0|-[1-9][0-9]*|[1-9][0-9]*)$","maxLength":20},"value":{"anyOf":[{"type":"string","pattern":"^(0|-[1-9][0-9]*|[1-9][0-9]*)$","maxLength":20},{"type":"null"}]}},"required":["key","value"]},{"type":"null"}]}},"more":{"type":"boolean"}},"required":["observation"]},{"type":"null"}]},"event":{"anyOf":[{"type":"object","additionalProperties":false,"properties":{"source_changed":{"type":"boolean"},"resource":{"type":"integer","minimum":0,"maximum":9007199254740991},"data_revision":{"type":"integer","minimum":0,"maximum":9007199254740991},"outcome":{"anyOf":[{"type":"object","additionalProperties":false,"properties":{"resource":{"type":"integer","minimum":0,"maximum":9007199254740991},"operation":{"type":"integer","minimum":0,"maximum":9007199254740991},"phase":{"type":"string","enum":["admitted","completed","cancelled","timed_out","failed"]},"resolution_input":{"type":"integer","minimum":0,"maximum":9007199254740991},"diagnostic":{"anyOf":[{"type":"object","additionalProperties":false,"properties":{"version":{"const":1},"definition":{"type":"string","enum":["692358a0bda42413cb14638010c0adea7edaa238aff1275e9557fcb38a37e741"]},"code":{"type":"string","maxLength":96},"category":{"type":"string","enum":["syntax","binding","unsupported","constraint","access","conflict","limit","lifecycle","integrity","unavailable","internal"]},"stage":{"type":"string","enum":["input","parse","compile","bind","prepare","submit","admission","execute","read","decode","output","reconcile","cleanup","control"]},"outcome":{"type":"string","enum":["not_applicable","not_submitted","not_dispatched","prepared","unknown","pending","input_rejected","rejected","applied","completed","failed","cancelled","retired","closed_unknown"]},"evidence":{"type":"string","enum":["none","local_before_dispatch","saved_intent","native_receipt","domain_status"]},"message":{"type":"string","maxLength":384},"cause":{"anyOf":[{"type":"string","maxLength":96},{"type":"null"}]},"identity":{"anyOf":[{"type":"object","additionalProperties":false,"properties":{"domain":{"type":"string","enum":["sql","query","mutation","catalog","application","publication","migration","reactive","serving","effect","exchange","transport","internal"]},"id":{"type":"string","maxLength":20,"pattern":"^(0|[1-9][0-9]*)$"},"realm":{"anyOf":[{"type":"string","maxLength":20,"pattern":"^(0|[1-9][0-9]*)$"},{"type":"null"}]},"resource":{"anyOf":[{"type":"string","maxLength":20,"pattern":"^(0|[1-9][0-9]*)$"},{"type":"null"}]},"sequence":{"anyOf":[{"type":"string","maxLength":20,"pattern":"^(0|[1-9][0-9]*)$"},{"type":"null"}]}},"required":["domain","id"]},{"type":"null"}]},"location":{"anyOf":[{"type":"object","additionalProperties":false,"properties":{"source":{"anyOf":[{"type":"string","maxLength":512},{"type":"null"}]},"source_encoding":{"type":"string","enum":["utf8","escaped_bytes"]},"source_truncated":{"type":"boolean"},"statement":{"anyOf":[{"type":"string","maxLength":20,"pattern":"^(0|[1-9][0-9]*)$"},{"type":"null"}]},"offset":{"type":"string","maxLength":20,"pattern":"^(0|[1-9][0-9]*)$"},"length":{"type":"string","maxLength":20,"pattern":"^(0|[1-9][0-9]*)$"},"line":{"type":"string","maxLength":20,"pattern":"^(0|[1-9][0-9]*)$"},"byte_column":{"type":"string","maxLength":20,"pattern":"^(0|[1-9][0-9]*)$"}},"required":["offset","length","line","byte_column"]},{"type":"null"}]},"facts":{"type":"array","minItems":16,"maxItems":16,"items":{"anyOf":[{"type":"object","additionalProperties":false,"properties":{"field":{"type":"string","enum":["object","name","table","native_input","affected_rows","argument","option","permissions","scope","column","qualifier","constraint","key","input_row","first_occurrence","parameter","parameter_use","expected_count","actual_count","expected_type","actual_type","supplied_value","expected_value","expression","source_kind","source_basis","source_key","source_row","field_path","byte_offset","expected_resource","actual_resource","expected_source","actual_source","expected_revision","actual_revision","expected_schema","actual_schema","expected_policy","actual_policy","budget","limit","required","unit","completed_statements","emitted_rows","emitted_segments","completion","proposal","step","generation","attachment","lease","schema_origin","sampling_records","operation","native_cause","expected_bytes","presence","published","subscription","expected_codec","actual_codec","observed_clock","expected_namespace","actual_namespace","attempt","executor","resolution_reason","principal","deadline","authorization_policy","resolution_policy","protocol_status","native_effect"]},"origin":{"type":"string","enum":["caller","execution","schema","authority","owner"]},"availability":{"type":"string","enum":["provided","truncated","unrecorded","unavailable","withheld","inapplicable"]},"value":{"anyOf":[{"oneOf":[{"type":"object","additionalProperties":false,"required":["text"],"properties":{"text":{"type":"string","maxLength":256}}},{"type":"object","additionalProperties":false,"required":["signed"],"properties":{"signed":{"type":"string","maxLength":20,"pattern":"^(0|-?[1-9][0-9]*)$"}}},{"type":"object","additionalProperties":false,"required":["unsigned"],"properties":{"unsigned":{"type":"string","maxLength":20,"pattern":"^(0|[1-9][0-9]*)$"}}},{"type":"object","additionalProperties":false,"required":["boolean"],"properties":{"boolean":{"type":"boolean"}}},{"type":"object","additionalProperties":false,"required":["digest"],"properties":{"digest":{"type":"array","minItems":32,"maxItems":32,"items":{"type":"integer","minimum":0,"maximum":255}}}},{"type":"object","additionalProperties":false,"required":["location"],"properties":{"location":{"type":"object","additionalProperties":false,"properties":{"source":{"anyOf":[{"type":"string","maxLength":512},{"type":"null"}]},"source_encoding":{"type":"string","enum":["utf8","escaped_bytes"]},"source_truncated":{"type":"boolean"},"statement":{"anyOf":[{"type":"string","maxLength":20,"pattern":"^(0|[1-9][0-9]*)$"},{"type":"null"}]},"offset":{"type":"string","maxLength":20,"pattern":"^(0|[1-9][0-9]*)$"},"length":{"type":"string","maxLength":20,"pattern":"^(0|[1-9][0-9]*)$"},"line":{"type":"string","maxLength":20,"pattern":"^(0|[1-9][0-9]*)$"},"byte_column":{"type":"string","maxLength":20,"pattern":"^(0|[1-9][0-9]*)$"}},"required":["offset","length","line","byte_column"]}}}]},{"type":"null"}]}},"required":["field","origin","availability","value"]},{"type":"null"}]}},"actions":{"type":"array","minItems":4,"maxItems":4,"items":{"anyOf":[{"type":"object","additionalProperties":false,"properties":{"kind":{"type":"string","enum":["correct_input","inspect_status","resume_exact","cancel_wait","cancel_mutation","refresh","recompile","retry_read","inspect_scope","reconcile_effect","contact_operator"]},"target":{"anyOf":[{"type":"object","additionalProperties":false,"properties":{"domain":{"type":"string","enum":["sql","query","mutation","catalog","application","publication","migration","reactive","serving","effect","exchange","transport","internal"]},"id":{"type":"string","maxLength":20,"pattern":"^(0|[1-9][0-9]*)$"},"realm":{"anyOf":[{"type":"string","maxLength":20,"pattern":"^(0|[1-9][0-9]*)$"},{"type":"null"}]},"resource":{"anyOf":[{"type":"string","maxLength":20,"pattern":"^(0|[1-9][0-9]*)$"},{"type":"null"}]},"sequence":{"anyOf":[{"type":"string","maxLength":20,"pattern":"^(0|[1-9][0-9]*)$"},{"type":"null"}]}},"required":["domain","id"]},{"type":"null"}]}},"required":["kind"]},{"type":"null"}]}}},"required":["version","definition","code","category","stage","outcome","evidence","message"]},{"type":"null"}]}},"required":["resource","operation","phase","resolution_input"]},{"type":"null"}]}},"required":["source_changed","resource","data_revision"]},{"type":"null"}]},"cursor":{"anyOf":[{"type":"object","additionalProperties":false,"properties":{"position":{"type":"object","additionalProperties":false,"properties":{"version":{"const":1},"scope":{"type":"object","additionalProperties":false,"properties":{"realm":{"type":"integer","minimum":0,"maximum":9007199254740991},"principal":{"type":"integer","minimum":0,"maximum":9007199254740991},"service":{"type":"integer","minimum":0,"maximum":9007199254740991},"ingress":{"type":"integer","minimum":0,"maximum":9007199254740991},"session":{"type":"integer","minimum":0,"maximum":9007199254740991},"generation":{"type":"integer","minimum":0,"maximum":9007199254740991},"subscription":{"type":"integer","minimum":0,"maximum":9007199254740991},"subscription_generation":{"type":"integer","minimum":0,"maximum":9007199254740991}},"required":["realm","principal","service","ingress","session","generation"]},"watch_revision":{"type":"integer","minimum":0,"maximum":9007199254740991},"resource":{"type":"integer","minimum":0,"maximum":9007199254740991},"schema":{"type":"array","minItems":32,"maxItems":32,"items":{"type":"integer","minimum":0,"maximum":255}},"data_revision":{"type":"integer","minimum":0,"maximum":9007199254740991},"outcome_position":{"type":"integer","minimum":0,"maximum":9007199254740991}},"required":["scope","watch_revision","resource","schema","data_revision"]},"signature":{"type":"array","minItems":64,"maxItems":64,"items":{"type":"integer","minimum":0,"maximum":255}}},"required":["position","signature"]},{"type":"null"}]}},"required":["session"]},"observation":{"type":"object","additionalProperties":false,"properties":{"data_revision":{"type":"integer","minimum":0,"maximum":9007199254740991},"basis":{"type":"object","additionalProperties":false,"properties":{"kind":{"type":"string","enum":["kv","table","document"]},"resource":{"type":"integer","minimum":0,"maximum":9007199254740991},"revision":{"type":"integer","minimum":0,"maximum":9007199254740991},"contract":{"type":"array","minItems":32,"maxItems":32,"items":{"type":"integer","minimum":0,"maximum":255}},"schema":{"type":"array","minItems":32,"maxItems":32,"items":{"type":"integer","minimum":0,"maximum":255}}},"required":["kind","resource","revision","contract","schema"]},"schema":{"type":"object","additionalProperties":false,"properties":{"version":{"type":"integer","minimum":0,"maximum":255},"names":{"type":"array","minItems":2,"maxItems":2,"items":{"type":"object","additionalProperties":false,"properties":{"bytes":{"type":"array","minItems":16,"maxItems":16,"items":{"type":"integer","minimum":0,"maximum":255}},"len":{"type":"integer","minimum":0,"maximum":255}},"required":[]}},"value_type":{"type":"string","enum":["int64","boolean","utf8","binary"]}},"required":["names","value_type"]}},"required":["data_revision","basis","schema"]}},"required":["response","observation"]}}},{"type":"object","additionalProperties":false,"required":["covered"],"properties":{"covered":{"type":"boolean"}}},{"type":"object","additionalProperties":false,"required":["prepared"],"properties":{"prepared":{"type":"object","additionalProperties":false,"properties":{"request":{"type":"object","additionalProperties":false,"properties":{"version":{"const":1},"definition":{"type":"string","enum":["692358a0bda42413cb14638010c0adea7edaa238aff1275e9557fcb38a37e741"]},"realm":{"type":"integer","minimum":0,"maximum":9007199254740991},"principal":{"type":"integer","minimum":0,"maximum":9007199254740991},"sequence":{"type":"integer","minimum":0,"maximum":9007199254740991},"command":{"type":"object","additionalProperties":false,"properties":{"send":{"type":"object","additionalProperties":false,"properties":{"pid":{"type":"integer","minimum":0,"maximum":9007199254740991},"value":{"type":"string","pattern":"^(?:[0-9a-f]{2})*$","maxLength":512}},"required":["pid","value"]}},"required":["send"]}},"required":["definition","realm","principal","sequence","command"]},"signature":{"type":"array","minItems":64,"maxItems":64,"items":{"type":"integer","minimum":0,"maximum":255}}},"required":["request","signature"]}}},{"type":"object","additionalProperties":false,"required":["receipt"],"properties":{"receipt":{"type":"object","additionalProperties":false,"properties":{"stage":{"type":"string","enum":["ingress_accepted","not_observed","service_admitted","completed","cancelled","timed_out","failed","rejected"]},"receipt":{"type":"object","additionalProperties":false,"properties":{"position":{"type":"integer","minimum":0,"maximum":9007199254740991}},"required":["position"]}},"required":["receipt"]}}},{"type":"object","additionalProperties":false,"required":["observation"],"properties":{"observation":{"oneOf":[{"type":"object","additionalProperties":false,"required":["pending"],"properties":{"pending":{"type":"object","maxProperties":0}}},{"type":"object","additionalProperties":false,"required":["committed"],"properties":{"committed":{"type":"object","maxProperties":0}}},{"type":"object","additionalProperties":false,"required":["rejected"],"properties":{"rejected":{"type":"object","additionalProperties":false,"properties":{"record":{"type":"object","additionalProperties":false,"properties":{"reason":{"type":"string","enum":["InvalidServingFrame","ServingExternalOriginRequired","UnexpectedServingOrigin","InvalidServingCommand","InvalidServingIdentity","InvalidServiceBinding","InvalidServicePolicy","ServingDenied","ServiceRevisionConflict","ServingIdentityConflict","ServingCapacity","ServiceUnpublished","InvalidWaitLifetime","ServingOperationNotFound","UnknownServingCorrelation","UnexpectedServingReplySource","UnexpectedTimerObserver","InvalidTimerObservation","PrematureTimer","UnsupportedServingFrame","InvalidReactiveSource","ReactiveSessionNotFound","ReactiveGenerationConflict","ReactiveSessionClosed","ReactiveSessionExpired","ReactiveResetRequired","InvalidReactiveLease","ReactiveCapacity","InvalidReactiveAttachment","ReactiveAttachmentConflict","ReactiveSubscriptionConflict","ReactiveLeaseConflict","InvalidRefreshBudget","InvalidRefreshTemplate","RefreshGenerationConflict","RefreshNotFound","RefreshResultConflict","UnexpectedRefreshWake","AccessDenied","QueryDenied","ResourceUnavailable","QuerySourceUnavailable","ResultUnavailable","PublicationNotPublished","UnsupportedReactiveSource","InvalidReactiveProgress","TableNotFound"]},"input":{"type":"integer","minimum":0,"maximum":9007199254740991},"kind":{"type":"string","enum":["service","reactive","refresh"]},"subject":{"type":"string","maxLength":20,"pattern":"^(0|[1-9][0-9]*)$"},"generation":{"type":"string","maxLength":20,"pattern":"^(0|[1-9][0-9]*)$"},"payload":{"type":"array","minItems":32,"maxItems":32,"items":{"type":"integer","minimum":0,"maximum":255}},"cause":{"type":"string","pattern":"^(?:[0-9a-f]{2})*$","maxLength":512}},"required":["reason","input","kind","subject","generation","payload","cause"]},"diagnostic":{"anyOf":[{"type":"object","additionalProperties":false,"properties":{"version":{"const":1},"definition":{"type":"string","enum":["692358a0bda42413cb14638010c0adea7edaa238aff1275e9557fcb38a37e741"]},"code":{"type":"string","maxLength":96},"category":{"type":"string","enum":["syntax","binding","unsupported","constraint","access","conflict","limit","lifecycle","integrity","unavailable","internal"]},"stage":{"type":"string","enum":["input","parse","compile","bind","prepare","submit","admission","execute","read","decode","output","reconcile","cleanup","control"]},"outcome":{"type":"string","enum":["not_applicable","not_submitted","not_dispatched","prepared","unknown","pending","input_rejected","rejected","applied","completed","failed","cancelled","retired","closed_unknown"]},"evidence":{"type":"string","enum":["none","local_before_dispatch","saved_intent","native_receipt","domain_status"]},"message":{"type":"string","maxLength":384},"cause":{"anyOf":[{"type":"string","maxLength":96},{"type":"null"}]},"identity":{"anyOf":[{"type":"object","additionalProperties":false,"properties":{"domain":{"type":"string","enum":["sql","query","mutation","catalog","application","publication","migration","reactive","serving","effect","exchange","transport","internal"]},"id":{"type":"string","maxLength":20,"pattern":"^(0|[1-9][0-9]*)$"},"realm":{"anyOf":[{"type":"string","maxLength":20,"pattern":"^(0|[1-9][0-9]*)$"},{"type":"null"}]},"resource":{"anyOf":[{"type":"string","maxLength":20,"pattern":"^(0|[1-9][0-9]*)$"},{"type":"null"}]},"sequence":{"anyOf":[{"type":"string","maxLength":20,"pattern":"^(0|[1-9][0-9]*)$"},{"type":"null"}]}},"required":["domain","id"]},{"type":"null"}]},"location":{"anyOf":[{"type":"object","additionalProperties":false,"properties":{"source":{"anyOf":[{"type":"string","maxLength":512},{"type":"null"}]},"source_encoding":{"type":"string","enum":["utf8","escaped_bytes"]},"source_truncated":{"type":"boolean"},"statement":{"anyOf":[{"type":"string","maxLength":20,"pattern":"^(0|[1-9][0-9]*)$"},{"type":"null"}]},"offset":{"type":"string","maxLength":20,"pattern":"^(0|[1-9][0-9]*)$"},"length":{"type":"string","maxLength":20,"pattern":"^(0|[1-9][0-9]*)$"},"line":{"type":"string","maxLength":20,"pattern":"^(0|[1-9][0-9]*)$"},"byte_column":{"type":"string","maxLength":20,"pattern":"^(0|[1-9][0-9]*)$"}},"required":["offset","length","line","byte_column"]},{"type":"null"}]},"facts":{"type":"array","minItems":16,"maxItems":16,"items":{"anyOf":[{"type":"object","additionalProperties":false,"properties":{"field":{"type":"string","enum":["object","name","table","native_input","affected_rows","argument","option","permissions","scope","column","qualifier","constraint","key","input_row","first_occurrence","parameter","parameter_use","expected_count","actual_count","expected_type","actual_type","supplied_value","expected_value","expression","source_kind","source_basis","source_key","source_row","field_path","byte_offset","expected_resource","actual_resource","expected_source","actual_source","expected_revision","actual_revision","expected_schema","actual_schema","expected_policy","actual_policy","budget","limit","required","unit","completed_statements","emitted_rows","emitted_segments","completion","proposal","step","generation","attachment","lease","schema_origin","sampling_records","operation","native_cause","expected_bytes","presence","published","subscription","expected_codec","actual_codec","observed_clock","expected_namespace","actual_namespace","attempt","executor","resolution_reason","principal","deadline","authorization_policy","resolution_policy","protocol_status","native_effect"]},"origin":{"type":"string","enum":["caller","execution","schema","authority","owner"]},"availability":{"type":"string","enum":["provided","truncated","unrecorded","unavailable","withheld","inapplicable"]},"value":{"anyOf":[{"oneOf":[{"type":"object","additionalProperties":false,"required":["text"],"properties":{"text":{"type":"string","maxLength":256}}},{"type":"object","additionalProperties":false,"required":["signed"],"properties":{"signed":{"type":"string","maxLength":20,"pattern":"^(0|-?[1-9][0-9]*)$"}}},{"type":"object","additionalProperties":false,"required":["unsigned"],"properties":{"unsigned":{"type":"string","maxLength":20,"pattern":"^(0|[1-9][0-9]*)$"}}},{"type":"object","additionalProperties":false,"required":["boolean"],"properties":{"boolean":{"type":"boolean"}}},{"type":"object","additionalProperties":false,"required":["digest"],"properties":{"digest":{"type":"array","minItems":32,"maxItems":32,"items":{"type":"integer","minimum":0,"maximum":255}}}},{"type":"object","additionalProperties":false,"required":["location"],"properties":{"location":{"type":"object","additionalProperties":false,"properties":{"source":{"anyOf":[{"type":"string","maxLength":512},{"type":"null"}]},"source_encoding":{"type":"string","enum":["utf8","escaped_bytes"]},"source_truncated":{"type":"boolean"},"statement":{"anyOf":[{"type":"string","maxLength":20,"pattern":"^(0|[1-9][0-9]*)$"},{"type":"null"}]},"offset":{"type":"string","maxLength":20,"pattern":"^(0|[1-9][0-9]*)$"},"length":{"type":"string","maxLength":20,"pattern":"^(0|[1-9][0-9]*)$"},"line":{"type":"string","maxLength":20,"pattern":"^(0|[1-9][0-9]*)$"},"byte_column":{"type":"string","maxLength":20,"pattern":"^(0|[1-9][0-9]*)$"}},"required":["offset","length","line","byte_column"]}}}]},{"type":"null"}]}},"required":["field","origin","availability","value"]},{"type":"null"}]}},"actions":{"type":"array","minItems":4,"maxItems":4,"items":{"anyOf":[{"type":"object","additionalProperties":false,"properties":{"kind":{"type":"string","enum":["correct_input","inspect_status","resume_exact","cancel_wait","cancel_mutation","refresh","recompile","retry_read","inspect_scope","reconcile_effect","contact_operator"]},"target":{"anyOf":[{"type":"object","additionalProperties":false,"properties":{"domain":{"type":"string","enum":["sql","query","mutation","catalog","application","publication","migration","reactive","serving","effect","exchange","transport","internal"]},"id":{"type":"string","maxLength":20,"pattern":"^(0|[1-9][0-9]*)$"},"realm":{"anyOf":[{"type":"string","maxLength":20,"pattern":"^(0|[1-9][0-9]*)$"},{"type":"null"}]},"resource":{"anyOf":[{"type":"string","maxLength":20,"pattern":"^(0|[1-9][0-9]*)$"},{"type":"null"}]},"sequence":{"anyOf":[{"type":"string","maxLength":20,"pattern":"^(0|[1-9][0-9]*)$"},{"type":"null"}]}},"required":["domain","id"]},{"type":"null"}]}},"required":["kind"]},{"type":"null"}]}}},"required":["version","definition","code","category","stage","outcome","evidence","message"]},{"type":"null"}]}},"required":["record","diagnostic"]}}}]}}},{"type":"object","additionalProperties":false,"required":["signed_read"],"properties":{"signed_read":{"type":"object","additionalProperties":false,"properties":{"read":{"type":"object","additionalProperties":false,"properties":{"scope":{"type":"object","additionalProperties":false,"properties":{"realm":{"type":"integer","minimum":0,"maximum":9007199254740991},"principal":{"type":"integer","minimum":0,"maximum":9007199254740991},"service":{"type":"integer","minimum":0,"maximum":9007199254740991},"ingress":{"type":"integer","minimum":0,"maximum":9007199254740991},"session":{"type":"integer","minimum":0,"maximum":9007199254740991},"generation":{"type":"integer","minimum":0,"maximum":9007199254740991},"subscription":{"type":"integer","minimum":0,"maximum":9007199254740991},"subscription_generation":{"type":"integer","minimum":0,"maximum":9007199254740991}},"required":["realm","principal","service","ingress","session","generation"]},"kind":{"type":"string","enum":["session","snapshot","events"]},"attachment":{"type":"integer","minimum":0,"maximum":9007199254740991},"nonce":{"type":"array","minItems":16,"maxItems":16,"items":{"type":"integer","minimum":0,"maximum":255}},"cursor":{"anyOf":[{"type":"object","additionalProperties":false,"properties":{"position":{"type":"object","additionalProperties":false,"properties":{"version":{"const":1},"scope":{"type":"object","additionalProperties":false,"properties":{"realm":{"type":"integer","minimum":0,"maximum":9007199254740991},"principal":{"type":"integer","minimum":0,"maximum":9007199254740991},"service":{"type":"integer","minimum":0,"maximum":9007199254740991},"ingress":{"type":"integer","minimum":0,"maximum":9007199254740991},"session":{"type":"integer","minimum":0,"maximum":9007199254740991},"generation":{"type":"integer","minimum":0,"maximum":9007199254740991},"subscription":{"type":"integer","minimum":0,"maximum":9007199254740991},"subscription_generation":{"type":"integer","minimum":0,"maximum":9007199254740991}},"required":["realm","principal","service","ingress","session","generation"]},"watch_revision":{"type":"integer","minimum":0,"maximum":9007199254740991},"resource":{"type":"integer","minimum":0,"maximum":9007199254740991},"schema":{"type":"array","minItems":32,"maxItems":32,"items":{"type":"integer","minimum":0,"maximum":255}},"data_revision":{"type":"integer","minimum":0,"maximum":9007199254740991},"outcome_position":{"type":"integer","minimum":0,"maximum":9007199254740991}},"required":["scope","watch_revision","resource","schema","data_revision"]},"signature":{"type":"array","minItems":64,"maxItems":64,"items":{"type":"integer","minimum":0,"maximum":255}}},"required":["position","signature"]},{"type":"null"}]}},"required":["scope","kind"]},"signature":{"type":"array","minItems":64,"maxItems":64,"items":{"type":"integer","minimum":0,"maximum":255}},"identity":{"type":"object","additionalProperties":false,"properties":{"query":{"type":"object","additionalProperties":false,"properties":{"version":{"const":1},"definition":{"type":"string","enum":["692358a0bda42413cb14638010c0adea7edaa238aff1275e9557fcb38a37e741"]},"realm":{"type":"integer","minimum":0,"maximum":9007199254740991},"principal":{"type":"integer","minimum":0,"maximum":9007199254740991},"kind":{"oneOf":[{"type":"object","additionalProperties":false,"required":["identity"],"properties":{"identity":{"type":"object","maxProperties":0}}}]}},"required":["realm","principal","kind"]},"signature":{"type":"array","minItems":64,"maxItems":64,"items":{"type":"integer","minimum":0,"maximum":255}}},"required":["query","signature"]}},"required":["read","signature","identity"]}}},{"type":"object","additionalProperties":false,"required":["refresh_status"],"properties":{"refresh_status":{"type":"object","additionalProperties":false,"properties":{"resource":{"type":"integer","minimum":0,"maximum":9007199254740991},"revision":{"type":"integer","minimum":0,"maximum":9007199254740991},"policy_revision":{"type":"integer","minimum":0,"maximum":9007199254740991},"view":{"type":"object","additionalProperties":false,"properties":{"principal":{"type":"integer","minimum":0,"maximum":9007199254740991},"session":{"type":"object","additionalProperties":false,"properties":{"session":{"type":"integer","minimum":0,"maximum":9007199254740991},"generation":{"type":"integer","minimum":0,"maximum":9007199254740991}},"required":["session","generation"]},"generation":{"type":"integer","minimum":0,"maximum":9007199254740991},"source":{"type":"object","additionalProperties":false,"properties":{"revision":{"type":"integer","minimum":0,"maximum":9007199254740991},"target":{"type":"integer","minimum":0,"maximum":9007199254740991},"resource":{"type":"integer","minimum":0,"maximum":9007199254740991},"table":{"type":"integer","minimum":0,"maximum":4294967295},"progress_key":{"type":"string","pattern":"^(?:[0-9a-f]{2})*$","maxLength":512},"schema":{"type":"array","minItems":32,"maxItems":32,"items":{"type":"integer","minimum":0,"maximum":255}},"published":{"type":"boolean"}},"required":["revision","target","resource","table","progress_key","schema"]},"template":{"type":"string","pattern":"^(0|[1-9][0-9]*)$","maxLength":20},"namespace":{"type":"string","pattern":"^(0|[1-9][0-9]*)$","maxLength":20},"dirty":{"type":"integer","minimum":0,"maximum":9007199254740991},"covered":{"type":"integer","minimum":0,"maximum":9007199254740991},"starts":{"type":"integer","minimum":0,"maximum":255},"limit":{"type":"integer","minimum":0,"maximum":255},"next_start_ms":{"type":"integer","minimum":0,"maximum":9007199254740991},"enabled":{"type":"boolean"},"phase":{"type":"string","enum":["idle","copying","admitted","ready","paused","denied","exhausted","failed"]},"failure":{"oneOf":[{"type":"object","additionalProperties":false,"required":["none"],"properties":{"none":{"type":"object","maxProperties":0}}},{"type":"object","additionalProperties":false,"required":["stopped"],"properties":{"stopped":{"type":"object","additionalProperties":false,"properties":{"reason":{"type":"string","enum":["paused","budget_exhausted","session_closed","session_expired","source_changed","binding_unpublished","service_denied","native_denied","query_denied","resource_unavailable","query_source_unavailable","result_unavailable","result_unpublished","template_invalid","upload_closed","namespace_occupied","query_rejected","query_cancelled","query_retired"]},"input":{"type":"integer","minimum":0,"maximum":9007199254740991},"witness":{"oneOf":[{"type":"object","additionalProperties":false,"required":["none"],"properties":{"none":{"type":"object","maxProperties":0}}},{"type":"object","additionalProperties":false,"required":["revision"],"properties":{"revision":{"type":"object","additionalProperties":false,"properties":{"kind":{"type":"string","enum":["binding","policy","watch","refresh"]},"expected":{"type":"integer","minimum":0,"maximum":9007199254740991},"actual":{"type":"integer","minimum":0,"maximum":9007199254740991},"proposed":{"type":"integer","minimum":0,"maximum":9007199254740991},"present":{"type":"boolean"}},"required":["kind","expected","actual","proposed","present"]}}},{"type":"object","additionalProperties":false,"required":["policy"],"properties":{"policy":{"type":"object","additionalProperties":false,"properties":{"principal":{"type":"integer","minimum":0,"maximum":9007199254740991},"revision":{"type":"integer","minimum":0,"maximum":9007199254740991},"present":{"type":"boolean"},"commands":{"type":"boolean"},"reads":{"type":"boolean"}},"required":["principal","revision","present","commands","reads"]}}},{"type":"object","additionalProperties":false,"required":["identity"],"properties":{"identity":{"type":"object","additionalProperties":false,"properties":{"expected":{"type":"array","minItems":32,"maxItems":32,"items":{"type":"integer","minimum":0,"maximum":255}},"actual":{"type":"array","minItems":32,"maxItems":32,"items":{"type":"integer","minimum":0,"maximum":255}}},"required":["expected","actual"]}}},{"type":"object","additionalProperties":false,"required":["capacity"],"properties":{"capacity":{"type":"object","additionalProperties":false,"properties":{"kind":{"type":"string","enum":["service","caller","service_slots","sessions","caller_sessions"]},"actual":{"type":"integer","minimum":0,"maximum":255},"limit":{"type":"integer","minimum":0,"maximum":255}},"required":["kind","actual","limit"]}}},{"type":"object","additionalProperties":false,"required":["generation"],"properties":{"generation":{"type":"object","additionalProperties":false,"properties":{"expected":{"type":"integer","minimum":0,"maximum":9007199254740991},"actual":{"type":"integer","minimum":0,"maximum":9007199254740991}},"required":["expected","actual"]}}},{"type":"object","additionalProperties":false,"required":["session"],"properties":{"session":{"type":"object","additionalProperties":false,"properties":{"phase":{"type":"string","enum":["open","closed","expired"]},"deadline":{"type":"integer","minimum":0,"maximum":9007199254740991},"observed":{"type":"integer","minimum":0,"maximum":9007199254740991},"clock_known":{"type":"boolean"}},"required":["phase","deadline","observed","clock_known"]}}},{"type":"object","additionalProperties":false,"required":["source"],"properties":{"source":{"type":"object","additionalProperties":false,"properties":{"expected":{"type":"integer","minimum":0,"maximum":9007199254740991},"actual":{"type":"integer","minimum":0,"maximum":9007199254740991},"present":{"type":"boolean"},"published":{"type":"boolean"},"target":{"type":"integer","minimum":0,"maximum":9007199254740991},"resource":{"type":"integer","minimum":0,"maximum":9007199254740991},"schema":{"type":"array","minItems":32,"maxItems":32,"items":{"type":"integer","minimum":0,"maximum":255}}},"required":["expected","actual","present","published","target","resource","schema"]}}},{"type":"object","additionalProperties":false,"required":["lease"],"properties":{"lease":{"type":"object","additionalProperties":false,"properties":{"kind":{"type":"string","enum":["clock","interval","binding","process","resource","observer"]},"requested":{"type":"integer","minimum":0,"maximum":9007199254740991},"observed":{"type":"integer","minimum":0,"maximum":9007199254740991},"limit":{"type":"integer","minimum":0,"maximum":9007199254740991}},"required":["kind","requested","observed","limit"]}}},{"type":"object","additionalProperties":false,"required":["attachment"],"properties":{"attachment":{"type":"object","additionalProperties":false,"properties":{"expected":{"type":"integer","minimum":0,"maximum":9007199254740991},"actual":{"type":"integer","minimum":0,"maximum":9007199254740991}},"required":["expected","actual"]}}},{"type":"object","additionalProperties":false,"required":["subscription"],"properties":{"subscription":{"type":"object","additionalProperties":false,"properties":{"expected":{"type":"integer","minimum":0,"maximum":9007199254740991},"actual":{"type":"integer","minimum":0,"maximum":9007199254740991},"requested":{"type":"integer","minimum":0,"maximum":9007199254740991},"active":{"type":"integer","minimum":0,"maximum":9007199254740991}},"required":["expected","actual","requested","active"]}}},{"type":"object","additionalProperties":false,"required":["renewal"],"properties":{"renewal":{"type":"object","additionalProperties":false,"properties":{"expected":{"type":"integer","minimum":0,"maximum":9007199254740991},"actual":{"type":"integer","minimum":0,"maximum":9007199254740991},"proposed":{"type":"integer","minimum":0,"maximum":9007199254740991}},"required":["expected","actual","proposed"]}}},{"type":"object","additionalProperties":false,"required":["binding"],"properties":{"binding":{"type":"object","additionalProperties":false,"properties":{"expected":{"type":"integer","minimum":0,"maximum":9007199254740991},"actual":{"type":"integer","minimum":0,"maximum":9007199254740991},"expected_codec":{"type":"integer","minimum":0,"maximum":65535},"actual_codec":{"type":"integer","minimum":0,"maximum":65535},"target":{"type":"integer","minimum":0,"maximum":9007199254740991},"present":{"type":"boolean"},"published":{"type":"boolean"}},"required":["expected","actual","expected_codec","actual_codec","target","present","published"]}}},{"type":"object","additionalProperties":false,"required":["refresh"],"properties":{"refresh":{"type":"object","additionalProperties":false,"properties":{"expected":{"type":"string","pattern":"^(0|[1-9][0-9]*)$","maxLength":20},"actual":{"type":"string","pattern":"^(0|[1-9][0-9]*)$","maxLength":20},"phase":{"type":"string","enum":["idle","copying","admitted","ready","paused","denied","exhausted","failed"]}},"required":["expected","actual","phase"]}}},{"type":"object","additionalProperties":false,"required":["frame"],"properties":{"frame":{"type":"object","additionalProperties":false,"properties":{"correlation":{"type":"integer","minimum":0,"maximum":9007199254740991},"expected":{"type":"integer","minimum":0,"maximum":9007199254740991},"actual":{"type":"integer","minimum":0,"maximum":9007199254740991},"kind":{"type":"string","enum":["reply_source","observer","timer","administrator"]},"actual_known":{"type":"boolean"}},"required":["correlation","expected","actual","kind"]}}},{"type":"object","additionalProperties":false,"required":["target"],"properties":{"target":{"type":"object","additionalProperties":false,"properties":{"expected":{"type":"integer","minimum":0,"maximum":9007199254740991},"actual":{"type":"integer","minimum":0,"maximum":9007199254740991},"kind":{"type":"string","enum":["source","resource"]}},"required":["expected","actual","kind"]}}},{"type":"object","additionalProperties":false,"required":["basis"],"properties":{"basis":{"type":"object","additionalProperties":false,"properties":{"expected":{"type":"array","minItems":32,"maxItems":32,"items":{"type":"integer","minimum":0,"maximum":255}},"actual":{"type":"array","minItems":32,"maxItems":32,"items":{"type":"integer","minimum":0,"maximum":255}},"kind":{"type":"string","enum":["schema","contract"]}},"required":["expected","actual","kind"]}}},{"type":"object","additionalProperties":false,"required":["source_kind"],"properties":{"source_kind":{"type":"object","additionalProperties":false,"properties":{"expected":{"type":"string","enum":["kv","table","document"]},"actual":{"type":"string","enum":["kv","table","document"]}},"required":["expected","actual"]}}},{"type":"object","additionalProperties":false,"required":["table"],"properties":{"table":{"type":"integer","minimum":0,"maximum":4294967295}}},{"type":"object","additionalProperties":false,"required":["watch_type"],"properties":{"watch_type":{"type":"object","additionalProperties":false,"properties":{"expected":{"type":"string","enum":["int64","boolean","utf8","binary"]},"actual":{"type":"string","enum":["int64","boolean","utf8","binary"]}},"required":["expected","actual"]}}},{"type":"object","additionalProperties":false,"required":["progress"],"properties":{"progress":{"type":"object","additionalProperties":false,"properties":{"present":{"type":"boolean"},"actual":{"type":"integer","minimum":0,"maximum":9007199254740991},"limit":{"type":"integer","minimum":0,"maximum":9007199254740991},"key":{"type":"array","minItems":32,"maxItems":32,"items":{"type":"integer","minimum":0,"maximum":255}},"length":{"type":"integer","minimum":0,"maximum":255}},"required":["present","actual","limit","key","length"]}}},{"type":"object","additionalProperties":false,"required":["reader_identity"],"properties":{"reader_identity":{"type":"object","additionalProperties":false,"properties":{"field":{"type":"string","enum":["principal","pid","permissions","turn_pid"]},"expected":{"type":"integer","minimum":0,"maximum":9007199254740991},"actual":{"type":"integer","minimum":0,"maximum":9007199254740991},"present":{"type":"boolean"},"policy_revision":{"type":"integer","minimum":0,"maximum":9007199254740991},"policy_known":{"type":"boolean"}},"required":["field","expected","actual"]}}},{"type":"object","additionalProperties":false,"required":["reader_failure"],"properties":{"reader_failure":{"type":"object","additionalProperties":false,"properties":{"operation":{"type":"string","enum":["identity","source","requester","result"]},"principal":{"type":"integer","minimum":0,"maximum":9007199254740991},"resource":{"type":"integer","minimum":0,"maximum":9007199254740991},"namespace":{"type":"integer","minimum":0,"maximum":9007199254740991},"cause":{"type":"string","enum":["AccessDenied","Forbidden","StateResourceExpired","UnknownStateResource","DeadlineExpired","RetiredProcess","QueryDenied","QuerySourceUnavailable","ResultUnavailable","PublicationNotPublished"]}},"required":["operation","principal","resource","cause"]}}},{"type":"object","additionalProperties":false,"required":["reader_resource"],"properties":{"reader_resource":{"type":"object","additionalProperties":false,"properties":{"role":{"type":"string","enum":["source","requester"]},"resource":{"type":"integer","minimum":0,"maximum":9007199254740991},"expected_writer":{"type":"integer","minimum":0,"maximum":9007199254740991},"actual_writer":{"type":"integer","minimum":0,"maximum":9007199254740991},"phase":{"type":"string","enum":["active","retired","reclaimed"]},"writer_check":{"type":"boolean"},"revision":{"type":"integer","minimum":0,"maximum":9007199254740991}},"required":["role","resource","expected_writer","actual_writer","phase","writer_check","revision"]}}},{"type":"object","additionalProperties":false,"required":["reader_template"],"properties":{"reader_template":{"type":"object","additionalProperties":false,"properties":{"namespace":{"type":"integer","minimum":0,"maximum":9007199254740991},"present":{"type":"boolean"},"phase":{"type":"string","enum":["uploading","sealed","admitted","complete","cancelled","denied","rejected","retired"]},"manifest":{"type":"boolean"}},"required":["namespace","present"]}}}]}},"required":["reason","input"]}}}]}},"required":["principal","session","generation","source","template","namespace","dirty","covered","limit"]},"diagnostic":{"anyOf":[{"type":"object","additionalProperties":false,"properties":{"version":{"const":1},"definition":{"type":"string","enum":["692358a0bda42413cb14638010c0adea7edaa238aff1275e9557fcb38a37e741"]},"code":{"type":"string","maxLength":96},"category":{"type":"string","enum":["syntax","binding","unsupported","constraint","access","conflict","limit","lifecycle","integrity","unavailable","internal"]},"stage":{"type":"string","enum":["input","parse","compile","bind","prepare","submit","admission","execute","read","decode","output","reconcile","cleanup","control"]},"outcome":{"type":"string","enum":["not_applicable","not_submitted","not_dispatched","prepared","unknown","pending","input_rejected","rejected","applied","completed","failed","cancelled","retired","closed_unknown"]},"evidence":{"type":"string","enum":["none","local_before_dispatch","saved_intent","native_receipt","domain_status"]},"message":{"type":"string","maxLength":384},"cause":{"anyOf":[{"type":"string","maxLength":96},{"type":"null"}]},"identity":{"anyOf":[{"type":"object","additionalProperties":false,"properties":{"domain":{"type":"string","enum":["sql","query","mutation","catalog","application","publication","migration","reactive","serving","effect","exchange","transport","internal"]},"id":{"type":"string","maxLength":20,"pattern":"^(0|[1-9][0-9]*)$"},"realm":{"anyOf":[{"type":"string","maxLength":20,"pattern":"^(0|[1-9][0-9]*)$"},{"type":"null"}]},"resource":{"anyOf":[{"type":"string","maxLength":20,"pattern":"^(0|[1-9][0-9]*)$"},{"type":"null"}]},"sequence":{"anyOf":[{"type":"string","maxLength":20,"pattern":"^(0|[1-9][0-9]*)$"},{"type":"null"}]}},"required":["domain","id"]},{"type":"null"}]},"location":{"anyOf":[{"type":"object","additionalProperties":false,"properties":{"source":{"anyOf":[{"type":"string","maxLength":512},{"type":"null"}]},"source_encoding":{"type":"string","enum":["utf8","escaped_bytes"]},"source_truncated":{"type":"boolean"},"statement":{"anyOf":[{"type":"string","maxLength":20,"pattern":"^(0|[1-9][0-9]*)$"},{"type":"null"}]},"offset":{"type":"string","maxLength":20,"pattern":"^(0|[1-9][0-9]*)$"},"length":{"type":"string","maxLength":20,"pattern":"^(0|[1-9][0-9]*)$"},"line":{"type":"string","maxLength":20,"pattern":"^(0|[1-9][0-9]*)$"},"byte_column":{"type":"string","maxLength":20,"pattern":"^(0|[1-9][0-9]*)$"}},"required":["offset","length","line","byte_column"]},{"type":"null"}]},"facts":{"type":"array","minItems":16,"maxItems":16,"items":{"anyOf":[{"type":"object","additionalProperties":false,"properties":{"field":{"type":"string","enum":["object","name","table","native_input","affected_rows","argument","option","permissions","scope","column","qualifier","constraint","key","input_row","first_occurrence","parameter","parameter_use","expected_count","actual_count","expected_type","actual_type","supplied_value","expected_value","expression","source_kind","source_basis","source_key","source_row","field_path","byte_offset","expected_resource","actual_resource","expected_source","actual_source","expected_revision","actual_revision","expected_schema","actual_schema","expected_policy","actual_policy","budget","limit","required","unit","completed_statements","emitted_rows","emitted_segments","completion","proposal","step","generation","attachment","lease","schema_origin","sampling_records","operation","native_cause","expected_bytes","presence","published","subscription","expected_codec","actual_codec","observed_clock","expected_namespace","actual_namespace","attempt","executor","resolution_reason","principal","deadline","authorization_policy","resolution_policy","protocol_status","native_effect"]},"origin":{"type":"string","enum":["caller","execution","schema","authority","owner"]},"availability":{"type":"string","enum":["provided","truncated","unrecorded","unavailable","withheld","inapplicable"]},"value":{"anyOf":[{"oneOf":[{"type":"object","additionalProperties":false,"required":["text"],"properties":{"text":{"type":"string","maxLength":256}}},{"type":"object","additionalProperties":false,"required":["signed"],"properties":{"signed":{"type":"string","maxLength":20,"pattern":"^(0|-?[1-9][0-9]*)$"}}},{"type":"object","additionalProperties":false,"required":["unsigned"],"properties":{"unsigned":{"type":"string","maxLength":20,"pattern":"^(0|[1-9][0-9]*)$"}}},{"type":"object","additionalProperties":false,"required":["boolean"],"properties":{"boolean":{"type":"boolean"}}},{"type":"object","additionalProperties":false,"required":["digest"],"properties":{"digest":{"type":"array","minItems":32,"maxItems":32,"items":{"type":"integer","minimum":0,"maximum":255}}}},{"type":"object","additionalProperties":false,"required":["location"],"properties":{"location":{"type":"object","additionalProperties":false,"properties":{"source":{"anyOf":[{"type":"string","maxLength":512},{"type":"null"}]},"source_encoding":{"type":"string","enum":["utf8","escaped_bytes"]},"source_truncated":{"type":"boolean"},"statement":{"anyOf":[{"type":"string","maxLength":20,"pattern":"^(0|[1-9][0-9]*)$"},{"type":"null"}]},"offset":{"type":"string","maxLength":20,"pattern":"^(0|[1-9][0-9]*)$"},"length":{"type":"string","maxLength":20,"pattern":"^(0|[1-9][0-9]*)$"},"line":{"type":"string","maxLength":20,"pattern":"^(0|[1-9][0-9]*)$"},"byte_column":{"type":"string","maxLength":20,"pattern":"^(0|[1-9][0-9]*)$"}},"required":["offset","length","line","byte_column"]}}}]},{"type":"null"}]}},"required":["field","origin","availability","value"]},{"type":"null"}]}},"actions":{"type":"array","minItems":4,"maxItems":4,"items":{"anyOf":[{"type":"object","additionalProperties":false,"properties":{"kind":{"type":"string","enum":["correct_input","inspect_status","resume_exact","cancel_wait","cancel_mutation","refresh","recompile","retry_read","inspect_scope","reconcile_effect","contact_operator"]},"target":{"anyOf":[{"type":"object","additionalProperties":false,"properties":{"domain":{"type":"string","enum":["sql","query","mutation","catalog","application","publication","migration","reactive","serving","effect","exchange","transport","internal"]},"id":{"type":"string","maxLength":20,"pattern":"^(0|[1-9][0-9]*)$"},"realm":{"anyOf":[{"type":"string","maxLength":20,"pattern":"^(0|[1-9][0-9]*)$"},{"type":"null"}]},"resource":{"anyOf":[{"type":"string","maxLength":20,"pattern":"^(0|[1-9][0-9]*)$"},{"type":"null"}]},"sequence":{"anyOf":[{"type":"string","maxLength":20,"pattern":"^(0|[1-9][0-9]*)$"},{"type":"null"}]}},"required":["domain","id"]},{"type":"null"}]}},"required":["kind"]},{"type":"null"}]}}},"required":["version","definition","code","category","stage","outcome","evidence","message"]},{"type":"null"}]},"query_diagnostic":{"anyOf":[{"type":"object","additionalProperties":false,"properties":{"version":{"const":1},"definition":{"type":"string","enum":["692358a0bda42413cb14638010c0adea7edaa238aff1275e9557fcb38a37e741"]},"code":{"type":"string","maxLength":96},"category":{"type":"string","enum":["syntax","binding","unsupported","constraint","access","conflict","limit","lifecycle","integrity","unavailable","internal"]},"stage":{"type":"string","enum":["input","parse","compile","bind","prepare","submit","admission","execute","read","decode","output","reconcile","cleanup","control"]},"outcome":{"type":"string","enum":["not_applicable","not_submitted","not_dispatched","prepared","unknown","pending","input_rejected","rejected","applied","completed","failed","cancelled","retired","closed_unknown"]},"evidence":{"type":"string","enum":["none","local_before_dispatch","saved_intent","native_receipt","domain_status"]},"message":{"type":"string","maxLength":384},"cause":{"anyOf":[{"type":"string","maxLength":96},{"type":"null"}]},"identity":{"anyOf":[{"type":"object","additionalProperties":false,"properties":{"domain":{"type":"string","enum":["sql","query","mutation","catalog","application","publication","migration","reactive","serving","effect","exchange","transport","internal"]},"id":{"type":"string","maxLength":20,"pattern":"^(0|[1-9][0-9]*)$"},"realm":{"anyOf":[{"type":"string","maxLength":20,"pattern":"^(0|[1-9][0-9]*)$"},{"type":"null"}]},"resource":{"anyOf":[{"type":"string","maxLength":20,"pattern":"^(0|[1-9][0-9]*)$"},{"type":"null"}]},"sequence":{"anyOf":[{"type":"string","maxLength":20,"pattern":"^(0|[1-9][0-9]*)$"},{"type":"null"}]}},"required":["domain","id"]},{"type":"null"}]},"location":{"anyOf":[{"type":"object","additionalProperties":false,"properties":{"source":{"anyOf":[{"type":"string","maxLength":512},{"type":"null"}]},"source_encoding":{"type":"string","enum":["utf8","escaped_bytes"]},"source_truncated":{"type":"boolean"},"statement":{"anyOf":[{"type":"string","maxLength":20,"pattern":"^(0|[1-9][0-9]*)$"},{"type":"null"}]},"offset":{"type":"string","maxLength":20,"pattern":"^(0|[1-9][0-9]*)$"},"length":{"type":"string","maxLength":20,"pattern":"^(0|[1-9][0-9]*)$"},"line":{"type":"string","maxLength":20,"pattern":"^(0|[1-9][0-9]*)$"},"byte_column":{"type":"string","maxLength":20,"pattern":"^(0|[1-9][0-9]*)$"}},"required":["offset","length","line","byte_column"]},{"type":"null"}]},"facts":{"type":"array","minItems":16,"maxItems":16,"items":{"anyOf":[{"type":"object","additionalProperties":false,"properties":{"field":{"type":"string","enum":["object","name","table","native_input","affected_rows","argument","option","permissions","scope","column","qualifier","constraint","key","input_row","first_occurrence","parameter","parameter_use","expected_count","actual_count","expected_type","actual_type","supplied_value","expected_value","expression","source_kind","source_basis","source_key","source_row","field_path","byte_offset","expected_resource","actual_resource","expected_source","actual_source","expected_revision","actual_revision","expected_schema","actual_schema","expected_policy","actual_policy","budget","limit","required","unit","completed_statements","emitted_rows","emitted_segments","completion","proposal","step","generation","attachment","lease","schema_origin","sampling_records","operation","native_cause","expected_bytes","presence","published","subscription","expected_codec","actual_codec","observed_clock","expected_namespace","actual_namespace","attempt","executor","resolution_reason","principal","deadline","authorization_policy","resolution_policy","protocol_status","native_effect"]},"origin":{"type":"string","enum":["caller","execution","schema","authority","owner"]},"availability":{"type":"string","enum":["provided","truncated","unrecorded","unavailable","withheld","inapplicable"]},"value":{"anyOf":[{"oneOf":[{"type":"object","additionalProperties":false,"required":["text"],"properties":{"text":{"type":"string","maxLength":256}}},{"type":"object","additionalProperties":false,"required":["signed"],"properties":{"signed":{"type":"string","maxLength":20,"pattern":"^(0|-?[1-9][0-9]*)$"}}},{"type":"object","additionalProperties":false,"required":["unsigned"],"properties":{"unsigned":{"type":"string","maxLength":20,"pattern":"^(0|[1-9][0-9]*)$"}}},{"type":"object","additionalProperties":false,"required":["boolean"],"properties":{"boolean":{"type":"boolean"}}},{"type":"object","additionalProperties":false,"required":["digest"],"properties":{"digest":{"type":"array","minItems":32,"maxItems":32,"items":{"type":"integer","minimum":0,"maximum":255}}}},{"type":"object","additionalProperties":false,"required":["location"],"properties":{"location":{"type":"object","additionalProperties":false,"properties":{"source":{"anyOf":[{"type":"string","maxLength":512},{"type":"null"}]},"source_encoding":{"type":"string","enum":["utf8","escaped_bytes"]},"source_truncated":{"type":"boolean"},"statement":{"anyOf":[{"type":"string","maxLength":20,"pattern":"^(0|[1-9][0-9]*)$"},{"type":"null"}]},"offset":{"type":"string","maxLength":20,"pattern":"^(0|[1-9][0-9]*)$"},"length":{"type":"string","maxLength":20,"pattern":"^(0|[1-9][0-9]*)$"},"line":{"type":"string","maxLength":20,"pattern":"^(0|[1-9][0-9]*)$"},"byte_column":{"type":"string","maxLength":20,"pattern":"^(0|[1-9][0-9]*)$"}},"required":["offset","length","line","byte_column"]}}}]},{"type":"null"}]}},"required":["field","origin","availability","value"]},{"type":"null"}]}},"actions":{"type":"array","minItems":4,"maxItems":4,"items":{"anyOf":[{"type":"object","additionalProperties":false,"properties":{"kind":{"type":"string","enum":["correct_input","inspect_status","resume_exact","cancel_wait","cancel_mutation","refresh","recompile","retry_read","inspect_scope","reconcile_effect","contact_operator"]},"target":{"anyOf":[{"type":"object","additionalProperties":false,"properties":{"domain":{"type":"string","enum":["sql","query","mutation","catalog","application","publication","migration","reactive","serving","effect","exchange","transport","internal"]},"id":{"type":"string","maxLength":20,"pattern":"^(0|[1-9][0-9]*)$"},"realm":{"anyOf":[{"type":"string","maxLength":20,"pattern":"^(0|[1-9][0-9]*)$"},{"type":"null"}]},"resource":{"anyOf":[{"type":"string","maxLength":20,"pattern":"^(0|[1-9][0-9]*)$"},{"type":"null"}]},"sequence":{"anyOf":[{"type":"string","maxLength":20,"pattern":"^(0|[1-9][0-9]*)$"},{"type":"null"}]}},"required":["domain","id"]},{"type":"null"}]}},"required":["kind"]},{"type":"null"}]}}},"required":["version","definition","code","category","stage","outcome","evidence","message"]},{"type":"null"}]}},"required":["resource","revision","policy_revision","view"]}}}]};
 
 function validate34(data, {instancePath="", parentData, parentDataProperty, rootData=data, dynamicAnchors={}}={}){
 let vErrors = null;
@@ -62086,7 +62086,7 @@ vErrors.push(err250);
 }
 errors++;
 }
-if(!(data87 === "2751c5ead29471b9675530a20cd0e364368ba79dee3ec6f00f8806d0accb94e7")){
+if(!(data87 === "692358a0bda42413cb14638010c0adea7edaa238aff1275e9557fcb38a37e741")){
 const err251 = {instancePath:instancePath+"/inspection/response/event/outcome/diagnostic/definition",schemaPath:"#/oneOf/2/properties/inspection/properties/response/properties/event/anyOf/0/properties/outcome/anyOf/0/properties/diagnostic/anyOf/0/properties/definition/enum",keyword:"enum",params:{allowedValues: schema52.oneOf[2].properties.inspection.properties.response.properties.event.anyOf[0].properties.outcome.anyOf[0].properties.diagnostic.anyOf[0].properties.definition.enum},message:"must be equal to one of the allowed values"};
 if(vErrors === null){
 vErrors = [err251];
@@ -67332,7 +67332,7 @@ vErrors.push(err568);
 }
 errors++;
 }
-if(!(data182 === "2751c5ead29471b9675530a20cd0e364368ba79dee3ec6f00f8806d0accb94e7")){
+if(!(data182 === "692358a0bda42413cb14638010c0adea7edaa238aff1275e9557fcb38a37e741")){
 const err569 = {instancePath:instancePath+"/prepared/request/definition",schemaPath:"#/oneOf/4/properties/prepared/properties/request/properties/definition/enum",keyword:"enum",params:{allowedValues: schema52.oneOf[4].properties.prepared.properties.request.properties.definition.enum},message:"must be equal to one of the allowed values"};
 if(vErrors === null){
 vErrors = [err569];
@@ -68770,7 +68770,7 @@ vErrors.push(err658);
 }
 errors++;
 }
-if(!(data211 === "2751c5ead29471b9675530a20cd0e364368ba79dee3ec6f00f8806d0accb94e7")){
+if(!(data211 === "692358a0bda42413cb14638010c0adea7edaa238aff1275e9557fcb38a37e741")){
 const err659 = {instancePath:instancePath+"/observation/rejected/diagnostic/definition",schemaPath:"#/oneOf/6/properties/observation/oneOf/2/properties/rejected/properties/diagnostic/anyOf/0/properties/definition/enum",keyword:"enum",params:{allowedValues: schema52.oneOf[6].properties.observation.oneOf[2].properties.rejected.properties.diagnostic.anyOf[0].properties.definition.enum},message:"must be equal to one of the allowed values"};
 if(vErrors === null){
 vErrors = [err659];
@@ -73812,7 +73812,7 @@ vErrors.push(err965);
 }
 errors++;
 }
-if(!(data304 === "2751c5ead29471b9675530a20cd0e364368ba79dee3ec6f00f8806d0accb94e7")){
+if(!(data304 === "692358a0bda42413cb14638010c0adea7edaa238aff1275e9557fcb38a37e741")){
 const err966 = {instancePath:instancePath+"/signed_read/identity/query/definition",schemaPath:"#/oneOf/7/properties/signed_read/properties/identity/properties/query/properties/definition/enum",keyword:"enum",params:{allowedValues: schema52.oneOf[7].properties.signed_read.properties.identity.properties.query.properties.definition.enum},message:"must be equal to one of the allowed values"};
 if(vErrors === null){
 vErrors = [err966];
@@ -80827,6 +80827,1199 @@ if(props25 !== true){
 props25 = true;
 }
 }
+const _errs1276 = errors;
+if(errors === _errs1276){
+if(data344 && typeof data344 == "object" && !Array.isArray(data344)){
+let missing123;
+if((data344.reader_identity === undefined) && (missing123 = "reader_identity")){
+const err1404 = {instancePath:instancePath+"/refresh_status/view/failure/stopped/witness",schemaPath:"#/oneOf/8/properties/refresh_status/properties/view/properties/failure/oneOf/1/properties/stopped/properties/witness/oneOf/21/required",keyword:"required",params:{missingProperty: missing123},message:"must have required property '"+missing123+"'"};
+if(vErrors === null){
+vErrors = [err1404];
+}
+else {
+vErrors.push(err1404);
+}
+errors++;
+}
+else {
+const _errs1278 = errors;
+for(const key125 in data344){
+if(!(key125 === "reader_identity")){
+const err1405 = {instancePath:instancePath+"/refresh_status/view/failure/stopped/witness",schemaPath:"#/oneOf/8/properties/refresh_status/properties/view/properties/failure/oneOf/1/properties/stopped/properties/witness/oneOf/21/additionalProperties",keyword:"additionalProperties",params:{additionalProperty: key125},message:"must NOT have additional properties"};
+if(vErrors === null){
+vErrors = [err1405];
+}
+else {
+vErrors.push(err1405);
+}
+errors++;
+break;
+}
+}
+if(_errs1278 === errors){
+if(data344.reader_identity !== undefined){
+let data443 = data344.reader_identity;
+const _errs1279 = errors;
+if(errors === _errs1279){
+if(data443 && typeof data443 == "object" && !Array.isArray(data443)){
+let missing124;
+if((((data443.field === undefined) && (missing124 = "field")) || ((data443.expected === undefined) && (missing124 = "expected"))) || ((data443.actual === undefined) && (missing124 = "actual"))){
+const err1406 = {instancePath:instancePath+"/refresh_status/view/failure/stopped/witness/reader_identity",schemaPath:"#/oneOf/8/properties/refresh_status/properties/view/properties/failure/oneOf/1/properties/stopped/properties/witness/oneOf/21/properties/reader_identity/required",keyword:"required",params:{missingProperty: missing124},message:"must have required property '"+missing124+"'"};
+if(vErrors === null){
+vErrors = [err1406];
+}
+else {
+vErrors.push(err1406);
+}
+errors++;
+}
+else {
+const _errs1281 = errors;
+for(const key126 in data443){
+if(!((((((key126 === "field") || (key126 === "expected")) || (key126 === "actual")) || (key126 === "present")) || (key126 === "policy_revision")) || (key126 === "policy_known"))){
+const err1407 = {instancePath:instancePath+"/refresh_status/view/failure/stopped/witness/reader_identity",schemaPath:"#/oneOf/8/properties/refresh_status/properties/view/properties/failure/oneOf/1/properties/stopped/properties/witness/oneOf/21/properties/reader_identity/additionalProperties",keyword:"additionalProperties",params:{additionalProperty: key126},message:"must NOT have additional properties"};
+if(vErrors === null){
+vErrors = [err1407];
+}
+else {
+vErrors.push(err1407);
+}
+errors++;
+break;
+}
+}
+if(_errs1281 === errors){
+if(data443.field !== undefined){
+let data444 = data443.field;
+const _errs1282 = errors;
+if(typeof data444 !== "string"){
+const err1408 = {instancePath:instancePath+"/refresh_status/view/failure/stopped/witness/reader_identity/field",schemaPath:"#/oneOf/8/properties/refresh_status/properties/view/properties/failure/oneOf/1/properties/stopped/properties/witness/oneOf/21/properties/reader_identity/properties/field/type",keyword:"type",params:{type: "string"},message:"must be string"};
+if(vErrors === null){
+vErrors = [err1408];
+}
+else {
+vErrors.push(err1408);
+}
+errors++;
+}
+if(!((((data444 === "principal") || (data444 === "pid")) || (data444 === "permissions")) || (data444 === "turn_pid"))){
+const err1409 = {instancePath:instancePath+"/refresh_status/view/failure/stopped/witness/reader_identity/field",schemaPath:"#/oneOf/8/properties/refresh_status/properties/view/properties/failure/oneOf/1/properties/stopped/properties/witness/oneOf/21/properties/reader_identity/properties/field/enum",keyword:"enum",params:{allowedValues: schema52.oneOf[8].properties.refresh_status.properties.view.properties.failure.oneOf[1].properties.stopped.properties.witness.oneOf[21].properties.reader_identity.properties.field.enum},message:"must be equal to one of the allowed values"};
+if(vErrors === null){
+vErrors = [err1409];
+}
+else {
+vErrors.push(err1409);
+}
+errors++;
+}
+var valid213 = _errs1282 === errors;
+}
+else {
+var valid213 = true;
+}
+if(valid213){
+if(data443.expected !== undefined){
+let data445 = data443.expected;
+const _errs1284 = errors;
+if(!(((typeof data445 == "number") && (!(data445 % 1) && !isNaN(data445))) && (isFinite(data445)))){
+const err1410 = {instancePath:instancePath+"/refresh_status/view/failure/stopped/witness/reader_identity/expected",schemaPath:"#/oneOf/8/properties/refresh_status/properties/view/properties/failure/oneOf/1/properties/stopped/properties/witness/oneOf/21/properties/reader_identity/properties/expected/type",keyword:"type",params:{type: "integer"},message:"must be integer"};
+if(vErrors === null){
+vErrors = [err1410];
+}
+else {
+vErrors.push(err1410);
+}
+errors++;
+}
+if(errors === _errs1284){
+if((typeof data445 == "number") && (isFinite(data445))){
+if(data445 > 9007199254740991 || isNaN(data445)){
+const err1411 = {instancePath:instancePath+"/refresh_status/view/failure/stopped/witness/reader_identity/expected",schemaPath:"#/oneOf/8/properties/refresh_status/properties/view/properties/failure/oneOf/1/properties/stopped/properties/witness/oneOf/21/properties/reader_identity/properties/expected/maximum",keyword:"maximum",params:{comparison: "<=", limit: 9007199254740991},message:"must be <= 9007199254740991"};
+if(vErrors === null){
+vErrors = [err1411];
+}
+else {
+vErrors.push(err1411);
+}
+errors++;
+}
+else {
+if(data445 < 0 || isNaN(data445)){
+const err1412 = {instancePath:instancePath+"/refresh_status/view/failure/stopped/witness/reader_identity/expected",schemaPath:"#/oneOf/8/properties/refresh_status/properties/view/properties/failure/oneOf/1/properties/stopped/properties/witness/oneOf/21/properties/reader_identity/properties/expected/minimum",keyword:"minimum",params:{comparison: ">=", limit: 0},message:"must be >= 0"};
+if(vErrors === null){
+vErrors = [err1412];
+}
+else {
+vErrors.push(err1412);
+}
+errors++;
+}
+}
+}
+}
+var valid213 = _errs1284 === errors;
+}
+else {
+var valid213 = true;
+}
+if(valid213){
+if(data443.actual !== undefined){
+let data446 = data443.actual;
+const _errs1286 = errors;
+if(!(((typeof data446 == "number") && (!(data446 % 1) && !isNaN(data446))) && (isFinite(data446)))){
+const err1413 = {instancePath:instancePath+"/refresh_status/view/failure/stopped/witness/reader_identity/actual",schemaPath:"#/oneOf/8/properties/refresh_status/properties/view/properties/failure/oneOf/1/properties/stopped/properties/witness/oneOf/21/properties/reader_identity/properties/actual/type",keyword:"type",params:{type: "integer"},message:"must be integer"};
+if(vErrors === null){
+vErrors = [err1413];
+}
+else {
+vErrors.push(err1413);
+}
+errors++;
+}
+if(errors === _errs1286){
+if((typeof data446 == "number") && (isFinite(data446))){
+if(data446 > 9007199254740991 || isNaN(data446)){
+const err1414 = {instancePath:instancePath+"/refresh_status/view/failure/stopped/witness/reader_identity/actual",schemaPath:"#/oneOf/8/properties/refresh_status/properties/view/properties/failure/oneOf/1/properties/stopped/properties/witness/oneOf/21/properties/reader_identity/properties/actual/maximum",keyword:"maximum",params:{comparison: "<=", limit: 9007199254740991},message:"must be <= 9007199254740991"};
+if(vErrors === null){
+vErrors = [err1414];
+}
+else {
+vErrors.push(err1414);
+}
+errors++;
+}
+else {
+if(data446 < 0 || isNaN(data446)){
+const err1415 = {instancePath:instancePath+"/refresh_status/view/failure/stopped/witness/reader_identity/actual",schemaPath:"#/oneOf/8/properties/refresh_status/properties/view/properties/failure/oneOf/1/properties/stopped/properties/witness/oneOf/21/properties/reader_identity/properties/actual/minimum",keyword:"minimum",params:{comparison: ">=", limit: 0},message:"must be >= 0"};
+if(vErrors === null){
+vErrors = [err1415];
+}
+else {
+vErrors.push(err1415);
+}
+errors++;
+}
+}
+}
+}
+var valid213 = _errs1286 === errors;
+}
+else {
+var valid213 = true;
+}
+if(valid213){
+if(data443.present !== undefined){
+const _errs1288 = errors;
+if(typeof data443.present !== "boolean"){
+const err1416 = {instancePath:instancePath+"/refresh_status/view/failure/stopped/witness/reader_identity/present",schemaPath:"#/oneOf/8/properties/refresh_status/properties/view/properties/failure/oneOf/1/properties/stopped/properties/witness/oneOf/21/properties/reader_identity/properties/present/type",keyword:"type",params:{type: "boolean"},message:"must be boolean"};
+if(vErrors === null){
+vErrors = [err1416];
+}
+else {
+vErrors.push(err1416);
+}
+errors++;
+}
+var valid213 = _errs1288 === errors;
+}
+else {
+var valid213 = true;
+}
+if(valid213){
+if(data443.policy_revision !== undefined){
+let data448 = data443.policy_revision;
+const _errs1290 = errors;
+if(!(((typeof data448 == "number") && (!(data448 % 1) && !isNaN(data448))) && (isFinite(data448)))){
+const err1417 = {instancePath:instancePath+"/refresh_status/view/failure/stopped/witness/reader_identity/policy_revision",schemaPath:"#/oneOf/8/properties/refresh_status/properties/view/properties/failure/oneOf/1/properties/stopped/properties/witness/oneOf/21/properties/reader_identity/properties/policy_revision/type",keyword:"type",params:{type: "integer"},message:"must be integer"};
+if(vErrors === null){
+vErrors = [err1417];
+}
+else {
+vErrors.push(err1417);
+}
+errors++;
+}
+if(errors === _errs1290){
+if((typeof data448 == "number") && (isFinite(data448))){
+if(data448 > 9007199254740991 || isNaN(data448)){
+const err1418 = {instancePath:instancePath+"/refresh_status/view/failure/stopped/witness/reader_identity/policy_revision",schemaPath:"#/oneOf/8/properties/refresh_status/properties/view/properties/failure/oneOf/1/properties/stopped/properties/witness/oneOf/21/properties/reader_identity/properties/policy_revision/maximum",keyword:"maximum",params:{comparison: "<=", limit: 9007199254740991},message:"must be <= 9007199254740991"};
+if(vErrors === null){
+vErrors = [err1418];
+}
+else {
+vErrors.push(err1418);
+}
+errors++;
+}
+else {
+if(data448 < 0 || isNaN(data448)){
+const err1419 = {instancePath:instancePath+"/refresh_status/view/failure/stopped/witness/reader_identity/policy_revision",schemaPath:"#/oneOf/8/properties/refresh_status/properties/view/properties/failure/oneOf/1/properties/stopped/properties/witness/oneOf/21/properties/reader_identity/properties/policy_revision/minimum",keyword:"minimum",params:{comparison: ">=", limit: 0},message:"must be >= 0"};
+if(vErrors === null){
+vErrors = [err1419];
+}
+else {
+vErrors.push(err1419);
+}
+errors++;
+}
+}
+}
+}
+var valid213 = _errs1290 === errors;
+}
+else {
+var valid213 = true;
+}
+if(valid213){
+if(data443.policy_known !== undefined){
+const _errs1292 = errors;
+if(typeof data443.policy_known !== "boolean"){
+const err1420 = {instancePath:instancePath+"/refresh_status/view/failure/stopped/witness/reader_identity/policy_known",schemaPath:"#/oneOf/8/properties/refresh_status/properties/view/properties/failure/oneOf/1/properties/stopped/properties/witness/oneOf/21/properties/reader_identity/properties/policy_known/type",keyword:"type",params:{type: "boolean"},message:"must be boolean"};
+if(vErrors === null){
+vErrors = [err1420];
+}
+else {
+vErrors.push(err1420);
+}
+errors++;
+}
+var valid213 = _errs1292 === errors;
+}
+else {
+var valid213 = true;
+}
+}
+}
+}
+}
+}
+}
+}
+}
+else {
+const err1421 = {instancePath:instancePath+"/refresh_status/view/failure/stopped/witness/reader_identity",schemaPath:"#/oneOf/8/properties/refresh_status/properties/view/properties/failure/oneOf/1/properties/stopped/properties/witness/oneOf/21/properties/reader_identity/type",keyword:"type",params:{type: "object"},message:"must be object"};
+if(vErrors === null){
+vErrors = [err1421];
+}
+else {
+vErrors.push(err1421);
+}
+errors++;
+}
+}
+}
+}
+}
+}
+else {
+const err1422 = {instancePath:instancePath+"/refresh_status/view/failure/stopped/witness",schemaPath:"#/oneOf/8/properties/refresh_status/properties/view/properties/failure/oneOf/1/properties/stopped/properties/witness/oneOf/21/type",keyword:"type",params:{type: "object"},message:"must be object"};
+if(vErrors === null){
+vErrors = [err1422];
+}
+else {
+vErrors.push(err1422);
+}
+errors++;
+}
+}
+var _valid50 = _errs1276 === errors;
+if(_valid50 && valid165){
+valid165 = false;
+passing6 = [passing6, 21];
+}
+else {
+if(_valid50){
+valid165 = true;
+passing6 = 21;
+if(props25 !== true){
+props25 = true;
+}
+}
+const _errs1294 = errors;
+if(errors === _errs1294){
+if(data344 && typeof data344 == "object" && !Array.isArray(data344)){
+let missing125;
+if((data344.reader_failure === undefined) && (missing125 = "reader_failure")){
+const err1423 = {instancePath:instancePath+"/refresh_status/view/failure/stopped/witness",schemaPath:"#/oneOf/8/properties/refresh_status/properties/view/properties/failure/oneOf/1/properties/stopped/properties/witness/oneOf/22/required",keyword:"required",params:{missingProperty: missing125},message:"must have required property '"+missing125+"'"};
+if(vErrors === null){
+vErrors = [err1423];
+}
+else {
+vErrors.push(err1423);
+}
+errors++;
+}
+else {
+const _errs1296 = errors;
+for(const key127 in data344){
+if(!(key127 === "reader_failure")){
+const err1424 = {instancePath:instancePath+"/refresh_status/view/failure/stopped/witness",schemaPath:"#/oneOf/8/properties/refresh_status/properties/view/properties/failure/oneOf/1/properties/stopped/properties/witness/oneOf/22/additionalProperties",keyword:"additionalProperties",params:{additionalProperty: key127},message:"must NOT have additional properties"};
+if(vErrors === null){
+vErrors = [err1424];
+}
+else {
+vErrors.push(err1424);
+}
+errors++;
+break;
+}
+}
+if(_errs1296 === errors){
+if(data344.reader_failure !== undefined){
+let data450 = data344.reader_failure;
+const _errs1297 = errors;
+if(errors === _errs1297){
+if(data450 && typeof data450 == "object" && !Array.isArray(data450)){
+let missing126;
+if(((((data450.operation === undefined) && (missing126 = "operation")) || ((data450.principal === undefined) && (missing126 = "principal"))) || ((data450.resource === undefined) && (missing126 = "resource"))) || ((data450.cause === undefined) && (missing126 = "cause"))){
+const err1425 = {instancePath:instancePath+"/refresh_status/view/failure/stopped/witness/reader_failure",schemaPath:"#/oneOf/8/properties/refresh_status/properties/view/properties/failure/oneOf/1/properties/stopped/properties/witness/oneOf/22/properties/reader_failure/required",keyword:"required",params:{missingProperty: missing126},message:"must have required property '"+missing126+"'"};
+if(vErrors === null){
+vErrors = [err1425];
+}
+else {
+vErrors.push(err1425);
+}
+errors++;
+}
+else {
+const _errs1299 = errors;
+for(const key128 in data450){
+if(!(((((key128 === "operation") || (key128 === "principal")) || (key128 === "resource")) || (key128 === "namespace")) || (key128 === "cause"))){
+const err1426 = {instancePath:instancePath+"/refresh_status/view/failure/stopped/witness/reader_failure",schemaPath:"#/oneOf/8/properties/refresh_status/properties/view/properties/failure/oneOf/1/properties/stopped/properties/witness/oneOf/22/properties/reader_failure/additionalProperties",keyword:"additionalProperties",params:{additionalProperty: key128},message:"must NOT have additional properties"};
+if(vErrors === null){
+vErrors = [err1426];
+}
+else {
+vErrors.push(err1426);
+}
+errors++;
+break;
+}
+}
+if(_errs1299 === errors){
+if(data450.operation !== undefined){
+let data451 = data450.operation;
+const _errs1300 = errors;
+if(typeof data451 !== "string"){
+const err1427 = {instancePath:instancePath+"/refresh_status/view/failure/stopped/witness/reader_failure/operation",schemaPath:"#/oneOf/8/properties/refresh_status/properties/view/properties/failure/oneOf/1/properties/stopped/properties/witness/oneOf/22/properties/reader_failure/properties/operation/type",keyword:"type",params:{type: "string"},message:"must be string"};
+if(vErrors === null){
+vErrors = [err1427];
+}
+else {
+vErrors.push(err1427);
+}
+errors++;
+}
+if(!((((data451 === "identity") || (data451 === "source")) || (data451 === "requester")) || (data451 === "result"))){
+const err1428 = {instancePath:instancePath+"/refresh_status/view/failure/stopped/witness/reader_failure/operation",schemaPath:"#/oneOf/8/properties/refresh_status/properties/view/properties/failure/oneOf/1/properties/stopped/properties/witness/oneOf/22/properties/reader_failure/properties/operation/enum",keyword:"enum",params:{allowedValues: schema52.oneOf[8].properties.refresh_status.properties.view.properties.failure.oneOf[1].properties.stopped.properties.witness.oneOf[22].properties.reader_failure.properties.operation.enum},message:"must be equal to one of the allowed values"};
+if(vErrors === null){
+vErrors = [err1428];
+}
+else {
+vErrors.push(err1428);
+}
+errors++;
+}
+var valid215 = _errs1300 === errors;
+}
+else {
+var valid215 = true;
+}
+if(valid215){
+if(data450.principal !== undefined){
+let data452 = data450.principal;
+const _errs1302 = errors;
+if(!(((typeof data452 == "number") && (!(data452 % 1) && !isNaN(data452))) && (isFinite(data452)))){
+const err1429 = {instancePath:instancePath+"/refresh_status/view/failure/stopped/witness/reader_failure/principal",schemaPath:"#/oneOf/8/properties/refresh_status/properties/view/properties/failure/oneOf/1/properties/stopped/properties/witness/oneOf/22/properties/reader_failure/properties/principal/type",keyword:"type",params:{type: "integer"},message:"must be integer"};
+if(vErrors === null){
+vErrors = [err1429];
+}
+else {
+vErrors.push(err1429);
+}
+errors++;
+}
+if(errors === _errs1302){
+if((typeof data452 == "number") && (isFinite(data452))){
+if(data452 > 9007199254740991 || isNaN(data452)){
+const err1430 = {instancePath:instancePath+"/refresh_status/view/failure/stopped/witness/reader_failure/principal",schemaPath:"#/oneOf/8/properties/refresh_status/properties/view/properties/failure/oneOf/1/properties/stopped/properties/witness/oneOf/22/properties/reader_failure/properties/principal/maximum",keyword:"maximum",params:{comparison: "<=", limit: 9007199254740991},message:"must be <= 9007199254740991"};
+if(vErrors === null){
+vErrors = [err1430];
+}
+else {
+vErrors.push(err1430);
+}
+errors++;
+}
+else {
+if(data452 < 0 || isNaN(data452)){
+const err1431 = {instancePath:instancePath+"/refresh_status/view/failure/stopped/witness/reader_failure/principal",schemaPath:"#/oneOf/8/properties/refresh_status/properties/view/properties/failure/oneOf/1/properties/stopped/properties/witness/oneOf/22/properties/reader_failure/properties/principal/minimum",keyword:"minimum",params:{comparison: ">=", limit: 0},message:"must be >= 0"};
+if(vErrors === null){
+vErrors = [err1431];
+}
+else {
+vErrors.push(err1431);
+}
+errors++;
+}
+}
+}
+}
+var valid215 = _errs1302 === errors;
+}
+else {
+var valid215 = true;
+}
+if(valid215){
+if(data450.resource !== undefined){
+let data453 = data450.resource;
+const _errs1304 = errors;
+if(!(((typeof data453 == "number") && (!(data453 % 1) && !isNaN(data453))) && (isFinite(data453)))){
+const err1432 = {instancePath:instancePath+"/refresh_status/view/failure/stopped/witness/reader_failure/resource",schemaPath:"#/oneOf/8/properties/refresh_status/properties/view/properties/failure/oneOf/1/properties/stopped/properties/witness/oneOf/22/properties/reader_failure/properties/resource/type",keyword:"type",params:{type: "integer"},message:"must be integer"};
+if(vErrors === null){
+vErrors = [err1432];
+}
+else {
+vErrors.push(err1432);
+}
+errors++;
+}
+if(errors === _errs1304){
+if((typeof data453 == "number") && (isFinite(data453))){
+if(data453 > 9007199254740991 || isNaN(data453)){
+const err1433 = {instancePath:instancePath+"/refresh_status/view/failure/stopped/witness/reader_failure/resource",schemaPath:"#/oneOf/8/properties/refresh_status/properties/view/properties/failure/oneOf/1/properties/stopped/properties/witness/oneOf/22/properties/reader_failure/properties/resource/maximum",keyword:"maximum",params:{comparison: "<=", limit: 9007199254740991},message:"must be <= 9007199254740991"};
+if(vErrors === null){
+vErrors = [err1433];
+}
+else {
+vErrors.push(err1433);
+}
+errors++;
+}
+else {
+if(data453 < 0 || isNaN(data453)){
+const err1434 = {instancePath:instancePath+"/refresh_status/view/failure/stopped/witness/reader_failure/resource",schemaPath:"#/oneOf/8/properties/refresh_status/properties/view/properties/failure/oneOf/1/properties/stopped/properties/witness/oneOf/22/properties/reader_failure/properties/resource/minimum",keyword:"minimum",params:{comparison: ">=", limit: 0},message:"must be >= 0"};
+if(vErrors === null){
+vErrors = [err1434];
+}
+else {
+vErrors.push(err1434);
+}
+errors++;
+}
+}
+}
+}
+var valid215 = _errs1304 === errors;
+}
+else {
+var valid215 = true;
+}
+if(valid215){
+if(data450.namespace !== undefined){
+let data454 = data450.namespace;
+const _errs1306 = errors;
+if(!(((typeof data454 == "number") && (!(data454 % 1) && !isNaN(data454))) && (isFinite(data454)))){
+const err1435 = {instancePath:instancePath+"/refresh_status/view/failure/stopped/witness/reader_failure/namespace",schemaPath:"#/oneOf/8/properties/refresh_status/properties/view/properties/failure/oneOf/1/properties/stopped/properties/witness/oneOf/22/properties/reader_failure/properties/namespace/type",keyword:"type",params:{type: "integer"},message:"must be integer"};
+if(vErrors === null){
+vErrors = [err1435];
+}
+else {
+vErrors.push(err1435);
+}
+errors++;
+}
+if(errors === _errs1306){
+if((typeof data454 == "number") && (isFinite(data454))){
+if(data454 > 9007199254740991 || isNaN(data454)){
+const err1436 = {instancePath:instancePath+"/refresh_status/view/failure/stopped/witness/reader_failure/namespace",schemaPath:"#/oneOf/8/properties/refresh_status/properties/view/properties/failure/oneOf/1/properties/stopped/properties/witness/oneOf/22/properties/reader_failure/properties/namespace/maximum",keyword:"maximum",params:{comparison: "<=", limit: 9007199254740991},message:"must be <= 9007199254740991"};
+if(vErrors === null){
+vErrors = [err1436];
+}
+else {
+vErrors.push(err1436);
+}
+errors++;
+}
+else {
+if(data454 < 0 || isNaN(data454)){
+const err1437 = {instancePath:instancePath+"/refresh_status/view/failure/stopped/witness/reader_failure/namespace",schemaPath:"#/oneOf/8/properties/refresh_status/properties/view/properties/failure/oneOf/1/properties/stopped/properties/witness/oneOf/22/properties/reader_failure/properties/namespace/minimum",keyword:"minimum",params:{comparison: ">=", limit: 0},message:"must be >= 0"};
+if(vErrors === null){
+vErrors = [err1437];
+}
+else {
+vErrors.push(err1437);
+}
+errors++;
+}
+}
+}
+}
+var valid215 = _errs1306 === errors;
+}
+else {
+var valid215 = true;
+}
+if(valid215){
+if(data450.cause !== undefined){
+let data455 = data450.cause;
+const _errs1308 = errors;
+if(typeof data455 !== "string"){
+const err1438 = {instancePath:instancePath+"/refresh_status/view/failure/stopped/witness/reader_failure/cause",schemaPath:"#/oneOf/8/properties/refresh_status/properties/view/properties/failure/oneOf/1/properties/stopped/properties/witness/oneOf/22/properties/reader_failure/properties/cause/type",keyword:"type",params:{type: "string"},message:"must be string"};
+if(vErrors === null){
+vErrors = [err1438];
+}
+else {
+vErrors.push(err1438);
+}
+errors++;
+}
+if(!((((((((((data455 === "AccessDenied") || (data455 === "Forbidden")) || (data455 === "StateResourceExpired")) || (data455 === "UnknownStateResource")) || (data455 === "DeadlineExpired")) || (data455 === "RetiredProcess")) || (data455 === "QueryDenied")) || (data455 === "QuerySourceUnavailable")) || (data455 === "ResultUnavailable")) || (data455 === "PublicationNotPublished"))){
+const err1439 = {instancePath:instancePath+"/refresh_status/view/failure/stopped/witness/reader_failure/cause",schemaPath:"#/oneOf/8/properties/refresh_status/properties/view/properties/failure/oneOf/1/properties/stopped/properties/witness/oneOf/22/properties/reader_failure/properties/cause/enum",keyword:"enum",params:{allowedValues: schema52.oneOf[8].properties.refresh_status.properties.view.properties.failure.oneOf[1].properties.stopped.properties.witness.oneOf[22].properties.reader_failure.properties.cause.enum},message:"must be equal to one of the allowed values"};
+if(vErrors === null){
+vErrors = [err1439];
+}
+else {
+vErrors.push(err1439);
+}
+errors++;
+}
+var valid215 = _errs1308 === errors;
+}
+else {
+var valid215 = true;
+}
+}
+}
+}
+}
+}
+}
+}
+else {
+const err1440 = {instancePath:instancePath+"/refresh_status/view/failure/stopped/witness/reader_failure",schemaPath:"#/oneOf/8/properties/refresh_status/properties/view/properties/failure/oneOf/1/properties/stopped/properties/witness/oneOf/22/properties/reader_failure/type",keyword:"type",params:{type: "object"},message:"must be object"};
+if(vErrors === null){
+vErrors = [err1440];
+}
+else {
+vErrors.push(err1440);
+}
+errors++;
+}
+}
+}
+}
+}
+}
+else {
+const err1441 = {instancePath:instancePath+"/refresh_status/view/failure/stopped/witness",schemaPath:"#/oneOf/8/properties/refresh_status/properties/view/properties/failure/oneOf/1/properties/stopped/properties/witness/oneOf/22/type",keyword:"type",params:{type: "object"},message:"must be object"};
+if(vErrors === null){
+vErrors = [err1441];
+}
+else {
+vErrors.push(err1441);
+}
+errors++;
+}
+}
+var _valid50 = _errs1294 === errors;
+if(_valid50 && valid165){
+valid165 = false;
+passing6 = [passing6, 22];
+}
+else {
+if(_valid50){
+valid165 = true;
+passing6 = 22;
+if(props25 !== true){
+props25 = true;
+}
+}
+const _errs1310 = errors;
+if(errors === _errs1310){
+if(data344 && typeof data344 == "object" && !Array.isArray(data344)){
+let missing127;
+if((data344.reader_resource === undefined) && (missing127 = "reader_resource")){
+const err1442 = {instancePath:instancePath+"/refresh_status/view/failure/stopped/witness",schemaPath:"#/oneOf/8/properties/refresh_status/properties/view/properties/failure/oneOf/1/properties/stopped/properties/witness/oneOf/23/required",keyword:"required",params:{missingProperty: missing127},message:"must have required property '"+missing127+"'"};
+if(vErrors === null){
+vErrors = [err1442];
+}
+else {
+vErrors.push(err1442);
+}
+errors++;
+}
+else {
+const _errs1312 = errors;
+for(const key129 in data344){
+if(!(key129 === "reader_resource")){
+const err1443 = {instancePath:instancePath+"/refresh_status/view/failure/stopped/witness",schemaPath:"#/oneOf/8/properties/refresh_status/properties/view/properties/failure/oneOf/1/properties/stopped/properties/witness/oneOf/23/additionalProperties",keyword:"additionalProperties",params:{additionalProperty: key129},message:"must NOT have additional properties"};
+if(vErrors === null){
+vErrors = [err1443];
+}
+else {
+vErrors.push(err1443);
+}
+errors++;
+break;
+}
+}
+if(_errs1312 === errors){
+if(data344.reader_resource !== undefined){
+let data456 = data344.reader_resource;
+const _errs1313 = errors;
+if(errors === _errs1313){
+if(data456 && typeof data456 == "object" && !Array.isArray(data456)){
+let missing128;
+if((((((((data456.role === undefined) && (missing128 = "role")) || ((data456.resource === undefined) && (missing128 = "resource"))) || ((data456.expected_writer === undefined) && (missing128 = "expected_writer"))) || ((data456.actual_writer === undefined) && (missing128 = "actual_writer"))) || ((data456.phase === undefined) && (missing128 = "phase"))) || ((data456.writer_check === undefined) && (missing128 = "writer_check"))) || ((data456.revision === undefined) && (missing128 = "revision"))){
+const err1444 = {instancePath:instancePath+"/refresh_status/view/failure/stopped/witness/reader_resource",schemaPath:"#/oneOf/8/properties/refresh_status/properties/view/properties/failure/oneOf/1/properties/stopped/properties/witness/oneOf/23/properties/reader_resource/required",keyword:"required",params:{missingProperty: missing128},message:"must have required property '"+missing128+"'"};
+if(vErrors === null){
+vErrors = [err1444];
+}
+else {
+vErrors.push(err1444);
+}
+errors++;
+}
+else {
+const _errs1315 = errors;
+for(const key130 in data456){
+if(!(((((((key130 === "role") || (key130 === "resource")) || (key130 === "expected_writer")) || (key130 === "actual_writer")) || (key130 === "phase")) || (key130 === "writer_check")) || (key130 === "revision"))){
+const err1445 = {instancePath:instancePath+"/refresh_status/view/failure/stopped/witness/reader_resource",schemaPath:"#/oneOf/8/properties/refresh_status/properties/view/properties/failure/oneOf/1/properties/stopped/properties/witness/oneOf/23/properties/reader_resource/additionalProperties",keyword:"additionalProperties",params:{additionalProperty: key130},message:"must NOT have additional properties"};
+if(vErrors === null){
+vErrors = [err1445];
+}
+else {
+vErrors.push(err1445);
+}
+errors++;
+break;
+}
+}
+if(_errs1315 === errors){
+if(data456.role !== undefined){
+let data457 = data456.role;
+const _errs1316 = errors;
+if(typeof data457 !== "string"){
+const err1446 = {instancePath:instancePath+"/refresh_status/view/failure/stopped/witness/reader_resource/role",schemaPath:"#/oneOf/8/properties/refresh_status/properties/view/properties/failure/oneOf/1/properties/stopped/properties/witness/oneOf/23/properties/reader_resource/properties/role/type",keyword:"type",params:{type: "string"},message:"must be string"};
+if(vErrors === null){
+vErrors = [err1446];
+}
+else {
+vErrors.push(err1446);
+}
+errors++;
+}
+if(!((data457 === "source") || (data457 === "requester"))){
+const err1447 = {instancePath:instancePath+"/refresh_status/view/failure/stopped/witness/reader_resource/role",schemaPath:"#/oneOf/8/properties/refresh_status/properties/view/properties/failure/oneOf/1/properties/stopped/properties/witness/oneOf/23/properties/reader_resource/properties/role/enum",keyword:"enum",params:{allowedValues: schema52.oneOf[8].properties.refresh_status.properties.view.properties.failure.oneOf[1].properties.stopped.properties.witness.oneOf[23].properties.reader_resource.properties.role.enum},message:"must be equal to one of the allowed values"};
+if(vErrors === null){
+vErrors = [err1447];
+}
+else {
+vErrors.push(err1447);
+}
+errors++;
+}
+var valid217 = _errs1316 === errors;
+}
+else {
+var valid217 = true;
+}
+if(valid217){
+if(data456.resource !== undefined){
+let data458 = data456.resource;
+const _errs1318 = errors;
+if(!(((typeof data458 == "number") && (!(data458 % 1) && !isNaN(data458))) && (isFinite(data458)))){
+const err1448 = {instancePath:instancePath+"/refresh_status/view/failure/stopped/witness/reader_resource/resource",schemaPath:"#/oneOf/8/properties/refresh_status/properties/view/properties/failure/oneOf/1/properties/stopped/properties/witness/oneOf/23/properties/reader_resource/properties/resource/type",keyword:"type",params:{type: "integer"},message:"must be integer"};
+if(vErrors === null){
+vErrors = [err1448];
+}
+else {
+vErrors.push(err1448);
+}
+errors++;
+}
+if(errors === _errs1318){
+if((typeof data458 == "number") && (isFinite(data458))){
+if(data458 > 9007199254740991 || isNaN(data458)){
+const err1449 = {instancePath:instancePath+"/refresh_status/view/failure/stopped/witness/reader_resource/resource",schemaPath:"#/oneOf/8/properties/refresh_status/properties/view/properties/failure/oneOf/1/properties/stopped/properties/witness/oneOf/23/properties/reader_resource/properties/resource/maximum",keyword:"maximum",params:{comparison: "<=", limit: 9007199254740991},message:"must be <= 9007199254740991"};
+if(vErrors === null){
+vErrors = [err1449];
+}
+else {
+vErrors.push(err1449);
+}
+errors++;
+}
+else {
+if(data458 < 0 || isNaN(data458)){
+const err1450 = {instancePath:instancePath+"/refresh_status/view/failure/stopped/witness/reader_resource/resource",schemaPath:"#/oneOf/8/properties/refresh_status/properties/view/properties/failure/oneOf/1/properties/stopped/properties/witness/oneOf/23/properties/reader_resource/properties/resource/minimum",keyword:"minimum",params:{comparison: ">=", limit: 0},message:"must be >= 0"};
+if(vErrors === null){
+vErrors = [err1450];
+}
+else {
+vErrors.push(err1450);
+}
+errors++;
+}
+}
+}
+}
+var valid217 = _errs1318 === errors;
+}
+else {
+var valid217 = true;
+}
+if(valid217){
+if(data456.expected_writer !== undefined){
+let data459 = data456.expected_writer;
+const _errs1320 = errors;
+if(!(((typeof data459 == "number") && (!(data459 % 1) && !isNaN(data459))) && (isFinite(data459)))){
+const err1451 = {instancePath:instancePath+"/refresh_status/view/failure/stopped/witness/reader_resource/expected_writer",schemaPath:"#/oneOf/8/properties/refresh_status/properties/view/properties/failure/oneOf/1/properties/stopped/properties/witness/oneOf/23/properties/reader_resource/properties/expected_writer/type",keyword:"type",params:{type: "integer"},message:"must be integer"};
+if(vErrors === null){
+vErrors = [err1451];
+}
+else {
+vErrors.push(err1451);
+}
+errors++;
+}
+if(errors === _errs1320){
+if((typeof data459 == "number") && (isFinite(data459))){
+if(data459 > 9007199254740991 || isNaN(data459)){
+const err1452 = {instancePath:instancePath+"/refresh_status/view/failure/stopped/witness/reader_resource/expected_writer",schemaPath:"#/oneOf/8/properties/refresh_status/properties/view/properties/failure/oneOf/1/properties/stopped/properties/witness/oneOf/23/properties/reader_resource/properties/expected_writer/maximum",keyword:"maximum",params:{comparison: "<=", limit: 9007199254740991},message:"must be <= 9007199254740991"};
+if(vErrors === null){
+vErrors = [err1452];
+}
+else {
+vErrors.push(err1452);
+}
+errors++;
+}
+else {
+if(data459 < 0 || isNaN(data459)){
+const err1453 = {instancePath:instancePath+"/refresh_status/view/failure/stopped/witness/reader_resource/expected_writer",schemaPath:"#/oneOf/8/properties/refresh_status/properties/view/properties/failure/oneOf/1/properties/stopped/properties/witness/oneOf/23/properties/reader_resource/properties/expected_writer/minimum",keyword:"minimum",params:{comparison: ">=", limit: 0},message:"must be >= 0"};
+if(vErrors === null){
+vErrors = [err1453];
+}
+else {
+vErrors.push(err1453);
+}
+errors++;
+}
+}
+}
+}
+var valid217 = _errs1320 === errors;
+}
+else {
+var valid217 = true;
+}
+if(valid217){
+if(data456.actual_writer !== undefined){
+let data460 = data456.actual_writer;
+const _errs1322 = errors;
+if(!(((typeof data460 == "number") && (!(data460 % 1) && !isNaN(data460))) && (isFinite(data460)))){
+const err1454 = {instancePath:instancePath+"/refresh_status/view/failure/stopped/witness/reader_resource/actual_writer",schemaPath:"#/oneOf/8/properties/refresh_status/properties/view/properties/failure/oneOf/1/properties/stopped/properties/witness/oneOf/23/properties/reader_resource/properties/actual_writer/type",keyword:"type",params:{type: "integer"},message:"must be integer"};
+if(vErrors === null){
+vErrors = [err1454];
+}
+else {
+vErrors.push(err1454);
+}
+errors++;
+}
+if(errors === _errs1322){
+if((typeof data460 == "number") && (isFinite(data460))){
+if(data460 > 9007199254740991 || isNaN(data460)){
+const err1455 = {instancePath:instancePath+"/refresh_status/view/failure/stopped/witness/reader_resource/actual_writer",schemaPath:"#/oneOf/8/properties/refresh_status/properties/view/properties/failure/oneOf/1/properties/stopped/properties/witness/oneOf/23/properties/reader_resource/properties/actual_writer/maximum",keyword:"maximum",params:{comparison: "<=", limit: 9007199254740991},message:"must be <= 9007199254740991"};
+if(vErrors === null){
+vErrors = [err1455];
+}
+else {
+vErrors.push(err1455);
+}
+errors++;
+}
+else {
+if(data460 < 0 || isNaN(data460)){
+const err1456 = {instancePath:instancePath+"/refresh_status/view/failure/stopped/witness/reader_resource/actual_writer",schemaPath:"#/oneOf/8/properties/refresh_status/properties/view/properties/failure/oneOf/1/properties/stopped/properties/witness/oneOf/23/properties/reader_resource/properties/actual_writer/minimum",keyword:"minimum",params:{comparison: ">=", limit: 0},message:"must be >= 0"};
+if(vErrors === null){
+vErrors = [err1456];
+}
+else {
+vErrors.push(err1456);
+}
+errors++;
+}
+}
+}
+}
+var valid217 = _errs1322 === errors;
+}
+else {
+var valid217 = true;
+}
+if(valid217){
+if(data456.phase !== undefined){
+let data461 = data456.phase;
+const _errs1324 = errors;
+if(typeof data461 !== "string"){
+const err1457 = {instancePath:instancePath+"/refresh_status/view/failure/stopped/witness/reader_resource/phase",schemaPath:"#/oneOf/8/properties/refresh_status/properties/view/properties/failure/oneOf/1/properties/stopped/properties/witness/oneOf/23/properties/reader_resource/properties/phase/type",keyword:"type",params:{type: "string"},message:"must be string"};
+if(vErrors === null){
+vErrors = [err1457];
+}
+else {
+vErrors.push(err1457);
+}
+errors++;
+}
+if(!(((data461 === "active") || (data461 === "retired")) || (data461 === "reclaimed"))){
+const err1458 = {instancePath:instancePath+"/refresh_status/view/failure/stopped/witness/reader_resource/phase",schemaPath:"#/oneOf/8/properties/refresh_status/properties/view/properties/failure/oneOf/1/properties/stopped/properties/witness/oneOf/23/properties/reader_resource/properties/phase/enum",keyword:"enum",params:{allowedValues: schema52.oneOf[8].properties.refresh_status.properties.view.properties.failure.oneOf[1].properties.stopped.properties.witness.oneOf[23].properties.reader_resource.properties.phase.enum},message:"must be equal to one of the allowed values"};
+if(vErrors === null){
+vErrors = [err1458];
+}
+else {
+vErrors.push(err1458);
+}
+errors++;
+}
+var valid217 = _errs1324 === errors;
+}
+else {
+var valid217 = true;
+}
+if(valid217){
+if(data456.writer_check !== undefined){
+const _errs1326 = errors;
+if(typeof data456.writer_check !== "boolean"){
+const err1459 = {instancePath:instancePath+"/refresh_status/view/failure/stopped/witness/reader_resource/writer_check",schemaPath:"#/oneOf/8/properties/refresh_status/properties/view/properties/failure/oneOf/1/properties/stopped/properties/witness/oneOf/23/properties/reader_resource/properties/writer_check/type",keyword:"type",params:{type: "boolean"},message:"must be boolean"};
+if(vErrors === null){
+vErrors = [err1459];
+}
+else {
+vErrors.push(err1459);
+}
+errors++;
+}
+var valid217 = _errs1326 === errors;
+}
+else {
+var valid217 = true;
+}
+if(valid217){
+if(data456.revision !== undefined){
+let data463 = data456.revision;
+const _errs1328 = errors;
+if(!(((typeof data463 == "number") && (!(data463 % 1) && !isNaN(data463))) && (isFinite(data463)))){
+const err1460 = {instancePath:instancePath+"/refresh_status/view/failure/stopped/witness/reader_resource/revision",schemaPath:"#/oneOf/8/properties/refresh_status/properties/view/properties/failure/oneOf/1/properties/stopped/properties/witness/oneOf/23/properties/reader_resource/properties/revision/type",keyword:"type",params:{type: "integer"},message:"must be integer"};
+if(vErrors === null){
+vErrors = [err1460];
+}
+else {
+vErrors.push(err1460);
+}
+errors++;
+}
+if(errors === _errs1328){
+if((typeof data463 == "number") && (isFinite(data463))){
+if(data463 > 9007199254740991 || isNaN(data463)){
+const err1461 = {instancePath:instancePath+"/refresh_status/view/failure/stopped/witness/reader_resource/revision",schemaPath:"#/oneOf/8/properties/refresh_status/properties/view/properties/failure/oneOf/1/properties/stopped/properties/witness/oneOf/23/properties/reader_resource/properties/revision/maximum",keyword:"maximum",params:{comparison: "<=", limit: 9007199254740991},message:"must be <= 9007199254740991"};
+if(vErrors === null){
+vErrors = [err1461];
+}
+else {
+vErrors.push(err1461);
+}
+errors++;
+}
+else {
+if(data463 < 0 || isNaN(data463)){
+const err1462 = {instancePath:instancePath+"/refresh_status/view/failure/stopped/witness/reader_resource/revision",schemaPath:"#/oneOf/8/properties/refresh_status/properties/view/properties/failure/oneOf/1/properties/stopped/properties/witness/oneOf/23/properties/reader_resource/properties/revision/minimum",keyword:"minimum",params:{comparison: ">=", limit: 0},message:"must be >= 0"};
+if(vErrors === null){
+vErrors = [err1462];
+}
+else {
+vErrors.push(err1462);
+}
+errors++;
+}
+}
+}
+}
+var valid217 = _errs1328 === errors;
+}
+else {
+var valid217 = true;
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+else {
+const err1463 = {instancePath:instancePath+"/refresh_status/view/failure/stopped/witness/reader_resource",schemaPath:"#/oneOf/8/properties/refresh_status/properties/view/properties/failure/oneOf/1/properties/stopped/properties/witness/oneOf/23/properties/reader_resource/type",keyword:"type",params:{type: "object"},message:"must be object"};
+if(vErrors === null){
+vErrors = [err1463];
+}
+else {
+vErrors.push(err1463);
+}
+errors++;
+}
+}
+}
+}
+}
+}
+else {
+const err1464 = {instancePath:instancePath+"/refresh_status/view/failure/stopped/witness",schemaPath:"#/oneOf/8/properties/refresh_status/properties/view/properties/failure/oneOf/1/properties/stopped/properties/witness/oneOf/23/type",keyword:"type",params:{type: "object"},message:"must be object"};
+if(vErrors === null){
+vErrors = [err1464];
+}
+else {
+vErrors.push(err1464);
+}
+errors++;
+}
+}
+var _valid50 = _errs1310 === errors;
+if(_valid50 && valid165){
+valid165 = false;
+passing6 = [passing6, 23];
+}
+else {
+if(_valid50){
+valid165 = true;
+passing6 = 23;
+if(props25 !== true){
+props25 = true;
+}
+}
+const _errs1330 = errors;
+if(errors === _errs1330){
+if(data344 && typeof data344 == "object" && !Array.isArray(data344)){
+let missing129;
+if((data344.reader_template === undefined) && (missing129 = "reader_template")){
+const err1465 = {instancePath:instancePath+"/refresh_status/view/failure/stopped/witness",schemaPath:"#/oneOf/8/properties/refresh_status/properties/view/properties/failure/oneOf/1/properties/stopped/properties/witness/oneOf/24/required",keyword:"required",params:{missingProperty: missing129},message:"must have required property '"+missing129+"'"};
+if(vErrors === null){
+vErrors = [err1465];
+}
+else {
+vErrors.push(err1465);
+}
+errors++;
+}
+else {
+const _errs1332 = errors;
+for(const key131 in data344){
+if(!(key131 === "reader_template")){
+const err1466 = {instancePath:instancePath+"/refresh_status/view/failure/stopped/witness",schemaPath:"#/oneOf/8/properties/refresh_status/properties/view/properties/failure/oneOf/1/properties/stopped/properties/witness/oneOf/24/additionalProperties",keyword:"additionalProperties",params:{additionalProperty: key131},message:"must NOT have additional properties"};
+if(vErrors === null){
+vErrors = [err1466];
+}
+else {
+vErrors.push(err1466);
+}
+errors++;
+break;
+}
+}
+if(_errs1332 === errors){
+if(data344.reader_template !== undefined){
+let data464 = data344.reader_template;
+const _errs1333 = errors;
+if(errors === _errs1333){
+if(data464 && typeof data464 == "object" && !Array.isArray(data464)){
+let missing130;
+if(((data464.namespace === undefined) && (missing130 = "namespace")) || ((data464.present === undefined) && (missing130 = "present"))){
+const err1467 = {instancePath:instancePath+"/refresh_status/view/failure/stopped/witness/reader_template",schemaPath:"#/oneOf/8/properties/refresh_status/properties/view/properties/failure/oneOf/1/properties/stopped/properties/witness/oneOf/24/properties/reader_template/required",keyword:"required",params:{missingProperty: missing130},message:"must have required property '"+missing130+"'"};
+if(vErrors === null){
+vErrors = [err1467];
+}
+else {
+vErrors.push(err1467);
+}
+errors++;
+}
+else {
+const _errs1335 = errors;
+for(const key132 in data464){
+if(!((((key132 === "namespace") || (key132 === "present")) || (key132 === "phase")) || (key132 === "manifest"))){
+const err1468 = {instancePath:instancePath+"/refresh_status/view/failure/stopped/witness/reader_template",schemaPath:"#/oneOf/8/properties/refresh_status/properties/view/properties/failure/oneOf/1/properties/stopped/properties/witness/oneOf/24/properties/reader_template/additionalProperties",keyword:"additionalProperties",params:{additionalProperty: key132},message:"must NOT have additional properties"};
+if(vErrors === null){
+vErrors = [err1468];
+}
+else {
+vErrors.push(err1468);
+}
+errors++;
+break;
+}
+}
+if(_errs1335 === errors){
+if(data464.namespace !== undefined){
+let data465 = data464.namespace;
+const _errs1336 = errors;
+if(!(((typeof data465 == "number") && (!(data465 % 1) && !isNaN(data465))) && (isFinite(data465)))){
+const err1469 = {instancePath:instancePath+"/refresh_status/view/failure/stopped/witness/reader_template/namespace",schemaPath:"#/oneOf/8/properties/refresh_status/properties/view/properties/failure/oneOf/1/properties/stopped/properties/witness/oneOf/24/properties/reader_template/properties/namespace/type",keyword:"type",params:{type: "integer"},message:"must be integer"};
+if(vErrors === null){
+vErrors = [err1469];
+}
+else {
+vErrors.push(err1469);
+}
+errors++;
+}
+if(errors === _errs1336){
+if((typeof data465 == "number") && (isFinite(data465))){
+if(data465 > 9007199254740991 || isNaN(data465)){
+const err1470 = {instancePath:instancePath+"/refresh_status/view/failure/stopped/witness/reader_template/namespace",schemaPath:"#/oneOf/8/properties/refresh_status/properties/view/properties/failure/oneOf/1/properties/stopped/properties/witness/oneOf/24/properties/reader_template/properties/namespace/maximum",keyword:"maximum",params:{comparison: "<=", limit: 9007199254740991},message:"must be <= 9007199254740991"};
+if(vErrors === null){
+vErrors = [err1470];
+}
+else {
+vErrors.push(err1470);
+}
+errors++;
+}
+else {
+if(data465 < 0 || isNaN(data465)){
+const err1471 = {instancePath:instancePath+"/refresh_status/view/failure/stopped/witness/reader_template/namespace",schemaPath:"#/oneOf/8/properties/refresh_status/properties/view/properties/failure/oneOf/1/properties/stopped/properties/witness/oneOf/24/properties/reader_template/properties/namespace/minimum",keyword:"minimum",params:{comparison: ">=", limit: 0},message:"must be >= 0"};
+if(vErrors === null){
+vErrors = [err1471];
+}
+else {
+vErrors.push(err1471);
+}
+errors++;
+}
+}
+}
+}
+var valid219 = _errs1336 === errors;
+}
+else {
+var valid219 = true;
+}
+if(valid219){
+if(data464.present !== undefined){
+const _errs1338 = errors;
+if(typeof data464.present !== "boolean"){
+const err1472 = {instancePath:instancePath+"/refresh_status/view/failure/stopped/witness/reader_template/present",schemaPath:"#/oneOf/8/properties/refresh_status/properties/view/properties/failure/oneOf/1/properties/stopped/properties/witness/oneOf/24/properties/reader_template/properties/present/type",keyword:"type",params:{type: "boolean"},message:"must be boolean"};
+if(vErrors === null){
+vErrors = [err1472];
+}
+else {
+vErrors.push(err1472);
+}
+errors++;
+}
+var valid219 = _errs1338 === errors;
+}
+else {
+var valid219 = true;
+}
+if(valid219){
+if(data464.phase !== undefined){
+let data467 = data464.phase;
+const _errs1340 = errors;
+if(typeof data467 !== "string"){
+const err1473 = {instancePath:instancePath+"/refresh_status/view/failure/stopped/witness/reader_template/phase",schemaPath:"#/oneOf/8/properties/refresh_status/properties/view/properties/failure/oneOf/1/properties/stopped/properties/witness/oneOf/24/properties/reader_template/properties/phase/type",keyword:"type",params:{type: "string"},message:"must be string"};
+if(vErrors === null){
+vErrors = [err1473];
+}
+else {
+vErrors.push(err1473);
+}
+errors++;
+}
+if(!((((((((data467 === "uploading") || (data467 === "sealed")) || (data467 === "admitted")) || (data467 === "complete")) || (data467 === "cancelled")) || (data467 === "denied")) || (data467 === "rejected")) || (data467 === "retired"))){
+const err1474 = {instancePath:instancePath+"/refresh_status/view/failure/stopped/witness/reader_template/phase",schemaPath:"#/oneOf/8/properties/refresh_status/properties/view/properties/failure/oneOf/1/properties/stopped/properties/witness/oneOf/24/properties/reader_template/properties/phase/enum",keyword:"enum",params:{allowedValues: schema52.oneOf[8].properties.refresh_status.properties.view.properties.failure.oneOf[1].properties.stopped.properties.witness.oneOf[24].properties.reader_template.properties.phase.enum},message:"must be equal to one of the allowed values"};
+if(vErrors === null){
+vErrors = [err1474];
+}
+else {
+vErrors.push(err1474);
+}
+errors++;
+}
+var valid219 = _errs1340 === errors;
+}
+else {
+var valid219 = true;
+}
+if(valid219){
+if(data464.manifest !== undefined){
+const _errs1342 = errors;
+if(typeof data464.manifest !== "boolean"){
+const err1475 = {instancePath:instancePath+"/refresh_status/view/failure/stopped/witness/reader_template/manifest",schemaPath:"#/oneOf/8/properties/refresh_status/properties/view/properties/failure/oneOf/1/properties/stopped/properties/witness/oneOf/24/properties/reader_template/properties/manifest/type",keyword:"type",params:{type: "boolean"},message:"must be boolean"};
+if(vErrors === null){
+vErrors = [err1475];
+}
+else {
+vErrors.push(err1475);
+}
+errors++;
+}
+var valid219 = _errs1342 === errors;
+}
+else {
+var valid219 = true;
+}
+}
+}
+}
+}
+}
+}
+else {
+const err1476 = {instancePath:instancePath+"/refresh_status/view/failure/stopped/witness/reader_template",schemaPath:"#/oneOf/8/properties/refresh_status/properties/view/properties/failure/oneOf/1/properties/stopped/properties/witness/oneOf/24/properties/reader_template/type",keyword:"type",params:{type: "object"},message:"must be object"};
+if(vErrors === null){
+vErrors = [err1476];
+}
+else {
+vErrors.push(err1476);
+}
+errors++;
+}
+}
+}
+}
+}
+}
+else {
+const err1477 = {instancePath:instancePath+"/refresh_status/view/failure/stopped/witness",schemaPath:"#/oneOf/8/properties/refresh_status/properties/view/properties/failure/oneOf/1/properties/stopped/properties/witness/oneOf/24/type",keyword:"type",params:{type: "object"},message:"must be object"};
+if(vErrors === null){
+vErrors = [err1477];
+}
+else {
+vErrors.push(err1477);
+}
+errors++;
+}
+}
+var _valid50 = _errs1330 === errors;
+if(_valid50 && valid165){
+valid165 = false;
+passing6 = [passing6, 24];
+}
+else {
+if(_valid50){
+valid165 = true;
+passing6 = 24;
+if(props25 !== true){
+props25 = true;
+}
+}
+}
+}
+}
+}
 }
 }
 }
@@ -80848,12 +82041,12 @@ props25 = true;
 }
 }
 if(!valid165){
-const err1404 = {instancePath:instancePath+"/refresh_status/view/failure/stopped/witness",schemaPath:"#/oneOf/8/properties/refresh_status/properties/view/properties/failure/oneOf/1/properties/stopped/properties/witness/oneOf",keyword:"oneOf",params:{passingSchemas: passing6},message:"must match exactly one schema in oneOf"};
+const err1478 = {instancePath:instancePath+"/refresh_status/view/failure/stopped/witness",schemaPath:"#/oneOf/8/properties/refresh_status/properties/view/properties/failure/oneOf/1/properties/stopped/properties/witness/oneOf",keyword:"oneOf",params:{passingSchemas: passing6},message:"must match exactly one schema in oneOf"};
 if(vErrors === null){
-vErrors = [err1404];
+vErrors = [err1478];
 }
 else {
-vErrors.push(err1404);
+vErrors.push(err1478);
 }
 errors++;
 }
@@ -80879,12 +82072,12 @@ var valid164 = true;
 }
 }
 else {
-const err1405 = {instancePath:instancePath+"/refresh_status/view/failure/stopped",schemaPath:"#/oneOf/8/properties/refresh_status/properties/view/properties/failure/oneOf/1/properties/stopped/type",keyword:"type",params:{type: "object"},message:"must be object"};
+const err1479 = {instancePath:instancePath+"/refresh_status/view/failure/stopped",schemaPath:"#/oneOf/8/properties/refresh_status/properties/view/properties/failure/oneOf/1/properties/stopped/type",keyword:"type",params:{type: "object"},message:"must be object"};
 if(vErrors === null){
-vErrors = [err1405];
+vErrors = [err1479];
 }
 else {
-vErrors.push(err1405);
+vErrors.push(err1479);
 }
 errors++;
 }
@@ -80894,12 +82087,12 @@ errors++;
 }
 }
 else {
-const err1406 = {instancePath:instancePath+"/refresh_status/view/failure",schemaPath:"#/oneOf/8/properties/refresh_status/properties/view/properties/failure/oneOf/1/type",keyword:"type",params:{type: "object"},message:"must be object"};
+const err1480 = {instancePath:instancePath+"/refresh_status/view/failure",schemaPath:"#/oneOf/8/properties/refresh_status/properties/view/properties/failure/oneOf/1/type",keyword:"type",params:{type: "object"},message:"must be object"};
 if(vErrors === null){
-vErrors = [err1406];
+vErrors = [err1480];
 }
 else {
-vErrors.push(err1406);
+vErrors.push(err1480);
 }
 errors++;
 }
@@ -80919,12 +82112,12 @@ props24 = true;
 }
 }
 if(!valid161){
-const err1407 = {instancePath:instancePath+"/refresh_status/view/failure",schemaPath:"#/oneOf/8/properties/refresh_status/properties/view/properties/failure/oneOf",keyword:"oneOf",params:{passingSchemas: passing5},message:"must match exactly one schema in oneOf"};
+const err1481 = {instancePath:instancePath+"/refresh_status/view/failure",schemaPath:"#/oneOf/8/properties/refresh_status/properties/view/properties/failure/oneOf",keyword:"oneOf",params:{passingSchemas: passing5},message:"must match exactly one schema in oneOf"};
 if(vErrors === null){
-vErrors = [err1407];
+vErrors = [err1481];
 }
 else {
-vErrors.push(err1407);
+vErrors.push(err1481);
 }
 errors++;
 }
@@ -80961,12 +82154,12 @@ var valid157 = true;
 }
 }
 else {
-const err1408 = {instancePath:instancePath+"/refresh_status/view",schemaPath:"#/oneOf/8/properties/refresh_status/properties/view/type",keyword:"type",params:{type: "object"},message:"must be object"};
+const err1482 = {instancePath:instancePath+"/refresh_status/view",schemaPath:"#/oneOf/8/properties/refresh_status/properties/view/type",keyword:"type",params:{type: "object"},message:"must be object"};
 if(vErrors === null){
-vErrors = [err1408];
+vErrors = [err1482];
 }
 else {
-vErrors.push(err1408);
+vErrors.push(err1482);
 }
 errors++;
 }
@@ -80978,1034 +82171,110 @@ var valid156 = true;
 }
 if(valid156){
 if(data311.diagnostic !== undefined){
-let data443 = data311.diagnostic;
-const _errs1276 = errors;
-const _errs1277 = errors;
-let valid212 = false;
-const _errs1278 = errors;
-if(errors === _errs1278){
-if(data443 && typeof data443 == "object" && !Array.isArray(data443)){
-let missing123;
-if(((((((((data443.version === undefined) && (missing123 = "version")) || ((data443.definition === undefined) && (missing123 = "definition"))) || ((data443.code === undefined) && (missing123 = "code"))) || ((data443.category === undefined) && (missing123 = "category"))) || ((data443.stage === undefined) && (missing123 = "stage"))) || ((data443.outcome === undefined) && (missing123 = "outcome"))) || ((data443.evidence === undefined) && (missing123 = "evidence"))) || ((data443.message === undefined) && (missing123 = "message"))){
-const err1409 = {instancePath:instancePath+"/refresh_status/diagnostic",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/required",keyword:"required",params:{missingProperty: missing123},message:"must have required property '"+missing123+"'"};
-if(vErrors === null){
-vErrors = [err1409];
-}
-else {
-vErrors.push(err1409);
-}
-errors++;
-}
-else {
-const _errs1280 = errors;
-for(const key125 in data443){
-if(!(func1.call(schema52.oneOf[8].properties.refresh_status.properties.diagnostic.anyOf[0].properties, key125))){
-const err1410 = {instancePath:instancePath+"/refresh_status/diagnostic",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/additionalProperties",keyword:"additionalProperties",params:{additionalProperty: key125},message:"must NOT have additional properties"};
-if(vErrors === null){
-vErrors = [err1410];
-}
-else {
-vErrors.push(err1410);
-}
-errors++;
-break;
-}
-}
-if(_errs1280 === errors){
-if(data443.version !== undefined){
-const _errs1281 = errors;
-if(1 !== data443.version){
-const err1411 = {instancePath:instancePath+"/refresh_status/diagnostic/version",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/version/const",keyword:"const",params:{allowedValue: 1},message:"must be equal to constant"};
-if(vErrors === null){
-vErrors = [err1411];
-}
-else {
-vErrors.push(err1411);
-}
-errors++;
-}
-var valid213 = _errs1281 === errors;
-}
-else {
-var valid213 = true;
-}
-if(valid213){
-if(data443.definition !== undefined){
-let data445 = data443.definition;
-const _errs1282 = errors;
-if(typeof data445 !== "string"){
-const err1412 = {instancePath:instancePath+"/refresh_status/diagnostic/definition",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/definition/type",keyword:"type",params:{type: "string"},message:"must be string"};
-if(vErrors === null){
-vErrors = [err1412];
-}
-else {
-vErrors.push(err1412);
-}
-errors++;
-}
-if(!(data445 === "2751c5ead29471b9675530a20cd0e364368ba79dee3ec6f00f8806d0accb94e7")){
-const err1413 = {instancePath:instancePath+"/refresh_status/diagnostic/definition",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/definition/enum",keyword:"enum",params:{allowedValues: schema52.oneOf[8].properties.refresh_status.properties.diagnostic.anyOf[0].properties.definition.enum},message:"must be equal to one of the allowed values"};
-if(vErrors === null){
-vErrors = [err1413];
-}
-else {
-vErrors.push(err1413);
-}
-errors++;
-}
-var valid213 = _errs1282 === errors;
-}
-else {
-var valid213 = true;
-}
-if(valid213){
-if(data443.code !== undefined){
-let data446 = data443.code;
-const _errs1284 = errors;
-if(errors === _errs1284){
-if(typeof data446 === "string"){
-if(func2(data446) > 96){
-const err1414 = {instancePath:instancePath+"/refresh_status/diagnostic/code",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/code/maxLength",keyword:"maxLength",params:{limit: 96},message:"must NOT have more than 96 characters"};
-if(vErrors === null){
-vErrors = [err1414];
-}
-else {
-vErrors.push(err1414);
-}
-errors++;
-}
-}
-else {
-const err1415 = {instancePath:instancePath+"/refresh_status/diagnostic/code",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/code/type",keyword:"type",params:{type: "string"},message:"must be string"};
-if(vErrors === null){
-vErrors = [err1415];
-}
-else {
-vErrors.push(err1415);
-}
-errors++;
-}
-}
-var valid213 = _errs1284 === errors;
-}
-else {
-var valid213 = true;
-}
-if(valid213){
-if(data443.category !== undefined){
-let data447 = data443.category;
-const _errs1286 = errors;
-if(typeof data447 !== "string"){
-const err1416 = {instancePath:instancePath+"/refresh_status/diagnostic/category",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/category/type",keyword:"type",params:{type: "string"},message:"must be string"};
-if(vErrors === null){
-vErrors = [err1416];
-}
-else {
-vErrors.push(err1416);
-}
-errors++;
-}
-if(!(((((((((((data447 === "syntax") || (data447 === "binding")) || (data447 === "unsupported")) || (data447 === "constraint")) || (data447 === "access")) || (data447 === "conflict")) || (data447 === "limit")) || (data447 === "lifecycle")) || (data447 === "integrity")) || (data447 === "unavailable")) || (data447 === "internal"))){
-const err1417 = {instancePath:instancePath+"/refresh_status/diagnostic/category",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/category/enum",keyword:"enum",params:{allowedValues: schema52.oneOf[8].properties.refresh_status.properties.diagnostic.anyOf[0].properties.category.enum},message:"must be equal to one of the allowed values"};
-if(vErrors === null){
-vErrors = [err1417];
-}
-else {
-vErrors.push(err1417);
-}
-errors++;
-}
-var valid213 = _errs1286 === errors;
-}
-else {
-var valid213 = true;
-}
-if(valid213){
-if(data443.stage !== undefined){
-let data448 = data443.stage;
-const _errs1288 = errors;
-if(typeof data448 !== "string"){
-const err1418 = {instancePath:instancePath+"/refresh_status/diagnostic/stage",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/stage/type",keyword:"type",params:{type: "string"},message:"must be string"};
-if(vErrors === null){
-vErrors = [err1418];
-}
-else {
-vErrors.push(err1418);
-}
-errors++;
-}
-if(!((((((((((((((data448 === "input") || (data448 === "parse")) || (data448 === "compile")) || (data448 === "bind")) || (data448 === "prepare")) || (data448 === "submit")) || (data448 === "admission")) || (data448 === "execute")) || (data448 === "read")) || (data448 === "decode")) || (data448 === "output")) || (data448 === "reconcile")) || (data448 === "cleanup")) || (data448 === "control"))){
-const err1419 = {instancePath:instancePath+"/refresh_status/diagnostic/stage",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/stage/enum",keyword:"enum",params:{allowedValues: schema52.oneOf[8].properties.refresh_status.properties.diagnostic.anyOf[0].properties.stage.enum},message:"must be equal to one of the allowed values"};
-if(vErrors === null){
-vErrors = [err1419];
-}
-else {
-vErrors.push(err1419);
-}
-errors++;
-}
-var valid213 = _errs1288 === errors;
-}
-else {
-var valid213 = true;
-}
-if(valid213){
-if(data443.outcome !== undefined){
-let data449 = data443.outcome;
-const _errs1290 = errors;
-if(typeof data449 !== "string"){
-const err1420 = {instancePath:instancePath+"/refresh_status/diagnostic/outcome",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/outcome/type",keyword:"type",params:{type: "string"},message:"must be string"};
-if(vErrors === null){
-vErrors = [err1420];
-}
-else {
-vErrors.push(err1420);
-}
-errors++;
-}
-if(!((((((((((((((data449 === "not_applicable") || (data449 === "not_submitted")) || (data449 === "not_dispatched")) || (data449 === "prepared")) || (data449 === "unknown")) || (data449 === "pending")) || (data449 === "input_rejected")) || (data449 === "rejected")) || (data449 === "applied")) || (data449 === "completed")) || (data449 === "failed")) || (data449 === "cancelled")) || (data449 === "retired")) || (data449 === "closed_unknown"))){
-const err1421 = {instancePath:instancePath+"/refresh_status/diagnostic/outcome",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/outcome/enum",keyword:"enum",params:{allowedValues: schema52.oneOf[8].properties.refresh_status.properties.diagnostic.anyOf[0].properties.outcome.enum},message:"must be equal to one of the allowed values"};
-if(vErrors === null){
-vErrors = [err1421];
-}
-else {
-vErrors.push(err1421);
-}
-errors++;
-}
-var valid213 = _errs1290 === errors;
-}
-else {
-var valid213 = true;
-}
-if(valid213){
-if(data443.evidence !== undefined){
-let data450 = data443.evidence;
-const _errs1292 = errors;
-if(typeof data450 !== "string"){
-const err1422 = {instancePath:instancePath+"/refresh_status/diagnostic/evidence",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/evidence/type",keyword:"type",params:{type: "string"},message:"must be string"};
-if(vErrors === null){
-vErrors = [err1422];
-}
-else {
-vErrors.push(err1422);
-}
-errors++;
-}
-if(!(((((data450 === "none") || (data450 === "local_before_dispatch")) || (data450 === "saved_intent")) || (data450 === "native_receipt")) || (data450 === "domain_status"))){
-const err1423 = {instancePath:instancePath+"/refresh_status/diagnostic/evidence",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/evidence/enum",keyword:"enum",params:{allowedValues: schema52.oneOf[8].properties.refresh_status.properties.diagnostic.anyOf[0].properties.evidence.enum},message:"must be equal to one of the allowed values"};
-if(vErrors === null){
-vErrors = [err1423];
-}
-else {
-vErrors.push(err1423);
-}
-errors++;
-}
-var valid213 = _errs1292 === errors;
-}
-else {
-var valid213 = true;
-}
-if(valid213){
-if(data443.message !== undefined){
-let data451 = data443.message;
-const _errs1294 = errors;
-if(errors === _errs1294){
-if(typeof data451 === "string"){
-if(func2(data451) > 384){
-const err1424 = {instancePath:instancePath+"/refresh_status/diagnostic/message",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/message/maxLength",keyword:"maxLength",params:{limit: 384},message:"must NOT have more than 384 characters"};
-if(vErrors === null){
-vErrors = [err1424];
-}
-else {
-vErrors.push(err1424);
-}
-errors++;
-}
-}
-else {
-const err1425 = {instancePath:instancePath+"/refresh_status/diagnostic/message",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/message/type",keyword:"type",params:{type: "string"},message:"must be string"};
-if(vErrors === null){
-vErrors = [err1425];
-}
-else {
-vErrors.push(err1425);
-}
-errors++;
-}
-}
-var valid213 = _errs1294 === errors;
-}
-else {
-var valid213 = true;
-}
-if(valid213){
-if(data443.cause !== undefined){
-let data452 = data443.cause;
-const _errs1296 = errors;
-const _errs1297 = errors;
-let valid214 = false;
-const _errs1298 = errors;
-if(errors === _errs1298){
-if(typeof data452 === "string"){
-if(func2(data452) > 96){
-const err1426 = {instancePath:instancePath+"/refresh_status/diagnostic/cause",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/cause/anyOf/0/maxLength",keyword:"maxLength",params:{limit: 96},message:"must NOT have more than 96 characters"};
-if(vErrors === null){
-vErrors = [err1426];
-}
-else {
-vErrors.push(err1426);
-}
-errors++;
-}
-}
-else {
-const err1427 = {instancePath:instancePath+"/refresh_status/diagnostic/cause",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/cause/anyOf/0/type",keyword:"type",params:{type: "string"},message:"must be string"};
-if(vErrors === null){
-vErrors = [err1427];
-}
-else {
-vErrors.push(err1427);
-}
-errors++;
-}
-}
-var _valid52 = _errs1298 === errors;
-valid214 = valid214 || _valid52;
-const _errs1300 = errors;
-if(data452 !== null){
-const err1428 = {instancePath:instancePath+"/refresh_status/diagnostic/cause",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/cause/anyOf/1/type",keyword:"type",params:{type: "null"},message:"must be null"};
-if(vErrors === null){
-vErrors = [err1428];
-}
-else {
-vErrors.push(err1428);
-}
-errors++;
-}
-var _valid52 = _errs1300 === errors;
-valid214 = valid214 || _valid52;
-if(!valid214){
-const err1429 = {instancePath:instancePath+"/refresh_status/diagnostic/cause",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/cause/anyOf",keyword:"anyOf",params:{},message:"must match a schema in anyOf"};
-if(vErrors === null){
-vErrors = [err1429];
-}
-else {
-vErrors.push(err1429);
-}
-errors++;
-}
-else {
-errors = _errs1297;
-if(vErrors !== null){
-if(_errs1297){
-vErrors.length = _errs1297;
-}
-else {
-vErrors = null;
-}
-}
-}
-var valid213 = _errs1296 === errors;
-}
-else {
-var valid213 = true;
-}
-if(valid213){
-if(data443.identity !== undefined){
-let data453 = data443.identity;
-const _errs1302 = errors;
-const _errs1303 = errors;
-let valid215 = false;
-const _errs1304 = errors;
-if(errors === _errs1304){
-if(data453 && typeof data453 == "object" && !Array.isArray(data453)){
-let missing124;
-if(((data453.domain === undefined) && (missing124 = "domain")) || ((data453.id === undefined) && (missing124 = "id"))){
-const err1430 = {instancePath:instancePath+"/refresh_status/diagnostic/identity",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/identity/anyOf/0/required",keyword:"required",params:{missingProperty: missing124},message:"must have required property '"+missing124+"'"};
-if(vErrors === null){
-vErrors = [err1430];
-}
-else {
-vErrors.push(err1430);
-}
-errors++;
-}
-else {
-const _errs1306 = errors;
-for(const key126 in data453){
-if(!(((((key126 === "domain") || (key126 === "id")) || (key126 === "realm")) || (key126 === "resource")) || (key126 === "sequence"))){
-const err1431 = {instancePath:instancePath+"/refresh_status/diagnostic/identity",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/identity/anyOf/0/additionalProperties",keyword:"additionalProperties",params:{additionalProperty: key126},message:"must NOT have additional properties"};
-if(vErrors === null){
-vErrors = [err1431];
-}
-else {
-vErrors.push(err1431);
-}
-errors++;
-break;
-}
-}
-if(_errs1306 === errors){
-if(data453.domain !== undefined){
-let data454 = data453.domain;
-const _errs1307 = errors;
-if(typeof data454 !== "string"){
-const err1432 = {instancePath:instancePath+"/refresh_status/diagnostic/identity/domain",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/identity/anyOf/0/properties/domain/type",keyword:"type",params:{type: "string"},message:"must be string"};
-if(vErrors === null){
-vErrors = [err1432];
-}
-else {
-vErrors.push(err1432);
-}
-errors++;
-}
-if(!(((((((((((((data454 === "sql") || (data454 === "query")) || (data454 === "mutation")) || (data454 === "catalog")) || (data454 === "application")) || (data454 === "publication")) || (data454 === "migration")) || (data454 === "reactive")) || (data454 === "serving")) || (data454 === "effect")) || (data454 === "exchange")) || (data454 === "transport")) || (data454 === "internal"))){
-const err1433 = {instancePath:instancePath+"/refresh_status/diagnostic/identity/domain",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/identity/anyOf/0/properties/domain/enum",keyword:"enum",params:{allowedValues: schema52.oneOf[8].properties.refresh_status.properties.diagnostic.anyOf[0].properties.identity.anyOf[0].properties.domain.enum},message:"must be equal to one of the allowed values"};
-if(vErrors === null){
-vErrors = [err1433];
-}
-else {
-vErrors.push(err1433);
-}
-errors++;
-}
-var valid216 = _errs1307 === errors;
-}
-else {
-var valid216 = true;
-}
-if(valid216){
-if(data453.id !== undefined){
-let data455 = data453.id;
-const _errs1309 = errors;
-if(errors === _errs1309){
-if(typeof data455 === "string"){
-if(func2(data455) > 20){
-const err1434 = {instancePath:instancePath+"/refresh_status/diagnostic/identity/id",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/identity/anyOf/0/properties/id/maxLength",keyword:"maxLength",params:{limit: 20},message:"must NOT have more than 20 characters"};
-if(vErrors === null){
-vErrors = [err1434];
-}
-else {
-vErrors.push(err1434);
-}
-errors++;
-}
-else {
-if(!pattern4.test(data455)){
-const err1435 = {instancePath:instancePath+"/refresh_status/diagnostic/identity/id",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/identity/anyOf/0/properties/id/pattern",keyword:"pattern",params:{pattern: "^(0|[1-9][0-9]*)$"},message:"must match pattern \""+"^(0|[1-9][0-9]*)$"+"\""};
-if(vErrors === null){
-vErrors = [err1435];
-}
-else {
-vErrors.push(err1435);
-}
-errors++;
-}
-}
-}
-else {
-const err1436 = {instancePath:instancePath+"/refresh_status/diagnostic/identity/id",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/identity/anyOf/0/properties/id/type",keyword:"type",params:{type: "string"},message:"must be string"};
-if(vErrors === null){
-vErrors = [err1436];
-}
-else {
-vErrors.push(err1436);
-}
-errors++;
-}
-}
-var valid216 = _errs1309 === errors;
-}
-else {
-var valid216 = true;
-}
-if(valid216){
-if(data453.realm !== undefined){
-let data456 = data453.realm;
-const _errs1311 = errors;
-const _errs1312 = errors;
-let valid217 = false;
-const _errs1313 = errors;
-if(errors === _errs1313){
-if(typeof data456 === "string"){
-if(func2(data456) > 20){
-const err1437 = {instancePath:instancePath+"/refresh_status/diagnostic/identity/realm",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/identity/anyOf/0/properties/realm/anyOf/0/maxLength",keyword:"maxLength",params:{limit: 20},message:"must NOT have more than 20 characters"};
-if(vErrors === null){
-vErrors = [err1437];
-}
-else {
-vErrors.push(err1437);
-}
-errors++;
-}
-else {
-if(!pattern4.test(data456)){
-const err1438 = {instancePath:instancePath+"/refresh_status/diagnostic/identity/realm",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/identity/anyOf/0/properties/realm/anyOf/0/pattern",keyword:"pattern",params:{pattern: "^(0|[1-9][0-9]*)$"},message:"must match pattern \""+"^(0|[1-9][0-9]*)$"+"\""};
-if(vErrors === null){
-vErrors = [err1438];
-}
-else {
-vErrors.push(err1438);
-}
-errors++;
-}
-}
-}
-else {
-const err1439 = {instancePath:instancePath+"/refresh_status/diagnostic/identity/realm",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/identity/anyOf/0/properties/realm/anyOf/0/type",keyword:"type",params:{type: "string"},message:"must be string"};
-if(vErrors === null){
-vErrors = [err1439];
-}
-else {
-vErrors.push(err1439);
-}
-errors++;
-}
-}
-var _valid54 = _errs1313 === errors;
-valid217 = valid217 || _valid54;
-const _errs1315 = errors;
-if(data456 !== null){
-const err1440 = {instancePath:instancePath+"/refresh_status/diagnostic/identity/realm",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/identity/anyOf/0/properties/realm/anyOf/1/type",keyword:"type",params:{type: "null"},message:"must be null"};
-if(vErrors === null){
-vErrors = [err1440];
-}
-else {
-vErrors.push(err1440);
-}
-errors++;
-}
-var _valid54 = _errs1315 === errors;
-valid217 = valid217 || _valid54;
-if(!valid217){
-const err1441 = {instancePath:instancePath+"/refresh_status/diagnostic/identity/realm",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/identity/anyOf/0/properties/realm/anyOf",keyword:"anyOf",params:{},message:"must match a schema in anyOf"};
-if(vErrors === null){
-vErrors = [err1441];
-}
-else {
-vErrors.push(err1441);
-}
-errors++;
-}
-else {
-errors = _errs1312;
-if(vErrors !== null){
-if(_errs1312){
-vErrors.length = _errs1312;
-}
-else {
-vErrors = null;
-}
-}
-}
-var valid216 = _errs1311 === errors;
-}
-else {
-var valid216 = true;
-}
-if(valid216){
-if(data453.resource !== undefined){
-let data457 = data453.resource;
-const _errs1317 = errors;
-const _errs1318 = errors;
-let valid218 = false;
-const _errs1319 = errors;
-if(errors === _errs1319){
-if(typeof data457 === "string"){
-if(func2(data457) > 20){
-const err1442 = {instancePath:instancePath+"/refresh_status/diagnostic/identity/resource",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/identity/anyOf/0/properties/resource/anyOf/0/maxLength",keyword:"maxLength",params:{limit: 20},message:"must NOT have more than 20 characters"};
-if(vErrors === null){
-vErrors = [err1442];
-}
-else {
-vErrors.push(err1442);
-}
-errors++;
-}
-else {
-if(!pattern4.test(data457)){
-const err1443 = {instancePath:instancePath+"/refresh_status/diagnostic/identity/resource",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/identity/anyOf/0/properties/resource/anyOf/0/pattern",keyword:"pattern",params:{pattern: "^(0|[1-9][0-9]*)$"},message:"must match pattern \""+"^(0|[1-9][0-9]*)$"+"\""};
-if(vErrors === null){
-vErrors = [err1443];
-}
-else {
-vErrors.push(err1443);
-}
-errors++;
-}
-}
-}
-else {
-const err1444 = {instancePath:instancePath+"/refresh_status/diagnostic/identity/resource",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/identity/anyOf/0/properties/resource/anyOf/0/type",keyword:"type",params:{type: "string"},message:"must be string"};
-if(vErrors === null){
-vErrors = [err1444];
-}
-else {
-vErrors.push(err1444);
-}
-errors++;
-}
-}
-var _valid55 = _errs1319 === errors;
-valid218 = valid218 || _valid55;
-const _errs1321 = errors;
-if(data457 !== null){
-const err1445 = {instancePath:instancePath+"/refresh_status/diagnostic/identity/resource",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/identity/anyOf/0/properties/resource/anyOf/1/type",keyword:"type",params:{type: "null"},message:"must be null"};
-if(vErrors === null){
-vErrors = [err1445];
-}
-else {
-vErrors.push(err1445);
-}
-errors++;
-}
-var _valid55 = _errs1321 === errors;
-valid218 = valid218 || _valid55;
-if(!valid218){
-const err1446 = {instancePath:instancePath+"/refresh_status/diagnostic/identity/resource",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/identity/anyOf/0/properties/resource/anyOf",keyword:"anyOf",params:{},message:"must match a schema in anyOf"};
-if(vErrors === null){
-vErrors = [err1446];
-}
-else {
-vErrors.push(err1446);
-}
-errors++;
-}
-else {
-errors = _errs1318;
-if(vErrors !== null){
-if(_errs1318){
-vErrors.length = _errs1318;
-}
-else {
-vErrors = null;
-}
-}
-}
-var valid216 = _errs1317 === errors;
-}
-else {
-var valid216 = true;
-}
-if(valid216){
-if(data453.sequence !== undefined){
-let data458 = data453.sequence;
-const _errs1323 = errors;
-const _errs1324 = errors;
-let valid219 = false;
-const _errs1325 = errors;
-if(errors === _errs1325){
-if(typeof data458 === "string"){
-if(func2(data458) > 20){
-const err1447 = {instancePath:instancePath+"/refresh_status/diagnostic/identity/sequence",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/identity/anyOf/0/properties/sequence/anyOf/0/maxLength",keyword:"maxLength",params:{limit: 20},message:"must NOT have more than 20 characters"};
-if(vErrors === null){
-vErrors = [err1447];
-}
-else {
-vErrors.push(err1447);
-}
-errors++;
-}
-else {
-if(!pattern4.test(data458)){
-const err1448 = {instancePath:instancePath+"/refresh_status/diagnostic/identity/sequence",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/identity/anyOf/0/properties/sequence/anyOf/0/pattern",keyword:"pattern",params:{pattern: "^(0|[1-9][0-9]*)$"},message:"must match pattern \""+"^(0|[1-9][0-9]*)$"+"\""};
-if(vErrors === null){
-vErrors = [err1448];
-}
-else {
-vErrors.push(err1448);
-}
-errors++;
-}
-}
-}
-else {
-const err1449 = {instancePath:instancePath+"/refresh_status/diagnostic/identity/sequence",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/identity/anyOf/0/properties/sequence/anyOf/0/type",keyword:"type",params:{type: "string"},message:"must be string"};
-if(vErrors === null){
-vErrors = [err1449];
-}
-else {
-vErrors.push(err1449);
-}
-errors++;
-}
-}
-var _valid56 = _errs1325 === errors;
-valid219 = valid219 || _valid56;
-const _errs1327 = errors;
-if(data458 !== null){
-const err1450 = {instancePath:instancePath+"/refresh_status/diagnostic/identity/sequence",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/identity/anyOf/0/properties/sequence/anyOf/1/type",keyword:"type",params:{type: "null"},message:"must be null"};
-if(vErrors === null){
-vErrors = [err1450];
-}
-else {
-vErrors.push(err1450);
-}
-errors++;
-}
-var _valid56 = _errs1327 === errors;
-valid219 = valid219 || _valid56;
-if(!valid219){
-const err1451 = {instancePath:instancePath+"/refresh_status/diagnostic/identity/sequence",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/identity/anyOf/0/properties/sequence/anyOf",keyword:"anyOf",params:{},message:"must match a schema in anyOf"};
-if(vErrors === null){
-vErrors = [err1451];
-}
-else {
-vErrors.push(err1451);
-}
-errors++;
-}
-else {
-errors = _errs1324;
-if(vErrors !== null){
-if(_errs1324){
-vErrors.length = _errs1324;
-}
-else {
-vErrors = null;
-}
-}
-}
-var valid216 = _errs1323 === errors;
-}
-else {
-var valid216 = true;
-}
-}
-}
-}
-}
-}
-}
-}
-else {
-const err1452 = {instancePath:instancePath+"/refresh_status/diagnostic/identity",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/identity/anyOf/0/type",keyword:"type",params:{type: "object"},message:"must be object"};
-if(vErrors === null){
-vErrors = [err1452];
-}
-else {
-vErrors.push(err1452);
-}
-errors++;
-}
-}
-var _valid53 = _errs1304 === errors;
-valid215 = valid215 || _valid53;
-const _errs1329 = errors;
-if(data453 !== null){
-const err1453 = {instancePath:instancePath+"/refresh_status/diagnostic/identity",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/identity/anyOf/1/type",keyword:"type",params:{type: "null"},message:"must be null"};
-if(vErrors === null){
-vErrors = [err1453];
-}
-else {
-vErrors.push(err1453);
-}
-errors++;
-}
-var _valid53 = _errs1329 === errors;
-valid215 = valid215 || _valid53;
-if(!valid215){
-const err1454 = {instancePath:instancePath+"/refresh_status/diagnostic/identity",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/identity/anyOf",keyword:"anyOf",params:{},message:"must match a schema in anyOf"};
-if(vErrors === null){
-vErrors = [err1454];
-}
-else {
-vErrors.push(err1454);
-}
-errors++;
-}
-else {
-errors = _errs1303;
-if(vErrors !== null){
-if(_errs1303){
-vErrors.length = _errs1303;
-}
-else {
-vErrors = null;
-}
-}
-}
-var valid213 = _errs1302 === errors;
-}
-else {
-var valid213 = true;
-}
-if(valid213){
-if(data443.location !== undefined){
-let data459 = data443.location;
-const _errs1331 = errors;
-const _errs1332 = errors;
-let valid220 = false;
-const _errs1333 = errors;
-if(errors === _errs1333){
-if(data459 && typeof data459 == "object" && !Array.isArray(data459)){
-let missing125;
-if(((((data459.offset === undefined) && (missing125 = "offset")) || ((data459.length === undefined) && (missing125 = "length"))) || ((data459.line === undefined) && (missing125 = "line"))) || ((data459.byte_column === undefined) && (missing125 = "byte_column"))){
-const err1455 = {instancePath:instancePath+"/refresh_status/diagnostic/location",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/location/anyOf/0/required",keyword:"required",params:{missingProperty: missing125},message:"must have required property '"+missing125+"'"};
-if(vErrors === null){
-vErrors = [err1455];
-}
-else {
-vErrors.push(err1455);
-}
-errors++;
-}
-else {
-const _errs1335 = errors;
-for(const key127 in data459){
-if(!((((((((key127 === "source") || (key127 === "source_encoding")) || (key127 === "source_truncated")) || (key127 === "statement")) || (key127 === "offset")) || (key127 === "length")) || (key127 === "line")) || (key127 === "byte_column"))){
-const err1456 = {instancePath:instancePath+"/refresh_status/diagnostic/location",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/location/anyOf/0/additionalProperties",keyword:"additionalProperties",params:{additionalProperty: key127},message:"must NOT have additional properties"};
-if(vErrors === null){
-vErrors = [err1456];
-}
-else {
-vErrors.push(err1456);
-}
-errors++;
-break;
-}
-}
-if(_errs1335 === errors){
-if(data459.source !== undefined){
-let data460 = data459.source;
-const _errs1336 = errors;
-const _errs1337 = errors;
-let valid222 = false;
-const _errs1338 = errors;
-if(errors === _errs1338){
-if(typeof data460 === "string"){
-if(func2(data460) > 512){
-const err1457 = {instancePath:instancePath+"/refresh_status/diagnostic/location/source",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/location/anyOf/0/properties/source/anyOf/0/maxLength",keyword:"maxLength",params:{limit: 512},message:"must NOT have more than 512 characters"};
-if(vErrors === null){
-vErrors = [err1457];
-}
-else {
-vErrors.push(err1457);
-}
-errors++;
-}
-}
-else {
-const err1458 = {instancePath:instancePath+"/refresh_status/diagnostic/location/source",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/location/anyOf/0/properties/source/anyOf/0/type",keyword:"type",params:{type: "string"},message:"must be string"};
-if(vErrors === null){
-vErrors = [err1458];
-}
-else {
-vErrors.push(err1458);
-}
-errors++;
-}
-}
-var _valid58 = _errs1338 === errors;
-valid222 = valid222 || _valid58;
-const _errs1340 = errors;
-if(data460 !== null){
-const err1459 = {instancePath:instancePath+"/refresh_status/diagnostic/location/source",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/location/anyOf/0/properties/source/anyOf/1/type",keyword:"type",params:{type: "null"},message:"must be null"};
-if(vErrors === null){
-vErrors = [err1459];
-}
-else {
-vErrors.push(err1459);
-}
-errors++;
-}
-var _valid58 = _errs1340 === errors;
-valid222 = valid222 || _valid58;
-if(!valid222){
-const err1460 = {instancePath:instancePath+"/refresh_status/diagnostic/location/source",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/location/anyOf/0/properties/source/anyOf",keyword:"anyOf",params:{},message:"must match a schema in anyOf"};
-if(vErrors === null){
-vErrors = [err1460];
-}
-else {
-vErrors.push(err1460);
-}
-errors++;
-}
-else {
-errors = _errs1337;
-if(vErrors !== null){
-if(_errs1337){
-vErrors.length = _errs1337;
-}
-else {
-vErrors = null;
-}
-}
-}
-var valid221 = _errs1336 === errors;
-}
-else {
-var valid221 = true;
-}
-if(valid221){
-if(data459.source_encoding !== undefined){
-let data461 = data459.source_encoding;
-const _errs1342 = errors;
-if(typeof data461 !== "string"){
-const err1461 = {instancePath:instancePath+"/refresh_status/diagnostic/location/source_encoding",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/location/anyOf/0/properties/source_encoding/type",keyword:"type",params:{type: "string"},message:"must be string"};
-if(vErrors === null){
-vErrors = [err1461];
-}
-else {
-vErrors.push(err1461);
-}
-errors++;
-}
-if(!((data461 === "utf8") || (data461 === "escaped_bytes"))){
-const err1462 = {instancePath:instancePath+"/refresh_status/diagnostic/location/source_encoding",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/location/anyOf/0/properties/source_encoding/enum",keyword:"enum",params:{allowedValues: schema52.oneOf[8].properties.refresh_status.properties.diagnostic.anyOf[0].properties.location.anyOf[0].properties.source_encoding.enum},message:"must be equal to one of the allowed values"};
-if(vErrors === null){
-vErrors = [err1462];
-}
-else {
-vErrors.push(err1462);
-}
-errors++;
-}
-var valid221 = _errs1342 === errors;
-}
-else {
-var valid221 = true;
-}
-if(valid221){
-if(data459.source_truncated !== undefined){
+let data469 = data311.diagnostic;
 const _errs1344 = errors;
-if(typeof data459.source_truncated !== "boolean"){
-const err1463 = {instancePath:instancePath+"/refresh_status/diagnostic/location/source_truncated",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/location/anyOf/0/properties/source_truncated/type",keyword:"type",params:{type: "boolean"},message:"must be boolean"};
-if(vErrors === null){
-vErrors = [err1463];
-}
-else {
-vErrors.push(err1463);
-}
-errors++;
-}
-var valid221 = _errs1344 === errors;
-}
-else {
-var valid221 = true;
-}
-if(valid221){
-if(data459.statement !== undefined){
-let data463 = data459.statement;
+const _errs1345 = errors;
+let valid220 = false;
 const _errs1346 = errors;
-const _errs1347 = errors;
-let valid223 = false;
+if(errors === _errs1346){
+if(data469 && typeof data469 == "object" && !Array.isArray(data469)){
+let missing131;
+if(((((((((data469.version === undefined) && (missing131 = "version")) || ((data469.definition === undefined) && (missing131 = "definition"))) || ((data469.code === undefined) && (missing131 = "code"))) || ((data469.category === undefined) && (missing131 = "category"))) || ((data469.stage === undefined) && (missing131 = "stage"))) || ((data469.outcome === undefined) && (missing131 = "outcome"))) || ((data469.evidence === undefined) && (missing131 = "evidence"))) || ((data469.message === undefined) && (missing131 = "message"))){
+const err1483 = {instancePath:instancePath+"/refresh_status/diagnostic",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/required",keyword:"required",params:{missingProperty: missing131},message:"must have required property '"+missing131+"'"};
+if(vErrors === null){
+vErrors = [err1483];
+}
+else {
+vErrors.push(err1483);
+}
+errors++;
+}
+else {
 const _errs1348 = errors;
-if(errors === _errs1348){
-if(typeof data463 === "string"){
-if(func2(data463) > 20){
-const err1464 = {instancePath:instancePath+"/refresh_status/diagnostic/location/statement",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/location/anyOf/0/properties/statement/anyOf/0/maxLength",keyword:"maxLength",params:{limit: 20},message:"must NOT have more than 20 characters"};
+for(const key133 in data469){
+if(!(func1.call(schema52.oneOf[8].properties.refresh_status.properties.diagnostic.anyOf[0].properties, key133))){
+const err1484 = {instancePath:instancePath+"/refresh_status/diagnostic",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/additionalProperties",keyword:"additionalProperties",params:{additionalProperty: key133},message:"must NOT have additional properties"};
 if(vErrors === null){
-vErrors = [err1464];
+vErrors = [err1484];
 }
 else {
-vErrors.push(err1464);
+vErrors.push(err1484);
+}
+errors++;
+break;
+}
+}
+if(_errs1348 === errors){
+if(data469.version !== undefined){
+const _errs1349 = errors;
+if(1 !== data469.version){
+const err1485 = {instancePath:instancePath+"/refresh_status/diagnostic/version",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/version/const",keyword:"const",params:{allowedValue: 1},message:"must be equal to constant"};
+if(vErrors === null){
+vErrors = [err1485];
+}
+else {
+vErrors.push(err1485);
 }
 errors++;
 }
-else {
-if(!pattern4.test(data463)){
-const err1465 = {instancePath:instancePath+"/refresh_status/diagnostic/location/statement",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/location/anyOf/0/properties/statement/anyOf/0/pattern",keyword:"pattern",params:{pattern: "^(0|[1-9][0-9]*)$"},message:"must match pattern \""+"^(0|[1-9][0-9]*)$"+"\""};
-if(vErrors === null){
-vErrors = [err1465];
-}
-else {
-vErrors.push(err1465);
-}
-errors++;
-}
-}
-}
-else {
-const err1466 = {instancePath:instancePath+"/refresh_status/diagnostic/location/statement",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/location/anyOf/0/properties/statement/anyOf/0/type",keyword:"type",params:{type: "string"},message:"must be string"};
-if(vErrors === null){
-vErrors = [err1466];
-}
-else {
-vErrors.push(err1466);
-}
-errors++;
-}
-}
-var _valid59 = _errs1348 === errors;
-valid223 = valid223 || _valid59;
-const _errs1350 = errors;
-if(data463 !== null){
-const err1467 = {instancePath:instancePath+"/refresh_status/diagnostic/location/statement",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/location/anyOf/0/properties/statement/anyOf/1/type",keyword:"type",params:{type: "null"},message:"must be null"};
-if(vErrors === null){
-vErrors = [err1467];
-}
-else {
-vErrors.push(err1467);
-}
-errors++;
-}
-var _valid59 = _errs1350 === errors;
-valid223 = valid223 || _valid59;
-if(!valid223){
-const err1468 = {instancePath:instancePath+"/refresh_status/diagnostic/location/statement",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/location/anyOf/0/properties/statement/anyOf",keyword:"anyOf",params:{},message:"must match a schema in anyOf"};
-if(vErrors === null){
-vErrors = [err1468];
-}
-else {
-vErrors.push(err1468);
-}
-errors++;
-}
-else {
-errors = _errs1347;
-if(vErrors !== null){
-if(_errs1347){
-vErrors.length = _errs1347;
-}
-else {
-vErrors = null;
-}
-}
-}
-var valid221 = _errs1346 === errors;
+var valid221 = _errs1349 === errors;
 }
 else {
 var valid221 = true;
 }
 if(valid221){
-if(data459.offset !== undefined){
-let data464 = data459.offset;
+if(data469.definition !== undefined){
+let data471 = data469.definition;
+const _errs1350 = errors;
+if(typeof data471 !== "string"){
+const err1486 = {instancePath:instancePath+"/refresh_status/diagnostic/definition",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/definition/type",keyword:"type",params:{type: "string"},message:"must be string"};
+if(vErrors === null){
+vErrors = [err1486];
+}
+else {
+vErrors.push(err1486);
+}
+errors++;
+}
+if(!(data471 === "692358a0bda42413cb14638010c0adea7edaa238aff1275e9557fcb38a37e741")){
+const err1487 = {instancePath:instancePath+"/refresh_status/diagnostic/definition",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/definition/enum",keyword:"enum",params:{allowedValues: schema52.oneOf[8].properties.refresh_status.properties.diagnostic.anyOf[0].properties.definition.enum},message:"must be equal to one of the allowed values"};
+if(vErrors === null){
+vErrors = [err1487];
+}
+else {
+vErrors.push(err1487);
+}
+errors++;
+}
+var valid221 = _errs1350 === errors;
+}
+else {
+var valid221 = true;
+}
+if(valid221){
+if(data469.code !== undefined){
+let data472 = data469.code;
 const _errs1352 = errors;
 if(errors === _errs1352){
-if(typeof data464 === "string"){
-if(func2(data464) > 20){
-const err1469 = {instancePath:instancePath+"/refresh_status/diagnostic/location/offset",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/location/anyOf/0/properties/offset/maxLength",keyword:"maxLength",params:{limit: 20},message:"must NOT have more than 20 characters"};
+if(typeof data472 === "string"){
+if(func2(data472) > 96){
+const err1488 = {instancePath:instancePath+"/refresh_status/diagnostic/code",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/code/maxLength",keyword:"maxLength",params:{limit: 96},message:"must NOT have more than 96 characters"};
 if(vErrors === null){
-vErrors = [err1469];
+vErrors = [err1488];
 }
 else {
-vErrors.push(err1469);
-}
-errors++;
-}
-else {
-if(!pattern4.test(data464)){
-const err1470 = {instancePath:instancePath+"/refresh_status/diagnostic/location/offset",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/location/anyOf/0/properties/offset/pattern",keyword:"pattern",params:{pattern: "^(0|[1-9][0-9]*)$"},message:"must match pattern \""+"^(0|[1-9][0-9]*)$"+"\""};
-if(vErrors === null){
-vErrors = [err1470];
-}
-else {
-vErrors.push(err1470);
+vErrors.push(err1488);
 }
 errors++;
 }
 }
-}
 else {
-const err1471 = {instancePath:instancePath+"/refresh_status/diagnostic/location/offset",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/location/anyOf/0/properties/offset/type",keyword:"type",params:{type: "string"},message:"must be string"};
+const err1489 = {instancePath:instancePath+"/refresh_status/diagnostic/code",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/code/type",keyword:"type",params:{type: "string"},message:"must be string"};
 if(vErrors === null){
-vErrors = [err1471];
+vErrors = [err1489];
 }
 else {
-vErrors.push(err1471);
+vErrors.push(err1489);
 }
 errors++;
 }
@@ -82016,301 +82285,11 @@ else {
 var valid221 = true;
 }
 if(valid221){
-if(data459.length !== undefined){
-let data465 = data459.length;
+if(data469.category !== undefined){
+let data473 = data469.category;
 const _errs1354 = errors;
-if(errors === _errs1354){
-if(typeof data465 === "string"){
-if(func2(data465) > 20){
-const err1472 = {instancePath:instancePath+"/refresh_status/diagnostic/location/length",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/location/anyOf/0/properties/length/maxLength",keyword:"maxLength",params:{limit: 20},message:"must NOT have more than 20 characters"};
-if(vErrors === null){
-vErrors = [err1472];
-}
-else {
-vErrors.push(err1472);
-}
-errors++;
-}
-else {
-if(!pattern4.test(data465)){
-const err1473 = {instancePath:instancePath+"/refresh_status/diagnostic/location/length",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/location/anyOf/0/properties/length/pattern",keyword:"pattern",params:{pattern: "^(0|[1-9][0-9]*)$"},message:"must match pattern \""+"^(0|[1-9][0-9]*)$"+"\""};
-if(vErrors === null){
-vErrors = [err1473];
-}
-else {
-vErrors.push(err1473);
-}
-errors++;
-}
-}
-}
-else {
-const err1474 = {instancePath:instancePath+"/refresh_status/diagnostic/location/length",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/location/anyOf/0/properties/length/type",keyword:"type",params:{type: "string"},message:"must be string"};
-if(vErrors === null){
-vErrors = [err1474];
-}
-else {
-vErrors.push(err1474);
-}
-errors++;
-}
-}
-var valid221 = _errs1354 === errors;
-}
-else {
-var valid221 = true;
-}
-if(valid221){
-if(data459.line !== undefined){
-let data466 = data459.line;
-const _errs1356 = errors;
-if(errors === _errs1356){
-if(typeof data466 === "string"){
-if(func2(data466) > 20){
-const err1475 = {instancePath:instancePath+"/refresh_status/diagnostic/location/line",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/location/anyOf/0/properties/line/maxLength",keyword:"maxLength",params:{limit: 20},message:"must NOT have more than 20 characters"};
-if(vErrors === null){
-vErrors = [err1475];
-}
-else {
-vErrors.push(err1475);
-}
-errors++;
-}
-else {
-if(!pattern4.test(data466)){
-const err1476 = {instancePath:instancePath+"/refresh_status/diagnostic/location/line",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/location/anyOf/0/properties/line/pattern",keyword:"pattern",params:{pattern: "^(0|[1-9][0-9]*)$"},message:"must match pattern \""+"^(0|[1-9][0-9]*)$"+"\""};
-if(vErrors === null){
-vErrors = [err1476];
-}
-else {
-vErrors.push(err1476);
-}
-errors++;
-}
-}
-}
-else {
-const err1477 = {instancePath:instancePath+"/refresh_status/diagnostic/location/line",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/location/anyOf/0/properties/line/type",keyword:"type",params:{type: "string"},message:"must be string"};
-if(vErrors === null){
-vErrors = [err1477];
-}
-else {
-vErrors.push(err1477);
-}
-errors++;
-}
-}
-var valid221 = _errs1356 === errors;
-}
-else {
-var valid221 = true;
-}
-if(valid221){
-if(data459.byte_column !== undefined){
-let data467 = data459.byte_column;
-const _errs1358 = errors;
-if(errors === _errs1358){
-if(typeof data467 === "string"){
-if(func2(data467) > 20){
-const err1478 = {instancePath:instancePath+"/refresh_status/diagnostic/location/byte_column",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/location/anyOf/0/properties/byte_column/maxLength",keyword:"maxLength",params:{limit: 20},message:"must NOT have more than 20 characters"};
-if(vErrors === null){
-vErrors = [err1478];
-}
-else {
-vErrors.push(err1478);
-}
-errors++;
-}
-else {
-if(!pattern4.test(data467)){
-const err1479 = {instancePath:instancePath+"/refresh_status/diagnostic/location/byte_column",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/location/anyOf/0/properties/byte_column/pattern",keyword:"pattern",params:{pattern: "^(0|[1-9][0-9]*)$"},message:"must match pattern \""+"^(0|[1-9][0-9]*)$"+"\""};
-if(vErrors === null){
-vErrors = [err1479];
-}
-else {
-vErrors.push(err1479);
-}
-errors++;
-}
-}
-}
-else {
-const err1480 = {instancePath:instancePath+"/refresh_status/diagnostic/location/byte_column",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/location/anyOf/0/properties/byte_column/type",keyword:"type",params:{type: "string"},message:"must be string"};
-if(vErrors === null){
-vErrors = [err1480];
-}
-else {
-vErrors.push(err1480);
-}
-errors++;
-}
-}
-var valid221 = _errs1358 === errors;
-}
-else {
-var valid221 = true;
-}
-}
-}
-}
-}
-}
-}
-}
-}
-}
-}
-else {
-const err1481 = {instancePath:instancePath+"/refresh_status/diagnostic/location",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/location/anyOf/0/type",keyword:"type",params:{type: "object"},message:"must be object"};
-if(vErrors === null){
-vErrors = [err1481];
-}
-else {
-vErrors.push(err1481);
-}
-errors++;
-}
-}
-var _valid57 = _errs1333 === errors;
-valid220 = valid220 || _valid57;
-const _errs1360 = errors;
-if(data459 !== null){
-const err1482 = {instancePath:instancePath+"/refresh_status/diagnostic/location",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/location/anyOf/1/type",keyword:"type",params:{type: "null"},message:"must be null"};
-if(vErrors === null){
-vErrors = [err1482];
-}
-else {
-vErrors.push(err1482);
-}
-errors++;
-}
-var _valid57 = _errs1360 === errors;
-valid220 = valid220 || _valid57;
-if(!valid220){
-const err1483 = {instancePath:instancePath+"/refresh_status/diagnostic/location",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/location/anyOf",keyword:"anyOf",params:{},message:"must match a schema in anyOf"};
-if(vErrors === null){
-vErrors = [err1483];
-}
-else {
-vErrors.push(err1483);
-}
-errors++;
-}
-else {
-errors = _errs1332;
-if(vErrors !== null){
-if(_errs1332){
-vErrors.length = _errs1332;
-}
-else {
-vErrors = null;
-}
-}
-}
-var valid213 = _errs1331 === errors;
-}
-else {
-var valid213 = true;
-}
-if(valid213){
-if(data443.facts !== undefined){
-let data468 = data443.facts;
-const _errs1362 = errors;
-if(errors === _errs1362){
-if(Array.isArray(data468)){
-if(data468.length > 16){
-const err1484 = {instancePath:instancePath+"/refresh_status/diagnostic/facts",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/facts/maxItems",keyword:"maxItems",params:{limit: 16},message:"must NOT have more than 16 items"};
-if(vErrors === null){
-vErrors = [err1484];
-}
-else {
-vErrors.push(err1484);
-}
-errors++;
-}
-else {
-if(data468.length < 16){
-const err1485 = {instancePath:instancePath+"/refresh_status/diagnostic/facts",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/facts/minItems",keyword:"minItems",params:{limit: 16},message:"must NOT have fewer than 16 items"};
-if(vErrors === null){
-vErrors = [err1485];
-}
-else {
-vErrors.push(err1485);
-}
-errors++;
-}
-else {
-var valid224 = true;
-const len36 = data468.length;
-for(let i36=0; i36<len36; i36++){
-let data469 = data468[i36];
-const _errs1364 = errors;
-const _errs1365 = errors;
-let valid225 = false;
-const _errs1366 = errors;
-if(errors === _errs1366){
-if(data469 && typeof data469 == "object" && !Array.isArray(data469)){
-let missing126;
-if(((((data469.field === undefined) && (missing126 = "field")) || ((data469.origin === undefined) && (missing126 = "origin"))) || ((data469.availability === undefined) && (missing126 = "availability"))) || ((data469.value === undefined) && (missing126 = "value"))){
-const err1486 = {instancePath:instancePath+"/refresh_status/diagnostic/facts/" + i36,schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/facts/items/anyOf/0/required",keyword:"required",params:{missingProperty: missing126},message:"must have required property '"+missing126+"'"};
-if(vErrors === null){
-vErrors = [err1486];
-}
-else {
-vErrors.push(err1486);
-}
-errors++;
-}
-else {
-const _errs1368 = errors;
-for(const key128 in data469){
-if(!((((key128 === "field") || (key128 === "origin")) || (key128 === "availability")) || (key128 === "value"))){
-const err1487 = {instancePath:instancePath+"/refresh_status/diagnostic/facts/" + i36,schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/facts/items/anyOf/0/additionalProperties",keyword:"additionalProperties",params:{additionalProperty: key128},message:"must NOT have additional properties"};
-if(vErrors === null){
-vErrors = [err1487];
-}
-else {
-vErrors.push(err1487);
-}
-errors++;
-break;
-}
-}
-if(_errs1368 === errors){
-if(data469.field !== undefined){
-let data470 = data469.field;
-const _errs1369 = errors;
-if(typeof data470 !== "string"){
-const err1488 = {instancePath:instancePath+"/refresh_status/diagnostic/facts/" + i36+"/field",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/field/type",keyword:"type",params:{type: "string"},message:"must be string"};
-if(vErrors === null){
-vErrors = [err1488];
-}
-else {
-vErrors.push(err1488);
-}
-errors++;
-}
-if(!(((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((data470 === "object") || (data470 === "name")) || (data470 === "table")) || (data470 === "native_input")) || (data470 === "affected_rows")) || (data470 === "argument")) || (data470 === "option")) || (data470 === "permissions")) || (data470 === "scope")) || (data470 === "column")) || (data470 === "qualifier")) || (data470 === "constraint")) || (data470 === "key")) || (data470 === "input_row")) || (data470 === "first_occurrence")) || (data470 === "parameter")) || (data470 === "parameter_use")) || (data470 === "expected_count")) || (data470 === "actual_count")) || (data470 === "expected_type")) || (data470 === "actual_type")) || (data470 === "supplied_value")) || (data470 === "expected_value")) || (data470 === "expression")) || (data470 === "source_kind")) || (data470 === "source_basis")) || (data470 === "source_key")) || (data470 === "source_row")) || (data470 === "field_path")) || (data470 === "byte_offset")) || (data470 === "expected_resource")) || (data470 === "actual_resource")) || (data470 === "expected_source")) || (data470 === "actual_source")) || (data470 === "expected_revision")) || (data470 === "actual_revision")) || (data470 === "expected_schema")) || (data470 === "actual_schema")) || (data470 === "expected_policy")) || (data470 === "actual_policy")) || (data470 === "budget")) || (data470 === "limit")) || (data470 === "required")) || (data470 === "unit")) || (data470 === "completed_statements")) || (data470 === "emitted_rows")) || (data470 === "emitted_segments")) || (data470 === "completion")) || (data470 === "proposal")) || (data470 === "step")) || (data470 === "generation")) || (data470 === "attachment")) || (data470 === "lease")) || (data470 === "schema_origin")) || (data470 === "sampling_records")) || (data470 === "operation")) || (data470 === "native_cause")) || (data470 === "expected_bytes")) || (data470 === "presence")) || (data470 === "published")) || (data470 === "subscription")) || (data470 === "expected_codec")) || (data470 === "actual_codec")) || (data470 === "observed_clock")) || (data470 === "expected_namespace")) || (data470 === "actual_namespace")) || (data470 === "attempt")) || (data470 === "executor")) || (data470 === "resolution_reason")) || (data470 === "principal")) || (data470 === "deadline")) || (data470 === "authorization_policy")) || (data470 === "resolution_policy")) || (data470 === "protocol_status")) || (data470 === "native_effect"))){
-const err1489 = {instancePath:instancePath+"/refresh_status/diagnostic/facts/" + i36+"/field",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/field/enum",keyword:"enum",params:{allowedValues: schema52.oneOf[8].properties.refresh_status.properties.diagnostic.anyOf[0].properties.facts.items.anyOf[0].properties.field.enum},message:"must be equal to one of the allowed values"};
-if(vErrors === null){
-vErrors = [err1489];
-}
-else {
-vErrors.push(err1489);
-}
-errors++;
-}
-var valid226 = _errs1369 === errors;
-}
-else {
-var valid226 = true;
-}
-if(valid226){
-if(data469.origin !== undefined){
-let data471 = data469.origin;
-const _errs1371 = errors;
-if(typeof data471 !== "string"){
-const err1490 = {instancePath:instancePath+"/refresh_status/diagnostic/facts/" + i36+"/origin",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/origin/type",keyword:"type",params:{type: "string"},message:"must be string"};
+if(typeof data473 !== "string"){
+const err1490 = {instancePath:instancePath+"/refresh_status/diagnostic/category",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/category/type",keyword:"type",params:{type: "string"},message:"must be string"};
 if(vErrors === null){
 vErrors = [err1490];
 }
@@ -82319,8 +82298,8 @@ vErrors.push(err1490);
 }
 errors++;
 }
-if(!(((((data471 === "caller") || (data471 === "execution")) || (data471 === "schema")) || (data471 === "authority")) || (data471 === "owner"))){
-const err1491 = {instancePath:instancePath+"/refresh_status/diagnostic/facts/" + i36+"/origin",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/origin/enum",keyword:"enum",params:{allowedValues: schema52.oneOf[8].properties.refresh_status.properties.diagnostic.anyOf[0].properties.facts.items.anyOf[0].properties.origin.enum},message:"must be equal to one of the allowed values"};
+if(!(((((((((((data473 === "syntax") || (data473 === "binding")) || (data473 === "unsupported")) || (data473 === "constraint")) || (data473 === "access")) || (data473 === "conflict")) || (data473 === "limit")) || (data473 === "lifecycle")) || (data473 === "integrity")) || (data473 === "unavailable")) || (data473 === "internal"))){
+const err1491 = {instancePath:instancePath+"/refresh_status/diagnostic/category",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/category/enum",keyword:"enum",params:{allowedValues: schema52.oneOf[8].properties.refresh_status.properties.diagnostic.anyOf[0].properties.category.enum},message:"must be equal to one of the allowed values"};
 if(vErrors === null){
 vErrors = [err1491];
 }
@@ -82329,17 +82308,17 @@ vErrors.push(err1491);
 }
 errors++;
 }
-var valid226 = _errs1371 === errors;
+var valid221 = _errs1354 === errors;
 }
 else {
-var valid226 = true;
+var valid221 = true;
 }
-if(valid226){
-if(data469.availability !== undefined){
-let data472 = data469.availability;
-const _errs1373 = errors;
-if(typeof data472 !== "string"){
-const err1492 = {instancePath:instancePath+"/refresh_status/diagnostic/facts/" + i36+"/availability",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/availability/type",keyword:"type",params:{type: "string"},message:"must be string"};
+if(valid221){
+if(data469.stage !== undefined){
+let data474 = data469.stage;
+const _errs1356 = errors;
+if(typeof data474 !== "string"){
+const err1492 = {instancePath:instancePath+"/refresh_status/diagnostic/stage",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/stage/type",keyword:"type",params:{type: "string"},message:"must be string"};
 if(vErrors === null){
 vErrors = [err1492];
 }
@@ -82348,8 +82327,8 @@ vErrors.push(err1492);
 }
 errors++;
 }
-if(!((((((data472 === "provided") || (data472 === "truncated")) || (data472 === "unrecorded")) || (data472 === "unavailable")) || (data472 === "withheld")) || (data472 === "inapplicable"))){
-const err1493 = {instancePath:instancePath+"/refresh_status/diagnostic/facts/" + i36+"/availability",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/availability/enum",keyword:"enum",params:{allowedValues: schema52.oneOf[8].properties.refresh_status.properties.diagnostic.anyOf[0].properties.facts.items.anyOf[0].properties.availability.enum},message:"must be equal to one of the allowed values"};
+if(!((((((((((((((data474 === "input") || (data474 === "parse")) || (data474 === "compile")) || (data474 === "bind")) || (data474 === "prepare")) || (data474 === "submit")) || (data474 === "admission")) || (data474 === "execute")) || (data474 === "read")) || (data474 === "decode")) || (data474 === "output")) || (data474 === "reconcile")) || (data474 === "cleanup")) || (data474 === "control"))){
+const err1493 = {instancePath:instancePath+"/refresh_status/diagnostic/stage",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/stage/enum",keyword:"enum",params:{allowedValues: schema52.oneOf[8].properties.refresh_status.properties.diagnostic.anyOf[0].properties.stage.enum},message:"must be equal to one of the allowed values"};
 if(vErrors === null){
 vErrors = [err1493];
 }
@@ -82358,27 +82337,17 @@ vErrors.push(err1493);
 }
 errors++;
 }
-var valid226 = _errs1373 === errors;
+var valid221 = _errs1356 === errors;
 }
 else {
-var valid226 = true;
+var valid221 = true;
 }
-if(valid226){
-if(data469.value !== undefined){
-let data473 = data469.value;
-const _errs1375 = errors;
-const _errs1376 = errors;
-let valid227 = false;
-const _errs1377 = errors;
-const _errs1378 = errors;
-let valid228 = false;
-let passing7 = null;
-const _errs1379 = errors;
-if(errors === _errs1379){
-if(data473 && typeof data473 == "object" && !Array.isArray(data473)){
-let missing127;
-if((data473.text === undefined) && (missing127 = "text")){
-const err1494 = {instancePath:instancePath+"/refresh_status/diagnostic/facts/" + i36+"/value",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf/0/required",keyword:"required",params:{missingProperty: missing127},message:"must have required property '"+missing127+"'"};
+if(valid221){
+if(data469.outcome !== undefined){
+let data475 = data469.outcome;
+const _errs1358 = errors;
+if(typeof data475 !== "string"){
+const err1494 = {instancePath:instancePath+"/refresh_status/diagnostic/outcome",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/outcome/type",keyword:"type",params:{type: "string"},message:"must be string"};
 if(vErrors === null){
 vErrors = [err1494];
 }
@@ -82387,11 +82356,8 @@ vErrors.push(err1494);
 }
 errors++;
 }
-else {
-const _errs1381 = errors;
-for(const key129 in data473){
-if(!(key129 === "text")){
-const err1495 = {instancePath:instancePath+"/refresh_status/diagnostic/facts/" + i36+"/value",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf/0/additionalProperties",keyword:"additionalProperties",params:{additionalProperty: key129},message:"must NOT have additional properties"};
+if(!((((((((((((((data475 === "not_applicable") || (data475 === "not_submitted")) || (data475 === "not_dispatched")) || (data475 === "prepared")) || (data475 === "unknown")) || (data475 === "pending")) || (data475 === "input_rejected")) || (data475 === "rejected")) || (data475 === "applied")) || (data475 === "completed")) || (data475 === "failed")) || (data475 === "cancelled")) || (data475 === "retired")) || (data475 === "closed_unknown"))){
+const err1495 = {instancePath:instancePath+"/refresh_status/diagnostic/outcome",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/outcome/enum",keyword:"enum",params:{allowedValues: schema52.oneOf[8].properties.refresh_status.properties.diagnostic.anyOf[0].properties.outcome.enum},message:"must be equal to one of the allowed values"};
 if(vErrors === null){
 vErrors = [err1495];
 }
@@ -82399,17 +82365,18 @@ else {
 vErrors.push(err1495);
 }
 errors++;
-break;
 }
+var valid221 = _errs1358 === errors;
 }
-if(_errs1381 === errors){
-if(data473.text !== undefined){
-let data474 = data473.text;
-const _errs1382 = errors;
-if(errors === _errs1382){
-if(typeof data474 === "string"){
-if(func2(data474) > 256){
-const err1496 = {instancePath:instancePath+"/refresh_status/diagnostic/facts/" + i36+"/value/text",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf/0/properties/text/maxLength",keyword:"maxLength",params:{limit: 256},message:"must NOT have more than 256 characters"};
+else {
+var valid221 = true;
+}
+if(valid221){
+if(data469.evidence !== undefined){
+let data476 = data469.evidence;
+const _errs1360 = errors;
+if(typeof data476 !== "string"){
+const err1496 = {instancePath:instancePath+"/refresh_status/diagnostic/evidence",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/evidence/type",keyword:"type",params:{type: "string"},message:"must be string"};
 if(vErrors === null){
 vErrors = [err1496];
 }
@@ -82418,9 +82385,8 @@ vErrors.push(err1496);
 }
 errors++;
 }
-}
-else {
-const err1497 = {instancePath:instancePath+"/refresh_status/diagnostic/facts/" + i36+"/value/text",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf/0/properties/text/type",keyword:"type",params:{type: "string"},message:"must be string"};
+if(!(((((data476 === "none") || (data476 === "local_before_dispatch")) || (data476 === "saved_intent")) || (data476 === "native_receipt")) || (data476 === "domain_status"))){
+const err1497 = {instancePath:instancePath+"/refresh_status/diagnostic/evidence",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/evidence/enum",keyword:"enum",params:{allowedValues: schema52.oneOf[8].properties.refresh_status.properties.diagnostic.anyOf[0].properties.evidence.enum},message:"must be equal to one of the allowed values"};
 if(vErrors === null){
 vErrors = [err1497];
 }
@@ -82429,13 +82395,19 @@ vErrors.push(err1497);
 }
 errors++;
 }
-}
-}
-}
-}
+var valid221 = _errs1360 === errors;
 }
 else {
-const err1498 = {instancePath:instancePath+"/refresh_status/diagnostic/facts/" + i36+"/value",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf/0/type",keyword:"type",params:{type: "object"},message:"must be object"};
+var valid221 = true;
+}
+if(valid221){
+if(data469.message !== undefined){
+let data477 = data469.message;
+const _errs1362 = errors;
+if(errors === _errs1362){
+if(typeof data477 === "string"){
+if(func2(data477) > 384){
+const err1498 = {instancePath:instancePath+"/refresh_status/diagnostic/message",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/message/maxLength",keyword:"maxLength",params:{limit: 384},message:"must NOT have more than 384 characters"};
 if(vErrors === null){
 vErrors = [err1498];
 }
@@ -82445,18 +82417,8 @@ vErrors.push(err1498);
 errors++;
 }
 }
-var _valid62 = _errs1379 === errors;
-if(_valid62){
-valid228 = true;
-passing7 = 0;
-var props28 = true;
-}
-const _errs1384 = errors;
-if(errors === _errs1384){
-if(data473 && typeof data473 == "object" && !Array.isArray(data473)){
-let missing128;
-if((data473.signed === undefined) && (missing128 = "signed")){
-const err1499 = {instancePath:instancePath+"/refresh_status/diagnostic/facts/" + i36+"/value",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf/1/required",keyword:"required",params:{missingProperty: missing128},message:"must have required property '"+missing128+"'"};
+else {
+const err1499 = {instancePath:instancePath+"/refresh_status/diagnostic/message",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/message/type",keyword:"type",params:{type: "string"},message:"must be string"};
 if(vErrors === null){
 vErrors = [err1499];
 }
@@ -82465,11 +82427,23 @@ vErrors.push(err1499);
 }
 errors++;
 }
+}
+var valid221 = _errs1362 === errors;
+}
 else {
-const _errs1386 = errors;
-for(const key130 in data473){
-if(!(key130 === "signed")){
-const err1500 = {instancePath:instancePath+"/refresh_status/diagnostic/facts/" + i36+"/value",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf/1/additionalProperties",keyword:"additionalProperties",params:{additionalProperty: key130},message:"must NOT have additional properties"};
+var valid221 = true;
+}
+if(valid221){
+if(data469.cause !== undefined){
+let data478 = data469.cause;
+const _errs1364 = errors;
+const _errs1365 = errors;
+let valid222 = false;
+const _errs1366 = errors;
+if(errors === _errs1366){
+if(typeof data478 === "string"){
+if(func2(data478) > 96){
+const err1500 = {instancePath:instancePath+"/refresh_status/diagnostic/cause",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/cause/anyOf/0/maxLength",keyword:"maxLength",params:{limit: 96},message:"must NOT have more than 96 characters"};
 if(vErrors === null){
 vErrors = [err1500];
 }
@@ -82477,17 +82451,10 @@ else {
 vErrors.push(err1500);
 }
 errors++;
-break;
 }
 }
-if(_errs1386 === errors){
-if(data473.signed !== undefined){
-let data475 = data473.signed;
-const _errs1387 = errors;
-if(errors === _errs1387){
-if(typeof data475 === "string"){
-if(func2(data475) > 20){
-const err1501 = {instancePath:instancePath+"/refresh_status/diagnostic/facts/" + i36+"/value/signed",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf/1/properties/signed/maxLength",keyword:"maxLength",params:{limit: 20},message:"must NOT have more than 20 characters"};
+else {
+const err1501 = {instancePath:instancePath+"/refresh_status/diagnostic/cause",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/cause/anyOf/0/type",keyword:"type",params:{type: "string"},message:"must be string"};
 if(vErrors === null){
 vErrors = [err1501];
 }
@@ -82496,9 +82463,12 @@ vErrors.push(err1501);
 }
 errors++;
 }
-else {
-if(!pattern13.test(data475)){
-const err1502 = {instancePath:instancePath+"/refresh_status/diagnostic/facts/" + i36+"/value/signed",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf/1/properties/signed/pattern",keyword:"pattern",params:{pattern: "^(0|-?[1-9][0-9]*)$"},message:"must match pattern \""+"^(0|-?[1-9][0-9]*)$"+"\""};
+}
+var _valid52 = _errs1366 === errors;
+valid222 = valid222 || _valid52;
+const _errs1368 = errors;
+if(data478 !== null){
+const err1502 = {instancePath:instancePath+"/refresh_status/diagnostic/cause",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/cause/anyOf/1/type",keyword:"type",params:{type: "null"},message:"must be null"};
 if(vErrors === null){
 vErrors = [err1502];
 }
@@ -82507,957 +82477,15 @@ vErrors.push(err1502);
 }
 errors++;
 }
-}
-}
-else {
-const err1503 = {instancePath:instancePath+"/refresh_status/diagnostic/facts/" + i36+"/value/signed",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf/1/properties/signed/type",keyword:"type",params:{type: "string"},message:"must be string"};
+var _valid52 = _errs1368 === errors;
+valid222 = valid222 || _valid52;
+if(!valid222){
+const err1503 = {instancePath:instancePath+"/refresh_status/diagnostic/cause",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/cause/anyOf",keyword:"anyOf",params:{},message:"must match a schema in anyOf"};
 if(vErrors === null){
 vErrors = [err1503];
 }
 else {
 vErrors.push(err1503);
-}
-errors++;
-}
-}
-}
-}
-}
-}
-else {
-const err1504 = {instancePath:instancePath+"/refresh_status/diagnostic/facts/" + i36+"/value",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf/1/type",keyword:"type",params:{type: "object"},message:"must be object"};
-if(vErrors === null){
-vErrors = [err1504];
-}
-else {
-vErrors.push(err1504);
-}
-errors++;
-}
-}
-var _valid62 = _errs1384 === errors;
-if(_valid62 && valid228){
-valid228 = false;
-passing7 = [passing7, 1];
-}
-else {
-if(_valid62){
-valid228 = true;
-passing7 = 1;
-if(props28 !== true){
-props28 = true;
-}
-}
-const _errs1389 = errors;
-if(errors === _errs1389){
-if(data473 && typeof data473 == "object" && !Array.isArray(data473)){
-let missing129;
-if((data473.unsigned === undefined) && (missing129 = "unsigned")){
-const err1505 = {instancePath:instancePath+"/refresh_status/diagnostic/facts/" + i36+"/value",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf/2/required",keyword:"required",params:{missingProperty: missing129},message:"must have required property '"+missing129+"'"};
-if(vErrors === null){
-vErrors = [err1505];
-}
-else {
-vErrors.push(err1505);
-}
-errors++;
-}
-else {
-const _errs1391 = errors;
-for(const key131 in data473){
-if(!(key131 === "unsigned")){
-const err1506 = {instancePath:instancePath+"/refresh_status/diagnostic/facts/" + i36+"/value",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf/2/additionalProperties",keyword:"additionalProperties",params:{additionalProperty: key131},message:"must NOT have additional properties"};
-if(vErrors === null){
-vErrors = [err1506];
-}
-else {
-vErrors.push(err1506);
-}
-errors++;
-break;
-}
-}
-if(_errs1391 === errors){
-if(data473.unsigned !== undefined){
-let data476 = data473.unsigned;
-const _errs1392 = errors;
-if(errors === _errs1392){
-if(typeof data476 === "string"){
-if(func2(data476) > 20){
-const err1507 = {instancePath:instancePath+"/refresh_status/diagnostic/facts/" + i36+"/value/unsigned",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf/2/properties/unsigned/maxLength",keyword:"maxLength",params:{limit: 20},message:"must NOT have more than 20 characters"};
-if(vErrors === null){
-vErrors = [err1507];
-}
-else {
-vErrors.push(err1507);
-}
-errors++;
-}
-else {
-if(!pattern4.test(data476)){
-const err1508 = {instancePath:instancePath+"/refresh_status/diagnostic/facts/" + i36+"/value/unsigned",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf/2/properties/unsigned/pattern",keyword:"pattern",params:{pattern: "^(0|[1-9][0-9]*)$"},message:"must match pattern \""+"^(0|[1-9][0-9]*)$"+"\""};
-if(vErrors === null){
-vErrors = [err1508];
-}
-else {
-vErrors.push(err1508);
-}
-errors++;
-}
-}
-}
-else {
-const err1509 = {instancePath:instancePath+"/refresh_status/diagnostic/facts/" + i36+"/value/unsigned",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf/2/properties/unsigned/type",keyword:"type",params:{type: "string"},message:"must be string"};
-if(vErrors === null){
-vErrors = [err1509];
-}
-else {
-vErrors.push(err1509);
-}
-errors++;
-}
-}
-}
-}
-}
-}
-else {
-const err1510 = {instancePath:instancePath+"/refresh_status/diagnostic/facts/" + i36+"/value",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf/2/type",keyword:"type",params:{type: "object"},message:"must be object"};
-if(vErrors === null){
-vErrors = [err1510];
-}
-else {
-vErrors.push(err1510);
-}
-errors++;
-}
-}
-var _valid62 = _errs1389 === errors;
-if(_valid62 && valid228){
-valid228 = false;
-passing7 = [passing7, 2];
-}
-else {
-if(_valid62){
-valid228 = true;
-passing7 = 2;
-if(props28 !== true){
-props28 = true;
-}
-}
-const _errs1394 = errors;
-if(errors === _errs1394){
-if(data473 && typeof data473 == "object" && !Array.isArray(data473)){
-let missing130;
-if((data473.boolean === undefined) && (missing130 = "boolean")){
-const err1511 = {instancePath:instancePath+"/refresh_status/diagnostic/facts/" + i36+"/value",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf/3/required",keyword:"required",params:{missingProperty: missing130},message:"must have required property '"+missing130+"'"};
-if(vErrors === null){
-vErrors = [err1511];
-}
-else {
-vErrors.push(err1511);
-}
-errors++;
-}
-else {
-const _errs1396 = errors;
-for(const key132 in data473){
-if(!(key132 === "boolean")){
-const err1512 = {instancePath:instancePath+"/refresh_status/diagnostic/facts/" + i36+"/value",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf/3/additionalProperties",keyword:"additionalProperties",params:{additionalProperty: key132},message:"must NOT have additional properties"};
-if(vErrors === null){
-vErrors = [err1512];
-}
-else {
-vErrors.push(err1512);
-}
-errors++;
-break;
-}
-}
-if(_errs1396 === errors){
-if(data473.boolean !== undefined){
-if(typeof data473.boolean !== "boolean"){
-const err1513 = {instancePath:instancePath+"/refresh_status/diagnostic/facts/" + i36+"/value/boolean",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf/3/properties/boolean/type",keyword:"type",params:{type: "boolean"},message:"must be boolean"};
-if(vErrors === null){
-vErrors = [err1513];
-}
-else {
-vErrors.push(err1513);
-}
-errors++;
-}
-}
-}
-}
-}
-else {
-const err1514 = {instancePath:instancePath+"/refresh_status/diagnostic/facts/" + i36+"/value",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf/3/type",keyword:"type",params:{type: "object"},message:"must be object"};
-if(vErrors === null){
-vErrors = [err1514];
-}
-else {
-vErrors.push(err1514);
-}
-errors++;
-}
-}
-var _valid62 = _errs1394 === errors;
-if(_valid62 && valid228){
-valid228 = false;
-passing7 = [passing7, 3];
-}
-else {
-if(_valid62){
-valid228 = true;
-passing7 = 3;
-if(props28 !== true){
-props28 = true;
-}
-}
-const _errs1399 = errors;
-if(errors === _errs1399){
-if(data473 && typeof data473 == "object" && !Array.isArray(data473)){
-let missing131;
-if((data473.digest === undefined) && (missing131 = "digest")){
-const err1515 = {instancePath:instancePath+"/refresh_status/diagnostic/facts/" + i36+"/value",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf/4/required",keyword:"required",params:{missingProperty: missing131},message:"must have required property '"+missing131+"'"};
-if(vErrors === null){
-vErrors = [err1515];
-}
-else {
-vErrors.push(err1515);
-}
-errors++;
-}
-else {
-const _errs1401 = errors;
-for(const key133 in data473){
-if(!(key133 === "digest")){
-const err1516 = {instancePath:instancePath+"/refresh_status/diagnostic/facts/" + i36+"/value",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf/4/additionalProperties",keyword:"additionalProperties",params:{additionalProperty: key133},message:"must NOT have additional properties"};
-if(vErrors === null){
-vErrors = [err1516];
-}
-else {
-vErrors.push(err1516);
-}
-errors++;
-break;
-}
-}
-if(_errs1401 === errors){
-if(data473.digest !== undefined){
-let data478 = data473.digest;
-const _errs1402 = errors;
-if(errors === _errs1402){
-if(Array.isArray(data478)){
-if(data478.length > 32){
-const err1517 = {instancePath:instancePath+"/refresh_status/diagnostic/facts/" + i36+"/value/digest",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf/4/properties/digest/maxItems",keyword:"maxItems",params:{limit: 32},message:"must NOT have more than 32 items"};
-if(vErrors === null){
-vErrors = [err1517];
-}
-else {
-vErrors.push(err1517);
-}
-errors++;
-}
-else {
-if(data478.length < 32){
-const err1518 = {instancePath:instancePath+"/refresh_status/diagnostic/facts/" + i36+"/value/digest",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf/4/properties/digest/minItems",keyword:"minItems",params:{limit: 32},message:"must NOT have fewer than 32 items"};
-if(vErrors === null){
-vErrors = [err1518];
-}
-else {
-vErrors.push(err1518);
-}
-errors++;
-}
-else {
-var valid234 = true;
-const len37 = data478.length;
-for(let i37=0; i37<len37; i37++){
-let data479 = data478[i37];
-const _errs1404 = errors;
-if(!(((typeof data479 == "number") && (!(data479 % 1) && !isNaN(data479))) && (isFinite(data479)))){
-const err1519 = {instancePath:instancePath+"/refresh_status/diagnostic/facts/" + i36+"/value/digest/" + i37,schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf/4/properties/digest/items/type",keyword:"type",params:{type: "integer"},message:"must be integer"};
-if(vErrors === null){
-vErrors = [err1519];
-}
-else {
-vErrors.push(err1519);
-}
-errors++;
-}
-if(errors === _errs1404){
-if((typeof data479 == "number") && (isFinite(data479))){
-if(data479 > 255 || isNaN(data479)){
-const err1520 = {instancePath:instancePath+"/refresh_status/diagnostic/facts/" + i36+"/value/digest/" + i37,schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf/4/properties/digest/items/maximum",keyword:"maximum",params:{comparison: "<=", limit: 255},message:"must be <= 255"};
-if(vErrors === null){
-vErrors = [err1520];
-}
-else {
-vErrors.push(err1520);
-}
-errors++;
-}
-else {
-if(data479 < 0 || isNaN(data479)){
-const err1521 = {instancePath:instancePath+"/refresh_status/diagnostic/facts/" + i36+"/value/digest/" + i37,schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf/4/properties/digest/items/minimum",keyword:"minimum",params:{comparison: ">=", limit: 0},message:"must be >= 0"};
-if(vErrors === null){
-vErrors = [err1521];
-}
-else {
-vErrors.push(err1521);
-}
-errors++;
-}
-}
-}
-}
-var valid234 = _errs1404 === errors;
-if(!valid234){
-break;
-}
-}
-}
-}
-}
-else {
-const err1522 = {instancePath:instancePath+"/refresh_status/diagnostic/facts/" + i36+"/value/digest",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf/4/properties/digest/type",keyword:"type",params:{type: "array"},message:"must be array"};
-if(vErrors === null){
-vErrors = [err1522];
-}
-else {
-vErrors.push(err1522);
-}
-errors++;
-}
-}
-}
-}
-}
-}
-else {
-const err1523 = {instancePath:instancePath+"/refresh_status/diagnostic/facts/" + i36+"/value",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf/4/type",keyword:"type",params:{type: "object"},message:"must be object"};
-if(vErrors === null){
-vErrors = [err1523];
-}
-else {
-vErrors.push(err1523);
-}
-errors++;
-}
-}
-var _valid62 = _errs1399 === errors;
-if(_valid62 && valid228){
-valid228 = false;
-passing7 = [passing7, 4];
-}
-else {
-if(_valid62){
-valid228 = true;
-passing7 = 4;
-if(props28 !== true){
-props28 = true;
-}
-}
-const _errs1406 = errors;
-if(errors === _errs1406){
-if(data473 && typeof data473 == "object" && !Array.isArray(data473)){
-let missing132;
-if((data473.location === undefined) && (missing132 = "location")){
-const err1524 = {instancePath:instancePath+"/refresh_status/diagnostic/facts/" + i36+"/value",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf/5/required",keyword:"required",params:{missingProperty: missing132},message:"must have required property '"+missing132+"'"};
-if(vErrors === null){
-vErrors = [err1524];
-}
-else {
-vErrors.push(err1524);
-}
-errors++;
-}
-else {
-const _errs1408 = errors;
-for(const key134 in data473){
-if(!(key134 === "location")){
-const err1525 = {instancePath:instancePath+"/refresh_status/diagnostic/facts/" + i36+"/value",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf/5/additionalProperties",keyword:"additionalProperties",params:{additionalProperty: key134},message:"must NOT have additional properties"};
-if(vErrors === null){
-vErrors = [err1525];
-}
-else {
-vErrors.push(err1525);
-}
-errors++;
-break;
-}
-}
-if(_errs1408 === errors){
-if(data473.location !== undefined){
-let data480 = data473.location;
-const _errs1409 = errors;
-if(errors === _errs1409){
-if(data480 && typeof data480 == "object" && !Array.isArray(data480)){
-let missing133;
-if(((((data480.offset === undefined) && (missing133 = "offset")) || ((data480.length === undefined) && (missing133 = "length"))) || ((data480.line === undefined) && (missing133 = "line"))) || ((data480.byte_column === undefined) && (missing133 = "byte_column"))){
-const err1526 = {instancePath:instancePath+"/refresh_status/diagnostic/facts/" + i36+"/value/location",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf/5/properties/location/required",keyword:"required",params:{missingProperty: missing133},message:"must have required property '"+missing133+"'"};
-if(vErrors === null){
-vErrors = [err1526];
-}
-else {
-vErrors.push(err1526);
-}
-errors++;
-}
-else {
-const _errs1411 = errors;
-for(const key135 in data480){
-if(!((((((((key135 === "source") || (key135 === "source_encoding")) || (key135 === "source_truncated")) || (key135 === "statement")) || (key135 === "offset")) || (key135 === "length")) || (key135 === "line")) || (key135 === "byte_column"))){
-const err1527 = {instancePath:instancePath+"/refresh_status/diagnostic/facts/" + i36+"/value/location",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf/5/properties/location/additionalProperties",keyword:"additionalProperties",params:{additionalProperty: key135},message:"must NOT have additional properties"};
-if(vErrors === null){
-vErrors = [err1527];
-}
-else {
-vErrors.push(err1527);
-}
-errors++;
-break;
-}
-}
-if(_errs1411 === errors){
-if(data480.source !== undefined){
-let data481 = data480.source;
-const _errs1412 = errors;
-const _errs1413 = errors;
-let valid237 = false;
-const _errs1414 = errors;
-if(errors === _errs1414){
-if(typeof data481 === "string"){
-if(func2(data481) > 512){
-const err1528 = {instancePath:instancePath+"/refresh_status/diagnostic/facts/" + i36+"/value/location/source",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf/5/properties/location/properties/source/anyOf/0/maxLength",keyword:"maxLength",params:{limit: 512},message:"must NOT have more than 512 characters"};
-if(vErrors === null){
-vErrors = [err1528];
-}
-else {
-vErrors.push(err1528);
-}
-errors++;
-}
-}
-else {
-const err1529 = {instancePath:instancePath+"/refresh_status/diagnostic/facts/" + i36+"/value/location/source",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf/5/properties/location/properties/source/anyOf/0/type",keyword:"type",params:{type: "string"},message:"must be string"};
-if(vErrors === null){
-vErrors = [err1529];
-}
-else {
-vErrors.push(err1529);
-}
-errors++;
-}
-}
-var _valid63 = _errs1414 === errors;
-valid237 = valid237 || _valid63;
-const _errs1416 = errors;
-if(data481 !== null){
-const err1530 = {instancePath:instancePath+"/refresh_status/diagnostic/facts/" + i36+"/value/location/source",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf/5/properties/location/properties/source/anyOf/1/type",keyword:"type",params:{type: "null"},message:"must be null"};
-if(vErrors === null){
-vErrors = [err1530];
-}
-else {
-vErrors.push(err1530);
-}
-errors++;
-}
-var _valid63 = _errs1416 === errors;
-valid237 = valid237 || _valid63;
-if(!valid237){
-const err1531 = {instancePath:instancePath+"/refresh_status/diagnostic/facts/" + i36+"/value/location/source",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf/5/properties/location/properties/source/anyOf",keyword:"anyOf",params:{},message:"must match a schema in anyOf"};
-if(vErrors === null){
-vErrors = [err1531];
-}
-else {
-vErrors.push(err1531);
-}
-errors++;
-}
-else {
-errors = _errs1413;
-if(vErrors !== null){
-if(_errs1413){
-vErrors.length = _errs1413;
-}
-else {
-vErrors = null;
-}
-}
-}
-var valid236 = _errs1412 === errors;
-}
-else {
-var valid236 = true;
-}
-if(valid236){
-if(data480.source_encoding !== undefined){
-let data482 = data480.source_encoding;
-const _errs1418 = errors;
-if(typeof data482 !== "string"){
-const err1532 = {instancePath:instancePath+"/refresh_status/diagnostic/facts/" + i36+"/value/location/source_encoding",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf/5/properties/location/properties/source_encoding/type",keyword:"type",params:{type: "string"},message:"must be string"};
-if(vErrors === null){
-vErrors = [err1532];
-}
-else {
-vErrors.push(err1532);
-}
-errors++;
-}
-if(!((data482 === "utf8") || (data482 === "escaped_bytes"))){
-const err1533 = {instancePath:instancePath+"/refresh_status/diagnostic/facts/" + i36+"/value/location/source_encoding",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf/5/properties/location/properties/source_encoding/enum",keyword:"enum",params:{allowedValues: schema52.oneOf[8].properties.refresh_status.properties.diagnostic.anyOf[0].properties.facts.items.anyOf[0].properties.value.anyOf[0].oneOf[5].properties.location.properties.source_encoding.enum},message:"must be equal to one of the allowed values"};
-if(vErrors === null){
-vErrors = [err1533];
-}
-else {
-vErrors.push(err1533);
-}
-errors++;
-}
-var valid236 = _errs1418 === errors;
-}
-else {
-var valid236 = true;
-}
-if(valid236){
-if(data480.source_truncated !== undefined){
-const _errs1420 = errors;
-if(typeof data480.source_truncated !== "boolean"){
-const err1534 = {instancePath:instancePath+"/refresh_status/diagnostic/facts/" + i36+"/value/location/source_truncated",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf/5/properties/location/properties/source_truncated/type",keyword:"type",params:{type: "boolean"},message:"must be boolean"};
-if(vErrors === null){
-vErrors = [err1534];
-}
-else {
-vErrors.push(err1534);
-}
-errors++;
-}
-var valid236 = _errs1420 === errors;
-}
-else {
-var valid236 = true;
-}
-if(valid236){
-if(data480.statement !== undefined){
-let data484 = data480.statement;
-const _errs1422 = errors;
-const _errs1423 = errors;
-let valid238 = false;
-const _errs1424 = errors;
-if(errors === _errs1424){
-if(typeof data484 === "string"){
-if(func2(data484) > 20){
-const err1535 = {instancePath:instancePath+"/refresh_status/diagnostic/facts/" + i36+"/value/location/statement",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf/5/properties/location/properties/statement/anyOf/0/maxLength",keyword:"maxLength",params:{limit: 20},message:"must NOT have more than 20 characters"};
-if(vErrors === null){
-vErrors = [err1535];
-}
-else {
-vErrors.push(err1535);
-}
-errors++;
-}
-else {
-if(!pattern4.test(data484)){
-const err1536 = {instancePath:instancePath+"/refresh_status/diagnostic/facts/" + i36+"/value/location/statement",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf/5/properties/location/properties/statement/anyOf/0/pattern",keyword:"pattern",params:{pattern: "^(0|[1-9][0-9]*)$"},message:"must match pattern \""+"^(0|[1-9][0-9]*)$"+"\""};
-if(vErrors === null){
-vErrors = [err1536];
-}
-else {
-vErrors.push(err1536);
-}
-errors++;
-}
-}
-}
-else {
-const err1537 = {instancePath:instancePath+"/refresh_status/diagnostic/facts/" + i36+"/value/location/statement",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf/5/properties/location/properties/statement/anyOf/0/type",keyword:"type",params:{type: "string"},message:"must be string"};
-if(vErrors === null){
-vErrors = [err1537];
-}
-else {
-vErrors.push(err1537);
-}
-errors++;
-}
-}
-var _valid64 = _errs1424 === errors;
-valid238 = valid238 || _valid64;
-const _errs1426 = errors;
-if(data484 !== null){
-const err1538 = {instancePath:instancePath+"/refresh_status/diagnostic/facts/" + i36+"/value/location/statement",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf/5/properties/location/properties/statement/anyOf/1/type",keyword:"type",params:{type: "null"},message:"must be null"};
-if(vErrors === null){
-vErrors = [err1538];
-}
-else {
-vErrors.push(err1538);
-}
-errors++;
-}
-var _valid64 = _errs1426 === errors;
-valid238 = valid238 || _valid64;
-if(!valid238){
-const err1539 = {instancePath:instancePath+"/refresh_status/diagnostic/facts/" + i36+"/value/location/statement",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf/5/properties/location/properties/statement/anyOf",keyword:"anyOf",params:{},message:"must match a schema in anyOf"};
-if(vErrors === null){
-vErrors = [err1539];
-}
-else {
-vErrors.push(err1539);
-}
-errors++;
-}
-else {
-errors = _errs1423;
-if(vErrors !== null){
-if(_errs1423){
-vErrors.length = _errs1423;
-}
-else {
-vErrors = null;
-}
-}
-}
-var valid236 = _errs1422 === errors;
-}
-else {
-var valid236 = true;
-}
-if(valid236){
-if(data480.offset !== undefined){
-let data485 = data480.offset;
-const _errs1428 = errors;
-if(errors === _errs1428){
-if(typeof data485 === "string"){
-if(func2(data485) > 20){
-const err1540 = {instancePath:instancePath+"/refresh_status/diagnostic/facts/" + i36+"/value/location/offset",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf/5/properties/location/properties/offset/maxLength",keyword:"maxLength",params:{limit: 20},message:"must NOT have more than 20 characters"};
-if(vErrors === null){
-vErrors = [err1540];
-}
-else {
-vErrors.push(err1540);
-}
-errors++;
-}
-else {
-if(!pattern4.test(data485)){
-const err1541 = {instancePath:instancePath+"/refresh_status/diagnostic/facts/" + i36+"/value/location/offset",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf/5/properties/location/properties/offset/pattern",keyword:"pattern",params:{pattern: "^(0|[1-9][0-9]*)$"},message:"must match pattern \""+"^(0|[1-9][0-9]*)$"+"\""};
-if(vErrors === null){
-vErrors = [err1541];
-}
-else {
-vErrors.push(err1541);
-}
-errors++;
-}
-}
-}
-else {
-const err1542 = {instancePath:instancePath+"/refresh_status/diagnostic/facts/" + i36+"/value/location/offset",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf/5/properties/location/properties/offset/type",keyword:"type",params:{type: "string"},message:"must be string"};
-if(vErrors === null){
-vErrors = [err1542];
-}
-else {
-vErrors.push(err1542);
-}
-errors++;
-}
-}
-var valid236 = _errs1428 === errors;
-}
-else {
-var valid236 = true;
-}
-if(valid236){
-if(data480.length !== undefined){
-let data486 = data480.length;
-const _errs1430 = errors;
-if(errors === _errs1430){
-if(typeof data486 === "string"){
-if(func2(data486) > 20){
-const err1543 = {instancePath:instancePath+"/refresh_status/diagnostic/facts/" + i36+"/value/location/length",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf/5/properties/location/properties/length/maxLength",keyword:"maxLength",params:{limit: 20},message:"must NOT have more than 20 characters"};
-if(vErrors === null){
-vErrors = [err1543];
-}
-else {
-vErrors.push(err1543);
-}
-errors++;
-}
-else {
-if(!pattern4.test(data486)){
-const err1544 = {instancePath:instancePath+"/refresh_status/diagnostic/facts/" + i36+"/value/location/length",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf/5/properties/location/properties/length/pattern",keyword:"pattern",params:{pattern: "^(0|[1-9][0-9]*)$"},message:"must match pattern \""+"^(0|[1-9][0-9]*)$"+"\""};
-if(vErrors === null){
-vErrors = [err1544];
-}
-else {
-vErrors.push(err1544);
-}
-errors++;
-}
-}
-}
-else {
-const err1545 = {instancePath:instancePath+"/refresh_status/diagnostic/facts/" + i36+"/value/location/length",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf/5/properties/location/properties/length/type",keyword:"type",params:{type: "string"},message:"must be string"};
-if(vErrors === null){
-vErrors = [err1545];
-}
-else {
-vErrors.push(err1545);
-}
-errors++;
-}
-}
-var valid236 = _errs1430 === errors;
-}
-else {
-var valid236 = true;
-}
-if(valid236){
-if(data480.line !== undefined){
-let data487 = data480.line;
-const _errs1432 = errors;
-if(errors === _errs1432){
-if(typeof data487 === "string"){
-if(func2(data487) > 20){
-const err1546 = {instancePath:instancePath+"/refresh_status/diagnostic/facts/" + i36+"/value/location/line",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf/5/properties/location/properties/line/maxLength",keyword:"maxLength",params:{limit: 20},message:"must NOT have more than 20 characters"};
-if(vErrors === null){
-vErrors = [err1546];
-}
-else {
-vErrors.push(err1546);
-}
-errors++;
-}
-else {
-if(!pattern4.test(data487)){
-const err1547 = {instancePath:instancePath+"/refresh_status/diagnostic/facts/" + i36+"/value/location/line",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf/5/properties/location/properties/line/pattern",keyword:"pattern",params:{pattern: "^(0|[1-9][0-9]*)$"},message:"must match pattern \""+"^(0|[1-9][0-9]*)$"+"\""};
-if(vErrors === null){
-vErrors = [err1547];
-}
-else {
-vErrors.push(err1547);
-}
-errors++;
-}
-}
-}
-else {
-const err1548 = {instancePath:instancePath+"/refresh_status/diagnostic/facts/" + i36+"/value/location/line",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf/5/properties/location/properties/line/type",keyword:"type",params:{type: "string"},message:"must be string"};
-if(vErrors === null){
-vErrors = [err1548];
-}
-else {
-vErrors.push(err1548);
-}
-errors++;
-}
-}
-var valid236 = _errs1432 === errors;
-}
-else {
-var valid236 = true;
-}
-if(valid236){
-if(data480.byte_column !== undefined){
-let data488 = data480.byte_column;
-const _errs1434 = errors;
-if(errors === _errs1434){
-if(typeof data488 === "string"){
-if(func2(data488) > 20){
-const err1549 = {instancePath:instancePath+"/refresh_status/diagnostic/facts/" + i36+"/value/location/byte_column",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf/5/properties/location/properties/byte_column/maxLength",keyword:"maxLength",params:{limit: 20},message:"must NOT have more than 20 characters"};
-if(vErrors === null){
-vErrors = [err1549];
-}
-else {
-vErrors.push(err1549);
-}
-errors++;
-}
-else {
-if(!pattern4.test(data488)){
-const err1550 = {instancePath:instancePath+"/refresh_status/diagnostic/facts/" + i36+"/value/location/byte_column",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf/5/properties/location/properties/byte_column/pattern",keyword:"pattern",params:{pattern: "^(0|[1-9][0-9]*)$"},message:"must match pattern \""+"^(0|[1-9][0-9]*)$"+"\""};
-if(vErrors === null){
-vErrors = [err1550];
-}
-else {
-vErrors.push(err1550);
-}
-errors++;
-}
-}
-}
-else {
-const err1551 = {instancePath:instancePath+"/refresh_status/diagnostic/facts/" + i36+"/value/location/byte_column",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf/5/properties/location/properties/byte_column/type",keyword:"type",params:{type: "string"},message:"must be string"};
-if(vErrors === null){
-vErrors = [err1551];
-}
-else {
-vErrors.push(err1551);
-}
-errors++;
-}
-}
-var valid236 = _errs1434 === errors;
-}
-else {
-var valid236 = true;
-}
-}
-}
-}
-}
-}
-}
-}
-}
-}
-}
-else {
-const err1552 = {instancePath:instancePath+"/refresh_status/diagnostic/facts/" + i36+"/value/location",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf/5/properties/location/type",keyword:"type",params:{type: "object"},message:"must be object"};
-if(vErrors === null){
-vErrors = [err1552];
-}
-else {
-vErrors.push(err1552);
-}
-errors++;
-}
-}
-}
-}
-}
-}
-else {
-const err1553 = {instancePath:instancePath+"/refresh_status/diagnostic/facts/" + i36+"/value",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf/5/type",keyword:"type",params:{type: "object"},message:"must be object"};
-if(vErrors === null){
-vErrors = [err1553];
-}
-else {
-vErrors.push(err1553);
-}
-errors++;
-}
-}
-var _valid62 = _errs1406 === errors;
-if(_valid62 && valid228){
-valid228 = false;
-passing7 = [passing7, 5];
-}
-else {
-if(_valid62){
-valid228 = true;
-passing7 = 5;
-if(props28 !== true){
-props28 = true;
-}
-}
-}
-}
-}
-}
-}
-if(!valid228){
-const err1554 = {instancePath:instancePath+"/refresh_status/diagnostic/facts/" + i36+"/value",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf",keyword:"oneOf",params:{passingSchemas: passing7},message:"must match exactly one schema in oneOf"};
-if(vErrors === null){
-vErrors = [err1554];
-}
-else {
-vErrors.push(err1554);
-}
-errors++;
-}
-else {
-errors = _errs1378;
-if(vErrors !== null){
-if(_errs1378){
-vErrors.length = _errs1378;
-}
-else {
-vErrors = null;
-}
-}
-}
-var _valid61 = _errs1377 === errors;
-valid227 = valid227 || _valid61;
-const _errs1436 = errors;
-if(data473 !== null){
-const err1555 = {instancePath:instancePath+"/refresh_status/diagnostic/facts/" + i36+"/value",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/1/type",keyword:"type",params:{type: "null"},message:"must be null"};
-if(vErrors === null){
-vErrors = [err1555];
-}
-else {
-vErrors.push(err1555);
-}
-errors++;
-}
-var _valid61 = _errs1436 === errors;
-valid227 = valid227 || _valid61;
-if(!valid227){
-const err1556 = {instancePath:instancePath+"/refresh_status/diagnostic/facts/" + i36+"/value",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf",keyword:"anyOf",params:{},message:"must match a schema in anyOf"};
-if(vErrors === null){
-vErrors = [err1556];
-}
-else {
-vErrors.push(err1556);
-}
-errors++;
-}
-else {
-errors = _errs1376;
-if(vErrors !== null){
-if(_errs1376){
-vErrors.length = _errs1376;
-}
-else {
-vErrors = null;
-}
-}
-}
-var valid226 = _errs1375 === errors;
-}
-else {
-var valid226 = true;
-}
-}
-}
-}
-}
-}
-}
-else {
-const err1557 = {instancePath:instancePath+"/refresh_status/diagnostic/facts/" + i36,schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/facts/items/anyOf/0/type",keyword:"type",params:{type: "object"},message:"must be object"};
-if(vErrors === null){
-vErrors = [err1557];
-}
-else {
-vErrors.push(err1557);
-}
-errors++;
-}
-}
-var _valid60 = _errs1366 === errors;
-valid225 = valid225 || _valid60;
-const _errs1438 = errors;
-if(data469 !== null){
-const err1558 = {instancePath:instancePath+"/refresh_status/diagnostic/facts/" + i36,schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/facts/items/anyOf/1/type",keyword:"type",params:{type: "null"},message:"must be null"};
-if(vErrors === null){
-vErrors = [err1558];
-}
-else {
-vErrors.push(err1558);
-}
-errors++;
-}
-var _valid60 = _errs1438 === errors;
-valid225 = valid225 || _valid60;
-if(!valid225){
-const err1559 = {instancePath:instancePath+"/refresh_status/diagnostic/facts/" + i36,schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/facts/items/anyOf",keyword:"anyOf",params:{},message:"must match a schema in anyOf"};
-if(vErrors === null){
-vErrors = [err1559];
-}
-else {
-vErrors.push(err1559);
 }
 errors++;
 }
@@ -83472,16 +82500,952 @@ vErrors = null;
 }
 }
 }
-var valid224 = _errs1364 === errors;
-if(!valid224){
+var valid221 = _errs1364 === errors;
+}
+else {
+var valid221 = true;
+}
+if(valid221){
+if(data469.identity !== undefined){
+let data479 = data469.identity;
+const _errs1370 = errors;
+const _errs1371 = errors;
+let valid223 = false;
+const _errs1372 = errors;
+if(errors === _errs1372){
+if(data479 && typeof data479 == "object" && !Array.isArray(data479)){
+let missing132;
+if(((data479.domain === undefined) && (missing132 = "domain")) || ((data479.id === undefined) && (missing132 = "id"))){
+const err1504 = {instancePath:instancePath+"/refresh_status/diagnostic/identity",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/identity/anyOf/0/required",keyword:"required",params:{missingProperty: missing132},message:"must have required property '"+missing132+"'"};
+if(vErrors === null){
+vErrors = [err1504];
+}
+else {
+vErrors.push(err1504);
+}
+errors++;
+}
+else {
+const _errs1374 = errors;
+for(const key134 in data479){
+if(!(((((key134 === "domain") || (key134 === "id")) || (key134 === "realm")) || (key134 === "resource")) || (key134 === "sequence"))){
+const err1505 = {instancePath:instancePath+"/refresh_status/diagnostic/identity",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/identity/anyOf/0/additionalProperties",keyword:"additionalProperties",params:{additionalProperty: key134},message:"must NOT have additional properties"};
+if(vErrors === null){
+vErrors = [err1505];
+}
+else {
+vErrors.push(err1505);
+}
+errors++;
 break;
+}
+}
+if(_errs1374 === errors){
+if(data479.domain !== undefined){
+let data480 = data479.domain;
+const _errs1375 = errors;
+if(typeof data480 !== "string"){
+const err1506 = {instancePath:instancePath+"/refresh_status/diagnostic/identity/domain",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/identity/anyOf/0/properties/domain/type",keyword:"type",params:{type: "string"},message:"must be string"};
+if(vErrors === null){
+vErrors = [err1506];
+}
+else {
+vErrors.push(err1506);
+}
+errors++;
+}
+if(!(((((((((((((data480 === "sql") || (data480 === "query")) || (data480 === "mutation")) || (data480 === "catalog")) || (data480 === "application")) || (data480 === "publication")) || (data480 === "migration")) || (data480 === "reactive")) || (data480 === "serving")) || (data480 === "effect")) || (data480 === "exchange")) || (data480 === "transport")) || (data480 === "internal"))){
+const err1507 = {instancePath:instancePath+"/refresh_status/diagnostic/identity/domain",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/identity/anyOf/0/properties/domain/enum",keyword:"enum",params:{allowedValues: schema52.oneOf[8].properties.refresh_status.properties.diagnostic.anyOf[0].properties.identity.anyOf[0].properties.domain.enum},message:"must be equal to one of the allowed values"};
+if(vErrors === null){
+vErrors = [err1507];
+}
+else {
+vErrors.push(err1507);
+}
+errors++;
+}
+var valid224 = _errs1375 === errors;
+}
+else {
+var valid224 = true;
+}
+if(valid224){
+if(data479.id !== undefined){
+let data481 = data479.id;
+const _errs1377 = errors;
+if(errors === _errs1377){
+if(typeof data481 === "string"){
+if(func2(data481) > 20){
+const err1508 = {instancePath:instancePath+"/refresh_status/diagnostic/identity/id",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/identity/anyOf/0/properties/id/maxLength",keyword:"maxLength",params:{limit: 20},message:"must NOT have more than 20 characters"};
+if(vErrors === null){
+vErrors = [err1508];
+}
+else {
+vErrors.push(err1508);
+}
+errors++;
+}
+else {
+if(!pattern4.test(data481)){
+const err1509 = {instancePath:instancePath+"/refresh_status/diagnostic/identity/id",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/identity/anyOf/0/properties/id/pattern",keyword:"pattern",params:{pattern: "^(0|[1-9][0-9]*)$"},message:"must match pattern \""+"^(0|[1-9][0-9]*)$"+"\""};
+if(vErrors === null){
+vErrors = [err1509];
+}
+else {
+vErrors.push(err1509);
+}
+errors++;
+}
+}
+}
+else {
+const err1510 = {instancePath:instancePath+"/refresh_status/diagnostic/identity/id",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/identity/anyOf/0/properties/id/type",keyword:"type",params:{type: "string"},message:"must be string"};
+if(vErrors === null){
+vErrors = [err1510];
+}
+else {
+vErrors.push(err1510);
+}
+errors++;
+}
+}
+var valid224 = _errs1377 === errors;
+}
+else {
+var valid224 = true;
+}
+if(valid224){
+if(data479.realm !== undefined){
+let data482 = data479.realm;
+const _errs1379 = errors;
+const _errs1380 = errors;
+let valid225 = false;
+const _errs1381 = errors;
+if(errors === _errs1381){
+if(typeof data482 === "string"){
+if(func2(data482) > 20){
+const err1511 = {instancePath:instancePath+"/refresh_status/diagnostic/identity/realm",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/identity/anyOf/0/properties/realm/anyOf/0/maxLength",keyword:"maxLength",params:{limit: 20},message:"must NOT have more than 20 characters"};
+if(vErrors === null){
+vErrors = [err1511];
+}
+else {
+vErrors.push(err1511);
+}
+errors++;
+}
+else {
+if(!pattern4.test(data482)){
+const err1512 = {instancePath:instancePath+"/refresh_status/diagnostic/identity/realm",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/identity/anyOf/0/properties/realm/anyOf/0/pattern",keyword:"pattern",params:{pattern: "^(0|[1-9][0-9]*)$"},message:"must match pattern \""+"^(0|[1-9][0-9]*)$"+"\""};
+if(vErrors === null){
+vErrors = [err1512];
+}
+else {
+vErrors.push(err1512);
+}
+errors++;
+}
+}
+}
+else {
+const err1513 = {instancePath:instancePath+"/refresh_status/diagnostic/identity/realm",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/identity/anyOf/0/properties/realm/anyOf/0/type",keyword:"type",params:{type: "string"},message:"must be string"};
+if(vErrors === null){
+vErrors = [err1513];
+}
+else {
+vErrors.push(err1513);
+}
+errors++;
+}
+}
+var _valid54 = _errs1381 === errors;
+valid225 = valid225 || _valid54;
+const _errs1383 = errors;
+if(data482 !== null){
+const err1514 = {instancePath:instancePath+"/refresh_status/diagnostic/identity/realm",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/identity/anyOf/0/properties/realm/anyOf/1/type",keyword:"type",params:{type: "null"},message:"must be null"};
+if(vErrors === null){
+vErrors = [err1514];
+}
+else {
+vErrors.push(err1514);
+}
+errors++;
+}
+var _valid54 = _errs1383 === errors;
+valid225 = valid225 || _valid54;
+if(!valid225){
+const err1515 = {instancePath:instancePath+"/refresh_status/diagnostic/identity/realm",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/identity/anyOf/0/properties/realm/anyOf",keyword:"anyOf",params:{},message:"must match a schema in anyOf"};
+if(vErrors === null){
+vErrors = [err1515];
+}
+else {
+vErrors.push(err1515);
+}
+errors++;
+}
+else {
+errors = _errs1380;
+if(vErrors !== null){
+if(_errs1380){
+vErrors.length = _errs1380;
+}
+else {
+vErrors = null;
+}
+}
+}
+var valid224 = _errs1379 === errors;
+}
+else {
+var valid224 = true;
+}
+if(valid224){
+if(data479.resource !== undefined){
+let data483 = data479.resource;
+const _errs1385 = errors;
+const _errs1386 = errors;
+let valid226 = false;
+const _errs1387 = errors;
+if(errors === _errs1387){
+if(typeof data483 === "string"){
+if(func2(data483) > 20){
+const err1516 = {instancePath:instancePath+"/refresh_status/diagnostic/identity/resource",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/identity/anyOf/0/properties/resource/anyOf/0/maxLength",keyword:"maxLength",params:{limit: 20},message:"must NOT have more than 20 characters"};
+if(vErrors === null){
+vErrors = [err1516];
+}
+else {
+vErrors.push(err1516);
+}
+errors++;
+}
+else {
+if(!pattern4.test(data483)){
+const err1517 = {instancePath:instancePath+"/refresh_status/diagnostic/identity/resource",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/identity/anyOf/0/properties/resource/anyOf/0/pattern",keyword:"pattern",params:{pattern: "^(0|[1-9][0-9]*)$"},message:"must match pattern \""+"^(0|[1-9][0-9]*)$"+"\""};
+if(vErrors === null){
+vErrors = [err1517];
+}
+else {
+vErrors.push(err1517);
+}
+errors++;
+}
+}
+}
+else {
+const err1518 = {instancePath:instancePath+"/refresh_status/diagnostic/identity/resource",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/identity/anyOf/0/properties/resource/anyOf/0/type",keyword:"type",params:{type: "string"},message:"must be string"};
+if(vErrors === null){
+vErrors = [err1518];
+}
+else {
+vErrors.push(err1518);
+}
+errors++;
+}
+}
+var _valid55 = _errs1387 === errors;
+valid226 = valid226 || _valid55;
+const _errs1389 = errors;
+if(data483 !== null){
+const err1519 = {instancePath:instancePath+"/refresh_status/diagnostic/identity/resource",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/identity/anyOf/0/properties/resource/anyOf/1/type",keyword:"type",params:{type: "null"},message:"must be null"};
+if(vErrors === null){
+vErrors = [err1519];
+}
+else {
+vErrors.push(err1519);
+}
+errors++;
+}
+var _valid55 = _errs1389 === errors;
+valid226 = valid226 || _valid55;
+if(!valid226){
+const err1520 = {instancePath:instancePath+"/refresh_status/diagnostic/identity/resource",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/identity/anyOf/0/properties/resource/anyOf",keyword:"anyOf",params:{},message:"must match a schema in anyOf"};
+if(vErrors === null){
+vErrors = [err1520];
+}
+else {
+vErrors.push(err1520);
+}
+errors++;
+}
+else {
+errors = _errs1386;
+if(vErrors !== null){
+if(_errs1386){
+vErrors.length = _errs1386;
+}
+else {
+vErrors = null;
+}
+}
+}
+var valid224 = _errs1385 === errors;
+}
+else {
+var valid224 = true;
+}
+if(valid224){
+if(data479.sequence !== undefined){
+let data484 = data479.sequence;
+const _errs1391 = errors;
+const _errs1392 = errors;
+let valid227 = false;
+const _errs1393 = errors;
+if(errors === _errs1393){
+if(typeof data484 === "string"){
+if(func2(data484) > 20){
+const err1521 = {instancePath:instancePath+"/refresh_status/diagnostic/identity/sequence",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/identity/anyOf/0/properties/sequence/anyOf/0/maxLength",keyword:"maxLength",params:{limit: 20},message:"must NOT have more than 20 characters"};
+if(vErrors === null){
+vErrors = [err1521];
+}
+else {
+vErrors.push(err1521);
+}
+errors++;
+}
+else {
+if(!pattern4.test(data484)){
+const err1522 = {instancePath:instancePath+"/refresh_status/diagnostic/identity/sequence",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/identity/anyOf/0/properties/sequence/anyOf/0/pattern",keyword:"pattern",params:{pattern: "^(0|[1-9][0-9]*)$"},message:"must match pattern \""+"^(0|[1-9][0-9]*)$"+"\""};
+if(vErrors === null){
+vErrors = [err1522];
+}
+else {
+vErrors.push(err1522);
+}
+errors++;
+}
+}
+}
+else {
+const err1523 = {instancePath:instancePath+"/refresh_status/diagnostic/identity/sequence",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/identity/anyOf/0/properties/sequence/anyOf/0/type",keyword:"type",params:{type: "string"},message:"must be string"};
+if(vErrors === null){
+vErrors = [err1523];
+}
+else {
+vErrors.push(err1523);
+}
+errors++;
+}
+}
+var _valid56 = _errs1393 === errors;
+valid227 = valid227 || _valid56;
+const _errs1395 = errors;
+if(data484 !== null){
+const err1524 = {instancePath:instancePath+"/refresh_status/diagnostic/identity/sequence",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/identity/anyOf/0/properties/sequence/anyOf/1/type",keyword:"type",params:{type: "null"},message:"must be null"};
+if(vErrors === null){
+vErrors = [err1524];
+}
+else {
+vErrors.push(err1524);
+}
+errors++;
+}
+var _valid56 = _errs1395 === errors;
+valid227 = valid227 || _valid56;
+if(!valid227){
+const err1525 = {instancePath:instancePath+"/refresh_status/diagnostic/identity/sequence",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/identity/anyOf/0/properties/sequence/anyOf",keyword:"anyOf",params:{},message:"must match a schema in anyOf"};
+if(vErrors === null){
+vErrors = [err1525];
+}
+else {
+vErrors.push(err1525);
+}
+errors++;
+}
+else {
+errors = _errs1392;
+if(vErrors !== null){
+if(_errs1392){
+vErrors.length = _errs1392;
+}
+else {
+vErrors = null;
+}
+}
+}
+var valid224 = _errs1391 === errors;
+}
+else {
+var valid224 = true;
+}
+}
+}
 }
 }
 }
 }
 }
 else {
-const err1560 = {instancePath:instancePath+"/refresh_status/diagnostic/facts",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/facts/type",keyword:"type",params:{type: "array"},message:"must be array"};
+const err1526 = {instancePath:instancePath+"/refresh_status/diagnostic/identity",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/identity/anyOf/0/type",keyword:"type",params:{type: "object"},message:"must be object"};
+if(vErrors === null){
+vErrors = [err1526];
+}
+else {
+vErrors.push(err1526);
+}
+errors++;
+}
+}
+var _valid53 = _errs1372 === errors;
+valid223 = valid223 || _valid53;
+const _errs1397 = errors;
+if(data479 !== null){
+const err1527 = {instancePath:instancePath+"/refresh_status/diagnostic/identity",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/identity/anyOf/1/type",keyword:"type",params:{type: "null"},message:"must be null"};
+if(vErrors === null){
+vErrors = [err1527];
+}
+else {
+vErrors.push(err1527);
+}
+errors++;
+}
+var _valid53 = _errs1397 === errors;
+valid223 = valid223 || _valid53;
+if(!valid223){
+const err1528 = {instancePath:instancePath+"/refresh_status/diagnostic/identity",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/identity/anyOf",keyword:"anyOf",params:{},message:"must match a schema in anyOf"};
+if(vErrors === null){
+vErrors = [err1528];
+}
+else {
+vErrors.push(err1528);
+}
+errors++;
+}
+else {
+errors = _errs1371;
+if(vErrors !== null){
+if(_errs1371){
+vErrors.length = _errs1371;
+}
+else {
+vErrors = null;
+}
+}
+}
+var valid221 = _errs1370 === errors;
+}
+else {
+var valid221 = true;
+}
+if(valid221){
+if(data469.location !== undefined){
+let data485 = data469.location;
+const _errs1399 = errors;
+const _errs1400 = errors;
+let valid228 = false;
+const _errs1401 = errors;
+if(errors === _errs1401){
+if(data485 && typeof data485 == "object" && !Array.isArray(data485)){
+let missing133;
+if(((((data485.offset === undefined) && (missing133 = "offset")) || ((data485.length === undefined) && (missing133 = "length"))) || ((data485.line === undefined) && (missing133 = "line"))) || ((data485.byte_column === undefined) && (missing133 = "byte_column"))){
+const err1529 = {instancePath:instancePath+"/refresh_status/diagnostic/location",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/location/anyOf/0/required",keyword:"required",params:{missingProperty: missing133},message:"must have required property '"+missing133+"'"};
+if(vErrors === null){
+vErrors = [err1529];
+}
+else {
+vErrors.push(err1529);
+}
+errors++;
+}
+else {
+const _errs1403 = errors;
+for(const key135 in data485){
+if(!((((((((key135 === "source") || (key135 === "source_encoding")) || (key135 === "source_truncated")) || (key135 === "statement")) || (key135 === "offset")) || (key135 === "length")) || (key135 === "line")) || (key135 === "byte_column"))){
+const err1530 = {instancePath:instancePath+"/refresh_status/diagnostic/location",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/location/anyOf/0/additionalProperties",keyword:"additionalProperties",params:{additionalProperty: key135},message:"must NOT have additional properties"};
+if(vErrors === null){
+vErrors = [err1530];
+}
+else {
+vErrors.push(err1530);
+}
+errors++;
+break;
+}
+}
+if(_errs1403 === errors){
+if(data485.source !== undefined){
+let data486 = data485.source;
+const _errs1404 = errors;
+const _errs1405 = errors;
+let valid230 = false;
+const _errs1406 = errors;
+if(errors === _errs1406){
+if(typeof data486 === "string"){
+if(func2(data486) > 512){
+const err1531 = {instancePath:instancePath+"/refresh_status/diagnostic/location/source",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/location/anyOf/0/properties/source/anyOf/0/maxLength",keyword:"maxLength",params:{limit: 512},message:"must NOT have more than 512 characters"};
+if(vErrors === null){
+vErrors = [err1531];
+}
+else {
+vErrors.push(err1531);
+}
+errors++;
+}
+}
+else {
+const err1532 = {instancePath:instancePath+"/refresh_status/diagnostic/location/source",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/location/anyOf/0/properties/source/anyOf/0/type",keyword:"type",params:{type: "string"},message:"must be string"};
+if(vErrors === null){
+vErrors = [err1532];
+}
+else {
+vErrors.push(err1532);
+}
+errors++;
+}
+}
+var _valid58 = _errs1406 === errors;
+valid230 = valid230 || _valid58;
+const _errs1408 = errors;
+if(data486 !== null){
+const err1533 = {instancePath:instancePath+"/refresh_status/diagnostic/location/source",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/location/anyOf/0/properties/source/anyOf/1/type",keyword:"type",params:{type: "null"},message:"must be null"};
+if(vErrors === null){
+vErrors = [err1533];
+}
+else {
+vErrors.push(err1533);
+}
+errors++;
+}
+var _valid58 = _errs1408 === errors;
+valid230 = valid230 || _valid58;
+if(!valid230){
+const err1534 = {instancePath:instancePath+"/refresh_status/diagnostic/location/source",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/location/anyOf/0/properties/source/anyOf",keyword:"anyOf",params:{},message:"must match a schema in anyOf"};
+if(vErrors === null){
+vErrors = [err1534];
+}
+else {
+vErrors.push(err1534);
+}
+errors++;
+}
+else {
+errors = _errs1405;
+if(vErrors !== null){
+if(_errs1405){
+vErrors.length = _errs1405;
+}
+else {
+vErrors = null;
+}
+}
+}
+var valid229 = _errs1404 === errors;
+}
+else {
+var valid229 = true;
+}
+if(valid229){
+if(data485.source_encoding !== undefined){
+let data487 = data485.source_encoding;
+const _errs1410 = errors;
+if(typeof data487 !== "string"){
+const err1535 = {instancePath:instancePath+"/refresh_status/diagnostic/location/source_encoding",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/location/anyOf/0/properties/source_encoding/type",keyword:"type",params:{type: "string"},message:"must be string"};
+if(vErrors === null){
+vErrors = [err1535];
+}
+else {
+vErrors.push(err1535);
+}
+errors++;
+}
+if(!((data487 === "utf8") || (data487 === "escaped_bytes"))){
+const err1536 = {instancePath:instancePath+"/refresh_status/diagnostic/location/source_encoding",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/location/anyOf/0/properties/source_encoding/enum",keyword:"enum",params:{allowedValues: schema52.oneOf[8].properties.refresh_status.properties.diagnostic.anyOf[0].properties.location.anyOf[0].properties.source_encoding.enum},message:"must be equal to one of the allowed values"};
+if(vErrors === null){
+vErrors = [err1536];
+}
+else {
+vErrors.push(err1536);
+}
+errors++;
+}
+var valid229 = _errs1410 === errors;
+}
+else {
+var valid229 = true;
+}
+if(valid229){
+if(data485.source_truncated !== undefined){
+const _errs1412 = errors;
+if(typeof data485.source_truncated !== "boolean"){
+const err1537 = {instancePath:instancePath+"/refresh_status/diagnostic/location/source_truncated",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/location/anyOf/0/properties/source_truncated/type",keyword:"type",params:{type: "boolean"},message:"must be boolean"};
+if(vErrors === null){
+vErrors = [err1537];
+}
+else {
+vErrors.push(err1537);
+}
+errors++;
+}
+var valid229 = _errs1412 === errors;
+}
+else {
+var valid229 = true;
+}
+if(valid229){
+if(data485.statement !== undefined){
+let data489 = data485.statement;
+const _errs1414 = errors;
+const _errs1415 = errors;
+let valid231 = false;
+const _errs1416 = errors;
+if(errors === _errs1416){
+if(typeof data489 === "string"){
+if(func2(data489) > 20){
+const err1538 = {instancePath:instancePath+"/refresh_status/diagnostic/location/statement",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/location/anyOf/0/properties/statement/anyOf/0/maxLength",keyword:"maxLength",params:{limit: 20},message:"must NOT have more than 20 characters"};
+if(vErrors === null){
+vErrors = [err1538];
+}
+else {
+vErrors.push(err1538);
+}
+errors++;
+}
+else {
+if(!pattern4.test(data489)){
+const err1539 = {instancePath:instancePath+"/refresh_status/diagnostic/location/statement",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/location/anyOf/0/properties/statement/anyOf/0/pattern",keyword:"pattern",params:{pattern: "^(0|[1-9][0-9]*)$"},message:"must match pattern \""+"^(0|[1-9][0-9]*)$"+"\""};
+if(vErrors === null){
+vErrors = [err1539];
+}
+else {
+vErrors.push(err1539);
+}
+errors++;
+}
+}
+}
+else {
+const err1540 = {instancePath:instancePath+"/refresh_status/diagnostic/location/statement",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/location/anyOf/0/properties/statement/anyOf/0/type",keyword:"type",params:{type: "string"},message:"must be string"};
+if(vErrors === null){
+vErrors = [err1540];
+}
+else {
+vErrors.push(err1540);
+}
+errors++;
+}
+}
+var _valid59 = _errs1416 === errors;
+valid231 = valid231 || _valid59;
+const _errs1418 = errors;
+if(data489 !== null){
+const err1541 = {instancePath:instancePath+"/refresh_status/diagnostic/location/statement",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/location/anyOf/0/properties/statement/anyOf/1/type",keyword:"type",params:{type: "null"},message:"must be null"};
+if(vErrors === null){
+vErrors = [err1541];
+}
+else {
+vErrors.push(err1541);
+}
+errors++;
+}
+var _valid59 = _errs1418 === errors;
+valid231 = valid231 || _valid59;
+if(!valid231){
+const err1542 = {instancePath:instancePath+"/refresh_status/diagnostic/location/statement",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/location/anyOf/0/properties/statement/anyOf",keyword:"anyOf",params:{},message:"must match a schema in anyOf"};
+if(vErrors === null){
+vErrors = [err1542];
+}
+else {
+vErrors.push(err1542);
+}
+errors++;
+}
+else {
+errors = _errs1415;
+if(vErrors !== null){
+if(_errs1415){
+vErrors.length = _errs1415;
+}
+else {
+vErrors = null;
+}
+}
+}
+var valid229 = _errs1414 === errors;
+}
+else {
+var valid229 = true;
+}
+if(valid229){
+if(data485.offset !== undefined){
+let data490 = data485.offset;
+const _errs1420 = errors;
+if(errors === _errs1420){
+if(typeof data490 === "string"){
+if(func2(data490) > 20){
+const err1543 = {instancePath:instancePath+"/refresh_status/diagnostic/location/offset",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/location/anyOf/0/properties/offset/maxLength",keyword:"maxLength",params:{limit: 20},message:"must NOT have more than 20 characters"};
+if(vErrors === null){
+vErrors = [err1543];
+}
+else {
+vErrors.push(err1543);
+}
+errors++;
+}
+else {
+if(!pattern4.test(data490)){
+const err1544 = {instancePath:instancePath+"/refresh_status/diagnostic/location/offset",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/location/anyOf/0/properties/offset/pattern",keyword:"pattern",params:{pattern: "^(0|[1-9][0-9]*)$"},message:"must match pattern \""+"^(0|[1-9][0-9]*)$"+"\""};
+if(vErrors === null){
+vErrors = [err1544];
+}
+else {
+vErrors.push(err1544);
+}
+errors++;
+}
+}
+}
+else {
+const err1545 = {instancePath:instancePath+"/refresh_status/diagnostic/location/offset",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/location/anyOf/0/properties/offset/type",keyword:"type",params:{type: "string"},message:"must be string"};
+if(vErrors === null){
+vErrors = [err1545];
+}
+else {
+vErrors.push(err1545);
+}
+errors++;
+}
+}
+var valid229 = _errs1420 === errors;
+}
+else {
+var valid229 = true;
+}
+if(valid229){
+if(data485.length !== undefined){
+let data491 = data485.length;
+const _errs1422 = errors;
+if(errors === _errs1422){
+if(typeof data491 === "string"){
+if(func2(data491) > 20){
+const err1546 = {instancePath:instancePath+"/refresh_status/diagnostic/location/length",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/location/anyOf/0/properties/length/maxLength",keyword:"maxLength",params:{limit: 20},message:"must NOT have more than 20 characters"};
+if(vErrors === null){
+vErrors = [err1546];
+}
+else {
+vErrors.push(err1546);
+}
+errors++;
+}
+else {
+if(!pattern4.test(data491)){
+const err1547 = {instancePath:instancePath+"/refresh_status/diagnostic/location/length",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/location/anyOf/0/properties/length/pattern",keyword:"pattern",params:{pattern: "^(0|[1-9][0-9]*)$"},message:"must match pattern \""+"^(0|[1-9][0-9]*)$"+"\""};
+if(vErrors === null){
+vErrors = [err1547];
+}
+else {
+vErrors.push(err1547);
+}
+errors++;
+}
+}
+}
+else {
+const err1548 = {instancePath:instancePath+"/refresh_status/diagnostic/location/length",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/location/anyOf/0/properties/length/type",keyword:"type",params:{type: "string"},message:"must be string"};
+if(vErrors === null){
+vErrors = [err1548];
+}
+else {
+vErrors.push(err1548);
+}
+errors++;
+}
+}
+var valid229 = _errs1422 === errors;
+}
+else {
+var valid229 = true;
+}
+if(valid229){
+if(data485.line !== undefined){
+let data492 = data485.line;
+const _errs1424 = errors;
+if(errors === _errs1424){
+if(typeof data492 === "string"){
+if(func2(data492) > 20){
+const err1549 = {instancePath:instancePath+"/refresh_status/diagnostic/location/line",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/location/anyOf/0/properties/line/maxLength",keyword:"maxLength",params:{limit: 20},message:"must NOT have more than 20 characters"};
+if(vErrors === null){
+vErrors = [err1549];
+}
+else {
+vErrors.push(err1549);
+}
+errors++;
+}
+else {
+if(!pattern4.test(data492)){
+const err1550 = {instancePath:instancePath+"/refresh_status/diagnostic/location/line",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/location/anyOf/0/properties/line/pattern",keyword:"pattern",params:{pattern: "^(0|[1-9][0-9]*)$"},message:"must match pattern \""+"^(0|[1-9][0-9]*)$"+"\""};
+if(vErrors === null){
+vErrors = [err1550];
+}
+else {
+vErrors.push(err1550);
+}
+errors++;
+}
+}
+}
+else {
+const err1551 = {instancePath:instancePath+"/refresh_status/diagnostic/location/line",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/location/anyOf/0/properties/line/type",keyword:"type",params:{type: "string"},message:"must be string"};
+if(vErrors === null){
+vErrors = [err1551];
+}
+else {
+vErrors.push(err1551);
+}
+errors++;
+}
+}
+var valid229 = _errs1424 === errors;
+}
+else {
+var valid229 = true;
+}
+if(valid229){
+if(data485.byte_column !== undefined){
+let data493 = data485.byte_column;
+const _errs1426 = errors;
+if(errors === _errs1426){
+if(typeof data493 === "string"){
+if(func2(data493) > 20){
+const err1552 = {instancePath:instancePath+"/refresh_status/diagnostic/location/byte_column",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/location/anyOf/0/properties/byte_column/maxLength",keyword:"maxLength",params:{limit: 20},message:"must NOT have more than 20 characters"};
+if(vErrors === null){
+vErrors = [err1552];
+}
+else {
+vErrors.push(err1552);
+}
+errors++;
+}
+else {
+if(!pattern4.test(data493)){
+const err1553 = {instancePath:instancePath+"/refresh_status/diagnostic/location/byte_column",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/location/anyOf/0/properties/byte_column/pattern",keyword:"pattern",params:{pattern: "^(0|[1-9][0-9]*)$"},message:"must match pattern \""+"^(0|[1-9][0-9]*)$"+"\""};
+if(vErrors === null){
+vErrors = [err1553];
+}
+else {
+vErrors.push(err1553);
+}
+errors++;
+}
+}
+}
+else {
+const err1554 = {instancePath:instancePath+"/refresh_status/diagnostic/location/byte_column",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/location/anyOf/0/properties/byte_column/type",keyword:"type",params:{type: "string"},message:"must be string"};
+if(vErrors === null){
+vErrors = [err1554];
+}
+else {
+vErrors.push(err1554);
+}
+errors++;
+}
+}
+var valid229 = _errs1426 === errors;
+}
+else {
+var valid229 = true;
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+else {
+const err1555 = {instancePath:instancePath+"/refresh_status/diagnostic/location",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/location/anyOf/0/type",keyword:"type",params:{type: "object"},message:"must be object"};
+if(vErrors === null){
+vErrors = [err1555];
+}
+else {
+vErrors.push(err1555);
+}
+errors++;
+}
+}
+var _valid57 = _errs1401 === errors;
+valid228 = valid228 || _valid57;
+const _errs1428 = errors;
+if(data485 !== null){
+const err1556 = {instancePath:instancePath+"/refresh_status/diagnostic/location",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/location/anyOf/1/type",keyword:"type",params:{type: "null"},message:"must be null"};
+if(vErrors === null){
+vErrors = [err1556];
+}
+else {
+vErrors.push(err1556);
+}
+errors++;
+}
+var _valid57 = _errs1428 === errors;
+valid228 = valid228 || _valid57;
+if(!valid228){
+const err1557 = {instancePath:instancePath+"/refresh_status/diagnostic/location",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/location/anyOf",keyword:"anyOf",params:{},message:"must match a schema in anyOf"};
+if(vErrors === null){
+vErrors = [err1557];
+}
+else {
+vErrors.push(err1557);
+}
+errors++;
+}
+else {
+errors = _errs1400;
+if(vErrors !== null){
+if(_errs1400){
+vErrors.length = _errs1400;
+}
+else {
+vErrors = null;
+}
+}
+}
+var valid221 = _errs1399 === errors;
+}
+else {
+var valid221 = true;
+}
+if(valid221){
+if(data469.facts !== undefined){
+let data494 = data469.facts;
+const _errs1430 = errors;
+if(errors === _errs1430){
+if(Array.isArray(data494)){
+if(data494.length > 16){
+const err1558 = {instancePath:instancePath+"/refresh_status/diagnostic/facts",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/facts/maxItems",keyword:"maxItems",params:{limit: 16},message:"must NOT have more than 16 items"};
+if(vErrors === null){
+vErrors = [err1558];
+}
+else {
+vErrors.push(err1558);
+}
+errors++;
+}
+else {
+if(data494.length < 16){
+const err1559 = {instancePath:instancePath+"/refresh_status/diagnostic/facts",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/facts/minItems",keyword:"minItems",params:{limit: 16},message:"must NOT have fewer than 16 items"};
+if(vErrors === null){
+vErrors = [err1559];
+}
+else {
+vErrors.push(err1559);
+}
+errors++;
+}
+else {
+var valid232 = true;
+const len36 = data494.length;
+for(let i36=0; i36<len36; i36++){
+let data495 = data494[i36];
+const _errs1432 = errors;
+const _errs1433 = errors;
+let valid233 = false;
+const _errs1434 = errors;
+if(errors === _errs1434){
+if(data495 && typeof data495 == "object" && !Array.isArray(data495)){
+let missing134;
+if(((((data495.field === undefined) && (missing134 = "field")) || ((data495.origin === undefined) && (missing134 = "origin"))) || ((data495.availability === undefined) && (missing134 = "availability"))) || ((data495.value === undefined) && (missing134 = "value"))){
+const err1560 = {instancePath:instancePath+"/refresh_status/diagnostic/facts/" + i36,schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/facts/items/anyOf/0/required",keyword:"required",params:{missingProperty: missing134},message:"must have required property '"+missing134+"'"};
 if(vErrors === null){
 vErrors = [err1560];
 }
@@ -83490,20 +83454,11 @@ vErrors.push(err1560);
 }
 errors++;
 }
-}
-var valid213 = _errs1362 === errors;
-}
 else {
-var valid213 = true;
-}
-if(valid213){
-if(data443.actions !== undefined){
-let data489 = data443.actions;
-const _errs1440 = errors;
-if(errors === _errs1440){
-if(Array.isArray(data489)){
-if(data489.length > 4){
-const err1561 = {instancePath:instancePath+"/refresh_status/diagnostic/actions",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/actions/maxItems",keyword:"maxItems",params:{limit: 4},message:"must NOT have more than 4 items"};
+const _errs1436 = errors;
+for(const key136 in data495){
+if(!((((key136 === "field") || (key136 === "origin")) || (key136 === "availability")) || (key136 === "value"))){
+const err1561 = {instancePath:instancePath+"/refresh_status/diagnostic/facts/" + i36,schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/facts/items/anyOf/0/additionalProperties",keyword:"additionalProperties",params:{additionalProperty: key136},message:"must NOT have additional properties"};
 if(vErrors === null){
 vErrors = [err1561];
 }
@@ -83511,10 +83466,15 @@ else {
 vErrors.push(err1561);
 }
 errors++;
+break;
 }
-else {
-if(data489.length < 4){
-const err1562 = {instancePath:instancePath+"/refresh_status/diagnostic/actions",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/actions/minItems",keyword:"minItems",params:{limit: 4},message:"must NOT have fewer than 4 items"};
+}
+if(_errs1436 === errors){
+if(data495.field !== undefined){
+let data496 = data495.field;
+const _errs1437 = errors;
+if(typeof data496 !== "string"){
+const err1562 = {instancePath:instancePath+"/refresh_status/diagnostic/facts/" + i36+"/field",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/field/type",keyword:"type",params:{type: "string"},message:"must be string"};
 if(vErrors === null){
 vErrors = [err1562];
 }
@@ -83523,20 +83483,8 @@ vErrors.push(err1562);
 }
 errors++;
 }
-else {
-var valid239 = true;
-const len38 = data489.length;
-for(let i38=0; i38<len38; i38++){
-let data490 = data489[i38];
-const _errs1442 = errors;
-const _errs1443 = errors;
-let valid240 = false;
-const _errs1444 = errors;
-if(errors === _errs1444){
-if(data490 && typeof data490 == "object" && !Array.isArray(data490)){
-let missing134;
-if((data490.kind === undefined) && (missing134 = "kind")){
-const err1563 = {instancePath:instancePath+"/refresh_status/diagnostic/actions/" + i38,schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/actions/items/anyOf/0/required",keyword:"required",params:{missingProperty: missing134},message:"must have required property '"+missing134+"'"};
+if(!(((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((data496 === "object") || (data496 === "name")) || (data496 === "table")) || (data496 === "native_input")) || (data496 === "affected_rows")) || (data496 === "argument")) || (data496 === "option")) || (data496 === "permissions")) || (data496 === "scope")) || (data496 === "column")) || (data496 === "qualifier")) || (data496 === "constraint")) || (data496 === "key")) || (data496 === "input_row")) || (data496 === "first_occurrence")) || (data496 === "parameter")) || (data496 === "parameter_use")) || (data496 === "expected_count")) || (data496 === "actual_count")) || (data496 === "expected_type")) || (data496 === "actual_type")) || (data496 === "supplied_value")) || (data496 === "expected_value")) || (data496 === "expression")) || (data496 === "source_kind")) || (data496 === "source_basis")) || (data496 === "source_key")) || (data496 === "source_row")) || (data496 === "field_path")) || (data496 === "byte_offset")) || (data496 === "expected_resource")) || (data496 === "actual_resource")) || (data496 === "expected_source")) || (data496 === "actual_source")) || (data496 === "expected_revision")) || (data496 === "actual_revision")) || (data496 === "expected_schema")) || (data496 === "actual_schema")) || (data496 === "expected_policy")) || (data496 === "actual_policy")) || (data496 === "budget")) || (data496 === "limit")) || (data496 === "required")) || (data496 === "unit")) || (data496 === "completed_statements")) || (data496 === "emitted_rows")) || (data496 === "emitted_segments")) || (data496 === "completion")) || (data496 === "proposal")) || (data496 === "step")) || (data496 === "generation")) || (data496 === "attachment")) || (data496 === "lease")) || (data496 === "schema_origin")) || (data496 === "sampling_records")) || (data496 === "operation")) || (data496 === "native_cause")) || (data496 === "expected_bytes")) || (data496 === "presence")) || (data496 === "published")) || (data496 === "subscription")) || (data496 === "expected_codec")) || (data496 === "actual_codec")) || (data496 === "observed_clock")) || (data496 === "expected_namespace")) || (data496 === "actual_namespace")) || (data496 === "attempt")) || (data496 === "executor")) || (data496 === "resolution_reason")) || (data496 === "principal")) || (data496 === "deadline")) || (data496 === "authorization_policy")) || (data496 === "resolution_policy")) || (data496 === "protocol_status")) || (data496 === "native_effect"))){
+const err1563 = {instancePath:instancePath+"/refresh_status/diagnostic/facts/" + i36+"/field",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/field/enum",keyword:"enum",params:{allowedValues: schema52.oneOf[8].properties.refresh_status.properties.diagnostic.anyOf[0].properties.facts.items.anyOf[0].properties.field.enum},message:"must be equal to one of the allowed values"};
 if(vErrors === null){
 vErrors = [err1563];
 }
@@ -83545,11 +83493,17 @@ vErrors.push(err1563);
 }
 errors++;
 }
+var valid234 = _errs1437 === errors;
+}
 else {
-const _errs1446 = errors;
-for(const key136 in data490){
-if(!((key136 === "kind") || (key136 === "target"))){
-const err1564 = {instancePath:instancePath+"/refresh_status/diagnostic/actions/" + i38,schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/actions/items/anyOf/0/additionalProperties",keyword:"additionalProperties",params:{additionalProperty: key136},message:"must NOT have additional properties"};
+var valid234 = true;
+}
+if(valid234){
+if(data495.origin !== undefined){
+let data497 = data495.origin;
+const _errs1439 = errors;
+if(typeof data497 !== "string"){
+const err1564 = {instancePath:instancePath+"/refresh_status/diagnostic/facts/" + i36+"/origin",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/origin/type",keyword:"type",params:{type: "string"},message:"must be string"};
 if(vErrors === null){
 vErrors = [err1564];
 }
@@ -83557,15 +83511,9 @@ else {
 vErrors.push(err1564);
 }
 errors++;
-break;
 }
-}
-if(_errs1446 === errors){
-if(data490.kind !== undefined){
-let data491 = data490.kind;
-const _errs1447 = errors;
-if(typeof data491 !== "string"){
-const err1565 = {instancePath:instancePath+"/refresh_status/diagnostic/actions/" + i38+"/kind",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/actions/items/anyOf/0/properties/kind/type",keyword:"type",params:{type: "string"},message:"must be string"};
+if(!(((((data497 === "caller") || (data497 === "execution")) || (data497 === "schema")) || (data497 === "authority")) || (data497 === "owner"))){
+const err1565 = {instancePath:instancePath+"/refresh_status/diagnostic/facts/" + i36+"/origin",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/origin/enum",keyword:"enum",params:{allowedValues: schema52.oneOf[8].properties.refresh_status.properties.diagnostic.anyOf[0].properties.facts.items.anyOf[0].properties.origin.enum},message:"must be equal to one of the allowed values"};
 if(vErrors === null){
 vErrors = [err1565];
 }
@@ -83574,8 +83522,17 @@ vErrors.push(err1565);
 }
 errors++;
 }
-if(!(((((((((((data491 === "correct_input") || (data491 === "inspect_status")) || (data491 === "resume_exact")) || (data491 === "cancel_wait")) || (data491 === "cancel_mutation")) || (data491 === "refresh")) || (data491 === "recompile")) || (data491 === "retry_read")) || (data491 === "inspect_scope")) || (data491 === "reconcile_effect")) || (data491 === "contact_operator"))){
-const err1566 = {instancePath:instancePath+"/refresh_status/diagnostic/actions/" + i38+"/kind",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/actions/items/anyOf/0/properties/kind/enum",keyword:"enum",params:{allowedValues: schema52.oneOf[8].properties.refresh_status.properties.diagnostic.anyOf[0].properties.actions.items.anyOf[0].properties.kind.enum},message:"must be equal to one of the allowed values"};
+var valid234 = _errs1439 === errors;
+}
+else {
+var valid234 = true;
+}
+if(valid234){
+if(data495.availability !== undefined){
+let data498 = data495.availability;
+const _errs1441 = errors;
+if(typeof data498 !== "string"){
+const err1566 = {instancePath:instancePath+"/refresh_status/diagnostic/facts/" + i36+"/availability",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/availability/type",keyword:"type",params:{type: "string"},message:"must be string"};
 if(vErrors === null){
 vErrors = [err1566];
 }
@@ -83584,23 +83541,8 @@ vErrors.push(err1566);
 }
 errors++;
 }
-var valid241 = _errs1447 === errors;
-}
-else {
-var valid241 = true;
-}
-if(valid241){
-if(data490.target !== undefined){
-let data492 = data490.target;
-const _errs1449 = errors;
-const _errs1450 = errors;
-let valid242 = false;
-const _errs1451 = errors;
-if(errors === _errs1451){
-if(data492 && typeof data492 == "object" && !Array.isArray(data492)){
-let missing135;
-if(((data492.domain === undefined) && (missing135 = "domain")) || ((data492.id === undefined) && (missing135 = "id"))){
-const err1567 = {instancePath:instancePath+"/refresh_status/diagnostic/actions/" + i38+"/target",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/actions/items/anyOf/0/properties/target/anyOf/0/required",keyword:"required",params:{missingProperty: missing135},message:"must have required property '"+missing135+"'"};
+if(!((((((data498 === "provided") || (data498 === "truncated")) || (data498 === "unrecorded")) || (data498 === "unavailable")) || (data498 === "withheld")) || (data498 === "inapplicable"))){
+const err1567 = {instancePath:instancePath+"/refresh_status/diagnostic/facts/" + i36+"/availability",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/availability/enum",keyword:"enum",params:{allowedValues: schema52.oneOf[8].properties.refresh_status.properties.diagnostic.anyOf[0].properties.facts.items.anyOf[0].properties.availability.enum},message:"must be equal to one of the allowed values"};
 if(vErrors === null){
 vErrors = [err1567];
 }
@@ -83609,11 +83551,27 @@ vErrors.push(err1567);
 }
 errors++;
 }
+var valid234 = _errs1441 === errors;
+}
 else {
-const _errs1453 = errors;
-for(const key137 in data492){
-if(!(((((key137 === "domain") || (key137 === "id")) || (key137 === "realm")) || (key137 === "resource")) || (key137 === "sequence"))){
-const err1568 = {instancePath:instancePath+"/refresh_status/diagnostic/actions/" + i38+"/target",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/actions/items/anyOf/0/properties/target/anyOf/0/additionalProperties",keyword:"additionalProperties",params:{additionalProperty: key137},message:"must NOT have additional properties"};
+var valid234 = true;
+}
+if(valid234){
+if(data495.value !== undefined){
+let data499 = data495.value;
+const _errs1443 = errors;
+const _errs1444 = errors;
+let valid235 = false;
+const _errs1445 = errors;
+const _errs1446 = errors;
+let valid236 = false;
+let passing7 = null;
+const _errs1447 = errors;
+if(errors === _errs1447){
+if(data499 && typeof data499 == "object" && !Array.isArray(data499)){
+let missing135;
+if((data499.text === undefined) && (missing135 = "text")){
+const err1568 = {instancePath:instancePath+"/refresh_status/diagnostic/facts/" + i36+"/value",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf/0/required",keyword:"required",params:{missingProperty: missing135},message:"must have required property '"+missing135+"'"};
 if(vErrors === null){
 vErrors = [err1568];
 }
@@ -83621,15 +83579,12 @@ else {
 vErrors.push(err1568);
 }
 errors++;
-break;
 }
-}
-if(_errs1453 === errors){
-if(data492.domain !== undefined){
-let data493 = data492.domain;
-const _errs1454 = errors;
-if(typeof data493 !== "string"){
-const err1569 = {instancePath:instancePath+"/refresh_status/diagnostic/actions/" + i38+"/target/domain",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/actions/items/anyOf/0/properties/target/anyOf/0/properties/domain/type",keyword:"type",params:{type: "string"},message:"must be string"};
+else {
+const _errs1449 = errors;
+for(const key137 in data499){
+if(!(key137 === "text")){
+const err1569 = {instancePath:instancePath+"/refresh_status/diagnostic/facts/" + i36+"/value",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf/0/additionalProperties",keyword:"additionalProperties",params:{additionalProperty: key137},message:"must NOT have additional properties"};
 if(vErrors === null){
 vErrors = [err1569];
 }
@@ -83637,9 +83592,17 @@ else {
 vErrors.push(err1569);
 }
 errors++;
+break;
 }
-if(!(((((((((((((data493 === "sql") || (data493 === "query")) || (data493 === "mutation")) || (data493 === "catalog")) || (data493 === "application")) || (data493 === "publication")) || (data493 === "migration")) || (data493 === "reactive")) || (data493 === "serving")) || (data493 === "effect")) || (data493 === "exchange")) || (data493 === "transport")) || (data493 === "internal"))){
-const err1570 = {instancePath:instancePath+"/refresh_status/diagnostic/actions/" + i38+"/target/domain",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/actions/items/anyOf/0/properties/target/anyOf/0/properties/domain/enum",keyword:"enum",params:{allowedValues: schema52.oneOf[8].properties.refresh_status.properties.diagnostic.anyOf[0].properties.actions.items.anyOf[0].properties.target.anyOf[0].properties.domain.enum},message:"must be equal to one of the allowed values"};
+}
+if(_errs1449 === errors){
+if(data499.text !== undefined){
+let data500 = data499.text;
+const _errs1450 = errors;
+if(errors === _errs1450){
+if(typeof data500 === "string"){
+if(func2(data500) > 256){
+const err1570 = {instancePath:instancePath+"/refresh_status/diagnostic/facts/" + i36+"/value/text",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf/0/properties/text/maxLength",keyword:"maxLength",params:{limit: 256},message:"must NOT have more than 256 characters"};
 if(vErrors === null){
 vErrors = [err1570];
 }
@@ -83648,19 +83611,9 @@ vErrors.push(err1570);
 }
 errors++;
 }
-var valid243 = _errs1454 === errors;
 }
 else {
-var valid243 = true;
-}
-if(valid243){
-if(data492.id !== undefined){
-let data494 = data492.id;
-const _errs1456 = errors;
-if(errors === _errs1456){
-if(typeof data494 === "string"){
-if(func2(data494) > 20){
-const err1571 = {instancePath:instancePath+"/refresh_status/diagnostic/actions/" + i38+"/target/id",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/actions/items/anyOf/0/properties/target/anyOf/0/properties/id/maxLength",keyword:"maxLength",params:{limit: 20},message:"must NOT have more than 20 characters"};
+const err1571 = {instancePath:instancePath+"/refresh_status/diagnostic/facts/" + i36+"/value/text",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf/0/properties/text/type",keyword:"type",params:{type: "string"},message:"must be string"};
 if(vErrors === null){
 vErrors = [err1571];
 }
@@ -83669,9 +83622,13 @@ vErrors.push(err1571);
 }
 errors++;
 }
+}
+}
+}
+}
+}
 else {
-if(!pattern4.test(data494)){
-const err1572 = {instancePath:instancePath+"/refresh_status/diagnostic/actions/" + i38+"/target/id",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/actions/items/anyOf/0/properties/target/anyOf/0/properties/id/pattern",keyword:"pattern",params:{pattern: "^(0|[1-9][0-9]*)$"},message:"must match pattern \""+"^(0|[1-9][0-9]*)$"+"\""};
+const err1572 = {instancePath:instancePath+"/refresh_status/diagnostic/facts/" + i36+"/value",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf/0/type",keyword:"type",params:{type: "object"},message:"must be object"};
 if(vErrors === null){
 vErrors = [err1572];
 }
@@ -83681,9 +83638,18 @@ vErrors.push(err1572);
 errors++;
 }
 }
+var _valid62 = _errs1447 === errors;
+if(_valid62){
+valid236 = true;
+passing7 = 0;
+var props28 = true;
 }
-else {
-const err1573 = {instancePath:instancePath+"/refresh_status/diagnostic/actions/" + i38+"/target/id",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/actions/items/anyOf/0/properties/target/anyOf/0/properties/id/type",keyword:"type",params:{type: "string"},message:"must be string"};
+const _errs1452 = errors;
+if(errors === _errs1452){
+if(data499 && typeof data499 == "object" && !Array.isArray(data499)){
+let missing136;
+if((data499.signed === undefined) && (missing136 = "signed")){
+const err1573 = {instancePath:instancePath+"/refresh_status/diagnostic/facts/" + i36+"/value",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf/1/required",keyword:"required",params:{missingProperty: missing136},message:"must have required property '"+missing136+"'"};
 if(vErrors === null){
 vErrors = [err1573];
 }
@@ -83692,23 +83658,11 @@ vErrors.push(err1573);
 }
 errors++;
 }
-}
-var valid243 = _errs1456 === errors;
-}
 else {
-var valid243 = true;
-}
-if(valid243){
-if(data492.realm !== undefined){
-let data495 = data492.realm;
-const _errs1458 = errors;
-const _errs1459 = errors;
-let valid244 = false;
-const _errs1460 = errors;
-if(errors === _errs1460){
-if(typeof data495 === "string"){
-if(func2(data495) > 20){
-const err1574 = {instancePath:instancePath+"/refresh_status/diagnostic/actions/" + i38+"/target/realm",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/actions/items/anyOf/0/properties/target/anyOf/0/properties/realm/anyOf/0/maxLength",keyword:"maxLength",params:{limit: 20},message:"must NOT have more than 20 characters"};
+const _errs1454 = errors;
+for(const key138 in data499){
+if(!(key138 === "signed")){
+const err1574 = {instancePath:instancePath+"/refresh_status/diagnostic/facts/" + i36+"/value",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf/1/additionalProperties",keyword:"additionalProperties",params:{additionalProperty: key138},message:"must NOT have additional properties"};
 if(vErrors === null){
 vErrors = [err1574];
 }
@@ -83716,10 +83670,17 @@ else {
 vErrors.push(err1574);
 }
 errors++;
+break;
 }
-else {
-if(!pattern4.test(data495)){
-const err1575 = {instancePath:instancePath+"/refresh_status/diagnostic/actions/" + i38+"/target/realm",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/actions/items/anyOf/0/properties/target/anyOf/0/properties/realm/anyOf/0/pattern",keyword:"pattern",params:{pattern: "^(0|[1-9][0-9]*)$"},message:"must match pattern \""+"^(0|[1-9][0-9]*)$"+"\""};
+}
+if(_errs1454 === errors){
+if(data499.signed !== undefined){
+let data501 = data499.signed;
+const _errs1455 = errors;
+if(errors === _errs1455){
+if(typeof data501 === "string"){
+if(func2(data501) > 20){
+const err1575 = {instancePath:instancePath+"/refresh_status/diagnostic/facts/" + i36+"/value/signed",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf/1/properties/signed/maxLength",keyword:"maxLength",params:{limit: 20},message:"must NOT have more than 20 characters"};
 if(vErrors === null){
 vErrors = [err1575];
 }
@@ -83728,10 +83689,9 @@ vErrors.push(err1575);
 }
 errors++;
 }
-}
-}
 else {
-const err1576 = {instancePath:instancePath+"/refresh_status/diagnostic/actions/" + i38+"/target/realm",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/actions/items/anyOf/0/properties/target/anyOf/0/properties/realm/anyOf/0/type",keyword:"type",params:{type: "string"},message:"must be string"};
+if(!pattern13.test(data501)){
+const err1576 = {instancePath:instancePath+"/refresh_status/diagnostic/facts/" + i36+"/value/signed",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf/1/properties/signed/pattern",keyword:"pattern",params:{pattern: "^(0|-?[1-9][0-9]*)$"},message:"must match pattern \""+"^(0|-?[1-9][0-9]*)$"+"\""};
 if(vErrors === null){
 vErrors = [err1576];
 }
@@ -83741,11 +83701,9 @@ vErrors.push(err1576);
 errors++;
 }
 }
-var _valid67 = _errs1460 === errors;
-valid244 = valid244 || _valid67;
-const _errs1462 = errors;
-if(data495 !== null){
-const err1577 = {instancePath:instancePath+"/refresh_status/diagnostic/actions/" + i38+"/target/realm",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/actions/items/anyOf/0/properties/target/anyOf/0/properties/realm/anyOf/1/type",keyword:"type",params:{type: "null"},message:"must be null"};
+}
+else {
+const err1577 = {instancePath:instancePath+"/refresh_status/diagnostic/facts/" + i36+"/value/signed",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf/1/properties/signed/type",keyword:"type",params:{type: "string"},message:"must be string"};
 if(vErrors === null){
 vErrors = [err1577];
 }
@@ -83754,10 +83712,13 @@ vErrors.push(err1577);
 }
 errors++;
 }
-var _valid67 = _errs1462 === errors;
-valid244 = valid244 || _valid67;
-if(!valid244){
-const err1578 = {instancePath:instancePath+"/refresh_status/diagnostic/actions/" + i38+"/target/realm",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/actions/items/anyOf/0/properties/target/anyOf/0/properties/realm/anyOf",keyword:"anyOf",params:{},message:"must match a schema in anyOf"};
+}
+}
+}
+}
+}
+else {
+const err1578 = {instancePath:instancePath+"/refresh_status/diagnostic/facts/" + i36+"/value",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf/1/type",keyword:"type",params:{type: "object"},message:"must be object"};
 if(vErrors === null){
 vErrors = [err1578];
 }
@@ -83766,33 +83727,26 @@ vErrors.push(err1578);
 }
 errors++;
 }
-else {
-errors = _errs1459;
-if(vErrors !== null){
-if(_errs1459){
-vErrors.length = _errs1459;
+}
+var _valid62 = _errs1452 === errors;
+if(_valid62 && valid236){
+valid236 = false;
+passing7 = [passing7, 1];
 }
 else {
-vErrors = null;
+if(_valid62){
+valid236 = true;
+passing7 = 1;
+if(props28 !== true){
+props28 = true;
 }
 }
-}
-var valid243 = _errs1458 === errors;
-}
-else {
-var valid243 = true;
-}
-if(valid243){
-if(data492.resource !== undefined){
-let data496 = data492.resource;
-const _errs1464 = errors;
-const _errs1465 = errors;
-let valid245 = false;
-const _errs1466 = errors;
-if(errors === _errs1466){
-if(typeof data496 === "string"){
-if(func2(data496) > 20){
-const err1579 = {instancePath:instancePath+"/refresh_status/diagnostic/actions/" + i38+"/target/resource",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/actions/items/anyOf/0/properties/target/anyOf/0/properties/resource/anyOf/0/maxLength",keyword:"maxLength",params:{limit: 20},message:"must NOT have more than 20 characters"};
+const _errs1457 = errors;
+if(errors === _errs1457){
+if(data499 && typeof data499 == "object" && !Array.isArray(data499)){
+let missing137;
+if((data499.unsigned === undefined) && (missing137 = "unsigned")){
+const err1579 = {instancePath:instancePath+"/refresh_status/diagnostic/facts/" + i36+"/value",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf/2/required",keyword:"required",params:{missingProperty: missing137},message:"must have required property '"+missing137+"'"};
 if(vErrors === null){
 vErrors = [err1579];
 }
@@ -83802,8 +83756,10 @@ vErrors.push(err1579);
 errors++;
 }
 else {
-if(!pattern4.test(data496)){
-const err1580 = {instancePath:instancePath+"/refresh_status/diagnostic/actions/" + i38+"/target/resource",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/actions/items/anyOf/0/properties/target/anyOf/0/properties/resource/anyOf/0/pattern",keyword:"pattern",params:{pattern: "^(0|[1-9][0-9]*)$"},message:"must match pattern \""+"^(0|[1-9][0-9]*)$"+"\""};
+const _errs1459 = errors;
+for(const key139 in data499){
+if(!(key139 === "unsigned")){
+const err1580 = {instancePath:instancePath+"/refresh_status/diagnostic/facts/" + i36+"/value",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf/2/additionalProperties",keyword:"additionalProperties",params:{additionalProperty: key139},message:"must NOT have additional properties"};
 if(vErrors === null){
 vErrors = [err1580];
 }
@@ -83811,11 +83767,17 @@ else {
 vErrors.push(err1580);
 }
 errors++;
+break;
 }
 }
-}
-else {
-const err1581 = {instancePath:instancePath+"/refresh_status/diagnostic/actions/" + i38+"/target/resource",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/actions/items/anyOf/0/properties/target/anyOf/0/properties/resource/anyOf/0/type",keyword:"type",params:{type: "string"},message:"must be string"};
+if(_errs1459 === errors){
+if(data499.unsigned !== undefined){
+let data502 = data499.unsigned;
+const _errs1460 = errors;
+if(errors === _errs1460){
+if(typeof data502 === "string"){
+if(func2(data502) > 20){
+const err1581 = {instancePath:instancePath+"/refresh_status/diagnostic/facts/" + i36+"/value/unsigned",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf/2/properties/unsigned/maxLength",keyword:"maxLength",params:{limit: 20},message:"must NOT have more than 20 characters"};
 if(vErrors === null){
 vErrors = [err1581];
 }
@@ -83824,12 +83786,9 @@ vErrors.push(err1581);
 }
 errors++;
 }
-}
-var _valid68 = _errs1466 === errors;
-valid245 = valid245 || _valid68;
-const _errs1468 = errors;
-if(data496 !== null){
-const err1582 = {instancePath:instancePath+"/refresh_status/diagnostic/actions/" + i38+"/target/resource",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/actions/items/anyOf/0/properties/target/anyOf/0/properties/resource/anyOf/1/type",keyword:"type",params:{type: "null"},message:"must be null"};
+else {
+if(!pattern4.test(data502)){
+const err1582 = {instancePath:instancePath+"/refresh_status/diagnostic/facts/" + i36+"/value/unsigned",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf/2/properties/unsigned/pattern",keyword:"pattern",params:{pattern: "^(0|[1-9][0-9]*)$"},message:"must match pattern \""+"^(0|[1-9][0-9]*)$"+"\""};
 if(vErrors === null){
 vErrors = [err1582];
 }
@@ -83838,10 +83797,10 @@ vErrors.push(err1582);
 }
 errors++;
 }
-var _valid68 = _errs1468 === errors;
-valid245 = valid245 || _valid68;
-if(!valid245){
-const err1583 = {instancePath:instancePath+"/refresh_status/diagnostic/actions/" + i38+"/target/resource",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/actions/items/anyOf/0/properties/target/anyOf/0/properties/resource/anyOf",keyword:"anyOf",params:{},message:"must match a schema in anyOf"};
+}
+}
+else {
+const err1583 = {instancePath:instancePath+"/refresh_status/diagnostic/facts/" + i36+"/value/unsigned",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf/2/properties/unsigned/type",keyword:"type",params:{type: "string"},message:"must be string"};
 if(vErrors === null){
 vErrors = [err1583];
 }
@@ -83850,33 +83809,13 @@ vErrors.push(err1583);
 }
 errors++;
 }
-else {
-errors = _errs1465;
-if(vErrors !== null){
-if(_errs1465){
-vErrors.length = _errs1465;
-}
-else {
-vErrors = null;
 }
 }
 }
-var valid243 = _errs1464 === errors;
+}
 }
 else {
-var valid243 = true;
-}
-if(valid243){
-if(data492.sequence !== undefined){
-let data497 = data492.sequence;
-const _errs1470 = errors;
-const _errs1471 = errors;
-let valid246 = false;
-const _errs1472 = errors;
-if(errors === _errs1472){
-if(typeof data497 === "string"){
-if(func2(data497) > 20){
-const err1584 = {instancePath:instancePath+"/refresh_status/diagnostic/actions/" + i38+"/target/sequence",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/actions/items/anyOf/0/properties/target/anyOf/0/properties/sequence/anyOf/0/maxLength",keyword:"maxLength",params:{limit: 20},message:"must NOT have more than 20 characters"};
+const err1584 = {instancePath:instancePath+"/refresh_status/diagnostic/facts/" + i36+"/value",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf/2/type",keyword:"type",params:{type: "object"},message:"must be object"};
 if(vErrors === null){
 vErrors = [err1584];
 }
@@ -83885,9 +83824,26 @@ vErrors.push(err1584);
 }
 errors++;
 }
+}
+var _valid62 = _errs1457 === errors;
+if(_valid62 && valid236){
+valid236 = false;
+passing7 = [passing7, 2];
+}
 else {
-if(!pattern4.test(data497)){
-const err1585 = {instancePath:instancePath+"/refresh_status/diagnostic/actions/" + i38+"/target/sequence",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/actions/items/anyOf/0/properties/target/anyOf/0/properties/sequence/anyOf/0/pattern",keyword:"pattern",params:{pattern: "^(0|[1-9][0-9]*)$"},message:"must match pattern \""+"^(0|[1-9][0-9]*)$"+"\""};
+if(_valid62){
+valid236 = true;
+passing7 = 2;
+if(props28 !== true){
+props28 = true;
+}
+}
+const _errs1462 = errors;
+if(errors === _errs1462){
+if(data499 && typeof data499 == "object" && !Array.isArray(data499)){
+let missing138;
+if((data499.boolean === undefined) && (missing138 = "boolean")){
+const err1585 = {instancePath:instancePath+"/refresh_status/diagnostic/facts/" + i36+"/value",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf/3/required",keyword:"required",params:{missingProperty: missing138},message:"must have required property '"+missing138+"'"};
 if(vErrors === null){
 vErrors = [err1585];
 }
@@ -83896,10 +83852,11 @@ vErrors.push(err1585);
 }
 errors++;
 }
-}
-}
 else {
-const err1586 = {instancePath:instancePath+"/refresh_status/diagnostic/actions/" + i38+"/target/sequence",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/actions/items/anyOf/0/properties/target/anyOf/0/properties/sequence/anyOf/0/type",keyword:"type",params:{type: "string"},message:"must be string"};
+const _errs1464 = errors;
+for(const key140 in data499){
+if(!(key140 === "boolean")){
+const err1586 = {instancePath:instancePath+"/refresh_status/diagnostic/facts/" + i36+"/value",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf/3/additionalProperties",keyword:"additionalProperties",params:{additionalProperty: key140},message:"must NOT have additional properties"};
 if(vErrors === null){
 vErrors = [err1586];
 }
@@ -83907,13 +83864,13 @@ else {
 vErrors.push(err1586);
 }
 errors++;
+break;
 }
 }
-var _valid69 = _errs1472 === errors;
-valid246 = valid246 || _valid69;
-const _errs1474 = errors;
-if(data497 !== null){
-const err1587 = {instancePath:instancePath+"/refresh_status/diagnostic/actions/" + i38+"/target/sequence",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/actions/items/anyOf/0/properties/target/anyOf/0/properties/sequence/anyOf/1/type",keyword:"type",params:{type: "null"},message:"must be null"};
+if(_errs1464 === errors){
+if(data499.boolean !== undefined){
+if(typeof data499.boolean !== "boolean"){
+const err1587 = {instancePath:instancePath+"/refresh_status/diagnostic/facts/" + i36+"/value/boolean",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf/3/properties/boolean/type",keyword:"type",params:{type: "boolean"},message:"must be boolean"};
 if(vErrors === null){
 vErrors = [err1587];
 }
@@ -83922,10 +83879,12 @@ vErrors.push(err1587);
 }
 errors++;
 }
-var _valid69 = _errs1474 === errors;
-valid246 = valid246 || _valid69;
-if(!valid246){
-const err1588 = {instancePath:instancePath+"/refresh_status/diagnostic/actions/" + i38+"/target/sequence",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/actions/items/anyOf/0/properties/target/anyOf/0/properties/sequence/anyOf",keyword:"anyOf",params:{},message:"must match a schema in anyOf"};
+}
+}
+}
+}
+else {
+const err1588 = {instancePath:instancePath+"/refresh_status/diagnostic/facts/" + i36+"/value",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf/3/type",keyword:"type",params:{type: "object"},message:"must be object"};
 if(vErrors === null){
 vErrors = [err1588];
 }
@@ -83934,31 +83893,26 @@ vErrors.push(err1588);
 }
 errors++;
 }
-else {
-errors = _errs1471;
-if(vErrors !== null){
-if(_errs1471){
-vErrors.length = _errs1471;
+}
+var _valid62 = _errs1462 === errors;
+if(_valid62 && valid236){
+valid236 = false;
+passing7 = [passing7, 3];
 }
 else {
-vErrors = null;
+if(_valid62){
+valid236 = true;
+passing7 = 3;
+if(props28 !== true){
+props28 = true;
 }
 }
-}
-var valid243 = _errs1470 === errors;
-}
-else {
-var valid243 = true;
-}
-}
-}
-}
-}
-}
-}
-}
-else {
-const err1589 = {instancePath:instancePath+"/refresh_status/diagnostic/actions/" + i38+"/target",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/actions/items/anyOf/0/properties/target/anyOf/0/type",keyword:"type",params:{type: "object"},message:"must be object"};
+const _errs1467 = errors;
+if(errors === _errs1467){
+if(data499 && typeof data499 == "object" && !Array.isArray(data499)){
+let missing139;
+if((data499.digest === undefined) && (missing139 = "digest")){
+const err1589 = {instancePath:instancePath+"/refresh_status/diagnostic/facts/" + i36+"/value",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf/4/required",keyword:"required",params:{missingProperty: missing139},message:"must have required property '"+missing139+"'"};
 if(vErrors === null){
 vErrors = [err1589];
 }
@@ -83967,12 +83921,11 @@ vErrors.push(err1589);
 }
 errors++;
 }
-}
-var _valid66 = _errs1451 === errors;
-valid242 = valid242 || _valid66;
-const _errs1476 = errors;
-if(data492 !== null){
-const err1590 = {instancePath:instancePath+"/refresh_status/diagnostic/actions/" + i38+"/target",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/actions/items/anyOf/0/properties/target/anyOf/1/type",keyword:"type",params:{type: "null"},message:"must be null"};
+else {
+const _errs1469 = errors;
+for(const key141 in data499){
+if(!(key141 === "digest")){
+const err1590 = {instancePath:instancePath+"/refresh_status/diagnostic/facts/" + i36+"/value",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf/4/additionalProperties",keyword:"additionalProperties",params:{additionalProperty: key141},message:"must NOT have additional properties"};
 if(vErrors === null){
 vErrors = [err1590];
 }
@@ -83980,11 +83933,17 @@ else {
 vErrors.push(err1590);
 }
 errors++;
+break;
 }
-var _valid66 = _errs1476 === errors;
-valid242 = valid242 || _valid66;
-if(!valid242){
-const err1591 = {instancePath:instancePath+"/refresh_status/diagnostic/actions/" + i38+"/target",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/actions/items/anyOf/0/properties/target/anyOf",keyword:"anyOf",params:{},message:"must match a schema in anyOf"};
+}
+if(_errs1469 === errors){
+if(data499.digest !== undefined){
+let data504 = data499.digest;
+const _errs1470 = errors;
+if(errors === _errs1470){
+if(Array.isArray(data504)){
+if(data504.length > 32){
+const err1591 = {instancePath:instancePath+"/refresh_status/diagnostic/facts/" + i36+"/value/digest",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf/4/properties/digest/maxItems",keyword:"maxItems",params:{limit: 32},message:"must NOT have more than 32 items"};
 if(vErrors === null){
 vErrors = [err1591];
 }
@@ -83994,27 +83953,8 @@ vErrors.push(err1591);
 errors++;
 }
 else {
-errors = _errs1450;
-if(vErrors !== null){
-if(_errs1450){
-vErrors.length = _errs1450;
-}
-else {
-vErrors = null;
-}
-}
-}
-var valid241 = _errs1449 === errors;
-}
-else {
-var valid241 = true;
-}
-}
-}
-}
-}
-else {
-const err1592 = {instancePath:instancePath+"/refresh_status/diagnostic/actions/" + i38,schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/actions/items/anyOf/0/type",keyword:"type",params:{type: "object"},message:"must be object"};
+if(data504.length < 32){
+const err1592 = {instancePath:instancePath+"/refresh_status/diagnostic/facts/" + i36+"/value/digest",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf/4/properties/digest/minItems",keyword:"minItems",params:{limit: 32},message:"must NOT have fewer than 32 items"};
 if(vErrors === null){
 vErrors = [err1592];
 }
@@ -84023,12 +83963,14 @@ vErrors.push(err1592);
 }
 errors++;
 }
-}
-var _valid65 = _errs1444 === errors;
-valid240 = valid240 || _valid65;
-const _errs1478 = errors;
-if(data490 !== null){
-const err1593 = {instancePath:instancePath+"/refresh_status/diagnostic/actions/" + i38,schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/actions/items/anyOf/1/type",keyword:"type",params:{type: "null"},message:"must be null"};
+else {
+var valid242 = true;
+const len37 = data504.length;
+for(let i37=0; i37<len37; i37++){
+let data505 = data504[i37];
+const _errs1472 = errors;
+if(!(((typeof data505 == "number") && (!(data505 % 1) && !isNaN(data505))) && (isFinite(data505)))){
+const err1593 = {instancePath:instancePath+"/refresh_status/diagnostic/facts/" + i36+"/value/digest/" + i37,schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf/4/properties/digest/items/type",keyword:"type",params:{type: "integer"},message:"must be integer"};
 if(vErrors === null){
 vErrors = [err1593];
 }
@@ -84037,10 +83979,10 @@ vErrors.push(err1593);
 }
 errors++;
 }
-var _valid65 = _errs1478 === errors;
-valid240 = valid240 || _valid65;
-if(!valid240){
-const err1594 = {instancePath:instancePath+"/refresh_status/diagnostic/actions/" + i38,schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/actions/items/anyOf",keyword:"anyOf",params:{},message:"must match a schema in anyOf"};
+if(errors === _errs1472){
+if((typeof data505 == "number") && (isFinite(data505))){
+if(data505 > 255 || isNaN(data505)){
+const err1594 = {instancePath:instancePath+"/refresh_status/diagnostic/facts/" + i36+"/value/digest/" + i37,schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf/4/properties/digest/items/maximum",keyword:"maximum",params:{comparison: "<=", limit: 255},message:"must be <= 255"};
 if(vErrors === null){
 vErrors = [err1594];
 }
@@ -84050,26 +83992,8 @@ vErrors.push(err1594);
 errors++;
 }
 else {
-errors = _errs1443;
-if(vErrors !== null){
-if(_errs1443){
-vErrors.length = _errs1443;
-}
-else {
-vErrors = null;
-}
-}
-}
-var valid239 = _errs1442 === errors;
-if(!valid239){
-break;
-}
-}
-}
-}
-}
-else {
-const err1595 = {instancePath:instancePath+"/refresh_status/diagnostic/actions",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/actions/type",keyword:"type",params:{type: "array"},message:"must be array"};
+if(data505 < 0 || isNaN(data505)){
+const err1595 = {instancePath:instancePath+"/refresh_status/diagnostic/facts/" + i36+"/value/digest/" + i37,schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf/4/properties/digest/items/minimum",keyword:"minimum",params:{comparison: ">=", limit: 0},message:"must be >= 0"};
 if(vErrors === null){
 vErrors = [err1595];
 }
@@ -84079,28 +84003,18 @@ vErrors.push(err1595);
 errors++;
 }
 }
-var valid213 = _errs1440 === errors;
-}
-else {
-var valid213 = true;
 }
 }
-}
-}
-}
-}
-}
-}
-}
-}
-}
+var valid242 = _errs1472 === errors;
+if(!valid242){
+break;
 }
 }
 }
 }
 }
 else {
-const err1596 = {instancePath:instancePath+"/refresh_status/diagnostic",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/type",keyword:"type",params:{type: "object"},message:"must be object"};
+const err1596 = {instancePath:instancePath+"/refresh_status/diagnostic/facts/" + i36+"/value/digest",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf/4/properties/digest/type",keyword:"type",params:{type: "array"},message:"must be array"};
 if(vErrors === null){
 vErrors = [err1596];
 }
@@ -84110,11 +84024,12 @@ vErrors.push(err1596);
 errors++;
 }
 }
-var _valid51 = _errs1278 === errors;
-valid212 = valid212 || _valid51;
-const _errs1480 = errors;
-if(data443 !== null){
-const err1597 = {instancePath:instancePath+"/refresh_status/diagnostic",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/1/type",keyword:"type",params:{type: "null"},message:"must be null"};
+}
+}
+}
+}
+else {
+const err1597 = {instancePath:instancePath+"/refresh_status/diagnostic/facts/" + i36+"/value",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf/4/type",keyword:"type",params:{type: "object"},message:"must be object"};
 if(vErrors === null){
 vErrors = [err1597];
 }
@@ -84123,10 +84038,26 @@ vErrors.push(err1597);
 }
 errors++;
 }
-var _valid51 = _errs1480 === errors;
-valid212 = valid212 || _valid51;
-if(!valid212){
-const err1598 = {instancePath:instancePath+"/refresh_status/diagnostic",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf",keyword:"anyOf",params:{},message:"must match a schema in anyOf"};
+}
+var _valid62 = _errs1467 === errors;
+if(_valid62 && valid236){
+valid236 = false;
+passing7 = [passing7, 4];
+}
+else {
+if(_valid62){
+valid236 = true;
+passing7 = 4;
+if(props28 !== true){
+props28 = true;
+}
+}
+const _errs1474 = errors;
+if(errors === _errs1474){
+if(data499 && typeof data499 == "object" && !Array.isArray(data499)){
+let missing140;
+if((data499.location === undefined) && (missing140 = "location")){
+const err1598 = {instancePath:instancePath+"/refresh_status/diagnostic/facts/" + i36+"/value",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf/5/required",keyword:"required",params:{missingProperty: missing140},message:"must have required property '"+missing140+"'"};
 if(vErrors === null){
 vErrors = [err1598];
 }
@@ -84136,33 +84067,10 @@ vErrors.push(err1598);
 errors++;
 }
 else {
-errors = _errs1277;
-if(vErrors !== null){
-if(_errs1277){
-vErrors.length = _errs1277;
-}
-else {
-vErrors = null;
-}
-}
-}
-var valid156 = _errs1276 === errors;
-}
-else {
-var valid156 = true;
-}
-if(valid156){
-if(data311.query_diagnostic !== undefined){
-let data498 = data311.query_diagnostic;
-const _errs1482 = errors;
-const _errs1483 = errors;
-let valid247 = false;
-const _errs1484 = errors;
-if(errors === _errs1484){
-if(data498 && typeof data498 == "object" && !Array.isArray(data498)){
-let missing136;
-if(((((((((data498.version === undefined) && (missing136 = "version")) || ((data498.definition === undefined) && (missing136 = "definition"))) || ((data498.code === undefined) && (missing136 = "code"))) || ((data498.category === undefined) && (missing136 = "category"))) || ((data498.stage === undefined) && (missing136 = "stage"))) || ((data498.outcome === undefined) && (missing136 = "outcome"))) || ((data498.evidence === undefined) && (missing136 = "evidence"))) || ((data498.message === undefined) && (missing136 = "message"))){
-const err1599 = {instancePath:instancePath+"/refresh_status/query_diagnostic",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/required",keyword:"required",params:{missingProperty: missing136},message:"must have required property '"+missing136+"'"};
+const _errs1476 = errors;
+for(const key142 in data499){
+if(!(key142 === "location")){
+const err1599 = {instancePath:instancePath+"/refresh_status/diagnostic/facts/" + i36+"/value",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf/5/additionalProperties",keyword:"additionalProperties",params:{additionalProperty: key142},message:"must NOT have additional properties"};
 if(vErrors === null){
 vErrors = [err1599];
 }
@@ -84170,12 +84078,18 @@ else {
 vErrors.push(err1599);
 }
 errors++;
+break;
 }
-else {
-const _errs1486 = errors;
-for(const key138 in data498){
-if(!(func1.call(schema52.oneOf[8].properties.refresh_status.properties.query_diagnostic.anyOf[0].properties, key138))){
-const err1600 = {instancePath:instancePath+"/refresh_status/query_diagnostic",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/additionalProperties",keyword:"additionalProperties",params:{additionalProperty: key138},message:"must NOT have additional properties"};
+}
+if(_errs1476 === errors){
+if(data499.location !== undefined){
+let data506 = data499.location;
+const _errs1477 = errors;
+if(errors === _errs1477){
+if(data506 && typeof data506 == "object" && !Array.isArray(data506)){
+let missing141;
+if(((((data506.offset === undefined) && (missing141 = "offset")) || ((data506.length === undefined) && (missing141 = "length"))) || ((data506.line === undefined) && (missing141 = "line"))) || ((data506.byte_column === undefined) && (missing141 = "byte_column"))){
+const err1600 = {instancePath:instancePath+"/refresh_status/diagnostic/facts/" + i36+"/value/location",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf/5/properties/location/required",keyword:"required",params:{missingProperty: missing141},message:"must have required property '"+missing141+"'"};
 if(vErrors === null){
 vErrors = [err1600];
 }
@@ -84183,14 +84097,12 @@ else {
 vErrors.push(err1600);
 }
 errors++;
-break;
 }
-}
-if(_errs1486 === errors){
-if(data498.version !== undefined){
-const _errs1487 = errors;
-if(1 !== data498.version){
-const err1601 = {instancePath:instancePath+"/refresh_status/query_diagnostic/version",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/version/const",keyword:"const",params:{allowedValue: 1},message:"must be equal to constant"};
+else {
+const _errs1479 = errors;
+for(const key143 in data506){
+if(!((((((((key143 === "source") || (key143 === "source_encoding")) || (key143 === "source_truncated")) || (key143 === "statement")) || (key143 === "offset")) || (key143 === "length")) || (key143 === "line")) || (key143 === "byte_column"))){
+const err1601 = {instancePath:instancePath+"/refresh_status/diagnostic/facts/" + i36+"/value/location",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf/5/properties/location/additionalProperties",keyword:"additionalProperties",params:{additionalProperty: key143},message:"must NOT have additional properties"};
 if(vErrors === null){
 vErrors = [err1601];
 }
@@ -84198,18 +84110,20 @@ else {
 vErrors.push(err1601);
 }
 errors++;
+break;
 }
-var valid248 = _errs1487 === errors;
 }
-else {
-var valid248 = true;
-}
-if(valid248){
-if(data498.definition !== undefined){
-let data500 = data498.definition;
-const _errs1488 = errors;
-if(typeof data500 !== "string"){
-const err1602 = {instancePath:instancePath+"/refresh_status/query_diagnostic/definition",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/definition/type",keyword:"type",params:{type: "string"},message:"must be string"};
+if(_errs1479 === errors){
+if(data506.source !== undefined){
+let data507 = data506.source;
+const _errs1480 = errors;
+const _errs1481 = errors;
+let valid245 = false;
+const _errs1482 = errors;
+if(errors === _errs1482){
+if(typeof data507 === "string"){
+if(func2(data507) > 512){
+const err1602 = {instancePath:instancePath+"/refresh_status/diagnostic/facts/" + i36+"/value/location/source",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf/5/properties/location/properties/source/anyOf/0/maxLength",keyword:"maxLength",params:{limit: 512},message:"must NOT have more than 512 characters"};
 if(vErrors === null){
 vErrors = [err1602];
 }
@@ -84218,8 +84132,9 @@ vErrors.push(err1602);
 }
 errors++;
 }
-if(!(data500 === "2751c5ead29471b9675530a20cd0e364368ba79dee3ec6f00f8806d0accb94e7")){
-const err1603 = {instancePath:instancePath+"/refresh_status/query_diagnostic/definition",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/definition/enum",keyword:"enum",params:{allowedValues: schema52.oneOf[8].properties.refresh_status.properties.query_diagnostic.anyOf[0].properties.definition.enum},message:"must be equal to one of the allowed values"};
+}
+else {
+const err1603 = {instancePath:instancePath+"/refresh_status/diagnostic/facts/" + i36+"/value/location/source",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf/5/properties/location/properties/source/anyOf/0/type",keyword:"type",params:{type: "string"},message:"must be string"};
 if(vErrors === null){
 vErrors = [err1603];
 }
@@ -84228,19 +84143,12 @@ vErrors.push(err1603);
 }
 errors++;
 }
-var valid248 = _errs1488 === errors;
 }
-else {
-var valid248 = true;
-}
-if(valid248){
-if(data498.code !== undefined){
-let data501 = data498.code;
-const _errs1490 = errors;
-if(errors === _errs1490){
-if(typeof data501 === "string"){
-if(func2(data501) > 96){
-const err1604 = {instancePath:instancePath+"/refresh_status/query_diagnostic/code",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/code/maxLength",keyword:"maxLength",params:{limit: 96},message:"must NOT have more than 96 characters"};
+var _valid63 = _errs1482 === errors;
+valid245 = valid245 || _valid63;
+const _errs1484 = errors;
+if(data507 !== null){
+const err1604 = {instancePath:instancePath+"/refresh_status/diagnostic/facts/" + i36+"/value/location/source",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf/5/properties/location/properties/source/anyOf/1/type",keyword:"type",params:{type: "null"},message:"must be null"};
 if(vErrors === null){
 vErrors = [err1604];
 }
@@ -84249,9 +84157,10 @@ vErrors.push(err1604);
 }
 errors++;
 }
-}
-else {
-const err1605 = {instancePath:instancePath+"/refresh_status/query_diagnostic/code",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/code/type",keyword:"type",params:{type: "string"},message:"must be string"};
+var _valid63 = _errs1484 === errors;
+valid245 = valid245 || _valid63;
+if(!valid245){
+const err1605 = {instancePath:instancePath+"/refresh_status/diagnostic/facts/" + i36+"/value/location/source",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf/5/properties/location/properties/source/anyOf",keyword:"anyOf",params:{},message:"must match a schema in anyOf"};
 if(vErrors === null){
 vErrors = [err1605];
 }
@@ -84260,18 +84169,28 @@ vErrors.push(err1605);
 }
 errors++;
 }
-}
-var valid248 = _errs1490 === errors;
+else {
+errors = _errs1481;
+if(vErrors !== null){
+if(_errs1481){
+vErrors.length = _errs1481;
 }
 else {
-var valid248 = true;
+vErrors = null;
 }
-if(valid248){
-if(data498.category !== undefined){
-let data502 = data498.category;
-const _errs1492 = errors;
-if(typeof data502 !== "string"){
-const err1606 = {instancePath:instancePath+"/refresh_status/query_diagnostic/category",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/category/type",keyword:"type",params:{type: "string"},message:"must be string"};
+}
+}
+var valid244 = _errs1480 === errors;
+}
+else {
+var valid244 = true;
+}
+if(valid244){
+if(data506.source_encoding !== undefined){
+let data508 = data506.source_encoding;
+const _errs1486 = errors;
+if(typeof data508 !== "string"){
+const err1606 = {instancePath:instancePath+"/refresh_status/diagnostic/facts/" + i36+"/value/location/source_encoding",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf/5/properties/location/properties/source_encoding/type",keyword:"type",params:{type: "string"},message:"must be string"};
 if(vErrors === null){
 vErrors = [err1606];
 }
@@ -84280,8 +84199,8 @@ vErrors.push(err1606);
 }
 errors++;
 }
-if(!(((((((((((data502 === "syntax") || (data502 === "binding")) || (data502 === "unsupported")) || (data502 === "constraint")) || (data502 === "access")) || (data502 === "conflict")) || (data502 === "limit")) || (data502 === "lifecycle")) || (data502 === "integrity")) || (data502 === "unavailable")) || (data502 === "internal"))){
-const err1607 = {instancePath:instancePath+"/refresh_status/query_diagnostic/category",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/category/enum",keyword:"enum",params:{allowedValues: schema52.oneOf[8].properties.refresh_status.properties.query_diagnostic.anyOf[0].properties.category.enum},message:"must be equal to one of the allowed values"};
+if(!((data508 === "utf8") || (data508 === "escaped_bytes"))){
+const err1607 = {instancePath:instancePath+"/refresh_status/diagnostic/facts/" + i36+"/value/location/source_encoding",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf/5/properties/location/properties/source_encoding/enum",keyword:"enum",params:{allowedValues: schema52.oneOf[8].properties.refresh_status.properties.diagnostic.anyOf[0].properties.facts.items.anyOf[0].properties.value.anyOf[0].oneOf[5].properties.location.properties.source_encoding.enum},message:"must be equal to one of the allowed values"};
 if(vErrors === null){
 vErrors = [err1607];
 }
@@ -84290,17 +84209,16 @@ vErrors.push(err1607);
 }
 errors++;
 }
-var valid248 = _errs1492 === errors;
+var valid244 = _errs1486 === errors;
 }
 else {
-var valid248 = true;
+var valid244 = true;
 }
-if(valid248){
-if(data498.stage !== undefined){
-let data503 = data498.stage;
-const _errs1494 = errors;
-if(typeof data503 !== "string"){
-const err1608 = {instancePath:instancePath+"/refresh_status/query_diagnostic/stage",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/stage/type",keyword:"type",params:{type: "string"},message:"must be string"};
+if(valid244){
+if(data506.source_truncated !== undefined){
+const _errs1488 = errors;
+if(typeof data506.source_truncated !== "boolean"){
+const err1608 = {instancePath:instancePath+"/refresh_status/diagnostic/facts/" + i36+"/value/location/source_truncated",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf/5/properties/location/properties/source_truncated/type",keyword:"type",params:{type: "boolean"},message:"must be boolean"};
 if(vErrors === null){
 vErrors = [err1608];
 }
@@ -84309,8 +84227,22 @@ vErrors.push(err1608);
 }
 errors++;
 }
-if(!((((((((((((((data503 === "input") || (data503 === "parse")) || (data503 === "compile")) || (data503 === "bind")) || (data503 === "prepare")) || (data503 === "submit")) || (data503 === "admission")) || (data503 === "execute")) || (data503 === "read")) || (data503 === "decode")) || (data503 === "output")) || (data503 === "reconcile")) || (data503 === "cleanup")) || (data503 === "control"))){
-const err1609 = {instancePath:instancePath+"/refresh_status/query_diagnostic/stage",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/stage/enum",keyword:"enum",params:{allowedValues: schema52.oneOf[8].properties.refresh_status.properties.query_diagnostic.anyOf[0].properties.stage.enum},message:"must be equal to one of the allowed values"};
+var valid244 = _errs1488 === errors;
+}
+else {
+var valid244 = true;
+}
+if(valid244){
+if(data506.statement !== undefined){
+let data510 = data506.statement;
+const _errs1490 = errors;
+const _errs1491 = errors;
+let valid246 = false;
+const _errs1492 = errors;
+if(errors === _errs1492){
+if(typeof data510 === "string"){
+if(func2(data510) > 20){
+const err1609 = {instancePath:instancePath+"/refresh_status/diagnostic/facts/" + i36+"/value/location/statement",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf/5/properties/location/properties/statement/anyOf/0/maxLength",keyword:"maxLength",params:{limit: 20},message:"must NOT have more than 20 characters"};
 if(vErrors === null){
 vErrors = [err1609];
 }
@@ -84319,17 +84251,9 @@ vErrors.push(err1609);
 }
 errors++;
 }
-var valid248 = _errs1494 === errors;
-}
 else {
-var valid248 = true;
-}
-if(valid248){
-if(data498.outcome !== undefined){
-let data504 = data498.outcome;
-const _errs1496 = errors;
-if(typeof data504 !== "string"){
-const err1610 = {instancePath:instancePath+"/refresh_status/query_diagnostic/outcome",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/outcome/type",keyword:"type",params:{type: "string"},message:"must be string"};
+if(!pattern4.test(data510)){
+const err1610 = {instancePath:instancePath+"/refresh_status/diagnostic/facts/" + i36+"/value/location/statement",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf/5/properties/location/properties/statement/anyOf/0/pattern",keyword:"pattern",params:{pattern: "^(0|[1-9][0-9]*)$"},message:"must match pattern \""+"^(0|[1-9][0-9]*)$"+"\""};
 if(vErrors === null){
 vErrors = [err1610];
 }
@@ -84338,8 +84262,10 @@ vErrors.push(err1610);
 }
 errors++;
 }
-if(!((((((((((((((data504 === "not_applicable") || (data504 === "not_submitted")) || (data504 === "not_dispatched")) || (data504 === "prepared")) || (data504 === "unknown")) || (data504 === "pending")) || (data504 === "input_rejected")) || (data504 === "rejected")) || (data504 === "applied")) || (data504 === "completed")) || (data504 === "failed")) || (data504 === "cancelled")) || (data504 === "retired")) || (data504 === "closed_unknown"))){
-const err1611 = {instancePath:instancePath+"/refresh_status/query_diagnostic/outcome",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/outcome/enum",keyword:"enum",params:{allowedValues: schema52.oneOf[8].properties.refresh_status.properties.query_diagnostic.anyOf[0].properties.outcome.enum},message:"must be equal to one of the allowed values"};
+}
+}
+else {
+const err1611 = {instancePath:instancePath+"/refresh_status/diagnostic/facts/" + i36+"/value/location/statement",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf/5/properties/location/properties/statement/anyOf/0/type",keyword:"type",params:{type: "string"},message:"must be string"};
 if(vErrors === null){
 vErrors = [err1611];
 }
@@ -84348,17 +84274,12 @@ vErrors.push(err1611);
 }
 errors++;
 }
-var valid248 = _errs1496 === errors;
 }
-else {
-var valid248 = true;
-}
-if(valid248){
-if(data498.evidence !== undefined){
-let data505 = data498.evidence;
-const _errs1498 = errors;
-if(typeof data505 !== "string"){
-const err1612 = {instancePath:instancePath+"/refresh_status/query_diagnostic/evidence",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/evidence/type",keyword:"type",params:{type: "string"},message:"must be string"};
+var _valid64 = _errs1492 === errors;
+valid246 = valid246 || _valid64;
+const _errs1494 = errors;
+if(data510 !== null){
+const err1612 = {instancePath:instancePath+"/refresh_status/diagnostic/facts/" + i36+"/value/location/statement",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf/5/properties/location/properties/statement/anyOf/1/type",keyword:"type",params:{type: "null"},message:"must be null"};
 if(vErrors === null){
 vErrors = [err1612];
 }
@@ -84367,8 +84288,10 @@ vErrors.push(err1612);
 }
 errors++;
 }
-if(!(((((data505 === "none") || (data505 === "local_before_dispatch")) || (data505 === "saved_intent")) || (data505 === "native_receipt")) || (data505 === "domain_status"))){
-const err1613 = {instancePath:instancePath+"/refresh_status/query_diagnostic/evidence",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/evidence/enum",keyword:"enum",params:{allowedValues: schema52.oneOf[8].properties.refresh_status.properties.query_diagnostic.anyOf[0].properties.evidence.enum},message:"must be equal to one of the allowed values"};
+var _valid64 = _errs1494 === errors;
+valid246 = valid246 || _valid64;
+if(!valid246){
+const err1613 = {instancePath:instancePath+"/refresh_status/diagnostic/facts/" + i36+"/value/location/statement",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf/5/properties/location/properties/statement/anyOf",keyword:"anyOf",params:{},message:"must match a schema in anyOf"};
 if(vErrors === null){
 vErrors = [err1613];
 }
@@ -84377,19 +84300,30 @@ vErrors.push(err1613);
 }
 errors++;
 }
-var valid248 = _errs1498 === errors;
+else {
+errors = _errs1491;
+if(vErrors !== null){
+if(_errs1491){
+vErrors.length = _errs1491;
 }
 else {
-var valid248 = true;
+vErrors = null;
 }
-if(valid248){
-if(data498.message !== undefined){
-let data506 = data498.message;
-const _errs1500 = errors;
-if(errors === _errs1500){
-if(typeof data506 === "string"){
-if(func2(data506) > 384){
-const err1614 = {instancePath:instancePath+"/refresh_status/query_diagnostic/message",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/message/maxLength",keyword:"maxLength",params:{limit: 384},message:"must NOT have more than 384 characters"};
+}
+}
+var valid244 = _errs1490 === errors;
+}
+else {
+var valid244 = true;
+}
+if(valid244){
+if(data506.offset !== undefined){
+let data511 = data506.offset;
+const _errs1496 = errors;
+if(errors === _errs1496){
+if(typeof data511 === "string"){
+if(func2(data511) > 20){
+const err1614 = {instancePath:instancePath+"/refresh_status/diagnostic/facts/" + i36+"/value/location/offset",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf/5/properties/location/properties/offset/maxLength",keyword:"maxLength",params:{limit: 20},message:"must NOT have more than 20 characters"};
 if(vErrors === null){
 vErrors = [err1614];
 }
@@ -84398,9 +84332,9 @@ vErrors.push(err1614);
 }
 errors++;
 }
-}
 else {
-const err1615 = {instancePath:instancePath+"/refresh_status/query_diagnostic/message",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/message/type",keyword:"type",params:{type: "string"},message:"must be string"};
+if(!pattern4.test(data511)){
+const err1615 = {instancePath:instancePath+"/refresh_status/diagnostic/facts/" + i36+"/value/location/offset",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf/5/properties/location/properties/offset/pattern",keyword:"pattern",params:{pattern: "^(0|[1-9][0-9]*)$"},message:"must match pattern \""+"^(0|[1-9][0-9]*)$"+"\""};
 if(vErrors === null){
 vErrors = [err1615];
 }
@@ -84410,22 +84344,9 @@ vErrors.push(err1615);
 errors++;
 }
 }
-var valid248 = _errs1500 === errors;
 }
 else {
-var valid248 = true;
-}
-if(valid248){
-if(data498.cause !== undefined){
-let data507 = data498.cause;
-const _errs1502 = errors;
-const _errs1503 = errors;
-let valid249 = false;
-const _errs1504 = errors;
-if(errors === _errs1504){
-if(typeof data507 === "string"){
-if(func2(data507) > 96){
-const err1616 = {instancePath:instancePath+"/refresh_status/query_diagnostic/cause",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/cause/anyOf/0/maxLength",keyword:"maxLength",params:{limit: 96},message:"must NOT have more than 96 characters"};
+const err1616 = {instancePath:instancePath+"/refresh_status/diagnostic/facts/" + i36+"/value/location/offset",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf/5/properties/location/properties/offset/type",keyword:"type",params:{type: "string"},message:"must be string"};
 if(vErrors === null){
 vErrors = [err1616];
 }
@@ -84435,8 +84356,19 @@ vErrors.push(err1616);
 errors++;
 }
 }
+var valid244 = _errs1496 === errors;
+}
 else {
-const err1617 = {instancePath:instancePath+"/refresh_status/query_diagnostic/cause",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/cause/anyOf/0/type",keyword:"type",params:{type: "string"},message:"must be string"};
+var valid244 = true;
+}
+if(valid244){
+if(data506.length !== undefined){
+let data512 = data506.length;
+const _errs1498 = errors;
+if(errors === _errs1498){
+if(typeof data512 === "string"){
+if(func2(data512) > 20){
+const err1617 = {instancePath:instancePath+"/refresh_status/diagnostic/facts/" + i36+"/value/location/length",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf/5/properties/location/properties/length/maxLength",keyword:"maxLength",params:{limit: 20},message:"must NOT have more than 20 characters"};
 if(vErrors === null){
 vErrors = [err1617];
 }
@@ -84445,12 +84377,9 @@ vErrors.push(err1617);
 }
 errors++;
 }
-}
-var _valid71 = _errs1504 === errors;
-valid249 = valid249 || _valid71;
-const _errs1506 = errors;
-if(data507 !== null){
-const err1618 = {instancePath:instancePath+"/refresh_status/query_diagnostic/cause",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/cause/anyOf/1/type",keyword:"type",params:{type: "null"},message:"must be null"};
+else {
+if(!pattern4.test(data512)){
+const err1618 = {instancePath:instancePath+"/refresh_status/diagnostic/facts/" + i36+"/value/location/length",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf/5/properties/location/properties/length/pattern",keyword:"pattern",params:{pattern: "^(0|[1-9][0-9]*)$"},message:"must match pattern \""+"^(0|[1-9][0-9]*)$"+"\""};
 if(vErrors === null){
 vErrors = [err1618];
 }
@@ -84459,10 +84388,10 @@ vErrors.push(err1618);
 }
 errors++;
 }
-var _valid71 = _errs1506 === errors;
-valid249 = valid249 || _valid71;
-if(!valid249){
-const err1619 = {instancePath:instancePath+"/refresh_status/query_diagnostic/cause",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/cause/anyOf",keyword:"anyOf",params:{},message:"must match a schema in anyOf"};
+}
+}
+else {
+const err1619 = {instancePath:instancePath+"/refresh_status/diagnostic/facts/" + i36+"/value/location/length",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf/5/properties/location/properties/length/type",keyword:"type",params:{type: "string"},message:"must be string"};
 if(vErrors === null){
 vErrors = [err1619];
 }
@@ -84471,34 +84400,20 @@ vErrors.push(err1619);
 }
 errors++;
 }
-else {
-errors = _errs1503;
-if(vErrors !== null){
-if(_errs1503){
-vErrors.length = _errs1503;
+}
+var valid244 = _errs1498 === errors;
 }
 else {
-vErrors = null;
+var valid244 = true;
 }
-}
-}
-var valid248 = _errs1502 === errors;
-}
-else {
-var valid248 = true;
-}
-if(valid248){
-if(data498.identity !== undefined){
-let data508 = data498.identity;
-const _errs1508 = errors;
-const _errs1509 = errors;
-let valid250 = false;
-const _errs1510 = errors;
-if(errors === _errs1510){
-if(data508 && typeof data508 == "object" && !Array.isArray(data508)){
-let missing137;
-if(((data508.domain === undefined) && (missing137 = "domain")) || ((data508.id === undefined) && (missing137 = "id"))){
-const err1620 = {instancePath:instancePath+"/refresh_status/query_diagnostic/identity",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/identity/anyOf/0/required",keyword:"required",params:{missingProperty: missing137},message:"must have required property '"+missing137+"'"};
+if(valid244){
+if(data506.line !== undefined){
+let data513 = data506.line;
+const _errs1500 = errors;
+if(errors === _errs1500){
+if(typeof data513 === "string"){
+if(func2(data513) > 20){
+const err1620 = {instancePath:instancePath+"/refresh_status/diagnostic/facts/" + i36+"/value/location/line",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf/5/properties/location/properties/line/maxLength",keyword:"maxLength",params:{limit: 20},message:"must NOT have more than 20 characters"};
 if(vErrors === null){
 vErrors = [err1620];
 }
@@ -84508,10 +84423,8 @@ vErrors.push(err1620);
 errors++;
 }
 else {
-const _errs1512 = errors;
-for(const key139 in data508){
-if(!(((((key139 === "domain") || (key139 === "id")) || (key139 === "realm")) || (key139 === "resource")) || (key139 === "sequence"))){
-const err1621 = {instancePath:instancePath+"/refresh_status/query_diagnostic/identity",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/identity/anyOf/0/additionalProperties",keyword:"additionalProperties",params:{additionalProperty: key139},message:"must NOT have additional properties"};
+if(!pattern4.test(data513)){
+const err1621 = {instancePath:instancePath+"/refresh_status/diagnostic/facts/" + i36+"/value/location/line",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf/5/properties/location/properties/line/pattern",keyword:"pattern",params:{pattern: "^(0|[1-9][0-9]*)$"},message:"must match pattern \""+"^(0|[1-9][0-9]*)$"+"\""};
 if(vErrors === null){
 vErrors = [err1621];
 }
@@ -84519,15 +84432,11 @@ else {
 vErrors.push(err1621);
 }
 errors++;
-break;
 }
 }
-if(_errs1512 === errors){
-if(data508.domain !== undefined){
-let data509 = data508.domain;
-const _errs1513 = errors;
-if(typeof data509 !== "string"){
-const err1622 = {instancePath:instancePath+"/refresh_status/query_diagnostic/identity/domain",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/identity/anyOf/0/properties/domain/type",keyword:"type",params:{type: "string"},message:"must be string"};
+}
+else {
+const err1622 = {instancePath:instancePath+"/refresh_status/diagnostic/facts/" + i36+"/value/location/line",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf/5/properties/location/properties/line/type",keyword:"type",params:{type: "string"},message:"must be string"};
 if(vErrors === null){
 vErrors = [err1622];
 }
@@ -84536,8 +84445,20 @@ vErrors.push(err1622);
 }
 errors++;
 }
-if(!(((((((((((((data509 === "sql") || (data509 === "query")) || (data509 === "mutation")) || (data509 === "catalog")) || (data509 === "application")) || (data509 === "publication")) || (data509 === "migration")) || (data509 === "reactive")) || (data509 === "serving")) || (data509 === "effect")) || (data509 === "exchange")) || (data509 === "transport")) || (data509 === "internal"))){
-const err1623 = {instancePath:instancePath+"/refresh_status/query_diagnostic/identity/domain",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/identity/anyOf/0/properties/domain/enum",keyword:"enum",params:{allowedValues: schema52.oneOf[8].properties.refresh_status.properties.query_diagnostic.anyOf[0].properties.identity.anyOf[0].properties.domain.enum},message:"must be equal to one of the allowed values"};
+}
+var valid244 = _errs1500 === errors;
+}
+else {
+var valid244 = true;
+}
+if(valid244){
+if(data506.byte_column !== undefined){
+let data514 = data506.byte_column;
+const _errs1502 = errors;
+if(errors === _errs1502){
+if(typeof data514 === "string"){
+if(func2(data514) > 20){
+const err1623 = {instancePath:instancePath+"/refresh_status/diagnostic/facts/" + i36+"/value/location/byte_column",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf/5/properties/location/properties/byte_column/maxLength",keyword:"maxLength",params:{limit: 20},message:"must NOT have more than 20 characters"};
 if(vErrors === null){
 vErrors = [err1623];
 }
@@ -84546,19 +84467,9 @@ vErrors.push(err1623);
 }
 errors++;
 }
-var valid251 = _errs1513 === errors;
-}
 else {
-var valid251 = true;
-}
-if(valid251){
-if(data508.id !== undefined){
-let data510 = data508.id;
-const _errs1515 = errors;
-if(errors === _errs1515){
-if(typeof data510 === "string"){
-if(func2(data510) > 20){
-const err1624 = {instancePath:instancePath+"/refresh_status/query_diagnostic/identity/id",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/identity/anyOf/0/properties/id/maxLength",keyword:"maxLength",params:{limit: 20},message:"must NOT have more than 20 characters"};
+if(!pattern4.test(data514)){
+const err1624 = {instancePath:instancePath+"/refresh_status/diagnostic/facts/" + i36+"/value/location/byte_column",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf/5/properties/location/properties/byte_column/pattern",keyword:"pattern",params:{pattern: "^(0|[1-9][0-9]*)$"},message:"must match pattern \""+"^(0|[1-9][0-9]*)$"+"\""};
 if(vErrors === null){
 vErrors = [err1624];
 }
@@ -84567,9 +84478,10 @@ vErrors.push(err1624);
 }
 errors++;
 }
+}
+}
 else {
-if(!pattern4.test(data510)){
-const err1625 = {instancePath:instancePath+"/refresh_status/query_diagnostic/identity/id",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/identity/anyOf/0/properties/id/pattern",keyword:"pattern",params:{pattern: "^(0|[1-9][0-9]*)$"},message:"must match pattern \""+"^(0|[1-9][0-9]*)$"+"\""};
+const err1625 = {instancePath:instancePath+"/refresh_status/diagnostic/facts/" + i36+"/value/location/byte_column",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf/5/properties/location/properties/byte_column/type",keyword:"type",params:{type: "string"},message:"must be string"};
 if(vErrors === null){
 vErrors = [err1625];
 }
@@ -84579,9 +84491,23 @@ vErrors.push(err1625);
 errors++;
 }
 }
+var valid244 = _errs1502 === errors;
 }
 else {
-const err1626 = {instancePath:instancePath+"/refresh_status/query_diagnostic/identity/id",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/identity/anyOf/0/properties/id/type",keyword:"type",params:{type: "string"},message:"must be string"};
+var valid244 = true;
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+else {
+const err1626 = {instancePath:instancePath+"/refresh_status/diagnostic/facts/" + i36+"/value/location",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf/5/properties/location/type",keyword:"type",params:{type: "object"},message:"must be object"};
 if(vErrors === null){
 vErrors = [err1626];
 }
@@ -84591,22 +84517,12 @@ vErrors.push(err1626);
 errors++;
 }
 }
-var valid251 = _errs1515 === errors;
+}
+}
+}
 }
 else {
-var valid251 = true;
-}
-if(valid251){
-if(data508.realm !== undefined){
-let data511 = data508.realm;
-const _errs1517 = errors;
-const _errs1518 = errors;
-let valid252 = false;
-const _errs1519 = errors;
-if(errors === _errs1519){
-if(typeof data511 === "string"){
-if(func2(data511) > 20){
-const err1627 = {instancePath:instancePath+"/refresh_status/query_diagnostic/identity/realm",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/identity/anyOf/0/properties/realm/anyOf/0/maxLength",keyword:"maxLength",params:{limit: 20},message:"must NOT have more than 20 characters"};
+const err1627 = {instancePath:instancePath+"/refresh_status/diagnostic/facts/" + i36+"/value",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf/5/type",keyword:"type",params:{type: "object"},message:"must be object"};
 if(vErrors === null){
 vErrors = [err1627];
 }
@@ -84615,9 +84531,27 @@ vErrors.push(err1627);
 }
 errors++;
 }
+}
+var _valid62 = _errs1474 === errors;
+if(_valid62 && valid236){
+valid236 = false;
+passing7 = [passing7, 5];
+}
 else {
-if(!pattern4.test(data511)){
-const err1628 = {instancePath:instancePath+"/refresh_status/query_diagnostic/identity/realm",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/identity/anyOf/0/properties/realm/anyOf/0/pattern",keyword:"pattern",params:{pattern: "^(0|[1-9][0-9]*)$"},message:"must match pattern \""+"^(0|[1-9][0-9]*)$"+"\""};
+if(_valid62){
+valid236 = true;
+passing7 = 5;
+if(props28 !== true){
+props28 = true;
+}
+}
+}
+}
+}
+}
+}
+if(!valid236){
+const err1628 = {instancePath:instancePath+"/refresh_status/diagnostic/facts/" + i36+"/value",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf",keyword:"oneOf",params:{passingSchemas: passing7},message:"must match exactly one schema in oneOf"};
 if(vErrors === null){
 vErrors = [err1628];
 }
@@ -84626,10 +84560,22 @@ vErrors.push(err1628);
 }
 errors++;
 }
-}
+else {
+errors = _errs1446;
+if(vErrors !== null){
+if(_errs1446){
+vErrors.length = _errs1446;
 }
 else {
-const err1629 = {instancePath:instancePath+"/refresh_status/query_diagnostic/identity/realm",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/identity/anyOf/0/properties/realm/anyOf/0/type",keyword:"type",params:{type: "string"},message:"must be string"};
+vErrors = null;
+}
+}
+}
+var _valid61 = _errs1445 === errors;
+valid235 = valid235 || _valid61;
+const _errs1504 = errors;
+if(data499 !== null){
+const err1629 = {instancePath:instancePath+"/refresh_status/diagnostic/facts/" + i36+"/value",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/1/type",keyword:"type",params:{type: "null"},message:"must be null"};
 if(vErrors === null){
 vErrors = [err1629];
 }
@@ -84638,12 +84584,10 @@ vErrors.push(err1629);
 }
 errors++;
 }
-}
-var _valid73 = _errs1519 === errors;
-valid252 = valid252 || _valid73;
-const _errs1521 = errors;
-if(data511 !== null){
-const err1630 = {instancePath:instancePath+"/refresh_status/query_diagnostic/identity/realm",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/identity/anyOf/0/properties/realm/anyOf/1/type",keyword:"type",params:{type: "null"},message:"must be null"};
+var _valid61 = _errs1504 === errors;
+valid235 = valid235 || _valid61;
+if(!valid235){
+const err1630 = {instancePath:instancePath+"/refresh_status/diagnostic/facts/" + i36+"/value",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf",keyword:"anyOf",params:{},message:"must match a schema in anyOf"};
 if(vErrors === null){
 vErrors = [err1630];
 }
@@ -84652,15 +84596,593 @@ vErrors.push(err1630);
 }
 errors++;
 }
-var _valid73 = _errs1521 === errors;
-valid252 = valid252 || _valid73;
-if(!valid252){
-const err1631 = {instancePath:instancePath+"/refresh_status/query_diagnostic/identity/realm",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/identity/anyOf/0/properties/realm/anyOf",keyword:"anyOf",params:{},message:"must match a schema in anyOf"};
+else {
+errors = _errs1444;
+if(vErrors !== null){
+if(_errs1444){
+vErrors.length = _errs1444;
+}
+else {
+vErrors = null;
+}
+}
+}
+var valid234 = _errs1443 === errors;
+}
+else {
+var valid234 = true;
+}
+}
+}
+}
+}
+}
+}
+else {
+const err1631 = {instancePath:instancePath+"/refresh_status/diagnostic/facts/" + i36,schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/facts/items/anyOf/0/type",keyword:"type",params:{type: "object"},message:"must be object"};
 if(vErrors === null){
 vErrors = [err1631];
 }
 else {
 vErrors.push(err1631);
+}
+errors++;
+}
+}
+var _valid60 = _errs1434 === errors;
+valid233 = valid233 || _valid60;
+const _errs1506 = errors;
+if(data495 !== null){
+const err1632 = {instancePath:instancePath+"/refresh_status/diagnostic/facts/" + i36,schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/facts/items/anyOf/1/type",keyword:"type",params:{type: "null"},message:"must be null"};
+if(vErrors === null){
+vErrors = [err1632];
+}
+else {
+vErrors.push(err1632);
+}
+errors++;
+}
+var _valid60 = _errs1506 === errors;
+valid233 = valid233 || _valid60;
+if(!valid233){
+const err1633 = {instancePath:instancePath+"/refresh_status/diagnostic/facts/" + i36,schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/facts/items/anyOf",keyword:"anyOf",params:{},message:"must match a schema in anyOf"};
+if(vErrors === null){
+vErrors = [err1633];
+}
+else {
+vErrors.push(err1633);
+}
+errors++;
+}
+else {
+errors = _errs1433;
+if(vErrors !== null){
+if(_errs1433){
+vErrors.length = _errs1433;
+}
+else {
+vErrors = null;
+}
+}
+}
+var valid232 = _errs1432 === errors;
+if(!valid232){
+break;
+}
+}
+}
+}
+}
+else {
+const err1634 = {instancePath:instancePath+"/refresh_status/diagnostic/facts",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/facts/type",keyword:"type",params:{type: "array"},message:"must be array"};
+if(vErrors === null){
+vErrors = [err1634];
+}
+else {
+vErrors.push(err1634);
+}
+errors++;
+}
+}
+var valid221 = _errs1430 === errors;
+}
+else {
+var valid221 = true;
+}
+if(valid221){
+if(data469.actions !== undefined){
+let data515 = data469.actions;
+const _errs1508 = errors;
+if(errors === _errs1508){
+if(Array.isArray(data515)){
+if(data515.length > 4){
+const err1635 = {instancePath:instancePath+"/refresh_status/diagnostic/actions",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/actions/maxItems",keyword:"maxItems",params:{limit: 4},message:"must NOT have more than 4 items"};
+if(vErrors === null){
+vErrors = [err1635];
+}
+else {
+vErrors.push(err1635);
+}
+errors++;
+}
+else {
+if(data515.length < 4){
+const err1636 = {instancePath:instancePath+"/refresh_status/diagnostic/actions",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/actions/minItems",keyword:"minItems",params:{limit: 4},message:"must NOT have fewer than 4 items"};
+if(vErrors === null){
+vErrors = [err1636];
+}
+else {
+vErrors.push(err1636);
+}
+errors++;
+}
+else {
+var valid247 = true;
+const len38 = data515.length;
+for(let i38=0; i38<len38; i38++){
+let data516 = data515[i38];
+const _errs1510 = errors;
+const _errs1511 = errors;
+let valid248 = false;
+const _errs1512 = errors;
+if(errors === _errs1512){
+if(data516 && typeof data516 == "object" && !Array.isArray(data516)){
+let missing142;
+if((data516.kind === undefined) && (missing142 = "kind")){
+const err1637 = {instancePath:instancePath+"/refresh_status/diagnostic/actions/" + i38,schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/actions/items/anyOf/0/required",keyword:"required",params:{missingProperty: missing142},message:"must have required property '"+missing142+"'"};
+if(vErrors === null){
+vErrors = [err1637];
+}
+else {
+vErrors.push(err1637);
+}
+errors++;
+}
+else {
+const _errs1514 = errors;
+for(const key144 in data516){
+if(!((key144 === "kind") || (key144 === "target"))){
+const err1638 = {instancePath:instancePath+"/refresh_status/diagnostic/actions/" + i38,schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/actions/items/anyOf/0/additionalProperties",keyword:"additionalProperties",params:{additionalProperty: key144},message:"must NOT have additional properties"};
+if(vErrors === null){
+vErrors = [err1638];
+}
+else {
+vErrors.push(err1638);
+}
+errors++;
+break;
+}
+}
+if(_errs1514 === errors){
+if(data516.kind !== undefined){
+let data517 = data516.kind;
+const _errs1515 = errors;
+if(typeof data517 !== "string"){
+const err1639 = {instancePath:instancePath+"/refresh_status/diagnostic/actions/" + i38+"/kind",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/actions/items/anyOf/0/properties/kind/type",keyword:"type",params:{type: "string"},message:"must be string"};
+if(vErrors === null){
+vErrors = [err1639];
+}
+else {
+vErrors.push(err1639);
+}
+errors++;
+}
+if(!(((((((((((data517 === "correct_input") || (data517 === "inspect_status")) || (data517 === "resume_exact")) || (data517 === "cancel_wait")) || (data517 === "cancel_mutation")) || (data517 === "refresh")) || (data517 === "recompile")) || (data517 === "retry_read")) || (data517 === "inspect_scope")) || (data517 === "reconcile_effect")) || (data517 === "contact_operator"))){
+const err1640 = {instancePath:instancePath+"/refresh_status/diagnostic/actions/" + i38+"/kind",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/actions/items/anyOf/0/properties/kind/enum",keyword:"enum",params:{allowedValues: schema52.oneOf[8].properties.refresh_status.properties.diagnostic.anyOf[0].properties.actions.items.anyOf[0].properties.kind.enum},message:"must be equal to one of the allowed values"};
+if(vErrors === null){
+vErrors = [err1640];
+}
+else {
+vErrors.push(err1640);
+}
+errors++;
+}
+var valid249 = _errs1515 === errors;
+}
+else {
+var valid249 = true;
+}
+if(valid249){
+if(data516.target !== undefined){
+let data518 = data516.target;
+const _errs1517 = errors;
+const _errs1518 = errors;
+let valid250 = false;
+const _errs1519 = errors;
+if(errors === _errs1519){
+if(data518 && typeof data518 == "object" && !Array.isArray(data518)){
+let missing143;
+if(((data518.domain === undefined) && (missing143 = "domain")) || ((data518.id === undefined) && (missing143 = "id"))){
+const err1641 = {instancePath:instancePath+"/refresh_status/diagnostic/actions/" + i38+"/target",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/actions/items/anyOf/0/properties/target/anyOf/0/required",keyword:"required",params:{missingProperty: missing143},message:"must have required property '"+missing143+"'"};
+if(vErrors === null){
+vErrors = [err1641];
+}
+else {
+vErrors.push(err1641);
+}
+errors++;
+}
+else {
+const _errs1521 = errors;
+for(const key145 in data518){
+if(!(((((key145 === "domain") || (key145 === "id")) || (key145 === "realm")) || (key145 === "resource")) || (key145 === "sequence"))){
+const err1642 = {instancePath:instancePath+"/refresh_status/diagnostic/actions/" + i38+"/target",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/actions/items/anyOf/0/properties/target/anyOf/0/additionalProperties",keyword:"additionalProperties",params:{additionalProperty: key145},message:"must NOT have additional properties"};
+if(vErrors === null){
+vErrors = [err1642];
+}
+else {
+vErrors.push(err1642);
+}
+errors++;
+break;
+}
+}
+if(_errs1521 === errors){
+if(data518.domain !== undefined){
+let data519 = data518.domain;
+const _errs1522 = errors;
+if(typeof data519 !== "string"){
+const err1643 = {instancePath:instancePath+"/refresh_status/diagnostic/actions/" + i38+"/target/domain",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/actions/items/anyOf/0/properties/target/anyOf/0/properties/domain/type",keyword:"type",params:{type: "string"},message:"must be string"};
+if(vErrors === null){
+vErrors = [err1643];
+}
+else {
+vErrors.push(err1643);
+}
+errors++;
+}
+if(!(((((((((((((data519 === "sql") || (data519 === "query")) || (data519 === "mutation")) || (data519 === "catalog")) || (data519 === "application")) || (data519 === "publication")) || (data519 === "migration")) || (data519 === "reactive")) || (data519 === "serving")) || (data519 === "effect")) || (data519 === "exchange")) || (data519 === "transport")) || (data519 === "internal"))){
+const err1644 = {instancePath:instancePath+"/refresh_status/diagnostic/actions/" + i38+"/target/domain",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/actions/items/anyOf/0/properties/target/anyOf/0/properties/domain/enum",keyword:"enum",params:{allowedValues: schema52.oneOf[8].properties.refresh_status.properties.diagnostic.anyOf[0].properties.actions.items.anyOf[0].properties.target.anyOf[0].properties.domain.enum},message:"must be equal to one of the allowed values"};
+if(vErrors === null){
+vErrors = [err1644];
+}
+else {
+vErrors.push(err1644);
+}
+errors++;
+}
+var valid251 = _errs1522 === errors;
+}
+else {
+var valid251 = true;
+}
+if(valid251){
+if(data518.id !== undefined){
+let data520 = data518.id;
+const _errs1524 = errors;
+if(errors === _errs1524){
+if(typeof data520 === "string"){
+if(func2(data520) > 20){
+const err1645 = {instancePath:instancePath+"/refresh_status/diagnostic/actions/" + i38+"/target/id",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/actions/items/anyOf/0/properties/target/anyOf/0/properties/id/maxLength",keyword:"maxLength",params:{limit: 20},message:"must NOT have more than 20 characters"};
+if(vErrors === null){
+vErrors = [err1645];
+}
+else {
+vErrors.push(err1645);
+}
+errors++;
+}
+else {
+if(!pattern4.test(data520)){
+const err1646 = {instancePath:instancePath+"/refresh_status/diagnostic/actions/" + i38+"/target/id",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/actions/items/anyOf/0/properties/target/anyOf/0/properties/id/pattern",keyword:"pattern",params:{pattern: "^(0|[1-9][0-9]*)$"},message:"must match pattern \""+"^(0|[1-9][0-9]*)$"+"\""};
+if(vErrors === null){
+vErrors = [err1646];
+}
+else {
+vErrors.push(err1646);
+}
+errors++;
+}
+}
+}
+else {
+const err1647 = {instancePath:instancePath+"/refresh_status/diagnostic/actions/" + i38+"/target/id",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/actions/items/anyOf/0/properties/target/anyOf/0/properties/id/type",keyword:"type",params:{type: "string"},message:"must be string"};
+if(vErrors === null){
+vErrors = [err1647];
+}
+else {
+vErrors.push(err1647);
+}
+errors++;
+}
+}
+var valid251 = _errs1524 === errors;
+}
+else {
+var valid251 = true;
+}
+if(valid251){
+if(data518.realm !== undefined){
+let data521 = data518.realm;
+const _errs1526 = errors;
+const _errs1527 = errors;
+let valid252 = false;
+const _errs1528 = errors;
+if(errors === _errs1528){
+if(typeof data521 === "string"){
+if(func2(data521) > 20){
+const err1648 = {instancePath:instancePath+"/refresh_status/diagnostic/actions/" + i38+"/target/realm",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/actions/items/anyOf/0/properties/target/anyOf/0/properties/realm/anyOf/0/maxLength",keyword:"maxLength",params:{limit: 20},message:"must NOT have more than 20 characters"};
+if(vErrors === null){
+vErrors = [err1648];
+}
+else {
+vErrors.push(err1648);
+}
+errors++;
+}
+else {
+if(!pattern4.test(data521)){
+const err1649 = {instancePath:instancePath+"/refresh_status/diagnostic/actions/" + i38+"/target/realm",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/actions/items/anyOf/0/properties/target/anyOf/0/properties/realm/anyOf/0/pattern",keyword:"pattern",params:{pattern: "^(0|[1-9][0-9]*)$"},message:"must match pattern \""+"^(0|[1-9][0-9]*)$"+"\""};
+if(vErrors === null){
+vErrors = [err1649];
+}
+else {
+vErrors.push(err1649);
+}
+errors++;
+}
+}
+}
+else {
+const err1650 = {instancePath:instancePath+"/refresh_status/diagnostic/actions/" + i38+"/target/realm",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/actions/items/anyOf/0/properties/target/anyOf/0/properties/realm/anyOf/0/type",keyword:"type",params:{type: "string"},message:"must be string"};
+if(vErrors === null){
+vErrors = [err1650];
+}
+else {
+vErrors.push(err1650);
+}
+errors++;
+}
+}
+var _valid67 = _errs1528 === errors;
+valid252 = valid252 || _valid67;
+const _errs1530 = errors;
+if(data521 !== null){
+const err1651 = {instancePath:instancePath+"/refresh_status/diagnostic/actions/" + i38+"/target/realm",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/actions/items/anyOf/0/properties/target/anyOf/0/properties/realm/anyOf/1/type",keyword:"type",params:{type: "null"},message:"must be null"};
+if(vErrors === null){
+vErrors = [err1651];
+}
+else {
+vErrors.push(err1651);
+}
+errors++;
+}
+var _valid67 = _errs1530 === errors;
+valid252 = valid252 || _valid67;
+if(!valid252){
+const err1652 = {instancePath:instancePath+"/refresh_status/diagnostic/actions/" + i38+"/target/realm",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/actions/items/anyOf/0/properties/target/anyOf/0/properties/realm/anyOf",keyword:"anyOf",params:{},message:"must match a schema in anyOf"};
+if(vErrors === null){
+vErrors = [err1652];
+}
+else {
+vErrors.push(err1652);
+}
+errors++;
+}
+else {
+errors = _errs1527;
+if(vErrors !== null){
+if(_errs1527){
+vErrors.length = _errs1527;
+}
+else {
+vErrors = null;
+}
+}
+}
+var valid251 = _errs1526 === errors;
+}
+else {
+var valid251 = true;
+}
+if(valid251){
+if(data518.resource !== undefined){
+let data522 = data518.resource;
+const _errs1532 = errors;
+const _errs1533 = errors;
+let valid253 = false;
+const _errs1534 = errors;
+if(errors === _errs1534){
+if(typeof data522 === "string"){
+if(func2(data522) > 20){
+const err1653 = {instancePath:instancePath+"/refresh_status/diagnostic/actions/" + i38+"/target/resource",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/actions/items/anyOf/0/properties/target/anyOf/0/properties/resource/anyOf/0/maxLength",keyword:"maxLength",params:{limit: 20},message:"must NOT have more than 20 characters"};
+if(vErrors === null){
+vErrors = [err1653];
+}
+else {
+vErrors.push(err1653);
+}
+errors++;
+}
+else {
+if(!pattern4.test(data522)){
+const err1654 = {instancePath:instancePath+"/refresh_status/diagnostic/actions/" + i38+"/target/resource",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/actions/items/anyOf/0/properties/target/anyOf/0/properties/resource/anyOf/0/pattern",keyword:"pattern",params:{pattern: "^(0|[1-9][0-9]*)$"},message:"must match pattern \""+"^(0|[1-9][0-9]*)$"+"\""};
+if(vErrors === null){
+vErrors = [err1654];
+}
+else {
+vErrors.push(err1654);
+}
+errors++;
+}
+}
+}
+else {
+const err1655 = {instancePath:instancePath+"/refresh_status/diagnostic/actions/" + i38+"/target/resource",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/actions/items/anyOf/0/properties/target/anyOf/0/properties/resource/anyOf/0/type",keyword:"type",params:{type: "string"},message:"must be string"};
+if(vErrors === null){
+vErrors = [err1655];
+}
+else {
+vErrors.push(err1655);
+}
+errors++;
+}
+}
+var _valid68 = _errs1534 === errors;
+valid253 = valid253 || _valid68;
+const _errs1536 = errors;
+if(data522 !== null){
+const err1656 = {instancePath:instancePath+"/refresh_status/diagnostic/actions/" + i38+"/target/resource",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/actions/items/anyOf/0/properties/target/anyOf/0/properties/resource/anyOf/1/type",keyword:"type",params:{type: "null"},message:"must be null"};
+if(vErrors === null){
+vErrors = [err1656];
+}
+else {
+vErrors.push(err1656);
+}
+errors++;
+}
+var _valid68 = _errs1536 === errors;
+valid253 = valid253 || _valid68;
+if(!valid253){
+const err1657 = {instancePath:instancePath+"/refresh_status/diagnostic/actions/" + i38+"/target/resource",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/actions/items/anyOf/0/properties/target/anyOf/0/properties/resource/anyOf",keyword:"anyOf",params:{},message:"must match a schema in anyOf"};
+if(vErrors === null){
+vErrors = [err1657];
+}
+else {
+vErrors.push(err1657);
+}
+errors++;
+}
+else {
+errors = _errs1533;
+if(vErrors !== null){
+if(_errs1533){
+vErrors.length = _errs1533;
+}
+else {
+vErrors = null;
+}
+}
+}
+var valid251 = _errs1532 === errors;
+}
+else {
+var valid251 = true;
+}
+if(valid251){
+if(data518.sequence !== undefined){
+let data523 = data518.sequence;
+const _errs1538 = errors;
+const _errs1539 = errors;
+let valid254 = false;
+const _errs1540 = errors;
+if(errors === _errs1540){
+if(typeof data523 === "string"){
+if(func2(data523) > 20){
+const err1658 = {instancePath:instancePath+"/refresh_status/diagnostic/actions/" + i38+"/target/sequence",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/actions/items/anyOf/0/properties/target/anyOf/0/properties/sequence/anyOf/0/maxLength",keyword:"maxLength",params:{limit: 20},message:"must NOT have more than 20 characters"};
+if(vErrors === null){
+vErrors = [err1658];
+}
+else {
+vErrors.push(err1658);
+}
+errors++;
+}
+else {
+if(!pattern4.test(data523)){
+const err1659 = {instancePath:instancePath+"/refresh_status/diagnostic/actions/" + i38+"/target/sequence",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/actions/items/anyOf/0/properties/target/anyOf/0/properties/sequence/anyOf/0/pattern",keyword:"pattern",params:{pattern: "^(0|[1-9][0-9]*)$"},message:"must match pattern \""+"^(0|[1-9][0-9]*)$"+"\""};
+if(vErrors === null){
+vErrors = [err1659];
+}
+else {
+vErrors.push(err1659);
+}
+errors++;
+}
+}
+}
+else {
+const err1660 = {instancePath:instancePath+"/refresh_status/diagnostic/actions/" + i38+"/target/sequence",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/actions/items/anyOf/0/properties/target/anyOf/0/properties/sequence/anyOf/0/type",keyword:"type",params:{type: "string"},message:"must be string"};
+if(vErrors === null){
+vErrors = [err1660];
+}
+else {
+vErrors.push(err1660);
+}
+errors++;
+}
+}
+var _valid69 = _errs1540 === errors;
+valid254 = valid254 || _valid69;
+const _errs1542 = errors;
+if(data523 !== null){
+const err1661 = {instancePath:instancePath+"/refresh_status/diagnostic/actions/" + i38+"/target/sequence",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/actions/items/anyOf/0/properties/target/anyOf/0/properties/sequence/anyOf/1/type",keyword:"type",params:{type: "null"},message:"must be null"};
+if(vErrors === null){
+vErrors = [err1661];
+}
+else {
+vErrors.push(err1661);
+}
+errors++;
+}
+var _valid69 = _errs1542 === errors;
+valid254 = valid254 || _valid69;
+if(!valid254){
+const err1662 = {instancePath:instancePath+"/refresh_status/diagnostic/actions/" + i38+"/target/sequence",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/actions/items/anyOf/0/properties/target/anyOf/0/properties/sequence/anyOf",keyword:"anyOf",params:{},message:"must match a schema in anyOf"};
+if(vErrors === null){
+vErrors = [err1662];
+}
+else {
+vErrors.push(err1662);
+}
+errors++;
+}
+else {
+errors = _errs1539;
+if(vErrors !== null){
+if(_errs1539){
+vErrors.length = _errs1539;
+}
+else {
+vErrors = null;
+}
+}
+}
+var valid251 = _errs1538 === errors;
+}
+else {
+var valid251 = true;
+}
+}
+}
+}
+}
+}
+}
+}
+else {
+const err1663 = {instancePath:instancePath+"/refresh_status/diagnostic/actions/" + i38+"/target",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/actions/items/anyOf/0/properties/target/anyOf/0/type",keyword:"type",params:{type: "object"},message:"must be object"};
+if(vErrors === null){
+vErrors = [err1663];
+}
+else {
+vErrors.push(err1663);
+}
+errors++;
+}
+}
+var _valid66 = _errs1519 === errors;
+valid250 = valid250 || _valid66;
+const _errs1544 = errors;
+if(data518 !== null){
+const err1664 = {instancePath:instancePath+"/refresh_status/diagnostic/actions/" + i38+"/target",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/actions/items/anyOf/0/properties/target/anyOf/1/type",keyword:"type",params:{type: "null"},message:"must be null"};
+if(vErrors === null){
+vErrors = [err1664];
+}
+else {
+vErrors.push(err1664);
+}
+errors++;
+}
+var _valid66 = _errs1544 === errors;
+valid250 = valid250 || _valid66;
+if(!valid250){
+const err1665 = {instancePath:instancePath+"/refresh_status/diagnostic/actions/" + i38+"/target",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/actions/items/anyOf/0/properties/target/anyOf",keyword:"anyOf",params:{},message:"must match a schema in anyOf"};
+if(vErrors === null){
+vErrors = [err1665];
+}
+else {
+vErrors.push(err1665);
 }
 errors++;
 }
@@ -84675,512 +85197,259 @@ vErrors = null;
 }
 }
 }
-var valid251 = _errs1517 === errors;
+var valid249 = _errs1517 === errors;
 }
 else {
-var valid251 = true;
+var valid249 = true;
 }
-if(valid251){
-if(data508.resource !== undefined){
-let data512 = data508.resource;
-const _errs1523 = errors;
-const _errs1524 = errors;
-let valid253 = false;
-const _errs1525 = errors;
-if(errors === _errs1525){
-if(typeof data512 === "string"){
-if(func2(data512) > 20){
-const err1632 = {instancePath:instancePath+"/refresh_status/query_diagnostic/identity/resource",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/identity/anyOf/0/properties/resource/anyOf/0/maxLength",keyword:"maxLength",params:{limit: 20},message:"must NOT have more than 20 characters"};
+}
+}
+}
+}
+else {
+const err1666 = {instancePath:instancePath+"/refresh_status/diagnostic/actions/" + i38,schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/actions/items/anyOf/0/type",keyword:"type",params:{type: "object"},message:"must be object"};
 if(vErrors === null){
-vErrors = [err1632];
+vErrors = [err1666];
 }
 else {
-vErrors.push(err1632);
-}
-errors++;
-}
-else {
-if(!pattern4.test(data512)){
-const err1633 = {instancePath:instancePath+"/refresh_status/query_diagnostic/identity/resource",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/identity/anyOf/0/properties/resource/anyOf/0/pattern",keyword:"pattern",params:{pattern: "^(0|[1-9][0-9]*)$"},message:"must match pattern \""+"^(0|[1-9][0-9]*)$"+"\""};
-if(vErrors === null){
-vErrors = [err1633];
-}
-else {
-vErrors.push(err1633);
+vErrors.push(err1666);
 }
 errors++;
 }
 }
-}
-else {
-const err1634 = {instancePath:instancePath+"/refresh_status/query_diagnostic/identity/resource",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/identity/anyOf/0/properties/resource/anyOf/0/type",keyword:"type",params:{type: "string"},message:"must be string"};
+var _valid65 = _errs1512 === errors;
+valid248 = valid248 || _valid65;
+const _errs1546 = errors;
+if(data516 !== null){
+const err1667 = {instancePath:instancePath+"/refresh_status/diagnostic/actions/" + i38,schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/actions/items/anyOf/1/type",keyword:"type",params:{type: "null"},message:"must be null"};
 if(vErrors === null){
-vErrors = [err1634];
+vErrors = [err1667];
 }
 else {
-vErrors.push(err1634);
+vErrors.push(err1667);
 }
 errors++;
 }
-}
-var _valid74 = _errs1525 === errors;
-valid253 = valid253 || _valid74;
-const _errs1527 = errors;
-if(data512 !== null){
-const err1635 = {instancePath:instancePath+"/refresh_status/query_diagnostic/identity/resource",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/identity/anyOf/0/properties/resource/anyOf/1/type",keyword:"type",params:{type: "null"},message:"must be null"};
+var _valid65 = _errs1546 === errors;
+valid248 = valid248 || _valid65;
+if(!valid248){
+const err1668 = {instancePath:instancePath+"/refresh_status/diagnostic/actions/" + i38,schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/actions/items/anyOf",keyword:"anyOf",params:{},message:"must match a schema in anyOf"};
 if(vErrors === null){
-vErrors = [err1635];
+vErrors = [err1668];
 }
 else {
-vErrors.push(err1635);
-}
-errors++;
-}
-var _valid74 = _errs1527 === errors;
-valid253 = valid253 || _valid74;
-if(!valid253){
-const err1636 = {instancePath:instancePath+"/refresh_status/query_diagnostic/identity/resource",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/identity/anyOf/0/properties/resource/anyOf",keyword:"anyOf",params:{},message:"must match a schema in anyOf"};
-if(vErrors === null){
-vErrors = [err1636];
-}
-else {
-vErrors.push(err1636);
+vErrors.push(err1668);
 }
 errors++;
 }
 else {
-errors = _errs1524;
+errors = _errs1511;
 if(vErrors !== null){
-if(_errs1524){
-vErrors.length = _errs1524;
+if(_errs1511){
+vErrors.length = _errs1511;
 }
 else {
 vErrors = null;
 }
 }
 }
-var valid251 = _errs1523 === errors;
+var valid247 = _errs1510 === errors;
+if(!valid247){
+break;
+}
+}
+}
+}
 }
 else {
-var valid251 = true;
-}
-if(valid251){
-if(data508.sequence !== undefined){
-let data513 = data508.sequence;
-const _errs1529 = errors;
-const _errs1530 = errors;
-let valid254 = false;
-const _errs1531 = errors;
-if(errors === _errs1531){
-if(typeof data513 === "string"){
-if(func2(data513) > 20){
-const err1637 = {instancePath:instancePath+"/refresh_status/query_diagnostic/identity/sequence",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/identity/anyOf/0/properties/sequence/anyOf/0/maxLength",keyword:"maxLength",params:{limit: 20},message:"must NOT have more than 20 characters"};
+const err1669 = {instancePath:instancePath+"/refresh_status/diagnostic/actions",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/properties/actions/type",keyword:"type",params:{type: "array"},message:"must be array"};
 if(vErrors === null){
-vErrors = [err1637];
+vErrors = [err1669];
 }
 else {
-vErrors.push(err1637);
-}
-errors++;
-}
-else {
-if(!pattern4.test(data513)){
-const err1638 = {instancePath:instancePath+"/refresh_status/query_diagnostic/identity/sequence",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/identity/anyOf/0/properties/sequence/anyOf/0/pattern",keyword:"pattern",params:{pattern: "^(0|[1-9][0-9]*)$"},message:"must match pattern \""+"^(0|[1-9][0-9]*)$"+"\""};
-if(vErrors === null){
-vErrors = [err1638];
-}
-else {
-vErrors.push(err1638);
+vErrors.push(err1669);
 }
 errors++;
 }
 }
+var valid221 = _errs1508 === errors;
 }
 else {
-const err1639 = {instancePath:instancePath+"/refresh_status/query_diagnostic/identity/sequence",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/identity/anyOf/0/properties/sequence/anyOf/0/type",keyword:"type",params:{type: "string"},message:"must be string"};
+var valid221 = true;
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+else {
+const err1670 = {instancePath:instancePath+"/refresh_status/diagnostic",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/0/type",keyword:"type",params:{type: "object"},message:"must be object"};
 if(vErrors === null){
-vErrors = [err1639];
+vErrors = [err1670];
 }
 else {
-vErrors.push(err1639);
+vErrors.push(err1670);
 }
 errors++;
 }
 }
-var _valid75 = _errs1531 === errors;
-valid254 = valid254 || _valid75;
-const _errs1533 = errors;
-if(data513 !== null){
-const err1640 = {instancePath:instancePath+"/refresh_status/query_diagnostic/identity/sequence",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/identity/anyOf/0/properties/sequence/anyOf/1/type",keyword:"type",params:{type: "null"},message:"must be null"};
+var _valid51 = _errs1346 === errors;
+valid220 = valid220 || _valid51;
+const _errs1548 = errors;
+if(data469 !== null){
+const err1671 = {instancePath:instancePath+"/refresh_status/diagnostic",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf/1/type",keyword:"type",params:{type: "null"},message:"must be null"};
 if(vErrors === null){
-vErrors = [err1640];
+vErrors = [err1671];
 }
 else {
-vErrors.push(err1640);
+vErrors.push(err1671);
 }
 errors++;
 }
-var _valid75 = _errs1533 === errors;
-valid254 = valid254 || _valid75;
-if(!valid254){
-const err1641 = {instancePath:instancePath+"/refresh_status/query_diagnostic/identity/sequence",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/identity/anyOf/0/properties/sequence/anyOf",keyword:"anyOf",params:{},message:"must match a schema in anyOf"};
+var _valid51 = _errs1548 === errors;
+valid220 = valid220 || _valid51;
+if(!valid220){
+const err1672 = {instancePath:instancePath+"/refresh_status/diagnostic",schemaPath:"#/oneOf/8/properties/refresh_status/properties/diagnostic/anyOf",keyword:"anyOf",params:{},message:"must match a schema in anyOf"};
 if(vErrors === null){
-vErrors = [err1641];
+vErrors = [err1672];
 }
 else {
-vErrors.push(err1641);
+vErrors.push(err1672);
 }
 errors++;
 }
 else {
-errors = _errs1530;
+errors = _errs1345;
 if(vErrors !== null){
-if(_errs1530){
-vErrors.length = _errs1530;
+if(_errs1345){
+vErrors.length = _errs1345;
 }
 else {
 vErrors = null;
 }
 }
 }
-var valid251 = _errs1529 === errors;
+var valid156 = _errs1344 === errors;
 }
 else {
-var valid251 = true;
+var valid156 = true;
 }
-}
-}
-}
-}
-}
-}
-}
-else {
-const err1642 = {instancePath:instancePath+"/refresh_status/query_diagnostic/identity",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/identity/anyOf/0/type",keyword:"type",params:{type: "object"},message:"must be object"};
-if(vErrors === null){
-vErrors = [err1642];
-}
-else {
-vErrors.push(err1642);
-}
-errors++;
-}
-}
-var _valid72 = _errs1510 === errors;
-valid250 = valid250 || _valid72;
-const _errs1535 = errors;
-if(data508 !== null){
-const err1643 = {instancePath:instancePath+"/refresh_status/query_diagnostic/identity",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/identity/anyOf/1/type",keyword:"type",params:{type: "null"},message:"must be null"};
-if(vErrors === null){
-vErrors = [err1643];
-}
-else {
-vErrors.push(err1643);
-}
-errors++;
-}
-var _valid72 = _errs1535 === errors;
-valid250 = valid250 || _valid72;
-if(!valid250){
-const err1644 = {instancePath:instancePath+"/refresh_status/query_diagnostic/identity",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/identity/anyOf",keyword:"anyOf",params:{},message:"must match a schema in anyOf"};
-if(vErrors === null){
-vErrors = [err1644];
-}
-else {
-vErrors.push(err1644);
-}
-errors++;
-}
-else {
-errors = _errs1509;
-if(vErrors !== null){
-if(_errs1509){
-vErrors.length = _errs1509;
-}
-else {
-vErrors = null;
-}
-}
-}
-var valid248 = _errs1508 === errors;
-}
-else {
-var valid248 = true;
-}
-if(valid248){
-if(data498.location !== undefined){
-let data514 = data498.location;
-const _errs1537 = errors;
-const _errs1538 = errors;
+if(valid156){
+if(data311.query_diagnostic !== undefined){
+let data524 = data311.query_diagnostic;
+const _errs1550 = errors;
+const _errs1551 = errors;
 let valid255 = false;
-const _errs1539 = errors;
-if(errors === _errs1539){
-if(data514 && typeof data514 == "object" && !Array.isArray(data514)){
-let missing138;
-if(((((data514.offset === undefined) && (missing138 = "offset")) || ((data514.length === undefined) && (missing138 = "length"))) || ((data514.line === undefined) && (missing138 = "line"))) || ((data514.byte_column === undefined) && (missing138 = "byte_column"))){
-const err1645 = {instancePath:instancePath+"/refresh_status/query_diagnostic/location",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/location/anyOf/0/required",keyword:"required",params:{missingProperty: missing138},message:"must have required property '"+missing138+"'"};
+const _errs1552 = errors;
+if(errors === _errs1552){
+if(data524 && typeof data524 == "object" && !Array.isArray(data524)){
+let missing144;
+if(((((((((data524.version === undefined) && (missing144 = "version")) || ((data524.definition === undefined) && (missing144 = "definition"))) || ((data524.code === undefined) && (missing144 = "code"))) || ((data524.category === undefined) && (missing144 = "category"))) || ((data524.stage === undefined) && (missing144 = "stage"))) || ((data524.outcome === undefined) && (missing144 = "outcome"))) || ((data524.evidence === undefined) && (missing144 = "evidence"))) || ((data524.message === undefined) && (missing144 = "message"))){
+const err1673 = {instancePath:instancePath+"/refresh_status/query_diagnostic",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/required",keyword:"required",params:{missingProperty: missing144},message:"must have required property '"+missing144+"'"};
 if(vErrors === null){
-vErrors = [err1645];
+vErrors = [err1673];
 }
 else {
-vErrors.push(err1645);
+vErrors.push(err1673);
 }
 errors++;
 }
 else {
-const _errs1541 = errors;
-for(const key140 in data514){
-if(!((((((((key140 === "source") || (key140 === "source_encoding")) || (key140 === "source_truncated")) || (key140 === "statement")) || (key140 === "offset")) || (key140 === "length")) || (key140 === "line")) || (key140 === "byte_column"))){
-const err1646 = {instancePath:instancePath+"/refresh_status/query_diagnostic/location",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/location/anyOf/0/additionalProperties",keyword:"additionalProperties",params:{additionalProperty: key140},message:"must NOT have additional properties"};
+const _errs1554 = errors;
+for(const key146 in data524){
+if(!(func1.call(schema52.oneOf[8].properties.refresh_status.properties.query_diagnostic.anyOf[0].properties, key146))){
+const err1674 = {instancePath:instancePath+"/refresh_status/query_diagnostic",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/additionalProperties",keyword:"additionalProperties",params:{additionalProperty: key146},message:"must NOT have additional properties"};
 if(vErrors === null){
-vErrors = [err1646];
+vErrors = [err1674];
 }
 else {
-vErrors.push(err1646);
+vErrors.push(err1674);
 }
 errors++;
 break;
 }
 }
-if(_errs1541 === errors){
-if(data514.source !== undefined){
-let data515 = data514.source;
-const _errs1542 = errors;
-const _errs1543 = errors;
-let valid257 = false;
-const _errs1544 = errors;
-if(errors === _errs1544){
-if(typeof data515 === "string"){
-if(func2(data515) > 512){
-const err1647 = {instancePath:instancePath+"/refresh_status/query_diagnostic/location/source",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/location/anyOf/0/properties/source/anyOf/0/maxLength",keyword:"maxLength",params:{limit: 512},message:"must NOT have more than 512 characters"};
+if(_errs1554 === errors){
+if(data524.version !== undefined){
+const _errs1555 = errors;
+if(1 !== data524.version){
+const err1675 = {instancePath:instancePath+"/refresh_status/query_diagnostic/version",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/version/const",keyword:"const",params:{allowedValue: 1},message:"must be equal to constant"};
 if(vErrors === null){
-vErrors = [err1647];
+vErrors = [err1675];
 }
 else {
-vErrors.push(err1647);
+vErrors.push(err1675);
 }
 errors++;
 }
-}
-else {
-const err1648 = {instancePath:instancePath+"/refresh_status/query_diagnostic/location/source",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/location/anyOf/0/properties/source/anyOf/0/type",keyword:"type",params:{type: "string"},message:"must be string"};
-if(vErrors === null){
-vErrors = [err1648];
-}
-else {
-vErrors.push(err1648);
-}
-errors++;
-}
-}
-var _valid77 = _errs1544 === errors;
-valid257 = valid257 || _valid77;
-const _errs1546 = errors;
-if(data515 !== null){
-const err1649 = {instancePath:instancePath+"/refresh_status/query_diagnostic/location/source",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/location/anyOf/0/properties/source/anyOf/1/type",keyword:"type",params:{type: "null"},message:"must be null"};
-if(vErrors === null){
-vErrors = [err1649];
-}
-else {
-vErrors.push(err1649);
-}
-errors++;
-}
-var _valid77 = _errs1546 === errors;
-valid257 = valid257 || _valid77;
-if(!valid257){
-const err1650 = {instancePath:instancePath+"/refresh_status/query_diagnostic/location/source",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/location/anyOf/0/properties/source/anyOf",keyword:"anyOf",params:{},message:"must match a schema in anyOf"};
-if(vErrors === null){
-vErrors = [err1650];
-}
-else {
-vErrors.push(err1650);
-}
-errors++;
-}
-else {
-errors = _errs1543;
-if(vErrors !== null){
-if(_errs1543){
-vErrors.length = _errs1543;
-}
-else {
-vErrors = null;
-}
-}
-}
-var valid256 = _errs1542 === errors;
+var valid256 = _errs1555 === errors;
 }
 else {
 var valid256 = true;
 }
 if(valid256){
-if(data514.source_encoding !== undefined){
-let data516 = data514.source_encoding;
-const _errs1548 = errors;
-if(typeof data516 !== "string"){
-const err1651 = {instancePath:instancePath+"/refresh_status/query_diagnostic/location/source_encoding",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/location/anyOf/0/properties/source_encoding/type",keyword:"type",params:{type: "string"},message:"must be string"};
-if(vErrors === null){
-vErrors = [err1651];
-}
-else {
-vErrors.push(err1651);
-}
-errors++;
-}
-if(!((data516 === "utf8") || (data516 === "escaped_bytes"))){
-const err1652 = {instancePath:instancePath+"/refresh_status/query_diagnostic/location/source_encoding",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/location/anyOf/0/properties/source_encoding/enum",keyword:"enum",params:{allowedValues: schema52.oneOf[8].properties.refresh_status.properties.query_diagnostic.anyOf[0].properties.location.anyOf[0].properties.source_encoding.enum},message:"must be equal to one of the allowed values"};
-if(vErrors === null){
-vErrors = [err1652];
-}
-else {
-vErrors.push(err1652);
-}
-errors++;
-}
-var valid256 = _errs1548 === errors;
-}
-else {
-var valid256 = true;
-}
-if(valid256){
-if(data514.source_truncated !== undefined){
-const _errs1550 = errors;
-if(typeof data514.source_truncated !== "boolean"){
-const err1653 = {instancePath:instancePath+"/refresh_status/query_diagnostic/location/source_truncated",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/location/anyOf/0/properties/source_truncated/type",keyword:"type",params:{type: "boolean"},message:"must be boolean"};
-if(vErrors === null){
-vErrors = [err1653];
-}
-else {
-vErrors.push(err1653);
-}
-errors++;
-}
-var valid256 = _errs1550 === errors;
-}
-else {
-var valid256 = true;
-}
-if(valid256){
-if(data514.statement !== undefined){
-let data518 = data514.statement;
-const _errs1552 = errors;
-const _errs1553 = errors;
-let valid258 = false;
-const _errs1554 = errors;
-if(errors === _errs1554){
-if(typeof data518 === "string"){
-if(func2(data518) > 20){
-const err1654 = {instancePath:instancePath+"/refresh_status/query_diagnostic/location/statement",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/location/anyOf/0/properties/statement/anyOf/0/maxLength",keyword:"maxLength",params:{limit: 20},message:"must NOT have more than 20 characters"};
-if(vErrors === null){
-vErrors = [err1654];
-}
-else {
-vErrors.push(err1654);
-}
-errors++;
-}
-else {
-if(!pattern4.test(data518)){
-const err1655 = {instancePath:instancePath+"/refresh_status/query_diagnostic/location/statement",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/location/anyOf/0/properties/statement/anyOf/0/pattern",keyword:"pattern",params:{pattern: "^(0|[1-9][0-9]*)$"},message:"must match pattern \""+"^(0|[1-9][0-9]*)$"+"\""};
-if(vErrors === null){
-vErrors = [err1655];
-}
-else {
-vErrors.push(err1655);
-}
-errors++;
-}
-}
-}
-else {
-const err1656 = {instancePath:instancePath+"/refresh_status/query_diagnostic/location/statement",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/location/anyOf/0/properties/statement/anyOf/0/type",keyword:"type",params:{type: "string"},message:"must be string"};
-if(vErrors === null){
-vErrors = [err1656];
-}
-else {
-vErrors.push(err1656);
-}
-errors++;
-}
-}
-var _valid78 = _errs1554 === errors;
-valid258 = valid258 || _valid78;
+if(data524.definition !== undefined){
+let data526 = data524.definition;
 const _errs1556 = errors;
-if(data518 !== null){
-const err1657 = {instancePath:instancePath+"/refresh_status/query_diagnostic/location/statement",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/location/anyOf/0/properties/statement/anyOf/1/type",keyword:"type",params:{type: "null"},message:"must be null"};
+if(typeof data526 !== "string"){
+const err1676 = {instancePath:instancePath+"/refresh_status/query_diagnostic/definition",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/definition/type",keyword:"type",params:{type: "string"},message:"must be string"};
 if(vErrors === null){
-vErrors = [err1657];
+vErrors = [err1676];
 }
 else {
-vErrors.push(err1657);
+vErrors.push(err1676);
 }
 errors++;
 }
-var _valid78 = _errs1556 === errors;
-valid258 = valid258 || _valid78;
-if(!valid258){
-const err1658 = {instancePath:instancePath+"/refresh_status/query_diagnostic/location/statement",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/location/anyOf/0/properties/statement/anyOf",keyword:"anyOf",params:{},message:"must match a schema in anyOf"};
+if(!(data526 === "692358a0bda42413cb14638010c0adea7edaa238aff1275e9557fcb38a37e741")){
+const err1677 = {instancePath:instancePath+"/refresh_status/query_diagnostic/definition",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/definition/enum",keyword:"enum",params:{allowedValues: schema52.oneOf[8].properties.refresh_status.properties.query_diagnostic.anyOf[0].properties.definition.enum},message:"must be equal to one of the allowed values"};
 if(vErrors === null){
-vErrors = [err1658];
+vErrors = [err1677];
 }
 else {
-vErrors.push(err1658);
+vErrors.push(err1677);
 }
 errors++;
 }
-else {
-errors = _errs1553;
-if(vErrors !== null){
-if(_errs1553){
-vErrors.length = _errs1553;
-}
-else {
-vErrors = null;
-}
-}
-}
-var valid256 = _errs1552 === errors;
+var valid256 = _errs1556 === errors;
 }
 else {
 var valid256 = true;
 }
 if(valid256){
-if(data514.offset !== undefined){
-let data519 = data514.offset;
+if(data524.code !== undefined){
+let data527 = data524.code;
 const _errs1558 = errors;
 if(errors === _errs1558){
-if(typeof data519 === "string"){
-if(func2(data519) > 20){
-const err1659 = {instancePath:instancePath+"/refresh_status/query_diagnostic/location/offset",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/location/anyOf/0/properties/offset/maxLength",keyword:"maxLength",params:{limit: 20},message:"must NOT have more than 20 characters"};
+if(typeof data527 === "string"){
+if(func2(data527) > 96){
+const err1678 = {instancePath:instancePath+"/refresh_status/query_diagnostic/code",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/code/maxLength",keyword:"maxLength",params:{limit: 96},message:"must NOT have more than 96 characters"};
 if(vErrors === null){
-vErrors = [err1659];
+vErrors = [err1678];
 }
 else {
-vErrors.push(err1659);
-}
-errors++;
-}
-else {
-if(!pattern4.test(data519)){
-const err1660 = {instancePath:instancePath+"/refresh_status/query_diagnostic/location/offset",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/location/anyOf/0/properties/offset/pattern",keyword:"pattern",params:{pattern: "^(0|[1-9][0-9]*)$"},message:"must match pattern \""+"^(0|[1-9][0-9]*)$"+"\""};
-if(vErrors === null){
-vErrors = [err1660];
-}
-else {
-vErrors.push(err1660);
+vErrors.push(err1678);
 }
 errors++;
 }
 }
-}
 else {
-const err1661 = {instancePath:instancePath+"/refresh_status/query_diagnostic/location/offset",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/location/anyOf/0/properties/offset/type",keyword:"type",params:{type: "string"},message:"must be string"};
+const err1679 = {instancePath:instancePath+"/refresh_status/query_diagnostic/code",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/code/type",keyword:"type",params:{type: "string"},message:"must be string"};
 if(vErrors === null){
-vErrors = [err1661];
+vErrors = [err1679];
 }
 else {
-vErrors.push(err1661);
+vErrors.push(err1679);
 }
 errors++;
 }
@@ -85191,301 +85460,11 @@ else {
 var valid256 = true;
 }
 if(valid256){
-if(data514.length !== undefined){
-let data520 = data514.length;
+if(data524.category !== undefined){
+let data528 = data524.category;
 const _errs1560 = errors;
-if(errors === _errs1560){
-if(typeof data520 === "string"){
-if(func2(data520) > 20){
-const err1662 = {instancePath:instancePath+"/refresh_status/query_diagnostic/location/length",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/location/anyOf/0/properties/length/maxLength",keyword:"maxLength",params:{limit: 20},message:"must NOT have more than 20 characters"};
-if(vErrors === null){
-vErrors = [err1662];
-}
-else {
-vErrors.push(err1662);
-}
-errors++;
-}
-else {
-if(!pattern4.test(data520)){
-const err1663 = {instancePath:instancePath+"/refresh_status/query_diagnostic/location/length",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/location/anyOf/0/properties/length/pattern",keyword:"pattern",params:{pattern: "^(0|[1-9][0-9]*)$"},message:"must match pattern \""+"^(0|[1-9][0-9]*)$"+"\""};
-if(vErrors === null){
-vErrors = [err1663];
-}
-else {
-vErrors.push(err1663);
-}
-errors++;
-}
-}
-}
-else {
-const err1664 = {instancePath:instancePath+"/refresh_status/query_diagnostic/location/length",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/location/anyOf/0/properties/length/type",keyword:"type",params:{type: "string"},message:"must be string"};
-if(vErrors === null){
-vErrors = [err1664];
-}
-else {
-vErrors.push(err1664);
-}
-errors++;
-}
-}
-var valid256 = _errs1560 === errors;
-}
-else {
-var valid256 = true;
-}
-if(valid256){
-if(data514.line !== undefined){
-let data521 = data514.line;
-const _errs1562 = errors;
-if(errors === _errs1562){
-if(typeof data521 === "string"){
-if(func2(data521) > 20){
-const err1665 = {instancePath:instancePath+"/refresh_status/query_diagnostic/location/line",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/location/anyOf/0/properties/line/maxLength",keyword:"maxLength",params:{limit: 20},message:"must NOT have more than 20 characters"};
-if(vErrors === null){
-vErrors = [err1665];
-}
-else {
-vErrors.push(err1665);
-}
-errors++;
-}
-else {
-if(!pattern4.test(data521)){
-const err1666 = {instancePath:instancePath+"/refresh_status/query_diagnostic/location/line",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/location/anyOf/0/properties/line/pattern",keyword:"pattern",params:{pattern: "^(0|[1-9][0-9]*)$"},message:"must match pattern \""+"^(0|[1-9][0-9]*)$"+"\""};
-if(vErrors === null){
-vErrors = [err1666];
-}
-else {
-vErrors.push(err1666);
-}
-errors++;
-}
-}
-}
-else {
-const err1667 = {instancePath:instancePath+"/refresh_status/query_diagnostic/location/line",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/location/anyOf/0/properties/line/type",keyword:"type",params:{type: "string"},message:"must be string"};
-if(vErrors === null){
-vErrors = [err1667];
-}
-else {
-vErrors.push(err1667);
-}
-errors++;
-}
-}
-var valid256 = _errs1562 === errors;
-}
-else {
-var valid256 = true;
-}
-if(valid256){
-if(data514.byte_column !== undefined){
-let data522 = data514.byte_column;
-const _errs1564 = errors;
-if(errors === _errs1564){
-if(typeof data522 === "string"){
-if(func2(data522) > 20){
-const err1668 = {instancePath:instancePath+"/refresh_status/query_diagnostic/location/byte_column",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/location/anyOf/0/properties/byte_column/maxLength",keyword:"maxLength",params:{limit: 20},message:"must NOT have more than 20 characters"};
-if(vErrors === null){
-vErrors = [err1668];
-}
-else {
-vErrors.push(err1668);
-}
-errors++;
-}
-else {
-if(!pattern4.test(data522)){
-const err1669 = {instancePath:instancePath+"/refresh_status/query_diagnostic/location/byte_column",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/location/anyOf/0/properties/byte_column/pattern",keyword:"pattern",params:{pattern: "^(0|[1-9][0-9]*)$"},message:"must match pattern \""+"^(0|[1-9][0-9]*)$"+"\""};
-if(vErrors === null){
-vErrors = [err1669];
-}
-else {
-vErrors.push(err1669);
-}
-errors++;
-}
-}
-}
-else {
-const err1670 = {instancePath:instancePath+"/refresh_status/query_diagnostic/location/byte_column",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/location/anyOf/0/properties/byte_column/type",keyword:"type",params:{type: "string"},message:"must be string"};
-if(vErrors === null){
-vErrors = [err1670];
-}
-else {
-vErrors.push(err1670);
-}
-errors++;
-}
-}
-var valid256 = _errs1564 === errors;
-}
-else {
-var valid256 = true;
-}
-}
-}
-}
-}
-}
-}
-}
-}
-}
-}
-else {
-const err1671 = {instancePath:instancePath+"/refresh_status/query_diagnostic/location",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/location/anyOf/0/type",keyword:"type",params:{type: "object"},message:"must be object"};
-if(vErrors === null){
-vErrors = [err1671];
-}
-else {
-vErrors.push(err1671);
-}
-errors++;
-}
-}
-var _valid76 = _errs1539 === errors;
-valid255 = valid255 || _valid76;
-const _errs1566 = errors;
-if(data514 !== null){
-const err1672 = {instancePath:instancePath+"/refresh_status/query_diagnostic/location",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/location/anyOf/1/type",keyword:"type",params:{type: "null"},message:"must be null"};
-if(vErrors === null){
-vErrors = [err1672];
-}
-else {
-vErrors.push(err1672);
-}
-errors++;
-}
-var _valid76 = _errs1566 === errors;
-valid255 = valid255 || _valid76;
-if(!valid255){
-const err1673 = {instancePath:instancePath+"/refresh_status/query_diagnostic/location",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/location/anyOf",keyword:"anyOf",params:{},message:"must match a schema in anyOf"};
-if(vErrors === null){
-vErrors = [err1673];
-}
-else {
-vErrors.push(err1673);
-}
-errors++;
-}
-else {
-errors = _errs1538;
-if(vErrors !== null){
-if(_errs1538){
-vErrors.length = _errs1538;
-}
-else {
-vErrors = null;
-}
-}
-}
-var valid248 = _errs1537 === errors;
-}
-else {
-var valid248 = true;
-}
-if(valid248){
-if(data498.facts !== undefined){
-let data523 = data498.facts;
-const _errs1568 = errors;
-if(errors === _errs1568){
-if(Array.isArray(data523)){
-if(data523.length > 16){
-const err1674 = {instancePath:instancePath+"/refresh_status/query_diagnostic/facts",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/facts/maxItems",keyword:"maxItems",params:{limit: 16},message:"must NOT have more than 16 items"};
-if(vErrors === null){
-vErrors = [err1674];
-}
-else {
-vErrors.push(err1674);
-}
-errors++;
-}
-else {
-if(data523.length < 16){
-const err1675 = {instancePath:instancePath+"/refresh_status/query_diagnostic/facts",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/facts/minItems",keyword:"minItems",params:{limit: 16},message:"must NOT have fewer than 16 items"};
-if(vErrors === null){
-vErrors = [err1675];
-}
-else {
-vErrors.push(err1675);
-}
-errors++;
-}
-else {
-var valid259 = true;
-const len39 = data523.length;
-for(let i39=0; i39<len39; i39++){
-let data524 = data523[i39];
-const _errs1570 = errors;
-const _errs1571 = errors;
-let valid260 = false;
-const _errs1572 = errors;
-if(errors === _errs1572){
-if(data524 && typeof data524 == "object" && !Array.isArray(data524)){
-let missing139;
-if(((((data524.field === undefined) && (missing139 = "field")) || ((data524.origin === undefined) && (missing139 = "origin"))) || ((data524.availability === undefined) && (missing139 = "availability"))) || ((data524.value === undefined) && (missing139 = "value"))){
-const err1676 = {instancePath:instancePath+"/refresh_status/query_diagnostic/facts/" + i39,schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/facts/items/anyOf/0/required",keyword:"required",params:{missingProperty: missing139},message:"must have required property '"+missing139+"'"};
-if(vErrors === null){
-vErrors = [err1676];
-}
-else {
-vErrors.push(err1676);
-}
-errors++;
-}
-else {
-const _errs1574 = errors;
-for(const key141 in data524){
-if(!((((key141 === "field") || (key141 === "origin")) || (key141 === "availability")) || (key141 === "value"))){
-const err1677 = {instancePath:instancePath+"/refresh_status/query_diagnostic/facts/" + i39,schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/facts/items/anyOf/0/additionalProperties",keyword:"additionalProperties",params:{additionalProperty: key141},message:"must NOT have additional properties"};
-if(vErrors === null){
-vErrors = [err1677];
-}
-else {
-vErrors.push(err1677);
-}
-errors++;
-break;
-}
-}
-if(_errs1574 === errors){
-if(data524.field !== undefined){
-let data525 = data524.field;
-const _errs1575 = errors;
-if(typeof data525 !== "string"){
-const err1678 = {instancePath:instancePath+"/refresh_status/query_diagnostic/facts/" + i39+"/field",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/field/type",keyword:"type",params:{type: "string"},message:"must be string"};
-if(vErrors === null){
-vErrors = [err1678];
-}
-else {
-vErrors.push(err1678);
-}
-errors++;
-}
-if(!(((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((data525 === "object") || (data525 === "name")) || (data525 === "table")) || (data525 === "native_input")) || (data525 === "affected_rows")) || (data525 === "argument")) || (data525 === "option")) || (data525 === "permissions")) || (data525 === "scope")) || (data525 === "column")) || (data525 === "qualifier")) || (data525 === "constraint")) || (data525 === "key")) || (data525 === "input_row")) || (data525 === "first_occurrence")) || (data525 === "parameter")) || (data525 === "parameter_use")) || (data525 === "expected_count")) || (data525 === "actual_count")) || (data525 === "expected_type")) || (data525 === "actual_type")) || (data525 === "supplied_value")) || (data525 === "expected_value")) || (data525 === "expression")) || (data525 === "source_kind")) || (data525 === "source_basis")) || (data525 === "source_key")) || (data525 === "source_row")) || (data525 === "field_path")) || (data525 === "byte_offset")) || (data525 === "expected_resource")) || (data525 === "actual_resource")) || (data525 === "expected_source")) || (data525 === "actual_source")) || (data525 === "expected_revision")) || (data525 === "actual_revision")) || (data525 === "expected_schema")) || (data525 === "actual_schema")) || (data525 === "expected_policy")) || (data525 === "actual_policy")) || (data525 === "budget")) || (data525 === "limit")) || (data525 === "required")) || (data525 === "unit")) || (data525 === "completed_statements")) || (data525 === "emitted_rows")) || (data525 === "emitted_segments")) || (data525 === "completion")) || (data525 === "proposal")) || (data525 === "step")) || (data525 === "generation")) || (data525 === "attachment")) || (data525 === "lease")) || (data525 === "schema_origin")) || (data525 === "sampling_records")) || (data525 === "operation")) || (data525 === "native_cause")) || (data525 === "expected_bytes")) || (data525 === "presence")) || (data525 === "published")) || (data525 === "subscription")) || (data525 === "expected_codec")) || (data525 === "actual_codec")) || (data525 === "observed_clock")) || (data525 === "expected_namespace")) || (data525 === "actual_namespace")) || (data525 === "attempt")) || (data525 === "executor")) || (data525 === "resolution_reason")) || (data525 === "principal")) || (data525 === "deadline")) || (data525 === "authorization_policy")) || (data525 === "resolution_policy")) || (data525 === "protocol_status")) || (data525 === "native_effect"))){
-const err1679 = {instancePath:instancePath+"/refresh_status/query_diagnostic/facts/" + i39+"/field",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/field/enum",keyword:"enum",params:{allowedValues: schema52.oneOf[8].properties.refresh_status.properties.query_diagnostic.anyOf[0].properties.facts.items.anyOf[0].properties.field.enum},message:"must be equal to one of the allowed values"};
-if(vErrors === null){
-vErrors = [err1679];
-}
-else {
-vErrors.push(err1679);
-}
-errors++;
-}
-var valid261 = _errs1575 === errors;
-}
-else {
-var valid261 = true;
-}
-if(valid261){
-if(data524.origin !== undefined){
-let data526 = data524.origin;
-const _errs1577 = errors;
-if(typeof data526 !== "string"){
-const err1680 = {instancePath:instancePath+"/refresh_status/query_diagnostic/facts/" + i39+"/origin",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/origin/type",keyword:"type",params:{type: "string"},message:"must be string"};
+if(typeof data528 !== "string"){
+const err1680 = {instancePath:instancePath+"/refresh_status/query_diagnostic/category",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/category/type",keyword:"type",params:{type: "string"},message:"must be string"};
 if(vErrors === null){
 vErrors = [err1680];
 }
@@ -85494,8 +85473,8 @@ vErrors.push(err1680);
 }
 errors++;
 }
-if(!(((((data526 === "caller") || (data526 === "execution")) || (data526 === "schema")) || (data526 === "authority")) || (data526 === "owner"))){
-const err1681 = {instancePath:instancePath+"/refresh_status/query_diagnostic/facts/" + i39+"/origin",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/origin/enum",keyword:"enum",params:{allowedValues: schema52.oneOf[8].properties.refresh_status.properties.query_diagnostic.anyOf[0].properties.facts.items.anyOf[0].properties.origin.enum},message:"must be equal to one of the allowed values"};
+if(!(((((((((((data528 === "syntax") || (data528 === "binding")) || (data528 === "unsupported")) || (data528 === "constraint")) || (data528 === "access")) || (data528 === "conflict")) || (data528 === "limit")) || (data528 === "lifecycle")) || (data528 === "integrity")) || (data528 === "unavailable")) || (data528 === "internal"))){
+const err1681 = {instancePath:instancePath+"/refresh_status/query_diagnostic/category",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/category/enum",keyword:"enum",params:{allowedValues: schema52.oneOf[8].properties.refresh_status.properties.query_diagnostic.anyOf[0].properties.category.enum},message:"must be equal to one of the allowed values"};
 if(vErrors === null){
 vErrors = [err1681];
 }
@@ -85504,17 +85483,17 @@ vErrors.push(err1681);
 }
 errors++;
 }
-var valid261 = _errs1577 === errors;
+var valid256 = _errs1560 === errors;
 }
 else {
-var valid261 = true;
+var valid256 = true;
 }
-if(valid261){
-if(data524.availability !== undefined){
-let data527 = data524.availability;
-const _errs1579 = errors;
-if(typeof data527 !== "string"){
-const err1682 = {instancePath:instancePath+"/refresh_status/query_diagnostic/facts/" + i39+"/availability",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/availability/type",keyword:"type",params:{type: "string"},message:"must be string"};
+if(valid256){
+if(data524.stage !== undefined){
+let data529 = data524.stage;
+const _errs1562 = errors;
+if(typeof data529 !== "string"){
+const err1682 = {instancePath:instancePath+"/refresh_status/query_diagnostic/stage",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/stage/type",keyword:"type",params:{type: "string"},message:"must be string"};
 if(vErrors === null){
 vErrors = [err1682];
 }
@@ -85523,8 +85502,8 @@ vErrors.push(err1682);
 }
 errors++;
 }
-if(!((((((data527 === "provided") || (data527 === "truncated")) || (data527 === "unrecorded")) || (data527 === "unavailable")) || (data527 === "withheld")) || (data527 === "inapplicable"))){
-const err1683 = {instancePath:instancePath+"/refresh_status/query_diagnostic/facts/" + i39+"/availability",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/availability/enum",keyword:"enum",params:{allowedValues: schema52.oneOf[8].properties.refresh_status.properties.query_diagnostic.anyOf[0].properties.facts.items.anyOf[0].properties.availability.enum},message:"must be equal to one of the allowed values"};
+if(!((((((((((((((data529 === "input") || (data529 === "parse")) || (data529 === "compile")) || (data529 === "bind")) || (data529 === "prepare")) || (data529 === "submit")) || (data529 === "admission")) || (data529 === "execute")) || (data529 === "read")) || (data529 === "decode")) || (data529 === "output")) || (data529 === "reconcile")) || (data529 === "cleanup")) || (data529 === "control"))){
+const err1683 = {instancePath:instancePath+"/refresh_status/query_diagnostic/stage",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/stage/enum",keyword:"enum",params:{allowedValues: schema52.oneOf[8].properties.refresh_status.properties.query_diagnostic.anyOf[0].properties.stage.enum},message:"must be equal to one of the allowed values"};
 if(vErrors === null){
 vErrors = [err1683];
 }
@@ -85533,27 +85512,17 @@ vErrors.push(err1683);
 }
 errors++;
 }
-var valid261 = _errs1579 === errors;
+var valid256 = _errs1562 === errors;
 }
 else {
-var valid261 = true;
+var valid256 = true;
 }
-if(valid261){
-if(data524.value !== undefined){
-let data528 = data524.value;
-const _errs1581 = errors;
-const _errs1582 = errors;
-let valid262 = false;
-const _errs1583 = errors;
-const _errs1584 = errors;
-let valid263 = false;
-let passing8 = null;
-const _errs1585 = errors;
-if(errors === _errs1585){
-if(data528 && typeof data528 == "object" && !Array.isArray(data528)){
-let missing140;
-if((data528.text === undefined) && (missing140 = "text")){
-const err1684 = {instancePath:instancePath+"/refresh_status/query_diagnostic/facts/" + i39+"/value",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf/0/required",keyword:"required",params:{missingProperty: missing140},message:"must have required property '"+missing140+"'"};
+if(valid256){
+if(data524.outcome !== undefined){
+let data530 = data524.outcome;
+const _errs1564 = errors;
+if(typeof data530 !== "string"){
+const err1684 = {instancePath:instancePath+"/refresh_status/query_diagnostic/outcome",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/outcome/type",keyword:"type",params:{type: "string"},message:"must be string"};
 if(vErrors === null){
 vErrors = [err1684];
 }
@@ -85562,11 +85531,8 @@ vErrors.push(err1684);
 }
 errors++;
 }
-else {
-const _errs1587 = errors;
-for(const key142 in data528){
-if(!(key142 === "text")){
-const err1685 = {instancePath:instancePath+"/refresh_status/query_diagnostic/facts/" + i39+"/value",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf/0/additionalProperties",keyword:"additionalProperties",params:{additionalProperty: key142},message:"must NOT have additional properties"};
+if(!((((((((((((((data530 === "not_applicable") || (data530 === "not_submitted")) || (data530 === "not_dispatched")) || (data530 === "prepared")) || (data530 === "unknown")) || (data530 === "pending")) || (data530 === "input_rejected")) || (data530 === "rejected")) || (data530 === "applied")) || (data530 === "completed")) || (data530 === "failed")) || (data530 === "cancelled")) || (data530 === "retired")) || (data530 === "closed_unknown"))){
+const err1685 = {instancePath:instancePath+"/refresh_status/query_diagnostic/outcome",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/outcome/enum",keyword:"enum",params:{allowedValues: schema52.oneOf[8].properties.refresh_status.properties.query_diagnostic.anyOf[0].properties.outcome.enum},message:"must be equal to one of the allowed values"};
 if(vErrors === null){
 vErrors = [err1685];
 }
@@ -85574,17 +85540,18 @@ else {
 vErrors.push(err1685);
 }
 errors++;
-break;
 }
+var valid256 = _errs1564 === errors;
 }
-if(_errs1587 === errors){
-if(data528.text !== undefined){
-let data529 = data528.text;
-const _errs1588 = errors;
-if(errors === _errs1588){
-if(typeof data529 === "string"){
-if(func2(data529) > 256){
-const err1686 = {instancePath:instancePath+"/refresh_status/query_diagnostic/facts/" + i39+"/value/text",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf/0/properties/text/maxLength",keyword:"maxLength",params:{limit: 256},message:"must NOT have more than 256 characters"};
+else {
+var valid256 = true;
+}
+if(valid256){
+if(data524.evidence !== undefined){
+let data531 = data524.evidence;
+const _errs1566 = errors;
+if(typeof data531 !== "string"){
+const err1686 = {instancePath:instancePath+"/refresh_status/query_diagnostic/evidence",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/evidence/type",keyword:"type",params:{type: "string"},message:"must be string"};
 if(vErrors === null){
 vErrors = [err1686];
 }
@@ -85593,9 +85560,8 @@ vErrors.push(err1686);
 }
 errors++;
 }
-}
-else {
-const err1687 = {instancePath:instancePath+"/refresh_status/query_diagnostic/facts/" + i39+"/value/text",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf/0/properties/text/type",keyword:"type",params:{type: "string"},message:"must be string"};
+if(!(((((data531 === "none") || (data531 === "local_before_dispatch")) || (data531 === "saved_intent")) || (data531 === "native_receipt")) || (data531 === "domain_status"))){
+const err1687 = {instancePath:instancePath+"/refresh_status/query_diagnostic/evidence",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/evidence/enum",keyword:"enum",params:{allowedValues: schema52.oneOf[8].properties.refresh_status.properties.query_diagnostic.anyOf[0].properties.evidence.enum},message:"must be equal to one of the allowed values"};
 if(vErrors === null){
 vErrors = [err1687];
 }
@@ -85604,13 +85570,19 @@ vErrors.push(err1687);
 }
 errors++;
 }
-}
-}
-}
-}
+var valid256 = _errs1566 === errors;
 }
 else {
-const err1688 = {instancePath:instancePath+"/refresh_status/query_diagnostic/facts/" + i39+"/value",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf/0/type",keyword:"type",params:{type: "object"},message:"must be object"};
+var valid256 = true;
+}
+if(valid256){
+if(data524.message !== undefined){
+let data532 = data524.message;
+const _errs1568 = errors;
+if(errors === _errs1568){
+if(typeof data532 === "string"){
+if(func2(data532) > 384){
+const err1688 = {instancePath:instancePath+"/refresh_status/query_diagnostic/message",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/message/maxLength",keyword:"maxLength",params:{limit: 384},message:"must NOT have more than 384 characters"};
 if(vErrors === null){
 vErrors = [err1688];
 }
@@ -85620,18 +85592,8 @@ vErrors.push(err1688);
 errors++;
 }
 }
-var _valid81 = _errs1585 === errors;
-if(_valid81){
-valid263 = true;
-passing8 = 0;
-var props35 = true;
-}
-const _errs1590 = errors;
-if(errors === _errs1590){
-if(data528 && typeof data528 == "object" && !Array.isArray(data528)){
-let missing141;
-if((data528.signed === undefined) && (missing141 = "signed")){
-const err1689 = {instancePath:instancePath+"/refresh_status/query_diagnostic/facts/" + i39+"/value",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf/1/required",keyword:"required",params:{missingProperty: missing141},message:"must have required property '"+missing141+"'"};
+else {
+const err1689 = {instancePath:instancePath+"/refresh_status/query_diagnostic/message",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/message/type",keyword:"type",params:{type: "string"},message:"must be string"};
 if(vErrors === null){
 vErrors = [err1689];
 }
@@ -85640,11 +85602,23 @@ vErrors.push(err1689);
 }
 errors++;
 }
+}
+var valid256 = _errs1568 === errors;
+}
 else {
-const _errs1592 = errors;
-for(const key143 in data528){
-if(!(key143 === "signed")){
-const err1690 = {instancePath:instancePath+"/refresh_status/query_diagnostic/facts/" + i39+"/value",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf/1/additionalProperties",keyword:"additionalProperties",params:{additionalProperty: key143},message:"must NOT have additional properties"};
+var valid256 = true;
+}
+if(valid256){
+if(data524.cause !== undefined){
+let data533 = data524.cause;
+const _errs1570 = errors;
+const _errs1571 = errors;
+let valid257 = false;
+const _errs1572 = errors;
+if(errors === _errs1572){
+if(typeof data533 === "string"){
+if(func2(data533) > 96){
+const err1690 = {instancePath:instancePath+"/refresh_status/query_diagnostic/cause",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/cause/anyOf/0/maxLength",keyword:"maxLength",params:{limit: 96},message:"must NOT have more than 96 characters"};
 if(vErrors === null){
 vErrors = [err1690];
 }
@@ -85652,17 +85626,10 @@ else {
 vErrors.push(err1690);
 }
 errors++;
-break;
 }
 }
-if(_errs1592 === errors){
-if(data528.signed !== undefined){
-let data530 = data528.signed;
-const _errs1593 = errors;
-if(errors === _errs1593){
-if(typeof data530 === "string"){
-if(func2(data530) > 20){
-const err1691 = {instancePath:instancePath+"/refresh_status/query_diagnostic/facts/" + i39+"/value/signed",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf/1/properties/signed/maxLength",keyword:"maxLength",params:{limit: 20},message:"must NOT have more than 20 characters"};
+else {
+const err1691 = {instancePath:instancePath+"/refresh_status/query_diagnostic/cause",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/cause/anyOf/0/type",keyword:"type",params:{type: "string"},message:"must be string"};
 if(vErrors === null){
 vErrors = [err1691];
 }
@@ -85671,9 +85638,12 @@ vErrors.push(err1691);
 }
 errors++;
 }
-else {
-if(!pattern13.test(data530)){
-const err1692 = {instancePath:instancePath+"/refresh_status/query_diagnostic/facts/" + i39+"/value/signed",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf/1/properties/signed/pattern",keyword:"pattern",params:{pattern: "^(0|-?[1-9][0-9]*)$"},message:"must match pattern \""+"^(0|-?[1-9][0-9]*)$"+"\""};
+}
+var _valid71 = _errs1572 === errors;
+valid257 = valid257 || _valid71;
+const _errs1574 = errors;
+if(data533 !== null){
+const err1692 = {instancePath:instancePath+"/refresh_status/query_diagnostic/cause",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/cause/anyOf/1/type",keyword:"type",params:{type: "null"},message:"must be null"};
 if(vErrors === null){
 vErrors = [err1692];
 }
@@ -85682,957 +85652,15 @@ vErrors.push(err1692);
 }
 errors++;
 }
-}
-}
-else {
-const err1693 = {instancePath:instancePath+"/refresh_status/query_diagnostic/facts/" + i39+"/value/signed",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf/1/properties/signed/type",keyword:"type",params:{type: "string"},message:"must be string"};
+var _valid71 = _errs1574 === errors;
+valid257 = valid257 || _valid71;
+if(!valid257){
+const err1693 = {instancePath:instancePath+"/refresh_status/query_diagnostic/cause",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/cause/anyOf",keyword:"anyOf",params:{},message:"must match a schema in anyOf"};
 if(vErrors === null){
 vErrors = [err1693];
 }
 else {
 vErrors.push(err1693);
-}
-errors++;
-}
-}
-}
-}
-}
-}
-else {
-const err1694 = {instancePath:instancePath+"/refresh_status/query_diagnostic/facts/" + i39+"/value",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf/1/type",keyword:"type",params:{type: "object"},message:"must be object"};
-if(vErrors === null){
-vErrors = [err1694];
-}
-else {
-vErrors.push(err1694);
-}
-errors++;
-}
-}
-var _valid81 = _errs1590 === errors;
-if(_valid81 && valid263){
-valid263 = false;
-passing8 = [passing8, 1];
-}
-else {
-if(_valid81){
-valid263 = true;
-passing8 = 1;
-if(props35 !== true){
-props35 = true;
-}
-}
-const _errs1595 = errors;
-if(errors === _errs1595){
-if(data528 && typeof data528 == "object" && !Array.isArray(data528)){
-let missing142;
-if((data528.unsigned === undefined) && (missing142 = "unsigned")){
-const err1695 = {instancePath:instancePath+"/refresh_status/query_diagnostic/facts/" + i39+"/value",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf/2/required",keyword:"required",params:{missingProperty: missing142},message:"must have required property '"+missing142+"'"};
-if(vErrors === null){
-vErrors = [err1695];
-}
-else {
-vErrors.push(err1695);
-}
-errors++;
-}
-else {
-const _errs1597 = errors;
-for(const key144 in data528){
-if(!(key144 === "unsigned")){
-const err1696 = {instancePath:instancePath+"/refresh_status/query_diagnostic/facts/" + i39+"/value",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf/2/additionalProperties",keyword:"additionalProperties",params:{additionalProperty: key144},message:"must NOT have additional properties"};
-if(vErrors === null){
-vErrors = [err1696];
-}
-else {
-vErrors.push(err1696);
-}
-errors++;
-break;
-}
-}
-if(_errs1597 === errors){
-if(data528.unsigned !== undefined){
-let data531 = data528.unsigned;
-const _errs1598 = errors;
-if(errors === _errs1598){
-if(typeof data531 === "string"){
-if(func2(data531) > 20){
-const err1697 = {instancePath:instancePath+"/refresh_status/query_diagnostic/facts/" + i39+"/value/unsigned",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf/2/properties/unsigned/maxLength",keyword:"maxLength",params:{limit: 20},message:"must NOT have more than 20 characters"};
-if(vErrors === null){
-vErrors = [err1697];
-}
-else {
-vErrors.push(err1697);
-}
-errors++;
-}
-else {
-if(!pattern4.test(data531)){
-const err1698 = {instancePath:instancePath+"/refresh_status/query_diagnostic/facts/" + i39+"/value/unsigned",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf/2/properties/unsigned/pattern",keyword:"pattern",params:{pattern: "^(0|[1-9][0-9]*)$"},message:"must match pattern \""+"^(0|[1-9][0-9]*)$"+"\""};
-if(vErrors === null){
-vErrors = [err1698];
-}
-else {
-vErrors.push(err1698);
-}
-errors++;
-}
-}
-}
-else {
-const err1699 = {instancePath:instancePath+"/refresh_status/query_diagnostic/facts/" + i39+"/value/unsigned",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf/2/properties/unsigned/type",keyword:"type",params:{type: "string"},message:"must be string"};
-if(vErrors === null){
-vErrors = [err1699];
-}
-else {
-vErrors.push(err1699);
-}
-errors++;
-}
-}
-}
-}
-}
-}
-else {
-const err1700 = {instancePath:instancePath+"/refresh_status/query_diagnostic/facts/" + i39+"/value",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf/2/type",keyword:"type",params:{type: "object"},message:"must be object"};
-if(vErrors === null){
-vErrors = [err1700];
-}
-else {
-vErrors.push(err1700);
-}
-errors++;
-}
-}
-var _valid81 = _errs1595 === errors;
-if(_valid81 && valid263){
-valid263 = false;
-passing8 = [passing8, 2];
-}
-else {
-if(_valid81){
-valid263 = true;
-passing8 = 2;
-if(props35 !== true){
-props35 = true;
-}
-}
-const _errs1600 = errors;
-if(errors === _errs1600){
-if(data528 && typeof data528 == "object" && !Array.isArray(data528)){
-let missing143;
-if((data528.boolean === undefined) && (missing143 = "boolean")){
-const err1701 = {instancePath:instancePath+"/refresh_status/query_diagnostic/facts/" + i39+"/value",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf/3/required",keyword:"required",params:{missingProperty: missing143},message:"must have required property '"+missing143+"'"};
-if(vErrors === null){
-vErrors = [err1701];
-}
-else {
-vErrors.push(err1701);
-}
-errors++;
-}
-else {
-const _errs1602 = errors;
-for(const key145 in data528){
-if(!(key145 === "boolean")){
-const err1702 = {instancePath:instancePath+"/refresh_status/query_diagnostic/facts/" + i39+"/value",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf/3/additionalProperties",keyword:"additionalProperties",params:{additionalProperty: key145},message:"must NOT have additional properties"};
-if(vErrors === null){
-vErrors = [err1702];
-}
-else {
-vErrors.push(err1702);
-}
-errors++;
-break;
-}
-}
-if(_errs1602 === errors){
-if(data528.boolean !== undefined){
-if(typeof data528.boolean !== "boolean"){
-const err1703 = {instancePath:instancePath+"/refresh_status/query_diagnostic/facts/" + i39+"/value/boolean",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf/3/properties/boolean/type",keyword:"type",params:{type: "boolean"},message:"must be boolean"};
-if(vErrors === null){
-vErrors = [err1703];
-}
-else {
-vErrors.push(err1703);
-}
-errors++;
-}
-}
-}
-}
-}
-else {
-const err1704 = {instancePath:instancePath+"/refresh_status/query_diagnostic/facts/" + i39+"/value",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf/3/type",keyword:"type",params:{type: "object"},message:"must be object"};
-if(vErrors === null){
-vErrors = [err1704];
-}
-else {
-vErrors.push(err1704);
-}
-errors++;
-}
-}
-var _valid81 = _errs1600 === errors;
-if(_valid81 && valid263){
-valid263 = false;
-passing8 = [passing8, 3];
-}
-else {
-if(_valid81){
-valid263 = true;
-passing8 = 3;
-if(props35 !== true){
-props35 = true;
-}
-}
-const _errs1605 = errors;
-if(errors === _errs1605){
-if(data528 && typeof data528 == "object" && !Array.isArray(data528)){
-let missing144;
-if((data528.digest === undefined) && (missing144 = "digest")){
-const err1705 = {instancePath:instancePath+"/refresh_status/query_diagnostic/facts/" + i39+"/value",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf/4/required",keyword:"required",params:{missingProperty: missing144},message:"must have required property '"+missing144+"'"};
-if(vErrors === null){
-vErrors = [err1705];
-}
-else {
-vErrors.push(err1705);
-}
-errors++;
-}
-else {
-const _errs1607 = errors;
-for(const key146 in data528){
-if(!(key146 === "digest")){
-const err1706 = {instancePath:instancePath+"/refresh_status/query_diagnostic/facts/" + i39+"/value",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf/4/additionalProperties",keyword:"additionalProperties",params:{additionalProperty: key146},message:"must NOT have additional properties"};
-if(vErrors === null){
-vErrors = [err1706];
-}
-else {
-vErrors.push(err1706);
-}
-errors++;
-break;
-}
-}
-if(_errs1607 === errors){
-if(data528.digest !== undefined){
-let data533 = data528.digest;
-const _errs1608 = errors;
-if(errors === _errs1608){
-if(Array.isArray(data533)){
-if(data533.length > 32){
-const err1707 = {instancePath:instancePath+"/refresh_status/query_diagnostic/facts/" + i39+"/value/digest",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf/4/properties/digest/maxItems",keyword:"maxItems",params:{limit: 32},message:"must NOT have more than 32 items"};
-if(vErrors === null){
-vErrors = [err1707];
-}
-else {
-vErrors.push(err1707);
-}
-errors++;
-}
-else {
-if(data533.length < 32){
-const err1708 = {instancePath:instancePath+"/refresh_status/query_diagnostic/facts/" + i39+"/value/digest",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf/4/properties/digest/minItems",keyword:"minItems",params:{limit: 32},message:"must NOT have fewer than 32 items"};
-if(vErrors === null){
-vErrors = [err1708];
-}
-else {
-vErrors.push(err1708);
-}
-errors++;
-}
-else {
-var valid269 = true;
-const len40 = data533.length;
-for(let i40=0; i40<len40; i40++){
-let data534 = data533[i40];
-const _errs1610 = errors;
-if(!(((typeof data534 == "number") && (!(data534 % 1) && !isNaN(data534))) && (isFinite(data534)))){
-const err1709 = {instancePath:instancePath+"/refresh_status/query_diagnostic/facts/" + i39+"/value/digest/" + i40,schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf/4/properties/digest/items/type",keyword:"type",params:{type: "integer"},message:"must be integer"};
-if(vErrors === null){
-vErrors = [err1709];
-}
-else {
-vErrors.push(err1709);
-}
-errors++;
-}
-if(errors === _errs1610){
-if((typeof data534 == "number") && (isFinite(data534))){
-if(data534 > 255 || isNaN(data534)){
-const err1710 = {instancePath:instancePath+"/refresh_status/query_diagnostic/facts/" + i39+"/value/digest/" + i40,schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf/4/properties/digest/items/maximum",keyword:"maximum",params:{comparison: "<=", limit: 255},message:"must be <= 255"};
-if(vErrors === null){
-vErrors = [err1710];
-}
-else {
-vErrors.push(err1710);
-}
-errors++;
-}
-else {
-if(data534 < 0 || isNaN(data534)){
-const err1711 = {instancePath:instancePath+"/refresh_status/query_diagnostic/facts/" + i39+"/value/digest/" + i40,schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf/4/properties/digest/items/minimum",keyword:"minimum",params:{comparison: ">=", limit: 0},message:"must be >= 0"};
-if(vErrors === null){
-vErrors = [err1711];
-}
-else {
-vErrors.push(err1711);
-}
-errors++;
-}
-}
-}
-}
-var valid269 = _errs1610 === errors;
-if(!valid269){
-break;
-}
-}
-}
-}
-}
-else {
-const err1712 = {instancePath:instancePath+"/refresh_status/query_diagnostic/facts/" + i39+"/value/digest",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf/4/properties/digest/type",keyword:"type",params:{type: "array"},message:"must be array"};
-if(vErrors === null){
-vErrors = [err1712];
-}
-else {
-vErrors.push(err1712);
-}
-errors++;
-}
-}
-}
-}
-}
-}
-else {
-const err1713 = {instancePath:instancePath+"/refresh_status/query_diagnostic/facts/" + i39+"/value",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf/4/type",keyword:"type",params:{type: "object"},message:"must be object"};
-if(vErrors === null){
-vErrors = [err1713];
-}
-else {
-vErrors.push(err1713);
-}
-errors++;
-}
-}
-var _valid81 = _errs1605 === errors;
-if(_valid81 && valid263){
-valid263 = false;
-passing8 = [passing8, 4];
-}
-else {
-if(_valid81){
-valid263 = true;
-passing8 = 4;
-if(props35 !== true){
-props35 = true;
-}
-}
-const _errs1612 = errors;
-if(errors === _errs1612){
-if(data528 && typeof data528 == "object" && !Array.isArray(data528)){
-let missing145;
-if((data528.location === undefined) && (missing145 = "location")){
-const err1714 = {instancePath:instancePath+"/refresh_status/query_diagnostic/facts/" + i39+"/value",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf/5/required",keyword:"required",params:{missingProperty: missing145},message:"must have required property '"+missing145+"'"};
-if(vErrors === null){
-vErrors = [err1714];
-}
-else {
-vErrors.push(err1714);
-}
-errors++;
-}
-else {
-const _errs1614 = errors;
-for(const key147 in data528){
-if(!(key147 === "location")){
-const err1715 = {instancePath:instancePath+"/refresh_status/query_diagnostic/facts/" + i39+"/value",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf/5/additionalProperties",keyword:"additionalProperties",params:{additionalProperty: key147},message:"must NOT have additional properties"};
-if(vErrors === null){
-vErrors = [err1715];
-}
-else {
-vErrors.push(err1715);
-}
-errors++;
-break;
-}
-}
-if(_errs1614 === errors){
-if(data528.location !== undefined){
-let data535 = data528.location;
-const _errs1615 = errors;
-if(errors === _errs1615){
-if(data535 && typeof data535 == "object" && !Array.isArray(data535)){
-let missing146;
-if(((((data535.offset === undefined) && (missing146 = "offset")) || ((data535.length === undefined) && (missing146 = "length"))) || ((data535.line === undefined) && (missing146 = "line"))) || ((data535.byte_column === undefined) && (missing146 = "byte_column"))){
-const err1716 = {instancePath:instancePath+"/refresh_status/query_diagnostic/facts/" + i39+"/value/location",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf/5/properties/location/required",keyword:"required",params:{missingProperty: missing146},message:"must have required property '"+missing146+"'"};
-if(vErrors === null){
-vErrors = [err1716];
-}
-else {
-vErrors.push(err1716);
-}
-errors++;
-}
-else {
-const _errs1617 = errors;
-for(const key148 in data535){
-if(!((((((((key148 === "source") || (key148 === "source_encoding")) || (key148 === "source_truncated")) || (key148 === "statement")) || (key148 === "offset")) || (key148 === "length")) || (key148 === "line")) || (key148 === "byte_column"))){
-const err1717 = {instancePath:instancePath+"/refresh_status/query_diagnostic/facts/" + i39+"/value/location",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf/5/properties/location/additionalProperties",keyword:"additionalProperties",params:{additionalProperty: key148},message:"must NOT have additional properties"};
-if(vErrors === null){
-vErrors = [err1717];
-}
-else {
-vErrors.push(err1717);
-}
-errors++;
-break;
-}
-}
-if(_errs1617 === errors){
-if(data535.source !== undefined){
-let data536 = data535.source;
-const _errs1618 = errors;
-const _errs1619 = errors;
-let valid272 = false;
-const _errs1620 = errors;
-if(errors === _errs1620){
-if(typeof data536 === "string"){
-if(func2(data536) > 512){
-const err1718 = {instancePath:instancePath+"/refresh_status/query_diagnostic/facts/" + i39+"/value/location/source",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf/5/properties/location/properties/source/anyOf/0/maxLength",keyword:"maxLength",params:{limit: 512},message:"must NOT have more than 512 characters"};
-if(vErrors === null){
-vErrors = [err1718];
-}
-else {
-vErrors.push(err1718);
-}
-errors++;
-}
-}
-else {
-const err1719 = {instancePath:instancePath+"/refresh_status/query_diagnostic/facts/" + i39+"/value/location/source",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf/5/properties/location/properties/source/anyOf/0/type",keyword:"type",params:{type: "string"},message:"must be string"};
-if(vErrors === null){
-vErrors = [err1719];
-}
-else {
-vErrors.push(err1719);
-}
-errors++;
-}
-}
-var _valid82 = _errs1620 === errors;
-valid272 = valid272 || _valid82;
-const _errs1622 = errors;
-if(data536 !== null){
-const err1720 = {instancePath:instancePath+"/refresh_status/query_diagnostic/facts/" + i39+"/value/location/source",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf/5/properties/location/properties/source/anyOf/1/type",keyword:"type",params:{type: "null"},message:"must be null"};
-if(vErrors === null){
-vErrors = [err1720];
-}
-else {
-vErrors.push(err1720);
-}
-errors++;
-}
-var _valid82 = _errs1622 === errors;
-valid272 = valid272 || _valid82;
-if(!valid272){
-const err1721 = {instancePath:instancePath+"/refresh_status/query_diagnostic/facts/" + i39+"/value/location/source",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf/5/properties/location/properties/source/anyOf",keyword:"anyOf",params:{},message:"must match a schema in anyOf"};
-if(vErrors === null){
-vErrors = [err1721];
-}
-else {
-vErrors.push(err1721);
-}
-errors++;
-}
-else {
-errors = _errs1619;
-if(vErrors !== null){
-if(_errs1619){
-vErrors.length = _errs1619;
-}
-else {
-vErrors = null;
-}
-}
-}
-var valid271 = _errs1618 === errors;
-}
-else {
-var valid271 = true;
-}
-if(valid271){
-if(data535.source_encoding !== undefined){
-let data537 = data535.source_encoding;
-const _errs1624 = errors;
-if(typeof data537 !== "string"){
-const err1722 = {instancePath:instancePath+"/refresh_status/query_diagnostic/facts/" + i39+"/value/location/source_encoding",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf/5/properties/location/properties/source_encoding/type",keyword:"type",params:{type: "string"},message:"must be string"};
-if(vErrors === null){
-vErrors = [err1722];
-}
-else {
-vErrors.push(err1722);
-}
-errors++;
-}
-if(!((data537 === "utf8") || (data537 === "escaped_bytes"))){
-const err1723 = {instancePath:instancePath+"/refresh_status/query_diagnostic/facts/" + i39+"/value/location/source_encoding",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf/5/properties/location/properties/source_encoding/enum",keyword:"enum",params:{allowedValues: schema52.oneOf[8].properties.refresh_status.properties.query_diagnostic.anyOf[0].properties.facts.items.anyOf[0].properties.value.anyOf[0].oneOf[5].properties.location.properties.source_encoding.enum},message:"must be equal to one of the allowed values"};
-if(vErrors === null){
-vErrors = [err1723];
-}
-else {
-vErrors.push(err1723);
-}
-errors++;
-}
-var valid271 = _errs1624 === errors;
-}
-else {
-var valid271 = true;
-}
-if(valid271){
-if(data535.source_truncated !== undefined){
-const _errs1626 = errors;
-if(typeof data535.source_truncated !== "boolean"){
-const err1724 = {instancePath:instancePath+"/refresh_status/query_diagnostic/facts/" + i39+"/value/location/source_truncated",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf/5/properties/location/properties/source_truncated/type",keyword:"type",params:{type: "boolean"},message:"must be boolean"};
-if(vErrors === null){
-vErrors = [err1724];
-}
-else {
-vErrors.push(err1724);
-}
-errors++;
-}
-var valid271 = _errs1626 === errors;
-}
-else {
-var valid271 = true;
-}
-if(valid271){
-if(data535.statement !== undefined){
-let data539 = data535.statement;
-const _errs1628 = errors;
-const _errs1629 = errors;
-let valid273 = false;
-const _errs1630 = errors;
-if(errors === _errs1630){
-if(typeof data539 === "string"){
-if(func2(data539) > 20){
-const err1725 = {instancePath:instancePath+"/refresh_status/query_diagnostic/facts/" + i39+"/value/location/statement",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf/5/properties/location/properties/statement/anyOf/0/maxLength",keyword:"maxLength",params:{limit: 20},message:"must NOT have more than 20 characters"};
-if(vErrors === null){
-vErrors = [err1725];
-}
-else {
-vErrors.push(err1725);
-}
-errors++;
-}
-else {
-if(!pattern4.test(data539)){
-const err1726 = {instancePath:instancePath+"/refresh_status/query_diagnostic/facts/" + i39+"/value/location/statement",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf/5/properties/location/properties/statement/anyOf/0/pattern",keyword:"pattern",params:{pattern: "^(0|[1-9][0-9]*)$"},message:"must match pattern \""+"^(0|[1-9][0-9]*)$"+"\""};
-if(vErrors === null){
-vErrors = [err1726];
-}
-else {
-vErrors.push(err1726);
-}
-errors++;
-}
-}
-}
-else {
-const err1727 = {instancePath:instancePath+"/refresh_status/query_diagnostic/facts/" + i39+"/value/location/statement",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf/5/properties/location/properties/statement/anyOf/0/type",keyword:"type",params:{type: "string"},message:"must be string"};
-if(vErrors === null){
-vErrors = [err1727];
-}
-else {
-vErrors.push(err1727);
-}
-errors++;
-}
-}
-var _valid83 = _errs1630 === errors;
-valid273 = valid273 || _valid83;
-const _errs1632 = errors;
-if(data539 !== null){
-const err1728 = {instancePath:instancePath+"/refresh_status/query_diagnostic/facts/" + i39+"/value/location/statement",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf/5/properties/location/properties/statement/anyOf/1/type",keyword:"type",params:{type: "null"},message:"must be null"};
-if(vErrors === null){
-vErrors = [err1728];
-}
-else {
-vErrors.push(err1728);
-}
-errors++;
-}
-var _valid83 = _errs1632 === errors;
-valid273 = valid273 || _valid83;
-if(!valid273){
-const err1729 = {instancePath:instancePath+"/refresh_status/query_diagnostic/facts/" + i39+"/value/location/statement",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf/5/properties/location/properties/statement/anyOf",keyword:"anyOf",params:{},message:"must match a schema in anyOf"};
-if(vErrors === null){
-vErrors = [err1729];
-}
-else {
-vErrors.push(err1729);
-}
-errors++;
-}
-else {
-errors = _errs1629;
-if(vErrors !== null){
-if(_errs1629){
-vErrors.length = _errs1629;
-}
-else {
-vErrors = null;
-}
-}
-}
-var valid271 = _errs1628 === errors;
-}
-else {
-var valid271 = true;
-}
-if(valid271){
-if(data535.offset !== undefined){
-let data540 = data535.offset;
-const _errs1634 = errors;
-if(errors === _errs1634){
-if(typeof data540 === "string"){
-if(func2(data540) > 20){
-const err1730 = {instancePath:instancePath+"/refresh_status/query_diagnostic/facts/" + i39+"/value/location/offset",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf/5/properties/location/properties/offset/maxLength",keyword:"maxLength",params:{limit: 20},message:"must NOT have more than 20 characters"};
-if(vErrors === null){
-vErrors = [err1730];
-}
-else {
-vErrors.push(err1730);
-}
-errors++;
-}
-else {
-if(!pattern4.test(data540)){
-const err1731 = {instancePath:instancePath+"/refresh_status/query_diagnostic/facts/" + i39+"/value/location/offset",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf/5/properties/location/properties/offset/pattern",keyword:"pattern",params:{pattern: "^(0|[1-9][0-9]*)$"},message:"must match pattern \""+"^(0|[1-9][0-9]*)$"+"\""};
-if(vErrors === null){
-vErrors = [err1731];
-}
-else {
-vErrors.push(err1731);
-}
-errors++;
-}
-}
-}
-else {
-const err1732 = {instancePath:instancePath+"/refresh_status/query_diagnostic/facts/" + i39+"/value/location/offset",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf/5/properties/location/properties/offset/type",keyword:"type",params:{type: "string"},message:"must be string"};
-if(vErrors === null){
-vErrors = [err1732];
-}
-else {
-vErrors.push(err1732);
-}
-errors++;
-}
-}
-var valid271 = _errs1634 === errors;
-}
-else {
-var valid271 = true;
-}
-if(valid271){
-if(data535.length !== undefined){
-let data541 = data535.length;
-const _errs1636 = errors;
-if(errors === _errs1636){
-if(typeof data541 === "string"){
-if(func2(data541) > 20){
-const err1733 = {instancePath:instancePath+"/refresh_status/query_diagnostic/facts/" + i39+"/value/location/length",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf/5/properties/location/properties/length/maxLength",keyword:"maxLength",params:{limit: 20},message:"must NOT have more than 20 characters"};
-if(vErrors === null){
-vErrors = [err1733];
-}
-else {
-vErrors.push(err1733);
-}
-errors++;
-}
-else {
-if(!pattern4.test(data541)){
-const err1734 = {instancePath:instancePath+"/refresh_status/query_diagnostic/facts/" + i39+"/value/location/length",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf/5/properties/location/properties/length/pattern",keyword:"pattern",params:{pattern: "^(0|[1-9][0-9]*)$"},message:"must match pattern \""+"^(0|[1-9][0-9]*)$"+"\""};
-if(vErrors === null){
-vErrors = [err1734];
-}
-else {
-vErrors.push(err1734);
-}
-errors++;
-}
-}
-}
-else {
-const err1735 = {instancePath:instancePath+"/refresh_status/query_diagnostic/facts/" + i39+"/value/location/length",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf/5/properties/location/properties/length/type",keyword:"type",params:{type: "string"},message:"must be string"};
-if(vErrors === null){
-vErrors = [err1735];
-}
-else {
-vErrors.push(err1735);
-}
-errors++;
-}
-}
-var valid271 = _errs1636 === errors;
-}
-else {
-var valid271 = true;
-}
-if(valid271){
-if(data535.line !== undefined){
-let data542 = data535.line;
-const _errs1638 = errors;
-if(errors === _errs1638){
-if(typeof data542 === "string"){
-if(func2(data542) > 20){
-const err1736 = {instancePath:instancePath+"/refresh_status/query_diagnostic/facts/" + i39+"/value/location/line",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf/5/properties/location/properties/line/maxLength",keyword:"maxLength",params:{limit: 20},message:"must NOT have more than 20 characters"};
-if(vErrors === null){
-vErrors = [err1736];
-}
-else {
-vErrors.push(err1736);
-}
-errors++;
-}
-else {
-if(!pattern4.test(data542)){
-const err1737 = {instancePath:instancePath+"/refresh_status/query_diagnostic/facts/" + i39+"/value/location/line",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf/5/properties/location/properties/line/pattern",keyword:"pattern",params:{pattern: "^(0|[1-9][0-9]*)$"},message:"must match pattern \""+"^(0|[1-9][0-9]*)$"+"\""};
-if(vErrors === null){
-vErrors = [err1737];
-}
-else {
-vErrors.push(err1737);
-}
-errors++;
-}
-}
-}
-else {
-const err1738 = {instancePath:instancePath+"/refresh_status/query_diagnostic/facts/" + i39+"/value/location/line",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf/5/properties/location/properties/line/type",keyword:"type",params:{type: "string"},message:"must be string"};
-if(vErrors === null){
-vErrors = [err1738];
-}
-else {
-vErrors.push(err1738);
-}
-errors++;
-}
-}
-var valid271 = _errs1638 === errors;
-}
-else {
-var valid271 = true;
-}
-if(valid271){
-if(data535.byte_column !== undefined){
-let data543 = data535.byte_column;
-const _errs1640 = errors;
-if(errors === _errs1640){
-if(typeof data543 === "string"){
-if(func2(data543) > 20){
-const err1739 = {instancePath:instancePath+"/refresh_status/query_diagnostic/facts/" + i39+"/value/location/byte_column",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf/5/properties/location/properties/byte_column/maxLength",keyword:"maxLength",params:{limit: 20},message:"must NOT have more than 20 characters"};
-if(vErrors === null){
-vErrors = [err1739];
-}
-else {
-vErrors.push(err1739);
-}
-errors++;
-}
-else {
-if(!pattern4.test(data543)){
-const err1740 = {instancePath:instancePath+"/refresh_status/query_diagnostic/facts/" + i39+"/value/location/byte_column",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf/5/properties/location/properties/byte_column/pattern",keyword:"pattern",params:{pattern: "^(0|[1-9][0-9]*)$"},message:"must match pattern \""+"^(0|[1-9][0-9]*)$"+"\""};
-if(vErrors === null){
-vErrors = [err1740];
-}
-else {
-vErrors.push(err1740);
-}
-errors++;
-}
-}
-}
-else {
-const err1741 = {instancePath:instancePath+"/refresh_status/query_diagnostic/facts/" + i39+"/value/location/byte_column",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf/5/properties/location/properties/byte_column/type",keyword:"type",params:{type: "string"},message:"must be string"};
-if(vErrors === null){
-vErrors = [err1741];
-}
-else {
-vErrors.push(err1741);
-}
-errors++;
-}
-}
-var valid271 = _errs1640 === errors;
-}
-else {
-var valid271 = true;
-}
-}
-}
-}
-}
-}
-}
-}
-}
-}
-}
-else {
-const err1742 = {instancePath:instancePath+"/refresh_status/query_diagnostic/facts/" + i39+"/value/location",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf/5/properties/location/type",keyword:"type",params:{type: "object"},message:"must be object"};
-if(vErrors === null){
-vErrors = [err1742];
-}
-else {
-vErrors.push(err1742);
-}
-errors++;
-}
-}
-}
-}
-}
-}
-else {
-const err1743 = {instancePath:instancePath+"/refresh_status/query_diagnostic/facts/" + i39+"/value",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf/5/type",keyword:"type",params:{type: "object"},message:"must be object"};
-if(vErrors === null){
-vErrors = [err1743];
-}
-else {
-vErrors.push(err1743);
-}
-errors++;
-}
-}
-var _valid81 = _errs1612 === errors;
-if(_valid81 && valid263){
-valid263 = false;
-passing8 = [passing8, 5];
-}
-else {
-if(_valid81){
-valid263 = true;
-passing8 = 5;
-if(props35 !== true){
-props35 = true;
-}
-}
-}
-}
-}
-}
-}
-if(!valid263){
-const err1744 = {instancePath:instancePath+"/refresh_status/query_diagnostic/facts/" + i39+"/value",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf",keyword:"oneOf",params:{passingSchemas: passing8},message:"must match exactly one schema in oneOf"};
-if(vErrors === null){
-vErrors = [err1744];
-}
-else {
-vErrors.push(err1744);
-}
-errors++;
-}
-else {
-errors = _errs1584;
-if(vErrors !== null){
-if(_errs1584){
-vErrors.length = _errs1584;
-}
-else {
-vErrors = null;
-}
-}
-}
-var _valid80 = _errs1583 === errors;
-valid262 = valid262 || _valid80;
-const _errs1642 = errors;
-if(data528 !== null){
-const err1745 = {instancePath:instancePath+"/refresh_status/query_diagnostic/facts/" + i39+"/value",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/1/type",keyword:"type",params:{type: "null"},message:"must be null"};
-if(vErrors === null){
-vErrors = [err1745];
-}
-else {
-vErrors.push(err1745);
-}
-errors++;
-}
-var _valid80 = _errs1642 === errors;
-valid262 = valid262 || _valid80;
-if(!valid262){
-const err1746 = {instancePath:instancePath+"/refresh_status/query_diagnostic/facts/" + i39+"/value",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf",keyword:"anyOf",params:{},message:"must match a schema in anyOf"};
-if(vErrors === null){
-vErrors = [err1746];
-}
-else {
-vErrors.push(err1746);
-}
-errors++;
-}
-else {
-errors = _errs1582;
-if(vErrors !== null){
-if(_errs1582){
-vErrors.length = _errs1582;
-}
-else {
-vErrors = null;
-}
-}
-}
-var valid261 = _errs1581 === errors;
-}
-else {
-var valid261 = true;
-}
-}
-}
-}
-}
-}
-}
-else {
-const err1747 = {instancePath:instancePath+"/refresh_status/query_diagnostic/facts/" + i39,schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/facts/items/anyOf/0/type",keyword:"type",params:{type: "object"},message:"must be object"};
-if(vErrors === null){
-vErrors = [err1747];
-}
-else {
-vErrors.push(err1747);
-}
-errors++;
-}
-}
-var _valid79 = _errs1572 === errors;
-valid260 = valid260 || _valid79;
-const _errs1644 = errors;
-if(data524 !== null){
-const err1748 = {instancePath:instancePath+"/refresh_status/query_diagnostic/facts/" + i39,schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/facts/items/anyOf/1/type",keyword:"type",params:{type: "null"},message:"must be null"};
-if(vErrors === null){
-vErrors = [err1748];
-}
-else {
-vErrors.push(err1748);
-}
-errors++;
-}
-var _valid79 = _errs1644 === errors;
-valid260 = valid260 || _valid79;
-if(!valid260){
-const err1749 = {instancePath:instancePath+"/refresh_status/query_diagnostic/facts/" + i39,schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/facts/items/anyOf",keyword:"anyOf",params:{},message:"must match a schema in anyOf"};
-if(vErrors === null){
-vErrors = [err1749];
-}
-else {
-vErrors.push(err1749);
 }
 errors++;
 }
@@ -86647,16 +85675,952 @@ vErrors = null;
 }
 }
 }
-var valid259 = _errs1570 === errors;
-if(!valid259){
+var valid256 = _errs1570 === errors;
+}
+else {
+var valid256 = true;
+}
+if(valid256){
+if(data524.identity !== undefined){
+let data534 = data524.identity;
+const _errs1576 = errors;
+const _errs1577 = errors;
+let valid258 = false;
+const _errs1578 = errors;
+if(errors === _errs1578){
+if(data534 && typeof data534 == "object" && !Array.isArray(data534)){
+let missing145;
+if(((data534.domain === undefined) && (missing145 = "domain")) || ((data534.id === undefined) && (missing145 = "id"))){
+const err1694 = {instancePath:instancePath+"/refresh_status/query_diagnostic/identity",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/identity/anyOf/0/required",keyword:"required",params:{missingProperty: missing145},message:"must have required property '"+missing145+"'"};
+if(vErrors === null){
+vErrors = [err1694];
+}
+else {
+vErrors.push(err1694);
+}
+errors++;
+}
+else {
+const _errs1580 = errors;
+for(const key147 in data534){
+if(!(((((key147 === "domain") || (key147 === "id")) || (key147 === "realm")) || (key147 === "resource")) || (key147 === "sequence"))){
+const err1695 = {instancePath:instancePath+"/refresh_status/query_diagnostic/identity",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/identity/anyOf/0/additionalProperties",keyword:"additionalProperties",params:{additionalProperty: key147},message:"must NOT have additional properties"};
+if(vErrors === null){
+vErrors = [err1695];
+}
+else {
+vErrors.push(err1695);
+}
+errors++;
 break;
+}
+}
+if(_errs1580 === errors){
+if(data534.domain !== undefined){
+let data535 = data534.domain;
+const _errs1581 = errors;
+if(typeof data535 !== "string"){
+const err1696 = {instancePath:instancePath+"/refresh_status/query_diagnostic/identity/domain",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/identity/anyOf/0/properties/domain/type",keyword:"type",params:{type: "string"},message:"must be string"};
+if(vErrors === null){
+vErrors = [err1696];
+}
+else {
+vErrors.push(err1696);
+}
+errors++;
+}
+if(!(((((((((((((data535 === "sql") || (data535 === "query")) || (data535 === "mutation")) || (data535 === "catalog")) || (data535 === "application")) || (data535 === "publication")) || (data535 === "migration")) || (data535 === "reactive")) || (data535 === "serving")) || (data535 === "effect")) || (data535 === "exchange")) || (data535 === "transport")) || (data535 === "internal"))){
+const err1697 = {instancePath:instancePath+"/refresh_status/query_diagnostic/identity/domain",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/identity/anyOf/0/properties/domain/enum",keyword:"enum",params:{allowedValues: schema52.oneOf[8].properties.refresh_status.properties.query_diagnostic.anyOf[0].properties.identity.anyOf[0].properties.domain.enum},message:"must be equal to one of the allowed values"};
+if(vErrors === null){
+vErrors = [err1697];
+}
+else {
+vErrors.push(err1697);
+}
+errors++;
+}
+var valid259 = _errs1581 === errors;
+}
+else {
+var valid259 = true;
+}
+if(valid259){
+if(data534.id !== undefined){
+let data536 = data534.id;
+const _errs1583 = errors;
+if(errors === _errs1583){
+if(typeof data536 === "string"){
+if(func2(data536) > 20){
+const err1698 = {instancePath:instancePath+"/refresh_status/query_diagnostic/identity/id",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/identity/anyOf/0/properties/id/maxLength",keyword:"maxLength",params:{limit: 20},message:"must NOT have more than 20 characters"};
+if(vErrors === null){
+vErrors = [err1698];
+}
+else {
+vErrors.push(err1698);
+}
+errors++;
+}
+else {
+if(!pattern4.test(data536)){
+const err1699 = {instancePath:instancePath+"/refresh_status/query_diagnostic/identity/id",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/identity/anyOf/0/properties/id/pattern",keyword:"pattern",params:{pattern: "^(0|[1-9][0-9]*)$"},message:"must match pattern \""+"^(0|[1-9][0-9]*)$"+"\""};
+if(vErrors === null){
+vErrors = [err1699];
+}
+else {
+vErrors.push(err1699);
+}
+errors++;
+}
+}
+}
+else {
+const err1700 = {instancePath:instancePath+"/refresh_status/query_diagnostic/identity/id",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/identity/anyOf/0/properties/id/type",keyword:"type",params:{type: "string"},message:"must be string"};
+if(vErrors === null){
+vErrors = [err1700];
+}
+else {
+vErrors.push(err1700);
+}
+errors++;
+}
+}
+var valid259 = _errs1583 === errors;
+}
+else {
+var valid259 = true;
+}
+if(valid259){
+if(data534.realm !== undefined){
+let data537 = data534.realm;
+const _errs1585 = errors;
+const _errs1586 = errors;
+let valid260 = false;
+const _errs1587 = errors;
+if(errors === _errs1587){
+if(typeof data537 === "string"){
+if(func2(data537) > 20){
+const err1701 = {instancePath:instancePath+"/refresh_status/query_diagnostic/identity/realm",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/identity/anyOf/0/properties/realm/anyOf/0/maxLength",keyword:"maxLength",params:{limit: 20},message:"must NOT have more than 20 characters"};
+if(vErrors === null){
+vErrors = [err1701];
+}
+else {
+vErrors.push(err1701);
+}
+errors++;
+}
+else {
+if(!pattern4.test(data537)){
+const err1702 = {instancePath:instancePath+"/refresh_status/query_diagnostic/identity/realm",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/identity/anyOf/0/properties/realm/anyOf/0/pattern",keyword:"pattern",params:{pattern: "^(0|[1-9][0-9]*)$"},message:"must match pattern \""+"^(0|[1-9][0-9]*)$"+"\""};
+if(vErrors === null){
+vErrors = [err1702];
+}
+else {
+vErrors.push(err1702);
+}
+errors++;
+}
+}
+}
+else {
+const err1703 = {instancePath:instancePath+"/refresh_status/query_diagnostic/identity/realm",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/identity/anyOf/0/properties/realm/anyOf/0/type",keyword:"type",params:{type: "string"},message:"must be string"};
+if(vErrors === null){
+vErrors = [err1703];
+}
+else {
+vErrors.push(err1703);
+}
+errors++;
+}
+}
+var _valid73 = _errs1587 === errors;
+valid260 = valid260 || _valid73;
+const _errs1589 = errors;
+if(data537 !== null){
+const err1704 = {instancePath:instancePath+"/refresh_status/query_diagnostic/identity/realm",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/identity/anyOf/0/properties/realm/anyOf/1/type",keyword:"type",params:{type: "null"},message:"must be null"};
+if(vErrors === null){
+vErrors = [err1704];
+}
+else {
+vErrors.push(err1704);
+}
+errors++;
+}
+var _valid73 = _errs1589 === errors;
+valid260 = valid260 || _valid73;
+if(!valid260){
+const err1705 = {instancePath:instancePath+"/refresh_status/query_diagnostic/identity/realm",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/identity/anyOf/0/properties/realm/anyOf",keyword:"anyOf",params:{},message:"must match a schema in anyOf"};
+if(vErrors === null){
+vErrors = [err1705];
+}
+else {
+vErrors.push(err1705);
+}
+errors++;
+}
+else {
+errors = _errs1586;
+if(vErrors !== null){
+if(_errs1586){
+vErrors.length = _errs1586;
+}
+else {
+vErrors = null;
+}
+}
+}
+var valid259 = _errs1585 === errors;
+}
+else {
+var valid259 = true;
+}
+if(valid259){
+if(data534.resource !== undefined){
+let data538 = data534.resource;
+const _errs1591 = errors;
+const _errs1592 = errors;
+let valid261 = false;
+const _errs1593 = errors;
+if(errors === _errs1593){
+if(typeof data538 === "string"){
+if(func2(data538) > 20){
+const err1706 = {instancePath:instancePath+"/refresh_status/query_diagnostic/identity/resource",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/identity/anyOf/0/properties/resource/anyOf/0/maxLength",keyword:"maxLength",params:{limit: 20},message:"must NOT have more than 20 characters"};
+if(vErrors === null){
+vErrors = [err1706];
+}
+else {
+vErrors.push(err1706);
+}
+errors++;
+}
+else {
+if(!pattern4.test(data538)){
+const err1707 = {instancePath:instancePath+"/refresh_status/query_diagnostic/identity/resource",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/identity/anyOf/0/properties/resource/anyOf/0/pattern",keyword:"pattern",params:{pattern: "^(0|[1-9][0-9]*)$"},message:"must match pattern \""+"^(0|[1-9][0-9]*)$"+"\""};
+if(vErrors === null){
+vErrors = [err1707];
+}
+else {
+vErrors.push(err1707);
+}
+errors++;
+}
+}
+}
+else {
+const err1708 = {instancePath:instancePath+"/refresh_status/query_diagnostic/identity/resource",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/identity/anyOf/0/properties/resource/anyOf/0/type",keyword:"type",params:{type: "string"},message:"must be string"};
+if(vErrors === null){
+vErrors = [err1708];
+}
+else {
+vErrors.push(err1708);
+}
+errors++;
+}
+}
+var _valid74 = _errs1593 === errors;
+valid261 = valid261 || _valid74;
+const _errs1595 = errors;
+if(data538 !== null){
+const err1709 = {instancePath:instancePath+"/refresh_status/query_diagnostic/identity/resource",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/identity/anyOf/0/properties/resource/anyOf/1/type",keyword:"type",params:{type: "null"},message:"must be null"};
+if(vErrors === null){
+vErrors = [err1709];
+}
+else {
+vErrors.push(err1709);
+}
+errors++;
+}
+var _valid74 = _errs1595 === errors;
+valid261 = valid261 || _valid74;
+if(!valid261){
+const err1710 = {instancePath:instancePath+"/refresh_status/query_diagnostic/identity/resource",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/identity/anyOf/0/properties/resource/anyOf",keyword:"anyOf",params:{},message:"must match a schema in anyOf"};
+if(vErrors === null){
+vErrors = [err1710];
+}
+else {
+vErrors.push(err1710);
+}
+errors++;
+}
+else {
+errors = _errs1592;
+if(vErrors !== null){
+if(_errs1592){
+vErrors.length = _errs1592;
+}
+else {
+vErrors = null;
+}
+}
+}
+var valid259 = _errs1591 === errors;
+}
+else {
+var valid259 = true;
+}
+if(valid259){
+if(data534.sequence !== undefined){
+let data539 = data534.sequence;
+const _errs1597 = errors;
+const _errs1598 = errors;
+let valid262 = false;
+const _errs1599 = errors;
+if(errors === _errs1599){
+if(typeof data539 === "string"){
+if(func2(data539) > 20){
+const err1711 = {instancePath:instancePath+"/refresh_status/query_diagnostic/identity/sequence",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/identity/anyOf/0/properties/sequence/anyOf/0/maxLength",keyword:"maxLength",params:{limit: 20},message:"must NOT have more than 20 characters"};
+if(vErrors === null){
+vErrors = [err1711];
+}
+else {
+vErrors.push(err1711);
+}
+errors++;
+}
+else {
+if(!pattern4.test(data539)){
+const err1712 = {instancePath:instancePath+"/refresh_status/query_diagnostic/identity/sequence",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/identity/anyOf/0/properties/sequence/anyOf/0/pattern",keyword:"pattern",params:{pattern: "^(0|[1-9][0-9]*)$"},message:"must match pattern \""+"^(0|[1-9][0-9]*)$"+"\""};
+if(vErrors === null){
+vErrors = [err1712];
+}
+else {
+vErrors.push(err1712);
+}
+errors++;
+}
+}
+}
+else {
+const err1713 = {instancePath:instancePath+"/refresh_status/query_diagnostic/identity/sequence",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/identity/anyOf/0/properties/sequence/anyOf/0/type",keyword:"type",params:{type: "string"},message:"must be string"};
+if(vErrors === null){
+vErrors = [err1713];
+}
+else {
+vErrors.push(err1713);
+}
+errors++;
+}
+}
+var _valid75 = _errs1599 === errors;
+valid262 = valid262 || _valid75;
+const _errs1601 = errors;
+if(data539 !== null){
+const err1714 = {instancePath:instancePath+"/refresh_status/query_diagnostic/identity/sequence",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/identity/anyOf/0/properties/sequence/anyOf/1/type",keyword:"type",params:{type: "null"},message:"must be null"};
+if(vErrors === null){
+vErrors = [err1714];
+}
+else {
+vErrors.push(err1714);
+}
+errors++;
+}
+var _valid75 = _errs1601 === errors;
+valid262 = valid262 || _valid75;
+if(!valid262){
+const err1715 = {instancePath:instancePath+"/refresh_status/query_diagnostic/identity/sequence",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/identity/anyOf/0/properties/sequence/anyOf",keyword:"anyOf",params:{},message:"must match a schema in anyOf"};
+if(vErrors === null){
+vErrors = [err1715];
+}
+else {
+vErrors.push(err1715);
+}
+errors++;
+}
+else {
+errors = _errs1598;
+if(vErrors !== null){
+if(_errs1598){
+vErrors.length = _errs1598;
+}
+else {
+vErrors = null;
+}
+}
+}
+var valid259 = _errs1597 === errors;
+}
+else {
+var valid259 = true;
+}
+}
+}
 }
 }
 }
 }
 }
 else {
-const err1750 = {instancePath:instancePath+"/refresh_status/query_diagnostic/facts",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/facts/type",keyword:"type",params:{type: "array"},message:"must be array"};
+const err1716 = {instancePath:instancePath+"/refresh_status/query_diagnostic/identity",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/identity/anyOf/0/type",keyword:"type",params:{type: "object"},message:"must be object"};
+if(vErrors === null){
+vErrors = [err1716];
+}
+else {
+vErrors.push(err1716);
+}
+errors++;
+}
+}
+var _valid72 = _errs1578 === errors;
+valid258 = valid258 || _valid72;
+const _errs1603 = errors;
+if(data534 !== null){
+const err1717 = {instancePath:instancePath+"/refresh_status/query_diagnostic/identity",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/identity/anyOf/1/type",keyword:"type",params:{type: "null"},message:"must be null"};
+if(vErrors === null){
+vErrors = [err1717];
+}
+else {
+vErrors.push(err1717);
+}
+errors++;
+}
+var _valid72 = _errs1603 === errors;
+valid258 = valid258 || _valid72;
+if(!valid258){
+const err1718 = {instancePath:instancePath+"/refresh_status/query_diagnostic/identity",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/identity/anyOf",keyword:"anyOf",params:{},message:"must match a schema in anyOf"};
+if(vErrors === null){
+vErrors = [err1718];
+}
+else {
+vErrors.push(err1718);
+}
+errors++;
+}
+else {
+errors = _errs1577;
+if(vErrors !== null){
+if(_errs1577){
+vErrors.length = _errs1577;
+}
+else {
+vErrors = null;
+}
+}
+}
+var valid256 = _errs1576 === errors;
+}
+else {
+var valid256 = true;
+}
+if(valid256){
+if(data524.location !== undefined){
+let data540 = data524.location;
+const _errs1605 = errors;
+const _errs1606 = errors;
+let valid263 = false;
+const _errs1607 = errors;
+if(errors === _errs1607){
+if(data540 && typeof data540 == "object" && !Array.isArray(data540)){
+let missing146;
+if(((((data540.offset === undefined) && (missing146 = "offset")) || ((data540.length === undefined) && (missing146 = "length"))) || ((data540.line === undefined) && (missing146 = "line"))) || ((data540.byte_column === undefined) && (missing146 = "byte_column"))){
+const err1719 = {instancePath:instancePath+"/refresh_status/query_diagnostic/location",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/location/anyOf/0/required",keyword:"required",params:{missingProperty: missing146},message:"must have required property '"+missing146+"'"};
+if(vErrors === null){
+vErrors = [err1719];
+}
+else {
+vErrors.push(err1719);
+}
+errors++;
+}
+else {
+const _errs1609 = errors;
+for(const key148 in data540){
+if(!((((((((key148 === "source") || (key148 === "source_encoding")) || (key148 === "source_truncated")) || (key148 === "statement")) || (key148 === "offset")) || (key148 === "length")) || (key148 === "line")) || (key148 === "byte_column"))){
+const err1720 = {instancePath:instancePath+"/refresh_status/query_diagnostic/location",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/location/anyOf/0/additionalProperties",keyword:"additionalProperties",params:{additionalProperty: key148},message:"must NOT have additional properties"};
+if(vErrors === null){
+vErrors = [err1720];
+}
+else {
+vErrors.push(err1720);
+}
+errors++;
+break;
+}
+}
+if(_errs1609 === errors){
+if(data540.source !== undefined){
+let data541 = data540.source;
+const _errs1610 = errors;
+const _errs1611 = errors;
+let valid265 = false;
+const _errs1612 = errors;
+if(errors === _errs1612){
+if(typeof data541 === "string"){
+if(func2(data541) > 512){
+const err1721 = {instancePath:instancePath+"/refresh_status/query_diagnostic/location/source",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/location/anyOf/0/properties/source/anyOf/0/maxLength",keyword:"maxLength",params:{limit: 512},message:"must NOT have more than 512 characters"};
+if(vErrors === null){
+vErrors = [err1721];
+}
+else {
+vErrors.push(err1721);
+}
+errors++;
+}
+}
+else {
+const err1722 = {instancePath:instancePath+"/refresh_status/query_diagnostic/location/source",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/location/anyOf/0/properties/source/anyOf/0/type",keyword:"type",params:{type: "string"},message:"must be string"};
+if(vErrors === null){
+vErrors = [err1722];
+}
+else {
+vErrors.push(err1722);
+}
+errors++;
+}
+}
+var _valid77 = _errs1612 === errors;
+valid265 = valid265 || _valid77;
+const _errs1614 = errors;
+if(data541 !== null){
+const err1723 = {instancePath:instancePath+"/refresh_status/query_diagnostic/location/source",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/location/anyOf/0/properties/source/anyOf/1/type",keyword:"type",params:{type: "null"},message:"must be null"};
+if(vErrors === null){
+vErrors = [err1723];
+}
+else {
+vErrors.push(err1723);
+}
+errors++;
+}
+var _valid77 = _errs1614 === errors;
+valid265 = valid265 || _valid77;
+if(!valid265){
+const err1724 = {instancePath:instancePath+"/refresh_status/query_diagnostic/location/source",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/location/anyOf/0/properties/source/anyOf",keyword:"anyOf",params:{},message:"must match a schema in anyOf"};
+if(vErrors === null){
+vErrors = [err1724];
+}
+else {
+vErrors.push(err1724);
+}
+errors++;
+}
+else {
+errors = _errs1611;
+if(vErrors !== null){
+if(_errs1611){
+vErrors.length = _errs1611;
+}
+else {
+vErrors = null;
+}
+}
+}
+var valid264 = _errs1610 === errors;
+}
+else {
+var valid264 = true;
+}
+if(valid264){
+if(data540.source_encoding !== undefined){
+let data542 = data540.source_encoding;
+const _errs1616 = errors;
+if(typeof data542 !== "string"){
+const err1725 = {instancePath:instancePath+"/refresh_status/query_diagnostic/location/source_encoding",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/location/anyOf/0/properties/source_encoding/type",keyword:"type",params:{type: "string"},message:"must be string"};
+if(vErrors === null){
+vErrors = [err1725];
+}
+else {
+vErrors.push(err1725);
+}
+errors++;
+}
+if(!((data542 === "utf8") || (data542 === "escaped_bytes"))){
+const err1726 = {instancePath:instancePath+"/refresh_status/query_diagnostic/location/source_encoding",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/location/anyOf/0/properties/source_encoding/enum",keyword:"enum",params:{allowedValues: schema52.oneOf[8].properties.refresh_status.properties.query_diagnostic.anyOf[0].properties.location.anyOf[0].properties.source_encoding.enum},message:"must be equal to one of the allowed values"};
+if(vErrors === null){
+vErrors = [err1726];
+}
+else {
+vErrors.push(err1726);
+}
+errors++;
+}
+var valid264 = _errs1616 === errors;
+}
+else {
+var valid264 = true;
+}
+if(valid264){
+if(data540.source_truncated !== undefined){
+const _errs1618 = errors;
+if(typeof data540.source_truncated !== "boolean"){
+const err1727 = {instancePath:instancePath+"/refresh_status/query_diagnostic/location/source_truncated",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/location/anyOf/0/properties/source_truncated/type",keyword:"type",params:{type: "boolean"},message:"must be boolean"};
+if(vErrors === null){
+vErrors = [err1727];
+}
+else {
+vErrors.push(err1727);
+}
+errors++;
+}
+var valid264 = _errs1618 === errors;
+}
+else {
+var valid264 = true;
+}
+if(valid264){
+if(data540.statement !== undefined){
+let data544 = data540.statement;
+const _errs1620 = errors;
+const _errs1621 = errors;
+let valid266 = false;
+const _errs1622 = errors;
+if(errors === _errs1622){
+if(typeof data544 === "string"){
+if(func2(data544) > 20){
+const err1728 = {instancePath:instancePath+"/refresh_status/query_diagnostic/location/statement",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/location/anyOf/0/properties/statement/anyOf/0/maxLength",keyword:"maxLength",params:{limit: 20},message:"must NOT have more than 20 characters"};
+if(vErrors === null){
+vErrors = [err1728];
+}
+else {
+vErrors.push(err1728);
+}
+errors++;
+}
+else {
+if(!pattern4.test(data544)){
+const err1729 = {instancePath:instancePath+"/refresh_status/query_diagnostic/location/statement",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/location/anyOf/0/properties/statement/anyOf/0/pattern",keyword:"pattern",params:{pattern: "^(0|[1-9][0-9]*)$"},message:"must match pattern \""+"^(0|[1-9][0-9]*)$"+"\""};
+if(vErrors === null){
+vErrors = [err1729];
+}
+else {
+vErrors.push(err1729);
+}
+errors++;
+}
+}
+}
+else {
+const err1730 = {instancePath:instancePath+"/refresh_status/query_diagnostic/location/statement",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/location/anyOf/0/properties/statement/anyOf/0/type",keyword:"type",params:{type: "string"},message:"must be string"};
+if(vErrors === null){
+vErrors = [err1730];
+}
+else {
+vErrors.push(err1730);
+}
+errors++;
+}
+}
+var _valid78 = _errs1622 === errors;
+valid266 = valid266 || _valid78;
+const _errs1624 = errors;
+if(data544 !== null){
+const err1731 = {instancePath:instancePath+"/refresh_status/query_diagnostic/location/statement",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/location/anyOf/0/properties/statement/anyOf/1/type",keyword:"type",params:{type: "null"},message:"must be null"};
+if(vErrors === null){
+vErrors = [err1731];
+}
+else {
+vErrors.push(err1731);
+}
+errors++;
+}
+var _valid78 = _errs1624 === errors;
+valid266 = valid266 || _valid78;
+if(!valid266){
+const err1732 = {instancePath:instancePath+"/refresh_status/query_diagnostic/location/statement",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/location/anyOf/0/properties/statement/anyOf",keyword:"anyOf",params:{},message:"must match a schema in anyOf"};
+if(vErrors === null){
+vErrors = [err1732];
+}
+else {
+vErrors.push(err1732);
+}
+errors++;
+}
+else {
+errors = _errs1621;
+if(vErrors !== null){
+if(_errs1621){
+vErrors.length = _errs1621;
+}
+else {
+vErrors = null;
+}
+}
+}
+var valid264 = _errs1620 === errors;
+}
+else {
+var valid264 = true;
+}
+if(valid264){
+if(data540.offset !== undefined){
+let data545 = data540.offset;
+const _errs1626 = errors;
+if(errors === _errs1626){
+if(typeof data545 === "string"){
+if(func2(data545) > 20){
+const err1733 = {instancePath:instancePath+"/refresh_status/query_diagnostic/location/offset",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/location/anyOf/0/properties/offset/maxLength",keyword:"maxLength",params:{limit: 20},message:"must NOT have more than 20 characters"};
+if(vErrors === null){
+vErrors = [err1733];
+}
+else {
+vErrors.push(err1733);
+}
+errors++;
+}
+else {
+if(!pattern4.test(data545)){
+const err1734 = {instancePath:instancePath+"/refresh_status/query_diagnostic/location/offset",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/location/anyOf/0/properties/offset/pattern",keyword:"pattern",params:{pattern: "^(0|[1-9][0-9]*)$"},message:"must match pattern \""+"^(0|[1-9][0-9]*)$"+"\""};
+if(vErrors === null){
+vErrors = [err1734];
+}
+else {
+vErrors.push(err1734);
+}
+errors++;
+}
+}
+}
+else {
+const err1735 = {instancePath:instancePath+"/refresh_status/query_diagnostic/location/offset",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/location/anyOf/0/properties/offset/type",keyword:"type",params:{type: "string"},message:"must be string"};
+if(vErrors === null){
+vErrors = [err1735];
+}
+else {
+vErrors.push(err1735);
+}
+errors++;
+}
+}
+var valid264 = _errs1626 === errors;
+}
+else {
+var valid264 = true;
+}
+if(valid264){
+if(data540.length !== undefined){
+let data546 = data540.length;
+const _errs1628 = errors;
+if(errors === _errs1628){
+if(typeof data546 === "string"){
+if(func2(data546) > 20){
+const err1736 = {instancePath:instancePath+"/refresh_status/query_diagnostic/location/length",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/location/anyOf/0/properties/length/maxLength",keyword:"maxLength",params:{limit: 20},message:"must NOT have more than 20 characters"};
+if(vErrors === null){
+vErrors = [err1736];
+}
+else {
+vErrors.push(err1736);
+}
+errors++;
+}
+else {
+if(!pattern4.test(data546)){
+const err1737 = {instancePath:instancePath+"/refresh_status/query_diagnostic/location/length",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/location/anyOf/0/properties/length/pattern",keyword:"pattern",params:{pattern: "^(0|[1-9][0-9]*)$"},message:"must match pattern \""+"^(0|[1-9][0-9]*)$"+"\""};
+if(vErrors === null){
+vErrors = [err1737];
+}
+else {
+vErrors.push(err1737);
+}
+errors++;
+}
+}
+}
+else {
+const err1738 = {instancePath:instancePath+"/refresh_status/query_diagnostic/location/length",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/location/anyOf/0/properties/length/type",keyword:"type",params:{type: "string"},message:"must be string"};
+if(vErrors === null){
+vErrors = [err1738];
+}
+else {
+vErrors.push(err1738);
+}
+errors++;
+}
+}
+var valid264 = _errs1628 === errors;
+}
+else {
+var valid264 = true;
+}
+if(valid264){
+if(data540.line !== undefined){
+let data547 = data540.line;
+const _errs1630 = errors;
+if(errors === _errs1630){
+if(typeof data547 === "string"){
+if(func2(data547) > 20){
+const err1739 = {instancePath:instancePath+"/refresh_status/query_diagnostic/location/line",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/location/anyOf/0/properties/line/maxLength",keyword:"maxLength",params:{limit: 20},message:"must NOT have more than 20 characters"};
+if(vErrors === null){
+vErrors = [err1739];
+}
+else {
+vErrors.push(err1739);
+}
+errors++;
+}
+else {
+if(!pattern4.test(data547)){
+const err1740 = {instancePath:instancePath+"/refresh_status/query_diagnostic/location/line",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/location/anyOf/0/properties/line/pattern",keyword:"pattern",params:{pattern: "^(0|[1-9][0-9]*)$"},message:"must match pattern \""+"^(0|[1-9][0-9]*)$"+"\""};
+if(vErrors === null){
+vErrors = [err1740];
+}
+else {
+vErrors.push(err1740);
+}
+errors++;
+}
+}
+}
+else {
+const err1741 = {instancePath:instancePath+"/refresh_status/query_diagnostic/location/line",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/location/anyOf/0/properties/line/type",keyword:"type",params:{type: "string"},message:"must be string"};
+if(vErrors === null){
+vErrors = [err1741];
+}
+else {
+vErrors.push(err1741);
+}
+errors++;
+}
+}
+var valid264 = _errs1630 === errors;
+}
+else {
+var valid264 = true;
+}
+if(valid264){
+if(data540.byte_column !== undefined){
+let data548 = data540.byte_column;
+const _errs1632 = errors;
+if(errors === _errs1632){
+if(typeof data548 === "string"){
+if(func2(data548) > 20){
+const err1742 = {instancePath:instancePath+"/refresh_status/query_diagnostic/location/byte_column",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/location/anyOf/0/properties/byte_column/maxLength",keyword:"maxLength",params:{limit: 20},message:"must NOT have more than 20 characters"};
+if(vErrors === null){
+vErrors = [err1742];
+}
+else {
+vErrors.push(err1742);
+}
+errors++;
+}
+else {
+if(!pattern4.test(data548)){
+const err1743 = {instancePath:instancePath+"/refresh_status/query_diagnostic/location/byte_column",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/location/anyOf/0/properties/byte_column/pattern",keyword:"pattern",params:{pattern: "^(0|[1-9][0-9]*)$"},message:"must match pattern \""+"^(0|[1-9][0-9]*)$"+"\""};
+if(vErrors === null){
+vErrors = [err1743];
+}
+else {
+vErrors.push(err1743);
+}
+errors++;
+}
+}
+}
+else {
+const err1744 = {instancePath:instancePath+"/refresh_status/query_diagnostic/location/byte_column",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/location/anyOf/0/properties/byte_column/type",keyword:"type",params:{type: "string"},message:"must be string"};
+if(vErrors === null){
+vErrors = [err1744];
+}
+else {
+vErrors.push(err1744);
+}
+errors++;
+}
+}
+var valid264 = _errs1632 === errors;
+}
+else {
+var valid264 = true;
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+else {
+const err1745 = {instancePath:instancePath+"/refresh_status/query_diagnostic/location",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/location/anyOf/0/type",keyword:"type",params:{type: "object"},message:"must be object"};
+if(vErrors === null){
+vErrors = [err1745];
+}
+else {
+vErrors.push(err1745);
+}
+errors++;
+}
+}
+var _valid76 = _errs1607 === errors;
+valid263 = valid263 || _valid76;
+const _errs1634 = errors;
+if(data540 !== null){
+const err1746 = {instancePath:instancePath+"/refresh_status/query_diagnostic/location",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/location/anyOf/1/type",keyword:"type",params:{type: "null"},message:"must be null"};
+if(vErrors === null){
+vErrors = [err1746];
+}
+else {
+vErrors.push(err1746);
+}
+errors++;
+}
+var _valid76 = _errs1634 === errors;
+valid263 = valid263 || _valid76;
+if(!valid263){
+const err1747 = {instancePath:instancePath+"/refresh_status/query_diagnostic/location",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/location/anyOf",keyword:"anyOf",params:{},message:"must match a schema in anyOf"};
+if(vErrors === null){
+vErrors = [err1747];
+}
+else {
+vErrors.push(err1747);
+}
+errors++;
+}
+else {
+errors = _errs1606;
+if(vErrors !== null){
+if(_errs1606){
+vErrors.length = _errs1606;
+}
+else {
+vErrors = null;
+}
+}
+}
+var valid256 = _errs1605 === errors;
+}
+else {
+var valid256 = true;
+}
+if(valid256){
+if(data524.facts !== undefined){
+let data549 = data524.facts;
+const _errs1636 = errors;
+if(errors === _errs1636){
+if(Array.isArray(data549)){
+if(data549.length > 16){
+const err1748 = {instancePath:instancePath+"/refresh_status/query_diagnostic/facts",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/facts/maxItems",keyword:"maxItems",params:{limit: 16},message:"must NOT have more than 16 items"};
+if(vErrors === null){
+vErrors = [err1748];
+}
+else {
+vErrors.push(err1748);
+}
+errors++;
+}
+else {
+if(data549.length < 16){
+const err1749 = {instancePath:instancePath+"/refresh_status/query_diagnostic/facts",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/facts/minItems",keyword:"minItems",params:{limit: 16},message:"must NOT have fewer than 16 items"};
+if(vErrors === null){
+vErrors = [err1749];
+}
+else {
+vErrors.push(err1749);
+}
+errors++;
+}
+else {
+var valid267 = true;
+const len39 = data549.length;
+for(let i39=0; i39<len39; i39++){
+let data550 = data549[i39];
+const _errs1638 = errors;
+const _errs1639 = errors;
+let valid268 = false;
+const _errs1640 = errors;
+if(errors === _errs1640){
+if(data550 && typeof data550 == "object" && !Array.isArray(data550)){
+let missing147;
+if(((((data550.field === undefined) && (missing147 = "field")) || ((data550.origin === undefined) && (missing147 = "origin"))) || ((data550.availability === undefined) && (missing147 = "availability"))) || ((data550.value === undefined) && (missing147 = "value"))){
+const err1750 = {instancePath:instancePath+"/refresh_status/query_diagnostic/facts/" + i39,schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/facts/items/anyOf/0/required",keyword:"required",params:{missingProperty: missing147},message:"must have required property '"+missing147+"'"};
 if(vErrors === null){
 vErrors = [err1750];
 }
@@ -86665,20 +86629,11 @@ vErrors.push(err1750);
 }
 errors++;
 }
-}
-var valid248 = _errs1568 === errors;
-}
 else {
-var valid248 = true;
-}
-if(valid248){
-if(data498.actions !== undefined){
-let data544 = data498.actions;
-const _errs1646 = errors;
-if(errors === _errs1646){
-if(Array.isArray(data544)){
-if(data544.length > 4){
-const err1751 = {instancePath:instancePath+"/refresh_status/query_diagnostic/actions",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/actions/maxItems",keyword:"maxItems",params:{limit: 4},message:"must NOT have more than 4 items"};
+const _errs1642 = errors;
+for(const key149 in data550){
+if(!((((key149 === "field") || (key149 === "origin")) || (key149 === "availability")) || (key149 === "value"))){
+const err1751 = {instancePath:instancePath+"/refresh_status/query_diagnostic/facts/" + i39,schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/facts/items/anyOf/0/additionalProperties",keyword:"additionalProperties",params:{additionalProperty: key149},message:"must NOT have additional properties"};
 if(vErrors === null){
 vErrors = [err1751];
 }
@@ -86686,10 +86641,15 @@ else {
 vErrors.push(err1751);
 }
 errors++;
+break;
 }
-else {
-if(data544.length < 4){
-const err1752 = {instancePath:instancePath+"/refresh_status/query_diagnostic/actions",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/actions/minItems",keyword:"minItems",params:{limit: 4},message:"must NOT have fewer than 4 items"};
+}
+if(_errs1642 === errors){
+if(data550.field !== undefined){
+let data551 = data550.field;
+const _errs1643 = errors;
+if(typeof data551 !== "string"){
+const err1752 = {instancePath:instancePath+"/refresh_status/query_diagnostic/facts/" + i39+"/field",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/field/type",keyword:"type",params:{type: "string"},message:"must be string"};
 if(vErrors === null){
 vErrors = [err1752];
 }
@@ -86698,20 +86658,8 @@ vErrors.push(err1752);
 }
 errors++;
 }
-else {
-var valid274 = true;
-const len41 = data544.length;
-for(let i41=0; i41<len41; i41++){
-let data545 = data544[i41];
-const _errs1648 = errors;
-const _errs1649 = errors;
-let valid275 = false;
-const _errs1650 = errors;
-if(errors === _errs1650){
-if(data545 && typeof data545 == "object" && !Array.isArray(data545)){
-let missing147;
-if((data545.kind === undefined) && (missing147 = "kind")){
-const err1753 = {instancePath:instancePath+"/refresh_status/query_diagnostic/actions/" + i41,schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/actions/items/anyOf/0/required",keyword:"required",params:{missingProperty: missing147},message:"must have required property '"+missing147+"'"};
+if(!(((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((data551 === "object") || (data551 === "name")) || (data551 === "table")) || (data551 === "native_input")) || (data551 === "affected_rows")) || (data551 === "argument")) || (data551 === "option")) || (data551 === "permissions")) || (data551 === "scope")) || (data551 === "column")) || (data551 === "qualifier")) || (data551 === "constraint")) || (data551 === "key")) || (data551 === "input_row")) || (data551 === "first_occurrence")) || (data551 === "parameter")) || (data551 === "parameter_use")) || (data551 === "expected_count")) || (data551 === "actual_count")) || (data551 === "expected_type")) || (data551 === "actual_type")) || (data551 === "supplied_value")) || (data551 === "expected_value")) || (data551 === "expression")) || (data551 === "source_kind")) || (data551 === "source_basis")) || (data551 === "source_key")) || (data551 === "source_row")) || (data551 === "field_path")) || (data551 === "byte_offset")) || (data551 === "expected_resource")) || (data551 === "actual_resource")) || (data551 === "expected_source")) || (data551 === "actual_source")) || (data551 === "expected_revision")) || (data551 === "actual_revision")) || (data551 === "expected_schema")) || (data551 === "actual_schema")) || (data551 === "expected_policy")) || (data551 === "actual_policy")) || (data551 === "budget")) || (data551 === "limit")) || (data551 === "required")) || (data551 === "unit")) || (data551 === "completed_statements")) || (data551 === "emitted_rows")) || (data551 === "emitted_segments")) || (data551 === "completion")) || (data551 === "proposal")) || (data551 === "step")) || (data551 === "generation")) || (data551 === "attachment")) || (data551 === "lease")) || (data551 === "schema_origin")) || (data551 === "sampling_records")) || (data551 === "operation")) || (data551 === "native_cause")) || (data551 === "expected_bytes")) || (data551 === "presence")) || (data551 === "published")) || (data551 === "subscription")) || (data551 === "expected_codec")) || (data551 === "actual_codec")) || (data551 === "observed_clock")) || (data551 === "expected_namespace")) || (data551 === "actual_namespace")) || (data551 === "attempt")) || (data551 === "executor")) || (data551 === "resolution_reason")) || (data551 === "principal")) || (data551 === "deadline")) || (data551 === "authorization_policy")) || (data551 === "resolution_policy")) || (data551 === "protocol_status")) || (data551 === "native_effect"))){
+const err1753 = {instancePath:instancePath+"/refresh_status/query_diagnostic/facts/" + i39+"/field",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/field/enum",keyword:"enum",params:{allowedValues: schema52.oneOf[8].properties.refresh_status.properties.query_diagnostic.anyOf[0].properties.facts.items.anyOf[0].properties.field.enum},message:"must be equal to one of the allowed values"};
 if(vErrors === null){
 vErrors = [err1753];
 }
@@ -86720,11 +86668,17 @@ vErrors.push(err1753);
 }
 errors++;
 }
+var valid269 = _errs1643 === errors;
+}
 else {
-const _errs1652 = errors;
-for(const key149 in data545){
-if(!((key149 === "kind") || (key149 === "target"))){
-const err1754 = {instancePath:instancePath+"/refresh_status/query_diagnostic/actions/" + i41,schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/actions/items/anyOf/0/additionalProperties",keyword:"additionalProperties",params:{additionalProperty: key149},message:"must NOT have additional properties"};
+var valid269 = true;
+}
+if(valid269){
+if(data550.origin !== undefined){
+let data552 = data550.origin;
+const _errs1645 = errors;
+if(typeof data552 !== "string"){
+const err1754 = {instancePath:instancePath+"/refresh_status/query_diagnostic/facts/" + i39+"/origin",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/origin/type",keyword:"type",params:{type: "string"},message:"must be string"};
 if(vErrors === null){
 vErrors = [err1754];
 }
@@ -86732,15 +86686,9 @@ else {
 vErrors.push(err1754);
 }
 errors++;
-break;
 }
-}
-if(_errs1652 === errors){
-if(data545.kind !== undefined){
-let data546 = data545.kind;
-const _errs1653 = errors;
-if(typeof data546 !== "string"){
-const err1755 = {instancePath:instancePath+"/refresh_status/query_diagnostic/actions/" + i41+"/kind",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/actions/items/anyOf/0/properties/kind/type",keyword:"type",params:{type: "string"},message:"must be string"};
+if(!(((((data552 === "caller") || (data552 === "execution")) || (data552 === "schema")) || (data552 === "authority")) || (data552 === "owner"))){
+const err1755 = {instancePath:instancePath+"/refresh_status/query_diagnostic/facts/" + i39+"/origin",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/origin/enum",keyword:"enum",params:{allowedValues: schema52.oneOf[8].properties.refresh_status.properties.query_diagnostic.anyOf[0].properties.facts.items.anyOf[0].properties.origin.enum},message:"must be equal to one of the allowed values"};
 if(vErrors === null){
 vErrors = [err1755];
 }
@@ -86749,8 +86697,17 @@ vErrors.push(err1755);
 }
 errors++;
 }
-if(!(((((((((((data546 === "correct_input") || (data546 === "inspect_status")) || (data546 === "resume_exact")) || (data546 === "cancel_wait")) || (data546 === "cancel_mutation")) || (data546 === "refresh")) || (data546 === "recompile")) || (data546 === "retry_read")) || (data546 === "inspect_scope")) || (data546 === "reconcile_effect")) || (data546 === "contact_operator"))){
-const err1756 = {instancePath:instancePath+"/refresh_status/query_diagnostic/actions/" + i41+"/kind",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/actions/items/anyOf/0/properties/kind/enum",keyword:"enum",params:{allowedValues: schema52.oneOf[8].properties.refresh_status.properties.query_diagnostic.anyOf[0].properties.actions.items.anyOf[0].properties.kind.enum},message:"must be equal to one of the allowed values"};
+var valid269 = _errs1645 === errors;
+}
+else {
+var valid269 = true;
+}
+if(valid269){
+if(data550.availability !== undefined){
+let data553 = data550.availability;
+const _errs1647 = errors;
+if(typeof data553 !== "string"){
+const err1756 = {instancePath:instancePath+"/refresh_status/query_diagnostic/facts/" + i39+"/availability",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/availability/type",keyword:"type",params:{type: "string"},message:"must be string"};
 if(vErrors === null){
 vErrors = [err1756];
 }
@@ -86759,23 +86716,8 @@ vErrors.push(err1756);
 }
 errors++;
 }
-var valid276 = _errs1653 === errors;
-}
-else {
-var valid276 = true;
-}
-if(valid276){
-if(data545.target !== undefined){
-let data547 = data545.target;
-const _errs1655 = errors;
-const _errs1656 = errors;
-let valid277 = false;
-const _errs1657 = errors;
-if(errors === _errs1657){
-if(data547 && typeof data547 == "object" && !Array.isArray(data547)){
-let missing148;
-if(((data547.domain === undefined) && (missing148 = "domain")) || ((data547.id === undefined) && (missing148 = "id"))){
-const err1757 = {instancePath:instancePath+"/refresh_status/query_diagnostic/actions/" + i41+"/target",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/actions/items/anyOf/0/properties/target/anyOf/0/required",keyword:"required",params:{missingProperty: missing148},message:"must have required property '"+missing148+"'"};
+if(!((((((data553 === "provided") || (data553 === "truncated")) || (data553 === "unrecorded")) || (data553 === "unavailable")) || (data553 === "withheld")) || (data553 === "inapplicable"))){
+const err1757 = {instancePath:instancePath+"/refresh_status/query_diagnostic/facts/" + i39+"/availability",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/availability/enum",keyword:"enum",params:{allowedValues: schema52.oneOf[8].properties.refresh_status.properties.query_diagnostic.anyOf[0].properties.facts.items.anyOf[0].properties.availability.enum},message:"must be equal to one of the allowed values"};
 if(vErrors === null){
 vErrors = [err1757];
 }
@@ -86784,11 +86726,27 @@ vErrors.push(err1757);
 }
 errors++;
 }
+var valid269 = _errs1647 === errors;
+}
 else {
-const _errs1659 = errors;
-for(const key150 in data547){
-if(!(((((key150 === "domain") || (key150 === "id")) || (key150 === "realm")) || (key150 === "resource")) || (key150 === "sequence"))){
-const err1758 = {instancePath:instancePath+"/refresh_status/query_diagnostic/actions/" + i41+"/target",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/actions/items/anyOf/0/properties/target/anyOf/0/additionalProperties",keyword:"additionalProperties",params:{additionalProperty: key150},message:"must NOT have additional properties"};
+var valid269 = true;
+}
+if(valid269){
+if(data550.value !== undefined){
+let data554 = data550.value;
+const _errs1649 = errors;
+const _errs1650 = errors;
+let valid270 = false;
+const _errs1651 = errors;
+const _errs1652 = errors;
+let valid271 = false;
+let passing8 = null;
+const _errs1653 = errors;
+if(errors === _errs1653){
+if(data554 && typeof data554 == "object" && !Array.isArray(data554)){
+let missing148;
+if((data554.text === undefined) && (missing148 = "text")){
+const err1758 = {instancePath:instancePath+"/refresh_status/query_diagnostic/facts/" + i39+"/value",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf/0/required",keyword:"required",params:{missingProperty: missing148},message:"must have required property '"+missing148+"'"};
 if(vErrors === null){
 vErrors = [err1758];
 }
@@ -86796,15 +86754,12 @@ else {
 vErrors.push(err1758);
 }
 errors++;
-break;
 }
-}
-if(_errs1659 === errors){
-if(data547.domain !== undefined){
-let data548 = data547.domain;
-const _errs1660 = errors;
-if(typeof data548 !== "string"){
-const err1759 = {instancePath:instancePath+"/refresh_status/query_diagnostic/actions/" + i41+"/target/domain",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/actions/items/anyOf/0/properties/target/anyOf/0/properties/domain/type",keyword:"type",params:{type: "string"},message:"must be string"};
+else {
+const _errs1655 = errors;
+for(const key150 in data554){
+if(!(key150 === "text")){
+const err1759 = {instancePath:instancePath+"/refresh_status/query_diagnostic/facts/" + i39+"/value",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf/0/additionalProperties",keyword:"additionalProperties",params:{additionalProperty: key150},message:"must NOT have additional properties"};
 if(vErrors === null){
 vErrors = [err1759];
 }
@@ -86812,9 +86767,17 @@ else {
 vErrors.push(err1759);
 }
 errors++;
+break;
 }
-if(!(((((((((((((data548 === "sql") || (data548 === "query")) || (data548 === "mutation")) || (data548 === "catalog")) || (data548 === "application")) || (data548 === "publication")) || (data548 === "migration")) || (data548 === "reactive")) || (data548 === "serving")) || (data548 === "effect")) || (data548 === "exchange")) || (data548 === "transport")) || (data548 === "internal"))){
-const err1760 = {instancePath:instancePath+"/refresh_status/query_diagnostic/actions/" + i41+"/target/domain",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/actions/items/anyOf/0/properties/target/anyOf/0/properties/domain/enum",keyword:"enum",params:{allowedValues: schema52.oneOf[8].properties.refresh_status.properties.query_diagnostic.anyOf[0].properties.actions.items.anyOf[0].properties.target.anyOf[0].properties.domain.enum},message:"must be equal to one of the allowed values"};
+}
+if(_errs1655 === errors){
+if(data554.text !== undefined){
+let data555 = data554.text;
+const _errs1656 = errors;
+if(errors === _errs1656){
+if(typeof data555 === "string"){
+if(func2(data555) > 256){
+const err1760 = {instancePath:instancePath+"/refresh_status/query_diagnostic/facts/" + i39+"/value/text",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf/0/properties/text/maxLength",keyword:"maxLength",params:{limit: 256},message:"must NOT have more than 256 characters"};
 if(vErrors === null){
 vErrors = [err1760];
 }
@@ -86823,19 +86786,9 @@ vErrors.push(err1760);
 }
 errors++;
 }
-var valid278 = _errs1660 === errors;
 }
 else {
-var valid278 = true;
-}
-if(valid278){
-if(data547.id !== undefined){
-let data549 = data547.id;
-const _errs1662 = errors;
-if(errors === _errs1662){
-if(typeof data549 === "string"){
-if(func2(data549) > 20){
-const err1761 = {instancePath:instancePath+"/refresh_status/query_diagnostic/actions/" + i41+"/target/id",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/actions/items/anyOf/0/properties/target/anyOf/0/properties/id/maxLength",keyword:"maxLength",params:{limit: 20},message:"must NOT have more than 20 characters"};
+const err1761 = {instancePath:instancePath+"/refresh_status/query_diagnostic/facts/" + i39+"/value/text",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf/0/properties/text/type",keyword:"type",params:{type: "string"},message:"must be string"};
 if(vErrors === null){
 vErrors = [err1761];
 }
@@ -86844,9 +86797,13 @@ vErrors.push(err1761);
 }
 errors++;
 }
+}
+}
+}
+}
+}
 else {
-if(!pattern4.test(data549)){
-const err1762 = {instancePath:instancePath+"/refresh_status/query_diagnostic/actions/" + i41+"/target/id",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/actions/items/anyOf/0/properties/target/anyOf/0/properties/id/pattern",keyword:"pattern",params:{pattern: "^(0|[1-9][0-9]*)$"},message:"must match pattern \""+"^(0|[1-9][0-9]*)$"+"\""};
+const err1762 = {instancePath:instancePath+"/refresh_status/query_diagnostic/facts/" + i39+"/value",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf/0/type",keyword:"type",params:{type: "object"},message:"must be object"};
 if(vErrors === null){
 vErrors = [err1762];
 }
@@ -86856,9 +86813,18 @@ vErrors.push(err1762);
 errors++;
 }
 }
+var _valid81 = _errs1653 === errors;
+if(_valid81){
+valid271 = true;
+passing8 = 0;
+var props35 = true;
 }
-else {
-const err1763 = {instancePath:instancePath+"/refresh_status/query_diagnostic/actions/" + i41+"/target/id",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/actions/items/anyOf/0/properties/target/anyOf/0/properties/id/type",keyword:"type",params:{type: "string"},message:"must be string"};
+const _errs1658 = errors;
+if(errors === _errs1658){
+if(data554 && typeof data554 == "object" && !Array.isArray(data554)){
+let missing149;
+if((data554.signed === undefined) && (missing149 = "signed")){
+const err1763 = {instancePath:instancePath+"/refresh_status/query_diagnostic/facts/" + i39+"/value",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf/1/required",keyword:"required",params:{missingProperty: missing149},message:"must have required property '"+missing149+"'"};
 if(vErrors === null){
 vErrors = [err1763];
 }
@@ -86867,23 +86833,11 @@ vErrors.push(err1763);
 }
 errors++;
 }
-}
-var valid278 = _errs1662 === errors;
-}
 else {
-var valid278 = true;
-}
-if(valid278){
-if(data547.realm !== undefined){
-let data550 = data547.realm;
-const _errs1664 = errors;
-const _errs1665 = errors;
-let valid279 = false;
-const _errs1666 = errors;
-if(errors === _errs1666){
-if(typeof data550 === "string"){
-if(func2(data550) > 20){
-const err1764 = {instancePath:instancePath+"/refresh_status/query_diagnostic/actions/" + i41+"/target/realm",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/actions/items/anyOf/0/properties/target/anyOf/0/properties/realm/anyOf/0/maxLength",keyword:"maxLength",params:{limit: 20},message:"must NOT have more than 20 characters"};
+const _errs1660 = errors;
+for(const key151 in data554){
+if(!(key151 === "signed")){
+const err1764 = {instancePath:instancePath+"/refresh_status/query_diagnostic/facts/" + i39+"/value",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf/1/additionalProperties",keyword:"additionalProperties",params:{additionalProperty: key151},message:"must NOT have additional properties"};
 if(vErrors === null){
 vErrors = [err1764];
 }
@@ -86891,10 +86845,17 @@ else {
 vErrors.push(err1764);
 }
 errors++;
+break;
 }
-else {
-if(!pattern4.test(data550)){
-const err1765 = {instancePath:instancePath+"/refresh_status/query_diagnostic/actions/" + i41+"/target/realm",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/actions/items/anyOf/0/properties/target/anyOf/0/properties/realm/anyOf/0/pattern",keyword:"pattern",params:{pattern: "^(0|[1-9][0-9]*)$"},message:"must match pattern \""+"^(0|[1-9][0-9]*)$"+"\""};
+}
+if(_errs1660 === errors){
+if(data554.signed !== undefined){
+let data556 = data554.signed;
+const _errs1661 = errors;
+if(errors === _errs1661){
+if(typeof data556 === "string"){
+if(func2(data556) > 20){
+const err1765 = {instancePath:instancePath+"/refresh_status/query_diagnostic/facts/" + i39+"/value/signed",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf/1/properties/signed/maxLength",keyword:"maxLength",params:{limit: 20},message:"must NOT have more than 20 characters"};
 if(vErrors === null){
 vErrors = [err1765];
 }
@@ -86903,10 +86864,9 @@ vErrors.push(err1765);
 }
 errors++;
 }
-}
-}
 else {
-const err1766 = {instancePath:instancePath+"/refresh_status/query_diagnostic/actions/" + i41+"/target/realm",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/actions/items/anyOf/0/properties/target/anyOf/0/properties/realm/anyOf/0/type",keyword:"type",params:{type: "string"},message:"must be string"};
+if(!pattern13.test(data556)){
+const err1766 = {instancePath:instancePath+"/refresh_status/query_diagnostic/facts/" + i39+"/value/signed",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf/1/properties/signed/pattern",keyword:"pattern",params:{pattern: "^(0|-?[1-9][0-9]*)$"},message:"must match pattern \""+"^(0|-?[1-9][0-9]*)$"+"\""};
 if(vErrors === null){
 vErrors = [err1766];
 }
@@ -86916,11 +86876,9 @@ vErrors.push(err1766);
 errors++;
 }
 }
-var _valid86 = _errs1666 === errors;
-valid279 = valid279 || _valid86;
-const _errs1668 = errors;
-if(data550 !== null){
-const err1767 = {instancePath:instancePath+"/refresh_status/query_diagnostic/actions/" + i41+"/target/realm",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/actions/items/anyOf/0/properties/target/anyOf/0/properties/realm/anyOf/1/type",keyword:"type",params:{type: "null"},message:"must be null"};
+}
+else {
+const err1767 = {instancePath:instancePath+"/refresh_status/query_diagnostic/facts/" + i39+"/value/signed",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf/1/properties/signed/type",keyword:"type",params:{type: "string"},message:"must be string"};
 if(vErrors === null){
 vErrors = [err1767];
 }
@@ -86929,10 +86887,13 @@ vErrors.push(err1767);
 }
 errors++;
 }
-var _valid86 = _errs1668 === errors;
-valid279 = valid279 || _valid86;
-if(!valid279){
-const err1768 = {instancePath:instancePath+"/refresh_status/query_diagnostic/actions/" + i41+"/target/realm",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/actions/items/anyOf/0/properties/target/anyOf/0/properties/realm/anyOf",keyword:"anyOf",params:{},message:"must match a schema in anyOf"};
+}
+}
+}
+}
+}
+else {
+const err1768 = {instancePath:instancePath+"/refresh_status/query_diagnostic/facts/" + i39+"/value",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf/1/type",keyword:"type",params:{type: "object"},message:"must be object"};
 if(vErrors === null){
 vErrors = [err1768];
 }
@@ -86941,33 +86902,26 @@ vErrors.push(err1768);
 }
 errors++;
 }
-else {
-errors = _errs1665;
-if(vErrors !== null){
-if(_errs1665){
-vErrors.length = _errs1665;
+}
+var _valid81 = _errs1658 === errors;
+if(_valid81 && valid271){
+valid271 = false;
+passing8 = [passing8, 1];
 }
 else {
-vErrors = null;
+if(_valid81){
+valid271 = true;
+passing8 = 1;
+if(props35 !== true){
+props35 = true;
 }
 }
-}
-var valid278 = _errs1664 === errors;
-}
-else {
-var valid278 = true;
-}
-if(valid278){
-if(data547.resource !== undefined){
-let data551 = data547.resource;
-const _errs1670 = errors;
-const _errs1671 = errors;
-let valid280 = false;
-const _errs1672 = errors;
-if(errors === _errs1672){
-if(typeof data551 === "string"){
-if(func2(data551) > 20){
-const err1769 = {instancePath:instancePath+"/refresh_status/query_diagnostic/actions/" + i41+"/target/resource",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/actions/items/anyOf/0/properties/target/anyOf/0/properties/resource/anyOf/0/maxLength",keyword:"maxLength",params:{limit: 20},message:"must NOT have more than 20 characters"};
+const _errs1663 = errors;
+if(errors === _errs1663){
+if(data554 && typeof data554 == "object" && !Array.isArray(data554)){
+let missing150;
+if((data554.unsigned === undefined) && (missing150 = "unsigned")){
+const err1769 = {instancePath:instancePath+"/refresh_status/query_diagnostic/facts/" + i39+"/value",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf/2/required",keyword:"required",params:{missingProperty: missing150},message:"must have required property '"+missing150+"'"};
 if(vErrors === null){
 vErrors = [err1769];
 }
@@ -86977,8 +86931,10 @@ vErrors.push(err1769);
 errors++;
 }
 else {
-if(!pattern4.test(data551)){
-const err1770 = {instancePath:instancePath+"/refresh_status/query_diagnostic/actions/" + i41+"/target/resource",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/actions/items/anyOf/0/properties/target/anyOf/0/properties/resource/anyOf/0/pattern",keyword:"pattern",params:{pattern: "^(0|[1-9][0-9]*)$"},message:"must match pattern \""+"^(0|[1-9][0-9]*)$"+"\""};
+const _errs1665 = errors;
+for(const key152 in data554){
+if(!(key152 === "unsigned")){
+const err1770 = {instancePath:instancePath+"/refresh_status/query_diagnostic/facts/" + i39+"/value",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf/2/additionalProperties",keyword:"additionalProperties",params:{additionalProperty: key152},message:"must NOT have additional properties"};
 if(vErrors === null){
 vErrors = [err1770];
 }
@@ -86986,11 +86942,17 @@ else {
 vErrors.push(err1770);
 }
 errors++;
+break;
 }
 }
-}
-else {
-const err1771 = {instancePath:instancePath+"/refresh_status/query_diagnostic/actions/" + i41+"/target/resource",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/actions/items/anyOf/0/properties/target/anyOf/0/properties/resource/anyOf/0/type",keyword:"type",params:{type: "string"},message:"must be string"};
+if(_errs1665 === errors){
+if(data554.unsigned !== undefined){
+let data557 = data554.unsigned;
+const _errs1666 = errors;
+if(errors === _errs1666){
+if(typeof data557 === "string"){
+if(func2(data557) > 20){
+const err1771 = {instancePath:instancePath+"/refresh_status/query_diagnostic/facts/" + i39+"/value/unsigned",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf/2/properties/unsigned/maxLength",keyword:"maxLength",params:{limit: 20},message:"must NOT have more than 20 characters"};
 if(vErrors === null){
 vErrors = [err1771];
 }
@@ -86999,12 +86961,9 @@ vErrors.push(err1771);
 }
 errors++;
 }
-}
-var _valid87 = _errs1672 === errors;
-valid280 = valid280 || _valid87;
-const _errs1674 = errors;
-if(data551 !== null){
-const err1772 = {instancePath:instancePath+"/refresh_status/query_diagnostic/actions/" + i41+"/target/resource",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/actions/items/anyOf/0/properties/target/anyOf/0/properties/resource/anyOf/1/type",keyword:"type",params:{type: "null"},message:"must be null"};
+else {
+if(!pattern4.test(data557)){
+const err1772 = {instancePath:instancePath+"/refresh_status/query_diagnostic/facts/" + i39+"/value/unsigned",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf/2/properties/unsigned/pattern",keyword:"pattern",params:{pattern: "^(0|[1-9][0-9]*)$"},message:"must match pattern \""+"^(0|[1-9][0-9]*)$"+"\""};
 if(vErrors === null){
 vErrors = [err1772];
 }
@@ -87013,10 +86972,10 @@ vErrors.push(err1772);
 }
 errors++;
 }
-var _valid87 = _errs1674 === errors;
-valid280 = valid280 || _valid87;
-if(!valid280){
-const err1773 = {instancePath:instancePath+"/refresh_status/query_diagnostic/actions/" + i41+"/target/resource",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/actions/items/anyOf/0/properties/target/anyOf/0/properties/resource/anyOf",keyword:"anyOf",params:{},message:"must match a schema in anyOf"};
+}
+}
+else {
+const err1773 = {instancePath:instancePath+"/refresh_status/query_diagnostic/facts/" + i39+"/value/unsigned",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf/2/properties/unsigned/type",keyword:"type",params:{type: "string"},message:"must be string"};
 if(vErrors === null){
 vErrors = [err1773];
 }
@@ -87025,33 +86984,13 @@ vErrors.push(err1773);
 }
 errors++;
 }
-else {
-errors = _errs1671;
-if(vErrors !== null){
-if(_errs1671){
-vErrors.length = _errs1671;
-}
-else {
-vErrors = null;
 }
 }
 }
-var valid278 = _errs1670 === errors;
+}
 }
 else {
-var valid278 = true;
-}
-if(valid278){
-if(data547.sequence !== undefined){
-let data552 = data547.sequence;
-const _errs1676 = errors;
-const _errs1677 = errors;
-let valid281 = false;
-const _errs1678 = errors;
-if(errors === _errs1678){
-if(typeof data552 === "string"){
-if(func2(data552) > 20){
-const err1774 = {instancePath:instancePath+"/refresh_status/query_diagnostic/actions/" + i41+"/target/sequence",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/actions/items/anyOf/0/properties/target/anyOf/0/properties/sequence/anyOf/0/maxLength",keyword:"maxLength",params:{limit: 20},message:"must NOT have more than 20 characters"};
+const err1774 = {instancePath:instancePath+"/refresh_status/query_diagnostic/facts/" + i39+"/value",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf/2/type",keyword:"type",params:{type: "object"},message:"must be object"};
 if(vErrors === null){
 vErrors = [err1774];
 }
@@ -87060,9 +86999,26 @@ vErrors.push(err1774);
 }
 errors++;
 }
+}
+var _valid81 = _errs1663 === errors;
+if(_valid81 && valid271){
+valid271 = false;
+passing8 = [passing8, 2];
+}
 else {
-if(!pattern4.test(data552)){
-const err1775 = {instancePath:instancePath+"/refresh_status/query_diagnostic/actions/" + i41+"/target/sequence",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/actions/items/anyOf/0/properties/target/anyOf/0/properties/sequence/anyOf/0/pattern",keyword:"pattern",params:{pattern: "^(0|[1-9][0-9]*)$"},message:"must match pattern \""+"^(0|[1-9][0-9]*)$"+"\""};
+if(_valid81){
+valid271 = true;
+passing8 = 2;
+if(props35 !== true){
+props35 = true;
+}
+}
+const _errs1668 = errors;
+if(errors === _errs1668){
+if(data554 && typeof data554 == "object" && !Array.isArray(data554)){
+let missing151;
+if((data554.boolean === undefined) && (missing151 = "boolean")){
+const err1775 = {instancePath:instancePath+"/refresh_status/query_diagnostic/facts/" + i39+"/value",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf/3/required",keyword:"required",params:{missingProperty: missing151},message:"must have required property '"+missing151+"'"};
 if(vErrors === null){
 vErrors = [err1775];
 }
@@ -87071,10 +87027,11 @@ vErrors.push(err1775);
 }
 errors++;
 }
-}
-}
 else {
-const err1776 = {instancePath:instancePath+"/refresh_status/query_diagnostic/actions/" + i41+"/target/sequence",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/actions/items/anyOf/0/properties/target/anyOf/0/properties/sequence/anyOf/0/type",keyword:"type",params:{type: "string"},message:"must be string"};
+const _errs1670 = errors;
+for(const key153 in data554){
+if(!(key153 === "boolean")){
+const err1776 = {instancePath:instancePath+"/refresh_status/query_diagnostic/facts/" + i39+"/value",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf/3/additionalProperties",keyword:"additionalProperties",params:{additionalProperty: key153},message:"must NOT have additional properties"};
 if(vErrors === null){
 vErrors = [err1776];
 }
@@ -87082,13 +87039,13 @@ else {
 vErrors.push(err1776);
 }
 errors++;
+break;
 }
 }
-var _valid88 = _errs1678 === errors;
-valid281 = valid281 || _valid88;
-const _errs1680 = errors;
-if(data552 !== null){
-const err1777 = {instancePath:instancePath+"/refresh_status/query_diagnostic/actions/" + i41+"/target/sequence",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/actions/items/anyOf/0/properties/target/anyOf/0/properties/sequence/anyOf/1/type",keyword:"type",params:{type: "null"},message:"must be null"};
+if(_errs1670 === errors){
+if(data554.boolean !== undefined){
+if(typeof data554.boolean !== "boolean"){
+const err1777 = {instancePath:instancePath+"/refresh_status/query_diagnostic/facts/" + i39+"/value/boolean",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf/3/properties/boolean/type",keyword:"type",params:{type: "boolean"},message:"must be boolean"};
 if(vErrors === null){
 vErrors = [err1777];
 }
@@ -87097,10 +87054,12 @@ vErrors.push(err1777);
 }
 errors++;
 }
-var _valid88 = _errs1680 === errors;
-valid281 = valid281 || _valid88;
-if(!valid281){
-const err1778 = {instancePath:instancePath+"/refresh_status/query_diagnostic/actions/" + i41+"/target/sequence",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/actions/items/anyOf/0/properties/target/anyOf/0/properties/sequence/anyOf",keyword:"anyOf",params:{},message:"must match a schema in anyOf"};
+}
+}
+}
+}
+else {
+const err1778 = {instancePath:instancePath+"/refresh_status/query_diagnostic/facts/" + i39+"/value",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf/3/type",keyword:"type",params:{type: "object"},message:"must be object"};
 if(vErrors === null){
 vErrors = [err1778];
 }
@@ -87109,31 +87068,26 @@ vErrors.push(err1778);
 }
 errors++;
 }
-else {
-errors = _errs1677;
-if(vErrors !== null){
-if(_errs1677){
-vErrors.length = _errs1677;
+}
+var _valid81 = _errs1668 === errors;
+if(_valid81 && valid271){
+valid271 = false;
+passing8 = [passing8, 3];
 }
 else {
-vErrors = null;
+if(_valid81){
+valid271 = true;
+passing8 = 3;
+if(props35 !== true){
+props35 = true;
 }
 }
-}
-var valid278 = _errs1676 === errors;
-}
-else {
-var valid278 = true;
-}
-}
-}
-}
-}
-}
-}
-}
-else {
-const err1779 = {instancePath:instancePath+"/refresh_status/query_diagnostic/actions/" + i41+"/target",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/actions/items/anyOf/0/properties/target/anyOf/0/type",keyword:"type",params:{type: "object"},message:"must be object"};
+const _errs1673 = errors;
+if(errors === _errs1673){
+if(data554 && typeof data554 == "object" && !Array.isArray(data554)){
+let missing152;
+if((data554.digest === undefined) && (missing152 = "digest")){
+const err1779 = {instancePath:instancePath+"/refresh_status/query_diagnostic/facts/" + i39+"/value",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf/4/required",keyword:"required",params:{missingProperty: missing152},message:"must have required property '"+missing152+"'"};
 if(vErrors === null){
 vErrors = [err1779];
 }
@@ -87142,12 +87096,11 @@ vErrors.push(err1779);
 }
 errors++;
 }
-}
-var _valid85 = _errs1657 === errors;
-valid277 = valid277 || _valid85;
-const _errs1682 = errors;
-if(data547 !== null){
-const err1780 = {instancePath:instancePath+"/refresh_status/query_diagnostic/actions/" + i41+"/target",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/actions/items/anyOf/0/properties/target/anyOf/1/type",keyword:"type",params:{type: "null"},message:"must be null"};
+else {
+const _errs1675 = errors;
+for(const key154 in data554){
+if(!(key154 === "digest")){
+const err1780 = {instancePath:instancePath+"/refresh_status/query_diagnostic/facts/" + i39+"/value",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf/4/additionalProperties",keyword:"additionalProperties",params:{additionalProperty: key154},message:"must NOT have additional properties"};
 if(vErrors === null){
 vErrors = [err1780];
 }
@@ -87155,11 +87108,17 @@ else {
 vErrors.push(err1780);
 }
 errors++;
+break;
 }
-var _valid85 = _errs1682 === errors;
-valid277 = valid277 || _valid85;
-if(!valid277){
-const err1781 = {instancePath:instancePath+"/refresh_status/query_diagnostic/actions/" + i41+"/target",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/actions/items/anyOf/0/properties/target/anyOf",keyword:"anyOf",params:{},message:"must match a schema in anyOf"};
+}
+if(_errs1675 === errors){
+if(data554.digest !== undefined){
+let data559 = data554.digest;
+const _errs1676 = errors;
+if(errors === _errs1676){
+if(Array.isArray(data559)){
+if(data559.length > 32){
+const err1781 = {instancePath:instancePath+"/refresh_status/query_diagnostic/facts/" + i39+"/value/digest",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf/4/properties/digest/maxItems",keyword:"maxItems",params:{limit: 32},message:"must NOT have more than 32 items"};
 if(vErrors === null){
 vErrors = [err1781];
 }
@@ -87169,27 +87128,8 @@ vErrors.push(err1781);
 errors++;
 }
 else {
-errors = _errs1656;
-if(vErrors !== null){
-if(_errs1656){
-vErrors.length = _errs1656;
-}
-else {
-vErrors = null;
-}
-}
-}
-var valid276 = _errs1655 === errors;
-}
-else {
-var valid276 = true;
-}
-}
-}
-}
-}
-else {
-const err1782 = {instancePath:instancePath+"/refresh_status/query_diagnostic/actions/" + i41,schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/actions/items/anyOf/0/type",keyword:"type",params:{type: "object"},message:"must be object"};
+if(data559.length < 32){
+const err1782 = {instancePath:instancePath+"/refresh_status/query_diagnostic/facts/" + i39+"/value/digest",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf/4/properties/digest/minItems",keyword:"minItems",params:{limit: 32},message:"must NOT have fewer than 32 items"};
 if(vErrors === null){
 vErrors = [err1782];
 }
@@ -87198,12 +87138,14 @@ vErrors.push(err1782);
 }
 errors++;
 }
-}
-var _valid84 = _errs1650 === errors;
-valid275 = valid275 || _valid84;
-const _errs1684 = errors;
-if(data545 !== null){
-const err1783 = {instancePath:instancePath+"/refresh_status/query_diagnostic/actions/" + i41,schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/actions/items/anyOf/1/type",keyword:"type",params:{type: "null"},message:"must be null"};
+else {
+var valid277 = true;
+const len40 = data559.length;
+for(let i40=0; i40<len40; i40++){
+let data560 = data559[i40];
+const _errs1678 = errors;
+if(!(((typeof data560 == "number") && (!(data560 % 1) && !isNaN(data560))) && (isFinite(data560)))){
+const err1783 = {instancePath:instancePath+"/refresh_status/query_diagnostic/facts/" + i39+"/value/digest/" + i40,schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf/4/properties/digest/items/type",keyword:"type",params:{type: "integer"},message:"must be integer"};
 if(vErrors === null){
 vErrors = [err1783];
 }
@@ -87212,10 +87154,10 @@ vErrors.push(err1783);
 }
 errors++;
 }
-var _valid84 = _errs1684 === errors;
-valid275 = valid275 || _valid84;
-if(!valid275){
-const err1784 = {instancePath:instancePath+"/refresh_status/query_diagnostic/actions/" + i41,schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/actions/items/anyOf",keyword:"anyOf",params:{},message:"must match a schema in anyOf"};
+if(errors === _errs1678){
+if((typeof data560 == "number") && (isFinite(data560))){
+if(data560 > 255 || isNaN(data560)){
+const err1784 = {instancePath:instancePath+"/refresh_status/query_diagnostic/facts/" + i39+"/value/digest/" + i40,schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf/4/properties/digest/items/maximum",keyword:"maximum",params:{comparison: "<=", limit: 255},message:"must be <= 255"};
 if(vErrors === null){
 vErrors = [err1784];
 }
@@ -87225,26 +87167,8 @@ vErrors.push(err1784);
 errors++;
 }
 else {
-errors = _errs1649;
-if(vErrors !== null){
-if(_errs1649){
-vErrors.length = _errs1649;
-}
-else {
-vErrors = null;
-}
-}
-}
-var valid274 = _errs1648 === errors;
-if(!valid274){
-break;
-}
-}
-}
-}
-}
-else {
-const err1785 = {instancePath:instancePath+"/refresh_status/query_diagnostic/actions",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/actions/type",keyword:"type",params:{type: "array"},message:"must be array"};
+if(data560 < 0 || isNaN(data560)){
+const err1785 = {instancePath:instancePath+"/refresh_status/query_diagnostic/facts/" + i39+"/value/digest/" + i40,schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf/4/properties/digest/items/minimum",keyword:"minimum",params:{comparison: ">=", limit: 0},message:"must be >= 0"};
 if(vErrors === null){
 vErrors = [err1785];
 }
@@ -87254,28 +87178,18 @@ vErrors.push(err1785);
 errors++;
 }
 }
-var valid248 = _errs1646 === errors;
-}
-else {
-var valid248 = true;
 }
 }
-}
-}
-}
-}
-}
-}
-}
-}
-}
+var valid277 = _errs1678 === errors;
+if(!valid277){
+break;
 }
 }
 }
 }
 }
 else {
-const err1786 = {instancePath:instancePath+"/refresh_status/query_diagnostic",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/type",keyword:"type",params:{type: "object"},message:"must be object"};
+const err1786 = {instancePath:instancePath+"/refresh_status/query_diagnostic/facts/" + i39+"/value/digest",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf/4/properties/digest/type",keyword:"type",params:{type: "array"},message:"must be array"};
 if(vErrors === null){
 vErrors = [err1786];
 }
@@ -87285,11 +87199,12 @@ vErrors.push(err1786);
 errors++;
 }
 }
-var _valid70 = _errs1484 === errors;
-valid247 = valid247 || _valid70;
-const _errs1686 = errors;
-if(data498 !== null){
-const err1787 = {instancePath:instancePath+"/refresh_status/query_diagnostic",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/1/type",keyword:"type",params:{type: "null"},message:"must be null"};
+}
+}
+}
+}
+else {
+const err1787 = {instancePath:instancePath+"/refresh_status/query_diagnostic/facts/" + i39+"/value",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf/4/type",keyword:"type",params:{type: "object"},message:"must be object"};
 if(vErrors === null){
 vErrors = [err1787];
 }
@@ -87298,10 +87213,26 @@ vErrors.push(err1787);
 }
 errors++;
 }
-var _valid70 = _errs1686 === errors;
-valid247 = valid247 || _valid70;
-if(!valid247){
-const err1788 = {instancePath:instancePath+"/refresh_status/query_diagnostic",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf",keyword:"anyOf",params:{},message:"must match a schema in anyOf"};
+}
+var _valid81 = _errs1673 === errors;
+if(_valid81 && valid271){
+valid271 = false;
+passing8 = [passing8, 4];
+}
+else {
+if(_valid81){
+valid271 = true;
+passing8 = 4;
+if(props35 !== true){
+props35 = true;
+}
+}
+const _errs1680 = errors;
+if(errors === _errs1680){
+if(data554 && typeof data554 == "object" && !Array.isArray(data554)){
+let missing153;
+if((data554.location === undefined) && (missing153 = "location")){
+const err1788 = {instancePath:instancePath+"/refresh_status/query_diagnostic/facts/" + i39+"/value",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf/5/required",keyword:"required",params:{missingProperty: missing153},message:"must have required property '"+missing153+"'"};
 if(vErrors === null){
 vErrors = [err1788];
 }
@@ -87311,17 +87242,1279 @@ vErrors.push(err1788);
 errors++;
 }
 else {
-errors = _errs1483;
+const _errs1682 = errors;
+for(const key155 in data554){
+if(!(key155 === "location")){
+const err1789 = {instancePath:instancePath+"/refresh_status/query_diagnostic/facts/" + i39+"/value",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf/5/additionalProperties",keyword:"additionalProperties",params:{additionalProperty: key155},message:"must NOT have additional properties"};
+if(vErrors === null){
+vErrors = [err1789];
+}
+else {
+vErrors.push(err1789);
+}
+errors++;
+break;
+}
+}
+if(_errs1682 === errors){
+if(data554.location !== undefined){
+let data561 = data554.location;
+const _errs1683 = errors;
+if(errors === _errs1683){
+if(data561 && typeof data561 == "object" && !Array.isArray(data561)){
+let missing154;
+if(((((data561.offset === undefined) && (missing154 = "offset")) || ((data561.length === undefined) && (missing154 = "length"))) || ((data561.line === undefined) && (missing154 = "line"))) || ((data561.byte_column === undefined) && (missing154 = "byte_column"))){
+const err1790 = {instancePath:instancePath+"/refresh_status/query_diagnostic/facts/" + i39+"/value/location",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf/5/properties/location/required",keyword:"required",params:{missingProperty: missing154},message:"must have required property '"+missing154+"'"};
+if(vErrors === null){
+vErrors = [err1790];
+}
+else {
+vErrors.push(err1790);
+}
+errors++;
+}
+else {
+const _errs1685 = errors;
+for(const key156 in data561){
+if(!((((((((key156 === "source") || (key156 === "source_encoding")) || (key156 === "source_truncated")) || (key156 === "statement")) || (key156 === "offset")) || (key156 === "length")) || (key156 === "line")) || (key156 === "byte_column"))){
+const err1791 = {instancePath:instancePath+"/refresh_status/query_diagnostic/facts/" + i39+"/value/location",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf/5/properties/location/additionalProperties",keyword:"additionalProperties",params:{additionalProperty: key156},message:"must NOT have additional properties"};
+if(vErrors === null){
+vErrors = [err1791];
+}
+else {
+vErrors.push(err1791);
+}
+errors++;
+break;
+}
+}
+if(_errs1685 === errors){
+if(data561.source !== undefined){
+let data562 = data561.source;
+const _errs1686 = errors;
+const _errs1687 = errors;
+let valid280 = false;
+const _errs1688 = errors;
+if(errors === _errs1688){
+if(typeof data562 === "string"){
+if(func2(data562) > 512){
+const err1792 = {instancePath:instancePath+"/refresh_status/query_diagnostic/facts/" + i39+"/value/location/source",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf/5/properties/location/properties/source/anyOf/0/maxLength",keyword:"maxLength",params:{limit: 512},message:"must NOT have more than 512 characters"};
+if(vErrors === null){
+vErrors = [err1792];
+}
+else {
+vErrors.push(err1792);
+}
+errors++;
+}
+}
+else {
+const err1793 = {instancePath:instancePath+"/refresh_status/query_diagnostic/facts/" + i39+"/value/location/source",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf/5/properties/location/properties/source/anyOf/0/type",keyword:"type",params:{type: "string"},message:"must be string"};
+if(vErrors === null){
+vErrors = [err1793];
+}
+else {
+vErrors.push(err1793);
+}
+errors++;
+}
+}
+var _valid82 = _errs1688 === errors;
+valid280 = valid280 || _valid82;
+const _errs1690 = errors;
+if(data562 !== null){
+const err1794 = {instancePath:instancePath+"/refresh_status/query_diagnostic/facts/" + i39+"/value/location/source",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf/5/properties/location/properties/source/anyOf/1/type",keyword:"type",params:{type: "null"},message:"must be null"};
+if(vErrors === null){
+vErrors = [err1794];
+}
+else {
+vErrors.push(err1794);
+}
+errors++;
+}
+var _valid82 = _errs1690 === errors;
+valid280 = valid280 || _valid82;
+if(!valid280){
+const err1795 = {instancePath:instancePath+"/refresh_status/query_diagnostic/facts/" + i39+"/value/location/source",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf/5/properties/location/properties/source/anyOf",keyword:"anyOf",params:{},message:"must match a schema in anyOf"};
+if(vErrors === null){
+vErrors = [err1795];
+}
+else {
+vErrors.push(err1795);
+}
+errors++;
+}
+else {
+errors = _errs1687;
 if(vErrors !== null){
-if(_errs1483){
-vErrors.length = _errs1483;
+if(_errs1687){
+vErrors.length = _errs1687;
 }
 else {
 vErrors = null;
 }
 }
 }
-var valid156 = _errs1482 === errors;
+var valid279 = _errs1686 === errors;
+}
+else {
+var valid279 = true;
+}
+if(valid279){
+if(data561.source_encoding !== undefined){
+let data563 = data561.source_encoding;
+const _errs1692 = errors;
+if(typeof data563 !== "string"){
+const err1796 = {instancePath:instancePath+"/refresh_status/query_diagnostic/facts/" + i39+"/value/location/source_encoding",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf/5/properties/location/properties/source_encoding/type",keyword:"type",params:{type: "string"},message:"must be string"};
+if(vErrors === null){
+vErrors = [err1796];
+}
+else {
+vErrors.push(err1796);
+}
+errors++;
+}
+if(!((data563 === "utf8") || (data563 === "escaped_bytes"))){
+const err1797 = {instancePath:instancePath+"/refresh_status/query_diagnostic/facts/" + i39+"/value/location/source_encoding",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf/5/properties/location/properties/source_encoding/enum",keyword:"enum",params:{allowedValues: schema52.oneOf[8].properties.refresh_status.properties.query_diagnostic.anyOf[0].properties.facts.items.anyOf[0].properties.value.anyOf[0].oneOf[5].properties.location.properties.source_encoding.enum},message:"must be equal to one of the allowed values"};
+if(vErrors === null){
+vErrors = [err1797];
+}
+else {
+vErrors.push(err1797);
+}
+errors++;
+}
+var valid279 = _errs1692 === errors;
+}
+else {
+var valid279 = true;
+}
+if(valid279){
+if(data561.source_truncated !== undefined){
+const _errs1694 = errors;
+if(typeof data561.source_truncated !== "boolean"){
+const err1798 = {instancePath:instancePath+"/refresh_status/query_diagnostic/facts/" + i39+"/value/location/source_truncated",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf/5/properties/location/properties/source_truncated/type",keyword:"type",params:{type: "boolean"},message:"must be boolean"};
+if(vErrors === null){
+vErrors = [err1798];
+}
+else {
+vErrors.push(err1798);
+}
+errors++;
+}
+var valid279 = _errs1694 === errors;
+}
+else {
+var valid279 = true;
+}
+if(valid279){
+if(data561.statement !== undefined){
+let data565 = data561.statement;
+const _errs1696 = errors;
+const _errs1697 = errors;
+let valid281 = false;
+const _errs1698 = errors;
+if(errors === _errs1698){
+if(typeof data565 === "string"){
+if(func2(data565) > 20){
+const err1799 = {instancePath:instancePath+"/refresh_status/query_diagnostic/facts/" + i39+"/value/location/statement",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf/5/properties/location/properties/statement/anyOf/0/maxLength",keyword:"maxLength",params:{limit: 20},message:"must NOT have more than 20 characters"};
+if(vErrors === null){
+vErrors = [err1799];
+}
+else {
+vErrors.push(err1799);
+}
+errors++;
+}
+else {
+if(!pattern4.test(data565)){
+const err1800 = {instancePath:instancePath+"/refresh_status/query_diagnostic/facts/" + i39+"/value/location/statement",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf/5/properties/location/properties/statement/anyOf/0/pattern",keyword:"pattern",params:{pattern: "^(0|[1-9][0-9]*)$"},message:"must match pattern \""+"^(0|[1-9][0-9]*)$"+"\""};
+if(vErrors === null){
+vErrors = [err1800];
+}
+else {
+vErrors.push(err1800);
+}
+errors++;
+}
+}
+}
+else {
+const err1801 = {instancePath:instancePath+"/refresh_status/query_diagnostic/facts/" + i39+"/value/location/statement",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf/5/properties/location/properties/statement/anyOf/0/type",keyword:"type",params:{type: "string"},message:"must be string"};
+if(vErrors === null){
+vErrors = [err1801];
+}
+else {
+vErrors.push(err1801);
+}
+errors++;
+}
+}
+var _valid83 = _errs1698 === errors;
+valid281 = valid281 || _valid83;
+const _errs1700 = errors;
+if(data565 !== null){
+const err1802 = {instancePath:instancePath+"/refresh_status/query_diagnostic/facts/" + i39+"/value/location/statement",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf/5/properties/location/properties/statement/anyOf/1/type",keyword:"type",params:{type: "null"},message:"must be null"};
+if(vErrors === null){
+vErrors = [err1802];
+}
+else {
+vErrors.push(err1802);
+}
+errors++;
+}
+var _valid83 = _errs1700 === errors;
+valid281 = valid281 || _valid83;
+if(!valid281){
+const err1803 = {instancePath:instancePath+"/refresh_status/query_diagnostic/facts/" + i39+"/value/location/statement",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf/5/properties/location/properties/statement/anyOf",keyword:"anyOf",params:{},message:"must match a schema in anyOf"};
+if(vErrors === null){
+vErrors = [err1803];
+}
+else {
+vErrors.push(err1803);
+}
+errors++;
+}
+else {
+errors = _errs1697;
+if(vErrors !== null){
+if(_errs1697){
+vErrors.length = _errs1697;
+}
+else {
+vErrors = null;
+}
+}
+}
+var valid279 = _errs1696 === errors;
+}
+else {
+var valid279 = true;
+}
+if(valid279){
+if(data561.offset !== undefined){
+let data566 = data561.offset;
+const _errs1702 = errors;
+if(errors === _errs1702){
+if(typeof data566 === "string"){
+if(func2(data566) > 20){
+const err1804 = {instancePath:instancePath+"/refresh_status/query_diagnostic/facts/" + i39+"/value/location/offset",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf/5/properties/location/properties/offset/maxLength",keyword:"maxLength",params:{limit: 20},message:"must NOT have more than 20 characters"};
+if(vErrors === null){
+vErrors = [err1804];
+}
+else {
+vErrors.push(err1804);
+}
+errors++;
+}
+else {
+if(!pattern4.test(data566)){
+const err1805 = {instancePath:instancePath+"/refresh_status/query_diagnostic/facts/" + i39+"/value/location/offset",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf/5/properties/location/properties/offset/pattern",keyword:"pattern",params:{pattern: "^(0|[1-9][0-9]*)$"},message:"must match pattern \""+"^(0|[1-9][0-9]*)$"+"\""};
+if(vErrors === null){
+vErrors = [err1805];
+}
+else {
+vErrors.push(err1805);
+}
+errors++;
+}
+}
+}
+else {
+const err1806 = {instancePath:instancePath+"/refresh_status/query_diagnostic/facts/" + i39+"/value/location/offset",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf/5/properties/location/properties/offset/type",keyword:"type",params:{type: "string"},message:"must be string"};
+if(vErrors === null){
+vErrors = [err1806];
+}
+else {
+vErrors.push(err1806);
+}
+errors++;
+}
+}
+var valid279 = _errs1702 === errors;
+}
+else {
+var valid279 = true;
+}
+if(valid279){
+if(data561.length !== undefined){
+let data567 = data561.length;
+const _errs1704 = errors;
+if(errors === _errs1704){
+if(typeof data567 === "string"){
+if(func2(data567) > 20){
+const err1807 = {instancePath:instancePath+"/refresh_status/query_diagnostic/facts/" + i39+"/value/location/length",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf/5/properties/location/properties/length/maxLength",keyword:"maxLength",params:{limit: 20},message:"must NOT have more than 20 characters"};
+if(vErrors === null){
+vErrors = [err1807];
+}
+else {
+vErrors.push(err1807);
+}
+errors++;
+}
+else {
+if(!pattern4.test(data567)){
+const err1808 = {instancePath:instancePath+"/refresh_status/query_diagnostic/facts/" + i39+"/value/location/length",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf/5/properties/location/properties/length/pattern",keyword:"pattern",params:{pattern: "^(0|[1-9][0-9]*)$"},message:"must match pattern \""+"^(0|[1-9][0-9]*)$"+"\""};
+if(vErrors === null){
+vErrors = [err1808];
+}
+else {
+vErrors.push(err1808);
+}
+errors++;
+}
+}
+}
+else {
+const err1809 = {instancePath:instancePath+"/refresh_status/query_diagnostic/facts/" + i39+"/value/location/length",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf/5/properties/location/properties/length/type",keyword:"type",params:{type: "string"},message:"must be string"};
+if(vErrors === null){
+vErrors = [err1809];
+}
+else {
+vErrors.push(err1809);
+}
+errors++;
+}
+}
+var valid279 = _errs1704 === errors;
+}
+else {
+var valid279 = true;
+}
+if(valid279){
+if(data561.line !== undefined){
+let data568 = data561.line;
+const _errs1706 = errors;
+if(errors === _errs1706){
+if(typeof data568 === "string"){
+if(func2(data568) > 20){
+const err1810 = {instancePath:instancePath+"/refresh_status/query_diagnostic/facts/" + i39+"/value/location/line",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf/5/properties/location/properties/line/maxLength",keyword:"maxLength",params:{limit: 20},message:"must NOT have more than 20 characters"};
+if(vErrors === null){
+vErrors = [err1810];
+}
+else {
+vErrors.push(err1810);
+}
+errors++;
+}
+else {
+if(!pattern4.test(data568)){
+const err1811 = {instancePath:instancePath+"/refresh_status/query_diagnostic/facts/" + i39+"/value/location/line",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf/5/properties/location/properties/line/pattern",keyword:"pattern",params:{pattern: "^(0|[1-9][0-9]*)$"},message:"must match pattern \""+"^(0|[1-9][0-9]*)$"+"\""};
+if(vErrors === null){
+vErrors = [err1811];
+}
+else {
+vErrors.push(err1811);
+}
+errors++;
+}
+}
+}
+else {
+const err1812 = {instancePath:instancePath+"/refresh_status/query_diagnostic/facts/" + i39+"/value/location/line",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf/5/properties/location/properties/line/type",keyword:"type",params:{type: "string"},message:"must be string"};
+if(vErrors === null){
+vErrors = [err1812];
+}
+else {
+vErrors.push(err1812);
+}
+errors++;
+}
+}
+var valid279 = _errs1706 === errors;
+}
+else {
+var valid279 = true;
+}
+if(valid279){
+if(data561.byte_column !== undefined){
+let data569 = data561.byte_column;
+const _errs1708 = errors;
+if(errors === _errs1708){
+if(typeof data569 === "string"){
+if(func2(data569) > 20){
+const err1813 = {instancePath:instancePath+"/refresh_status/query_diagnostic/facts/" + i39+"/value/location/byte_column",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf/5/properties/location/properties/byte_column/maxLength",keyword:"maxLength",params:{limit: 20},message:"must NOT have more than 20 characters"};
+if(vErrors === null){
+vErrors = [err1813];
+}
+else {
+vErrors.push(err1813);
+}
+errors++;
+}
+else {
+if(!pattern4.test(data569)){
+const err1814 = {instancePath:instancePath+"/refresh_status/query_diagnostic/facts/" + i39+"/value/location/byte_column",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf/5/properties/location/properties/byte_column/pattern",keyword:"pattern",params:{pattern: "^(0|[1-9][0-9]*)$"},message:"must match pattern \""+"^(0|[1-9][0-9]*)$"+"\""};
+if(vErrors === null){
+vErrors = [err1814];
+}
+else {
+vErrors.push(err1814);
+}
+errors++;
+}
+}
+}
+else {
+const err1815 = {instancePath:instancePath+"/refresh_status/query_diagnostic/facts/" + i39+"/value/location/byte_column",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf/5/properties/location/properties/byte_column/type",keyword:"type",params:{type: "string"},message:"must be string"};
+if(vErrors === null){
+vErrors = [err1815];
+}
+else {
+vErrors.push(err1815);
+}
+errors++;
+}
+}
+var valid279 = _errs1708 === errors;
+}
+else {
+var valid279 = true;
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+else {
+const err1816 = {instancePath:instancePath+"/refresh_status/query_diagnostic/facts/" + i39+"/value/location",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf/5/properties/location/type",keyword:"type",params:{type: "object"},message:"must be object"};
+if(vErrors === null){
+vErrors = [err1816];
+}
+else {
+vErrors.push(err1816);
+}
+errors++;
+}
+}
+}
+}
+}
+}
+else {
+const err1817 = {instancePath:instancePath+"/refresh_status/query_diagnostic/facts/" + i39+"/value",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf/5/type",keyword:"type",params:{type: "object"},message:"must be object"};
+if(vErrors === null){
+vErrors = [err1817];
+}
+else {
+vErrors.push(err1817);
+}
+errors++;
+}
+}
+var _valid81 = _errs1680 === errors;
+if(_valid81 && valid271){
+valid271 = false;
+passing8 = [passing8, 5];
+}
+else {
+if(_valid81){
+valid271 = true;
+passing8 = 5;
+if(props35 !== true){
+props35 = true;
+}
+}
+}
+}
+}
+}
+}
+if(!valid271){
+const err1818 = {instancePath:instancePath+"/refresh_status/query_diagnostic/facts/" + i39+"/value",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/0/oneOf",keyword:"oneOf",params:{passingSchemas: passing8},message:"must match exactly one schema in oneOf"};
+if(vErrors === null){
+vErrors = [err1818];
+}
+else {
+vErrors.push(err1818);
+}
+errors++;
+}
+else {
+errors = _errs1652;
+if(vErrors !== null){
+if(_errs1652){
+vErrors.length = _errs1652;
+}
+else {
+vErrors = null;
+}
+}
+}
+var _valid80 = _errs1651 === errors;
+valid270 = valid270 || _valid80;
+const _errs1710 = errors;
+if(data554 !== null){
+const err1819 = {instancePath:instancePath+"/refresh_status/query_diagnostic/facts/" + i39+"/value",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf/1/type",keyword:"type",params:{type: "null"},message:"must be null"};
+if(vErrors === null){
+vErrors = [err1819];
+}
+else {
+vErrors.push(err1819);
+}
+errors++;
+}
+var _valid80 = _errs1710 === errors;
+valid270 = valid270 || _valid80;
+if(!valid270){
+const err1820 = {instancePath:instancePath+"/refresh_status/query_diagnostic/facts/" + i39+"/value",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/facts/items/anyOf/0/properties/value/anyOf",keyword:"anyOf",params:{},message:"must match a schema in anyOf"};
+if(vErrors === null){
+vErrors = [err1820];
+}
+else {
+vErrors.push(err1820);
+}
+errors++;
+}
+else {
+errors = _errs1650;
+if(vErrors !== null){
+if(_errs1650){
+vErrors.length = _errs1650;
+}
+else {
+vErrors = null;
+}
+}
+}
+var valid269 = _errs1649 === errors;
+}
+else {
+var valid269 = true;
+}
+}
+}
+}
+}
+}
+}
+else {
+const err1821 = {instancePath:instancePath+"/refresh_status/query_diagnostic/facts/" + i39,schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/facts/items/anyOf/0/type",keyword:"type",params:{type: "object"},message:"must be object"};
+if(vErrors === null){
+vErrors = [err1821];
+}
+else {
+vErrors.push(err1821);
+}
+errors++;
+}
+}
+var _valid79 = _errs1640 === errors;
+valid268 = valid268 || _valid79;
+const _errs1712 = errors;
+if(data550 !== null){
+const err1822 = {instancePath:instancePath+"/refresh_status/query_diagnostic/facts/" + i39,schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/facts/items/anyOf/1/type",keyword:"type",params:{type: "null"},message:"must be null"};
+if(vErrors === null){
+vErrors = [err1822];
+}
+else {
+vErrors.push(err1822);
+}
+errors++;
+}
+var _valid79 = _errs1712 === errors;
+valid268 = valid268 || _valid79;
+if(!valid268){
+const err1823 = {instancePath:instancePath+"/refresh_status/query_diagnostic/facts/" + i39,schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/facts/items/anyOf",keyword:"anyOf",params:{},message:"must match a schema in anyOf"};
+if(vErrors === null){
+vErrors = [err1823];
+}
+else {
+vErrors.push(err1823);
+}
+errors++;
+}
+else {
+errors = _errs1639;
+if(vErrors !== null){
+if(_errs1639){
+vErrors.length = _errs1639;
+}
+else {
+vErrors = null;
+}
+}
+}
+var valid267 = _errs1638 === errors;
+if(!valid267){
+break;
+}
+}
+}
+}
+}
+else {
+const err1824 = {instancePath:instancePath+"/refresh_status/query_diagnostic/facts",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/facts/type",keyword:"type",params:{type: "array"},message:"must be array"};
+if(vErrors === null){
+vErrors = [err1824];
+}
+else {
+vErrors.push(err1824);
+}
+errors++;
+}
+}
+var valid256 = _errs1636 === errors;
+}
+else {
+var valid256 = true;
+}
+if(valid256){
+if(data524.actions !== undefined){
+let data570 = data524.actions;
+const _errs1714 = errors;
+if(errors === _errs1714){
+if(Array.isArray(data570)){
+if(data570.length > 4){
+const err1825 = {instancePath:instancePath+"/refresh_status/query_diagnostic/actions",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/actions/maxItems",keyword:"maxItems",params:{limit: 4},message:"must NOT have more than 4 items"};
+if(vErrors === null){
+vErrors = [err1825];
+}
+else {
+vErrors.push(err1825);
+}
+errors++;
+}
+else {
+if(data570.length < 4){
+const err1826 = {instancePath:instancePath+"/refresh_status/query_diagnostic/actions",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/actions/minItems",keyword:"minItems",params:{limit: 4},message:"must NOT have fewer than 4 items"};
+if(vErrors === null){
+vErrors = [err1826];
+}
+else {
+vErrors.push(err1826);
+}
+errors++;
+}
+else {
+var valid282 = true;
+const len41 = data570.length;
+for(let i41=0; i41<len41; i41++){
+let data571 = data570[i41];
+const _errs1716 = errors;
+const _errs1717 = errors;
+let valid283 = false;
+const _errs1718 = errors;
+if(errors === _errs1718){
+if(data571 && typeof data571 == "object" && !Array.isArray(data571)){
+let missing155;
+if((data571.kind === undefined) && (missing155 = "kind")){
+const err1827 = {instancePath:instancePath+"/refresh_status/query_diagnostic/actions/" + i41,schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/actions/items/anyOf/0/required",keyword:"required",params:{missingProperty: missing155},message:"must have required property '"+missing155+"'"};
+if(vErrors === null){
+vErrors = [err1827];
+}
+else {
+vErrors.push(err1827);
+}
+errors++;
+}
+else {
+const _errs1720 = errors;
+for(const key157 in data571){
+if(!((key157 === "kind") || (key157 === "target"))){
+const err1828 = {instancePath:instancePath+"/refresh_status/query_diagnostic/actions/" + i41,schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/actions/items/anyOf/0/additionalProperties",keyword:"additionalProperties",params:{additionalProperty: key157},message:"must NOT have additional properties"};
+if(vErrors === null){
+vErrors = [err1828];
+}
+else {
+vErrors.push(err1828);
+}
+errors++;
+break;
+}
+}
+if(_errs1720 === errors){
+if(data571.kind !== undefined){
+let data572 = data571.kind;
+const _errs1721 = errors;
+if(typeof data572 !== "string"){
+const err1829 = {instancePath:instancePath+"/refresh_status/query_diagnostic/actions/" + i41+"/kind",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/actions/items/anyOf/0/properties/kind/type",keyword:"type",params:{type: "string"},message:"must be string"};
+if(vErrors === null){
+vErrors = [err1829];
+}
+else {
+vErrors.push(err1829);
+}
+errors++;
+}
+if(!(((((((((((data572 === "correct_input") || (data572 === "inspect_status")) || (data572 === "resume_exact")) || (data572 === "cancel_wait")) || (data572 === "cancel_mutation")) || (data572 === "refresh")) || (data572 === "recompile")) || (data572 === "retry_read")) || (data572 === "inspect_scope")) || (data572 === "reconcile_effect")) || (data572 === "contact_operator"))){
+const err1830 = {instancePath:instancePath+"/refresh_status/query_diagnostic/actions/" + i41+"/kind",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/actions/items/anyOf/0/properties/kind/enum",keyword:"enum",params:{allowedValues: schema52.oneOf[8].properties.refresh_status.properties.query_diagnostic.anyOf[0].properties.actions.items.anyOf[0].properties.kind.enum},message:"must be equal to one of the allowed values"};
+if(vErrors === null){
+vErrors = [err1830];
+}
+else {
+vErrors.push(err1830);
+}
+errors++;
+}
+var valid284 = _errs1721 === errors;
+}
+else {
+var valid284 = true;
+}
+if(valid284){
+if(data571.target !== undefined){
+let data573 = data571.target;
+const _errs1723 = errors;
+const _errs1724 = errors;
+let valid285 = false;
+const _errs1725 = errors;
+if(errors === _errs1725){
+if(data573 && typeof data573 == "object" && !Array.isArray(data573)){
+let missing156;
+if(((data573.domain === undefined) && (missing156 = "domain")) || ((data573.id === undefined) && (missing156 = "id"))){
+const err1831 = {instancePath:instancePath+"/refresh_status/query_diagnostic/actions/" + i41+"/target",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/actions/items/anyOf/0/properties/target/anyOf/0/required",keyword:"required",params:{missingProperty: missing156},message:"must have required property '"+missing156+"'"};
+if(vErrors === null){
+vErrors = [err1831];
+}
+else {
+vErrors.push(err1831);
+}
+errors++;
+}
+else {
+const _errs1727 = errors;
+for(const key158 in data573){
+if(!(((((key158 === "domain") || (key158 === "id")) || (key158 === "realm")) || (key158 === "resource")) || (key158 === "sequence"))){
+const err1832 = {instancePath:instancePath+"/refresh_status/query_diagnostic/actions/" + i41+"/target",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/actions/items/anyOf/0/properties/target/anyOf/0/additionalProperties",keyword:"additionalProperties",params:{additionalProperty: key158},message:"must NOT have additional properties"};
+if(vErrors === null){
+vErrors = [err1832];
+}
+else {
+vErrors.push(err1832);
+}
+errors++;
+break;
+}
+}
+if(_errs1727 === errors){
+if(data573.domain !== undefined){
+let data574 = data573.domain;
+const _errs1728 = errors;
+if(typeof data574 !== "string"){
+const err1833 = {instancePath:instancePath+"/refresh_status/query_diagnostic/actions/" + i41+"/target/domain",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/actions/items/anyOf/0/properties/target/anyOf/0/properties/domain/type",keyword:"type",params:{type: "string"},message:"must be string"};
+if(vErrors === null){
+vErrors = [err1833];
+}
+else {
+vErrors.push(err1833);
+}
+errors++;
+}
+if(!(((((((((((((data574 === "sql") || (data574 === "query")) || (data574 === "mutation")) || (data574 === "catalog")) || (data574 === "application")) || (data574 === "publication")) || (data574 === "migration")) || (data574 === "reactive")) || (data574 === "serving")) || (data574 === "effect")) || (data574 === "exchange")) || (data574 === "transport")) || (data574 === "internal"))){
+const err1834 = {instancePath:instancePath+"/refresh_status/query_diagnostic/actions/" + i41+"/target/domain",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/actions/items/anyOf/0/properties/target/anyOf/0/properties/domain/enum",keyword:"enum",params:{allowedValues: schema52.oneOf[8].properties.refresh_status.properties.query_diagnostic.anyOf[0].properties.actions.items.anyOf[0].properties.target.anyOf[0].properties.domain.enum},message:"must be equal to one of the allowed values"};
+if(vErrors === null){
+vErrors = [err1834];
+}
+else {
+vErrors.push(err1834);
+}
+errors++;
+}
+var valid286 = _errs1728 === errors;
+}
+else {
+var valid286 = true;
+}
+if(valid286){
+if(data573.id !== undefined){
+let data575 = data573.id;
+const _errs1730 = errors;
+if(errors === _errs1730){
+if(typeof data575 === "string"){
+if(func2(data575) > 20){
+const err1835 = {instancePath:instancePath+"/refresh_status/query_diagnostic/actions/" + i41+"/target/id",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/actions/items/anyOf/0/properties/target/anyOf/0/properties/id/maxLength",keyword:"maxLength",params:{limit: 20},message:"must NOT have more than 20 characters"};
+if(vErrors === null){
+vErrors = [err1835];
+}
+else {
+vErrors.push(err1835);
+}
+errors++;
+}
+else {
+if(!pattern4.test(data575)){
+const err1836 = {instancePath:instancePath+"/refresh_status/query_diagnostic/actions/" + i41+"/target/id",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/actions/items/anyOf/0/properties/target/anyOf/0/properties/id/pattern",keyword:"pattern",params:{pattern: "^(0|[1-9][0-9]*)$"},message:"must match pattern \""+"^(0|[1-9][0-9]*)$"+"\""};
+if(vErrors === null){
+vErrors = [err1836];
+}
+else {
+vErrors.push(err1836);
+}
+errors++;
+}
+}
+}
+else {
+const err1837 = {instancePath:instancePath+"/refresh_status/query_diagnostic/actions/" + i41+"/target/id",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/actions/items/anyOf/0/properties/target/anyOf/0/properties/id/type",keyword:"type",params:{type: "string"},message:"must be string"};
+if(vErrors === null){
+vErrors = [err1837];
+}
+else {
+vErrors.push(err1837);
+}
+errors++;
+}
+}
+var valid286 = _errs1730 === errors;
+}
+else {
+var valid286 = true;
+}
+if(valid286){
+if(data573.realm !== undefined){
+let data576 = data573.realm;
+const _errs1732 = errors;
+const _errs1733 = errors;
+let valid287 = false;
+const _errs1734 = errors;
+if(errors === _errs1734){
+if(typeof data576 === "string"){
+if(func2(data576) > 20){
+const err1838 = {instancePath:instancePath+"/refresh_status/query_diagnostic/actions/" + i41+"/target/realm",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/actions/items/anyOf/0/properties/target/anyOf/0/properties/realm/anyOf/0/maxLength",keyword:"maxLength",params:{limit: 20},message:"must NOT have more than 20 characters"};
+if(vErrors === null){
+vErrors = [err1838];
+}
+else {
+vErrors.push(err1838);
+}
+errors++;
+}
+else {
+if(!pattern4.test(data576)){
+const err1839 = {instancePath:instancePath+"/refresh_status/query_diagnostic/actions/" + i41+"/target/realm",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/actions/items/anyOf/0/properties/target/anyOf/0/properties/realm/anyOf/0/pattern",keyword:"pattern",params:{pattern: "^(0|[1-9][0-9]*)$"},message:"must match pattern \""+"^(0|[1-9][0-9]*)$"+"\""};
+if(vErrors === null){
+vErrors = [err1839];
+}
+else {
+vErrors.push(err1839);
+}
+errors++;
+}
+}
+}
+else {
+const err1840 = {instancePath:instancePath+"/refresh_status/query_diagnostic/actions/" + i41+"/target/realm",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/actions/items/anyOf/0/properties/target/anyOf/0/properties/realm/anyOf/0/type",keyword:"type",params:{type: "string"},message:"must be string"};
+if(vErrors === null){
+vErrors = [err1840];
+}
+else {
+vErrors.push(err1840);
+}
+errors++;
+}
+}
+var _valid86 = _errs1734 === errors;
+valid287 = valid287 || _valid86;
+const _errs1736 = errors;
+if(data576 !== null){
+const err1841 = {instancePath:instancePath+"/refresh_status/query_diagnostic/actions/" + i41+"/target/realm",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/actions/items/anyOf/0/properties/target/anyOf/0/properties/realm/anyOf/1/type",keyword:"type",params:{type: "null"},message:"must be null"};
+if(vErrors === null){
+vErrors = [err1841];
+}
+else {
+vErrors.push(err1841);
+}
+errors++;
+}
+var _valid86 = _errs1736 === errors;
+valid287 = valid287 || _valid86;
+if(!valid287){
+const err1842 = {instancePath:instancePath+"/refresh_status/query_diagnostic/actions/" + i41+"/target/realm",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/actions/items/anyOf/0/properties/target/anyOf/0/properties/realm/anyOf",keyword:"anyOf",params:{},message:"must match a schema in anyOf"};
+if(vErrors === null){
+vErrors = [err1842];
+}
+else {
+vErrors.push(err1842);
+}
+errors++;
+}
+else {
+errors = _errs1733;
+if(vErrors !== null){
+if(_errs1733){
+vErrors.length = _errs1733;
+}
+else {
+vErrors = null;
+}
+}
+}
+var valid286 = _errs1732 === errors;
+}
+else {
+var valid286 = true;
+}
+if(valid286){
+if(data573.resource !== undefined){
+let data577 = data573.resource;
+const _errs1738 = errors;
+const _errs1739 = errors;
+let valid288 = false;
+const _errs1740 = errors;
+if(errors === _errs1740){
+if(typeof data577 === "string"){
+if(func2(data577) > 20){
+const err1843 = {instancePath:instancePath+"/refresh_status/query_diagnostic/actions/" + i41+"/target/resource",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/actions/items/anyOf/0/properties/target/anyOf/0/properties/resource/anyOf/0/maxLength",keyword:"maxLength",params:{limit: 20},message:"must NOT have more than 20 characters"};
+if(vErrors === null){
+vErrors = [err1843];
+}
+else {
+vErrors.push(err1843);
+}
+errors++;
+}
+else {
+if(!pattern4.test(data577)){
+const err1844 = {instancePath:instancePath+"/refresh_status/query_diagnostic/actions/" + i41+"/target/resource",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/actions/items/anyOf/0/properties/target/anyOf/0/properties/resource/anyOf/0/pattern",keyword:"pattern",params:{pattern: "^(0|[1-9][0-9]*)$"},message:"must match pattern \""+"^(0|[1-9][0-9]*)$"+"\""};
+if(vErrors === null){
+vErrors = [err1844];
+}
+else {
+vErrors.push(err1844);
+}
+errors++;
+}
+}
+}
+else {
+const err1845 = {instancePath:instancePath+"/refresh_status/query_diagnostic/actions/" + i41+"/target/resource",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/actions/items/anyOf/0/properties/target/anyOf/0/properties/resource/anyOf/0/type",keyword:"type",params:{type: "string"},message:"must be string"};
+if(vErrors === null){
+vErrors = [err1845];
+}
+else {
+vErrors.push(err1845);
+}
+errors++;
+}
+}
+var _valid87 = _errs1740 === errors;
+valid288 = valid288 || _valid87;
+const _errs1742 = errors;
+if(data577 !== null){
+const err1846 = {instancePath:instancePath+"/refresh_status/query_diagnostic/actions/" + i41+"/target/resource",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/actions/items/anyOf/0/properties/target/anyOf/0/properties/resource/anyOf/1/type",keyword:"type",params:{type: "null"},message:"must be null"};
+if(vErrors === null){
+vErrors = [err1846];
+}
+else {
+vErrors.push(err1846);
+}
+errors++;
+}
+var _valid87 = _errs1742 === errors;
+valid288 = valid288 || _valid87;
+if(!valid288){
+const err1847 = {instancePath:instancePath+"/refresh_status/query_diagnostic/actions/" + i41+"/target/resource",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/actions/items/anyOf/0/properties/target/anyOf/0/properties/resource/anyOf",keyword:"anyOf",params:{},message:"must match a schema in anyOf"};
+if(vErrors === null){
+vErrors = [err1847];
+}
+else {
+vErrors.push(err1847);
+}
+errors++;
+}
+else {
+errors = _errs1739;
+if(vErrors !== null){
+if(_errs1739){
+vErrors.length = _errs1739;
+}
+else {
+vErrors = null;
+}
+}
+}
+var valid286 = _errs1738 === errors;
+}
+else {
+var valid286 = true;
+}
+if(valid286){
+if(data573.sequence !== undefined){
+let data578 = data573.sequence;
+const _errs1744 = errors;
+const _errs1745 = errors;
+let valid289 = false;
+const _errs1746 = errors;
+if(errors === _errs1746){
+if(typeof data578 === "string"){
+if(func2(data578) > 20){
+const err1848 = {instancePath:instancePath+"/refresh_status/query_diagnostic/actions/" + i41+"/target/sequence",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/actions/items/anyOf/0/properties/target/anyOf/0/properties/sequence/anyOf/0/maxLength",keyword:"maxLength",params:{limit: 20},message:"must NOT have more than 20 characters"};
+if(vErrors === null){
+vErrors = [err1848];
+}
+else {
+vErrors.push(err1848);
+}
+errors++;
+}
+else {
+if(!pattern4.test(data578)){
+const err1849 = {instancePath:instancePath+"/refresh_status/query_diagnostic/actions/" + i41+"/target/sequence",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/actions/items/anyOf/0/properties/target/anyOf/0/properties/sequence/anyOf/0/pattern",keyword:"pattern",params:{pattern: "^(0|[1-9][0-9]*)$"},message:"must match pattern \""+"^(0|[1-9][0-9]*)$"+"\""};
+if(vErrors === null){
+vErrors = [err1849];
+}
+else {
+vErrors.push(err1849);
+}
+errors++;
+}
+}
+}
+else {
+const err1850 = {instancePath:instancePath+"/refresh_status/query_diagnostic/actions/" + i41+"/target/sequence",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/actions/items/anyOf/0/properties/target/anyOf/0/properties/sequence/anyOf/0/type",keyword:"type",params:{type: "string"},message:"must be string"};
+if(vErrors === null){
+vErrors = [err1850];
+}
+else {
+vErrors.push(err1850);
+}
+errors++;
+}
+}
+var _valid88 = _errs1746 === errors;
+valid289 = valid289 || _valid88;
+const _errs1748 = errors;
+if(data578 !== null){
+const err1851 = {instancePath:instancePath+"/refresh_status/query_diagnostic/actions/" + i41+"/target/sequence",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/actions/items/anyOf/0/properties/target/anyOf/0/properties/sequence/anyOf/1/type",keyword:"type",params:{type: "null"},message:"must be null"};
+if(vErrors === null){
+vErrors = [err1851];
+}
+else {
+vErrors.push(err1851);
+}
+errors++;
+}
+var _valid88 = _errs1748 === errors;
+valid289 = valid289 || _valid88;
+if(!valid289){
+const err1852 = {instancePath:instancePath+"/refresh_status/query_diagnostic/actions/" + i41+"/target/sequence",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/actions/items/anyOf/0/properties/target/anyOf/0/properties/sequence/anyOf",keyword:"anyOf",params:{},message:"must match a schema in anyOf"};
+if(vErrors === null){
+vErrors = [err1852];
+}
+else {
+vErrors.push(err1852);
+}
+errors++;
+}
+else {
+errors = _errs1745;
+if(vErrors !== null){
+if(_errs1745){
+vErrors.length = _errs1745;
+}
+else {
+vErrors = null;
+}
+}
+}
+var valid286 = _errs1744 === errors;
+}
+else {
+var valid286 = true;
+}
+}
+}
+}
+}
+}
+}
+}
+else {
+const err1853 = {instancePath:instancePath+"/refresh_status/query_diagnostic/actions/" + i41+"/target",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/actions/items/anyOf/0/properties/target/anyOf/0/type",keyword:"type",params:{type: "object"},message:"must be object"};
+if(vErrors === null){
+vErrors = [err1853];
+}
+else {
+vErrors.push(err1853);
+}
+errors++;
+}
+}
+var _valid85 = _errs1725 === errors;
+valid285 = valid285 || _valid85;
+const _errs1750 = errors;
+if(data573 !== null){
+const err1854 = {instancePath:instancePath+"/refresh_status/query_diagnostic/actions/" + i41+"/target",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/actions/items/anyOf/0/properties/target/anyOf/1/type",keyword:"type",params:{type: "null"},message:"must be null"};
+if(vErrors === null){
+vErrors = [err1854];
+}
+else {
+vErrors.push(err1854);
+}
+errors++;
+}
+var _valid85 = _errs1750 === errors;
+valid285 = valid285 || _valid85;
+if(!valid285){
+const err1855 = {instancePath:instancePath+"/refresh_status/query_diagnostic/actions/" + i41+"/target",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/actions/items/anyOf/0/properties/target/anyOf",keyword:"anyOf",params:{},message:"must match a schema in anyOf"};
+if(vErrors === null){
+vErrors = [err1855];
+}
+else {
+vErrors.push(err1855);
+}
+errors++;
+}
+else {
+errors = _errs1724;
+if(vErrors !== null){
+if(_errs1724){
+vErrors.length = _errs1724;
+}
+else {
+vErrors = null;
+}
+}
+}
+var valid284 = _errs1723 === errors;
+}
+else {
+var valid284 = true;
+}
+}
+}
+}
+}
+else {
+const err1856 = {instancePath:instancePath+"/refresh_status/query_diagnostic/actions/" + i41,schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/actions/items/anyOf/0/type",keyword:"type",params:{type: "object"},message:"must be object"};
+if(vErrors === null){
+vErrors = [err1856];
+}
+else {
+vErrors.push(err1856);
+}
+errors++;
+}
+}
+var _valid84 = _errs1718 === errors;
+valid283 = valid283 || _valid84;
+const _errs1752 = errors;
+if(data571 !== null){
+const err1857 = {instancePath:instancePath+"/refresh_status/query_diagnostic/actions/" + i41,schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/actions/items/anyOf/1/type",keyword:"type",params:{type: "null"},message:"must be null"};
+if(vErrors === null){
+vErrors = [err1857];
+}
+else {
+vErrors.push(err1857);
+}
+errors++;
+}
+var _valid84 = _errs1752 === errors;
+valid283 = valid283 || _valid84;
+if(!valid283){
+const err1858 = {instancePath:instancePath+"/refresh_status/query_diagnostic/actions/" + i41,schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/actions/items/anyOf",keyword:"anyOf",params:{},message:"must match a schema in anyOf"};
+if(vErrors === null){
+vErrors = [err1858];
+}
+else {
+vErrors.push(err1858);
+}
+errors++;
+}
+else {
+errors = _errs1717;
+if(vErrors !== null){
+if(_errs1717){
+vErrors.length = _errs1717;
+}
+else {
+vErrors = null;
+}
+}
+}
+var valid282 = _errs1716 === errors;
+if(!valid282){
+break;
+}
+}
+}
+}
+}
+else {
+const err1859 = {instancePath:instancePath+"/refresh_status/query_diagnostic/actions",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/properties/actions/type",keyword:"type",params:{type: "array"},message:"must be array"};
+if(vErrors === null){
+vErrors = [err1859];
+}
+else {
+vErrors.push(err1859);
+}
+errors++;
+}
+}
+var valid256 = _errs1714 === errors;
+}
+else {
+var valid256 = true;
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+else {
+const err1860 = {instancePath:instancePath+"/refresh_status/query_diagnostic",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/0/type",keyword:"type",params:{type: "object"},message:"must be object"};
+if(vErrors === null){
+vErrors = [err1860];
+}
+else {
+vErrors.push(err1860);
+}
+errors++;
+}
+}
+var _valid70 = _errs1552 === errors;
+valid255 = valid255 || _valid70;
+const _errs1754 = errors;
+if(data524 !== null){
+const err1861 = {instancePath:instancePath+"/refresh_status/query_diagnostic",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf/1/type",keyword:"type",params:{type: "null"},message:"must be null"};
+if(vErrors === null){
+vErrors = [err1861];
+}
+else {
+vErrors.push(err1861);
+}
+errors++;
+}
+var _valid70 = _errs1754 === errors;
+valid255 = valid255 || _valid70;
+if(!valid255){
+const err1862 = {instancePath:instancePath+"/refresh_status/query_diagnostic",schemaPath:"#/oneOf/8/properties/refresh_status/properties/query_diagnostic/anyOf",keyword:"anyOf",params:{},message:"must match a schema in anyOf"};
+if(vErrors === null){
+vErrors = [err1862];
+}
+else {
+vErrors.push(err1862);
+}
+errors++;
+}
+else {
+errors = _errs1551;
+if(vErrors !== null){
+if(_errs1551){
+vErrors.length = _errs1551;
+}
+else {
+vErrors = null;
+}
+}
+}
+var valid156 = _errs1550 === errors;
 }
 else {
 var valid156 = true;
@@ -87335,12 +88528,12 @@ var valid156 = true;
 }
 }
 else {
-const err1789 = {instancePath:instancePath+"/refresh_status",schemaPath:"#/oneOf/8/properties/refresh_status/type",keyword:"type",params:{type: "object"},message:"must be object"};
+const err1863 = {instancePath:instancePath+"/refresh_status",schemaPath:"#/oneOf/8/properties/refresh_status/type",keyword:"type",params:{type: "object"},message:"must be object"};
 if(vErrors === null){
-vErrors = [err1789];
+vErrors = [err1863];
 }
 else {
-vErrors.push(err1789);
+vErrors.push(err1863);
 }
 errors++;
 }
@@ -87350,12 +88543,12 @@ errors++;
 }
 }
 else {
-const err1790 = {instancePath,schemaPath:"#/oneOf/8/type",keyword:"type",params:{type: "object"},message:"must be object"};
+const err1864 = {instancePath,schemaPath:"#/oneOf/8/type",keyword:"type",params:{type: "object"},message:"must be object"};
 if(vErrors === null){
-vErrors = [err1790];
+vErrors = [err1864];
 }
 else {
-vErrors.push(err1790);
+vErrors.push(err1864);
 }
 errors++;
 }
@@ -87382,12 +88575,12 @@ props0 = true;
 }
 }
 if(!valid0){
-const err1791 = {instancePath,schemaPath:"#/oneOf",keyword:"oneOf",params:{passingSchemas: passing0},message:"must match exactly one schema in oneOf"};
+const err1865 = {instancePath,schemaPath:"#/oneOf",keyword:"oneOf",params:{passingSchemas: passing0},message:"must match exactly one schema in oneOf"};
 if(vErrors === null){
-vErrors = [err1791];
+vErrors = [err1865];
 }
 else {
-vErrors.push(err1791);
+vErrors.push(err1865);
 }
 errors++;
 validate34.errors = vErrors;

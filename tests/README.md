@@ -13288,3 +13288,30 @@ pass. Logs: `/var/tmp/transit-admission-installed{,2}.log` and
 `/var/tmp/transit-admission-{beam-http,grpc-languages,grpc-native,grpc-managed}.log`.
 These artifacts predate later definition changes; they do not qualify future
 ABI/schema cutovers or replace committed-HEAD clean verification.
+
+### Original Follow reader evidence — 2026-10-03
+
+Executed `just test::unit` and `just test::reactive-refresh`: passed. Independent
+TLS peers deny source entry reads while metadata remains readable; the rejected
+Follow input retains `AccessDenied`, source operation, original resource and
+principal. Restoring permission returns the identical original observation. The
+recovery schedule also retains its lost receipt, worker replacement, fair shared
+principal scheduling and full-width query identity assertions (97.43 seconds,
+excluding compilation).
+
+Component cases cover missing/wrong PID, required permission bits with original
+policy revision, writer/lifecycle with original resource revision, all ten known
+reader causes, actual nested result resource, absent template and every incomplete
+phase, and owned codec round trips. Memory, connection and integrity failures do
+not fabricate a terminal reader witness. All 47 serving reason projections cross
+25 witness variants within the unchanged 194-byte control-record/JSON bounds.
+Generated contract, Board/client descriptions and all binding resources pass their
+respective generators. The first integration attempt found the HTTP 403 path had
+lost its witness; the corrected run covers it. An intermediate compile rejected
+an optional resource ID and an invalid diagnostic-field name; those attempts did
+not pass. Logs: `/var/tmp/transit-refresh-reader-proof{,2,3}.log`.
+
+Full `just check` also passes: generated-contract/binding drift checks, 566 real
+CLI diagnostic cases, 75 Board tests, shared frontend suites and production
+handbook build. Log: `/var/tmp/transit-refresh-reader-check.log`. These runs do
+not replace the final committed-HEAD clean checkout verification.

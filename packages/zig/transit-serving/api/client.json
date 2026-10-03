@@ -1033,7 +1033,7 @@
                   "definition": {
                     "type": "string",
                     "enum": [
-                      "2751c5ead29471b9675530a20cd0e364368ba79dee3ec6f00f8806d0accb94e7"
+                      "692358a0bda42413cb14638010c0adea7edaa238aff1275e9557fcb38a37e741"
                     ]
                   },
                   "realm": {
@@ -2656,7 +2656,7 @@
                                           "definition": {
                                             "type": "string",
                                             "enum": [
-                                              "2751c5ead29471b9675530a20cd0e364368ba79dee3ec6f00f8806d0accb94e7"
+                                              "692358a0bda42413cb14638010c0adea7edaa238aff1275e9557fcb38a37e741"
                                             ]
                                           },
                                           "code": {
@@ -3857,7 +3857,7 @@
                   "definition": {
                     "type": "string",
                     "enum": [
-                      "2751c5ead29471b9675530a20cd0e364368ba79dee3ec6f00f8806d0accb94e7"
+                      "692358a0bda42413cb14638010c0adea7edaa238aff1275e9557fcb38a37e741"
                     ]
                   },
                   "realm": {
@@ -4210,7 +4210,7 @@
                               "definition": {
                                 "type": "string",
                                 "enum": [
-                                  "2751c5ead29471b9675530a20cd0e364368ba79dee3ec6f00f8806d0accb94e7"
+                                  "692358a0bda42413cb14638010c0adea7edaa238aff1275e9557fcb38a37e741"
                                 ]
                               },
                               "code": {
@@ -5349,7 +5349,7 @@
                       "definition": {
                         "type": "string",
                         "enum": [
-                          "2751c5ead29471b9675530a20cd0e364368ba79dee3ec6f00f8806d0accb94e7"
+                          "692358a0bda42413cb14638010c0adea7edaa238aff1275e9557fcb38a37e741"
                         ]
                       },
                       "realm": {
@@ -5391,7 +5391,7 @@
                     ],
                     "x-transit-defaults": {
                       "version": 1,
-                      "definition": "2751c5ead29471b9675530a20cd0e364368ba79dee3ec6f00f8806d0accb94e7"
+                      "definition": "692358a0bda42413cb14638010c0adea7edaa238aff1275e9557fcb38a37e741"
                     }
                   },
                   "signature": {
@@ -6784,6 +6784,286 @@
                                         "x-transit-defaults": {}
                                       }
                                     }
+                                  },
+                                  {
+                                    "type": "object",
+                                    "additionalProperties": false,
+                                    "required": [
+                                      "reader_identity"
+                                    ],
+                                    "properties": {
+                                      "reader_identity": {
+                                        "type": "object",
+                                        "additionalProperties": false,
+                                        "x-transit-field-order": [
+                                          "field",
+                                          "expected",
+                                          "actual",
+                                          "present",
+                                          "policy_revision",
+                                          "policy_known"
+                                        ],
+                                        "properties": {
+                                          "field": {
+                                            "type": "string",
+                                            "enum": [
+                                              "principal",
+                                              "pid",
+                                              "permissions",
+                                              "turn_pid"
+                                            ]
+                                          },
+                                          "expected": {
+                                            "type": "integer",
+                                            "minimum": 0,
+                                            "maximum": 9007199254740991,
+                                            "x-transit-bits": 64,
+                                            "x-transit-signed": false
+                                          },
+                                          "actual": {
+                                            "type": "integer",
+                                            "minimum": 0,
+                                            "maximum": 9007199254740991,
+                                            "x-transit-bits": 64,
+                                            "x-transit-signed": false
+                                          },
+                                          "present": {
+                                            "type": "boolean"
+                                          },
+                                          "policy_revision": {
+                                            "type": "integer",
+                                            "minimum": 0,
+                                            "maximum": 9007199254740991,
+                                            "x-transit-bits": 64,
+                                            "x-transit-signed": false
+                                          },
+                                          "policy_known": {
+                                            "type": "boolean"
+                                          }
+                                        },
+                                        "required": [
+                                          "field",
+                                          "expected",
+                                          "actual"
+                                        ],
+                                        "x-transit-defaults": {
+                                          "present": true,
+                                          "policy_revision": 0,
+                                          "policy_known": false
+                                        }
+                                      }
+                                    }
+                                  },
+                                  {
+                                    "type": "object",
+                                    "additionalProperties": false,
+                                    "required": [
+                                      "reader_failure"
+                                    ],
+                                    "properties": {
+                                      "reader_failure": {
+                                        "type": "object",
+                                        "additionalProperties": false,
+                                        "x-transit-field-order": [
+                                          "operation",
+                                          "principal",
+                                          "resource",
+                                          "namespace",
+                                          "cause"
+                                        ],
+                                        "properties": {
+                                          "operation": {
+                                            "type": "string",
+                                            "enum": [
+                                              "identity",
+                                              "source",
+                                              "requester",
+                                              "result"
+                                            ]
+                                          },
+                                          "principal": {
+                                            "type": "integer",
+                                            "minimum": 0,
+                                            "maximum": 9007199254740991,
+                                            "x-transit-bits": 64,
+                                            "x-transit-signed": false
+                                          },
+                                          "resource": {
+                                            "type": "integer",
+                                            "minimum": 0,
+                                            "maximum": 9007199254740991,
+                                            "x-transit-bits": 64,
+                                            "x-transit-signed": false
+                                          },
+                                          "namespace": {
+                                            "type": "integer",
+                                            "minimum": 0,
+                                            "maximum": 9007199254740991,
+                                            "x-transit-bits": 64,
+                                            "x-transit-signed": false
+                                          },
+                                          "cause": {
+                                            "type": "string",
+                                            "enum": [
+                                              "AccessDenied",
+                                              "Forbidden",
+                                              "StateResourceExpired",
+                                              "UnknownStateResource",
+                                              "DeadlineExpired",
+                                              "RetiredProcess",
+                                              "QueryDenied",
+                                              "QuerySourceUnavailable",
+                                              "ResultUnavailable",
+                                              "PublicationNotPublished"
+                                            ]
+                                          }
+                                        },
+                                        "required": [
+                                          "operation",
+                                          "principal",
+                                          "resource",
+                                          "cause"
+                                        ],
+                                        "x-transit-defaults": {
+                                          "namespace": 0
+                                        }
+                                      }
+                                    }
+                                  },
+                                  {
+                                    "type": "object",
+                                    "additionalProperties": false,
+                                    "required": [
+                                      "reader_resource"
+                                    ],
+                                    "properties": {
+                                      "reader_resource": {
+                                        "type": "object",
+                                        "additionalProperties": false,
+                                        "x-transit-field-order": [
+                                          "role",
+                                          "resource",
+                                          "expected_writer",
+                                          "actual_writer",
+                                          "phase",
+                                          "writer_check",
+                                          "revision"
+                                        ],
+                                        "properties": {
+                                          "role": {
+                                            "type": "string",
+                                            "enum": [
+                                              "source",
+                                              "requester"
+                                            ]
+                                          },
+                                          "resource": {
+                                            "type": "integer",
+                                            "minimum": 0,
+                                            "maximum": 9007199254740991,
+                                            "x-transit-bits": 64,
+                                            "x-transit-signed": false
+                                          },
+                                          "expected_writer": {
+                                            "type": "integer",
+                                            "minimum": 0,
+                                            "maximum": 9007199254740991,
+                                            "x-transit-bits": 64,
+                                            "x-transit-signed": false
+                                          },
+                                          "actual_writer": {
+                                            "type": "integer",
+                                            "minimum": 0,
+                                            "maximum": 9007199254740991,
+                                            "x-transit-bits": 64,
+                                            "x-transit-signed": false
+                                          },
+                                          "phase": {
+                                            "type": "string",
+                                            "enum": [
+                                              "active",
+                                              "retired",
+                                              "reclaimed"
+                                            ]
+                                          },
+                                          "writer_check": {
+                                            "type": "boolean"
+                                          },
+                                          "revision": {
+                                            "type": "integer",
+                                            "minimum": 0,
+                                            "maximum": 9007199254740991,
+                                            "x-transit-bits": 64,
+                                            "x-transit-signed": false
+                                          }
+                                        },
+                                        "required": [
+                                          "role",
+                                          "resource",
+                                          "expected_writer",
+                                          "actual_writer",
+                                          "phase",
+                                          "writer_check",
+                                          "revision"
+                                        ],
+                                        "x-transit-defaults": {}
+                                      }
+                                    }
+                                  },
+                                  {
+                                    "type": "object",
+                                    "additionalProperties": false,
+                                    "required": [
+                                      "reader_template"
+                                    ],
+                                    "properties": {
+                                      "reader_template": {
+                                        "type": "object",
+                                        "additionalProperties": false,
+                                        "x-transit-field-order": [
+                                          "namespace",
+                                          "present",
+                                          "phase",
+                                          "manifest"
+                                        ],
+                                        "properties": {
+                                          "namespace": {
+                                            "type": "integer",
+                                            "minimum": 0,
+                                            "maximum": 9007199254740991,
+                                            "x-transit-bits": 64,
+                                            "x-transit-signed": false
+                                          },
+                                          "present": {
+                                            "type": "boolean"
+                                          },
+                                          "phase": {
+                                            "type": "string",
+                                            "enum": [
+                                              "uploading",
+                                              "sealed",
+                                              "admitted",
+                                              "complete",
+                                              "cancelled",
+                                              "denied",
+                                              "rejected",
+                                              "retired"
+                                            ]
+                                          },
+                                          "manifest": {
+                                            "type": "boolean"
+                                          }
+                                        },
+                                        "required": [
+                                          "namespace",
+                                          "present"
+                                        ],
+                                        "x-transit-defaults": {
+                                          "phase": "uploading",
+                                          "manifest": false
+                                        }
+                                      }
+                                    }
                                   }
                                 ]
                               }
@@ -6851,7 +7131,7 @@
                       "definition": {
                         "type": "string",
                         "enum": [
-                          "2751c5ead29471b9675530a20cd0e364368ba79dee3ec6f00f8806d0accb94e7"
+                          "692358a0bda42413cb14638010c0adea7edaa238aff1275e9557fcb38a37e741"
                         ]
                       },
                       "code": {
@@ -7631,7 +7911,7 @@
                       "definition": {
                         "type": "string",
                         "enum": [
-                          "2751c5ead29471b9675530a20cd0e364368ba79dee3ec6f00f8806d0accb94e7"
+                          "692358a0bda42413cb14638010c0adea7edaa238aff1275e9557fcb38a37e741"
                         ]
                       },
                       "code": {

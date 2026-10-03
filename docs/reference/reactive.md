@@ -73,6 +73,14 @@ not rewrite the earlier stop or restart the generation. The browser keeps the
 last exact result on non-authority failures and shows the retained detail; current
 denial still clears protected state.
 
+Failed Follow reader checks identify the identity field or permission mask,
+resource writer/lifecycle, or template phase and missing manifest. The diagnostic
+retains the policy/resource revision observed at that check. Native read failures
+identify the operation, principal and actual failing resource; their original
+cause remains available even when the scheduling stop is classified more broadly
+as resource unavailability. These details come from the failed operation, not a
+later lookup after policy or data has changed.
+
 ## Budgets and transport
 
 Follow uses one active refresh and bounded coalesced work per admitted scope,

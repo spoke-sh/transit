@@ -114,6 +114,10 @@ pub const Record = struct { reason: Reason, input: u64, kind: Kind, subject: u64
 pub const RevisionKind = enum(u8) { binding = 0, policy = 1, watch = 2, refresh = 3 };
 pub const CapacityKind = enum(u8) { service = 0, caller = 1, service_slots = 2, sessions = 3, caller_sessions = 4 };
 pub const LeaseKind = enum(u8) { clock = 0, interval = 1, binding = 2, process = 3, resource = 4, observer = 5 };
+pub const ReaderCause = enum(u8) { AccessDenied, Forbidden, StateResourceExpired, UnknownStateResource, DeadlineExpired, RetiredProcess, QueryDenied, QuerySourceUnavailable, ResultUnavailable, PublicationNotPublished };
+pub const ReaderOperation = enum(u8) { identity, source, requester, result };
+pub const ReaderIdentity = enum(u8) { principal, pid, permissions, turn_pid };
+pub const ResourceRole = enum(u8) { source, requester };
 pub const Witness = union(enum(u8)) {
     none = 0,
     revision: struct { kind: RevisionKind, expected: u64, actual: u64, proposed: u64, present: bool } = 1,
@@ -136,6 +140,10 @@ pub const Witness = union(enum(u8)) {
     table: u32 = 18,
     watch_type: struct { expected: @FieldType(root.query.fuze.model.Schema, "value_type"), actual: @FieldType(root.query.fuze.model.Schema, "value_type") } = 19,
     progress: struct { present: bool, actual: u64, limit: u64, key: [32]u8, length: u8 } = 20,
+    reader_identity: struct { field: ReaderIdentity, expected: u64, actual: u64, present: bool = true, policy_revision: u64 = 0, policy_known: bool = false } = 21,
+    reader_failure: struct { operation: ReaderOperation, principal: u64, resource: u64, namespace: u64 = 0, cause: ReaderCause } = 22,
+    reader_resource: struct { role: ResourceRole, resource: u64, expected_writer: u64, actual_writer: u64, phase: @FieldType(p.Growth.Resource, "phase"), writer_check: bool, revision: u64 } = 23,
+    reader_template: struct { namespace: u64, present: bool, phase: root.query.UnifiedRequest.Phase = .uploading, manifest: bool = false } = 24,
 };
 pub const Context = struct { witness: Witness = .none, cause: ?anyerror = null };
 /// Storage uses compact u64 fields. Public supplied identities use decimal text,
@@ -226,6 +234,51 @@ pub fn project(realm: u64, resource: u64, service: u64, primary: Record) !d {
 pub fn facts(result: *d, witness: Witness) !void {
     switch (witness) {
         .none => {},
+        .reader_identity => |value| {
+            try result.text(.field_path, .owner, switch (value.field) {
+                .principal => "identity.principal",
+                .pid => "identity.pid",
+                .permissions => "identity.permissions",
+                .turn_pid => "requester.pid",
+            });
+            try result.fact(.expected_value, .owner, .{ .unsigned = .init(value.expected) });
+            if (value.present) try result.fact(.supplied_value, .execution, .{ .unsigned = .init(value.actual) }) else try result.absent(.supplied_value, .execution, .inapplicable);
+            try result.text(.constraint, .owner, if (value.field == .permissions) "Native permissions must contain every required bit." else "The observed identity must equal the required identity.");
+            if (value.policy_known) try result.fact(.actual_policy, .execution, .{ .unsigned = .init(value.policy_revision) });
+        },
+        .reader_failure => |value| {
+            result.cause = try d.Code.init(@tagName(value.cause));
+            try result.text(.native_cause, .execution, @tagName(value.cause));
+            try result.text(.operation, .owner, @tagName(value.operation));
+            try result.fact(.principal, .execution, .{ .unsigned = .init(value.principal) });
+            if (value.resource != 0) try result.fact(.actual_resource, .caller, .{ .unsigned = .init(value.resource) });
+            if (value.namespace != 0) try result.fact(.actual_namespace, .owner, .{ .unsigned = .init(value.namespace) });
+        },
+        .reader_resource => |value| {
+            try result.text(.field_path, .owner, switch (value.role) {
+                .source => if (value.writer_check) "source.writer" else "source.phase",
+                .requester => if (value.writer_check) "requester.writer" else "requester.phase",
+            });
+            try result.fact(.actual_resource, .owner, .{ .unsigned = .init(value.resource) });
+            try result.fact(.actual_revision, .execution, .{ .unsigned = .init(value.revision) });
+            if (value.writer_check) {
+                try result.fact(.expected_value, .owner, .{ .unsigned = .init(value.expected_writer) });
+                try result.fact(.supplied_value, .execution, .{ .unsigned = .init(value.actual_writer) });
+            } else {
+                try result.text(.expected_value, .owner, "active");
+                try result.text(.supplied_value, .execution, @tagName(value.phase));
+            }
+        },
+        .reader_template => |value| {
+            try result.text(.field_path, .owner, "template.status");
+            try result.fact(.actual_namespace, .owner, .{ .unsigned = .init(value.namespace) });
+            try result.fact(.presence, .execution, .{ .boolean = value.present });
+            try result.text(.expected_value, .owner, "complete with a result manifest");
+            if (value.present) {
+                try result.text(.supplied_value, .execution, @tagName(value.phase));
+                try result.fact(.published, .execution, .{ .boolean = value.manifest });
+            } else try result.absent(.supplied_value, .execution, .inapplicable);
+        },
         .table => |value| try result.fact(.table, .owner, .{ .unsigned = .init(value) }),
         .watch_type => |value| {
             try result.text(.expected_type, .owner, @tagName(value.expected));

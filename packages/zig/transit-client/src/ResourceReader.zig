@@ -8,6 +8,19 @@ wire: *root.Client,
 realm: u64,
 principal: u64,
 key: p.Ed25519.KeyPair,
+/// Optional owned evidence from this reader's failing operation. Never consult
+/// a later metadata read or a rejection left by another use of the wire client.
+failure: ?*?Failure = null,
+pub const Failure = union(enum) {
+    rejected: struct { resource: u64, cause: p.ErrorCode },
+    unavailable: g.Resource,
+};
+pub fn withFailure(self: Self, context: *?Failure) Self {
+    context.* = null;
+    var reader = self;
+    reader.failure = context;
+    return reader;
+}
 pub const Reader = struct {
     client: Self,
     view: struct { id: u64 = 0, resource: u64, revision: u64 },
@@ -59,7 +72,18 @@ pub const Reader = struct {
     }
 };
 pub fn query(self: Self, kind: @FieldType(g.Query, "kind")) !g.Response {
+    if (self.failure) |context| context.* = null;
     return self.wire.query(.{ .realm = self.realm, .principal = self.principal, .kind = kind }, self.key) catch |err| {
+        if (err == error.Rejected or err == error.Conflict or err == error.AccessDenied) {
+            if (self.wire.last_rejection) |cause| if (self.failure) |context| {
+                context.* = .{ .rejected = .{ .resource = switch (kind) {
+                    .resource, .read_access => |id| id,
+                    .entries => |input| input.resource orelse 0,
+                    .read_entries => |input| input.resource,
+                    else => 0,
+                }, .cause = cause } };
+            };
+        }
         if (err == error.Rejected) switch (self.wire.last_rejection orelse return err) {
             .StateResourceExpired, .UnknownStateResource, .RetiredProcess => return error.ResourceUnavailable,
             else => {},
@@ -73,7 +97,10 @@ pub fn open(self: Self, resource: u64) !Reader {
         .resource => |value| value,
         else => return error.InvalidResourceRead,
     };
-    if (metadata.id != resource or metadata.phase != .active) return error.ResourceUnavailable;
+    if (metadata.id != resource or metadata.phase != .active) {
+        if (self.failure) |context| context.* = .{ .unavailable = metadata };
+        return error.ResourceUnavailable;
+    }
     return .{ .client = self, .view = .{ .resource = resource, .revision = metadata.revision } };
 }
 

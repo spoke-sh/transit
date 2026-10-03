@@ -4739,13 +4739,20 @@
     },
     "packages/zig/transit-client/src/ResourceReader.zig": {
       "errors": {
+        "AccessDenied": 1,
+        "Conflict": 1,
         "InvalidResourceRead": 12,
-        "Rejected": 1,
+        "Rejected": 2,
         "ResourceReadBatchUnavailable": 1,
         "ResourceUnavailable": 2,
         "UnrequestedResourceKey": 1
       },
-      "outcomes": {},
+      "outcomes": {
+        "Failure": [
+          "rejected",
+          "unavailable"
+        ]
+      },
       "imports": [
         "root.zig"
       ]
@@ -7171,7 +7178,7 @@
       },
       "outcomes": {
         "Definition": [
-          "@\"2751c5ead29471b9675530a20cd0e364368ba79dee3ec6f00f8806d0accb94e7\""
+          "@\"692358a0bda42413cb14638010c0adea7edaa238aff1275e9557fcb38a37e741\""
         ],
         "Command": [
           "grant",
@@ -9095,12 +9102,12 @@
     },
     "packages/zig/transit-serving/src/RefreshReader.zig": {
       "errors": {
-        "AccessDenied": 1,
+        "AccessDenied": 2,
         "Conflict": 1,
-        "InvalidRefreshTemplate": 2,
+        "InvalidRefreshTemplate": 1,
         "Rejected": 1,
         "ResourceUnavailable": 2,
-        "ServingDenied": 2
+        "ServingDenied": 3
       },
       "outcomes": {},
       "imports": [
@@ -9310,6 +9317,34 @@
           "resource",
           "observer"
         ],
+        "ReaderCause": [
+          "AccessDenied",
+          "Forbidden",
+          "StateResourceExpired",
+          "UnknownStateResource",
+          "DeadlineExpired",
+          "RetiredProcess",
+          "QueryDenied",
+          "QuerySourceUnavailable",
+          "ResultUnavailable",
+          "PublicationNotPublished"
+        ],
+        "ReaderOperation": [
+          "identity",
+          "source",
+          "requester",
+          "result"
+        ],
+        "ReaderIdentity": [
+          "principal",
+          "pid",
+          "permissions",
+          "turn_pid"
+        ],
+        "ResourceRole": [
+          "source",
+          "requester"
+        ],
         "Witness": [
           "none",
           "revision",
@@ -9331,7 +9366,11 @@
           "source_kind",
           "table",
           "watch_type",
-          "progress"
+          "progress",
+          "reader_identity",
+          "reader_failure",
+          "reader_resource",
+          "reader_template"
         ]
       },
       "imports": [

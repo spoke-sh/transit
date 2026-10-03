@@ -169,6 +169,10 @@ for generation fences, uncertain allocations and resumption bounds.
 point/page reads without requiring PID ownership. It rechecks current read grants
 on every query, rejects changed/invalid sources and preserves a read failure for
 that source. It owns no retained version and cannot grant execution authority.
+`withFailure` optionally records the original rejected query's native cause and
+resource, or metadata observed at a lifecycle failure. The caller owns this bounded
+context and keeps it alive with the reader. A fresh query clears earlier evidence;
+successful or unrelated transport failures cannot borrow an old rejection.
 Station Document uses this shared adapter for public accepted-state reads.
 `Reader.entry` returns the same bounded point observation with its resource-local
 entry revision. The serving Table watch uses that revision for its application

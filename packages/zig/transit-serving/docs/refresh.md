@@ -96,6 +96,15 @@ sample and conservative host bound; recorded expiry and an observed deadline
 remain distinct. Missing retained query evidence is explicit, never reconstructed
 from a later source read.
 
+Reader diagnostics name the original failed check: principal/PID equality,
+required native permission bits, source/requester writer or lifecycle, or template
+phase and manifest presence. They include the observed policy or resource revision
+when that check supplied one. A denied read identifies its operation and principal;
+nested result reads retain the actual failing resource, which may differ from the
+watched source. The original native cause survives the broader scheduling stop
+classification. Restoring permission or replacing a template does not change this
+evidence. Memory, transport and integrity failures leave the proposal unresolved.
+
 The private caller discovers the selected namespace, then reads refresh head,
 view and selected query status together in one bounded native cut (five keys
 including configuration and policy). A changed namespace restarts this read,

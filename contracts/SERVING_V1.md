@@ -139,6 +139,17 @@ commitments, active counts and limits, binding codecs, lease bounds, session
 phase/clock and attachment/subscription generations. No later metadata read
 reconstructs a historical conflict. Unknown or unrecorded facts remain absent.
 
+Follow reader witnesses distinguish identity equality or required permission bits
+(tag 21), a rejected native/resource/result read (22), resource writer or lifecycle
+(23), and absent or incomplete template status (24). Identity checks retain the
+observed policy revision when available; resource checks retain their exact
+resource revision. Read witnesses retain the operation, principal, actual nested
+resource, selected namespace when applicable, and original native cause. A
+generic resource-unavailable classification does not replace that cause. Template
+checks distinguish absence, phase and manifest presence. These variants preserve
+the same record bounds and current-authority disclosure gates. Transport, memory
+and integrity failures do not become terminal caller rejections.
+
 Serving disposition reads and private host `observation.rejected` return
 `{ record, diagnostic }`. The public record includes reason, input, family,
 subject/generation as exact decimal strings, commitment and underlying cause.

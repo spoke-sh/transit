@@ -527,6 +527,10 @@ test "all serving rejection classes fit bounded diagnostics and maximum witnesse
         .{ .table = std.math.maxInt(u32) },
         .{ .watch_type = .{ .expected = .int64, .actual = .utf8 } },
         try f.progressWitness(try p.Value.init(&@as([32]u8, @splat(255))), p.max_counter, p.max_counter),
+        .{ .reader_identity = .{ .field = .permissions, .expected = p.max_counter, .actual = p.max_counter, .policy_revision = p.max_counter, .policy_known = true } },
+        .{ .reader_failure = .{ .operation = .result, .principal = p.max_counter, .resource = p.max_counter, .namespace = std.math.maxInt(u64), .cause = .StateResourceExpired } },
+        .{ .reader_resource = .{ .role = .source, .resource = p.max_counter, .expected_writer = p.max_counter, .actual_writer = p.max_counter, .phase = .retired, .writer_check = false, .revision = p.max_counter } },
+        .{ .reader_template = .{ .namespace = std.math.maxInt(u64), .present = true, .phase = .rejected, .manifest = false } },
     };
     try t.expectEqual(std.enums.values(std.meta.Tag(f.Witness)).len, witnesses.len);
     for (std.enums.values(f.Reason)) |reason| for (witnesses) |witness| {
