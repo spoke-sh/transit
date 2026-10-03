@@ -1,0 +1,60 @@
+//! Human projection of typed evidence. All owner/caller text is terminal inert.
+const std = @import("std");
+const d = @import("transit_query").protocol.Diagnostic;
+
+fn escaped(out: *std.Io.Writer, bytes: []const u8) !void {
+    for (bytes) |byte| switch (byte) {
+        0x20...0x7e => try out.writeByte(byte),
+        else => try out.print("\\x{x:0>2}", .{byte}),
+    };
+}
+pub fn render(value: d, out: *std.Io.Writer) !void {
+    try value.validate();
+    try out.writeAll("error: ");
+    try escaped(out, value.message.slice());
+    try out.print("\nCode: {s}; stage: {s}.\n", .{ value.code.slice(), @tagName(value.stage) });
+    for (value.facts) |slot| if (slot) |fact| {
+        try out.print("{s}: ", .{switch (fact.field) {
+            .source_row => "Scan row",
+            .source_key => "Source key",
+            .column => "Column",
+            .operation => "Operation",
+            .expression => "Predicate instruction (zero-based)",
+            .source_basis => "Frozen plan/source fingerprint",
+            .source_kind => "Source kind",
+            .object => "Resource",
+            .expected_revision => "Source revision",
+            .expected_type => "Expected type",
+            .completion => "Complete result",
+            .budget => "Budget",
+            .limit => "Limit",
+            .required => "Required",
+            .emitted_rows => "Rows already emitted",
+            .emitted_segments => "Segments already emitted",
+            else => @tagName(fact.field),
+        }});
+        if (fact.value) |item| switch (item) {
+            .text => |text| try escaped(out, text.slice()),
+            .signed => |number| try out.print("{d}", .{try number.value()}),
+            .unsigned => |number| try out.print("{d}", .{try number.value()}),
+            .boolean => |boolean| try out.writeAll(if (boolean) "yes" else "no"),
+            .digest => |digest| try out.print("{x}", .{&digest}),
+            .location => |location| try out.print("line {d}, byte column {d}", .{ try location.line.value(), try location.byte_column.value() }),
+        } else try out.writeAll(@tagName(fact.availability));
+        if (fact.availability == .truncated) try out.writeAll(" [truncated]");
+        try out.writeByte('\n');
+    };
+    for (value.actions) |slot| if (slot) |action| switch (action.kind) {
+        .correct_input => try out.writeAll("Correct the reported input or source problem before starting new work.\n"),
+        .inspect_scope => try out.writeAll("Inspect the current permissions and declaration of the named target.\n"),
+        .inspect_status => try out.writeAll("Inspect the recorded outcome for this exact operation.\n"),
+        .recompile => try out.writeAll("Prepare the statement again against the current source declaration.\n"),
+        .resume_exact => try out.writeAll("Reconcile the saved operation with its original identity and bytes.\n"),
+        .cancel_wait => try out.writeAll("Cancel the saved wait through its owning query interface; already disclosed results remain disclosed.\n"),
+        .cancel_mutation => try out.writeAll("Request cancellation of the saved mutation through its owning interface; inspect the resulting outcome.\n"),
+        .reconcile_effect => try out.writeAll("Use the connector's reconciliation policy for the saved effect; its remote outcome is not established.\n"),
+        .refresh => try out.writeAll("Refresh the authorized source metadata.\n"),
+        .retry_read => try out.writeAll("Retry the read under current permissions.\n"),
+        .contact_operator => try out.writeAll("Preserve the operation evidence and ask the operator to inspect this failure.\n"),
+    };
+}

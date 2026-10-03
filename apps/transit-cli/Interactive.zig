@@ -47,6 +47,7 @@ pub fn sql(console: *Console, request: @import("SqlInput.zig").Request) !void {
     var columns: [m.max_columns]m.Column = undefined;
     const schema = try query.schema(&columns);
     var ordinal: u64 = 0;
+    var emitted_rows: u64 = 0;
     while (!query.complete()) {
         timing.enter(.fetch);
         try interrupted();
@@ -57,6 +58,11 @@ pub fn sql(console: *Console, request: @import("SqlInput.zig").Request) !void {
         var source_memory: std.heap.FixedBufferAllocator = .init(adapter);
         const segment = query.next(console.client, source_memory.allocator(), workspace, arrow, &Signals.cancellation) catch |err| {
             try interrupted();
+            console.diagnostic.envelope = query.diagnostic;
+            if (console.diagnostic.envelope) |*detail| {
+                detail.fact(.emitted_rows, .execution, .{ .unsigned = .init(emitted_rows) }) catch {};
+                detail.fact(.emitted_segments, .execution, .{ .unsigned = .init(ordinal) }) catch {};
+            }
             return err;
         };
         try interrupted();
@@ -87,6 +93,7 @@ pub fn sql(console: *Console, request: @import("SqlInput.zig").Request) !void {
         try interrupted();
         try @import("Output.zig").write(console.init, console.out, out.buffered());
         ordinal += 1;
+        emitted_rows += batch.count;
     }
     console.query_running = false;
 }

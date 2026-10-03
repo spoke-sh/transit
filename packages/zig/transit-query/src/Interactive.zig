@@ -20,6 +20,7 @@ range_entries: [g.SnapshotRead.range_entries]?g.Entry = @splat(null),
 range_next: ?q.protocol.Value = null,
 range_index: usize = 0,
 range_available: bool = false,
+diagnostic: ?q.protocol.Diagnostic = null,
 
 pub fn open(client: *q.UnifiedClient, bundle: q.Bundle, nonce: [16]u8) !Self {
     try bundle.validate();
@@ -52,8 +53,12 @@ pub fn schema(self: *const Self, columns: *[m.max_columns]m.Column) !m.Schema {
 /// Returned bytes borrow output; decoded source memory belongs to this page's
 /// allocator. The caller must discard that arena before requesting another page.
 pub fn next(self: *Self, client: *q.UnifiedClient, allocator: std.mem.Allocator, workspace: []u8, output: []u8, cancellation: *const q.fuze.execution.Cancellation) !?m.Stream.Segment {
+    self.diagnostic = null;
     if (self.complete()) return error.QueryComplete;
-    if (self.progress.pages >= self.bundle.limits.pages) return error.QueryBudgetExceeded;
+    if (self.progress.pages >= self.bundle.limits.pages) {
+        if (self.diagnosticAllowed(client)) self.diagnostic = q.ExecutionDiagnostic.budget(.pages, self.bundle.limits.pages, std.math.add(u64, self.progress.pages, 1) catch return error.Overflow) catch null;
+        return error.QueryBudgetExceeded;
+    }
     if (cancellation.load(.acquire)) return error.Cancelled;
     self.source.cancellation = cancellation;
     var batch: q.UnifiedSource.Batch = undefined;
@@ -64,9 +69,24 @@ pub fn next(self: *Self, client: *q.UnifiedClient, allocator: std.mem.Allocator,
         try q.UnifiedSource.pagePlanned(self.bundle.source, self.bundle.plan, self.progress.basis, self.cursor, &data, &self.current.?, allocator, &batch);
     }
     const bound: m.Plan.Bound = .{ .plan = self.bundle.plan, .basis = self.progress.basis, .schema = .{ .columns = self.columns[0..self.column_count] }, .fingerprint = self.progress.plan };
-    const candidate = try m.Stream.step(bound, self.progress, batch.engine(), workspace, output, cancellation);
+    var failure: ?m.Stream.Failure = null;
+    const candidate = m.Stream.stepDiagnostic(bound, self.progress, batch.engine(), workspace, output, cancellation, &failure) catch |err| {
+        if (failure) |evidence| {
+            // A failure bypasses successful-page disclosure. Recheck current
+            // access before exposing a source key or retained execution basis.
+            if (self.diagnosticAllowed(client)) self.diagnostic = q.ExecutionDiagnostic.local(err, bound, &batch, evidence) catch null;
+        }
+        return err;
+    };
     const bytes = try std.math.add(u64, self.bytes, if (candidate.segment) |segment| segment.bytes.len else 0);
-    if (candidate.progress.segments > self.bundle.limits.segments or bytes > self.bundle.limits.result_bytes) return error.QueryBudgetExceeded;
+    if (candidate.progress.segments > self.bundle.limits.segments) {
+        if (self.diagnosticAllowed(client)) self.diagnostic = q.ExecutionDiagnostic.budget(.segments, self.bundle.limits.segments, candidate.progress.segments) catch null;
+        return error.QueryBudgetExceeded;
+    }
+    if (bytes > self.bundle.limits.result_bytes) {
+        if (self.diagnosticAllowed(client)) self.diagnostic = q.ExecutionDiagnostic.budget(.result_bytes, self.bundle.limits.result_bytes, bytes) catch null;
+        return error.QueryBudgetExceeded;
+    }
     // Final live validation also covers entirely cached computation and empty
     // output. The terminal validation releases the pin in the same native call.
     const current_policy = policy: {
@@ -82,6 +102,13 @@ pub fn next(self: *Self, client: *q.UnifiedClient, allocator: std.mem.Allocator,
     self.cursor = batch.next;
     self.bytes = bytes;
     return candidate.segment;
+}
+
+fn diagnosticAllowed(self: *Self, client: *q.UnifiedClient) bool {
+    const metadata = client.interactiveMetadata(self.bundle.source) catch return false;
+    const validated = self.source.batch(.{ .snapshot = .{ .existing = self.source.snapshot.id }, .current = metadata }) catch return false;
+    const permitted = client.interactiveDescription(self.bundle.source, validated) catch return false;
+    return permitted.limits.permits(self.bundle.limits);
 }
 
 fn remember(self: *Self, key: q.protocol.Value, value: ?g.Entry) void {

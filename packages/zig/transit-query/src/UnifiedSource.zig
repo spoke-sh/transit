@@ -15,10 +15,13 @@ pub const Cursor = struct {
     done: bool = false,
 };
 pub const Batch = struct {
+    pub const Key = union(enum) { kv: p.Value, table: i64, element: doc.Model.Dot };
     columns: [m.max_columns]m.Column = undefined,
     column_count: u8 = 0,
     cells: [m.max_rows][m.max_columns]m.Cell = undefined,
     rows: [m.max_rows]m.Row = undefined,
+    keys: [m.max_rows]?Key = @splat(null),
+    decoding: [m.max_rows][m.max_columns]?q.Decoder.Failure = @splat(@splat(null)),
     count: u8 = 0,
     next: Cursor = .{},
     basis: m.Basis = undefined,
@@ -88,6 +91,7 @@ pub fn pagePlanned(definition: Def, plan: m.Plan, expected: m.Basis, cursor: Cur
     }
 }
 fn tableRow(output: *Batch, row: q.fuze.model.Row, allocator: std.mem.Allocator) !void {
+    output.keys[output.count] = .{ .table = row.key };
     output.cells[output.count][0] = .{ .value = .{ .int64 = row.key } };
     output.cells[output.count][1] = switch (row.value) {
         .null => .null,
@@ -118,8 +122,9 @@ pub fn page(definition: Def, expected: m.Basis, cursor: Cursor, data: anytype, c
                     }
                     continue;
                 }
-                output.cells[output.count][0] = try q.Decoder.decode(kv.key, allocator, entry.key.slice());
-                output.cells[output.count][1] = try q.Decoder.decode(kv.value, allocator, entry.value.slice());
+                output.cells[output.count][0] = try q.Decoder.decodeDiagnostic(kv.key, allocator, entry.key.slice(), &output.decoding[output.count][0]);
+                output.cells[output.count][1] = try q.Decoder.decodeDiagnostic(kv.value, allocator, entry.value.slice(), &output.decoding[output.count][1]);
+                output.keys[output.count] = .{ .kv = entry.key };
                 output.count += 1;
             };
             if (entries.next == null) output.next.done = true;
@@ -167,6 +172,7 @@ pub fn page(definition: Def, expected: m.Basis, cursor: Cursor, data: anytype, c
                         .more => {},
                         .item => |item| {
                             for (document.projections, 0..) |projection, index| output.cells[output.count][index] = try project(state, &reader, projection, item, allocator, &work);
+                            output.keys[output.count] = .{ .element = item.id };
                             output.count += 1;
                             if (output.count == m.max_rows) break;
                         },

@@ -156,6 +156,39 @@ pub fn bind(self: *const Self, basis: m.Basis, schema: m.Schema) !Bound {
 pub fn matches(self: *const Self, row: m.Row) !bool {
     return (try self.predicateTruth(row)).selects();
 }
+pub const PredicateFailure = struct { column: u8, instruction: u8 };
+pub fn matchesDiagnostic(self: *const Self, row: m.Row, diagnostic: ?*?PredicateFailure) !bool {
+    if (diagnostic) |detail| detail.* = null;
+    const result = switch (self.predicate) {
+        .program => |*program| result: {
+            const view = try program.view();
+            var instruction: ?u8 = null;
+            break :result view.truthDiagnostic(row, &instruction) catch |err| {
+                if (diagnostic) |detail| if (instruction) |index| {
+                    if (atomColumn(view.instructions[index].atom)) |column| detail.* = .{ .column = column, .instruction = index };
+                };
+                return err;
+            };
+        },
+        inline else => |value, tag| result: {
+            const atom: Atom = @unionInit(Atom, @tagName(tag), value);
+            break :result atom.truth(row) catch |err| {
+                if (diagnostic) |detail| if (atomColumn(atom)) |column| {
+                    detail.* = .{ .column = column, .instruction = 0 };
+                };
+                return err;
+            };
+        },
+    };
+    return result.selects();
+}
+fn atomColumn(atom: Atom) ?u8 {
+    return switch (atom) {
+        .all => null,
+        .state => |value| value.column,
+        .compare => |value| value.column,
+    };
+}
 /// Evaluate an already validated predicate without losing null/missing truth.
 /// Only matches() reduces unknown to a nonmatching filter result.
 pub fn predicateTruth(self: *const Self, row: m.Row) !m.Truth {

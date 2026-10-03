@@ -439,12 +439,21 @@
       },
       "outcomes": {},
       "imports": [
+        "EnvelopeDiagnostic.zig",
         "FileDiagnostic.zig",
         "InputPosition.zig",
         "QueryDiagnostic.zig",
         "Style.zig",
         "Timing.zig",
         "WriteDiagnostic.zig",
+        "std",
+        "transit_query"
+      ]
+    },
+    "apps/transit-cli/EnvelopeDiagnostic.zig": {
+      "errors": {},
+      "outcomes": {},
+      "imports": [
         "std",
         "transit_query"
       ]
@@ -6082,6 +6091,12 @@
         "Finish": [
           "source_end",
           "limit"
+        ],
+        "Operation": [
+          "validate",
+          "predicate",
+          "count",
+          "sum"
         ]
       },
       "imports": [
@@ -6807,11 +6822,23 @@
         "std"
       ]
     },
+    "packages/zig/transit-query/src/ExecutionDiagnostic.zig": {
+      "errors": {
+        "InvalidExecutionDiagnostic": 4,
+        "UnmappedQueryDiagnostic": 1
+      },
+      "outcomes": {},
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
     "packages/zig/transit-query/src/Interactive.zig": {
       "errors": {
         "Cancelled": 3,
         "InvalidResourceRead": 4,
-        "QueryBudgetExceeded": 4,
+        "Overflow": 1,
+        "QueryBudgetExceeded": 5,
         "QueryComplete": 1,
         "QuerySourceUnavailable": 1
       },
@@ -7468,7 +7495,13 @@
         "SourceChanged": 4,
         "TableSchemaChanged": 1
       },
-      "outcomes": {},
+      "outcomes": {
+        "Key": [
+          "kv",
+          "table",
+          "element"
+        ]
+      },
       "imports": [
         "root.zig",
         "std"
@@ -7621,6 +7654,7 @@
         "Decoder.zig",
         "Draft.zig",
         "Editor.zig",
+        "ExecutionDiagnostic.zig",
         "Interactive.zig",
         "QueryFailure.zig",
         "SourceDefinition.zig",

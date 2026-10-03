@@ -237,3 +237,10 @@ retained code has an explicit category. Measured budgets retain full-width limit
 and required counters. Rejected and retired failures offer inspection/correction,
 never resubmission of the old operation. This projection requires the caller to
 complete current-access validation before disclosing it.
+
+`Interactive.diagnostic` holds owned execution/budget evidence for the most recent
+failed page. `ExecutionDiagnostic` projects the engine witness and the same
+adapter batch's key/decoding evidence. Current native and query-policy checks
+precede disclosure; no later source read reconstructs a failing row. KV keys use
+bounded hex, Table keys preserve signed width, and Document expansion identifies
+elements by counter/replica. These local details do not change durable job records.

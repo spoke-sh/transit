@@ -166,6 +166,24 @@ interactive query recovery, not the durability of accepted application state.
 Existing callers explicitly requesting durable captured jobs keep their recovery
 contract. A session does not require a new durable PID or principal.
 
+Interactive execution failures identify the first failing scan row, source column
+and operation. Predicate failures include the zero-based postfix instruction;
+eager evaluation reports a later failing atom even when an earlier atom would
+already determine the Boolean result. SUM reports the intermediate overflow site.
+The scan ordinal describes the adapter's actual traversal, including any Table
+seek; it is not a stable row identity. When present, Table keys are exact signed
+integers, KV keys are bounded hexadecimal bytes, and expanded Document element
+identities are `counter:replica`. Truncation is explicit. The frozen plan/source
+fingerprint and source revision identify the computation that failed. Stored
+value payloads are excluded; KV failures retain decoding reasons and byte counts.
+
+Page, segment and result-byte budget failures identify the dimension, configured
+limit and required amount. The console reports already emitted rows/segments and
+marks the result incomplete. Current permissions gate enrichment, including
+failures computed from cached source rows. Diagnostic construction or disclosure
+failure preserves the primary computation error and does not create durable work.
+These local witnesses are not saved outcomes for a durable captured query.
+
 Fuze executes in the client over signed native snapshot reads. The authority
 does not execute SQL. There are no durable upload, execution-progress or result
 publication turns in this profile. Table, KV and Document share the existing

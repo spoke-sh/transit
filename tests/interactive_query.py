@@ -185,7 +185,55 @@ def check(node, proof, cli, kind, rows=41, age=0, resident_pages=64):
                     total = query('SELECT COUNT(*) FROM items WHERE id = 0;', 1, request_budget=3)
                     assert total[-1]['cells'][0][0] == {'value': {'uint64': str(min(1, count))}}
                     query('SELECT * FROM items WHERE id > 9223372036854775807;', 0, request_budget=3)
+                # A local execution budget reports its measured dimension and
+                # a truthful prefix count, never durable-resume guidance.
+                for dimension in ('pages', 'segments', 'result_bytes'):
+                    if dimension != 'result_bytes' and count <= 8:
+                        continue
+                    limited = json.loads(json.dumps(settings))
+                    limited['workspace']['limits'][dimension] = '1'
+                    limited_path = root / ('limited-' + dimension + '.json')
+                    limited_path.write_text(json.dumps(limited))
+                    before_counts = probe.snapshot()
+                    failed = subprocess.run([cli, 'console', '--no-rc', '--config', str(limited_path),
+                                             '-c', 'SELECT * FROM items;'], capture_output=True, text=True, timeout=60)
+                    assert failed.returncode == 1, failed
+                    frames = [json.loads(line) for line in failed.stdout.splitlines()]
+                    assert not any(frame['complete_coverage'] for frame in frames), failed
+                    for expected in ('query.budget_exceeded', 'Budget: ' + dimension, 'Limit: 1',
+                                     'Required:', 'Complete result: no', 'Rows already emitted:'):
+                        assert expected in failed.stderr, (expected, failed.stderr)
+                    assert '.resume' not in failed.stderr and '.cancel' not in failed.stderr, failed.stderr
+                    counts = probe.snapshot() - before_counts
+                    assert not any(value for key, value in counts.items() if key.startswith('update:')), counts
+                print(f'Interactive {kind}: measured budget diagnostics and incomplete-prefix evidence passed.', flush=True)
+
                 assert not (root / 'console-recovery.json').exists()
+
+                if kind == 'kv' and count:
+                    invoke('invalidate-kv')
+                    failing_sql = "SELECT * FROM items WHERE key IS NULL AND value='';"
+                    rejected = subprocess.run([*args, '-c', failing_sql], capture_output=True, text=True, timeout=30)
+                    assert rejected.returncode == 1 and not rejected.stdout, rejected
+                    for expected in ('query.cell_type_error', 'Scan row: 1', 'Column: value',
+                                     'Predicate instruction (zero-based): 1', 'Source key: 6b0000000000000000',
+                                     'native_cause: invalid_utf8', 'Frozen plan/source fingerprint:'):
+                        assert expected in rejected.stderr, (expected, rejected.stderr)
+                    assert '.resume' not in rejected.stderr and '.cancel' not in rejected.stderr
+                    # Current permission loss at diagnostic disclosure suppresses
+                    # source-key and source-basis enrichment after computation.
+                    gate.clear(); release.clear(); blocked[0] = True
+                    console = subprocess.Popen([*args, '-c', failing_sql], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                    assert gate.wait(timeout=30)
+                    invoke('revoke')
+                    release.set()
+                    stdout, stderr = console.communicate(timeout=30)
+                    assert console.returncode != 0 and not stdout, (stdout, stderr)
+                    assert b'Source key:' not in stderr and b'Frozen plan/source fingerprint:' not in stderr, stderr
+                    console = None; blocked[0] = False
+                    invoke('restore')
+                    invoke('repair-kv')
+                    print('Interactive KV: eager atom, exact binary key, decoder reason and disclosure denial passed.', flush=True)
 
                 # A terminal interrupt returns to an empty, reusable prompt.
                 # Repeated signals and the remaining pasted SQL cannot start

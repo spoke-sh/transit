@@ -84,14 +84,34 @@ pub const Progress = struct {
 };
 pub const Segment = struct { bytes: []const u8, rows: u8, digest: [32]u8 };
 pub const Step = struct { progress: Progress, segment: ?Segment };
+pub const Failure = struct {
+    pub const Operation = enum { validate, predicate, count, sum };
+    operation: Operation,
+    /// One-based ordinal in the actual adapter scan, not a stable row identity.
+    row: u64,
+    page_row: u8,
+    column: u8,
+    /// Zero-based postfix instruction; only present for predicate evaluation.
+    instruction: ?u8 = null,
+};
 /// No candidate may be published after an error. Filter and checked sum run in
 /// source order; even an overflow that later values could offset is an error.
 pub fn step(bound: m.Plan.Bound, previous: Progress, page: m.Page, workspace: []u8, output: []u8, cancellation: *const f.execution.Cancellation) !Step {
+    return stepDiagnostic(bound, previous, page, workspace, output, cancellation, null);
+}
+pub fn stepDiagnostic(bound: m.Plan.Bound, previous: Progress, page: m.Page, workspace: []u8, output: []u8, cancellation: *const f.execution.Cancellation, diagnostic: ?*?Failure) !Step {
+    if (diagnostic) |detail| detail.* = null;
     try bound.validate();
     try previous.validate(bound);
     if (previous.finished != null) return error.QueryComplete;
     if (page.ordinal != previous.pages) return error.InvalidQueryOrdinal;
-    try page.validate(bound.schema);
+    var invalid: ?m.Page.Failure = null;
+    page.validateDiagnostic(bound.schema, &invalid) catch |err| {
+        if (diagnostic) |detail| if (invalid) |cell| {
+            detail.* = .{ .operation = .validate, .row = std.math.add(u64, previous.scanned, @as(u64, cell.row) + 1) catch return err, .page_row = cell.row, .column = cell.column };
+        };
+        return err;
+    };
     if (!std.meta.eql(page.basis, bound.basis)) return error.SourceChanged;
     if (cancellation.load(.acquire)) return error.Cancelled;
     var next = previous;
@@ -99,18 +119,30 @@ pub fn step(bound: m.Plan.Bound, previous: Progress, page: m.Page, workspace: []
     var cells: [m.max_rows][m.max_columns]m.Cell = undefined;
     var selected: [m.max_rows]m.Row = undefined;
     var count: usize = 0;
-    for (page.rows) |row| {
+    for (page.rows, 0..) |row, row_index| {
         if (cancellation.load(.acquire)) return error.Cancelled;
         if (bound.plan.limit) |limit| if (next.selected == limit) break;
         next.scanned = try std.math.add(u64, next.scanned, 1);
-        if (!try bound.plan.matches(row)) continue;
+        var predicate: ?m.Plan.PredicateFailure = null;
+        if (!(bound.plan.matchesDiagnostic(row, &predicate) catch |err| {
+            if (diagnostic) |detail| if (predicate) |atom| {
+                detail.* = .{ .operation = .predicate, .row = next.scanned, .page_row = @intCast(row_index), .column = atom.column, .instruction = atom.instruction };
+            };
+            return err;
+        })) continue;
         next.selected = try std.math.add(u64, next.selected, 1);
-        if (bound.plan.aggregate == .count_values) next.value_count = try @import("Finite.zig").countValue(next.value_count, row.cells[bound.plan.projection[0]]);
-        if (bound.plan.aggregate == .sum) next.sum = try @import("Finite.zig").sum(next.sum, row.cells[bound.plan.projection[0]], struct {
+        if (bound.plan.aggregate == .count_values) next.value_count = @import("Finite.zig").countValue(next.value_count, row.cells[bound.plan.projection[0]]) catch |err| {
+            if (diagnostic) |detail| detail.* = .{ .operation = .count, .row = next.scanned, .page_row = @intCast(row_index), .column = bound.plan.projection[0] };
+            return err;
+        };
+        if (bound.plan.aggregate == .sum) next.sum = @import("Finite.zig").sum(next.sum, row.cells[bound.plan.projection[0]], struct {
             fn integer(value: m.Scalar) !i64 {
                 return value.int64;
             }
-        }.integer);
+        }.integer) catch |err| {
+            if (diagnostic) |detail| detail.* = .{ .operation = .sum, .row = next.scanned, .page_row = @intCast(row_index), .column = bound.plan.projection[0] };
+            return err;
+        };
         if (bound.plan.aggregate == .rows) {
             for (bound.plan.projection, 0..) |column, index| cells[count][index] = row.cells[column];
             selected[count] = .{ .cells = cells[count][0..bound.plan.projection.len] };
@@ -146,4 +178,39 @@ fn encode(schema: m.Schema, rows: []const m.Row, workspace: []u8, output: []u8) 
     var digest: [32]u8 = undefined;
     std.crypto.hash.sha2.Sha256.hash(bytes, &digest, .{});
     return .{ .bytes = bytes, .rows = @intCast(rows.len), .digest = digest };
+}
+
+test "runtime witnesses retain eager atom order, later-page rows and checked sum position" {
+    const t = std.testing;
+    const schema: m.Schema = .{ .columns = &.{ .{ .name = try m.Name.init("id"), .type = .int64 }, .{ .name = try m.Name.init("amount"), .type = .int64 } } };
+    const basis: m.Basis = .{ .kind = .table, .resource = 3, .revision = 7, .schema = try schema.fingerprint(), .contract = @splat(1) };
+    const predicate: m.Plan = .{ .projection = &.{1}, .predicate = .{ .program = try m.PredicateProgram.Owned.init(&.{
+        .{ .atom = .{ .compare = .{ .column = 0, .op = .eq, .value = .{ .int64 = 999 } } } },
+        .{ .atom = .{ .compare = .{ .column = 1, .op = .eq, .value = .{ .int64 = 0 } } } },
+        .conjunction,
+    }) } };
+    const bound = try predicate.bind(basis, schema);
+    var previous = Progress.start(bound);
+    previous.pages = 1;
+    previous.scanned = 8;
+    const page: m.Page = .{ .basis = basis, .ordinal = 1, .end = true, .rows = &.{.{ .cells = &.{ .{ .value = .{ .int64 = 1 } }, .{ .type_error = .utf8 } } }} };
+    var cancelled: f.execution.Cancellation = .init(false);
+    var detail: ?Failure = null;
+    try t.expectError(error.QueryTypeError, stepDiagnostic(bound, previous, page, &.{}, &.{}, &cancelled, &detail));
+    try t.expectEqualDeep(Failure{ .operation = .predicate, .row = 9, .page_row = 0, .column = 1, .instruction = 1 }, detail.?);
+    try t.expectEqual(@as(u64, 8), previous.scanned);
+    try t.expectError(error.QueryTypeError, step(bound, previous, page, &.{}, &.{}, &cancelled));
+    cancelled.store(true, .release);
+    try t.expectError(error.Cancelled, stepDiagnostic(bound, previous, page, &.{}, &.{}, &cancelled, &detail));
+    try t.expect(detail == null);
+    cancelled.store(false, .release);
+
+    const sum = try (m.Plan{ .projection = &.{1}, .aggregate = .sum }).bind(basis, schema);
+    const overflowing: m.Page = .{ .basis = basis, .ordinal = 0, .end = true, .rows = &.{
+        .{ .cells = &.{ .{ .value = .{ .int64 = -1 } }, .{ .value = .{ .int64 = std.math.maxInt(i64) } } } },
+        .{ .cells = &.{ .{ .value = .{ .int64 = 2 } }, .{ .value = .{ .int64 = 1 } } } },
+        .{ .cells = &.{ .{ .value = .{ .int64 = 3 } }, .{ .value = .{ .int64 = -1 } } } },
+    } };
+    try t.expectError(error.Overflow, stepDiagnostic(sum, .start(sum), overflowing, &.{}, &.{}, &cancelled, &detail));
+    try t.expectEqualDeep(Failure{ .operation = .sum, .row = 2, .page_row = 1, .column = 1 }, detail.?);
 }

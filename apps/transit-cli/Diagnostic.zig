@@ -3,6 +3,7 @@ const std = @import("std");
 const Self = @This();
 command: []const u8 = "transit",
 style: @import("Style.zig") = .{},
+envelope: ?@import("transit_query").protocol.Diagnostic = null,
 input: ?@import("InputPosition.zig") = null,
 sql: ?@import("transit_query").fuze.SqlDiagnostic = null,
 write: ?@import("WriteDiagnostic.zig") = null,
@@ -30,6 +31,7 @@ pub fn fail(self: *Self, err: anyerror, summary: []const u8, next: ?[]const u8) 
     return err;
 }
 pub fn setFailure(self: *Self, err: anyerror, summary: []const u8, next: ?[]const u8) void {
+    self.envelope = null;
     self.sql = null;
     self.write = null;
     self.source = null;
@@ -65,6 +67,7 @@ pub fn atArgument(self: *Self, index: ?usize, option: ?[]const u8) void {
 }
 pub fn atFile(self: *Self, file: []const u8) void {
     self.input = null;
+    self.envelope = null;
     self.sql = null;
     self.argument = null;
     self.option = null;
@@ -165,6 +168,9 @@ pub fn render(self: Self, out: *std.Io.Writer, err: anyerror) !void {
     if (self.input) |input| try input.render(out);
 }
 fn renderFailure(self: Self, out: *std.Io.Writer, err: anyerror) !void {
+    if (self.envelope) |value| {
+        if (value.validate()) |_| return @import("EnvelopeDiagnostic.zig").render(value, out) else |_| {}
+    }
     if (self.write) |diagnostic| return diagnostic.render(out, self.style);
     if (self.query) |query| {
         try self.style.text(out, .failure, "error: ");

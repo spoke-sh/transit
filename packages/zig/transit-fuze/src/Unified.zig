@@ -81,12 +81,20 @@ pub const Page = struct {
     ordinal: u64,
     rows: []const Row,
     end: bool,
+    pub const Failure = struct { row: u8, column: u8 };
     pub fn validate(self: Page, schema: Schema) !void {
+        return self.validateDiagnostic(schema, null);
+    }
+    pub fn validateDiagnostic(self: Page, schema: Schema, diagnostic: ?*?Failure) !void {
+        if (diagnostic) |detail| detail.* = null;
         try self.basis.validate(schema);
         if (self.rows.len > max_rows) return error.SourceBudgetExceeded;
-        for (self.rows) |row| {
+        for (self.rows, 0..) |row, row_index| {
             if (row.cells.len != schema.columns.len) return error.InvalidColumnCount;
-            for (row.cells, schema.columns) |cell, column| try cell.validate(column.type);
+            for (row.cells, schema.columns, 0..) |cell, column, column_index| cell.validate(column.type) catch |err| {
+                if (diagnostic) |detail| detail.* = .{ .row = @intCast(row_index), .column = @intCast(column_index) };
+                return err;
+            };
         }
     }
 };

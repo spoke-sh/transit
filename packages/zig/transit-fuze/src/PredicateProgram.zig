@@ -53,6 +53,9 @@ pub fn validate(self: Self, schema: m.Schema) !void {
 pub fn truth(self: Self, row: m.Row) !m.Truth {
     return machine.truth(self.instructions, row);
 }
+pub fn truthDiagnostic(self: Self, row: m.Row, instruction: ?*?u8) !m.Truth {
+    return machine.truthDiagnostic(self.instructions, row, instruction);
+}
 
 pub fn matches(self: Self, row: m.Row) !bool {
     return (try self.truth(row)).selects();

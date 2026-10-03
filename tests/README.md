@@ -12236,3 +12236,25 @@ not yet ABI/SDK structured-envelope parity.
 complete `.show`, then fail SQL binding, checking the second statement, completed
 command count and absolute source line/column after comments, CRLF and Unicode.
 Existing machine stdout, timing order, PTY/color and no-send negatives pass.
+
+### Interactive runtime evidence
+
+On 2026-10-02, standalone Fuze and query package tests pass. New cases verify
+later-page scan ordinals, eager predicate instruction order, SUM intermediate
+overflow despite a later compensating value, cancelled evaluation clearing old
+detail, owned binary/signed keys and KV decoder length evidence. Diagnostic JSON
+round trips exclude stored value payloads and preserve the frozen binding hash.
+
+`just test::interactive-query --source all` passes for Table, KV and Document,
+including measured page/segment/result-byte failures, incomplete output prefixes,
+zero durable updates, cancellation, broken output and current access denial.
+The Document run completes in 215.88 seconds. After extending current-access
+checks to budget enrichment, `just test::interactive-query --source kv` passes
+again in 3.24 seconds. Its new corrupt-input schedule uses the actual owner to
+write invalid UTF-8, then verifies an eager second-atom failure, exact binary key,
+column, scan row and decoding reason. Revocation at the enrichment read suppresses
+key/basis details; restoring permission and repairing the source recovers ordinary
+queries. Runtime enrichment does not reconstruct a row from a later read.
+
+These are volatile interactive witnesses. Durable storage/restart qualification
+for runtime row/expression context is not established by this increment.

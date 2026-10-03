@@ -108,6 +108,12 @@ whole-token replacement while respecting quotes, nested comments and UTF-8.
 Neither reads a catalog nor executes a statement. Callers filter expectations
 against their authorized schema and executable capability profile.
 
+`Unified.Stream.stepDiagnostic` optionally captures the first failing scan row,
+page row, source column, operation and postfix predicate instruction. Page cell
+validation and eager predicate evaluation retain their existing order. Its owned
+sidecar allocates no memory and does not change progress or publish a candidate
+on failure. Callers own source identities, frozen bases and disclosure checks.
+
 `Unified.Inspect.decode` validates that exact nested IPC schema and all cell
 states, conflict IDs/order, scalar widths, nullability and complete stream framing.
 Arrow allocations stay in caller-supplied workspace; decoded text/binary is copied

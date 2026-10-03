@@ -29,12 +29,19 @@ pub fn validateShape(instructions: anytype) !void {
 /// Schema admission precedes row processing in each owning plan profile.
 /// Recheck shape before stack access even for callers evaluating directly.
 pub fn truth(instructions: anytype, row: anytype) !Truth {
+    return truthDiagnostic(instructions, row, null);
+}
+pub fn truthDiagnostic(instructions: anytype, row: anytype, failed_instruction: ?*?u8) !Truth {
+    if (failed_instruction) |detail| detail.* = null;
     try validateShape(instructions);
     var stack: [max_instructions]Truth = undefined;
     var depth: usize = 0;
-    for (instructions) |instruction| switch (instruction) {
+    for (instructions, 0..) |instruction, index| switch (instruction) {
         .atom => |atom| {
-            stack[depth] = try atom.truth(row);
+            stack[depth] = atom.truth(row) catch |err| {
+                if (failed_instruction) |detail| detail.* = @intCast(index);
+                return err;
+            };
             depth += 1;
         },
         .negate => stack[depth - 1] = stack[depth - 1].negate(),

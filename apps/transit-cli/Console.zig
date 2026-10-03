@@ -248,6 +248,7 @@ pub const Console = struct {
         if (text.len == 0) return true;
         if (std.mem.eql(u8, text, ".quit")) return false;
         self.query_interrupted = false;
+        self.diagnostic.envelope = null;
         self.diagnostic.sql = null;
         self.diagnostic.write = null;
         self.diagnostic.query = null;
@@ -407,7 +408,7 @@ pub const Console = struct {
     }
     fn queryFailure(self: *Console, err: anyerror) anyerror {
         self.had_error = true;
-        if (err == error.InvalidTimingCommand or self.diagnostic.sql != null or self.diagnostic.write != null or self.diagnostic.query != null) return err;
+        if (err == error.InvalidTimingCommand or self.diagnostic.envelope != null or self.diagnostic.sql != null or self.diagnostic.write != null or self.diagnostic.query != null) return err;
         if (denied(err)) {
             self.access_lost = true;
             self.session.cursor = null;
