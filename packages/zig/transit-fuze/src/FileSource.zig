@@ -6,6 +6,7 @@ const types = @import("Types.zig");
 const framing = @import("FileFraming.zig");
 const inference = @import("Inference.zig");
 const values = types.Values;
+pub const BudgetDiagnostic = @import("BudgetDiagnostic.zig");
 pub const ValueDiagnostic = @import("FileValueDiagnostic.zig");
 pub const definition = "transit.fuze.source.v1.2026-09-30";
 pub const Mode = enum(u8) { explicit, sampled, full, raw };
@@ -137,6 +138,7 @@ const Reader = struct {
     record_bytes: u64 = 0,
     hash: std.crypto.hash.sha2.Sha256 = .init(.{}),
     verified: bool = false,
+    budget: ?BudgetDiagnostic = null,
     fn init(source: Source, options: Options, record: []u8) !Reader {
         try source.check(source.context);
         return .{ .source = source, .framer = try framing.Framer.init(options.format, options.dialect, record) };
@@ -157,7 +159,10 @@ const Reader = struct {
                 if (n == 0) {
                     if (self.offset != self.source.length or !std.mem.eql(u8, &self.hash.finalResult(), &self.source.digest)) return error.SourceChanged;
                     self.verified = true;
-                    try self.framer.finish();
+                    self.framer.finish() catch |err| {
+                        if (err == error.RecordTooLarge) self.budget = .{ .dimension = .record_bytes, .required = self.framer.length + 1, .limit = self.framer.buffer.len, .minimum = true };
+                        return err;
+                    };
                     if (!self.framer.ready) return null;
                     self.record_bytes = self.consumed - self.previous_record;
                     self.previous_record = self.consumed;
@@ -166,7 +171,10 @@ const Reader = struct {
                 self.hash.update(self.chunk[0..n]);
                 self.offset += n;
             }
-            const consumed = try self.framer.feed(self.chunk[self.chunk_offset..self.chunk_length]);
+            const consumed = self.framer.feed(self.chunk[self.chunk_offset..self.chunk_length]) catch |err| {
+                if (err == error.RecordTooLarge) self.budget = .{ .dimension = .record_bytes, .required = self.framer.length + 1, .limit = self.framer.buffer.len, .minimum = true };
+                return err;
+            };
             self.chunk_offset += consumed;
             self.consumed += consumed;
             if (self.framer.ready) {
@@ -182,20 +190,35 @@ const Header = struct {
     length: usize = 0,
     names: [128][]const u8 = undefined,
     count: usize = 0,
-    fn append(self: *Header, text: []const u8) !void {
+    fn append(self: *Header, text: []const u8, diagnostic: ?*Location) !void {
+        if (diagnostic) |location| {
+            location.name(text);
+            location.field_index = self.count;
+            if (text.len > 255) location.budget = .{ .dimension = .field_name_bytes, .required = text.len, .limit = 255 };
+        }
         if (text.len == 0 or text.len > 255 or std.mem.indexOfScalar(u8, text, 0) != null or !std.unicode.utf8ValidateSlice(text)) return error.InvalidFieldName;
-        if (self.count == self.names.len or text.len > self.storage.len - self.length) return error.FieldBudgetExceeded;
-        for (self.names[0..self.count]) |name| if (std.mem.eql(u8, name, text)) return error.DuplicateField;
+        if (self.count == self.names.len) {
+            if (diagnostic) |location| location.budget = .{ .dimension = .record_fields, .required = self.count + 1, .limit = self.names.len, .minimum = true };
+            return error.FieldBudgetExceeded;
+        }
+        if (text.len > self.storage.len - self.length) {
+            if (diagnostic) |location| location.budget = .{ .dimension = .header_name_bytes, .required = self.length + text.len, .limit = self.storage.len, .minimum = true };
+            return error.HeaderNameBudgetExceeded;
+        }
+        for (self.names[0..self.count], 0..) |name, index| if (std.mem.eql(u8, name, text)) {
+            if (diagnostic) |location| location.earlier_field_index = index;
+            return error.DuplicateField;
+        };
         @memcpy(self.storage[self.length..][0..text.len], text);
         self.names[self.count] = self.storage[self.length..][0..text.len];
         self.length += text.len;
         self.count += 1;
     }
-    fn fromFields(self: *Header, fields: []const framing.CsvField, has_header: bool) !void {
+    fn fromFields(self: *Header, fields: []const framing.CsvField, has_header: bool, diagnostic: ?*Location) !void {
         for (fields, 0..) |field, i| {
-            if (has_header) try self.append(field.text) else {
+            if (has_header) try self.append(field.text, diagnostic) else {
                 var text: [32]u8 = undefined;
-                try self.append(try std.fmt.bufPrint(&text, "column{d}", .{i + 1}));
+                try self.append(try std.fmt.bufPrint(&text, "column{d}", .{i + 1}), diagnostic);
             }
         }
     }
@@ -220,15 +243,17 @@ pub fn discoverDiagnostic(allocator: std.mem.Allocator, sources: []const Source,
         errdefer if (diagnostic) |location| {
             location.record = reader.logical_record;
             location.byte = reader.record_start;
+            if (reader.budget) |budget| location.budget = budget;
         };
         var header: Header = .{};
         var first = true;
         while (try reader.next()) |record| {
             var csv_fields: [128]framing.CsvField = undefined;
-            const row = if (options.format == .csv) try framing.csv(record, options.dialect, csv_fields[0..options.max_fields]) else &.{};
+            const row = if (options.format == .csv) try framing.csvDiagnostic(record, options.dialect, csv_fields[0..options.max_fields], if (diagnostic) |location| &location.budget else null) else &.{};
             if (options.format == .csv and first) {
-                try header.fromFields(row, options.dialect.header);
+                try header.fromFields(row, options.dialect.header, diagnostic);
                 for (header.names[0..header.count]) |name| _ = try builder.ensureField(0, name);
+                if (diagnostic) |location| location.* = .{ .source = source_index };
                 first = false;
                 if (options.dialect.header) {
                     if (options.mode == .explicit or options.mode == .raw) {
@@ -246,11 +271,14 @@ pub fn discoverDiagnostic(allocator: std.mem.Allocator, sources: []const Source,
                 evidence.complete = false;
                 break;
             }
-            if (evidence.records == options.max_records) return error.SourceWorkExceeded;
+            if (evidence.records == options.max_records) {
+                if (diagnostic) |location| location.budget = .{ .dimension = .scan_records, .required = evidence.records + 1, .limit = options.max_records, .minimum = true };
+                return error.SourceWorkExceeded;
+            }
             evidence.records += 1;
             evidence.sampled_bytes = std.math.add(u64, evidence.sampled_bytes, reader.record_bytes) catch return error.SourceBudgetExceeded;
             if (options.format == .csv) try builder.csvRow(header.names[0..header.count], row, false) else {
-                var parsed = try types.Json.parse(allocator, record, .{ .bytes = options.max_record_bytes, .fields = options.max_fields });
+                var parsed = try types.Json.parseDiagnostic(allocator, record, .{ .bytes = options.max_record_bytes, .fields = options.max_fields }, if (diagnostic) |location| &location.budget else null);
                 defer parsed.deinit();
                 try builder.jsonRow(parsed.value);
             }
@@ -267,9 +295,18 @@ pub fn discoverDiagnostic(allocator: std.mem.Allocator, sources: []const Source,
         break :blk try types.decode(allocator, try (types.Type{ .structure = &.{.{ .name = "record", .type = .json }} }).encode(&buffer));
     } else try builder.freeze(allocator, options.format == .csv, overrides);
     errdefer schema.deinit();
-    if (schema.type.structure.len > options.max_fields) return error.FieldBudgetExceeded;
+    if (schema.type.structure.len > options.max_fields) {
+        if (diagnostic) |location| location.budget = .{ .dimension = .schema_fields, .required = schema.type.structure.len, .limit = options.max_fields };
+        return error.FieldBudgetExceeded;
+    }
     if (options.format == .csv) for (schema.type.structure) |field| switch (field.type) {
-        .structure, .list, .array, .map, .tagged_union, .json, .interval => return error.UnsupportedCsvType,
+        .structure, .list, .array, .map, .tagged_union, .json, .interval => {
+            if (diagnostic) |location| {
+                location.name(field.name);
+                location.unsupported_type = field.type.tag();
+            }
+            return error.UnsupportedCsvType;
+        },
         else => {},
     };
     var origins: [128]Origin = @splat(.raw);
@@ -314,6 +351,10 @@ pub const Location = struct {
     field_len: usize = 0,
     field_truncated: bool = false,
     conversion: ?ValueDiagnostic = null,
+    budget: ?BudgetDiagnostic = null,
+    field_index: ?usize = null,
+    earlier_field_index: ?usize = null,
+    unsupported_type: ?types.Tag = null,
     pub fn context(self: *Location, name_value: []const u8) ValueDiagnostic.Context {
         self.name(name_value);
         return .{ .failure = &self.conversion, .path = (ValueDiagnostic.Path{}).field(name_value) };
@@ -350,6 +391,7 @@ pub const Scan = struct {
         if (self.reader) |reader| {
             result.record = reader.logical_record;
             result.byte = reader.record_start;
+            if (reader.budget) |budget| result.budget = budget;
         }
         return result;
     }
@@ -396,9 +438,9 @@ pub const Scan = struct {
             const cells = try alloc.alloc(values.Cell, schema.len);
             if (self.binding.options.format == .csv) {
                 var fields: [128]framing.CsvField = undefined;
-                const parsed = try framing.csv(record, self.binding.options.dialect, fields[0..self.binding.options.max_fields]);
+                const parsed = try framing.csvDiagnostic(record, self.binding.options.dialect, fields[0..self.binding.options.max_fields], &self.location.budget);
                 if (self.header.count == 0) {
-                    try self.header.fromFields(parsed, self.binding.options.dialect.header);
+                    try self.header.fromFields(parsed, self.binding.options.dialect.header, &self.location);
                     for (self.header.names[0..self.header.count]) |name| if (findField(schema, name) == null) {
                         self.location.context(name).capture(null, .{ .string = name });
                         return error.UnknownField;
@@ -408,6 +450,7 @@ pub const Scan = struct {
                         continue;
                     }
                 }
+                self.location = .{};
                 if (parsed.len != self.header.count) {
                     self.location.conversion = ValueDiagnostic.init(.{}, .{ .structure = schema }, null);
                     self.location.conversion.?.actual = .array;
@@ -430,7 +473,7 @@ pub const Scan = struct {
                     try context.validate(cell.*, field, if (index) |i| if (parsed[i].is_null) .null else .{ .string = parsed[i].text } else null);
                 }
             } else {
-                var parsed = try types.Json.parse(alloc, record, .{ .bytes = self.binding.options.max_record_bytes, .fields = self.binding.options.max_fields });
+                var parsed = try types.Json.parseDiagnostic(alloc, record, .{ .bytes = self.binding.options.max_record_bytes, .fields = self.binding.options.max_fields }, &self.location.budget);
                 defer parsed.deinit();
                 if (parsed.value != .object) {
                     self.location.conversion = ValueDiagnostic.init(.{}, .{ .structure = schema }, parsed.value);
@@ -450,7 +493,10 @@ pub const Scan = struct {
                     }
                 }
             }
-            if (self.records == self.binding.options.max_records) return error.SourceWorkExceeded;
+            if (self.records == self.binding.options.max_records) {
+                self.location.budget = .{ .dimension = .scan_records, .required = self.records + 1, .limit = self.binding.options.max_records, .minimum = true };
+                return error.SourceWorkExceeded;
+            }
             self.records += 1;
             try self.sources[self.file].check(self.sources[self.file].context);
             return .{ .arena = arena, .cells = cells };

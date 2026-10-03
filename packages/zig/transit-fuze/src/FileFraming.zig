@@ -1,6 +1,7 @@
 //! Incremental CSV/JSONL framing over caller-supplied chunks. One record borrows
 //! a caller-owned buffer. Release it before feeding again; no I/O is performed.
 const std = @import("std");
+const BudgetDiagnostic = @import("BudgetDiagnostic.zig");
 pub const Format = enum { csv, jsonl };
 pub const Dialect = struct {
     delimiter: u8 = ',',
@@ -120,13 +121,19 @@ pub const CsvField = struct { text: []const u8, quoted: bool, is_null: bool };
 /// Decodes quoting in place. Returned text borrows record. All columns are
 /// decoded/validated, including fields a later projection might discard.
 pub fn csv(record: []u8, dialect: Dialect, output: []CsvField) ![]const CsvField {
+    return csvDiagnostic(record, dialect, output, null);
+}
+pub fn csvDiagnostic(record: []u8, dialect: Dialect, output: []CsvField, diagnostic: ?*?BudgetDiagnostic) ![]const CsvField {
     try dialect.validate();
     if (!std.unicode.utf8ValidateSlice(record)) return error.InvalidUtf8;
     var input: usize = 0;
     var target: usize = 0;
     var count: usize = 0;
     while (true) {
-        if (count == output.len) return error.FieldBudgetExceeded;
+        if (count == output.len) {
+            BudgetDiagnostic.save(diagnostic, .{ .dimension = .record_fields, .required = count + 1, .limit = output.len, .minimum = true });
+            return error.FieldBudgetExceeded;
+        }
         const start = target;
         const quoted = input < record.len and record[input] == dialect.quote;
         if (quoted) {

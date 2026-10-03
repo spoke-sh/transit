@@ -24,21 +24,42 @@ fn read(context: *anyopaque, offset: u64, output: []u8) !usize {
 pub fn source(self: *Self) f.FileSource.Source {
     return .{ .context = self, .read = read, .check = check, .length = self.length, .digest = self.digest };
 }
-fn temporary(init: std.process.Init) !Self {
+pub const Failure = struct {
+    phase: enum { source_open, source_stat, capture_directory, capture_create, capture_unlink, source_read, capture_write, decompress, capture_read },
+    directory: ?[]const u8 = null,
+    pub fn storage(self: Failure) bool {
+        return switch (self.phase) {
+            .capture_directory, .capture_create, .capture_unlink, .capture_write => true,
+            else => false,
+        };
+    }
+};
+fn mark(diagnostic: ?*Failure, phase: @FieldType(Failure, "phase")) void {
+    if (diagnostic) |value| value.phase = phase;
+}
+fn temporary(init: std.process.Init, diagnostic: ?*Failure) !Self {
+    mark(diagnostic, .capture_directory);
+    if (diagnostic) |value| value.directory = init.environ_map.get("TMPDIR") orelse "/tmp";
     var directory = try std.Io.Dir.cwd().openDir(init.io, init.environ_map.get("TMPDIR") orelse "/tmp", .{});
     defer directory.close(init.io);
     var random: [16]u8 = undefined;
     init.io.random(&random);
     var name_buffer: [80]u8 = undefined;
     const name = try std.fmt.bufPrint(&name_buffer, "transit-file-{x}", .{random});
+    mark(diagnostic, .capture_create);
     const file = try directory.createFile(init.io, name, .{ .read = true, .exclusive = true, .permissions = .fromMode(0o600) });
     errdefer file.close(init.io);
     // The open descriptor keeps bytes alive. Normal cleanup and process death
     // both release storage without leaving a named capture to replay by mistake.
+    mark(diagnostic, .capture_unlink);
     try directory.deleteFile(init.io, name);
     return .{ .io = init.io, .file = file };
 }
 pub fn acquire(init: std.process.Init, path: []const u8, encoded_remaining: *u64, expanded_remaining: *u64, gzip: bool) !Self {
+    return acquireDiagnostic(init, path, encoded_remaining, expanded_remaining, gzip, null);
+}
+pub fn acquireDiagnostic(init: std.process.Init, path: []const u8, encoded_remaining: *u64, expanded_remaining: *u64, gzip: bool, diagnostic: ?*Failure) !Self {
+    mark(diagnostic, .source_open);
     try check(undefined);
     const stdin = std.mem.eql(u8, path, "-");
     const input: std.Io.File = if (stdin) .stdin() else blk: {
@@ -49,13 +70,15 @@ pub fn acquire(init: std.process.Init, path: []const u8, encoded_remaining: *u64
         break :blk .{ .handle = fd, .flags = .{ .nonblocking = true } };
     };
     defer if (!stdin) input.close(init.io);
+    mark(diagnostic, .source_stat);
     const before = try input.stat(init.io);
     if (!stdin and before.kind != .file) return error.NonRegularSourcePath;
-    var captured = try temporary(init);
+    var captured = try temporary(init, diagnostic);
     errdefer captured.close();
     var hash = std.crypto.hash.sha2.Sha256.init(.{});
     var bytes: [65536]u8 = undefined;
     while (true) {
+        mark(diagnostic, .source_read);
         try check(undefined);
         if (stdin) {
             var poll: [1]std.c.pollfd = .{.{ .fd = input.handle, .events = std.c.POLL.IN, .revents = 0 }};
@@ -76,10 +99,12 @@ pub fn acquire(init: std.process.Init, path: []const u8, encoded_remaining: *u64
         if (length > encoded_remaining.* or (!gzip and length > expanded_remaining.*)) return error.CaptureQuotaExceeded;
         encoded_remaining.* -= length;
         if (!gzip) expanded_remaining.* -= length;
+        mark(diagnostic, .capture_write);
         try captured.file.writeStreamingAll(init.io, bytes[0..length]);
         hash.update(bytes[0..length]);
         captured.length += length;
     }
+    mark(diagnostic, .source_stat);
     if (before.kind == .file) {
         const after = try input.stat(init.io);
         if (before.inode != after.inode or before.size != after.size or
@@ -88,7 +113,7 @@ pub fn acquire(init: std.process.Init, path: []const u8, encoded_remaining: *u64
     }
     captured.digest = hash.finalResult();
     if (!gzip) return captured;
-    const expanded = try expand(init, &captured, expanded_remaining);
+    const expanded = try expand(init, &captured, expanded_remaining, diagnostic);
     captured.close();
     return expanded;
 }
@@ -145,15 +170,19 @@ fn gzipHeader(reader: *std.Io.Reader) !void {
         if (try reader.takeInt(u16, .little) != @as(u16, @truncate(crc.final()))) return error.InvalidGzipHeaderCrc;
     }
 }
-fn expand(init: std.process.Init, encoded: *Self, remaining: *u64) !Self {
+fn expand(init: std.process.Init, encoded: *Self, remaining: *u64, diagnostic: ?*Failure) !Self {
     var buffer: [8192]u8 = undefined;
     var input: CheckedReader = .{ .capture = encoded, .reader = .{ .buffer = &buffer, .seek = 0, .end = 0, .vtable = &.{ .stream = CheckedReader.stream } } };
-    var output = try temporary(init);
+    var output = try temporary(init, diagnostic);
     errdefer output.close();
-    expandInner(init, &input, &output, remaining) catch |err| return input.cause orelse err;
+    expandInner(init, &input, &output, remaining, diagnostic) catch |err| {
+        if (input.cause != null) mark(diagnostic, .capture_read);
+        return input.cause orelse err;
+    };
     return output;
 }
-fn expandInner(init: std.process.Init, input: *CheckedReader, output: *Self, remaining: *u64) !void {
+fn expandInner(init: std.process.Init, input: *CheckedReader, output: *Self, remaining: *u64, diagnostic: ?*Failure) !void {
+    mark(diagnostic, .decompress);
     try gzipHeader(&input.reader);
     var window: [std.compress.flate.max_window_len]u8 = undefined;
     var inflater: std.compress.flate.Decompress = .init(&input.reader, .raw, &window);
@@ -162,10 +191,12 @@ fn expandInner(init: std.process.Init, input: *CheckedReader, output: *Self, rem
     var bytes: [65536]u8 = undefined;
     while (true) {
         try check(undefined);
+        mark(diagnostic, .decompress);
         const count = inflater.reader.readSliceShort(&bytes) catch |err| return inflater.err orelse err;
         if (count == 0) break;
         if (count > remaining.*) return error.CaptureQuotaExceeded;
         remaining.* -= count;
+        mark(diagnostic, .capture_write);
         try output.file.writeStreamingAll(init.io, bytes[0..count]);
         output.length += count;
         hash.update(bytes[0..count]);

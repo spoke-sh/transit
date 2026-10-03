@@ -747,7 +747,8 @@ with tempfile.TemporaryDirectory(prefix='transit-cli-json-') as directory:
     csv.write_text('id,value\n1,100\n2,200\n')
     _,detail,_ = machine(['file-query','--format','csv','--max-records','1','-c','SELECT * FROM input',csv])
     assert detail['code'] == 'file.record_count_limit' and facts(detail)['limit'] == {'unsigned':'1'}
-    assert any(item and item['field'] == 'required' and item['availability'] == 'unrecorded' for item in detail['facts'])
+    assert facts(detail)['required'] == {'unsigned':'2'}
+    assert 'measured minimum' in facts(detail)['constraint']['text']
     with open('/dev/full','wb') as output:
         _,detail,_ = machine(['file-query','--format','csv','-c','SELECT * FROM input',csv],out=output)
     assert detail['code'] == 'file.output_incomplete' and detail['stage'] == 'output'
@@ -763,6 +764,102 @@ with tempfile.TemporaryDirectory(prefix='transit-cli-json-') as directory:
     assert detail['code'] == 'file.invalid_literal'
     preview = next(item for item in detail['facts'] if item and item['field']=='supplied_value')
     assert preview['availability'] == 'truncated' and preview['value']['text'] == '界'*42, preview
+    # Every expected source/schema failure crosses the actual executable boundary.
+    cases = [
+        ('jsonl', b'\n', [], 'file.empty_json_record'),
+        ('jsonl', b'{"id":1}\r', [], 'file.invalid_line_ending'),
+        ('csv', b'id\r1\n', [], 'file.invalid_line_ending'),
+        ('csv', b',value\n1,2\n', [], 'file.invalid_field_name'),
+        ('csv', b'id,id\n1,2\n', [], 'file.duplicate_field'),
+        ('csv', b'a'*256+b'\n1\n', [], 'file.invalid_field_name'),
+        ('csv', b'a\x00b\n1\n', [], 'file.invalid_field_name'),
+        ('csv', b'id,value,extra\n1,2,3\n', ['--max-fields','2'], 'file.field_count_limit'),
+        ('csv', b','.join((str(i)+'x'*250).encode() for i in range(18))+b'\n', [], 'file.header_name_byte_limit'),
+        ('csv', b'id\n123456789\n', ['--max-record-bytes','8'], 'file.record_byte_limit'),
+        ('jsonl', b'{"id":1\n', [], 'file.invalid_json'),
+        ('jsonl', b'{"id":1,"id":2}\n', [], 'file.duplicate_field'),
+        ('jsonl', b'{"a":1,"b":2,"c":3}\n', ['--max-fields','2'], 'file.json_field_limit'),
+        ('jsonl', b'{"a":'+b'['*17+b'1'+b']'*17+b'}\n', [], 'file.json_depth_limit'),
+        ('jsonl', b'{"a":['+b','.join([b'1']*5000)+b']}\n', [], 'file.json_token_limit'),
+        ('jsonl', json.dumps({str(i)+'x'*64:1 for i in range(100)}).encode()+b'\n', [], 'file.inference_name_limit'),
+        ('jsonl', json.dumps({str(i):{'a':1,'b':2} for i in range(100)}).encode()+b'\n', [], 'file.inference_node_limit'),
+        ('jsonl', b'{"a":'+b'['*15+b'1'+b']'*15+b'}\n', [], 'file.inference_depth_limit'),
+    ]
+    for format, content, options, code in cases:
+        source = root/('bad.'+format); source.write_bytes(content)
+        result,detail,_ = machine(['file-query','--format',format,*options,'-c','SELECT * FROM input',source])
+        assert detail['code'] == code, (code,detail)
+        assert not result.stdout and facts(detail)['completion'] == {'boolean':False}, (code,result.stdout)
+        assert detail['stage'] == 'decode', detail
+        if code == 'file.duplicate_field' and format == 'csv':
+            assert facts(detail)['field_path'] == {'text':'id'} and facts(detail)['column'] == {'unsigned':'1'}
+            assert facts(detail)['first_occurrence'] == {'unsigned':'0'}
+        if code == 'file.header_name_byte_limit':
+            assert facts(detail)['budget'] == {'text':'header_name_bytes'} and facts(detail)['limit'] == {'unsigned':'4096'}
+            assert int(facts(detail)['required']['unsigned']) > 4096
+        if code == 'file.json_field_limit':
+            assert facts(detail)['required'] == {'unsigned':'3'} and facts(detail)['limit'] == {'unsigned':'2'}
+        if code == 'file.record_byte_limit':
+            assert facts(detail)['required'] == {'unsigned':'9'} and facts(detail)['limit'] == {'unsigned':'8'}
+    schema = root/'schema.json'
+    schema_definition = 'transit.fuze.types.v1.2026-09-30'
+    def schema_value(type):
+        return {'definition':schema_definition,'type':{'structure':[{'name':'id','type':type}]}}
+    csv.write_text('id\n1\n')
+    schemas = [
+        ('{', 'file.invalid_json'),
+        ('{}', 'file.invalid_schema_descriptor'),
+        (json.dumps({'definition':'foreign','type':{'structure':[{'name':'id','type':{'int64':{}}}]}}), 'file.incompatible_type_definition'),
+        (json.dumps(schema_value({'unknown':{}})), 'file.invalid_schema_descriptor'),
+        (json.dumps(schema_value({'decimal':{'precision':39,'scale':0}})), 'file.invalid_decimal_type'),
+        (json.dumps(schema_value({'structure':[{'name':'x','type':{'int64':{}}}]})), 'file.unsupported_csv_type'),
+        (' '*65537, 'file.schema_file_limit'),
+    ]
+    for content,code in schemas:
+        schema.write_text(content)
+        result,detail,_ = machine(['file-query','--format','csv','--mode','explicit','--schema',schema,'-c','SELECT * FROM input',csv])
+        assert detail['code'] == code and detail['stage'] == 'decode', detail
+        assert not result.stdout
+        if code != 'file.unsupported_csv_type':
+            assert facts(detail)['object']['text'] == str(schema), detail
+        else:
+            assert facts(detail)['field_path'] == {'text':'id'} and facts(detail)['actual_type'] == {'text':'structure'}
+    for option,value,explanation in [('--max-record-bytes','65537','65536'),('--max-fields','129','128'),('--delimiter','\t','printable ASCII')]:
+        _,detail,_ = machine(['file-query','--format','csv',option,value,'-c','SELECT * FROM input',csv],2)
+        assert facts(detail)['option'] == {'text':option} and explanation in detail['message'], detail
+    # Escaping can exceed the output bound even with a bounded input record.
+    csv.write_bytes(b'id\n'+b'\x00'*50000+b'\n')
+    result,detail,_ = machine(['file-query','--format','csv','--mode','raw','-c','SELECT * FROM input',csv])
+    assert detail['code'] == 'file.output_record_limit' and detail['stage'] == 'output', detail
+    assert facts(detail)['budget'] == {'text':'output_record_bytes'} and facts(detail)['limit'] == {'unsigned':'262144'}
+    assert int(facts(detail)['required']['unsigned']) > 262144
+    assert len(result.stdout.splitlines()) == 1 and b'"complete":{' not in result.stdout
+    # Local spool failures cannot be mistaken for a bad source path or stdout.
+    csv.write_text('id\n1\n')
+    missing_spool = root/'missing-spool'
+    _,detail,_ = machine(['file-query','--format','csv','-c','SELECT * FROM input',csv],env=dict(ENV,TMPDIR=str(missing_spool)))
+    assert detail['code'] == 'file.capture_storage_unavailable' and detail['stage'] == 'input', detail
+    assert facts(detail)['scope'] == {'text':str(missing_spool)} and facts(detail)['operation'] == {'text':'capture_directory'}
+    # Valid gzip envelope around a reserved DEFLATE block type.
+    compressed = root/'invalid.gz'
+    compressed.write_bytes(bytes.fromhex('1f8b0800000000000003070000000000000000'))
+    _,detail,_ = machine(['file-query','--format','csv','--gzip','-c','SELECT * FROM input',compressed])
+    assert detail['code'] == 'file.invalid_deflate' and detail['cause'] == 'InvalidBlockType', detail
+    # Record positions are local to the actual failing file, including headers.
+    csv.write_text('id\n1\n')
+    later = root/'later.csv'; later.write_text('id,id\n2,3\n')
+    _,detail,_ = machine(['file-query','--format','csv','-c','SELECT * FROM input',csv,later])
+    assert detail['code'] == 'file.duplicate_field' and facts(detail)['object'] == {'text':str(later)}
+    assert facts(detail)['source_row'] == {'unsigned':'1'} and facts(detail)['byte_offset'] == {'unsigned':'0'}
+    # Fixed Arrow encoding capacity is distinct from a downstream write failure.
+    csv.write_bytes(b'id\n'+b'x'*65530+b'\n')
+    result,detail,_ = machine(['file-query','--format','csv','--mode','raw','--output','arrow','-c','SELECT * FROM input',csv])
+    assert detail['code'] == 'file.arrow_segment_limit' and detail['stage'] == 'output', detail
+    assert facts(detail)['budget'] == {'text':'arrow_segment_bytes'} and facts(detail)['limit'] == {'unsigned':'65536'}
+    assert result.stdout and facts(detail)['completion'] == {'boolean':False}
+    for content,description in [(b'id\n"unfinished', 'closing quote'), (b'id\nwrong"quote\n', 'CSV quoting is malformed'), (b'id\n\xff\n', 'invalid UTF-8')]:
+        csv.write_bytes(content)
+        invoke(['file-query','--format','csv','-c','SELECT * FROM input',csv],1,contains=(description,))
     # Successful stdout remains byte-identical in the opt-in mode.
     csv.write_text('id,value\n1,100\n')
     arguments = ['file-query','--format','csv','-c','SELECT * FROM input',str(csv)]

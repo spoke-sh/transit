@@ -179,6 +179,12 @@ chunk plus one record buffer. Discovery retains bounded schema evidence, not
 sample rows; each JSON parse/row allocation is released before the next.
 JSON separately limits depth to 16, syntax tokens to 4096 and fields per object
 to the configured field limit. Values enforce their own child/byte budgets.
+Diagnostic discovery and scan positions retain the failing CSV header name,
+zero-based position and duplicate's earlier position. Header-name storage has a
+separate 4096-byte bound. Record/field/JSON checks retain the observed required
+amount and limit; a stopped prefix explicitly establishes only a minimum.
+`BoundedJson.parseDiagnostic` and `preflightDiagnostic` expose the same measured
+budget witness to typed hosts. Ordinary parsing and source semantics are unchanged.
 
 The [source contract](../../../../contracts/FUZE_SOURCE_V1.md) owns the binding
 format. The [type contract](../../../../contracts/FUZE_TYPES_V1.md) owns descriptor

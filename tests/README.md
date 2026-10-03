@@ -6,6 +6,32 @@ earlier entry refers to that entry's source, not automatically to HEAD. The late
 records its reruns and remaining qualification separately; earlier consolidation
 results do not qualify the changed stored layout by inheritance.
 
+## File diagnostic boundary evidence — 2026-10-03
+
+Pinned `just test::unit`, `just test::cli-diagnostics` and `just test::file-query`
+pass. The final real CLI matrix has **517 cases**, including empty JSONL records,
+CR framing, invalid/duplicate header names and original positions, separate
+header-byte and field-count bounds, JSON depth/token/object-field limits,
+inference bounds, malformed/incompatible schemas, unsupported CSV types,
+exact option attribution, output expansion, temporary capture directory failure,
+invalid DEFLATE, second-file attribution and Arrow segment capacity. Required
+amounts come from the original check; prefix measurements explicitly establish
+only a minimum. The existing **190 file-query cases** also pass, including
+cancellation/cleanup, immutable capture, gzip, quotas and 192 MiB input under a
+96 MiB address-space limit. JSON/Arrow completion rules and successful stdout
+remain unchanged.
+
+Logs: `/var/tmp/transit-file-witness-third.log` (unit and initial CLI matrix),
+`/var/tmp/transit-file-witness-fourth.log` (final focused CLI/file proof).
+The first focused attempt stopped at an old assertion that required amounts were
+unrecorded; the replacement assertion verifies the actual stopping count.
+Full `just check` passes in `/var/tmp/transit-file-witness-check.log`, including
+514 CLI cases, generated contracts, native/frontend checks and the handbook build.
+A subsequent focused CLI rerun adds three human quote/UTF-8 explanation checks
+and passes all 517 cases (`/var/tmp/transit-file-witness-final-cli.log`).
+These checks do not establish complete recursive descriptor attribution, the
+semantic inventory gate or committed-HEAD clean qualification.
+
 ## Console scrollback and diagnostic highlighting — 2026-10-02
 
 Submitted SQL and dot commands use the draft's token colors when committed to

@@ -129,7 +129,18 @@ an incomplete final JSON line. Aggregates appear only after source verification.
 
 `transit --diagnostics=json file-query ...` emits the shared structured error
 on stderr. It retains exact scalar/type/path evidence, frozen runtime basis and
-known budget limits. Unrecorded required amounts are explicitly absent. Its
+known budget limits. CSV header errors identify the field and its zero-based
+position; duplicate headers also identify the first occurrence. Header-name bytes
+and field counts have separate limits. Unsupported CSV fields identify their
+logical type. Malformed schema files are attributed to schema decoding and to
+the schema path.
+
+Record, field, JSON shape and output-record limits retain measurements from the
+failing boundary. A measured prefix is explicitly a minimum; the command does
+not read the rest of an oversized input to invent a total. Unrecorded required
+amounts are explicitly absent. Temporary capture failures identify their storage
+operation and directory. Invalid DEFLATE data, bounded Arrow encoding failures
+and downstream output failures have separate codes. Its
 `completion: false` fact describes the result; it never claims a durable mutation
 outcome. Successful JSON/Arrow stdout is unchanged. Scalar previews truncate at
 whole UTF-8 code points.
