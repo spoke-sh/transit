@@ -158,28 +158,49 @@ pub fn bound(value: r.Status, request: q.TableMutationRequest, name: ?q.fuze.mod
 }
 
 // Caller attempt evidence is independent of a saved domain outcome.
-const AttemptInfo = struct { code: []const u8, category: d.Category, message: []const u8 };
-fn attemptInfo(cause: anyerror) AttemptInfo {
-    return switch (cause) {
-        error.MutationDenied, error.MutationPrincipalMismatch, error.AccessDenied => .{ .code = "mutation.access_denied", .category = .access, .message = "The current principal or writer policy does not permit this operation. Query read access does not grant writes." },
-        error.MutationWriterUnavailable, error.ResourceUnavailable => .{ .code = "mutation.writer_unavailable", .category = .unavailable, .message = "The configured writer is unavailable. Preserve the original saved command and inspect the writer before continuing." },
-        error.MutationBusy => .{ .code = "mutation.writer_busy", .category = .lifecycle, .message = "The writer has an active mutation upload. Inspect and reconcile that upload before preparing different work." },
-        error.MutationIdentityConflict, error.Conflict => .{ .code = "mutation.identity_conflict", .category = .conflict, .message = "The supplied identity conflicts with the original mutation or writer scope. Preserve the original request and inspect its status." },
-        error.StaleMutationPolicy => .{ .code = "mutation.stale_policy", .category = .conflict, .message = "The expected mutation policy revision changed. Inspect current writer policy and the original saved mutation separately." },
-        error.MutationSourceChanged, error.TableSchemaChanged => .{ .code = "mutation.source_changed", .category = .conflict, .message = "The Table descriptor does not match the configured mutation policy or request. Inspect the write target before preparing another statement." },
-        error.MutationNotFound, error.TableNotFound => .{ .code = "mutation.target_missing", .category = .lifecycle, .message = "The requested mutation or Table is absent in the configured writer scope. Check that scope and preserve any original saved identity." },
-        error.MutationNotActive, error.MutationUploadClosed => .{ .code = "mutation.upload_not_active", .category = .lifecycle, .message = "This upload cannot accept the requested step. Inspect its saved status and reconcile the original request." },
-        error.InvalidMutationPrepared, error.InvalidMutationConnection, error.InvalidTableMutationRequest, error.InvalidMutationCommand, error.InvalidMutationPlan, error.InvalidQueryInteger, error.InvalidHex, error.InvalidColumnName, error.InvalidMutationColumns => .{ .code = "mutation.invalid_command", .category = .binding, .message = "The mutation input, scope or saved command is invalid. Use the original connection and canonical request bytes." },
-        error.InvalidMutationRecord => .{ .code = "mutation.invalid_record", .category = .integrity, .message = "The recorded mutation metadata is inconsistent. Preserve the original request and records for inspection." },
-        error.SignatureVerificationFailed => .{ .code = "mutation.invalid_signature", .category = .integrity, .message = "The saved command signature is invalid. Preserve the original bytes and signing identity; no command was sent." },
-        error.IncompatibleDefinition => .{ .code = "mutation.incompatible_definition", .category = .integrity, .message = "The saved command or peer uses a different contract definition. Use matching binaries and preserve the original bytes; no fallback reinterprets accepted work." },
-        error.OutOfMemory, error.Unavailable, error.ConnectionRefused, error.ConnectionResetByPeer, error.ConnectionTimedOut, error.Timeout, error.Canceled => .{ .code = "mutation.unavailable", .category = .unavailable, .message = "The operation could not complete because a required resource or transport is unavailable. Preserve any saved command and its previously observed outcome." },
-        else => .{ .code = "mutation.internal_failure", .category = .internal, .message = "The caller could not complete this operation. Preserve saved work and inspect its original status; this failure does not establish its outcome." },
-    };
+pub const codes = @import("MutationCodes.zig");
+fn attemptInfo(cause: anyerror) codes.Entry {
+    return codes.fromError(cause) orelse .{ .cause = cause, .code = "mutation.internal_failure", .category = .internal, .message = "The caller could not complete this operation. Preserve saved work and inspect its original status; this failure does not establish its outcome." };
 }
 pub fn category(action: q.TableMutationBridge.Action, cause: anyerror) d.Category {
     if (action == .compile) if (q.fuze.SqlDiagnostic.category(cause)) |value| return value;
     return attemptInfo(cause).category;
+}
+/// Only the exact caller reference supplies a mutation namespace. In particular,
+/// the status string is encoded publication bytes, not a decimal namespace.
+fn selected(action: q.TableMutationBridge.Action) ?d.Identity {
+    const text = switch (action) {
+        .status => |value| value,
+        .next => |value| value.reference,
+        .prepare => |value| switch (value) {
+            .begin => |v| v.reference,
+            .part => |v| v.reference,
+            inline .seal, .apply, .cancel => |v| v,
+        },
+        inline .observe, .rejection => |value| {
+            if (value.input == 0 or value.input > q.protocol.max_counter) return null;
+            return .{ .domain = .transport, .id = .init(value.input) };
+        },
+        else => return null,
+    };
+    var buffer: [q.station.PublicationReference.encoded_bytes]u8 = undefined;
+    var allocator = std.heap.FixedBufferAllocator.init(&buffer);
+    const ref = q.TableMutationBridge.reference(allocator.allocator(), text) catch return null;
+    return .{ .domain = .mutation, .id = .init(ref.namespace), .resource = .init(ref.resource) };
+}
+
+/// Connection scope qualifies caller context only; it proves no read or outcome.
+/// A reference's original resource is retained even when it mismatches this client.
+pub fn qualify(out: *?d, connection: q.TableMutationClient.Connection, native: ?q.protocol.ErrorCode) void {
+    if (out.*) |*detail| {
+        if (detail.identity) |*identity| {
+            if (identity.realm == null) identity.realm = .init(connection.realm);
+            for (&detail.actions) |*slot| if (slot.*) |*action| {
+                action.target = identity.*;
+            };
+        }
+        if (native) |cause| detail.text(.native_cause, .authority, @tagName(cause)) catch {};
+    }
 }
 pub fn attempt(action: q.TableMutationBridge.Action, cause: anyerror, binding: q.fuze.Sql.Binding, dispatched: bool, identity: ?d.Identity) !d {
     if (action == .compile) if (q.fuze.SqlDiagnostic.writeCompiler(action.compile.sql, cause, .mutation, binding)) |detail| return detail.structured();
@@ -199,7 +220,8 @@ pub fn attempt(action: q.TableMutationBridge.Action, cause: anyerror, binding: q
     else
         try d.init(info.code, info.category, stage, if (stage == .read) .not_applicable else .not_submitted, if (stage == .read) .none else .local_before_dispatch, info.message);
     result.cause = try d.Code.init(@errorName(cause));
-    result.identity = identity;
+    result.identity = identity orelse selected(action);
+    if (!sending and cause == error.EndOfStream) try result.absent(.source_kind, .owner, .unrecorded);
     try result.text(.operation, .caller, @tagName(action));
     if (sending) {
         try result.action(.inspect_status);
@@ -239,4 +261,41 @@ pub fn artifact(operation: []const u8, cause: anyerror) !d {
     });
     try value.validate();
     return value;
+}
+
+test "every mutation caller cause preserves failed-read and dispatch evidence" {
+    const t = std.testing;
+    const table: q.station.Table = .{ .resource = 7, .id = 1, .schema = .{ .names = .{ try .init("id"), try .init("value") }, .value_type = .int64 } };
+    const request = try q.TableMutationRequest.fromSql(46, 65536, table, try .init("items"), "DELETE FROM items WHERE id=1");
+    const ref = try request.reference(std.math.maxInt(u64));
+    const text = try q.document.JsonValues.hex(t.allocator, (try ref.encode()).slice());
+    defer t.allocator.free(text);
+    for (codes.entries) |entry| {
+        var read: ?d = try attempt(.{ .status = text }, entry.cause, .{}, false, null);
+        qualify(&read, .{ .realm = 46, .principal = 1234, .writer = 65536, .resource = 8, .table = 1 }, null);
+        try read.?.validate();
+        try t.expectEqualStrings(entry.code, read.?.code.slice());
+        try t.expectEqual(entry.category, read.?.category);
+        try t.expectEqual(.not_applicable, read.?.outcome);
+        try t.expectEqual(.none, read.?.evidence);
+        try t.expectEqual(std.math.maxInt(u64), try read.?.identity.?.id.value());
+        try t.expectEqual(@as(u64, 7), try read.?.identity.?.resource.?.value());
+        try t.expectEqual(@as(u64, 46), try read.?.identity.?.realm.?.value());
+        for (read.?.actions) |slot| if (slot) |action| {
+            try t.expectEqualDeep(read.?.identity, action.target);
+            try t.expect(action.kind != .resume_exact and action.kind != .cancel_mutation);
+        };
+        const send = try attempt(.{ .submit = "original" }, entry.cause, .{}, true, .{ .domain = .transport, .id = .init(12), .sequence = .init(12) });
+        const rejected = entry.cause == error.AccessDenied or entry.cause == error.Conflict or entry.cause == error.Rejected;
+        try t.expectEqual(if (rejected) d.Outcome.not_applicable else .unknown, send.outcome);
+        try t.expectEqual(if (rejected) d.Evidence.none else .saved_intent, send.evidence);
+        try t.expectEqual(if (rejected) d.ActionKind.inspect_scope else .resume_exact, send.actions[1].?.kind);
+    }
+    try t.expect((try attempt(.{ .status = "18446744073709551615" }, error.InvalidTableMutationRequest, .{}, false, null)).identity == null);
+    try t.expect((try attempt(.{ .status = "00" }, error.InvalidPublicationReference, .{}, false, null)).identity == null);
+    var native: ?d = try attempt(.{ .status = text }, error.Conflict, .{}, false, null);
+    qualify(&native, .{ .realm = 46, .principal = 1234, .writer = 65536, .resource = 7, .table = 1 }, .ConflictingRetry);
+    try t.expectEqualStrings("mutation.authority_conflict", native.?.code.slice());
+    try t.expectEqualStrings("ConflictingRetry", native.?.facts[1].?.value.?.text.slice());
+    try t.expectError(error.InvalidDocumentInteger, q.document.JsonValues.unsigned("18446744073709551616"));
 }

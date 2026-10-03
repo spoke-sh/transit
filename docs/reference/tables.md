@@ -26,6 +26,12 @@ automatically for the local server's `items` Table and explicitly for other conn
 language SDK read-query routes do not admit mutations. Console and typed mutation
 SDKs use the shared mutation owner.
 
+Failed status reads keep the original mutation namespace and resource as caller
+context. They do not prove that the mutation is absent, rejected or cancelled.
+Diagnostics distinguish an authority rejection from a mutation identity conflict
+and retain the native cause when available. Retry advice for a failed read never
+authorizes a new mutation; an uncertain send retains its exact signed command.
+
 The [combined Table owner](../../contracts/TABLE_QUERY_WRITER_V1.md) initializes
 one empty typed Table, then atomically enables its separately configured query
 and mutation policies. Its two durable phases each fit four mutations. Query

@@ -65,28 +65,38 @@ pub fn input(value: m.Disposition) !d {
 }
 
 // Caller attempt evidence is independent of a saved domain outcome.
-const AttemptInfo = struct { code: []const u8, category: d.Category, message: []const u8 };
-fn attemptInfo(cause: anyerror) AttemptInfo {
-    return switch (cause) {
-        error.CatalogDenied, error.AccessDenied => .{ .code = "catalog.access_denied", .category = .access, .message = "The current native grant or catalog policy does not permit this operation. Create and inspect permissions are separate." },
-        error.CatalogOwnerUnavailable, error.ResourceUnavailable => .{ .code = "catalog.owner_unavailable", .category = .unavailable, .message = "The configured catalog owner is unavailable. Preserve the original saved command and inspect its owner before continuing." },
-        error.CatalogNotInitialized => .{ .code = "catalog.not_initialized", .category = .lifecycle, .message = "The catalog has not been initialized for this configuration. Inspect its owner and initialization disposition." },
-        error.CatalogIdentityConflict, error.Conflict => .{ .code = "catalog.identity_conflict", .category = .conflict, .message = "The supplied catalog operation identity conflicts with recorded work. Preserve the original command and inspect its receipt." },
-        error.CatalogScopeChanged, error.CatalogOwnerChanged, error.CatalogConfigurationChanged => .{ .code = "catalog.scope_changed", .category = .conflict, .message = "The catalog scope or owner configuration changed. Use the original scope to inspect saved work before preparing another command." },
-        error.CatalogPolicyConflict => .{ .code = "catalog.policy_changed", .category = .conflict, .message = "The expected catalog policy revision changed. Inspect current policy before preparing a new conditional policy command." },
-        error.CatalogCursorChanged => .{ .code = "catalog.cursor_changed", .category = .conflict, .message = "The catalog changed during pagination. Discard the partial listing and restart the read; preserve saved write commands." },
-        error.CatalogDefinitionChanged, error.CatalogSourceChanged => .{ .code = "catalog.definition_changed", .category = .conflict, .message = "The catalog definition or Table descriptor changed. Inspect current metadata before preparing a new declaration." },
-        error.InvalidCatalogIdentity, error.InvalidCatalogPrepared, error.InvalidCatalogInteger, error.InvalidCatalogPolicy, error.InvalidCatalogBinding, error.InvalidColumnName => .{ .code = "catalog.invalid_command", .category = .binding, .message = "The catalog identity, policy or saved command is invalid. Supply its canonical fields and original connection scope." },
-        error.InvalidCatalogPage, error.InvalidCatalogDefinition, error.InvalidCatalogDisposition => .{ .code = "catalog.invalid_record", .category = .integrity, .message = "The returned catalog metadata is inconsistent. Preserve the original command and recorded evidence for inspection." },
-        error.SignatureVerificationFailed => .{ .code = "catalog.invalid_signature", .category = .integrity, .message = "The saved command signature is invalid. Preserve the original bytes and signing identity; no command was sent." },
-        error.IncompatibleDefinition => .{ .code = "catalog.incompatible_definition", .category = .integrity, .message = "The saved command or peer uses a different contract definition. Use matching binaries and preserve the original bytes; no fallback reinterprets accepted work." },
-        error.OutOfMemory, error.Unavailable, error.ConnectionRefused, error.ConnectionResetByPeer, error.ConnectionTimedOut, error.Timeout, error.Canceled => .{ .code = "catalog.unavailable", .category = .unavailable, .message = "The operation could not complete because a required resource or transport is unavailable. Preserve any saved command and its previously observed outcome." },
-        else => .{ .code = "catalog.internal_failure", .category = .internal, .message = "The caller could not complete this operation. Preserve saved work and inspect its original status; this failure does not establish its outcome." },
-    };
+pub const codes = @import("CallerCodes.zig");
+fn attemptInfo(cause: anyerror) codes.Entry {
+    return codes.fromError(cause) orelse .{ .cause = cause, .code = "catalog.internal_failure", .category = .internal, .message = "The caller could not complete this operation. Preserve saved work and inspect its original status; this failure does not establish its outcome." };
 }
 pub fn category(action: c.Bridge.Action, cause: anyerror) d.Category {
     if (action == .compile) if (c.fuze.SqlDiagnostic.category(cause)) |value| return value;
     return attemptInfo(cause).category;
+}
+/// CREATE status uses its original request scope and operation, never the
+/// catalog ID or today's connection as a replacement operation identity.
+fn selected(action: c.Bridge.Action) ?d.Identity {
+    const value = switch (action) {
+        inline .status, .prepare_create => |request| request.native() catch return null,
+        inline .observe, .input_disposition => |request| {
+            if (request.input == 0 or request.input > c.protocol.max_counter) return null;
+            return .{ .domain = .transport, .id = .init(request.input) };
+        },
+        else => return null,
+    };
+    return .{ .domain = .catalog, .id = .init(value.operation), .realm = .init(value.scope.realm), .resource = .init(value.scope.resource) };
+}
+
+pub fn qualify(out: *?d, connection: c.Client.Connection, native: ?c.protocol.ErrorCode) void {
+    if (out.*) |*detail| {
+        if (detail.identity) |*identity| {
+            if (identity.realm == null) identity.realm = .init(connection.scope.realm);
+            for (&detail.actions) |*slot| if (slot.*) |*action| {
+                action.target = identity.*;
+            };
+        }
+        if (native) |cause| detail.text(.native_cause, .authority, @tagName(cause)) catch {};
+    }
 }
 pub fn attempt(action: c.Bridge.Action, cause: anyerror, binding: c.fuze.Sql.Binding, dispatched: bool, identity: ?d.Identity) !d {
     if (action == .compile) if (c.fuze.SqlDiagnostic.writeCompiler(action.compile.sql, cause, .declaration, binding)) |detail| return detail.structured();
@@ -106,7 +116,8 @@ pub fn attempt(action: c.Bridge.Action, cause: anyerror, binding: c.fuze.Sql.Bin
     else
         try d.init(info.code, info.category, stage, if (stage == .read) .not_applicable else .not_submitted, if (stage == .read) .none else .local_before_dispatch, info.message);
     result.cause = try d.Code.init(@errorName(cause));
-    result.identity = identity;
+    result.identity = identity orelse selected(action);
+    if (!sending and cause == error.EndOfStream) try result.absent(.source_kind, .owner, .unrecorded);
     try result.text(.operation, .caller, @tagName(action));
     if (sending) {
         try result.action(.inspect_status);
@@ -146,4 +157,40 @@ pub fn artifact(operation: []const u8, cause: anyerror) !d {
     });
     try value.validate();
     return value;
+}
+
+test "every catalog caller cause preserves failed-read and dispatch evidence" {
+    const std = @import("std");
+    const t = std.testing;
+    const request: c.Bridge.CreateTable = .{ .scope = .{ .realm = 46, .resource = 7, .catalog = "2" }, .operation = "18446744073709551615", .object = "19", .table = 1, .name = "items", .schema = .{ .names = .{ "id", "value" }, .value_type = .int64 } };
+    for (codes.entries) |entry| {
+        var read: ?d = try attempt(.{ .status = request }, entry.cause, .{}, false, null);
+        // A different current connection must not rewrite the original scope.
+        qualify(&read, .{ .scope = .{ .realm = 47, .resource = 8, .catalog = 3 }, .owner = 65536, .principal = 1234 }, null);
+        try read.?.validate();
+        try t.expectEqualStrings(entry.code, read.?.code.slice());
+        try t.expectEqual(entry.category, read.?.category);
+        try t.expectEqual(.not_applicable, read.?.outcome);
+        try t.expectEqual(.none, read.?.evidence);
+        try t.expectEqual(std.math.maxInt(u64), try read.?.identity.?.id.value());
+        try t.expectEqual(@as(u64, 7), try read.?.identity.?.resource.?.value());
+        try t.expectEqual(@as(u64, 46), try read.?.identity.?.realm.?.value());
+        for (read.?.actions) |slot| if (slot) |action| {
+            try t.expectEqualDeep(read.?.identity, action.target);
+            try t.expect(action.kind != .resume_exact and action.kind != .cancel_mutation);
+        };
+        const send = try attempt(.{ .submit = "original" }, entry.cause, .{}, true, .{ .domain = .transport, .id = .init(12), .sequence = .init(12) });
+        const rejected = entry.cause == error.AccessDenied or entry.cause == error.Conflict or entry.cause == error.Rejected;
+        try t.expectEqual(if (rejected) d.Outcome.not_applicable else .unknown, send.outcome);
+        try t.expectEqual(if (rejected) d.Evidence.none else .saved_intent, send.evidence);
+        try t.expectEqual(if (rejected) d.ActionKind.inspect_scope else .resume_exact, send.actions[1].?.kind);
+    }
+    var invalid = request;
+    invalid.operation = "019";
+    try t.expect((try attempt(.{ .status = invalid }, error.InvalidCatalogInteger, .{}, false, null)).identity == null);
+    try t.expect((try attempt(.{ .lookup = "items" }, error.CatalogDenied, .{}, false, null)).identity == null);
+    var native: ?d = try attempt(.{ .status = request }, error.Conflict, .{}, false, null);
+    qualify(&native, .{ .scope = .{ .realm = 46, .resource = 7, .catalog = 2 }, .owner = 65536, .principal = 1234 }, .ConflictingRetry);
+    try t.expectEqualStrings("catalog.authority_conflict", native.?.code.slice());
+    try t.expectEqualStrings("ConflictingRetry", native.?.facts[1].?.value.?.text.slice());
 }

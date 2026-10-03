@@ -103,3 +103,9 @@ and `CREATE TABLE AS SELECT` are outside this grammar.
 writer; creating a catalog Table does not enable those routes implicitly.
 
 Source: [`createTable`, `columnDef`, `dataType`, `nullability`](../../../contracts/sql/TransitExtensions.g4).
+
+A failed receipt read retains the operation and scope from the original CREATE
+request. It does not prove absence or rejection. Native authority conflicts are
+reported separately from catalog operation identity conflicts. A retained name
+binding with a missing definition is inconsistent evidence, not an unknown name;
+inspect the original scope rather than submitting another CREATE.

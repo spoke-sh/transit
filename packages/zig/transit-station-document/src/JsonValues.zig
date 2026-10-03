@@ -5,7 +5,7 @@ const document = @import("root.zig");
 pub fn unsigned(text: []const u8) !u64 {
     if (text.len == 0 or text.len > 20 or (text.len > 1 and text[0] == '0')) return error.InvalidDocumentInteger;
     for (text) |b| if (!std.ascii.isDigit(b)) return error.InvalidDocumentInteger;
-    return std.fmt.parseInt(u64, text, 10);
+    return std.fmt.parseInt(u64, text, 10) catch return error.InvalidDocumentInteger;
 }
 pub fn unhex(alloc: std.mem.Allocator, text: []const u8, limit: usize) ![]const u8 {
     if (text.len % 2 != 0 or text.len / 2 > limit) return error.DocumentEncodingCapacity;

@@ -128,3 +128,11 @@ against reviewed expectations. Flight sequence/protobuf mappings are explicit
 profile differences. Native route dispositions and actual admission/disclosure
 remain covered by their real adapter proofs. A passing shared-cause matrix does
 not certify unrelated adapter startup/configuration or arbitrary library errors.
+
+The mutation and catalog caller registries cover their selected bridge, client,
+request/record and catalog inspection/model owners. Independent read/dispatch
+projections distinguish authority rejection from operation identity conflict,
+retain exact selected read targets, and preserve uncertainty after dispatch.
+Transport truncation records an unrecorded origin rather than inventing a remote
+outcome. Native ABI tests exercise real refused status reads; this mapping scope
+does not certify every transitive framework or application handler error.

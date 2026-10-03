@@ -1535,6 +1535,215 @@
         "ParameterCountMismatch": {"code": "query.parameter_count_mismatch","category": "binding","actions": ["correct_input"],"transport_status": 3},
         "QuerySourceChanged": {"code": "query.source_changed","category": "conflict","actions": ["inspect_status"],"transport_status": 10}
       }
+    },
+    "mutation.caller": {
+      "source": "packages/zig/transit-query/src/MutationCodes.zig",
+      "registry_kind": "error",
+      "projection": "packages/zig/transit-query/src/MutationDiagnostic.zig",
+      "profile": "Explicit mutation caller local preparation, current reads and exact signed submission",
+      "context": "Original mutation publication reference",
+      "disclosure": "Caller context and currently authorized records only; credentials and inaccessible stored content are excluded",
+      "durable_evidence": "Original saved transport identity is retained after dispatch; caller-selected status identity proves no existence or outcome",
+      "recovery": "Failed reads can retry only the read; exact uncertain submission retains resume target; no fresh work or invented cancellation",
+      "defaults": {
+        "identity": {
+          "domain": "mutation",
+          "id": "19",
+          "realm": "46",
+          "resource": "7",
+          "sequence": null
+        },
+        "outcome": "not_applicable",
+        "evidence": "none",
+        "facts": [
+          [
+            "operation",
+            "caller",
+            "provided"
+          ]
+        ]
+      },
+      "scenarios": {
+        "read": {
+          "stage": "read"
+        },
+        "dispatched": {
+          "code": "mutation.send_unknown",
+          "category": "unavailable",
+          "stage": "submit",
+          "outcome": "unknown",
+          "evidence": "saved_intent",
+          "identity": {
+            "domain": "transport",
+            "id": "12",
+            "realm": null,
+            "resource": null,
+            "sequence": "12"
+          },
+          "actions": [
+            "inspect_status",
+            "resume_exact"
+          ]
+        }
+      },
+      "cases": {
+        "MutationDenied": {"code": "mutation.access_denied","category": "access","actions": ["inspect_scope"]},
+        "MutationPrincipalMismatch": {"code": "mutation.access_denied","category": "access","actions": ["inspect_scope"]},
+        "AccessDenied": {"code": "mutation.access_denied","category": "access","actions": ["inspect_scope"],"scenarios": {"dispatched": {"code": "mutation.command_rejected","category": "access","outcome": "not_applicable","evidence": "none","actions": ["inspect_status","inspect_scope"]}}},
+        "MutationWriterUnavailable": {"code": "mutation.writer_unavailable","category": "unavailable","actions": ["retry_read"]},
+        "ResourceUnavailable": {"code": "mutation.writer_unavailable","category": "unavailable","actions": ["retry_read"]},
+        "MutationBusy": {"code": "mutation.writer_busy","category": "lifecycle","actions": ["inspect_status"]},
+        "MutationIdentityConflict": {"code": "mutation.identity_conflict","category": "conflict","actions": ["inspect_scope"]},
+        "StaleMutationPolicy": {"code": "mutation.stale_policy","category": "conflict","actions": ["inspect_scope"]},
+        "MutationSourceChanged": {"code": "mutation.source_changed","category": "conflict","actions": ["inspect_scope"]},
+        "TableSchemaChanged": {"code": "mutation.source_changed","category": "conflict","actions": ["inspect_scope"]},
+        "MutationNotFound": {"code": "mutation.target_missing","category": "lifecycle","actions": ["inspect_status"]},
+        "TableNotFound": {"code": "mutation.target_missing","category": "lifecycle","actions": ["inspect_status"]},
+        "MutationNotActive": {"code": "mutation.upload_not_active","category": "lifecycle","actions": ["inspect_status"]},
+        "MutationUploadClosed": {"code": "mutation.upload_not_active","category": "lifecycle","actions": ["inspect_status"]},
+        "InvalidMutationPrepared": {"code": "mutation.invalid_command","category": "binding","actions": ["correct_input"]},
+        "InvalidMutationConnection": {"code": "mutation.invalid_command","category": "binding","actions": ["correct_input"]},
+        "InvalidTableMutationRequest": {"code": "mutation.invalid_command","category": "binding","actions": ["correct_input"]},
+        "InvalidMutationCommand": {"code": "mutation.invalid_command","category": "binding","actions": ["correct_input"]},
+        "InvalidMutationPlan": {"code": "mutation.invalid_command","category": "binding","actions": ["correct_input"]},
+        "InvalidQueryInteger": {"code": "mutation.invalid_command","category": "binding","actions": ["correct_input"]},
+        "InvalidHex": {"code": "mutation.invalid_command","category": "binding","actions": ["correct_input"]},
+        "InvalidColumnName": {"code": "mutation.invalid_command","category": "binding","actions": ["correct_input"]},
+        "InvalidMutationColumns": {"code": "mutation.invalid_command","category": "binding","actions": ["correct_input"]},
+        "InvalidMutationRecord": {"code": "mutation.invalid_record","category": "integrity","actions": ["contact_operator"]},
+        "SignatureVerificationFailed": {"code": "mutation.invalid_signature","category": "integrity","actions": ["contact_operator"]},
+        "IncompatibleDefinition": {"code": "mutation.incompatible_definition","category": "integrity","actions": ["contact_operator"]},
+        "OutOfMemory": {"code": "mutation.unavailable","category": "unavailable","actions": ["retry_read"]},
+        "Unavailable": {"code": "mutation.unavailable","category": "unavailable","actions": ["retry_read"]},
+        "ConnectionRefused": {"code": "mutation.unavailable","category": "unavailable","actions": ["retry_read"]},
+        "ConnectionResetByPeer": {"code": "mutation.unavailable","category": "unavailable","actions": ["retry_read"]},
+        "ConnectionTimedOut": {"code": "mutation.unavailable","category": "unavailable","actions": ["retry_read"]},
+        "Timeout": {"code": "mutation.unavailable","category": "unavailable","actions": ["retry_read"]},
+        "Canceled": {"code": "mutation.unavailable","category": "unavailable","actions": ["retry_read"]},
+        "Conflict": {"code": "mutation.authority_conflict","category": "conflict","actions": ["inspect_scope"],"scenarios": {"dispatched": {"code": "mutation.command_rejected","category": "conflict","outcome": "not_applicable","evidence": "none","actions": ["inspect_status","inspect_scope"]}}},
+        "Rejected": {"code": "mutation.authority_rejected","category": "conflict","actions": ["inspect_scope"],"scenarios": {"dispatched": {"code": "mutation.command_rejected","category": "conflict","outcome": "not_applicable","evidence": "none","actions": ["inspect_status","inspect_scope"]}}},
+        "AuthorityTimeout": {"code": "mutation.transport_unavailable","category": "unavailable","actions": ["retry_read"]},
+        "AuthorityUnavailable": {"code": "mutation.transport_unavailable","category": "unavailable","actions": ["retry_read"]},
+        "NameServerFailure": {"code": "mutation.transport_unavailable","category": "unavailable","actions": ["retry_read"]},
+        "NetworkUnreachable": {"code": "mutation.transport_unavailable","category": "unavailable","actions": ["retry_read"]},
+        "HostUnreachable": {"code": "mutation.transport_unavailable","category": "unavailable","actions": ["retry_read"]},
+        "HttpConnectionClosing": {"code": "mutation.transport_unavailable","category": "unavailable","actions": ["retry_read"]},
+        "ReadFailed": {"code": "mutation.transport_unavailable","category": "unavailable","actions": ["retry_read"]},
+        "WriteFailed": {"code": "mutation.transport_unavailable","category": "unavailable","actions": ["retry_read"]},
+        "EndOfStream": {"code": "mutation.read_truncated","category": "unavailable","actions": ["retry_read"],"scenarios": {"read": {"facts": [["source_kind","owner","unrecorded"],["operation","caller","provided"]]}}},
+        "InvalidResourceRead": {"code": "mutation.invalid_resource_read","category": "integrity","actions": ["contact_operator"]},
+        "InvalidAuthorityResponse": {"code": "mutation.invalid_authority_response","category": "integrity","actions": ["contact_operator"]},
+        "InvalidFrame": {"code": "mutation.invalid_frame","category": "integrity","actions": ["contact_operator"]},
+        "InvalidDocumentInteger": {"code": "mutation.invalid_integer","category": "binding","actions": ["correct_input"]},
+        "DocumentEncodingCapacity": {"code": "mutation.invalid_encoding_length","category": "binding","actions": ["correct_input"]},
+        "InvalidCharacter": {"code": "mutation.invalid_hex","category": "binding","actions": ["correct_input"]},
+        "InvalidPublicationReference": {"code": "mutation.invalid_reference","category": "binding","actions": ["correct_input"]},
+        "InvalidPublicationFormat": {"code": "mutation.invalid_reference","category": "binding","actions": ["correct_input"]},
+        "InvalidPublicationDescriptor": {"code": "mutation.invalid_upload_record","category": "integrity","actions": ["contact_operator"]},
+        "NoPreparedMutation": {"code": "mutation.no_prepared_command","category": "lifecycle","actions": ["inspect_status"]}
+      }
+    },
+    "catalog.caller": {
+      "source": "packages/zig/transit-catalog/src/CallerCodes.zig",
+      "registry_kind": "error",
+      "projection": "packages/zig/transit-catalog/src/Diagnostic.zig",
+      "profile": "Explicit catalog caller local preparation, current reads and exact signed submission",
+      "context": "Original catalog CREATE request operation and scope",
+      "disclosure": "Caller context and currently authorized records only; credentials and inaccessible stored content are excluded",
+      "durable_evidence": "Original saved transport identity is retained after dispatch; caller-selected status identity proves no existence or outcome",
+      "recovery": "Failed reads can retry only the read; exact uncertain submission retains resume target; no fresh work or invented cancellation",
+      "defaults": {
+        "identity": {
+          "domain": "catalog",
+          "id": "19",
+          "realm": "46",
+          "resource": "7",
+          "sequence": null
+        },
+        "outcome": "not_applicable",
+        "evidence": "none",
+        "facts": [
+          [
+            "operation",
+            "caller",
+            "provided"
+          ]
+        ]
+      },
+      "scenarios": {
+        "read": {
+          "stage": "read"
+        },
+        "dispatched": {
+          "code": "catalog.send_unknown",
+          "category": "unavailable",
+          "stage": "submit",
+          "outcome": "unknown",
+          "evidence": "saved_intent",
+          "identity": {
+            "domain": "transport",
+            "id": "12",
+            "realm": null,
+            "resource": null,
+            "sequence": "12"
+          },
+          "actions": [
+            "inspect_status",
+            "resume_exact"
+          ]
+        }
+      },
+      "cases": {
+        "CatalogDenied": {"code": "catalog.access_denied","category": "access","actions": ["inspect_scope"]},
+        "AccessDenied": {"code": "catalog.access_denied","category": "access","actions": ["inspect_scope"],"scenarios": {"dispatched": {"code": "catalog.command_rejected","category": "access","outcome": "not_applicable","evidence": "none","actions": ["inspect_status","inspect_scope"]}}},
+        "CatalogOwnerUnavailable": {"code": "catalog.owner_unavailable","category": "unavailable","actions": ["retry_read"]},
+        "ResourceUnavailable": {"code": "catalog.owner_unavailable","category": "unavailable","actions": ["retry_read"]},
+        "CatalogNotInitialized": {"code": "catalog.not_initialized","category": "lifecycle","actions": ["inspect_status"]},
+        "CatalogIdentityConflict": {"code": "catalog.identity_conflict","category": "conflict","actions": ["inspect_scope"]},
+        "CatalogScopeChanged": {"code": "catalog.scope_changed","category": "conflict","actions": ["inspect_scope"]},
+        "CatalogOwnerChanged": {"code": "catalog.scope_changed","category": "conflict","actions": ["inspect_scope"]},
+        "CatalogConfigurationChanged": {"code": "catalog.scope_changed","category": "conflict","actions": ["inspect_scope"]},
+        "CatalogPolicyConflict": {"code": "catalog.policy_changed","category": "conflict","actions": ["inspect_scope"]},
+        "CatalogCursorChanged": {"code": "catalog.cursor_changed","category": "conflict","actions": ["inspect_scope"]},
+        "CatalogDefinitionChanged": {"code": "catalog.definition_changed","category": "conflict","actions": ["inspect_scope"]},
+        "CatalogSourceChanged": {"code": "catalog.definition_changed","category": "conflict","actions": ["inspect_scope"]},
+        "InvalidCatalogIdentity": {"code": "catalog.invalid_command","category": "binding","actions": ["correct_input"]},
+        "InvalidCatalogPrepared": {"code": "catalog.invalid_command","category": "binding","actions": ["correct_input"]},
+        "InvalidCatalogInteger": {"code": "catalog.invalid_command","category": "binding","actions": ["correct_input"]},
+        "InvalidCatalogPolicy": {"code": "catalog.invalid_command","category": "binding","actions": ["correct_input"]},
+        "InvalidCatalogBinding": {"code": "catalog.invalid_command","category": "binding","actions": ["correct_input"]},
+        "InvalidColumnName": {"code": "catalog.invalid_command","category": "binding","actions": ["correct_input"]},
+        "InvalidCatalogPage": {"code": "catalog.invalid_record","category": "integrity","actions": ["contact_operator"]},
+        "InvalidCatalogDefinition": {"code": "catalog.invalid_record","category": "integrity","actions": ["contact_operator"]},
+        "InvalidCatalogDisposition": {"code": "catalog.invalid_record","category": "integrity","actions": ["contact_operator"]},
+        "SignatureVerificationFailed": {"code": "catalog.invalid_signature","category": "integrity","actions": ["contact_operator"]},
+        "IncompatibleDefinition": {"code": "catalog.incompatible_definition","category": "integrity","actions": ["contact_operator"]},
+        "OutOfMemory": {"code": "catalog.unavailable","category": "unavailable","actions": ["retry_read"]},
+        "Unavailable": {"code": "catalog.unavailable","category": "unavailable","actions": ["retry_read"]},
+        "ConnectionRefused": {"code": "catalog.unavailable","category": "unavailable","actions": ["retry_read"]},
+        "ConnectionResetByPeer": {"code": "catalog.unavailable","category": "unavailable","actions": ["retry_read"]},
+        "ConnectionTimedOut": {"code": "catalog.unavailable","category": "unavailable","actions": ["retry_read"]},
+        "Timeout": {"code": "catalog.unavailable","category": "unavailable","actions": ["retry_read"]},
+        "Canceled": {"code": "catalog.unavailable","category": "unavailable","actions": ["retry_read"]},
+        "Conflict": {"code": "catalog.authority_conflict","category": "conflict","actions": ["inspect_scope"],"scenarios": {"dispatched": {"code": "catalog.command_rejected","category": "conflict","outcome": "not_applicable","evidence": "none","actions": ["inspect_status","inspect_scope"]}}},
+        "Rejected": {"code": "catalog.authority_rejected","category": "conflict","actions": ["inspect_scope"],"scenarios": {"dispatched": {"code": "catalog.command_rejected","category": "conflict","outcome": "not_applicable","evidence": "none","actions": ["inspect_status","inspect_scope"]}}},
+        "AuthorityTimeout": {"code": "catalog.transport_unavailable","category": "unavailable","actions": ["retry_read"]},
+        "AuthorityUnavailable": {"code": "catalog.transport_unavailable","category": "unavailable","actions": ["retry_read"]},
+        "NameServerFailure": {"code": "catalog.transport_unavailable","category": "unavailable","actions": ["retry_read"]},
+        "NetworkUnreachable": {"code": "catalog.transport_unavailable","category": "unavailable","actions": ["retry_read"]},
+        "HostUnreachable": {"code": "catalog.transport_unavailable","category": "unavailable","actions": ["retry_read"]},
+        "HttpConnectionClosing": {"code": "catalog.transport_unavailable","category": "unavailable","actions": ["retry_read"]},
+        "ReadFailed": {"code": "catalog.transport_unavailable","category": "unavailable","actions": ["retry_read"]},
+        "WriteFailed": {"code": "catalog.transport_unavailable","category": "unavailable","actions": ["retry_read"]},
+        "EndOfStream": {"code": "catalog.read_truncated","category": "unavailable","actions": ["retry_read"],"scenarios": {"read": {"facts": [["source_kind","owner","unrecorded"],["operation","caller","provided"]]}}},
+        "InvalidResourceRead": {"code": "catalog.invalid_resource_read","category": "integrity","actions": ["contact_operator"]},
+        "InvalidAuthorityResponse": {"code": "catalog.invalid_authority_response","category": "integrity","actions": ["contact_operator"]},
+        "InvalidFrame": {"code": "catalog.invalid_frame","category": "integrity","actions": ["contact_operator"]},
+        "InvalidCatalogCommand": {"code": "catalog.invalid_command","category": "binding","actions": ["correct_input"]},
+        "InvalidTableId": {"code": "catalog.invalid_command","category": "binding","actions": ["correct_input"]},
+        "InvalidCatalogRecord": {"code": "catalog.invalid_record","category": "integrity","actions": ["contact_operator"]},
+        "CatalogDefinitionMissing": {"code": "catalog.definition_missing","category": "integrity","actions": ["contact_operator"]}
+      }
     }
   }
 }

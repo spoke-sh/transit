@@ -79,6 +79,7 @@ pub fn run(init: std.process.Init, args: []const []const u8, diagnostic: *Diagno
     const result = B.applyDiagnostic(alloc, &client, action, &binding) catch |err| {
         const failure = if (submitting and err != error.AccessDenied and err != error.Rejected and err != error.Conflict) uncertain(diagnostic, err) else err;
         diagnostic.envelope = q.MutationDiagnostic.attempt(action, err, binding, submitting, identity) catch null;
+        q.MutationDiagnostic.qualify(&diagnostic.envelope, client.connection, wire.last_rejection);
         if (action == .compile and diagnostic.envelope != null) if (diagnostic.envelope.?.location) |*location| (q.protocol.Diagnostic.SourcePath.init(options.flags.file.?) catch return failure).apply(location);
         return failure;
     };

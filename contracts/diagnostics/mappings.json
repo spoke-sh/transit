@@ -1400,6 +1400,479 @@
           "name": "every application host cause preserves failed-read and dispatched-command evidence"
         }
       ]
+    },
+    {
+      "id": "mutation-caller",
+      "owners": [
+        "packages/zig/transit-query/src/TableMutationBridge.zig",
+        "packages/zig/transit-query/src/TableMutationClient.zig",
+        "packages/zig/transit-query/src/TableMutationRequest.zig",
+        "packages/zig/transit-query/src/TableMutationRecords.zig"
+      ],
+      "exclude": [],
+      "registry": "packages/zig/transit-query/src/MutationCodes.zig",
+      "projection": "packages/zig/transit-query/src/MutationDiagnostic.zig",
+      "shared_codes": true,
+      "profile": "Explicit mutation caller local preparation, current reads and exact signed submission",
+      "stage": "Compile/prepare/read/submit at the actual dispatch boundary",
+      "outcome": "No-send attempts are not_submitted; failed reads are not_applicable; unconfirmed sends are unknown; native rejection is not a terminal domain outcome",
+      "durable_evidence": "Original saved transport identity is retained after dispatch; caller-selected status identity proves no existence or outcome",
+      "context": "Original mutation publication reference",
+      "disclosure": "Caller context and currently authorized records only; credentials and inaccessible stored content are excluded",
+      "recovery": "Failed reads can retry only the read; exact uncertain submission retains resume target; no fresh work or invented cancellation",
+      "propagation": "Original SQL compiler evidence wins. Native transport, record and frame failures are explicit; remaining unexpected implementation errors preserve outcome uncertainty as internal failures.",
+      "codes": {
+        "MutationDenied": {
+          "code": "mutation.access_denied",
+          "category": "access"
+        },
+        "MutationPrincipalMismatch": {
+          "code": "mutation.access_denied",
+          "category": "access"
+        },
+        "AccessDenied": {
+          "code": "mutation.access_denied",
+          "category": "access"
+        },
+        "MutationWriterUnavailable": {
+          "code": "mutation.writer_unavailable",
+          "category": "unavailable"
+        },
+        "ResourceUnavailable": {
+          "code": "mutation.writer_unavailable",
+          "category": "unavailable"
+        },
+        "MutationBusy": {
+          "code": "mutation.writer_busy",
+          "category": "lifecycle"
+        },
+        "MutationIdentityConflict": {
+          "code": "mutation.identity_conflict",
+          "category": "conflict"
+        },
+        "StaleMutationPolicy": {
+          "code": "mutation.stale_policy",
+          "category": "conflict"
+        },
+        "MutationSourceChanged": {
+          "code": "mutation.source_changed",
+          "category": "conflict"
+        },
+        "TableSchemaChanged": {
+          "code": "mutation.source_changed",
+          "category": "conflict"
+        },
+        "MutationNotFound": {
+          "code": "mutation.target_missing",
+          "category": "lifecycle"
+        },
+        "TableNotFound": {
+          "code": "mutation.target_missing",
+          "category": "lifecycle"
+        },
+        "MutationNotActive": {
+          "code": "mutation.upload_not_active",
+          "category": "lifecycle"
+        },
+        "MutationUploadClosed": {
+          "code": "mutation.upload_not_active",
+          "category": "lifecycle"
+        },
+        "InvalidMutationPrepared": {
+          "code": "mutation.invalid_command",
+          "category": "binding"
+        },
+        "InvalidMutationConnection": {
+          "code": "mutation.invalid_command",
+          "category": "binding"
+        },
+        "InvalidTableMutationRequest": {
+          "code": "mutation.invalid_command",
+          "category": "binding"
+        },
+        "InvalidMutationCommand": {
+          "code": "mutation.invalid_command",
+          "category": "binding"
+        },
+        "InvalidMutationPlan": {
+          "code": "mutation.invalid_command",
+          "category": "binding"
+        },
+        "InvalidQueryInteger": {
+          "code": "mutation.invalid_command",
+          "category": "binding"
+        },
+        "InvalidHex": {
+          "code": "mutation.invalid_command",
+          "category": "binding"
+        },
+        "InvalidColumnName": {
+          "code": "mutation.invalid_command",
+          "category": "binding"
+        },
+        "InvalidMutationColumns": {
+          "code": "mutation.invalid_command",
+          "category": "binding"
+        },
+        "InvalidMutationRecord": {
+          "code": "mutation.invalid_record",
+          "category": "integrity"
+        },
+        "SignatureVerificationFailed": {
+          "code": "mutation.invalid_signature",
+          "category": "integrity"
+        },
+        "IncompatibleDefinition": {
+          "code": "mutation.incompatible_definition",
+          "category": "integrity"
+        },
+        "OutOfMemory": {
+          "code": "mutation.unavailable",
+          "category": "unavailable"
+        },
+        "Unavailable": {
+          "code": "mutation.unavailable",
+          "category": "unavailable"
+        },
+        "ConnectionRefused": {
+          "code": "mutation.unavailable",
+          "category": "unavailable"
+        },
+        "ConnectionResetByPeer": {
+          "code": "mutation.unavailable",
+          "category": "unavailable"
+        },
+        "ConnectionTimedOut": {
+          "code": "mutation.unavailable",
+          "category": "unavailable"
+        },
+        "Timeout": {
+          "code": "mutation.unavailable",
+          "category": "unavailable"
+        },
+        "Canceled": {
+          "code": "mutation.unavailable",
+          "category": "unavailable"
+        },
+        "Conflict": {
+          "code": "mutation.authority_conflict",
+          "category": "conflict"
+        },
+        "Rejected": {
+          "code": "mutation.authority_rejected",
+          "category": "conflict"
+        },
+        "AuthorityTimeout": {
+          "code": "mutation.transport_unavailable",
+          "category": "unavailable"
+        },
+        "AuthorityUnavailable": {
+          "code": "mutation.transport_unavailable",
+          "category": "unavailable"
+        },
+        "NameServerFailure": {
+          "code": "mutation.transport_unavailable",
+          "category": "unavailable"
+        },
+        "NetworkUnreachable": {
+          "code": "mutation.transport_unavailable",
+          "category": "unavailable"
+        },
+        "HostUnreachable": {
+          "code": "mutation.transport_unavailable",
+          "category": "unavailable"
+        },
+        "HttpConnectionClosing": {
+          "code": "mutation.transport_unavailable",
+          "category": "unavailable"
+        },
+        "ReadFailed": {
+          "code": "mutation.transport_unavailable",
+          "category": "unavailable"
+        },
+        "WriteFailed": {
+          "code": "mutation.transport_unavailable",
+          "category": "unavailable"
+        },
+        "EndOfStream": {
+          "code": "mutation.read_truncated",
+          "category": "unavailable"
+        },
+        "InvalidResourceRead": {
+          "code": "mutation.invalid_resource_read",
+          "category": "integrity"
+        },
+        "InvalidAuthorityResponse": {
+          "code": "mutation.invalid_authority_response",
+          "category": "integrity"
+        },
+        "InvalidFrame": {
+          "code": "mutation.invalid_frame",
+          "category": "integrity"
+        },
+        "InvalidDocumentInteger": {
+          "code": "mutation.invalid_integer",
+          "category": "binding"
+        },
+        "DocumentEncodingCapacity": {
+          "code": "mutation.invalid_encoding_length",
+          "category": "binding"
+        },
+        "InvalidCharacter": {
+          "code": "mutation.invalid_hex",
+          "category": "binding"
+        },
+        "InvalidPublicationReference": {
+          "code": "mutation.invalid_reference",
+          "category": "binding"
+        },
+        "InvalidPublicationFormat": {
+          "code": "mutation.invalid_reference",
+          "category": "binding"
+        },
+        "InvalidPublicationDescriptor": {
+          "code": "mutation.invalid_upload_record",
+          "category": "integrity"
+        },
+        "NoPreparedMutation": {
+          "code": "mutation.no_prepared_command",
+          "category": "lifecycle"
+        }
+      },
+      "exceptions": [],
+      "tests": [
+        {
+          "source": "packages/zig/transit-query/src/MutationDiagnostic.zig",
+          "name": "every mutation caller cause preserves failed-read and dispatch evidence"
+        }
+      ]
+    },
+    {
+      "id": "catalog-caller",
+      "owners": [
+        "packages/zig/transit-catalog/src/Bridge.zig",
+        "packages/zig/transit-catalog/src/Client.zig",
+        "packages/zig/transit-catalog/src/Inspection.zig",
+        "packages/zig/transit-catalog/src/Model.zig",
+        "packages/zig/transit-catalog/src/Records.zig"
+      ],
+      "exclude": [],
+      "registry": "packages/zig/transit-catalog/src/CallerCodes.zig",
+      "projection": "packages/zig/transit-catalog/src/Diagnostic.zig",
+      "shared_codes": true,
+      "profile": "Explicit catalog caller local preparation, current reads and exact signed submission",
+      "stage": "Compile/prepare/read/submit at the actual dispatch boundary",
+      "outcome": "No-send attempts are not_submitted; failed reads are not_applicable; unconfirmed sends are unknown; native rejection is not a terminal domain outcome",
+      "durable_evidence": "Original saved transport identity is retained after dispatch; caller-selected status identity proves no existence or outcome",
+      "context": "Original catalog CREATE request operation and scope",
+      "disclosure": "Caller context and currently authorized records only; credentials and inaccessible stored content are excluded",
+      "recovery": "Failed reads can retry only the read; exact uncertain submission retains resume target; no fresh work or invented cancellation",
+      "propagation": "Original SQL compiler evidence wins. Native transport, record and frame failures are explicit; remaining unexpected implementation errors preserve outcome uncertainty as internal failures.",
+      "codes": {
+        "CatalogDenied": {
+          "code": "catalog.access_denied",
+          "category": "access"
+        },
+        "AccessDenied": {
+          "code": "catalog.access_denied",
+          "category": "access"
+        },
+        "CatalogOwnerUnavailable": {
+          "code": "catalog.owner_unavailable",
+          "category": "unavailable"
+        },
+        "ResourceUnavailable": {
+          "code": "catalog.owner_unavailable",
+          "category": "unavailable"
+        },
+        "CatalogNotInitialized": {
+          "code": "catalog.not_initialized",
+          "category": "lifecycle"
+        },
+        "CatalogIdentityConflict": {
+          "code": "catalog.identity_conflict",
+          "category": "conflict"
+        },
+        "CatalogScopeChanged": {
+          "code": "catalog.scope_changed",
+          "category": "conflict"
+        },
+        "CatalogOwnerChanged": {
+          "code": "catalog.scope_changed",
+          "category": "conflict"
+        },
+        "CatalogConfigurationChanged": {
+          "code": "catalog.scope_changed",
+          "category": "conflict"
+        },
+        "CatalogPolicyConflict": {
+          "code": "catalog.policy_changed",
+          "category": "conflict"
+        },
+        "CatalogCursorChanged": {
+          "code": "catalog.cursor_changed",
+          "category": "conflict"
+        },
+        "CatalogDefinitionChanged": {
+          "code": "catalog.definition_changed",
+          "category": "conflict"
+        },
+        "CatalogSourceChanged": {
+          "code": "catalog.definition_changed",
+          "category": "conflict"
+        },
+        "InvalidCatalogIdentity": {
+          "code": "catalog.invalid_command",
+          "category": "binding"
+        },
+        "InvalidCatalogPrepared": {
+          "code": "catalog.invalid_command",
+          "category": "binding"
+        },
+        "InvalidCatalogInteger": {
+          "code": "catalog.invalid_command",
+          "category": "binding"
+        },
+        "InvalidCatalogPolicy": {
+          "code": "catalog.invalid_command",
+          "category": "binding"
+        },
+        "InvalidCatalogBinding": {
+          "code": "catalog.invalid_command",
+          "category": "binding"
+        },
+        "InvalidColumnName": {
+          "code": "catalog.invalid_command",
+          "category": "binding"
+        },
+        "InvalidCatalogPage": {
+          "code": "catalog.invalid_record",
+          "category": "integrity"
+        },
+        "InvalidCatalogDefinition": {
+          "code": "catalog.invalid_record",
+          "category": "integrity"
+        },
+        "InvalidCatalogDisposition": {
+          "code": "catalog.invalid_record",
+          "category": "integrity"
+        },
+        "SignatureVerificationFailed": {
+          "code": "catalog.invalid_signature",
+          "category": "integrity"
+        },
+        "IncompatibleDefinition": {
+          "code": "catalog.incompatible_definition",
+          "category": "integrity"
+        },
+        "OutOfMemory": {
+          "code": "catalog.unavailable",
+          "category": "unavailable"
+        },
+        "Unavailable": {
+          "code": "catalog.unavailable",
+          "category": "unavailable"
+        },
+        "ConnectionRefused": {
+          "code": "catalog.unavailable",
+          "category": "unavailable"
+        },
+        "ConnectionResetByPeer": {
+          "code": "catalog.unavailable",
+          "category": "unavailable"
+        },
+        "ConnectionTimedOut": {
+          "code": "catalog.unavailable",
+          "category": "unavailable"
+        },
+        "Timeout": {
+          "code": "catalog.unavailable",
+          "category": "unavailable"
+        },
+        "Canceled": {
+          "code": "catalog.unavailable",
+          "category": "unavailable"
+        },
+        "Conflict": {
+          "code": "catalog.authority_conflict",
+          "category": "conflict"
+        },
+        "Rejected": {
+          "code": "catalog.authority_rejected",
+          "category": "conflict"
+        },
+        "AuthorityTimeout": {
+          "code": "catalog.transport_unavailable",
+          "category": "unavailable"
+        },
+        "AuthorityUnavailable": {
+          "code": "catalog.transport_unavailable",
+          "category": "unavailable"
+        },
+        "NameServerFailure": {
+          "code": "catalog.transport_unavailable",
+          "category": "unavailable"
+        },
+        "NetworkUnreachable": {
+          "code": "catalog.transport_unavailable",
+          "category": "unavailable"
+        },
+        "HostUnreachable": {
+          "code": "catalog.transport_unavailable",
+          "category": "unavailable"
+        },
+        "HttpConnectionClosing": {
+          "code": "catalog.transport_unavailable",
+          "category": "unavailable"
+        },
+        "ReadFailed": {
+          "code": "catalog.transport_unavailable",
+          "category": "unavailable"
+        },
+        "WriteFailed": {
+          "code": "catalog.transport_unavailable",
+          "category": "unavailable"
+        },
+        "EndOfStream": {
+          "code": "catalog.read_truncated",
+          "category": "unavailable"
+        },
+        "InvalidResourceRead": {
+          "code": "catalog.invalid_resource_read",
+          "category": "integrity"
+        },
+        "InvalidAuthorityResponse": {
+          "code": "catalog.invalid_authority_response",
+          "category": "integrity"
+        },
+        "InvalidFrame": {
+          "code": "catalog.invalid_frame",
+          "category": "integrity"
+        },
+        "InvalidCatalogCommand": {
+          "code": "catalog.invalid_command",
+          "category": "binding"
+        },
+        "InvalidTableId": {
+          "code": "catalog.invalid_command",
+          "category": "binding"
+        },
+        "InvalidCatalogRecord": {
+          "code": "catalog.invalid_record",
+          "category": "integrity"
+        },
+        "CatalogDefinitionMissing": {
+          "code": "catalog.definition_missing",
+          "category": "integrity"
+        }
+      },
+      "exceptions": [],
+      "tests": [
+        {
+          "source": "packages/zig/transit-catalog/src/Diagnostic.zig",
+          "name": "every catalog caller cause preserves failed-read and dispatch evidence"
+        }
+      ]
     }
   ]
 }

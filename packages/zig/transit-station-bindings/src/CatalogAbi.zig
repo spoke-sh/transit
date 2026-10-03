@@ -73,7 +73,8 @@ pub fn call(pointer: *Client, json: [*]const u8, len: usize, out: *?*base.Buffer
     }
     var binding: catalog.fuze.Sql.Binding = .{};
     const result = bridge.applyDiagnostic(alloc, &client.client, action.value, &binding) catch |err| {
-        const diagnostic = catalog.Diagnostic.attempt(action.value, err, binding, action.value == .submit, identity) catch null;
+        var diagnostic = catalog.Diagnostic.attempt(action.value, err, binding, action.value == .submit, identity) catch null;
+        catalog.Diagnostic.qualify(&diagnostic, client.client.connection, client.transport.last_rejection);
         base.output(.{ .err = @errorName(err), .protocol_error = client.transport.last_rejection, .diagnostic = diagnostic }, out) catch {};
         if (action.value == .submit and err != error.AccessDenied and err != error.Rejected and err != error.Conflict) return .uncertain;
         return switch (err) {
@@ -126,6 +127,20 @@ test "catalog ABI owns outputs and validates before its uncertain dispatch bound
     const decoded = try p.Json.parseFromSlice(bridge.Result, alloc, base.Api.station_buffer_data(buffer.?)[0..base.Api.station_buffer_size(buffer.?)]);
     const request = try decoded.value.compiled.request.native();
     try t.expectEqual(std.math.maxInt(u64), request.operation);
+    const read_action = try p.Json.valueAlloc(alloc, bridge.Action{ .status = decoded.value.compiled.request });
+    var read_failure: ?*base.Buffer = null;
+    try t.expectEqual(.unavailable, call(pointer.?, read_action.ptr, read_action.len, &read_failure));
+    defer base.Api.station_buffer_destroy(read_failure);
+    const failed_read = try std.json.parseFromSlice(struct { err: []const u8, protocol_error: ?[]const u8, diagnostic: p.Diagnostic }, alloc, base.Api.station_buffer_data(read_failure.?)[0..base.Api.station_buffer_size(read_failure.?)], .{});
+    try t.expectEqual(.not_applicable, failed_read.value.diagnostic.outcome);
+    try t.expectEqual(.none, failed_read.value.diagnostic.evidence);
+    try t.expectEqual(std.math.maxInt(u64), try failed_read.value.diagnostic.identity.?.id.value());
+    try t.expectEqual(@as(u64, 46), try failed_read.value.diagnostic.identity.?.realm.?.value());
+    try t.expectEqual(@as(u64, 7), try failed_read.value.diagnostic.identity.?.resource.?.value());
+    for (failed_read.value.diagnostic.actions) |slot| if (slot) |recovery| {
+        try t.expectEqual(.retry_read, recovery.kind);
+        try t.expectEqualDeep(failed_read.value.diagnostic.identity, recovery.target);
+    };
     // These calls execute the real offline compiler while the configured
     // endpoint is unavailable. No admission or metadata read is necessary.
     for ([_]struct { sql: []const u8, code: []const u8, subject: ?[]const u8, offset: ?usize }{

@@ -2731,6 +2731,70 @@
         "std"
       ]
     },
+    "packages/zig/transit-catalog/src/CallerCodes.zig": {
+      "errors": {
+        "AccessDenied": 1,
+        "AuthorityTimeout": 1,
+        "AuthorityUnavailable": 1,
+        "Canceled": 1,
+        "CatalogConfigurationChanged": 1,
+        "CatalogCursorChanged": 1,
+        "CatalogDefinitionChanged": 1,
+        "CatalogDefinitionMissing": 1,
+        "CatalogDenied": 1,
+        "CatalogIdentityConflict": 1,
+        "CatalogNotInitialized": 1,
+        "CatalogOwnerChanged": 1,
+        "CatalogOwnerUnavailable": 1,
+        "CatalogPolicyConflict": 1,
+        "CatalogScopeChanged": 1,
+        "CatalogSourceChanged": 1,
+        "Conflict": 1,
+        "ConnectionRefused": 1,
+        "ConnectionResetByPeer": 1,
+        "ConnectionTimedOut": 1,
+        "EndOfStream": 1,
+        "HostUnreachable": 1,
+        "HttpConnectionClosing": 1,
+        "IncompatibleDefinition": 1,
+        "InvalidAuthorityResponse": 1,
+        "InvalidCatalogBinding": 1,
+        "InvalidCatalogCommand": 1,
+        "InvalidCatalogDefinition": 1,
+        "InvalidCatalogDisposition": 1,
+        "InvalidCatalogIdentity": 1,
+        "InvalidCatalogInteger": 1,
+        "InvalidCatalogPage": 1,
+        "InvalidCatalogPolicy": 1,
+        "InvalidCatalogPrepared": 1,
+        "InvalidCatalogRecord": 1,
+        "InvalidColumnName": 1,
+        "InvalidFrame": 1,
+        "InvalidResourceRead": 1,
+        "InvalidTableId": 1,
+        "NameServerFailure": 1,
+        "NetworkUnreachable": 1,
+        "OutOfMemory": 1,
+        "ReadFailed": 1,
+        "Rejected": 1,
+        "ResourceUnavailable": 1,
+        "SignatureVerificationFailed": 1,
+        "Timeout": 1,
+        "Unavailable": 1,
+        "WriteFailed": 1
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {},
+      "open_error_set_uses": 2,
+      "propagation": {
+        "try": 0,
+        "catch": 0
+      },
+      "imports": [
+        "root.zig"
+      ]
+    },
     "packages/zig/transit-catalog/src/Catalog.zig": {
       "errors": {
         "CatalogAlreadyPopulated": 1,
@@ -2844,39 +2908,11 @@
     },
     "packages/zig/transit-catalog/src/Diagnostic.zig": {
       "errors": {
-        "AccessDenied": 3,
-        "Canceled": 1,
-        "CatalogConfigurationChanged": 1,
-        "CatalogCursorChanged": 1,
-        "CatalogDefinitionChanged": 1,
-        "CatalogDenied": 1,
-        "CatalogIdentityConflict": 1,
-        "CatalogNotInitialized": 1,
-        "CatalogOwnerChanged": 1,
-        "CatalogOwnerUnavailable": 1,
-        "CatalogPolicyConflict": 1,
-        "CatalogScopeChanged": 1,
-        "CatalogSourceChanged": 1,
-        "Conflict": 2,
-        "ConnectionRefused": 1,
-        "ConnectionResetByPeer": 1,
-        "ConnectionTimedOut": 1,
-        "IncompatibleDefinition": 1,
-        "InvalidCatalogBinding": 1,
-        "InvalidCatalogDefinition": 1,
-        "InvalidCatalogDisposition": 1,
-        "InvalidCatalogIdentity": 1,
-        "InvalidCatalogInteger": 1,
-        "InvalidCatalogPage": 1,
-        "InvalidCatalogPolicy": 1,
-        "InvalidCatalogPrepared": 1,
-        "InvalidColumnName": 1,
-        "OutOfMemory": 2,
-        "Rejected": 1,
-        "ResourceUnavailable": 1,
-        "SignatureVerificationFailed": 1,
-        "Timeout": 1,
-        "Unavailable": 1
+        "AccessDenied": 2,
+        "Conflict": 1,
+        "EndOfStream": 1,
+        "OutOfMemory": 1,
+        "Rejected": 1
       },
       "outcomes": {},
       "error_sets": {},
@@ -2889,10 +2925,11 @@
       },
       "open_error_set_uses": 5,
       "propagation": {
-        "try": 42,
-        "catch": 0
+        "try": 43,
+        "catch": 2
       },
       "imports": [
+        "CallerCodes.zig",
         "root.zig"
       ]
     },
@@ -8033,25 +8070,38 @@
         "std"
       ]
     },
-    "packages/zig/transit-query/src/MutationDiagnostic.zig": {
+    "packages/zig/transit-query/src/MutationCodes.zig": {
       "errors": {
-        "AccessDenied": 3,
+        "AccessDenied": 1,
+        "AuthorityTimeout": 1,
+        "AuthorityUnavailable": 1,
         "Canceled": 1,
-        "Conflict": 2,
+        "Conflict": 1,
         "ConnectionRefused": 1,
         "ConnectionResetByPeer": 1,
         "ConnectionTimedOut": 1,
+        "DocumentEncodingCapacity": 1,
+        "EndOfStream": 1,
+        "HostUnreachable": 1,
+        "HttpConnectionClosing": 1,
         "IncompatibleDefinition": 1,
+        "InvalidAuthorityResponse": 1,
+        "InvalidCharacter": 1,
         "InvalidColumnName": 1,
+        "InvalidDocumentInteger": 1,
+        "InvalidFrame": 1,
         "InvalidHex": 1,
         "InvalidMutationColumns": 1,
         "InvalidMutationCommand": 1,
         "InvalidMutationConnection": 1,
-        "InvalidMutationDiagnostic": 4,
         "InvalidMutationPlan": 1,
         "InvalidMutationPrepared": 1,
         "InvalidMutationRecord": 1,
+        "InvalidPublicationDescriptor": 1,
+        "InvalidPublicationFormat": 1,
+        "InvalidPublicationReference": 1,
         "InvalidQueryInteger": 1,
+        "InvalidResourceRead": 1,
         "InvalidTableMutationRequest": 1,
         "MutationBusy": 1,
         "MutationDenied": 1,
@@ -8062,7 +8112,11 @@
         "MutationSourceChanged": 1,
         "MutationUploadClosed": 1,
         "MutationWriterUnavailable": 1,
-        "OutOfMemory": 2,
+        "NameServerFailure": 1,
+        "NetworkUnreachable": 1,
+        "NoPreparedMutation": 1,
+        "OutOfMemory": 1,
+        "ReadFailed": 1,
         "Rejected": 1,
         "ResourceUnavailable": 1,
         "SignatureVerificationFailed": 1,
@@ -8070,7 +8124,29 @@
         "TableNotFound": 1,
         "TableSchemaChanged": 1,
         "Timeout": 1,
-        "Unavailable": 1
+        "Unavailable": 1,
+        "WriteFailed": 1
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {},
+      "open_error_set_uses": 2,
+      "propagation": {
+        "try": 0,
+        "catch": 0
+      },
+      "imports": [
+        "root.zig"
+      ]
+    },
+    "packages/zig/transit-query/src/MutationDiagnostic.zig": {
+      "errors": {
+        "AccessDenied": 2,
+        "Conflict": 1,
+        "EndOfStream": 1,
+        "InvalidMutationDiagnostic": 4,
+        "OutOfMemory": 1,
+        "Rejected": 1
       },
       "outcomes": {},
       "error_sets": {},
@@ -8084,10 +8160,11 @@
       },
       "open_error_set_uses": 5,
       "propagation": {
-        "try": 64,
-        "catch": 0
+        "try": 65,
+        "catch": 2
       },
       "imports": [
+        "MutationCodes.zig",
         "root.zig",
         "std"
       ]
@@ -12610,7 +12687,7 @@
     "packages/zig/transit-station-document/src/JsonValues.zig": {
       "errors": {
         "DocumentEncodingCapacity": 1,
-        "InvalidDocumentInteger": 2
+        "InvalidDocumentInteger": 3
       },
       "outcomes": {},
       "error_sets": {},
@@ -12625,7 +12702,7 @@
       "open_error_set_uses": 0,
       "propagation": {
         "try": 9,
-        "catch": 0
+        "catch": 1
       },
       "imports": [
         "root.zig",

@@ -71,7 +71,8 @@ pub fn call(pointer: *Client, json: [*]const u8, len: usize, out: *?*base.Buffer
     }
     var binding: q.fuze.Sql.Binding = .{};
     const result = bridge.applyDiagnostic(alloc, &client.client, action.value, &binding) catch |err| {
-        const diagnostic = q.MutationDiagnostic.attempt(action.value, err, binding, action.value == .submit, identity) catch null;
+        var diagnostic = q.MutationDiagnostic.attempt(action.value, err, binding, action.value == .submit, identity) catch null;
+        q.MutationDiagnostic.qualify(&diagnostic, client.client.connection, client.wire.last_rejection);
         base.output(.{ .err = @errorName(err), .protocol_error = client.wire.last_rejection, .diagnostic = diagnostic }, out) catch {};
         if (action.value == .submit and err != error.AccessDenied and err != error.Rejected and err != error.Conflict) return .uncertain;
         if (err == error.MutationDenied) return .denied;
@@ -136,6 +137,20 @@ test "mutation ABI owns results, separates caller profiles and preserves dispatc
     try t.expectEqual(.local_before_dispatch, local.value.diagnostic.evidence);
     const table: q.station.Table = .{ .resource = 7, .id = 1, .schema = .{ .names = .{ try .init("id"), try .init("value") }, .value_type = .int64 } };
     const request = try q.TableMutationRequest.fromSql(46, 65536, table, try .init("items"), "DELETE FROM items WHERE id=1");
+    const read_action = try std.json.Stringify.valueAlloc(alloc, bridge.Action{ .status = try q.document.JsonValues.hex(alloc, (try (try request.reference(std.math.maxInt(u64))).encode()).slice()) }, .{});
+    var read_failure: ?*base.Buffer = null;
+    try t.expectEqual(.unavailable, call(pointer.?, read_action.ptr, read_action.len, &read_failure));
+    defer base.Api.station_buffer_destroy(read_failure);
+    const failed_read = try std.json.parseFromSlice(struct { err: []const u8, protocol_error: ?[]const u8, diagnostic: q.protocol.Diagnostic }, alloc, base.Api.station_buffer_data(read_failure.?)[0..base.Api.station_buffer_size(read_failure.?)], .{});
+    try t.expectEqual(.not_applicable, failed_read.value.diagnostic.outcome);
+    try t.expectEqual(.none, failed_read.value.diagnostic.evidence);
+    try t.expectEqual(std.math.maxInt(u64), try failed_read.value.diagnostic.identity.?.id.value());
+    try t.expectEqual(@as(u64, 46), try failed_read.value.diagnostic.identity.?.realm.?.value());
+    try t.expectEqual(@as(u64, 7), try failed_read.value.diagnostic.identity.?.resource.?.value());
+    for (failed_read.value.diagnostic.actions) |slot| if (slot) |recovery| {
+        try t.expectEqual(.retry_read, recovery.kind);
+        try t.expectEqualDeep(failed_read.value.diagnostic.identity, recovery.target);
+    };
     const signed: q.TableMutationClient.Prepared = .{ .version = 1, .definition = q.protocol.Growth.current_definition, .connection = .{ .realm = 46, .principal = 1234, .writer = 65536, .resource = 7, .table = 1 }, .signed = try q.protocol.Growth.sign(.{ .realm = 46, .principal = 1234, .sequence = 1, .command = .{ .send = .{ .pid = 65536, .value = try (q.station.Frame{ .kind = .cast, .payload = try (q.TableMutationRecords.Command{ .apply = try request.reference(99) }).encode() }).encode() } } }, try q.protocol.Ed25519.KeyPair.generateDeterministic(seed)) };
     const token = try signed.save(alloc);
     const action = try std.json.Stringify.valueAlloc(alloc, bridge.Action{ .submit = token }, .{});

@@ -102,6 +102,7 @@ pub fn run(init: std.process.Init, args: []const []const u8, diagnostic: *Diagno
     const result = B.applyDiagnostic(alloc, &client, action, &binding) catch |err| {
         const failure = if (submitting and err != error.AccessDenied and err != error.Rejected and err != error.Conflict) uncertain(diagnostic, err) else err;
         diagnostic.envelope = c.Diagnostic.attempt(action, err, binding, submitting, identity) catch null;
+        c.Diagnostic.qualify(&diagnostic.envelope, client.connection, transport.last_rejection);
         if (action == .compile and diagnostic.envelope != null) if (diagnostic.envelope.?.location) |*location| (p.Diagnostic.SourcePath.init(options.flags.file.?) catch return failure).apply(location);
         return failure;
     };

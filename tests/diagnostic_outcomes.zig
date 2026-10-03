@@ -195,6 +195,26 @@ fn queryCallers(out: *std.Io.Writer) !void {
     }
 }
 
+fn writeCallers(out: *std.Io.Writer) !void {
+    const table: q.station.Table = .{ .resource = 7, .id = 1, .schema = .{ .names = .{ try .init("id"), try .init("value") }, .value_type = .int64 } };
+    const request = try q.TableMutationRequest.fromSql(46, 65536, table, try .init("items"), "DELETE FROM items WHERE id=1");
+    const ref = try (try request.reference(19)).encode();
+    var storage: [q.station.PublicationReference.encoded_bytes * 2]u8 = undefined;
+    var allocator = std.heap.FixedBufferAllocator.init(&storage);
+    const text = try q.document.JsonValues.hex(allocator.allocator(), ref.slice());
+    for (q.MutationDiagnostic.codes.entries) |entry| {
+        var read: ?d = try q.MutationDiagnostic.attempt(.{ .status = text }, entry.cause, .{}, false, null);
+        q.MutationDiagnostic.qualify(&read, .{ .realm = 46, .resource = 7, .writer = 65536, .principal = 1234, .table = 1 }, null);
+        try emitScenario(out, "mutation.caller", @errorName(entry.cause), "read", read.?);
+        try emitScenario(out, "mutation.caller", @errorName(entry.cause), "dispatched", try q.MutationDiagnostic.attempt(.{ .submit = "original" }, entry.cause, .{}, true, .{ .domain = .transport, .id = .init(12), .sequence = .init(12) }));
+    }
+    const create: c.Bridge.CreateTable = .{ .scope = .{ .realm = 46, .resource = 7, .catalog = "2" }, .operation = "19", .object = "21", .table = 1, .name = "items", .schema = .{ .names = .{ "id", "value" }, .value_type = .int64 } };
+    for (c.Diagnostic.codes.entries) |entry| {
+        try emitScenario(out, "catalog.caller", @errorName(entry.cause), "read", try c.Diagnostic.attempt(.{ .status = create }, entry.cause, .{}, false, null));
+        try emitScenario(out, "catalog.caller", @errorName(entry.cause), "dispatched", try c.Diagnostic.attempt(.{ .submit = "original" }, entry.cause, .{}, true, .{ .domain = .transport, .id = .init(12), .sequence = .init(12) }));
+    }
+}
+
 pub fn main(init: std.process.Init) !void {
     var buffer: [8192]u8 = undefined;
     var stdout = std.Io.File.stdout().writerStreaming(init.io, &buffer);
@@ -209,6 +229,7 @@ pub fn main(init: std.process.Init) !void {
     try publications(&stdout.interface);
     try migrations(&stdout.interface);
     try queryCallers(&stdout.interface);
+    try writeCallers(&stdout.interface);
     try applicationCallers(&stdout.interface);
     try stdout.interface.flush();
 }

@@ -13604,3 +13604,24 @@ denial; the test now allows only the literal caller label while rejecting any
 retained identity or execution facts. The complete rerun passed in
 `/var/tmp/transit-adapter-flight2.log`. Clean committed-HEAD qualification remains
 separate from these focused results.
+
+### Mutation and catalog caller evidence (2026-10-03)
+
+Pinned native units, semantic mappings, the 566-case CLI suite, inventory and
+documentation checks pass. The mutation/catalog caller registries cover 54/49
+causes and 20/37 selected owner-error pairs without unmapped literal causes.
+The independent matrix passes **1,380 projections across 23 declared surfaces**.
+Units execute actual refused native status reads, full uint64 operation identities,
+original reference/request scope preservation, malformed-reference rejection,
+native conflict detail and every registered read/dispatch classification. Canonical
+Document integer overflow now returns its owning invalid-integer cause.
+Logs: `/var/tmp/transit-write-caller-{unit,check}.log`.
+
+`just test::catalog` passes real CREATE, name conflicts, metadata, exact lost-receipt
+recovery and explicit cancellation limits in **17.03 seconds**.
+`just test::table-query-writer` passes in **39.779 seconds**, including both
+initialization receipts through recovery, atomic row rejection, exact lost replies,
+interruption, policy-raced input rejection, cancellation and retained snapshots.
+It observes 84 turns, at most four mutations, 256-byte values and eight resident
+pages. Logs: `/var/tmp/transit-write-caller-{catalog,writer}.log`. These focused
+runs selected no installed SDK variants; they do not replace final clean CI.

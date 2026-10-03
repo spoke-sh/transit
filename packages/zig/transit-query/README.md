@@ -274,3 +274,10 @@ changes work. See the [mutation record contract](../../../contracts/TABLE_MUTATI
 projections through the ABI, native port, CLI and all SDK models. The bridge's
 `rejection` response retains the complete checked input disposition, including
 principal, native input and payload commitment, separately from mutation status.
+
+`MutationDiagnostic.codes` defines finite caller causes separately from durable
+mutation outcomes. Failed status reads preserve the exact supplied publication
+reference's namespace and resource, qualified by the connection realm. A failed
+read does not prove absence, rejection or cancellation. Native authority conflict
+is distinct from mutation identity conflict; ABI and CLI details retain its native
+cause. Unknown sends still require reconciliation of the original signed command.
