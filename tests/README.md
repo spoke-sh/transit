@@ -12896,7 +12896,13 @@ checks pass all 30 reactive/live-view cases and strict types, including wrong
 resource/generation/namespace and malformed optional details, and failed refresh
 without replacement query or loss of the exact snapshot. A test-fixture edit
 initially failed to alter the foreign resource; the corrected fixture passes.
-Final package tests also exercise the maximal runtime witness. The real browser
-live-view proof is still running at this commit; it is not counted as passed here.
+Final package tests also exercise the maximal runtime witness. Executed
+`just test::reactive-views`: **passed**, 164.02 seconds excluding compilation.
+Actual Chromium and TLS exercise the shared counter/Board clients, exact query
+recovery, bounded full-result verification, finite refresh, pause and current
+read-only revocation. Measured mutation-to-visible times were 2348 ms for the
+counter and 35857 ms for verified query replacement; observed browser heaps were
+6,034,240 and 15,525,608 bytes respectively. The final added wrong-resource
+optional-diagnostic check is covered by the focused browser suite above.
 Adapter read/transport diagnostics, effects and semantic inventory completion
 remain separate work. No committed-HEAD clean qualification is claimed here.
