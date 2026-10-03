@@ -106,3 +106,10 @@ Exact messages, limits and resumption rules are in
 [client contract](../../contracts/REACTIVE_CLIENT_V1.md). See the
 [refresh owner](../../packages/zig/transit-serving/docs/refresh.md) and
 [runnable example](../../examples/serving/docs/reactive.md) for integration.
+
+A peer closing its WebSocket closes only that transport. Its diagnostic does not
+claim that the retained session closed, its lease expired or application commands
+were cancelled. Inspect the original session and saved commands through an
+authorized connection. Invalid watch declarations supplied by a caller are input
+errors; malformed declarations encountered during a read are integrity failures.
+Neither case authorizes implicit reset or a replacement query generation.

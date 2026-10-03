@@ -89,3 +89,11 @@ A result request for a cancelled, timed-out or failed operation returns its
 retained outcome detail instead of implying it is still awaiting admission.
 Reactive events preserve that same detail; Live views display operation outcomes
 separately from snapshot freshness and refresh scheduling.
+
+Adapter diagnostics distinguish invalid caller declarations from malformed
+bindings or policies encountered in retained state. The latter are integrity
+failures with HTTP 502; they cannot be treated as absent state or repaired by
+repeating a command. Transport failures preserve exact pending command identity.
+A received native receipt still proves only admission, even if subsequent output
+fails. Unsupported read adapters, malformed integers and unavailable Follow
+templates have separate causes and recovery guidance.

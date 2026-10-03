@@ -149,3 +149,11 @@ checked semantics. COUNT narrowing records the original value and output column;
 invalid Arrow/IPC evidence is distinct from an unsupported integer range. Gateway
 startup configuration and closed-socket control flow are outside this selected
 RPC value-owner boundary.
+
+The serving adapter registry covers selected HTTP/reactive client, read, model
+and codec owners. Independent projections cross every cause with local input,
+read, unknown dispatch, native rejection and received receipt evidence. Read
+context changes malformed retained declarations to integrity failures with HTTP
+502. Transport closure remains distinct from durable session closure, and unknown
+byte-exhaustion origin is explicit. Receipt evidence has priority over a later
+transport or rendering failure.

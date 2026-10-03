@@ -72,7 +72,7 @@ pub const Context = struct {
         self.dispatch(io, allocator, request, &attempt) catch |err| {
             self.diagnostics.event(.{ .name = "serving.http.request", .level = .warn, .outcome = .failed, .error_type = @errorName(err) });
             if (attempt.response_started) return err;
-            const info = serving.ServingDiagnostic.classification(err);
+            const info = attempt.disposition(err);
             const failure: serving.Api.Error = .{ .err = .ServingRequestFailed, .reason = info.reason, .diagnostic = attempt.project(err) catch null };
             var bytes: [8192]u8 = undefined;
             var writer: std.Io.Writer = .fixed(&bytes);

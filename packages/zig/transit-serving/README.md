@@ -124,3 +124,12 @@ HTTP delivery. Operation records retain original authenticated reply sizes;
 Status/results and reactive terminal operation events use the same projection.
 Result reads with no completed reply still perform the final current-authority
 check before exposing their outcome diagnostic.
+
+`ServingDiagnostic.codes` is the finite adapter registry. Attempt context
+separates local input, authorized read failure, unconfirmed dispatch, rejected
+native command and received native receipt. Malformed bindings, policies and
+watch sources found during a read are integrity failures; the same validators on
+caller input report binding failures. HTTP status follows this context. Socket
+closure cannot establish session closure, and unknown byte exhaustion reports its
+origin as unrecorded. Every failure retains a bounded next action without replacing
+accepted work or starting a new generation.

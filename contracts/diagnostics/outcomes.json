@@ -2142,6 +2142,205 @@
         "InvalidArrowResult": {"code": "flight.invalid_result_encoding","category": "integrity","stage": "output","transport_status": 15,"actions": ["contact_operator"]},
         "FlightIntegerOutOfRange": {"code": "flight.integer_out_of_range","category": "unsupported","stage": "output","transport_status": 12,"actions": ["inspect_status"]}
       }
+    },
+    "serving.adapter": {
+      "source": "packages/zig/transit-serving/src/AdapterCodes.zig",
+      "registry_kind": "error",
+      "projection": "packages/zig/transit-serving/src/ServingDiagnostic.zig",
+      "profile": "HTTP/reactive caller preparation, authorized reads and actual signed dispatch",
+      "context": "Caller label, exact saved sequence and native cause; malformed stored declarations differ from caller input, socket closure differs from session closure",
+      "disclosure": "No credentials or inaccessible records; missing truncation origin is explicit",
+      "durable_evidence": "Native receipt proves input admission only; retained serving, session and Follow outcomes use their original projections",
+      "recovery": "Preserve exact signed work; retry only the applicable read; no implicit reset, expiry, rollback or fresh dispatch",
+      "defaults": {
+        "identity": null,
+        "facts": [
+          [
+            "operation",
+            "caller",
+            "provided"
+          ]
+        ]
+      },
+      "scenarios": {
+        "input": {
+          "stage": "input",
+          "outcome": "not_submitted",
+          "evidence": "local_before_dispatch"
+        },
+        "read": {
+          "stage": "read",
+          "outcome": "not_applicable",
+          "evidence": "none"
+        },
+        "dispatched": {
+          "code": "serving.send_unknown",
+          "category": "unavailable",
+          "stage": "submit",
+          "outcome": "unknown",
+          "evidence": "saved_intent",
+          "identity": {
+            "domain": "transport",
+            "id": "12",
+            "realm": "46",
+            "resource": null,
+            "sequence": "12"
+          },
+          "actions": [
+            "inspect_status",
+            "resume_exact"
+          ]
+        },
+        "receipt": {
+          "code": "serving.ingress_accepted",
+          "category": "lifecycle",
+          "stage": "submit",
+          "outcome": "pending",
+          "evidence": "native_receipt",
+          "identity": {
+            "domain": "transport",
+            "id": "12",
+            "realm": "46",
+            "resource": null,
+            "sequence": "12"
+          },
+          "facts": [
+            [
+              "operation",
+              "caller",
+              "provided"
+            ],
+            [
+              "native_input",
+              "authority",
+              "provided"
+            ]
+          ],
+          "actions": [
+            "inspect_status"
+          ]
+        },
+        "native_rejected": {
+          "code": "serving.command_rejected",
+          "stage": "submit",
+          "outcome": "not_applicable",
+          "evidence": "none",
+          "identity": {
+            "domain": "transport",
+            "id": "12",
+            "realm": "46",
+            "resource": null,
+            "sequence": "12"
+          },
+          "facts": [
+            [
+              "operation",
+              "caller",
+              "provided"
+            ],
+            [
+              "native_cause",
+              "authority",
+              "provided"
+            ]
+          ],
+          "actions": [
+            "inspect_status"
+          ]
+        }
+      },
+      "cases": {
+        "ReactiveChallengeTimeout": {"code": "reactive.challenge_timeout","category": "lifecycle","actions": ["inspect_status"],"scenarios": {"input": {"transport_status": 408},"read": {"transport_status": 408,"actions": ["inspect_status"]}}},
+        "HttpDeadline": {"code": "serving.transport_deadline","category": "unavailable","actions": ["inspect_status"],"scenarios": {"input": {"transport_status": 504},"read": {"transport_status": 504,"actions": ["retry_read"]}}},
+        "InvalidServingCommand": {"code": "serving.invalid_command","category": "syntax","actions": ["correct_input"],"scenarios": {"input": {"transport_status": 400},"read": {"transport_status": 400,"actions": ["correct_input"]}}},
+        "ReadAccessUnavailable": {"code": "serving.read_access_unavailable","category": "unsupported","actions": ["correct_input"],"scenarios": {"input": {"transport_status": 503},"read": {"transport_status": 503,"actions": ["correct_input"]}}},
+        "WebSocketProtocol": {"code": "reactive.websocket_protocol","category": "syntax","actions": ["correct_input"],"scenarios": {"input": {"transport_status": 400},"read": {"transport_status": 400,"actions": ["correct_input"]}}},
+        "WebSocketBinaryUnsupported": {"code": "reactive.websocket_binary","category": "unsupported","actions": ["correct_input"],"scenarios": {"input": {"transport_status": 400},"read": {"transport_status": 400,"actions": ["correct_input"]}}},
+        "WebSocketInvalidUtf8": {"code": "reactive.websocket_utf8","category": "syntax","actions": ["correct_input"],"scenarios": {"input": {"transport_status": 400},"read": {"transport_status": 400,"actions": ["correct_input"]}}},
+        "WebSocketMessageTooLarge": {"code": "reactive.websocket_limit","category": "limit","actions": ["inspect_scope"],"scenarios": {"input": {"transport_status": 413},"read": {"transport_status": 413,"actions": ["inspect_scope"]}}},
+        "ServingDenied": {"code": "serving.access_denied","category": "access","actions": ["inspect_scope"],"scenarios": {"input": {"transport_status": 403},"read": {"transport_status": 403,"actions": ["inspect_scope"]}}},
+        "AccessDenied": {"code": "serving.access_denied","category": "access","actions": ["inspect_scope"],"scenarios": {"input": {"transport_status": 403},"read": {"transport_status": 403,"actions": ["inspect_scope"]}}},
+        "QueryDenied": {"code": "serving.access_denied","category": "access","actions": ["inspect_scope"],"scenarios": {"input": {"transport_status": 403},"read": {"transport_status": 403,"actions": ["inspect_scope"]}}},
+        "SignatureVerificationFailed": {"code": "serving.access_denied","category": "access","actions": ["inspect_scope"],"scenarios": {"input": {"transport_status": 403},"read": {"transport_status": 403,"actions": ["inspect_scope"]}}},
+        "ReactiveSessionClosed": {"code": "reactive.session_closed","category": "lifecycle","actions": ["inspect_status"],"scenarios": {"input": {"transport_status": 410},"read": {"transport_status": 410,"actions": ["inspect_status"]}}},
+        "ReactiveSessionExpired": {"code": "reactive.session_expired","category": "lifecycle","actions": ["inspect_status"],"scenarios": {"input": {"transport_status": 410},"read": {"transport_status": 410,"actions": ["inspect_status"]}}},
+        "ReactiveAttachmentConflict": {"code": "reactive.attachment_conflict","category": "conflict","actions": ["inspect_status"],"scenarios": {"input": {"transport_status": 409},"read": {"transport_status": 409,"actions": ["inspect_status"]}}},
+        "ReactiveGenerationConflict": {"code": "reactive.generation_conflict","category": "conflict","actions": ["inspect_status"],"scenarios": {"input": {"transport_status": 409},"read": {"transport_status": 409,"actions": ["inspect_status"]}}},
+        "RefreshGenerationConflict": {"code": "reactive.generation_conflict","category": "conflict","actions": ["inspect_status"],"scenarios": {"input": {"transport_status": 409},"read": {"transport_status": 409,"actions": ["inspect_status"]}}},
+        "ReactiveSubscriptionConflict": {"code": "reactive.subscription_conflict","category": "conflict","actions": ["inspect_status"],"scenarios": {"input": {"transport_status": 409},"read": {"transport_status": 409,"actions": ["inspect_status"]}}},
+        "ReactiveResetRequired": {"code": "reactive.source_changed","category": "conflict","actions": ["inspect_status"],"scenarios": {"input": {"transport_status": 409},"read": {"transport_status": 409,"actions": ["inspect_status"]}}},
+        "UnsupportedReactiveSource": {"code": "reactive.unsupported_source","category": "unsupported","actions": ["correct_input"],"scenarios": {"input": {"transport_status": 409},"read": {"transport_status": 409,"actions": ["correct_input"]}}},
+        "InvalidReactiveProgress": {"code": "reactive.invalid_progress","category": "integrity","actions": ["contact_operator"],"scenarios": {"input": {"transport_status": 409},"read": {"transport_status": 409,"actions": ["contact_operator"]}}},
+        "ServingOperationNotFound": {"code": "serving.object_absent","category": "lifecycle","actions": ["inspect_status"],"scenarios": {"input": {"transport_status": 404},"read": {"transport_status": 404,"actions": ["inspect_status"]}}},
+        "ReactiveSessionNotFound": {"code": "serving.object_absent","category": "lifecycle","actions": ["inspect_status"],"scenarios": {"input": {"transport_status": 404},"read": {"transport_status": 404,"actions": ["inspect_status"]}}},
+        "RefreshNotFound": {"code": "serving.object_absent","category": "lifecycle","actions": ["inspect_status"],"scenarios": {"input": {"transport_status": 404},"read": {"transport_status": 404,"actions": ["inspect_status"]}}},
+        "TableNotFound": {"code": "serving.object_absent","category": "lifecycle","actions": ["inspect_status"],"scenarios": {"input": {"transport_status": 404},"read": {"transport_status": 404,"actions": ["inspect_status"]}}},
+        "ServiceUnpublished": {"code": "serving.unpublished","category": "lifecycle","actions": ["inspect_status"],"scenarios": {"input": {"transport_status": 409},"read": {"transport_status": 409,"actions": ["inspect_status"]}}},
+        "ServingResultPending": {"code": "serving.result_not_completed","category": "lifecycle","actions": ["inspect_status"],"scenarios": {"input": {"transport_status": 409},"read": {"transport_status": 409,"actions": ["inspect_status"]}}},
+        "ServingSequenceConflict": {"code": "serving.sequence_conflict","category": "conflict","actions": ["inspect_status"],"scenarios": {"input": {"transport_status": 409},"read": {"transport_status": 409,"actions": ["retry_read"]}}},
+        "ServiceReadConflict": {"code": "serving.read_conflict","category": "conflict","actions": ["inspect_status"],"scenarios": {"input": {"transport_status": 409},"read": {"transport_status": 409,"actions": ["retry_read"]}}},
+        "ResourceUnavailable": {"code": "serving.resource_unavailable","category": "unavailable","actions": ["inspect_status"],"scenarios": {"input": {"transport_status": 410},"read": {"transport_status": 410,"actions": ["retry_read"]}}},
+        "QuerySourceUnavailable": {"code": "serving.resource_unavailable","category": "unavailable","actions": ["inspect_status"],"scenarios": {"input": {"transport_status": 410},"read": {"transport_status": 410,"actions": ["retry_read"]}}},
+        "ResultUnavailable": {"code": "serving.resource_unavailable","category": "unavailable","actions": ["inspect_status"],"scenarios": {"input": {"transport_status": 410},"read": {"transport_status": 410,"actions": ["retry_read"]}}},
+        "PublicationNotPublished": {"code": "serving.result_unpublished","category": "lifecycle","actions": ["inspect_status"],"scenarios": {"input": {"transport_status": 409},"read": {"transport_status": 409,"actions": ["inspect_status"]}}},
+        "ClockUnavailable": {"code": "reactive.clock_unavailable","category": "unavailable","actions": ["inspect_status"],"scenarios": {"input": {"transport_status": 503},"read": {"transport_status": 503,"actions": ["retry_read"]}}},
+        "ServingCallerCapacity": {"code": "serving.caller_capacity","category": "limit","actions": ["inspect_scope"],"scenarios": {"input": {"transport_status": 429},"read": {"transport_status": 429,"actions": ["inspect_scope"]}}},
+        "ReactiveCapacity": {"code": "serving.caller_capacity","category": "limit","actions": ["inspect_scope"],"scenarios": {"input": {"transport_status": 429},"read": {"transport_status": 429,"actions": ["inspect_scope"]}}},
+        "AuthorityTimeout": {"code": "serving.authority_timeout","category": "unavailable","actions": ["inspect_status"],"scenarios": {"input": {"transport_status": 504},"read": {"transport_status": 504,"actions": ["retry_read"]}}},
+        "AuthorityUnavailable": {"code": "serving.attempt_unavailable","category": "unavailable","actions": ["inspect_status"],"scenarios": {"input": {"transport_status": 503},"read": {"transport_status": 503,"actions": ["retry_read"]}}},
+        "OutOfMemory": {"code": "serving.attempt_unavailable","category": "unavailable","actions": ["inspect_status"],"scenarios": {"input": {"transport_status": 503},"read": {"transport_status": 503,"actions": ["retry_read"]}}},
+        "ConnectionResetByPeer": {"code": "serving.attempt_unavailable","category": "unavailable","actions": ["inspect_status"],"scenarios": {"input": {"transport_status": 503},"read": {"transport_status": 503,"actions": ["retry_read"]}}},
+        "ConnectionRefused": {"code": "serving.attempt_unavailable","category": "unavailable","actions": ["inspect_status"],"scenarios": {"input": {"transport_status": 503},"read": {"transport_status": 503,"actions": ["retry_read"]}}},
+        "BrokenPipe": {"code": "serving.attempt_unavailable","category": "unavailable","actions": ["inspect_status"],"scenarios": {"input": {"transport_status": 503},"read": {"transport_status": 503,"actions": ["retry_read"]}}},
+        "EndOfStream": {"code": "serving.attempt_unavailable","category": "unavailable","actions": ["inspect_status"],"scenarios": {"input": {"transport_status": 503,"facts": [["operation","caller","provided"],["source_kind","owner","unrecorded"]]},"read": {"transport_status": 503,"actions": ["retry_read"],"facts": [["operation","caller","provided"],["source_kind","owner","unrecorded"]]}}},
+        "Canceled": {"code": "serving.attempt_unavailable","category": "unavailable","actions": ["inspect_status"],"scenarios": {"input": {"transport_status": 503},"read": {"transport_status": 503,"actions": ["retry_read"]}}},
+        "Rejected": {"code": "serving.native_rejection","category": "conflict","actions": ["inspect_status"],"scenarios": {"input": {"transport_status": 409},"read": {"transport_status": 409,"actions": ["retry_read"]}}},
+        "Conflict": {"code": "serving.native_rejection","category": "conflict","actions": ["inspect_status"],"scenarios": {"input": {"transport_status": 409},"read": {"transport_status": 409,"actions": ["retry_read"]}}},
+        "StreamTooLong": {"code": "serving.request_too_large","category": "limit","actions": ["inspect_scope"],"scenarios": {"input": {"transport_status": 413},"read": {"transport_status": 413,"actions": ["inspect_scope"]}}},
+        "MessageTooLarge": {"code": "serving.request_too_large","category": "limit","actions": ["inspect_scope"],"scenarios": {"input": {"transport_status": 413},"read": {"transport_status": 413,"actions": ["inspect_scope"]}}},
+        "ValueTooLarge": {"code": "serving.request_too_large","category": "limit","actions": ["inspect_scope"],"scenarios": {"input": {"transport_status": 413},"read": {"transport_status": 413,"actions": ["inspect_scope"]}}},
+        "ServingPayloadTooLarge": {"code": "serving.request_too_large","category": "limit","actions": ["inspect_scope"],"scenarios": {"input": {"transport_status": 413},"read": {"transport_status": 413,"actions": ["inspect_scope"]}}},
+        "WebSocketHandshake": {"code": "serving.invalid_request","category": "syntax","actions": ["correct_input"],"scenarios": {"input": {"transport_status": 400},"read": {"transport_status": 400,"actions": ["correct_input"]}}},
+        "InvalidJsonShape": {"code": "serving.invalid_request","category": "syntax","actions": ["correct_input"],"scenarios": {"input": {"transport_status": 400},"read": {"transport_status": 400,"actions": ["correct_input"]}}},
+        "InvalidJsonConstant": {"code": "serving.invalid_request","category": "syntax","actions": ["correct_input"],"scenarios": {"input": {"transport_status": 400},"read": {"transport_status": 400,"actions": ["correct_input"]}}},
+        "InvalidReactiveScope": {"code": "serving.invalid_request","category": "syntax","actions": ["correct_input"],"scenarios": {"input": {"transport_status": 400},"read": {"transport_status": 400,"actions": ["correct_input"]}}},
+        "InvalidReactiveCursor": {"code": "serving.invalid_request","category": "syntax","actions": ["correct_input"],"scenarios": {"input": {"transport_status": 400},"read": {"transport_status": 400,"actions": ["correct_input"]}}},
+        "InvalidServingRead": {"code": "serving.invalid_request","category": "syntax","actions": ["correct_input"],"scenarios": {"input": {"transport_status": 400},"read": {"transport_status": 400,"actions": ["correct_input"]}}},
+        "InvalidServingIdentity": {"code": "serving.invalid_request","category": "syntax","actions": ["correct_input"],"scenarios": {"input": {"transport_status": 400},"read": {"transport_status": 400,"actions": ["correct_input"]}}},
+        "InvalidFrame": {"code": "serving.invalid_request","category": "syntax","actions": ["correct_input"],"scenarios": {"input": {"transport_status": 400},"read": {"transport_status": 400,"actions": ["correct_input"]}}},
+        "UnsupportedFrame": {"code": "serving.invalid_request","category": "syntax","actions": ["correct_input"],"scenarios": {"input": {"transport_status": 400},"read": {"transport_status": 400,"actions": ["correct_input"]}}},
+        "InvalidCorrelation": {"code": "serving.invalid_request","category": "syntax","actions": ["correct_input"],"scenarios": {"input": {"transport_status": 400},"read": {"transport_status": 400,"actions": ["correct_input"]}}},
+        "InvalidValue": {"code": "serving.invalid_request","category": "syntax","actions": ["correct_input"],"scenarios": {"input": {"transport_status": 400},"read": {"transport_status": 400,"actions": ["correct_input"]}}},
+        "InvalidSequence": {"code": "serving.invalid_request","category": "syntax","actions": ["correct_input"],"scenarios": {"input": {"transport_status": 400},"read": {"transport_status": 400,"actions": ["correct_input"]}}},
+        "WrongProtocolRealm": {"code": "serving.invalid_request","category": "syntax","actions": ["correct_input"],"scenarios": {"input": {"transport_status": 400},"read": {"transport_status": 400,"actions": ["correct_input"]}}},
+        "InvalidCharacter": {"code": "serving.invalid_request","category": "syntax","actions": ["correct_input"],"scenarios": {"input": {"transport_status": 400},"read": {"transport_status": 400,"actions": ["correct_input"]}}},
+        "Overflow": {"code": "serving.invalid_request","category": "syntax","actions": ["correct_input"],"scenarios": {"input": {"transport_status": 400},"read": {"transport_status": 400,"actions": ["correct_input"]}}},
+        "DuplicateField": {"code": "serving.invalid_request","category": "syntax","actions": ["correct_input"],"scenarios": {"input": {"transport_status": 400},"read": {"transport_status": 400,"actions": ["correct_input"]}}},
+        "SyntaxError": {"code": "serving.invalid_request","category": "syntax","actions": ["correct_input"],"scenarios": {"input": {"transport_status": 400},"read": {"transport_status": 400,"actions": ["correct_input"]}}},
+        "UnexpectedToken": {"code": "serving.invalid_request","category": "syntax","actions": ["correct_input"],"scenarios": {"input": {"transport_status": 400},"read": {"transport_status": 400,"actions": ["correct_input"]}}},
+        "UnknownField": {"code": "serving.invalid_request","category": "syntax","actions": ["correct_input"],"scenarios": {"input": {"transport_status": 400},"read": {"transport_status": 400,"actions": ["correct_input"]}}},
+        "MissingField": {"code": "serving.invalid_request","category": "syntax","actions": ["correct_input"],"scenarios": {"input": {"transport_status": 400},"read": {"transport_status": 400,"actions": ["correct_input"]}}},
+        "InvalidEnumTag": {"code": "serving.invalid_request","category": "syntax","actions": ["correct_input"],"scenarios": {"input": {"transport_status": 400},"read": {"transport_status": 400,"actions": ["correct_input"]}}},
+        "InvalidServingRecord": {"code": "serving.invalid_evidence","category": "integrity","actions": ["contact_operator"],"scenarios": {"input": {"transport_status": 502},"read": {"transport_status": 502,"actions": ["contact_operator"]}}},
+        "InvalidServingReceipt": {"code": "serving.invalid_evidence","category": "integrity","actions": ["contact_operator"],"scenarios": {"input": {"transport_status": 502},"read": {"transport_status": 502,"actions": ["contact_operator"]}}},
+        "InvalidAuthorityResponse": {"code": "serving.invalid_evidence","category": "integrity","actions": ["contact_operator"],"scenarios": {"input": {"transport_status": 502},"read": {"transport_status": 502,"actions": ["contact_operator"]}}},
+        "ConnectionTimedOut": {"code": "serving.transport_unavailable","category": "unavailable","actions": ["inspect_status"],"scenarios": {"input": {"transport_status": 503},"read": {"transport_status": 503,"actions": ["retry_read"]}}},
+        "HostUnreachable": {"code": "serving.transport_unavailable","category": "unavailable","actions": ["inspect_status"],"scenarios": {"input": {"transport_status": 503},"read": {"transport_status": 503,"actions": ["retry_read"]}}},
+        "NetworkUnreachable": {"code": "serving.transport_unavailable","category": "unavailable","actions": ["inspect_status"],"scenarios": {"input": {"transport_status": 503},"read": {"transport_status": 503,"actions": ["retry_read"]}}},
+        "NameServerFailure": {"code": "serving.transport_unavailable","category": "unavailable","actions": ["inspect_status"],"scenarios": {"input": {"transport_status": 503},"read": {"transport_status": 503,"actions": ["retry_read"]}}},
+        "HttpConnectionClosing": {"code": "serving.transport_unavailable","category": "unavailable","actions": ["inspect_status"],"scenarios": {"input": {"transport_status": 503},"read": {"transport_status": 503,"actions": ["retry_read"]}}},
+        "ReadFailed": {"code": "serving.transport_unavailable","category": "unavailable","actions": ["inspect_status"],"scenarios": {"input": {"transport_status": 503},"read": {"transport_status": 503,"actions": ["retry_read"]}}},
+        "WriteFailed": {"code": "serving.transport_unavailable","category": "unavailable","actions": ["inspect_status"],"scenarios": {"input": {"transport_status": 503},"read": {"transport_status": 503,"actions": ["retry_read"]}}},
+        "InvalidResourceRead": {"code": "serving.invalid_resource_read","category": "integrity","actions": ["contact_operator"],"scenarios": {"input": {"transport_status": 502},"read": {"transport_status": 502,"actions": ["contact_operator"]}}},
+        "InvalidServiceBinding": {"code": "serving.invalid_binding","category": "binding","actions": ["correct_input"],"scenarios": {"input": {"transport_status": 400},"read": {"transport_status": 502,"actions": ["contact_operator"],"code": "serving.invalid_evidence","category": "integrity"}}},
+        "InvalidServicePolicy": {"code": "serving.invalid_policy","category": "binding","actions": ["correct_input"],"scenarios": {"input": {"transport_status": 400},"read": {"transport_status": 502,"actions": ["contact_operator"],"code": "serving.invalid_evidence","category": "integrity"}}},
+        "InvalidReactiveSource": {"code": "reactive.invalid_source","category": "binding","actions": ["correct_input"],"scenarios": {"input": {"transport_status": 400},"read": {"transport_status": 502,"actions": ["contact_operator"],"code": "serving.invalid_evidence","category": "integrity"}}},
+        "InvalidNumber": {"code": "reactive.invalid_integer","category": "binding","actions": ["correct_input"],"scenarios": {"input": {"transport_status": 400},"read": {"transport_status": 400,"actions": ["correct_input"]}}},
+        "ReactiveAdapterRequired": {"code": "reactive.adapter_required","category": "unsupported","actions": ["correct_input"],"scenarios": {"input": {"transport_status": 400},"read": {"transport_status": 400,"actions": ["correct_input"]}}},
+        "InvalidRefreshTemplate": {"code": "reactive.template_unavailable","category": "lifecycle","actions": ["inspect_status"],"scenarios": {"input": {"transport_status": 409},"read": {"transport_status": 409,"actions": ["inspect_status"]}}},
+        "WebSocketConnectionClosed": {"code": "reactive.connection_closed","category": "unavailable","actions": ["inspect_status"],"scenarios": {"input": {"transport_status": 503},"read": {"transport_status": 503,"actions": ["retry_read"]}}},
+        "IncompatibleDefinition": {"code": "serving.incompatible_definition","category": "integrity","actions": ["contact_operator"],"scenarios": {"input": {"transport_status": 502},"read": {"transport_status": 502,"actions": ["contact_operator"]}}}
+      }
     }
   }
 }

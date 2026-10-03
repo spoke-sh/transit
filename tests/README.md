@@ -13664,3 +13664,27 @@ revocation after a real batch, interrupted duplicate fetch, gateway/worker/node/
 restart and permanent source retirement. Observed gateway RSS was **79,896,576
 bytes**. Logs: `/var/tmp/transit-flight-rpc-{proof,faults}.log`. These focused results
 remain distinct from final clean committed-HEAD qualification.
+
+### Serving adapter semantic coverage (2026-10-03)
+
+Pinned native units, mapping/inventory gates and documentation pass. The finite
+registry covers 90 causes and 84 selected client, adapter, model and codec
+owner-error pairs. Five independent evidence scenarios per cause check local
+input, failed reads, unknown dispatch, received receipt and native rejection,
+including HTTP status where applicable. The matrix passes **2,251 projections
+across 27 declared surfaces**. Logs:
+`/var/tmp/transit-serving-caller-{unit,semantic,docs}.log`.
+
+The pinned serving shell's real TLS reactive client proof passes preparation,
+exact lost-reply recovery, committed controls, private Origin enforcement,
+metadata-only watch/coverage, reserved close and denial in **3.66 seconds**.
+The reactive limits proof passes four durable sessions/four held streams,
+reserved renewal and health (**0.004 seconds**), idle revocation, cursor rejection,
+malformed frames, twelve reconnects and absent-observer expiry checks. Two-gateway
+RSS is **51,945,472 bytes**, below the 256 MiB bound; that schedule reports
+**51.04 seconds**. The full initial/adversarial trace also passes snapshots,
+WebSocket-to-HTTP exact retry, SSE resume, attachment fencing and physical
+recovery (**60.82 seconds**). These execute the corresponding `test-serving`
+flags with `TMPDIR=/var/tmp` after entering the pinned shell. Logs:
+`/var/tmp/transit-serving-caller-{client,limits}.log`. Browser and final clean
+committed-HEAD qualification remain separate.

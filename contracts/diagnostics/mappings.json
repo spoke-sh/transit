@@ -2674,6 +2674,403 @@
           "name": "every Flight RPC cause has an explicit status and safe failed-attempt projection"
         }
       ]
+    },
+    {
+      "id": "serving-adapter",
+      "owners": [
+        "packages/zig/transit-serving/src/Adapter.zig",
+        "packages/zig/transit-serving/src/ReactiveAdapter.zig",
+        "packages/zig/transit-serving/src/ReactiveClient.zig",
+        "packages/zig/transit-serving/src/RefreshReader.zig",
+        "packages/zig/transit-serving/src/TableWatch.zig",
+        "packages/zig/transit-serving/src/Model.zig",
+        "packages/zig/transit-serving/src/ReactiveModel.zig",
+        "packages/zig/transit-serving/src/RefreshModel.zig",
+        "packages/zig/transit-serving/src/Codec.zig",
+        "packages/zig/transit-serving-http/src/PrivateClient.zig",
+        "packages/zig/transit-serving-http/src/ReactiveTransport.zig"
+      ],
+      "exclude": [],
+      "registry": "packages/zig/transit-serving/src/AdapterCodes.zig",
+      "projection": "packages/zig/transit-serving/src/ServingDiagnostic.zig",
+      "shared_codes": true,
+      "profile": "HTTP/reactive caller preparation, authorized reads and actual signed dispatch",
+      "stage": "Input/read/submit according to actual caller evidence",
+      "outcome": "No-send, read failure, unknown send, native rejection and received native admission remain distinct",
+      "durable_evidence": "Native receipt proves input admission only; retained serving, session and Follow outcomes use their original projections",
+      "context": "Caller label, exact saved sequence and native cause; malformed stored declarations differ from caller input, socket closure differs from session closure",
+      "disclosure": "No credentials or inaccessible records; missing truncation origin is explicit",
+      "recovery": "Preserve exact signed work; retry only the applicable read; no implicit reset, expiry, rollback or fresh dispatch",
+      "propagation": "Original domain result diagnostics take priority. HTTP status follows the same request-local evidence classification. Other unexpected external callbacks retain the open internal-failure contract.",
+      "codes": {
+        "ReactiveChallengeTimeout": {
+          "code": "reactive.challenge_timeout",
+          "category": "lifecycle"
+        },
+        "HttpDeadline": {
+          "code": "serving.transport_deadline",
+          "category": "unavailable"
+        },
+        "InvalidServingCommand": {
+          "code": "serving.invalid_command",
+          "category": "syntax"
+        },
+        "ReadAccessUnavailable": {
+          "code": "serving.read_access_unavailable",
+          "category": "unsupported"
+        },
+        "WebSocketProtocol": {
+          "code": "reactive.websocket_protocol",
+          "category": "syntax"
+        },
+        "WebSocketBinaryUnsupported": {
+          "code": "reactive.websocket_binary",
+          "category": "unsupported"
+        },
+        "WebSocketInvalidUtf8": {
+          "code": "reactive.websocket_utf8",
+          "category": "syntax"
+        },
+        "WebSocketMessageTooLarge": {
+          "code": "reactive.websocket_limit",
+          "category": "limit"
+        },
+        "ServingDenied": {
+          "code": "serving.access_denied",
+          "category": "access"
+        },
+        "AccessDenied": {
+          "code": "serving.access_denied",
+          "category": "access"
+        },
+        "QueryDenied": {
+          "code": "serving.access_denied",
+          "category": "access"
+        },
+        "SignatureVerificationFailed": {
+          "code": "serving.access_denied",
+          "category": "access"
+        },
+        "ReactiveSessionClosed": {
+          "code": "reactive.session_closed",
+          "category": "lifecycle"
+        },
+        "ReactiveSessionExpired": {
+          "code": "reactive.session_expired",
+          "category": "lifecycle"
+        },
+        "ReactiveAttachmentConflict": {
+          "code": "reactive.attachment_conflict",
+          "category": "conflict"
+        },
+        "ReactiveGenerationConflict": {
+          "code": "reactive.generation_conflict",
+          "category": "conflict"
+        },
+        "RefreshGenerationConflict": {
+          "code": "reactive.generation_conflict",
+          "category": "conflict"
+        },
+        "ReactiveSubscriptionConflict": {
+          "code": "reactive.subscription_conflict",
+          "category": "conflict"
+        },
+        "ReactiveResetRequired": {
+          "code": "reactive.source_changed",
+          "category": "conflict"
+        },
+        "UnsupportedReactiveSource": {
+          "code": "reactive.unsupported_source",
+          "category": "unsupported"
+        },
+        "InvalidReactiveProgress": {
+          "code": "reactive.invalid_progress",
+          "category": "integrity"
+        },
+        "ServingOperationNotFound": {
+          "code": "serving.object_absent",
+          "category": "lifecycle"
+        },
+        "ReactiveSessionNotFound": {
+          "code": "serving.object_absent",
+          "category": "lifecycle"
+        },
+        "RefreshNotFound": {
+          "code": "serving.object_absent",
+          "category": "lifecycle"
+        },
+        "TableNotFound": {
+          "code": "serving.object_absent",
+          "category": "lifecycle"
+        },
+        "ServiceUnpublished": {
+          "code": "serving.unpublished",
+          "category": "lifecycle"
+        },
+        "ServingResultPending": {
+          "code": "serving.result_not_completed",
+          "category": "lifecycle"
+        },
+        "ServingSequenceConflict": {
+          "code": "serving.sequence_conflict",
+          "category": "conflict"
+        },
+        "ServiceReadConflict": {
+          "code": "serving.read_conflict",
+          "category": "conflict"
+        },
+        "ResourceUnavailable": {
+          "code": "serving.resource_unavailable",
+          "category": "unavailable"
+        },
+        "QuerySourceUnavailable": {
+          "code": "serving.resource_unavailable",
+          "category": "unavailable"
+        },
+        "ResultUnavailable": {
+          "code": "serving.resource_unavailable",
+          "category": "unavailable"
+        },
+        "PublicationNotPublished": {
+          "code": "serving.result_unpublished",
+          "category": "lifecycle"
+        },
+        "ClockUnavailable": {
+          "code": "reactive.clock_unavailable",
+          "category": "unavailable"
+        },
+        "ServingCallerCapacity": {
+          "code": "serving.caller_capacity",
+          "category": "limit"
+        },
+        "ReactiveCapacity": {
+          "code": "serving.caller_capacity",
+          "category": "limit"
+        },
+        "AuthorityTimeout": {
+          "code": "serving.authority_timeout",
+          "category": "unavailable"
+        },
+        "AuthorityUnavailable": {
+          "code": "serving.attempt_unavailable",
+          "category": "unavailable"
+        },
+        "OutOfMemory": {
+          "code": "serving.attempt_unavailable",
+          "category": "unavailable"
+        },
+        "ConnectionResetByPeer": {
+          "code": "serving.attempt_unavailable",
+          "category": "unavailable"
+        },
+        "ConnectionRefused": {
+          "code": "serving.attempt_unavailable",
+          "category": "unavailable"
+        },
+        "BrokenPipe": {
+          "code": "serving.attempt_unavailable",
+          "category": "unavailable"
+        },
+        "EndOfStream": {
+          "code": "serving.attempt_unavailable",
+          "category": "unavailable"
+        },
+        "Canceled": {
+          "code": "serving.attempt_unavailable",
+          "category": "unavailable"
+        },
+        "Rejected": {
+          "code": "serving.native_rejection",
+          "category": "conflict"
+        },
+        "Conflict": {
+          "code": "serving.native_rejection",
+          "category": "conflict"
+        },
+        "StreamTooLong": {
+          "code": "serving.request_too_large",
+          "category": "limit"
+        },
+        "MessageTooLarge": {
+          "code": "serving.request_too_large",
+          "category": "limit"
+        },
+        "ValueTooLarge": {
+          "code": "serving.request_too_large",
+          "category": "limit"
+        },
+        "ServingPayloadTooLarge": {
+          "code": "serving.request_too_large",
+          "category": "limit"
+        },
+        "WebSocketHandshake": {
+          "code": "serving.invalid_request",
+          "category": "syntax"
+        },
+        "InvalidJsonShape": {
+          "code": "serving.invalid_request",
+          "category": "syntax"
+        },
+        "InvalidJsonConstant": {
+          "code": "serving.invalid_request",
+          "category": "syntax"
+        },
+        "InvalidReactiveScope": {
+          "code": "serving.invalid_request",
+          "category": "syntax"
+        },
+        "InvalidReactiveCursor": {
+          "code": "serving.invalid_request",
+          "category": "syntax"
+        },
+        "InvalidServingRead": {
+          "code": "serving.invalid_request",
+          "category": "syntax"
+        },
+        "InvalidServingIdentity": {
+          "code": "serving.invalid_request",
+          "category": "syntax"
+        },
+        "InvalidFrame": {
+          "code": "serving.invalid_request",
+          "category": "syntax"
+        },
+        "UnsupportedFrame": {
+          "code": "serving.invalid_request",
+          "category": "syntax"
+        },
+        "InvalidCorrelation": {
+          "code": "serving.invalid_request",
+          "category": "syntax"
+        },
+        "InvalidValue": {
+          "code": "serving.invalid_request",
+          "category": "syntax"
+        },
+        "InvalidSequence": {
+          "code": "serving.invalid_request",
+          "category": "syntax"
+        },
+        "WrongProtocolRealm": {
+          "code": "serving.invalid_request",
+          "category": "syntax"
+        },
+        "InvalidCharacter": {
+          "code": "serving.invalid_request",
+          "category": "syntax"
+        },
+        "Overflow": {
+          "code": "serving.invalid_request",
+          "category": "syntax"
+        },
+        "DuplicateField": {
+          "code": "serving.invalid_request",
+          "category": "syntax"
+        },
+        "SyntaxError": {
+          "code": "serving.invalid_request",
+          "category": "syntax"
+        },
+        "UnexpectedToken": {
+          "code": "serving.invalid_request",
+          "category": "syntax"
+        },
+        "UnknownField": {
+          "code": "serving.invalid_request",
+          "category": "syntax"
+        },
+        "MissingField": {
+          "code": "serving.invalid_request",
+          "category": "syntax"
+        },
+        "InvalidEnumTag": {
+          "code": "serving.invalid_request",
+          "category": "syntax"
+        },
+        "InvalidServingRecord": {
+          "code": "serving.invalid_evidence",
+          "category": "integrity"
+        },
+        "InvalidServingReceipt": {
+          "code": "serving.invalid_evidence",
+          "category": "integrity"
+        },
+        "InvalidAuthorityResponse": {
+          "code": "serving.invalid_evidence",
+          "category": "integrity"
+        },
+        "ConnectionTimedOut": {
+          "code": "serving.transport_unavailable",
+          "category": "unavailable"
+        },
+        "HostUnreachable": {
+          "code": "serving.transport_unavailable",
+          "category": "unavailable"
+        },
+        "NetworkUnreachable": {
+          "code": "serving.transport_unavailable",
+          "category": "unavailable"
+        },
+        "NameServerFailure": {
+          "code": "serving.transport_unavailable",
+          "category": "unavailable"
+        },
+        "HttpConnectionClosing": {
+          "code": "serving.transport_unavailable",
+          "category": "unavailable"
+        },
+        "ReadFailed": {
+          "code": "serving.transport_unavailable",
+          "category": "unavailable"
+        },
+        "WriteFailed": {
+          "code": "serving.transport_unavailable",
+          "category": "unavailable"
+        },
+        "InvalidResourceRead": {
+          "code": "serving.invalid_resource_read",
+          "category": "integrity"
+        },
+        "InvalidServiceBinding": {
+          "code": "serving.invalid_binding",
+          "category": "binding"
+        },
+        "InvalidServicePolicy": {
+          "code": "serving.invalid_policy",
+          "category": "binding"
+        },
+        "InvalidReactiveSource": {
+          "code": "reactive.invalid_source",
+          "category": "binding"
+        },
+        "InvalidNumber": {
+          "code": "reactive.invalid_integer",
+          "category": "binding"
+        },
+        "ReactiveAdapterRequired": {
+          "code": "reactive.adapter_required",
+          "category": "unsupported"
+        },
+        "InvalidRefreshTemplate": {
+          "code": "reactive.template_unavailable",
+          "category": "lifecycle"
+        },
+        "WebSocketConnectionClosed": {
+          "code": "reactive.connection_closed",
+          "category": "unavailable"
+        },
+        "IncompatibleDefinition": {
+          "code": "serving.incompatible_definition",
+          "category": "integrity"
+        }
+      },
+      "exceptions": [],
+      "tests": [
+        {
+          "source": "packages/zig/transit-serving/src/ServingDiagnostic.zig",
+          "name": "every serving adapter cause preserves read input dispatch and receipt evidence"
+        }
+      ]
     }
   ]
 }

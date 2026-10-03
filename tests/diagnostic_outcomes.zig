@@ -233,6 +233,26 @@ fn flightCalls(out: *std.Io.Writer) !void {
     }
 }
 
+fn servingCallers(out: *std.Io.Writer) !void {
+    const owner = s.ServingDiagnostic;
+    for (owner.codes.entries) |entry| {
+        var attempt: owner.Attempt = .{};
+        try attempt.label(.input, "prepare");
+        try emitTransport(out, "serving.adapter", @errorName(entry.cause), "input", try attempt.project(entry.cause), attempt.disposition(entry.cause).status);
+        try attempt.label(.read, "status");
+        try emitTransport(out, "serving.adapter", @errorName(entry.cause), "read", try attempt.project(entry.cause), attempt.disposition(entry.cause).status);
+        try attempt.label(.control, "submit");
+        attempt.identity = .{ .domain = .transport, .id = .init(12), .realm = .init(46), .sequence = .init(12) };
+        attempt.dispatched = true;
+        try emitScenario(out, "serving.adapter", @errorName(entry.cause), "dispatched", try attempt.project(entry.cause));
+        attempt.receipt = 17;
+        try emitScenario(out, "serving.adapter", @errorName(entry.cause), "receipt", try attempt.project(entry.cause));
+        attempt.receipt = null;
+        attempt.rejected(error.Conflict, .ConflictingRetry);
+        try emitScenario(out, "serving.adapter", @errorName(entry.cause), "native_rejected", try attempt.project(entry.cause));
+    }
+}
+
 pub fn main(init: std.process.Init) !void {
     var buffer: [8192]u8 = undefined;
     var stdout = std.Io.File.stdout().writerStreaming(init.io, &buffer);
@@ -250,6 +270,7 @@ pub fn main(init: std.process.Init) !void {
     try writeCallers(&stdout.interface);
     try inspections(&stdout.interface);
     try flightCalls(&stdout.interface);
+    try servingCallers(&stdout.interface);
     try applicationCallers(&stdout.interface);
     try stdout.interface.flush();
 }

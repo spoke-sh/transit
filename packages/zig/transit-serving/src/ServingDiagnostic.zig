@@ -5,43 +5,10 @@ const root = @import("root.zig");
 const p = root.protocol;
 const d = p.Diagnostic;
 pub const Reason = enum { denied, closed, expired, fenced, reset_required, not_found, conflict, result_not_completed, unavailable, capacity, invalid_request, internal_failure };
-pub const Class = struct { code: []const u8, reason: Reason, category: d.Category, status: u16, message: []const u8 };
+pub const codes = @import("AdapterCodes.zig");
+pub const Class = codes.Class;
 pub fn classification(cause: anyerror) Class {
-    return switch (cause) {
-        error.ReactiveChallengeTimeout => .{ .code = "reactive.challenge_timeout", .reason = .invalid_request, .category = .lifecycle, .status = 408, .message = "No complete authenticated attachment arrived within the 2000 millisecond WebSocket challenge deadline. This connection submitted no attachment. Open another connection for a fresh challenge; earlier saved work retains its own outcome." },
-        error.HttpDeadline => .{ .code = "serving.transport_deadline", .reason = .unavailable, .category = .unavailable, .status = 504, .message = "The transport task exceeded its deadline. This interruption does not establish whether earlier work was admitted or completed. Inspect the exact saved work under current authority." },
-        error.InvalidServingCommand => .{ .code = "serving.invalid_command", .reason = .invalid_request, .category = .syntax, .status = 400, .message = "The serving command payload is truncated, malformed or invalid for this operation. Correct its fields using the current command contract before submitting it. No native command was dispatched by this decoding attempt." },
-        error.ReadAccessUnavailable => .{ .code = "serving.read_access_unavailable", .reason = .unavailable, .category = .unsupported, .status = 503, .message = "The authority does not expose the required resource read-access capability. This host cannot establish current scoped read permission. Check matching host and authority contracts before enabling Follow." },
-        error.WebSocketProtocol => .{ .code = "reactive.websocket_protocol", .reason = .invalid_request, .category = .syntax, .status = 400, .message = "The WebSocket frame violates the masking, opcode, length, fragmentation or control-frame rules. Use the declared RFC 6455 text profile. Closing the socket does not cancel accepted work." },
-        error.WebSocketBinaryUnsupported => .{ .code = "reactive.websocket_binary", .reason = .invalid_request, .category = .unsupported, .status = 400, .message = "This WebSocket interface accepts UTF-8 JSON text messages. Binary messages are unsupported. Preserve any earlier signed command whose receipt is unknown." },
-        error.WebSocketInvalidUtf8 => .{ .code = "reactive.websocket_utf8", .reason = .invalid_request, .category = .syntax, .status = 400, .message = "The assembled WebSocket text or close reason contains invalid UTF-8. No complete message can be interpreted. Socket failure does not settle an earlier command." },
-        error.WebSocketMessageTooLarge => .{ .code = "reactive.websocket_limit", .reason = .invalid_request, .category = .limit, .status = 413, .message = "The WebSocket message exceeds 8192 bytes or 32 fragments. No complete message can be accepted in this profile. Keep exact signed recovery bytes for earlier submissions." },
-        error.ServingDenied, error.AccessDenied, error.QueryDenied, error.SignatureVerificationFailed => .{ .code = "serving.access_denied", .reason = .denied, .category = .access, .status = 403, .message = "Current authority or signature validation denied this request. Check the caller, service and resource scope. This observation does not settle earlier accepted commands." },
-        error.ReactiveSessionClosed => .{ .code = "reactive.session_closed", .reason = .closed, .category = .lifecycle, .status = 410, .message = "The session is explicitly closed. It cannot attach, renew or produce another live snapshot. Previously accepted application commands and selected queries retain their independent outcomes." },
-        error.ReactiveSessionExpired => .{ .code = "reactive.session_expired", .reason = .expired, .category = .lifecycle, .status = 410, .message = "The session lease deadline was reached or expiry was recorded. Inspect its exact session state before explicitly opening another session. Expiry does not cancel previously accepted application work." },
-        error.ReactiveAttachmentConflict => .{ .code = "reactive.attachment_conflict", .reason = .fenced, .category = .conflict, .status = 409, .message = "The attachment generation or challenge does not match the current session attachment. Recover the exact pending attachment and inspect its committed state before attaching again." },
-        error.ReactiveGenerationConflict, error.RefreshGenerationConflict => .{ .code = "reactive.generation_conflict", .reason = .fenced, .category = .conflict, .status = 409, .message = "The requested session or Follow generation differs from the retained owner generation. Inspect the original control disposition and current generation; an older response cannot replace newer work." },
-        error.ReactiveSubscriptionConflict => .{ .code = "reactive.subscription_conflict", .reason = .fenced, .category = .conflict, .status = 409, .message = "The subscription identity or generation differs from the current session subscription. Inspect the original subscription control before preparing any successor." },
-        error.ReactiveResetRequired => .{ .code = "reactive.source_changed", .reason = .reset_required, .category = .conflict, .status = 409, .message = "The watch declaration, schema or progress basis no longer matches this read or cursor. No replacement coverage was established. Acquire a new authorized snapshot explicitly; retain earlier command identities." },
-        error.UnsupportedReactiveSource => .{ .code = "reactive.unsupported_source", .reason = .reset_required, .category = .unsupported, .status = 409, .message = "This watch supports an int64 Table value column. The acquired source does not have that shape. Review its declaration before explicitly acquiring another snapshot." },
-        error.InvalidReactiveProgress => .{ .code = "reactive.invalid_progress", .reason = .reset_required, .category = .integrity, .status = 409, .message = "The watch progress marker is invalid for the acquired source revision. No continuity or replacement coverage was established. Inspect the application owner's progress update and source basis." },
-        error.ServingOperationNotFound, error.ReactiveSessionNotFound, error.RefreshNotFound, error.TableNotFound => .{ .code = "serving.object_absent", .reason = .not_found, .category = .lifecycle, .status = 404, .message = "The requested operation, session, Follow view or Table was absent in this authorized observation. Inspect the exact original identity and any saved input receipt; absence does not prove an uncertain command was never admitted." },
-        error.ServiceUnpublished => .{ .code = "serving.unpublished", .reason = .reset_required, .category = .lifecycle, .status = 409, .message = "The required service or watch publication is absent, unpublished or targets another source. Inspect the accepted declarations. This read establishes no replacement coverage or application outcome." },
-        error.ServingResultPending => .{ .code = "serving.result_not_completed", .reason = .result_not_completed, .category = .lifecycle, .status = 409, .message = "The selected operation has no completed reply to return. Inspect its exact status: admission, cancellation, timeout and failed result delivery are distinct. Do not submit the application command again to obtain a result." },
-        error.ServingSequenceConflict => .{ .code = "serving.sequence_conflict", .reason = .conflict, .category = .conflict, .status = 409, .message = "Native sequence or exact-retry identity validation rejected the submitted command. Preserve its original bytes and inspect its native receipt and domain status before preparing another sequence." },
-        error.ServiceReadConflict => .{ .code = "serving.read_conflict", .reason = .conflict, .category = .conflict, .status = 409, .message = "The resource cut, selected namespace or service policy changed during the bounded read. No complete observation is available. Retry the read under current rights; this does not authorize repeating a command." },
-        error.ResourceUnavailable, error.QuerySourceUnavailable, error.ResultUnavailable => .{ .code = "serving.resource_unavailable", .reason = .unavailable, .category = .unavailable, .status = 410, .message = "A required process, source or retained result is unavailable. This is not evidence of session expiry, permission revocation or command completion. Inspect the original resource and saved work under current authority." },
-        error.PublicationNotPublished => .{ .code = "serving.result_unpublished", .reason = .unavailable, .category = .lifecycle, .status = 409, .message = "The required result publication is not complete. Partial publication does not establish a usable result. Inspect the exact query or operation before reading again." },
-        error.ClockUnavailable => .{ .code = "reactive.clock_unavailable", .reason = .unavailable, .category = .unavailable, .status = 503, .message = "The host has no usable observer clock within its allowed freshness and clock-error bounds. It cannot establish a new lease or live-read validity. Inspect the clock observer; do not infer expiry or renew from a local guess." },
-        error.ServingCallerCapacity, error.ReactiveCapacity => .{ .code = "serving.caller_capacity", .reason = .capacity, .category = .limit, .status = 429, .message = "The finite caller or session capacity is occupied. Preserve pending signed work and use reserved recovery controls. Capacity pressure does not expire sessions or cancel accepted commands." },
-        error.AuthorityTimeout => .{ .code = "serving.authority_timeout", .reason = .unavailable, .category = .unavailable, .status = 504, .message = "The authority did not complete this attempt before its deadline. A failed read gives no command outcome. Preserve any saved signed work and its exact identity." },
-        error.AuthorityUnavailable, error.OutOfMemory, error.ConnectionResetByPeer, error.ConnectionRefused, error.BrokenPipe, error.EndOfStream, error.Canceled => .{ .code = "serving.attempt_unavailable", .reason = .unavailable, .category = .unavailable, .status = 503, .message = "This attempt was interrupted or could not obtain bounded resources. A failed read does not settle pending application work. Preserve exact command identities and retry only the applicable read or saved submission." },
-        error.Rejected, error.Conflict => .{ .code = "serving.native_rejection", .reason = .conflict, .category = .conflict, .status = 409, .message = "The native authority rejected this attempt. Inspect the native cause and current scope. A query rejection from the authority does not establish a terminal outcome for an earlier application command." },
-        error.StreamTooLong, error.MessageTooLarge, error.ValueTooLarge, error.ServingPayloadTooLarge => .{ .code = "serving.request_too_large", .reason = .invalid_request, .category = .limit, .status = 413, .message = "The request exceeds the finite message or inline-payload bound for this interface. Check the operation's declared byte limit. This failure cannot establish the outcome of an earlier saved command." },
-        error.WebSocketHandshake, error.InvalidJsonShape, error.InvalidJsonConstant, error.InvalidReactiveScope, error.InvalidReactiveCursor, error.InvalidServingRead, error.InvalidServingIdentity, error.InvalidFrame, error.UnsupportedFrame, error.InvalidCorrelation, error.InvalidValue, error.InvalidSequence, error.WrongProtocolRealm, error.InvalidCharacter, error.Overflow, error.DuplicateField, error.SyntaxError, error.UnexpectedToken, error.UnknownField, error.MissingField, error.InvalidEnumTag => .{ .code = "serving.invalid_request", .reason = .invalid_request, .category = .syntax, .status = 400, .message = "The request does not match this interface's fields, types, scope, signature framing or value bounds. Inspect the original cause and current generated contract. Preserve any earlier uncertain signed work." },
-        error.InvalidServingRecord, error.InvalidServingReceipt, error.InvalidAuthorityResponse => .{ .code = "serving.invalid_evidence", .reason = .internal_failure, .category = .integrity, .status = 502, .message = "The host received invalid stored or authority evidence. It cannot establish a complete observation. Preserve saved identities and report the original cause; do not infer empty state, rollback or successful completion." },
-        else => .{ .code = "serving.adapter_internal_failure", .reason = .internal_failure, .category = .internal, .status = 503, .message = "The serving adapter could not complete this attempt. Preserve the original cause and any saved signed work for inspection. This failure does not establish an application outcome." },
-    };
+    return codes.fromError(cause) orelse .{ .code = "serving.adapter_internal_failure", .reason = .internal_failure, .category = .internal, .status = 503, .message = "The serving adapter could not complete this attempt. Preserve the original cause and any saved signed work for inspection. This failure does not establish an application outcome." };
 }
 pub const Attempt = struct {
     mode: enum { input, control, read } = .input,
@@ -62,9 +29,16 @@ pub const Attempt = struct {
         self.native_cause = native;
         self.authority_rejected = native != null and (cause == error.Rejected or cause == error.Conflict or cause == error.AccessDenied);
     }
+    pub fn disposition(self: Attempt, cause: anyerror) Class {
+        // These declarations are read from stored service/session state. In a
+        // control request the same validators instead check caller input.
+        if (self.mode == .read and (cause == error.InvalidServiceBinding or cause == error.InvalidServicePolicy or cause == error.InvalidReactiveSource))
+            return .{ .code = "serving.invalid_evidence", .reason = .internal_failure, .category = .integrity, .status = 502, .message = "A retained service binding, policy or watch source violates its declared shape or bounds. No complete authorized observation is available. Preserve the selected scope and original cause for inspection; do not replace saved work." };
+        return classification(cause);
+    }
     pub fn project(self: Attempt, cause: anyerror) !d {
         if (cause == error.ServingResultPending) if (self.domain_diagnostic) |detail| return detail;
-        const info = classification(cause);
+        const info = self.disposition(cause);
         var result = if (self.receipt != null)
             try d.init("serving.ingress_accepted", .lifecycle, .submit, .pending, .native_receipt, "The authority accepted this exact native input. Its application or control outcome still requires an authorized disposition/status read. Preserve the original signed work; do not prepare a replacement command.")
         else if (self.dispatched and !self.authority_rejected)
@@ -76,6 +50,7 @@ pub const Attempt = struct {
         result.cause = try d.Code.init(@errorName(self.input_cause orelse cause));
         result.identity = self.identity;
         if (self.operation) |operation| try result.text(.operation, .caller, operation.slice());
+        if (!self.dispatched and cause == error.EndOfStream) try result.absent(.source_kind, .owner, .unrecorded);
         if (self.native_cause) |native| try result.text(.native_cause, .authority, @tagName(native));
         if (self.receipt) |input| try result.fact(.native_input, .authority, .{ .unsigned = .init(input) });
         if (self.dispatched) {
@@ -85,8 +60,10 @@ pub const Attempt = struct {
             .access => try result.action(.inspect_scope),
             .syntax, .binding, .unsupported => try result.action(.correct_input),
             .internal, .integrity => try result.action(.contact_operator),
-            .unavailable, .conflict => if (self.mode == .read and info.reason != .reset_required and info.reason != .fenced) try result.action(.retry_read),
-            else => {},
+            .unavailable, .conflict => try result.action(if (self.mode == .read and info.reason != .reset_required and info.reason != .fenced) .retry_read else .inspect_status),
+            .lifecycle => try result.action(.inspect_status),
+            .limit => try result.action(.inspect_scope),
+            .constraint => try result.action(.correct_input),
         }
         try result.validate();
         return result;
@@ -136,4 +113,43 @@ test "truncated command input cannot become a transport interruption" {
     const read = try attempt.project(error.EndOfStream);
     try std.testing.expectEqualStrings("serving.attempt_unavailable", read.code.slice());
     try std.testing.expectEqual(.not_applicable, read.outcome);
+}
+
+test "every serving adapter cause preserves read input dispatch and receipt evidence" {
+    const t = std.testing;
+    for (codes.entries) |entry| {
+        var attempt: Attempt = .{};
+        try attempt.label(.input, "prepare");
+        const local = try attempt.project(entry.cause);
+        try t.expectEqualStrings(entry.code, local.code.slice());
+        try t.expectEqual(entry.category, local.category);
+        try t.expectEqual(.not_submitted, local.outcome);
+        try t.expectEqual(.local_before_dispatch, local.evidence);
+        try attempt.label(.read, "status");
+        const read = try attempt.project(entry.cause);
+        try t.expectEqual(.not_applicable, read.outcome);
+        try t.expectEqual(.none, read.evidence);
+        for (read.actions) |slot| if (slot) |action| try t.expect(action.kind != .resume_exact and action.kind != .cancel_mutation and action.kind != .reconcile_effect);
+        attempt.identity = .{ .domain = .transport, .id = .init(12), .realm = .init(46), .sequence = .init(12) };
+        attempt.dispatched = true;
+        const unknown = try attempt.project(entry.cause);
+        try t.expectEqual(.unknown, unknown.outcome);
+        try t.expectEqual(.saved_intent, unknown.evidence);
+        try t.expectEqual(.resume_exact, unknown.actions[1].?.kind);
+        try t.expectEqualDeep(attempt.identity, unknown.actions[1].?.target);
+        attempt.receipt = 17;
+        const admitted = try attempt.project(entry.cause);
+        try t.expectEqual(.pending, admitted.outcome);
+        try t.expectEqual(.native_receipt, admitted.evidence);
+        try t.expectEqual(.inspect_status, admitted.actions[0].?.kind);
+        try t.expect(admitted.actions[1] == null);
+    }
+    const read: Attempt = .{ .mode = .read };
+    inline for (.{ error.InvalidServiceBinding, error.InvalidServicePolicy, error.InvalidReactiveSource }) |cause| {
+        try t.expectEqual(.integrity, (try read.project(cause)).category);
+        try t.expectEqual(@as(u16, 502), read.disposition(cause).status);
+        try t.expectEqual(@as(u16, 400), classification(cause).status);
+    }
+    try t.expectEqual(.unavailable, classification(error.WebSocketConnectionClosed).reason);
+    try t.expectEqual(.closed, classification(error.ReactiveSessionClosed).reason);
 }
