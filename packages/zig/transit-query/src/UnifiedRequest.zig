@@ -100,7 +100,7 @@ pub const Status = struct {
             if (self.phase != .retired and self.phase != .denied and self.phase != .rejected) return error.InvalidQueryUpload;
             if (self.manifest != null or (self.phase != .retired and failure.denied() != (self.phase == .denied))) return error.InvalidQueryUpload;
         }
-        var bytes: [160]u8 = undefined;
+        var bytes: [@max(160, 88 + q.QueryFailure.encoded_bytes)]u8 = undefined;
         var writer: std.Io.Writer = .fixed(&bytes);
         try writer.writeAll("UQU1");
         try writer.writeAll((try self.reference.encode()).slice());

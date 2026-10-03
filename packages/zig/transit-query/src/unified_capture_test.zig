@@ -538,3 +538,55 @@ test "source closure retains the exact first budget dimension and measurements t
         try t.expectEqualDeep(observed, (try capture.job(&turn, job.id)).failure);
     }
 }
+
+test "runtime failure commits its original frozen row witness atomically within one value" {
+    var store: Store = .{};
+    defer store.deinit();
+    var requests: Store = .{ .resource = 8, .pid = 9 };
+    defer requests.deinit();
+    const source = try seedKV(&store, 2);
+    var key = [_]u8{ 'k', 0, 0, 0, 0, 0, 0, 0, 0 };
+    for ([_]i64{ std.math.maxInt(i64), 1 }, 0..) |number, index| {
+        var turn = try store.capture();
+        key[8] = @intCast(index);
+        var bytes: [8]u8 = undefined;
+        std.mem.writeInt(i64, &bytes, number, .little);
+        try turn.put(try p.Value.init(&key), try p.Value.init(&bytes));
+        try store.commit(turn);
+    }
+    const job = try start(&store, &requests, .{ .source = source, .plan = .{ .projection = &.{1}, .aggregate = .sum }, .limits = limits });
+    // The live values now no longer overflow; the retained execution still does.
+    _ = try seedKV(&store, 2);
+    const cancellation = q.fuze.execution.Cancellation.init(false);
+    const continuation: r.Continuation = .{ .job = job.id, .input = job.continuation };
+    var observed: ?q.QueryFailure = null;
+    for (0..2) |attempt| {
+        var turn = try frame(&store, 3, .{ .kind = .cast, .payload = try continuation.encode() });
+        var arena: std.heap.ArenaAllocator = .init(t.allocator);
+        defer arena.deinit();
+        const before = turn.decision;
+        var failure: ?q.QueryFailure = null;
+        try t.expectError(error.Overflow, capture.advanceDiagnostic(&turn, continuation, Source{ .store = &requests }, arena.allocator(), &.{}, &cancellation, &failure));
+        try t.expectEqualDeep(before, turn.decision);
+        try t.expectEqual(q.QueryFailure.Code.arithmetic_overflow, failure.?.code);
+        try t.expectEqual(@as(u64, 2), failure.?.runtime.?.row);
+        try t.expectEqualStrings("value", failure.?.runtime.?.columnName());
+        if (observed) |previous| try t.expectEqualDeep(previous, failure.?) else observed = failure;
+        if (attempt == 1) {
+            try capture.closeFailure(&turn, job.id, failure.?);
+            try turn.validate();
+            try store.commit(turn);
+        }
+    }
+    var reader = try store.capture();
+    const failed = try capture.job(&reader, job.id);
+    try t.expectEqualDeep(observed, failed.failure);
+    try t.expectEqual(@as(usize, 255), (try failed.encode()).len);
+    try t.expectEqualDeep(failed, try r.Job.decode(try failed.encode()));
+    try t.expect(store.versions.get(job.source).?.view.released_at != null);
+    var status: q.UnifiedRequest.Status = .{ .reference = job.request, .phase = .rejected, .correlation = 77, .failure = failed.failure };
+    try t.expectEqual(@as(usize, 200), (try status.encode()).len);
+    try t.expectEqualDeep(status, try q.UnifiedRequest.Status.decode(try status.encode()));
+    status.phase = .retired;
+    try t.expectEqualDeep(observed, (try q.UnifiedRequest.Status.decode(try status.encode())).failure);
+}

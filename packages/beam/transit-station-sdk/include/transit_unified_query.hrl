@@ -20,7 +20,7 @@
 -record(transit_unified_explanation, {operators = [], predicate = all, projection = [], limit = undefined, aggregate, columns = [], budgets}).
 -record(transit_unified_inspection, {name, resource, source_kind, source_digest, schema_digest, resource_revision, policy_revision, details}).
 -record(transit_unified_failure, {code, stage, dimension, limit, observed}).
--record(transit_unified_status, {phase, correlation, reference, manifest = undefined, collected = false, failure = undefined}).
+-record(transit_unified_status, {phase, correlation, reference, manifest = undefined, collected = false, failure = undefined, diagnostic = undefined}).
 -record(transit_unified_observation, {state, reason = undefined}).
 -record(transit_unified_alternative, {counter, replica, value}).
 -record(transit_unified_manifest, {job, source, requester, correlation, policy_revision, request, kind, resource, revision, source_digest, schema_digest, plan_digest, pages, scanned, selected, value_count, segments, rows, byte_count, sum = undefined, finished, chain}).

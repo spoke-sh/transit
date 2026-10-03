@@ -159,7 +159,7 @@ static void serve(char **args) {
                 const auto v=client.status(std::stoull(arg)); const char *names[]={"uploading","sealed","admitted","complete","cancelled","denied","rejected","retired"};
                 std::string failure = "null";
                 if(v && v->failure) { const auto &f=*v->failure; failure="{\"code\":\""+f.code+"\",\"stage\":\""+f.stage+"\",\"dimension\":\""+f.dimension+"\",\"limit\":\""+std::to_string(f.limit)+"\",\"observed\":\""+std::to_string(f.observed)+"\"}"; }
-                result=std::string("{\"status\":")+(v?"{\"phase\":\""+std::string(names[static_cast<size_t>(v->phase)])+"\",\"correlation\":\""+std::to_string(v->correlation)+"\",\"failure\":"+failure+"}":"null")+"}";
+                result=std::string("{\"status\":")+(v?"{\"phase\":\""+std::string(names[static_cast<size_t>(v->phase)])+"\",\"correlation\":\""+std::to_string(v->correlation)+"\",\"failure\":"+failure+",\"diagnostic\":"+v->diagnostic.value_or("null")+"}":"null")+"}";
             }else {
                 assert(command=="page"); std::optional<q::Cursor> cursor; if(token!="-")cursor.emplace(q::Cursor::recover(unhex(token)));
                 auto page=client.page(std::stoull(arg),cursor?&*cursor:nullptr);

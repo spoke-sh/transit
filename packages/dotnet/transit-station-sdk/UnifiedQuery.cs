@@ -248,7 +248,7 @@ public static class UnifiedQuery
     public enum Phase { Uploading,Sealed,Admitted,Complete,Cancelled,Denied,Rejected,Retired }
     public sealed record Failure(string Code,string Stage,string Dimension,ulong Limit,ulong Observed);
     private static Failure? ReadFailure(JsonNode? value) => value is null ? null : new Failure(V.String(value["code"]),V.String(value["stage"]),V.String(value["dimension"]),NativeValues.Wide(value["limit"]),NativeValues.Wide(value["observed"]));
-    public sealed record Status(Phase Phase,ulong Correlation,Bytes Reference,Bytes? Manifest,bool Collected,Failure? Failure);
+    public sealed record Status(Phase Phase,ulong Correlation,Bytes Reference,Bytes? Manifest,bool Collected,Failure? Failure,JsonObject? Diagnostic);
     public enum Observed { Pending,Committed,Rejected }
     public sealed record Observation(Observed State,Bytes? Reason);
     public enum Control { Cancel,Retire,Collect }
@@ -313,7 +313,7 @@ public static class UnifiedQuery
         }
         public Task<Status?> StatusAsync(ulong ns,CancellationToken cancellation=default) {
             var action=V.Obj(("status",Turn.Decimal(Positive(ns))));
-            return worker.Invoke(b => { var v=b.UnifiedQuery(action)["status"]; return v is null?null:new Status(Variant<Phase>(v["phase"]),NativeValues.Wide(v["correlation"]),Fixed(v["reference"],72),v["manifest"] is null?null:Fixed(v["manifest"],72),V.Boolean(v["collected"]),ReadFailure(v["failure"])); },cancellation);
+            return worker.Invoke(b => { var v=b.UnifiedQuery(action)["status"]; return v is null?null:new Status(Variant<Phase>(v["phase"]),NativeValues.Wide(v["correlation"]),Fixed(v["reference"],72),v["manifest"] is null?null:Fixed(v["manifest"],72),V.Boolean(v["collected"]),ReadFailure(v["failure"]),v["diagnostic"] is null?null:V.Object(v["diagnostic"]).DeepClone().AsObject()); },cancellation);
         }
         public Task<Page> PageAsync(ulong ns,Cursor? cursor=null,CancellationToken cancellation=default) {
             var action=V.Obj(("page",V.Obj(("namespace",Turn.Decimal(Positive(ns))),("cursor",cursor?.Opaque))));

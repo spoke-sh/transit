@@ -248,7 +248,7 @@ public final class UnifiedQuery {
         if(value.isJsonNull())return Optional.empty(); JsonObject f=object(value);
         return Optional.of(new Failure(string(f.get("code")),string(f.get("stage")),string(f.get("dimension")),wide(f.get("limit")),wide(f.get("observed"))));
     }
-    public record Status(Phase phase,BigInteger correlation,Bytes reference,Optional<Bytes> manifest,boolean collected,Optional<Failure> failure) {}
+    public record Status(Phase phase,BigInteger correlation,Bytes reference,Optional<Bytes> manifest,boolean collected,Optional<Failure> failure,Optional<JsonObject> diagnostic) {}
     public enum Observed { PENDING, COMMITTED, REJECTED }
     public record Observation(Observed state,Optional<Bytes> reason) {}
     public enum Control { CANCEL, RETIRE, COLLECT }
@@ -323,7 +323,7 @@ public final class UnifiedQuery {
         }
         public CompletableFuture<Optional<Status>> status(BigInteger namespace) {
             JsonObject action=obj("status",positive(namespace).toString());
-            return worker.submit(b -> { JsonElement result=b.unifiedQuery(action,false).get("status"); if(result.isJsonNull())return Optional.empty(); JsonObject v=object(result); return Optional.of(new Status(Phase.valueOf(string(v.get("phase")).toUpperCase(Locale.ROOT)),wide(v.get("correlation")),fixed(v.get("reference"),72),v.get("manifest").isJsonNull()?Optional.empty():Optional.of(fixed(v.get("manifest"),72)),bool(v.get("collected")),failure(v.get("failure")))); });
+            return worker.submit(b -> { JsonElement result=b.unifiedQuery(action,false).get("status"); if(result.isJsonNull())return Optional.empty(); JsonObject v=object(result); return Optional.of(new Status(Phase.valueOf(string(v.get("phase")).toUpperCase(Locale.ROOT)),wide(v.get("correlation")),fixed(v.get("reference"),72),v.get("manifest").isJsonNull()?Optional.empty():Optional.of(fixed(v.get("manifest"),72)),bool(v.get("collected")),failure(v.get("failure")),v.get("diagnostic").isJsonNull()?Optional.empty():Optional.of(object(v.get("diagnostic")).deepCopy()))); });
         }
         public CompletableFuture<Page> page(BigInteger namespace,Optional<Cursor> cursor) {
             JsonObject action=obj("page",obj("namespace",positive(namespace).toString(),"cursor",cursor.map(Cursor::opaque).orElse(null)));

@@ -174,7 +174,7 @@ def serve(config)
           { observation: { observed.state => observed.reason.nil? ? {} : observed.reason.unpack1('H*') } }
         elsif action.key?('status')
           status = client.status(Integer(action.fetch('status')))
-          { status: status.nil? ? nil : { phase: status.phase, correlation: status.correlation.to_s, failure: status.failure&.then { |f| {code: f.code, stage: f.stage, dimension: f.dimension, limit: f.limit.to_s, observed: f.observed.to_s} } } }
+          { status: status.nil? ? nil : { phase: status.phase, correlation: status.correlation.to_s, diagnostic: status.diagnostic, failure: status.failure&.then { |f| {code: f.code, stage: f.stage, dimension: f.dimension, limit: f.limit.to_s, observed: f.observed.to_s} } } }
         elsif action.key?('page')
           value = action.fetch('page')
           page = client.page(Integer(value.fetch('namespace')), value['cursor'].nil? ? nil : Q::Cursor.new(data: value.fetch('cursor')))

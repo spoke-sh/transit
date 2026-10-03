@@ -362,6 +362,7 @@ class Status:
     manifest: bytes | None
     collected: bool
     failure: Failure | None
+    diagnostic: dict[str, Any] | None
 
 
 class Observed(Enum):
@@ -673,7 +674,7 @@ class Client:
         value = self._call({'status': str(_wide(namespace, 'namespace', 1))})['status']
         if value is None: return None
         return Status(Phase(value['phase']), _wide(int(value['correlation']), 'correlation'), owned_bytes(bytes.fromhex(value['reference']), 72),
-            None if value['manifest'] is None else owned_bytes(bytes.fromhex(value['manifest']), 72), value['collected'], _failure(value['failure']))
+            None if value['manifest'] is None else owned_bytes(bytes.fromhex(value['manifest']), 72), value['collected'], _failure(value['failure']), value['diagnostic'])
 
     def page(self, namespace: int, cursor: Cursor | None = None) -> Page:
         return _page(self._call({'page': {'namespace': str(_wide(namespace, 'namespace', 1)),
@@ -746,7 +747,7 @@ class AsyncClient:
         value = (await self._call({'status': str(_wide(namespace, 'namespace', 1))}))['status']
         if value is None: return None
         return Status(Phase(value['phase']), _wide(int(value['correlation']), 'correlation'), owned_bytes(bytes.fromhex(value['reference']), 72),
-            None if value['manifest'] is None else owned_bytes(bytes.fromhex(value['manifest']), 72), value['collected'], _failure(value['failure']))
+            None if value['manifest'] is None else owned_bytes(bytes.fromhex(value['manifest']), 72), value['collected'], _failure(value['failure']), value['diagnostic'])
 
     async def page(self, namespace: int, cursor: Cursor | None = None) -> Page:
         return _page((await self._call({'page': {'namespace': str(_wide(namespace, 'namespace', 1)),

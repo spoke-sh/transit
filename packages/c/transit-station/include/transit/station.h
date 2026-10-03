@@ -1,6 +1,7 @@
 #ifndef TRANSIT_SDK_STATION_H
 #define TRANSIT_SDK_STATION_H
 #include <transit/client.h>
+#include <transit/definition_station.h>
 #ifdef __cplusplus
 extern "C" {
 #endif

@@ -187,8 +187,8 @@ namespace. All integers are little-endian. The part payload is at most 145 bytes
 begin is 72 and namespace operations are 12, below the unchanged 243-byte limit.
 `UQU1` upload state contains its `SPF1`, phase byte, u64 original correlation,
 optional-manifest flag/reference, collected flag and failure-presence flag. A
-present failure adds the 24-byte `UQF1` record below. Valid records are 88 bytes
-without a manifest/failure, 112 with a failure or 160 with a manifest. A manifest
+present failure adds the 112-byte `UQF1` record below. Valid records are 88 bytes
+without a manifest/failure, 200 with a failure or 160 with a manifest. A manifest
 and a failure are mutually exclusive. Denied/rejected status requires a failure;
 retirement preserves that failure. Old records without the presence byte reject. Phases
 1–8 mean uploading, sealed, admitted, complete, cancelled, denied, rejected and
@@ -220,7 +220,7 @@ The query-result publication domain separates its budgets and records from
 request uploads and mutations in the same resource. Segment ordinal `n` uses record `n + 1`, format `0x31415155`; the final manifest uses
 record `2^64 - 1`, format `0x314d5155`. `UQJ1` binds the original route, request
 reference, policy revision and retained version. Its final failure-presence byte
-and optional `UQF1` make it 143 or 167 bytes. Failed/denied jobs require a
+and optional `UQF1` make it 143 or 255 bytes. Failed/denied jobs require a
 matching failure; all other source phases forbid one. The `UQC1` checkpoint contains
 the `FZS1` engine progress, source-specific cursor, total bytes and ordered segment
 chain in at most 254 bytes. It fits the unchanged 256-byte KV value.
@@ -236,14 +236,39 @@ only its original-call reply establishes a completed query for the requester.
 
 ## Retained query failures
 
-`UQF1` is exactly 24 bytes: magic, u16 stable code, u8 stage, u8 budget dimension,
-u64 limit and u64 observed/required work, in little-endian order. Stage 1 is
-admission and stage 2 is execution. Dimension 0 means no measured budget witness;
-both counters must then be zero. Dimensions 1, 2 and 3 mean pages, result segments
-and result bytes. A measured witness requires code 9, execution stage, a positive
-limit and required work greater than that limit. Page work is the next page
-required beyond the completed-page count; result counters include the rejected
-candidate segment. They are not falsely presented as committed progress.
+`UQF1` is exactly 112 bytes: magic, u16 stable code, u8 stage, u8 evidence
+tag and a 104-byte payload. All integers are little-endian. Stage 1 is admission
+and stage 2 is execution. Tag 0 has an all-zero payload. Tags 1, 2 and 3 mean
+pages, result segments and result bytes; their payload starts with u64 limit and
+u64 required work and ends in 88 zero bytes. A measured witness requires code 9,
+execution stage, a positive limit and required work greater than that limit.
+Page work is the next page required beyond the completed-page count; result
+counters include the rejected candidate segment, not committed progress.
+
+Tag 4 carries the original runtime witness. Its 104 bytes hold resource u56,
+revision u56, frozen binding SHA-256, one-based scanned row u64, source kind u8,
+operation u8 (validate/predicate/count/sum = 1/2/3/4), column u8, instruction u8
+(255 means absent), flags u8, expected scalar type u8, column-length u8, complete
+key-length u16, decoder actual-byte-count u16 and 39 detail bytes. The high bit
+of column-length marks truncation; the remaining bits give at most 23 ASCII
+column bytes. Detail contains that column prefix followed by the key prefix,
+then zero padding. Flags bits 0–1 name no key/KV/Table/Document element; bits 2–4
+name no decoder failure/invalid UTF-8/invalid length/invalid boolean/nonfinite
+float. All other flag bits are zero. Table keys use exact i64 bytes; Document
+element keys use two u64 values (counter, replica). Long KV keys use available
+remaining bytes and retain their complete length, so presentation marks truncation.
+An unexpanded Document has no element key. No stored cell value is included.
+
+Runtime witnesses require execution stage, no budget counters, and a compatible
+cell/arithmetic failure. Source kinds, column/type/instruction bounds, decoder
+shape, key shape, padding and reserved bits are validated. The engine validates the whole incoming page before evaluating predicates and
+aggregates in row order. Predicate evaluation keeps eager instruction order;
+SUM reports the first intermediate overflow. The witness identifies the first
+failure in that execution order, not every possible error in the input.
+The witness comes from the same retained page and bound plan that failed.
+Recomputing a rolled-back proposal against the retained cut produces the same
+witness even if live source data changes. Earlier 24-byte failures reject; the
+shared definition cutover also rejects peers and saved work from that definition.
 
 Admission rejection replies carry `UQF1`. Execution closure atomically records
 that same value in the source job and sends it on the original reply route.
@@ -258,7 +283,17 @@ Page, segment and byte budget checks run in that order. Failure to allocate,
 read storage or commit the outcome does not authorize a terminal failure: the
 original work remains unresolved. No extra mutation or larger native value is
 required. Access to retained failure status uses the current requester-resource
-read authorization; it includes no stored cell values or credentials.
+read authorization, including bounded source keys copied into that recorded
+outcome. It includes no stored cell values or credentials.
+
+Neutral status includes both the original `failure` (code/stage/budget counters)
+and a nullable [diagnostic envelope](DIAGNOSTICS_V1.md). Denied/rejected/retired
+failures project the same original facts; retirement changes the outcome and
+actions without replacing the cause. Cancelled/retired statuses without failures
+receive lifecycle diagnostics. Other phases carry null. All ten SDKs retain the
+complete diagnostic JSON with exact decimal counters; C owns at most 32 KiB in
+its status value and C++ owns an optional string. SDK exceptions use their
+separate failure boundary; status is an observational result, not an exception.
 
 The stable codes below are the closed inventory for the source behavior's
 terminal failure mapping. English descriptions and Zig error names are not the

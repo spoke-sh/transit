@@ -97,8 +97,8 @@ test "durable source records fit unchanged values and preserve all continuation 
 test "failure records reject missing witnesses and preserve full-width budget evidence" {
     const failure: q.QueryFailure = .{ .code = .budget_exceeded, .stage = .execution, .dimension = .result_bytes, .limit = 1, .observed = std.math.maxInt(u64) };
     const encoded = try failure.encode();
-    var expected: [24]u8 = undefined;
-    _ = try std.fmt.hexToBytes(&expected, "55514631090002030100000000000000ffffffffffffffff");
+    var expected: [q.QueryFailure.encoded_bytes]u8 = @splat(0);
+    _ = try std.fmt.hexToBytes(expected[0..24], "55514631090002030100000000000000ffffffffffffffff");
     try t.expectEqualSlices(u8, &expected, encoded.slice());
     try t.expectEqualDeep(failure, try q.QueryFailure.decode(encoded));
     inline for (std.meta.tags(q.QueryFailure.Code)) |code| {
@@ -137,4 +137,16 @@ test "failure records reject missing witnesses and preserve full-width budget ev
     defer arena.deinit();
     const neutral = try q.Bridge.Status.fromNative(arena.allocator(), status);
     try t.expectEqualStrings("18446744073709551615", neutral.failure.?.observed);
+    const diagnostic = neutral.diagnostic.?;
+    try t.expectEqual(p.Diagnostic.Outcome.retired, diagnostic.outcome);
+    try t.expectEqualStrings("query.budget_exceeded", diagnostic.code.slice());
+    try t.expectEqual(std.math.maxInt(u64), try diagnostic.facts[2].?.value.?.unsigned.value());
+    var json: [p.Diagnostic.max_json_bytes]u8 = undefined;
+    try t.expectEqualDeep(diagnostic, try p.Diagnostic.decode(t.allocator, try diagnostic.encode(&json)));
+    // Old payloads, changed reserved bytes and truncated witnesses cannot be
+    // treated as the current saved outcome or quietly default their evidence.
+    try t.expectError(error.InvalidQueryFailure, q.QueryFailure.decode(try p.Value.init(encoded.slice()[0..24])));
+    var reserved = encoded;
+    reserved.data[111] = 1;
+    try t.expectError(error.InvalidQueryFailure, q.QueryFailure.decode(reserved));
 }

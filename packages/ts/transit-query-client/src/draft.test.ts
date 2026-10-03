@@ -183,6 +183,7 @@ function fixture() {
               manifest: null,
               collected: cancelled.has(request.status),
               failure: null,
+              diagnostic: null,
             }
           : null,
       };

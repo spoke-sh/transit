@@ -88,7 +88,7 @@ pub const Job = struct {
         try identity(self.continuation);
         if ((self.phase == .failed or self.phase == .denied) != (self.failure != null)) return error.InvalidQueryRecord;
         if (self.failure) |failure| if (failure.denied() != (self.phase == .denied)) return error.InvalidQueryRecord;
-        var bytes: [167]u8 = undefined;
+        var bytes: [143 + q.QueryFailure.encoded_bytes]u8 = undefined;
         var writer: std.Io.Writer = .fixed(&bytes);
         try writer.writeAll("UQJ1");
         inline for (.{ "id", "destination", "correlation", "policy_revision" }) |name| try writer.writeInt(u64, @field(self, name), .little);

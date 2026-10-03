@@ -19,8 +19,7 @@ The inventory does not prove that every error propagating through an inferred
 error set is listed. External I/O/allocation failures, dynamic handler errors and
 native rejections need owning boundary mappings. Nor does a recorded error prove
 that its diagnostic has context, valid recovery advice or an executed negative
-case. Those are separate closure requirements in
-[semantic diagnostics](../../docs/roadmap/M44.md), tracked by
+case. Those are separate requirements tracked by
 [#69](https://github.com/rupurt/rey/issues/69).
 
 Run `just test::diagnostic-inventory` in the pinned development shell. After

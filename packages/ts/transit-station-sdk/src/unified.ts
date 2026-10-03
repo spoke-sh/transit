@@ -452,6 +452,9 @@ export interface Failure {
   readonly limit: bigint;
   readonly observed: bigint;
 }
+export type Diagnostic = NonNullable<
+  NonNullable<Extract<UnifiedQueryResult, { status: unknown }>["status"]>["diagnostic"]
+>;
 export interface Status {
   readonly phase: Phase;
   readonly correlation: bigint;
@@ -459,6 +462,7 @@ export interface Status {
   readonly manifest: Uint8Array | undefined;
   readonly collected: boolean;
   readonly failure: Failure | null;
+  readonly diagnostic: Diagnostic | null;
 }
 export type Observation =
   | { readonly state: "pending" | "committed" }
@@ -899,6 +903,7 @@ export class Client {
           reference: unhex(v.reference, 72),
           manifest: v.manifest === null ? undefined : unhex(v.manifest, 72),
           collected: v.collected,
+          diagnostic: v.diagnostic,
           failure:
             v.failure === null
               ? null

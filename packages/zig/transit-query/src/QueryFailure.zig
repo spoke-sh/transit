@@ -70,7 +70,8 @@ stage: Stage,
 dimension: Dimension = .none,
 limit: u64 = 0,
 observed: u64 = 0,
-pub const encoded_bytes = 24;
+runtime: ?q.RuntimeWitness = null,
+pub const encoded_bytes = 112;
 pub fn category(self: Self) p.Diagnostic.Category {
     return switch (self.code) {
         .policy_denied, .access_denied, .publisher_mismatch, .peer_mismatch => .access,
@@ -103,6 +104,7 @@ pub fn diagnostic(self: Self, namespace: u64, phase: q.UnifiedRequest.Phase) !p.
         try result.fact(.limit, .execution, .{ .unsigned = .init(self.limit) });
         try result.fact(.required, .execution, .{ .unsigned = .init(self.observed) });
     }
+    if (self.runtime) |witness| try witness.enrich(&result);
     try result.fact(.completion, .execution, .{ .boolean = false });
     try result.action(.inspect_status);
     switch (self.category()) {
@@ -254,19 +256,32 @@ pub fn message(self: Self) []const u8 {
     };
 }
 pub fn validate(self: Self) !void {
+    if (self.runtime) |witness| {
+        if (self.stage != .execution or self.dimension != .none) return error.InvalidQueryFailure;
+        switch (self.code) {
+            .cell_type_error, .cell_conflict, .arithmetic_overflow, .type_mismatch, .unknown_column, .nonfinite_value, .invalid_utf8, .cell_too_large => {},
+            else => return error.InvalidQueryFailure,
+        }
+        try witness.validate();
+    }
     if (self.dimension == .none) {
         if (self.limit != 0 or self.observed != 0) return error.InvalidQueryFailure;
     } else if (self.code != .budget_exceeded or self.stage != .execution or self.limit == 0 or self.observed <= self.limit) return error.InvalidQueryFailure;
 }
 pub fn encode(self: Self) !p.Value {
     try self.validate();
-    var bytes: [encoded_bytes]u8 = undefined;
+    var bytes: [encoded_bytes]u8 = @splat(0);
     bytes[0..4].* = "UQF1".*;
     std.mem.writeInt(u16, bytes[4..6], @backingInt(self.code), .little);
     bytes[6] = @backingInt(self.stage);
-    bytes[7] = @backingInt(self.dimension);
-    std.mem.writeInt(u64, bytes[8..16], self.limit, .little);
-    std.mem.writeInt(u64, bytes[16..24], self.observed, .little);
+    if (self.runtime) |witness| {
+        bytes[7] = 4;
+        bytes[8..].* = try witness.encode();
+    } else {
+        bytes[7] = @backingInt(self.dimension);
+        std.mem.writeInt(u64, bytes[8..16], self.limit, .little);
+        std.mem.writeInt(u64, bytes[16..24], self.observed, .little);
+    }
     return p.Value.init(&bytes);
 }
 pub fn decode(value: p.Value) !Self {
@@ -275,11 +290,13 @@ pub fn decode(value: p.Value) !Self {
     const result: Self = .{
         .code = std.enums.fromInt(Code, std.mem.readInt(u16, value.data[4..6], .little)) orelse return error.InvalidQueryFailure,
         .stage = std.enums.fromInt(Stage, value.data[6]) orelse return error.InvalidQueryFailure,
-        .dimension = std.enums.fromInt(Dimension, value.data[7]) orelse return error.InvalidQueryFailure,
-        .limit = std.mem.readInt(u64, value.data[8..16], .little),
-        .observed = std.mem.readInt(u64, value.data[16..24], .little),
+        .dimension = if (value.data[7] == 4) .none else std.enums.fromInt(Dimension, value.data[7]) orelse return error.InvalidQueryFailure,
+        .limit = if (value.data[7] == 4) 0 else std.mem.readInt(u64, value.data[8..16], .little),
+        .observed = if (value.data[7] == 4) 0 else std.mem.readInt(u64, value.data[16..24], .little),
+        .runtime = if (value.data[7] == 4) try q.RuntimeWitness.decode(value.data[8..encoded_bytes]) else null,
     };
     try result.validate();
+    if (!(try result.encode()).eql(value)) return error.InvalidQueryFailure;
     return result;
 }
 

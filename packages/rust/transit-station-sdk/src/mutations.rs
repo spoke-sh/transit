@@ -1,5 +1,5 @@
 //! Typed, owned mutation callers over the shared Zig policy/staging/recovery owner.
-use crate::bridge::{MutationNative, counter, field, wide, signed};
+use crate::bridge::{MutationNative, counter, field, signed, wide};
 use crate::{CellType, abi};
 use serde_json::{Value, json};
 use transit_client::internal::{Worker, hex, number, string, unhex};
@@ -412,8 +412,13 @@ impl Client {
                 Value::Null => None,
                 detail => {
                     let row = number(field(detail, "row")?, "conflict-row", false)?;
-                    if row > 3 { return Err(malformed()); }
-                    Some(Conflict { key: signed(field(detail, "key")?)?, row: row as u8 })
+                    if row > 3 {
+                        return Err(malformed());
+                    }
+                    Some(Conflict {
+                        key: signed(field(detail, "key")?)?,
+                        row: row as u8,
+                    })
                 }
             },
             reason: Reason::parse(field(v, "reason")?)?,

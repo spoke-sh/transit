@@ -172,6 +172,7 @@ typedef struct transit_station_unified_status {
     bool found; transit_station_unified_phase phase; uint64_t correlation;
     uint8_t reference[72], manifest[72]; bool has_manifest, collected, has_failure;
     transit_station_unified_failure failure;
+    transit_sdk_diagnostic diagnostic;
 } transit_station_unified_status;
 transit_sdk_error transit_station_unified_status_read(transit_station_unified_client *, uint64_t namespace_id, transit_station_unified_status *out);
 typedef enum transit_station_unified_finished { TRANSIT_UNIFIED_SOURCE_END, TRANSIT_UNIFIED_LIMIT } transit_station_unified_finished;

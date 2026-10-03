@@ -162,7 +162,7 @@ async function serve() {
           result = {observation: {[value.state]: value.state === 'rejected' ? Buffer.from(value.reason).toString('hex') : {}}};
         } else if ('status' in action) {
           const value = await client.status(BigInt(action.status));
-          result = {status: value ? {phase: value.phase, correlation: value.correlation.toString(), failure: value.failure && {...value.failure, limit: value.failure.limit.toString(), observed: value.failure.observed.toString()}} : null};
+          result = {status: value ? {phase: value.phase, correlation: value.correlation.toString(), diagnostic: value.diagnostic, failure: value.failure && {...value.failure, limit: value.failure.limit.toString(), observed: value.failure.observed.toString()}} : null};
         } else if ('page' in action) {
           const v = action.page;
           const value = await client.page(BigInt(v.namespace), v.cursor == null ? undefined : new q.Cursor(v.cursor));

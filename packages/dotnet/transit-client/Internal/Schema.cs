@@ -9,7 +9,7 @@ namespace Transit.Client.Internal;
 internal static class Schema
 {
     private static readonly HashSet<string> Keywords = new(StringComparer.Ordinal) {
-        "type", "properties", "additionalProperties", "required", "maxProperties", "anyOf", "oneOf", "enum",
+        "type", "properties", "additionalProperties", "required", "maxProperties", "anyOf", "oneOf", "enum", "const",
         "minimum", "maximum", "maxLength", "pattern", "items", "minItems", "maxItems"
     };
     internal static void Require(JsonObject schema, JsonNode? value)
@@ -25,6 +25,7 @@ internal static class Schema
             int matches = branches.Count(branch => Valid(Value.Object(branch), value));
             if (matches == 0 || (union == "oneOf" && matches != 1)) return false;
         }
+        if (schema.ContainsKey("const") && !JsonNode.DeepEquals(schema["const"], value)) return false;
         if (schema["enum"] is JsonArray choices && !choices.Any(choice => JsonNode.DeepEquals(choice, value))) return false;
         if (schema["type"] is null) return true;
         return Value.String(schema["type"]) switch {

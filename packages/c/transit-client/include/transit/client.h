@@ -6,7 +6,10 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
+#include <transit/definition_client.h>
 #define TRANSIT_SDK_VERSION 2u
+/* Owned DIAGNOSTICS_V1 envelope. size==0 denotes absent; JSON is NUL terminated. */
+typedef struct transit_sdk_diagnostic { size_t size; char json[32769]; } transit_sdk_diagnostic;
 typedef enum transit_sdk_error_kind {
     TRANSIT_SDK_OK, TRANSIT_SDK_INVALID_ARGUMENT, TRANSIT_SDK_BUSY, TRANSIT_SDK_CLOSED,
     TRANSIT_SDK_INCOMPATIBLE_NATIVE, TRANSIT_SDK_UNSUPPORTED_CAPABILITY,

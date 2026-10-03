@@ -29,6 +29,13 @@ def run(node, cli, library, artifacts):
             subprocess.run(['zig', compiler, '-std=c++17' if language == 'C++' else '-std=c11', '-Wall', '-Wextra', '-Werror',
                             str(target / source), *flags, '-lpthread', '-o', binary], env=environment, cwd=target, check=True)
             (target / source).unlink()
+            # A consumer compiled with a foreign C SDK definition must fail
+            # before calling into an ABI with differently sized public structs.
+            foreign = target / 'foreign-definition.c'
+            foreign.write_text('extern void transit_sdk_growing_config_' + '0'*64 + '(void);\nint main(void) { transit_sdk_growing_config_' + '0'*64 + '(); return 0; }\n')
+            rejected = subprocess.run(['zig', 'cc', foreign, *flags, '-o', target / 'foreign-consumer'], env=environment, cwd=target, capture_output=True)
+            assert rejected.returncode != 0 and b'transit_sdk_growing_config_' in rejected.stderr, rejected.stderr
+            foreign.unlink()
             # Every reflected export exists; only the ABI version is incompatible.
             wrong = target / 'wrong-native'; wrong.mkdir()
             contract = json.loads((root / 'packages/zig/transit-client/abi-v1.json').read_bytes())

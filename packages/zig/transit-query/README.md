@@ -225,15 +225,19 @@ defines scope, literal redaction and final access checks.
 codec. Source closure and requester status retain the same original failure.
 `UnifiedCapture.advanceDiagnostic` additionally captures page, segment and
 result-byte budget measurements before rolling back a rejected candidate.
+`RuntimeWitness` captures row, column, instruction, source key, frozen binding
+and decoder evidence from the same failed retained page. The owned 104-byte
+witness keeps failed jobs within one native value and the existing turn budget.
 The neutral bridge and all SDK query statuses carry this evidence; no transient
 handler pointer or later source read substitutes for the recorded cause. See
 [retained query failures](../../../contracts/UNIFIED_QUERY_V1.md#retained-query-failures)
-for code identities, exact bytes and authorization. Source expression/column
-witnesses are not recorded by this profile.
+for code identities, truncation, exact bytes and authorization.
 
 `QueryFailure.diagnostic(namespace, phase)` projects an authorized saved failure
 into the shared [diagnostic value](../../../contracts/DIAGNOSTICS_V1.md). Every
-retained code has an explicit category. Measured budgets retain full-width limit
+retained code has an explicit category. `Bridge.Status.diagnostic` carries this
+projection as owned JSON through the native/port boundary, SDK status models
+and Board workspace responses. Measured budgets retain full-width limit
 and required counters. Rejected and retired failures offer inspection/correction,
 never resubmission of the old operation. This projection requires the caller to
 complete current-access validation before disclosing it.

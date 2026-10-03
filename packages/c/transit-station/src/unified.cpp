@@ -317,6 +317,8 @@ transit_sdk_error transit_station_unified_status_read(transit_station_unified_cl
     Uninterruptible guard;if(out)*out={};return run(client,[&](NativeQuery &n){require(ns&&out,"query-status");const auto v=n.call("{\"status\":"+quote(decimal(ns))+"}");const auto &r=n.local.raw;if(r.field(v,"status")=="null")return;transit_station_unified_status result{};result.found=true;result.phase=static_cast<transit_station_unified_phase>(select_name(r.field(v,"status/phase",true),phases,8));result.correlation=wide(r,v,"status/correlation");fixed_bytes(r,v,"status/reference",result.reference,72);result.has_manifest=r.field(v,"status/manifest")!="null";if(result.has_manifest)fixed_bytes(r,v,"status/manifest",result.manifest,72);result.collected=r.boolean(v,"status/collected");
         result.has_failure=r.field(v,"status/failure")!="null";
         if(result.has_failure){inspected_name(r,v,"status/failure/code",result.failure.code);inspected_name(r,v,"status/failure/stage",result.failure.stage);inspected_name(r,v,"status/failure/dimension",result.failure.dimension);result.failure.limit=wide(r,v,"status/failure/limit");result.failure.observed=wide(r,v,"status/failure/observed");}
+        const auto diagnostic=r.field(v,"status/diagnostic");
+        if(diagnostic!="null"){require(diagnostic.size()<=32768,"diagnostic-bound");result.diagnostic.size=diagnostic.size();std::copy(diagnostic.begin(),diagnostic.end(),result.diagnostic.json);}
         *out=result;});
 }
 transit_sdk_error transit_station_unified_page_read(transit_station_unified_client *client,uint64_t ns,const transit_station_unified_cursor *cursor,transit_station_unified_page **out){

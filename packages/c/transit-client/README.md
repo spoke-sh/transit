@@ -16,6 +16,11 @@ library beside itself. No library-path environment variable is needed.
 incompatible versions produce `TRANSIT_SDK_INCOMPATIBLE_NATIVE` with a bounded
 phase. Loading a library neither discovers credentials nor starts a client.
 
+Public C SDK symbols include the current shared contract definition. Generated
+headers preserve readable source names while binding linkage to that definition;
+mismatched SDK headers and libraries fail to link/load before exchanging public
+structs. Rebuild C and C++ consumers together with a contract cutover.
+
 The qualified platform is Linux x86_64 with the pinned Zig 0.17 compiler and the
 build's Nix runtime closure. These are local installation artifacts, not portable
 Linux distributions or registry publications. See [usage and ownership](docs/USAGE.md)

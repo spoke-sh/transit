@@ -63,7 +63,15 @@ ownership or a gateway's own credential.
 
 Terminal query status retains the original semantic failure code and whether it
 occurred during admission or execution. Page, segment and result-byte failures
-also retain their admitted limit and required work. These values survive exact
+also retain their admitted limit and required work. Runtime cell and aggregate
+failures retain the first failing scanned row, column, expression instruction,
+source key and frozen binding identity where that operator has them. Column
+names and long KV keys have explicit truncation markers; decoder failures name
+the encoding reason and byte counts without copying stored values.
+
+The neutral status and all ten SDKs carry the shared diagnostic envelope beside
+the original failure. Its typed facts and recovery actions do not depend on
+English text. These values survive exact
 retry, cleanup, request retirement and restart; they are not reconstructed by
 rerunning the query. Current access to the request resource is still required.
 A terminal failure has no complete result. Correcting the query or its authorized

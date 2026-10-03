@@ -79,10 +79,11 @@ module Transit
     # This small validator accepts only the keywords emitted by the Zig schema
     # generator. Unknown schema keywords fail closed, rather than being ignored.
     def valid?(schema, value)
-      known = %w[type properties additionalProperties required maxProperties anyOf oneOf enum minimum maximum maxLength pattern items minItems maxItems]
+      known = %w[type properties additionalProperties required maxProperties anyOf oneOf enum const minimum maximum maxLength pattern items minItems maxItems]
       return false unless (schema.keys - known).empty?
       return false if schema.key?('anyOf') && !schema['anyOf'].any? { |item| valid?(item, value) }
       return false if schema.key?('oneOf') && schema['oneOf'].count { |item| valid?(item, value) } != 1
+      return false if schema.key?('const') && schema['const'] != value
       return false if schema.key?('enum') && !schema['enum'].include?(value)
       case schema['type']
       when nil then true

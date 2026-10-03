@@ -13,6 +13,7 @@ pub fn render(value: d, out: *std.Io.Writer) !void {
     try out.writeAll("error: ");
     try escaped(out, value.message.slice());
     try out.print("\nCode: {s}; stage: {s}.\n", .{ value.code.slice(), @tagName(value.stage) });
+    if (value.identity) |identity| try out.print("{s} {d}: {s}.\n", .{ @tagName(identity.domain), try identity.id.value(), @tagName(value.outcome) });
     for (value.facts) |slot| if (slot) |fact| {
         try out.print("{s}: ", .{switch (fact.field) {
             .source_row => "Scan row",
@@ -47,7 +48,10 @@ pub fn render(value: d, out: *std.Io.Writer) !void {
     for (value.actions) |slot| if (slot) |action| switch (action.kind) {
         .correct_input => try out.writeAll("Correct the reported input or source problem before starting new work.\n"),
         .inspect_scope => try out.writeAll("Inspect the current permissions and declaration of the named target.\n"),
-        .inspect_status => try out.writeAll("Inspect the recorded outcome for this exact operation.\n"),
+        .inspect_status => try out.writeAll(if (value.identity != null and switch (value.identity.?.domain) {
+            .query, .mutation, .catalog => true,
+            else => false,
+        }) "Use .status to inspect the recorded outcome for this exact operation.\n" else "Inspect the recorded outcome through its owning interface.\n"),
         .recompile => try out.writeAll("Prepare the statement again against the current source declaration.\n"),
         .resume_exact => try out.writeAll("Reconcile the saved operation with its original identity and bytes.\n"),
         .cancel_wait => try out.writeAll("Cancel the saved wait through its owning query interface; already disclosed results remain disclosed.\n"),

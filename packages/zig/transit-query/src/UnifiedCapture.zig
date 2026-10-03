@@ -124,9 +124,16 @@ pub fn advanceDiagnostic(turn: *Turn, continuation: r.Continuation, source: anyt
     var page: q.UnifiedSource.Batch = undefined;
     try q.UnifiedSource.page(bundle.source, previous.progress.basis, previous.cursor, &retained, turn, allocator, &page);
     var bytes: [m.Arrow.segment_bytes]u8 = undefined;
-    const candidate = m.Stream.step(bound, previous.progress, page.engine(), workspace, &bytes, cancellation) catch |err| switch (err) {
-        error.WriteFailed => return error.QuerySegmentBudgetExceeded,
-        else => return err,
+    var runtime: ?m.Stream.Failure = null;
+    const candidate = m.Stream.stepDiagnostic(bound, previous.progress, page.engine(), workspace, &bytes, cancellation, &runtime) catch |err| {
+        const cause = if (err == error.WriteFailed) error.QuerySegmentBudgetExceeded else err;
+        if (diagnostic) |detail| if (runtime) |witness| {
+            if (q.QueryFailure.fromError(cause, .execution)) |failure| {
+                detail.* = failure;
+                detail.*.?.runtime = q.RuntimeWitness.capture(bound, &page, witness) catch null;
+            }
+        };
+        return cause;
     };
     var progress = previous;
     progress.progress = candidate.progress;

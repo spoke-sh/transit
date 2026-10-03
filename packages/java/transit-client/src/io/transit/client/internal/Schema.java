@@ -8,7 +8,7 @@ import java.util.Set;
 public final class Schema {
     private Schema() {}
     private static final Set<String> KEYS = Set.of("type", "properties", "additionalProperties", "required", "maxProperties",
-        "anyOf", "oneOf", "enum", "minimum", "maximum", "maxLength", "pattern", "items", "minItems", "maxItems");
+        "anyOf", "oneOf", "enum", "const", "minimum", "maximum", "maxLength", "pattern", "items", "minItems", "maxItems");
     public static void require(JsonObject schema, JsonElement value) {
         if (!valid(schema, value)) throw Values.incompatible("native-schema");
     }
@@ -20,6 +20,7 @@ public final class Schema {
             for (JsonElement branch : schema.getAsJsonArray(union)) if (valid(branch.getAsJsonObject(), value)) matches++;
             if (matches == 0 || (union.equals("oneOf") && matches != 1)) return false;
         }
+        if (schema.has("const") && !schema.get("const").equals(value)) return false;
         if (schema.has("enum") && !schema.getAsJsonArray("enum").contains(value)) return false;
         if (!schema.has("type")) return true;
         return switch (schema.get("type").getAsString()) {

@@ -89,9 +89,10 @@ json(Bytes) ->
 require(Schema, Value) -> case valid(Schema, Value) of true -> Value; false -> fail(incompatible_native, schema) end.
 valid(Schema, Value) ->
     Keywords = [<<"type">>, <<"properties">>, <<"additionalProperties">>, <<"required">>, <<"maxProperties">>,
-        <<"anyOf">>, <<"oneOf">>, <<"enum">>, <<"minimum">>, <<"maximum">>, <<"maxLength">>, <<"pattern">>, <<"items">>, <<"minItems">>, <<"maxItems">>],
+        <<"anyOf">>, <<"oneOf">>, <<"enum">>, <<"const">>, <<"minimum">>, <<"maximum">>, <<"maxLength">>, <<"pattern">>, <<"items">>, <<"minItems">>, <<"maxItems">>],
     lists:all(fun(Key) -> case Key of <<"x-transit-", _/binary>> -> true; _ -> lists:member(Key, Keywords) end end, maps:keys(Schema))
         andalso union(Schema, Value, <<"anyOf">>) andalso union(Schema, Value, <<"oneOf">>)
+        andalso (not maps:is_key(<<"const">>, Schema) orelse Value =:= maps:get(<<"const">>, Schema))
         andalso (not maps:is_key(<<"enum">>, Schema) orelse lists:member(Value, maps:get(<<"enum">>, Schema)))
         andalso typed(maps:get(<<"type">>, Schema, undefined), Schema, Value).
 union(Schema, Value, Kind) ->

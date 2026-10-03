@@ -6,6 +6,8 @@ root = Path(__file__).resolve().parents[3]
 source = json.loads((root / "contracts/transit-board-v1.openapi.json").read_text())
 
 def ts(s):
+    if "const" in s:
+        return json.dumps(s["const"])
     if "anyOf" in s or "oneOf" in s:
         return "(" + " | ".join(ts(item) for item in s.get("anyOf", s.get("oneOf"))) + ")"
     if "enum" in s:

@@ -66,10 +66,20 @@ pub const Status = struct {
     manifest: ?p.Value,
     collected: bool,
     failure: ?Failure,
+    diagnostic: ?p.Diagnostic,
     pub fn fromNative(alloc: Allocator, value: q.UnifiedRequest.Status) !Status {
-        return .{ .reference = try value.reference.encode(), .phase = value.phase, .correlation = try a.decimal(alloc, value.correlation), .manifest = if (value.manifest) |ref| try ref.encode() else null, .collected = value.collected, .failure = if (value.failure) |failure| try Failure.fromNative(alloc, failure) else null };
+        return .{ .reference = try value.reference.encode(), .phase = value.phase, .correlation = try a.decimal(alloc, value.correlation), .manifest = if (value.manifest) |ref| try ref.encode() else null, .collected = value.collected, .failure = if (value.failure) |failure| try Failure.fromNative(alloc, failure) else null, .diagnostic = try statusDiagnostic(value) };
     }
 };
+pub fn statusDiagnostic(value: q.UnifiedRequest.Status) !?p.Diagnostic {
+    _ = try value.encode();
+    if (value.failure) |failure| return try failure.diagnostic(value.reference.namespace, value.phase);
+    if (value.phase != .cancelled and value.phase != .retired) return null;
+    var result = try p.Diagnostic.init(if (value.phase == .cancelled) "query.cancelled" else "query.retired", .lifecycle, .control, if (value.phase == .cancelled) .cancelled else .retired, .domain_status, if (value.phase == .cancelled) "The saved query wait was cancelled; previously disclosed results remain disclosed." else "The saved query was retired; its result is no longer available through this request.");
+    result.identity = .{ .domain = .query, .id = .init(value.reference.namespace) };
+    try result.action(.inspect_status);
+    return result;
+}
 pub const Manifest = struct {
     job: u64,
     source: p.Growth.ReadVersionId,

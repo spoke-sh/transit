@@ -55,5 +55,6 @@ pub const testing = if (@import("builtin").is_test) struct {
 
 pub const TableMutationBridge = @import("TableMutationBridge.zig");
 
+pub const RuntimeWitness = @import("RuntimeWitness.zig");
 pub const ExecutionDiagnostic = @import("ExecutionDiagnostic.zig");
 pub const QueryFailure = @import("QueryFailure.zig");

@@ -575,6 +575,7 @@ pub struct Status {
     pub manifest: Option<Vec<u8>>,
     pub collected: bool,
     pub failure: Option<Failure>,
+    pub diagnostic: Option<serde_json::Value>,
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Observation {
@@ -1136,9 +1137,21 @@ impl Client {
                 Some(unhex(string(field(v, "manifest")?, "manifest")?, 72)?)
             },
             collected: boolean(field(v, "collected")?, "collected")?,
-            failure: if field(v, "failure")?.is_null() { None } else {
+            diagnostic: match field(v, "diagnostic")? {
+                serde_json::Value::Null => None,
+                value => Some(value.clone()),
+            },
+            failure: if field(v, "failure")?.is_null() {
+                None
+            } else {
                 let f = field(v, "failure")?;
-                Some(Failure { code: string(field(f, "code")?, "code")?.to_owned(), stage: string(field(f, "stage")?, "stage")?.to_owned(), dimension: string(field(f, "dimension")?, "dimension")?.to_owned(), limit: wide(field(f, "limit")?)?, observed: wide(field(f, "observed")?)? })
+                Some(Failure {
+                    code: string(field(f, "code")?, "code")?.to_owned(),
+                    stage: string(field(f, "stage")?, "stage")?.to_owned(),
+                    dimension: string(field(f, "dimension")?, "dimension")?.to_owned(),
+                    limit: wide(field(f, "limit")?)?,
+                    observed: wide(field(f, "observed")?)?,
+                })
             },
         }))
     }

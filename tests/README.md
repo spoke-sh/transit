@@ -12258,3 +12258,28 @@ queries. Runtime enrichment does not reconstruct a row from a later read.
 
 These are volatile interactive witnesses. Durable storage/restart qualification
 for runtime row/expression context is not established by this increment.
+
+### Durable runtime witnesses and neutral query status
+
+On 2026-10-02, the query package's 84 tests pass with a compact owned runtime
+witness. A failed source job is 255 bytes and requester failure status is 200
+bytes. Tests retain the exact SUM overflow row after live values change,
+recompute identical evidence after rollback, atomically close within the existing
+turn bound, release the retained pin and preserve the witness through retirement.
+Malformed flags/padding, old 24-byte failures and truncated records reject.
+Maximum-width keys, row ordinals and measured counters survive owned JSON
+projection; long column/KV-key prefixes carry explicit truncation markers.
+
+`just check` passes, including generated contracts, package checks, frontend
+validation and the documentation site build. `just test::cli-diagnostics` passes
+458 real command cases. Installed C and C++ raw-client schedules also pass,
+including a foreign-definition link rejection before exchanging SDK structs.
+
+The all-ten-SDK lifecycle schedule is extended to compare complete diagnostic
+status on KV, Table and Document. Its KV runtime case repairs the source after
+failure and checks that the original witness survives exact lost-receipt recovery,
+node/store restart and retirement. The initial run exhausted `/tmp` while
+compiling an isolated Rust consumer; a disk-backed rerun found missing `const`
+support in SDK schema validators. Ruby, Java, .NET and BEAM validators now check
+that keyword. The corrected complete installed schedule remains in progress at
+this source commit; these unit and build results do not certify that schedule.

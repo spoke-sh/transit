@@ -711,6 +711,7 @@
       },
       "outcomes": {},
       "imports": [
+        "EnvelopeDiagnostic.zig",
         "std",
         "transit_query"
       ]
@@ -6406,7 +6407,7 @@
       },
       "outcomes": {
         "Definition": [
-          "@\"63f0ffc698c8620bc478c33c49d61efbcff689140cf439d412336ffa694d22bc\""
+          "@\"31f1dd611804b4e2fa9c0c10727b12bc3fae82fff9198ba8a01a4391b421b3cf\""
         ],
         "Command": [
           "grant",
@@ -6869,7 +6870,7 @@
         "InvalidQueryBudget": 1,
         "InvalidQueryBundle": 1,
         "InvalidQueryDiagnostic": 1,
-        "InvalidQueryFailure": 6,
+        "InvalidQueryFailure": 9,
         "InvalidQueryPath": 1,
         "InvalidQueryPrefix": 1,
         "InvalidQuerySource": 1,
@@ -6981,6 +6982,36 @@
           "writer_not_ready",
           "request_resource_expired",
           "request_resource_missing"
+        ]
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
+    "packages/zig/transit-query/src/RuntimeWitness.zig": {
+      "errors": {
+        "InvalidRuntimeWitness": 21
+      },
+      "outcomes": {
+        "Operation": [
+          "validate",
+          "predicate",
+          "count",
+          "sum"
+        ],
+        "KeyKind": [
+          "none",
+          "kv",
+          "table",
+          "element"
+        ],
+        "Decoding": [
+          "none",
+          "invalid_utf8",
+          "invalid_length",
+          "invalid_boolean",
+          "nonfinite_float"
         ]
       },
       "imports": [
@@ -7657,6 +7688,7 @@
         "ExecutionDiagnostic.zig",
         "Interactive.zig",
         "QueryFailure.zig",
+        "RuntimeWitness.zig",
         "SourceDefinition.zig",
         "SqlCompilation.zig",
         "SqlInspection.zig",

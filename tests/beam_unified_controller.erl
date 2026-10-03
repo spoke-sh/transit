@@ -137,7 +137,7 @@ action(A,C,#{<<"submit">>:=Bytes},_,_)->
 action(A,C,#{<<"observe">>:=Position},_,_)->
     #transit_unified_observation{state=S,reason=Reason}=result(A:observe(C,Position)),{#{observation=>#{atom_to_binary(S,utf8)=>case Reason of undefined->#{}; _->hex(Reason) end}},undefined};
 action(A,C,#{<<"status">>:=N},_,_)->
-    Status=result(A:status(C,binary_to_integer(N))),{#{status=>case Status of undefined->null; #transit_unified_status{phase=P,correlation=Correlation,failure=F}->#{phase=>atom_to_binary(P,utf8),correlation=>integer_to_binary(Correlation),failure=>failure_value(F)} end},undefined};
+    Status=result(A:status(C,binary_to_integer(N))),{#{status=>case Status of undefined->null; #transit_unified_status{phase=P,correlation=Correlation,failure=F,diagnostic=D}->#{diagnostic=>case D of undefined->null; _->D end,phase=>atom_to_binary(P,utf8),correlation=>integer_to_binary(Correlation),failure=>failure_value(F)} end},undefined};
 action(A,C,#{<<"page">>:=#{<<"namespace">>:=N}=Request},Connection,Kind)->
     Cursor=maps:get(<<"cursor">>,Request,null),
     Page=#transit_unified_page{manifest=#transit_unified_manifest{resource=Resource,kind=K,segments=Segments,selected=Selected,value_count=Counted},columns=Columns,rows=Rows,ordinal=Ordinal,ipc=Ipc,next=Next}=result(A:page(C,binary_to_integer(N),case Cursor of null->undefined; _->#transit_unified_cursor{opaque=Cursor} end)),
