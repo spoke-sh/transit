@@ -123,7 +123,7 @@ public final class Grpc {
     public static Reply decodeReply(long realm, byte[] bytes) { return decodeReply(realm, bytes, null); }
     public static Reply decodeReply(long realm, byte[] value, Path nativeHost) {
         counter(realm, 1);
-        byte[] owned = bytes(value, 73);
+        byte[] owned = bytes(value, 232);
         boolean release = owned.length >= 4 && owned[0] == 'G' && owned[1] == 'R' && owned[2] == 'K' && owned[3] == '1';
         JsonObject decoded = local(obj("outcome", HexFormat.of().formatHex(owned)), nativeHost, release);
         if (decoded.has("released")) {
@@ -147,7 +147,7 @@ public final class Grpc {
         public ReplyCodec(Codec<T> application, long realm, Path nativeHost) { this.application = Objects.requireNonNull(application); this.realm = counter(realm, 1); this.nativeHost = nativeHost; }
         @Override public String typeId() { return "transit.grpc.reply+" + application.typeId(); }
         @Override public long version() { return 1; }
-        @Override public int maxEncodedBytes() { return Math.max(73, application.maxEncodedBytes()); }
+        @Override public int maxEncodedBytes() { return Math.max(232, application.maxEncodedBytes()); }
         @Override public byte[] encode(Message<T> value) {
             if (value instanceof Application<T> message) return application.encode(message.value());
             throw NativeValues.codecError();

@@ -68,7 +68,7 @@ def generate_service():
         "route_hex": (b"GRA1" + struct.pack("<QQQB", 9, 8, 2**64-1, 1) + reference).hex(),
         "outcome_ok_hex": outcome(1, 0, bytes([9])*32),
         "outcome_unknown_hex": outcome(2, 0, bytes(32)),
-        "rejection_hex": (b"GRF1" + bytes([1])).hex(),
+        "rejection_hex": (b"GRF1" + bytes([1]) + bytes(227)).hex(),
         "release_hex": (b"GRD1" + struct.pack("<QQ", 7, 2**64-1)).hex(),
         "released_hex": (b"GRK1" + struct.pack("<QQ", 7, 2**64-1)).hex(),
         "followup_hex": (b"GRU1" + struct.pack("<QQB", 7, 2**64-1, 1) + reference).hex(),

@@ -300,6 +300,18 @@ def run(node, cli, raw_library, worker, install, label, *, public_release=False,
                     assert result['phase'] == 'not_admitted' and result['outcome'] == 'not_committed'
                     outputs = deliver()
                     assert len(outputs) == 1 and outputs[0]['destination'] == caller['pid']
+                    import hashlib
+                    rejection = bytes.fromhex(outputs[0]['value'])[13:]
+                    assert len(rejection) == 232 and rejection[:5] == (b'GRF1' if rpc else b'HTF1') + b'\x01'
+                    assert int.from_bytes(rejection[6:14], 'little') > 0
+                    assert rejection[14:46] == hashlib.sha256(wire).digest()
+                    field = rejection[48:48 + rejection[46]].decode()
+                    if reason != 'redirect':
+                        assert rejection[5] == 6 and field == 'parent.disposition'
+                        assert rejection[157:157 + rejection[155]] == b'closed_unknown'
+                        assert rejection[200:200 + rejection[198]] == b'observed'
+                    else:
+                        assert rejection[80] > 0 and field == 'followup.policy'
                     assert action(child, 'step') == {'followup': True}
                     close(child)
                 worker_config['exchange'] = 2**64-1

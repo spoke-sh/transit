@@ -7,15 +7,38 @@ pub const Reference = rpc.RequestRecord.Reference;
 pub const Admission = struct { caller: u64, resource: u64, endpoint_revision: u64, reconcile_before_ms: u64, max_attempts: u32 };
 pub const Scope = struct { method: []const u8, shape: rpc.Shape, descriptor_digest: [32]u8, metadata: []const []const u8 = &.{} };
 pub fn validateRequest(scope: Scope, request: rpc.Request) !void {
-    try request.validate();
-    if (scope.metadata.len > 64 or !std.mem.eql(u8, scope.method, request.method) or scope.shape != request.shape or !std.mem.eql(u8, &scope.descriptor_digest, &request.descriptor_digest)) return error.GrpcRequestNotGranted;
+    return validateRequestDiagnostic(scope, request, null);
+}
+pub fn validateRequestDiagnostic(scope: Scope, request: rpc.Request, failure: ?*?Rejection) !void {
+    request.validate() catch |err| {
+        if (failure) |slot| slot.* = Rejection.detail(.invalid_request, .decode, "request", .unrecorded, .unrecorded, err);
+        return err;
+    };
+    const rejected: ?Rejection = if (scope.metadata.len > 64)
+        Rejection.detail(.denied, .maximum, "policy.metadata", .{ .unsigned = 64 }, .{ .unsigned = scope.metadata.len }, error.GrpcRequestNotGranted)
+    else if (!std.mem.eql(u8, scope.method, request.method))
+        Rejection.detail(.denied, .equal, "request.method", .{ .text = scope.method }, .{ .text = request.method }, error.GrpcRequestNotGranted)
+    else if (scope.shape != request.shape)
+        Rejection.detail(.denied, .equal, "request.shape", .{ .text = @tagName(scope.shape) }, .{ .text = @tagName(request.shape) }, error.GrpcRequestNotGranted)
+    else if (!std.mem.eql(u8, &scope.descriptor_digest, &request.descriptor_digest))
+        Rejection.detail(.denied, .equal, "request.descriptor_digest", .{ .digest = scope.descriptor_digest }, .{ .digest = request.descriptor_digest }, error.GrpcRequestNotGranted)
+    else
+        null;
+    if (rejected) |detail| {
+        if (failure) |slot| slot.* = detail;
+        return error.GrpcRequestNotGranted;
+    }
     for (request.metadata) |field| {
         const allowed_metadata = for (scope.metadata) |name| {
             if (std.mem.eql(u8, name, field.name)) break true;
         } else false;
-        if (!allowed_metadata) return error.GrpcRequestNotGranted;
+        if (!allowed_metadata) {
+            if (failure) |slot| slot.* = Rejection.detail(.denied, .policy, "request.metadata", .unrecorded, .{ .text = field.name }, error.GrpcRequestNotGranted);
+            return error.GrpcRequestNotGranted;
+        }
     }
 }
+
 pub const Route = struct {
     pub const magic = "GRA1";
     caller: u64,
@@ -63,14 +86,7 @@ pub const Outcome = struct {
         return .{ .resource = self.resource, .exchange = self.exchange, .chain = self.chain };
     }
 };
-pub const Rejection = struct {
-    pub const magic = "GRF1";
-    reason: enum(u8) { denied = 1, invalid_request = 2, busy = 3 },
-    pub fn validate(_: Rejection) !void {}
-    pub fn diagnostic(self: Rejection) !x.p.Diagnostic {
-        return x.OutcomeDiagnostic.rejection(.grpc, self);
-    }
-};
+pub const Rejection = x.AdmissionRejection.For("GRF1", .grpc);
 /// Explicit durable disposal of the original caller's replay hold. This is not
 /// local reader disposal, remote cancellation or permission to delete history.
 pub const Release = struct {
@@ -122,7 +138,7 @@ pub const Followup = struct {
         return x.codec.decode(Followup, value);
     }
 };
-pub const FollowupValidation = union(enum) { accepted: rpc.Policy.Reference, rejected: @FieldType(Rejection, "reason") };
+pub const FollowupValidation = union(enum) { accepted: rpc.Policy.Reference, rejected: Rejection };
 
 // Adapter hooks for the common routing/settlement helper. Layouts stay here.
 pub const protocol_format = rpc.protocol_format;

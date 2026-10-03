@@ -55,7 +55,13 @@ handle_message(Turn, Input, {S, Peer, Request, Disposal} = Context) ->
             case Input#transit_incoming.value of
                 <<"GRF1", _/binary>> ->
                     {ok, Correlation} = transit_turn:require(State, FollowupKey), {ok, ok} = transit_turn:require_reply(Turn, Input, Peer, Correlation),
-                    {ok, #transit_grpc_rejected{reason = denied}} = transit_grpc:decode_reply(72, Input#transit_incoming.value),
+                    {ok, #transit_grpc_rejected{reason = denied, diagnostic = Detail}} = transit_grpc:decode_reply(72, Input#transit_incoming.value),
+                    Facts = maps:from_list([{maps:get(<<"field">>, F), F} || F <- maps:get(<<"facts">>, Detail), is_map(F)]),
+                    <<"provided">> = maps:get(<<"availability">>, maps:get(<<"field_path">>, Facts)),
+                    #{<<"unsigned">> := NativeInput} = maps:get(<<"value">>, maps:get(<<"native_input">>, Facts)),
+                    true = binary_to_integer(NativeInput) > 0,
+                    #{<<"digest">> := Digest} = maps:get(<<"value">>, maps:get(<<"proposal">>, Facts)),
+                    32 = length(Digest),
                     {ok, Denied} = transit_turn:key(<<"grpc-followup-denied">>, transit_example_u64_codec),
                     {ok, ok} = transit_turn:put(State, Denied, Correlation), #{followup => true};
                 <<"GRK1", _/binary>> ->

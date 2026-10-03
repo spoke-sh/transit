@@ -54,6 +54,7 @@ static transit_sdk_error handle(void *context, transit_station_turn *turn, const
         transit_station_value *saved = NULL; TRY(transit_station_state_find(turn, NULL, &followup_key, &saved)); assert(saved);
         const uint64_t correlation = *(const uint64_t *)transit_station_value_data(saved); transit_station_value_destroy(saved);
         TRY(transit_station_turn_require_reply(turn, owner->peer, correlation)); assert(value->outcome.rejection == TRANSIT_GRPC_DENIED);
+        assert(strstr(value->outcome.diagnostic, "field_path") && strstr(value->outcome.diagnostic, "native_input") && strstr(value->outcome.diagnostic, "proposal"));
         const transit_station_key rejected = key("grpc-followup-denied");
         TRY(transit_station_state_put(turn, &rejected, &correlation)); owner->result = 6; return (transit_sdk_error){0};
     }

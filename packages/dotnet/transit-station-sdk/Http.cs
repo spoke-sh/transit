@@ -154,7 +154,7 @@ public static class Http
     public static async Task<Reply> DecodeReplyAsync(ulong realm, byte[] bytes, string? nativeDirectory = null)
     {
         Value.Counter(realm);
-        byte[] owned = Value.Bytes(bytes, 71);
+        byte[] owned = Value.Bytes(bytes, 232);
         bool release = owned.Length >= 4 && owned[0] == 'H' && owned[1] == 'T' && owned[2] == 'K' && owned[3] == '1';
         JsonObject value = await LocalAsync(Value.Obj(("outcome", Value.Hex(owned))), nativeDirectory, release).ConfigureAwait(false);
         if (value["rejected"] is { } rejection) return new Rejected(Value.String(rejection["reason"]) switch {
@@ -177,7 +177,7 @@ public static class Http
         { ArgumentNullException.ThrowIfNull(application); this.application = application; this.realm = Value.Counter(realm); directory = nativeDirectory; }
         public string TypeId => "transit.http.reply+" + application.TypeId;
         public uint Version => 1;
-        public int MaxEncodedBytes => Math.Max(71, application.MaxEncodedBytes);
+        public int MaxEncodedBytes => Math.Max(232, application.MaxEncodedBytes);
         public byte[] Encode(Message<T> value) => value is Application<T> message ? application.Encode(message.Value) : throw new TransitException(ErrorKind.Codec, "receive-only-http-outcome");
         public Message<T> Decode(byte[] bytes)
         {

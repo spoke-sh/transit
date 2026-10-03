@@ -225,7 +225,7 @@ export async function decodeGrpcWithBridge(
   integer(realm, "realm");
   if (Buffer.from(bytes.subarray(0, 4)).toString("hex") === "47524b31" && !bridge.caps.grpc_release)
     throw new UnsupportedCapability("Native RPC disposal is unavailable");
-  const result = await bridge.grpcCodec({ outcome: hex(bytes, 73) });
+  const result = await bridge.grpcCodec({ outcome: hex(bytes, 232) });
   if ("rejected" in result)
     return Object.freeze({
       kind: "grpc-rejected",
@@ -247,7 +247,7 @@ export async function decodeGrpcReply(
   bytes: Uint8Array,
   options: { nativeHost?: string } = {},
 ): Promise<GrpcReply> {
-  const copied = owned(bytes, 73);
+  const copied = owned(bytes, 232);
   const bridge = await Bridge.local(options.nativeHost);
   try {
     return await decodeGrpcWithBridge(bridge, realm, copied);

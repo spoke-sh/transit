@@ -136,6 +136,8 @@ public:
             if (std::holds_alternative<HttpOutcome>(reply.value) && std::get<HttpOutcome>(reply.value).rejected()) {
                 const auto correlation = turn.state().require(followup_correlation_); turn.require_reply(peer_, correlation);
                 assert(std::get<HttpOutcome>(reply.value).rejection() == TRANSIT_HTTP_DENIED);
+                const auto diagnostic = std::get<HttpOutcome>(reply.value).diagnostic();
+                for (const auto field : {"field_path", "native_input", "proposal"}) assert(diagnostic.find(field) != std::string::npos);
                 turn.state().put(Key<uint64_t>("http-followup-denied", std::make_shared<U64Codec>()), correlation); shared_.result = 6; return;
             }
             if (std::holds_alternative<HttpReleased>(reply.value)) {

@@ -116,3 +116,9 @@ TLS truncation and invalid/truncated HTTP chunks differ from a generic read
 failure. Request-body input failures are distinct from missing/truncated response
 heads. Capture callback failures keep their own cause. These details do not
 change timeout, certificate verification, partial-capture or no-retry semantics.
+
+Admission rejection diagnostics retain the original delivered input commitment,
+failing field and check, expected/supplied values, and original validation cause.
+Strings are bounded with explicit truncation; credential values and foreign-caller
+state remain withheld. See the [shared admission layout](../../../contracts/CONNECTOR_ADMISSION_V1.md)
+and [connector semantics](../../../docs/reference/connectors.md).

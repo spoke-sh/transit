@@ -85,6 +85,14 @@ native evidence when present. Reply projection cannot reconstruct a capture caus
 or closure reason absent from that reply. It marks those details unrecorded and
 offers inspection without fresh dispatch, automatic retry or cancellation advice.
 
+Connector input rejections retain their original delivered input and payload
+commitment, failed field/check, available original cause and typed comparison.
+`expected_value` and `supplied_value` distinguish recorded unsigned/text/digest
+values from unrecorded, withheld or inapplicable detail. Input rejection does not
+settle previous work and never enables fresh retry or pretend cancellation.
+The [connector admission record](CONNECTOR_ADMISSION_V1.md) defines the bounded
+wire witness and disclosure gates.
+
 Relevant caller-owned names, values, parameter indices and attempted keys are
 valid correction context. Owners must not enrich them with unauthorized stored
 values, inaccessible catalog names or credential/SECRET contents. Retained

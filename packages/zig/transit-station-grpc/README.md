@@ -115,3 +115,9 @@ credentials. This evidence is separate from native effect settlement. A worker
 replays an admitted failure input after replacement; a cause lost before admission
 is explicitly unrecorded. The worker JSON returns separate nullable capture and
 effect diagnostics without claiming remote rollback or authorizing a fresh send.
+
+Admission rejection diagnostics retain the original delivered input commitment,
+failing field and check, expected/supplied values, and original validation cause.
+Strings are bounded with explicit truncation; credential values and foreign-caller
+state remain withheld. See the [shared admission layout](../../../contracts/CONNECTOR_ADMISSION_V1.md)
+and [connector semantics](../../../docs/reference/connectors.md).

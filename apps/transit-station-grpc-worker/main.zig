@@ -85,27 +85,40 @@ const Driver = struct {
     pub const effectFor = Engine.effectFor;
     pub const load = Engine.load;
     pub const loadFrom = Engine.loadFrom;
+    fn validationFailure(failure: ?*?rpc.Service.Rejection, detail: rpc.Service.Rejection, err: anyerror) anyerror {
+        if (err != error.OutOfMemory) if (failure) |slot| if (slot.* == null) {
+            slot.* = detail;
+        };
+        return err;
+    }
     fn prepared(self: *Driver, input: Input, credentials: *[16]rpc.Policy.Credential) !rpc.Policy.Prepared {
+        return self.preparedDiagnostic(input, credentials, null);
+    }
+    fn preparedDiagnostic(self: *Driver, input: Input, credentials: *[16]rpc.Policy.Credential, failure: ?*?rpc.Service.Rejection) !rpc.Policy.Prepared {
         const config = self.config;
-        if (config.credentials.len > credentials.len) return error.GrpcCredentialCapacity;
+        if (config.credentials.len > credentials.len) return validationFailure(failure, rpc.Service.Rejection.detail(.denied, .maximum, "policy.credentials", .{ .unsigned = credentials.len }, .{ .unsigned = config.credentials.len }, error.GrpcCredentialCapacity), error.GrpcCredentialCapacity);
         for (config.credentials, 0..) |credential, index| {
-            if (credential.file.len == 0) return error.InvalidGrpcCredential;
+            if (credential.file.len == 0) return validationFailure(failure, rpc.Service.Rejection.detail(.denied, .policy, "policy.credentials", .redacted, .redacted, error.InvalidGrpcCredential), error.InvalidGrpcCredential);
             credentials[index] = .{ .binding = credential.binding, .version = credential.version, .metadata = credential.metadata };
         }
         const request = input.request.request;
         const result: rpc.Policy.Prepared = .{ .endpoint_revision = config.endpoint_revision, .host = config.endpoint.host, .address = config.endpoint.address, .port = config.endpoint.port, .tls = config.endpoint.tls, .timeout_ms = config.endpoint.timeout_ms, .limits = config.endpoint.limits, .response_metadata = config.response_metadata, .credentials = credentials[0..config.credentials.len], .trust_digest = try trustDigest(self.gpa, self.io, config.endpoint), .method = request.method, .shape = request.shape, .descriptor_digest = request.descriptor_digest, .metadata_digest = (try x.Publication.Digest.of(2, input.metadata)).digest, .batch_digest = (try x.Publication.Digest.of(2, input.batch)).digest, .retry_policy = config.retry_policy };
-        try result.validateRequest(request);
-        _ = try rpc.Batch.decode(input.batch, request.shape, config.endpoint.limits);
-        if (config.admission) |policy| try rpc.Service.validateRequest(policy.scope, request);
+        result.validateRequest(request) catch |err| return validationFailure(failure, rpc.Service.Rejection.detail(.denied, .policy, "request.policy", .unrecorded, .unrecorded, err), err);
+        _ = rpc.Batch.decode(input.batch, request.shape, config.endpoint.limits) catch |err| return validationFailure(failure, rpc.Service.Rejection.detail(.invalid_request, .decode, "request.batch", .unrecorded, .{ .unsigned = input.batch.len }, err), err);
+        if (config.admission) |policy| try rpc.Service.validateRequestDiagnostic(policy.scope, request, failure);
         return result;
     }
     fn readRequest(self: *Driver, reference: rpc.RequestRecord.Reference, metadata: []u8, batch: []u8) !Input {
+        return self.readRequestDiagnostic(reference, metadata, batch, null);
+    }
+    fn readRequestDiagnostic(self: *Driver, reference: rpc.RequestRecord.Reference, metadata: []u8, batch: []u8, failure: ?*?rpc.Service.Rejection) !Input {
         const policy = self.config.admission orelse return error.GrpcAdmissionNotConfigured;
         const resource = (try self.reader.query(.{ .resource = reference.resource })).body.resource;
-        if (resource.writer != policy.caller) return error.GrpcAdmissionDenied;
+        if (resource.writer != policy.caller) return validationFailure(failure, rpc.Service.Rejection.detail(.denied, .equal, "request.resource.writer", .{ .unsigned = policy.caller }, .redacted, error.GrpcAdmissionDenied), error.GrpcAdmissionDenied);
         const meta_bytes = try rpc.RequestRecord.read(&self.reader, reference, rpc.RequestRecord.metadata_id, metadata);
         const batch_bytes = try rpc.RequestRecord.read(&self.reader, reference, rpc.RequestRecord.batch_id, batch);
-        return .{ .request = try rpc.RequestRecord.validateContent(self.gpa, reference, meta_bytes, batch_bytes), .metadata = meta_bytes, .batch = batch_bytes };
+        const request = rpc.RequestRecord.validateContent(self.gpa, reference, meta_bytes, batch_bytes) catch |err| return validationFailure(failure, rpc.Service.Rejection.detail(.invalid_request, .decode, "request.content", .unrecorded, .unrecorded, err), err);
+        return .{ .request = request, .metadata = meta_bytes, .batch = batch_bytes };
     }
     fn policyOrdinal(self: *Driver, ex: x.Exchange) !u32 {
         var source = try self.reader.reader(ex.resource);
@@ -120,13 +133,21 @@ const Driver = struct {
         return error.GrpcReplayGap;
     }
     fn validateFollowup(self: *Driver, prepared_value: rpc.Policy.Prepared, request: rpc.Request) !?rpc.Policy.Reference {
+        return self.validateFollowupDiagnostic(prepared_value, request, null);
+    }
+    fn validateFollowupDiagnostic(self: *Driver, prepared_value: rpc.Policy.Prepared, request: rpc.Request, failure: ?*?rpc.Service.Rejection) !?rpc.Policy.Reference {
         const follow = self.config.followup orelse return null;
         const ex = try self.exchange();
         const parent: x.Exchange = .{ .resource = ex.resource, .id = follow.parent };
         const descriptor = try self.reader.inspect(parent.resource, parent.id);
         const parent_effect = try self.effectFor(parent);
-        if (descriptor.phase != .unknown or parent_effect.phase != .closed_unknown) return error.GrpcFollowupNotSettled;
-        if (now(self.io) >= descriptor.reconcile_before_ms) return error.ExpiredReconciliation;
+        if (descriptor.phase != .unknown) return validationFailure(failure, rpc.Service.Rejection.detail(.denied, .state, "parent.phase", .{ .text = "unknown" }, .{ .text = @tagName(descriptor.phase) }, error.GrpcFollowupNotSettled), error.GrpcFollowupNotSettled);
+        if (parent_effect.phase != .closed_unknown) return validationFailure(failure, rpc.Service.Rejection.detail(.denied, .state, "parent.effect.phase", .{ .text = "closed_unknown" }, .{ .text = @tagName(parent_effect.phase) }, error.GrpcFollowupNotSettled), error.GrpcFollowupNotSettled);
+        const observed_clock = now(self.io);
+        if (observed_clock >= descriptor.reconcile_before_ms) {
+            if (failure) |slot| slot.* = rpc.Service.Rejection.detail(.denied, .before, "followup.clock_ms", .{ .unsigned = descriptor.reconcile_before_ms }, .{ .unsigned = observed_clock }, error.ExpiredReconciliation);
+            return error.ExpiredReconciliation;
+        }
         var buffer: [8192]u8 = undefined;
         var original = try rpc.Policy.parse(self.gpa, try self.loadFrom(parent, try self.policyOrdinal(parent), &buffer));
         defer original.deinit();
@@ -135,12 +156,19 @@ const Driver = struct {
     pub fn validateAdmission(self: *Driver, follow: rpc.Service.Followup) !rpc.Service.FollowupValidation {
         var metadata: [8192]u8 = undefined;
         var batch: [rpc.Batch.maximum_bytes]u8 = undefined;
-        var input = try self.readRequest(try follow.reference(), &metadata, &batch);
+        var failure: ?rpc.Service.Rejection = null;
+        var input = self.readRequestDiagnostic(try follow.reference(), &metadata, &batch, &failure) catch |err| {
+            if (failure) |detail| return .{ .rejected = detail };
+            return err;
+        };
         defer input.deinit();
         var credentials: [16]rpc.Policy.Credential = undefined;
-        const policy = self.prepared(input, &credentials) catch return .{ .rejected = .denied };
-        const decision = self.validateFollowup(policy, input.request.request) catch |err| switch (err) {
-            error.GrpcFollowupNotSettled, error.ExpiredReconciliation, error.GrpcFollowupNotGranted, error.InvalidGrpcIdempotencyKey, error.GrpcFollowupChanged, error.GrpcRequestNotGranted, error.GrpcRequestChanged, error.GrpcCredentialNotGranted => return .{ .rejected = .denied },
+        const policy = self.preparedDiagnostic(input, &credentials, &failure) catch |err| {
+            if (failure) |detail| return .{ .rejected = detail };
+            return err;
+        };
+        const decision = self.validateFollowupDiagnostic(policy, input.request.request, &failure) catch |err| switch (err) {
+            error.GrpcFollowupNotSettled, error.ExpiredReconciliation, error.GrpcFollowupNotGranted, error.InvalidGrpcIdempotencyKey, error.GrpcFollowupChanged, error.GrpcRequestNotGranted, error.GrpcRequestChanged, error.GrpcCredentialNotGranted => return .{ .rejected = failure orelse rpc.Service.Rejection.detail(.denied, .policy, "followup.policy", .unrecorded, .unrecorded, err) },
             else => return err,
         };
         return .{ .accepted = decision orelse return error.GrpcFollowupNotGranted };

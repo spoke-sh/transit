@@ -42,9 +42,20 @@ protocol status. A complete HTTP 409/500 or non-OK gRPC response remains an
 observed response; it does not establish rollback or make a retry safe. A gRPC
 UNKNOWN status differs from an exchange whose remote outcome remains unknown.
 Not-dispatched exchanges have no authorized attempt. Rejected calls retain their
-admission reason separately from the outcome of earlier work. Reply diagnostics
-mark absent capture causes and validation fields as unrecorded; retained capture
+admission reason separately from the outcome of earlier work. The rejection
+records the original input position and payload commitment, failing field,
+validation rule, original cause when one exists, and expected/supplied numbers,
+text or digests. Policy, parent state, deadline and attempt-budget failures use
+the values observed at the rejecting check. Bounded strings explicitly mark
+truncation; withheld and unrecorded values remain distinct. Another caller's
+parent and a missing parent produce the same unavailable result. Credential
+contents are never included. See the [admission record](../../contracts/CONNECTOR_ADMISSION_V1.md).
+
+Reply diagnostics mark absent capture causes as unrecorded; retained capture
 and native effect inspection supply their own evidence under current rights.
+Allocation, storage and trust-file read failures propagate without committing
+an admission rejection. An input rejection neither settles previous work nor
+authorizes a fresh send.
 
 ## Capture and publication
 

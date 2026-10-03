@@ -67,10 +67,10 @@ pub fn For(comptime Host: type, comptime Adapter: type, comptime options: Option
                     if (std.mem.startsWith(u8, frame.payload.slice(), Adapter.Service.Release.magic)) {
                         try Adapter.Service.release(turn, ex, try self.admission());
                     } else if (std.mem.startsWith(u8, frame.payload.slice(), Adapter.Service.Followup.magic)) {
-                        const target = self.config.followup orelse return Adapter.Service.rejectCall(turn, .denied);
+                        const target = self.config.followup orelse return Adapter.Service.rejectCall(turn, Adapter.Service.Rejection.detail(.denied, .mode, "operation", .redacted, .{ .text = "followup" }, null));
                         _ = try Adapter.Service.admitFollowup(turn, ex.id, try self.admission(), target, options.limits, self);
                     } else {
-                        if (self.config.followup != null) return Adapter.Service.rejectCall(turn, .denied);
+                        if (self.config.followup != null) return Adapter.Service.rejectCall(turn, Adapter.Service.Rejection.detail(.denied, .mode, "operation", .redacted, .{ .text = "request" }, null));
                         _ = try Adapter.Service.admit(turn, ex.id, try self.admission(), options.limits);
                     }
                     return;

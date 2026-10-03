@@ -187,7 +187,22 @@ test "admission checks authenticated origin and every policy dimension without c
         @field(denied, field) = 1;
         var turn = try store.capture(9, 99, try ref.encode());
         try t.expectEqual(.rejected, try Service.admit(&turn, 1, denied, limits));
-        try t.expectEqual(.denied, (try x.codec.decode(Service.Rejection, (try reply(turn)).payload)).reason);
+        const detail = try x.codec.decode(Service.Rejection, (try reply(turn)).payload);
+        try t.expectEqual(.denied, detail.reason);
+        try t.expectEqual(turn.delivery.input.position, detail.input);
+        var commitment: [32]u8 = undefined;
+        std.crypto.hash.sha2.Sha256.hash((try ref.encode()).slice(), &commitment, .{});
+        try t.expectEqualSlices(u8, &commitment, &detail.request);
+        if (comptime std.mem.eql(u8, field, "caller")) {
+            try t.expectEqual(.redacted, detail.expected_kind);
+            try t.expectEqualStrings("caller", detail.field[0..detail.field_len]);
+            try t.expectEqual(@as(u64, 9), detail.actual_number);
+        } else {
+            try t.expectEqual(.unsigned, detail.expected_kind);
+            try t.expectEqual(@as(u64, 1), detail.expected_number);
+            try t.expectEqualStrings("request." ++ field, detail.field[0..detail.field_len]);
+            try t.expectEqual(@as(u64, @field(ref, field)), detail.actual_number);
+        }
         for (turn.decision.mutations) |slot| try t.expectEqual(null, slot);
     }
     var turn = try store.capture(9, 99, try p.Value.init("bad"));
@@ -392,7 +407,7 @@ const FollowupValidator = struct {
         self.calls += 1;
         _ = try request_value.reference();
         if (self.fail_read) return error.InjectedReadFailure;
-        return if (self.reject_request) .{ .rejected = .denied } else .{ .accepted = .{ .id = 77, .revision = 3 } };
+        return if (self.reject_request) .{ .rejected = .{ .reason = .denied } } else .{ .accepted = .{ .id = 77, .revision = 3 } };
     }
 };
 const followup_target: Service.FollowupTarget = .{ .parent = 1, .reason = .retry };
@@ -522,7 +537,13 @@ test "followup conflicts closed parents and exhausted budgets never allocate ano
     // The second total attempt consumed the original finite root budget.
     turn = try store.capture(9, 99, try follow.encode());
     try t.expectEqual(.rejected, try Service.admitFollowup(&turn, 3, policy, followup_target, limits, &validator));
-    try t.expectEqual(.denied, (try x.codec.decode(Service.Rejection, (try reply(turn)).payload)).reason);
+    const budget_rejection = try x.codec.decode(Service.Rejection, (try reply(turn)).payload);
+    try t.expectEqual(.denied, budget_rejection.reason);
+    try t.expectEqualStrings("lineage.attempts", budget_rejection.field[0..budget_rejection.field_len]);
+    try t.expectEqualStrings("ExchangeAttemptBudgetExceeded", budget_rejection.cause[0..budget_rejection.cause_len]);
+    try t.expectEqual(.maximum, budget_rejection.check);
+    try t.expectEqual(@as(u64, 2), budget_rejection.expected_number);
+    try t.expectEqual(@as(u64, 3), budget_rejection.actual_number);
     for (turn.decision.mutations) |slot| try t.expectEqual(null, slot);
     try t.expectEqual(null, try turn.read(x.Exchange.key(3, 'd', 0)));
     try t.expectEqual(@as(u32, 2), (try x.codec.decode(x.Exchange.AttemptBudget, (try turn.read(x.Exchange.key(1, 'b', 0))).?)).used);
@@ -624,4 +645,31 @@ test "upload steps recover only the frozen complete request and become callable 
     try store.commit(turn);
     turn = try store.capture(9, 99, wire);
     try t.expectError(error.PublicationNotPublished, http.RequestRecord.stage(&turn, prepared.reference, prepared.metadata, &body));
+}
+
+test "parent availability rejects missing and foreign routes with the same bounded evidence" {
+    var store: Store = .{};
+    defer store.deinit();
+    const follow = try settledParent(&store);
+    const route_key = x.Exchange.key(1, 'r', 0);
+    const original = store.state.get(route_key).?;
+    var foreign = try x.codec.decode(Service.Route, original);
+    foreign.caller = 123;
+    try store.state.put(t.allocator, route_key, try x.codec.encode(foreign));
+    var validator: FollowupValidator = .{};
+    var first = try store.capture(9, 99, try follow.encode());
+    try t.expectEqual(.rejected, try Service.admitFollowup(&first, 2, policy, followup_target, limits, &validator));
+    const hidden = try x.codec.decode(Service.Rejection, (try reply(first)).payload);
+    try t.expectEqual(.available, hidden.check);
+    try t.expectEqual(.redacted, hidden.expected_kind);
+    try t.expect(std.mem.allEqual(u8, &hidden.expected_text, 0));
+    _ = store.state.remove(route_key);
+    var second = try store.capture(9, 99, try follow.encode());
+    try t.expectEqual(.rejected, try Service.admitFollowup(&second, 2, policy, followup_target, limits, &validator));
+    var missing = try x.codec.decode(Service.Rejection, (try reply(second)).payload);
+    missing.input = hidden.input; // Only the delivered input differs.
+    try t.expectEqualDeep(hidden, missing);
+    try t.expectEqual(@as(usize, 0), validator.calls);
+    for (first.decision.mutations) |slot| try t.expectEqual(null, slot);
+    for (second.decision.mutations) |slot| try t.expectEqual(null, slot);
 }

@@ -163,7 +163,7 @@ class GrpcReleased:
 
 def decode_grpc_reply(realm: int, data: bytes, *, native_directory: Path | None = None) -> GrpcOutcome | GrpcRejected | GrpcReleased:
     integer(realm, 'realm')
-    data = owned_bytes(data, 73)
+    data = owned_bytes(data, 232)
     value = _codec({'outcome': data.hex()}, native_directory,
                    capability='grpc_release' if data[:4] == b'GRK1' else 'grpc_requests')
     if 'rejected' in value:
@@ -185,7 +185,7 @@ class GrpcReplyCodec(Generic[T]):
         self.realm = integer(realm, 'realm')
         self.native_directory = native_directory
         self.type_id = 'transit.grpc.reply+' + application.type_id
-        self.max_encoded_bytes = max(73, application.max_encoded_bytes)
+        self.max_encoded_bytes = max(232, application.max_encoded_bytes)
 
     def encode(self, value: T | GrpcOutcome | GrpcRejected | GrpcReleased) -> bytes:
         if isinstance(value, (GrpcOutcome, GrpcRejected, GrpcReleased)):

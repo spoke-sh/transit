@@ -88,7 +88,7 @@ void transit_station_grpc_request_destroy(transit_station_grpc_request *request)
 transit_sdk_error transit_station_grpc_decode(uint64_t realm, transit_sdk_bytes bytes, const char *native_directory, transit_station_grpc_outcome *out) {
     Uninterruptible guard; if (out) *out = {};
     return boundary([&] {
-        require(out, "grpc-outcome"); counter(realm); const auto action = "{\"outcome\":" + quote(hex(copy(bytes, 73))) + "}";
+        require(out, "grpc-outcome"); counter(realm); const auto action = "{\"outcome\":" + quote(hex(copy(bytes, 232))) + "}";
         Worker worker; transit_station_grpc_outcome decoded{};
         worker.run([&] {
             Local local(native_directory); const auto value = codec(local, action); const auto &raw = local.raw;

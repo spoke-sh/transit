@@ -311,6 +311,10 @@ async function httpConsumer() {
       if (input.value.kind === 'http-rejected') {
         turn.requireReply(input, { peer, correlation: await turn.state.require(followup) });
         assert.equal(input.value.reason, 'denied');
+        const facts = Object.fromEntries(input.value.diagnostic.facts.filter(Boolean).map(f => [f.field, f]));
+        assert.equal(facts.field_path.availability, 'provided');
+        assert.ok(BigInt(facts.native_input.value.unsigned) > 0n);
+        assert.equal(facts.proposal.value.digest.length, 32);
         await turn.state.put(new Key(new TextEncoder().encode('http-followup-denied'), u64Codec), input.correlation);
         this.result = { followup: true };
         return;
@@ -435,6 +439,10 @@ async function grpcConsumer() {
         assert.equal(input.value.diagnostic.code, 'grpc.request_denied');
         turn.requireReply(input, { peer, correlation: await turn.state.require(followup) });
         assert.equal(input.value.reason, 'denied');
+        const facts = Object.fromEntries(input.value.diagnostic.facts.filter(Boolean).map(f => [f.field, f]));
+        assert.equal(facts.field_path.availability, 'provided');
+        assert.ok(BigInt(facts.native_input.value.unsigned) > 0n);
+        assert.equal(facts.proposal.value.digest.length, 32);
         await turn.state.put(new Key(new TextEncoder().encode('grpc-followup-denied'), u64Codec), input.correlation);
         this.result = { followup: true };
         return;

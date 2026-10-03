@@ -81,7 +81,10 @@ have status/coverage evidence; all other phases require zero status and chain.
 An observed status zero is RPC OK, not absence of observation. Invalid Exchange
 terminal codes cannot be narrowed or cast into a valid RPC status.
 
-`GRF1` carries one reason:u8 (denied=1, invalid_request=2, busy=3). `GRD1` disposal
+`GRF1` carries the 232-byte [original admission rejection](CONNECTOR_ADMISSION_V1.md),
+including reason:u8 (denied=1, invalid_request=2, busy=3), delivered input
+commitment, failed check, original cause and permitted expected/supplied values.
+`GRD1` disposal
 and `GRK1` acknowledgement carry resource:u64 and exchange:u64. `GRU1` carries
 resource:u64, parent exchange:u64, common followup reason:u8 and the 145 GRQ1 bytes;
 this RPC profile admits only retry. All layouts use fixed little-endian fields

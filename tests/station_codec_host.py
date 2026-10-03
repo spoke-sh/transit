@@ -24,7 +24,7 @@ def connector_diagnostics(host, config, native):
         cases += [(protocol, wire(2), 'outcome', protocol + '.remote_outcome_unknown', 'closed_unknown', None),
                   (protocol, wire(3, attempt=0), 'outcome', protocol + '.not_dispatched', 'not_dispatched', None)]
         for reason, suffix in [(1, 'request_denied'), (2, 'invalid_request'), (3, 'exchange_busy')]:
-            cases.append((protocol, (magic[:2] + b'F1' + bytes([reason])).hex(), 'rejected', protocol + '.' + suffix, 'input_rejected', None))
+            cases.append((protocol, (magic[:2] + b'F1' + bytes([reason]) + bytes(227)).hex(), 'rejected', protocol + '.' + suffix, 'input_rejected', None))
     result = subprocess.run([host, config], input=''.join(json.dumps({protocol + '_codec': {'outcome': wire}}) + '\n' for protocol, wire, *_ in cases),
                             text=True, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, timeout=30, check=True)
     replies = [json.loads(line) for line in result.stdout.splitlines()]
@@ -51,6 +51,82 @@ def connector_diagnostics(host, config, native):
             data = json.dumps({'outcome': wire}).encode()
             assert native.call('station_' + protocol + '_codec', data, len(data)) == reply['value']
     print(f'Connector diagnostics: {len(cases)} independent native/port status, terminal and rejection mappings passed.')
+
+
+def admission_diagnostics(host, config, native):
+    """Independent layout, scalar, truncation and disclosure witnesses."""
+    import hashlib
+    from abi_support import TransitError
+    layout = '<4sBBQ32sBB32sBB64sBQBB32sBQBB32s'
+    assert struct.calcsize(layout) == 232
+    def scalar(kind, value=0, truncated=0):
+        if kind in (4, 5):
+            return kind, 0, len(value), truncated, value
+        return kind, value, 0, 0, b''
+    commitment = hashlib.sha256(b'original input').digest()
+    def wire(magic, check, expected, actual, field=b'request.method', cause=b'OriginalCause', truncated=0):
+        return struct.pack(layout, magic, 1, check, 17, commitment,
+                           len(field), truncated, field, len(cause), 0, cause,
+                           *expected, *actual)
+    cases = []
+    for protocol, magic in [('http', b'HTF1'), ('grpc', b'GRF1')]:
+        for check in range(1, 11):
+            for kind in range(6):
+                value = (2**64-1 if kind == 3 else b'POST' if kind == 4 else bytes(range(32)) if kind == 5 else 0)
+                cases.append((protocol, wire(magic, check, scalar(kind, value), scalar(kind, value)), kind, value, False))
+        cases.append((protocol, wire(magic, 7, scalar(1), scalar(4, 'λ'.encode()*16, 1), field=b'"\n' * 8, truncated=1), 4, 'λ'.encode()*16, True))
+    def invoke(items):
+        result = subprocess.run([host, config], input=''.join(json.dumps({protocol + '_codec': {'outcome': data.hex()}}) + '\n' for protocol, data in items),
+                                text=True, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, timeout=30, check=True)
+        return [json.loads(line) for line in result.stdout.splitlines()]
+    for case, reply in zip(cases, invoke([(p, w) for p, w, *_ in cases]), strict=True):
+        protocol, data, kind, value, truncated = case
+        assert reply['status'] == 0, (case, reply)
+        detail = reply['value']['rejected']['diagnostic']
+        facts = {f['field']: f for f in detail['facts'] if f}
+        assert detail['cause'] == 'OriginalCause' and detail['outcome'] == 'input_rejected'
+        assert detail['identity'] is None
+        assert facts['native_input']['value'] == {'unsigned': '17'}
+        assert facts['proposal']['value'] == {'digest': list(commitment)}
+        expected_availability = ['unrecorded', 'withheld', 'inapplicable', 'provided', 'provided', 'provided'][kind]
+        supplied = facts['supplied_value']
+        assert supplied['availability'] == ('truncated' if truncated else expected_availability), (case, supplied)
+        if kind < 3:
+            assert supplied['value'] is None
+        elif kind == 3:
+            assert supplied['value'] == {'unsigned': str(value)}
+        elif kind == 4:
+            assert supplied['value'] == {'text': value.decode()}
+        else:
+            assert supplied['value'] == {'digest': list(value)}
+        if truncated:
+            assert facts['expected_value']['availability'] == 'withheld'
+            assert facts['field_path']['availability'] == 'truncated'
+            assert '\x1b' not in detail['message'] and '\n' not in detail['message']
+        if native:
+            encoded = json.dumps({'outcome': data.hex()}).encode()
+            assert native.call('station_' + protocol + '_codec', encoded, len(encoded)) == reply['value']
+    malformed = []
+    for protocol, magic in [('http', b'HTF1'), ('grpc', b'GRF1')]:
+        valid = wire(magic, 2, scalar(3, 7), scalar(4, b'POST'))
+        malformed += [(protocol, valid[:size]) for size in range(len(valid))]
+        for offset, value in [(4, 0), (5, 11), (46, 33), (47, 2), (79, 1), (80, 65), (81, 2), (145, 1),
+                              (146, 6), (155, 1), (157, 1), (189, 6), (190, 1), (199, 2), (231, 1), (200, 255)]:
+            data = bytearray(valid); data[offset] = value
+            malformed.append((protocol, bytes(data)))
+        data = bytearray(valid); data[6:14] = bytes(8)
+        malformed.append((protocol, bytes(data))) # Missing input cannot retain commitment.
+    for (protocol, data), reply in zip(malformed, invoke(malformed), strict=True):
+        assert reply['status'] == 1 and isinstance(reply['value'].get('err'), str), (protocol, data.hex(), reply)
+        if native:
+            encoded = json.dumps({'outcome': data.hex()}).encode()
+            try:
+                native.call('station_' + protocol + '_codec', encoded, len(encoded))
+            except TransitError as error:
+                assert error.status == 1
+            else:
+                raise AssertionError('native accepted malformed admission witness')
+    print(f'Connector admission: {len(cases)} detailed and {len(malformed)} malformed native/port witnesses passed.')
 
 
 def run(host, library=None):
@@ -185,6 +261,7 @@ def run(host, library=None):
                     actual = {'status': error.status, 'value': error.detail}
                 assert actual == expected, (actual, expected)
         connector_diagnostics(host, config, native if library else None)
+        admission_diagnostics(host, config, native if library else None)
         # Document codecs use canonical shared fixtures and preserve binary/float
         # bits separately from host JSON number representation.
         fixture = json.loads((Path(__file__).resolve().parents[1] / 'packages/zig/transit-station-document/src/fixtures/changes.json').read_text())

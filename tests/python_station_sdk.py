@@ -426,6 +426,10 @@ def http_consumer(mode, cfg):
                 if isinstance(incoming.value, HttpRejected):
                     turn.require_reply(incoming, peer=peer, correlation=turn.state.require(followup))
                     assert incoming.value.reason is HttpRejection.DENIED
+                    facts = {f['field']: f for f in incoming.value.diagnostic['facts'] if f}
+                    assert facts['field_path']['availability'] == 'provided'
+                    assert int(facts['native_input']['value']['unsigned']) > 0
+                    assert len(facts['proposal']['value']['digest']) == 32
                     turn.state.put(Key(b'http-followup-denied', u64), incoming.correlation)
                     self.result = {'followup': True}
                     return
@@ -599,6 +603,10 @@ def grpc_consumer(mode, cfg):
                     turn.require_reply(incoming, peer=peer, correlation=turn.state.require(followup))
                     assert incoming.value.reason is GrpcRejection.DENIED
                     assert incoming.value.diagnostic['code'] == 'grpc.request_denied'
+                    facts = {f['field']: f for f in incoming.value.diagnostic['facts'] if f}
+                    assert facts['field_path']['availability'] == 'provided'
+                    assert int(facts['native_input']['value']['unsigned']) > 0
+                    assert len(facts['proposal']['value']['digest']) == 32
                     turn.state.put(Key(b'grpc-followup-denied', u64), incoming.correlation)
                     self.result = {'followup': True}
                     return

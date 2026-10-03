@@ -120,8 +120,13 @@ defmodule ElixirGrpcAdapter do
           {:ok, correlation} = State.require(state, followup_key)
           {:ok, :ok} = Turn.require_reply(turn, input, peer, correlation)
 
-          {:ok, %Rejected{reason: :denied, diagnostic: %{"code" => "grpc.request_denied"}}} =
+          {:ok, %Rejected{reason: :denied, diagnostic: detail}} =
             Grpc.decode_reply(72, bytes)
+
+          facts = Map.new(Enum.reject(detail["facts"], &is_nil/1), &{&1["field"], &1})
+          "provided" = facts["field_path"]["availability"]
+          true = String.to_integer(facts["native_input"]["value"]["unsigned"]) > 0
+          32 = length(facts["proposal"]["value"]["digest"])
 
           {:ok, denied} = Turn.key("grpc-followup-denied", U64Codec)
           {:ok, :ok} = State.put(state, denied, correlation)

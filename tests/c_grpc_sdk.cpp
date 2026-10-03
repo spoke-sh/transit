@@ -125,6 +125,8 @@ public:
             if (std::holds_alternative<GrpcOutcome>(reply.value) && std::get<GrpcOutcome>(reply.value).rejected()) {
                 const auto correlation = turn.state().require(followup_correlation_); turn.require_reply(peer_, correlation);
                 assert(std::get<GrpcOutcome>(reply.value).rejection() == TRANSIT_GRPC_DENIED);
+                const auto diagnostic = std::get<GrpcOutcome>(reply.value).diagnostic();
+                for (const auto field : {"field_path", "native_input", "proposal"}) assert(diagnostic.find(field) != std::string::npos);
                 turn.state().put(Key<uint64_t>("grpc-followup-denied", std::make_shared<U64Codec>()), correlation); shared_.result = 6; return;
             }
             if (std::holds_alternative<GrpcReleased>(reply.value)) {

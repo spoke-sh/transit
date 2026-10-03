@@ -603,7 +603,7 @@ fn codecs(cfg: &Value) -> Result<()> {
     assert!(matches!(
         decode_http_reply(
             72,
-            &transit_client::internal::unhex(fixture["rejection"].as_str().unwrap(), 71)?,
+            &transit_client::internal::unhex(fixture["rejection"].as_str().unwrap(), 232)?,
             None
         )?,
         HttpReply::Rejected(rejected) if rejected.reason == HttpRejection::Denied && rejected.diagnostic["code"] == "http.request_denied"
@@ -740,6 +740,24 @@ impl Handler<HttpMessage<Vec<u8>>> for HttpHandler {
                     turn.require_reply(&reply, self.peer, Correlation::new(saved)?)?;
                     assert_eq!(reason.reason, HttpRejection::Denied);
                     assert_eq!(reason.diagnostic["code"], "http.request_denied");
+                    let facts = reason.diagnostic["facts"].as_array().unwrap();
+                    let fact = |name| facts.iter().find(|f| f["field"] == name).unwrap();
+                    assert_eq!(fact("field_path")["availability"], "provided");
+                    assert!(
+                        fact("native_input")["value"]["unsigned"]
+                            .as_str()
+                            .unwrap()
+                            .parse::<u64>()
+                            .unwrap()
+                            > 0
+                    );
+                    assert_eq!(
+                        fact("proposal")["value"]["digest"]
+                            .as_array()
+                            .unwrap()
+                            .len(),
+                        32
+                    );
                     turn.state()
                         .put(&Key::new(b"http-followup-denied", U64Codec)?, &saved)?;
                     *self.observed.lock().unwrap() = json!({"followup":true});
@@ -1029,6 +1047,24 @@ impl Handler<GrpcMessage<Vec<u8>>> for GrpcHandler {
                     turn.require_reply(&reply, self.peer, Correlation::new(saved)?)?;
                     assert_eq!(reason.reason, GrpcRejection::Denied);
                     assert_eq!(reason.diagnostic["code"], "grpc.request_denied");
+                    let facts = reason.diagnostic["facts"].as_array().unwrap();
+                    let fact = |name| facts.iter().find(|f| f["field"] == name).unwrap();
+                    assert_eq!(fact("field_path")["availability"], "provided");
+                    assert!(
+                        fact("native_input")["value"]["unsigned"]
+                            .as_str()
+                            .unwrap()
+                            .parse::<u64>()
+                            .unwrap()
+                            > 0
+                    );
+                    assert_eq!(
+                        fact("proposal")["value"]["digest"]
+                            .as_array()
+                            .unwrap()
+                            .len(),
+                        32
+                    );
                     turn.state()
                         .put(&Key::new(b"grpc-followup-denied", U64Codec)?, &saved)?;
                     *self.observed.lock().unwrap() = json!({"followup":true});

@@ -36,6 +36,7 @@ pub const Field = enum {
     expected_type,
     actual_type,
     supplied_value,
+    expected_value,
     expression,
     source_kind,
     source_basis,

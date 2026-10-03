@@ -7,17 +7,37 @@ pub const Reference = http.RequestRecord.Reference;
 pub const Admission = struct { caller: u64, resource: u64, endpoint_revision: u64, reconcile_before_ms: u64, max_attempts: u32 };
 pub const Scope = struct { method: std.http.Method, target: []const u8, headers: []const []const u8 = &.{} };
 pub fn validateRequest(scope: Scope, request: http.Request, rendered: []const u8) !void {
-    if (scope.headers.len > http.Request.maximum_headers or scope.method != request.method) return error.HttpRequestNotGranted;
-    const end = std.mem.indexOf(u8, rendered, " HTTP/1.1\r\n") orelse return error.InvalidHttpRequest;
+    return validateRequestDiagnostic(scope, request, rendered, null);
+}
+pub fn validateRequestDiagnostic(scope: Scope, request: http.Request, rendered: []const u8, failure: ?*?Rejection) !void {
+    if (scope.headers.len > http.Request.maximum_headers) {
+        if (failure) |slot| slot.* = Rejection.detail(.denied, .maximum, "policy.headers", .{ .unsigned = http.Request.maximum_headers }, .{ .unsigned = scope.headers.len }, error.HttpRequestNotGranted);
+        return error.HttpRequestNotGranted;
+    }
+    if (scope.method != request.method) {
+        if (failure) |slot| slot.* = Rejection.detail(.denied, .equal, "request.method", .{ .text = @tagName(scope.method) }, .{ .text = @tagName(request.method) }, error.HttpRequestNotGranted);
+        return error.HttpRequestNotGranted;
+    }
+    const end = std.mem.indexOf(u8, rendered, " HTTP/1.1\r\n") orelse {
+        if (failure) |slot| slot.* = Rejection.detail(.invalid_request, .decode, "request.head", .unrecorded, .{ .unsigned = rendered.len }, error.InvalidHttpRequest);
+        return error.InvalidHttpRequest;
+    };
     const start = @tagName(request.method).len + 1;
-    if (start > end or !std.mem.eql(u8, scope.target, rendered[start..end])) return error.HttpRequestNotGranted;
+    if (start > end or !std.mem.eql(u8, scope.target, rendered[start..end])) {
+        if (failure) |slot| slot.* = Rejection.detail(.denied, .equal, "request.target", .{ .text = scope.target }, if (start <= end) .{ .text = rendered[start..end] } else .unrecorded, error.HttpRequestNotGranted);
+        return error.HttpRequestNotGranted;
+    }
     for (request.headers) |header| {
         const allowed_header = for (scope.headers) |name| {
             if (std.ascii.eqlIgnoreCase(name, header.name)) break true;
         } else false;
-        if (!allowed_header) return error.HttpRequestNotGranted;
+        if (!allowed_header) {
+            if (failure) |slot| slot.* = Rejection.detail(.denied, .policy, "request.headers", .unrecorded, .{ .text = header.name }, error.HttpRequestNotGranted);
+            return error.HttpRequestNotGranted;
+        }
     }
 }
+
 pub const Route = struct {
     pub const magic = "HTA1";
     caller: u64,
@@ -65,14 +85,7 @@ pub const Outcome = struct {
         return .{ .resource = self.resource, .exchange = self.exchange, .chain = self.chain };
     }
 };
-pub const Rejection = struct {
-    pub const magic = "HTF1";
-    reason: enum(u8) { denied = 1, invalid_request = 2, busy = 3 },
-    pub fn validate(_: Rejection) !void {}
-    pub fn diagnostic(self: Rejection) !x.p.Diagnostic {
-        return x.OutcomeDiagnostic.rejection(.http, self);
-    }
-};
+pub const Rejection = x.AdmissionRejection.For("HTF1", .http);
 /// Explicit durable disposal of the original caller's replay hold. This is not
 /// local reader disposal, remote cancellation or permission to delete history.
 pub const Release = struct {
@@ -124,7 +137,7 @@ pub const Followup = struct {
         return x.codec.decode(Followup, value);
     }
 };
-pub const FollowupValidation = union(enum) { accepted: http.Policy.Reference, rejected: @FieldType(Rejection, "reason") };
+pub const FollowupValidation = union(enum) { accepted: http.Policy.Reference, rejected: Rejection };
 
 // Adapter hooks for the common routing/settlement helper. Layouts stay here.
 pub const protocol_format = http.protocol_format;

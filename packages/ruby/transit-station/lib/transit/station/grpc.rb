@@ -94,7 +94,7 @@ module Transit
     end
     def self.decode_grpc_reply(realm, bytes, native_host: nil)
       Internal.integer(realm)
-      bytes = Internal.bytes(bytes, 73)
+      bytes = Internal.bytes(bytes, 232)
       result = GrpcValue.codec({ 'outcome' => bytes.unpack1('H*') }, native_host, release: bytes.start_with?('GRK1'.b))
       return GrpcRejected.new(reason: result.fetch('rejected').fetch('reason').to_sym, diagnostic: result.fetch('rejected').fetch('diagnostic')) if result.key?('rejected')
       if result.key?('released')
@@ -116,7 +116,7 @@ module Transit
         freeze
       end
       def version = 1
-      def max_encoded_bytes = [73, @application.max_encoded_bytes].max
+      def max_encoded_bytes = [232, @application.max_encoded_bytes].max
       def encode(value)
         raise CodecError, 'RPC outcome records are receive-only' if value.is_a?(GrpcOutcome) || value.is_a?(GrpcRejected) || value.is_a?(GrpcReleased)
         @application.encode(value)

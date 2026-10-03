@@ -161,25 +161,31 @@ const Driver = struct {
         const reference = try follow.reference();
         const policy = self.config.admission orelse return error.HttpAdmissionNotConfigured;
         const input_resource = (try self.reader.query(.{ .resource = reference.resource })).body.resource;
-        if (input_resource.writer != policy.caller) return .{ .rejected = .denied };
+        if (input_resource.writer != policy.caller) return .{ .rejected = http.Service.Rejection.detail(.denied, .equal, "request.resource.writer", .{ .unsigned = policy.caller }, .redacted, null) };
         var request_buffer: [8192]u8 = undefined;
         const request_bytes = try http.RequestRecord.read(&self.reader, reference, http.RequestRecord.metadata_id, &request_buffer);
-        const parsed = std.json.parseFromSlice(http.Request, self.gpa, request_bytes, .{}) catch return .{ .rejected = .invalid_request };
+        const parsed = std.json.parseFromSlice(http.Request, self.gpa, request_bytes, .{}) catch |err| {
+            if (err == error.OutOfMemory) return err;
+            return .{ .rejected = http.Service.Rejection.detail(.invalid_request, .decode, "request.metadata", .unrecorded, .{ .unsigned = request_bytes.len }, err) };
+        };
         defer parsed.deinit();
         const request = parsed.value;
-        if (request.body_bytes != reference.body_bytes or request.body_bytes > self.config.endpoint.request_bytes) return .{ .rejected = .invalid_request };
-        Secrets.validate(self.config, request) catch return .{ .rejected = .denied };
+        if (request.body_bytes != reference.body_bytes) return .{ .rejected = http.Service.Rejection.detail(.invalid_request, .equal, "request.body_bytes", .{ .unsigned = reference.body_bytes }, .{ .unsigned = request.body_bytes }, null) };
+        if (request.body_bytes > self.config.endpoint.request_bytes) return .{ .rejected = http.Service.Rejection.detail(.invalid_request, .maximum, "request.body_bytes", .{ .unsigned = self.config.endpoint.request_bytes }, .{ .unsigned = request.body_bytes }, null) };
+        Secrets.validate(self.config, request) catch |err| return .{ .rejected = http.Service.Rejection.detail(.denied, .policy, "request.credentials", .redacted, .redacted, err) };
         var header: [http.Request.maximum_head_bytes]u8 = undefined;
-        const rendered = request.render(self.config.endpoint.host, self.config.endpoint.port, &header, null, false) catch return .{ .rejected = .invalid_request };
-        http.Service.validateRequest(policy.scope, request, rendered) catch return .{ .rejected = .denied };
+        const rendered = request.render(self.config.endpoint.host, self.config.endpoint.port, &header, null, false) catch |err| return .{ .rejected = http.Service.Rejection.detail(.invalid_request, .decode, "request.head", .{ .unsigned = header.len }, .unrecorded, err) };
+        var scope_failure: ?http.Service.Rejection = null;
+        http.Service.validateRequestDiagnostic(policy.scope, request, rendered, &scope_failure) catch |err| return .{ .rejected = scope_failure orelse http.Service.Rejection.detail(.denied, .policy, "request.scope", .unrecorded, .unrecorded, err) };
         const prepared = try self.prepareMetadata(request);
         var metadata_buffer: [8192]u8 = undefined;
         var metadata_writer = std.Io.Writer.fixed(&metadata_buffer);
-        std.json.Stringify.value(prepared, .{}, &metadata_writer) catch return .{ .rejected = .invalid_request };
+        std.json.Stringify.value(prepared, .{}, &metadata_writer) catch |err| return .{ .rejected = http.Service.Rejection.detail(.invalid_request, .maximum, "request.prepared_metadata", .{ .unsigned = metadata_buffer.len }, .unrecorded, err) };
         const body = try self.gpa.alloc(u8, reference.body_bytes);
         defer self.gpa.free(body);
         _ = try http.RequestRecord.read(&self.reader, reference, http.RequestRecord.body_id, body);
-        const decision = self.validateFollowup(self.gpa, prepared, body) catch |err| switch (err) {
+        var follow_failure: ?http.Service.Rejection = null;
+        const decision = self.validateFollowupDiagnostic(self.gpa, prepared, body, &follow_failure) catch |err| switch (err) {
             error.HttpRedirectNotCaptured,
             error.HttpFollowupNotSettled,
             error.ExpiredReconciliation,
@@ -194,7 +200,7 @@ const Driver = struct {
             error.HttpFollowupChanged,
             error.HttpRetryChanged,
             error.HttpReplayGap,
-            => return .{ .rejected = .denied },
+            => return .{ .rejected = follow_failure orelse http.Service.Rejection.detail(.denied, .policy, "followup.policy", .unrecorded, .unrecorded, err) },
             else => return err,
         };
         return .{ .accepted = decision orelse return error.HttpFollowupNotGranted };
@@ -204,15 +210,30 @@ const Driver = struct {
         return .{ .endpoint_revision = config.endpoint_revision, .host = config.endpoint.host, .address = config.endpoint.address, .port = config.endpoint.port, .tls = config.endpoint.tls, .timeout_ms = config.endpoint.timeout_ms, .request_bytes = config.endpoint.request_bytes, .response_bytes = config.endpoint.response_bytes, .response_headers = config.endpoint.response_headers, .trust_digest = try trustDigest(self.gpa, self.io, config.endpoint), .retry_policy = config.retry_policy, .redirect_policy = config.redirect_policy, .reconcile_policy = config.reconcile_policy, .cancel_policy = config.cancel_policy, .request = request };
     }
     fn validateFollowup(self: *Driver, gpa: std.mem.Allocator, prepared_value: Prepared, body: []const u8) !?http.Policy.Reference {
+        return self.validateFollowupDiagnostic(gpa, prepared_value, body, null);
+    }
+    fn validateFollowupDiagnostic(self: *Driver, gpa: std.mem.Allocator, prepared_value: Prepared, body: []const u8, failure: ?*?http.Service.Rejection) !?http.Policy.Reference {
         const follow = self.config.followup orelse return null;
         const ex = try self.exchange();
         const parent: x.Exchange = .{ .resource = ex.resource, .id = follow.parent };
         const descriptor = try self.reader.inspect(parent.resource, parent.id);
         const parent_effect = try self.effectFor(parent);
-        if (follow.reason == .redirect) {
-            if (descriptor.phase != .complete or parent_effect.phase != .observed) return error.HttpRedirectNotCaptured;
-        } else if (descriptor.phase != .unknown or parent_effect.phase != .closed_unknown) return error.HttpFollowupNotSettled;
-        if (now(self.io) >= descriptor.reconcile_before_ms) return error.ExpiredReconciliation;
+        const expected_phase: x.Phase = if (follow.reason == .redirect) .complete else .unknown;
+        const expected_effect: @FieldType(@TypeOf(parent_effect), "phase") = if (follow.reason == .redirect) .observed else .closed_unknown;
+        const unsettled = if (follow.reason == .redirect) error.HttpRedirectNotCaptured else error.HttpFollowupNotSettled;
+        if (descriptor.phase != expected_phase) {
+            if (failure) |slot| slot.* = http.Service.Rejection.detail(.denied, .state, "parent.phase", .{ .text = @tagName(expected_phase) }, .{ .text = @tagName(descriptor.phase) }, unsettled);
+            return unsettled;
+        }
+        if (parent_effect.phase != expected_effect) {
+            if (failure) |slot| slot.* = http.Service.Rejection.detail(.denied, .state, "parent.effect.phase", .{ .text = @tagName(expected_effect) }, .{ .text = @tagName(parent_effect.phase) }, unsettled);
+            return unsettled;
+        }
+        const observed_clock = now(self.io);
+        if (observed_clock >= descriptor.reconcile_before_ms) {
+            if (failure) |slot| slot.* = http.Service.Rejection.detail(.denied, .before, "followup.clock_ms", .{ .unsigned = descriptor.reconcile_before_ms }, .{ .unsigned = observed_clock }, error.ExpiredReconciliation);
+            return error.ExpiredReconciliation;
+        }
         var previous: [8192]u8 = undefined;
         const parsed = try std.json.parseFromSlice(Prepared, gpa, try self.loadFrom(parent, 0, &previous), .{});
         defer parsed.deinit();

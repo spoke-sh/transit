@@ -197,6 +197,10 @@ class HttpHandler < S::Handler
         correlation = turn.state.require(@followup_correlation)
         turn.require_reply(input, peer: @peer, correlation: correlation)
         check input.value.reason == :denied
+        facts = input.value.diagnostic.fetch('facts').compact.to_h { |f| [f.fetch('field'), f] }
+        check facts.fetch('field_path').fetch('availability') == 'provided'
+        check facts.fetch('native_input').fetch('value').fetch('unsigned').to_i > 0
+        check facts.fetch('proposal').fetch('value').fetch('digest').length == 32
         turn.state.put(S::Key.new('http-followup-denied'.b, codec: E::U64), correlation)
         @result = { followup: true }
         return
@@ -359,6 +363,10 @@ class GrpcHandler < S::Handler
         correlation = turn.state.require(@followup_correlation)
         turn.require_reply(input, peer: @peer, correlation: correlation)
         check input.value.reason == :denied
+        facts = input.value.diagnostic.fetch('facts').compact.to_h { |f| [f.fetch('field'), f] }
+        check facts.fetch('field_path').fetch('availability') == 'provided'
+        check facts.fetch('native_input').fetch('value').fetch('unsigned').to_i > 0
+        check facts.fetch('proposal').fetch('value').fetch('digest').length == 32
         turn.state.put(S::Key.new('grpc-followup-denied'.b, codec: E::U64), correlation)
         @result = { followup: true }
         return

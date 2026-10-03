@@ -195,7 +195,7 @@ export async function decodeHttpWithBridge(
   integer(realm, "realm");
   if (Buffer.from(bytes.subarray(0, 4)).toString("hex") === "48544b31" && !bridge.caps.http_release)
     throw new UnsupportedCapability("Native HTTP disposal is unavailable");
-  const result = await bridge.httpCodec({ outcome: hex(bytes, 71) });
+  const result = await bridge.httpCodec({ outcome: hex(bytes, 232) });
   if ("rejected" in result)
     return Object.freeze({
       kind: "http-rejected",
@@ -217,7 +217,7 @@ export async function decodeHttpReply(
   bytes: Uint8Array,
   options: { nativeHost?: string } = {},
 ): Promise<HttpReply> {
-  const copied = owned(bytes, 71);
+  const copied = owned(bytes, 232);
   const bridge = await Bridge.local(options.nativeHost);
   try {
     return await decodeHttpWithBridge(bridge, realm, copied);

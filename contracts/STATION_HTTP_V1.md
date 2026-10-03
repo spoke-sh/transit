@@ -82,7 +82,7 @@ Strict binary layouts use little-endian fields without padding:
 | HTQ1 | resource:u64, namespace:u64, metadata_bytes:u32, metadata_digest:32 bytes, body_bytes:u32, body_digest:32 bytes, endpoint_revision:u64, reconcile_before_ms:u64, max_attempts:u32 | 112 |
 | HTA1 | caller:u64, input:u64, correlation:u64, phase:u8, request:112 bytes | 141 |
 | HTR1 | phase:u8, resource:u64, exchange:u64, effect:u64, attempt:u64, status:u16, chain:32 bytes | 71 |
-| HTF1 | reason:u8 | 5 |
+| HTF1 | [original admission rejection](CONNECTOR_ADMISSION_V1.md) | 232 |
 | HTD1 | resource:u64, exchange:u64 | 20 |
 | HTK1 | resource:u64, exchange:u64 | 20 |
 | HTU1 | resource:u64, parent:u64, reason:u8, request:112 bytes | 133 |
@@ -91,7 +91,9 @@ Strict binary layouts use little-endian fields without padding:
 published=2. Admission creates the exchange and route in three mutations, leaving
 one for framework initialization. Exact repeated calls retain the original input
 and route; conflicting calls reply busy. Rejections are denied=1,
-invalid_request=2 and busy=3. They create no exchange or external effect.
+invalid_request=2 and busy=3. They create no exchange or external effect. The
+rejection retains its delivered input commitment, failed check, bounded original
+cause and permitted expected/supplied values. It does not settle earlier work.
 
 `HTR1` is a Station reply to the recorded caller/correlation. Phases are observed=1,
 closed_unknown=2 and not_dispatched=3. Only observed carries HTTP status and an

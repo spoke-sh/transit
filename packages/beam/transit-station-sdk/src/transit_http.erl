@@ -48,7 +48,7 @@ local(Action, Override, Capability) ->
 decode_reply(Realm, Bytes) -> decode_reply(Realm, Bytes, undefined).
 decode_reply(Realm, Bytes, Override) -> transit_sdk_value:protect(fun() ->
     transit_sdk_value:counter(Realm),
-    Owned = transit_sdk_value:bytes(Bytes, 71),
+    Owned = transit_sdk_value:bytes(Bytes, 232),
     Capability = case Owned of <<"HTK1", _/binary>> -> <<"http_release">>; _ -> <<"http_requests">> end,
     Value = local(#{<<"outcome">> => transit_sdk_value:hex(Owned)}, Override, Capability),
     case Value of

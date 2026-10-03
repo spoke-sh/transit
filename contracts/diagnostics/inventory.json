@@ -4157,16 +4157,16 @@
       "errors": {
         "ExchangeNotFound": 2,
         "ExpectedConfiguration": 1,
-        "ExpiredReconciliation": 3,
-        "GrpcAdmissionDenied": 3,
+        "ExpiredReconciliation": 4,
+        "GrpcAdmissionDenied": 4,
         "GrpcAdmissionNotConfigured": 2,
-        "GrpcCredentialCapacity": 1,
+        "GrpcCredentialCapacity": 2,
         "GrpcCredentialNotGranted": 2,
         "GrpcEndpointChanged": 1,
         "GrpcExplicitTrustRequired": 1,
         "GrpcFollowupChanged": 1,
         "GrpcFollowupNotGranted": 3,
-        "GrpcFollowupNotSettled": 2,
+        "GrpcFollowupNotSettled": 5,
         "GrpcReplayGap": 1,
         "GrpcRequestChanged": 2,
         "GrpcRequestNotGranted": 1,
@@ -4175,12 +4175,13 @@
         "InvalidConfiguration": 1,
         "InvalidExchangeAttempt": 1,
         "InvalidGrpcCapture": 5,
-        "InvalidGrpcCredential": 1,
+        "InvalidGrpcCredential": 2,
         "InvalidGrpcIdempotencyKey": 1,
         "MissingGrpcBatch": 1,
         "MissingGrpcCall": 1,
         "MissingGrpcRequest": 1,
         "MissingReconciliationDeadline": 1,
+        "OutOfMemory": 1,
         "UnknownEffect": 1,
         "WorkerMailboxBusy": 1
       },
@@ -4214,7 +4215,7 @@
         "ExchangeClosed": 1,
         "ExchangeNotFound": 2,
         "ExpectedConfiguration": 1,
-        "ExpiredReconciliation": 4,
+        "ExpiredReconciliation": 5,
         "HttpAdmissionDenied": 3,
         "HttpAdmissionNotConfigured": 2,
         "HttpCredentialCapacity": 1,
@@ -4244,6 +4245,7 @@
         "MissingHttpCall": 1,
         "MissingHttpRequest": 1,
         "MissingReconciliationDeadline": 1,
+        "OutOfMemory": 1,
         "UnknownEffect": 1,
         "UnsupportedHttpCancellation": 1,
         "UnsupportedHttpReconciliation": 1,
@@ -4878,6 +4880,51 @@
         "transit_protocol"
       ]
     },
+    "packages/zig/transit-exchange/src/AdmissionRejection.zig": {
+      "errors": {
+        "InvalidAdmissionRejection": 9
+      },
+      "outcomes": {
+        "Reason": [
+          "denied",
+          "invalid_request",
+          "busy"
+        ],
+        "Check": [
+          "unrecorded",
+          "decode",
+          "equal",
+          "maximum",
+          "different",
+          "available",
+          "state",
+          "policy",
+          "occupied",
+          "mode",
+          "before"
+        ],
+        "Availability": [
+          "unrecorded",
+          "redacted",
+          "inapplicable",
+          "unsigned",
+          "text",
+          "digest"
+        ],
+        "Scalar": [
+          "unrecorded",
+          "redacted",
+          "inapplicable",
+          "unsigned",
+          "text",
+          "digest"
+        ]
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
     "packages/zig/transit-exchange/src/Caller.zig": {
       "errors": {
         "AccessDenied": 2,
@@ -5070,6 +5117,7 @@
         ]
       },
       "imports": [
+        "AdmissionRejection.zig",
         "Caller.zig",
         "Client.zig",
         "Exchange.zig",
@@ -7007,6 +7055,7 @@
           "expected_type",
           "actual_type",
           "supplied_value",
+          "expected_value",
           "expression",
           "source_kind",
           "source_basis",
@@ -7098,7 +7147,7 @@
       },
       "outcomes": {
         "Definition": [
-          "ff8b5156ecbea7eba6dd375379442a334bf2eaf7f7b2e2f1eff462a5a554554a"
+          "@\"2751c5ead29471b9675530a20cd0e364368ba79dee3ec6f00f8806d0accb94e7\""
         ],
         "Command": [
           "grant",
@@ -10875,7 +10924,7 @@
     "packages/zig/transit-station-grpc/src/Service.zig": {
       "errors": {
         "ExpectedGrpcCall": 1,
-        "GrpcRequestNotGranted": 2,
+        "GrpcRequestNotGranted": 7,
         "IncompleteExchange": 1,
         "InvalidGrpcFollowup": 1,
         "InvalidGrpcOutcome": 6,
@@ -11030,12 +11079,12 @@
     "packages/zig/transit-station-http/src/Service.zig": {
       "errors": {
         "ExpectedHttpCall": 1,
-        "HttpRequestNotGranted": 3,
+        "HttpRequestNotGranted": 8,
         "IncompleteExchange": 1,
         "InvalidHttpFollowup": 1,
         "InvalidHttpOutcome": 6,
         "InvalidHttpRelease": 1,
-        "InvalidHttpRequest": 1,
+        "InvalidHttpRequest": 2,
         "InvalidHttpRoute": 2
       },
       "outcomes": {

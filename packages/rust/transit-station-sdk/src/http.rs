@@ -233,7 +233,7 @@ pub fn decode_http_reply(
 ) -> Result<HttpReply> {
     let invalid = || Error::new(ErrorKind::IncompatibleNative, "http-outcome");
     let value = http_codec(
-        json!({"outcome":hex(bytes,71)?}),
+        json!({"outcome":hex(bytes,232)?}),
         native_directory,
         bytes.starts_with(b"HTK1"),
     )?;
@@ -319,7 +319,7 @@ impl<T: 'static> Codec<HttpMessage<T>> for HttpReplyCodec<T> {
         1
     }
     fn max_encoded_bytes(&self) -> usize {
-        self.application.max_encoded_bytes().max(71)
+        self.application.max_encoded_bytes().max(232)
     }
     fn encode(&self, value: &HttpMessage<T>) -> Result<Vec<u8>> {
         match value {

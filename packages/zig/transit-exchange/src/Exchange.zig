@@ -112,7 +112,11 @@ pub fn configureAttempts(self: Self, turn: *Turn, limit: u32) !void {
 pub fn followup(self: Self, turn: *Turn, id: u64, reason: FollowupReason, policy: u64, policy_revision: u64, limits: root.Limits) !Self {
     return self.followupWithContext(turn, id, reason, policy, policy_revision, limits, .{});
 }
+pub const AttemptFailure = struct { present: bool, used: u32 = 0, limit: u32 = 0 };
 pub fn followupWithContext(self: Self, turn: *Turn, id: u64, reason: FollowupReason, policy: u64, policy_revision: u64, limits: root.Limits, context: p.Value) !Self {
+    return self.followupWithContextDiagnostic(turn, id, reason, policy, policy_revision, limits, context, null);
+}
+pub fn followupWithContextDiagnostic(self: Self, turn: *Turn, id: u64, reason: FollowupReason, policy: u64, policy_revision: u64, limits: root.Limits, context: p.Value, attempt_failure: ?*?AttemptFailure) !Self {
     const before = turn.decision;
     errdefer turn.decision = before;
     try context.validate();
@@ -131,7 +135,11 @@ pub fn followupWithContext(self: Self, turn: *Turn, id: u64, reason: FollowupRea
     if (origin.parent != 0 or origin.caller != parent.caller or origin.input != parent.input or origin.reconcile_before_ms != parent.reconcile_before_ms) return error.InvalidExchangeLineage;
     if (origin.phase == .retired) return error.ExchangeUnavailable;
     const budget_key = key(root_id, 'b', 0);
-    var budget = try root.codec.decode(AttemptBudget, (try turn.read(budget_key)) orelse return error.ExchangeAttemptBudgetExceeded);
+    const budget_record = (try turn.read(budget_key)) orelse {
+        if (attempt_failure) |slot| slot.* = .{ .present = false };
+        return error.ExchangeAttemptBudgetExceeded;
+    };
+    var budget = try root.codec.decode(AttemptBudget, budget_record);
     if (try turn.read(key(id, 'l', 0))) |value| {
         const linked = try Link.decode(value);
         const existing = linked.lineage;
@@ -139,7 +147,10 @@ pub fn followupWithContext(self: Self, turn: *Turn, id: u64, reason: FollowupRea
         if (existing.root != root_id or existing.parent != self.id or existing.reason != reason or existing.policy != policy or existing.policy_revision != policy_revision) return error.ExchangeIdentityConflict;
         return createRecord(turn, id, .{ .caller = parent.caller, .input = parent.input, .parent = self.id, .protocol = parent.protocol }, limits, parent.reconcile_before_ms);
     }
-    if (budget.used == budget.limit) return error.ExchangeAttemptBudgetExceeded;
+    if (budget.used == budget.limit) {
+        if (attempt_failure) |slot| slot.* = .{ .present = true, .used = budget.used, .limit = budget.limit };
+        return error.ExchangeAttemptBudgetExceeded;
+    }
     // A pre-existing unrelated ID cannot be adopted as an attempted child.
     if (try turn.read(key(id, 'd', 0)) != null) return error.ExchangeIdentityConflict;
     budget.used += 1;

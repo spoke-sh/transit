@@ -284,6 +284,12 @@ public final class JavaStationSdk {
                 if (((Http.Received<Bytes>)input.value()).value() instanceof Http.Rejected rejected) {
                     BigInteger id = turn.state().require(followupCorrelation);
                     turn.requireReply((Reply<?>)input, peer, id); check(rejected.reason() == Http.Rejection.DENIED);
+                    var facts = rejected.diagnostic().getAsJsonArray("facts");
+                    var present = new java.util.HashMap<String,com.google.gson.JsonObject>();
+                    for (var fact : facts) if (!fact.isJsonNull()) present.put(fact.getAsJsonObject().get("field").getAsString(), fact.getAsJsonObject());
+                    check(present.get("field_path").get("availability").getAsString().equals("provided"));
+                    check(Long.parseLong(present.get("native_input").getAsJsonObject("value").get("unsigned").getAsString()) > 0);
+                    check(present.get("proposal").getAsJsonObject("value").getAsJsonArray("digest").size() == 32);
                     turn.state().put(new Key<>("http-followup-denied", Codecs.U64), id); result = Values.obj("followup", true); return;
                 }
                 if (((Http.Received<Bytes>)input.value()).value() instanceof Http.Released released) {
@@ -414,6 +420,12 @@ public final class JavaStationSdk {
                 if (((Grpc.Received<Bytes>)input.value()).value() instanceof Grpc.Rejected rejected) {
                     BigInteger id = turn.state().require(followupCorrelation);
                     turn.requireReply((Reply<?>)input, peer, id); check(rejected.reason() == Grpc.Rejection.DENIED);
+                    var facts = rejected.diagnostic().getAsJsonArray("facts");
+                    var present = new java.util.HashMap<String,com.google.gson.JsonObject>();
+                    for (var fact : facts) if (!fact.isJsonNull()) present.put(fact.getAsJsonObject().get("field").getAsString(), fact.getAsJsonObject());
+                    check(present.get("field_path").get("availability").getAsString().equals("provided"));
+                    check(Long.parseLong(present.get("native_input").getAsJsonObject("value").get("unsigned").getAsString()) > 0);
+                    check(present.get("proposal").getAsJsonObject("value").getAsJsonArray("digest").size() == 32);
                     turn.state().put(new Key<>("grpc-followup-denied", Codecs.U64), id); result = Values.obj("followup", true); return;
                 }
                 if (((Grpc.Received<Bytes>)input.value()).value() instanceof Grpc.Released released) {

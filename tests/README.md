@@ -13210,3 +13210,33 @@ work; these results are not committed-HEAD clean qualification.
 Final full **`just check` passes**, including native units, generated contracts
 and bindings, 481 real CLI diagnostics, strict frontend checks/tests and the
 production handbook; log `/var/tmp/transit-serving-outcome-check5.log`.
+
+### Original connector admission witnesses — 2026-10-03
+
+HTTP and gRPC rejections retain their original delivered input and payload
+commitment, check, field, cause and typed expected/supplied values in one
+232-byte correlated reply. The current native definition replaces the previous
+five-byte layout. Generation updates all contracts, signing fixtures and SDK
+resources together; old records fail decoding rather than acquiring new evidence.
+
+Executed worker builds and `just test::unit`: **passed**. The runtime checks
+cover each service policy dimension, exhausted attempt-budget values with no
+child allocation, original commitment, and identical disclosure for missing and
+foreign-caller parents. Allocation and authority/storage failures propagate
+without committing a caller rejection. Executed `just bindings::native`:
+**passed**, including 427 status/outcome mappings, **122 detailed** admission
+witnesses and **498 malformed** records independently constructed for both native
+and isolated port callers. These cover every check/scalar tag, full-width values,
+UTF-8 truncation, explicit withholding, control-character escaping, every truncated
+length, invalid padding and absent-input commitments. Native ownership, exact
+host/disk recovery and query/materialization proofs also pass.
+
+Full **`just check` passes**, including 554 CLI cases, 75 Board tests, strict
+frontend checks, generated contracts/bindings and the production handbook.
+Initial invocations failed on a shadowed Zig method name, an incorrect build
+step, and a malformed-record test expecting no error detail; corrected invocations
+are the evidence above. Logs: `/var/tmp/transit-admission-context2.log`,
+`/var/tmp/transit-admission-native2.log`, `/var/tmp/transit-admission-check.log`.
+All installed SDK packages build; their new recovery/admission schedules are
+running and are not yet passed evidence. No committed-HEAD clean qualification
+is claimed by this increment.

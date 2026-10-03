@@ -56,17 +56,58 @@ pub fn rejection(comptime protocol: Protocol, value: anytype) !d {
     const Descriptor = struct { []const u8, d.Category, []const u8 };
     const description: Descriptor = switch (value.reason) {
         .denied => .{ prefix ++ ".request_denied", .access, "The connector rejected this call under its admission or follow-up policy. This rejection does not settle a previous exchange. Inspect current scope and the original exchange before further work." },
-        .invalid_request => .{ prefix ++ ".invalid_request", .integrity, "The connector rejected this request. The reply does not record the failed validation field or original cause. Inspect the request through the shared connector codec; do not infer an outcome for earlier work." },
+        .invalid_request => .{ prefix ++ ".invalid_request", .integrity, "The connector rejected this request. Inspect its recorded validation details; this input rejection does not settle earlier work." },
         .busy => .{ prefix ++ ".exchange_busy", .conflict, "The connector rejected this call because the exchange route is occupied or not ready for the requested control. Inspect the original exchange; this does not cancel or replace it." },
     };
-    var result = try d.init(description[0], description[1], .admission, .input_rejected, .domain_status, description[2]);
+    const rule: ?[]const u8 = switch (value.check) {
+        .unrecorded => null,
+        .decode => "The request representation failed validation.",
+        .equal => "The supplied value must equal the required value.",
+        .maximum => "The supplied value must not exceed the permitted maximum.",
+        .different => "The supplied value must differ from the prohibited value.",
+        .available => "Required state is not available to this caller.",
+        .state => "The recorded exchange state does not permit this operation.",
+        .policy => "The request does not satisfy the connector policy.",
+        .occupied => "The exchange is already bound to different work.",
+        .before => "The observed time must precede the recorded deadline.",
+        .mode => "This worker is configured for a different operation.",
+    };
+    var quoted_field: [194]u8 = undefined;
+    var field_writer: std.Io.Writer = .fixed(&quoted_field);
+    try std.json.Stringify.value(value.field[0..value.field_len], .{ .escape_unicode = true }, &field_writer);
+    var message: [384]u8 = undefined;
+    const summary = if (rule) |text| try std.fmt.bufPrint(&message, "{s} Field: {s}{s}. This input rejection does not settle earlier work.", .{ text, field_writer.buffered(), if (value.field_truncated != 0) " [truncated]" else "" }) else description[2];
+    var result = try d.init(description[0], description[1], .admission, .input_rejected, .domain_status, summary);
     try result.text(.operation, .owner, prefix);
     try result.text(.resolution_reason, .execution, @tagName(value.reason));
-    try result.absent(.native_cause, .execution, .unrecorded);
-    try result.absent(.field_path, .execution, .unrecorded);
+    if (value.input != 0) {
+        try result.fact(.native_input, .execution, .{ .unsigned = .init(value.input) });
+        try result.fact(.proposal, .caller, .{ .digest = value.request });
+    } else try result.absent(.native_input, .execution, .unrecorded);
+    if (value.cause_len != 0) {
+        if (value.cause_truncated == 0) result.cause = try d.Code.init(value.cause[0..value.cause_len]);
+        try ownedText(&result, .native_cause, .execution, value.cause[0..value.cause_len], value.cause_truncated != 0);
+    } else try result.absent(.native_cause, .execution, if (value.check == .unrecorded) .unrecorded else .inapplicable);
+    if (value.field_len != 0) try ownedText(&result, .field_path, .owner, value.field[0..value.field_len], value.field_truncated != 0) else try result.absent(.field_path, .execution, .unrecorded);
+    if (rule) |text| try result.text(.constraint, .owner, text);
+    inline for (.{ "expected", "actual" }) |name| {
+        const field: d.Field = if (comptime std.mem.eql(u8, name, "expected")) .expected_value else .supplied_value;
+        const origin: d.Origin = if (comptime std.mem.eql(u8, name, "expected")) .owner else .execution;
+        switch (@field(value, name ++ "_kind")) {
+            .unrecorded => try result.absent(field, origin, .unrecorded),
+            .redacted => try result.absent(field, origin, .withheld),
+            .inapplicable => try result.absent(field, origin, .inapplicable),
+            .digest => try result.fact(field, origin, .{ .digest = @field(value, name ++ "_text") }),
+            .unsigned => try result.fact(field, origin, .{ .unsigned = .init(@field(value, name ++ "_number")) }),
+            .text => try ownedText(&result, field, origin, @field(value, name ++ "_text")[0..@field(value, name ++ "_len")], @field(value, name ++ "_truncated") != 0),
+        }
+    }
     try result.action(if (value.reason == .denied) .inspect_scope else .inspect_status);
     try result.validate();
     return result;
+}
+fn ownedText(result: *d, field: d.Field, origin: d.Origin, bytes: []const u8, truncated: bool) !void {
+    try result.add(.{ .field = field, .origin = origin, .availability = if (truncated) .truncated else .provided, .value = .{ .text = try d.Text.init(bytes) } });
 }
 
 const grpc_names = [_][]const u8{ "OK", "CANCELLED", "UNKNOWN", "INVALID_ARGUMENT", "DEADLINE_EXCEEDED", "NOT_FOUND", "ALREADY_EXISTS", "PERMISSION_DENIED", "RESOURCE_EXHAUSTED", "FAILED_PRECONDITION", "ABORTED", "OUT_OF_RANGE", "UNIMPLEMENTED", "INTERNAL", "UNAVAILABLE", "DATA_LOSS", "UNAUTHENTICATED" };

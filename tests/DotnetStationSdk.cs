@@ -202,6 +202,10 @@ static class Proof
                 if (reply.Value is Http.Received<Bytes> { Value: Http.Rejected rejected }) {
                     ulong id = turn.State.Require(followupCorrelation);
                     turn.RequireReply(reply, peer, id); Check(rejected.Reason == Http.Rejection.Denied);
+                    var facts = rejected.Diagnostic["facts"]!.AsArray().Where(f => f is not null).ToDictionary(f => f!["field"]!.GetValue<string>());
+                    Check(facts["field_path"]!["availability"]!.GetValue<string>() == "provided");
+                    Check(ulong.Parse(facts["native_input"]!["value"]!["unsigned"]!.GetValue<string>()) > 0);
+                    Check(facts["proposal"]!["value"]!["digest"]!.AsArray().Count == 32);
                     turn.State.Put(new Key<ulong>("http-followup-denied", Codecs.U64), id); Result = new() { ["followup"] = true }; return;
                 }
                 if (reply.Value is Http.Received<Bytes> { Value: Http.Released released }) {
@@ -311,6 +315,10 @@ static class Proof
                 if (reply.Value is Grpc.Received<Bytes> { Value: Grpc.Rejected rejected }) {
                     ulong id = turn.State.Require(followupCorrelation);
                     turn.RequireReply(reply, peer, id); Check(rejected.Reason == Grpc.Rejection.Denied);
+                    var facts = rejected.Diagnostic["facts"]!.AsArray().Where(f => f is not null).ToDictionary(f => f!["field"]!.GetValue<string>());
+                    Check(facts["field_path"]!["availability"]!.GetValue<string>() == "provided");
+                    Check(ulong.Parse(facts["native_input"]!["value"]!["unsigned"]!.GetValue<string>()) > 0);
+                    Check(facts["proposal"]!["value"]!["digest"]!.AsArray().Count == 32);
                     turn.State.Put(new Key<ulong>("grpc-followup-denied", Codecs.U64), id); Result = new() { ["followup"] = true }; return;
                 }
                 if (reply.Value is Grpc.Received<Bytes> { Value: Grpc.Released released }) {

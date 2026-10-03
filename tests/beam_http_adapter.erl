@@ -55,7 +55,13 @@ handle_message(Turn, Input, {S, Peer, Request, Disposal, Reason} = Context) ->
             case Input#transit_incoming.value of
                 <<"HTF1", _/binary>> ->
                     {ok, Correlation} = transit_turn:require(State, FollowupKey), {ok, ok} = transit_turn:require_reply(Turn, Input, Peer, Correlation),
-                    {ok, #transit_http_rejected{reason = denied, diagnostic = #{<<"code">> := <<"http.request_denied">>}}} = transit_http:decode_reply(72, Input#transit_incoming.value),
+                    {ok, #transit_http_rejected{reason = denied, diagnostic = Detail}} = transit_http:decode_reply(72, Input#transit_incoming.value),
+                    Facts = maps:from_list([{maps:get(<<"field">>, F), F} || F <- maps:get(<<"facts">>, Detail), is_map(F)]),
+                    <<"provided">> = maps:get(<<"availability">>, maps:get(<<"field_path">>, Facts)),
+                    #{<<"unsigned">> := NativeInput} = maps:get(<<"value">>, maps:get(<<"native_input">>, Facts)),
+                    true = binary_to_integer(NativeInput) > 0,
+                    #{<<"digest">> := Digest} = maps:get(<<"value">>, maps:get(<<"proposal">>, Facts)),
+                    32 = length(Digest),
                     {ok, Denied} = transit_turn:key(<<"http-followup-denied">>, transit_example_u64_codec),
                     {ok, ok} = transit_turn:put(State, Denied, Correlation), #{followup => true};
                 <<"HTK1", _/binary>> ->

@@ -238,7 +238,7 @@ pub fn decode_grpc_reply(
 ) -> Result<GrpcReply> {
     let invalid = || Error::new(ErrorKind::IncompatibleNative, "grpc-outcome");
     let value = grpc_codec(
-        json!({"outcome":hex(bytes,73)?}),
+        json!({"outcome":hex(bytes,232)?}),
         native_directory,
         bytes.starts_with(b"GRK1"),
     )?;
@@ -324,7 +324,7 @@ impl<T: 'static> Codec<GrpcMessage<T>> for GrpcReplyCodec<T> {
         1
     }
     fn max_encoded_bytes(&self) -> usize {
-        self.application.max_encoded_bytes().max(73)
+        self.application.max_encoded_bytes().max(232)
     }
     fn encode(&self, value: &GrpcMessage<T>) -> Result<Vec<u8>> {
         match value {

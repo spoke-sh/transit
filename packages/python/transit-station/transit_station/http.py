@@ -174,7 +174,7 @@ class HttpReleased:
 
 def decode_http_reply(realm: int, data: bytes, *, native_directory: Path | None = None) -> HttpOutcome | HttpRejected | HttpReleased:
     integer(realm, 'realm')
-    data = owned_bytes(data, 71)
+    data = owned_bytes(data, 232)
     value = _codec({'outcome': data.hex()}, native_directory,
                    capability='http_release' if data[:4] == b'HTK1' else 'http_requests')
     if 'rejected' in value:
@@ -196,7 +196,7 @@ class HttpReplyCodec(Generic[T]):
         self.realm = integer(realm, 'realm')
         self.native_directory = native_directory
         self.type_id = 'transit.http.reply+' + application.type_id
-        self.max_encoded_bytes = max(71, application.max_encoded_bytes)
+        self.max_encoded_bytes = max(232, application.max_encoded_bytes)
 
     def encode(self, value: T | HttpOutcome | HttpRejected | HttpReleased) -> bytes:
         if isinstance(value, (HttpOutcome, HttpRejected, HttpReleased)):
