@@ -35,15 +35,15 @@ class Cli:
         return path
 
     def invoke(self, command, arguments):
-        result = subprocess.run([self.executable,'mutate',command,*map(str,arguments)],cwd=self.root,capture_output=True,text=True,timeout=30)
+        result = subprocess.run([self.executable,'--diagnostics=json','mutate',command,*map(str,arguments)],cwd=self.root,capture_output=True,text=True,timeout=30)
         if result.returncode:
             assert not result.stdout and result.returncode == 1, result.stderr
-            if "the mutation command's outcome is unknown" in result.stderr:
-                assert 'same configuration' in result.stderr and 'Do not prepare a replacement' in result.stderr
-                raise Failure(6,dict(err='unknown_outcome'))
-            if 'MutationIdentityConflict' in result.stderr: raise Failure(5,dict(err='identity_conflict'))
-            if 'permission denied' in result.stderr: raise Failure(4,dict(err='access_denied'))
-            raise AssertionError('Unexpected CLI failure: '+result.stderr)
+            diagnostic = json.loads(result.stderr)
+            assert diagnostic['code'] != 'cli.diagnostic_unavailable', diagnostic
+            detail = dict(err=diagnostic['cause'], diagnostic=diagnostic)
+            if diagnostic['outcome'] == 'unknown': raise Failure(6, detail)
+            status = {'conflict':5, 'access':4, 'limit':10}.get(diagnostic['category'], 1)
+            raise Failure(status, detail)
         assert not result.stderr, result.stderr
         return json.loads(result.stdout)
 

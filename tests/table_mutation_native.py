@@ -334,18 +334,17 @@ def run(node, proof, host, port_host, library, cli, *, sdks=(), cold=False):
                 owner = factory(); clients.append(owner)
                 assert owner.call({'capabilities':{}})['capabilities']['max_rows'] == 3
                 assert owner.call({'describe':{}})['description']['resource'] == description['resource']
-                if label != 'cli':
-                    bad_sql = "INSERT INTO items (id,value) VALUES(1,100)"
-                    try: owner.call({'compile':dict(name='items',sql=bad_sql,namespace=str(namespace))})
-                    except Failure as error:
-                        diagnostic = error.detail['diagnostic']
-                        assert error.status == 1 and not error.detail.get('diagnostic_invalid', False), (label,error)
-                        assert diagnostic['code'] == 'sql.type_mismatch' and diagnostic['outcome'] == 'not_submitted', (label,diagnostic)
-                        assert diagnostic['evidence'] == 'local_before_dispatch'
-                        facts = {fact['field']:fact['value'] for fact in diagnostic['facts'] if fact}
-                        assert facts['expected_type'] == {'text':'utf8'} and facts['actual_type'] == {'text':'int64'}, (label,facts)
-                        assert facts['supplied_value'] == {'text':'100'} and facts['input_row'] == {'unsigned':'1'}, (label,facts)
-                    else: raise AssertionError('Mutation compiler accepted an incompatible scalar')
+                bad_sql = "INSERT INTO items (id,value) VALUES(1,100)"
+                try: owner.call({'compile':dict(name='items',sql=bad_sql,namespace=str(namespace))})
+                except Failure as error:
+                    diagnostic = error.detail['diagnostic']
+                    assert error.status == 1 and not error.detail.get('diagnostic_invalid', False), (label,error)
+                    assert diagnostic['code'] == 'sql.type_mismatch' and diagnostic['outcome'] == 'not_submitted', (label,diagnostic)
+                    assert diagnostic['evidence'] == 'local_before_dispatch'
+                    facts = {fact['field']:fact['value'] for fact in diagnostic['facts'] if fact}
+                    assert facts['expected_type'] == {'text':'utf8'} and facts['actual_type'] == {'text':'int64'}, (label,facts)
+                    assert facts['supplied_value'] == {'text':'100'} and facts['input_row'] == {'unsigned':'1'}, (label,facts)
+                else: raise AssertionError('Mutation compiler accepted an incompatible scalar')
                 operation = owner.call({'compile':dict(name='items',sql=f"UPDATE items SET value='{label}' WHERE id=2",namespace=str(namespace))})['compiled']
                 altered = dict(operation)
                 altered['reference'] = operation['reference'][:-1]+('1' if operation['reference'][-1] != '1' else '2')
@@ -359,11 +358,10 @@ def run(node, proof, host, port_host, library, cli, *, sdks=(), cold=False):
                 try: owner.call({'submit':token})
                 except Failure as error:
                     assert error.status == 6, error
-                    if label != 'cli':
-                        diagnostic = error.detail['diagnostic']
-                        assert diagnostic['code'] == 'mutation.send_unknown' and diagnostic['outcome'] == 'unknown', (label,diagnostic)
-                        assert diagnostic['identity']['sequence'] == str(json.loads(token)['signed']['request']['sequence'])
-                        assert [action['kind'] for action in diagnostic['actions'] if action] == ['inspect_status','resume_exact']
+                    diagnostic = error.detail['diagnostic']
+                    assert diagnostic['code'] == 'mutation.send_unknown' and diagnostic['outcome'] == 'unknown', (label,diagnostic)
+                    assert diagnostic['identity']['sequence'] == str(json.loads(token)['signed']['request']['sequence'])
+                    assert [action['kind'] for action in diagnostic['actions'] if action] == ['inspect_status','resume_exact']
                 else: raise AssertionError('Missing admitted receipt was reported as success')
                 owner.close(); clients.remove(owner)
                 owner = factory(); clients.append(owner)

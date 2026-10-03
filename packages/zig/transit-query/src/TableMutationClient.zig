@@ -219,13 +219,18 @@ pub fn observe(self: *Self, prepared: Prepared, input: u64) !Observation {
 /// A supplied writer records rejected inputs independently of terminal request
 /// status. Check this after processed observation before advancing an upload.
 pub fn rejection(self: *Self, prepared: Prepared, input: u64) !?q.TableMutationWriter.Rejection {
+    return if (try self.inputDisposition(prepared, input)) |value| value.reason else null;
+}
+/// The complete, currently authorized input evidence; it is separate from a
+/// mutation's terminal status and retains its original payload identity.
+pub fn inputDisposition(self: *Self, prepared: Prepared, input: u64) !?q.TableMutationWriter.Disposition {
     try self.validate(prepared);
     if (input == 0 or input > p.max_counter) return error.InvalidMutationPrepared;
     const current = try self.batch(&.{r.key('e', input, 0)});
     const value = (try current.read(r.key('e', input, 0))) orelse return null;
     const result = try q.TableMutationWriter.Disposition.decode(value);
     if (result.input != input or result.principal != self.connection.principal or !std.mem.eql(u8, &result.payload, &try q.TableMutationWriter.Disposition.fingerprint(prepared.signed.request.command.send.value))) return error.MutationIdentityConflict;
-    return result.reason;
+    return result;
 }
 /// Select one successor only after reconciling the preceding Prepared receipt
 /// and observing its input processed. Canonical request/reference identity stays

@@ -127,6 +127,13 @@ by projection, predicates or LIMIT. A late failure can leave a prefix on stdout;
 it never emits completion. Cancellation or a broken downstream pipe can leave
 an incomplete final JSON line. Aggregates appear only after source verification.
 
+`transit --diagnostics=json file-query ...` emits the shared structured error
+on stderr. It retains exact scalar/type/path evidence, frozen runtime basis and
+known budget limits. Unrecorded required amounts are explicitly absent. Its
+`completion: false` fact describes the result; it never claims a durable mutation
+outcome. Successful JSON/Arrow stdout is unchanged. Scalar previews truncate at
+whole UTF-8 code points.
+
 Conversion failures report the failing file, logical record, record-start byte,
 and nested field path as a JSON Pointer (zero-based array indices). They include
 the declared type, actual input kind, a quoted scalar preview of at most 128

@@ -284,6 +284,7 @@ pub fn compile(allocator: Allocator, connection: c.Client.Connection, value: @Fi
     return compileDiagnostic(allocator, connection, value, null);
 }
 pub fn compileDiagnostic(allocator: Allocator, connection: c.Client.Connection, value: @FieldType(Action, "compile"), binding: ?*c.fuze.Sql.Binding) !Compiled {
+    if (binding) |context| context.* = .{};
     try connection.validate();
     const request = try m.CreateTable.compileDiagnostic(connection.scope, try unsigned(value.operation), try unsigned(value.object), value.table, value.sql, binding);
     return .{ .request = try CreateTable.fromNative(allocator, request), .canonical = try c.Records.encode('q', request) };

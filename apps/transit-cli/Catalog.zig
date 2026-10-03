@@ -58,9 +58,18 @@ pub fn run(init: std.process.Init, args: []const []const u8, diagnostic: *Diagno
         if (!(std.mem.eql(u8, uri.scheme, "http") or std.mem.eql(u8, uri.scheme, "https")) or uri.host == null or uri.user != null or uri.password != null or uri.query != null or uri.fragment != null) return diagnostic.invalidField("url", "requires an HTTP or HTTPS authority URL without embedded credentials, query or fragment", null);
     }
     // Malformed local artifacts reject before credential loading or network I/O.
-    const action = try actionFromInput(init, options, diagnostic);
+    const action = actionFromInput(init, options, diagnostic) catch |err| {
+        if (diagnostic.presentation == .general) diagnostic.envelope = c.Diagnostic.artifact(@tagName(options.mode), err) catch null;
+        return err;
+    };
     if (options.mode == .compile) {
-        return publish(init, options, diagnostic, .{ .compiled = try B.compile(alloc, connection, action.compile) });
+        var binding: c.fuze.Sql.Binding = .{};
+        const compiled = B.compileDiagnostic(alloc, connection, action.compile, &binding) catch |err| {
+            diagnostic.envelope = c.Diagnostic.attempt(action, err, binding, false, null) catch null;
+            if (diagnostic.envelope) |*detail| if (detail.location) |*location| (p.Diagnostic.SourcePath.init(options.flags.file.?) catch return err).apply(location);
+            return err;
+        };
+        return publish(init, options, diagnostic, .{ .compiled = compiled });
     }
     diagnostic.atFile(absolute);
     const url = config.url orelse return diagnostic.invalidField("url", "is required for remote catalog operations", null);
@@ -80,13 +89,35 @@ pub fn run(init: std.process.Init, args: []const []const u8, diagnostic: *Diagno
     var client: c.Client = .{ .transport = &transport, .connection = connection, .key = key };
     defer std.crypto.secureZero(u8, std.mem.asBytes(&client.key));
     const submitting = action == .submit;
-    if (submitting) try client.validate(try B.prepared(alloc, action.submit));
-    const result = B.apply(alloc, &client, action) catch |err| {
-        if (submitting and err != error.AccessDenied and err != error.Rejected and err != error.Conflict) return uncertain(diagnostic, err);
-        return err;
+    var identity: ?p.Diagnostic.Identity = null;
+    if (submitting) {
+        const prepared = try B.prepared(alloc, action.submit);
+        client.validate(prepared) catch |err| {
+            diagnostic.envelope = c.Diagnostic.attempt(action, err, .{}, false, null) catch null;
+            return err;
+        };
+        identity = .{ .domain = .transport, .id = .init(prepared.signed.request.sequence), .sequence = .init(prepared.signed.request.sequence), .realm = .init(prepared.signed.request.realm) };
+    }
+    var binding: c.fuze.Sql.Binding = .{};
+    const result = B.applyDiagnostic(alloc, &client, action, &binding) catch |err| {
+        const failure = if (submitting and err != error.AccessDenied and err != error.Rejected and err != error.Conflict) uncertain(diagnostic, err) else err;
+        diagnostic.envelope = c.Diagnostic.attempt(action, err, binding, submitting, identity) catch null;
+        if (action == .compile and diagnostic.envelope != null) if (diagnostic.envelope.?.location) |*location| (p.Diagnostic.SourcePath.init(options.flags.file.?) catch return failure).apply(location);
+        return failure;
     };
     publish(init, options, diagnostic, result) catch |err| {
-        if (submitting) return uncertain(diagnostic, err);
+        if (submitting) {
+            const failure = uncertain(diagnostic, err);
+            var detail = try p.Diagnostic.init("catalog.receipt_output_incomplete", .unavailable, .output, .pending, .native_receipt, "The native receipt was received but its output could not be written. The receipt proves input admission, not domain application. Reconcile the same saved command.");
+            detail.cause = try p.Diagnostic.Code.init(@errorName(err));
+            detail.identity = identity;
+            try detail.fact(.native_input, .authority, .{ .unsigned = .init(result.receipt.position) });
+            try detail.fact(.completion, .execution, .{ .boolean = false });
+            try detail.action(.inspect_status);
+            try detail.action(.resume_exact);
+            diagnostic.envelope = detail;
+            return failure;
+        }
         return err;
     };
 }

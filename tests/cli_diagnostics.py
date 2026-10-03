@@ -673,4 +673,101 @@ with tempfile.TemporaryDirectory(prefix='transit-cli-diagnostics-') as directory
     invoke(['console', '--no-rc', '--config', connection, '-c', '-- comment\nSELECT COUNT(*) FROM items'], 1,
            env=environment, cwd=project, contains=('query could not complete',))
     assert not installation.exists()
+# Structured stderr is independent of result format. These are real binaries,
+# including byte paths, late failures, nested source positions and output loss.
+def machine(args, expected=1, data=b'', env=None, out=None):
+    global CASES
+    result = subprocess.run([CLI, '--diagnostics=json', *map(str,args)], input=data,
+                            stdout=subprocess.PIPE if out is None else out, stderr=subprocess.PIPE,
+                            timeout=10, env=ENV if env is None else env, cwd=ISOLATED.name)
+    assert result.returncode == expected, (args,result.returncode,result.stderr)
+    assert b'\x1b' not in result.stderr and b'private-must-not-appear' not in result.stderr, result.stderr
+    records = [json.loads(line) for line in result.stderr.splitlines()]
+    diagnostics = [item for item in records if 'code' in item]
+    assert len(diagnostics) == 1, records
+    diagnostic = diagnostics[0]
+    assert diagnostic['code'] not in ('cli.diagnostic_unavailable','cli.internal_failure','file.internal_failure'), diagnostic
+    assert diagnostic['definition'] == definition and len(result.stderr) < 32768, diagnostic
+    assert diagnostic['outcome'] not in ('applied','rejected','cancelled'), diagnostic
+    assert not any(action and action['kind'] in ('resume_exact','cancel_wait','cancel_mutation') for action in diagnostic['actions']), diagnostic
+    CASES += 1
+    return result,diagnostic,records
+
+def facts(diagnostic):
+    return {item['field']:item['value'] for item in diagnostic['facts'] if item}
+
+result,detail,_ = machine(['private-must-not-appear'],2)
+assert detail['code'] == 'cli.invalid_invocation' and facts(detail)['argument'] == {'unsigned':'2'}
+assert detail['outcome'] == 'not_submitted' and not result.stdout
+for route in ('console','app','mutate','catalog','query','file-query'):
+    args = [route,'--bad=private-must-not-appear']
+    _,detail,_ = machine(args,2)
+    assert detail['code'] == 'cli.invalid_invocation', detail
+with tempfile.TemporaryDirectory(prefix='transit-cli-json-') as directory:
+    root = Path(directory)
+    config = root/'console.json'
+    seed = root/'caller.seed'; seed.write_text('2a'*32)
+    config.write_text(json.dumps(dict(console,seed_file=str(seed))))
+    args = ['console','--no-rc','--config',config,'--format','json']
+    _,detail,_ = machine([*args,'-c','SELECT typo FROM items'])
+    assert detail['code'] == 'sql.unknown_column' and facts(detail)['column'] == {'text':'typo'}
+    assert detail['location']['offset'] == '7' and detail['outcome'] == 'not_submitted'
+    script = root/'script.sql'
+    text = '-- 東京\r\n.show\r\n  SELECT typo FROM items;\n'
+    script.write_bytes(text.encode())
+    _,detail,_ = machine([*args,'-f',script])
+    location = detail['location']
+    assert location['source'] == str(script) and location['statement'] == '2', location
+    assert location['offset'] == str(text.encode().index(b'typo')) and location['line'] == '3' and location['byte_column'] == '10', location
+    assert facts(detail)['completed_statements'] == {'unsigned':'1'}
+    _,detail,records = machine(args,data=b'.timing on\nSELECT typo FROM items;\n')
+    assert len(records) == 2 and records[1]['timing']['unit'] == 'ms', records
+    assert detail['code'] == 'sql.unknown_column'
+    for ddl,code,offset in [('CREATE TABLE items (id UTF8 NOT NULL,value UTF8 NULL)','sql.unsupported_table_key',20),
+                            ('CREATE TABLE items (id INT64 NOT NULL,id UTF8 NULL)','sql.duplicate_column',38)]:
+        sql = root/'create.sql'; sql.write_text(ddl)
+        catalog = root/'catalog.json'; catalog.write_text(json.dumps(catalog_values))
+        output = root/'must-not-exist.json'
+        _,detail,_ = machine(['catalog','compile','--config',catalog,'--operation','1','--object','1','--table','1','--file',sql,'--output',output])
+        assert detail['code'] == code and detail['location']['offset'] == str(offset), detail
+        assert detail['location']['source'] == str(sql) and not output.exists()
+    csv = root/'late.csv'; csv.write_text('id,value\n1,100\n2,bad\n')
+    for limit in ('',' LIMIT 0',' LIMIT 1'):
+        result,detail,_ = machine(['file-query','--format','csv','--sample-records','1','-c','SELECT * FROM input'+limit,csv])
+        assert detail['code'] == 'file.invalid_literal' and detail['stage'] == 'decode', detail
+        assert detail['location'] is None and facts(detail)['source_row'] == {'unsigned':'3'}
+        assert facts(detail)['byte_offset'] == {'unsigned':'15'}
+        assert facts(detail)['field_path'] == {'text':'/value'} and facts(detail)['supplied_value'] == {'text':'bad'}
+        assert facts(detail)['completion'] == {'boolean':False} and facts(detail)['schema_origin'] == {'text':'inferred'}
+        assert all('complete' not in row for row in map(json.loads,result.stdout.splitlines())), result.stdout
+    csv.write_text('id,value\n1,9223372036854775807\n2,1\n')
+    _,detail,_ = machine(['file-query','--format','csv','-c','SELECT SUM(value) FROM input',csv])
+    assert detail['code'] == 'file.arithmetic_overflow' and facts(detail)['column'] == {'text':'value'}
+    assert 'source_basis' in facts(detail) and facts(detail)['completion'] == {'boolean':False}
+    csv.write_text('id,value\n1,100\n2,200\n')
+    _,detail,_ = machine(['file-query','--format','csv','--max-records','1','-c','SELECT * FROM input',csv])
+    assert detail['code'] == 'file.record_count_limit' and facts(detail)['limit'] == {'unsigned':'1'}
+    assert any(item and item['field'] == 'required' and item['availability'] == 'unrecorded' for item in detail['facts'])
+    with open('/dev/full','wb') as output:
+        _,detail,_ = machine(['file-query','--format','csv','-c','SELECT * FROM input',csv],out=output)
+    assert detail['code'] == 'file.output_incomplete' and detail['stage'] == 'output'
+    assert facts(detail)['completion'] == {'boolean':False}
+    byte_path = root/os.fsdecode(b'bad-\xff.json')
+    byte_path.write_text('{"version":')
+    _,detail,_ = machine(['query',byte_path],2)
+    assert detail['code'] == 'cli.invalid_configuration' and detail['location']['source_encoding'] == 'escaped_bytes', detail
+    assert detail['location']['source'].endswith('bad-\\xff.json')
+    # A long UTF-8 scalar preview cannot split a code point or destroy the cause.
+    csv.write_text('id,value\n1,100\n2,'+'界'*50+'\n')
+    _,detail,_ = machine(['file-query','--format','csv','--sample-records','1','-c','SELECT * FROM input',csv])
+    assert detail['code'] == 'file.invalid_literal'
+    preview = next(item for item in detail['facts'] if item and item['field']=='supplied_value')
+    assert preview['availability'] == 'truncated' and preview['value']['text'] == '界'*42, preview
+    # Successful stdout remains byte-identical in the opt-in mode.
+    csv.write_text('id,value\n1,100\n')
+    arguments = ['file-query','--format','csv','-c','SELECT * FROM input',str(csv)]
+    plain = subprocess.run([CLI,*arguments],capture_output=True,env=ENV,check=True)
+    structured = subprocess.run([CLI,'--diagnostics=json',*arguments],capture_output=True,env=ENV,check=True)
+    assert structured.stdout == plain.stdout and not structured.stderr
+    CASES += 1
 print(f'CLI diagnostics passed: {CASES} real command cases; no configuration or credential disclosure, stdout contamination or provisioning.')

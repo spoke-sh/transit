@@ -86,9 +86,16 @@ Missing, null, type error and conflict alternatives are explicit.
 
 Only one finite bundle, frozen command and cursor remain resident. Rows die with
 the command arena. Observed denial, retirement or a Document history gap clears
-the protected session; prior terminal output was already disclosed. A cursor is
+the result cursor and completion state. The original bundle and pending signed
+command remain available for exact recovery; losing read access does not cancel
+or discard accepted work. Prior terminal output was already disclosed. A cursor is
 not a grant. Request retirement does not erase the source's independent result
 publication or permanent identity facts.
+
+Use `transit --diagnostics=json query FILE` for shared error records on stderr.
+The default shell retains its JSON stdout error records. The optional stderr
+mode preserves compiler coordinates and saved recovery identity; ordinary result
+and shell banner output retains its existing format.
 
 The [proof guide](../../../tests/README.md) records commands and completed
 measurements for the real shell with all three source daemons and recovery.

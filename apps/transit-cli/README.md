@@ -24,6 +24,9 @@ statuses. Use `transit server --help`, `transit console --help` or application
 operation help such as `transit app install --help` for supported options and
 configuration guidance. `just test::cli-diagnostics` checks the real executable's
 invocation and configuration failures without starting an installation.
+Put `--diagnostics=json` before the command for structured stderr errors; result
+stdout keeps its command-specific format. See the
+[structured error reference](../../docs/reference/cli.md#structured-errors).
 
 Bare `transit console` derives its connection from the local installation without
 a generated configuration file. Server, explicit connection and management

@@ -3,6 +3,7 @@ const std = @import("std");
 const q = @import("transit_query");
 const c = @import("transit_catalog");
 const Self = @This();
+envelope: q.protocol.Diagnostic,
 heading: []const u8,
 code: []const u8,
 message: [512]u8 = @splat(0),
@@ -12,7 +13,7 @@ next: ?[]const u8 = null,
 pub fn mutation(name: q.fuze.model.Name, request: q.TableMutationRequest, status: q.TableMutationRecords.Status) !Self {
     try status.validate();
     if (status.phase != .rejected or status.table != request.table or !std.meta.eql(status.reference, try request.reference(status.reference.namespace))) return error.InvalidConsoleRecovery;
-    var self: Self = .{ .heading = "Mutation Error", .code = @tagName(status.reason) };
+    var self: Self = .{ .envelope = try q.MutationDiagnostic.bound(status, request, name), .heading = "Mutation Error", .code = @tagName(status.reason) };
     var out: std.Io.Writer = .fixed(&self.message);
     switch (status.reason) {
         .row_exists => {
@@ -52,8 +53,9 @@ pub fn mutation(name: q.fuze.model.Name, request: q.TableMutationRequest, status
     return self;
 }
 
-pub fn input(reason: q.TableMutationWriter.Rejection, active: bool) Self {
-    var self: Self = .{ .heading = "Mutation Input Error", .code = @tagName(reason) };
+pub fn input(value: q.TableMutationWriter.Disposition, active: bool) !Self {
+    const reason = value.reason;
+    var self: Self = .{ .envelope = try q.MutationDiagnostic.input(value), .heading = "Mutation Input Error", .code = @tagName(reason) };
     var out: std.Io.Writer = .fixed(&self.message);
     out.writeAll(switch (reason) {
         .invalid_command => "The writer could not decode this mutation command.",
@@ -75,8 +77,10 @@ pub fn input(reason: q.TableMutationWriter.Rejection, active: bool) Self {
     return self;
 }
 
-pub fn creation(request: c.Model.CreateTable, outcome: c.Model.Outcome) !Self {
-    var self: Self = .{ .heading = "Catalog Error", .code = @tagName(outcome) };
+pub fn creation(value: c.Model.Receipt) !Self {
+    const request = value.request;
+    const outcome = value.outcome;
+    var self: Self = .{ .envelope = try c.Diagnostic.receipt(value), .heading = "Catalog Error", .code = @tagName(outcome) };
     var out: std.Io.Writer = .fixed(&self.message);
     switch (outcome) {
         .name_conflict => {
@@ -94,8 +98,9 @@ pub fn creation(request: c.Model.CreateTable, outcome: c.Model.Outcome) !Self {
     return self;
 }
 
-pub fn catalogInput(outcome: @FieldType(c.Model.Disposition, "outcome")) !Self {
-    var self: Self = .{ .heading = "Catalog Input Error", .code = @tagName(outcome) };
+pub fn catalogInput(value: c.Model.Disposition) !Self {
+    const outcome = value.outcome;
+    var self: Self = .{ .envelope = try c.Diagnostic.input(value), .heading = "Catalog Input Error", .code = @tagName(outcome) };
     var out: std.Io.Writer = .fixed(&self.message);
     try out.writeAll(switch (outcome) {
         .invalid_command => "The catalog could not decode the creation command.",

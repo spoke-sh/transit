@@ -13,7 +13,12 @@ pub fn main(init: std.process.Init) !void {
     };
 }
 fn dispatch(init: std.process.Init, diagnostic: *Diagnostic) !void {
-    const args = try init.minimal.args.toSlice(init.arena.allocator());
+    var args = try init.minimal.args.toSlice(init.arena.allocator());
+    if (args.len > 1 and std.mem.eql(u8, args[1], "--diagnostics=json")) {
+        diagnostic.format = .json;
+        diagnostic.argument_offset = 1;
+        args = args[1..];
+    }
     if (args.len > 1 and std.mem.eql(u8, args[1], "file-query")) return @import("FileQuery.zig").run(init, args[2..], diagnostic);
     if (args.len > 1 and std.mem.eql(u8, args[1], "app")) return @import("Application.zig").run(init, args[2..], diagnostic);
     if (args.len > 1 and std.mem.eql(u8, args[1], "mutate")) return @import("Mutations.zig").run(init, args[2..], diagnostic);
@@ -37,7 +42,7 @@ fn dispatch(init: std.process.Init, diagnostic: *Diagnostic) !void {
             return diagnostic.invalidArgument("unexpected input");
         }
         diagnostic.atFile(args[2]);
-        return @import("Unified.zig").run(init, args[2]);
+        return @import("Unified.zig").run(init, args[2], diagnostic);
     }
     const options = try @import("Options.zig").parseDiagnosed(args[1..], init.environ_map.get("TRANSIT_CONSOLE_CONFIG"), diagnostic);
     if (options.command == .help or options.help) return @import("Options.zig").writeHelp(init.io, options);

@@ -49,7 +49,7 @@ def check(binary, root, kind, invoke, expected, fault, *, compound=False, counts
         assert first['manifest']['basis']['kind'] == kind
         invoke('revoke', direct=True)
         assert shell.call('.next')['err'] == 'AccessDenied'
-        assert shell.call('.next')['err'] == 'NamespaceRequired'
+        assert shell.call('.next')['err'] == 'AccessDenied'
         invoke('restore', direct=True)
         for parameterized in ((False,) if compound else (False, True)):
             namespace = 3 if parameterized else 2
@@ -89,6 +89,13 @@ def check(binary, root, kind, invoke, expected, fault, *, compound=False, counts
             bundle = shell.call('.bundle')['bundle']
             pending = shell.call('.pending')['token']
             assert bundle and pending
+            invoke('revoke', direct=True)
+            denied = shell.call('.sources')
+            assert denied == {'err':'AccessDenied','uncertain':True}, denied
+            assert shell.call('.bundle')['bundle'] == bundle
+            assert shell.call('.pending')['token'] == pending
+            assert shell.call('.new 999999')['err'] == 'UnresolvedSubmission'
+            invoke('restore', direct=True)
             if parameterized:
                 input_file.write_text(json.dumps({'sql': 'DELETE FROM items WHERE id = 0', 'parameters': []}))
                 assert shell.call(command)['err'] == 'UnresolvedSubmission'
@@ -141,7 +148,7 @@ def check(binary, root, kind, invoke, expected, fault, *, compound=False, counts
             while 'waiting_for_input' in progress: progress = shell.call('.advance')
             assert progress['status']['collected'], progress
             assert shell.call(f'.new {namespace}')['err'] == 'QueryUploadIdentityConflict'
-            print(f'Unified {kind} SQL shell ({"parameter file" if parameterized else "ordinary SQL"}): truthful capabilities, pre-submit rejection, frozen bundle/exact retry across shell exit, current prefix denial, '
+            print(f'Unified {kind} SQL shell ({"parameter file" if parameterized else "ordinary SQL"}): truthful capabilities, pre-submit rejection, frozen bundle/exact retry across shell exit, current prefix denial and retained signed work after revocation, '
                   f'named output schemas, {"COUNT value/missing counters" if counts else "owned nested rows"}, complete coverage and permanent retirement/collection passed.', flush=True)
     finally:
         if shell.process.poll() is None: shell.close()

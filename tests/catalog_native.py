@@ -569,20 +569,19 @@ def run(node, proof, catalog_host, port_host, library, cli, languages=(), growth
                 assert caps['definition'] == definition.hex() and caps['create_table'] and caps['conditional_policy']
                 description = client.call({'describe': {}})['description']
                 assert description['configuration']['scope'] == connection['scope'] and description['policy']['revision'] == '5'
-                if name != 'cli':
-                    for invalid_sql, code, column, offset in (
-                        ('CREATE TABLE items (id UTF8 NOT NULL,value UTF8 NULL)', 'sql.unsupported_table_key', 'id', 20),
-                        ('CREATE TABLE items (id INT64 NOT NULL,id UTF8 NULL)', 'sql.duplicate_column', 'id', 38),
-                    ):
-                        try: client.call({'compile':dict(operation='1',object='1',table=1,sql=invalid_sql)})
-                        except Failure as error:
-                            diagnostic = error.detail['diagnostic']
-                            assert error.status == 1 and not error.detail.get('diagnostic_invalid',False), (name,error)
-                            assert diagnostic['code'] == code and diagnostic['outcome'] == 'not_submitted', (name,diagnostic)
-                            assert diagnostic['location']['offset'] == str(offset)
-                            assert diagnostic['facts'][0]['field'] == 'column' and diagnostic['facts'][0]['value'] == {'text':column}
-                            assert [action['kind'] for action in diagnostic['actions'] if action] == ['correct_input']
-                        else: raise AssertionError('Catalog compiler accepted an invalid declaration')
+                for invalid_sql, code, column, offset in (
+                    ('CREATE TABLE items (id UTF8 NOT NULL,value UTF8 NULL)', 'sql.unsupported_table_key', 'id', 20),
+                    ('CREATE TABLE items (id INT64 NOT NULL,id UTF8 NULL)', 'sql.duplicate_column', 'id', 38),
+                ):
+                    try: client.call({'compile':dict(operation='1',object='1',table=1,sql=invalid_sql)})
+                    except Failure as error:
+                        diagnostic = error.detail['diagnostic']
+                        assert error.status == 1 and not error.detail.get('diagnostic_invalid',False), (name,error)
+                        assert diagnostic['code'] == code and diagnostic['outcome'] == 'not_submitted', (name,diagnostic)
+                        assert diagnostic['location']['offset'] == str(offset)
+                        assert diagnostic['facts'][0]['field'] == 'column' and diagnostic['facts'][0]['value'] == {'text':column}
+                        assert [action['kind'] for action in diagnostic['actions'] if action] == ['correct_input']
+                    else: raise AssertionError('Catalog compiler accepted an invalid declaration')
                 # JSON type rejection belongs to ABI/port; CLI argument/artifact
                 # types and offline rejection are covered by cli_diagnostics.py.
                 invalid_actions = [] if name not in ('abi', 'port') else [
@@ -625,11 +624,10 @@ def run(node, proof, catalog_host, port_host, library, cli, languages=(), growth
                     raise AssertionError('Lost catalog receipt was reported as success')
                 except Failure as error:
                     assert error.status == 6, error
-                    if name != 'cli':
-                        diagnostic = error.detail['diagnostic']
-                        assert diagnostic['code'] == 'catalog.send_unknown' and diagnostic['outcome'] == 'unknown', (name,diagnostic)
-                        assert diagnostic['identity']['sequence'] == str(json.loads(prepared)['signed']['request']['sequence'])
-                        assert [action['kind'] for action in diagnostic['actions'] if action] == ['inspect_status','resume_exact']
+                    diagnostic = error.detail['diagnostic']
+                    assert diagnostic['code'] == 'catalog.send_unknown' and diagnostic['outcome'] == 'unknown', (name,diagnostic)
+                    assert diagnostic['identity']['sequence'] == str(json.loads(prepared)['signed']['request']['sequence'])
+                    assert [action['kind'] for action in diagnostic['actions'] if action] == ['inspect_status','resume_exact']
                 if name == 'port':
                     client.crash()
                 else:
@@ -771,11 +769,10 @@ def run(node, proof, catalog_host, port_host, library, cli, languages=(), growth
                         if cursor is None: break
                         assert cursor['definition'] == definition.hex() and cursor['scope'] == connection['scope']
                         assert cursor['resource_revision'] == revision and cursor['after'] == present[-1]['name']
-                        if name != 'cli':
-                            stale = dict(cursor, resource_revision=revision - 1)
-                            metadata_call(name, client, {'list': stale}, 5)
-                            foreign = dict(cursor, scope=dict(cursor['scope'], catalog='1'))
-                            metadata_call(name, client, {'list': foreign}, 5)
+                        stale = dict(cursor, resource_revision=revision - 1)
+                        metadata_call(name, client, {'list': stale}, 5)
+                        foreign = dict(cursor, scope=dict(cursor['scope'], catalog='1'))
+                        metadata_call(name, client, {'list': foreign}, 5)
                         page = metadata_call(name, client, {'list': cursor})['page']
                     assert actual == expected, (name, actual, expected)
                     for entry in expected:

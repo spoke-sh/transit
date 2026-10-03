@@ -22,3 +22,17 @@ pub fn render(self: Self, out: *std.Io.Writer) !void {
         if (failure.denied()) try out.writeAll("Resolve the current access or source-lifecycle failure before submitting a new query.\n") else if (failure.dimension != .none) try out.writeAll("Reduce the query's work or explicitly configure a sufficient authorized budget, then submit a new query.\n") else try out.writeAll("Correct the reported query or source problem before submitting a new query.\n");
     } else try out.writeAll("Submit a new query if you need a new result.\n");
 }
+
+pub fn structured(self: Self) !q.protocol.Diagnostic {
+    if (self.failure) |failure| return failure.diagnostic(self.namespace, self.phase);
+    const d = q.protocol.Diagnostic;
+    var value = switch (self.phase) {
+        .cancelled => try d.init("query.cancelled", .lifecycle, .control, .cancelled, .domain_status, "The saved query wait was cancelled. Cancellation does not retract previously disclosed results."),
+        .retired => try d.init("query.retired", .lifecycle, .read, .retired, .domain_status, "The saved query was retired; its result is no longer available through this request."),
+        else => return error.InvalidQueryDiagnostic,
+    };
+    value.identity = .{ .domain = .query, .id = .init(self.namespace) };
+    try value.fact(.completion, .owner, .{ .boolean = false });
+    try value.action(.inspect_status);
+    return value;
+}

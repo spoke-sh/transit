@@ -285,6 +285,9 @@ pub const Console = struct {
             self.query_interrupted = true;
             if (!Signals.terminating()) Signals.clear();
             const failure = self.diagnostic.fail(error.ConsoleQueryInterrupted, "write interrupted; its outcome may be pending", "Reconnect with the same configuration. Use .status to inspect, .resume to reconcile the saved command, or .cancel for a Table mutation. Interrupting does not undo accepted writes.");
+            if (self.writes) |writer| {
+                if (writer.unresolved()) self.diagnostic.envelope = writer.unresolvedDiagnostic(failure) catch null;
+            }
             if (self.batch or Signals.terminating()) return failure;
             self.diagnostic.emit(self.init.io, failure);
             return true;
@@ -433,7 +436,10 @@ pub const Console = struct {
             else => {},
         }
         if (self.write_preparing) return self.diagnostic.fail(err, "write preparation failed; no new command was submitted", "Correct the preparation error before submitting a new statement.");
-        if (self.writes != null and self.writes.?.unresolved()) return self.diagnostic.fail(err, "the saved write has an unresolved outcome", if (self.writes.?.record.operation.? == .mutation) "Use .status to inspect the saved outcome and .resume to reconcile exact pending work. Use .cancel to request closure of the saved Table mutation. Do not repeat the SQL while its outcome is unresolved." else "Use .status to inspect the saved creation and .resume to reconcile its exact command. CREATE TABLE cannot be cancelled. Do not repeat the SQL while its outcome is unresolved.");
+        if (self.writes != null and self.writes.?.unresolved()) {
+            self.diagnostic.envelope = self.writes.?.unresolvedDiagnostic(err) catch null;
+            return err;
+        }
         if (self.interactive and err == error.ConsoleInterrupted) {
             self.diagnostic.summary = null;
             self.diagnostic.cause = null;
@@ -442,7 +448,9 @@ pub const Console = struct {
         }
         if (err == error.ConsoleRecoveryRequired) return self.diagnostic.fail(err, "automatic queries require a recovery_file in the console configuration", "This private file retains the query and exact signed intent for recovery.");
         const hint = if (self.session.namespace != null and !self.session.complete) std.fmt.allocPrint(self.init.arena.allocator(), "Query {d} remains saved. Reconnect with the same configuration; use .resume to recover its result or .cancel to request cancellation. Disconnecting does not cancel it.", .{self.session.namespace.?}) catch null else null;
-        return self.diagnostic.fail(err, "query could not complete", hint);
+        self.diagnostic.setFailure(err, "query could not complete", hint);
+        if (self.session.pending != null or self.session.input != null or (self.session.namespace != null and !self.session.complete)) self.diagnostic.envelope = u.savedDiagnostic(self.session.*, err) catch null;
+        return err;
     }
     fn dispatch(self: *Console, text: []const u8, allocator: std.mem.Allocator) !void {
         if (std.mem.eql(u8, text, ".help") or std.mem.startsWith(u8, text, ".help ")) return @import("ConsoleHelp.zig").write(self, std.mem.trim(u8, text[5..], " \t"));

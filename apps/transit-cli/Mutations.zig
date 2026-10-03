@@ -48,7 +48,10 @@ pub fn run(init: std.process.Init, args: []const []const u8, diagnostic: *Diagno
     if (!(std.mem.eql(u8, uri.scheme, "http") or std.mem.eql(u8, uri.scheme, "https")) or uri.host == null or uri.user != null or uri.password != null or uri.query != null or uri.fragment != null) return diagnostic.invalidField("url", "requires an HTTP or HTTPS authority URL without embedded credentials, query or fragment", null);
     config.seed_file = try std.fs.path.resolve(alloc, &.{ std.fs.path.dirname(absolute).?, config.seed_file });
     // Read and validate local artifacts before loading keys or contacting authority.
-    const action = try actionFromFile(init, options, diagnostic);
+    const action = actionFromFile(init, options, diagnostic) catch |err| {
+        if (diagnostic.presentation == .general) diagnostic.envelope = q.MutationDiagnostic.artifact(@tagName(options.mode), err) catch null;
+        return err;
+    };
     diagnostic.atFile(absolute);
     diagnostic.field = "seed_file";
     var key = q.wire.readKey(init.gpa, init.io, config.seed_file) catch |err| {
@@ -63,10 +66,21 @@ pub fn run(init: std.process.Init, args: []const []const u8, diagnostic: *Diagno
     var client: q.TableMutationClient = .{ .wire = &wire, .connection = config.connection, .key = key };
     defer std.crypto.secureZero(u8, std.mem.asBytes(&client.key));
     const submitting = action == .submit;
-    if (submitting) try client.validate(try B.prepared(alloc, action.submit));
-    const result = B.apply(alloc, &client, action) catch |err| {
-        if (submitting and err != error.AccessDenied and err != error.Rejected and err != error.Conflict) return uncertain(diagnostic, err);
-        return err;
+    var identity: ?q.protocol.Diagnostic.Identity = null;
+    if (submitting) {
+        const prepared = try B.prepared(alloc, action.submit);
+        client.validate(prepared) catch |err| {
+            diagnostic.envelope = q.MutationDiagnostic.attempt(action, err, .{}, false, null) catch null;
+            return err;
+        };
+        identity = .{ .domain = .transport, .id = .init(prepared.signed.request.sequence), .sequence = .init(prepared.signed.request.sequence), .realm = .init(prepared.signed.request.realm) };
+    }
+    var binding: q.fuze.Sql.Binding = .{};
+    const result = B.applyDiagnostic(alloc, &client, action, &binding) catch |err| {
+        const failure = if (submitting and err != error.AccessDenied and err != error.Rejected and err != error.Conflict) uncertain(diagnostic, err) else err;
+        diagnostic.envelope = q.MutationDiagnostic.attempt(action, err, binding, submitting, identity) catch null;
+        if (action == .compile and diagnostic.envelope != null) if (diagnostic.envelope.?.location) |*location| (q.protocol.Diagnostic.SourcePath.init(options.flags.file.?) catch return failure).apply(location);
+        return failure;
     };
     if (flags.output) |path| {
         // Preparation admits no native command. The artifact must be durable
@@ -75,7 +89,18 @@ pub fn run(init: std.process.Init, args: []const []const u8, diagnostic: *Diagno
         try createArtifact(init, path, result);
     }
     output(init, result) catch |err| {
-        if (submitting) return uncertain(diagnostic, err);
+        if (submitting) {
+            const failure = uncertain(diagnostic, err);
+            var detail = try q.protocol.Diagnostic.init("mutation.receipt_output_incomplete", .unavailable, .output, .pending, .native_receipt, "The native receipt was received but its output could not be written. The receipt proves input admission, not domain application. Reconcile the same saved command.");
+            detail.cause = try q.protocol.Diagnostic.Code.init(@errorName(err));
+            detail.identity = identity;
+            try detail.fact(.native_input, .authority, .{ .unsigned = .init(result.receipt.position) });
+            try detail.fact(.completion, .execution, .{ .boolean = false });
+            try detail.action(.inspect_status);
+            try detail.action(.resume_exact);
+            diagnostic.envelope = detail;
+            return failure;
+        }
         return err;
     };
 }

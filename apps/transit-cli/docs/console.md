@@ -487,8 +487,8 @@ error: SQL parse error [syntax] (InvalidSqlSyntax) at line 1, column 7: expected
 Error guidance uses `.help SQL`, statement help such as `.help CREATE TABLE`,
 and console inspection commands such as `.schema` and `.sources`. Console output
 does not direct users to documentation pages or repository paths. Coordinates count
-UTF-8 bytes within the submitted statement, starting at one; script coordinates
-are relative to each statement, not the whole file. The caret follows the escaped
+UTF-8 bytes, starting at one; script locations include the statement's absolute
+file position and the number of previously completed commands. The caret follows the escaped
 display. At most 120 source bytes around the failure are shown. Literal values,
 quoted identifiers and comments are masked, including unfinished tokens. These
 excerpts appear in local stderr diagnostics, not telemetry or result stdout.
@@ -515,6 +515,15 @@ sends no mutation. Inspection and durable compilation can read current authorize
 metadata. Runtime failures can follow admission or partial output; follow their
 recovery guidance and retain the original saved identity. A syntax correction is
 not a reason to replace unresolved durable work with a new request.
+
+Use `transit --diagnostics=json console ...` for the shared diagnostic envelope
+on stderr, independently of `--format table|json` result output. Known mutation
+rejections retain the actual Table/key/input-row witness and have no resume or
+cancel action. Rejected inputs retain their native input identity separately
+from any overall mutation outcome. Unresolved saved writes identify the original
+operation and support exact reconciliation; CREATE TABLE has no cancel action.
+The [CLI reference](../../../docs/reference/cli.md#structured-errors) specifies
+source coordinates, timing records and stream boundaries.
 
 ## Exact recovery and bounds
 

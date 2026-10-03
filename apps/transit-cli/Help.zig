@@ -18,6 +18,7 @@ pub const root =
     \\Options:
     \\  --help     Show this help
     \\  --version  Show version
+    \\  --diagnostics=json  Emit structured errors (place before COMMAND)
     \\
     \\Run transit COMMAND --help for command options.
     \\

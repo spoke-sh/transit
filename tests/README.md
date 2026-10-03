@@ -12507,3 +12507,42 @@ separate parent and nested-SELECT coordinates, and `/dev/full` output failure
 with `completion: false` and no stale member attribution. The shared path helper
 retains the existing bounded UTF-8/byte-path representation; no wire shape changed.
 This focused execution does not replace the final full check and clean-HEAD gate.
+
+### Main CLI structured diagnostics — 2026-10-02
+
+`just test::unit test::cli-diagnostics` passes with 481 real command cases.
+The JSON stderr cases check original argv ordinals, compiler subjects, absolute
+UTF-8/CRLF script positions and completed-command counts, independent timing
+records, offline catalog column positions, encoded byte paths, late conversion
+failures with LIMIT 0/1, exact runtime/budget evidence, UTF-8 preview truncation,
+`/dev/full` output failure and byte-identical successful result stdout. CLI owner
+units check that optional rendering failure preserves the recorded rejected
+outcome/cause and that selecting a query ID alone does not invent saved intent.
+Log: `/var/tmp/transit-cli-json-final.log`.
+
+`just test::file-query` passes its 190 actual file cases. The full `just check`
+also passes, including 5,065 documentation links, schema/binding drift, browser
+checks and the site build. These runs precede the final focused refinements to
+artifact operation attribution, absent send evidence and rendering fallback;
+the final root unit/CLI run above includes those refinements. Logs:
+`/var/tmp/transit-cli-json-check1.log` and
+`/var/tmp/transit-cli-json-full-check.log`.
+
+The default mutation and catalog proofs now consume CLI JSON errors alongside
+native and port errors. They pass shared compiler witnesses, identical signed
+sequence after lost replies, caller replacement, current-denial gates and disk
+recovery. Mutation reports 36.173 seconds, 99 turns and 22 lost caller receipts;
+catalog reports six lost caller receipts and three lost writer receipts, with
+no cleanup failures. No installed SDK variants were selected for these runs.
+The combined query/writer proof passes in 40.272 seconds with 84 turns. It
+checks an actual second-row conflict's key, column, name, zero affected rows and
+terminal recovery actions in the console envelope, plus the existing atomicity,
+interruption, policy-raced input rejection and cancellation schedules. These
+runs precede the final focused refinements noted above. Log:
+`/var/tmp/transit-cli-json-recovery3.log`.
+
+The first two recovery invocations stopped at task invocation errors (a missing
+recipe, then variadic arguments consuming subsequent task names); they did not
+execute the intended integration proof. The successful invocation runs the
+three `just` recipes separately. Clean committed-HEAD qualification remains a
+separate gate.

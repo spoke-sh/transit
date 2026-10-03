@@ -130,3 +130,20 @@ pub fn invalidEnvelope(cause: anyerror) !d {
     result.cause = try d.Code.init(@errorName(cause));
     return result;
 }
+
+/// Validation of a local artifact precedes credential loading and dispatch.
+/// The operation name comes from the invoked command, never a dummy send.
+pub fn artifact(operation: []const u8, cause: anyerror) !d {
+    const info = attemptInfo(cause);
+    var value = try d.init(info.code, info.category, .input, .not_submitted, .local_before_dispatch, info.message);
+    value.cause = try d.Code.init(@errorName(cause));
+    try value.text(.operation, .caller, operation);
+    try value.action(switch (info.category) {
+        .internal, .integrity => .contact_operator,
+        .conflict, .lifecycle, .unavailable => .inspect_status,
+        .access => .inspect_scope,
+        else => .correct_input,
+    });
+    try value.validate();
+    return value;
+}

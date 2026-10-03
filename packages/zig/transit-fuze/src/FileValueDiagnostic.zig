@@ -103,6 +103,9 @@ pub fn init(path: Path, expected: ?types.Type, actual: ?std.json.Value) Self {
 fn capture(self: *Self, bytes: []const u8) void {
     self.has_preview = true;
     self.preview_len = @intCast(@min(bytes.len, self.preview.len));
+    if (std.unicode.utf8ValidateSlice(bytes)) while (!std.unicode.utf8ValidateSlice(bytes[0..self.preview_len])) {
+        self.preview_len -= 1;
+    };
     @memcpy(self.preview[0..self.preview_len], bytes[0..self.preview_len]);
     self.preview_truncated = bytes.len > self.preview_len;
 }

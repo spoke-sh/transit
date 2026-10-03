@@ -297,8 +297,9 @@ def run(node, host, proof, library, cli, *, sdks=()):
             assert latest.returncode == 0, latest.stderr
             assert console_rows(latest.stdout) == current
             # Console SQL uses the same authorized writer and exact signed recovery.
-            def console_run(sql=None, data=None, code=0):
+            def console_run(sql=None, data=None, code=0, structured=False):
                 args = console_args[:-2] + (['-c', sql] if sql is not None else [])
+                if structured: args.insert(1, '--diagnostics=json')
                 result = subprocess.run(args, input=data, env=fixture.env, capture_output=True, text=True, timeout=45)
                 assert result.returncode == code, (result.returncode, result.stdout, result.stderr)
                 return result
@@ -330,6 +331,14 @@ def run(node, host, proof, library, cli, *, sdks=()):
             assert human.stderr.count('Constraint Error:') == 1, human.stderr
             assert 'Input row: 2. No rows were inserted.' in human.stderr
             assert '.resume' not in human.stderr and 'uncertain' not in human.stderr
+            structured = console_run("INSERT INTO items (value,id) VALUES ('atomic',101),('duplicate',1)", code=1, structured=True)
+            detail = json.loads(structured.stderr)
+            assert detail['code'] == 'mutation.primary_key_conflict' and detail['outcome'] == 'rejected', detail
+            assert detail['evidence'] == 'domain_status' and detail['identity']['domain'] == 'mutation'
+            facts = {fact['field']:fact['value'] for fact in detail['facts'] if fact}
+            assert facts['key'] == {'signed':'1'} and facts['input_row'] == {'unsigned':'2'}, facts
+            assert facts['column'] == {'text':'id'} and facts['name'] == {'text':'items'} and facts['affected_rows'] == {'unsigned':'0'}, facts
+            assert not any(action and action['kind'] in ('resume_exact','cancel_mutation') for action in detail['actions']), detail
             status = console_run(data='.mode table\n.status\n')
             assert 'Duplicate key "id: 1"' in status.stdout and 'Input row: 2.' in status.stdout
             assert console_rows(console_run('SELECT * FROM items').stdout) == current

@@ -6,6 +6,7 @@ const w = q.Workspace;
 const m = q.fuze.Unified;
 const Config = struct { url: []const u8, seed_file: []const u8, connection: q.UnifiedClient.Connection, workspace: w.Config, request_timeout_ms: u32 = 5000 };
 pub const Session = struct {
+    diagnostic: ?*@import("Diagnostic.zig") = null,
     namespace: ?u64 = null,
     bundle: [q.Bundle.max_bytes]u8 = undefined,
     length: usize = 0,
@@ -19,11 +20,12 @@ pub const Session = struct {
     interrupted: ?*const fn () bool = null,
     pub fn clear(self: *Session) void {
         const format = self.format;
+        const diagnostic = self.diagnostic;
         const context = self.checkpoint_context;
         const callback = self.checkpoint_fn;
         const interrupted = self.interrupted;
         std.crypto.secureZero(u8, &self.bundle);
-        self.* = .{ .format = format, .checkpoint_context = context, .checkpoint_fn = callback, .interrupted = interrupted };
+        self.* = .{ .diagnostic = diagnostic, .format = format, .checkpoint_context = context, .checkpoint_fn = callback, .interrupted = interrupted };
     }
     pub fn checkpoint(self: *const Session) !void {
         if (self.checkpoint_fn) |callback| try callback(self.checkpoint_context.?, self);
@@ -36,16 +38,15 @@ fn json(out: *std.Io.Writer, value: anytype) !void {
     try std.json.Stringify.value(value, .{ .escape_unicode = true }, out);
     try out.writeByte('\n');
 }
-pub fn run(init: std.process.Init, path: []const u8) !void {
-    var diagnostic: @import("Diagnostic.zig") = .{};
-    const config = try @import("Settings.zig").readTyped(Config, init, path, &diagnostic);
+pub fn run(init: std.process.Init, path: []const u8, diagnostic: *@import("Diagnostic.zig")) !void {
+    const config = try @import("Settings.zig").readTyped(Config, init, path, diagnostic);
     if (config.request_timeout_ms == 0 or config.request_timeout_ms > 60000) return error.InvalidConfiguration;
     var wire = q.wire.Client.init(init.gpa, init.io, config.url);
     defer wire.deinit();
     wire.timeout_ms = config.request_timeout_ms;
     var client: q.UnifiedClient = .{ .wire = &wire, .connection = config.connection, .key = try q.wire.readKey(init.gpa, init.io, config.seed_file) };
     defer std.crypto.secureZero(u8, std.mem.asBytes(&client.key));
-    var session: Session = .{};
+    var session: Session = .{ .diagnostic = diagnostic };
     defer session.clear();
     var input_buffer: [65536]u8 = undefined;
     var input = std.Io.File.stdin().reader(init.io, &input_buffer);
@@ -59,9 +60,19 @@ pub fn run(init: std.process.Init, path: []const u8) !void {
         if (line.len == 0) continue;
         var arena = std.heap.ArenaAllocator.init(init.gpa);
         defer arena.deinit();
+        diagnostic.envelope = null;
+        diagnostic.sql = null;
+        diagnostic.file = null;
         command(init, &session, &client, config.workspace, line, arena.allocator(), &output.interface) catch |err| {
-            if (err == error.AccessDenied or err == error.QueryDenied or err == error.QuerySourceUnavailable or err == error.ResourceUnavailable or err == error.DocumentRetired or err == error.DocumentHistoryGap or err == error.DocumentResyncRequired) session.clear();
-            try json(&output.interface, .{ .err = @errorName(err), .uncertain = session.pending != null });
+            // Read denial invalidates result access, not saved command identity.
+            if (err == error.AccessDenied or err == error.QueryDenied or err == error.QuerySourceUnavailable or err == error.ResourceUnavailable or err == error.DocumentRetired or err == error.DocumentHistoryGap or err == error.DocumentResyncRequired) {
+                session.cursor = null;
+                session.complete = false;
+            }
+            if (diagnostic.format == .json) {
+                if (diagnostic.sql == null) diagnostic.envelope = savedDiagnostic(session, err) catch null;
+                diagnostic.emit(init.io, err);
+            } else try json(&output.interface, .{ .err = @errorName(err), .uncertain = session.pending != null });
         };
         try output.interface.flush();
     }
@@ -166,7 +177,11 @@ pub fn executeSql(init: std.process.Init, session: *Session, client: *q.UnifiedC
     if (session.pending != null or session.input != null) return error.UnresolvedSubmission;
     const id = session.namespace orelse return error.NamespaceRequired;
     if (session.length != 0 or try client.status(id) != null) return error.QueryUploadIdentityConflict;
-    const compiled = (try w.apply(allocator, client, config, .{ .compile = request })).compiled;
+    var binding: q.fuze.Sql.Binding = .{};
+    const compiled = (w.applyDiagnostic(allocator, client, config, .{ .compile = request }, &binding) catch |err| {
+        if (session.diagnostic) |diagnostic| diagnostic.sql = q.fuze.SqlDiagnostic.bound(request.sql, err, true, binding);
+        return err;
+    }).compiled;
     const bytes = try q.Values.unhex(allocator, compiled.bundle, q.Bundle.max_bytes);
     @memcpy(session.bundle[0..bytes.len], bytes);
     session.length = bytes.len;
@@ -248,4 +263,24 @@ fn advance(init: std.process.Init, session: *Session, client: *q.UnifiedClient, 
     const id = session.namespace orelse return;
     const status = try client.status(id);
     try json(out, .{ .status = if (status) |value| try q.Bridge.Status.fromNative(allocator, value) else null });
+}
+
+/// Saved local state supports reconciliation, but never proves query completion.
+pub fn savedDiagnostic(session: Session, cause: anyerror) !q.protocol.Diagnostic {
+    const d = q.protocol.Diagnostic;
+    if (session.pending == null and session.input == null and (session.namespace == null or session.complete)) return q.ApiDiagnostic.attempt("console", .read, null, cause, .{}, false, null);
+    const has_intent = session.pending != null or session.length != 0;
+    var value = try d.init("query.saved_work_unresolved", .lifecycle, .reconcile, if (session.input != null) .pending else .unknown, if (session.input != null) .native_receipt else if (has_intent) .saved_intent else .none, "The selected query's current outcome is not established. Inspect its status before starting new work; retain any original bundle and signed command for exact reconciliation.");
+    value.cause = try d.Code.init(@errorName(cause));
+    if (session.namespace) |id| {
+        value.identity = .{ .domain = .query, .id = .init(id) };
+    } else if (session.pending) |pending| {
+        value.identity = .{ .domain = .transport, .id = .init(pending.signed.request.sequence), .realm = .init(pending.signed.request.realm), .sequence = .init(pending.signed.request.sequence) };
+    }
+    if (session.input) |input| try value.fact(.native_input, .authority, .{ .unsigned = .init(input) });
+    try value.action(.inspect_status);
+    if (value.identity != null) try value.action(.resume_exact);
+    if (session.namespace != null) try value.action(.cancel_wait);
+    try value.validate();
+    return value;
 }

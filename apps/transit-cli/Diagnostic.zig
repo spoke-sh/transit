@@ -1,7 +1,9 @@
-//! Human diagnostics at the CLI boundary. Never capture argv or configuration values.
+//! CLI diagnostics. Never capture unknown argv or configuration values.
 const std = @import("std");
 const Self = @This();
 command: []const u8 = "transit",
+format: enum { human, json } = .human,
+argument_offset: usize = 0,
 style: @import("Style.zig") = .{},
 envelope: ?@import("transit_query").protocol.Diagnostic = null,
 input: ?@import("InputPosition.zig") = null,
@@ -14,6 +16,7 @@ argument: ?usize = null,
 option: ?[]const u8 = null,
 file: ?[]const u8 = null,
 field: ?[]const u8 = null,
+offset: ?u64 = null,
 line: ?u64 = null,
 column: ?u64 = null,
 role: ?[]const u8 = null,
@@ -62,7 +65,7 @@ pub fn configurationFailure(self: *Self, cause: anyerror) void {
     self.presentation = .configuration;
 }
 pub fn atArgument(self: *Self, index: ?usize, option: ?[]const u8) void {
-    self.argument = index;
+    self.argument = if (index) |value| value + self.argument_offset else null;
     self.option = option;
 }
 pub fn atFile(self: *Self, file: []const u8) void {
@@ -73,6 +76,7 @@ pub fn atFile(self: *Self, file: []const u8) void {
     self.option = null;
     self.file = file;
     self.field = null;
+    self.offset = null;
     self.line = null;
     self.column = null;
     self.usage = null;
@@ -117,6 +121,7 @@ pub fn readJson(self: *Self, comptime T: type, init: std.process.Init, path: []c
                 self.field = missingField(T, parsed.value, "", 0);
             }
         }
+        self.offset = location.getByteOffset();
         self.line = location.getLine();
         self.column = location.getColumn();
         self.cause = err;
@@ -164,8 +169,16 @@ fn quoted(out: *std.Io.Writer, value: []const u8) !void {
     try out.writeByte('"');
 }
 pub fn render(self: Self, out: *std.Io.Writer, err: anyerror) !void {
+    if (self.format == .json) {
+        const value = self.structured(err) catch @import("StructuredDiagnostic.zig").fallback(self, err);
+        try std.json.Stringify.value(value, .{ .escape_unicode = true }, out);
+        return out.writeByte('\n');
+    }
     try self.renderFailure(out, err);
     if (self.input) |input| try input.render(out);
+}
+pub fn structured(self: Self, err: anyerror) !@import("transit_query").protocol.Diagnostic {
+    return @import("StructuredDiagnostic.zig").project(self, err);
 }
 fn renderFailure(self: Self, out: *std.Io.Writer, err: anyerror) !void {
     if (self.envelope) |value| {
@@ -299,7 +312,7 @@ fn reason(err: anyerror) []const u8 {
 pub fn reportTiming(self: *Self) void {
     const timing = self.timing orelse return;
     self.timing = null;
-    timing.emit();
+    timing.emit(self.format == .json);
 }
 pub fn emit(self: *Self, io: std.Io, err: anyerror) void {
     defer self.reportTiming();

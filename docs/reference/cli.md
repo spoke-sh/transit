@@ -88,6 +88,39 @@ role failure. Routine errors omit redundant implementation codes and labeled
 `PATH` denotes a file path. A diagnostic never initializes an installation
 or submits an operation.
 
+### Structured errors
+
+Place `--diagnostics=json` before the command to emit a bounded
+[Diagnostic v1](../../contracts/DIAGNOSTICS_V1.md) JSON object per failure on
+stderr. For example:
+
+```sh
+transit --diagnostics=json console --config console.yaml -c 'SELECT typo FROM items'
+transit --diagnostics=json file-query --format csv -c 'SELECT SUM(value) FROM input' data.csv
+```
+
+Result stdout and exit statuses keep their command-specific formats. The
+structured error contains the semantic code, primary cause, stage, known outcome,
+execution evidence, original identity and applicable recovery actions. It is
+context for a decision, never a receipt or authorization. SQL compilation,
+recorded query failures, mutation/catalog rejection and explicit send failures
+use their shared owner projections. An unmapped cause is explicitly internal;
+it does not acquire a guessed domain outcome. Optional rendering failure retains
+an available owner decision and otherwise reports that the diagnostic is unavailable.
+
+Invocation errors identify the argument ordinal in the original command line
+and known option name, without echoing unknown arguments or configuration
+values. File paths preserve UTF-8 or explicitly escaped POSIX bytes. An absent
+source coordinate does not become a fabricated line-one location. File record
+ordinals are distinct from physical lines. Script SQL offsets are absolute
+UTF-8 byte coordinates and include the number of previously completed commands.
+
+With console timing enabled, stderr also contains a separate `{"timing": ...}`
+JSON record after the diagnostic, with milliseconds by phase. Terminal prompts,
+interactive editing and server child logs retain their own formats; use batch
+console input when consuming stderr as a JSON record stream. Human diagnostics
+remain the default.
+
 ### Help hierarchy
 
 Bare `transit` and `transit --help` list commands with short descriptions.
