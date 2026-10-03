@@ -50,10 +50,15 @@ boundary tests**, generated/native/frontend checks and the handbook. Logs:
 `/var/tmp/transit-connector-outcome-{native,build2,mypy,check}.log`.
 The first format invocation incorrectly followed an installed Rust helper path;
 formatting the standalone test with `skip_children` corrected it. Installed
-HTTP/gRPC worker schedules are still running in
-`/var/tmp/transit-connector-outcome-sdk.log`; no completed installed-schedule or
-committed-HEAD clean qualification is claimed yet. The focused reproducible
-entry is `just bindings::connector-outcomes` in the bindings shell.
+HTTP/gRPC worker schedules pass against artifacts built from `f1d65b4e`:
+**20 installed schedules**, HTTP and gRPC in Python, TypeScript, Rust, Ruby, C,
+C++, Java, .NET, Erlang and Elixir. Each schedule checks host recovery, full-width
+identities, binary TLS, owned correlated outcomes/replay, revocation, joined
+local disposal, authenticated durable disposal and rejected follow-up policy
+without creating a child exchange or dispatching a request. Log:
+`/var/tmp/transit-connector-outcome-sdk.log`. The focused reproducible entry is
+`just bindings::connector-outcomes` in the bindings shell. This is not a
+committed-HEAD clean qualification.
 
 ## HTTP chunk diagnostic evidence — 2026-10-03
 
