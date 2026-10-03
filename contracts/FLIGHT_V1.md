@@ -113,6 +113,26 @@ count remains exact.
 
 ## Capacity and qualification
 
+SQL failures return a bounded printable-ASCII `grpc-message`, at most 128 decoded
+bytes. Percent signs are percent-encoded on the wire. Authenticated compilation
+errors may disclose the failing caller-supplied identifier, expected/supplied
+types and escaped literal context; truncation is explicit. They never include
+the full SQL, credential material or unrelated stored row values. Current
+authorization precedes diagnostic disclosure.
+
+Terminal query messages retain `query.<code>`, admission/execution stage and the
+request namespace from the saved query. Measured page/segment/result-byte failures
+also carry exact unsigned limit/required amounts. OUT_OF_RANGE identifies checked
+arithmetic overflow; RESOURCE_EXHAUSTED identifies bounded work/size exhaustion;
+PERMISSION_DENIED identifies policy/access or publisher/peer denial;
+FAILED_PRECONDITION identifies source/history/initialization and cell-state
+failures; ALREADY_EXISTS is not used for query namespace conflicts (ABORTED is).
+Unsupported profiles map to UNIMPLEMENTED and invalid request/plan/type inputs to
+INVALID_ARGUMENT. Cancellation maps to CANCELLED and retirement to
+FAILED_PRECONDITION. These statuses summarize the domain failure; they do not
+authorize fresh submission or imply rollback. Native query status retains the
+typed failure fields; this Flight profile has no general diagnostic extension.
+
 Use the inbound gRPC server's separately bounded connection, data/control RPC,
 metadata, message, response-byte, credit-stall and deadline budgets. The selected
 transport admits one live stream per connection and 16 KiB messages; the gateway

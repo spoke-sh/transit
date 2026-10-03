@@ -11,6 +11,20 @@ def verify(uri, certificate_path, root, token, schema, expected, next_sequence):
     from adbc_driver_flightsql import dbapi
     with dbapi.connect(uri, db_kwargs={adbc.DatabaseOptions.AUTHORIZATION_HEADER.value: 'Bearer ' + token, adbc.DatabaseOptions.TLS_ROOT_CERTS.value: certificate.decode()}, autocommit=True) as connection:
         assert connection.adbc_get_table_schema('items', catalog_filter='transit', db_schema_filter='public') == schema
+        for text, fragments in (
+            ('SELECT absent FROM items', ('UnknownColumn', 'absent', 'items')),
+            ("SELECT * FROM items WHERE value = '50% discount'", ('TypeMismatch', 'int64', 'utf8', '50% discount')),
+        ):
+            before = next_sequence()
+            with connection.cursor() as cursor:
+                cursor.adbc_statement.set_options(**{adbc.StatementOptions.RPC_CALL_HEADER_PREFIX.value + 'x-transit-request-sequence': str(before)})
+                try:
+                    cursor.execute(text)
+                except dbapi.DatabaseError as error:
+                    assert all(fragment in str(error) for fragment in fragments), error
+                else:
+                    raise AssertionError('invalid SQL returned an ADBC result')
+            assert next_sequence() == before
         for query_text, expected_rows in (
             ('SELECT id, value FROM items', expected),
             ('SELECT * FROM items WHERE id < 0', []),

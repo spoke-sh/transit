@@ -8,6 +8,7 @@ pub const TableResult = @import("TableResult.zig");
 pub const Ipc = @import("Ipc.zig");
 pub const Gateway = @import("Gateway.zig");
 pub const Metadata = @import("Metadata.zig");
+pub const Diagnostic = @import("Diagnostic.zig");
 pub const Ticket = @import("Ticket.zig");
 pub const method_prefix = "/arrow.flight.protocol.FlightService/";
 pub const command_prefix = "type.googleapis.com/arrow.flight.protocol.sql.";
@@ -17,6 +18,7 @@ test {
     _ = Ticket;
     _ = Metadata;
     _ = Gateway;
+    _ = Diagnostic;
 }
 
 test "Flight encodes real protobuf field tags with full-width counts" {

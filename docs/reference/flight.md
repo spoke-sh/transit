@@ -22,11 +22,26 @@ explicit UNIMPLEMENTED. Pinned Python ADBC uses its unprepared fallback.
 compiler-bound failures as INVALID_ARGUMENT. Unsupported constructs, grammar-only
 families and statements that require a different interface return UNIMPLEMENTED.
 Messages give a correction or supported alternative and parser line/byte-column
-coordinates where available. They contain no SQL excerpts or literal values and
-fit the existing 128-byte gRPC message budget. Authentication and current access
+coordinates where available. Binding errors include the relevant caller-supplied
+subject, expected/supplied types and bounded escaped literal. Messages fit the
+existing 128-byte decoded gRPC message budget; excess detail ends with
+`[truncated]`. SQL excerpts, credentials and unrelated stored values remain
+excluded. Percent signs use standard gRPC percent encoding. Authentication and current access
 checks precede these diagnostics. A compilation failure does not admit a query or
 consume the supplied sequence; an unavailable response after admission still
 requires recovery with the original identity below.
+
+A saved query failure reports its original `query.<code>`, admission/execution
+stage and request namespace. A measured budget failure also reports its
+dimension, limit and required amount without integer precision loss. The gateway
+maps arithmetic overflow to OUT_OF_RANGE, budgets to RESOURCE_EXHAUSTED, current
+denial to PERMISSION_DENIED and unavailable source/history or invalid cell state
+to FAILED_PRECONDITION. A saved cancellation is CANCELLED and retirement is
+FAILED_PRECONDITION. Repeating the same request preserves the original cause;
+current access checks still gate its disclosure. Flight and ADBC expose these
+messages through their normal exceptions. The gateway does not expose a general
+structured diagnostic extension; use native query status for typed saved
+failure fields rather than parsing exception prose to decide recovery.
 
 ## Connect with ADBC
 

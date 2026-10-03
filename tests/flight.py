@@ -47,7 +47,7 @@ def run(node, host, gateway, proof, mode=None, board=None):
             subprocess.run([node, str(config), '--initialize'], check=True, capture_output=True, timeout=30)
             authority = start('node', [node, str(config)])
             wait_ready(fixture.http, authority, url + '/health')
-            subprocess.run([proof, url, 'provision-flight', str(fixture.root)], check=True, capture_output=True, timeout=60)
+            subprocess.run([proof, url, 'provision-flight-overflow' if mode == 'diagnostics' else 'provision-flight', str(fixture.root)], check=True, capture_output=True, timeout=60)
             start_workers(fixture.root)
             caller = json.loads((fixture.root / 'cli.json').read_text())
             def connection(caller):
@@ -116,7 +116,8 @@ def run(node, host, gateway, proof, mode=None, board=None):
                 ('INSERT INTO items VALUES (1, 100);', pa.ArrowInvalid, ('explicit INSERT columns', '.help INSERT')),
                 ('INSERT INTO items (id, value) VALUES (1, 100);', pa.ArrowNotImplementedError, ('read-only', 'authorized writer')),
                 ('CREATE CONNECTION unfinished', pa.ArrowNotImplementedError, ('reference grammar only', 'no SQL execution')),
-                ('SELECT absent FROM items;', pa.ArrowInvalid, ('UnknownColumn', 'exact source and column names')),
+                ('SELECT absent FROM items;', pa.ArrowInvalid, ('UnknownColumn', 'Subject: "absent"', 'scope: "items"', 'column 8')),
+                ("SELECT * FROM items WHERE value = '50% discount';", pa.ArrowInvalid, ('TypeMismatch', 'Expected int64; supplied utf8', '50% discount')),
                 ("SELECT * FROM items WHERE value = 'private-must-not-appear' junk;", pa.ArrowNotImplementedError, ('SQL construct unsupported', 'column')),
             ):
                 invalid = descriptor(sql.CommandStatementQuery(query=text))
@@ -132,6 +133,10 @@ def run(node, host, gateway, proof, mode=None, board=None):
                         raise AssertionError(f'invalid SQL succeeded: {text}')
             assert subprocess.check_output([proof, url, 'next-sequence', str(fixture.root / 'cli.json')], timeout=30) == before_errors
             print('Flight SQL diagnostics: schema/execution categories, locations, recovery hints, redaction and no admission pass.', flush=True)
+            if mode == 'diagnostics':
+                from flight_diagnostics import verify
+                verify(locals())
+                return
             statement = descriptor(sql.CommandStatementQuery(query='SELECT id, value FROM items'))
             schema = available(lambda: client.get_schema(statement, call_options())).schema
             assert schema == pa.schema([pa.field('id',pa.int64(),False),pa.field('value',pa.int64())])
@@ -201,3 +206,5 @@ def run(node, host, gateway, proof, mode=None, board=None):
 
 if __name__ == '__main__':
     run(*sys.argv[1:])
+    if len(sys.argv) == 5:
+        run(*sys.argv[1:], mode='diagnostics')

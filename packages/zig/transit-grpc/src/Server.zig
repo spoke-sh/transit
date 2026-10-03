@@ -238,16 +238,22 @@ pub const Response = struct {
     }
     pub fn finish(self: *Response, status: u8, message: []const u8) !void {
         if (self.finished or status > 16 or message.len > 128) return error.InvalidGrpcStatus;
-        // Public, fixed diagnostics only. No interpolation of request payloads,
-        // credential values or upstream messages into the grpc-message header.
-        for (message) |byte| if (byte < 32 or byte > 126 or byte == '%') return error.InvalidGrpcStatus;
+        // Callers own diagnostic authorization and disclosure. Accept bounded
+        // printable ASCII only; percent is encoded per the gRPC message field.
+        // Raw credentials, control bytes and unbounded upstream text are invalid.
+        var encoded: [128 * 3]u8 = undefined;
+        var diagnostic: std.Io.Writer = .fixed(&encoded);
+        for (message) |byte| {
+            if (byte < 32 or byte > 126) return error.InvalidGrpcStatus;
+            if (byte == '%') try diagnostic.writeAll("%25") else try diagnostic.writeByte(byte);
+        }
         try self.check();
         try self.begin();
         var number: [2]u8 = undefined;
         const c = self.connection;
         try c.codec.sendHeaders(&c.output, c.stream, &.{
             .{ .name = "grpc-status", .value = try std.fmt.bufPrint(&number, "{d}", .{status}) },
-            .{ .name = "grpc-message", .value = message },
+            .{ .name = "grpc-message", .value = diagnostic.buffered() },
         }, true);
         try c.flush();
         self.finished = true;

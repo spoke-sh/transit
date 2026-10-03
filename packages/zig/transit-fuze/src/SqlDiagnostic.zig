@@ -234,9 +234,22 @@ fn source(self: *Self, text: []const u8, location: sql.Location) void {
     self.context_len = out.end;
 }
 
-/// gRPC's existing 128-byte public-message budget admits only static vocabulary
-/// and numeric coordinates. SQL excerpts and values never cross this boundary.
+/// Authenticated compiler response, never telemetry. Relevant caller-supplied
+/// binding detail is escaped and explicitly truncated to the 128-byte budget.
+/// Source excerpts and unrelated stored values never cross this boundary.
 pub fn renderRemote(self: *const Self, out: *std.Io.Writer) !void {
+    if (self.detail_len != 0) {
+        var bytes: [1280]u8 = undefined;
+        var detail: std.Io.Writer = .fixed(&bytes);
+        try detail.print("{s}: {s}", .{ @errorName(self.cause), self.detail[0..self.detail_len] });
+        if (self.location != null) try detail.print(" at line {d}, column {d}", .{ self.line, self.column });
+        const suffix = " [truncated]";
+        if (detail.end > 128) {
+            try out.writeAll(detail.buffered()[0 .. 128 - suffix.len]);
+            try out.writeAll(suffix);
+        } else try out.writeAll(detail.buffered());
+        return;
+    }
     switch (self.kind) {
         .syntax, .unsupported => {
             try out.writeAll(if (self.kind == .syntax) "SQL parse error" else "SQL construct unsupported");
@@ -264,6 +277,22 @@ pub fn renderRemote(self: *const Self, out: *std.Io.Writer) !void {
         },
         .limit => try out.writeAll("SQL exceeds a supported bound. See /reference/sql/ for statement, identifier, literal and batch limits."),
     }
+}
+
+test "remote binding context remains printable bounded and explicitly truncated" {
+    var binding: sql.Binding = .{};
+    sql.Binding.at(&binding, .{ .name = try @import("model.zig").Name.init("long_column_name"), .offset = 7 }, "configured_source");
+    binding.expected = "int64";
+    binding.actual = "utf8";
+    sql.Binding.supplied(&binding, @import("Unified.zig").Scalar{ .utf8 = "%\x1b[31m\n\"\\aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" });
+    const diagnostic = Self.bound("SELECT long_column_name FROM configured_source", error.TypeMismatch, false, binding).?;
+    var bytes: [128]u8 = undefined;
+    var out: std.Io.Writer = .fixed(&bytes);
+    try diagnostic.renderRemote(&out);
+    try std.testing.expectEqual(@as(usize, 128), out.end);
+    try std.testing.expect(std.mem.startsWith(u8, out.buffered(), "TypeMismatch:"));
+    try std.testing.expect(std.mem.endsWith(u8, out.buffered(), " [truncated]"));
+    for (out.buffered()) |byte| try std.testing.expect(byte >= 32 and byte <= 126);
 }
 
 pub fn render(self: *const Self, out: *std.Io.Writer) !void {

@@ -12172,3 +12172,26 @@ change/deletion, worker/node/store restart, current denial, PTY and signal
 schedules, and explicit private-CA TLS checks. It returns 41 rows in six segments
 with eight resident authority pages and an 8 MiB hot store. No installed SDK
 variants are selected by this run.
+
+### Flight and ADBC diagnostic projection
+
+On 2026-10-02, `just test::flight` passes against the pinned PyArrow 23.0.0 and
+ADBC Python/C clients. Schema and execution failures identify unknown columns
+and exact expected/supplied types, and a supplied `50% discount` literal survives
+standard gRPC percent encoding. Compile failures consume no native sequence.
+The existing success workload still returns all 41 exact int64/null rows.
+
+A separately provisioned source makes checked SUM overflow. PyArrow and ADBC
+both observe the saved `query.arithmetic_overflow execution #2`; identical retry
+and gateway replacement preserve that original failure. Revoking current source
+access suppresses the retained detail. Unit tests exhaust all 58 saved failure
+codes through explicit gRPC status mappings and fit maximum-width measured
+budgets, including retirement, within the existing 128-byte message bound.
+Escaped compiler detail truncates explicitly; it does not enlarge the transport
+message bound or include SQL excerpts. This is exception-message projection,
+not a general structured Flight diagnostic extension.
+
+`just check` and `just test::packages` pass after the parameter/Flight changes.
+No new installed SDK mutation/query proof is claimed for these local compiler
+and Flight renderer increments; the retained-outcome SDK evidence above remains
+the executed qualification for that contract.

@@ -86,9 +86,16 @@ pub fn handle(self: *Self, io: Io, allocator: std.mem.Allocator, request: server
     var observation = q.wire.observability.begin(self.diagnostics, .client_request, "flight", null);
     defer observation.finish();
     var sql_diagnostic: ?f.SqlDiagnostic = null;
-    self.handleOnce(io, allocator, request, response, &sql_diagnostic) catch |err| {
+    var query_diagnostic: ?root.Diagnostic = null;
+    self.handleOnce(io, allocator, request, response, &sql_diagnostic, &query_diagnostic) catch |err| {
         observation.fail(err);
         if (err == error.Canceled or err == error.GrpcCancelled or response.finished) return err;
+        if (query_diagnostic) |diagnostic| {
+            var buffer: [128]u8 = undefined;
+            var message: std.Io.Writer = .fixed(&buffer);
+            try diagnostic.render(&message);
+            return response.finish(diagnostic.status(), message.buffered());
+        }
         if (sql_diagnostic) |diagnostic| {
             var buffer: [128]u8 = undefined;
             var message: std.Io.Writer = .fixed(&buffer);
@@ -123,7 +130,7 @@ pub fn handle(self: *Self, io: Io, allocator: std.mem.Allocator, request: server
         });
     };
 }
-fn handleOnce(self: *Self, io: Io, allocator: std.mem.Allocator, request: server.Request, response: *server.Response, sql_diagnostic: *?f.SqlDiagnostic) !void {
+fn handleOnce(self: *Self, io: Io, allocator: std.mem.Allocator, request: server.Request, response: *server.Response, sql_diagnostic: *?f.SqlDiagnostic, query_diagnostic: *?root.Diagnostic) !void {
     const index = try self.authenticate(request);
     const control = self.isControl(request);
     // Independent metadata/control capacity: a data stream cannot own this slot.
@@ -152,7 +159,7 @@ fn handleOnce(self: *Self, io: Io, allocator: std.mem.Allocator, request: server
     const caller = self.config.callers[index];
     var client: q.UnifiedClient = .{ .wire = &wire, .connection = .{ .realm = caller.connection.realm, .principal = caller.connection.principal, .source = caller.connection.source, .resource = caller.connection.resource, .requester = caller.connection.requester, .requests = caller.connection.requests }, .key = caller.key };
     const adapter: s.Adapter = .{ .service = caller.service, .ingress = caller.connection.requester, .resource = caller.ingress_resource, .resources = .{ .wire = &wire, .realm = caller.connection.realm, .principal = self.config.inspector, .key = self.config.inspector_key } };
-    var call: Call = .{ .gateway = self, .io = io, .allocator = alloc, .caller = caller, .client = &client, .adapter = adapter, .response = response, .workspace = workspace, .sql_diagnostic = sql_diagnostic };
+    var call: Call = .{ .gateway = self, .io = io, .allocator = alloc, .caller = caller, .client = &client, .adapter = adapter, .response = response, .workspace = workspace, .sql_diagnostic = sql_diagnostic, .query_diagnostic = query_diagnostic };
     const method = try request.method();
     if (std.mem.eql(u8, method, root.method_prefix ++ "DoGet")) {
         var ticket = try pb.decode(w.Ticket, alloc, request.message, .{ .max_arena_bytes = 65536 });
@@ -187,6 +194,7 @@ const Call = struct {
     adapter: s.Adapter,
     response: *server.Response,
     sql_diagnostic: *?f.SqlDiagnostic,
+    query_diagnostic: *?root.Diagnostic,
     workspace: []u8,
     output: [f.Unified.Arrow.segment_bytes]u8 = undefined,
     next_sequence: ?u64 = null,
@@ -244,8 +252,9 @@ const Call = struct {
             defer decoded.deinit();
             if (decoded.value.transaction_id != null) return error.UnsupportedFlightCommand;
             if (schema_only) {
-                schema = root.Metadata.querySchema(self.caller.connection.name, self.caller.schema, decoded.value.query, &self.output, self.workspace) catch |err| {
-                    self.sql_diagnostic.* = f.SqlDiagnostic.query(decoded.value.query, err, false);
+                var detail: f.Sql.Binding = .{};
+                schema = root.Metadata.querySchemaDiagnostic(self.caller.connection.name, self.caller.schema, decoded.value.query, &self.output, self.workspace, &detail) catch |err| {
+                    self.sql_diagnostic.* = f.SqlDiagnostic.bound(decoded.value.query, err, false, detail);
                     return err;
                 };
             } else {
@@ -308,8 +317,9 @@ const Call = struct {
         const limits: q.Bundle.Limits = .{ .pages = 4096, .segments = 63, .result_bytes = 240 * 1024 };
         const description = try self.client.describe(self.definition());
         if (!description.limits.permits(limits)) return error.QueryBudgetExceeded;
-        const bundle = q.Bundle.fromSql(self.allocator, self.definition(), try .init(self.caller.connection.name), sql, limits) catch |err| {
-            self.sql_diagnostic.* = f.SqlDiagnostic.query(sql, err, false);
+        var detail: f.Sql.Binding = .{};
+        const bundle = q.Bundle.fromSqlDiagnostic(self.allocator, self.definition(), try .init(self.caller.connection.name), sql, limits, &detail) catch |err| {
+            self.sql_diagnostic.* = f.SqlDiagnostic.bound(sql, err, false, detail);
             return err;
         };
         const reference = try bundle.reference(self.caller.connection.requests, first);
@@ -367,8 +377,11 @@ const Call = struct {
                     const opened = try q.UnifiedResult.open(current.manifest orelse return error.InvalidResultManifest, .{ .resource = self.caller.connection.resource, .source = self.caller.connection.source, .requester = self.caller.connection.requester, .correlation = current.correlation, .request = current.reference }, self.client.resources(), self.allocator);
                     return opened.manifest;
                 },
-                .denied => return error.QueryAccessDenied,
-                .cancelled, .retired, .rejected => return error.QuerySourceUnavailable,
+                .denied, .cancelled, .retired, .rejected => {
+                    try self.authorize(false);
+                    self.query_diagnostic.* = .{ .namespace = namespace, .phase = current.phase, .failure = current.failure };
+                    return error.TerminalQueryFailure;
+                },
                 else => {},
             };
             try self.io.sleep(.fromMilliseconds(100), .awake);

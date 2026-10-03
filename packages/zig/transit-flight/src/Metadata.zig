@@ -88,8 +88,11 @@ fn catalogMatches(value: ?[]const u8) bool {
 /// Compile through the current query grammar and derive the same primitive
 /// schema used when adapting verified captured rows. No admission or source I/O.
 pub fn querySchema(name: []const u8, schema: f.model.Schema, sql: []const u8, output: []u8, workspace: []u8) ![]const u8 {
+    return querySchemaDiagnostic(name, schema, sql, output, workspace, null);
+}
+pub fn querySchemaDiagnostic(name: []const u8, schema: f.model.Schema, sql: []const u8, output: []u8, workspace: []u8, diagnostic: ?*f.Sql.Binding) ![]const u8 {
     var fixed: std.heap.FixedBufferAllocator = .init(workspace);
-    const bundle = try root.query.Bundle.fromSql(fixed.allocator(), .{ .resource = 1, .source = .{ .table = .{ .id = 1, .schema = schema } } }, try .init(name), sql, .{ .pages = 4096, .segments = 63, .result_bytes = 240 * 1024 });
+    const bundle = try root.query.Bundle.fromSqlDiagnostic(fixed.allocator(), .{ .resource = 1, .source = .{ .table = .{ .id = 1, .schema = schema } } }, try .init(name), sql, .{ .pages = 4096, .segments = 63, .result_bytes = 240 * 1024 }, diagnostic);
     // Layout owns the names and nullability before the Arrow workspace is reused.
     const layout = try root.TableResult.init(schema, bundle.plan);
     const rows: f.Unified.Inspect.Batch = .{ .columns = layout.len };

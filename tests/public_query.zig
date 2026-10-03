@@ -23,6 +23,7 @@ const Seed = struct {
     peer: u64,
     requests: u64,
     initializer: u64,
+    overflow: bool = false,
     fn initialize(raw: ?*anyopaque, turn: *s.Turn) anyerror!void {
         const self: *Seed = @ptrCast(@alignCast(raw.?));
         _ = try s.Table.create(turn, 1, .{ .names = .{ try .init("id"), try .init("value") }, .value_type = .int64 });
@@ -31,12 +32,13 @@ const Seed = struct {
         const handler = source.interface();
         try handler.initialize.?(handler.context, turn);
     }
-    fn handle(_: ?*anyopaque, turn: *s.Turn, frame: s.Frame) anyerror!void {
+    fn handle(raw: ?*anyopaque, turn: *s.Turn, frame: s.Frame) anyerror!void {
+        const self: *Seed = @ptrCast(@alignCast(raw.?));
         const first = try frame.payload.asInteger();
         if (first < 0) return;
         const table = try s.Table.open(turn, 1);
         var i = first;
-        while (i < @min(first + 4, 41)) : (i += 1) try table.insert(turn, .{ .key = i, .value = if (@mod(i, 5) == 0) .null else .{ .int64 = 9007199254740993 + i } });
+        while (i < @min(first + 4, 41)) : (i += 1) try table.insert(turn, .{ .key = i, .value = if (@mod(i, 5) == 0) .null else .{ .int64 = if (self.overflow and i == 1) std.math.maxInt(i64) else 9007199254740993 + i } });
     }
 };
 fn drive(init: std.process.Init, server: *s.GenServer, handler: s.GenServer.Handler) !void {
@@ -74,7 +76,8 @@ pub fn main(init: std.process.Init) !void {
     var admin: Admin = .{ .wire = &wire, .key = root };
     admin.sequence = (try admin.query(.{ .capabilities = {} })).principal_sequence;
     const second_flight = std.mem.eql(u8, args[2], "provision-flight-second");
-    const flight = std.mem.eql(u8, args[2], "provision-flight") or second_flight;
+    const overflow_flight = std.mem.eql(u8, args[2], "provision-flight-overflow");
+    const flight = std.mem.eql(u8, args[2], "provision-flight") or second_flight or overflow_flight;
     if (std.mem.eql(u8, args[2], "provision") or flight) {
         const writer_principal: u64 = if (second_flight) 65539 else 65536;
         const requester_principal: u64 = if (second_flight) 65540 else 65537;
@@ -102,7 +105,7 @@ pub fn main(init: std.process.Init) !void {
             _ = try admin.submit(.{ .grant_resource = .{ .resource = resource, .subject = principal, .permissions = p.State.permission(.inspect) | p.State.permission(.read) } });
         };
         var server = try s.GenServer.init(.{ .client = &wire, .realm = 45, .principal = writer_principal, .pid = writer.pid, .generation = writer.generation, .key = writer_key }, "state");
-        var seed: Seed = .{ .peer = requester.pid, .requests = requester.resource, .initializer = writer_principal };
+        var seed: Seed = .{ .peer = requester.pid, .requests = requester.resource, .initializer = writer_principal, .overflow = overflow_flight };
         const handler: s.GenServer.Handler = .{ .context = &seed, .initialize = Seed.initialize, .handle = Seed.handle };
         try admin.send(writer.pid, -1);
         try drive(init, &server, handler);
