@@ -4297,7 +4297,7 @@
     },
     "packages/zig/transit-board-api/src/root.zig": {
       "errors": {
-        "InvalidObservation": 6
+        "InvalidObservation": 8
       },
       "outcomes": {
         "Coverage": [
@@ -6724,7 +6724,14 @@
           "actual_codec",
           "observed_clock",
           "expected_namespace",
-          "actual_namespace"
+          "actual_namespace",
+          "attempt",
+          "executor",
+          "resolution_reason",
+          "principal",
+          "deadline",
+          "authorization_policy",
+          "resolution_policy"
         ],
         "Value": [
           "text",
@@ -6740,12 +6747,22 @@
         "std"
       ]
     },
+    "packages/zig/transit-protocol/src/EffectDiagnostic.zig": {
+      "errors": {
+        "InvalidRead": 1
+      },
+      "outcomes": {},
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
     "packages/zig/transit-protocol/src/Growth.zig": {
       "errors": {
         "DuplicateStateKey": 1,
         "InvalidCounter": 1,
         "InvalidFailure": 3,
-        "InvalidRead": 59,
+        "InvalidRead": 78,
         "InvalidReadVersion": 7,
         "InvalidSequence": 1,
         "InvalidStateKey": 2,
@@ -6754,7 +6771,7 @@
       },
       "outcomes": {
         "Definition": [
-          "b83b6c75eae067d04b938425305a4a03c04193b4499e059405fa42ae63b9fec5"
+          "@\"8473c39ff9d0cfda98692ce4c568f35ae158785fdfb86b8d04f08ad35fec2152\""
         ],
         "Command": [
           "grant",
@@ -7032,6 +7049,7 @@
       },
       "imports": [
         "Diagnostic.zig",
+        "EffectDiagnostic.zig",
         "Growth.zig",
         "Json.zig",
         "Lifecycle.zig",

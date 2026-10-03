@@ -1,5 +1,6 @@
 import { createFileRoute, Link, Outlet, useMatchRoute } from "@tanstack/react-router";
 import { useObservation, useStateObservation } from "../state";
+import { QueryDiagnostic } from "../query-diagnostic";
 import { StateEvidence } from "../resources";
 import { Evidence, EventTable, Journey, present, ProcessFacts, text } from "../components";
 const tabs = [
@@ -115,24 +116,45 @@ function Resource({ pid, tab }: { pid: number; tab: Exclude<Tab, "associations">
             Authorization is not proof of a network send. Closed-unknown does not mean remote
             failure or cancellation.
           </p>
-          {data.observation.effects.filter(present).map((effect) => (
-            <article key={effect.id}>
-              <h3>
-                Effect {effect.id} · {effect.phase.replaceAll("_", " ")}
-              </h3>
-              <p>
-                Attempt {effect.attempt ?? "not authorized"} · observations {effect.observations} /{" "}
-                {effect.max_observations} · reconciliation deadline{" "}
-                {effect.reconcile_before_ms ?? "unlimited"}
-              </p>
-              <p>Closed at {effect.closed_at ?? "not closed"}</p>
-              <details>
-                <summary>Recorded intent and outcome</summary>
-                <pre>{text(effect.payload)}</pre>
-                <p>{effect.result === null ? "No established outcome" : text(effect.result)}</p>
-              </details>
-            </article>
-          ))}
+          {data.effectDiagnosticsInvalid && (
+            <p>
+              Some effect diagnostic detail is unavailable. The recorded effect state remains
+              visible.
+            </p>
+          )}
+          {data.observation.effects.map(
+            (effect, index) =>
+              effect && (
+                <article key={effect.id}>
+                  <h3>
+                    Effect {effect.id} · {effect.phase.replaceAll("_", " ")}
+                  </h3>
+                  <p>
+                    Attempt {effect.attempt ?? "not authorized"} · observations{" "}
+                    {effect.observations} / {effect.max_observations} · reconciliation deadline{" "}
+                    {effect.reconcile_before_ms ?? "unlimited"}
+                  </p>
+                  <p>Closed at {effect.closed_at ?? "not closed"}</p>
+                  {effect.closure && (
+                    <p>
+                      Closure reason: {effect.closure.reason.replaceAll("_", " ")} · principal{" "}
+                      {effect.closure.principal} · policy revision {effect.closure.policy_revision}
+                    </p>
+                  )}
+                  {data.effect_diagnostics[index] && (
+                    <QueryDiagnostic
+                      value={data.effect_diagnostics[index]}
+                      label="Effect diagnostic"
+                    />
+                  )}
+                  <details>
+                    <summary>Recorded intent and outcome</summary>
+                    <pre>{text(effect.payload)}</pre>
+                    <p>{effect.result === null ? "No established outcome" : text(effect.result)}</p>
+                  </details>
+                </article>
+              ),
+          )}
         </>
       )}
       {data && tab === "payloads" && (

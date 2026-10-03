@@ -28,7 +28,7 @@ def run(node, cli, board, browser=False):
         delivered = s.command({"deliver": output["id"]})
         attempt = s.command({"dispatch": {"pid": pids[0], "effect": turn}})
         s.command({"observe": {"pid": pids[0], "effect": turn, "attempt": attempt, "result": None}})
-        s.command({"close_effect": {"pid": pids[0], "effect": turn, "attempt": attempt}})
+        closure_input = s.command({"close_effect": {"pid": pids[0], "effect": turn, "attempt": attempt}})
         blocked = s.command({"send": {"pid": pids[0], "value": b"bad".hex()}})
         s.command({"turn": {"pid": pids[0], "generation": 1, "input": blocked, "expected_revision": turn,
                             "failed": True}})
@@ -150,7 +150,14 @@ def run(node, cli, board, browser=False):
         subprocess.run(["vp", "exec", "node", "tests/board_client.mjs"], input=json.dumps(detail), text=True, check=True, timeout=30)
         outbox = api(f"processes/{pids[0]}/outbox")
         assert outbox["edges"][1]["to"] == {"realm": 72, "pid": pids[1], "kind": "input", "id": delivered}
-        assert api(f"processes/{pids[0]}/effects")["observation"]["effects"][0]["phase"] == "closed_unknown"
+        effect_page = api(f"processes/{pids[0]}/effects")
+        effect = effect_page["observation"]["effects"][0]
+        effect_diagnostic = effect_page["effect_diagnostics"][0]
+        assert effect["phase"] == "closed_unknown" and effect["closure"]["reason"] == "abandoned", effect
+        assert effect["closed_at"] == closure_input and effect["authorization_policy"] == 0
+        assert effect_diagnostic["code"] == "effect.reconciliation_abandoned" and effect_diagnostic["outcome"] == "closed_unknown"
+        assert effect_diagnostic["identity"] == {"domain":"effect","id":str(turn),"realm":"72","resource":None,"sequence":None}
+        assert [item["kind"] for item in effect_diagnostic["actions"] if item] == ["inspect_status"]
         journey = api(f"processes/{pids[0]}/journey")
         assert any(edge and edge["from"]["id"] == admission and edge["to"]["id"] == turn for edge in journey["edges"])
         # Browser runtime tests open the real binary directly, without credentials.
@@ -176,6 +183,7 @@ def run(node, cli, board, browser=False):
         api(f"processes/{pids[1]}", status=403)
         s.command({"revoke": 1})
         api("processes", status=403)
+        failure(f"processes/{pids[0]}/effects", 403, "inspection.denied", "inspect_scope")
         api("processes", headers=ignored, status=403)
         s.command({"grant": {"subject": 1, "public_key": public, "permissions": 17}})
         assert failure("capabilities", 403, "inspection.unsafe_principal", "contact_operator")["err"] == "UnsafePrincipal"
@@ -189,6 +197,7 @@ def run(node, cli, board, browser=False):
         s.authority = s.start(s.node, s.config)
         wait_ready(s.store.http, s.authority, s.url + "/health")
         assert api(f"processes/{pids[0]}")["observation"]["processes"][0]["revision"] == turn
+        assert api(f"processes/{pids[0]}/effects")["effect_diagnostics"][0] == effect_diagnostic
         # Slow viewers consume only Board's bounded request slot, not a node
         # connection. A refresh flood is throttled and control keeps progressing.
         with socket.create_connection(("127.0.0.1", port), timeout=3) as slow:

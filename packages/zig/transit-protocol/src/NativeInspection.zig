@@ -68,6 +68,7 @@ pub fn validatePage(page: Page, query: g.Query, position: u64) !void {
                 continue;
             };
             if (ended) return error.InvalidRead;
+            if (comptime std.mem.eql(u8, field, "effects")) try g.validateEffect(entry, position);
             if (comptime !std.mem.eql(u8, field, "processes")) {
                 const pid = if (comptime std.mem.eql(u8, field, "outbox")) entry.source else entry.pid;
                 if (pid != q.pid) return error.InvalidRead;

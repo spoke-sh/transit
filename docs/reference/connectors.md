@@ -27,6 +27,15 @@ the local attempt cannot prove remote rollback. A retry that could execute new
 external work needs explicit connector policy and new authorization. Native exact
 retry of an already prepared protocol operation is a different mechanism.
 
+Native inspection retains the original authorization grant revision, last
+observation input/revision and closure provenance. It distinguishes an accepted
+result, exhausted observation budget, explicit abandonment, reached deadline and
+cancellation of an unattempted intent. Deadline evidence includes the authority's
+trusted clock lower bound. These facts survive exact retry, policy changes and
+restart; current rights still govern disclosure. An accepted opaque result
+completes the native observation boundary, without interpreting business success.
+Board displays this evidence and its shared diagnostic beside the recorded phase.
+
 ## Capture and publication
 
 HTTP and gRPC reuse the [Exchange contract](../../contracts/STATION_EXCHANGE_V1.md)

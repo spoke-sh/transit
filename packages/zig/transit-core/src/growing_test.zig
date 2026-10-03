@@ -285,7 +285,7 @@ test "growing submit fences revocation at the publication boundary" {
     var f: Fixture = .{};
     defer f.deinit();
     try f.init();
-    _ = try f.root(.{ .grant = .{ .subject = 65536, .public_key = f.worker_key.public_key.toBytes(), .permissions = core.all_permissions } });
+    _ = try f.root(.{ .grant = .{ .subject = 65536, .public_key = f.worker_key.public_key.toBytes(), .permissions = core.protocol.all_permissions } });
     const pid = try f.root(.{ .spawn = .{} });
     const signed = try f.worker(1, .{ .send = .{ .pid = pid, .value = .{} } });
     const revoke = try f.engine.prepare(try g.sign(.{ .realm = 42, .principal = 0, .sequence = f.root_sequence, .command = .{ .revoke = 65536 } }, f.root_key));
@@ -405,7 +405,7 @@ test "growing authority retains wide principals and processes beyond legacy cata
     var fixture: Fixture = .{};
     defer fixture.deinit();
     try fixture.init();
-    for (0..20) |i| _ = try fixture.root(.{ .grant = .{ .subject = 65536 + i, .public_key = fixture.worker_key.public_key.toBytes(), .permissions = core.all_permissions } });
+    for (0..20) |i| _ = try fixture.root(.{ .grant = .{ .subject = 65536 + i, .public_key = fixture.worker_key.public_key.toBytes(), .permissions = core.protocol.all_permissions } });
     var first: u64 = 0;
     for (0..70) |i| {
         const pid = try fixture.root(.{ .spawn = .{} });
@@ -472,7 +472,7 @@ test "growing publication fences competing candidates and preserves uncertain re
     var fixture: Fixture = .{};
     defer fixture.deinit();
     try fixture.init();
-    _ = try fixture.root(.{ .grant = .{ .subject = 65536, .public_key = fixture.worker_key.public_key.toBytes(), .permissions = core.all_permissions } });
+    _ = try fixture.root(.{ .grant = .{ .subject = 65536, .public_key = fixture.worker_key.public_key.toBytes(), .permissions = core.protocol.all_permissions } });
     const pid = try fixture.root(.{ .spawn = .{} });
     const signed = try fixture.worker(1, .{ .send = .{ .pid = pid, .value = .{} } });
     const prepared = try fixture.engine.prepare(signed);
@@ -481,7 +481,7 @@ test "growing publication fences competing candidates and preserves uncertain re
     try t.expectError(error.Conflict, fixture.engine.commit(prepared));
     try t.expectError(error.Forbidden, fixture.engine.submit(signed));
     try t.expectEqual(@as(u64, 0), (try fixture.engine.process(pid)).admitted);
-    _ = try fixture.root(.{ .grant = .{ .subject = 65536, .public_key = fixture.worker_key.public_key.toBytes(), .permissions = core.all_permissions } });
+    _ = try fixture.root(.{ .grant = .{ .subject = 65536, .public_key = fixture.worker_key.public_key.toBytes(), .permissions = core.protocol.all_permissions } });
     fixture.journal.fail = .before;
     try t.expectError(error.StorageUnavailable, fixture.engine.submit(signed));
     fixture.journal.fail = .none;
@@ -533,7 +533,7 @@ test "growing finite work fails closed on clock uncertainty without disabling co
     try t.expectEqual(@as(u64, 1), try fixture.journal.tail());
     clock.sample = .{ .unix_ms = 90, .error_ms = 1 };
     const pid = try fixture.root(finite);
-    _ = try fixture.root(.{ .grant = .{ .subject = 65536, .public_key = fixture.worker_key.public_key.toBytes(), .permissions = core.all_permissions } });
+    _ = try fixture.root(.{ .grant = .{ .subject = 65536, .public_key = fixture.worker_key.public_key.toBytes(), .permissions = core.protocol.all_permissions } });
     clock.sample = .{ .unix_ms = 89, .error_ms = 1 };
     try t.expectError(error.ClockRollback, fixture.root(.{ .own = .{ .pid = pid, .expected_generation = 0, .worker = 65536 } }));
     clock.sample = .{ .unix_ms = 100, .error_ms = 0 };
@@ -675,7 +675,7 @@ test "growing turns publish rows, progress, outputs and retained views as one ro
     try fixture.init();
     var clock: Clock = .{};
     fixture.engine.clock = .{ .context = &clock, .read = Clock.read };
-    _ = try fixture.root(.{ .grant = .{ .subject = 65536, .public_key = fixture.worker_key.public_key.toBytes(), .permissions = core.all_permissions } });
+    _ = try fixture.root(.{ .grant = .{ .subject = 65536, .public_key = fixture.worker_key.public_key.toBytes(), .permissions = core.protocol.all_permissions } });
     const pid = try fixture.root(.{ .spawn = .{} });
     const resource = try fixture.root(.{ .create_resource = .{ .writer = pid, .deadline_ms = 250 } });
     // Resource count grows independently of the handler's per-turn batch size.
@@ -792,7 +792,7 @@ test "growing captured reads retain a version but never retain permission or own
     const writer = try fixture.root(.{ .spawn = .{} });
     const reader = try fixture.root(.{ .spawn = .{} });
     const resource = try fixture.root(.{ .create_resource = .{ .writer = writer } });
-    _ = try fixture.root(.{ .grant = .{ .subject = 65536, .public_key = fixture.worker_key.public_key.toBytes(), .permissions = core.all_permissions } });
+    _ = try fixture.root(.{ .grant = .{ .subject = 65536, .public_key = fixture.worker_key.public_key.toBytes(), .permissions = core.protocol.all_permissions } });
     for ([_]u64{ 0, 65536 }) |principal| _ = try fixture.root(.{ .grant_resource = .{ .resource = resource, .subject = principal, .permissions = core.protocol.State.all_permissions } });
     for ([_]u64{ writer, reader }) |pid| {
         _ = try fixture.root(.{ .associate = .{ .pid = pid, .name = try core.Value.init("table"), .resource = resource } });
@@ -846,7 +846,7 @@ test "growing captured reads retain a version but never retain permission or own
     forged.query.kind = .{ .process = reader };
     try t.expectError(error.Unauthorized, fixture.engine.query(forged));
     // Narrowing principal scope invalidates all old resource grants by epoch.
-    _ = try fixture.root(.{ .grant = .{ .subject = 65536, .public_key = fixture.worker_key.public_key.toBytes(), .permissions = core.all_permissions, .pid = reader } });
+    _ = try fixture.root(.{ .grant = .{ .subject = 65536, .public_key = fixture.worker_key.public_key.toBytes(), .permissions = core.protocol.all_permissions, .pid = reader } });
     try t.expectError(error.Forbidden, fixture.query(65536, .{ .process = writer }));
     const scoped = try fixture.query(65536, .{ .processes = .{} });
     try t.expectEqual(reader, scoped.body.processes.entries[0].?.pid);
@@ -1113,6 +1113,7 @@ test "growing effects retain bounded settlement across retirement and reject lat
     try t.expectError(error.RetiredProcess, fixture.root(.{ .dispatch = .{ .pid = pid, .effect = pending, .reconcile_before_ms = 100 } }));
     _ = try fixture.root(.{ .cancel_effect = .{ .pid = pid, .effect = pending } });
     try t.expectEqual(.cancelled, (try work.effect(&fixture.engine, pending)).phase);
+    try t.expectEqual(.unattempted_cancel, (try work.effect(&fixture.engine, pending)).closure.?.reason);
     // An authorized external request may still return after caller retirement.
     const result = try g.sign(.{ .realm = 42, .principal = 0, .sequence = fixture.root_sequence, .command = .{ .observe = .{ .pid = pid, .effect = observed, .attempt = observed_attempt, .result = core.Value.integer(9) } } }, fixture.root_key);
     fixture.journal.fail = .after;
@@ -1123,6 +1124,10 @@ test "growing effects retain bounded settlement across retirement and reject lat
     fixture.root_sequence += 1;
     try t.expectEqual(@as(u64, 3), (try fixture.engine.process(pid)).admitted);
     try t.expectEqual(.observed, (try work.effect(&fixture.engine, observed)).phase);
+    const original_observation = try work.effect(&fixture.engine, observed);
+    try t.expectEqual(.observed, original_observation.closure.?.reason);
+    try t.expectEqual(original_observation.closed_at.?, original_observation.last_observation.?.input);
+    try t.expectEqual(@as(u64, 0), original_observation.authorization_policy.?);
     fixture.engine = try Engine.open(&fixture.journal, &fixture.pages, fixture.genesis);
     fixture.engine.clock = .{ .context = &clock, .read = Clock.read };
     try t.expectEqual(@as(u16, 1), (try work.effect(&fixture.engine, unknown)).observations);
@@ -1132,6 +1137,12 @@ test "growing effects retain bounded settlement across retirement and reject lat
     _ = try fixture.root(.{ .close_effect = .{ .pid = pid, .effect = unknown, .attempt = unknown_attempt, .reason = .deadline } });
     try t.expectError(error.ReconciliationClosed, fixture.root(late));
     try t.expectEqual(.closed_unknown, (try work.effect(&fixture.engine, unknown)).phase);
+    const original_closure = try work.effect(&fixture.engine, unknown);
+    try t.expectEqual(.deadline, original_closure.closure.?.reason);
+    try t.expectEqual(@as(?u64, 100), original_closure.closure.?.clock_lower_ms);
+    fixture.engine = try Engine.open(&fixture.journal, &fixture.pages, fixture.genesis);
+    try t.expect(std.meta.eql(original_closure, try work.effect(&fixture.engine, unknown)));
+    try t.expect(std.meta.eql(original_observation, try work.effect(&fixture.engine, observed)));
     const effects = try fixture.query(0, .{ .effects = .{ .pid = pid } });
     try t.expectEqual(observed, effects.body.effects.entries[0].?.id);
     try t.expectEqual(.observed, effects.body.effects.entries[0].?.phase);
@@ -1437,7 +1448,7 @@ test "growing retained versions atomically publish old roots and survive replace
     try t.expect(second.body.read_versions.entries[1] != null);
     try t.expectEqual(@as(?g.ReadVersionId, null), second.body.read_versions.next);
 
-    _ = try f.root(.{ .grant = .{ .subject = 65536, .public_key = f.worker_key.public_key.toBytes(), .permissions = core.all_permissions, .pid = fixture.pid } });
+    _ = try f.root(.{ .grant = .{ .subject = 65536, .public_key = f.worker_key.public_key.toBytes(), .permissions = core.protocol.all_permissions, .pid = fixture.pid } });
     _ = try f.root(.{ .grant_resource = .{ .resource = fixture.resource, .subject = 65536, .permissions = core.protocol.State.all_permissions } });
     _ = try f.root(.{ .own = .{ .pid = fixture.pid, .expected_generation = 2, .worker = 65536 } });
     try t.expectError(error.StaleGeneration, fixture.query(last, 0, 2));
@@ -1463,7 +1474,7 @@ test "growing retained versions atomically publish old roots and survive replace
     _ = try f.root(.{ .grant_resource = .{ .resource = fixture.resource, .subject = 65536, .permissions = core.protocol.State.all_permissions } });
     _ = try f.query(65536, .{ .read_version = last });
     try t.expectError(error.Forbidden, fixture.query(last, 65536, 3));
-    _ = try f.root(.{ .grant = .{ .subject = 65536, .public_key = f.worker_key.public_key.toBytes(), .permissions = core.all_permissions, .pid = fixture.pid } });
+    _ = try f.root(.{ .grant = .{ .subject = 65536, .public_key = f.worker_key.public_key.toBytes(), .permissions = core.protocol.all_permissions, .pid = fixture.pid } });
     _ = try f.root(.{ .grant_resource = .{ .resource = fixture.resource, .subject = 65536, .permissions = core.protocol.State.all_permissions } });
     _ = try f.root(.{ .terminate = fixture.pid });
     try t.expectError(error.StaleGeneration, fixture.query(last, 65536, 3));
@@ -1563,7 +1574,7 @@ test "growing capacity backpressure blocks new admission but drains and closes e
     }
     const pid = try f.root(.{ .spawn = .{} });
     const doomed = try f.root(.{ .spawn = .{} });
-    _ = try f.root(.{ .grant = .{ .subject = 65536, .public_key = f.worker_key.public_key.toBytes(), .permissions = core.all_permissions } });
+    _ = try f.root(.{ .grant = .{ .subject = 65536, .public_key = f.worker_key.public_key.toBytes(), .permissions = core.protocol.all_permissions } });
     _ = try f.root(.{ .own = .{ .pid = pid, .expected_generation = 0, .worker = 0 } });
     // `Turn.input` names the mailbox entry's journal position, not its
     // per-process ordinal; capture what each send actually returns.
@@ -1634,9 +1645,9 @@ test "growing identity observes current grants and expires a prior inspection cu
     const identity = try fixture.query(65536, .{ .identity = {} });
     try t.expectEqual(core.permission(.inspect), identity.body.identity.permissions);
     _ = try fixture.query(65536, .{ .processes = .{ .position = identity.position } });
-    _ = try fixture.root(.{ .grant = .{ .subject = 65536, .public_key = fixture.worker_key.public_key.toBytes(), .permissions = core.all_permissions } });
+    _ = try fixture.root(.{ .grant = .{ .subject = 65536, .public_key = fixture.worker_key.public_key.toBytes(), .permissions = core.protocol.all_permissions } });
     try t.expectError(error.QueryExpired, fixture.query(65536, .{ .processes = .{ .position = identity.position } }));
-    try t.expectEqual(core.all_permissions, (try fixture.query(65536, .{ .identity = {} })).body.identity.permissions);
+    try t.expectEqual(core.protocol.all_permissions, (try fixture.query(65536, .{ .identity = {} })).body.identity.permissions);
     _ = try fixture.root(.{ .revoke = 65536 });
     try t.expectError(error.Forbidden, fixture.query(65536, .{ .identity = {} }));
 }
@@ -2006,4 +2017,47 @@ test "owned resource reads and required borrowers obey owner deadlines before ma
         _ = try f.root(.{ .expire = borrower });
         try t.expectEqual(.expired, (try f.engine.process(borrower)).lifecycle);
     }
+}
+
+test "native effect observation budget closure keeps its original decision across retry and grant changes" {
+    const work = @import("growing_work.zig");
+    var fixture: Fixture = .{};
+    defer fixture.deinit();
+    try fixture.init();
+    const pid = try fixture.root(.{ .spawn = .{} });
+    _ = try fixture.root(.{ .own = .{ .pid = pid, .expected_generation = 0, .worker = 0 } });
+    const id = try fixture.emit(pid, @splat(null), core.Value.integer(1));
+    const grant = try fixture.root(.{ .grant = .{ .subject = 1, .public_key = fixture.worker_key.public_key.toBytes(), .permissions = core.permission(.effect), .pid = pid } });
+    const attempt = try fixture.engine.submit(try g.sign(.{ .realm = 42, .principal = 1, .sequence = 1, .command = .{ .dispatch = .{ .pid = pid, .effect = id, .max_observations = 1 } } }, fixture.worker_key));
+    const request = try g.sign(.{ .realm = 42, .principal = 1, .sequence = 2, .command = .{ .observe = .{ .pid = pid, .effect = id, .attempt = attempt, .result = null } } }, fixture.worker_key);
+    fixture.journal.fail = .after;
+    try t.expectError(error.LostAcknowledgement, fixture.engine.submit(request));
+    fixture.journal.fail = .none;
+    const input = try fixture.engine.submit(request);
+    const original = try work.effect(&fixture.engine, id);
+    try t.expectEqual(.observation_budget, original.closure.?.reason);
+    try t.expectEqual(input, original.closed_at.?);
+    try t.expectEqual(@as(u16, 1), original.observations);
+    try t.expectEqual(grant, original.authorization_policy.?);
+    try t.expectEqual(grant, original.closure.?.policy_revision);
+    _ = try fixture.root(.{ .revoke = 1 });
+    try t.expectError(error.Forbidden, fixture.engine.submit(request));
+    _ = try fixture.root(.{ .grant = .{ .subject = 1, .public_key = fixture.worker_key.public_key.toBytes(), .permissions = core.permission(.effect), .pid = pid } });
+    try t.expectEqual(input, try fixture.engine.submit(request));
+    try t.expect(std.meta.eql(original, try work.effect(&fixture.engine, id)));
+    fixture.engine = try Engine.open(&fixture.journal, &fixture.pages, fixture.genesis);
+    try t.expect(std.meta.eql(original, try work.effect(&fixture.engine, id)));
+    try t.expectError(error.ReconciliationClosed, fixture.root(.{ .close_effect = .{ .pid = pid, .effect = id, .attempt = attempt } }));
+    try t.expectError(error.AttemptAlreadyAuthorized, fixture.root(.{ .dispatch = .{ .pid = pid, .effect = id } }));
+    const diagnostic = try core.protocol.EffectDiagnostic.from(42, fixture.engine.head.position, original);
+    try t.expectEqualStrings("effect.observation_limit", diagnostic.code.slice());
+}
+
+test "effect evidence and maximum opaque payloads fit the unchanged catalog record bound" {
+    const maximum = core.protocol.max_counter;
+    const bytes: [256]u8 = @splat(255);
+    const effect: g.Effect = .{ .id = 2, .pid = 1, .payload = try core.Value.init(&bytes), .result = try core.Value.init(&bytes), .phase = .observed, .attempt = 3, .executor = maximum, .authorization_policy = 2, .closed_at = maximum - 1, .last_observation = .{ .input = maximum - 1, .policy_revision = maximum - 2 }, .closure = .{ .reason = .observed, .principal = maximum, .policy_revision = maximum - 2 }, .reconcile_before_ms = maximum, .max_observations = core.protocol.max_effect_observations, .observations = core.protocol.max_effect_observations };
+    try g.validateEffect(effect, maximum);
+    const catalog = @import("catalog.zig");
+    _ = try catalog.putMutation(try catalog.key(.effect, effect.id, 0, ""), effect);
 }

@@ -15,6 +15,12 @@ continuation pages before interpretation. It preserves the original authorized i
 adds explicit causal references. Input-to-turn, turn-to-effect, turn-to-output,
 and delivered output-to-admission links come from recorded fields. References
 below the retained floor are marked reclaimed, never reconstructed.
+Effect pages also carry an optional diagnostic per original effect slot. The
+shared native owner projects retained authorization, observation and closure
+provenance after record validation. Optional diagnostic construction failure
+leaves the primary effect visible; current-access checks remain on the read.
+The browser validates detail against the effect identity, phase, policy, count,
+deadline and clock, retaining primary observations when optional detail fails.
 
 `projectState(page)` preserves authorized resource/association metadata and
 bounded opaque entries, rejecting mixed projections. Resource read grants are

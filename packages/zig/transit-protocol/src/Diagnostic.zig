@@ -79,6 +79,13 @@ pub const Field = enum {
     observed_clock,
     expected_namespace,
     actual_namespace,
+    attempt,
+    executor,
+    resolution_reason,
+    principal,
+    deadline,
+    authorization_policy,
+    resolution_policy,
 };
 pub const Text = BoundedText(256);
 pub const Code = BoundedText(96);
@@ -193,7 +200,7 @@ pub fn validate(self: Self) !void {
         .prepared => if (self.evidence != .saved_intent) return error.InvalidDiagnostic,
         .rejected, .applied, .completed, .failed, .cancelled, .retired, .input_rejected, .closed_unknown => if (self.evidence != .domain_status) return error.InvalidDiagnostic,
         .pending => if (self.evidence != .domain_status and self.evidence != .native_receipt) return error.InvalidDiagnostic,
-        .unknown => if (self.evidence == .domain_status or self.evidence == .native_receipt) return error.InvalidDiagnostic,
+        .unknown => if (self.evidence == .native_receipt or (self.evidence == .domain_status and (self.identity == null or self.identity.?.domain != .effect))) return error.InvalidDiagnostic,
         .not_applicable => {},
     }
     if (self.identity) |identity| try validateIdentity(identity);

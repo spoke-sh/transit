@@ -185,7 +185,16 @@ deadline independently of caller retirement. Finite callers require a finite
 reconciliation deadline. The executor's current effect permission is required
 for new observations; an administrator with effect permission can close an orphaned
 attempt. A result after caller retirement remains evidence and cannot revive that
-PID. Closed attempts reject new results; exact historical retries still require
+PID. The native effect record retains the authorization grant revision, the
+last observation's input and grant revision, and terminal closure provenance.
+Closure distinguishes `observed`, `observation_budget`, `abandoned`, `deadline`
+and `unattempted_cancel`; it records the resolving principal and grant revision.
+Deadline closure additionally retains the trusted sample's lower bound, which
+must meet the original reconciliation deadline. These fields are committed with
+the phase and closure position. Reads reject inconsistent phase/observation/closure
+combinations. Current policy changes, exact retries and checkpoint recovery do
+not replace the original evidence. Opaque result bytes remain connector-owned.
+Closed attempts reject new results; exact historical retries still require
 current permission. The growing engine currently enforces these rules internally;
 the explicit HTTP profile exposes them. A separate node maintenance process
 materializes terminal dispositions with bounded scans. Maintenance latency depends

@@ -77,7 +77,13 @@ pub fn main(init: std.process.Init) !void {
             if (close_unknown) {
                 try t.expectEqual(.running, (try e.process(1)).lifecycle);
                 try t.expectEqual(.closed_unknown, (try disk.record(&e, g.Effect, .effect, 5)).phase);
-                try t.expect((try disk.record(&e, g.Effect, .effect, 5)).closed_at != null);
+                const closed = try disk.record(&e, g.Effect, .effect, 5);
+                try t.expect(closed.closed_at != null);
+                try t.expectEqual(.abandoned, closed.closure.?.reason);
+                try t.expectEqual(@as(u64, 0), closed.closure.?.principal);
+                try t.expectEqual(@as(u64, 0), closed.closure.?.policy_revision);
+                const diagnostic = try core.protocol.EffectDiagnostic.from(genesis.realm, e.head.position, closed);
+                try t.expectEqualStrings("effect.reconciliation_abandoned", diagnostic.code.slice());
                 try store.maintain(e.head);
                 try t.expectError(error.ReconciliationClosed, submit(&e, root, 0, .{ .observe = .{ .pid = 1, .effect = 5, .attempt = 6, .result = core.Value.integer(10) } }));
                 try t.expectError(error.AttemptAlreadyAuthorized, submit(&e, root, 0, .{ .dispatch = .{ .pid = 1, .effect = 5 } }));
@@ -101,6 +107,8 @@ pub fn main(init: std.process.Init) !void {
             try t.expectEqual(@as(u64, 1), p.admitted);
             const effect = (try disk.record(&e, g.Effect, .effect, 5));
             try t.expectEqual(@as(@TypeOf(effect.phase), if (close_unknown) .closed_unknown else .observed), effect.phase);
+            try t.expectEqual(@as(@TypeOf(effect.closure.?.reason), if (close_unknown) .abandoned else .observed), effect.closure.?.reason);
+            try t.expectEqual(@as(u64, 0), effect.authorization_policy.?);
             try t.expectEqual(if (close_unknown) @as(?i64, null) else 10, if (effect.result) |v| try v.asInteger() else null);
             try t.expectEqual(@as(?g.Input, null), try disk.input(&e, 1));
             try t.expectError(error.ReconciliationClosed, submit(&e, root, 0, .{ .observe = .{ .pid = 1, .effect = 5, .attempt = 6, .result = core.Value.integer(99) } }));

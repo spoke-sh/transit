@@ -83,7 +83,7 @@ function validEvidence(d: Diagnostic): boolean {
     retired: ["domain_status"],
     input_rejected: ["domain_status"],
     closed_unknown: ["domain_status"],
-    unknown: ["none", "local_before_dispatch", "saved_intent"],
+    unknown: ["none", "local_before_dispatch", "saved_intent", "domain_status"],
     not_applicable: [
       "none",
       "local_before_dispatch",
@@ -93,6 +93,8 @@ function validEvidence(d: Diagnostic): boolean {
     ],
   } satisfies Record<Diagnostic["outcome"], string[]>;
   if (!(expected[d.outcome] as string[]).includes(d.evidence)) return false;
+  if (d.outcome === "unknown" && d.evidence === "domain_status" && d.identity?.domain !== "effect")
+    return false;
   let end = false;
   for (const fact of d.facts) {
     if (!fact) end = true;

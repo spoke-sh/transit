@@ -15,7 +15,9 @@ pub fn output(engine: anytype, id: u64) !g.Outbox {
 }
 pub fn effect(engine: anytype, id: u64) !g.Effect {
     var current = try engine.state();
-    return (try current.get(g.Effect, address(.effect, id))) orelse error.UnknownEffect;
+    const value = (try current.get(g.Effect, address(.effect, id))) orelse return error.UnknownEffect;
+    g.validateEffect(value, engine.head.position) catch return error.InvalidHistory;
+    return value;
 }
 pub fn routeKey(source: u64, destination: u64, id: u64) core.pages.Key {
     var bytes: [8]u8 = undefined;
@@ -104,6 +106,7 @@ pub fn apply(engine: anytype, candidate: anytype, request: g.Request, now: ?core
             value.phase = .authorized;
             value.attempt = position;
             value.executor = request.principal;
+            value.authorization_policy = caller.revision;
             value.reconcile_before_ms = command.reconcile_before_ms;
             value.max_observations = command.max_observations;
             try candidate.put(address(.effect, value.id), value);
@@ -115,10 +118,12 @@ pub fn apply(engine: anytype, candidate: anytype, request: g.Request, now: ?core
             if (value.reconcile_before_ms) |deadline| try engine.before(now, deadline);
             if (value.observations >= value.max_observations) return error.InvalidHistory;
             value.observations += 1;
+            value.last_observation = .{ .input = position, .policy_revision = caller.revision };
             value.result = command.result;
             value.phase = if (command.result != null) .observed else if (value.observations == value.max_observations) .closed_unknown else .unknown;
             if (value.phase == .observed or value.phase == .closed_unknown) {
                 value.closed_at = position;
+                value.closure = .{ .reason = if (value.phase == .observed) .observed else .observation_budget, .principal = request.principal, .policy_revision = caller.revision };
                 try candidate.remove(address(.pending_effect, value.id));
             }
             if (command.result) |result| {
@@ -141,6 +146,7 @@ pub fn apply(engine: anytype, candidate: anytype, request: g.Request, now: ?core
             if (command.reason == .deadline) try (now orelse return error.ClockUnavailable).after(value.reconcile_before_ms orelse return error.NoDeadline);
             value.phase = .closed_unknown;
             value.closed_at = position;
+            value.closure = .{ .reason = if (command.reason == .deadline) .deadline else .abandoned, .principal = request.principal, .policy_revision = caller.revision, .clock_lower_ms = if (command.reason == .deadline) now.?.lower() else null };
             try candidate.put(address(.effect, value.id), value);
             try candidate.remove(address(.pending_effect, value.id));
         },
@@ -151,6 +157,7 @@ pub fn apply(engine: anytype, candidate: anytype, request: g.Request, now: ?core
             if (!try terminal(engine, try engine.process(command.pid), now)) return error.PendingWork;
             value.phase = .cancelled;
             value.closed_at = position;
+            value.closure = .{ .reason = .unattempted_cancel, .principal = request.principal, .policy_revision = caller.revision };
             try candidate.put(address(.effect, value.id), value);
             try candidate.remove(address(.pending_effect, value.id));
         },

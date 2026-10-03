@@ -2597,7 +2597,8 @@
         "additionalProperties": false,
         "x-transit-field-order": [
           "observation",
-          "edges"
+          "edges",
+          "effect_diagnostics"
         ],
         "properties": {
           "observation": {
@@ -3708,6 +3709,9 @@
                         "phase",
                         "attempt",
                         "executor",
+                        "authorization_policy",
+                        "last_observation",
+                        "closure",
                         "result",
                         "closed_at",
                         "reconcile_before_ms",
@@ -3768,6 +3772,122 @@
                               "maximum": 9007199254740991,
                               "x-transit-bits": 64,
                               "x-transit-signed": false
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "authorization_policy": {
+                          "anyOf": [
+                            {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991,
+                              "x-transit-bits": 64,
+                              "x-transit-signed": false
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "last_observation": {
+                          "anyOf": [
+                            {
+                              "type": "object",
+                              "additionalProperties": false,
+                              "x-transit-field-order": [
+                                "input",
+                                "policy_revision"
+                              ],
+                              "properties": {
+                                "input": {
+                                  "type": "integer",
+                                  "minimum": 0,
+                                  "maximum": 9007199254740991,
+                                  "x-transit-bits": 64,
+                                  "x-transit-signed": false
+                                },
+                                "policy_revision": {
+                                  "type": "integer",
+                                  "minimum": 0,
+                                  "maximum": 9007199254740991,
+                                  "x-transit-bits": 64,
+                                  "x-transit-signed": false
+                                }
+                              },
+                              "required": [
+                                "input",
+                                "policy_revision"
+                              ],
+                              "x-transit-defaults": {}
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "closure": {
+                          "anyOf": [
+                            {
+                              "type": "object",
+                              "additionalProperties": false,
+                              "x-transit-field-order": [
+                                "reason",
+                                "principal",
+                                "policy_revision",
+                                "clock_lower_ms"
+                              ],
+                              "properties": {
+                                "reason": {
+                                  "type": "string",
+                                  "enum": [
+                                    "observed",
+                                    "observation_budget",
+                                    "abandoned",
+                                    "deadline",
+                                    "unattempted_cancel"
+                                  ]
+                                },
+                                "principal": {
+                                  "type": "integer",
+                                  "minimum": 0,
+                                  "maximum": 9007199254740991,
+                                  "x-transit-bits": 64,
+                                  "x-transit-signed": false
+                                },
+                                "policy_revision": {
+                                  "type": "integer",
+                                  "minimum": 0,
+                                  "maximum": 9007199254740991,
+                                  "x-transit-bits": 64,
+                                  "x-transit-signed": false
+                                },
+                                "clock_lower_ms": {
+                                  "anyOf": [
+                                    {
+                                      "type": "integer",
+                                      "minimum": 0,
+                                      "maximum": 9007199254740991,
+                                      "x-transit-bits": 64,
+                                      "x-transit-signed": false
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
+                                }
+                              },
+                              "required": [
+                                "reason",
+                                "principal",
+                                "policy_revision",
+                                "clock_lower_ms"
+                              ],
+                              "x-transit-defaults": {
+                                "clock_lower_ms": null
+                              }
                             },
                             {
                               "type": "null"
@@ -3837,6 +3957,9 @@
                         "phase",
                         "attempt",
                         "executor",
+                        "authorization_policy",
+                        "last_observation",
+                        "closure",
                         "result",
                         "closed_at",
                         "reconcile_before_ms",
@@ -3847,6 +3970,9 @@
                         "phase": "pending",
                         "attempt": null,
                         "executor": null,
+                        "authorization_policy": null,
+                        "last_observation": null,
+                        "closure": null,
                         "result": null,
                         "closed_at": null,
                         "reconcile_before_ms": null,
@@ -4223,11 +4349,811 @@
                 }
               ]
             }
+          },
+          "effect_diagnostics": {
+            "type": "array",
+            "minItems": 8,
+            "maxItems": 8,
+            "items": {
+              "anyOf": [
+                {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "x-transit-field-order": [
+                    "version",
+                    "definition",
+                    "code",
+                    "category",
+                    "stage",
+                    "outcome",
+                    "evidence",
+                    "message",
+                    "cause",
+                    "identity",
+                    "location",
+                    "facts",
+                    "actions"
+                  ],
+                  "properties": {
+                    "version": {
+                      "const": 1
+                    },
+                    "definition": {
+                      "type": "string",
+                      "enum": [
+                        "8473c39ff9d0cfda98692ce4c568f35ae158785fdfb86b8d04f08ad35fec2152"
+                      ]
+                    },
+                    "code": {
+                      "type": "string",
+                      "maxLength": 96,
+                      "x-transit-max-utf8-bytes": 96
+                    },
+                    "category": {
+                      "type": "string",
+                      "enum": [
+                        "syntax",
+                        "binding",
+                        "unsupported",
+                        "constraint",
+                        "access",
+                        "conflict",
+                        "limit",
+                        "lifecycle",
+                        "integrity",
+                        "unavailable",
+                        "internal"
+                      ]
+                    },
+                    "stage": {
+                      "type": "string",
+                      "enum": [
+                        "input",
+                        "parse",
+                        "compile",
+                        "bind",
+                        "prepare",
+                        "submit",
+                        "admission",
+                        "execute",
+                        "read",
+                        "decode",
+                        "output",
+                        "reconcile",
+                        "cleanup",
+                        "control"
+                      ]
+                    },
+                    "outcome": {
+                      "type": "string",
+                      "enum": [
+                        "not_applicable",
+                        "not_submitted",
+                        "prepared",
+                        "unknown",
+                        "pending",
+                        "input_rejected",
+                        "rejected",
+                        "applied",
+                        "completed",
+                        "failed",
+                        "cancelled",
+                        "retired",
+                        "closed_unknown"
+                      ]
+                    },
+                    "evidence": {
+                      "type": "string",
+                      "enum": [
+                        "none",
+                        "local_before_dispatch",
+                        "saved_intent",
+                        "native_receipt",
+                        "domain_status"
+                      ]
+                    },
+                    "message": {
+                      "type": "string",
+                      "maxLength": 384,
+                      "x-transit-max-utf8-bytes": 384
+                    },
+                    "cause": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "maxLength": 96,
+                          "x-transit-max-utf8-bytes": 96
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "identity": {
+                      "anyOf": [
+                        {
+                          "type": "object",
+                          "additionalProperties": false,
+                          "x-transit-field-order": [
+                            "domain",
+                            "id",
+                            "realm",
+                            "resource",
+                            "sequence"
+                          ],
+                          "properties": {
+                            "domain": {
+                              "type": "string",
+                              "enum": [
+                                "sql",
+                                "query",
+                                "mutation",
+                                "catalog",
+                                "application",
+                                "publication",
+                                "migration",
+                                "reactive",
+                                "serving",
+                                "effect",
+                                "transport",
+                                "internal"
+                              ]
+                            },
+                            "id": {
+                              "type": "string",
+                              "maxLength": 20,
+                              "pattern": "^(0|[1-9][0-9]*)$"
+                            },
+                            "realm": {
+                              "anyOf": [
+                                {
+                                  "type": "string",
+                                  "maxLength": 20,
+                                  "pattern": "^(0|[1-9][0-9]*)$"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "resource": {
+                              "anyOf": [
+                                {
+                                  "type": "string",
+                                  "maxLength": 20,
+                                  "pattern": "^(0|[1-9][0-9]*)$"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "sequence": {
+                              "anyOf": [
+                                {
+                                  "type": "string",
+                                  "maxLength": 20,
+                                  "pattern": "^(0|[1-9][0-9]*)$"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            }
+                          },
+                          "required": [
+                            "domain",
+                            "id",
+                            "realm",
+                            "resource",
+                            "sequence"
+                          ],
+                          "x-transit-defaults": {
+                            "realm": null,
+                            "resource": null,
+                            "sequence": null
+                          }
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "location": {
+                      "anyOf": [
+                        {
+                          "type": "object",
+                          "additionalProperties": false,
+                          "x-transit-field-order": [
+                            "source",
+                            "source_encoding",
+                            "source_truncated",
+                            "statement",
+                            "offset",
+                            "length",
+                            "line",
+                            "byte_column"
+                          ],
+                          "properties": {
+                            "source": {
+                              "anyOf": [
+                                {
+                                  "type": "string",
+                                  "maxLength": 512,
+                                  "x-transit-max-utf8-bytes": 512
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "source_encoding": {
+                              "type": "string",
+                              "enum": [
+                                "utf8",
+                                "escaped_bytes"
+                              ]
+                            },
+                            "source_truncated": {
+                              "type": "boolean"
+                            },
+                            "statement": {
+                              "anyOf": [
+                                {
+                                  "type": "string",
+                                  "maxLength": 20,
+                                  "pattern": "^(0|[1-9][0-9]*)$"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "offset": {
+                              "type": "string",
+                              "maxLength": 20,
+                              "pattern": "^(0|[1-9][0-9]*)$"
+                            },
+                            "length": {
+                              "type": "string",
+                              "maxLength": 20,
+                              "pattern": "^(0|[1-9][0-9]*)$"
+                            },
+                            "line": {
+                              "type": "string",
+                              "maxLength": 20,
+                              "pattern": "^(0|[1-9][0-9]*)$"
+                            },
+                            "byte_column": {
+                              "type": "string",
+                              "maxLength": 20,
+                              "pattern": "^(0|[1-9][0-9]*)$"
+                            }
+                          },
+                          "required": [
+                            "source",
+                            "source_encoding",
+                            "source_truncated",
+                            "statement",
+                            "offset",
+                            "length",
+                            "line",
+                            "byte_column"
+                          ],
+                          "x-transit-defaults": {
+                            "source": null,
+                            "source_encoding": "utf8",
+                            "source_truncated": false,
+                            "statement": null
+                          }
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "facts": {
+                      "type": "array",
+                      "minItems": 16,
+                      "maxItems": 16,
+                      "items": {
+                        "anyOf": [
+                          {
+                            "type": "object",
+                            "additionalProperties": false,
+                            "x-transit-field-order": [
+                              "field",
+                              "origin",
+                              "availability",
+                              "value"
+                            ],
+                            "properties": {
+                              "field": {
+                                "type": "string",
+                                "enum": [
+                                  "object",
+                                  "name",
+                                  "table",
+                                  "native_input",
+                                  "affected_rows",
+                                  "argument",
+                                  "option",
+                                  "permissions",
+                                  "scope",
+                                  "column",
+                                  "qualifier",
+                                  "constraint",
+                                  "key",
+                                  "input_row",
+                                  "first_occurrence",
+                                  "parameter",
+                                  "parameter_use",
+                                  "expected_count",
+                                  "actual_count",
+                                  "expected_type",
+                                  "actual_type",
+                                  "supplied_value",
+                                  "expression",
+                                  "source_kind",
+                                  "source_basis",
+                                  "source_key",
+                                  "source_row",
+                                  "field_path",
+                                  "byte_offset",
+                                  "expected_resource",
+                                  "actual_resource",
+                                  "expected_source",
+                                  "actual_source",
+                                  "expected_revision",
+                                  "actual_revision",
+                                  "expected_schema",
+                                  "actual_schema",
+                                  "expected_policy",
+                                  "actual_policy",
+                                  "budget",
+                                  "limit",
+                                  "required",
+                                  "unit",
+                                  "completed_statements",
+                                  "emitted_rows",
+                                  "emitted_segments",
+                                  "completion",
+                                  "proposal",
+                                  "step",
+                                  "generation",
+                                  "attachment",
+                                  "lease",
+                                  "schema_origin",
+                                  "sampling_records",
+                                  "operation",
+                                  "native_cause",
+                                  "expected_bytes",
+                                  "presence",
+                                  "published",
+                                  "subscription",
+                                  "expected_codec",
+                                  "actual_codec",
+                                  "observed_clock",
+                                  "expected_namespace",
+                                  "actual_namespace",
+                                  "attempt",
+                                  "executor",
+                                  "resolution_reason",
+                                  "principal",
+                                  "deadline",
+                                  "authorization_policy",
+                                  "resolution_policy"
+                                ]
+                              },
+                              "origin": {
+                                "type": "string",
+                                "enum": [
+                                  "caller",
+                                  "execution",
+                                  "schema",
+                                  "authority",
+                                  "owner"
+                                ]
+                              },
+                              "availability": {
+                                "type": "string",
+                                "enum": [
+                                  "provided",
+                                  "truncated",
+                                  "unrecorded",
+                                  "unavailable",
+                                  "withheld",
+                                  "inapplicable"
+                                ]
+                              },
+                              "value": {
+                                "anyOf": [
+                                  {
+                                    "oneOf": [
+                                      {
+                                        "type": "object",
+                                        "additionalProperties": false,
+                                        "required": [
+                                          "text"
+                                        ],
+                                        "properties": {
+                                          "text": {
+                                            "type": "string",
+                                            "maxLength": 256,
+                                            "x-transit-max-utf8-bytes": 256
+                                          }
+                                        }
+                                      },
+                                      {
+                                        "type": "object",
+                                        "additionalProperties": false,
+                                        "required": [
+                                          "signed"
+                                        ],
+                                        "properties": {
+                                          "signed": {
+                                            "type": "string",
+                                            "maxLength": 20,
+                                            "pattern": "^(0|-?[1-9][0-9]*)$"
+                                          }
+                                        }
+                                      },
+                                      {
+                                        "type": "object",
+                                        "additionalProperties": false,
+                                        "required": [
+                                          "unsigned"
+                                        ],
+                                        "properties": {
+                                          "unsigned": {
+                                            "type": "string",
+                                            "maxLength": 20,
+                                            "pattern": "^(0|[1-9][0-9]*)$"
+                                          }
+                                        }
+                                      },
+                                      {
+                                        "type": "object",
+                                        "additionalProperties": false,
+                                        "required": [
+                                          "boolean"
+                                        ],
+                                        "properties": {
+                                          "boolean": {
+                                            "type": "boolean"
+                                          }
+                                        }
+                                      },
+                                      {
+                                        "type": "object",
+                                        "additionalProperties": false,
+                                        "required": [
+                                          "digest"
+                                        ],
+                                        "properties": {
+                                          "digest": {
+                                            "type": "array",
+                                            "minItems": 32,
+                                            "maxItems": 32,
+                                            "items": {
+                                              "type": "integer",
+                                              "minimum": 0,
+                                              "maximum": 255,
+                                              "x-transit-bits": 8,
+                                              "x-transit-signed": false
+                                            }
+                                          }
+                                        }
+                                      },
+                                      {
+                                        "type": "object",
+                                        "additionalProperties": false,
+                                        "required": [
+                                          "location"
+                                        ],
+                                        "properties": {
+                                          "location": {
+                                            "type": "object",
+                                            "additionalProperties": false,
+                                            "x-transit-field-order": [
+                                              "source",
+                                              "source_encoding",
+                                              "source_truncated",
+                                              "statement",
+                                              "offset",
+                                              "length",
+                                              "line",
+                                              "byte_column"
+                                            ],
+                                            "properties": {
+                                              "source": {
+                                                "anyOf": [
+                                                  {
+                                                    "type": "string",
+                                                    "maxLength": 512,
+                                                    "x-transit-max-utf8-bytes": 512
+                                                  },
+                                                  {
+                                                    "type": "null"
+                                                  }
+                                                ]
+                                              },
+                                              "source_encoding": {
+                                                "type": "string",
+                                                "enum": [
+                                                  "utf8",
+                                                  "escaped_bytes"
+                                                ]
+                                              },
+                                              "source_truncated": {
+                                                "type": "boolean"
+                                              },
+                                              "statement": {
+                                                "anyOf": [
+                                                  {
+                                                    "type": "string",
+                                                    "maxLength": 20,
+                                                    "pattern": "^(0|[1-9][0-9]*)$"
+                                                  },
+                                                  {
+                                                    "type": "null"
+                                                  }
+                                                ]
+                                              },
+                                              "offset": {
+                                                "type": "string",
+                                                "maxLength": 20,
+                                                "pattern": "^(0|[1-9][0-9]*)$"
+                                              },
+                                              "length": {
+                                                "type": "string",
+                                                "maxLength": 20,
+                                                "pattern": "^(0|[1-9][0-9]*)$"
+                                              },
+                                              "line": {
+                                                "type": "string",
+                                                "maxLength": 20,
+                                                "pattern": "^(0|[1-9][0-9]*)$"
+                                              },
+                                              "byte_column": {
+                                                "type": "string",
+                                                "maxLength": 20,
+                                                "pattern": "^(0|[1-9][0-9]*)$"
+                                              }
+                                            },
+                                            "required": [
+                                              "source",
+                                              "source_encoding",
+                                              "source_truncated",
+                                              "statement",
+                                              "offset",
+                                              "length",
+                                              "line",
+                                              "byte_column"
+                                            ],
+                                            "x-transit-defaults": {
+                                              "source": null,
+                                              "source_encoding": "utf8",
+                                              "source_truncated": false,
+                                              "statement": null
+                                            }
+                                          }
+                                        }
+                                      }
+                                    ]
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              }
+                            },
+                            "required": [
+                              "field",
+                              "origin",
+                              "availability",
+                              "value"
+                            ],
+                            "x-transit-defaults": {}
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      }
+                    },
+                    "actions": {
+                      "type": "array",
+                      "minItems": 4,
+                      "maxItems": 4,
+                      "items": {
+                        "anyOf": [
+                          {
+                            "type": "object",
+                            "additionalProperties": false,
+                            "x-transit-field-order": [
+                              "kind",
+                              "target"
+                            ],
+                            "properties": {
+                              "kind": {
+                                "type": "string",
+                                "enum": [
+                                  "correct_input",
+                                  "inspect_status",
+                                  "resume_exact",
+                                  "cancel_wait",
+                                  "cancel_mutation",
+                                  "refresh",
+                                  "recompile",
+                                  "retry_read",
+                                  "inspect_scope",
+                                  "reconcile_effect",
+                                  "contact_operator"
+                                ]
+                              },
+                              "target": {
+                                "anyOf": [
+                                  {
+                                    "type": "object",
+                                    "additionalProperties": false,
+                                    "x-transit-field-order": [
+                                      "domain",
+                                      "id",
+                                      "realm",
+                                      "resource",
+                                      "sequence"
+                                    ],
+                                    "properties": {
+                                      "domain": {
+                                        "type": "string",
+                                        "enum": [
+                                          "sql",
+                                          "query",
+                                          "mutation",
+                                          "catalog",
+                                          "application",
+                                          "publication",
+                                          "migration",
+                                          "reactive",
+                                          "serving",
+                                          "effect",
+                                          "transport",
+                                          "internal"
+                                        ]
+                                      },
+                                      "id": {
+                                        "type": "string",
+                                        "maxLength": 20,
+                                        "pattern": "^(0|[1-9][0-9]*)$"
+                                      },
+                                      "realm": {
+                                        "anyOf": [
+                                          {
+                                            "type": "string",
+                                            "maxLength": 20,
+                                            "pattern": "^(0|[1-9][0-9]*)$"
+                                          },
+                                          {
+                                            "type": "null"
+                                          }
+                                        ]
+                                      },
+                                      "resource": {
+                                        "anyOf": [
+                                          {
+                                            "type": "string",
+                                            "maxLength": 20,
+                                            "pattern": "^(0|[1-9][0-9]*)$"
+                                          },
+                                          {
+                                            "type": "null"
+                                          }
+                                        ]
+                                      },
+                                      "sequence": {
+                                        "anyOf": [
+                                          {
+                                            "type": "string",
+                                            "maxLength": 20,
+                                            "pattern": "^(0|[1-9][0-9]*)$"
+                                          },
+                                          {
+                                            "type": "null"
+                                          }
+                                        ]
+                                      }
+                                    },
+                                    "required": [
+                                      "domain",
+                                      "id",
+                                      "realm",
+                                      "resource",
+                                      "sequence"
+                                    ],
+                                    "x-transit-defaults": {
+                                      "realm": null,
+                                      "resource": null,
+                                      "sequence": null
+                                    }
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              }
+                            },
+                            "required": [
+                              "kind",
+                              "target"
+                            ],
+                            "x-transit-defaults": {
+                              "target": null
+                            }
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      }
+                    }
+                  },
+                  "required": [
+                    "version",
+                    "definition",
+                    "code",
+                    "category",
+                    "stage",
+                    "outcome",
+                    "evidence",
+                    "message",
+                    "cause",
+                    "identity",
+                    "location",
+                    "facts",
+                    "actions"
+                  ],
+                  "x-transit-defaults": {
+                    "cause": null,
+                    "identity": null,
+                    "location": null,
+                    "facts": [
+                      null,
+                      null,
+                      null,
+                      null,
+                      null,
+                      null,
+                      null,
+                      null,
+                      null,
+                      null,
+                      null,
+                      null,
+                      null,
+                      null,
+                      null,
+                      null
+                    ],
+                    "actions": [
+                      null,
+                      null,
+                      null,
+                      null
+                    ]
+                  }
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
           }
         },
         "required": [
           "observation",
-          "edges"
+          "edges",
+          "effect_diagnostics"
         ],
         "x-transit-defaults": {
           "edges": [
@@ -4239,6 +5165,16 @@
             null,
             null,
             null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          "effect_diagnostics": [
             null,
             null,
             null,
@@ -5617,7 +6553,7 @@
                   "definition": {
                     "type": "string",
                     "enum": [
-                      "b83b6c75eae067d04b938425305a4a03c04193b4499e059405fa42ae63b9fec5"
+                      "8473c39ff9d0cfda98692ce4c568f35ae158785fdfb86b8d04f08ad35fec2152"
                     ]
                   },
                   "code": {
@@ -5971,7 +6907,14 @@
                                 "actual_codec",
                                 "observed_clock",
                                 "expected_namespace",
-                                "actual_namespace"
+                                "actual_namespace",
+                                "attempt",
+                                "executor",
+                                "resolution_reason",
+                                "principal",
+                                "deadline",
+                                "authorization_policy",
+                                "resolution_policy"
                               ]
                             },
                             "origin": {
@@ -15074,7 +16017,7 @@
                               "definition": {
                                 "type": "string",
                                 "enum": [
-                                  "b83b6c75eae067d04b938425305a4a03c04193b4499e059405fa42ae63b9fec5"
+                                  "8473c39ff9d0cfda98692ce4c568f35ae158785fdfb86b8d04f08ad35fec2152"
                                 ]
                               },
                               "code": {
@@ -15428,7 +16371,14 @@
                                             "actual_codec",
                                             "observed_clock",
                                             "expected_namespace",
-                                            "actual_namespace"
+                                            "actual_namespace",
+                                            "attempt",
+                                            "executor",
+                                            "resolution_reason",
+                                            "principal",
+                                            "deadline",
+                                            "authorization_policy",
+                                            "resolution_policy"
                                           ]
                                         },
                                         "origin": {

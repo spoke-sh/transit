@@ -64,6 +64,14 @@ business operation. For the `serving` domain, completion means an authenticated
 reply is retained; failure means reply delivery exceeded its recorded bound.
 Wait timeout is `closed_unknown`, while explicit local wait cancellation is
 `cancelled`. Neither establishes remote cancellation or rollback. Unknown send cannot carry a fabricated receipt or terminal domain result.
+The `effect` domain also permits `unknown` with `domain_status`: its owner can
+record authorization or a null-result observation while the external outcome
+remains unknown. Other domains cannot use this combination. Native effect
+projection retains attempt/executor, authorization and resolution policy revisions,
+observation count/budget, deadline and original closure reason/principal/clock.
+An observed effect is `completed` at the authority's observation boundary; its
+opaque result does not establish business success. Projection offers inspection,
+without claiming a connector-specific retry or cancellation policy exists.
 Failures during result reading/output/cleanup do not change a saved domain outcome.
 
 Relevant caller-owned names, values, parameter indices and attempted keys are

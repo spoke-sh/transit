@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "definition": "b83b6c75eae067d04b938425305a4a03c04193b4499e059405fa42ae63b9fec5",
+  "definition": "8473c39ff9d0cfda98692ce4c568f35ae158785fdfb86b8d04f08ad35fec2152",
   "minimum_stack_bytes": 8388608,
   "limits": {
     "max_counter": 9007199254740991,
@@ -430,7 +430,7 @@
         "definition": {
           "type": "string",
           "enum": [
-            "b83b6c75eae067d04b938425305a4a03c04193b4499e059405fa42ae63b9fec5"
+            "8473c39ff9d0cfda98692ce4c568f35ae158785fdfb86b8d04f08ad35fec2152"
           ]
         },
         "operation_metadata": {
@@ -484,7 +484,7 @@
       ],
       "x-transit-defaults": {
         "version": 1,
-        "definition": "b83b6c75eae067d04b938425305a4a03c04193b4499e059405fa42ae63b9fec5",
+        "definition": "8473c39ff9d0cfda98692ce4c568f35ae158785fdfb86b8d04f08ad35fec2152",
         "operation_metadata": true,
         "opaque_retry": true,
         "native_v1": true,
@@ -519,7 +519,7 @@
         "definition": {
           "type": "string",
           "enum": [
-            "b83b6c75eae067d04b938425305a4a03c04193b4499e059405fa42ae63b9fec5"
+            "8473c39ff9d0cfda98692ce4c568f35ae158785fdfb86b8d04f08ad35fec2152"
           ]
         },
         "code": {
@@ -873,7 +873,14 @@
                       "actual_codec",
                       "observed_clock",
                       "expected_namespace",
-                      "actual_namespace"
+                      "actual_namespace",
+                      "attempt",
+                      "executor",
+                      "resolution_reason",
+                      "principal",
+                      "deadline",
+                      "authorization_policy",
+                      "resolution_policy"
                     ]
                   },
                   "origin": {

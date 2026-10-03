@@ -30,6 +30,11 @@ test("real embedded UI explains kernel evidence and retains focus while polling"
   await expect(page.getByText("output to admission", { exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Effects", exact: true }).click();
   await expect(page.getByRole("heading", { name: /closed unknown/ })).toBeVisible();
+  await expect(page.getByText(/Closure reason: abandoned/)).toBeVisible();
+  const effectDetail = page.getByRole("alert", { name: "Effect diagnostic" });
+  await expect(effectDetail).toContainText("explicitly closed reconciliation without a result");
+  await expect(effectDetail).toContainText("effect.reconciliation_abandoned");
+  await expect(effectDetail).not.toContainText("resume_exact");
   await page.getByRole("link", { name: "Journey", exact: true }).click();
   await expect(page.getByRole("heading", { name: `PID ${pid} · journey` })).toBeVisible();
   await expect(page.getByText("input to turn", { exact: true }).first()).toBeVisible();

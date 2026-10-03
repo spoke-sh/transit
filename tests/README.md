@@ -6,6 +6,43 @@ earlier entry refers to that entry's source, not automatically to HEAD. The late
 records its reruns and remaining qualification separately; earlier consolidation
 results do not qualify the changed stored layout by inheritance.
 
+## Native effect closure diagnostic evidence — 2026-10-03
+
+The `effect-closure-witness` current-v1 cutover retains original authorization,
+last-observation and closure provenance in native effect records. Pinned
+`just test::unit` passes all phase/closure projections, strict evidence validation,
+maximum 256-byte intent/result payloads within the unchanged 2048-byte catalog
+record, lost acknowledgement, grant revocation/re-grant and restart. A recorded
+unknown effect permits owner evidence without granting fresh retry or cancellation.
+
+`just build::debug proofs` followed by
+`python3 -B tests/storage.py zig-out/bin/transit-effects-proof` passes all four
+disk-backed Ursula phases, with SIGKILL between phases: write **0.52 s**, recover
+**0.26 s**, checkpoint **0.21 s**, trimmed recovery **0.11 s**. Original abandoned
+versus observed closure survives checkpoint/trim/restart, exact retry and losing
+commit races; late observations remain rejected after closure. This invocation
+executes the effect proof, not all nine disk proof binaries.
+
+`just transit-board::browser` passes the real embedded API and **5 Chromium tests**
+(**21.6 s** browser run). The API checks original effect detail before/after
+node/store restart, current inspection revocation, opaque payload handling and
+no fresh effect action. The UI shows the original abandonment explanation;
+maximum measured control latency is **0.092 s**. Strict TypeScript, **5 shared
+boundary tests**, and **10 focused Board tests** also pass, including malformed,
+cross-identity, wrong-policy and wrong-clock optional detail while retaining the
+primary observation. Full `just check` passes with **517 CLI cases**, **75 Board
+unit cases**, generated contracts/native/frontends and the handbook build.
+
+Logs: `/var/tmp/transit-effect-witness-native.log`,
+`/var/tmp/transit-effect-witness-board.log`,
+`/var/tmp/transit-effect-browser-unit.log` and
+`/var/tmp/transit-effect-witness-check.log`. Earlier iterations rejected a
+nonexistent stage tag, an unquoted numeric definition hash, and the old blanket
+ban on recorded uncertainty; the final owner-specific evidence rule and
+non-root grant-change schedule pass. These checks do not establish connector
+transport/capture failure witnesses, connector outcome adoption, complete
+semantic inventory coverage or committed-HEAD clean qualification.
+
 ## File diagnostic boundary evidence — 2026-10-03
 
 Pinned `just test::unit`, `just test::cli-diagnostics` and `just test::file-query`

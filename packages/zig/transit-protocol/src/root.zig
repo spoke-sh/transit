@@ -29,6 +29,7 @@ pub const Receipt = struct { position: u64 };
 pub const Grant = Growth.Grant;
 pub const Process = Growth.Process;
 pub const Effect = Growth.Effect;
+pub const EffectDiagnostic = @import("EffectDiagnostic.zig");
 pub const Output = Growth.Output;
 pub const Payload = Growth.Payload;
 pub const Outbox = Growth.Outbox;
@@ -50,6 +51,7 @@ test {
     _ = Growth;
     _ = Value;
     _ = Diagnostic;
+    _ = EffectDiagnostic;
 }
 
 /// Stable wire rejection codes. Unknown internal failures map to AuthorityUnavailable.

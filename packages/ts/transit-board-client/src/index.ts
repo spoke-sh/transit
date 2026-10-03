@@ -1,5 +1,7 @@
-import type { Response, StateResponse, Capabilities, Error as ErrorBody } from "./types";
-export type { Response, StateResponse, Capabilities } from "./types";
+import type { StateResponse, Capabilities, Error as ErrorBody } from "./types";
+import { inspectionResponse, type Response } from "./effects";
+export { inspectionResponse, type Response } from "./effects";
+export type { StateResponse, Capabilities } from "./types";
 export type Page = Response["observation"];
 export type Process = NonNullable<Page["processes"][number]>;
 export type Event = NonNullable<Page["events"][number]>;
@@ -16,7 +18,14 @@ import {
 
 import { QueryError as BoardError, httpTransport } from "@rey/transit-query-client";
 export { QueryError as BoardError } from "@rey/transit-query-client";
-export const validateResponse = (value: unknown): value is Response => responseValidator(value);
+export const validateResponse = (value: unknown): value is Response => {
+  if (!responseValidator(value)) return false;
+  try {
+    return !inspectionResponse(value).effectDiagnosticsInvalid;
+  } catch {
+    return false;
+  }
+};
 export const validateCapabilities = (value: unknown): value is Capabilities =>
   capabilitiesValidator(value);
 export async function request<T>(
@@ -100,7 +109,9 @@ export function read(
   const query = continuation
     ? `?${new URLSearchParams(Object.entries({ after: continuation.after, ...continuation.cut }).map(([key, value]) => [key, String(value)]))}`
     : "";
-  return request(base + query, validateResponse, { signal });
+  return request(base + query, (value: unknown): value is unknown => value !== undefined, {
+    signal,
+  }).then(inspectionResponse);
 }
 export const capabilities = (signal?: AbortSignal) =>
   request("/api/v1/capabilities", validateCapabilities, { signal });

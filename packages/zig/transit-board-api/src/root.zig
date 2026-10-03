@@ -35,7 +35,7 @@ pub const Edge = struct {
     from_coverage: Coverage,
     to_coverage: Coverage,
 };
-pub const Response = struct { observation: i.Page, edges: [max_edges]?Edge = @splat(null) };
+pub const Response = struct { observation: i.Page, edges: [max_edges]?Edge = @splat(null), effect_diagnostics: [i.page_size]?p.Diagnostic = @splat(null) };
 pub const Lens = struct {
     version: u8 = 1,
     source: struct { realm: u64, pid: u64, resource: u64, key: p.Value, entry_revision: u64, resource_revision: u64, position: u64 },
@@ -182,6 +182,11 @@ pub fn project(page: i.Page) error{InvalidObservation}!Response {
     }
     if (page.version != 1 or (page.next == null) != page.complete) return error.InvalidObservation;
     var result: Response = .{ .observation = page };
+    for (page.effects, 0..) |slot, index| if (slot) |effect| {
+        if (effect.pid != page.pid) return error.InvalidObservation;
+        p.Growth.validateEffect(effect, page.cut.position) catch return error.InvalidObservation;
+        result.effect_diagnostics[index] = p.EffectDiagnostic.from(page.realm, page.cut.position, effect) catch null;
+    };
     var count: usize = 0;
     for (page.events) |slot| if (slot) |event| {
         const dest = reference(page, event.pid, if (event.kind == .turn) .turn else .event, event.position);
@@ -257,4 +262,18 @@ test "state projection cannot mix metadata-only associations with opaque values"
     try std.testing.expectEqual(page, (try projectState(page)).observation);
     page.entries[0] = .{ .key = try p.Value.init("key"), .value = try p.Value.init("private"), .revision = 4 };
     try std.testing.expectError(error.InvalidObservation, projectState(page));
+}
+
+test "Board effect projection preserves original closure and rejects cross-process evidence" {
+    var page: i.Page = .{ .realm = 1, .resource = .effects, .pid = 3, .cut = .{ .position = 20, .policy_revision = 2, .retained_from = 0 }, .reader = .{ .principal = 1, .permissions = 16, .pid = null, .policy_revision = 2 }, .history = .retained };
+    page.effects[0] = .{ .id = 5, .pid = 3, .payload = .{}, .phase = .closed_unknown, .attempt = 6, .executor = 1, .authorization_policy = 2, .closed_at = 7, .closure = .{ .reason = .abandoned, .principal = 0, .policy_revision = 0 } };
+    const result = try project(page);
+    try std.testing.expectEqualStrings("effect.reconciliation_abandoned", result.effect_diagnostics[0].?.code.slice());
+    try std.testing.expectEqual(.closed_unknown, result.effect_diagnostics[0].?.outcome);
+    try std.testing.expectEqual(null, result.effect_diagnostics[1]);
+    page.effects[0].?.pid = 2;
+    try std.testing.expectError(error.InvalidObservation, project(page));
+    page.effects[0].?.pid = 3;
+    page.effects[0].?.closure = null;
+    try std.testing.expectError(error.InvalidObservation, project(page));
 }

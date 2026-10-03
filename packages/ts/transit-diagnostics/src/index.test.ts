@@ -61,3 +61,15 @@ test("full-width integer and byte-coordinate overflow cannot round into valid ev
   };
   expect(ownedDiagnostic(value).invalid).toBe(true);
 });
+
+test("recorded effect uncertainty has owner evidence without authorizing fresh work", () => {
+  const value = fixture();
+  value.outcome = "unknown";
+  value.evidence = "domain_status";
+  value.identity!.domain = "effect";
+  value.actions = [{ kind: "inspect_status", target: value.identity }, null, null, null];
+  expect(ownedDiagnostic(value).invalid).toBe(false);
+  value.identity!.domain = "mutation";
+  value.actions[0]!.target = value.identity;
+  expect(ownedDiagnostic(value).invalid).toBe(true);
+});
