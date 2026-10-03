@@ -139,9 +139,10 @@ pub fn dispatchSource(turn: *Turn, frame: s.Frame, peer: u64, initializer: u64, 
     if (frame.kind == .call) {
         if (origin != peer) return turn.reply(try q.QueryFailure.fromError(error.UnexpectedQueryPeer, .admission).?.encode());
         const ref = s.PublicationReference.decode(frame.payload) catch return turn.reply(try q.QueryFailure.fromError(error.InvalidPublicationReference, .admission).?.encode());
-        _ = q.UnifiedCapture.start(turn, ref, resources, fixed.allocator()) catch |err| {
+        var diagnostic: ?q.QueryFailure = null;
+        _ = q.UnifiedCapture.startDiagnostic(turn, ref, resources, fixed.allocator(), &diagnostic) catch |err| {
             if (turn.read_error != null) return err;
-            const failure = q.QueryFailure.fromError(err, .admission) orelse return err;
+            const failure = diagnostic orelse q.QueryFailure.fromError(err, .admission) orelse return err;
             return turn.reply(try failure.encode());
         };
         return;

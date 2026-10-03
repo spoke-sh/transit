@@ -590,3 +590,93 @@ test "runtime failure commits its original frozen row witness atomically within 
     status.phase = .retired;
     try t.expectEqualDeep(observed, (try q.UnifiedRequest.Status.decode(try status.encode())).failure);
 }
+
+test "policy changes retain observed metadata without reopening denied request publications" {
+    for ([_]q.SourceWitness.Reason{ .policy_missing, .policy_disabled, .policy_revision }) |reason| {
+        var store: Store = .{};
+        defer store.deinit();
+        var requests: Store = .{ .resource = 8, .pid = 9 };
+        defer requests.deinit();
+        const source = try seedKV(&store, 1);
+        const job = try start(&store, &requests, .{ .source = source, .plan = .{ .projection = &.{1} }, .limits = limits });
+        var turn = try store.capture();
+        var grant = (try capture.policy(&turn, 9)).?;
+        grant.revision = 2;
+        grant.allow = reason != .policy_disabled;
+        if (reason == .policy_missing) try turn.write(r.key('p', 9, 0), null) else try capture.setPolicy(&turn, grant);
+        try store.commit(turn);
+        requests.denied = true;
+        const next = try advance(&store, &requests, job.id, &.{});
+        try t.expectEqual(capture.Advance.closed, next.step);
+        try store.commit(next.turn);
+        turn = try store.capture();
+        const rejected = try capture.job(&turn, job.id);
+        const original = rejected.failure.?;
+        try t.expectEqual(reason, original.source.?.reason);
+        try t.expectEqual(@as(?u64, 1), original.source.?.expected);
+        try t.expectEqual(if (reason == .policy_missing) @as(?u64, null) else @as(?u64, 2), original.source.?.actual);
+        try t.expectEqualDeep(original, try q.QueryFailure.decode(try original.encode()));
+        try t.expectEqual(@as(usize, 255), (try rejected.encode()).len);
+        grant.revision = 3;
+        grant.allow = true;
+        try capture.setPolicy(&turn, grant);
+        try store.commit(turn);
+        turn = try store.capture();
+        try capture.close(&turn, job.id, .retired);
+        try store.commit(turn);
+        turn = try store.capture();
+        try t.expectEqualDeep(original, (try capture.job(&turn, job.id)).failure.?);
+    }
+}
+
+test "changed Table schema failure owns both fingerprints across rollback repair and retirement" {
+    var store: Store = .{};
+    defer store.deinit();
+    var requests: Store = .{ .resource = 8, .pid = 9 };
+    defer requests.deinit();
+    var turn = try store.capture();
+    const table = try s.Table.create(&turn, 1, .{ .names = .{ try .init("id"), try .init("value") }, .value_type = .int64 });
+    try store.commit(turn);
+    const source: q.SourceDefinition = .{ .resource = 7, .source = .{ .table = .{ .id = 1, .schema = table.schema } } };
+    const job = try start(&store, &requests, .{ .source = source, .plan = .{ .projection = &.{1} }, .limits = limits });
+    var changed = table.schema;
+    changed.value_type = .boolean;
+    turn = try store.capture();
+    try turn.write(s.Table.descriptorKey(1), try s.Table.encodeSchema(changed));
+    try store.commit(turn);
+    const continuation: r.Continuation = .{ .job = job.id, .input = job.continuation };
+    const cancellation = q.fuze.execution.Cancellation.init(false);
+    var observed: ?q.QueryFailure = null;
+    for (0..2) |attempt| {
+        turn = try frame(&store, 3, .{ .kind = .cast, .payload = try continuation.encode() });
+        var arena: std.heap.ArenaAllocator = .init(t.allocator);
+        defer arena.deinit();
+        const before = turn.decision;
+        var failure: ?q.QueryFailure = null;
+        try t.expectError(error.TableSchemaChanged, capture.advanceDiagnostic(&turn, continuation, Source{ .store = &requests }, arena.allocator(), &.{}, &cancellation, &failure));
+        try t.expectEqualDeep(before, turn.decision);
+        try t.expectEqualDeep(try table.schema.fingerprint(), failure.?.source.?.expected_hash.?);
+        try t.expectEqualDeep(try changed.fingerprint(), failure.?.source.?.actual_hash.?);
+        if (observed) |first| try t.expectEqualDeep(first, failure.?) else observed = failure;
+        if (attempt == 1) {
+            try capture.closeFailure(&turn, job.id, failure.?);
+            try store.commit(turn);
+        }
+    }
+    turn = try store.capture();
+    try turn.write(s.Table.descriptorKey(1), try s.Table.encodeSchema(table.schema));
+    try store.commit(turn);
+    turn = try store.capture();
+    try capture.close(&turn, job.id, .retired);
+    try store.commit(turn);
+    turn = try store.capture();
+    const final = try capture.job(&turn, job.id);
+    try t.expectEqualDeep(observed, final.failure);
+    try t.expect(store.versions.get(job.source).?.view.released_at != null);
+    var status: q.UnifiedRequest.Status = .{ .reference = job.request, .phase = .retired, .correlation = 77, .failure = final.failure };
+    status = try q.UnifiedRequest.Status.decode(try status.encode());
+    var arena: std.heap.ArenaAllocator = .init(t.allocator);
+    defer arena.deinit();
+    const neutral = try q.Bridge.Status.fromNative(arena.allocator(), status);
+    try t.expectEqualDeep(try changed.fingerprint(), neutral.diagnostic.?.facts[3].?.value.?.digest);
+}

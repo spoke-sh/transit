@@ -6,7 +6,7 @@ namespace: u64,
 phase: q.UnifiedRequest.Phase,
 failure: ?q.QueryFailure,
 pub fn render(self: Self, out: *std.Io.Writer) !void {
-    if (self.failure) |failure| if (failure.runtime != null) return @import("EnvelopeDiagnostic.zig").render(try failure.diagnostic(self.namespace, self.phase), out);
+    if (self.failure) |failure| if (failure.runtime != null or failure.source != null) return @import("EnvelopeDiagnostic.zig").render(try failure.diagnostic(self.namespace, self.phase), out);
     try out.writeAll("Query Error:\n");
     if (self.failure) |failure| {
         try out.print("{s}\nCode: query.{s}; stage: {s}.\n", .{ failure.message(), @tagName(failure.code), @tagName(failure.stage) });

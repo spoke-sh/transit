@@ -173,7 +173,7 @@ fn renderFailure(self: Self, out: *std.Io.Writer, err: anyerror) !void {
     }
     if (self.write) |diagnostic| return diagnostic.render(out, self.style);
     if (self.query) |query| {
-        if (query.failure == null or query.failure.?.runtime == null) try self.style.text(out, .failure, "error: ");
+        if (query.failure == null or (query.failure.?.runtime == null and query.failure.?.source == null)) try self.style.text(out, .failure, "error: ");
         return query.render(out);
     }
     if (self.source) |diagnostic| return diagnostic.render(out, err, self.style);

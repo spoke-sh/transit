@@ -6275,7 +6275,7 @@
         "DiagnosticCapacity": 3,
         "IncompatibleDiagnostic": 1,
         "InvalidCharacter": 1,
-        "InvalidDiagnostic": 23,
+        "InvalidDiagnostic": 26,
         "InvalidDiagnosticNumber": 2,
         "InvalidDiagnosticText": 3,
         "InvalidNumber": 1,
@@ -6396,6 +6396,10 @@
           "source_row",
           "field_path",
           "byte_offset",
+          "expected_resource",
+          "actual_resource",
+          "expected_source",
+          "actual_source",
           "expected_revision",
           "actual_revision",
           "expected_schema",
@@ -6448,7 +6452,7 @@
       },
       "outcomes": {
         "Definition": [
-          "@\"31f1dd611804b4e2fa9c0c10727b12bc3fae82fff9198ba8a01a4391b421b3cf\""
+          "@\"77066ddb9b55e863c78b6a583a14af1191ff9305c19f4cd3cf9e3d189c4f372c\""
         ],
         "Command": [
           "grant",
@@ -6911,7 +6915,7 @@
         "InvalidQueryBudget": 1,
         "InvalidQueryBundle": 1,
         "InvalidQueryDiagnostic": 1,
-        "InvalidQueryFailure": 9,
+        "InvalidQueryFailure": 11,
         "InvalidQueryPath": 1,
         "InvalidQueryPrefix": 1,
         "InvalidQuerySource": 1,
@@ -7076,6 +7080,28 @@
         "UnsupportedSource": 2
       },
       "outcomes": {},
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
+    "packages/zig/transit-query/src/SourceWitness.zig": {
+      "errors": {
+        "InvalidSourceWitness": 11
+      },
+      "outcomes": {
+        "Reason": [
+          "policy_missing",
+          "policy_disabled",
+          "policy_revision",
+          "request_resource",
+          "resource",
+          "declaration",
+          "table_schema",
+          "contract",
+          "policy_budget"
+        ]
+      },
       "imports": [
         "root.zig",
         "std"
@@ -7412,7 +7438,7 @@
         "PublicationNotFound": 2,
         "QueryAfterMutation": 1,
         "QueryBudgetExceeded": 3,
-        "QueryDenied": 4,
+        "QueryDenied": 7,
         "QueryNamespaceInUse": 1,
         "QueryNotFound": 1,
         "QuerySegmentBudgetExceeded": 1,
@@ -7731,6 +7757,7 @@
         "QueryFailure.zig",
         "RuntimeWitness.zig",
         "SourceDefinition.zig",
+        "SourceWitness.zig",
         "SqlCompilation.zig",
         "SqlInspection.zig",
         "SqlTemplate.zig",

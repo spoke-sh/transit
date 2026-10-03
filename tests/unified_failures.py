@@ -51,9 +51,9 @@ def check(native, port, callers, root, invoke, restart, fault, kind):
             except Exception as error:
                 child = getattr(owner, 'child', None)
                 raise AssertionError(('status diagnostic caller', type(owner).__name__, child.args[:2] if child else None)) from error
-            assert status['phase'] in ('rejected', 'retired'), status
+            assert status['phase'] in ('denied', 'rejected', 'retired'), status
             assert status['failure'] == expected, (type(owner), status, expected)
-            expected_diagnostic = dict(diagnostic, outcome=status['phase'])
+            expected_diagnostic = dict(diagnostic, outcome='rejected' if status['phase'] == 'denied' else status['phase'])
             assert status['diagnostic'] == expected_diagnostic, (type(owner), status, expected_diagnostic)
 
     previous_hook = fault.get('count_hook')
@@ -127,6 +127,34 @@ def check(native, port, callers, root, invoke, restart, fault, kind):
             observe(native.call({'prepare': {'retire': namespace}})['prepared'])
             parity(failure, diagnostic)
             print(f'Unified {kind} runtime: original row/column/instruction/key/binding/decoder witness survives lost receipt, exact retry, repaired live data, disk restart and retirement across {len(owners)} callers.', flush=True)
+        # A well-formed bundle can exceed policy without a source job ever
+        # being admitted. Preserve the policy limit and requested measurement.
+        namespace = '55003'
+        requested = bytearray((root / 'bundle.bin').read_bytes())
+        struct.pack_into('<Q', requested, 8, 1001)
+        for _ in range(140):
+            prepared = native.call({'next': dict(namespace=namespace, bundle=requested.hex())})['prepared']
+            if prepared is None: break
+            observe(prepared)
+        else: raise AssertionError('policy denial upload exceeded bounded steps')
+        until = time.monotonic() + 120
+        while True:
+            status = native.call({'status': namespace})['status']
+            if status['phase'] == 'denied': break
+            assert time.monotonic() < until, status
+            time.sleep(.05)
+        failure, diagnostic = status['failure'], status['diagnostic']
+        assert failure['code'] == 'policy_denied' and failure['stage'] == 'admission', failure
+        assert diagnostic['category'] == 'limit', diagnostic
+        facts = {fact['field']: fact['value'] for fact in diagnostic['facts'] if fact}
+        assert facts['native_cause'] == {'text': 'policy_budget'} and facts['budget'] == {'text': 'pages'}, facts
+        assert facts['limit'] == {'unsigned': '1000'} and facts['required'] == {'unsigned': '1001'}, facts
+        parity(failure, diagnostic)
+        restart(label='policy-budget')
+        parity(failure, diagnostic)
+        observe(native.call({'prepare': {'retire': namespace}})['prepared'])
+        parity(failure, diagnostic)
+        print(f'Unified {kind} policy: admitted request retains source admission denial and exact allowed/requested budgets through disk restart and retirement across {len(owners)} callers.', flush=True)
     finally:
         if previous_hook is None: fault.pop('count_hook', None)
         else: fault['count_hook'] = previous_hook

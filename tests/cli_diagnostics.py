@@ -395,6 +395,11 @@ with tempfile.TemporaryDirectory(prefix='transit-cli-diagnostics-') as directory
         invoke(['console', '--no-rc', '--config', path], 1,
                ('<stdin>', 'statement 2', 'line 2, column 8', 'Previously completed commands: 1'),
                data=b'.show\nSELECT absent FROM items;', stdout_contains=('format',))
+        byte_path = Path(os.fsdecode(os.fsencode(root) + b'/script-\xff.sql'))
+        byte_path.write_bytes(b'.show\nSELECT absent FROM items;')
+        invoke(['console', '--no-rc', '--config', path, '-f', byte_path], 1,
+               ('script-\\xff.sql', '[escaped byte path]', 'statement 2', 'line 2, column 8'),
+               stdout_contains=('format',))
         invoke(['console', '--no-rc', '--config', path], 1, ('line 1, column 7',), data=b'SELECT;')
         for data in (b"SELECT * FROM items WHERE value = 'private-must-not-appear", b'SELECT * /* private-must-not-appear'):
             invoke(['console', '--no-rc', '--config', path], 1, ('SQL parse error', '^--- error here'), data=data)

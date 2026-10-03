@@ -41,11 +41,22 @@ pub fn basis(definition: Def, revision: u64) !m.Basis {
 /// Current declaration/lifecycle evidence, including after capture releases its
 /// source pin. A retained source must never be passed as the current reader.
 pub fn checkCurrent(definition: Def, current: anytype) !void {
-    if (current.view.resource != definition.resource) return error.SourceChanged;
+    return checkCurrentDiagnostic(definition, current, null);
+}
+pub fn checkCurrentDiagnostic(definition: Def, current: anytype, diagnostic: ?*?q.SourceWitness) !void {
+    if (diagnostic) |detail| detail.* = null;
+    if (current.view.resource != definition.resource) {
+        if (diagnostic) |detail| detail.* = .{ .reason = .resource, .resource = definition.resource, .expected = definition.resource, .actual = current.view.resource };
+        return error.SourceChanged;
+    }
     switch (definition.source) {
         .kv => {},
         .table => |table| {
-            if (!std.meta.eql((try q.station.Table.open(current, table.id)).schema, table.schema)) return error.TableSchemaChanged;
+            const observed = (try q.station.Table.open(current, table.id)).schema;
+            if (!std.meta.eql(observed, table.schema)) {
+                if (diagnostic) |detail| detail.* = .{ .reason = .table_schema, .resource = definition.resource, .expected_hash = try table.schema.fingerprint(), .actual_hash = try observed.fingerprint() };
+                return error.TableSchemaChanged;
+            }
         },
         .document => |document| {
             const service = try document.reference.identity().service();

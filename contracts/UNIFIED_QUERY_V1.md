@@ -270,6 +270,27 @@ Recomputing a rolled-back proposal against the retained cut produces the same
 witness even if live source data changes. Earlier 24-byte failures reject; the
 shared definition cutover also rejects peers and saved work from that definition.
 
+Tag 5 carries source/policy evidence in the same 104-byte slot: reason u8,
+presence flags u8, budget dimension u8, one zero byte, resource u64, expected u64,
+actual u64, expected digest (32 bytes), actual digest (32 bytes), and 12 zero
+bytes. Presence bits 0–3 select the two numbers and two digests respectively;
+absent values have all-zero bytes. Reasons 1–9 are policy missing, policy
+disabled, policy revision changed, request resource mismatch, source resource
+mismatch, policy declaration mismatch, Table schema mismatch, frozen source
+contract mismatch and policy budget exceeded. Policy budget dimension uses
+1/2/3 for pages/segments/result bytes; other reasons require zero. Each reason
+validates its required number/hash shape; unused flags, bytes and noncanonical
+encodings reject. Tag 5 excludes runtime or execution-budget evidence.
+
+Policy admission checks retain the first mismatch in resource, declaration,
+then pages/segments/result-byte order. An admitted request checks missing policy,
+disabled policy, changed revision, then request resource. It can close after
+revocation without reopening an inaccessible request publication. Table schema
+checks retain both fingerprints from the failing comparison. Witness creation
+allocates no memory and adds no state mutation. Metadata repair and retirement
+do not replace the original failure. Disclosure still requires current native
+access to the stored outcome; this evidence grants no source or policy access.
+
 Admission rejection replies carry `UQF1`. Execution closure atomically records
 that same value in the source job and sends it on the original reply route.
 The requester stores it with its denied/rejected status. Cancellation retains

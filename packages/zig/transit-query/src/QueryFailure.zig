@@ -71,8 +71,14 @@ dimension: Dimension = .none,
 limit: u64 = 0,
 observed: u64 = 0,
 runtime: ?q.RuntimeWitness = null,
+source: ?q.SourceWitness = null,
 pub const encoded_bytes = 112;
 pub fn category(self: Self) p.Diagnostic.Category {
+    if (self.source) |witness| switch (witness.reason) {
+        .policy_budget => return .limit,
+        .policy_revision, .declaration, .table_schema, .contract => return .conflict,
+        else => {},
+    };
     return switch (self.code) {
         .policy_denied, .access_denied, .publisher_mismatch, .peer_mismatch => .access,
         .resource_unavailable, .writer_not_ready => .unavailable,
@@ -105,9 +111,12 @@ pub fn diagnostic(self: Self, namespace: u64, phase: q.UnifiedRequest.Phase) !p.
         try result.fact(.required, .execution, .{ .unsigned = .init(self.observed) });
     }
     if (self.runtime) |witness| try witness.enrich(&result);
+    if (self.source) |witness| try witness.enrich(&result);
     try result.fact(.completion, .execution, .{ .boolean = false });
     try result.action(.inspect_status);
-    switch (self.category()) {
+    if (self.code == .source_changed or self.code == .table_schema_changed or (self.source != null and (self.source.?.reason == .policy_revision or self.source.?.reason == .declaration))) {
+        try result.action(.recompile);
+    } else switch (self.category()) {
         .access, .lifecycle, .unavailable => try result.action(.inspect_scope),
         .integrity => try result.action(.contact_operator),
         else => try result.action(.correct_input),
@@ -194,6 +203,7 @@ pub fn denied(self: Self) bool {
     };
 }
 pub fn message(self: Self) []const u8 {
+    if (self.source) |witness| return witness.message();
     return switch (self.code) {
         .policy_denied => "The current query policy does not permit this request.",
         .access_denied => "Current access to a required resource was denied.",
@@ -256,6 +266,17 @@ pub fn message(self: Self) []const u8 {
     };
 }
 pub fn validate(self: Self) !void {
+    if (self.source) |witness| {
+        if (self.runtime != null or self.dimension != .none) return error.InvalidQueryFailure;
+        const expected: Code = switch (witness.reason) {
+            .table_schema => .table_schema_changed,
+            .contract => .source_changed,
+            .resource => if (self.code == .policy_denied) .policy_denied else .source_changed,
+            else => .policy_denied,
+        };
+        if (self.code != expected) return error.InvalidQueryFailure;
+        try witness.validate();
+    }
     if (self.runtime) |witness| {
         if (self.stage != .execution or self.dimension != .none) return error.InvalidQueryFailure;
         switch (self.code) {
@@ -277,6 +298,9 @@ pub fn encode(self: Self) !p.Value {
     if (self.runtime) |witness| {
         bytes[7] = 4;
         bytes[8..].* = try witness.encode();
+    } else if (self.source) |witness| {
+        bytes[7] = 5;
+        bytes[8..].* = try witness.encode();
     } else {
         bytes[7] = @backingInt(self.dimension);
         std.mem.writeInt(u64, bytes[8..16], self.limit, .little);
@@ -290,10 +314,11 @@ pub fn decode(value: p.Value) !Self {
     const result: Self = .{
         .code = std.enums.fromInt(Code, std.mem.readInt(u16, value.data[4..6], .little)) orelse return error.InvalidQueryFailure,
         .stage = std.enums.fromInt(Stage, value.data[6]) orelse return error.InvalidQueryFailure,
-        .dimension = if (value.data[7] == 4) .none else std.enums.fromInt(Dimension, value.data[7]) orelse return error.InvalidQueryFailure,
-        .limit = if (value.data[7] == 4) 0 else std.mem.readInt(u64, value.data[8..16], .little),
-        .observed = if (value.data[7] == 4) 0 else std.mem.readInt(u64, value.data[16..24], .little),
+        .dimension = if (value.data[7] == 4 or value.data[7] == 5) .none else std.enums.fromInt(Dimension, value.data[7]) orelse return error.InvalidQueryFailure,
+        .limit = if (value.data[7] == 4 or value.data[7] == 5) 0 else std.mem.readInt(u64, value.data[8..16], .little),
+        .observed = if (value.data[7] == 4 or value.data[7] == 5) 0 else std.mem.readInt(u64, value.data[16..24], .little),
         .runtime = if (value.data[7] == 4) try q.RuntimeWitness.decode(value.data[8..encoded_bytes]) else null,
+        .source = if (value.data[7] == 5) try q.SourceWitness.decode(value.data[8..encoded_bytes]) else null,
     };
     try result.validate();
     if (!(try result.encode()).eql(value)) return error.InvalidQueryFailure;

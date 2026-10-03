@@ -12327,3 +12327,25 @@ file. The existing lost-receipt, interruption, policy-race, cancellation and
 four-mutation/256-byte-value bounds continue to pass. Logs are
 `/var/tmp/transit-compiler-scope-check.log` and
 `/var/tmp/transit-compiler-scope-writer.log`.
+
+### Source policy/schema witnesses and byte-path coordinates
+
+On 2026-10-02, `just check` passes after the source-witness definition cutover,
+including reflected contracts, signing fixtures, SDK schema resources, frontend
+validation and the documentation build. The query package's 87 tests pass.
+Missing/disabled/changed source policies retain the original expected and
+observed revisions without reopening a denied request publication. A changed
+Table schema retains both hashes across rolled-back proposals, repair and
+retirement. Source jobs remain 255 bytes; requester failure status remains 200
+bytes. Owned witness codecs reject malformed shapes, flags and padding.
+
+`just test::unit test::cli-diagnostics` passes with 460 real CLI cases. A script
+with a non-UTF-8 filename executes its first command, reports the later SQL
+failure at the correct absolute position, and labels its escaped byte path.
+Partial/malformed byte escapes reject at diagnostic validation. The first
+installed-SDK rerun encountered a stale Python wheel; the new authority rejected
+its previous definition at the initial metadata read. All installed artifacts
+are rebuilt before the corrected run. That run remains pending here.
+Logs: `/var/tmp/transit-source-witness-full-check.log`,
+`/var/tmp/transit-source-witness-check.log` and
+`/var/tmp/transit-source-witness-installed-kv2.log`.

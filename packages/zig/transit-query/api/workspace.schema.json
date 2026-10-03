@@ -3604,7 +3604,7 @@
                             "definition": {
                               "type": "string",
                               "enum": [
-                                "31f1dd611804b4e2fa9c0c10727b12bc3fae82fff9198ba8a01a4391b421b3cf"
+                                "77066ddb9b55e863c78b6a583a14af1191ff9305c19f4cd3cf9e3d189c4f372c"
                               ]
                             },
                             "code": {
@@ -3786,6 +3786,7 @@
                                   "additionalProperties": false,
                                   "x-transit-field-order": [
                                     "source",
+                                    "source_encoding",
                                     "source_truncated",
                                     "statement",
                                     "offset",
@@ -3804,6 +3805,13 @@
                                         {
                                           "type": "null"
                                         }
+                                      ]
+                                    },
+                                    "source_encoding": {
+                                      "type": "string",
+                                      "enum": [
+                                        "utf8",
+                                        "escaped_bytes"
                                       ]
                                     },
                                     "source_truncated": {
@@ -3844,6 +3852,7 @@
                                   },
                                   "required": [
                                     "source",
+                                    "source_encoding",
                                     "source_truncated",
                                     "statement",
                                     "offset",
@@ -3853,6 +3862,7 @@
                                   ],
                                   "x-transit-defaults": {
                                     "source": null,
+                                    "source_encoding": "utf8",
                                     "source_truncated": false,
                                     "statement": null
                                   }
@@ -3903,6 +3913,10 @@
                                           "source_row",
                                           "field_path",
                                           "byte_offset",
+                                          "expected_resource",
+                                          "actual_resource",
+                                          "expected_source",
+                                          "actual_source",
                                           "expected_revision",
                                           "actual_revision",
                                           "expected_schema",
@@ -4040,6 +4054,7 @@
                                                     "additionalProperties": false,
                                                     "x-transit-field-order": [
                                                       "source",
+                                                      "source_encoding",
                                                       "source_truncated",
                                                       "statement",
                                                       "offset",
@@ -4058,6 +4073,13 @@
                                                           {
                                                             "type": "null"
                                                           }
+                                                        ]
+                                                      },
+                                                      "source_encoding": {
+                                                        "type": "string",
+                                                        "enum": [
+                                                          "utf8",
+                                                          "escaped_bytes"
                                                         ]
                                                       },
                                                       "source_truncated": {
@@ -4098,6 +4120,7 @@
                                                     },
                                                     "required": [
                                                       "source",
+                                                      "source_encoding",
                                                       "source_truncated",
                                                       "statement",
                                                       "offset",
@@ -4107,6 +4130,7 @@
                                                     ],
                                                     "x-transit-defaults": {
                                                       "source": null,
+                                                      "source_encoding": "utf8",
                                                       "source_truncated": false,
                                                       "statement": null
                                                     }

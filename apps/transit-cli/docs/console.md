@@ -581,3 +581,9 @@ and denial suggest correcting the problem before a new query; they do not offer
 `.resume` as a way to change the saved result. JSON status retains the structured
 `failure` object with exact decimal-string counters. An unresolved send still
 requires recovery of its original signed intent.
+
+Script source paths retain their byte identity. When a filesystem path is not
+UTF-8, diagnostics mark it as an escaped byte path and encode nonprintable bytes
+as `\xhh`; this does not prevent executing the readable script. Paths are
+bounded to 512 displayed bytes with explicit truncation. Statement offsets and
+byte-column coordinates continue to refer to the original SQL bytes.

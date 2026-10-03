@@ -36,6 +36,10 @@ pub const Field = enum {
     source_row,
     field_path,
     byte_offset,
+    expected_resource,
+    actual_resource,
+    expected_source,
+    actual_source,
     expected_revision,
     actual_revision,
     expected_schema,
@@ -75,6 +79,7 @@ pub const Identity = struct {
 };
 pub const Location = struct {
     source: ?Path = null,
+    source_encoding: enum { utf8, escaped_bytes } = .utf8,
     source_truncated: bool = false,
     statement: ?Unsigned = null,
     offset: Unsigned,
@@ -179,7 +184,23 @@ fn validateIdentity(identity: Identity) !void {
     };
 }
 fn validateLocation(location: Location) !void {
-    if (location.source) |source| try source.validate() else if (location.source_truncated) return error.InvalidDiagnostic;
+    if (location.source) |source| {
+        try source.validate();
+        if (location.source_encoding == .escaped_bytes) {
+            const bytes = source.slice();
+            var at: usize = 0;
+            while (at < bytes.len) {
+                if (bytes[at] == '\\') {
+                    if (bytes.len - at < 4 or bytes[at + 1] != 'x') return error.InvalidDiagnostic;
+                    for (bytes[at + 2 .. at + 4]) |digit| if (!std.ascii.isDigit(digit) and !(digit >= 'a' and digit <= 'f')) return error.InvalidDiagnostic;
+                    at += 4;
+                } else {
+                    if (bytes[at] < 0x20 or bytes[at] > 0x7e or bytes[at] == '"') return error.InvalidDiagnostic;
+                    at += 1;
+                }
+            }
+        }
+    } else if (location.source_truncated or location.source_encoding != .utf8) return error.InvalidDiagnostic;
     if (try location.line.value() == 0 or try location.byte_column.value() == 0) return error.InvalidDiagnostic;
     if (location.statement) |statement| if (try statement.value() == 0) return error.InvalidDiagnostic;
     _ = try std.math.add(u64, try location.offset.value(), try location.length.value());
@@ -376,4 +397,14 @@ test "diagnostic shape rejects foreign definitions, omitted definitions and stri
     try t.expectEqualDeep(value, try decode(t.allocator, bytes));
     value.actions[0] = .{ .kind = .resume_exact, .target = value.identity };
     try t.expectError(error.InvalidDiagnostic, value.validate());
+}
+
+test "escaped byte paths reject ambiguous or partial escape sequences" {
+    var value = try init("sql.syntax", .syntax, .parse, .not_submitted, .local_before_dispatch, "Invalid SQL.");
+    value.location = .{ .source = try Path.init("a\\xff"), .source_encoding = .escaped_bytes, .offset = .init(0), .length = .init(0), .line = .init(1), .byte_column = .init(1) };
+    try value.validate();
+    for ([_][]const u8{ "a\\x", "a\\xff\\", "a\\xFF", "a\n", "a\"", "東京" }) |path| {
+        value.location.?.source = try Path.init(path);
+        try std.testing.expectError(error.InvalidDiagnostic, value.validate());
+    }
 }

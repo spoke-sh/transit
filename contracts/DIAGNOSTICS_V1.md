@@ -25,10 +25,14 @@ decimal strings with full signed/unsigned 64-bit ranges; native scoped counters
 still obey their native ranges. A zero operation ID is invalid.
 
 The optional source location holds a bounded 512-byte source name/path, explicit
-path truncation, one-based statement/line/byte-column coordinates, zero-based
+path truncation, `source_encoding` (`utf8` or `escaped_bytes`), one-based
+statement/line/byte-column coordinates, zero-based
 byte offset and byte length. A location without SQL source remains absent; typed
 callers do not receive fabricated SQL positions. Numeric coordinates are exact
-decimal strings, not JavaScript floating-point values.
+decimal strings, not JavaScript floating-point values. An escaped byte path uses
+printable ASCII bytes except quote/backslash; all other bytes use `\xhh` with
+lowercase hex. Escapes are complete even at truncation. The encoding field
+prevents mistaking escaped non-UTF-8 filesystem bytes for a Unicode filename.
 
 Sixteen nullable fact slots carry typed text, signed/unsigned integers, booleans,
 digests or locations. Present slots form a prefix. Every fact names its semantic

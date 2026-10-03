@@ -74,6 +74,13 @@ the original failure. Its typed facts and recovery actions do not depend on
 English text. These values survive exact
 retry, cleanup, request retirement and restart; they are not reconstructed by
 rerunning the query. Current access to the request resource is still required.
+Policy failures distinguish a missing policy, disabled queries, changed policy
+revision, a different request/source resource or declaration, and a requested
+budget above the policy allowance. Available expected and observed revisions,
+resource IDs, fingerprints and budget measurements are retained at the failing
+check. Table schema mismatches keep both fingerprints. A later policy/schema
+repair or query retirement preserves that evidence.
+
 A terminal failure has no complete result. Correcting the query or its authorized
 budget requires a new submission. Infrastructure or transport failure without a
 recorded terminal outcome retains the original recovery obligation.
