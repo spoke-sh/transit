@@ -13760,3 +13760,17 @@ and is retained at `/var/tmp/transit-ci-b97ktvkx/src/.cache/ci/complete.meta.jso
 The concurrent connector run completed nine HTTP consumers before interruption;
 it is not counted as an all-language/all-protocol pass. Both are superseded by
 qualification of the corrected committed revision.
+
+### Flight clock and expiry counter bounds (2026-10-03)
+
+Pinned native units and the 2,868-case semantic matrix pass. The actual gateway's
+time addition rejects values beyond the native counter range as `ClockUnavailable`,
+including values that still fit uint64. A boundary ticket issued at the maximum
+valid timestamp decodes immediately before expiry and reports expiry exactly at
+that timestamp. The failure projection remains UNAVAILABLE without a fabricated
+query outcome or caller credential fault.
+
+The pinned Flight suite passes real finite statements, exact full-width/null rows,
+metadata and retries, installed Python and C ADBC, and original overflow detail
+after gateway replacement with current-disclosure denial. Documentation links
+pass. This changes no ticket bytes, ABI layout or current definition.

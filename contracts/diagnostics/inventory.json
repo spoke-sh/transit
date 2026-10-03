@@ -4203,7 +4203,7 @@
     "packages/zig/transit-flight/src/Gateway.zig": {
       "errors": {
         "Canceled": 1,
-        "ClockUnavailable": 3,
+        "ClockUnavailable": 2,
         "Conflict": 1,
         "FlightCallerCapacity": 1,
         "FlightSequenceConflict": 1,
@@ -4242,6 +4242,7 @@
         "Call.upload()": "<inferred>",
         "Call.uploadStep()": "<inferred>",
         "Configuration.validate()": "<inferred>",
+        "advanceTime()": "<inferred>",
         "authenticate()": "<inferred>",
         "credentialHash()": "<inferred>",
         "handle()": "<inferred>",
@@ -4249,8 +4250,8 @@
       },
       "open_error_set_uses": 1,
       "propagation": {
-        "try": 87,
-        "catch": 20
+        "try": 88,
+        "catch": 18
       },
       "imports": [
         "root.zig",

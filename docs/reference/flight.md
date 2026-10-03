@@ -123,7 +123,9 @@ result but cannot be represented by this Flight profile. `flight.integer_out_of_
 reports the result column, actual value, required type and maximum at the output
 stage. It leaves the saved query outcome unchanged; use the native query result
 interface to read that value. Invalid Arrow/IPC result evidence instead produces
-an integrity diagnostic. Clock failures remain distinct from ticket expiry.
+an integrity diagnostic. Clock failures remain distinct from ticket expiry. Host time plus configured
+clock error and ticket lifetime must fit the native counter range; exceeding
+that range reports an unavailable clock rather than an invalid caller ticket.
 
 Failed RPC reads retain the selected query identity when available and permitted.
 Current denial suppresses that identity and execution facts while retaining the

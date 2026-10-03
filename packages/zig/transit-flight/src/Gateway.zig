@@ -221,7 +221,7 @@ const Call = struct {
     fn now(self: *Call) !u64 {
         const time = Io.Clock.real.now(self.io).toMilliseconds();
         if (time < 0 or time > p.max_counter) return error.ClockUnavailable;
-        return std.math.add(u64, @intCast(time), self.gateway.config.clock_error_ms) catch return error.ClockUnavailable;
+        return advanceTime(@intCast(time), self.gateway.config.clock_error_ms);
     }
     fn authorize(self: *Call, admission: bool) !void {
         try self.response.check();
@@ -307,7 +307,7 @@ const Call = struct {
         }
         try self.authorize(false);
         if (schema_only) return self.send(w.SchemaResult{ .schema = schema });
-        const expires = std.math.add(u64, try self.now(), self.gateway.config.ticket_ttl_ms) catch return error.ClockUnavailable;
+        const expires = try advanceTime(try self.now(), self.gateway.config.ticket_ttl_ms);
         const bytes = try (root.Ticket{ .scope = self.caller.scope(), .expires_ms = expires, .reference = reference }).issue(self.gateway.config.ticket_key, &self.ticket_buffer);
         // Flight SQL requires TicketStatementQuery in a protobuf Any envelope.
         var statement_buffer: [2048]u8 = undefined;
@@ -486,4 +486,34 @@ test "credential selection is per RPC and never a connection identity" {
     try t.expect(!std.crypto.timing_safe.eql([32]u8, first, second));
     try t.expectError(error.FlightUnauthenticated, credentialHash("short"));
     _ = &handle;
+}
+
+/// Server-generated clock/skew/expiry values must fit the ticket counter domain.
+/// A bad host clock is not an invalid credential supplied by a caller.
+fn advanceTime(now_ms: u64, increment_ms: u32) !u64 {
+    if (now_ms > p.max_counter or increment_ms > p.max_counter - now_ms) return error.ClockUnavailable;
+    return now_ms + increment_ms;
+}
+
+test "server ticket time bounds cannot become caller credential failures" {
+    const t = std.testing;
+    try t.expectEqual(@as(u64, 0), try advanceTime(0, 0));
+    try t.expectEqual(p.max_counter, try advanceTime(p.max_counter - 1000, 1000));
+    for ([_]u64{ p.max_counter, p.max_counter + 1, std.math.maxInt(u64) }) |value| {
+        try t.expectError(error.ClockUnavailable, advanceTime(value, 1));
+    }
+    try t.expectError(error.ClockUnavailable, advanceTime(p.max_counter + 1, 0));
+    const key = try p.Ed25519.KeyPair.generateDeterministic(@splat(37));
+    const scope: root.Ticket.Scope = .{ .realm = 49, .principal = 65536, .service = 1, .binding_revision = 2, .ingress = 7, .requests = 11, .source = 3, .resource = 9, .table = 1 };
+    const ticket: root.Ticket = .{ .scope = scope, .expires_ms = try advanceTime(p.max_counter - 1000, 1000), .reference = .{ .statement = .{ .correlation = 123, .manifest = @splat(5) } } };
+    var buffer: [root.Ticket.max_bytes]u8 = undefined;
+    const bytes = try ticket.issue(key, &buffer);
+    try t.expectEqualDeep(ticket, try root.Ticket.decode(bytes, scope, p.max_counter - 1, key.public_key));
+    try t.expectError(error.FlightTicketExpired, root.Ticket.decode(bytes, scope, p.max_counter, key.public_key));
+    const status = root.DiagnosticDetail.statusFor(error.ClockUnavailable);
+    try t.expectEqual(@as(u8, 14), status);
+    const detail = try root.DiagnosticDetail.attempt(error.ClockUnavailable, status);
+    try t.expectEqualStrings("flight.clock_unavailable", detail.code.slice());
+    try t.expectEqual(.not_applicable, detail.outcome);
+    try t.expect(detail.identity == null);
 }
