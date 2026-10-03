@@ -411,3 +411,16 @@ test "occupied refresh namespace fails one view and preserves ingress progress" 
     try t.expectEqualDeep(original, rig.requests.state.get(key).?);
     try t.expect(!try rig.drive());
 }
+
+test "Follow reports an explicitly closed session independently of lease expiry" {
+    var rig: Rig = .{};
+    defer rig.deinit();
+    try rig.init();
+    const identity = try rig.session(1);
+    const selection = try rig.follow(identity, 0, 2);
+    try rig.command(principal, .{ .reactive = .{ .close = identity } });
+    try t.expectError(error.ReactiveSessionClosed, rig.apply(.{ .invalidate = selection }));
+    try t.expectError(error.ReactiveSessionClosed, rig.follow(identity, selection.generation, 2));
+    try rig.apply(.{ .pause = selection });
+    try t.expectEqual(.paused, (try rig.view(selection)).phase);
+}

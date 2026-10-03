@@ -25,7 +25,7 @@ pub const Command = union(enum) {
         };
     }
 };
-pub const Observation = union(enum) { pending, committed, rejected: p.Value };
+pub const Observation = union(enum) { pending, committed, rejected: root.ServingFailure.Disposition };
 pub const Request = union(enum) {
     describe,
     clock,

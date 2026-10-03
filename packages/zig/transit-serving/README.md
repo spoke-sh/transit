@@ -109,3 +109,10 @@ read/command policy and the configured published binding inside the owning turn.
 The original requester enforces one active query and owns its retained statuses,
 waiting and result publication. Tickets, SQL and sockets stay outside this owner.
 Composition unit tests pass; gateway/client and placement qualification is open.
+
+Rejected controls use [`ServingFailure`](src/ServingFailure.zig) to retain original
+conflict, policy, quota and lifecycle evidence in one bounded durable record.
+Current authorized disposition reads project it through the shared diagnostic
+contract. See [serving semantics](../../../docs/reference/serving.md) for recovery
+and the [wire contract](../../../contracts/SERVING_V1.md#rejected-input-evidence)
+for encoding and disclosure rules.

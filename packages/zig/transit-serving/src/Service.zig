@@ -6,9 +6,11 @@ const s = root.station;
 const p = root.protocol;
 const m = root.Model;
 const c = root.Codec;
+const f = root.ServingFailure;
 const Turn = s.Turn;
 const Self = @This();
 configuration: m.Configuration,
+diagnostic: ?*f.Context = null,
 
 pub fn interface(self: *Self) s.GenServer.Handler {
     return .{ .context = self, .initialize = initialize, .handle = handle };
@@ -28,13 +30,20 @@ pub fn operation(reader: anytype, principal: u64, id: u64) !?m.Operation {
 pub fn active(reader: anytype) !m.Active {
     return if (try reader.read(m.key('a', 0, 0))) |value| try c.decode(m.Active, 'a', value) else .{};
 }
-fn disposition(turn: *Turn, reason: []const u8) !void {
-    const principal = if (turn.delivery.input.origin == .external) turn.delivery.input.origin.external.principal else 0;
-    try turn.write(m.key('e', principal, turn.delivery.input.position), try p.Value.init(reason));
+fn disposition(turn: *Turn, command: ?m.Command, reason: f.Reason, context: f.Context) !void {
+    try f.record(turn, command, reason, context);
 }
-fn reject(turn: *Turn, reason: []const u8) !bool {
-    try disposition(turn, reason);
+fn reject(turn: *Turn, reason: f.Reason, context: f.Context) !bool {
+    try disposition(turn, null, reason, context);
     return true;
+}
+pub fn rights(turn: *Turn, principal: u64, reads: bool, context: ?*f.Context) !m.Policy {
+    const observed = try policy(turn, principal);
+    if (observed == null or (if (reads) !observed.?.reads else !observed.?.commands)) {
+        f.remember(context, .{ .policy = .{ .principal = principal, .revision = if (observed) |v| v.revision else 0, .present = observed != null, .commands = if (observed) |v| v.commands else false, .reads = if (observed) |v| v.reads else false } });
+        return error.ServingDenied;
+    }
+    return observed.?;
 }
 fn configurationCheck(self: Self, turn: *Turn) !void {
     const stored = (try turn.read(m.key('c', 0, 0))) orelse return error.UninitializedService;
@@ -49,23 +58,23 @@ fn initialize(raw: ?*anyopaque, turn: *Turn) !void {
 /// a disposition; a failed read still poisons/aborts the private proposal.
 fn rejectInput(raw: ?*anyopaque, turn: *Turn) anyerror!bool {
     const self: *Self = @ptrCast(@alignCast(raw.?));
-    const frame = s.Frame.decode(turn.delivery.input.value) catch return reject(turn, "InvalidServingFrame");
+    const frame = s.Frame.decode(turn.delivery.input.value) catch |err| return reject(turn, .InvalidServingFrame, .{ .cause = err });
     switch (frame.kind) {
         .cast => {
-            if (turn.delivery.input.origin != .external) return reject(turn, "ServingExternalOriginRequired");
-            _ = m.Command.decode(frame.payload) catch return reject(turn, "InvalidServingCommand");
+            if (turn.delivery.input.origin != .external) return reject(turn, .ServingExternalOriginRequired, .{});
+            _ = m.Command.decode(frame.payload) catch |err| return reject(turn, .InvalidServingCommand, .{ .cause = err });
         },
         .reply => {
-            const wait = (try turn.waiting(frame.correlation)) orelse return reject(turn, "UnknownServingCorrelation");
-            if ((s.Frame.source(turn.delivery.input) catch 0) != wait.target) return reject(turn, "UnexpectedServingReplySource");
+            const wait = (try turn.waiting(frame.correlation)) orelse return reject(turn, .UnknownServingCorrelation, .{});
+            if ((s.Frame.source(turn.delivery.input) catch 0) != wait.target) return reject(turn, .UnexpectedServingReplySource, .{ .witness = .{ .frame = .{ .correlation = frame.correlation, .expected = wait.target, .actual = s.Frame.source(turn.delivery.input) catch 0, .kind = .reply_source, .actual_known = turn.delivery.input.origin == .process } } });
         },
         .timeout => {
-            if (turn.delivery.input.origin != .external or turn.delivery.input.origin.external.principal != self.configuration.observer) return reject(turn, "UnexpectedTimerObserver");
-            const wait = (try turn.waiting(frame.correlation)) orelse return reject(turn, "UnknownServingCorrelation");
-            if (wait.observer != self.configuration.observer or frame.payload.len != 12 or !std.mem.eql(u8, frame.payload.data[0..4], "TMO1")) return reject(turn, "InvalidTimerObservation");
-            if (std.mem.readInt(u64, frame.payload.data[4..12], .little) < (wait.deadline_ms orelse return reject(turn, "InvalidTimerObservation"))) return reject(turn, "PrematureTimer");
+            if (turn.delivery.input.origin != .external or turn.delivery.input.origin.external.principal != self.configuration.observer) return reject(turn, .UnexpectedTimerObserver, .{ .witness = .{ .frame = .{ .correlation = frame.correlation, .expected = self.configuration.observer, .actual = if (turn.delivery.input.origin == .external) turn.delivery.input.origin.external.principal else 0, .kind = .observer, .actual_known = turn.delivery.input.origin == .external } } });
+            const wait = (try turn.waiting(frame.correlation)) orelse return reject(turn, .UnknownServingCorrelation, .{});
+            if (wait.observer != self.configuration.observer or frame.payload.len != 12 or !std.mem.eql(u8, frame.payload.data[0..4], "TMO1")) return reject(turn, .InvalidTimerObservation, .{});
+            if (std.mem.readInt(u64, frame.payload.data[4..12], .little) < (wait.deadline_ms orelse return reject(turn, .InvalidTimerObservation, .{}))) return reject(turn, .PrematureTimer, .{ .witness = .{ .frame = .{ .correlation = frame.correlation, .expected = wait.deadline_ms.?, .actual = std.mem.readInt(u64, frame.payload.data[4..12], .little), .kind = .timer } } });
         },
-        else => return reject(turn, "UnsupportedServingFrame"),
+        else => return reject(turn, .UnsupportedServingFrame, .{}),
     }
     return false;
 }
@@ -75,13 +84,16 @@ fn handle(raw: ?*anyopaque, turn: *Turn, frame: s.Frame) anyerror!void {
         try self.configurationCheck(turn);
         return self.resolve(turn, frame);
     }
-    if (frame.kind != .cast or turn.delivery.input.origin != .external) return disposition(turn, "UnexpectedServingOrigin");
-    const command = m.Command.decode(frame.payload) catch return disposition(turn, "InvalidServingCommand");
+    if (frame.kind != .cast or turn.delivery.input.origin != .external) return disposition(turn, null, .UnexpectedServingOrigin, .{});
+    const command = m.Command.decode(frame.payload) catch |err| return disposition(turn, null, .InvalidServingCommand, .{ .cause = err });
     const before = turn.decision;
-    self.apply(turn, command, turn.delivery.input.origin.external.principal) catch |err| {
+    var context: f.Context = .{};
+    var owner = self.*;
+    owner.diagnostic = &context;
+    owner.apply(turn, command, turn.delivery.input.origin.external.principal) catch |err| {
         turn.decision = before;
         if (turn.read_error != null or !requestError(err)) return err;
-        try disposition(turn, @errorName(err));
+        try disposition(turn, command, f.reason(err).?, context);
     };
 }
 pub fn apply(self: Self, turn: *Turn, command: m.Command, principal: u64) !void {
@@ -96,7 +108,10 @@ pub fn apply(self: Self, turn: *Turn, command: m.Command, principal: u64) !void 
             if (principal != self.configuration.administrator) return error.ServingDenied;
             try request.binding.validate();
             const previous = try binding(turn);
-            if (request.expected != (if (previous) |value| value.revision else 0) or request.binding.revision != try std.math.add(u64, request.expected, 1)) return error.ServiceRevisionConflict;
+            if (request.expected != (if (previous) |value| value.revision else 0) or request.expected >= p.max_counter or request.binding.revision != request.expected + 1) {
+                f.remember(self.diagnostic, .{ .revision = .{ .kind = .binding, .expected = request.expected, .actual = if (previous) |v| v.revision else 0, .proposed = request.binding.revision, .present = previous != null } });
+                return error.ServiceRevisionConflict;
+            }
             const encoded = try c.encode('b', request.binding);
             try turn.write(m.key('b', 0, 0), encoded);
             try turn.write(m.key('v', request.binding.revision, 0), encoded);
@@ -106,15 +121,17 @@ pub fn apply(self: Self, turn: *Turn, command: m.Command, principal: u64) !void 
             try m.identity(request.principal);
             try request.policy.validate();
             const previous = try policy(turn, request.principal);
-            if (request.expected != (if (previous) |value| value.revision else 0) or request.policy.revision != try std.math.add(u64, request.expected, 1)) return error.ServiceRevisionConflict;
+            if (request.expected != (if (previous) |value| value.revision else 0) or request.expected >= p.max_counter or request.policy.revision != request.expected + 1) {
+                f.remember(self.diagnostic, .{ .revision = .{ .kind = .policy, .expected = request.expected, .actual = if (previous) |v| v.revision else 0, .proposed = request.policy.revision, .present = previous != null } });
+                return error.ServiceRevisionConflict;
+            }
             try turn.write(m.key('p', request.principal, 0), try c.encode('p', request.policy));
         },
         .refresh => return error.InvalidServingCommand, // Requires the explicitly composed live-query owner.
-        .reactive => |request| try root.ReactiveService.apply(self.configuration, turn, principal, request),
+        .reactive => |request| try root.ReactiveService.applyDiagnostic(self.configuration, turn, principal, request, self.diagnostic),
         .submit => |request| try self.submit(turn, principal, request),
         .cancel => |id| {
-            const rights = (try policy(turn, principal)) orelse return error.ServingDenied;
-            if (!rights.commands) return error.ServingDenied;
+            _ = try rights(turn, principal, false, self.diagnostic);
             var record = (try operation(turn, principal, id)) orelse return error.ServingOperationNotFound;
             if (record.phase != .admitted) return;
             if (!try s.Waiting.cancel(turn, record.correlation)) return error.ServingStateConflict;
@@ -125,17 +142,25 @@ pub fn apply(self: Self, turn: *Turn, command: m.Command, principal: u64) !void 
 }
 fn submit(self: Self, turn: *Turn, principal: u64, request: m.Submit) !void {
     try request.validate();
-    const rights = (try policy(turn, principal)) orelse return error.ServingDenied;
-    if (!rights.commands) return error.ServingDenied;
+    const permission = try rights(turn, principal, false, self.diagnostic);
     const digest = try request.digest();
     if (try operation(turn, principal, request.operation)) |old| {
-        if (!std.mem.eql(u8, &old.digest, &digest)) return error.ServingIdentityConflict;
+        if (!std.mem.eql(u8, &old.digest, &digest)) {
+            f.remember(self.diagnostic, .{ .identity = .{ .expected = old.digest, .actual = digest } });
+            return error.ServingIdentityConflict;
+        }
         return;
     }
-    const route = (try binding(turn)) orelse return error.ServiceUnpublished;
-    if (!route.published) return error.ServiceUnpublished;
-    if (route.revision != request.binding or route.codec != request.codec) return error.ServiceRevisionConflict;
-    if (request.deadline_ms > route.wait_before_ms) return error.InvalidWaitLifetime;
+    const observed = try binding(turn);
+    if (observed == null or !observed.?.published or observed.?.revision != request.binding or observed.?.codec != request.codec) {
+        f.remember(self.diagnostic, f.bindingWitness(observed, request.binding, request.codec));
+        return if (observed == null or !observed.?.published) error.ServiceUnpublished else error.ServiceRevisionConflict;
+    }
+    const route = observed.?;
+    if (request.deadline_ms > route.wait_before_ms) {
+        f.remember(self.diagnostic, .{ .lease = .{ .kind = .binding, .requested = request.deadline_ms, .observed = 0, .limit = route.wait_before_ms } });
+        return error.InvalidWaitLifetime;
+    }
     var slots = try active(turn);
     var total: usize = 0;
     var caller: usize = 0;
@@ -148,10 +173,22 @@ fn submit(self: Self, turn: *Turn, principal: u64, request: m.Submit) !void {
             if (slot.principal == principal) caller += 1;
         }
     }
-    if (total >= route.active_limit or caller >= rights.active_limit or free == null) return error.ServingCapacity;
+    if (total >= route.active_limit or caller >= permission.active_limit or free == null) {
+        const global = total >= route.active_limit;
+        f.remember(self.diagnostic, .{ .capacity = .{ .kind = if (global) .service else if (caller >= permission.active_limit) .caller else .service_slots, .actual = @intCast(if (global or free == null) total else caller), .limit = if (global) route.active_limit else if (caller >= permission.active_limit) permission.active_limit else m.max_active } });
+        return error.ServingCapacity;
+    }
     const invocation: m.Invocation = .{ .service = self.configuration.service, .principal = principal, .operation = request.operation, .binding = route.revision, .codec = route.codec, .payload = request.payload };
-    const correlation = try turn.callWithTimer(route.target, try c.encode('i', invocation), request.deadline_ms, self.configuration.observer);
-    const record: m.Operation = .{ .principal = principal, .operation = request.operation, .binding = route.revision, .codec = route.codec, .deadline_ms = request.deadline_ms, .digest = digest, .target = route.target, .correlation = correlation, .policy_revision = rights.revision };
+    const correlation = turn.callWithTimer(route.target, try c.encode('i', invocation), request.deadline_ms, self.configuration.observer) catch |err| {
+        if (err == error.InvalidWaitLifetime) {
+            const work = turn.delivery.work_before_ms;
+            const resource = turn.resource_deadline_ms;
+            const process = work != null and (resource == null or work.? <= resource.?);
+            f.remember(self.diagnostic, .{ .lease = .{ .kind = if (process) .process else .resource, .requested = request.deadline_ms, .observed = 0, .limit = if (process) work.? else resource.? } });
+        }
+        return err;
+    };
+    const record: m.Operation = .{ .principal = principal, .operation = request.operation, .binding = route.revision, .codec = route.codec, .deadline_ms = request.deadline_ms, .digest = digest, .target = route.target, .correlation = correlation, .policy_revision = permission.revision };
     slots.slots[free.?] = .{ .correlation = correlation, .principal = principal, .operation = request.operation };
     try turn.write(m.key('a', 0, 0), try c.encode('a', slots));
     try turn.write(m.key('o', principal, request.operation), try c.encode('o', record));

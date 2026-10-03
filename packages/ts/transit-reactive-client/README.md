@@ -78,3 +78,11 @@ attachment. A delayed receipt keeps the exact prepared control and input positio
 startup resumes only after that control is observed, without replacing its session
 or query selection. Known denial/expiry stops this recovery and clears protected
 state. Every attempt remains bounded and pause joins the startup task.
+
+Committed control rejections preserve the owner's reason and optional original
+witness through `ReactiveError.diagnostic`. `diagnosticInvalid` identifies invalid
+optional detail without changing the primary rejection. `scopeFailure` records a
+later current-scope error independently. Current denial clears protected state
+and suppresses prior diagnostic facts; it does not resubmit accepted controls.
+The [shared diagnostic package](../transit-diagnostics/README.md) owns validation
+and rendering. Explicit session closure and lease expiry have distinct reasons.

@@ -5,7 +5,7 @@
   "type": "module",
   "exports": "./src/index.ts",
   "dependencies": {
-    "@rey/transit-query-client": "workspace:*",
+    "@rey/transit-diagnostics": "workspace:*",
     "@rey/transit-reactive-client": "workspace:*",
     "ajv": "8.20.0"
   },

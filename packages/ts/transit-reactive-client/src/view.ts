@@ -1,3 +1,4 @@
+import { diagnosticLines } from "@rey/transit-diagnostics";
 import {
   ReactiveError,
   Session,
@@ -82,7 +83,14 @@ export class LiveView<T> {
   }
   private fail(error: unknown) {
     if (error instanceof ReactiveError && error.clearsProtectedState) {
-      this.publish({ phase: "denied", snapshot: null, refresh: null, detail: error.reason });
+      this.publish({
+        phase: "denied",
+        snapshot: null,
+        refresh: null,
+        detail:
+          (error.diagnostic ? diagnosticLines(error.diagnostic).join("\n") : error.reason) +
+          (error.scopeFailure ? `\nCurrent scope: ${error.scopeFailure.reason}.` : ""),
+      });
       this.abort?.abort();
     } else if (error instanceof ReactiveError && error.reason === "reset_required") {
       this.publish({
@@ -93,9 +101,12 @@ export class LiveView<T> {
     } else {
       this.publish({
         phase: "disconnected",
-        detail: this.session.pending
-          ? "Control outcome uncertain; its exact operation is retained."
-          : "Connection unavailable; displayed basis is unchanged.",
+        detail:
+          error instanceof ReactiveError && error.diagnostic
+            ? diagnosticLines(error.diagnostic).join("\n")
+            : this.session.pending
+              ? "Control outcome uncertain; its exact operation is retained."
+              : "Connection unavailable; displayed basis is unchanged.",
       });
     }
   }
@@ -300,7 +311,8 @@ export class LiveView<T> {
     if ("terminal" in message) {
       this.connected = false;
       const reason = message.terminal.reason;
-      if (reason === "denied" || reason === "expired") this.fail(new ReactiveError(0, reason));
+      if (reason === "denied" || reason === "expired" || reason === "closed")
+        this.fail(new ReactiveError(0, reason));
       else if (reason === "reset_required") this.fail(new ReactiveError(409, reason));
       else
         this.publish({

@@ -72,9 +72,22 @@ def run(env, tls):
         assert changed['cursor']['position']['data_revision'] > first['cursor']['position']['data_revision']
         # Pausing has its own exact control and does not cancel the application.
         command({'close': dict(session=11, generation=generation)}, control=True)
-        assert with_stream.until('terminal')['reason'] == 'expired'
+        assert with_stream.until('terminal')['reason'] == 'closed'
     finally:
         with_stream.close()
+    prepared = client({'prepare': {'renew': dict(identity=dict(session=11, generation=generation), expected=now + 28000, lease_before_ms=now + 29000)}}, control=True)['prepared']
+    env['sequences'][principal] = prepared['request']['sequence']
+    rejected_input = client({'submit': prepared}, control=True)['receipt']['receipt']['position']
+    drained(ingress)
+    rejected = client({'observe': rejected_input}, control=True)['observation']['rejected']
+    assert rejected['record']['reason'] == 'ReactiveSessionClosed', rejected
+    assert rejected['record']['payload'] == list(hashlib.sha256(b'transit.serving.input.v1\0' + bytes.fromhex(prepared['request']['command']['send']['value'])).digest()), rejected
+    detail = rejected['diagnostic']
+    assert detail['code'] == 'reactive.session_closed' and detail['outcome'] == 'input_rejected', detail
+    facts = {fact['field']: fact for fact in detail['facts'] if fact}
+    assert facts['operation']['value'] == {'text': 'closed'}, facts
+    assert facts['observed_clock']['availability'] == 'unrecorded', facts
+    assert client({'observe': rejected_input}, control=True)['observation']['rejected'] == rejected
     cast(ingress, policy(principal, revision=2, reads=False))
     drained(ingress)
     client({'describe': {}}, 403)

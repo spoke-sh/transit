@@ -163,9 +163,9 @@ importers:
 
   packages/ts/transit-application:
     dependencies:
-      '@rey/transit-query-client':
+      '@rey/transit-diagnostics':
         specifier: workspace:*
-        version: link:../transit-query-client
+        version: link:../transit-diagnostics
       '@rey/transit-reactive-client':
         specifier: workspace:*
         version: link:../transit-reactive-client
@@ -202,12 +202,25 @@ importers:
         specifier: 7.0.2
         version: 7.0.2
 
+  packages/ts/transit-diagnostics:
+    dependencies:
+      ajv:
+        specifier: 8.20.0
+        version: 8.20.0
+    devDependencies:
+      typescript:
+        specifier: 7.0.2
+        version: 7.0.2
+
   packages/ts/transit-native-client: {}
 
   packages/ts/transit-native-station: {}
 
   packages/ts/transit-query-client:
     dependencies:
+      '@rey/transit-diagnostics':
+        specifier: workspace:*
+        version: link:../transit-diagnostics
       '@rey/transit-reactive-client':
         specifier: workspace:*
         version: link:../transit-reactive-client
@@ -221,6 +234,9 @@ importers:
 
   packages/ts/transit-reactive-client:
     dependencies:
+      '@rey/transit-diagnostics':
+        specifier: workspace:*
+        version: link:../transit-diagnostics
       ajv:
         specifier: 8.20.0
         version: 8.20.0

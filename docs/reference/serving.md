@@ -23,6 +23,14 @@ completion. A connection can fail after admission. Preserve the original signed
 command and stable operation identity, reconcile the receipt and observe the
 outcome. Changing the sequence or content creates new work.
 
+Rejected controls retain their original reason and the values used at the failing
+check. Status shows expected and observed revisions/codecs, original policy,
+active count and limit, or conflicting identity commitments when those facts were
+observed. These facts survive later policy or publication changes. An input
+rejection says that control did not perform its requested transition; earlier
+admitted operations keep their own outcomes. Read its exact input disposition
+under current authorization before deciding on new work.
+
 ## Authorization and disclosure
 
 Commands preserve caller-signed native bytes. Scoped reads bind the requested

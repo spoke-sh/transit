@@ -35,9 +35,9 @@ class ExistingKey:
 
 def native(key, realm, principal, value, sequence=None):
     if sequence is None:
-        body = dict(version=1, definition='c750e7034f20d2446bfe44c7ad19a3ca45b415a0a02754523dc280cf74e20d15', realm=realm, principal=principal, kind=value)
+        body = dict(version=1, definition='8d2c6617b339418cf2d3afa6259009e4b3efc5308e40fe65757ca9385c227803', realm=realm, principal=principal, kind=value)
         return dict(query=body, signature=key.sign(hashlib.sha256(b'transit.query.v1\0' + compact(body)).digest()))
-    body = dict(version=1, definition='c750e7034f20d2446bfe44c7ad19a3ca45b415a0a02754523dc280cf74e20d15', realm=realm, principal=principal, sequence=sequence, command=value)
+    body = dict(version=1, definition='8d2c6617b339418cf2d3afa6259009e4b3efc5308e40fe65757ca9385c227803', realm=realm, principal=principal, sequence=sequence, command=value)
     return dict(request=body, signature=key.sign(hashlib.sha256(b'transit.request.v1\0' + compact(body)).digest()))
 
 

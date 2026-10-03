@@ -64,7 +64,7 @@ The browser package derives types and CSP-compatible validators from the owning
 Zig schemas. It validates SSE fields and separately validates their JSON data;
 `contentSchema` annotations alone are insufficient. The parser retains one
 9216-byte framing buffer and no history queue. Finite JSON responses are capped
-at 16 KiB and five seconds. Application int64 values remain exact decimal strings.
+at 16 KiB and 35 seconds. Application int64 values remain exact decimal strings.
 The host's lease and final current-authority checks remain authoritative.
 
 Descriptions include `observed_ms`, the ingress owner's committed observer clock.
@@ -77,3 +77,17 @@ The read-only `clock` operation returns the same validated observer sample throu
 reserved control capacity, with current native/service authorization. Renewal
 uses it without repeating discovery/schema reads. It grants no extra lease;
 the owner still validates the subsequently recorded conditional renew command.
+
+Committed control rejection carries the serving owner's original input record
+and optional diagnostic. The browser releases that completed control's sequence
+lock and preserves its finite reason. It separately inspects current scope when
+an attachment exists. A later scope failure does not relabel the original
+rejection or make the control uncertain. Current denial/closure/expiry clears
+protected view state and suppresses the retained diagnostic from display.
+Malformed optional detail cannot replace the primary rejection or authorize
+retry. The shared TypeScript diagnostic package validates owned details.
+
+An explicitly closed session reports `ReactiveSessionClosed` and a stream
+terminal `closed`. An expired lease reports `ReactiveSessionExpired`/`expired`.
+An observed deadline with recorded phase `open` does not prove the owner has
+reclaimed its active slot. Neither condition cancels accepted application work.

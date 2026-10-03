@@ -5,6 +5,7 @@
   "type": "module",
   "exports": "./src/index.ts",
   "dependencies": {
+    "@rey/transit-diagnostics": "workspace:*",
     "ajv": "8.20.0"
   }
 }

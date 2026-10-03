@@ -71,6 +71,12 @@ pub const Field = enum {
     operation,
     native_cause,
     expected_bytes,
+    presence,
+    published,
+    subscription,
+    expected_codec,
+    actual_codec,
+    observed_clock,
 };
 pub const Text = BoundedText(256);
 pub const Code = BoundedText(96);

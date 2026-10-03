@@ -1,3 +1,4 @@
+import { ownedDiagnostic } from "@rey/transit-diagnostics";
 import { ReactiveError, Transport } from "./index";
 import { acquireCaller, type AcquireCaller } from "./caller-gate";
 import type {
@@ -91,13 +92,40 @@ export class Session {
         return pending.input;
       }
       if ("rejected" in seen.observation) {
+        const rejected = seen.observation.rejected;
+        if (rejected.record.input !== pending.input) return invalid();
         this.pending = null;
         this.unlock();
-        // A committed rejection is no longer uncertain. Observe current scope
-        // so expiry/denial clears protected state, including when renewal was
-        // rejected before an attachment could report a changed watch.
-        if (this.scope && this.attachment > 0) await this.inspect(signal);
-        throw new ReactiveError(409, "reset_required");
+        const owned = ownedDiagnostic(rejected.diagnostic);
+        const evidence = owned.diagnostic;
+        const nativeInput = evidence?.facts.find((fact) => fact?.field === "native_input")?.value;
+        const detail =
+          evidence &&
+          (evidence.outcome !== "input_rejected" ||
+            evidence.evidence !== "domain_status" ||
+            !nativeInput ||
+            !("unsigned" in nativeInput) ||
+            nativeInput.unsigned !== String(pending.input))
+            ? {}
+            : rejected.diagnostic;
+        let scopeFailure: ReactiveError | undefined;
+        // A current authorization failure clears protected state, but cannot
+        // replace the historical input rejection or make it uncertain again.
+        if (this.scope && this.attachment > 0) {
+          try {
+            await this.inspect(signal);
+          } catch (error) {
+            scopeFailure =
+              error instanceof ReactiveError ? error : new ReactiveError(0, "interrupted");
+          }
+        }
+        const failure = new ReactiveError(
+          409,
+          rejected.record.reason,
+          scopeFailure?.clearsProtectedState ? undefined : detail,
+        );
+        failure.scopeFailure = scopeFailure;
+        throw failure;
       }
       await new Promise((resolve) => setTimeout(resolve, 250));
       signal?.throwIfAborted();
@@ -273,7 +301,8 @@ export class Session {
       await this.lock(signal);
       const scope = this.scope;
       const state = await this.transport.read(await this.signed("session", null, signal), signal);
-      if (state.session.phase !== "open") throw new ReactiveError(410, "expired");
+      if (state.session.phase !== "open")
+        throw new ReactiveError(410, state.session.phase === "closed" ? "closed" : "expired");
       this.leaseBefore = state.session.lease_before_ms;
       const challenge = await this.transport.challenge(
         await this.signed("session", null, signal),

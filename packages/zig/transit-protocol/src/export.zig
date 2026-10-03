@@ -10,7 +10,7 @@ pub fn main(init: std.process.Init) !void {
     var out: std.json.Stringify = .{ .writer = &writer.interface, .options = .{ .whitespace = .indent_2 } };
     const args = try init.minimal.args.toSlice(init.arena.allocator());
     if (args.len == 2 and std.mem.eql(u8, args[1], "--diagnostic")) {
-        try p.Schema.write(p.Diagnostic, &out, .{ .safe_integers = true });
+        try p.Schema.write(p.Diagnostic, &out, .{ .safe_integers = true, .output = true });
         try writer.interface.writeByte('\n');
         return writer.interface.flush();
     }

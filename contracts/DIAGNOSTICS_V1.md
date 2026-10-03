@@ -75,6 +75,12 @@ replace the primary cause, declare uncertain work rejected or authorize a new
 submission. A caller that cannot obtain detail must retain its original saved
 operation and outcome evidence.
 
+The standalone generated diagnostic schema describes emitted envelopes: fields
+with Zig defaults are still present in JSON. The neutral browser
+[`transit-diagnostics`](../packages/ts/transit-diagnostics/README.md) library owns
+validation and rendering for query, application and reactive callers. Invalid
+optional detail cannot replace their primary transport or domain result.
+
 ## Coverage
 
 The [source inventory](diagnostics/README.md) owns diagnostic-surface drift.

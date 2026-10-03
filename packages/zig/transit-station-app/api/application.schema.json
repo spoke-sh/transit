@@ -3601,7 +3601,7 @@
                                 "definition": {
                                   "type": "string",
                                   "enum": [
-                                    "c750e7034f20d2446bfe44c7ad19a3ca45b415a0a02754523dc280cf74e20d15"
+                                    "8d2c6617b339418cf2d3afa6259009e4b3efc5308e40fe65757ca9385c227803"
                                   ]
                                 },
                                 "code": {
@@ -3937,7 +3937,13 @@
                                               "sampling_records",
                                               "operation",
                                               "native_cause",
-                                              "expected_bytes"
+                                              "expected_bytes",
+                                              "presence",
+                                              "published",
+                                              "subscription",
+                                              "expected_codec",
+                                              "actual_codec",
+                                              "observed_clock"
                                             ]
                                           },
                                           "origin": {
@@ -4369,7 +4375,7 @@
                         "definition": {
                           "type": "string",
                           "enum": [
-                            "c750e7034f20d2446bfe44c7ad19a3ca45b415a0a02754523dc280cf74e20d15"
+                            "8d2c6617b339418cf2d3afa6259009e4b3efc5308e40fe65757ca9385c227803"
                           ]
                         },
                         "code": {
@@ -4705,7 +4711,13 @@
                                       "sampling_records",
                                       "operation",
                                       "native_cause",
-                                      "expected_bytes"
+                                      "expected_bytes",
+                                      "presence",
+                                      "published",
+                                      "subscription",
+                                      "expected_codec",
+                                      "actual_codec",
+                                      "observed_clock"
                                     ]
                                   },
                                   "origin": {
@@ -6443,7 +6455,7 @@
                                     "definition": {
                                       "type": "string",
                                       "enum": [
-                                        "c750e7034f20d2446bfe44c7ad19a3ca45b415a0a02754523dc280cf74e20d15"
+                                        "8d2c6617b339418cf2d3afa6259009e4b3efc5308e40fe65757ca9385c227803"
                                       ]
                                     },
                                     "code": {
@@ -6779,7 +6791,13 @@
                                                   "sampling_records",
                                                   "operation",
                                                   "native_cause",
-                                                  "expected_bytes"
+                                                  "expected_bytes",
+                                                  "presence",
+                                                  "published",
+                                                  "subscription",
+                                                  "expected_codec",
+                                                  "actual_codec",
+                                                  "observed_clock"
                                                 ]
                                               },
                                               "origin": {
@@ -7211,7 +7229,7 @@
                             "definition": {
                               "type": "string",
                               "enum": [
-                                "c750e7034f20d2446bfe44c7ad19a3ca45b415a0a02754523dc280cf74e20d15"
+                                "8d2c6617b339418cf2d3afa6259009e4b3efc5308e40fe65757ca9385c227803"
                               ]
                             },
                             "code": {
@@ -7547,7 +7565,13 @@
                                           "sampling_records",
                                           "operation",
                                           "native_cause",
-                                          "expected_bytes"
+                                          "expected_bytes",
+                                          "presence",
+                                          "published",
+                                          "subscription",
+                                          "expected_codec",
+                                          "actual_codec",
+                                          "observed_clock"
                                         ]
                                       },
                                       "origin": {
@@ -9132,7 +9156,7 @@
                                     "definition": {
                                       "type": "string",
                                       "enum": [
-                                        "c750e7034f20d2446bfe44c7ad19a3ca45b415a0a02754523dc280cf74e20d15"
+                                        "8d2c6617b339418cf2d3afa6259009e4b3efc5308e40fe65757ca9385c227803"
                                       ]
                                     },
                                     "code": {
@@ -9468,7 +9492,13 @@
                                                   "sampling_records",
                                                   "operation",
                                                   "native_cause",
-                                                  "expected_bytes"
+                                                  "expected_bytes",
+                                                  "presence",
+                                                  "published",
+                                                  "subscription",
+                                                  "expected_codec",
+                                                  "actual_codec",
+                                                  "observed_clock"
                                                 ]
                                               },
                                               "origin": {
@@ -9900,7 +9930,7 @@
                             "definition": {
                               "type": "string",
                               "enum": [
-                                "c750e7034f20d2446bfe44c7ad19a3ca45b415a0a02754523dc280cf74e20d15"
+                                "8d2c6617b339418cf2d3afa6259009e4b3efc5308e40fe65757ca9385c227803"
                               ]
                             },
                             "code": {
@@ -10236,7 +10266,13 @@
                                           "sampling_records",
                                           "operation",
                                           "native_cause",
-                                          "expected_bytes"
+                                          "expected_bytes",
+                                          "presence",
+                                          "published",
+                                          "subscription",
+                                          "expected_codec",
+                                          "actual_codec",
+                                          "observed_clock"
                                         ]
                                       },
                                       "origin": {
@@ -14758,7 +14794,7 @@
                                         "definition": {
                                           "type": "string",
                                           "enum": [
-                                            "c750e7034f20d2446bfe44c7ad19a3ca45b415a0a02754523dc280cf74e20d15"
+                                            "8d2c6617b339418cf2d3afa6259009e4b3efc5308e40fe65757ca9385c227803"
                                           ]
                                         },
                                         "code": {
@@ -15094,7 +15130,13 @@
                                                       "sampling_records",
                                                       "operation",
                                                       "native_cause",
-                                                      "expected_bytes"
+                                                      "expected_bytes",
+                                                      "presence",
+                                                      "published",
+                                                      "subscription",
+                                                      "expected_codec",
+                                                      "actual_codec",
+                                                      "observed_clock"
                                                     ]
                                                   },
                                                   "origin": {
@@ -15526,7 +15568,7 @@
                                 "definition": {
                                   "type": "string",
                                   "enum": [
-                                    "c750e7034f20d2446bfe44c7ad19a3ca45b415a0a02754523dc280cf74e20d15"
+                                    "8d2c6617b339418cf2d3afa6259009e4b3efc5308e40fe65757ca9385c227803"
                                   ]
                                 },
                                 "code": {
@@ -15862,7 +15904,13 @@
                                               "sampling_records",
                                               "operation",
                                               "native_cause",
-                                              "expected_bytes"
+                                              "expected_bytes",
+                                              "presence",
+                                              "published",
+                                              "subscription",
+                                              "expected_codec",
+                                              "actual_codec",
+                                              "observed_clock"
                                             ]
                                           },
                                           "origin": {

@@ -12805,3 +12805,56 @@ state detail without a Zig stack trace, and exact saved replay after activation
 returns byte-equivalent parsed diagnostic content. Full `just check` passes,
 including generated contracts, 481 CLI cases, frontend tests and the handbook build.
 Reactive/effect mappings and complete semantic inventory coverage remain open.
+
+### Original serving and reactive control rejection — 2026-10-03
+
+Serving input rejection now stores its reason/cause, complete original frame
+commitment and check-time witness in one record of at most 194 bytes. Expected
+and observed revisions/codecs, policy, identity commitments, quotas, generations,
+subscriptions and lease/session phase survive later changes. Read outages remain
+unresolved. Current authorized status reads expose typed summaries and optional
+shared diagnostics; explicit closure and lease expiry have distinct reasons.
+A coordinated shared definition cutover rejects the old bare-string layout.
+
+Executed serving package tests: **passed**, including all 44 finite reason
+projections crossed with the 15 witness variants, bounded encoding/JSON, original
+policy/binding evidence, one-write rollback, old-record rejection, closed versus
+observed-deadline state, and Follow controls after explicit closure. Browser
+validation tests reject foreign, malformed and outcome/input-mismatched optional
+detail without resending; a later current denial suppresses protected facts and
+keeps the original control reason distinct. Four shared diagnostic library tests
+and the application/query consumer suites pass.
+
+Executed `just test::serving`: **passed**, 8.49 seconds excluding compilation.
+Independent Python commitments match the original conflicting submit and frame.
+A rejected uint64-maximum identity remains exact decimal text. Original conflict
+facts survive worker/gateway/node/disk restart and binding retirement; current
+service/native revocation blocks later disposition reads.
+
+Executed `just test::serving-lifetimes`: **passed**, 23.51 seconds, including the
+original limiting process deadline with explicitly unrecorded clock, cancellation,
+timeout/duplicate observation and late replies after physical recovery. Executed
+`just test::reactive-client`: **passed**, 3.58 seconds, including an SSE `closed`
+terminal and a retained rejected renewal carrying the original closed phase and
+frame commitment through repeated private-host observation.
+
+Executed `just test::reactive-limits`: **passed**, 61.17 seconds overall; the
+capacity/lifetime phase takes 51.55 seconds. It exercises four durable sessions,
+four held streams, recorded 4/4 capacity detail, reserved renewal, 0.002-second
+health response, idle revocation, signed cursors, malformed frames, twelve
+reconnects and absent-observer lease/source expiry. Two gateways use 48,586,752
+RSS bytes under the 268,435,456-byte ceiling. Executed
+`just test::reactive-browser`: **passed**, 13.34 seconds, including actual Chromium
+WebCrypto, same-origin TLS WebSocket bootstrap, exact HTTP fallback, SSE resume
+and gateway/worker/node/store recovery.
+
+Full `just check`: **passed**, including 481 real CLI cases, 45 Board tests,
+12 application-client tests, 27 query-client tests, generated contracts and the
+production handbook. Final focused checks also cover the Follow closure mapping,
+shared dependency cleanup and presentation of a later denial separately from
+the original rejection. Initial invocations with an incorrect root test-step
+name, an unquoted digit-leading definition identifier, a redundant `try` around
+`catch`, and an input-oriented diagnostic schema in the new output validator did
+not pass; corrected invocations are the evidence above. Follow terminal causes,
+adapter read/transport witnesses, effects and semantic inventory completion remain
+separate work. No committed-HEAD clean qualification is claimed here.

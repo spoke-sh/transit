@@ -1,3 +1,4 @@
+import diagnosticFixture from "../../../packages/zig/transit-protocol/src/fixtures/diagnostic-v1.json" with { type: "json" };
 import { describe, expect, test } from "vite-plus/test";
 import { SseDecoder, ReactiveError, Session, Transport } from "@rey/transit-reactive-client";
 
@@ -37,7 +38,7 @@ describe("generated reactive transport boundary", () => {
     const signed = {
       request: {
         version: 1,
-        definition: "c750e7034f20d2446bfe44c7ad19a3ca45b415a0a02754523dc280cf74e20d15",
+        definition: "8d2c6617b339418cf2d3afa6259009e4b3efc5308e40fe65757ca9385c227803",
         realm: 49,
         principal: 65536,
         sequence: 1,
@@ -124,13 +125,13 @@ describe("generated reactive transport boundary", () => {
     expect(session.pending).toBeNull();
     expect(session.leaseBefore).toBe(30000);
   });
-  test.each([403, 410, 409])(
+  test.each([403, 410, 409, 0])(
     "rejected control observes current scope before terminal presentation (%s)",
     async (status) => {
       const signed = {
         request: {
           version: 1,
-          definition: "c750e7034f20d2446bfe44c7ad19a3ca45b415a0a02754523dc280cf74e20d15",
+          definition: "8d2c6617b339418cf2d3afa6259009e4b3efc5308e40fe65757ca9385c227803",
           realm: 49,
           principal: 65536,
           sequence: 1,
@@ -151,7 +152,22 @@ describe("generated reactive transport boundary", () => {
               ? { prepared: signed }
               : "submit" in request
                 ? { receipt: { receipt: { position: 10 } } }
-                : { observation: { rejected: "526561637469766552657365745265717569726564" } };
+                : {
+                    observation: {
+                      rejected: {
+                        record: {
+                          reason: "ReactiveLeaseConflict",
+                          input: 10,
+                          kind: "reactive",
+                          subject: "5",
+                          generation: "6",
+                          payload: Array(32).fill(0),
+                          cause: "52656163746976654c65617365436f6e666c696374",
+                        },
+                        diagnostic: null,
+                      },
+                    },
+                  };
           return new Response(JSON.stringify(response), {
             headers: { "Content-Type": "application/json" },
           });
@@ -171,6 +187,11 @@ describe("generated reactive transport boundary", () => {
         subscription: 7,
         subscription_generation: 8,
       };
+      if (status === 0)
+        session.inspect = async () => {
+          ++inspections;
+          throw new DOMException("Scope observation aborted", "AbortError");
+        };
       session.attachment = 9;
       session.nonce = Array(16).fill(1);
       await expect(
@@ -178,11 +199,104 @@ describe("generated reactive transport boundary", () => {
           renew: { identity: { session: 5, generation: 6 }, expected: 1000, lease_before_ms: 2000 },
         }),
       ).rejects.toMatchObject({
-        status,
-        reason: status === 403 ? "denied" : status === 410 ? "expired" : "reset_required",
+        status: 409,
+        reason: "ReactiveLeaseConflict",
+        scopeFailure: {
+          status,
+          reason:
+            status === 403
+              ? "denied"
+              : status === 410
+                ? "expired"
+                : status === 0
+                  ? "interrupted"
+                  : "reset_required",
+        },
       });
       expect(inspections).toBe(1);
       expect(session.pending).toBeNull();
     },
   );
 });
+
+test.each(["valid", "malformed", "foreign", "wrong_input", "wrong_outcome", "absent"])(
+  "committed rejection preserves primary reason without resubmitting (%s)",
+  async (kind) => {
+    const original = {
+      ...structuredClone(diagnosticFixture),
+      code: "reactive.lease_conflict",
+      outcome: "input_rejected",
+      evidence: "domain_status",
+      facts: [
+        {
+          field: "native_input",
+          origin: "owner",
+          availability: "provided",
+          value: { unsigned: "10" },
+        },
+        ...Array(15).fill(null),
+      ],
+      actions: [{ kind: "inspect_status", target: null }, null, null, null],
+    };
+    const diagnostic =
+      kind === "malformed"
+        ? {}
+        : kind === "foreign"
+          ? { ...original, definition: "0".repeat(64) }
+          : kind === "wrong_input"
+            ? {
+                ...original,
+                facts: [
+                  { ...original.facts[0], value: { unsigned: "11" } },
+                  ...Array(15).fill(null),
+                ],
+              }
+            : kind === "wrong_outcome"
+              ? { ...original, outcome: "applied" }
+              : kind === "absent"
+                ? null
+                : original;
+    let calls = 0;
+    const session = new Session(
+      new Transport(async (_url, options) => {
+        ++calls;
+        expect(JSON.parse(options!.body as string)).toEqual({ observe: 10 });
+        return Response.json({
+          observation: {
+            rejected: {
+              record: {
+                reason: "ReactiveLeaseConflict",
+                input: 10,
+                kind: "reactive",
+                subject: "5",
+                generation: "6",
+                payload: Array(32).fill(0),
+                cause: "52656163746976654c65617365436f6e666c696374",
+              },
+              diagnostic,
+            },
+          },
+        });
+      }),
+      async () => () => {},
+    );
+    session.description = {
+      connection: { realm: 49, principal: 65536, service: 1, ingress: 1 },
+    } as never;
+    session.pending = {
+      signed: {} as never,
+      command: {
+        renew: { identity: { session: 5, generation: 6 }, expected: 1000, lease_before_ms: 2000 },
+      },
+      input: 10,
+    };
+    await expect(session.recover()).rejects.toMatchObject({
+      status: 409,
+      reason: "ReactiveLeaseConflict",
+      diagnosticInvalid: kind !== "valid" && kind !== "absent",
+      diagnostic: kind === "valid" ? original : undefined,
+    });
+    expect(session.pending).toBeNull();
+    expect(calls).toBe(1);
+  },
+);

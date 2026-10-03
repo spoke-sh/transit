@@ -11,6 +11,8 @@ install:
 
 # Regenerate Board's OpenAPI, TypeScript types, and CSP-compatible validators.
 generate:
+    python3 -B packages/ts/transit-diagnostics/generate.py
+    vp exec node packages/ts/transit-diagnostics/validators.mjs
     zig build query-api
     zig-out/bin/transit-query-api > packages/zig/transit-query/api/workspace.schema.json
     python3 -B packages/ts/transit-query-client/generate.py
@@ -31,6 +33,8 @@ generate:
 
 # Check typed contract and generated browser-resource drift.
 contract:
+    python3 -B packages/ts/transit-diagnostics/generate.py --check
+    vp exec node packages/ts/transit-diagnostics/validators.mjs --check
     zig build query-api
     python3 -B tests/query_workspace_schema.py zig-out/bin/transit-query-api
     python3 -B packages/ts/transit-query-client/generate.py --check
@@ -50,6 +54,9 @@ contract:
 
 # Check frontend formatting, lint, strict types and unit tests.
 check: contract
+    cd packages/ts/transit-diagnostics && vp check
+    cd packages/ts/transit-diagnostics && vp exec tsc --noEmit
+    cd packages/ts/transit-diagnostics && vp test run
     cd packages/ts/transit-query-client && vp check
     cd packages/ts/transit-query-client && vp exec tsc --noEmit
     cd packages/ts/transit-query-client && vp test run

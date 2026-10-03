@@ -42,12 +42,12 @@ class Key:
 
 
 def native_query(key, principal, kind):
-    query = dict(version=1, definition='c750e7034f20d2446bfe44c7ad19a3ca45b415a0a02754523dc280cf74e20d15', realm=REALM, principal=principal, kind=kind)
+    query = dict(version=1, definition='8d2c6617b339418cf2d3afa6259009e4b3efc5308e40fe65757ca9385c227803', realm=REALM, principal=principal, kind=kind)
     return dict(query=query, signature=key.sign(hashlib.sha256(b'transit.query.v1\0' + compact(query)).digest()))
 
 
 def native_command(key, principal, sequence, command):
-    request = dict(version=1, definition='c750e7034f20d2446bfe44c7ad19a3ca45b415a0a02754523dc280cf74e20d15', realm=REALM, principal=principal, sequence=sequence, command=command)
+    request = dict(version=1, definition='8d2c6617b339418cf2d3afa6259009e4b3efc5308e40fe65757ca9385c227803', realm=REALM, principal=principal, sequence=sequence, command=command)
     return dict(request=request, signature=key.sign(hashlib.sha256(b'transit.request.v1\0' + compact(request)).digest()))
 
 
@@ -403,7 +403,18 @@ def run(node, example, courier, tls=False, capacity=False, lifetimes=False, grow
             receipt = post(gateway_ports[0], '/serving/v1/command', conflict, public_host, 202)
             sequences[65536] = 3
             drained(ingress)
-            assert bytes.fromhex(read('disposition', receipt['receipt']['position'])['disposition']) == b'ServingIdentityConflict'
+            conflict_input = receipt['receipt']['position']
+            original_conflict = read('disposition', conflict_input)['disposition']
+            assert original_conflict['record']['reason'] == 'ServingIdentityConflict'
+            detail = original_conflict['diagnostic']
+            assert (detail['code'], detail['outcome'], detail['evidence']) == ('serving.identity_conflict', 'input_rejected', 'domain_status'), detail
+            facts = {fact['field']: fact['value'] for fact in detail['facts'] if fact}
+            expected_digest = hashlib.sha256(b'transit.serving.command.v1\0' + b'SV1s' + submit(1, deadline_ms)[5:]).digest()
+            actual_digest = hashlib.sha256(b'transit.serving.command.v1\0' + b'SV1s' + submit(1, deadline_ms, delta=9)[5:]).digest()
+            assert facts['expected_schema']['digest'] == list(expected_digest), facts
+            assert facts['actual_schema']['digest'] == list(actual_digest), facts
+            assert original_conflict['record']['payload'] == list(hashlib.sha256(b'transit.serving.input.v1\0' + bytes.fromhex(conflict['request']['command']['send']['value'])).digest())
+            assert [action['kind'] for action in detail['actions'] if action] == ['inspect_status']
             read('status', 1, principal=65537, expected=404)
             forged = signed_read(keys[65536], 65536, ingress, 'status', 1)
             forged['read']['principal'] = 65537
@@ -426,7 +437,12 @@ def run(node, example, courier, tls=False, capacity=False, lifetimes=False, grow
             # Direct native callers cannot poison framework frame preprocessing.
             malformed = send({'send': dict(pid=ingress, value=b'bad-frame'.hex())}, 65536)
             drained(ingress)
-            assert bytes.fromhex(read('disposition', malformed)['disposition']) == b'InvalidServingFrame'
+            assert read('disposition', malformed)['disposition']['record']['reason'] == 'InvalidServingFrame'
+            invalid_identity = cast(ingress, submit(2**64 - 1, deadline_ms), 65536)
+            drained(ingress)
+            invalid = read('disposition', invalid_identity)['disposition']
+            assert invalid['record']['reason'] == 'InvalidServingIdentity' and invalid['record']['subject'] == str(2**64 - 1), invalid
+            assert any(fact and fact['field'] == 'object' and fact['value'] == {'unsigned': str(2**64 - 1)} for fact in invalid['diagnostic']['facts']), invalid
             second_request = native_command(keys[65536], 65536, sequences[65536] + 1, {'send': dict(pid=ingress, value=frame(submit(2, deadline_ms)))})
             # Stop delivery so the admission commits before physical loss.
             courier_worker.kill(); courier_worker.wait(timeout=10)
@@ -441,7 +457,9 @@ def run(node, example, courier, tls=False, capacity=False, lifetimes=False, grow
             assert read('status', 2)['stage'] == 'service_admitted'
             # This caller sees only its own disposition, not the observer's.
             assert read('disposition', premature)['disposition'] is None
-            assert bytes.fromhex(read('disposition', spoofed)['disposition']) == b'UnexpectedServingReplySource'
+            spoof = read('disposition', spoofed)['disposition']
+            assert spoof['record']['reason'] == 'UnexpectedServingReplySource'
+            assert any(fact and fact['field'] == 'expected_source' and fact['value'] == {'unsigned': str(application)} for fact in spoof['diagnostic']['facts']), spoof
             if lifetimes:
                 cast(ingress, submit(7, deadline_ms, row=2), 65537)
                 drained(ingress)
@@ -480,6 +498,7 @@ def run(node, example, courier, tls=False, capacity=False, lifetimes=False, grow
             post(gateway_ports[0], '/serving/v1/command', second_request, public_host, 202)
             completed(2, 3)
             completed(1, 1)
+            assert read('disposition', conflict_input)['disposition'] == original_conflict
             if lifetimes:
                 assert read('status', 7, principal=65537)['stage'] == 'cancelled'
                 assert read('status', 8, principal=65537)['operation'] == terminal['operation']
@@ -514,14 +533,18 @@ def run(node, example, courier, tls=False, capacity=False, lifetimes=False, grow
             cast(ingress, publication(2, application, deadline_ms, False))
             drained(ingress)
             completed(2, 3)
+            assert read('disposition', conflict_input)['disposition'] == original_conflict
             cast(ingress, policy(65536, revision=2, reads=False))
             drained(ingress)
             read('result', 2, expected=403)
+            read('disposition', conflict_input, expected=403)
             cast(ingress, policy(65536, revision=3))
             drained(ingress)
             completed(2, 3)
+            assert read('disposition', conflict_input)['disposition'] == original_conflict
             send({'revoke': 65536})
             read('result', 2, expected=403)
+            read('disposition', conflict_input, expected=403)
             if lifetimes:
                 # An independently created finite ingress expires with no timer
                 # observer or courier delivering a notification. No retention
@@ -552,7 +575,11 @@ def run(node, example, courier, tls=False, capacity=False, lifetimes=False, grow
                 finite = post(gateway_ports[0], '/serving/v1/read', finite_read, public_host)
                 assert finite['stage'] == 'service_admitted' and finite['operation']['deadline_ms'] == work_before
                 disposition = post(gateway_ports[0], '/serving/v1/read', signed_read(keys[65537], 65537, ephemeral, 'disposition', too_late), public_host)
-                assert bytes.fromhex(disposition['disposition']) == b'InvalidWaitLifetime'
+                assert disposition['disposition']['record']['reason'] == 'InvalidWaitLifetime'
+                lease_facts = {fact['field']: fact for fact in disposition['disposition']['diagnostic']['facts'] if fact}
+                assert lease_facts['budget']['value'] == {'text': 'process'}, lease_facts
+                assert lease_facts['limit']['value'] == {'unsigned': str(work_before)}, lease_facts
+                assert lease_facts['observed_clock']['availability'] == 'unrecorded', lease_facts
                 time.sleep(max(0, (expires_at + 100) / 1000 - time.time()))
                 # Linux's measured clock uncertainty can straddle the deadline.
                 # Keep that explicit 503 distinct from definite unavailability.

@@ -179,3 +179,9 @@ contracts for bounded refresh in Board and applications, with a shared browser
 client. KV/Document watches, compression and lossless event histories are not
 supported. Refresh scheduling, presentation and any other protocol adapter retain
 their own compatibility and lifecycle requirements.
+
+An explicitly closed session terminates attached transports with `closed`;
+`expired` describes a reached lease deadline or recorded expiry. Neither terminal
+reason states that an independently accepted application command was cancelled.
+Rejected lifecycle controls retain the original serving input diagnostic under
+current read authority; see [rejected input evidence](SERVING_V1.md#rejected-input-evidence).

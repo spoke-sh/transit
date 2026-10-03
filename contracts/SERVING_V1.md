@@ -107,15 +107,44 @@ fixtures own exact tags/layout; encodings reject trailing bytes and unknown tags
 `Model.zig` field order is wire order. `Codec` writes a one-byte record tag after
 `SV1`, one-byte bool/enum tags, fixed-length arrays and one-byte inline lengths.
 Record tags are `g` configuration, `b` binding, `p` policy, `c` command, `s` submit
-digest input, `i` invocation, `o` operation, `a` active slots and `r` scoped read.
+digest input, `i` invocation, `o` operation, `a` active slots and `r` scoped read. Rejected input records use `e`.
 Key kinds are `c` configuration, `b` current binding, `v` immutable binding revision,
 `p` principal policy, `o` principal/operation, `a` active slots and `e`
 principal/input disposition. Principals and counters use the native safe-integer
 range. Codec IDs are u16; active limits are u8. Opaque payloads are lowercase hex
-in JSON. Field changes require an explicit compatible contract revision.
+in JSON. Incompatible field changes replace the shared current v1 definition; old records
+and signed requests are rejected before execution.
 
 HTTP mechanics are defined in [HTTP_SERVING_V1](HTTP_SERVING_V1.md). The
 [reactive profile](REACTIVE_V1.md) qualifies Table SSE/WebSocket and reuses the
 same service operation identity and outcome records across transports. The
 [Flight profile](FLIGHT_V1.md) separately qualifies finite Table queries. Neither
 provides a generic inbound application gRPC server or another retry database.
+
+## Rejected input evidence
+
+A principal/input disposition is one `SV1e` record defined by
+[`ServingFailure.Record`](../packages/zig/transit-serving/src/ServingFailure.zig).
+Its declaration-order encoding contains the finite reason, native input, command
+family, supplied subject/generation, original frame commitment, bounded underlying
+cause and tagged witness. The frame commitment is SHA-256 of
+`transit.serving.input.v1\0` followed by the complete original Station frame bytes.
+The maximum record is 194 bytes, within one state mutation. The owner rolls back
+its private proposal before recording a request rejection. Read failures poison
+the proposal and remain unresolved; they do not become committed rejections.
+
+Witnesses retain values already read at the failing decision: policy revision and
+permissions, conditional binding/watch revisions, original/submitted operation
+commitments, active counts and limits, binding codecs, lease bounds, session
+phase/clock and attachment/subscription generations. No later metadata read
+reconstructs a historical conflict. Unknown or unrecorded facts remain absent.
+
+Serving disposition reads and private host `observation.rejected` return
+`{ record, diagnostic }`. The public record includes reason, input, family,
+subject/generation as exact decimal strings, commitment and underlying cause.
+The optional shared diagnostic projects the original witness with outcome
+`input_rejected`, evidence `domain_status` and inspection guidance. It does not
+claim the earlier operation failed, permit replacement work or retry a command.
+Current caller/native/service read authority is rechecked before release. A
+changed policy never rewrites the original witness or grants access to it.
+Bare error-string records are not decoded as the current record layout.

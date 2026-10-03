@@ -46,7 +46,8 @@ fn ownedSession(turn: *Turn, principal: u64, identity: r.SessionIdentity) !r.Ses
 fn live(turn: *Turn, principal: u64, identity: r.SessionIdentity, upper_ms: u64) !r.Source {
     try policy(turn, principal);
     const owner = try ownedSession(turn, principal, identity);
-    if (owner.phase != .open or owner.lease_before_ms <= @max(upper_ms, try root.ReactiveService.clock(turn))) return error.ReactiveSessionExpired;
+    if (owner.phase == .closed) return error.ReactiveSessionClosed;
+    if (owner.phase == .expired or owner.lease_before_ms <= @max(upper_ms, try root.ReactiveService.clock(turn))) return error.ReactiveSessionExpired;
     const watch = (try root.ReactiveService.source(turn)) orelse return error.ReactiveResetRequired;
     const binding = (try root.Service.binding(turn)) orelse return error.ServiceUnpublished;
     if (!watch.published or !binding.published or binding.target != watch.target or owner.source_revision != watch.revision) return error.ReactiveResetRequired;
@@ -191,7 +192,7 @@ pub fn drive(self: Self, turn: *Turn, reader: anytype, upper_ms: u64) !bool {
         var value = (try view(turn, slot.principal, try head(turn, slot.principal, slot.session))) orelse continue;
         if (!value.enabled or value.phase != .idle or value.dirty <= value.covered or value.next_start_ms > now) continue;
         const watch = live(turn, slot.principal, value.session, upper_ms) catch |err| {
-            if (turn.read_error != null or (!denial(err) and err != error.ReactiveSessionExpired and err != error.ReactiveResetRequired and err != error.ServiceUnpublished)) return err;
+            if (turn.read_error != null or (!denial(err) and err != error.ReactiveSessionClosed and err != error.ReactiveSessionExpired and err != error.ReactiveResetRequired and err != error.ServiceUnpublished)) return err;
             value.enabled = false;
             value.phase = if (denial(err)) .denied else .paused;
             try save(turn, value);

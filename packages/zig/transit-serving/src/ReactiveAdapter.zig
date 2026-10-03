@@ -37,7 +37,8 @@ fn context(self: Self, signed: r.SignedRead, public_key: [32]u8) !Context {
     if (value.principal != scope.principal or value.session != scope.session or value.generation != scope.generation) return error.ReactiveGenerationConflict;
     const source = try root.ReactiveService.source(&scoped.data);
     if (signed.read.kind != .session) {
-        if (value.phase != .open or value.lease_before_ms <= try self.clock.upper(self.clock.context)) return error.ReactiveSessionExpired;
+        if (value.phase == .closed) return error.ReactiveSessionClosed;
+        if (value.phase == .expired or value.lease_before_ms <= try self.clock.upper(self.clock.context)) return error.ReactiveSessionExpired;
         if (value.attachment != signed.read.attachment or !std.mem.eql(u8, &value.nonce, &signed.read.nonce)) return error.ReactiveAttachmentConflict;
         if (value.subscription != scope.subscription or value.subscription_generation != scope.subscription_generation) return error.ReactiveSubscriptionConflict;
         const watch = source orelse return error.ReactiveResetRequired;
@@ -131,7 +132,8 @@ pub fn attach(self: Self, bootstrap: root.ReactiveWire.Bootstrap, public_key: [3
     var scoped = try self.base.readerFor(request.scope.principal, &.{root.Model.key('S', request.scope.principal, request.scope.session)});
     const value = (try root.ReactiveService.session(&scoped.data, request.scope.principal, request.scope.session)) orelse return error.ReactiveSessionNotFound;
     if (value.generation != request.scope.generation) return error.ReactiveGenerationConflict;
-    if (value.phase != .open or value.lease_before_ms <= try self.clock.upper(self.clock.context)) return error.ReactiveSessionExpired;
+    if (value.phase == .closed) return error.ReactiveSessionClosed;
+    if (value.phase == .expired or value.lease_before_ms <= try self.clock.upper(self.clock.context)) return error.ReactiveSessionExpired;
     return self.base.submit(native, public_key);
 }
 

@@ -82,7 +82,11 @@ def run(env, tls, previous):
     states = [open_session(principal, session) for principal, session in ((65536, 20), (65536, 21), (65537, 20), (65537, 21))]
     refused = command(reactive(2, struct.pack('<QQQ', 22, 1, int(time.time() * 1000) + 20000)))
     disposition = serving.post(alternate, '/serving/v1/read', serving.signed_read(keys[65536], 65536, ingress, 'disposition', refused), host)
-    assert bytes.fromhex(disposition['disposition']) == b'ReactiveCapacity'
+    assert disposition['disposition']['record']['reason'] == 'ReactiveCapacity'
+    detail = disposition['disposition']['diagnostic']
+    assert detail['code'] == 'reactive.active_limit' and detail['outcome'] == 'input_rejected', detail
+    facts = {fact['field']: fact['value'] for fact in detail['facts'] if fact}
+    assert facts['actual_count'] == {'unsigned': '4'} and facts['limit'] == {'unsigned': '4'}, facts
     streams = [attach_sse(state) for state in states]
     for stream in streams: stream.until('event')
     serving.post(port, '/reactive/v1/read', signed_read(keys[65536], states[0]['scope']), host, 503)

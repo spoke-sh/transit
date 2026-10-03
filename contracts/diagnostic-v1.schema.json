@@ -23,7 +23,7 @@
     "definition": {
       "type": "string",
       "enum": [
-        "c750e7034f20d2446bfe44c7ad19a3ca45b415a0a02754523dc280cf74e20d15"
+        "8d2c6617b339418cf2d3afa6259009e4b3efc5308e40fe65757ca9385c227803"
       ]
     },
     "code": {
@@ -182,7 +182,10 @@
           },
           "required": [
             "domain",
-            "id"
+            "id",
+            "realm",
+            "resource",
+            "sequence"
           ],
           "x-transit-defaults": {
             "realm": null,
@@ -267,6 +270,10 @@
             }
           },
           "required": [
+            "source",
+            "source_encoding",
+            "source_truncated",
+            "statement",
             "offset",
             "length",
             "line",
@@ -359,7 +366,13 @@
                   "sampling_records",
                   "operation",
                   "native_cause",
-                  "expected_bytes"
+                  "expected_bytes",
+                  "presence",
+                  "published",
+                  "subscription",
+                  "expected_codec",
+                  "actual_codec",
+                  "observed_clock"
                 ]
               },
               "origin": {
@@ -539,6 +552,10 @@
                               }
                             },
                             "required": [
+                              "source",
+                              "source_encoding",
+                              "source_truncated",
+                              "statement",
                               "offset",
                               "length",
                               "line",
@@ -678,7 +695,10 @@
                     },
                     "required": [
                       "domain",
-                      "id"
+                      "id",
+                      "realm",
+                      "resource",
+                      "sequence"
                     ],
                     "x-transit-defaults": {
                       "realm": null,
@@ -693,7 +713,8 @@
               }
             },
             "required": [
-              "kind"
+              "kind",
+              "target"
             ],
             "x-transit-defaults": {
               "target": null
@@ -714,7 +735,12 @@
     "stage",
     "outcome",
     "evidence",
-    "message"
+    "message",
+    "cause",
+    "identity",
+    "location",
+    "facts",
+    "actions"
   ],
   "x-transit-defaults": {
     "cause": null,

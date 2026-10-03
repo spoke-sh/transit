@@ -42,8 +42,7 @@ fn initialize(raw: ?*anyopaque, turn: *Turn) !void {
     try queries.initialize.?(queries.context, turn);
 }
 fn reject(turn: *Turn, reason: []const u8) !bool {
-    const principal = if (turn.delivery.input.origin == .external) turn.delivery.input.origin.external.principal else 0;
-    try turn.write(root.Model.key('e', principal, turn.delivery.input.position), try p.Value.init(reason));
+    try root.ServingFailure.record(turn, null, std.meta.stringToEnum(root.ServingFailure.Reason, reason) orelse return error.InvalidServingRecord, .{});
     return true;
 }
 fn rejectQuery(turn: *Turn, reason: []const u8) !bool {
@@ -110,7 +109,7 @@ fn handle(raw: ?*anyopaque, turn: *Turn, frame: s.Frame) anyerror!void {
             self.refresh().apply(turn, if (turn.delivery.input.origin == .external) turn.delivery.input.origin.external.principal else 0, command.refresh, self.reader(turn), self.upper_ms) catch |err| {
                 turn.decision = before;
                 if (turn.read_error != null or !root.Refresh.requestError(err)) return err;
-                _ = try reject(turn, @errorName(err));
+                try root.ServingFailure.record(turn, command, root.ServingFailure.reason(err) orelse return err, .{});
             };
         } else {
             const handler = base.interface();

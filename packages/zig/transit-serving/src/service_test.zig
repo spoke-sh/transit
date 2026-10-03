@@ -415,3 +415,124 @@ test "finite Table composition keeps service policy and one-query admission in f
     try t.expect(try guard.reject(guard.context, &unpublished));
     try t.expectEqual(@as(?u64, 100), try root.query.UnifiedUpload.active(&unpublished));
 }
+
+fn rejected(store: *Store, owner: *Service, principal: u64, request: m.Command) !root.ServingFailure.Record {
+    const frame: s.Frame = .{ .kind = .cast, .payload = try request.encode() };
+    var candidate = try store.turn(principal, frame);
+    const handler = owner.interface();
+    try handler.handle(handler.context, &candidate, frame);
+    try t.expect(candidate.decision.mutations[0] != null);
+    try t.expect(candidate.decision.mutations[1] == null);
+    for (candidate.decision.outputs) |output| try t.expect(output == null);
+    try store.commit(&candidate);
+    const value = (try root.ServingFailure.read(&candidate, 1, 7, 9, principal, candidate.delivery.input.position)).?;
+    try t.expectEqual(p.Diagnostic.Outcome.input_rejected, value.diagnostic.?.outcome);
+    try t.expectEqual(p.Diagnostic.Evidence.domain_status, value.diagnostic.?.evidence);
+    return try c.decode(root.ServingFailure.Record, 'e', store.entries.get(m.key('e', principal, candidate.delivery.input.position)).?);
+}
+
+test "original serving rejection witnesses survive policy and binding changes without extra reads" {
+    var store: Store = .{};
+    defer store.entries.deinit();
+    var owner = service();
+    try store.setup(&owner);
+    var invalid = command(1);
+    invalid.submit.codec = 2;
+    const revision = try rejected(&store, &owner, 65536, invalid);
+    try t.expectEqual(root.ServingFailure.Reason.ServiceRevisionConflict, revision.reason);
+    try t.expectEqual(@as(u16, 2), revision.witness.binding.expected_codec);
+    try t.expectEqual(@as(u16, 1), revision.witness.binding.actual_codec);
+    var first = try store.command(&owner, 65536, command(1));
+    try store.commit(&first);
+    const quota = try rejected(&store, &owner, 65536, command(2));
+    try t.expectEqual(root.ServingFailure.CapacityKind.caller, quota.witness.capacity.kind);
+    try t.expectEqual(@as(u8, 1), quota.witness.capacity.actual);
+    var rights = try store.command(&owner, 33, .{ .policy = .{ .principal = 65536, .expected = 1, .policy = .{ .revision = 2, .commands = false, .reads = true, .active_limit = 1 } } });
+    try store.commit(&rights);
+    const denial = try rejected(&store, &owner, 65536, command(3));
+    try t.expectEqual(@as(u64, 2), denial.witness.policy.revision);
+    rights = try store.command(&owner, 33, .{ .policy = .{ .principal = 65536, .expected = 2, .policy = .{ .revision = 3, .commands = true, .reads = true, .active_limit = 2 } } });
+    try store.commit(&rights);
+    var published = try store.command(&owner, 33, .{ .publish = .{ .expected = 1, .binding = binding(2, false) } });
+    try store.commit(&published);
+    owner = service();
+    var read = try store.turn(65536, .{ .kind = .cast, .payload = .{} });
+    store.reads = 0;
+    const retained = (try root.ServingFailure.read(&read, 1, 7, 9, 65536, revision.input)).?;
+    try t.expectEqual(revision.reason, retained.record.reason);
+    try t.expectEqual(revision.input, retained.record.input);
+    try t.expect(std.meta.eql(revision, try c.decode(root.ServingFailure.Record, 'e', store.entries.get(m.key('e', 65536, revision.input)).?)));
+    try t.expectEqual(@as(usize, 1), store.reads);
+    try t.expectEqual(denial.reason, (try root.ServingFailure.read(&read, 1, 7, 9, 65536, denial.input)).?.record.reason);
+    try t.expect(std.meta.eql(denial, try c.decode(root.ServingFailure.Record, 'e', store.entries.get(m.key('e', 65536, denial.input)).?)));
+    try t.expect((try root.ServingFailure.read(&read, 1, 7, 9, 65537, revision.input)) == null);
+    try store.entries.put(m.key('e', 65536, revision.input), try p.Value.init("ServiceRevisionConflict"));
+    var fresh = try store.turn(65536, .{ .kind = .cast, .payload = .{} });
+    try t.expectError(error.InvalidServingRecord, root.ServingFailure.read(&fresh, 1, 7, 9, 65536, revision.input));
+}
+
+test "reactive closed, observed deadline, and original generation conflicts remain distinct" {
+    var store: Store = .{};
+    defer store.entries.deinit();
+    var owner = service();
+    try reactiveSetup(&store, &owner);
+    const identity = try openSession(&store, &owner, 65536, 1);
+    var request: m.Command = .{ .reactive = .{ .renew = .{ .identity = identity, .expected = 4000, .lease_before_ms = 6000 } } };
+    const mismatch = try rejected(&store, &owner, 65536, request);
+    try t.expectEqual(@as(u64, 4000), mismatch.witness.renewal.expected);
+    try t.expectEqual(@as(u64, 5000), mismatch.witness.renewal.actual);
+    request.reactive.renew.identity.generation += 1;
+    const generation = try rejected(&store, &owner, 65536, request);
+    try t.expectEqual(identity.generation, generation.witness.generation.actual);
+    request.reactive.renew.identity = identity;
+    var closed = try store.command(&owner, 65536, .{ .reactive = .{ .close = identity } });
+    try store.commit(&closed);
+    const closure = try rejected(&store, &owner, 65536, request);
+    try t.expectEqual(root.ServingFailure.Reason.ReactiveSessionClosed, closure.reason);
+    try t.expectEqual(reactive.Phase.closed, closure.witness.session.phase);
+    try t.expect(!closure.witness.session.clock_known);
+    request.reactive.renew.identity = try openSession(&store, &owner, 65536, 2);
+    var observed = try store.command(&owner, 34, .{ .reactive = .{ .observe_clock = 5000 } });
+    try store.commit(&observed);
+    const expiry = try rejected(&store, &owner, 65536, request);
+    try t.expectEqual(root.ServingFailure.Reason.ReactiveSessionExpired, expiry.reason);
+    try t.expectEqual(reactive.Phase.open, expiry.witness.session.phase);
+    try t.expectEqual(@as(u64, 5000), expiry.witness.session.observed);
+    // Reaching the deadline rejected renewal; no expiry control reclaimed a slot.
+    try t.expect(expiry.witness.session.clock_known);
+    try t.expectEqual(@as(u64, 2), (try Reactive.active(&observed)).slots[0].session);
+}
+
+test "all serving rejection classes fit bounded diagnostics and maximum witnesses fit one mutation" {
+    const f = root.ServingFailure;
+    const witnesses: []const f.Witness = &.{
+        .none,
+        .{ .frame = .{ .correlation = p.max_counter, .expected = p.max_counter, .actual = p.max_counter, .kind = .timer } },
+        .{ .revision = .{ .kind = .binding, .expected = p.max_counter, .actual = p.max_counter, .proposed = p.max_counter, .present = true } },
+        .{ .policy = .{ .principal = p.max_counter, .revision = p.max_counter, .present = true, .commands = false, .reads = true } },
+        .{ .identity = .{ .expected = @splat(255), .actual = @splat(254) } },
+        .{ .capacity = .{ .kind = .service, .actual = 8, .limit = 8 } },
+        .{ .generation = .{ .expected = p.max_counter, .actual = p.max_counter } },
+        .{ .session = .{ .phase = .closed, .deadline = p.max_counter, .observed = 0, .clock_known = false } },
+        .{ .source = .{ .expected = p.max_counter, .actual = p.max_counter, .present = true, .published = true, .target = p.max_counter, .resource = p.max_counter, .schema = @splat(255) } },
+        .{ .lease = .{ .kind = .resource, .requested = p.max_counter, .observed = p.max_counter, .limit = p.max_counter } },
+        .{ .attachment = .{ .expected = p.max_counter, .actual = p.max_counter } },
+        .{ .subscription = .{ .expected = p.max_counter, .actual = p.max_counter, .requested = p.max_counter, .active = p.max_counter } },
+        .{ .renewal = .{ .expected = p.max_counter, .actual = p.max_counter, .proposed = p.max_counter } },
+        .{ .binding = .{ .expected = p.max_counter, .actual = p.max_counter, .expected_codec = 65535, .actual_codec = 65535, .target = p.max_counter, .present = true, .published = false } },
+        .{ .refresh = .{ .expected = p.max_counter, .actual = p.max_counter, .namespace = p.max_counter, .phase = .failed } },
+    };
+    for (std.enums.values(f.Reason)) |reason| for (witnesses) |witness| {
+        const record: f.Record = .{ .reason = reason, .input = p.max_counter, .kind = .reactive, .subject = p.max_counter, .generation = p.max_counter, .payload = @splat(255), .cause = try p.Value.init(&@as([64]u8, @splat('X'))), .witness = witness };
+        const encoded = try c.encode('e', record);
+        try t.expect(encoded.len <= 194);
+        try t.expect(std.meta.eql(record, try c.decode(f.Record, 'e', encoded)));
+        const diagnostic = try f.project(1, 7, 9, record);
+        try diagnostic.validate();
+        const json = try std.json.Stringify.valueAlloc(t.allocator, diagnostic, .{});
+        defer t.allocator.free(json);
+        // Fits the unchanged 8 KiB reactive transport message budget.
+        try t.expect(json.len < 7000);
+        for (diagnostic.actions) |action| if (action) |value| try t.expect(value.kind == .inspect_status or value.kind == .inspect_scope);
+    };
+}

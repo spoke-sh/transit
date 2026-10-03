@@ -173,7 +173,7 @@ def run(env, _tls):
     receipt = client({'submit': prepared})['receipt']['receipt']
     drained(ingress)
     rejected = client({'observe': receipt['position']}, control=True)['observation']
-    assert bytes.fromhex(rejected['rejected']) in (b'ServingDenied', b'AccessDenied'), rejected
+    assert rejected['rejected']['record']['reason'] in ('ServingDenied', 'AccessDenied'), rejected
     env['resource_grant'](resource, principal, 3)
     for selection in selections:
         assert view(selection)['starts'] == 1

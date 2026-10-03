@@ -13,7 +13,7 @@ pub const ClientMessage = union(enum) {
     control: r.SignedSend,
     read: r.SignedRead,
 };
-pub const Terminal = enum { denied, expired, fenced, reset_required, interrupted, invalid_message, capacity };
+pub const Terminal = enum { denied, closed, expired, fenced, reset_required, interrupted, invalid_message, capacity };
 pub const Challenge = struct {
     pub const json_schema_fields = .{ .version = .{ .@"const" = 1 } };
     version: u8 = 1,
@@ -49,6 +49,7 @@ pub fn terminal(err: anyerror) Terminal {
     return switch (err) {
         error.AccessDenied, error.ServingDenied, error.SignatureVerificationFailed => .denied,
         error.ResourceUnavailable, error.ReactiveSessionExpired => .expired,
+        error.ReactiveSessionClosed => .closed,
         error.ReactiveAttachmentConflict, error.ReactiveGenerationConflict, error.ReactiveSubscriptionConflict => .fenced,
         error.UnsupportedReactiveSource, error.ReactiveResetRequired, error.ServiceUnpublished => .reset_required,
         error.ReactiveCapacity, error.ServingCallerCapacity => .capacity,

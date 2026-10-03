@@ -6644,7 +6644,13 @@
           "sampling_records",
           "operation",
           "native_cause",
-          "expected_bytes"
+          "expected_bytes",
+          "presence",
+          "published",
+          "subscription",
+          "expected_codec",
+          "actual_codec",
+          "observed_clock"
         ],
         "Value": [
           "text",
@@ -6674,7 +6680,7 @@
       },
       "outcomes": {
         "Definition": [
-          "c750e7034f20d2446bfe44c7ad19a3ca45b415a0a02754523dc280cf74e20d15"
+          "@\"8d2c6617b339418cf2d3afa6259009e4b3efc5308e40fe65757ca9385c227803\""
         ],
         "Command": [
           "grant",
@@ -8153,6 +8159,7 @@
         "ReactiveAttachmentConflict": 1,
         "ReactiveGenerationConflict": 1,
         "ReactiveResetRequired": 1,
+        "ReactiveSessionClosed": 1,
         "ReactiveSessionExpired": 1,
         "ReactiveSessionNotFound": 1,
         "ReactiveSubscriptionConflict": 1,
@@ -8262,6 +8269,7 @@
     },
     "packages/zig/transit-serving/src/LiveService.zig": {
       "errors": {
+        "InvalidServingRecord": 1,
         "ServingConfigurationChanged": 1,
         "UninitializedService": 1
       },
@@ -8312,6 +8320,7 @@
         "ReactiveAttachmentConflict": 1,
         "ReactiveGenerationConflict": 2,
         "ReactiveResetRequired": 3,
+        "ReactiveSessionClosed": 2,
         "ReactiveSessionExpired": 2,
         "ReactiveSessionNotFound": 2,
         "ReactiveSubscriptionConflict": 1,
@@ -8425,13 +8434,14 @@
         "ReactiveCapacity": 2,
         "ReactiveGenerationConflict": 2,
         "ReactiveLeaseConflict": 2,
-        "ReactiveResetRequired": 6,
-        "ReactiveSessionExpired": 2,
+        "ReactiveResetRequired": 4,
+        "ReactiveSessionClosed": 2,
+        "ReactiveSessionExpired": 3,
         "ReactiveSessionNotFound": 2,
         "ReactiveSubscriptionConflict": 3,
         "ServiceRevisionConflict": 1,
-        "ServiceUnpublished": 5,
-        "ServingDenied": 5,
+        "ServiceUnpublished": 3,
+        "ServingDenied": 3,
         "ServingIdentityConflict": 1,
         "ServingStateConflict": 2
       },
@@ -8456,6 +8466,7 @@
         "ReactiveCapacity": 1,
         "ReactiveGenerationConflict": 1,
         "ReactiveResetRequired": 1,
+        "ReactiveSessionClosed": 1,
         "ReactiveSessionExpired": 1,
         "ReactiveSubscriptionConflict": 1,
         "ResourceUnavailable": 1,
@@ -8477,6 +8488,7 @@
         ],
         "Terminal": [
           "denied",
+          "closed",
           "expired",
           "fenced",
           "reset_required",
@@ -8516,6 +8528,7 @@
         "QueryUploadClosed": 1,
         "ReactiveGenerationConflict": 3,
         "ReactiveResetRequired": 4,
+        "ReactiveSessionClosed": 2,
         "ReactiveSessionExpired": 2,
         "ReactiveSessionNotFound": 1,
         "RefreshGenerationConflict": 3,
@@ -8585,18 +8598,118 @@
         "InvalidServicePolicy": 1,
         "InvalidServingCommand": 2,
         "InvalidServingIdentity": 1,
-        "InvalidWaitLifetime": 2,
+        "InvalidWaitLifetime": 3,
         "ServiceRevisionConflict": 4,
-        "ServiceUnpublished": 3,
+        "ServiceUnpublished": 2,
         "ServingCapacity": 2,
         "ServingConfigurationChanged": 1,
-        "ServingDenied": 9,
+        "ServingDenied": 6,
         "ServingIdentityConflict": 2,
         "ServingOperationNotFound": 2,
         "ServingStateConflict": 9,
         "UninitializedService": 1
       },
       "outcomes": {},
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
+    "packages/zig/transit-serving/src/ServingFailure.zig": {
+      "errors": {
+        "InvalidServingRecord": 3
+      },
+      "outcomes": {
+        "Reason": [
+          "InvalidServingFrame",
+          "ServingExternalOriginRequired",
+          "UnexpectedServingOrigin",
+          "InvalidServingCommand",
+          "InvalidServingIdentity",
+          "InvalidServiceBinding",
+          "InvalidServicePolicy",
+          "ServingDenied",
+          "ServiceRevisionConflict",
+          "ServingIdentityConflict",
+          "ServingCapacity",
+          "ServiceUnpublished",
+          "InvalidWaitLifetime",
+          "ServingOperationNotFound",
+          "UnknownServingCorrelation",
+          "UnexpectedServingReplySource",
+          "UnexpectedTimerObserver",
+          "InvalidTimerObservation",
+          "PrematureTimer",
+          "UnsupportedServingFrame",
+          "InvalidReactiveSource",
+          "ReactiveSessionNotFound",
+          "ReactiveGenerationConflict",
+          "ReactiveSessionClosed",
+          "ReactiveSessionExpired",
+          "ReactiveResetRequired",
+          "InvalidReactiveLease",
+          "ReactiveCapacity",
+          "InvalidReactiveAttachment",
+          "ReactiveAttachmentConflict",
+          "ReactiveSubscriptionConflict",
+          "ReactiveLeaseConflict",
+          "InvalidRefreshBudget",
+          "InvalidRefreshTemplate",
+          "RefreshGenerationConflict",
+          "RefreshNotFound",
+          "RefreshResultConflict",
+          "UnexpectedRefreshWake",
+          "AccessDenied",
+          "QueryDenied",
+          "ResourceUnavailable",
+          "QuerySourceUnavailable",
+          "ResultUnavailable",
+          "PublicationNotPublished"
+        ],
+        "Kind": [
+          "service",
+          "reactive",
+          "refresh"
+        ],
+        "RevisionKind": [
+          "binding",
+          "policy",
+          "watch",
+          "refresh"
+        ],
+        "CapacityKind": [
+          "service",
+          "caller",
+          "service_slots",
+          "sessions",
+          "caller_sessions"
+        ],
+        "LeaseKind": [
+          "clock",
+          "interval",
+          "binding",
+          "process",
+          "resource",
+          "observer"
+        ],
+        "Witness": [
+          "none",
+          "revision",
+          "policy",
+          "identity",
+          "capacity",
+          "generation",
+          "session",
+          "source",
+          "lease",
+          "attachment",
+          "subscription",
+          "renewal",
+          "binding",
+          "refresh",
+          "frame"
+        ]
+      },
       "imports": [
         "root.zig",
         "std"
@@ -8645,6 +8758,7 @@
         "RefreshModel.zig",
         "RefreshReader.zig",
         "Service.zig",
+        "ServingFailure.zig",
         "TableWatch.zig",
         "transit_query",
         "transit_station"

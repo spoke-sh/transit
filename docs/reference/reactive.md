@@ -56,6 +56,14 @@ does not become an empty result. A reset requires an explicit authorized snapsho
 Show the last exact basis and refresh status while writes continue; the profile
 does not promise every revision or an unmeasured latency bound.
 
+A rejected control includes the original expected and observed generation,
+attachment, subscription or lease when available. Explicit closure and lease
+expiry have distinct reasons. A reached deadline can coexist with a recorded
+`open` phase until an expiry control commits. Inspect that retained phase before
+assuming a quota slot is free. The browser preserves the original control reason
+and separately reports any later current-scope failure; denial clears protected
+state. Neither diagnosis causes an automatic replacement session or command.
+
 ## Budgets and transport
 
 Follow uses one active refresh and bounded coalesced work per admitted scope,

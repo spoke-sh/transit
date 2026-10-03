@@ -256,3 +256,30 @@ test.each([new ReactiveError(0, "control_uncertain"), new ReactiveError(503, "un
     expect(view.getSnapshot().phase).toBe("paused");
   },
 );
+
+test("later denial clears protected state and presents the original rejected control separately", async () => {
+  const session = attachedSession();
+  session.open = async () => {
+    session.scope = scope;
+  };
+  session.close = async () => {
+    session.scope = null;
+  };
+  const observed = deferred<void>();
+  const failure = new ReactiveError(409, "ReactiveLeaseConflict");
+  failure.scopeFailure = new ReactiveError(403, "denied");
+  const view = new LiveView(session, async () => {
+    throw failure;
+  });
+  view.subscribe(() => {
+    if (view.getSnapshot().phase === "denied") observed.resolve();
+  });
+  await view.start();
+  await observed.promise;
+  expect(view.getSnapshot()).toMatchObject({
+    snapshot: null,
+    refresh: null,
+    detail: "ReactiveLeaseConflict\nCurrent scope: denied.",
+  });
+  await view.pause();
+});

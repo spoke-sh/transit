@@ -20,7 +20,7 @@ pub const ReadResult = struct {
     stage: Stage = .not_observed,
     binding: ?m.Binding = null,
     operation: ?m.Operation = null,
-    disposition: ?p.Value = null,
+    disposition: ?root.ServingFailure.Disposition = null,
     capabilities: struct { http: bool = true, sse: bool = false, websocket: bool = false, grpc: bool = false, flight: bool = false } = .{},
 };
 pub fn submit(self: Self, signed: g.SignedRequest, public_key: [32]u8) !Receipt {
@@ -101,7 +101,7 @@ fn readOnce(self: Self, signed: m.SignedRead, public_key: [32]u8) !ReadResult {
     switch (signed.read.kind) {
         .discovery => result.binding = try root.Service.binding(&scoped.data),
         .disposition => {
-            result.disposition = try scoped.data.read(m.key('e', signed.read.principal, signed.read.operation));
+            result.disposition = try root.ServingFailure.read(&scoped.data, self.resources.realm, self.resource, self.service, signed.read.principal, signed.read.operation);
             if (result.disposition != null) result.stage = .rejected;
         },
         .status, .result => {
