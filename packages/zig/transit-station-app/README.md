@@ -141,3 +141,9 @@ it does not generate authority, credentials or a publication fallback. A generat
 application can use `requireArtifacts` to accept subsequent published definitions
 only within its realm, application/component version and compiled renderer set.
 The application still provides its own business renderers and handler artifacts.
+
+Publication receipts retain the head revision and body digest observed at the
+original conditional conflict. `Native.State.receipt_diagnostic` projects that
+receipt separately from any input disposition. It survives a later head, restart
+and explicit abandonment/collection; current native read grants still gate access.
+The record remains below one 256-byte value and activation still uses four writes.

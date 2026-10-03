@@ -22,7 +22,9 @@ pub const Proposal = struct {
     spec: Pub.Spec,
 };
 pub const Phase = enum(u8) { staging = 1, applied = 2, conflict = 3, abandoned = 4 };
-pub const Receipt = struct { proposal: Proposal, phase: Phase, input: u64, owns_record: bool };
+/// Original head at the rejected conditional publication, never a later read.
+pub const ConflictBasis = union(enum(u8)) { none = 0, absent = 1, head: struct { revision: m.Wide, digest: [32]u8 } = 2 };
+pub const Receipt = struct { proposal: Proposal, phase: Phase, input: u64, owns_record: bool, conflict_basis: ConflictBasis = .none };
 pub const Head = struct { revision: m.Wide, record: m.Wide, spec: Pub.Spec, principal: u64, operation: m.Wide, input: u64 };
 configuration: Configuration,
 
@@ -81,7 +83,11 @@ pub fn head(self: Self, reader: anytype) !?Head {
     return if (try reader.read(self.key('h', 0, 0))) |value| try c.decode(Head, 'h', value) else null;
 }
 pub fn receipt(self: Self, reader: anytype, who: u64, operation: m.Wide) !?Receipt {
-    return if (try reader.read(self.key('o', who, operation.value))) |value| try c.decode(Receipt, 'o', value) else null;
+    const value = (try reader.read(self.key('o', who, operation.value))) orelse return null;
+    const result = try c.decode(Receipt, 'o', value);
+    try validateReceipt(result);
+    if (result.proposal.operation.value != operation.value) return error.InvalidApplicationRecord;
+    return result;
 }
 pub fn reference(self: Self, resource: u64, value: Head) s.PublicationReference {
     return .{ .domain = .application_definition, .resource = resource, .namespace = self.configuration.namespace.value, .record = value.record.value, .spec = value.spec };
@@ -102,8 +108,20 @@ fn reserve(self: Self, turn: *Turn, who: u64, proposal: Proposal) !void {
     _ = try self.publication(turn).begin(turn, proposal.record.value, proposal.spec);
     try turn.write(self.key('o', who, proposal.operation.value), try c.encode('o', Receipt{ .proposal = proposal, .phase = .staging, .input = turn.delivery.input.position, .owns_record = true }));
 }
-fn conflict(self: Self, turn: *Turn, who: u64, proposal: Proposal, owns_record: bool) !Phase {
-    try turn.write(self.key('o', who, proposal.operation.value), try c.encode('o', Receipt{ .proposal = proposal, .phase = .conflict, .input = turn.delivery.input.position, .owns_record = owns_record }));
+pub fn validateReceipt(value: Receipt) !void {
+    try validateProposal(value.proposal);
+    if (value.input == 0 or value.input > p.max_counter or
+        (value.phase == .conflict and value.conflict_basis == .none) or
+        ((value.phase == .staging or value.phase == .applied) and value.conflict_basis != .none)) return error.InvalidApplicationRecord;
+    if ((value.phase == .staging or value.phase == .applied) and !value.owns_record) return error.InvalidApplicationRecord;
+    switch (value.conflict_basis) {
+        .none => {},
+        .absent => if (value.proposal.expected.value == 0 and std.mem.allEqual(u8, &value.proposal.expected_digest, 0)) return error.InvalidApplicationRecord,
+        .head => |basis| if (basis.revision.value == 0 or (basis.revision.value == value.proposal.expected.value and std.mem.eql(u8, &basis.digest, &value.proposal.expected_digest))) return error.InvalidApplicationRecord,
+    }
+}
+fn conflict(self: Self, turn: *Turn, who: u64, proposal: Proposal, owns_record: bool, observed: ?Head) !Phase {
+    try turn.write(self.key('o', who, proposal.operation.value), try c.encode('o', Receipt{ .proposal = proposal, .phase = .conflict, .input = turn.delivery.input.position, .owns_record = owns_record, .conflict_basis = if (observed) |head_value| .{ .head = .{ .revision = head_value.revision, .digest = head_value.spec.digest } } else .absent }));
     return .conflict;
 }
 /// Explicit byte-upload admission, not administrative publication. The compiler
@@ -118,7 +136,8 @@ pub fn beginUpload(self: Self, turn: *Turn, proposal: Proposal) !Phase {
         if (!std.meta.eql(old.proposal, proposal)) return error.ApplicationIdentityConflict;
         return old.phase;
     }
-    if (!baseMatches(try self.head(turn), proposal)) return self.conflict(turn, who, proposal, false);
+    const observed = try self.head(turn);
+    if (!baseMatches(observed, proposal)) return self.conflict(turn, who, proposal, false, observed);
     try self.reserve(turn, who, proposal);
     return .staging;
 }
@@ -130,7 +149,8 @@ pub fn appendUpload(self: Self, turn: *Turn, operation: m.Wide, part: s.Publicat
     if (current.phase != .staging) return current.phase;
     if (!current.owns_record) return error.ApplicationPublicationChanged;
     try validateProposal(current.proposal);
-    if (!baseMatches(try self.head(turn), current.proposal)) return self.conflict(turn, who, current.proposal, true);
+    const observed = try self.head(turn);
+    if (!baseMatches(observed, current.proposal)) return self.conflict(turn, who, current.proposal, true, observed);
     try s.PublicationParts.append(turn, .{ .domain = .application_definition, .resource = turn.view.resource, .namespace = self.configuration.namespace.value, .record = current.proposal.record.value, .spec = current.proposal.spec }, self.key('x', who, operation.value), part);
     return .staging;
 }
@@ -140,7 +160,8 @@ pub fn finishUpload(self: Self, allocator: std.mem.Allocator, turn: *Turn, opera
     if (current.phase != .staging) return current.phase;
     if (!current.owns_record) return error.ApplicationPublicationChanged;
     try validateProposal(current.proposal);
-    if (!baseMatches(try self.head(turn), current.proposal)) return self.conflict(turn, who, current.proposal, true);
+    const observed = try self.head(turn);
+    if (!baseMatches(observed, current.proposal)) return self.conflict(turn, who, current.proposal, true, observed);
     const descriptor = try self.publication(turn).inspect(turn, current.proposal.record.value);
     if (descriptor.state != .staging or !std.meta.eql(descriptor.spec, current.proposal.spec)) return error.ApplicationPublicationChanged;
     if (descriptor.written != descriptor.spec.chunks()) return error.IncompletePublication;
@@ -174,9 +195,10 @@ pub fn step(self: Self, allocator: std.mem.Allocator, turn: *Turn, proposal: Pro
     if (!std.mem.eql(u8, body, try root.Api.canonical(program.definition, &canonical))) return error.NoncanonicalApplicationProgram;
     if (program.definition.realm != self.configuration.realm or program.definition.revision.value != proposal.revision.value or !std.mem.eql(u8, &nameDigest(program.definition.name), &self.configuration.name_digest)) return error.ApplicationDefinitionMismatch;
     const pub_record = self.publication(turn);
-    if (!baseMatches(try self.head(turn), proposal)) {
+    const observed = try self.head(turn);
+    if (!baseMatches(observed, proposal)) {
         // A conflict is durable evidence, not implicit expiry/cleanup of its body.
-        return self.conflict(turn, who, proposal, if (old) |value| value.owns_record else false);
+        return self.conflict(turn, who, proposal, if (old) |value| value.owns_record else false, observed);
     }
     if (old == null) {
         // Each body identity has exactly one attributable owner/proposal.

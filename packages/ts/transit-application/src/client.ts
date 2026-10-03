@@ -55,8 +55,24 @@ export async function request(value: HostRequest): Promise<HostResponse> {
           : "Unavailable";
       throw new ApplicationTransportError(response.status, code, diagnosticOf(result));
     }
+    // Optional detail cannot invalidate an otherwise authoritative observation.
+    let detail: unknown;
+    if (typeof result === "object" && result !== null && "observation" in result) {
+      const observation = result.observation;
+      if (typeof observation === "object" && observation !== null && "state" in observation) {
+        const state = observation.state;
+        if (typeof state === "object" && state !== null && "receipt_diagnostic" in state) {
+          detail = state.receipt_diagnostic;
+          state.receipt_diagnostic = null;
+        }
+      }
+    }
     if (!validate.HostResponse(result)) throw new Error("Invalid application response");
-    return result as HostResponse;
+    const responseValue = result as HostResponse;
+    if ("observation" in responseValue && "state" in responseValue.observation)
+      responseValue.observation.state.receipt_diagnostic =
+        ownedDiagnostic(detail).diagnostic ?? null;
+    return responseValue;
   }
 }
 export async function compile(source: string, transport: Transport = request): Promise<Compiled> {
@@ -291,6 +307,14 @@ async function advancePublication(
     if (state.disposition !== null)
       throw new Error(
         "The application retained a rejected input; review current policy and operation status",
+      );
+    if (!cleanup && (state.receipt?.phase === "conflict" || state.receipt?.phase === "abandoned"))
+      throw new ApplicationTransportError(409, "PublicationConflict", state.receipt_diagnostic);
+    if (cleanup && state.receipt?.phase === "applied")
+      throw new ApplicationTransportError(
+        409,
+        "ApplicationAlreadyApplied",
+        state.receipt_diagnostic,
       );
     const response = await transport(
       cleanup

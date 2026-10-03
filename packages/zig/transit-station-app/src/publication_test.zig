@@ -363,3 +363,46 @@ test "public behavior records denial but does not turn infrastructure failure in
     try t.expect(try guard.reject(guard.context, &malformed));
     try t.expectEqual(@as(usize, 1), mutationCount(&malformed));
 }
+
+test "original publication conflict basis survives a new head and explicit cleanup" {
+    var store: Store = .{};
+    defer store.entries.deinit();
+    try store.setup();
+    const first_body = try canonicalBody(1, false);
+    defer t.allocator.free(first_body);
+    const first = try makeProposal(1, 100, null, first_body);
+    const losing = try makeProposal(2, 101, null, first_body);
+    _ = try store.step(45, losing, first_body);
+    try store.finish(44, first, first_body);
+    try t.expectEqual(Pub.Phase.conflict, try store.step(45, losing, first_body));
+    var read = try store.turn(44);
+    const original = (try configured().receipt(&read, 45, losing.operation)).?;
+    try t.expectEqual(@as(u64, 1), original.conflict_basis.head.revision.value);
+    try t.expectEqualSlices(u8, &first.spec.digest, &original.conflict_basis.head.digest);
+    const scope: root.Native.Scope = .{ .realm = 49, .application = 9, .pid = 2, .resource = 7, .namespace = .{ .value = 19 } };
+    const projected = try root.PublicationDiagnostic.receipt(scope, original);
+    try t.expectEqualStrings("publication.base_conflict", projected.code.slice());
+    try t.expectEqual(.rejected, projected.outcome);
+    try t.expectEqual(.domain_status, projected.evidence);
+    try t.expectEqual(@as(u64, 1), try projected.facts[8].?.value.?.unsigned.value());
+    const next_body = try canonicalBody(2, true);
+    defer t.allocator.free(next_body);
+    const next = try makeProposal(3, 102, try configured().head(&read), next_body);
+    try store.finish(44, next, next_body);
+    try t.expectEqual(Pub.Phase.conflict, try store.step(45, losing, first_body));
+    var later = try store.turn(45);
+    try t.expectEqualDeep(original, (try configured().receipt(&later, 45, losing.operation)).?);
+    try configured().abandon(&later, losing.operation);
+    try store.commit(&later);
+    var cleanup = try store.turn(45);
+    _ = try configured().collect(&cleanup, losing.operation);
+    try store.commit(&cleanup);
+    const abandoned = (try configured().receipt(&cleanup, 45, losing.operation)).?;
+    try t.expectEqualDeep(original.conflict_basis, abandoned.conflict_basis);
+    try t.expectEqual(original.input, abandoned.input);
+    try t.expectEqual(.cancelled, (try root.PublicationDiagnostic.receipt(scope, abandoned)).outcome);
+    const encoded = try root.Records.encode('o', original);
+    try t.expect(encoded.len <= p.Value.max_bytes);
+    const old = try p.Value.init(encoded.slice()[0 .. encoded.len - 41]);
+    try t.expectError(error.EndOfStream, root.Records.decode(Pub.Receipt, 'o', old));
+}

@@ -32,6 +32,7 @@ pub const State = struct {
     receipt: ?Pub.Receipt,
     upload: ?struct { written: u32, collected: u32, reserved: bool, first_half: bool, state: root.station.Publication.State },
     disposition: ?p.Value,
+    receipt_diagnostic: ?p.Diagnostic = null,
 };
 pub const Observation = union(enum) { identity: Identity, state: State };
 fn identity(value: u64) !void {
@@ -124,6 +125,7 @@ pub fn read(wire: *client.Client, scope: Scope, signed: SignedRead) !Observation
                     result.upload = .{ .written = descriptor.written, .collected = descriptor.collected, .reserved = descriptor.reserved, .first_half = try batch.read(root.Records.key(scope.application, 'x', signed.prepared.principal, selected.operation.value)) != null, .state = descriptor.state };
                 }
             }
+            if (receipt) |value| result.receipt_diagnostic = try root.PublicationDiagnostic.receipt(scope, value);
             return .{ .state = result };
         },
     }

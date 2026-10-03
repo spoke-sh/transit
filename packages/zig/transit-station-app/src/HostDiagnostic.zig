@@ -7,6 +7,7 @@ const Class = struct { code: []const u8, category: d.Category, message: []const 
 
 fn classification(cause: anyerror) Class {
     return switch (cause) {
+        error.UnsafePrincipal => .{ .code = "application.unsafe_reader", .category = .access, .message = "The configured inspection principal has permissions outside its read-only profile. Configure the published-interface reader separately from the publication operator." },
         error.ApplicationOperatorDenied => .{ .code = "application.operator_denied", .category = .access, .message = "This principal is not admitted by the application's host configuration. No command was sent. Check the configured operator scope." },
         error.ApplicationOperationDenied => .{ .code = "application.input_disposition", .category = .access, .message = "The supplied observation contains an input disposition. Read the exact input and publication operation under current rights before selecting another upload step." },
         error.ApplicationScopeChanged => .{ .code = "application.scope_changed", .category = .conflict, .message = "The prepared or observed application scope does not match this host. Preserve the original signed work and inspect its original realm, application, owner and resource." },

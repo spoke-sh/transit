@@ -6,7 +6,9 @@ import {
   OperatorSession,
   type Transport,
 } from "./client";
+import publicationFixture from "../../../zig/transit-station-app/src/fixtures/publication-v1.json" with { type: "json" };
 import fixture from "../../../zig/transit-protocol/src/fixtures/diagnostic-v1.json" with { type: "json" };
+import type { Diagnostic } from "@rey/transit-query-client";
 import type { HostRequest, Scope, Signed } from "./types";
 const scope: Scope = { realm: 49, application: 9, pid: 17, resource: 19, namespace: "23" };
 afterEach(() => vi.unstubAllGlobals());
@@ -128,4 +130,65 @@ test("changed prepared scope is rejected before signing", async () => {
   );
   await expect(session.read({ identity: {} })).rejects.toThrow("scope changed");
   expect(signs).toBe(0);
+});
+
+test("publication receipt survives invalid optional diagnostic detail", async () => {
+  const read: HostRequest = {
+    read: {
+      prepared: {
+        scope,
+        principal: 44,
+        selection: { state: { operation: publicationFixture.proposal.operation } },
+        digest: Array(32).fill(0),
+      },
+      signature: Array(64).fill(0),
+    },
+  };
+  const detail = structuredClone(fixture) as Diagnostic;
+  detail.code = "publication.applied";
+  detail.outcome = "applied";
+  detail.identity = {
+    domain: "publication",
+    id: publicationFixture.proposal.operation,
+    realm: "49",
+    resource: "19",
+    sequence: null,
+  };
+  detail.facts.fill(null);
+  detail.actions.fill(null);
+  detail.location = null;
+  const state = {
+    revision: "99",
+    configuration: {
+      application: 9,
+      namespace: "23",
+      realm: 49,
+      administrator: 44,
+      name_digest: Array(32).fill(1),
+    },
+    policy: null,
+    head: publicationFixture.head,
+    receipt: publicationFixture.receipt,
+    upload: null,
+    disposition: null,
+    receipt_diagnostic: detail,
+  };
+  const fetcher = vi.fn();
+  vi.stubGlobal("fetch", fetcher);
+  fetcher.mockResolvedValueOnce(Response.json({ observation: { state } }));
+  const accepted = await request(read);
+  expect(accepted).toMatchObject({
+    observation: { state: { receipt: publicationFixture.receipt, receipt_diagnostic: detail } },
+  });
+  fetcher.mockResolvedValueOnce(
+    Response.json({
+      observation: {
+        state: { ...state, receipt_diagnostic: { ...detail, definition: "0".repeat(64) } },
+      },
+    }),
+  );
+  const malformed = await request(read);
+  expect(malformed).toMatchObject({
+    observation: { state: { receipt: publicationFixture.receipt, receipt_diagnostic: null } },
+  });
 });

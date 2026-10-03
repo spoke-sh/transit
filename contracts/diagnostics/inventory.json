@@ -6673,7 +6673,7 @@
       },
       "outcomes": {
         "Definition": [
-          "@\"695a46c853d1442c3eae1b8079694b2f04b616b1798d25f50fc243325f596ee2\""
+          "@\"1eeeb5cd033defd5dcbcd0ce764b2fbb6b163eac17109dee4589f37bd5f4a463\""
         ],
         "Command": [
           "grant",
@@ -8824,6 +8824,7 @@
         "OutOfMemory": 2,
         "Overflow": 1,
         "Rejected": 2,
+        "UnsafePrincipal": 1,
         "UpstreamUnavailable": 1
       },
       "outcomes": {},
@@ -8964,6 +8965,7 @@
         "InvalidApplicationPolicy": 1,
         "InvalidApplicationProgram": 1,
         "InvalidApplicationProposal": 2,
+        "InvalidApplicationRecord": 5,
         "InvalidPublicationChunk": 1,
         "MissingPublicationChunk": 1,
         "NoncanonicalApplicationProgram": 1,
@@ -8976,11 +8978,23 @@
           "applied",
           "conflict",
           "abandoned"
+        ],
+        "ConflictBasis": [
+          "none",
+          "absent",
+          "head"
         ]
       },
       "imports": [
         "root.zig",
         "std"
+      ]
+    },
+    "packages/zig/transit-station-app/src/PublicationDiagnostic.zig": {
+      "errors": {},
+      "outcomes": {},
+      "imports": [
+        "root.zig"
       ]
     },
     "packages/zig/transit-station-app/src/Records.zig": {
@@ -9082,6 +9096,7 @@
         "Model.zig",
         "Native.zig",
         "Publication.zig",
+        "PublicationDiagnostic.zig",
         "Records.zig",
         "Request.zig",
         "Sql.zig",

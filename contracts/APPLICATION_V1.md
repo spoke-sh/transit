@@ -81,7 +81,13 @@ one byte, arrays their exact elements and structs their fields without padding.
 Full-width IDs/revisions are eight-byte integers here and decimal strings in JSON.
 Unknown headers, enum tags, noncanonical booleans and trailing bytes reject.
 `Proposal` uses tag `r`; `Receipt` adds phase (staging=1, applied=2, conflict=3,
-abandoned=4), native input position and the record-ownership boolean. `Head` names
+abandoned=4), native input position, record-ownership boolean and conflict basis.
+The basis union is one byte: none=0, absent=1, head=2; head carries the observed
+revision:u64le and body digest:32 bytes. Staging/applied receipts use none;
+conflict requires the rejecting turn's absent/head basis. Abandonment preserves
+that basis and original receipt input. A complete receipt occupies at most 159
+bytes. Old shorter records reject; no current-head lookup supplies missing evidence.
+`Head` names
 revision, record, spec, operator, operation and activation input. The owning public
 types generate the structural schema; independent Python fixtures pin the layouts.
 
@@ -215,3 +221,13 @@ and the configured source name/kind. Result display separately checks the retain
 manifest basis. Published interface changes cannot relabel an old result as a new
 source. Exact pending commands outlive disposable routes and retain their original
 native identity even when the replacement binding is incompatible.
+
+Publication observations carry `receipt_diagnostic` separately from the selected
+input disposition. It projects staging, applied, base-conflict and abandoned
+receipts under current read rights. A conflict names the exact proposal/record,
+native input, expected revision/digest and originally observed revision/digest.
+Later publication or cleanup cannot replace that basis. Staging is pending;
+conflict did not activate; abandonment cannot undo publication or imply collection.
+The browser stops a conflicted reviewed publication and displays this owner detail;
+cleanup remains an explicit operation. Optional invalid presentation detail cannot
+replace the primary receipt or alter saved signed work.

@@ -12709,3 +12709,33 @@ Document took 449.65 seconds, including reordered edits, conflict resolution,
 worker/store recovery, exact cuts and current grant revocation. Each metadata
 adapter now asserts semantic changed-cut and denied-read detail. These times
 exclude compilation; all use disk-backed Ursula.
+
+### Retained publication conflict basis — 2026-10-03
+
+Application publication receipts retain the absent/head basis from the rejecting
+turn. The head variant records revision and body digest; exact retry, later heads
+and explicit abandonment/collection preserve it and the original input position.
+The receipt uses at most 159 bytes; activation still uses four mutations. A
+coordinated definition cutover rejects older persisted and signed semantics.
+Generated contracts, bindings and independent signing/record fixtures are updated.
+
+Package tests exercise a competing publication followed by a newer head, exact
+retry and cleanup, and reject an old receipt without the basis. Native observations
+carry a separate `receipt_diagnostic`; an input disposition remains independent.
+Browser client tests (11) include invalid optional detail without losing the
+primary receipt. Board frontend checks/types/tests (39) pass.
+
+Executed `just test::application`: **passed**. The four restart phases take
+1.258/1.108/0.757/0.816 seconds, with 21 turns, 152 reads, three killed workers and
+one resident page during recovery. A real conditional conflict retains its exact
+receipt after worker/node/disk-store restart; revoked resource access denies its
+later disclosure. Applied receipts preserve their original input as well.
+
+Executed `just test::application-browser`: **passed**, 55.7-second browser
+schedule. SQL/Form/Canvas, exact lost admission reply, saved review recovery,
+published receipt guidance for attempted cleanup, worker/store restart and current
+read denial pass. Full `just check` passes after regenerating the dependent
+mutation/catalog commitments and reactive signature fixture. Earlier qualification
+stopped on those stale fixtures and a TypeScript test annotation; they are not
+counted as passing runs. Durable publication input-rejection detail, migration and
+reactive/effect mappings remain separate increments.

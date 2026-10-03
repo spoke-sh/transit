@@ -160,9 +160,12 @@
     },
     "phase": "applied",
     "input": 57,
-    "owns_record": true
+    "owns_record": true,
+    "conflict_basis": {
+      "none": {}
+    }
   },
-  "receipt_hex": "4150316ffffffffffffffffffefffffffffffffffdffffffffffffff202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3ffeffffffffffffff3150504111000000000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f02390000000000000001",
+  "receipt_hex": "4150316ffffffffffffffffffefffffffffffffffdffffffffffffff202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3ffeffffffffffffff3150504111000000000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f0239000000000000000100",
   "head": {
     "revision": "18446744073709551614",
     "record": "18446744073709551614",

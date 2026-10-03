@@ -114,10 +114,8 @@ test("complete definition editing and exact operator recovery", async ({ page, c
   await page.getByRole("button", { name: "Publish reviewed definition" }).click();
   await expect(page.getByRole("status")).toHaveText("Published revision 1", { timeout: 120000 });
   await page.getByRole("button", { name: "Abandon upload and release staging" }).click();
-  await expect(page.getByRole("status")).toHaveText("QueryConflict");
-  await expect(page.getByLabel("Application diagnostic")).toContainText(
-    "application.already_applied",
-  );
+  await expect(page.getByRole("status")).toHaveText("ApplicationAlreadyApplied");
+  await expect(page.getByLabel("Application diagnostic")).toContainText("publication.applied");
   await expect(page.getByLabel("Application diagnostic")).toContainText("cannot roll back");
   await page.getByRole("button", { name: "Load current definition" }).click();
   await expect(page.getByLabel("Interface SQL")).toHaveValue(/My atlas/);

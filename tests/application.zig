@@ -12,7 +12,7 @@ const Realm = 49;
 const Worker = 65536;
 const Operator = 65537;
 const Admin = @import("growing_support.zig").Admin(Realm);
-const Saved = struct { phase: []const u8, pid: u64, resource: u64, generation: u64, stale: ?g.SignedRequest = null };
+const Saved = struct { phase: []const u8, pid: u64, resource: u64, generation: u64, stale: ?g.SignedRequest = null, conflict: ?Owner.Receipt = null };
 fn owner() Owner {
     return .{ .configuration = .{ .application = 9, .namespace = .{ .value = 19 }, .realm = Realm, .administrator = Operator, .name_digest = Owner.nameDigest("board") } };
 }
@@ -208,10 +208,23 @@ pub fn main(init: std.process.Init) !void {
         const receipt = observed.receipt.?;
         try t.expectEqual(s.Publication.State.published, observed.upload.?.state);
         try t.expectEqual(Owner.Phase.applied, receipt.phase);
+        try t.expectEqualStrings("publication.applied", observed.receipt_diagnostic.?.code.slice());
+        try t.expectEqual(.applied, observed.receipt_diagnostic.?.outcome);
+        try t.expectEqual(receipt.input, try observed.receipt_diagnostic.?.facts[2].?.value.?.unsigned.value());
         try t.expectEqual(Operator, head.principal);
         try t.expectEqual(head.input, receipt.input);
         var bytes: [app.Model.max_program_bytes]u8 = undefined;
         try t.expectEqualStrings(body, try owner().reference(saved.resource, head).read(source, &bytes));
+        var stale_proposal = proposal;
+        stale_proposal.operation.value = 2;
+        stale_proposal.record.value = 101;
+        try caller.send(init.io, &server, &handler, .{ .begin = stale_proposal }, false);
+        const conflicted = (try observe(source, native_scope, .{ .state = .{ .operation = stale_proposal.operation, .record = stale_proposal.record } })).state;
+        try t.expectEqualStrings("publication.base_conflict", conflicted.receipt_diagnostic.?.code.slice());
+        try t.expectEqual(.rejected, conflicted.receipt_diagnostic.?.outcome);
+        try t.expectEqual(@as(u64, 1), conflicted.receipt.?.conflict_basis.head.revision.value);
+        try t.expectEqualSlices(u8, &head.spec.digest, &conflicted.receipt.?.conflict_basis.head.digest);
+        saved.conflict = conflicted.receipt;
         try caller.send(init.io, &server, &handler, .{ .policy = .{ .principal = Operator, .expected = .{ .value = 1 }, .next = .{ .revision = .{ .value = 2 }, .publish = false } } }, false);
         try caller.send(init.io, &server, &handler, .{ .publish = proposal.operation }, false);
         try expectDenied(source, saved.resource, caller.last_input);
@@ -224,10 +237,16 @@ pub fn main(init: std.process.Init) !void {
         const observed = (try observe(source, native_scope, .{ .state = .{ .operation = proposal.operation, .record = proposal.record } })).state;
         const head = observed.head.?;
         try t.expect(observed.policy.?.publish);
+        try t.expectEqualStrings("publication.applied", observed.receipt_diagnostic.?.code.slice());
+        try t.expectEqual(head.input, try observed.receipt_diagnostic.?.facts[2].?.value.?.unsigned.value());
         try t.expectEqual(@as(u64, 1), head.revision.value);
         var bytes: [app.Model.max_program_bytes]u8 = undefined;
         const reference = owner().reference(saved.resource, head);
         try t.expectEqualStrings(body, try reference.read(source, &bytes));
+        const conflicted = (try observe(source, native_scope, .{ .state = .{ .operation = .{ .value = 2 }, .record = .{ .value = 101 } } })).state;
+        try t.expectEqualDeep(saved.conflict.?, conflicted.receipt.?);
+        try t.expectEqualStrings("publication.base_conflict", conflicted.receipt_diagnostic.?.code.slice());
+        try t.expectEqual(.rejected, conflicted.receipt_diagnostic.?.outcome);
         var published = try app.Host.published(init.gpa, source, native_scope);
         defer published.deinit();
         try t.expectEqualDeep(head, published.value.published.head);
@@ -236,6 +255,7 @@ pub fn main(init: std.process.Init) !void {
         try t.expectError(error.AccessDenied, reference.read(source, &bytes));
         try t.expectError(error.AccessDenied, app.Host.published(init.gpa, source, native_scope));
         try t.expectError(error.AccessDenied, observe(source, native_scope, .{ .state = .{} }));
+        try t.expectError(error.AccessDenied, observe(source, native_scope, .{ .state = .{ .operation = .{ .value = 2 } } }));
         try output.interface.print("Application: {d} body bytes, signed operator={d}, four mutations, exact retries, policy and resource denial passed\n", .{ body.len, Operator });
     } else return error.UnknownPhase;
     const encoded = try p.Json.valueAlloc(init.gpa, saved);
