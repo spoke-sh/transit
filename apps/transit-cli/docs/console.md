@@ -227,7 +227,9 @@ value. Creation publishes the empty Table descriptor and catalog definition.
 It does not configure a query source, choose a Table writer or grant permissions.
 SELECT continues to use the configured query workspace. With a catalog configured,
 SHOW TABLES and `.tables` stream its bounded metadata pages; DESCRIBE resolves
-catalog names. `.schema` continues to describe the query source. If the catalog
+catalog names. `.schema` describes the query source; `.schema writer` describes
+the separately configured Table writer. Writer binding errors direct you to that
+writer inspection. It prepares no mutation and preserves saved work. If the catalog
 changes between pages, discard the partial listing and run it again.
 
 The console saves the original typed request and each exact signed command before
@@ -297,6 +299,7 @@ error and returns to the prompt when recovery permits.
 | `.help [SQL\|INSERT\|UPDATE\|DELETE\|CREATE TABLE]` | Offline SQL help, route configuration and commands |
 | `.tables` | Catalog tables when configured, otherwise the query source |
 | `.sources`, `.schema` | Currently authorized query source and schema |
+| `.schema writer` | Currently authorized Table writer name, columns, types and metadata revision |
 | `.mode table\|json` | Result presentation |
 | `.timing on\|off` | Set query wall-time reporting (off by default) |
 | `.show` | Aligned text showing effective console settings and origins |

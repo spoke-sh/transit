@@ -12309,3 +12309,21 @@ Owned unit evidence covers escaped/truncated JSON Pointer paths, scalar preview
 ownership, map keys, tagged unions, array lengths, interval components and
 clearing tolerated conversion evidence. The existing allocation-failure and
 192 MiB source under a 96 MiB address-space-limit schedules also pass.
+
+### Compiler categories and writer-scoped inspection
+
+On 2026-10-02, `just test::unit test::cli-diagnostics` passes, including 459 real
+CLI cases. Structured compiler categories distinguish unsupported constructs,
+constraints, changed sources and bounds; scalar previews mark truncation in the
+machine availability field. UPDATE/DELETE and INSERT tests identify the actual
+failing column, expected type, supplied scalar and attempted key. Completion
+fixtures cover writer schema and SQL help topics.
+
+`just test::table-query-writer` passes in 40.016 seconds. The console's
+`.schema writer` reads its authorized writer metadata without creating recovery
+work. Unknown writer columns/sources direct users to that scope. Current writer
+revocation denies the inspection without output or changes to the saved recovery
+file. The existing lost-receipt, interruption, policy-race, cancellation and
+four-mutation/256-byte-value bounds continue to pass. Logs are
+`/var/tmp/transit-compiler-scope-check.log` and
+`/var/tmp/transit-compiler-scope-writer.log`.

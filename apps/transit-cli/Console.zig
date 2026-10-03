@@ -497,6 +497,7 @@ pub const Console = struct {
                 return (@import("QueryDiagnostic.zig"){ .namespace = id, .phase = status.phase, .failure = status.failure }).render(self.out);
             };
         }
+        if (std.mem.eql(u8, text, ".schema writer")) return (self.writes orelse return error.ConsoleWriterRequired).describe(self);
         if (std.mem.eql(u8, text, ".schema") or std.mem.eql(u8, text, ".sources") or std.mem.eql(u8, text, ".status")) return u.command(self.init, self.session, self.client, self.config, text, allocator, self.out);
         return error.UnknownConsoleCommand;
     }

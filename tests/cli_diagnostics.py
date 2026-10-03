@@ -384,6 +384,7 @@ with tempfile.TemporaryDirectory(prefix='transit-cli-diagnostics-') as directory
             ('SELECT * FROM items WHERE value = NULL;', ('[binding]', 'IS NULL', 'IS MISSING')),
         ):
             invoke(['console', '--no-rc', '--config', path, '--format', 'json', '-c', statement], 1, fragments)
+        invoke(['console', '--no-rc', '--config', path], 1, ('no writer is configured', '.help INSERT'), data=b'.schema writer\n')
         script = root/'bad.sql'
         script.write_text('SELECT *\nFROM;')
         invoke(['console', '--no-rc', '--config', path, '-f', script], 1, ('line 2, column 5', '^--- error here'))

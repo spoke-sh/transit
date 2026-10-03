@@ -32,7 +32,7 @@ const grammar_hint = "This statement family has no executable SQL route; its sub
 pub fn structured(self: Self) !d {
     const category: d.Category = switch (self.kind) {
         .syntax => .syntax,
-        .binding => .binding,
+        .binding => @import("SqlCodes.zig").category(self.cause) orelse return error.UnmappedSqlDiagnostic,
         .limit => .limit,
         .unsupported, .grammar_only, .interface => .unsupported,
     };
@@ -44,7 +44,12 @@ pub fn structured(self: Self) !d {
     if (context.scope_len != 0) try value.text(.scope, .caller, context.scope[0..context.scope_len]);
     if (context.expected) |expected| try value.text(.expected_type, .schema, expected);
     if (context.actual) |actual| try value.text(.actual_type, .caller, actual);
-    if (context.literal_len != 0) try value.text(.supplied_value, .caller, context.literal[0..context.literal_len]);
+    if (context.literal_len != 0) try value.add(.{
+        .field = .supplied_value,
+        .origin = .caller,
+        .availability = if (context.literal_truncated) .truncated else .provided,
+        .value = .{ .text = try d.Text.init(context.literal[0..context.literal_len]) },
+    });
     if (context.key) |key| try value.fact(.key, .caller, .{ .signed = .init(key) });
     inline for (.{ .{ "input_row", d.Field.input_row }, .{ "previous_row", d.Field.first_occurrence }, .{ "parameter", d.Field.parameter }, .{ "expected_count", d.Field.expected_count }, .{ "actual_count", d.Field.actual_count } }) |mapping| {
         if (@field(context, mapping[0])) |number| try value.fact(mapping[1], .caller, .{ .unsigned = .init(number) });
@@ -443,4 +448,24 @@ test "SQL diagnostic owns bounded inert context and hides literals and comments"
         try std.testing.expect(std.mem.indexOfScalar(u8, out.buffered(), 27) == null);
         try std.testing.expect(std.mem.indexOf(u8, out.buffered(), "^--- error here") != null);
     }
+}
+
+test "SQL categories and scalar truncation are machine facts" {
+    for ([_]struct { cause: anyerror, category: d.Category }{
+        .{ .cause = error.UnsupportedAggregate, .category = .unsupported },
+        .{ .cause = error.NullPrimaryKey, .category = .constraint },
+        .{ .cause = error.DuplicateMutationKey, .category = .constraint },
+        .{ .cause = error.SourceChanged, .category = .conflict },
+        .{ .cause = error.CellTooLarge, .category = .limit },
+    }) |fixture| {
+        const result = try query("SELECT value FROM items", fixture.cause, true).?.structured();
+        try std.testing.expectEqual(fixture.category, result.category);
+        try std.testing.expectEqual(d.Stage.bind, result.stage);
+    }
+    var binding: sql.Binding = .{};
+    sql.Binding.supplied(&binding, @import("Unified.zig").Scalar{ .binary = &@as([33]u8, @splat(255)) });
+    const value = try bound("SELECT value FROM items", error.TypeMismatch, true, binding).?.structured();
+    try std.testing.expectEqual(d.Availability.truncated, value.facts[0].?.availability);
+    sql.Binding.supplied(&binding, @import("Unified.zig").Scalar{ .int64 = 1 });
+    try std.testing.expect(!binding.literal_truncated);
 }

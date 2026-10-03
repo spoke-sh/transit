@@ -30,7 +30,7 @@ pub fn mutation(name: q.fuze.model.Name, request: q.TableMutationRequest, status
         },
         .source_changed => {
             try out.writeAll("The target Table definition changed before the mutation could apply. No rows were changed.");
-            self.next = "Inspect the configured Table writer's current definition before preparing a new statement. .schema describes the query source.";
+            self.next = "Use .schema writer to inspect its current definition before preparing a new statement.";
         },
         .invalid_request => {
             try out.writeAll("The writer rejected the immutable mutation request as invalid. No rows were changed.");

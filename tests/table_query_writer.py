@@ -306,6 +306,13 @@ def run(node, host, proof, library, cli, *, sdks=()):
             help_result = json.loads(console_run(data='.help INSERT\n').stdout)
             assert help_result['table_writer_configured'] and not help_result['catalog_configured']
             assert 'transit mutate' not in help_result['help']
+            writer_schema = json.loads(console_run(data='.schema writer\n').stdout)['writer_schema']
+            assert writer_schema['name'] == 'items' and writer_schema['schema']['value_type'] == 'utf8', writer_schema
+            assert not recovery_path.exists(), 'schema inspection created a saved mutation'
+            for sql in ('INSERT INTO items (typo,value) VALUES (9,1)', 'DELETE FROM absent WHERE id=9'):
+                invalid = console_run(sql, code=1)
+                assert '.schema writer' in invalid.stderr and '.sources' not in invalid.stderr, invalid.stderr
+                assert not invalid.stdout and not recovery_path.exists()
             for sql, affected in [("INSERT INTO items (id,value) VALUES (101,'console')", 1),
                                   ("UPDATE items SET value='changed' WHERE id=101", 1),
                                   ("DELETE FROM items WHERE id=101", 1),
@@ -446,6 +453,11 @@ def run(node, host, proof, library, cli, *, sdks=()):
             denied(lambda: mutation('DELETE FROM items WHERE id=1', 17), 'MutationDenied')
             denied_console = console_run('DELETE FROM items WHERE id=1', code=1)
             assert 'current writer or catalog policy' in denied_console.stderr and not denied_console.stdout
+            saved_before = recovery_path.read_bytes()
+            denied_schema = console_run(data='.schema writer\n', code=1)
+            assert 'current writer or catalog policy' in denied_schema.stderr and not denied_schema.stdout
+            assert recovery_path.read_bytes() == saved_before
+
             query(3); complete(3)
             assert rows(3) == [dict(id=1, value=updated_value), dict(id=2, value='after-revocation')]
             invoke('revoke')

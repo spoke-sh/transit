@@ -175,6 +175,10 @@ fn meta(allocator: std.mem.Allocator, request: Request) !Completion {
     if (std.mem.eql(u8, request.sql[1..end], "mode")) {
         try builder.add("table", .meta, "Human rendering");
         try builder.add("json", .meta, "Machine rendering");
+    } else if (std.mem.eql(u8, request.sql[1..end], "schema")) {
+        try builder.add("writer", .meta, "Inspect the configured authorized Table writer");
+    } else if (std.mem.eql(u8, request.sql[1..end], "help")) {
+        for ([_][]const u8{ "SQL", "INSERT", "UPDATE", "DELETE", "CREATE TABLE" }) |topic| try builder.add(topic, .meta, "Local SQL help");
     } else if (std.mem.eql(u8, request.sql[1..end], "timing")) {
         try builder.add("on", .meta, "Enable query timing");
         try builder.add("off", .meta, "Disable query timing");

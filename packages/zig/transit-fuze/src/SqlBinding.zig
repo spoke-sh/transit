@@ -21,6 +21,7 @@ scope: [64]u8 = @splat(0),
 scope_len: usize = 0,
 literal: [192]u8 = @splat(0),
 literal_len: usize = 0,
+literal_truncated: bool = false,
 
 pub fn parameterAt(self: ?*Self, sites: sql.ParameterSites, index: u32) void {
     const value = self orelse return;
@@ -61,6 +62,7 @@ pub fn atError(self: ?*Self, column: sql.Column, scope: []const u8, cause: anyer
 /// values or credentials are fetched to enrich a compilation failure.
 pub fn supplied(self: ?*Self, value: anytype) void {
     const detail = self orelse return;
+    detail.literal_truncated = false;
     var out: std.Io.Writer = .fixed(&detail.literal);
     switch (value) {
         inline .int64, .uint64 => |number| out.print("{d}", .{number}) catch unreachable,
@@ -77,8 +79,25 @@ pub fn supplied(self: ?*Self, value: anytype) void {
                 else => out.print("\\x{x:0>2}", .{byte}) catch unreachable,
             };
             out.writeByte('"') catch unreachable;
-            if (bytes.len > 32) out.writeAll(" [truncated after 32 bytes]") catch unreachable;
+            detail.literal_truncated = bytes.len > 32;
+            if (detail.literal_truncated) out.writeAll(" [truncated after 32 bytes]") catch unreachable;
         },
     }
     detail.literal_len = out.end;
+}
+
+/// Scalar evidence for INSERT/UPDATE/DELETE uses the same bound as parameters.
+pub fn literalValue(self: ?*Self, value: sql.Literal) void {
+    const detail = self orelse return;
+    detail.actual = @tagName(value);
+    switch (value) {
+        .null => {
+            detail.literal = @splat(0);
+            @memcpy(detail.literal[0..4], "NULL");
+            detail.literal_len = 4;
+            detail.literal_truncated = false;
+        },
+        inline .utf8, .binary => |text, tag| supplied(self, @unionInit(@import("Unified.zig").Scalar, @tagName(tag), text.slice())),
+        inline else => |scalar, tag| supplied(self, @unionInit(@import("Unified.zig").Scalar, @tagName(tag), scalar)),
+    }
 }

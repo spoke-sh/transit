@@ -160,6 +160,24 @@ fn identity(io: std.Io) !u64 {
     try io.randomSecure(&bytes);
     return @max(1, std.mem.readInt(u64, &bytes, .little));
 }
+/// Observe this writer's authorized schema without preparing or replacing work.
+pub fn describe(self: *Self, console: *Console) !void {
+    const writer = if (self.mutation) |*client| client else return error.ConsoleWriterRequired;
+    self.read_deadline = std.Io.Clock.boot.now(self.io).toMilliseconds() + 300000;
+    defer self.read_deadline = null;
+    const description = try self.readOnly(q.TableMutationClient.describe, .{writer});
+    const schema = description.table.schema;
+    if (console.session.format == .json) return console.json(.{ .writer_schema = .{
+        .name = self.record.name.?.slice(),
+        .connection = writer.connection,
+        .resource_revision = description.resource_revision,
+        .schema = schema,
+    } });
+    try console.out.print("Configured Table writer: {s}\nTable: {d}; resource: {d}; metadata revision: {d}\n{s}: int64 NOT NULL (primary key)\n{s}: {s} NULL\n", .{
+        self.record.name.?.slice(), writer.connection.table, writer.connection.resource,  description.resource_revision,
+        schema.names[0].slice(),    schema.names[1].slice(), @tagName(schema.value_type),
+    });
+}
 pub fn start(self: *Self, console: *Console, text: []const u8, route: q.fuze.SqlDiagnostic.Route) !void {
     if (self.unresolved() or console.session.pending != null or console.session.input != null or (console.session.namespace != null and !console.session.complete)) return error.UnresolvedSubmission;
     console.write_preparing = true;
@@ -176,6 +194,10 @@ pub fn start(self: *Self, console: *Console, text: []const u8, route: q.fuze.Sql
             var binding: q.fuze.Sql.Binding = .{};
             const request = q.TableMutationRequest.fromSqlDiagnostic(writer.connection.realm, writer.connection.writer, description.table, self.record.name.?, text, &binding) catch |err| {
                 console.diagnostic.sql = q.fuze.SqlDiagnostic.bound(text, err, true, binding);
+                if (console.diagnostic.sql) |*detail| {
+                    detail.route = .mutation;
+                    if (err == error.UnknownColumn or err == error.UnknownQualifier or err == error.UnknownSource) detail.hint = "Use .schema writer to inspect the configured Table writer's authorized name, columns and types.";
+                }
                 return err;
             };
             if (!description.policy.permits(request.plan.operation)) return error.MutationDenied;

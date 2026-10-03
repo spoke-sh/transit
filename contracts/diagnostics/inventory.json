@@ -267,7 +267,7 @@
         "ConsoleRecoveryInUse": 1,
         "ConsoleRecoveryRequired": 2,
         "ConsoleRecoveryWriteFailed": 5,
-        "ConsoleWriterRequired": 2,
+        "ConsoleWriterRequired": 3,
         "DocumentHistoryGap": 1,
         "DocumentResyncRequired": 1,
         "DocumentRetired": 1,
@@ -368,7 +368,7 @@
         "ConsoleRecoverySyncFailed": 1,
         "ConsoleRecoveryTooLarge": 1,
         "ConsoleRecoveryWriteFailed": 2,
-        "ConsoleWriterRequired": 1,
+        "ConsoleWriterRequired": 2,
         "FileNotFound": 1,
         "InvalidConsoleRecovery": 12,
         "InvalidWriteConfiguration": 3,
@@ -377,6 +377,9 @@
         "MutationInputRejected": 1,
         "MutationRejected": 1,
         "NoSavedWrite": 2,
+        "UnknownColumn": 1,
+        "UnknownQualifier": 1,
+        "UnknownSource": 1,
         "UnresolvedSubmission": 2,
         "WriteWaitTimedOut": 1
       },
@@ -5563,6 +5566,7 @@
       "outcomes": {},
       "imports": [
         "Sql.zig",
+        "Unified.zig",
         "model.zig",
         "std"
       ]
@@ -5628,7 +5632,9 @@
         "UnsupportedTableType": 1
       },
       "outcomes": {},
-      "imports": []
+      "imports": [
+        "transit_protocol"
+      ]
     },
     "packages/zig/transit-fuze/src/SqlDiagnostic.zig": {
       "errors": {
@@ -5674,7 +5680,7 @@
         "UnknownColumn": 3,
         "UnknownQualifier": 4,
         "UnknownSource": 3,
-        "UnmappedSqlDiagnostic": 1,
+        "UnmappedSqlDiagnostic": 2,
         "UnspecifiedNullability": 1,
         "UnsupportedAggregate": 2,
         "UnsupportedAggregateLimit": 1,

@@ -69,6 +69,8 @@
     {"sql":"SELECT * FROM items WHERE NOT (id = 1 O","cursor":39,"start":38,"end":39,"items":["OR"]},
     {"sql":"SELECT * FROM items WHERE id = 1 OR label = ","cursor":44,"start":44,"end":44,"items":["''"]},
     {"sql":"SELECT * FROM items AS x WHERE x.id = 1 AND x.l","cursor":47,"start":46,"end":47,"items":["\"label\""]},
-    {"sql":"SELECT * FROM items AS x WHERE x.id = 1 OR items.l","cursor":50,"start":49,"end":50,"items":[]}
+    {"sql":"SELECT * FROM items AS x WHERE x.id = 1 OR items.l","cursor":50,"start":49,"end":50,"items":[]},
+    {"sql":".schema wr","cursor":10,"start":8,"end":10,"mode":"console","items":["writer"]},
+    {"sql":".help IN","cursor":8,"start":6,"end":8,"mode":"console","items":["INSERT"]}
   ]
 }

@@ -66,6 +66,7 @@ pub fn lowerDiagnostic(ast: sql.Mutation, target: Target, diagnostic: ?*sql.Bind
                     detail.expected = "int64";
                     detail.actual = @tagName(pair[first]);
                 }
+                sql.Binding.literalValue(diagnostic, pair[first]);
                 const key = try primaryKey(pair[first]);
                 sql.Binding.at(diagnostic, .{ .name = target.schema.names[1] }, target.name.slice());
                 if (diagnostic) |detail| {
@@ -73,6 +74,7 @@ pub fn lowerDiagnostic(ast: sql.Mutation, target: Target, diagnostic: ?*sql.Bind
                     detail.expected = @tagName(target.schema.value_type);
                     detail.actual = @tagName(pair[second]);
                 }
+                sql.Binding.literalValue(diagnostic, pair[second]);
                 const cell = try sql.literalCell(pair[second]);
                 try cell.validate(target.schema.value_type);
                 for (rows[0..index], 0..) |previous, before| if (previous.?.key == key) {
@@ -81,6 +83,8 @@ pub fn lowerDiagnostic(ast: sql.Mutation, target: Target, diagnostic: ?*sql.Bind
                         detail.previous_row = before + 1;
                         detail.expected = null;
                         detail.actual = null;
+                        detail.literal_len = 0;
+                        detail.literal_truncated = false;
                     }
                     return error.DuplicateMutationKey;
                 };
@@ -91,10 +95,21 @@ pub fn lowerDiagnostic(ast: sql.Mutation, target: Target, diagnostic: ?*sql.Bind
         .update => |value| blk: {
             if (try column(value.column, target, diagnostic) != 1) return error.ImmutablePrimaryKey;
             if (try column(value.key.column, target, diagnostic) != 0) return error.UnsupportedMutationPredicate;
-            break :blk .{ .update = .{ .key = try primaryKey(value.key.literal), .value = try sql.literalCell(value.literal) } };
+            if (diagnostic) |detail| detail.expected = "int64";
+            sql.Binding.literalValue(diagnostic, value.key.literal);
+            const key = try primaryKey(value.key.literal);
+            sql.Binding.at(diagnostic, value.column, target.name.slice());
+            if (diagnostic) |detail| {
+                detail.key = key;
+                detail.expected = @tagName(target.schema.value_type);
+            }
+            sql.Binding.literalValue(diagnostic, value.literal);
+            break :blk .{ .update = .{ .key = key, .value = try sql.literalCell(value.literal) } };
         },
         .delete => |value| blk: {
             if (try column(value.column, target, diagnostic) != 0) return error.UnsupportedMutationPredicate;
+            if (diagnostic) |detail| detail.expected = "int64";
+            sql.Binding.literalValue(diagnostic, value.literal);
             break :blk .{ .delete = try primaryKey(value.literal) };
         },
     };
@@ -129,4 +144,22 @@ fn primaryKey(literal: sql.Literal) !i64 {
         .null => error.NullPrimaryKey,
         else => error.TypeMismatch,
     };
+}
+
+test "mutation scalar failures preserve the actual column key type and caller input" {
+    const target: Target = .{ .name = try m.Name.init("items"), .schema = .{ .names = .{ try m.Name.init("id"), try m.Name.init("value") }, .value_type = .int64 } };
+    for ([_]struct { text: []const u8, column: []const u8, actual: []const u8, scalar: []const u8, key: ?i64 }{
+        .{ .text = "UPDATE items SET value='bad' WHERE id=7", .column = "value", .actual = "utf8", .scalar = "\"bad\"", .key = 7 },
+        .{ .text = "UPDATE items SET value=1 WHERE id='bad'", .column = "id", .actual = "utf8", .scalar = "\"bad\"", .key = null },
+        .{ .text = "DELETE FROM items WHERE id='bad'", .column = "id", .actual = "utf8", .scalar = "\"bad\"", .key = null },
+        .{ .text = "INSERT INTO items (id,value) VALUES (7,'bad')", .column = "value", .actual = "utf8", .scalar = "\"bad\"", .key = 7 },
+    }) |fixture| {
+        var binding: sql.Binding = .{};
+        try std.testing.expectError(error.TypeMismatch, compileDiagnostic(fixture.text, target, &binding));
+        try std.testing.expectEqualStrings(fixture.column, binding.subject.?.slice());
+        try std.testing.expectEqualStrings("int64", binding.expected.?);
+        try std.testing.expectEqualStrings(fixture.actual, binding.actual.?);
+        try std.testing.expectEqualStrings(fixture.scalar, binding.literal[0..binding.literal_len]);
+        try std.testing.expectEqual(fixture.key, binding.key);
+    }
 }
