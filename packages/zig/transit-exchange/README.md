@@ -24,6 +24,11 @@ missing or inconsistent retained evidence fails visibly.
 `Client.diagnostic` separately projects the retained capture failure or the exact
 native effect under current resource and process inspection permissions. It
 checks the protocol and immutable intent identity, including after retirement.
+`closePreparation` atomically retains original validation evidence for accepted
+work before an effect intent exists. It uses three mutations and refuses closure
+after intent publication. Replacement consumes the immutable failure input; it
+does not rerun validation to invent a cause. See the
+[preparation contract](../../../contracts/STATION_EXCHANGE_V1.md#accepted-preparation-failures).
 Kernel observation/closure is a separate authority decision. `settle` records
 that terminal decision against the preserved frozen intent; incomplete or
 possibly-in-flight effects cannot be retired by claiming capture is terminal.

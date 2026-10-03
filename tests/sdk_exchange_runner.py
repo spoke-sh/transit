@@ -11,7 +11,7 @@ import threading
 import time
 
 
-def run(node, cli, raw_library, worker, install, label, *, public_release=False, public_followup=False, protocol="http", fault=None):
+def run(node, cli, raw_library, worker, install, label, *, public_release=False, public_followup=False, protocol="http", fault=None, preparation_failure=False):
     assert protocol in ("http", "grpc")
     rpc = protocol == "grpc"
     assert fault is None or (rpc and fault in ("published", "retirement"))
@@ -76,11 +76,13 @@ def run(node, cli, raw_library, worker, install, label, *, public_release=False,
                     conn.request('POST', self.path, data, {'Content-Type': 'application/json'})
                     result = conn.getresponse()
                     reply = result.read()
-                    if fault and self.path == '/v1/command' and result.status == 200:
+                    if (fault or preparation_failure) and self.path == '/v1/command' and result.status == 200:
                         request = json.loads(data)['request']
                         operation = request['command']
                         if request['principal'] == 65536:
                             if 'dispatch' in operation: boundary.hit('dispatch')
+                            sent = operation.get('send', {}).get('value', '')
+                            if bytes.fromhex(sent)[13:17] == b'EXP1': boundary.hit('preparation_failure')
                             turn = operation.get('turn', operation.get('turn_with_versions', {}).get('turn', {}))
                             if any(value and bytes.fromhex(value['value'])[13:].startswith(b'GRR1') for value in turn.get('outputs', [])):
                                 boundary.hit('published')
@@ -208,9 +210,68 @@ def run(node, cli, raw_library, worker, install, label, *, public_release=False,
                     'metadata': ['x-tag', 'x-data-bin', 'authorization']}
             # The worker config is strict; resource is fixture metadata only.
             worker_config.pop('resource')
-            if fault: worker_config['url'] = url
+            if fault or preparation_failure: worker_config['url'] = url
             def invoke():
                 return json.loads(subprocess.check_output([worker, config_file('worker', worker_config)], timeout=120))
+            if preparation_failure:
+                # Admit original validation evidence, lose its receipt, then fix
+                # the configuration before replacement. Revalidation would now
+                # succeed; only the immutable admitted record preserves the cause.
+                caller['preparation_failure'] = True
+                if rpc: worker_config['credentials'] = []
+                else: worker_config['endpoint']['request_bytes'] = 1
+                boundary.arm('preparation_failure')
+                executing = subprocess.Popen([worker, config_file('worker', worker_config)], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                children.append(executing)
+                assert boundary.reached.wait(timeout=90), executing.poll()
+                executing.kill(); executing.communicate(timeout=10); boundary.close(); children.remove(executing)
+                close(child)
+                system.authority.kill(); system.authority.wait(timeout=10)
+                system.store.stop(); system.store.start()
+                system.authority = system.start(system.node, system.config)
+                from storage import wait_ready
+                wait_ready(system.store.http, system.authority, system.url + '/health')
+                own(service); worker_config['generation'] = service['generation']
+                if rpc: worker_config['credentials'] = [{'binding': 'api', 'version': 7, 'metadata': 'authorization', 'file': str(credential)}]
+                else: worker_config['endpoint'].pop('request_bytes')
+                credential.unlink()
+                result = invoke()
+                assert result['phase'] == 'unknown' and result['outcome'] == 'not_dispatched', result
+                evidence = result['capture_diagnostic']
+                assert evidence['code'] == 'exchange.preparation_failed' and evidence['outcome'] == 'not_applicable', evidence
+                assert evidence['cause'] == ('GrpcCredentialNotGranted' if rpc else 'HttpRequestTooLarge'), evidence
+                fields = {f['field']: f for f in evidence['facts'] if f}
+                assert fields['field_path']['value']['text'] == ('request.metadata[3]' if rpc else 'request.body_bytes'), evidence
+                assert evidence['identity']['id'] == str(2**64-1) and evidence['identity']['resource'] == str(service['resource'])
+                assert int(fields['native_input']['value']['unsigned']) > int(fields['first_occurrence']['value']['unsigned'])
+                assert all(a is None or a['kind'] == 'inspect_status' for a in evidence['actions'])
+                if rpc:
+                    assert fields['expected_value']['availability'] == 'withheld' and fields['supplied_value']['availability'] == 'withheld'
+                else:
+                    assert fields['expected_value']['value']['unsigned'] == '1'
+                    assert fields['supplied_value']['value']['unsigned'] == str(len(body))
+                assert result['effect_diagnostic'] is None and requests == []
+                outputs = deliver()
+                assert len(outputs) == 1 and outputs[0]['destination'] == caller['pid']
+                caller['outcome'] = bytes.fromhex(outputs[0]['value'])[13:].hex()
+                caller['preparation_diagnostic'] = evidence
+                child = start('http-caller', caller)
+                assert action(child, 'step') == {'not_dispatched': True}
+                close(child)
+                child = start('http-reader', caller)
+                assert action(child, 'preparation') == {'original': True}
+                command({'grant_resource': {'resource': service['resource'], 'subject': caller['principal'], 'permissions': 0}})
+                assert action(child, 'preparation-denied') == {'denied': True}
+                command({'grant_resource': {'resource': service['resource'], 'subject': caller['principal'], 'permissions': 3}})
+                own(service); worker_config.update(generation=service['generation'], mode='release')
+                retired = invoke()
+                assert retired['phase'] == 'retired' and retired['outcome'] == 'not_dispatched'
+                assert retired['capture_diagnostic'] == evidence
+                assert action(child, 'preparation') == {'original': True}
+                close(child)
+                assert requests == [] and not failures
+                print(f'{label} {protocol.upper()} preparation failure: original field/cause after admitted-input receipt loss, corrected configuration, worker/node/store restart, current denial and retirement; no intent or external send ({time.monotonic()-started:.2f}s).', flush=True)
+                return
             assert invoke()['phase'] == 'ready'
             own(service)
             worker_config.update(generation=service['generation'], mode='execute')

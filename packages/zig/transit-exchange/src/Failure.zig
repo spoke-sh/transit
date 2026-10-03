@@ -5,7 +5,7 @@ const x = @import("root.zig");
 const p = x.p;
 const Self = @This();
 pub const magic = "EXF1";
-pub const Reason = enum(u8) { caller_closed = 1, controller_release = 2, recovered_incomplete = 3, transport_failure = 4, capture_failure = 5 };
+pub const Reason = enum(u8) { caller_closed = 1, controller_release = 2, recovered_incomplete = 3, transport_failure = 4, capture_failure = 5, preparation_failure = 6 };
 pub const Operation = enum(u8) { none = 0, callback = 1, begin = 2, append = 3, seal = 4 };
 resource: u64 = 0,
 exchange: u64 = 0,
@@ -44,10 +44,11 @@ pub fn cause(self: *const Self) []const u8 {
 pub fn validate(self: Self) !void {
     if (self.cause_len > self.cause_bytes.len or self.cause_truncated > 1 or !std.unicode.utf8ValidateSlice(self.cause())) return error.InvalidExchangeFailure;
     for (self.cause_bytes[self.cause_len..]) |byte| if (byte != 0) return error.InvalidExchangeFailure;
-    const has_cause = self.reason == .transport_failure or self.reason == .capture_failure;
+    const has_cause = self.reason == .transport_failure or self.reason == .capture_failure or self.reason == .preparation_failure;
     if (has_cause != (self.cause_len != 0) or (!has_cause and self.cause_truncated != 0)) return error.InvalidExchangeFailure;
     if ((self.resource == 0) != (self.exchange == 0) or self.resource > p.max_counter or self.owner > p.max_counter or self.principal > p.max_counter or self.input > p.max_counter or self.origin_input > p.max_counter) return error.InvalidExchangeFailure;
-    if (self.reason != .capture_failure and (self.operation != .none or self.origin_input != 0 or self.kind != 0 or self.member != 0 or self.chunk != 0 or self.requested_bytes != 0)) return error.InvalidExchangeFailure;
+    if (self.reason != .capture_failure and (self.operation != .none or (self.origin_input != 0 and self.reason != .preparation_failure) or self.kind != 0 or self.member != 0 or self.chunk != 0 or self.requested_bytes != 0)) return error.InvalidExchangeFailure;
+    if (self.reason == .preparation_failure and (self.origin_input == 0 or self.phase != .preparing or self.effect != 0 or self.attempt != 0)) return error.InvalidExchangeFailure;
     if (self.operation != .append and self.chunk != 0) return error.InvalidExchangeFailure;
     // Mailbox input position is admission order, not the later turn commit.
     // A previously queued input can close an attempt authorized after admission.
@@ -90,15 +91,17 @@ pub fn diagnostic(self: Self, realm: u64) !p.Diagnostic {
     if (self.owner == 0) return error.InvalidExchangeFailure;
     const d = p.Diagnostic;
     const description: struct { []const u8, []const u8 } = switch (self.reason) {
+        .preparation_failure => .{ "exchange.preparation_failed", "The accepted exchange failed validation during preparation, before any effect intent or dispatch. Its original field and validation evidence are retained. This closure does not settle any other exchange." },
         .transport_failure => .{ "exchange.transport_failed", "The connector transport failed and capture is incomplete. The remote operation may have run. Inspect the native effect and recorded connector policy before further work." },
         .capture_failure => .{ "exchange.capture_failed", "The connector could not retain a complete capture. The failure identifies the capture operation; remote execution may already have occurred. Capture failure does not settle the native effect." },
         .recovered_incomplete => .{ "exchange.recovered_incomplete", "A replacement activation found incomplete capture. The prior local cause was not recorded. Recovery closes capture without dispatching the remote request again." },
         .controller_release => .{ "exchange.preparation_released", "An explicit controller release closed incomplete preparation. This capture decision is separate from native effect settlement and remote cancellation." },
         .caller_closed => .{ "exchange.capture_closed", "The owner explicitly closed capture without a complete transcript. Inspect native effect settlement separately; capture closure does not establish a remote outcome." },
     };
-    var value = try d.init(description[0], .lifecycle, if (self.reason == .capture_failure) .output else .execute, .not_applicable, .none, description[1]);
+    var value = try d.init(description[0], .lifecycle, if (self.reason == .preparation_failure) .prepare else if (self.reason == .capture_failure) .output else .execute, .not_applicable, .none, description[1]);
     if (self.effect != 0) value.identity = .{ .domain = .effect, .realm = .init(realm), .resource = .init(self.resource), .id = .init(self.effect) };
-    if (self.cause_len != 0) value.cause = try d.Code.init(self.cause());
+    if (self.reason == .preparation_failure) value.identity = .{ .domain = .exchange, .realm = .init(realm), .resource = .init(self.resource), .id = .init(self.exchange) };
+    if (self.cause_len != 0 and self.cause_truncated == 0) value.cause = try d.Code.init(self.cause());
     try value.fact(.object, .execution, .{ .unsigned = .init(self.exchange) });
     try value.fact(.actual_resource, .execution, .{ .unsigned = .init(self.resource) });
     try value.fact(.native_input, .execution, .{ .unsigned = .init(self.input) });
@@ -116,6 +119,7 @@ pub fn diagnostic(self: Self, realm: u64) !p.Diagnostic {
         if (self.operation == .begin or self.operation == .append) try value.fact(.required, .caller, .{ .unsigned = .init(self.requested_bytes) });
         if (self.origin_input != 0) try value.fact(.first_occurrence, .execution, .{ .unsigned = .init(self.origin_input) });
     }
+    if (self.reason == .preparation_failure) try value.fact(.first_occurrence, .execution, .{ .unsigned = .init(self.origin_input) });
     if (self.cause_truncated != 0) try value.text(.constraint, .owner, "The original local error name is truncated.");
     try value.action(.inspect_status);
     try value.validate();

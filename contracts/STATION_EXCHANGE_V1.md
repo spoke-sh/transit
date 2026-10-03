@@ -85,9 +85,10 @@ attempt:u64, segments:u32, bytes:u64. Integers are little endian; unused cause
 bytes are zero. The cause is an owned UTF-8 error name with explicit truncation,
 never request/response content, routing, credentials or secret references.
 Reasons are caller_closed=1, controller_release=2, recovered_incomplete=3,
-transport_failure=4 and capture_failure=5. Capture operations are none=0,
-callback=1, begin=2, append=3 and seal=4. Only transport/capture failures carry
-an error name; only capture failures carry operation context. Member and chunk
+transport_failure=4, capture_failure=5 and preparation_failure=6. Capture operations are none=0,
+callback=1, begin=2, append=3 and seal=4. Transport, capture and preparation failures carry an error name. Only capture
+failures carry capture-operation context; preparation failures use origin_input
+for the original accepted request input. Member and chunk
 indices are zero based. Zero origin_input means no confirmed receipt identified
 the failing capture operation. Input positions identify admission, not later turn
 commit order, and may precede the attempt that was eventually closed.
@@ -121,6 +122,34 @@ expire that cut. Capture permission is rechecked after independent effect reads.
 Current resource inspection/read grants and, for native effects, connector-PID
 inspection are required. Retired exchanges retain this evidence. Reads do not
 create a replay cursor or perform mutations, credential resolution or external I/O.
+
+## Accepted preparation failures
+
+`closePreparation` closes an accepted exchange only while its descriptor is
+preparing and its control has no intent. It atomically writes the descriptor,
+EXF1 failure and original validation context in three mutations. A later close
+preserves the first cause. Missing or inconsistent context is invalid history;
+retirement retains both records. A closure after intent publication is refused.
+
+Key tag `p`, ordinal zero, contains the 216-byte `EXP1` record. Its fields are
+resource:u64, exchange:u64, original input:u64, reason:u8, check:u8,
+field_length:u8, field_truncated:u8, field:[32]u8, cause_length:u8,
+cause_truncated:u8, cause:[64]u8, then expected and actual scalars, each comprising
+kind:u8, number:u64, length:u8, truncated:u8, text:[32]u8. Integers are little
+endian. Reasons, checks, scalar tags, canonical padding and truncation follow the
+[admission witness](CONNECTOR_ADMISSION_V1.md), with the busy reason and unrecorded check excluded,
+and a required original cause. The input must match the descriptor's original
+accepted input (the root request for a follow-up exchange). The immutable private worker input has this same layout and
+binds resource, exchange and original input before admission.
+
+After that failure input is admitted, replacement consumes its original evidence
+even if configuration has changed. Publishing the saved route returns a
+`not_dispatched` outcome; it does not return an input rejection. The independent
+capture diagnostic is `exchange.preparation_failed`, stage `prepare`, with
+outcome `not_applicable`, original cause, field, rule and permitted comparison
+values. The native-effect diagnostic read returns null because no intent exists.
+Known validation failures can close preparation. Allocation, storage, trust-file
+I/O and unresolved authority failures propagate without creating terminal evidence.
 
 ## Explicit followups
 

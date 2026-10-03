@@ -63,7 +63,7 @@ pub fn diagnostic(self: *Self, resource: u64, id: u64, protocol: u32, kind: Diag
     const descriptor = try ex.inspect(&source);
     if (descriptor.protocol != protocol) return error.WrongExchangeProtocol;
     const result: ?p.Diagnostic = switch (kind) {
-        .capture_failure => if (try ex.failure(&source)) |original| try original.diagnostic(self.realm) else null,
+        .capture_failure => try ex.captureDiagnostic(&source, self.realm),
         .native_effect => blk: {
             const intent = (try source.entry(x.Exchange.key(id, 'i', 0))) orelse {
                 // An absent intent is not an absent effect after admission.

@@ -263,3 +263,10 @@ reader handles.
 The independent [followup fixture](../packages/zig/transit-station-http/src/followup-fixtures.json)
 fixes HTU1 with full-width parent/namespace identifiers and the exact embedded
 request commitment.
+
+Preparation validation after route acceptance retains its original field/check/
+cause evidence under the [Exchange preparation contract](STATION_EXCHANGE_V1.md#accepted-preparation-failures).
+The service publishes the accepted route as `not_dispatched` before any intent;
+it cannot recast that work as an input rejection. The private failure input and
+retained witness survive receipt loss and replacement. Current-authorized SDK
+capture-failure reads expose that evidence after retirement as well.

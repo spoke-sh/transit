@@ -13380,3 +13380,35 @@ connector-PID inspection check. The 8 MiB hot limit spills 810 cold objects and
 This qualification is for the exchange diagnostic read definition at `8be70f5f`;
 subsequent preparation-evidence work requires its own proof. Committed-HEAD clean
 checkout verification remains outstanding.
+
+### Accepted connector preparation failures — 2026-10-03
+
+`just bindings::connector-preparation` runs two installed Python SDK schedules
+against disk-backed Ursula. HTTP records the original 513-byte body against a
+one-byte bound; gRPC records the ungranted credential reference at metadata index
+3, withholding both private comparison values. Each loses the admitted EXP1 input
+receipt, kills the worker, restarts the authority and store, corrects configuration
+and removes the credential file. Recovery publishes the original closure without
+reading that file or dispatching. Current denial blocks diagnostic reads; restored
+access and later exchange retirement retain byte-equivalent original diagnostics.
+The exact exchange identity, distinct original/current input positions, absent
+native intent and inspection-only recovery action are asserted.
+
+Both focused schedules passed: HTTP **13.10 s**, gRPC **13.18 s**, zero external
+sends. The first gRPC attempt exposed a wrong fixture expectation: duplicate
+metadata entries place the credential at index 3, not 2. That attempt did not
+pass. Exchange unit tests passed for the independent 216-byte EXP1 fixture,
+canonical decoding, malformed records, atomic rollback, first-cause preservation,
+retirement and refusal after intent/attempt creation. HTTP render units passed for
+later target/header fields, redaction and measured limits. Python artifacts and
+both worker binaries built with the replacement current-v1 definition. Logs:
+`/var/tmp/transit-preparation-{http,grpc}-proof2.log`,
+`/var/tmp/transit-preparation-build2.log` and
+`/var/tmp/transit-preparation-http-unit2.log`.
+Full `just check` passed after adding Board's preparation-outcome explanation.
+The first check correctly rejected the missing exhaustive reason mapping. A
+subsequent focused Board check passed for browser acceptance of the original
+preparation cause/input and rejection of invented dispatch evidence, after
+formatting the added fixture. Logs: `/var/tmp/transit-preparation-check2.log` and
+`/var/tmp/transit-preparation-board-check2.log`. Committed-HEAD clean qualification
+remains separate.

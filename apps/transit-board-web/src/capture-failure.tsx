@@ -9,6 +9,8 @@ const explanation = {
     "A replacement worker found incomplete capture. The original local cause was not recorded.",
   controller_release: "An explicit controller release closed incomplete preparation.",
   caller_closed: "The owner explicitly closed capture without a complete transcript.",
+  preparation_failure:
+    "The accepted request failed preparation before an effect intent or external dispatch.",
 } as const;
 
 export function CaptureFailure({ value: f }: { value: NonNullable<HttpResponse["failure"]> }) {
@@ -33,6 +35,12 @@ export function CaptureFailure({ value: f }: { value: NonNullable<HttpResponse["
         </dd>
         <dt>Native effect / attempt at capture closure</dt>
         <dd>{f.effect ? `${f.effect} / ${f.attempt}` : "Not bound"}</dd>
+        {f.reason === "preparation_failure" && (
+          <>
+            <dt>Original request input</dt>
+            <dd>{f.origin_input}</dd>
+          </>
+        )}
         {f.reason === "capture_failure" && (
           <>
             <dt>Capture operation / member / chunk</dt>
@@ -54,8 +62,9 @@ export function CaptureFailure({ value: f }: { value: NonNullable<HttpResponse["
         )}
       </dl>
       <p>
-        Inspect native effect settlement and the recorded connector policy before further work.
-        Capture closure does not establish a remote outcome or make another send safe.
+        {f.reason === "preparation_failure"
+          ? "Inspect the original preparation diagnostic to correct the failing request or policy field."
+          : "Inspect native effect settlement and the recorded connector policy before further work. Capture closure does not establish a remote outcome or make another send safe."}
       </p>
     </section>
   );

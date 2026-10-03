@@ -59,19 +59,7 @@ pub fn rejection(comptime protocol: Protocol, value: anytype) !d {
         .invalid_request => .{ prefix ++ ".invalid_request", .integrity, "The connector rejected this request. Inspect its recorded validation details; this input rejection does not settle earlier work." },
         .busy => .{ prefix ++ ".exchange_busy", .conflict, "The connector rejected this call because the exchange route is occupied or not ready for the requested control. Inspect the original exchange; this does not cancel or replace it." },
     };
-    const rule: ?[]const u8 = switch (value.check) {
-        .unrecorded => null,
-        .decode => "The request representation failed validation.",
-        .equal => "The supplied value must equal the required value.",
-        .maximum => "The supplied value must not exceed the permitted maximum.",
-        .different => "The supplied value must differ from the prohibited value.",
-        .available => "Required state is not available to this caller.",
-        .state => "The recorded exchange state does not permit this operation.",
-        .policy => "The request does not satisfy the connector policy.",
-        .occupied => "The exchange is already bound to different work.",
-        .before => "The observed time must precede the recorded deadline.",
-        .mode => "This worker is configured for a different operation.",
-    };
+    const rule = validationRule(value.check);
     var quoted_field: [194]u8 = undefined;
     var field_writer: std.Io.Writer = .fixed(&quoted_field);
     try std.json.Stringify.value(value.field[0..value.field_len], .{ .escape_unicode = true }, &field_writer);
@@ -84,11 +72,33 @@ pub fn rejection(comptime protocol: Protocol, value: anytype) !d {
         try result.fact(.native_input, .execution, .{ .unsigned = .init(value.input) });
         try result.fact(.proposal, .caller, .{ .digest = value.request });
     } else try result.absent(.native_input, .execution, .unrecorded);
+    try validationFacts(&result, value);
+    try result.action(if (value.reason == .denied) .inspect_scope else .inspect_status);
+    try result.validate();
+    return result;
+}
+pub fn validationRule(check: x.AdmissionRejection.Check) ?[]const u8 {
+    return switch (check) {
+        .unrecorded => null,
+        .decode => "The request representation failed validation.",
+        .equal => "The supplied value must equal the required value.",
+        .maximum => "The supplied value must not exceed the permitted maximum.",
+        .different => "The supplied value must differ from the prohibited value.",
+        .available => "Required state is not available to this caller.",
+        .state => "The recorded exchange state does not permit this operation.",
+        .policy => "The request does not satisfy the connector policy.",
+        .occupied => "The exchange is already bound to different work.",
+        .before => "The observed time must precede the recorded deadline.",
+        .mode => "This worker is configured for a different operation.",
+    };
+}
+pub fn validationFacts(result: *d, value: anytype) !void {
+    const rule = validationRule(value.check);
     if (value.cause_len != 0) {
         if (value.cause_truncated == 0) result.cause = try d.Code.init(value.cause[0..value.cause_len]);
-        try ownedText(&result, .native_cause, .execution, value.cause[0..value.cause_len], value.cause_truncated != 0);
+        try ownedText(result, .native_cause, .execution, value.cause[0..value.cause_len], value.cause_truncated != 0);
     } else try result.absent(.native_cause, .execution, if (value.check == .unrecorded) .unrecorded else .inapplicable);
-    if (value.field_len != 0) try ownedText(&result, .field_path, .owner, value.field[0..value.field_len], value.field_truncated != 0) else try result.absent(.field_path, .execution, .unrecorded);
+    if (value.field_len != 0) try ownedText(result, .field_path, .owner, value.field[0..value.field_len], value.field_truncated != 0) else try result.absent(.field_path, .execution, .unrecorded);
     if (rule) |text| try result.text(.constraint, .owner, text);
     inline for (.{ "expected", "actual" }) |name| {
         const field: d.Field = if (comptime std.mem.eql(u8, name, "expected")) .expected_value else .supplied_value;
@@ -99,12 +109,9 @@ pub fn rejection(comptime protocol: Protocol, value: anytype) !d {
             .inapplicable => try result.absent(field, origin, .inapplicable),
             .digest => try result.fact(field, origin, .{ .digest = @field(value, name ++ "_text") }),
             .unsigned => try result.fact(field, origin, .{ .unsigned = .init(@field(value, name ++ "_number")) }),
-            .text => try ownedText(&result, field, origin, @field(value, name ++ "_text")[0..@field(value, name ++ "_len")], @field(value, name ++ "_truncated") != 0),
+            .text => try ownedText(result, field, origin, @field(value, name ++ "_text")[0..@field(value, name ++ "_len")], @field(value, name ++ "_truncated") != 0),
         }
     }
-    try result.action(if (value.reason == .denied) .inspect_scope else .inspect_status);
-    try result.validate();
-    return result;
 }
 fn ownedText(result: *d, field: d.Field, origin: d.Origin, bytes: []const u8, truncated: bool) !void {
     try result.add(.{ .field = field, .origin = origin, .availability = if (truncated) .truncated else .provided, .value = .{ .text = try d.Text.init(bytes) } });

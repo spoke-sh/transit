@@ -672,3 +672,45 @@ test "independent EXB1 budget fixture bounds holds and rejects old untracked bud
     bad.unsettled = 3;
     try t.expectError(error.InvalidExchangeBudget, root.codec.encode(bad));
 }
+
+test "accepted preparation failure atomically retains context and cannot close an intent" {
+    var store: Store = .{};
+    defer store.deinit();
+    const ex = try exchange(&store, 77);
+    var turn = try store.capture();
+    const descriptor = try ex.inspect(&turn);
+    const Rejection = root.AdmissionRejection.For("HTF1", .http);
+    const original = root.PreparationFailure.from(ex.resource, ex.id, descriptor.input, Rejection.detail(.denied, .equal, "policy.tls", .{ .text = "true" }, .{ .text = "false" }, error.HttpCredentialRequiresTls));
+    for ([_][]const u8{ "a", "b" }) |name| try turn.put(try p.Value.init(name), .{});
+    const before = turn.decision;
+    try t.expectError(error.MutationBudgetExceeded, ex.closePreparation(&turn, original));
+    try t.expectEqualDeep(before, turn.decision);
+    turn = try store.capture();
+    var wrong = original;
+    wrong.input += 1;
+    try t.expectError(error.InvalidPreparationFailure, ex.closePreparation(&turn, wrong));
+    try t.expectEqual(.changed, try ex.closePreparation(&turn, original));
+    try t.expectEqual(null, turn.decision.effect);
+    try store.commit(turn);
+    turn = try store.capture();
+    const diagnostic = (try ex.captureDiagnostic(&turn, 1)).?;
+    try t.expectEqualStrings("exchange.preparation_failed", diagnostic.code.slice());
+    try t.expectEqual(.not_applicable, diagnostic.outcome);
+    var changed = original;
+    changed.actual_text[0] = 'F';
+    try t.expectEqual(.duplicate, try ex.closePreparation(&turn, changed));
+    try t.expectEqualDeep(diagnostic, (try ex.captureDiagnostic(&turn, 1)).?);
+    _ = try ex.retire(&turn);
+    try store.commit(turn);
+    turn = try store.capture();
+    try t.expectEqualDeep(diagnostic, (try ex.captureDiagnostic(&turn, 1)).?);
+    _ = store.state.remove(Exchange.key(ex.id, 'p', 0));
+    try t.expectError(error.InvalidPreparationFailure, ex.failure(&turn));
+
+    const ready = try exchange(&store, 78);
+    try bind(&store, ready);
+    turn = try store.capture();
+    const current = try ready.inspect(&turn);
+    const late = root.PreparationFailure.from(ready.resource, ready.id, current.input, Rejection.detail(.invalid_request, .decode, "request", .unrecorded, .unrecorded, error.InvalidHttpHeader));
+    try t.expectError(error.ExchangeClosed, ready.closePreparation(&turn, late));
+}

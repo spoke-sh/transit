@@ -64,6 +64,15 @@ Allocation, storage and trust-file read failures propagate without committing
 an admission rejection. An input rejection neither settles previous work nor
 authorizes a fresh send.
 
+An accepted HTTP/gRPC call can fail validation during preparation before creating
+an effect intent. Its saved route then reports `not_dispatched`. The original
+capture diagnostic identifies the failed field, rule, cause and permitted
+comparison values; it remains available after restart and exchange retirement.
+A changed worker configuration cannot replace an already admitted failure.
+Examples include the actual body-size limit, a later invalid header/target piece,
+and the credential-reference index that fails policy. Credential contents and
+private binding paths remain withheld. Inspection creates no new attempt.
+
 ## Capture and publication
 
 HTTP and gRPC reuse the [Exchange contract](../../contracts/STATION_EXCHANGE_V1.md)

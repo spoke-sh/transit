@@ -232,3 +232,10 @@ the same local descriptor surface. Each constructor fixes the exact method path,
 shape and full descriptor digest and accepts only caller-supplied metadata. It
 performs no network or credential work. Generated request declarations remain
 separate from application-owned protobuf message codecs and public SDK APIs.
+
+Preparation validation after route acceptance retains its original field/check/
+cause evidence under the [Exchange preparation contract](STATION_EXCHANGE_V1.md#accepted-preparation-failures).
+The service publishes the accepted route as `not_dispatched` before any intent;
+it cannot recast that work as an input rejection. The private failure input and
+retained witness survive receipt loss and replacement. Current-authorized SDK
+capture-failure reads expose that evidence after retirement as well.

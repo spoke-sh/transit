@@ -248,6 +248,32 @@ describe("HTTP metadata boundary", () => {
       );
     }
     expect(validateHttp({ ...page(), raw_body: "private" })).toBe(false);
+    const preparation = {
+      ...incomplete,
+      policy: null,
+      failure: {
+        ...captureFailure(),
+        reason: "preparation_failure" as const,
+        phase: "preparing" as const,
+        cause: "HttpRequestTooLarge",
+        origin_input: 8,
+        effect: 0,
+        attempt: 0,
+      },
+    };
+    expect(validateHttp(preparation)).toBe(true);
+    for (const invalid of [
+      { origin_input: 0 },
+      { origin_input: 13 },
+      { phase: "ready" },
+      { effect: 7, attempt: 8 },
+      { cause: null },
+      { operation: "append" },
+    ]) {
+      expect(
+        validateHttp({ ...preparation, failure: { ...preparation.failure, ...invalid } }),
+      ).toBe(false);
+    }
     const narrowed = page();
     narrowed.policy!.retry!.id = "0";
     expect(validateHttp(narrowed)).toBe(false);

@@ -430,7 +430,42 @@ pub fn failure(self: Self, source: anytype) !?root.Failure {
     };
     const record = try root.Failure.decode(value);
     try record.validateDescriptor(self.resource, self.id, d);
+    if (record.reason == .preparation_failure) {
+        const detail = try self.preparationFailure(source, d);
+        if (record.phase != .preparing or record.origin_input != detail.input or
+            record.cause_truncated != detail.cause_truncated or !std.mem.eql(u8, record.cause(), detail.cause[0..detail.cause_len])) return error.InvalidPreparationFailure;
+    }
     return record;
+}
+fn preparationFailure(self: Self, source: anytype, descriptor: root.Descriptor) !root.PreparationFailure {
+    const detail = try root.PreparationFailure.decode((try source.read(key(self.id, 'p', 0))) orelse return error.InvalidPreparationFailure);
+    if (detail.resource != self.resource or detail.exchange != self.id or detail.input != descriptor.input or
+        (try self.control(source)).disposition != .no_intent) return error.InvalidPreparationFailure;
+    return detail;
+}
+pub fn captureDiagnostic(self: Self, source: anytype, realm: u64) !?p.Diagnostic {
+    const original = (try self.failure(source)) orelse return null;
+    var result = try original.diagnostic(realm);
+    if (original.reason == .preparation_failure) try (try self.preparationFailure(source, try self.inspect(source))).explain(&result);
+    return result;
+}
+/// An already accepted route closes with no dispatch. It cannot be recast as an
+/// input rejection, overwrite a first failure, or close an existing effect intent.
+pub fn closePreparation(self: Self, turn: *Turn, proposal: root.PreparationFailure) !Pub.Outcome {
+    const before = turn.decision;
+    errdefer turn.decision = before;
+    try proposal.validate();
+    const descriptor = try self.writable(turn);
+    if (proposal.resource != self.resource or proposal.exchange != self.id or proposal.input != descriptor.input) return error.InvalidPreparationFailure;
+    if (descriptor.phase == .unknown) {
+        const original = (try self.failure(turn)) orelse return error.InvalidPreparationFailure;
+        if (original.reason != .preparation_failure) return error.ExchangeClosed;
+        return .duplicate;
+    }
+    if (descriptor.phase != .preparing or (try self.control(turn)).disposition != .no_intent) return error.ExchangeClosed;
+    // Write context first so the invariant also holds for reads within this turn.
+    try turn.write(key(self.id, 'p', 0), try proposal.encode());
+    return self.closeUnknown(turn, try proposal.failure());
 }
 /// First closure and its original cause are one atomic decision. Later closes
 /// preserve the first witness, including after a lost commit acknowledgement.
@@ -445,6 +480,12 @@ pub fn closeUnknown(self: Self, turn: *Turn, proposal: root.Failure) !Pub.Outcom
         return .duplicate;
     }
     if (d.phase != .preparing and d.phase != .ready and d.phase != .capturing) return error.ExchangeClosed;
+    if (proposal.reason == .preparation_failure) {
+        if (d.phase != .preparing) return error.ExchangeClosed;
+        const detail = try self.preparationFailure(turn, d);
+        if (proposal.origin_input != detail.input or proposal.cause_truncated != detail.cause_truncated or
+            !std.mem.eql(u8, proposal.cause(), detail.cause[0..detail.cause_len])) return error.InvalidPreparationFailure;
+    }
     var record = proposal;
     record.resource = self.resource;
     record.exchange = self.id;

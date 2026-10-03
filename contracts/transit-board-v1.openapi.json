@@ -4381,7 +4381,7 @@
                     "definition": {
                       "type": "string",
                       "enum": [
-                        "4dab48676c92875019edb9a3c8e3e6e9071ebfe22000fe513c5efe66b16734f6"
+                        "9d3f4b28d873a0f082bca76aca29ae36f7d4afe9b337484a161323819cd67db9"
                       ]
                     },
                     "code": {
@@ -6559,7 +6559,7 @@
                   "definition": {
                     "type": "string",
                     "enum": [
-                      "4dab48676c92875019edb9a3c8e3e6e9071ebfe22000fe513c5efe66b16734f6"
+                      "9d3f4b28d873a0f082bca76aca29ae36f7d4afe9b337484a161323819cd67db9"
                     ]
                   },
                   "code": {
@@ -8975,7 +8975,8 @@
                                     "controller_release",
                                     "recovered_incomplete",
                                     "transport_failure",
-                                    "capture_failure"
+                                    "capture_failure",
+                                    "preparation_failure"
                                   ]
                                 },
                                 "operation": {
@@ -10829,7 +10830,8 @@
                       "controller_release",
                       "recovered_incomplete",
                       "transport_failure",
-                      "capture_failure"
+                      "capture_failure",
+                      "preparation_failure"
                     ]
                   },
                   "operation": {
@@ -11838,7 +11840,8 @@
                       "controller_release",
                       "recovered_incomplete",
                       "transport_failure",
-                      "capture_failure"
+                      "capture_failure",
+                      "preparation_failure"
                     ]
                   },
                   "operation": {
@@ -16616,7 +16619,7 @@
                               "definition": {
                                 "type": "string",
                                 "enum": [
-                                  "4dab48676c92875019edb9a3c8e3e6e9071ebfe22000fe513c5efe66b16734f6"
+                                  "9d3f4b28d873a0f082bca76aca29ae36f7d4afe9b337484a161323819cd67db9"
                                 ]
                               },
                               "code": {

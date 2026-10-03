@@ -37,6 +37,12 @@ const Config = struct {
     cancel_policy: ?http.Policy.Action = null,
     followup: ?http.Service.FollowupTarget = null,
 };
+fn validationFailure(failure: ?*?http.Service.Rejection, detail: http.Service.Rejection, err: anyerror) anyerror {
+    if (failure) |slot| if (slot.* == null) {
+        slot.* = detail.causedBy(err);
+    };
+    return err;
+}
 const Secrets = struct {
     gpa: std.mem.Allocator,
     io: std.Io,
@@ -49,21 +55,28 @@ const Secrets = struct {
         };
     }
     fn validate(config: Config, request: http.Request) !void {
-        if (config.credentials.len > 16) return error.HttpCredentialCapacity;
+        return validateDiagnostic(config, request, null);
+    }
+    fn validateDiagnostic(config: Config, request: http.Request, failure: ?*?http.Service.Rejection) !void {
+        if (config.credentials.len > 16) return validationFailure(failure, http.Service.Rejection.detail(.denied, .maximum, "policy.credentials", .{ .unsigned = 16 }, .{ .unsigned = config.credentials.len }, error.HttpCredentialCapacity), error.HttpCredentialCapacity);
         for (config.credentials, 0..) |credential, i| {
-            if (credential.version == 0 or credential.binding.len == 0 or credential.file.len == 0) return error.InvalidHttpCredential;
-            try http.validateHeader(credential.header, "");
-            for (config.credentials[0..i]) |previous| if (std.mem.eql(u8, previous.binding, credential.binding)) return error.DuplicateHttpCredential;
+            var path_bytes: [64]u8 = undefined;
+            const path = try std.fmt.bufPrint(&path_bytes, "policy.credentials[{d}]", .{i});
+            if (credential.version == 0 or credential.binding.len == 0 or credential.file.len == 0) return validationFailure(failure, http.Service.Rejection.detail(.denied, .decode, path, .{ .text = "binding, nonzero version and file" }, .redacted, error.InvalidHttpCredential), error.InvalidHttpCredential);
+            http.validateHeader(credential.header, "") catch |err| return validationFailure(failure, http.Service.Rejection.detail(.denied, .decode, path, .{ .text = "valid credential header name" }, .redacted, err), err);
+            for (config.credentials[0..i]) |previous| if (std.mem.eql(u8, previous.binding, credential.binding)) return validationFailure(failure, http.Service.Rejection.detail(.denied, .occupied, path, .{ .text = "unique credential binding" }, .redacted, error.DuplicateHttpCredential), error.DuplicateHttpCredential);
         }
-        for (request.headers) |header| for (header.value) |piece| if (piece == .secret) {
-            if (!config.endpoint.tls) return error.HttpCredentialRequiresTls;
+        for (request.headers, 0..) |header, index| for (header.value, 0..) |piece, piece_index| if (piece == .secret) {
+            var path_bytes: [80]u8 = undefined;
+            const path = try std.fmt.bufPrint(&path_bytes, "request.headers[{d}].value[{d}]", .{ index, piece_index });
+            if (!config.endpoint.tls) return validationFailure(failure, http.Service.Rejection.detail(.denied, .equal, "policy.tls", .{ .text = "true" }, .{ .text = "false" }, error.HttpCredentialRequiresTls), error.HttpCredentialRequiresTls);
             const secret = piece.secret;
             const binding = for (config.credentials) |credential| {
                 if (std.mem.eql(u8, credential.binding, secret.binding) and credential.version == secret.version) break credential;
-            } else return error.HttpCredentialNotGranted;
-            if (!std.ascii.eqlIgnoreCase(header.name, binding.header)) return error.HttpCredentialNotGranted;
+            } else return validationFailure(failure, http.Service.Rejection.detail(.denied, .available, path, .{ .text = "authorized credential reference" }, .redacted, error.HttpCredentialNotGranted), error.HttpCredentialNotGranted);
+            if (!std.ascii.eqlIgnoreCase(header.name, binding.header)) return validationFailure(failure, http.Service.Rejection.detail(.denied, .equal, path, .redacted, .redacted, error.HttpCredentialNotGranted), error.HttpCredentialNotGranted);
         };
-        for (request.headers) |header| {
+        for (request.headers, 0..) |header, index| {
             var credential_header = false;
             for ([_][]const u8{ "authorization", "cookie", "x-api-key" }) |name| if (std.ascii.eqlIgnoreCase(header.name, name)) {
                 credential_header = true;
@@ -74,7 +87,11 @@ const Secrets = struct {
             const has_reference = for (header.value) |piece| {
                 if (piece == .secret) break true;
             } else false;
-            if (credential_header and !has_reference) return error.HttpCredentialReferenceRequired;
+            if (credential_header and !has_reference) {
+                var path_bytes: [64]u8 = undefined;
+                const path = try std.fmt.bufPrint(&path_bytes, "request.headers[{d}]", .{index});
+                return validationFailure(failure, http.Service.Rejection.detail(.denied, .policy, path, .{ .text = "credential reference" }, .redacted, error.HttpCredentialReferenceRequired), error.HttpCredentialReferenceRequired);
+            }
         }
     }
     fn resolve(raw: *anyopaque, secret: http.Request.Secret) ![]const u8 {
@@ -172,9 +189,10 @@ const Driver = struct {
         const request = parsed.value;
         if (request.body_bytes != reference.body_bytes) return .{ .rejected = http.Service.Rejection.detail(.invalid_request, .equal, "request.body_bytes", .{ .unsigned = reference.body_bytes }, .{ .unsigned = request.body_bytes }, null) };
         if (request.body_bytes > self.config.endpoint.request_bytes) return .{ .rejected = http.Service.Rejection.detail(.invalid_request, .maximum, "request.body_bytes", .{ .unsigned = self.config.endpoint.request_bytes }, .{ .unsigned = request.body_bytes }, null) };
-        Secrets.validate(self.config, request) catch |err| return .{ .rejected = http.Service.Rejection.detail(.denied, .policy, "request.credentials", .redacted, .redacted, err) };
+        var validation: ?http.Service.Rejection = null;
+        Secrets.validateDiagnostic(self.config, request, &validation) catch |err| return .{ .rejected = validation orelse return err };
         var header: [http.Request.maximum_head_bytes]u8 = undefined;
-        const rendered = request.render(self.config.endpoint.host, self.config.endpoint.port, &header, null, false) catch |err| return .{ .rejected = http.Service.Rejection.detail(.invalid_request, .decode, "request.head", .{ .unsigned = header.len }, .unrecorded, err) };
+        const rendered = request.renderDiagnostic(self.config.endpoint.host, self.config.endpoint.port, &header, null, false, &validation) catch |err| return .{ .rejected = validation orelse return err };
         var scope_failure: ?http.Service.Rejection = null;
         http.Service.validateRequestDiagnostic(policy.scope, request, rendered, &scope_failure) catch |err| return .{ .rejected = scope_failure orelse http.Service.Rejection.detail(.denied, .policy, "request.scope", .unrecorded, .unrecorded, err) };
         const prepared = try self.prepareMetadata(request);
@@ -264,6 +282,69 @@ const Driver = struct {
 fn now(io: std.Io) u64 {
     return @intCast(std.Io.Clock.real.now(io).toMilliseconds());
 }
+fn prepare(driver: *Driver, failure: ?*?http.Service.Rejection) !void {
+    const config = driver.config;
+    const ex = try driver.exchange();
+    var request_buffer: [http.Request.maximum_head_bytes]u8 = undefined;
+    var public_request: ?std.json.Parsed(http.Request) = null;
+    defer if (public_request) |value| value.deinit();
+    var public_reference: ?http.RequestRecord.Reference = null;
+    if (config.mode == .accept) {
+        var source = try driver.reader.reader(ex.resource);
+        const route = (try http.Service.route(ex, &source)) orelse return error.MissingHttpCall;
+        if (!http.Service.allowed(route, try driver.admission())) return error.HttpAdmissionDenied;
+        const reference = try route.reference();
+        const input_resource = (try driver.reader.query(.{ .resource = reference.resource })).body.resource;
+        if (input_resource.writer != route.caller) return error.HttpAdmissionDenied;
+        const request_bytes = try http.RequestRecord.read(&driver.reader, reference, http.RequestRecord.metadata_id, &request_buffer);
+        public_request = std.json.parseFromSlice(http.Request, driver.gpa, request_bytes, .{}) catch |err| {
+            if (err == error.OutOfMemory) return err;
+            return validationFailure(failure, http.Service.Rejection.detail(.invalid_request, .decode, "request.metadata", .unrecorded, .{ .unsigned = request_bytes.len }, err), err);
+        };
+        public_reference = reference;
+    }
+    const request = if (public_request) |value| value.value else config.request orelse return error.MissingHttpRequest;
+    const maximum_body = @min(@as(u64, 65536), config.endpoint.request_bytes);
+    if (request.body_bytes > maximum_body) return validationFailure(failure, http.Service.Rejection.detail(.invalid_request, .maximum, "request.body_bytes", .{ .unsigned = maximum_body }, .{ .unsigned = request.body_bytes }, error.HttpRequestTooLarge), error.HttpRequestTooLarge);
+    try Secrets.validateDiagnostic(config, request, failure);
+    const prior = driver.reader.inspect(ex.resource, ex.id) catch |err| if (err == error.ExchangeNotFound) null else return err;
+    if (prior) |d| if (d.phase != .preparing and d.phase != .ready) return error.ExchangeClosed;
+    const deadline = if (prior) |d| d.reconcile_before_ms else config.reconcile_before_ms orelse return error.MissingReconciliationDeadline;
+    const observed_clock = now(driver.io);
+    if (deadline <= observed_clock) return validationFailure(failure, http.Service.Rejection.detail(.denied, .before, "preparation.clock_ms", .{ .unsigned = deadline }, .{ .unsigned = observed_clock }, error.ExpiredReconciliation), error.ExpiredReconciliation);
+    var header: [http.Request.maximum_head_bytes]u8 = undefined;
+    const rendered = try request.renderDiagnostic(config.endpoint.host, config.endpoint.port, &header, null, false, failure);
+    if (public_reference != null) try http.Service.validateRequestDiagnostic(config.admission.?.scope, request, rendered, failure);
+    // Construct metadata before committing any effect intent. Public calls may
+    // already have an accepted route whose failure must be retained.
+    const prepared = try driver.prepareMetadata(request);
+    const metadata = try std.json.Stringify.valueAlloc(driver.gpa, prepared, .{});
+    defer driver.gpa.free(metadata);
+    if (metadata.len > 8192) return validationFailure(failure, http.Service.Rejection.detail(.invalid_request, .maximum, "request.prepared_metadata.bytes", .{ .unsigned = 8192 }, .{ .unsigned = metadata.len }, error.HttpRequestTooLarge), error.HttpRequestTooLarge);
+    const body = if (public_reference) |reference| blk: {
+        const buffer = try driver.gpa.alloc(u8, reference.body_bytes);
+        errdefer driver.gpa.free(buffer);
+        _ = try http.RequestRecord.read(&driver.reader, reference, http.RequestRecord.body_id, buffer);
+        break :blk buffer;
+    } else if (config.body_file) |path| try std.Io.Dir.cwd().readFileAlloc(driver.io, path, driver.gpa, .limited(65536)) else try driver.gpa.dupe(u8, "");
+    defer driver.gpa.free(body);
+    if (body.len != request.body_bytes) return validationFailure(failure, http.Service.Rejection.detail(.invalid_request, .equal, "request.body_bytes", .{ .unsigned = request.body_bytes }, .{ .unsigned = body.len }, error.InvalidHttpBodyLength), error.InvalidHttpBodyLength);
+    const followup_policy = try driver.validateFollowupDiagnostic(driver.gpa, prepared, body, failure);
+    try driver.apply(.{ .create = .{ .deadline = deadline, .limits = .{ .segment_bytes = 8192, .capture_bytes = 262144, .segments = 256 }, .policy = followup_policy } });
+    if (config.followup == null) try driver.apply(.{ .attempts = if (public_reference) |reference| reference.max_attempts else config.max_attempts });
+    try driver.stageAt(0, .request_template, metadata);
+    try driver.stageAt(1, .request_head, rendered);
+    var offset: usize = 0;
+    var ordinal: u32 = 2;
+    while (offset < body.len) {
+        const end = offset + @min(http.Transport.segment_bytes, body.len - offset);
+        try driver.stageAt(ordinal, .request_body, body[offset..end]);
+        offset = end;
+        ordinal += 1;
+    }
+    if (body.len == 0) try driver.stageAt(2, .request_body, "");
+    try driver.apply(.intent);
+}
 pub fn main(init: std.process.Init) !void {
     var diagnostics = telemetry.Runtime.init(init.io, "transit-station-http-worker", try telemetry.Config.environment(init.environ_map));
     diagnostics.start();
@@ -316,59 +397,24 @@ fn run(init: std.process.Init, diagnostics: *telemetry.Runtime) !void {
         if (try driver.server.session.receive() == null) break;
         try driver.drive();
     } else return error.WorkerMailboxBusy;
-    if (config.mode == .prepare or config.mode == .accept) {
-        var request_buffer: [http.Request.maximum_head_bytes]u8 = undefined;
-        var public_request: ?std.json.Parsed(http.Request) = null;
-        defer if (public_request) |value| value.deinit();
-        var public_reference: ?http.RequestRecord.Reference = null;
+    if (config.mode == .prepare or config.mode == .accept) preparation: {
         if (config.mode == .accept) {
-            var source = try driver.reader.reader(ex.resource);
-            const route = (try http.Service.route(ex, &source)) orelse return error.MissingHttpCall;
-            if (!http.Service.allowed(route, try driver.admission())) return error.HttpAdmissionDenied;
-            const reference = try route.reference();
-            const input_resource = (try driver.reader.query(.{ .resource = reference.resource })).body.resource;
-            if (input_resource.writer != route.caller) return error.HttpAdmissionDenied;
-            public_request = try std.json.parseFromSlice(http.Request, init.gpa, try http.RequestRecord.read(&driver.reader, reference, http.RequestRecord.metadata_id, &request_buffer), .{});
-            public_reference = reference;
+            if (try driver.reader.failure(ex.resource, ex.id)) |original| {
+                if (original.reason == .preparation_failure) {
+                    try driver.apply(.publish);
+                    break :preparation;
+                }
+            }
         }
-        const request = if (public_request) |value| value.value else config.request orelse return error.MissingHttpRequest;
-        if (request.body_bytes > 65536 or request.body_bytes > config.endpoint.request_bytes) return error.HttpRequestTooLarge;
-        try Secrets.validate(config, request);
-        const prior = driver.reader.inspect(ex.resource, ex.id) catch |err| if (err == error.ExchangeNotFound) null else return err;
-        if (prior) |d| if (d.phase != .preparing and d.phase != .ready) return error.ExchangeClosed;
-        const deadline = if (prior) |d| d.reconcile_before_ms else config.reconcile_before_ms orelse return error.MissingReconciliationDeadline;
-        if (deadline <= now(init.io)) return error.ExpiredReconciliation;
-        var header: [http.Request.maximum_head_bytes]u8 = undefined;
-        const rendered = try request.render(config.endpoint.host, config.endpoint.port, &header, null, false);
-        if (public_reference != null) try http.Service.validateRequest(config.admission.?.scope, request, rendered);
-        // Prepare metadata before creating any durable obligation.
-        const prepared = try driver.prepareMetadata(request);
-        const metadata = try std.json.Stringify.valueAlloc(init.gpa, prepared, .{});
-        defer init.gpa.free(metadata);
-        if (metadata.len > 8192) return error.HttpRequestTooLarge;
-        const body = if (public_reference) |reference| blk: {
-            const buffer = try init.gpa.alloc(u8, reference.body_bytes);
-            errdefer init.gpa.free(buffer);
-            _ = try http.RequestRecord.read(&driver.reader, reference, http.RequestRecord.body_id, buffer);
-            break :blk buffer;
-        } else if (config.body_file) |path| try std.Io.Dir.cwd().readFileAlloc(init.io, path, init.gpa, .limited(65536)) else try init.gpa.dupe(u8, "");
-        defer init.gpa.free(body);
-        if (body.len != request.body_bytes) return error.InvalidHttpBodyLength;
-        const followup_policy = try driver.validateFollowup(init.gpa, prepared, body);
-        try driver.apply(.{ .create = .{ .deadline = deadline, .limits = .{ .segment_bytes = 8192, .capture_bytes = 262144, .segments = 256 }, .policy = followup_policy } });
-        if (config.followup == null) try driver.apply(.{ .attempts = if (public_reference) |reference| reference.max_attempts else config.max_attempts });
-        try driver.stageAt(0, .request_template, metadata);
-        try driver.stageAt(1, .request_head, rendered);
-        var offset: usize = 0;
-        var ordinal: u32 = 2;
-        while (offset < body.len) {
-            const end = offset + @min(http.Transport.segment_bytes, body.len - offset);
-            try driver.stageAt(ordinal, .request_body, body[offset..end]);
-            offset = end;
-            ordinal += 1;
-        }
-        if (body.len == 0) try driver.stageAt(2, .request_body, "");
-        try driver.apply(.intent);
+        var failure: ?http.Service.Rejection = null;
+        prepare(&driver, &failure) catch |err| {
+            const detail = failure orelse return err;
+            if (config.mode != .accept) return err;
+            const original = try driver.reader.inspect(ex.resource, ex.id);
+            if (original.phase != .preparing) return err;
+            try driver.apply(.{ .preparation_failed = x.PreparationFailure.from(ex.resource, ex.id, original.input, detail.causedBy(err)) });
+            try driver.apply(.publish);
+        };
     } else if (config.mode == .release) {
         // Explicit trusted-controller disposal, never inferred from elapsed
         // time, quota pressure, observation acceptance or caller termination.
@@ -459,6 +505,7 @@ fn run(init: std.process.Init, diagnostics: *telemetry.Runtime) !void {
     var output_buffer: [1024]u8 = undefined;
     var output = std.Io.File.stdout().writerStreaming(init.io, &output_buffer);
     const capture_failure = if (descriptor != null) try driver.reader.failure(ex.resource, ex.id) else null;
+    const capture_diagnostic = if (capture_failure != null) driver.reader.diagnostic(ex.resource, ex.id, http.protocol_format, .capture_failure) catch null else null;
     var exchange_buffer: [20]u8 = undefined;
     const effect_diagnostic: ?p.Diagnostic = if (effect) |value| blk: {
         const observed = driver.reader.query(.{ .capabilities = {} }) catch break :blk null;
@@ -467,10 +514,10 @@ fn run(init: std.process.Init, diagnostics: *telemetry.Runtime) !void {
     try std.json.Stringify.value(.{
         .exchange = try std.fmt.bufPrint(&exchange_buffer, "{d}", .{ex.id}),
         .phase = if (descriptor) |value| @tagName(value.phase) else "not_admitted",
-        .outcome = if (effect) |value| @tagName(value.phase) else "not_committed",
+        .outcome = if (effect) |value| @tagName(value.phase) else if (capture_failure != null and capture_failure.?.reason == .preparation_failure) "not_dispatched" else "not_committed",
         .segments = if (descriptor) |value| value.segments else 0,
         .bytes = if (descriptor) |value| value.bytes else 0,
-        .capture_diagnostic = if (capture_failure) |failure| failure.diagnostic(config.realm) catch null else null,
+        .capture_diagnostic = capture_diagnostic,
         .effect_diagnostic = effect_diagnostic,
     }, .{}, &output.interface);
     try output.interface.writeByte('\n');

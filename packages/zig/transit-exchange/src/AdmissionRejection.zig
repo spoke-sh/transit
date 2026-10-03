@@ -58,6 +58,11 @@ pub fn For(comptime wire_magic: *const [4]u8, comptime protocol: x.OutcomeDiagno
             std.crypto.hash.sha2.Sha256.hash(payload.slice(), &result.request, .{});
             return result;
         }
+        pub fn causedBy(self: Self, cause: anyerror) Self {
+            var result = self;
+            if (result.cause_len == 0) store(@errorName(cause), &result.cause, &result.cause_len, &result.cause_truncated);
+            return result;
+        }
         pub fn validate(self: Self) !void {
             if (self.input > x.p.max_counter or (self.input == 0 and !std.mem.allEqual(u8, &self.request, 0))) return error.InvalidAdmissionRejection;
             try bounded(&self.field, self.field_len, self.field_truncated);

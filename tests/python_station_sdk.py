@@ -442,6 +442,12 @@ def http_consumer(mode, cfg):
                     return
                 assert isinstance(incoming.value, HttpOutcome)
                 turn.require_reply(incoming, peer=peer, correlation=turn.state.require(correlation))
+                if cfg.get('preparation_failure'):
+                    assert incoming.value.phase is HttpPhase.NOT_DISPATCHED
+                    assert incoming.value.effect == 0 and incoming.value.attempt == 0
+                    assert incoming.value.diagnostic['code'] == 'http.not_dispatched'
+                    self.result = {'not_dispatched': True}
+                    return
                 assert incoming.value.phase is HttpPhase.OBSERVED and incoming.value.status == 200
                 assert incoming.value.diagnostic['code'] == 'http.response_observed'
                 assert incoming.value.diagnostic['outcome'] == 'completed'
@@ -502,6 +508,19 @@ def http_consumer(mode, cfg):
                     except TurnExpired: pass
                     else: raise AssertionError('Escaped followup turn accepted')
                 result = handler.result
+            elif action in ('preparation', 'preparation-denied'):
+                from transit_station import ExchangeDiagnosticKind
+                outcome = decode_http_reply(72, bytes.fromhex(cfg['outcome']))
+                if action == 'preparation-denied':
+                    for kind in ExchangeDiagnosticKind:
+                        try: runner.http_diagnostic(outcome, kind)
+                        except AccessDenied: pass
+                        else: raise AssertionError('Denied preparation evidence returned')
+                    result = {'denied': True}
+                else:
+                    assert runner.http_diagnostic(outcome) == cfg['preparation_diagnostic']
+                    assert runner.http_diagnostic(outcome, ExchangeDiagnosticKind.NATIVE_EFFECT) is None
+                    result = {'original': True}
             elif action == 'open':
                 outcome = decode_http_reply(72, bytes.fromhex(cfg['outcome']))
                 from transit_station import ExchangeDiagnosticKind
@@ -628,6 +647,12 @@ def grpc_consumer(mode, cfg):
                     return
                 assert isinstance(incoming.value, GrpcOutcome)
                 turn.require_reply(incoming, peer=peer, correlation=turn.state.require(correlation))
+                if cfg.get('preparation_failure'):
+                    assert incoming.value.phase is GrpcPhase.NOT_DISPATCHED
+                    assert incoming.value.effect == 0 and incoming.value.attempt == 0
+                    assert incoming.value.diagnostic['code'] == 'grpc.not_dispatched'
+                    self.result = {'not_dispatched': True}
+                    return
                 assert incoming.value.phase is GrpcPhase.OBSERVED and incoming.value.status == 0
                 assert incoming.value.diagnostic['code'] == 'grpc.ok_observed'
                 assert incoming.value.diagnostic['outcome'] == 'completed'
@@ -688,6 +713,19 @@ def grpc_consumer(mode, cfg):
                     except TurnExpired: pass
                     else: raise AssertionError('Escaped followup turn accepted')
                 result = handler.result
+            elif action in ('preparation', 'preparation-denied'):
+                from transit_station import ExchangeDiagnosticKind
+                outcome = decode_grpc_reply(72, bytes.fromhex(cfg['outcome']))
+                if action == 'preparation-denied':
+                    for kind in ExchangeDiagnosticKind:
+                        try: runner.grpc_diagnostic(outcome, kind)
+                        except AccessDenied: pass
+                        else: raise AssertionError('Denied preparation evidence returned')
+                    result = {'denied': True}
+                else:
+                    assert runner.grpc_diagnostic(outcome) == cfg['preparation_diagnostic']
+                    assert runner.grpc_diagnostic(outcome, ExchangeDiagnosticKind.NATIVE_EFFECT) is None
+                    result = {'original': True}
             elif action == 'open':
                 outcome = decode_grpc_reply(72, bytes.fromhex(cfg['outcome']))
                 from transit_station import ExchangeDiagnosticKind

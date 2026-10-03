@@ -26,6 +26,7 @@ pub fn For(comptime Host: type, comptime Adapter: type, comptime options: Option
             publish,
             finish: u32,
             unknown: x.Failure,
+            preparation_failed: x.PreparationFailure,
         };
         pub fn admission(self: *Host) !Adapter.Service.Admission {
             const policy = self.config.admission orelse return options.admission_missing;
@@ -54,7 +55,7 @@ pub fn For(comptime Host: type, comptime Adapter: type, comptime options: Option
             // This first worker owns a private control mailbox. Application ingress
             // is a separately scoped service obligation, not arbitrary callback data.
             switch (turn.delivery.input.origin) {
-                .external => |origin| if (origin.principal != self.config.principal or frame.kind != .cast or (!std.mem.eql(u8, frame.payload.slice(), "Adapter.tick.v1") and !std.mem.startsWith(u8, frame.payload.slice(), x.Failure.magic))) return error.UnexpectedWorkerInput,
+                .external => |origin| if (origin.principal != self.config.principal or frame.kind != .cast or (!std.mem.eql(u8, frame.payload.slice(), "Adapter.tick.v1") and !std.mem.startsWith(u8, frame.payload.slice(), x.Failure.magic) and !std.mem.startsWith(u8, frame.payload.slice(), x.PreparationFailure.magic))) return error.UnexpectedWorkerInput,
                 .effect => |origin| {
                     const descriptor = try ex.inspect(turn);
                     if (origin.id != descriptor.effect or origin.attempt != descriptor.attempt or origin.executor != descriptor.executor) return error.InvalidExchangeAttempt;
@@ -79,6 +80,10 @@ pub fn For(comptime Host: type, comptime Adapter: type, comptime options: Option
             if (std.mem.startsWith(u8, frame.payload.slice(), x.Failure.magic)) {
                 const failure = try x.Failure.decodeRequest(frame.payload);
                 _ = try ex.closeUnknown(turn, failure);
+                return;
+            }
+            if (std.mem.startsWith(u8, frame.payload.slice(), x.PreparationFailure.magic)) {
+                _ = try ex.closePreparation(turn, try x.PreparationFailure.decode(frame.payload));
                 return;
             }
             switch (self.operation) {
@@ -131,7 +136,7 @@ pub fn For(comptime Host: type, comptime Adapter: type, comptime options: Option
                 // A prior generic tick may remain after a blocked capture step.
                 // Consume that scheduling signal; only the distinct immutable
                 // failure input below carries authority to retain this witness.
-                .unknown => {},
+                .unknown, .preparation_failed => {},
             }
         }
         pub fn drive(self: *Host) !void {
@@ -166,7 +171,7 @@ pub fn For(comptime Host: type, comptime Adapter: type, comptime options: Option
                 failure.resource = ex.resource;
                 failure.exchange = ex.id;
                 break :blk try failure.encodeRequest();
-            } else try p.Value.init("Adapter.tick.v1");
+            } else if (operation == .preparation_failed) try operation.preparation_failed.encode() else try p.Value.init("Adapter.tick.v1");
             const sent = self.command(.{ .send = .{ .pid = self.config.pid, .value = try (s.Frame{ .kind = .cast, .payload = payload }).encode() } }) catch |err| {
                 captureFailure(self, operation, 0, err);
                 return err;

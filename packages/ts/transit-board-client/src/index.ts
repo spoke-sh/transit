@@ -179,7 +179,10 @@ function validCaptureFailure(
   exchange: string,
 ): boolean {
   const f = failure;
-  const hasCause = f.reason === "transport_failure" || f.reason === "capture_failure";
+  const hasCause =
+    f.reason === "transport_failure" ||
+    f.reason === "capture_failure" ||
+    f.reason === "preparation_failure";
   if (
     f.exchange !== exchange ||
     !wide(exchange) ||
@@ -202,9 +205,14 @@ function validCaptureFailure(
   )
     return false;
   if (
+    f.reason === "preparation_failure" &&
+    (f.phase !== "preparing" || f.origin_input === 0 || f.effect !== 0 || f.attempt !== 0)
+  )
+    return false;
+  if (
     f.reason !== "capture_failure" &&
     (f.operation !== "none" ||
-      f.origin_input !== 0 ||
+      (f.reason !== "preparation_failure" && f.origin_input !== 0) ||
       f.kind !== 0 ||
       f.member !== 0 ||
       f.chunk !== 0 ||

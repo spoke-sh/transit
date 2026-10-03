@@ -83,7 +83,8 @@
       "test::model-delivery",
       "test::sql-rewrites",
       "test::sql",
-      "bindings::grpc-faults"
+      "bindings::grpc-faults",
+      "bindings::connector-preparation"
     ],
     "browser": [
       "transit-board::browser",

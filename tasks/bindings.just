@@ -207,6 +207,12 @@ connector-outcomes: python-build node-build rust-build ruby-build c-build java-b
     python3 -B tests/sdk_grpc_runner.py zig-out/bin/transit-node zig-out/bin/rey-cli zig-out/lib/libtransit_client.so zig-out/bin/transit-station-http-worker .cache/bindings --protocol http
     python3 -B tests/sdk_grpc_runner.py zig-out/bin/transit-node zig-out/bin/rey-cli zig-out/lib/libtransit_client.so zig-out/bin/transit-station-grpc-worker .cache/bindings
 
+# Retain original accepted-call preparation failures across lost receipts and restart.
+connector-preparation: python-build
+    zig build transit-node rey-cli transit-station-http-worker transit-station-grpc-worker
+    python3 -B tests/sdk_grpc_runner.py zig-out/bin/transit-node zig-out/bin/rey-cli zig-out/lib/libtransit_client.so zig-out/bin/transit-station-http-worker .cache/bindings --protocol http --language python --preparation-failure
+    python3 -B tests/sdk_grpc_runner.py zig-out/bin/transit-node zig-out/bin/rey-cli zig-out/lib/libtransit_client.so zig-out/bin/transit-station-grpc-worker .cache/bindings --language python --preparation-failure
+
 # Crash after public RPC output commit and preserve a retired caller destination.
 grpc-faults: python-build
     zig build transit-node rey-cli transit-station-grpc-worker

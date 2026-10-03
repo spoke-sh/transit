@@ -194,7 +194,7 @@ fn readFileBounded(io: std.Io, path: []const u8, buffer: []u8) ![]const u8 {
     if (try reader.interface.readSliceShort(&extra) != 0) return error.GrpcRequestTooLarge;
     return buffer[0..len];
 }
-fn prepare(driver: *Driver) !void {
+fn prepare(driver: *Driver, failure: ?*?rpc.Service.Rejection) !void {
     const config = driver.config;
     const ex = try driver.exchange();
     var metadata_buffer: [8192]u8 = undefined;
@@ -206,7 +206,7 @@ fn prepare(driver: *Driver) !void {
         const route = (try rpc.Service.route(ex, &source)) orelse return error.MissingGrpcCall;
         if (!rpc.Service.allowed(route, try driver.admission())) return error.GrpcAdmissionDenied;
         reference = try route.reference();
-        input = try driver.readRequest(reference.?, &metadata_buffer, &batch_buffer);
+        input = try driver.readRequestDiagnostic(reference.?, &metadata_buffer, &batch_buffer, failure);
     } else {
         const metadata = try readFileBounded(driver.io, config.request_file orelse return error.MissingGrpcRequest, &metadata_buffer);
         const batch = try readFileBounded(driver.io, config.batch_file orelse return error.MissingGrpcBatch, &batch_buffer);
@@ -214,14 +214,14 @@ fn prepare(driver: *Driver) !void {
     }
     defer input.deinit();
     var credentials: [16]rpc.Policy.Credential = undefined;
-    const prepared = try driver.prepared(input, &credentials);
+    const prepared = try driver.preparedDiagnostic(input, &credentials, failure);
     var policy_buffer: [8192]u8 = undefined;
     const policy_bytes = try prepared.encode(&policy_buffer);
     const prior = driver.reader.inspect(ex.resource, ex.id) catch |err| if (err == error.ExchangeNotFound) null else return err;
     if (prior) |descriptor| if (descriptor.phase != .preparing) return;
     const deadline = if (prior) |descriptor| descriptor.reconcile_before_ms else config.reconcile_before_ms orelse return error.MissingReconciliationDeadline;
     if (reference) |ref| if (deadline != ref.reconcile_before_ms) return error.GrpcRequestChanged;
-    const followup = try driver.validateFollowup(prepared, input.request.request);
+    const followup = try driver.validateFollowupDiagnostic(prepared, input.request.request, failure);
     try driver.apply(.{ .create = .{ .deadline = deadline, .limits = capture_limits, .policy = followup } });
     if (config.followup == null) try driver.apply(.{ .attempts = if (reference) |ref| ref.max_attempts else config.max_attempts });
     try driver.stageAt(0, .request_metadata, input.metadata);
@@ -366,8 +366,24 @@ fn run(init: std.process.Init, diagnostics: *telemetry.Runtime) !void {
         if (try driver.server.session.receive() == null) break;
         try driver.drive();
     } else return error.WorkerMailboxBusy;
-    if (config.mode == .prepare or config.mode == .accept) {
-        try prepare(&driver);
+    if (config.mode == .prepare or config.mode == .accept) preparation: {
+        if (config.mode == .accept) {
+            if (try driver.reader.failure(ex.resource, ex.id)) |original| {
+                if (original.reason == .preparation_failure) {
+                    try driver.apply(.publish);
+                    break :preparation;
+                }
+            }
+        }
+        var failure: ?rpc.Service.Rejection = null;
+        prepare(&driver, &failure) catch |err| {
+            const detail = failure orelse return err;
+            if (config.mode != .accept) return err;
+            const original = try driver.reader.inspect(ex.resource, ex.id);
+            if (original.phase != .preparing) return err;
+            try driver.apply(.{ .preparation_failed = x.PreparationFailure.from(ex.resource, ex.id, original.input, detail.causedBy(err)) });
+            try driver.apply(.publish);
+        };
     } else if (config.mode == .release) {
         // Explicit trusted-controller disposal, never inferred from elapsed
         // time, quota pressure, observation acceptance or caller termination.
@@ -393,6 +409,7 @@ fn run(init: std.process.Init, diagnostics: *telemetry.Runtime) !void {
     var output_buffer: [1024]u8 = undefined;
     var output = std.Io.File.stdout().writerStreaming(init.io, &output_buffer);
     const capture_failure = if (descriptor != null) try driver.reader.failure(ex.resource, ex.id) else null;
+    const capture_diagnostic = if (capture_failure != null) driver.reader.diagnostic(ex.resource, ex.id, rpc.protocol_format, .capture_failure) catch null else null;
     var exchange_buffer: [20]u8 = undefined;
     const effect_diagnostic: ?p.Diagnostic = if (effect) |value| blk: {
         const observed = driver.reader.query(.{ .capabilities = {} }) catch break :blk null;
@@ -401,10 +418,10 @@ fn run(init: std.process.Init, diagnostics: *telemetry.Runtime) !void {
     try std.json.Stringify.value(.{
         .exchange = try std.fmt.bufPrint(&exchange_buffer, "{d}", .{ex.id}),
         .phase = if (descriptor) |value| @tagName(value.phase) else "not_admitted",
-        .outcome = if (effect) |value| @tagName(value.phase) else "not_committed",
+        .outcome = if (effect) |value| @tagName(value.phase) else if (capture_failure != null and capture_failure.?.reason == .preparation_failure) "not_dispatched" else "not_committed",
         .segments = if (descriptor) |value| value.segments else 0,
         .bytes = if (descriptor) |value| value.bytes else 0,
-        .capture_diagnostic = if (capture_failure) |failure| failure.diagnostic(config.realm) catch null else null,
+        .capture_diagnostic = capture_diagnostic,
         .effect_diagnostic = effect_diagnostic,
     }, .{}, &output.interface);
     try output.interface.writeByte('\n');

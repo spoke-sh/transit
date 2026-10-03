@@ -188,3 +188,34 @@ test "followup diagnostics retain exact policy differences, key bounds and redir
     try t.expectEqualStrings("policy.cancel", context.?.field[0..context.?.field_len]);
     try context.?.validate();
 }
+
+test "request rendering attributes later pieces and header bounds without disclosing credentials" {
+    var buffer: [http.Request.maximum_head_bytes]u8 = undefined;
+    var context: ?http.Service.Rejection = null;
+    const target: http.Request = .{ .method = .GET, .target = &.{ .{ .literal = "/ok/" }, .{ .literal = "bad path" } } };
+    try t.expectError(error.InvalidHttpTarget, target.renderDiagnostic("example.test", 443, &buffer, null, false, &context));
+    try t.expectEqualStrings("request.target[1]", context.?.field[0..context.?.field_len]);
+    try t.expectEqualStrings("bad path", context.?.actual_text[0..context.?.actual_len]);
+    context = null;
+    const header: http.Request = .{ .method = .GET, .target = &.{.{ .literal = "/" }}, .headers = &.{
+        .{ .name = "X-Ok", .value = &.{.{ .literal = "fine" }} },
+        .{ .name = "X-Bad", .value = &.{.{ .literal = "private\r\nvalue" }} },
+    } };
+    try t.expectError(error.InvalidHttpHeader, header.renderDiagnostic("example.test", 443, &buffer, null, false, &context));
+    try t.expectEqualStrings("request.headers[1]", context.?.field[0..context.?.field_len]);
+    try t.expectEqual(.redacted, context.?.actual_kind);
+    context = null;
+    const valid: http.Request = .{ .method = .GET, .target = &.{.{ .literal = "/" }} };
+    try t.expectError(error.WriteFailed, valid.renderDiagnostic("example.test", 443, buffer[0..1], null, false, &context));
+    try t.expectEqualStrings("request.head.bytes", context.?.field[0..context.?.field_len]);
+    try t.expectEqual(@as(u64, 1), context.?.expected_number);
+    try t.expectEqual(.unrecorded, context.?.actual_kind);
+    context = null;
+    var too_many = valid;
+    const headers: [65]http.Request.Header = @splat(.{ .name = "X", .value = &.{} });
+    too_many.headers = &headers;
+    try t.expectError(error.HttpRequestTooLarge, too_many.renderDiagnostic("example.test", 443, &buffer, null, false, &context));
+    try t.expectEqualStrings("request.headers", context.?.field[0..context.?.field_len]);
+    try t.expectEqual(@as(u64, 64), context.?.expected_number);
+    try t.expectEqual(@as(u64, 65), context.?.actual_number);
+}

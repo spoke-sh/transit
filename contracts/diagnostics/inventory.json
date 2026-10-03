@@ -4211,17 +4211,17 @@
     "apps/transit-station-http-worker/main.zig": {
       "errors": {
         "AmbiguousHttpRedirect": 1,
-        "DuplicateHttpCredential": 1,
+        "DuplicateHttpCredential": 2,
         "ExchangeClosed": 1,
         "ExchangeNotFound": 2,
         "ExpectedConfiguration": 1,
-        "ExpiredReconciliation": 5,
+        "ExpiredReconciliation": 6,
         "HttpAdmissionDenied": 3,
         "HttpAdmissionNotConfigured": 2,
-        "HttpCredentialCapacity": 1,
-        "HttpCredentialNotGranted": 3,
-        "HttpCredentialReferenceRequired": 1,
-        "HttpCredentialRequiresTls": 1,
+        "HttpCredentialCapacity": 2,
+        "HttpCredentialNotGranted": 5,
+        "HttpCredentialReferenceRequired": 2,
+        "HttpCredentialRequiresTls": 2,
         "HttpEndpointChanged": 3,
         "HttpExplicitTrustRequired": 1,
         "HttpFollowupChanged": 3,
@@ -4233,19 +4233,19 @@
         "HttpRedirectNotCaptured": 2,
         "HttpRedirectScope": 1,
         "HttpReplayGap": 3,
-        "HttpRequestTooLarge": 4,
+        "HttpRequestTooLarge": 6,
         "HttpRetryChanged": 4,
         "IncompatibleExchangeLifetime": 1,
         "InvalidConfiguration": 1,
         "InvalidExchangeAttempt": 1,
-        "InvalidHttpBodyLength": 2,
+        "InvalidHttpBodyLength": 3,
         "InvalidHttpCapture": 3,
-        "InvalidHttpCredential": 1,
+        "InvalidHttpCredential": 2,
         "InvalidHttpIdempotencyKey": 1,
         "MissingHttpCall": 1,
         "MissingHttpRequest": 1,
         "MissingReconciliationDeadline": 1,
-        "OutOfMemory": 1,
+        "OutOfMemory": 2,
         "UnknownEffect": 1,
         "UnsupportedHttpCancellation": 1,
         "UnsupportedHttpReconciliation": 1,
@@ -4976,7 +4976,7 @@
         "EffectBudgetExceeded": 1,
         "ExchangeAttemptBudgetExceeded": 2,
         "ExchangeCapacity": 2,
-        "ExchangeClosed": 7,
+        "ExchangeClosed": 10,
         "ExchangeContextTooLarge": 2,
         "ExchangeDependencyReleased": 1,
         "ExchangeGap": 5,
@@ -4995,6 +4995,7 @@
         "InvalidExchangeIdentity": 5,
         "InvalidExchangeLineage": 4,
         "InvalidExchangeRecord": 8,
+        "InvalidPreparationFailure": 6,
         "NotRootExchange": 1,
         "StaleExchangeSource": 2,
         "UnknownExchangeDependency": 1,
@@ -5018,7 +5019,7 @@
     },
     "packages/zig/transit-exchange/src/Failure.zig": {
       "errors": {
-        "InvalidExchangeFailure": 14
+        "InvalidExchangeFailure": 15
       },
       "outcomes": {
         "Reason": [
@@ -5026,7 +5027,8 @@
           "controller_release",
           "recovered_incomplete",
           "transport_failure",
-          "capture_failure"
+          "capture_failure",
+          "preparation_failure"
         ],
         "Operation": [
           "none",
@@ -5059,6 +5061,16 @@
       "outcomes": {},
       "imports": [
         "AdmissionRejection.zig",
+        "std"
+      ]
+    },
+    "packages/zig/transit-exchange/src/PreparationFailure.zig": {
+      "errors": {
+        "InvalidPreparationFailure": 1
+      },
+      "outcomes": {},
+      "imports": [
+        "root.zig",
         "std"
       ]
     },
@@ -5106,7 +5118,8 @@
           "collect",
           "publish",
           "finish",
-          "unknown"
+          "unknown",
+          "preparation_failed"
         ]
       },
       "imports": [
@@ -5147,6 +5160,7 @@
         "Failure.zig",
         "OutcomeDiagnostic.zig",
         "PolicyDifference.zig",
+        "PreparationFailure.zig",
         "Service.zig",
         "Worker.zig",
         "codec.zig",
@@ -7195,7 +7209,7 @@
       },
       "outcomes": {
         "Definition": [
-          "@\"4dab48676c92875019edb9a3c8e3e6e9071ebfe22000fe513c5efe66b16734f6\""
+          "@\"9d3f4b28d873a0f082bca76aca29ae36f7d4afe9b337484a161323819cd67db9\""
         ],
         "Command": [
           "grant",
@@ -11123,7 +11137,7 @@
     },
     "packages/zig/transit-station-http/src/Request.zig": {
       "errors": {
-        "HttpRequestTooLarge": 2,
+        "HttpRequestTooLarge": 4,
         "InvalidHttpAuthority": 2,
         "InvalidHttpBinding": 2,
         "InvalidHttpSecret": 1,
