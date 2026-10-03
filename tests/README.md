@@ -13803,3 +13803,27 @@ qualification. The failed clean checkout is retained at
 `/var/tmp/transit-ci-hko3_uj9`, with `completed: false`; it is not a clean pass.
 Logs: `/var/tmp/transit-diagnostics-qualified-clean.log` and
 `/var/tmp/transit-diagnostics-admission-{check,http,sdk}.log`.
+
+The corrected HTTP worker proof passes in **692.33 seconds**, including original
+failure-input receipt loss, restart, retirement, rejected followups and explicit
+retry/redirect/status/cancel. It observes seventeen sends, nine applications and
+two cancellation requests. `bindings::connector-outcomes` also passes all twenty
+installed schedules: HTTP and gRPC for Python, Node, Rust, Ruby, C, C++, Java,
+.NET, Erlang and Elixir. Each rejected followup now includes the fresh `accept`
+regression check. These qualify the implementation committed as `8ff184f1`.
+
+### Abrupt TLS close proof boundary (2026-10-03)
+
+Clean qualification at `8ff184f1276f0e80913fa623c5c08140c2e388b4` passed forty
+tasks, then the independent gRPC peer's deliberate abrupt close returned
+`ConnectionResetByPeer` where the fixture required `TlsConnectionTruncated`.
+Closing a socket with unread request data can expose either transport cause.
+The fixture now admits only those two exact failure records, both with zero
+received messages and without a status or completion claim. Runtime behavior is
+unchanged. Three consecutive pinned `just test::grpc-transport` runs pass,
+including all four shapes, finite budgets, flow control and malformed terminals.
+Log: `/var/tmp/transit-diagnostics-tls-close-proof.log`.
+
+The failed clean run remains incomplete at `/var/tmp/transit-ci-__ng_3be` and
+`/var/tmp/transit-diagnostics-complete-clean.log`; completed tasks do not establish
+a full clean pass. Final qualification must include the corrected fixture.

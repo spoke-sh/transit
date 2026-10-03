@@ -87,7 +87,15 @@ def verify(binary, cert, key, payload):
                 assert requests == [frame*4] and fragments[0] > 100, (len(requests), fragments)
                 assert result["capture_complete"] and result["status"] == 0 and result["sent"] == 4 and result["received"] == 3 and result["half_closed"], result
                 assert result["sha256"] == hashlib.sha256(payload*3).hexdigest(), result
+            elif mode == "DroppedTls":
+                # Closing with unread request bytes can produce either EOF
+                # without TLS close_notify or a TCP reset. Preserve the actual
+                # transport cause; neither establishes a response or completion.
+                assert result in (
+                    {"error": "TlsConnectionTruncated", "received": 0},
+                    {"error": "ConnectionResetByPeer", "received": 0},
+                ), (mode, result)
             else:
-                expected = {"Missing": "MissingStatus", "Truncated": "Internal", "Compressed": "Internal", "EarlyStatus": "MalformedResponse", "DuplicateStatus": "MalformedResponse", "DroppedTls": "TlsConnectionTruncated"}[mode]
+                expected = {"Missing": "MissingStatus", "Truncated": "Internal", "Compressed": "Internal", "EarlyStatus": "MalformedResponse", "DuplicateStatus": "MalformedResponse"}[mode]
                 assert result.get("error") == expected, (mode, result)
     print("gRPC HTTP/2 peer: 64-byte send credit and 16-KiB receive credit progress together; missing, truncated, compressed and forged terminal envelopes reject.")
