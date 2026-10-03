@@ -12,6 +12,7 @@ pub const Behavior = @import("Behavior.zig");
 pub const Native = @import("Native.zig");
 pub const Upload = @import("Upload.zig");
 pub const Host = @import("Host.zig");
+pub const HostDiagnostic = @import("HostDiagnostic.zig");
 pub const Migration = @import("Migration.zig");
 test {
     _ = @import("model_test.zig");

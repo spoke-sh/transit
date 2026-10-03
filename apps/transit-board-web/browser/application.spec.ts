@@ -20,7 +20,12 @@ test("complete definition editing and exact operator recovery", async ({ page, c
   await page.getByLabel("Interface SQL").fill(original + "\nDROP INTERFACE board;");
   await page.getByRole("button", { name: "Validate program" }).click();
   await expect(page.getByRole("status")).toHaveText("UnsupportedQuery");
+  await expect(page.getByLabel("Application diagnostic")).toContainText(
+    "application.unsupported_interface_statement",
+  );
+  await expect(page.getByLabel("Application diagnostic")).toContainText("not submitted");
   await page.getByLabel("Interface SQL").fill(original);
+  await expect(page.getByLabel("Application diagnostic")).toHaveCount(0);
   await page.getByRole("button", { name: "Validate program" }).click();
   await expect(page.getByRole("status")).toContainText("Complete program validated");
   await page.getByRole("button", { name: "Form", exact: true }).click();
@@ -110,6 +115,10 @@ test("complete definition editing and exact operator recovery", async ({ page, c
   await expect(page.getByRole("status")).toHaveText("Published revision 1", { timeout: 120000 });
   await page.getByRole("button", { name: "Abandon upload and release staging" }).click();
   await expect(page.getByRole("status")).toHaveText("QueryConflict");
+  await expect(page.getByLabel("Application diagnostic")).toContainText(
+    "application.already_applied",
+  );
+  await expect(page.getByLabel("Application diagnostic")).toContainText("cannot roll back");
   await page.getByRole("button", { name: "Load current definition" }).click();
   await expect(page.getByLabel("Interface SQL")).toHaveValue(/My atlas/);
   await page.getByRole("button", { name: "Review publication" }).click();

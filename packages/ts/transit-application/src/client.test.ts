@@ -1,7 +1,50 @@
-import { expect, test } from "vite-plus/test";
-import { OperatorSession, type Transport } from "./client";
+import { afterEach, expect, test, vi } from "vite-plus/test";
+import {
+  ApplicationTransportError,
+  request,
+  readInterface,
+  OperatorSession,
+  type Transport,
+} from "./client";
+import fixture from "../../../zig/transit-protocol/src/fixtures/diagnostic-v1.json" with { type: "json" };
 import type { HostRequest, Scope, Signed } from "./types";
 const scope: Scope = { realm: 49, application: 9, pid: 17, resource: 19, namespace: "23" };
+afterEach(() => vi.unstubAllGlobals());
+test("application HTTP failures preserve owned diagnostic evidence and flag invalid detail", async () => {
+  const original = structuredClone(fixture);
+  const retained = new ApplicationTransportError(400, "UnsupportedQuery", original);
+  original.message = "changed";
+  expect(retained.diagnostic?.message).toBe(fixture.message);
+  const fetcher = vi.fn();
+  vi.stubGlobal("fetch", fetcher);
+  for (const call of [
+    () => request({ compile: { source: "DROP INTERFACE board;" } }),
+    () => readInterface(),
+  ]) {
+    fetcher.mockResolvedValueOnce(
+      Response.json({ err: "Forbidden", diagnostic: fixture }, { status: 403 }),
+    );
+    await expect(call()).rejects.toMatchObject({
+      status: 403,
+      code: "Forbidden",
+      diagnostic: fixture,
+      diagnosticInvalid: false,
+    });
+    fetcher.mockResolvedValueOnce(
+      Response.json(
+        { err: "Forbidden", diagnostic: { ...fixture, definition: "0".repeat(64) } },
+        { status: 403 },
+      ),
+    );
+    await expect(call()).rejects.toMatchObject({
+      status: 403,
+      code: "Forbidden",
+      diagnostic: undefined,
+      diagnosticInvalid: true,
+    });
+  }
+  expect(fetcher).toHaveBeenCalledTimes(4);
+});
 test("lost admission survives remount/export and retries the identical signature", async () => {
   const submitted: Signed[] = [];
   let sequenceReads = 0;

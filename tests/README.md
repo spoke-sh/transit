@@ -12631,3 +12631,36 @@ catalog neutral fixture), Python type checks, TypeScript checks and full
 `just check` pass. The full check preceded the final Ruby copy/test-fixture fixes;
 the installed reruns above include them. Complete semantic inventory coverage and
 the final committed-HEAD `ci-clean` remain separate gates.
+
+### Application host and editor diagnostics — 2026-10-03
+
+`Host.runDiagnostic` preserves original compile/format context and records the
+actual signed-command dispatch boundary. Local request/scope/digest rejection
+cannot become an uncertain send. Unknown forwarding retains exact sequence and
+request digest; native rejection and failed status reads do not become terminal
+publication outcomes. Pure continuation projections explicitly label supplied
+observations as caller facts. The browser owns and validates optional detail while
+preserving the primary HTTP error and pending signed operation.
+
+Executed application package units, shared browser client tests (10 cases), Board
+frontend checks/types/tests (38 cases), and `just test::application-grammar`:
+**passed**. Cases include missing revision/foreign graph reference, full-width
+publication identities, local digest rejection, denied reads, malformed optional
+detail, and stale member/option attribution at a subsequent statement. The parser
+now locates the failing keyword instead of inheriting the preceding member.
+
+Executed `just test::application-browser`: **passed**, browser schedule 53.6
+seconds. Real HTTP checks cover invalid request shape, original compiler detail,
+host operator denial, native signature rejection and a changed request digest.
+An owned proxy loses an actual successful native reply; the host returns
+`application.send_unknown` with the exact sequence, and the identical signature
+recovers the receipt. The actual browser checks SQL/Form/Canvas editing, diagnostic
+clearing, explicit rollback limits, publication and exact saved request recovery.
+The full proof also restarts the worker/node/disk store and denies/restores current
+interface reads. An earlier run stopped at a human-text assertion and exposed the
+stale parser context; it is not counted as a pass.
+
+Full `just check` passes after the parser correction, including generated contract
+checks, 481 CLI diagnostic cases, frontend validation and the production handbook
+build. This host increment does not claim durable publication/migration failure
+witnesses or complete semantic inventory coverage.

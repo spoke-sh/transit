@@ -103,19 +103,20 @@ const Server = struct {
         const config = self.config.application orelse return self.failure(req, .not_found, .NotFound);
         if (req.head.method != .POST) return self.failure(req, .not_found, .NotFound);
         if (!self.admitRead()) return self.failure(req, .too_many_requests, .RateLimited);
-        const parsed = application.protocol.Json.parseFromSlice(application.Host.Request, self.allocator, body) catch return self.failure(req, .bad_request, .InvalidQuery);
+        const parsed = application.protocol.Json.parseFromSlice(application.Host.Request, self.allocator, body) catch |err| return self.failureDiagnostic(req, .bad_request, .InvalidQuery, application.HostDiagnostic.input(err) catch null);
         defer parsed.deinit();
         var upstream = client.Client.init(self.allocator, self.io, self.config.upstream);
         defer upstream.deinit();
         upstream.timeout_ms = self.config.upstream_timeout_ms;
         upstream.observer = self.observation.span.runtime;
         upstream.parent_context = self.observation.span.context;
-        var result = application.Host.run(self.allocator, &upstream, config, parsed.value) catch |err| {
-            if (err == error.ApplicationOperatorDenied or err == error.ApplicationOperationDenied) return self.failure(req, .forbidden, .Forbidden);
-            if (err == error.ApplicationOperationConflict or err == error.ApplicationAlreadyApplied) return self.failure(req, .conflict, .QueryConflict);
-            if (err == error.InvalidApplicationProgram) return self.failure(req, .bad_request, .UnsupportedQuery);
-            if (err == error.ApplicationScopeChanged or err == error.ApplicationDigestMismatch or err == error.InvalidApplicationSelection or err == error.InvalidApplicationScope or err == error.InvalidApplicationOperation or err == error.InvalidApplicationPart or err == error.InvalidApplicationPolicy or err == error.InvalidApplicationProposal or err == error.InvalidSequence) return self.failure(req, .bad_request, .InvalidQuery);
-            return self.queryFailure(req, &upstream, err);
+        var diagnostic: ?client.protocol.Diagnostic = null;
+        var result = application.Host.runDiagnostic(self.allocator, &upstream, config, parsed.value, &diagnostic) catch |err| {
+            if (err == error.ApplicationOperatorDenied or err == error.ApplicationOperationDenied) return self.failureDiagnostic(req, .forbidden, .Forbidden, diagnostic);
+            if (err == error.ApplicationOperationConflict or err == error.ApplicationAlreadyApplied) return self.failureDiagnostic(req, .conflict, .QueryConflict, diagnostic);
+            if (err == error.InvalidApplicationProgram) return self.failureDiagnostic(req, .bad_request, .UnsupportedQuery, diagnostic);
+            if (err == error.ApplicationScopeChanged or err == error.ApplicationDigestMismatch or err == error.InvalidApplicationSelection or err == error.InvalidApplicationScope or err == error.InvalidApplicationOperation or err == error.InvalidApplicationPart or err == error.InvalidApplicationPolicy or err == error.InvalidApplicationProposal or err == error.InvalidSequence) return self.failureDiagnostic(req, .bad_request, .InvalidQuery, diagnostic);
+            return self.queryFailureDiagnostic(req, &upstream, err, diagnostic);
         };
         defer result.deinit();
         return self.json(req, .ok, result.value);
@@ -145,15 +146,16 @@ const Server = struct {
         upstream.parent_context = self.observation.span.context;
         var key = client.readKey(self.allocator, self.io, self.config.seed_file) catch return self.failure(req, .service_unavailable, .Unavailable);
         defer std.crypto.secureZero(u8, std.mem.asBytes(&key));
-        _ = growing.identity(&upstream, self.config.realm, self.config.principal, key) catch |err| return self.queryFailure(req, &upstream, err);
+        _ = growing.identity(&upstream, self.config.realm, self.config.principal, key) catch |err| return self.queryFailureDiagnostic(req, &upstream, err, application.HostDiagnostic.acquisition(scope, err, upstream.last_rejection) catch null);
         var result = application.Host.published(self.allocator, .{ .wire = &upstream, .realm = self.config.realm, .principal = self.config.principal, .key = key }, scope) catch |err| {
             if (err == error.ApplicationNotPublished) {
                 var builtin = try self.builtinInterface();
                 defer builtin.deinit();
                 return self.json(req, .ok, builtin.value);
             }
-            if (err == error.ApplicationPublicationChanged) return self.failure(req, .conflict, .QueryConflict);
-            return self.queryFailure(req, &upstream, err);
+            const diagnostic = application.HostDiagnostic.acquisition(scope, err, upstream.last_rejection) catch null;
+            if (err == error.ApplicationPublicationChanged) return self.failureDiagnostic(req, .conflict, .QueryConflict, diagnostic);
+            return self.queryFailureDiagnostic(req, &upstream, err, diagnostic);
         };
         defer result.deinit();
         return self.json(req, .ok, result.value);

@@ -61,6 +61,12 @@ the published interface. Status reads use the operator's current policy, not a
 host's stronger inspection credential. Conflicts or unknown replies require
 reconciliation of the exact operation before editing another proposal.
 
+Application host errors preserve the compiler's member, option and source
+location and distinguish local validation from signed-command dispatch. Unknown
+admission identifies the exact saved sequence; native rejection and failed reads
+do not imply a terminal publication outcome. Board's definition editor displays
+this shared evidence and retains pending signed work for explicit recovery.
+
 ## Data migration
 
 Migration belongs to the data owner. Its separate policy and ledger bind a

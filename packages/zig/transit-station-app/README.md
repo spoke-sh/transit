@@ -101,6 +101,15 @@ these helpers without protocol encoding or publication policy in TypeScript.
 The optional [Board endpoint](../../../apps/transit-board/docs/application.md)
 uses these shared types and retains the default inspection boundary.
 
+`Host.compileDiagnostic` and `Host.runDiagnostic` return owned shared diagnostics
+through an optional output pointer while preserving primary errors. Compilation
+keeps the original validator's member/option and nested SELECT context. The host
+records its actual forwarding boundary: failed local envelopes are unsent;
+unconfirmed signed commands retain their exact sequence/digest and recovery
+guidance. Read failures and caller-supplied upload observations never establish
+a terminal publication outcome. `HostDiagnostic.acquisition` explains incomplete
+or denied published-definition reads without returning a partial definition.
+
 `Migration` adds the separate [data-owner ledger](../../../contracts/APPLICATION_MIGRATION_V1.md).
 Initialize its immutable configuration, provision current per-operator migration
 policy, then conditionally `begin` a reviewed supported plan. `apply` invokes the

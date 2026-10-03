@@ -178,6 +178,22 @@ admission and application completion are distinct. Explicit pending and reviewed
 plan exports contain no signing key and support recovery across browser reload.
 Conflicts keep the original base; an explicit new review is required to change it.
 
+Host failures can carry the shared diagnostic envelope alongside the primary
+transport status. Compile/format failures preserve declaration member, option,
+reference and source coordinates from the original semantic validator. Nested
+SELECT coordinates remain relative to that SELECT. Invalid decoded models have
+no invented SQL position. Request decoding and envelope/digest validation report
+`not_submitted`; a failed signature preparation is not an uncertain submission.
+
+After forwarding a validated signed command, an unconfirmed reply reports
+`unknown`, the exact native sequence and signed-request digest, with inspection
+and exact-resume actions. A native command rejection has `not_applicable` domain
+outcome: it does not close an earlier publication. Failed current reads likewise
+do not change previously observed outcomes. Pure upload/cleanup continuations
+label supplied proposal and observation facts as caller evidence; a host cannot
+promote those supplied values into an authoritative receipt. No diagnostic action
+automatically submits, abandons or replaces an operation.
+
 Published reads use current public resource access for every bounded chunk group
 and recheck the active head before exposing a complete body/model. The built-in
 artifact is explicitly identified before first publication or when no publication

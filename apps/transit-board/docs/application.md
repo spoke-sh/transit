@@ -67,6 +67,14 @@ supports browser-reload recovery without retaining the private key. See the
 Bootstrap policy repair remains an independently provisioned native administrator
 operation; editing a broken definition cannot grant its own recovery rights.
 
+Compiler failures display the declaration's semantic code, member/option and
+original location, including separate nested SELECT coordinates. Formatting
+reports model/reference context without inventing SQL offsets. The editor clears
+this detail on a new draft or operation. Submission errors distinguish unsent
+local validation, native command rejection and unknown admission; unknown sends
+name the exact saved native sequence. Current interface read failures explain
+the failed acquisition without changing a publication's recorded outcome.
+
 ## Routes, sources and recovery
 
 The growing profile renders the current declaration's entry screen, paths, labels,

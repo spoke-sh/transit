@@ -1,4 +1,5 @@
 import { acquireCaller, type AcquireCaller } from "@rey/transit-reactive-client";
+import { ownedDiagnostic, type Diagnostic } from "@rey/transit-query-client";
 import * as validate from "./validators.js";
 import type {
   Command,
@@ -12,11 +13,17 @@ import type {
 } from "./types";
 
 export class ApplicationTransportError extends Error {
+  readonly diagnostic: Diagnostic | undefined;
+  readonly diagnosticInvalid: boolean;
   constructor(
     readonly status: number,
     readonly code: string,
+    detail?: unknown,
   ) {
     super(code);
+    const owned = ownedDiagnostic(detail);
+    this.diagnostic = owned.diagnostic;
+    this.diagnosticInvalid = owned.invalid;
   }
 }
 export type Transport = (request: HostRequest) => Promise<HostResponse>;
@@ -46,7 +53,7 @@ export async function request(value: HostRequest): Promise<HostResponse> {
         typeof result.err === "string"
           ? result.err
           : "Unavailable";
-      throw new ApplicationTransportError(response.status, code);
+      throw new ApplicationTransportError(response.status, code, diagnosticOf(result));
     }
     if (!validate.HostResponse(result)) throw new Error("Invalid application response");
     return result as HostResponse;
@@ -361,7 +368,7 @@ export async function readInterface(signal?: AbortSignal): Promise<InterfaceView
         await new Promise((resolve) => setTimeout(resolve, 250));
         continue;
       }
-      throw new ApplicationTransportError(response.status, code);
+      throw new ApplicationTransportError(response.status, code, diagnosticOf(failure));
     }
     const result: unknown = await response.json();
     if (
@@ -373,6 +380,12 @@ export async function readInterface(signal?: AbortSignal): Promise<InterfaceView
       throw new Error("Invalid interface observation");
     return result as InterfaceView;
   }
+}
+
+function diagnosticOf(value: unknown): unknown {
+  return typeof value === "object" && value !== null && "diagnostic" in value
+    ? value.diagnostic
+    : undefined;
 }
 
 export function restoreReview(source: string, session: OperatorSession): Review {

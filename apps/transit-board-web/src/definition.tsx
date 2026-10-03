@@ -1,6 +1,8 @@
 import { useInterface } from "./interface";
 import { useScope } from "./state";
 import "./definition.css";
+import { QueryDiagnostic } from "./query-diagnostic";
+import type { Diagnostic } from "@rey/transit-query-client";
 import { Link } from "@tanstack/react-router";
 import { useEffect, useReducer, useState } from "react";
 import {
@@ -10,6 +12,7 @@ import {
   importOperatorKey,
   keySigner,
   OperatorSession,
+  ApplicationTransportError,
   publish,
   readInterface,
   request,
@@ -30,6 +33,7 @@ const workspace: {
   review: Review | null;
   status: string;
   busy: boolean;
+  diagnostic: Diagnostic | null;
 } = {
   draft: "",
   compiled: null,
@@ -37,6 +41,7 @@ const workspace: {
   review: null,
   status: "",
   busy: false,
+  diagnostic: null,
 };
 const subscribers = new Set<() => void>();
 const changed = () => {
@@ -86,11 +91,14 @@ export function DefinitionEditor() {
   async function run(action: () => Promise<void>) {
     if (workspace.busy) return;
     workspace.busy = true;
+    workspace.diagnostic = null;
     changed();
     try {
       await action();
     } catch (error) {
       workspace.status = errorText(error);
+      if (error instanceof ApplicationTransportError)
+        workspace.diagnostic = error.diagnostic ?? null;
     } finally {
       workspace.busy = false;
       changed();
@@ -167,6 +175,7 @@ export function DefinitionEditor() {
                 onChange={(event) => {
                   workspace.draft = event.target.value;
                   workspace.compiled = null;
+                  workspace.diagnostic = null;
                   changed();
                 }}
               />
@@ -504,6 +513,9 @@ export function DefinitionEditor() {
         )}
       </section>
       <p role="status">{workspace.status}</p>
+      {workspace.diagnostic && (
+        <QueryDiagnostic value={workspace.diagnostic} label="Application diagnostic" />
+      )}
     </main>
   );
 }

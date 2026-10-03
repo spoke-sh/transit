@@ -163,6 +163,9 @@ importers:
 
   packages/ts/transit-application:
     dependencies:
+      '@rey/transit-query-client':
+        specifier: workspace:*
+        version: link:../transit-query-client
       '@rey/transit-reactive-client':
         specifier: workspace:*
         version: link:../transit-reactive-client

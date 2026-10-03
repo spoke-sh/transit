@@ -145,8 +145,15 @@ const Parser = struct {
     }
     fn word(self: *Parser, expected: []const u8) !void {
         try self.space();
-        if (self.index < self.source.len and self.source[self.index] == '"') return error.UnsupportedInterfaceStatement;
-        if (!std.ascii.eqlIgnoreCase(try self.name(), expected)) return error.UnsupportedInterfaceStatement;
+        const offset = self.index;
+        const quoted_word = self.index < self.source.len and self.source[self.index] == '"';
+        if (quoted_word or !std.ascii.eqlIgnoreCase(try self.name(), expected)) {
+            if (self.diagnostic) |detail| {
+                detail.offset = offset;
+                detail.expected = expected;
+            }
+            return error.UnsupportedInterfaceStatement;
+        }
     }
     fn options(self: *Parser) !Options {
         try self.word("with");
@@ -194,12 +201,21 @@ const Parser = struct {
         var bindings: std.ArrayList(m.Binding) = .empty;
         var actions: std.ArrayList(m.Action) = .empty;
         while (true) {
+            if (self.diagnostic) |detail| detail.reset(.parse);
             try self.space();
             if (self.index == self.source.len) break;
             try self.word("create");
             if (try self.take('"')) return error.UnsupportedInterfaceStatement;
             const kind = try self.name();
-            if (!std.mem.eql(u8, try self.name(), interface_name)) return error.ForeignInterfaceDeclaration;
+            try self.space();
+            const owner_offset = self.index;
+            const declared_owner = try self.name();
+            if (!std.mem.eql(u8, declared_owner, interface_name)) {
+                Diagnostic.subject(self.diagnostic, kind, declared_owner);
+                Diagnostic.target(self.diagnostic, interface_name);
+                if (self.diagnostic) |detail| detail.offset = owner_offset;
+                return error.ForeignInterfaceDeclaration;
+            }
             try self.require('.');
             try self.space();
             const member_offset = self.index;

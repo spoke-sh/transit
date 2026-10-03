@@ -8710,7 +8710,7 @@
         "ApplicationPublicationChanged": 2,
         "ApplicationScopeChanged": 2,
         "InvalidApplicationOperators": 3,
-        "InvalidApplicationProgram": 5,
+        "InvalidApplicationProgram": 6,
         "OutOfMemory": 1
       },
       "outcomes": {
@@ -8741,6 +8741,46 @@
       "imports": [
         "root.zig",
         "std"
+      ]
+    },
+    "packages/zig/transit-station-app/src/HostDiagnostic.zig": {
+      "errors": {
+        "AccessDenied": 3,
+        "ApplicationAlreadyApplied": 1,
+        "ApplicationDigestMismatch": 1,
+        "ApplicationNotInitialized": 1,
+        "ApplicationNotPublished": 1,
+        "ApplicationOperationConflict": 1,
+        "ApplicationOperationDenied": 1,
+        "ApplicationOperationNotFound": 1,
+        "ApplicationOperatorDenied": 1,
+        "ApplicationPublicationChanged": 1,
+        "ApplicationScopeChanged": 1,
+        "ApplicationUploadUnavailable": 1,
+        "AuthorityTimeout": 1,
+        "Conflict": 2,
+        "ConnectionRefused": 1,
+        "ConnectionResetByPeer": 1,
+        "InvalidApplicationOperation": 1,
+        "InvalidApplicationPart": 1,
+        "InvalidApplicationPolicy": 1,
+        "InvalidApplicationProgram": 1,
+        "InvalidApplicationProposal": 1,
+        "InvalidApplicationRecord": 1,
+        "InvalidApplicationScope": 1,
+        "InvalidApplicationSelection": 1,
+        "InvalidPublicationDescriptor": 1,
+        "InvalidSequence": 1,
+        "MissingPublicationChunk": 1,
+        "NetworkUnreachable": 1,
+        "OutOfMemory": 2,
+        "Overflow": 1,
+        "Rejected": 2,
+        "UpstreamUnavailable": 1
+      },
+      "outcomes": {},
+      "imports": [
+        "root.zig"
       ]
     },
     "packages/zig/transit-station-app/src/Migration.zig": {
@@ -8943,7 +8983,7 @@
         "MissingInterfaceOption": 1,
         "UnknownInterfaceOption": 1,
         "UnsupportedInterfaceOption": 1,
-        "UnsupportedInterfaceStatement": 4,
+        "UnsupportedInterfaceStatement": 3,
         "UnterminatedInterfaceComment": 1,
         "UnterminatedInterfaceLiteral": 1
       },
@@ -8989,6 +9029,7 @@
         "Behavior.zig",
         "Diagnostic.zig",
         "Host.zig",
+        "HostDiagnostic.zig",
         "Migration.zig",
         "Model.zig",
         "Native.zig",

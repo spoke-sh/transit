@@ -69,13 +69,22 @@ pub const Owned = struct {
 };
 /// All compiler errors are finite diagnostics; no partial model or SQL escapes.
 pub fn compile(allocator: std.mem.Allocator, source: []const u8) !Owned {
-    var parsed = root.Sql.parse(allocator, source) catch |err| return switch (err) {
-        error.OutOfMemory => err,
-        else => error.InvalidApplicationProgram,
+    return compileDiagnostic(allocator, source, null);
+}
+pub fn compileDiagnostic(allocator: std.mem.Allocator, source: []const u8, diagnostic: ?*?root.protocol.Diagnostic) !Owned {
+    if (diagnostic) |out| out.* = null;
+    var detail: root.Diagnostic = .{};
+    var parsed = root.Sql.parseDiagnostic(allocator, source, &detail) catch |err| {
+        if (diagnostic) |out| out.* = detail.structured(err) catch null;
+        return if (err == error.OutOfMemory) err else error.InvalidApplicationProgram;
     };
     errdefer parsed.deinit();
     var buffer: [root.Model.max_program_bytes]u8 = undefined;
-    const bytes = root.Api.canonical(parsed.definition, &buffer) catch return error.InvalidApplicationProgram;
+    const bytes = root.Api.canonical(parsed.definition, &buffer) catch |err| {
+        detail.reset(.validate);
+        if (diagnostic) |out| out.* = detail.structured(err) catch null;
+        return error.InvalidApplicationProgram;
+    };
     const canonical = try parsed.arena.allocator().dupe(u8, bytes);
     return .{ .arena = parsed.arena, .value = .{ .compiled = .{ .definition = parsed.definition, .canonical = canonical, .spec = try root.station.Publication.Digest.of(root.Publication.format, canonical) } } };
 }
@@ -83,18 +92,40 @@ pub fn compile(allocator: std.mem.Allocator, source: []const u8) !Owned {
 /// cannot admit native commands. Deployment admission is additional to native
 /// signature, current grants and the durable owner's current publication policy.
 pub fn run(allocator: std.mem.Allocator, wire: *client.Client, config: Config, request: Request) !Owned {
+    return runDiagnostic(allocator, wire, config, request, null);
+}
+pub fn runDiagnostic(allocator: std.mem.Allocator, wire: *client.Client, config: Config, request: Request, diagnostic: ?*?root.protocol.Diagnostic) !Owned {
+    if (diagnostic) |out| out.* = null;
+    wire.last_rejection = null;
+    var dispatched = false;
+    return execute(allocator, wire, config, request, &dispatched, diagnostic) catch |err| {
+        if (diagnostic) |out| {
+            if (out.* == null) out.* = root.HostDiagnostic.attempt(config, request, err, dispatched, wire.last_rejection) catch null;
+        }
+        return err;
+    };
+}
+fn execute(allocator: std.mem.Allocator, wire: *client.Client, config: Config, request: Request, dispatched: *bool, diagnostic: ?*?root.protocol.Diagnostic) !Owned {
     try config.validate();
     switch (request) {
-        .compile => |value| return compile(allocator, value.source),
+        .compile => |value| return compileDiagnostic(allocator, value.source, diagnostic),
         .format => |definition| {
+            var detail: root.Diagnostic = .{ .stage = .validate };
+            definition.validateDiagnostic(&detail) catch |err| {
+                if (diagnostic) |out| out.* = detail.structured(err) catch null;
+                return error.InvalidApplicationProgram;
+            };
             var buffer: [root.Model.max_program_bytes]u8 = undefined;
-            const source = root.Api.canonical(definition, &buffer) catch return error.InvalidApplicationProgram;
-            return compile(allocator, source);
+            const source = root.Api.canonical(definition, &buffer) catch |err| {
+                if (diagnostic) |out| out.* = detail.structured(err) catch null;
+                return error.InvalidApplicationProgram;
+            };
+            return compileDiagnostic(allocator, source, diagnostic);
         },
         else => {},
     }
     const result: Response = switch (request) {
-        .next_upload => |value| .{ .next_upload = try root.Upload.next(allocator, value) },
+        .next_upload => |value| .{ .next_upload = try root.Upload.nextDiagnostic(allocator, value, diagnostic) },
         .next_cleanup => |value| .{ .next_cleanup = try root.Upload.nextCleanup(value) },
         .info => .{ .info = .{ .scope = config.scope } },
         .prepare => |value| blk: {
@@ -103,7 +134,9 @@ pub fn run(allocator: std.mem.Allocator, wire: *client.Client, config: Config, r
         },
         .submit => |value| blk: {
             try config.admit(value.prepared.principal);
-            break :blk .{ .admitted = try n.submit(wire, config.scope, value) };
+            const envelope = try n.envelope(config.scope, value);
+            dispatched.* = true;
+            break :blk .{ .admitted = try wire.submit(envelope) };
         },
         .prepare_read => |value| blk: {
             try config.admit(value.principal);

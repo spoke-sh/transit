@@ -16,3 +16,10 @@ late UI work. The actual native Board browser proof qualifies editing and public
 interface-driven shell replacement and physical placements remain in progress.
 See the [operator and recovery guide](docs/operator.md) for trust, admission and
 unknown-outcome distinctions.
+
+`ApplicationTransportError` preserves the primary HTTP status/code and an owned,
+validated optional `diagnostic`. `diagnosticInvalid` reports malformed detail
+without replacing that primary error. Both operator requests and interface
+acquisitions use this boundary. Diagnostic actions describe recovery; the client
+does not dispatch them automatically, and failed submissions retain the exact
+pending signature in `OperatorSession`.

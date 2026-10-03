@@ -30,8 +30,11 @@ pub const Input = struct {
     pub const json_schema_fields = .{ .canonical = .{ .type = "string", .maxLength = root.Model.max_program_bytes } };
 };
 pub fn next(allocator: std.mem.Allocator, input: Input) !?root.Request.Command {
+    return nextDiagnostic(allocator, input, null);
+}
+pub fn nextDiagnostic(allocator: std.mem.Allocator, input: Input, diagnostic: ?*?root.protocol.Diagnostic) !?root.Request.Command {
     try root.Publication.validateProposal(input.proposal);
-    var compiled = try root.Host.compile(allocator, input.canonical);
+    var compiled = try root.Host.compileDiagnostic(allocator, input.canonical, diagnostic);
     defer compiled.deinit();
     const value = compiled.value.compiled;
     if (!std.mem.eql(u8, value.canonical, input.canonical) or !std.meta.eql(value.spec, input.proposal.spec) or value.definition.revision.value != input.proposal.revision.value or value.definition.realm != input.state.configuration.realm or !std.mem.eql(u8, &root.Publication.nameDigest(value.definition.name), &input.state.configuration.name_digest)) return error.InvalidApplicationProgram;
