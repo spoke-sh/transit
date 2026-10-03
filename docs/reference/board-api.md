@@ -44,3 +44,10 @@ reactive and application adapters have their own
 [application](../../apps/transit-board/docs/application.md) contracts. They are
 not silently added to this OpenAPI surface. Read [Board concepts](../guides/inspect-board.md)
 for the distinction between implemented interfaces and reviewed UI proposals.
+
+
+Current query execution and request lenses retain the source-owned `failure`
+code, stage and any budget dimension/measurements. The optional query workspace
+status exposes the same neutral object. Observing these fields still requires
+current access through the relevant inspection or query identity; the lens does
+not fetch source payloads to enrich a failure.

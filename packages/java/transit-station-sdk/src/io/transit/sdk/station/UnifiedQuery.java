@@ -243,7 +243,12 @@ public final class UnifiedQuery {
         return new Inspection(text(string(v.get("name")),32),resource,SourceKind.valueOf(string(v.get("source_kind")).toUpperCase(Locale.ROOT)),NativeValues.digest(v.get("contract")),NativeValues.digest(v.get("schema")),number(v.get("resource_revision"),0),positive(wide(v.get("policy_revision"))),parsed);
     }
     public enum Phase { UPLOADING, SEALED, ADMITTED, COMPLETE, CANCELLED, DENIED, REJECTED, RETIRED }
-    public record Status(Phase phase,BigInteger correlation,Bytes reference,Optional<Bytes> manifest,boolean collected) {}
+    public record Failure(String code,String stage,String dimension,BigInteger limit,BigInteger observed) {}
+    private static Optional<Failure> failure(JsonElement value) {
+        if(value.isJsonNull())return Optional.empty(); JsonObject f=object(value);
+        return Optional.of(new Failure(string(f.get("code")),string(f.get("stage")),string(f.get("dimension")),wide(f.get("limit")),wide(f.get("observed"))));
+    }
+    public record Status(Phase phase,BigInteger correlation,Bytes reference,Optional<Bytes> manifest,boolean collected,Optional<Failure> failure) {}
     public enum Observed { PENDING, COMMITTED, REJECTED }
     public record Observation(Observed state,Optional<Bytes> reason) {}
     public enum Control { CANCEL, RETIRE, COLLECT }
@@ -318,7 +323,7 @@ public final class UnifiedQuery {
         }
         public CompletableFuture<Optional<Status>> status(BigInteger namespace) {
             JsonObject action=obj("status",positive(namespace).toString());
-            return worker.submit(b -> { JsonElement result=b.unifiedQuery(action,false).get("status"); if(result.isJsonNull())return Optional.empty(); JsonObject v=object(result); return Optional.of(new Status(Phase.valueOf(string(v.get("phase")).toUpperCase(Locale.ROOT)),wide(v.get("correlation")),fixed(v.get("reference"),72),v.get("manifest").isJsonNull()?Optional.empty():Optional.of(fixed(v.get("manifest"),72)),bool(v.get("collected")))); });
+            return worker.submit(b -> { JsonElement result=b.unifiedQuery(action,false).get("status"); if(result.isJsonNull())return Optional.empty(); JsonObject v=object(result); return Optional.of(new Status(Phase.valueOf(string(v.get("phase")).toUpperCase(Locale.ROOT)),wide(v.get("correlation")),fixed(v.get("reference"),72),v.get("manifest").isJsonNull()?Optional.empty():Optional.of(fixed(v.get("manifest"),72)),bool(v.get("collected")),failure(v.get("failure")))); });
         }
         public CompletableFuture<Page> page(BigInteger namespace,Optional<Cursor> cursor) {
             JsonObject action=obj("page",obj("namespace",positive(namespace).toString(),"cursor",cursor.map(Cursor::opaque).orElse(null)));

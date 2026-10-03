@@ -445,12 +445,20 @@ export type Phase =
   | "denied"
   | "rejected"
   | "retired";
+export interface Failure {
+  readonly code: string;
+  readonly stage: "admission" | "execution";
+  readonly dimension: "none" | "pages" | "segments" | "result_bytes";
+  readonly limit: bigint;
+  readonly observed: bigint;
+}
 export interface Status {
   readonly phase: Phase;
   readonly correlation: bigint;
   readonly reference: Uint8Array;
   readonly manifest: Uint8Array | undefined;
   readonly collected: boolean;
+  readonly failure: Failure | null;
 }
 export type Observation =
   | { readonly state: "pending" | "committed" }
@@ -891,6 +899,14 @@ export class Client {
           reference: unhex(v.reference, 72),
           manifest: v.manifest === null ? undefined : unhex(v.manifest, 72),
           collected: v.collected,
+          failure:
+            v.failure === null
+              ? null
+              : Object.freeze({
+                  ...v.failure,
+                  limit: BigInt(v.failure.limit),
+                  observed: BigInt(v.failure.observed),
+                }),
         });
   }
   async page(namespace: bigint, cursor?: Cursor): Promise<Page> {

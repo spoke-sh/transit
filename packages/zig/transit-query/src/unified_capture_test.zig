@@ -302,7 +302,7 @@ test "query budgets and cancellation discard candidates without leaking source p
     var turn = try store.capture();
     try t.expectEqual(@as(u64, 0), (try capture.checkpoint(&turn, job.id)).progress.pages);
     try t.expect(store.versions.get(job.source).?.view.released_at == null);
-    try capture.close(&turn, job.id, .failed);
+    try capture.closeFailure(&turn, job.id, q.QueryFailure.fromError(error.QueryBudgetExceeded, .execution).?);
     try store.commit(turn);
     try finishCleanup(&store, &requests, job, workspace);
 }
@@ -437,7 +437,7 @@ test "source behavior closes denied accepted work with the original reply and re
         if (result.kind == .reply) {
             try t.expectEqual(@as(u64, 9), output.pid);
             try t.expectEqual(@as(u64, 77), result.correlation);
-            try t.expectEqualStrings("query.v1.denied", result.payload.slice());
+            try t.expectEqual(.access_denied, (try q.QueryFailure.decode(result.payload)).code);
             replied = true;
         }
     };
@@ -480,8 +480,61 @@ test "source behavior rejects a published incompatible plan with an exact termin
         try t.expectEqual(.reply, result.kind);
         try t.expectEqual(@as(u64, 9), output.pid);
         try t.expectEqual(@as(u64, 77), result.correlation);
-        try t.expectEqualStrings("query.v1.rejected", result.payload.slice());
+        try t.expectEqual(.plan_definition_mismatch, (try q.QueryFailure.decode(result.payload)).code);
         replies += 1;
     };
     try t.expectEqual(1, replies);
+}
+
+test "source closure retains the exact first budget dimension and measurements through replay" {
+    const workspace = try t.allocator.alloc(u8, m.Arrow.working_bytes);
+    defer t.allocator.free(workspace);
+    const cancellation = q.fuze.execution.Cancellation.init(false);
+    for ([_]q.QueryFailure.Dimension{ .pages, .segments, .result_bytes }) |dimension| {
+        var store: Store = .{};
+        defer store.deinit();
+        var requests: Store = .{ .resource = 8, .pid = 9 };
+        defer requests.deinit();
+        const definition = try seedKV(&store, 24);
+        var budget = limits;
+        switch (dimension) {
+            .pages => budget.pages = 1,
+            .segments => budget.segments = 1,
+            .result_bytes => budget.result_bytes = 1,
+            else => unreachable,
+        }
+        const job = try start(&store, &requests, .{ .source = definition, .plan = .{ .projection = &.{1} }, .limits = budget });
+        var observed: ?q.QueryFailure = null;
+        for (0..200) |_| {
+            var reader = try store.capture();
+            const current = try capture.job(&reader, job.id);
+            const continuation: r.Continuation = .{ .job = job.id, .input = current.continuation };
+            var turn = try frame(&store, 3, .{ .kind = .cast, .payload = try continuation.encode() });
+            var arena = std.heap.ArenaAllocator.init(t.allocator);
+            defer arena.deinit();
+            const step = capture.advanceDiagnostic(&turn, continuation, Source{ .store = &requests }, arena.allocator(), workspace, &cancellation, &observed) catch |err| {
+                try t.expectEqual(error.QueryBudgetExceeded, err);
+                try t.expectEqual(dimension, observed.?.dimension);
+                try t.expectEqual(1, observed.?.limit);
+                try t.expect(observed.?.observed > observed.?.limit);
+                for (turn.decision.mutations) |mutation| try t.expect(mutation == null);
+                try capture.closeFailure(&turn, job.id, observed.?);
+                try store.commit(turn);
+                break;
+            };
+            try t.expectEqual(.progress, step);
+            try store.commit(turn);
+        }
+        try t.expect(observed != null);
+        var turn = try store.capture();
+        const failed = try capture.job(&turn, job.id);
+        try t.expectEqual(.failed, failed.phase);
+        try t.expectEqualDeep(observed, failed.failure);
+        // A later error and repeated close cannot replace the original evidence.
+        try capture.closeFailure(&turn, job.id, q.QueryFailure.fromError(error.Overflow, .execution).?);
+        try t.expectEqualDeep(failed, try capture.job(&turn, job.id));
+        try finishCleanup(&store, &requests, failed, workspace);
+        turn = try store.capture();
+        try t.expectEqualDeep(observed, (try capture.job(&turn, job.id)).failure);
+    }
 }

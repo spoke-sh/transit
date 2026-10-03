@@ -146,7 +146,7 @@ fn rejectMutation(turn: *s.Turn, reason: Writer.Rejection) !bool {
 }
 fn rejectQuery(turn: *s.Turn, frame: ?s.Frame, reason: []const u8) !bool {
     if (frame) |value| if (value.kind == .call and turn.delivery.input.origin == .process) {
-        try turn.reply(try p.Value.init("query.v1.rejected"));
+        try turn.reply(try q.QueryFailure.fromError(error.TableQueryWriterNotReady, .admission).?.encode());
         return true;
     };
     try turn.write(q.UnifiedRecords.key('e', turn.delivery.input.position, 0), try p.Value.init(reason));

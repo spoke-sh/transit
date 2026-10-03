@@ -6,6 +6,7 @@ style: @import("Style.zig") = .{},
 sql: ?@import("transit_query").fuze.SqlDiagnostic = null,
 write: ?@import("WriteDiagnostic.zig") = null,
 source: ?@import("FileDiagnostic.zig") = null,
+query: ?@import("QueryDiagnostic.zig") = null,
 timing: ?@import("Timing.zig").Report = null,
 argument: ?usize = null,
 option: ?[]const u8 = null,
@@ -31,6 +32,7 @@ pub fn setFailure(self: *Self, err: anyerror, summary: []const u8, next: ?[]cons
     self.sql = null;
     self.write = null;
     self.source = null;
+    self.query = null;
     self.presentation = .general;
     self.summary = summary;
     self.next = next;
@@ -158,6 +160,10 @@ fn quoted(out: *std.Io.Writer, value: []const u8) !void {
 }
 pub fn render(self: Self, out: *std.Io.Writer, err: anyerror) !void {
     if (self.write) |diagnostic| return diagnostic.render(out, self.style);
+    if (self.query) |query| {
+        try self.style.text(out, .failure, "error: ");
+        return query.render(out);
+    }
     if (self.source) |diagnostic| return diagnostic.render(out, err, self.style);
     if (self.sql) |diagnostic| {
         try self.style.text(out, .failure, "error:");

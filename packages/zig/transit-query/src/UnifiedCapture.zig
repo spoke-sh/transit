@@ -79,6 +79,10 @@ pub const Advance = enum { progress, complete, closed, duplicate };
 /// Reads a finite bundle and one bounded source page; stages at most two chunks
 /// plus its durable self-input. No whole result or source collection is loaded.
 pub fn advance(turn: *Turn, continuation: r.Continuation, source: anytype, allocator: std.mem.Allocator, workspace: []u8, cancellation: *const q.fuze.execution.Cancellation) !Advance {
+    return advanceDiagnostic(turn, continuation, source, allocator, workspace, cancellation, null);
+}
+pub fn advanceDiagnostic(turn: *Turn, continuation: r.Continuation, source: anytype, allocator: std.mem.Allocator, workspace: []u8, cancellation: *const q.fuze.execution.Cancellation, diagnostic: ?*?q.QueryFailure) !Advance {
+    if (diagnostic) |detail| detail.* = null;
     const before = turn.decision;
     errdefer turn.decision = before;
     if (try s.Frame.source(turn.delivery.input) != turn.delivery.pid) return error.UnexpectedQueryContinuation;
@@ -112,7 +116,10 @@ pub fn advance(turn: *Turn, continuation: r.Continuation, source: anytype, alloc
         try publishManifest(turn, &stored, previous);
         return if (stored.phase == .complete) .complete else .progress;
     }
-    if (previous.progress.pages >= bundle.limits.pages) return error.QueryBudgetExceeded;
+    if (previous.progress.pages >= bundle.limits.pages) {
+        if (diagnostic) |detail| detail.* = .{ .code = .budget_exceeded, .stage = .execution, .dimension = .pages, .limit = bundle.limits.pages, .observed = try std.math.add(u64, previous.progress.pages, 1) };
+        return error.QueryBudgetExceeded;
+    }
     var retained = try turn.openVersion(stored.source);
     var page: q.UnifiedSource.Batch = undefined;
     try q.UnifiedSource.page(bundle.source, previous.progress.basis, previous.cursor, &retained, turn, allocator, &page);
@@ -127,7 +134,14 @@ pub fn advance(turn: *Turn, continuation: r.Continuation, source: anytype, alloc
     const publication = stored.publication(turn.view.resource);
     if (candidate.segment) |segment| {
         progress.bytes = try std.math.add(u64, previous.bytes, segment.bytes.len);
-        if (candidate.progress.segments > bundle.limits.segments or progress.bytes > bundle.limits.result_bytes) return error.QueryBudgetExceeded;
+        if (candidate.progress.segments > bundle.limits.segments) {
+            if (diagnostic) |detail| detail.* = .{ .code = .budget_exceeded, .stage = .execution, .dimension = .segments, .limit = bundle.limits.segments, .observed = candidate.progress.segments };
+            return error.QueryBudgetExceeded;
+        }
+        if (progress.bytes > bundle.limits.result_bytes) {
+            if (diagnostic) |detail| detail.* = .{ .code = .budget_exceeded, .stage = .execution, .dimension = .result_bytes, .limit = bundle.limits.result_bytes, .observed = progress.bytes };
+            return error.QueryBudgetExceeded;
+        }
         const metadata: r.Segment = .{ .ordinal = previous.progress.segments, .row_start = previous.progress.rows, .rows = segment.rows, .reference = .{ .domain = .query_result, .resource = turn.view.resource, .namespace = publication.namespace, .record = previous.progress.segments + 1, .spec = try Pub.Digest.of(r.arrow_format, segment.bytes) }, .arrow_digest = segment.digest };
         const encoded = try metadata.encode();
         const address = r.key('s', stored.id, metadata.ordinal);
@@ -194,7 +208,17 @@ fn publishManifest(turn: *Turn, stored: *r.Job, progress: r.Checkpoint) !void {
 }
 /// Close in a fresh proposal before a failed read poisons the turn. This releases
 /// the pin and original wait exactly once; physical staging cleanup is separate.
-pub fn close(turn: *Turn, id: u64, phase: enum { cancelled, denied, failed, retired }) !void {
+pub fn close(turn: *Turn, id: u64, phase: enum { cancelled, denied, retired }) !void {
+    return closeOutcome(turn, id, switch (phase) {
+        .cancelled => .cancelled,
+        .denied => .denied,
+        .retired => .retired,
+    }, if (phase == .denied) q.QueryFailure.fromError(error.QueryDenied, .execution).? else null);
+}
+pub fn closeFailure(turn: *Turn, id: u64, failure: q.QueryFailure) !void {
+    return closeOutcome(turn, id, if (failure.denied()) .denied else .failed, failure);
+}
+fn closeOutcome(turn: *Turn, id: u64, phase: enum { cancelled, denied, failed, retired }, failure: ?q.QueryFailure) !void {
     const before = turn.decision;
     errdefer turn.decision = before;
     var stored = try job(turn, id);
@@ -209,12 +233,8 @@ pub fn close(turn: *Turn, id: u64, phase: enum { cancelled, denied, failed, reti
         .failed => .failed,
         .retired => .retired,
     };
-    if (phase != .retired) try turn.send(stored.destination, .{ .kind = .reply, .correlation = stored.correlation, .payload = try p.Value.init(switch (phase) {
-        .cancelled => "query.v1.cancelled",
-        .denied => "query.v1.denied",
-        .failed => "query.v1.failed",
-        .retired => unreachable,
-    }) });
+    stored.failure = failure;
+    if (phase != .retired) try turn.send(stored.destination, .{ .kind = .reply, .correlation = stored.correlation, .payload = if (failure) |detail| try detail.encode() else try p.Value.init("query.v1.cancelled") });
     try schedule(turn, &stored);
 }
 fn cleanup(turn: *Turn, stored: *r.Job) !void {

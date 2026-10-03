@@ -102,6 +102,10 @@ pub fn finish(console: *Console, deadline: i64, timing: *Timing) !void {
         }
         const status = (try console.client.status(id)) orelse return error.QueryUploadNotFound;
         switch (status.phase) {
+            .denied, .cancelled, .retired, .rejected => console.diagnostic.query = .{ .namespace = id, .phase = status.phase, .failure = status.failure },
+            else => {},
+        }
+        switch (status.phase) {
             .complete => break,
             .uploading, .sealed, .admitted => {},
             .denied => return error.QueryDenied,

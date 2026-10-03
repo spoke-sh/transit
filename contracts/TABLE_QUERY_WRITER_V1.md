@@ -30,7 +30,7 @@ accepted continuation output is durable and can be delivered again. The shared
 Station host retains exact pending commits on ambiguous transport outcomes.
 
 While staged, external inputs receive a separate `busy` mutation input
-disposition. Process calls receive `query.v1.rejected`; other process inputs
+disposition. Process calls receive a `UQF1` admission failure with code `writer_not_ready`; other process inputs
 receive a query input disposition. They do not apply rows, create query jobs or
 replace terminal results. Configuration mismatch, poisoned reads and corruption
 propagate, without consuming the input as a user rejection.

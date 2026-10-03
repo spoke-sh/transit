@@ -117,7 +117,10 @@ pub fn reply(turn: *Turn, frame: s.Frame, expected_source: u64) !void {
     var current = try required(turn, namespace);
     if (current.correlation != frame.correlation) return error.UnexpectedQueryReply;
     if (current.phase != .admitted) return;
-    if (std.mem.eql(u8, frame.payload.slice(), "query.v1.denied")) current.phase = .denied else if (std.mem.eql(u8, frame.payload.slice(), "query.v1.cancelled")) current.phase = .cancelled else if (std.mem.eql(u8, frame.payload.slice(), "query.v1.failed") or std.mem.eql(u8, frame.payload.slice(), "query.v1.rejected")) current.phase = .rejected else {
+    if (std.mem.eql(u8, frame.payload.slice(), "query.v1.cancelled")) current.phase = .cancelled else if (std.mem.startsWith(u8, frame.payload.slice(), "UQF1")) {
+        current.failure = try q.QueryFailure.decode(frame.payload);
+        current.phase = if (current.failure.?.denied()) .denied else .rejected;
+    } else {
         current.manifest = try Ref.decode(frame.payload);
         current.phase = .complete;
     }

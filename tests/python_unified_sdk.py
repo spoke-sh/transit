@@ -179,7 +179,7 @@ async def serve(config, asynchronous):
                     result = {'observation': {observed.state.value: {} if observed.reason is None else observed.reason.encode().hex()}}
                 elif 'status' in action:
                     status = await invoke('status', int(action['status']))
-                    result = {'status': None if status is None else {'phase': status.phase.value, 'correlation': str(status.correlation)}}
+                    result = {'status': None if status is None else {'phase': status.phase.value, 'correlation': str(status.correlation), 'failure': None if status.failure is None else {'code': status.failure.code, 'stage': status.failure.stage, 'dimension': status.failure.dimension, 'limit': str(status.failure.limit), 'observed': str(status.failure.observed)}}}
                 elif 'page' in action:
                     v = action['page']
                     page = await invoke('page', int(v['namespace']), None if v.get('cursor') is None else q.Cursor(v['cursor']))

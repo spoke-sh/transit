@@ -182,6 +182,7 @@ function fixture() {
               correlation: "10",
               manifest: null,
               collected: cancelled.has(request.status),
+              failure: null,
             }
           : null,
       };

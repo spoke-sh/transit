@@ -219,3 +219,14 @@ configured source. `UnifiedClient.inspectSql`, `Bridge.inspect` and
 output-schema rules. Metadata is separate from Arrow query results; inspection
 does not create snapshots or requests. The [inspection contract](../../../contracts/SQL_INSPECTION_V1.md)
 defines scope, literal redaction and final access checks.
+
+
+`QueryFailure` owns the stable finite-query terminal codes and bounded `UQF1`
+codec. Source closure and requester status retain the same original failure.
+`UnifiedCapture.advanceDiagnostic` additionally captures page, segment and
+result-byte budget measurements before rolling back a rejected candidate.
+The neutral bridge and all SDK query statuses carry this evidence; no transient
+handler pointer or later source read substitutes for the recorded cause. See
+[retained query failures](../../../contracts/UNIFIED_QUERY_V1.md#retained-query-failures)
+for code identities, exact bytes and authorization. Source expression/column
+witnesses are not recorded by this profile.

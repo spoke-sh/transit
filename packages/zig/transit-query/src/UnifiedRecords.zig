@@ -73,6 +73,7 @@ pub const Job = struct {
     phase: Phase = .capturing,
     continuation: u64,
     cleanup: u64 = 1,
+    failure: ?q.QueryFailure = null,
     pub fn namespace(self: Job) u64 {
         return (@as(u64, 1) << 63) | self.id;
     }
@@ -85,7 +86,9 @@ pub const Job = struct {
         try q.Bundle.checkReference(self.request);
         if (self.source.input != self.id) return error.InvalidQueryRecord;
         try identity(self.continuation);
-        var bytes: [142]u8 = undefined;
+        if ((self.phase == .failed or self.phase == .denied) != (self.failure != null)) return error.InvalidQueryRecord;
+        if (self.failure) |failure| if (failure.denied() != (self.phase == .denied)) return error.InvalidQueryRecord;
+        var bytes: [167]u8 = undefined;
         var writer: std.Io.Writer = .fixed(&bytes);
         try writer.writeAll("UQJ1");
         inline for (.{ "id", "destination", "correlation", "policy_revision" }) |name| try writer.writeInt(u64, @field(self, name), .little);
@@ -96,13 +99,20 @@ pub const Job = struct {
         try writer.writeByte(@backingInt(self.phase));
         try writer.writeInt(u64, self.continuation, .little);
         try writer.writeInt(u64, self.cleanup, .little);
+        try writer.writeByte(@intFromBool(self.failure != null));
+        if (self.failure) |failure| try writer.writeAll((try failure.encode()).slice());
         return p.Value.init(writer.buffered());
     }
     pub fn decode(value: p.Value) !Job {
         try value.validate();
         var reader: std.Io.Reader = .fixed(value.slice());
         try magic(&reader, "UQJ1");
-        const result: Job = .{ .id = try reader.takeInt(u64, .little), .destination = try reader.takeInt(u64, .little), .correlation = try reader.takeInt(u64, .little), .policy_revision = try reader.takeInt(u64, .little), .source = .{ .pid = try reader.takeInt(u64, .little), .input = try reader.takeInt(u64, .little), .index = try reader.takeByte() }, .request = try Ref.decode(try p.Value.init(try reader.take(Ref.encoded_bytes))), .phase = std.enums.fromInt(Phase, try reader.takeByte()) orelse return error.InvalidQueryRecord, .continuation = try reader.takeInt(u64, .little), .cleanup = try reader.takeInt(u64, .little) };
+        var result: Job = .{ .id = try reader.takeInt(u64, .little), .destination = try reader.takeInt(u64, .little), .correlation = try reader.takeInt(u64, .little), .policy_revision = try reader.takeInt(u64, .little), .source = .{ .pid = try reader.takeInt(u64, .little), .input = try reader.takeInt(u64, .little), .index = try reader.takeByte() }, .request = try Ref.decode(try p.Value.init(try reader.take(Ref.encoded_bytes))), .phase = std.enums.fromInt(Phase, try reader.takeByte()) orelse return error.InvalidQueryRecord, .continuation = try reader.takeInt(u64, .little), .cleanup = try reader.takeInt(u64, .little) };
+        result.failure = switch (try reader.takeByte()) {
+            0 => null,
+            1 => try q.QueryFailure.decode(try p.Value.init(try reader.take(q.QueryFailure.encoded_bytes))),
+            else => return error.InvalidQueryRecord,
+        };
         try finish(&reader);
         _ = try result.encode();
         return result;

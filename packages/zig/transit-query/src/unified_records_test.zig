@@ -78,7 +78,7 @@ test "durable source records fit unchanged values and preserve all continuation 
     const manifest: r.Manifest = .{ .job = complete, .checkpoint = checkpoint };
     var output: [r.Manifest.max_bytes]u8 = undefined;
     try t.expectEqualDeep(manifest, try r.Manifest.decode(try manifest.encode(&output)));
-    try t.expectEqual(@as(usize, 404), (try manifest.encode(&output)).len);
+    try t.expectEqual(@as(usize, 405), (try manifest.encode(&output)).len);
     for ([_]p.Value{ try policy.encode(), try job.encode(), try checkpoint.encode(), try segment.encode() }, 0..) |value, kind| {
         var bad = value;
         bad.data[0] = 'X';
@@ -92,4 +92,49 @@ test "durable source records fit unchanged values and preserve all continuation 
     }
     const continuation: r.Continuation = .{ .job = p.max_counter, .input = p.max_counter };
     try t.expectEqualDeep(continuation, try r.Continuation.decode(try continuation.encode()));
+}
+
+test "failure records reject missing witnesses and preserve full-width budget evidence" {
+    const failure: q.QueryFailure = .{ .code = .budget_exceeded, .stage = .execution, .dimension = .result_bytes, .limit = 1, .observed = std.math.maxInt(u64) };
+    const encoded = try failure.encode();
+    var expected: [24]u8 = undefined;
+    _ = try std.fmt.hexToBytes(&expected, "55514631090002030100000000000000ffffffffffffffff");
+    try t.expectEqualSlices(u8, &expected, encoded.slice());
+    try t.expectEqualDeep(failure, try q.QueryFailure.decode(encoded));
+    inline for (std.meta.tags(q.QueryFailure.Code)) |code| {
+        const value: q.QueryFailure = .{ .code = code, .stage = .admission };
+        try t.expectEqualDeep(value, try q.QueryFailure.decode(try value.encode()));
+        try t.expect(value.message().len != 0);
+    }
+    try t.expect(q.QueryFailure.fromError(error.OutOfMemory, .execution) == null);
+    try t.expect(q.QueryFailure.fromError(error.ReadFailed, .execution) == null);
+    for (0..encoded.len) |length| try t.expectError(error.InvalidQueryFailure, q.QueryFailure.decode(try p.Value.init(encoded.slice()[0..length])));
+    var invalid = failure;
+    invalid.observed = 1;
+    try t.expectError(error.InvalidQueryFailure, invalid.encode());
+    invalid = failure;
+    invalid.code = .arithmetic_overflow;
+    try t.expectError(error.InvalidQueryFailure, invalid.encode());
+    const source: q.SourceDefinition = .{ .resource = 7, .source = .{ .kv = .{ .prefix = .{}, .key = .{ .type = .binary }, .value = .{ .type = .int64 } } } };
+    const bundle: q.Bundle = .{ .source = source, .plan = .{ .projection = &.{1} }, .limits = .{ .pages = 10, .segments = 10, .result_bytes = 1024 } };
+    var job: r.Job = .{ .id = 100, .destination = 9, .correlation = 55, .policy_revision = 1, .source = .{ .pid = 3, .input = 100, .index = 0 }, .request = try bundle.reference(8, 2), .continuation = 101, .phase = .failed };
+    try t.expectError(error.InvalidQueryRecord, job.encode());
+    job.failure = failure;
+    const stored = try job.encode();
+    try t.expectEqualDeep(job, try r.Job.decode(stored));
+    for (0..stored.len) |length| {
+        if (r.Job.decode(try p.Value.init(stored.slice()[0..length]))) |_| return error.AcceptedTruncatedFailure else |_| {}
+    }
+    var status: q.UnifiedRequest.Status = .{ .reference = job.request, .phase = .rejected, .correlation = 55 };
+    try t.expectError(error.InvalidQueryUpload, status.encode());
+    status.failure = failure;
+    try t.expectEqualDeep(status, try q.UnifiedRequest.Status.decode(try status.encode()));
+    status.phase = .denied;
+    try t.expectError(error.InvalidQueryUpload, status.encode());
+    status.phase = .retired;
+    try t.expectEqualDeep(status, try q.UnifiedRequest.Status.decode(try status.encode()));
+    var arena = std.heap.ArenaAllocator.init(t.allocator);
+    defer arena.deinit();
+    const neutral = try q.Bridge.Status.fromNative(arena.allocator(), status);
+    try t.expectEqualStrings("18446744073709551615", neutral.failure.?.observed);
 }

@@ -3418,7 +3418,8 @@
                     "phase",
                     "correlation",
                     "manifest",
-                    "collected"
+                    "collected",
+                    "failure"
                   ],
                   "properties": {
                     "reference": {
@@ -3459,6 +3460,121 @@
                     },
                     "collected": {
                       "type": "boolean"
+                    },
+                    "failure": {
+                      "anyOf": [
+                        {
+                          "type": "object",
+                          "additionalProperties": false,
+                          "x-transit-field-order": [
+                            "code",
+                            "stage",
+                            "dimension",
+                            "limit",
+                            "observed"
+                          ],
+                          "properties": {
+                            "code": {
+                              "type": "string",
+                              "enum": [
+                                "policy_denied",
+                                "access_denied",
+                                "resource_unavailable",
+                                "request_unpublished",
+                                "publisher_mismatch",
+                                "document_history_gap",
+                                "document_retired",
+                                "document_resync_required",
+                                "budget_exceeded",
+                                "projection_budget",
+                                "expansion_missing",
+                                "expansion_null",
+                                "expansion_conflict",
+                                "expansion_type_error",
+                                "cell_type_error",
+                                "cell_conflict",
+                                "arithmetic_overflow",
+                                "segment_byte_limit",
+                                "type_mismatch",
+                                "unsupported_aggregate",
+                                "unknown_column",
+                                "invalid_projection",
+                                "duplicate_projection",
+                                "invalid_bundle",
+                                "invalid_source",
+                                "invalid_prefix",
+                                "invalid_path",
+                                "invalid_projection_budget",
+                                "invalid_text_projection",
+                                "invalid_element_projection",
+                                "unsupported_source",
+                                "unsupported_decoder",
+                                "unsupported_document_source",
+                                "invalid_source_encoding",
+                                "invalid_plan_encoding",
+                                "plan_definition_mismatch",
+                                "invalid_output_names",
+                                "unsupported_plan",
+                                "plan_too_large",
+                                "bundle_too_large",
+                                "truncated_input",
+                                "source_changed",
+                                "table_schema_changed",
+                                "invalid_budget",
+                                "namespace_in_use",
+                                "query_after_mutation",
+                                "nonfinite_value",
+                                "invalid_utf8",
+                                "cell_too_large",
+                                "invalid_column_name",
+                                "invalid_column_count",
+                                "duplicate_column",
+                                "unsupported_schema",
+                                "peer_mismatch",
+                                "invalid_request_reference",
+                                "writer_not_ready",
+                                "request_resource_expired",
+                                "request_resource_missing"
+                              ]
+                            },
+                            "stage": {
+                              "type": "string",
+                              "enum": [
+                                "admission",
+                                "execution"
+                              ]
+                            },
+                            "dimension": {
+                              "type": "string",
+                              "enum": [
+                                "none",
+                                "pages",
+                                "segments",
+                                "result_bytes"
+                              ]
+                            },
+                            "limit": {
+                              "type": "string",
+                              "maxLength": 131072
+                            },
+                            "observed": {
+                              "type": "string",
+                              "maxLength": 131072
+                            }
+                          },
+                          "required": [
+                            "code",
+                            "stage",
+                            "dimension",
+                            "limit",
+                            "observed"
+                          ],
+                          "x-transit-defaults": {}
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
                     }
                   },
                   "required": [
@@ -3466,7 +3582,8 @@
                     "phase",
                     "correlation",
                     "manifest",
-                    "collected"
+                    "collected",
+                    "failure"
                   ],
                   "x-transit-defaults": {}
                 },

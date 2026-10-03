@@ -61,6 +61,15 @@ resource budgets. Query admission is separate from execution and complete result
 publication. Current source permission is checked independently from requester
 ownership or a gateway's own credential.
 
+Terminal query status retains the original semantic failure code and whether it
+occurred during admission or execution. Page, segment and result-byte failures
+also retain their admitted limit and required work. These values survive exact
+retry, cleanup, request retirement and restart; they are not reconstructed by
+rerunning the query. Current access to the request resource is still required.
+A terminal failure has no complete result. Correcting the query or its authorized
+budget requires a new submission. Infrastructure or transport failure without a
+recorded terminal outcome retains the original recovery obligation.
+
 Explicit durable queries use the query v1 captured-query path. The requester
 uploads and seals the plan bundle, then makes a durable source call. The source
 retains a read version, stages Arrow segments through bounded Publication turns,

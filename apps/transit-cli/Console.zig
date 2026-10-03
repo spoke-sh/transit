@@ -250,6 +250,7 @@ pub const Console = struct {
         self.query_interrupted = false;
         self.diagnostic.sql = null;
         self.diagnostic.write = null;
+        self.diagnostic.query = null;
         self.write_preparing = false;
         self.diagnostic.timing = null;
         defer {
@@ -406,7 +407,7 @@ pub const Console = struct {
     }
     fn queryFailure(self: *Console, err: anyerror) anyerror {
         self.had_error = true;
-        if (err == error.InvalidTimingCommand or self.diagnostic.sql != null or self.diagnostic.write != null) return err;
+        if (err == error.InvalidTimingCommand or self.diagnostic.sql != null or self.diagnostic.write != null or self.diagnostic.query != null) return err;
         if (denied(err)) {
             self.access_lost = true;
             self.session.cursor = null;
@@ -489,6 +490,11 @@ pub const Console = struct {
                 return self.json(.{ .namespace = id, .uncertain = self.session.pending != null, .manifest = page.evidence.manifest });
             }
             return u.command(self.init, self.session, self.client, self.config, text, allocator, self.out);
+        }
+        if (std.mem.eql(u8, text, ".status") and self.session.format == .table) {
+            if (self.session.namespace) |id| if (try self.client.status(id)) |status| if (status.failure != null) {
+                return (@import("QueryDiagnostic.zig"){ .namespace = id, .phase = status.phase, .failure = status.failure }).render(self.out);
+            };
         }
         if (std.mem.eql(u8, text, ".schema") or std.mem.eql(u8, text, ".sources") or std.mem.eql(u8, text, ".status")) return u.command(self.init, self.session, self.client, self.config, text, allocator, self.out);
         return error.UnknownConsoleCommand;

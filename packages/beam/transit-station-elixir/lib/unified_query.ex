@@ -143,10 +143,15 @@ defmodule Transit.Station.Sdk.UnifiedQuery.Inspection do
   ]
 end
 
+defmodule Transit.Station.Sdk.UnifiedQuery.Failure do
+  @enforce_keys [:code, :stage, :dimension, :limit, :observed]
+  defstruct [:code, :stage, :dimension, :limit, :observed]
+end
+
 defmodule Transit.Station.Sdk.UnifiedQuery.Status do
   @enforce_keys [:phase, :correlation, :reference]
   @derive {Inspect, only: []}
-  defstruct [:phase, :correlation, :reference, manifest: nil, collected: false]
+  defstruct [:phase, :correlation, :reference, manifest: nil, collected: false, failure: nil]
 end
 
 defmodule Transit.Station.Sdk.UnifiedQuery.Observation do
@@ -247,6 +252,7 @@ defmodule Transit.Station.Sdk.UnifiedQuery do
     Explanation,
     Inspection,
     Status,
+    Failure,
     Observation,
     Alternative,
     Manifest,
@@ -391,7 +397,9 @@ defmodule Transit.Station.Sdk.UnifiedQuery do
   def native(%Status{} = v),
     do:
       {:transit_unified_status, native(v.phase), native(v.correlation), native(v.reference),
-       native(v.manifest), native(v.collected)}
+       native(v.manifest), native(v.collected), native(v.failure)}
+
+  def native(%Failure{} = v), do: {:transit_unified_failure, v.code, v.stage, v.dimension, v.limit, v.observed}
 
   def native(%Observation{} = v),
     do: {:transit_unified_observation, native(v.state), native(v.reason)}
@@ -531,13 +539,17 @@ defmodule Transit.Station.Sdk.UnifiedQuery do
         batch_rows: convert(batch_rows)
       }
 
-  def convert({:transit_unified_status, phase, correlation, reference, manifest, collected}),
+  def convert({:transit_unified_failure, code, stage, dimension, limit, observed}),
+    do: %Failure{code: code, stage: stage, dimension: dimension, limit: limit, observed: observed}
+
+  def convert({:transit_unified_status, phase, correlation, reference, manifest, collected, failure}),
     do: %Status{
       phase: convert(phase),
       correlation: convert(correlation),
       reference: convert(reference),
       manifest: convert(manifest),
-      collected: convert(collected)
+      collected: convert(collected),
+      failure: convert(failure)
     }
 
   def convert({:transit_unified_source_description, columns}),

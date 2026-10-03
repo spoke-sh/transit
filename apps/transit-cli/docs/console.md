@@ -562,3 +562,12 @@ submission; `.resume` reconciles the original bytes after an uncertain response.
 `.cancel` first reconciles a pending send and cannot undo a committed direct
 mutation. Saved requests and installations require the current shared definition;
 a definition mismatch rejects before execution and never resets existing data.
+
+
+Confirmed durable query failures show the saved query identity, stable
+`query.<code>`, admission/execution stage and any measured page, segment or
+result-byte limit. `.status` reads the same recorded evidence. Terminal rejection
+and denial suggest correcting the problem before a new query; they do not offer
+`.resume` as a way to change the saved result. JSON status retains the structured
+`failure` object with exact decimal-string counters. An unresolved send still
+requires recovery of its original signed intent.

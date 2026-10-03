@@ -83,6 +83,7 @@ pub const Status = struct {
     correlation: u64 = 0,
     manifest: ?Ref = null,
     collected: bool = false,
+    failure: ?q.QueryFailure = null,
     pub fn encode(self: Status) !p.Value {
         try q.Bundle.checkReference(self.reference);
         if (self.correlation > p.max_counter or (self.phase == .uploading or self.phase == .sealed) and self.correlation != 0) return error.InvalidQueryUpload;
@@ -94,7 +95,12 @@ pub const Status = struct {
             if (reference.domain != .query_result or reference.record != q.UnifiedRecords.manifest_record or reference.spec.format != q.UnifiedRecords.manifest_format or reference.spec.length > q.UnifiedRecords.Manifest.max_bytes or reference.spec.length == 0) return error.InvalidQueryManifest;
         }
         if (self.collected and self.phase != .cancelled and self.phase != .retired) return error.InvalidQueryUpload;
-        var bytes: [159]u8 = undefined;
+        if ((self.phase == .denied or self.phase == .rejected) and self.failure == null) return error.InvalidQueryUpload;
+        if (self.failure) |failure| {
+            if (self.phase != .retired and self.phase != .denied and self.phase != .rejected) return error.InvalidQueryUpload;
+            if (self.manifest != null or (self.phase != .retired and failure.denied() != (self.phase == .denied))) return error.InvalidQueryUpload;
+        }
+        var bytes: [160]u8 = undefined;
         var writer: std.Io.Writer = .fixed(&bytes);
         try writer.writeAll("UQU1");
         try writer.writeAll((try self.reference.encode()).slice());
@@ -103,6 +109,8 @@ pub const Status = struct {
         try writer.writeByte(@intFromBool(self.manifest != null));
         if (self.manifest) |reference| try writer.writeAll((try reference.encode()).slice());
         try writer.writeByte(@intFromBool(self.collected));
+        try writer.writeByte(@intFromBool(self.failure != null));
+        if (self.failure) |failure| try writer.writeAll((try failure.encode()).slice());
         return p.Value.init(writer.buffered());
     }
     pub fn decode(value: p.Value) !Status {
@@ -118,6 +126,11 @@ pub const Status = struct {
         out.collected = switch (try reader.takeByte()) {
             0 => false,
             1 => true,
+            else => return error.InvalidQueryUpload,
+        };
+        out.failure = switch (try reader.takeByte()) {
+            0 => null,
+            1 => try q.QueryFailure.decode(try p.Value.init(try reader.take(q.QueryFailure.encoded_bytes))),
             else => return error.InvalidQueryUpload,
         };
         if (reader.bufferedLen() != 0 or !(try out.encode()).eql(value)) return error.InvalidQueryUpload;

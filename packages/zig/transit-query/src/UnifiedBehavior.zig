@@ -121,8 +121,9 @@ pub const Source = struct {
             // rejection envelope. Own-source read failure still poisons the turn
             // and cannot authorize a fabricated successful closure.
             if (turn.read_error == null and (err == error.Rejected or err == error.Conflict) and (self.resources.wire.last_rejection == .StateResourceExpired or self.resources.wire.last_rejection == .UnknownStateResource)) {
-                if (frame.kind == .call) return turn.reply(try p.Value.init("query.v1.denied"));
-                if (frame.kind == .cast and (s.Frame.source(turn.delivery.input) catch 0) == turn.delivery.pid) return q.UnifiedCapture.close(turn, (try r.Continuation.decode(frame.payload)).job, .denied);
+                const cause = if (self.resources.wire.last_rejection == .StateResourceExpired) error.RequestResourceExpired else error.RequestResourceMissing;
+                if (frame.kind == .call) return turn.reply(try q.QueryFailure.fromError(cause, .admission).?.encode());
+                if (frame.kind == .cast and (s.Frame.source(turn.delivery.input) catch 0) == turn.delivery.pid) return q.UnifiedCapture.closeFailure(turn, (try r.Continuation.decode(frame.payload)).job, q.QueryFailure.fromError(cause, .execution).?);
             }
             return err;
         };
@@ -136,12 +137,12 @@ pub fn dispatchSource(turn: *Turn, frame: s.Frame, peer: u64, initializer: u64, 
     var fixed = std.heap.FixedBufferAllocator.init(adapter);
     const origin = s.Frame.source(turn.delivery.input) catch 0;
     if (frame.kind == .call) {
-        if (origin != peer) return turn.reply(try p.Value.init("query.v1.denied"));
-        const ref = s.PublicationReference.decode(frame.payload) catch return turn.reply(try p.Value.init("query.v1.rejected"));
+        if (origin != peer) return turn.reply(try q.QueryFailure.fromError(error.UnexpectedQueryPeer, .admission).?.encode());
+        const ref = s.PublicationReference.decode(frame.payload) catch return turn.reply(try q.QueryFailure.fromError(error.InvalidPublicationReference, .admission).?.encode());
         _ = q.UnifiedCapture.start(turn, ref, resources, fixed.allocator()) catch |err| {
             if (turn.read_error != null) return err;
-            const reason = disposition(err) orelse return err;
-            return turn.reply(try p.Value.init(if (reason == .denied) "query.v1.denied" else "query.v1.rejected"));
+            const failure = q.QueryFailure.fromError(err, .admission) orelse return err;
+            return turn.reply(try failure.encode());
         };
         return;
     }
@@ -153,17 +154,10 @@ pub fn dispatchSource(turn: *Turn, frame: s.Frame, peer: u64, initializer: u64, 
     }
     if (frame.kind != .cast or origin != turn.delivery.pid) return rejected(turn, "UnexpectedQueryContinuation");
     const continuation = try r.Continuation.decode(frame.payload);
-    _ = q.UnifiedCapture.advance(turn, continuation, resources, fixed.allocator(), workspace, cancellation) catch |err| {
+    var diagnostic: ?q.QueryFailure = null;
+    _ = q.UnifiedCapture.advanceDiagnostic(turn, continuation, resources, fixed.allocator(), workspace, cancellation, &diagnostic) catch |err| {
         if (turn.read_error != null) return err;
-        const reason = disposition(err) orelse return err;
-        return q.UnifiedCapture.close(turn, continuation.job, if (reason == .denied) .denied else .failed);
-    };
-}
-const Disposition = enum { denied, failed };
-fn disposition(err: anyerror) ?Disposition {
-    return switch (err) {
-        error.QueryDenied, error.AccessDenied, error.ResourceUnavailable, error.PublicationNotPublished, error.UnexpectedQueryPublisher, error.DocumentHistoryGap, error.DocumentRetired, error.DocumentResyncRequired => .denied,
-        error.QueryBudgetExceeded, error.QueryProjectionBudget, error.QueryExpansionMissing, error.QueryExpansionNull, error.QueryExpansionConflict, error.QueryExpansionTypeError, error.QueryTypeError, error.QueryConflict, error.Overflow, error.QuerySegmentBudgetExceeded, error.TypeMismatch, error.UnsupportedAggregate, error.UnknownColumn, error.InvalidProjection, error.DuplicateProjection, error.InvalidQueryBundle, error.InvalidQuerySource, error.InvalidQueryPrefix, error.InvalidQueryPath, error.InvalidProjectionBudget, error.InvalidTextProjection, error.InvalidElementProjection, error.UnsupportedSource, error.UnsupportedDecoder, error.UnsupportedDocumentSource, error.InvalidSourceEncoding, error.InvalidPlanEncoding, error.UnsupportedPlanDefinition, error.InvalidOutputNames, error.UnsupportedPlan, error.PlanTooLarge, error.QueryBundleTooLarge, error.EndOfStream, error.SourceChanged, error.TableSchemaChanged, error.InvalidQueryBudget, error.QueryNamespaceInUse, error.QueryAfterMutation, error.NonFiniteValue, error.InvalidUtf8, error.CellTooLarge, error.InvalidColumnName, error.InvalidColumnCount, error.DuplicateColumn, error.UnsupportedSchema => .failed,
-        else => null,
+        const failure = diagnostic orelse q.QueryFailure.fromError(err, .execution) orelse return err;
+        return q.UnifiedCapture.closeFailure(turn, continuation.job, failure);
     };
 }

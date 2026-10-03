@@ -231,7 +231,7 @@ test "independent upload frames preserve full-width namespace and strict status 
     const decoded = try request.Status.decode(encoded);
     try t.expectEqual(std.math.maxInt(u64), decoded.reference.namespace);
     try t.expectEqual(.uploading, decoded.phase);
-    try t.expectEqual(@as(u16, 87), encoded.len);
+    try t.expectEqual(@as(u16, 88), encoded.len);
     try t.expect((try decoded.encode()).eql(encoded));
 }
 
@@ -572,4 +572,48 @@ test "draft commands require the configured external caller and corrupted record
     turn.delivery.input.origin = .{ .external = .{ .principal = 42, .policy_revision = 1 } };
     try t.expectError(error.InvalidQueryDraftRecord, handler.handle(handler.context, &turn, frame));
     try t.expectEqual(@as(usize, 0), writes(turn));
+}
+
+test "requester retains authenticated terminal failure through duplicate reply and retirement" {
+    const failure: q.QueryFailure = .{ .code = .budget_exceeded, .stage = .execution, .dimension = .result_bytes, .limit = 1, .observed = 512 };
+    var store: Store = .{ .resource = 8, .pid = 9 };
+    defer store.deinit();
+    const bundle = fixture();
+    var bytes: [q.Bundle.max_bytes]u8 = undefined;
+    const ref = try bundle.reference(8, 901);
+    var turn = try store.capture();
+    try upload.begin(&turn, ref);
+    try store.commit(turn);
+    try stage(&store, ref, try bundle.encode(&bytes));
+    turn = try store.capture();
+    try upload.seal(&turn, ref.namespace);
+    try store.commit(turn);
+    turn = try store.capture();
+    const correlation = try upload.submit(&turn, ref.namespace, 3);
+    try store.commit(turn);
+    const reply: s.Frame = .{ .kind = .reply, .correlation = correlation, .payload = try failure.encode() };
+    turn = try store.capture();
+    turn.delivery.input.value = try reply.encode();
+    turn.delivery.input.origin = .{ .process = .{ .pid = 3, .turn = 1, .output = 0 } };
+    try t.expect(try turn.acceptReply() == .accepted);
+    try upload.reply(&turn, reply, 3);
+    try store.commit(turn);
+    turn = try store.capture();
+    const rejected = (try upload.status(&turn, ref.namespace)).?;
+    try t.expectEqual(.rejected, rejected.phase);
+    try t.expectEqualDeep(failure, rejected.failure.?);
+    try t.expect(try upload.active(&turn) == null);
+    turn.delivery.input.value = try reply.encode();
+    turn.delivery.input.origin = .{ .process = .{ .pid = 3, .turn = 1, .output = 0 } };
+    try upload.reply(&turn, reply, 3);
+    try t.expectEqual(0, writes(turn));
+    try upload.cancel(&turn, ref.namespace);
+    try t.expectEqual(0, writes(turn));
+    try upload.retire(&turn, ref.namespace);
+    try store.commit(turn);
+    try cleanup(&store, ref);
+    turn = try store.capture();
+    const retired = (try upload.status(&turn, ref.namespace)).?;
+    try t.expectEqual(.retired, retired.phase);
+    try t.expectEqualDeep(failure, retired.failure.?);
 }

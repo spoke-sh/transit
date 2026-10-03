@@ -137,7 +137,7 @@ test "staged ingress and forged continuations cannot execute or block later acti
     turn = try process(&store, 9, .{ .kind = .call, .correlation = 8 });
     try dispatch(&owner, &turn);
     try t.expectEqual(0, count(&turn));
-    try t.expectEqualStrings("query.v1.rejected", (try s.Frame.decode(turn.decision.outputs[0].?.value)).payload.slice());
+    try t.expectEqual(.writer_not_ready, (try q.QueryFailure.decode((try s.Frame.decode(turn.decision.outputs[0].?.value)).payload)).code);
     try store.commit(turn);
     turn = try process(&store, 9, .{ .kind = .cast, .payload = try owner.configuration.continuation() });
     try dispatch(&owner, &turn);

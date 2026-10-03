@@ -173,7 +173,8 @@ module Transit
       end
       Alternative = Data.define(:counter, :replica, :state, :value, :actual_kind)
       Cell = Data.define(:state, :value, :actual_kind, :alternatives)
-      Status = Data.define(:phase, :correlation, :reference, :manifest, :collected)
+      Failure = Data.define(:code, :stage, :dimension, :limit, :observed)
+      Status = Data.define(:phase, :correlation, :reference, :manifest, :collected, :failure)
       Observation = Data.define(:state, :reason)
       Description = Data.define(:resource_revision, :policy_revision, :limits, :active, :bundle_bytes, :segment_bytes, :batch_rows)
       InspectedState = Data.define(:column, :state)
@@ -396,7 +397,7 @@ module Transit
           return nil if value.nil?
           Status.new(phase: value.fetch('phase').to_sym, correlation: Value.wide(value.fetch('correlation')),
             reference: Internal.unhex(value.fetch('reference'), 72).freeze,
-            manifest: value.fetch('manifest').nil? ? nil : Internal.unhex(value.fetch('manifest'), 72).freeze, collected: value.fetch('collected'))
+            manifest: value.fetch('manifest').nil? ? nil : Internal.unhex(value.fetch('manifest'), 72).freeze, collected: value.fetch('collected'), failure: value.fetch('failure')&.then { |f| Failure.new(code: f.fetch('code').freeze, stage: f.fetch('stage').to_sym, dimension: f.fetch('dimension').to_sym, limit: Value.wide(f.fetch('limit')), observed: Value.wide(f.fetch('observed'))) })
         end
         def page(namespace, cursor = nil)
           raise ArgumentError, 'Expected Cursor' unless cursor.nil? || cursor.is_a?(Cursor)

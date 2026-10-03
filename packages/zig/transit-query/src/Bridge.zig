@@ -48,14 +48,26 @@ pub const Description = struct {
     limits: c.Limits,
     active: ?[]const u8,
 };
+pub const Failure = struct {
+    code: q.QueryFailure.Code,
+    stage: q.QueryFailure.Stage,
+    dimension: q.QueryFailure.Dimension,
+    limit: []const u8,
+    observed: []const u8,
+    pub fn fromNative(alloc: Allocator, value: q.QueryFailure) !Failure {
+        try value.validate();
+        return .{ .code = value.code, .stage = value.stage, .dimension = value.dimension, .limit = try a.decimal(alloc, value.limit), .observed = try a.decimal(alloc, value.observed) };
+    }
+};
 pub const Status = struct {
     reference: p.Value,
     phase: q.UnifiedRequest.Phase,
     correlation: []const u8,
     manifest: ?p.Value,
     collected: bool,
+    failure: ?Failure,
     pub fn fromNative(alloc: Allocator, value: q.UnifiedRequest.Status) !Status {
-        return .{ .reference = try value.reference.encode(), .phase = value.phase, .correlation = try a.decimal(alloc, value.correlation), .manifest = if (value.manifest) |ref| try ref.encode() else null, .collected = value.collected };
+        return .{ .reference = try value.reference.encode(), .phase = value.phase, .correlation = try a.decimal(alloc, value.correlation), .manifest = if (value.manifest) |ref| try ref.encode() else null, .collected = value.collected, .failure = if (value.failure) |failure| try Failure.fromNative(alloc, failure) else null };
     }
 };
 pub const Manifest = struct {

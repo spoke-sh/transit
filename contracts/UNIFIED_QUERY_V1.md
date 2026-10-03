@@ -186,7 +186,11 @@ submit / `UQK1` cancel / `UQG1` collect / `UQR1` retire, each followed by a u64
 namespace. All integers are little-endian. The part payload is at most 145 bytes;
 begin is 72 and namespace operations are 12, below the unchanged 243-byte limit.
 `UQU1` upload state contains its `SPF1`, phase byte, u64 original correlation,
-optional-manifest flag/reference and collected flag (87 or 159 bytes). Phases
+optional-manifest flag/reference, collected flag and failure-presence flag. A
+present failure adds the 24-byte `UQF1` record below. Valid records are 88 bytes
+without a manifest/failure, 112 with a failure or 160 with a manifest. A manifest
+and a failure are mutually exclusive. Denied/rejected status requires a failure;
+retirement preserves that failure. Old records without the presence byte reject. Phases
 1–8 mean uploading, sealed, admitted, complete, cancelled, denied, rejected and
 retired. Boolean flags are exactly zero or one. Full u64 namespaces never pass
 through a floating-point number.
@@ -215,7 +219,9 @@ the host in that resource; an occupied namespace rejects admission.
 The query-result publication domain separates its budgets and records from
 request uploads and mutations in the same resource. Segment ordinal `n` uses record `n + 1`, format `0x31415155`; the final manifest uses
 record `2^64 - 1`, format `0x314d5155`. `UQJ1` binds the original route, request
-reference, policy revision and retained version. The `UQC1` checkpoint contains
+reference, policy revision and retained version. Its final failure-presence byte
+and optional `UQF1` make it 143 or 167 bytes. Failed/denied jobs require a
+matching failure; all other source phases forbid one. The `UQC1` checkpoint contains
 the `FZS1` engine progress, source-specific cursor, total bytes and ordered segment
 chain in at most 254 bytes. It fits the unchanged 256-byte KV value.
 
@@ -227,6 +233,104 @@ This binds ordered coverage and the independently chunked publication digest.
 The finite `UQM1` manifest contains two u16 lengths followed by complete `UQJ1`
 and `UQC1` records, within 512 bytes. It is published separately from segments;
 only its original-call reply establishes a completed query for the requester.
+
+## Retained query failures
+
+`UQF1` is exactly 24 bytes: magic, u16 stable code, u8 stage, u8 budget dimension,
+u64 limit and u64 observed/required work, in little-endian order. Stage 1 is
+admission and stage 2 is execution. Dimension 0 means no measured budget witness;
+both counters must then be zero. Dimensions 1, 2 and 3 mean pages, result segments
+and result bytes. A measured witness requires code 9, execution stage, a positive
+limit and required work greater than that limit. Page work is the next page
+required beyond the completed-page count; result counters include the rejected
+candidate segment. They are not falsely presented as committed progress.
+
+Admission rejection replies carry `UQF1`. Execution closure atomically records
+that same value in the source job and sends it on the original reply route.
+The requester stores it with its denied/rejected status. Cancellation retains
+the separate `query.v1.cancelled` reply and can legitimately have no failure.
+The earlier `query.v1.denied`, `.failed` and `.rejected` replies are not accepted.
+The combined writer returns `writer_not_ready` while initialization is staged.
+
+Only the first terminal source outcome can set the failure. Retrying closure,
+replaying a continuation, cleanup and retiring a request cannot replace it.
+Page, segment and byte budget checks run in that order. Failure to allocate,
+read storage or commit the outcome does not authorize a terminal failure: the
+original work remains unresolved. No extra mutation or larger native value is
+required. Access to retained failure status uses the current requester-resource
+read authorization; it includes no stored cell values or credentials.
+
+The stable codes below are the closed inventory for the source behavior's
+terminal failure mapping. English descriptions and Zig error names are not the
+code identity. Unknown/infrastructure errors are not coerced into this table.
+This inventory does not claim to cover compiler, transport or other domain errors.
+
+| Number | Code | Disposition | Meaning |
+| --- | --- | --- | --- |
+| 1 | `policy_denied` | denied | The current query policy does not permit this request. |
+| 2 | `access_denied` | denied | Current access to a required resource was denied. |
+| 3 | `resource_unavailable` | denied | A required resource is unavailable. |
+| 4 | `request_unpublished` | denied | The request publication is no longer published. |
+| 5 | `publisher_mismatch` | denied | The request publication has an unexpected publisher. |
+| 6 | `document_history_gap` | denied | Required Document history is no longer available. |
+| 7 | `document_retired` | denied | The Document revision is retired. |
+| 8 | `document_resync_required` | denied | The Document source requires resynchronization. |
+| 9 | `budget_exceeded` | failed | The query exceeded an admitted execution budget. |
+| 10 | `projection_budget` | failed | The source projection exceeds its bounded work budget. |
+| 11 | `expansion_missing` | failed | A collection required for expansion is missing. |
+| 12 | `expansion_null` | failed | A collection required for expansion is NULL. |
+| 13 | `expansion_conflict` | failed | A collection required for expansion has an unresolved conflict. |
+| 14 | `expansion_type_error` | failed | A collection required for expansion has the wrong type. |
+| 15 | `cell_type_error` | failed | The query encountered a type-error cell. |
+| 16 | `cell_conflict` | failed | The query encountered an unresolved conflict cell. |
+| 17 | `arithmetic_overflow` | failed | Checked arithmetic exceeded its representable range. |
+| 18 | `segment_byte_limit` | failed | One Arrow result segment exceeds the segment-byte limit. |
+| 19 | `type_mismatch` | failed | A value does not match its required type. |
+| 20 | `unsupported_aggregate` | failed | The aggregate or its input type is unsupported. |
+| 21 | `unknown_column` | failed | A referenced column is absent from the source schema. |
+| 22 | `invalid_projection` | failed | The query projection is invalid for this source. |
+| 23 | `duplicate_projection` | failed | The query repeats an output position without distinct names. |
+| 24 | `invalid_bundle` | failed | The submitted query bundle is invalid. |
+| 25 | `invalid_source` | failed | The query source declaration is invalid. |
+| 26 | `invalid_prefix` | failed | The KV source prefix is invalid. |
+| 27 | `invalid_path` | failed | The source projection path is invalid. |
+| 28 | `invalid_projection_budget` | failed | The source projection budget is invalid. |
+| 29 | `invalid_text_projection` | failed | The text source projection is invalid. |
+| 30 | `invalid_element_projection` | failed | The element source projection is invalid. |
+| 31 | `unsupported_source` | failed | This query source kind is unsupported. |
+| 32 | `unsupported_decoder` | failed | This source decoder is unsupported. |
+| 33 | `unsupported_document_source` | failed | This Document source projection is unsupported. |
+| 34 | `invalid_source_encoding` | failed | The source declaration encoding is invalid. |
+| 35 | `invalid_plan_encoding` | failed | The query plan encoding is invalid. |
+| 36 | `plan_definition_mismatch` | failed | The query plan belongs to a different contract definition. |
+| 37 | `invalid_output_names` | failed | Query output names are invalid or duplicated. |
+| 38 | `unsupported_plan` | failed | This query plan uses an unsupported operation. |
+| 39 | `plan_too_large` | failed | The query plan exceeds its byte limit. |
+| 40 | `bundle_too_large` | failed | The query bundle exceeds its byte limit. |
+| 41 | `truncated_input` | failed | A required encoded query value is truncated. |
+| 42 | `source_changed` | failed | The source identity changed from the submitted query basis. |
+| 43 | `table_schema_changed` | failed | The Table schema changed from the submitted query basis. |
+| 44 | `invalid_budget` | failed | The submitted execution budget is invalid. |
+| 45 | `namespace_in_use` | failed | The query namespace is already in use. |
+| 46 | `query_after_mutation` | failed | Query admission cannot follow a mutation in the same turn. |
+| 47 | `nonfinite_value` | failed | A query value is not a finite number. |
+| 48 | `invalid_utf8` | failed | A query value is not valid UTF-8. |
+| 49 | `cell_too_large` | failed | A query cell exceeds its byte limit. |
+| 50 | `invalid_column_name` | failed | A source column name is invalid. |
+| 51 | `invalid_column_count` | failed | The source column count exceeds the supported shape. |
+| 52 | `duplicate_column` | failed | The source schema repeats a column name. |
+| 53 | `unsupported_schema` | failed | The source schema uses an unsupported type or shape. |
+| 54 | `peer_mismatch` | denied | The caller is not the configured query peer. |
+| 55 | `invalid_request_reference` | failed | The query request publication reference is invalid. |
+| 56 | `writer_not_ready` | failed | The combined Table query and writer owner has not completed initialization. |
+| 57 | `request_resource_expired` | denied | The query request resource expired. |
+| 58 | `request_resource_missing` | denied | The query request resource no longer exists. |
+
+Native/port and SDK query status include required `failure`, either null or an
+object with `code`, `stage`, `dimension`, `limit` and `observed`. The two counters
+use full-width decimal strings on the neutral boundary and native integer types
+in SDKs. A cause without a recorded expression, column or source position does
+not acquire one from a later read. These fields remain unrecorded in this profile.
 
 ## Language-neutral values
 

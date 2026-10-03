@@ -121,7 +121,7 @@ def uploads():
     commands += [(label, tag+namespace) for label, tag in [
         ('seal', b'UQS1'), ('submit', b'UQX1'), ('cancel', b'UQK1'),
         ('collect', b'UQG1'), ('retire', b'UQR1')]]
-    status = b'UQU1' + reference + b'\1' + struct.pack('<Q', 0) + b'\0\0'
+    status = b'UQU1' + reference + b'\1' + struct.pack('<Q', 0) + b'\0\0\0'
     return json.dumps(dict(commands=[dict(kind=kind, wire_hex=wire.hex()) for kind, wire in commands], status_hex=status.hex()), indent=2)+'\n'
 
 

@@ -243,7 +243,8 @@ struct Inspection {
 };
 using Manifest = transit_station_unified_manifest;
 enum class Phase { Uploading, Sealed, Admitted, Complete, Cancelled, Denied, Rejected, Retired };
-struct Status { Phase phase; uint64_t correlation; std::array<uint8_t, 72> reference; std::optional<std::array<uint8_t, 72>> manifest; bool collected; };
+struct Failure { std::string code, stage, dimension; uint64_t limit, observed; };
+struct Status { Phase phase; uint64_t correlation; std::array<uint8_t, 72> reference; std::optional<std::array<uint8_t, 72>> manifest; bool collected; std::optional<Failure> failure; };
 enum class Observed { Pending, Committed, Rejected };
 struct Observation { Observed state; std::string reason; };
 enum class Control { Cancel, Retire, Collect };
@@ -326,9 +327,10 @@ public:
     std::optional<Status> status(uint64_t ns) {
         transit_station_unified_status out{}; check(transit_station_unified_status_read(value_.get(), ns, &out));
         if (!out.found) return {};
-        Status result{static_cast<Phase>(out.phase), out.correlation, {}, {}, out.collected};
+        Status result{static_cast<Phase>(out.phase), out.correlation, {}, {}, out.collected, {}};
         std::copy_n(out.reference, 72, result.reference.begin());
         if (out.has_manifest) { result.manifest.emplace(); std::copy_n(out.manifest, 72, result.manifest->begin()); }
+        if (out.has_failure) result.failure = Failure{out.failure.code, out.failure.stage, out.failure.dimension, out.failure.limit, out.failure.observed};
         return result;
     }
     Page page(uint64_t ns, const Cursor *cursor = nullptr) {

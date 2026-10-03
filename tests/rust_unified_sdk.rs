@@ -638,7 +638,7 @@ fn serve(config: &Value) -> AnyResult<()> {
                 json!({"observation":match client.observe(v.as_u64().unwrap())?{q::Observation::Pending=>json!({"pending":{}}),q::Observation::Committed=>json!({"committed":{}}),q::Observation::Rejected(v)=>json!({"rejected":hex(v.as_bytes())})}})
             } else if let Some(v) = action.get("status") {
                 let value = client.status(v.as_str().unwrap().parse().unwrap())?;
-                json!({"status":value.map(|v|json!({"phase":format!("{:?}",v.phase).to_lowercase(),"correlation":v.correlation.to_string()}))})
+                json!({"status":value.map(|v|json!({"phase":format!("{:?}",v.phase).to_lowercase(),"correlation":v.correlation.to_string(),"failure":v.failure.map(|f|json!({"code":f.code,"stage":f.stage,"dimension":f.dimension,"limit":f.limit.to_string(),"observed":f.observed.to_string()}))}))})
             } else if let Some(v) = action.get("page") {
                 let cursor = v["cursor"]
                     .as_str()

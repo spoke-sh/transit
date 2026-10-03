@@ -560,12 +560,21 @@ impl Phase {
     }
 }
 #[derive(Clone)]
+pub struct Failure {
+    pub code: String,
+    pub stage: String,
+    pub dimension: String,
+    pub limit: u64,
+    pub observed: u64,
+}
+#[derive(Clone)]
 pub struct Status {
     pub phase: Phase,
     pub correlation: u64,
     pub reference: Vec<u8>,
     pub manifest: Option<Vec<u8>>,
     pub collected: bool,
+    pub failure: Option<Failure>,
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Observation {
@@ -1127,6 +1136,10 @@ impl Client {
                 Some(unhex(string(field(v, "manifest")?, "manifest")?, 72)?)
             },
             collected: boolean(field(v, "collected")?, "collected")?,
+            failure: if field(v, "failure")?.is_null() { None } else {
+                let f = field(v, "failure")?;
+                Some(Failure { code: string(field(f, "code")?, "code")?.to_owned(), stage: string(field(f, "stage")?, "stage")?.to_owned(), dimension: string(field(f, "dimension")?, "dimension")?.to_owned(), limit: wide(field(f, "limit")?)?, observed: wide(field(f, "observed")?)? })
+            },
         }))
     }
     pub fn page(&mut self, namespace: u64, cursor: Option<&Cursor>) -> Result<Page> {

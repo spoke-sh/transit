@@ -12112,3 +12112,45 @@ context without fabricated SQL spans. Rejections leave stdout empty and do not
 print stack traces or arbitrary option values. Allocation-failure checks now
 exercise diagnostic provenance allocation, and a unit renders failure context
 after the input and parser arena have both been freed.
+
+### Retained finite-query failure evidence
+
+The current v1 records and replies retain a stable `QueryFailure` code and
+admission/execution stage. Page, segment and result-byte failures carry the
+actual limit and required work. Unit tests cover all three budget dimensions,
+rollback before closure, first-failure preservation during repeated closure and
+cleanup, authenticated requester replies, retirement, full-width counters,
+malformed/truncated records and rejection of absent witnesses. Board lenses and
+neutral SDK statuses preserve these fields. Extreme-float compiler diagnostics
+also pass bounded rendering tests for maximum finite values, subnormals and
+negative zero without replacing the original type mismatch.
+
+On 2026-10-02, `just test::unified-lifecycle kv` passes in 72.51 seconds. The
+installed all-ten-SDK run of `just test::unified-query -Doptimize=ReleaseSafe
+-Dunified-source=kv -Dunified-lifecycle=true
+-Dunified-sdk=python,node,rust,ruby,c,cpp,java,dotnet,erlang,elixir` passes in
+230.08 seconds, including 91.86 seconds of provisioning. Python sync/async,
+native, port and the ten SDKs provide 13 caller variants. All observe the exact
+same result-byte failure after its committed receipt is hidden, an identical
+retry, source/requester/node/disk-store restart and request retirement. The
+schedule also preserves current-denial, cancellation, prefix-revocation and
+cleanup checks. This run's successful query returns 41 rows in six segments and
+13,584 Arrow bytes with eight resident authority pages and an 8 MiB hot store.
+The new failure recovery schedule is executed for KV; it is not new installed
+Table/Document failure-witness qualification.
+
+All ten SDK packages build against the replacement contract definition. The
+cutover regenerates native/ABI/browser schemas, SDK resources, signing and
+record fixtures together. Earlier check attempts detected stale signing/size
+fixtures and a browser status fixture missing the required field; corrected
+checks do not count those attempts as passes. No fallback accepts the prior
+query record or synthesizes a missing cause.
+
+The final `just check` passes on 2026-10-02, including Zig and frontend checks,
+generated-contract checks and the public documentation build. A final focused
+run passes all 184 file-query cases, the application grammar/documentation
+proof and the combined Table query/writer proof in 32.882 seconds. The combined
+proof records 4,637 reads and 83 turns while retaining the four-mutation,
+256-byte-value and eight-resident-page bounds. No installed SDK variants were
+selected in that combined Table run. These checks run in the pinned Nix
+environment; no push or clean committed-HEAD qualification is claimed.

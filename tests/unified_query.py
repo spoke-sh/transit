@@ -361,6 +361,8 @@ def run(node, host, proof, port_host, library, kinds=("kv", "table", "document")
                     console_config['url'] = proxy_url
                     check(console, root, kind, invoke, expected, fault, console_config, tls=console_tls)
                 if lifecycle:
+                    from unified_failures import check as failure_check
+                    failure_check(native, port_client, callers, root, invoke, restart, fault, kind)
                     from unified_lifecycle import check
                     check(native, root, invoke, fault, kind)
                 if example:

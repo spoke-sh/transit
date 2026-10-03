@@ -13,12 +13,14 @@ pub const Detail = union(enum) {
         request_resource: u64,
         request_namespace: []const u8,
         phase: current.UnifiedRecords.Phase,
+        failure: ?current.Bridge.Failure,
         policy_revision: u64,
     },
     request: struct {
         namespace: []const u8,
         correlation: u64,
         phase: current.UnifiedRequest.Phase,
+        failure: ?current.Bridge.Failure,
         collected: bool,
         result_resource: ?u64,
         result_namespace: ?[]const u8,
@@ -66,12 +68,12 @@ pub fn decode(allocator: std.mem.Allocator, writer: u64, resource: u64, key: p.V
             'j' => {
                 const job = current.UnifiedRecords.Job.decode(value) catch return null;
                 if (job.id != identity or job.source.pid != writer) return null;
-                return .{ .execution = .{ .result = job.id, .destination = job.destination, .correlation = job.correlation, .source = job.source, .request_resource = job.request.resource, .request_namespace = try decimal(allocator, job.request.namespace), .phase = job.phase, .policy_revision = job.policy_revision } };
+                return .{ .execution = .{ .result = job.id, .destination = job.destination, .correlation = job.correlation, .source = job.source, .request_resource = job.request.resource, .request_namespace = try decimal(allocator, job.request.namespace), .phase = job.phase, .failure = if (job.failure) |failure| try current.Bridge.Failure.fromNative(allocator, failure) else null, .policy_revision = job.policy_revision } };
             },
             'u' => {
                 const status = current.UnifiedRequest.Status.decode(value) catch return null;
                 if (status.reference.namespace != identity or status.reference.resource != resource) return null;
-                return .{ .request = .{ .namespace = try decimal(allocator, identity), .correlation = status.correlation, .phase = status.phase, .collected = status.collected, .result_resource = if (status.manifest) |ref| ref.resource else null, .result_namespace = if (status.manifest) |ref| try decimal(allocator, ref.namespace) else null, .result_digest = if (status.manifest) |ref| ref.spec.digest else null } };
+                return .{ .request = .{ .namespace = try decimal(allocator, identity), .correlation = status.correlation, .phase = status.phase, .failure = if (status.failure) |failure| try current.Bridge.Failure.fromNative(allocator, failure) else null, .collected = status.collected, .result_resource = if (status.manifest) |ref| ref.resource else null, .result_namespace = if (status.manifest) |ref| try decimal(allocator, ref.namespace) else null, .result_digest = if (status.manifest) |ref| ref.spec.digest else null } };
             },
             else => return null,
         }
@@ -135,6 +137,12 @@ test "current query evidence requires exact key and resource identity without ex
     const evidence = (try decode(alloc, 2, 6, key, try job.encode())).?.execution;
     try t.expectEqual(job.phase, evidence.phase);
     try t.expectEqualStrings("9", evidence.request_namespace);
+    var failed = job;
+    failed.phase = .failed;
+    failed.failure = .{ .code = .budget_exceeded, .stage = .execution, .dimension = .pages, .limit = 1, .observed = 2 };
+    const failure_evidence = (try decode(alloc, 2, 6, key, try failed.encode())).?.execution;
+    try t.expectEqual(.budget_exceeded, failure_evidence.failure.?.code);
+    try t.expectEqualStrings("2", failure_evidence.failure.?.observed);
     try t.expect(try decode(alloc, 3, 6, key, try job.encode()) == null);
     try t.expect(try decode(alloc, 2, 6, current.UnifiedRecords.key('j', 6, 0), try job.encode()) == null);
     const status: current.UnifiedRequest.Status = .{ .reference = reference };

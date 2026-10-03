@@ -157,7 +157,9 @@ static void serve(char **args) {
                 result=std::string("{\"observation\":{\"")+names[static_cast<size_t>(v.state)]+"\":"+(v.state==q::Observed::Rejected?"\""+hex(Bytes(v.reason.begin(),v.reason.end()))+"\"":"{}")+"}}";
             }else if(command=="status") {
                 const auto v=client.status(std::stoull(arg)); const char *names[]={"uploading","sealed","admitted","complete","cancelled","denied","rejected","retired"};
-                result=std::string("{\"status\":")+(v?"{\"phase\":\""+std::string(names[static_cast<size_t>(v->phase)])+"\",\"correlation\":\""+std::to_string(v->correlation)+"\"}":"null")+"}";
+                std::string failure = "null";
+                if(v && v->failure) { const auto &f=*v->failure; failure="{\"code\":\""+f.code+"\",\"stage\":\""+f.stage+"\",\"dimension\":\""+f.dimension+"\",\"limit\":\""+std::to_string(f.limit)+"\",\"observed\":\""+std::to_string(f.observed)+"\"}"; }
+                result=std::string("{\"status\":")+(v?"{\"phase\":\""+std::string(names[static_cast<size_t>(v->phase)])+"\",\"correlation\":\""+std::to_string(v->correlation)+"\",\"failure\":"+failure+"}":"null")+"}";
             }else {
                 assert(command=="page"); std::optional<q::Cursor> cursor; if(token!="-")cursor.emplace(q::Cursor::recover(unhex(token)));
                 auto page=client.page(std::stoull(arg),cursor?&*cursor:nullptr);

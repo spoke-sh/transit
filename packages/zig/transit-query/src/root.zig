@@ -54,3 +54,5 @@ pub const testing = if (@import("builtin").is_test) struct {
 } else struct {};
 
 pub const TableMutationBridge = @import("TableMutationBridge.zig");
+
+pub const QueryFailure = @import("QueryFailure.zig");
