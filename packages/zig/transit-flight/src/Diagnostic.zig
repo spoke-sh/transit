@@ -112,3 +112,17 @@ test "every retained failure fits Flight's existing bound and has an explicit st
         try std.testing.expectEqual(@as(u8, 9), diagnostic.status());
     }
 }
+
+pub fn structured(self: Self) !q.protocol.Diagnostic {
+    if (self.failure) |failure| return failure.diagnostic(self.namespace, self.phase);
+    const d = q.protocol.Diagnostic;
+    var value = switch (self.phase) {
+        .cancelled => try d.init("query.cancelled", .lifecycle, .control, .cancelled, .domain_status, "The saved query wait was cancelled. Cancellation does not retract previously disclosed results."),
+        .retired => try d.init("query.retired", .lifecycle, .read, .retired, .domain_status, "The saved query was retired; its result is no longer available through this request."),
+        else => return error.InvalidQueryDiagnostic,
+    };
+    value.identity = .{ .domain = .query, .id = .init(self.namespace) };
+    try value.fact(.completion, .owner, .{ .boolean = false });
+    try value.action(.inspect_status);
+    return value;
+}

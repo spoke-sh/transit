@@ -237,6 +237,21 @@ pub const Response = struct {
         }
     }
     pub fn finish(self: *Response, status: u8, message: []const u8) !void {
+        return self.finishTrailers(status, message, null, null);
+    }
+    /// One optional bounded application trailer. Its bytes are base64-encoded
+    /// on HTTP/2, as required by gRPC binary metadata. It grants no authority.
+    /// A tighter deployment metadata budget omits detail, never the primary status.
+    pub fn finishBinary(self: *Response, status: u8, message: []const u8, comptime name: []const u8, bytes: []const u8) !void {
+        comptime {
+            if (name.len > 64 or !std.mem.endsWith(u8, name, "-bin") or std.mem.startsWith(u8, name, "grpc-")) @compileError("Expected an application binary metadata name");
+            for (name) |byte| if (!(byte >= 'a' and byte <= 'z') and !(byte >= '0' and byte <= '9') and byte != '-') @compileError("Invalid binary metadata name");
+        }
+        if (bytes.len > 4096) return error.GrpcBudgetExceeded;
+        var encoded: [std.base64.standard.Encoder.calcSize(4096)]u8 = undefined;
+        return self.finishTrailers(status, message, name, std.base64.standard.Encoder.encode(&encoded, bytes));
+    }
+    fn finishTrailers(self: *Response, status: u8, message: []const u8, binary_name: ?[]const u8, binary_value: ?[]const u8) !void {
         if (self.finished or status > 16 or message.len > 128) return error.InvalidGrpcStatus;
         // Callers own diagnostic authorization and disclosure. Accept bounded
         // printable ASCII only; percent is encoded per the gRPC message field.
@@ -251,10 +266,21 @@ pub const Response = struct {
         try self.begin();
         var number: [2]u8 = undefined;
         const c = self.connection;
-        try c.codec.sendHeaders(&c.output, c.stream, &.{
+        var fields: [3]http.hpack.Field = .{
             .{ .name = "grpc-status", .value = try std.fmt.bufPrint(&number, "{d}", .{status}) },
             .{ .name = "grpc-message", .value = diagnostic.buffered() },
-        }, true);
+            undefined,
+        };
+        var count: usize = 2;
+        if (binary_name) |name| {
+            // Header list accounting includes RFC 7540's 32 bytes per field.
+            const required = fields[0].name.len + fields[0].value.len + fields[1].name.len + fields[1].value.len + name.len + binary_value.?.len + 3 * 32;
+            if (required <= c.options.limits.metadata_bytes) {
+                fields[2] = .{ .name = name, .value = binary_value.? };
+                count = 3;
+            }
+        }
+        try c.codec.sendHeaders(&c.output, c.stream, fields[0..count], true);
         try c.flush();
         self.finished = true;
     }

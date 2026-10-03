@@ -130,8 +130,33 @@ failures; ALREADY_EXISTS is not used for query namespace conflicts (ABORTED is).
 Unsupported profiles map to UNIMPLEMENTED and invalid request/plan/type inputs to
 INVALID_ARGUMENT. Cancellation maps to CANCELLED and retirement to
 FAILED_PRECONDITION. These statuses summarize the domain failure; they do not
-authorize fresh submission or imply rollback. Native query status retains the
-typed failure fields; this Flight profile has no general diagnostic extension.
+authorize fresh submission or imply rollback.
+
+Failures also carry the shared [Diagnostic v1](DIAGNOSTICS_V1.md) in the
+`transit-diagnostic-bin` application trailer. Its value is UTF-8 JSON, at most
+4096 decoded bytes; gRPC binary metadata base64-encodes those bytes on HTTP/2.
+It is not `grpc-status-details-bin`, whose upstream type is `google.rpc.Status`.
+PyArrow clients receive the bytes through client middleware; ADBC exposes the
+named binary error detail. Consumers validate the shared contract definition,
+exact counters and outcome/action evidence before using it. The standard gRPC
+status and short message remain available without a metadata-aware client.
+
+Compiler and saved query failures use the shared owner projections. Query
+identity, original runtime witness, frozen basis and exact budgets survive this
+channel. Unknown upload sends identify the first query sequence and the actual
+native sequence; exact reconciliation uses the original GetFlightInfo SQL and
+first `x-transit-request-sequence`. An authentication/access error does not
+include stored runtime witnesses or a protected query identity.
+
+Normal diagnostics retain their complete envelope. When metadata would exceed
+4096 bytes, messages and textual/path context are shortened, with explicit
+truncation. If necessary, text/location facts become explicitly unavailable;
+code, cause, outcome, identity, numeric facts, digests and recovery actions remain
+exact. Fact locations retain their numeric coordinates when their source path is
+shortened. No result rows are fetched to enrich a diagnostic. Failure to produce
+optional detail preserves the primary gRPC status/message. A deployment metadata
+budget smaller than the encoded trailers can omit the optional binary trailer;
+it never authorizes a larger header budget or changes a domain outcome.
 
 Use the inbound gRPC server's separately bounded connection, data/control RPC,
 metadata, message, response-byte, credit-stall and deadline budgets. The selected

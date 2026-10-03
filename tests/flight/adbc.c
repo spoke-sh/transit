@@ -54,8 +54,25 @@ int main(int argc, char **argv) {
   schema.release(&schema);
   CHECK(driver.StatementNew(&connection, &statement, &error)); statement_new = 1;
   CHECK(driver.StatementSetOption(&statement, "adbc.flight.sql.rpc.call_header.x-transit-request-sequence", argv[4], &error));
-  CHECK(driver.StatementSetSqlQuery(&statement, "SELECT id, value FROM items", &error));
   int64_t affected = -1, rows = 0;
+  CHECK(driver.StatementSetSqlQuery(&statement, "SELECT absent FROM items", &error));
+  REQUIRE(driver.StatementExecuteQuery(&statement, &stream, &affected, &error) == ADBC_STATUS_INVALID_ARGUMENT);
+  REQUIRE(driver.ErrorGetDetailCount && driver.ErrorGetDetail);
+  int diagnostic_count = 0;
+  for (int index = 0; index < driver.ErrorGetDetailCount(&error); ++index) {
+    struct AdbcErrorDetail detail = driver.ErrorGetDetail(&error, index);
+    if (strcmp(detail.key, "transit-diagnostic-bin") != 0) continue;
+    REQUIRE(detail.value && detail.value_length > 0 && detail.value_length <= 4096);
+    ++diagnostic_count;
+    fputs("ADBC_DIAGNOSTIC: ", stdout);
+    REQUIRE(fwrite(detail.value, 1, detail.value_length, stdout) == (size_t)detail.value_length);
+    putchar('\n');
+  }
+  REQUIRE(diagnostic_count == 1);
+  if (stream.release) stream.release(&stream);
+  if (error.release) error.release(&error);
+  error = (struct AdbcError)ADBC_ERROR_INIT;
+  CHECK(driver.StatementSetSqlQuery(&statement, "SELECT id, value FROM items", &error));
   CHECK(driver.StatementExecuteQuery(&statement, &stream, &affected, &error));
   REQUIRE(stream.get_schema(&stream, &schema) == 0);
   REQUIRE(schema.n_children == 2 && strcmp(schema.children[0]->format, "l") == 0 && strcmp(schema.children[1]->format, "l") == 0);

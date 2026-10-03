@@ -12556,3 +12556,42 @@ The disk-backed proof reports 102.56 seconds, 41 rows, six segments and eight
 resident authority pages; no installed SDK variants were selected. Command:
 `just test::unified-query -Doptimize=ReleaseSafe -Dunified-source=table -Dunified-shell=true`.
 Log: `/var/tmp/transit-cli-json-legacy-recovery.log`.
+
+### Flight binary diagnostic details — 2026-10-02
+
+`just test::flight` passes with the optional `transit-diagnostic-bin` trailer.
+PyArrow middleware and installed Python/C ADBC consumers decode the shared JSON
+envelope directly from binary metadata. Compiler cases retain column, scalar
+type/value and byte location without consuming the native sequence. Saved SUM
+overflow retains its original operator, column, source basis and incomplete
+result through exact retry and gateway replacement. Python ADBC receives the
+same envelope; current revocation suppresses the stored witness. Log:
+`/var/tmp/transit-flight-detail-proof3.log`.
+
+`just test::flight-faults` passes after the final gateway refinements. A dropped
+native receipt retains the unknown outcome, first statement sequence, actual
+upload sequence and exact-recovery actions in the envelope. The existing
+authority/lifecycle schedule passes pooled authentication, sequence conflicts,
+ticket scope/expiry, revocation after a real returned batch, interrupted fetch,
+bounded concurrent streams, stalled HTTP/2 credit, malformed frames, and retained
+results after gateway/worker/node/store restart. The reported finite-query time
+is 35.45 seconds; observed gateway RSS is 76,500,992 bytes. Log:
+`/var/tmp/transit-flight-detail-faults2.log`.
+
+The first fault run stopped because its incomplete `DELETE FROM items` fixture
+expected unsupported syntax rather than a parse failure. The corrected fixture
+checks both incomplete DELETE and a valid DELETE rejected by the read-only
+Flight interface. Two earlier ordinary runs stopped at test assumptions about
+quoted scalar previews and ADBC's byte-valued detail keys; neither is counted
+as a passed proof.
+
+Final root unit tests pass exact maximum-width numeric evidence, bounded
+metadata encoding with adversarial escaped paths, explicit unavailable context,
+and all three source-policy budget dimensions. The main Flight run above
+precedes the final policy-budget/native-rejection refinements; the final fault
+and root unit runs include them. Log:
+`/var/tmp/transit-flight-detail-unit-final.log`.
+
+Full `just check` passes for this Flight increment, including 481 real CLI cases,
+generated-contract and inventory drift checks, frontend tests and the public
+documentation build. Log: `/var/tmp/transit-flight-detail-check.log`.

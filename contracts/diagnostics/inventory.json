@@ -4858,7 +4858,41 @@
     },
     "packages/zig/transit-flight/src/Diagnostic.zig": {
       "errors": {
-        "InvalidQueryDiagnostic": 1
+        "InvalidQueryDiagnostic": 2
+      },
+      "outcomes": {},
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
+    "packages/zig/transit-flight/src/DiagnosticDetail.zig": {
+      "errors": {
+        "DepthExceeded": 1,
+        "DuplicateGrpcHeader": 1,
+        "FieldNumberOutOfRange": 1,
+        "FieldNumberZero": 1,
+        "FlightCallerCapacity": 1,
+        "FlightSequenceConflict": 1,
+        "FlightTicketExpired": 1,
+        "FlightTicketScope": 1,
+        "FlightUnauthenticated": 1,
+        "InvalidDiagnosticBudget": 1,
+        "InvalidEnumValue": 1,
+        "InvalidFlightCommand": 1,
+        "InvalidFlightMetadata": 1,
+        "InvalidFlightTicket": 1,
+        "InvalidQueryIdentity": 1,
+        "InvalidUtf8": 1,
+        "NonMinimalTag": 1,
+        "Truncated": 1,
+        "UnknownField": 1,
+        "UnsupportedFlightCommand": 1,
+        "UnsupportedFlightMetadata": 1,
+        "UnsupportedFlightType": 1,
+        "UnsupportedQuery": 1,
+        "UnsupportedWireType": 1,
+        "VarintOverflow": 1
       },
       "outcomes": {},
       "imports": [
@@ -4896,7 +4930,7 @@
         "ProcessExpired": 1,
         "ProcessTerminated": 1,
         "QueryAccessDenied": 1,
-        "QueryBudgetExceeded": 1,
+        "QueryBudgetExceeded": 2,
         "QueryBusy": 1,
         "QueryChanged": 1,
         "QuerySourceUnavailable": 3,
@@ -5097,6 +5131,7 @@
       "outcomes": {},
       "imports": [
         "Diagnostic.zig",
+        "DiagnosticDetail.zig",
         "Gateway.zig",
         "Ipc.zig",
         "Metadata.zig",

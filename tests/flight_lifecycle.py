@@ -54,6 +54,8 @@ def qualify(env):
         rejected(grpc.StatusCode.UNIMPLEMENTED, 'DoAction', wire.Action(type='CreatePreparedStatement'), stream=True)
         rejected(grpc.StatusCode.UNIMPLEMENTED, 'ListFlights', wire.Criteria(), stream=True)
         bad_sql = env['descriptor'](env['sql'].CommandStatementQuery(query='DELETE FROM items'))
+        rejected(grpc.StatusCode.INVALID_ARGUMENT, 'GetSchema', wire.FlightDescriptor(type=2, cmd=bad_sql.command))
+        bad_sql = env['descriptor'](env['sql'].CommandStatementQuery(query='DELETE FROM items WHERE id = 1'))
         rejected(grpc.StatusCode.UNIMPLEMENTED, 'GetSchema', wire.FlightDescriptor(type=2, cmd=bad_sql.command))
 
         wrapped = Any.FromString(info.endpoints[0].ticket.ticket)

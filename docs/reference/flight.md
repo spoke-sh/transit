@@ -39,9 +39,15 @@ denial to PERMISSION_DENIED and unavailable source/history or invalid cell state
 to FAILED_PRECONDITION. A saved cancellation is CANCELLED and retirement is
 FAILED_PRECONDITION. Repeating the same request preserves the original cause;
 current access checks still gate its disclosure. Flight and ADBC expose these
-messages through their normal exceptions. The gateway does not expose a general
-structured diagnostic extension; use native query status for typed saved
-failure fields rather than parsing exception prose to decide recovery.
+messages through their normal exceptions. The `transit-diagnostic-bin` binary
+trailer also carries the shared [diagnostic envelope](../../contracts/DIAGNOSTICS_V1.md).
+PyArrow client middleware receives its JSON bytes; ADBC exposes the named entry
+in its error details. It preserves semantic codes, original compiler/runtime
+witnesses, exact identities/counters, outcomes and valid recovery actions without
+parsing exception prose. The decoded detail is bounded to 4096 bytes; long text
+is explicitly truncated or marked unavailable, while numeric evidence remains
+exact. The [wire contract](../../contracts/FLIGHT_V1.md#capacity-and-qualification)
+specifies metadata encoding and optional-detail failure behavior.
 
 ## Connect with ADBC
 

@@ -7,6 +7,9 @@ and full-width integers. Its published SQL supports projection, filters, limits,
 count, checked sum and empty results. See the
 [selected protocol](../../../contracts/FLIGHT_V1.md), [compatibility matrix](docs/compatibility.md)
 and [codec guide](docs/codecs.md) for exact operations and bounds.
+Errors retain standard gRPC status/message and a bounded `transit-diagnostic-bin`
+application trailer with the shared semantic envelope. PyArrow middleware and
+ADBC error details expose its JSON bytes under the current disclosure checks.
 
 `proto/` contains Apache Arrow 23.0.0's Flight and Flight SQL definitions with
 their original Apache-2.0 notices. `proto/manifest.json` records source URLs and

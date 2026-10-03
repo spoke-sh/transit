@@ -87,14 +87,15 @@ pub fn handle(self: *Self, io: Io, allocator: std.mem.Allocator, request: server
     defer observation.finish();
     var sql_diagnostic: ?f.SqlDiagnostic = null;
     var query_diagnostic: ?root.Diagnostic = null;
-    self.handleOnce(io, allocator, request, response, &sql_diagnostic, &query_diagnostic) catch |err| {
+    var attempt_diagnostic: ?p.Diagnostic = null;
+    self.handleOnce(io, allocator, request, response, &sql_diagnostic, &query_diagnostic, &attempt_diagnostic) catch |err| {
         observation.fail(err);
         if (err == error.Canceled or err == error.GrpcCancelled or response.finished) return err;
         if (query_diagnostic) |diagnostic| {
             var buffer: [128]u8 = undefined;
             var message: std.Io.Writer = .fixed(&buffer);
             try diagnostic.render(&message);
-            return response.finish(diagnostic.status(), message.buffered());
+            return root.DiagnosticDetail.finish(response, diagnostic.status(), message.buffered(), diagnostic.structured() catch null);
         }
         if (sql_diagnostic) |diagnostic| {
             var buffer: [128]u8 = undefined;
@@ -104,20 +105,20 @@ pub fn handle(self: *Self, io: Io, allocator: std.mem.Allocator, request: server
                 .unsupported, .grammar_only, .interface => 12,
                 .syntax, .binding, .limit => 3,
             };
-            return response.finish(status, message.buffered());
+            return root.DiagnosticDetail.finish(response, status, message.buffered(), diagnostic.structured() catch null);
         }
         const status: u8 = switch (err) {
             error.FlightUnauthenticated => 16,
             error.AccessDenied, error.QueryAccessDenied, error.ServingDenied, error.FlightTicketScope, error.SignatureVerificationFailed => 7,
             error.FlightTicketExpired, error.ResourceUnavailable, error.QuerySourceUnavailable, error.ServiceUnpublished, error.ProcessTerminated, error.ProcessExpired => 9,
             error.UnsupportedFlightCommand, error.UnsupportedFlightMetadata, error.UnsupportedQuery, error.UnsupportedFlightType => 12,
-            error.FlightCallerCapacity, error.OutOfMemory, error.GrpcBudgetExceeded => 8,
+            error.FlightCallerCapacity, error.OutOfMemory, error.GrpcBudgetExceeded, error.QueryBudgetExceeded => 8,
             error.QueryBusy, error.FlightSequenceConflict => 10,
             error.QueryChanged, error.ServiceReadConflict => 14,
             error.InvalidFlightTicket, error.InvalidFlightCommand, error.InvalidFlightMetadata, error.InvalidQueryIdentity, error.DuplicateGrpcHeader, error.Truncated, error.VarintOverflow, error.FieldNumberZero, error.FieldNumberOutOfRange, error.UnsupportedWireType, error.NonMinimalTag, error.DepthExceeded, error.InvalidUtf8, error.InvalidEnumValue, error.UnknownField => 3,
             else => if (q.wire.Client.unavailable(err)) 14 else 13,
         };
-        return response.finish(status, switch (status) {
+        return root.DiagnosticDetail.finish(response, status, switch (status) {
             16 => "credential required",
             7 => "current access denied",
             9 => "result or service unavailable",
@@ -127,10 +128,10 @@ pub fn handle(self: *Self, io: Io, allocator: std.mem.Allocator, request: server
             14 => "unavailable; retain request identity",
             3 => "invalid request",
             else => "finite query failed",
-        });
+        }, attempt_diagnostic orelse (root.DiagnosticDetail.attempt(err, status) catch null));
     };
 }
-fn handleOnce(self: *Self, io: Io, allocator: std.mem.Allocator, request: server.Request, response: *server.Response, sql_diagnostic: *?f.SqlDiagnostic, query_diagnostic: *?root.Diagnostic) !void {
+fn handleOnce(self: *Self, io: Io, allocator: std.mem.Allocator, request: server.Request, response: *server.Response, sql_diagnostic: *?f.SqlDiagnostic, query_diagnostic: *?root.Diagnostic, attempt_diagnostic: *?p.Diagnostic) !void {
     const index = try self.authenticate(request);
     const control = self.isControl(request);
     // Independent metadata/control capacity: a data stream cannot own this slot.
@@ -159,7 +160,7 @@ fn handleOnce(self: *Self, io: Io, allocator: std.mem.Allocator, request: server
     const caller = self.config.callers[index];
     var client: q.UnifiedClient = .{ .wire = &wire, .connection = .{ .realm = caller.connection.realm, .principal = caller.connection.principal, .source = caller.connection.source, .resource = caller.connection.resource, .requester = caller.connection.requester, .requests = caller.connection.requests }, .key = caller.key };
     const adapter: s.Adapter = .{ .service = caller.service, .ingress = caller.connection.requester, .resource = caller.ingress_resource, .resources = .{ .wire = &wire, .realm = caller.connection.realm, .principal = self.config.inspector, .key = self.config.inspector_key } };
-    var call: Call = .{ .gateway = self, .io = io, .allocator = alloc, .caller = caller, .client = &client, .adapter = adapter, .response = response, .workspace = workspace, .sql_diagnostic = sql_diagnostic, .query_diagnostic = query_diagnostic };
+    var call: Call = .{ .gateway = self, .io = io, .allocator = alloc, .caller = caller, .client = &client, .adapter = adapter, .response = response, .workspace = workspace, .sql_diagnostic = sql_diagnostic, .query_diagnostic = query_diagnostic, .attempt_diagnostic = attempt_diagnostic };
     const method = try request.method();
     if (std.mem.eql(u8, method, root.method_prefix ++ "DoGet")) {
         var ticket = try pb.decode(w.Ticket, alloc, request.message, .{ .max_arena_bytes = 65536 });
@@ -195,6 +196,8 @@ const Call = struct {
     response: *server.Response,
     sql_diagnostic: *?f.SqlDiagnostic,
     query_diagnostic: *?root.Diagnostic,
+    attempt_diagnostic: *?p.Diagnostic,
+    first_sequence: ?u64 = null,
     workspace: []u8,
     output: [f.Unified.Arrow.segment_bytes]u8 = undefined,
     next_sequence: ?u64 = null,
@@ -316,7 +319,10 @@ const Call = struct {
         if (first == 0 or first > p.max_counter) return error.InvalidQueryIdentity;
         const limits: q.Bundle.Limits = .{ .pages = 4096, .segments = 63, .result_bytes = 240 * 1024 };
         const description = try self.client.describe(self.definition());
-        if (!description.limits.permits(limits)) return error.QueryBudgetExceeded;
+        if (!description.limits.permits(limits)) {
+            self.attempt_diagnostic.* = root.DiagnosticDetail.budget(description.limits, limits) catch null;
+            return error.QueryBudgetExceeded;
+        }
         var detail: f.Sql.Binding = .{};
         const bundle = q.Bundle.fromSqlDiagnostic(self.allocator, self.definition(), try .init(self.caller.connection.name), sql, limits, &detail) catch |err| {
             self.sql_diagnostic.* = f.SqlDiagnostic.bound(sql, err, false, detail);
@@ -327,6 +333,7 @@ const Call = struct {
         const bytes = try bundle.encode(&encoded);
         const parts = (bytes.len + q.UnifiedRequest.part_bytes - 1) / q.UnifiedRequest.part_bytes;
         if (first > p.max_counter - parts - 3) return error.InvalidQueryIdentity;
+        self.first_sequence = first;
         var sequence = first;
         try self.uploadStep(sequence, .{ .begin = reference });
         sequence += 1;
@@ -347,6 +354,14 @@ const Call = struct {
         try self.authorize(true);
         const prepared: q.UnifiedClient.Prepared = .{ .signed = try p.Growth.sign(.{ .realm = self.caller.connection.realm, .principal = self.caller.connection.principal, .sequence = sequence, .command = .{ .send = .{ .pid = self.caller.connection.requester, .value = try (q.station.Frame{ .kind = .cast, .payload = try command.encode() }).encode() } } }, self.caller.key) };
         const receipt = self.client.submit(prepared) catch |err| {
+            const identity: p.Diagnostic.Identity = .{ .domain = .query, .id = .init(self.first_sequence.?), .sequence = .init(sequence), .realm = .init(self.caller.connection.realm), .resource = .init(self.caller.connection.requests) };
+            self.attempt_diagnostic.* = q.ApiDiagnostic.attempt("Flight query upload", .submit, null, err, .{}, true, identity) catch null;
+            if (self.attempt_diagnostic.*) |*detail| if (self.client.wire.last_rejection) |reason| {
+                detail.text(.native_cause, .authority, @tagName(reason)) catch {};
+            };
+            if (self.attempt_diagnostic.*) |*detail| if (detail.outcome == .unknown) {
+                detail.message = p.Diagnostic.Message.init("The upload command outcome is unknown. Reconcile with the identical original GetFlightInfo SQL and first x-transit-request-sequence; do not submit a replacement statement.") catch unreachable;
+            };
             if (err == error.Rejected or err == error.Conflict) switch (self.client.wire.last_rejection orelse return err) {
                 .ConflictingRetry, .SequenceGap, .RetryHorizonExceeded => return error.FlightSequenceConflict,
                 else => {},

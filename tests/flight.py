@@ -73,7 +73,9 @@ def run(node, host, gateway, proof, mode=None, board=None):
             edge = owned.enter_context(TLSProxy(fixture.root / 'tls', flight_port, grpc=True, read_timeout=185))
             uri = f'grpc+tls://127.0.0.1:{edge.port}'
             certificate = (edge.root / 'certificate.pem').read_bytes()
-            client = flight.connect(uri, tls_root_certs=certificate)
+            from flight_detail import Details
+            details = Details()
+            client = flight.connect(uri, tls_root_certs=certificate, middleware=[details])
             auth = (b'authorization', ('Bearer ' + token).encode())
             def call_options(sequence=None):
                 headers = [auth]
@@ -121,6 +123,7 @@ def run(node, host, gateway, proof, mode=None, board=None):
                 ("SELECT * FROM items WHERE value = 'private-must-not-appear' junk;", pa.ArrowNotImplementedError, ('SQL construct unsupported', 'column')),
             ):
                 invalid = descriptor(sql.CommandStatementQuery(query=text))
+                original_detail = None
                 for operation in (lambda: client.get_schema(invalid, call_options()),
                                   lambda: client.get_flight_info(invalid, call_options(2))):
                     try:
@@ -129,6 +132,17 @@ def run(node, host, gateway, proof, mode=None, board=None):
                         message = str(error)
                         assert all(fragment in message for fragment in fragments), message
                         assert 'private-must-not-appear' not in message and '\x1b' not in message
+                        detail = details.diagnostic()
+                        assert detail['outcome'] == 'not_submitted' and detail['evidence'] == 'local_before_dispatch', detail
+                        assert not any(action and action['kind'] in ('resume_exact','cancel_wait') for action in detail['actions'])
+                        assert 'private-must-not-appear' not in json.dumps(detail)
+                        if original_detail is None: original_detail = detail
+                        else: assert detail == original_detail, (original_detail,detail)
+                        if 'absent' in text:
+                            assert detail['code'] == 'sql.unknown_column' and detail['location']['offset'] == '7', detail
+                        if '50%' in text:
+                            facts = {fact['field']:fact['value'] for fact in detail['facts'] if fact}
+                            assert facts['supplied_value'] == {'text':'"50% discount"'} and facts['expected_type'] == {'text':'int64'}, detail
                     else:
                         raise AssertionError(f'invalid SQL succeeded: {text}')
             assert subprocess.check_output([proof, url, 'next-sequence', str(fixture.root / 'cli.json')], timeout=30) == before_errors
@@ -149,6 +163,12 @@ def run(node, host, gateway, proof, mode=None, board=None):
                         client.get_flight_info(statement, call_options(2))
                     except flight.FlightUnavailableError:
                         assert time.monotonic() < drop_deadline
+                        if boundary.original is not None:
+                            detail = details.diagnostic()
+                            assert detail['code'] == 'query.send_unknown' and detail['outcome'] == 'unknown', detail
+                            assert detail['evidence'] == 'saved_intent' and detail['identity']['id'] == '2'
+                            assert detail['identity']['sequence'] == str(json.loads(boundary.original)['request']['sequence']), detail
+                            assert [action['kind'] for action in detail['actions'] if action] == ['inspect_status','resume_exact'], detail
                         time.sleep(.1)
                     else: raise AssertionError('lost native acceptance reported success')
                 assert boundary.receipt

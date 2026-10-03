@@ -6,6 +6,7 @@ import subprocess
 
 
 def verify(uri, certificate_path, root, token, schema, expected, next_sequence):
+    from flight_detail import adbc_diagnostic, decode
     certificate = certificate_path.read_bytes()
     import adbc_driver_flightsql as adbc
     from adbc_driver_flightsql import dbapi
@@ -22,6 +23,9 @@ def verify(uri, certificate_path, root, token, schema, expected, next_sequence):
                     cursor.execute(text)
                 except dbapi.DatabaseError as error:
                     assert all(fragment in str(error) for fragment in fragments), error
+                    detail = adbc_diagnostic(error)
+                    assert detail['code'] == ('sql.unknown_column' if 'absent' in text else 'sql.type_mismatch'), detail
+                    assert detail['outcome'] == 'not_submitted' and detail['evidence'] == 'local_before_dispatch'
                 else:
                     raise AssertionError('invalid SQL returned an ADBC result')
             assert next_sequence() == before
@@ -45,4 +49,8 @@ def verify(uri, certificate_path, root, token, schema, expected, next_sequence):
     assert hashlib.sha256((source / pin['path']).read_bytes()).hexdigest() == pin['sha256']
     consumer = root / 'adbc-c'
     subprocess.run(['cc', '-std=c11', '-Wall', '-Wextra', '-Werror', str(source / 'adbc.c'), '-ldl', '-o', str(consumer)], check=True)
-    subprocess.run([str(consumer), adbc._driver_path(), uri, str(root / 'credential'), str(next_sequence()), str(certificate_path)], check=True, timeout=180)
+    output = subprocess.check_output([str(consumer), adbc._driver_path(), uri, str(root / 'credential'), str(next_sequence()), str(certificate_path)], timeout=180)
+    details = [decode(line.split(b': ',1)[1]) for line in output.splitlines() if line.startswith(b'ADBC_DIAGNOSTIC: ')]
+    assert len(details) == 1 and details[0]['code'] == 'sql.unknown_column' and details[0]['outcome'] == 'not_submitted', output
+    assert details[0]['location']['offset'] == '7' and details[0]['facts'][0]['value'] == {'text':'absent'}, details
+    print('ADBC C: owned binary diagnostic, no-send compiler rejection, exact int64/null rows and native Table schema passed.', flush=True)
