@@ -12474,3 +12474,23 @@ language SDKs. Their mutation/catalog schedules assert compiler context and
 lost-reply recovery detail; installed execution is tracked separately from the
 unit/full-check result above. The catalog installer selects the pinned 0.2.0
 wheels explicitly when unrelated older artifacts remain in the local cache.
+
+The installed mutation and catalog schedules then passed with Python sync/async,
+TypeScript, Ruby, Rust, C, C++, Java, .NET, Erlang and Elixir, plus direct native
+and port callers. All 13 structured-error consumers retained exact compiler
+codes/context and unknown-send sequence/actions, then recovered the identical
+saved request after caller replacement. The existing CLI participated in the
+ordinary recovery profiles; its structured error stream remains a separate gate.
+
+The mutation run completed in 220.707 seconds with 330 turns, 99 lost caller
+receipts and 100 total lost receipts, eight resident authority pages, at most
+four mutations and 256 bytes per native value. It retained the original conflict
+witness, atomic rollback, all seven caller profiles, upload cancellation,
+writer/node/store recovery and current read denial. The catalog run completed in
+117.447 seconds after 60.164 seconds of SDK installation, with 17 lost caller
+receipts and three lost writer receipts; all owned children joined, with no
+cleanup failures. It retained exact creation receipts and metadata after
+owner/node/store replacement, and preserved native/catalog policy revocation.
+These executions qualify the projections in `e75e092e`; the mutation run started
+from the same code before that commit was made. Neither execution replaces the
+final committed-HEAD `ci-clean` gate or the issue's full semantic inventory.
