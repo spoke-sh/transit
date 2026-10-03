@@ -84,7 +84,12 @@ export class LiveView<T> {
   private fail(error: unknown) {
     if (error instanceof ReactiveError && error.clearsProtectedState) {
       this.publish({
-        phase: "denied",
+        phase:
+          error.status === 403 ||
+          error.reason === "denied" ||
+          error.scopeFailure?.reason === "denied"
+            ? "denied"
+            : "paused",
         snapshot: null,
         refresh: null,
         detail:
@@ -325,13 +330,15 @@ export class LiveView<T> {
     if ("terminal" in message) {
       this.connected = false;
       const reason = message.terminal.reason;
-      if (reason === "denied" || reason === "expired" || reason === "closed")
-        this.fail(new ReactiveError(0, reason));
-      else if (reason === "reset_required") this.fail(new ReactiveError(409, reason));
+      const failure = new ReactiveError(0, reason, message.terminal.diagnostic);
+      if (reason === "denied" || reason === "expired" || reason === "closed") this.fail(failure);
+      else if (reason === "reset_required") this.fail(failure);
       else
         this.publish({
           phase: "disconnected",
-          detail: `Stream ended (${reason}); snapshot basis is unchanged.`,
+          detail: failure.diagnostic
+            ? diagnosticLines(failure.diagnostic).join("\n")
+            : `Stream ended (${reason}); snapshot basis is unchanged.`,
         });
     }
   }

@@ -5,8 +5,8 @@ pub const version = 1;
 /// Contract-set fingerprint, independent of the public version label. Replace
 /// this identifier on an incompatible pre-1.0 cutover, including changed stored
 /// Station/query semantics. Never reuse it to reinterpret accepted history.
-/// SHA-256 of transit.native.v1.follow-stop-witness.2026-10-03.
-pub const Definition = enum { @"75a5efed41df165c680b9d13116d10b3c72357e542eca9b96195d6b520714cb1" };
+/// SHA-256 of transit.native.v1.serving-adapter-evidence.2026-10-03.
+pub const Definition = enum { @"4f6cb811c01a0e89111f7c5e4ff0425d91a7bd6eeaf0ca77c6d6d66399da4cbc" };
 pub const current_definition: Definition = @fromBackingInt(0);
 pub const Id = u64;
 pub const request_domain = "transit.request.v1\x00";
@@ -589,6 +589,7 @@ test "native responses require the current contract definition even with a v1 la
         // Previous serving dispositions retained only a bare error name.
         "c750e7034f20d2446bfe44c7ad19a3ca45b415a0a02754523dc280cf74e20d15",
         "8d2c6617b339418cf2d3afa6259009e4b3efc5308e40fe65757ca9385c227803",
+        "75a5efed41df165c680b9d13116d10b3c72357e542eca9b96195d6b520714cb1",
         "1eeeb5cd033defd5dcbcd0ce764b2fbb6b163eac17109dee4589f37bd5f4a463",
         // Previous application receipts omitted the original conflict basis.
         "695a46c853d1442c3eae1b8079694b2f04b616b1798d25f50fc243325f596ee2",
@@ -780,8 +781,8 @@ test "v1 turn and entries signatures match independent canonical bytes" {
     // Altering Turn or the entries-query defaults breaks retained receipts.
     const request: Request = .{ .realm = 42, .principal = 0, .sequence = 1, .command = .{ .turn = .{ .pid = 2, .generation = 3, .input = 4, .expected_revision = 0 } } };
     const query: Query = .{ .realm = 42, .principal = 0, .kind = .{ .entries = .{ .view = 5 } } };
-    try std.testing.expectEqualStrings("3e6e1c01864ad2a85fd2c351d292c5bc8981e910abebf50cd04a10ed21597fd3", &std.fmt.bytesToHex(try digest(request), .lower));
-    try std.testing.expectEqualStrings("4bfbcfc33ef4132105b2cdfa9e2318e20d6490d35b247b6f30c28fa6b3e3835e", &std.fmt.bytesToHex(try queryDigest(query), .lower));
+    try std.testing.expectEqualStrings("1e9ad12badf70c72abaf2c8c109eb268b208b632f21ebd4009c8115b2b755a3c", &std.fmt.bytesToHex(try digest(request), .lower));
+    try std.testing.expectEqualStrings("36f937d4723002e46207c2cabb2e275b95b672ac23a9c292fcb8e9337c52d834", &std.fmt.bytesToHex(try queryDigest(query), .lower));
 }
 
 test "retained version proposals and responses reject foreign duplicate and forged bases" {

@@ -21,14 +21,21 @@ pub const Discovery = struct {
     openapi_sha256: [32]u8,
     asyncapi_sha256: [32]u8,
 };
-pub const Error = struct { err: enum { ServingRequestFailed, HttpCapacity, InvalidHttpRequest } };
+pub const Error = struct { err: enum { ServingRequestFailed, HttpCapacity, InvalidHttpRequest }, reason: ?root.ServingDiagnostic.Reason = null, diagnostic: ?root.protocol.Diagnostic = null };
 pub const definitions = .{
-    .{ "SignedCommand", r.SignedSend },              .{ "ServingRead", root.Model.SignedRead },
-    .{ "ServingResponse", root.Adapter.ReadResult }, .{ "Receipt", root.Adapter.Receipt },
-    .{ "ReactiveRead", r.SignedRead },               .{ "ReactiveResponse", root.ReactiveAdapter.Response },
-    .{ "Bootstrap", w.Bootstrap },                   .{ "ClientMessage", w.ClientMessage },
-    .{ "ServerMessage", w.ServerMessage },           .{ "Discovery", Discovery },
-    .{ "Error", Error },                             .{ "SseItem", w.SseItem },
+    .{ "Diagnostic", root.protocol.Diagnostic },
+    .{ "SignedCommand", r.SignedSend },
+    .{ "ServingRead", root.Model.SignedRead },
+    .{ "ServingResponse", root.Adapter.ReadResult },
+    .{ "Receipt", root.Adapter.Receipt },
+    .{ "ReactiveRead", r.SignedRead },
+    .{ "ReactiveResponse", root.ReactiveAdapter.Response },
+    .{ "Bootstrap", w.Bootstrap },
+    .{ "ClientMessage", w.ClientMessage },
+    .{ "ServerMessage", w.ServerMessage },
+    .{ "Discovery", Discovery },
+    .{ "Error", Error },
+    .{ "SseItem", w.SseItem },
 };
 pub const operations = .{
     .{ "command", "/serving/v1/command", "SignedCommand", "Receipt", "202" },
@@ -48,7 +55,7 @@ fn schemas(out: *std.json.Stringify) !void {
     try out.beginObject();
     inline for (definitions) |definition| {
         try out.objectField(definition[0]);
-        try schema.write(definition[1], out, .{ .safe_integers = true, .sequence_max_length = 8 });
+        try schema.write(definition[1], out, .{ .safe_integers = true, .sequence_max_length = 8, .output = definition[1] == root.protocol.Diagnostic, .diagnostic_reference = if (definition[1] == root.protocol.Diagnostic) null else "#/components/schemas/Diagnostic" });
     }
     try out.endObject();
 }
@@ -103,7 +110,7 @@ fn openapi(out: *std.json.Stringify) !void {
         try out.endObject();
         try out.endObject();
         try out.objectField("default");
-        try out.write(.{ .description = "400 invalid envelope, 403 current denial, 404 absent identity, 409 conflict/fence/reset, 410 expiry, 413 byte limit, 429 caller capacity, 503 unavailable/capacity, 504 upstream timeout. Errors never prove an uncertain command was unaccepted.", .content = .{ .@"application/json" = .{ .schema = .{ .@"$ref" = "#/components/schemas/Error" } } } });
+        try out.write(.{ .description = "400 invalid envelope, 403 current denial, 404 absent identity, 409 conflict/fence/reset, 410 closed/expired session or unavailable resource, 413 byte limit, 429 caller capacity, 502 invalid evidence, 503 unavailable/capacity, 504 upstream timeout. Errors never prove an uncertain command was unaccepted.", .content = .{ .@"application/json" = .{ .schema = .{ .@"$ref" = "#/components/schemas/Error" } } } });
         try out.endObject();
         try out.endObject();
         try out.endObject();
@@ -143,4 +150,14 @@ pub fn digest(format: Format, allocator: std.mem.Allocator) ![32]u8 {
     var result: [32]u8 = undefined;
     std.crypto.hash.sha2.Sha256.hash(writer.buffered(), &result, .{});
     return result;
+}
+
+test "shared diagnostic references keep both API descriptions within the existing bound" {
+    var bytes: [description_bytes]u8 = undefined;
+    for (std.enums.values(Format)) |format| {
+        var writer: std.Io.Writer = .fixed(&bytes);
+        try write(format, &writer);
+        try std.testing.expect(writer.buffered().len < description_bytes);
+        try std.testing.expect(std.mem.indexOf(u8, writer.buffered(), "#/components/schemas/Diagnostic") != null);
+    }
 }

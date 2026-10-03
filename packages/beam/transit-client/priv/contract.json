@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "definition": "75a5efed41df165c680b9d13116d10b3c72357e542eca9b96195d6b520714cb1",
+  "definition": "4f6cb811c01a0e89111f7c5e4ff0425d91a7bd6eeaf0ca77c6d6d66399da4cbc",
   "minimum_stack_bytes": 8388608,
   "limits": {
     "max_counter": 9007199254740991,
@@ -430,7 +430,7 @@
         "definition": {
           "type": "string",
           "enum": [
-            "75a5efed41df165c680b9d13116d10b3c72357e542eca9b96195d6b520714cb1"
+            "4f6cb811c01a0e89111f7c5e4ff0425d91a7bd6eeaf0ca77c6d6d66399da4cbc"
           ]
         },
         "operation_metadata": {
@@ -484,7 +484,7 @@
       ],
       "x-transit-defaults": {
         "version": 1,
-        "definition": "75a5efed41df165c680b9d13116d10b3c72357e542eca9b96195d6b520714cb1",
+        "definition": "4f6cb811c01a0e89111f7c5e4ff0425d91a7bd6eeaf0ca77c6d6d66399da4cbc",
         "operation_metadata": true,
         "opaque_retry": true,
         "native_v1": true,
@@ -519,7 +519,7 @@
         "definition": {
           "type": "string",
           "enum": [
-            "75a5efed41df165c680b9d13116d10b3c72357e542eca9b96195d6b520714cb1"
+            "4f6cb811c01a0e89111f7c5e4ff0425d91a7bd6eeaf0ca77c6d6d66399da4cbc"
           ]
         },
         "code": {

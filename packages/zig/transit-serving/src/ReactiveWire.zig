@@ -31,7 +31,7 @@ pub const ServerMessage = union(enum) {
     observation: root.ReactiveAdapter.Response,
     event: struct { cursor: r.Cursor, event: root.ReactiveAdapter.Event },
     heartbeat: Heartbeat,
-    terminal: struct { reason: Terminal },
+    terminal: struct { reason: Terminal, diagnostic: ?root.protocol.Diagnostic = null },
 };
 /// OpenAPI models an SSE item at the media-type level: data is a JSON string,
 /// not the already-decoded ServerMessage used by the application.
@@ -47,13 +47,14 @@ pub const SseItem = struct {
 };
 pub fn terminal(err: anyerror) Terminal {
     return switch (err) {
-        error.AccessDenied, error.ServingDenied, error.SignatureVerificationFailed => .denied,
-        error.ResourceUnavailable, error.ReactiveSessionExpired => .expired,
+        error.AccessDenied, error.ServingDenied, error.QueryDenied, error.SignatureVerificationFailed => .denied,
+        error.ReactiveSessionExpired => .expired,
+        error.ResourceUnavailable => .interrupted,
         error.ReactiveSessionClosed => .closed,
         error.ReactiveAttachmentConflict, error.ReactiveGenerationConflict, error.ReactiveSubscriptionConflict => .fenced,
         error.UnsupportedReactiveSource, error.ReactiveResetRequired, error.ServiceUnpublished => .reset_required,
         error.ReactiveCapacity, error.ServingCallerCapacity => .capacity,
-        error.InvalidJsonShape, error.InvalidJsonConstant, error.InvalidReactiveScope, error.InvalidReactiveCursor, error.InvalidServingCommand, error.DuplicateField, error.SyntaxError, error.UnexpectedToken, error.UnknownField, error.MissingField, error.InvalidEnumTag => .invalid_message,
+        error.WebSocketProtocol, error.WebSocketBinaryUnsupported, error.WebSocketInvalidUtf8, error.WebSocketMessageTooLarge, error.InvalidJsonShape, error.InvalidJsonConstant, error.InvalidReactiveScope, error.InvalidReactiveCursor, error.InvalidServingCommand, error.DuplicateField, error.SyntaxError, error.UnexpectedToken, error.UnknownField, error.MissingField, error.InvalidEnumTag => .invalid_message,
         else => .interrupted,
     };
 }

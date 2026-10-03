@@ -9,6 +9,8 @@ pub fn schema(comptime T: type, out: *std.json.Stringify) std.Io.Writer.Error!vo
     return write(T, out, .{});
 }
 pub const Options = struct {
+    /// An owner may factor the shared diagnostic into its own definitions.
+    diagnostic_reference: ?[]const u8 = null,
     output: bool = false,
     safe_integers: bool = false,
     text_max_length: usize = 256,
@@ -27,6 +29,9 @@ fn fieldOptions(comptime T: type, comptime name: []const u8, comptime options: O
 }
 pub fn write(comptime T: type, out: *std.json.Stringify, comptime options: Options) std.Io.Writer.Error!void {
     @setEvalBranchQuota(100000);
+    if (T == p.Diagnostic) {
+        if (options.diagnostic_reference) |name| return out.write(.{ .@"$ref" = name });
+    }
     if (comptime @typeInfo(T) == .@"struct") {
         if (comptime @hasDecl(T, "jsonSchema")) return T.jsonSchema(out);
     }

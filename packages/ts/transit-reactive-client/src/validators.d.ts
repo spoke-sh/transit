@@ -1,3 +1,4 @@
+export function Diagnostic(value: unknown): boolean;
 export function SignedCommand(value: unknown): boolean;
 export function ServingRead(value: unknown): boolean;
 export function ServingResponse(value: unknown): boolean;

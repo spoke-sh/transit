@@ -10,6 +10,7 @@ resources: root.station.client.ResourceReader,
 service: u64,
 ingress: u64,
 resource: u64,
+diagnostic: ?*root.ServingDiagnostic.Attempt = null,
 pub const Stage = enum { ingress_accepted, not_observed, service_admitted, completed, cancelled, timed_out, failed, rejected };
 pub const Receipt = struct { stage: Stage = .ingress_accepted, receipt: p.Receipt };
 pub const ReadResult = struct {
@@ -24,13 +25,25 @@ pub const ReadResult = struct {
     capabilities: struct { http: bool = true, sse: bool = false, websocket: bool = false, grpc: bool = false, flight: bool = false } = .{},
 };
 pub fn submit(self: Self, signed: g.SignedRequest, public_key: [32]u8) !Receipt {
+    if (self.diagnostic) |attempt| try attempt.label(.control, "submit");
+    return self.submitOnce(signed, public_key);
+}
+fn submitOnce(self: Self, signed: g.SignedRequest, public_key: [32]u8) !Receipt {
     if (signed.request.realm != self.resources.realm or signed.request.principal == 0 or signed.request.command != .send or signed.request.command.send.pid != self.ingress) return error.ServingDenied;
     try p.Ed25519.Signature.fromBytes(signed.signature).verify(&try g.digest(signed.request), try p.Ed25519.PublicKey.fromBytes(public_key));
     const frame = try root.station.Frame.decode(signed.request.command.send.value);
     if (frame.kind != .cast) return error.InvalidServingCommand;
-    _ = try m.Command.decode(frame.payload);
+    _ = try root.ServingDiagnostic.decodeCommand(frame.payload, self.diagnostic);
+    try g.validate(signed.request);
     // No native sequence is prepared here; 202 proves this native send only.
+    if (self.diagnostic) |attempt| {
+        attempt.identity = .{ .domain = .transport, .id = .init(signed.request.sequence), .realm = .init(signed.request.realm), .sequence = .init(signed.request.sequence) };
+        attempt.native_cause = null;
+        attempt.authority_rejected = false;
+        attempt.dispatched = true;
+    }
     const receipt = self.resources.wire.submit(signed) catch |err| {
+        if (self.diagnostic) |attempt| attempt.rejected(err, self.resources.wire.last_rejection);
         if (err == error.Rejected or err == error.Conflict) switch (self.resources.wire.last_rejection orelse return err) {
             .ConflictingRetry, .SequenceGap, .RetryHorizonExceeded => return error.ServingSequenceConflict,
             .StateResourceExpired, .DeadlineExpired, .RetiredProcess => return error.ResourceUnavailable,
@@ -39,6 +52,7 @@ pub fn submit(self: Self, signed: g.SignedRequest, public_key: [32]u8) !Receipt 
         return err;
     };
     if (receipt.position == 0 or receipt.position > p.max_counter) return error.InvalidServingReceipt;
+    if (self.diagnostic) |attempt| attempt.receipt = receipt.position;
     return .{ .receipt = receipt };
 }
 fn identity(self: Self, signed: m.SignedRead, public_key: [32]u8) !void {
@@ -82,6 +96,13 @@ pub fn readerFor(self: Self, principal: u64, extra: []const p.Value) !struct { d
     return .{ .data = data, .policy = policy };
 }
 pub fn read(self: Self, signed: m.SignedRead, public_key: [32]u8) !ReadResult {
+    if (self.diagnostic) |attempt| try attempt.label(.read, @tagName(signed.read.kind));
+    return self.readAttempts(signed, public_key) catch |err| {
+        if (self.diagnostic) |attempt| attempt.rejected(err, self.resources.wire.last_rejection);
+        return err;
+    };
+}
+fn readAttempts(self: Self, signed: m.SignedRead, public_key: [32]u8) !ReadResult {
     for (0..3) |_| return self.readOnce(signed, public_key) catch |err| {
         if ((err == error.Rejected or err == error.Conflict) and (self.resources.wire.last_rejection == .StaleStateResource or self.resources.wire.last_rejection == .QueryExpired)) continue;
         if ((err == error.Rejected or err == error.Conflict) and self.resources.wire.last_rejection == .StateResourceExpired) return error.ResourceUnavailable;

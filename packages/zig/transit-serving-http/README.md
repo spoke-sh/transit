@@ -58,3 +58,17 @@ Private descriptions include the committed observer clock and refuse a sample
 more than ten seconds behind the configured conservative host upper bound. This
 lets callers select a lease within the owner's recorded 30-second interval.
 It neither observes a new clock implicitly nor delegates observer authority.
+
+
+`ServingDiagnostic.Attempt` belongs to one request or joined stream task. Native
+submission sets dispatch evidence only after local signature/command validation;
+returned native receipts are retained independently of subsequent reads or
+response writes. HTTP, SSE and WebSocket errors preserve this evidence through
+one shared envelope. Concurrent WebSocket receive/event tasks return their own
+owned diagnostics; the selected failure is disclosed only after task joining.
+A response write is marked before HTTP output begins, preventing an error handler
+from appending a second response after a partial write.
+
+API descriptions reference one shared diagnostic schema and remain inside the
+existing 256 KiB description budget. Runtime terminal messages retain the 8 KiB
+bound; private finite responses retain their 16 KiB client bound.

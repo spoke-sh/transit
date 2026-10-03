@@ -6,18 +6,18 @@ const serving = @import("transit_serving");
 const http = @import("transit_http_server");
 const r = serving.ReactiveModel;
 pub const Configuration = struct { principal: u64, seed_file: []const u8, snapshot_values: bool = false, refresh: bool = false };
-pub fn handle(context: *host.Context, io: std.Io, allocator: std.mem.Allocator, request: *std.http.Server.Request) !void {
+pub fn handle(context: *host.Context, io: std.Io, allocator: std.mem.Allocator, request: *std.http.Server.Request, attempt: *serving.ServingDiagnostic.Attempt) !void {
     var observation = context.diagnostics.begin(.service, null);
     var operation_name: ?[]const u8 = null;
-    handleObserved(context, io, allocator, request, &operation_name) catch |err| {
+    handleObserved(context, io, allocator, request, &operation_name, attempt) catch |err| {
         observation.finish(.{ .name = "serving.reactive.client", .operation = operation_name, .level = .warn, .outcome = .failed, .error_type = @errorName(err) });
         return err;
     };
     observation.finish(.{ .name = "serving.reactive.client", .operation = operation_name, .level = .debug, .outcome = .ok });
 }
-fn handleObserved(context: *host.Context, io: std.Io, allocator: std.mem.Allocator, request: *std.http.Server.Request, operation_name: *?[]const u8) !void {
+fn handleObserved(context: *host.Context, io: std.Io, allocator: std.mem.Allocator, request: *std.http.Server.Request, operation_name: *?[]const u8, attempt: *serving.ServingDiagnostic.Attempt) !void {
     const config = context.config.gateway;
-    const viewer = config.viewer orelse return http.respond(request, .not_found, "{}");
+    const viewer = config.viewer orelse return host.respond(attempt, request, .not_found, "{}");
     if (request.head.method != .POST or !std.mem.eql(u8, (try http.header(request, "origin")) orelse "", config.public_origin)) return error.ServingDenied;
     if (!std.mem.eql(u8, (try http.header(request, "content-type")) orelse "", "application/json")) return error.InvalidServingCommand;
     const index = try context.callerIndex(viewer.principal);
@@ -31,7 +31,8 @@ fn handleObserved(context: *host.Context, io: std.Io, allocator: std.mem.Allocat
     const parsed = try serving.protocol.Json.parseFromSlice(serving.ReactiveClient.Request, alloc, body);
     const operation = parsed.value;
     operation_name.* = @tagName(operation);
-    if (control and !try isControl(operation)) return error.InvalidServingCommand;
+    try attempt.label(if (operation == .submit or operation == .prepare or operation == .refresh_prepare) .control else .read, @tagName(operation));
+    if (control and !try isControl(operation, attempt)) return error.InvalidServingCommand;
     if (!context.callers[index].acquire(control, if (control) 1 else config.per_caller_requests)) return error.ServingCallerCapacity;
     defer context.callers[index].release(control);
     const key = context.viewer_key orelse return error.ServingDenied;
@@ -39,7 +40,7 @@ fn handleObserved(context: *host.Context, io: std.Io, allocator: std.mem.Allocat
     defer wire.deinit();
     wire.timeout_ms = context.config.request_timeout_ms;
     wire.observer = context.diagnostics;
-    const base: serving.Adapter = .{ .resources = .{ .wire = &wire, .realm = context.config.realm, .principal = context.config.principal, .key = context.key }, .service = config.service, .ingress = config.ingress, .resource = config.resource };
+    const base: serving.Adapter = .{ .resources = .{ .wire = &wire, .realm = context.config.realm, .principal = context.config.principal, .key = context.key }, .service = config.service, .ingress = config.ingress, .resource = config.resource, .diagnostic = attempt };
     const client: serving.ReactiveClient = .{ .wire = &wire, .connection = .{ .realm = context.config.realm, .principal = viewer.principal, .service = config.service, .ingress = config.ingress }, .key = key, .refresh = viewer.refresh };
     var clock: Clock = .{ .io = io, .error_ms = config.clock_error_ms };
     const reactive: serving.ReactiveAdapter = .{ .base = base, .clock = .{ .context = &clock, .upper = Clock.upper } };
@@ -70,7 +71,7 @@ fn handleObserved(context: *host.Context, io: std.Io, allocator: std.mem.Allocat
         },
         else => try client.apply(base, operation),
     };
-    return http.respond(request, .ok, try serving.protocol.Json.valueAlloc(alloc, result));
+    return host.respond(attempt, request, .ok, try serving.protocol.Json.valueAlloc(alloc, result));
 }
 const Clock = struct {
     io: std.Io,
@@ -83,14 +84,14 @@ const Clock = struct {
     }
 };
 
-fn isControl(request: serving.ReactiveClient.Request) !bool {
+fn isControl(request: serving.ReactiveClient.Request, attempt: *serving.ServingDiagnostic.Attempt) !bool {
     return switch (request) {
         .observe, .clock => true,
         .prepare => |command| serving.ReactiveWire.isControl(.{ .reactive = command.native() }),
         .refresh_prepare => |command| command == .pause,
         .submit => |signed| blk: {
             const frame = try serving.station.Frame.decode(signed.request.command.send.value);
-            break :blk serving.ReactiveWire.isControl(try serving.Model.Command.decode(frame.payload));
+            break :blk serving.ReactiveWire.isControl(try serving.ServingDiagnostic.decodeCommand(frame.payload, attempt));
         },
         else => false,
     };

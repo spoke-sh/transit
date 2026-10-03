@@ -185,3 +185,12 @@ An explicitly closed session terminates attached transports with `closed`;
 reason states that an independently accepted application command was cancelled.
 Rejected lifecycle controls retain the original serving input diagnostic under
 current read authority; see [rejected input evidence](SERVING_V1.md#rejected-input-evidence).
+
+
+Terminal messages can include an optional shared diagnostic. It describes the
+failed read, frame or exact command attempt; the terminal reason still governs
+stream lifecycle. Resource unavailability interrupts a stream without asserting
+that its session expired. Only a reached or recorded session lease uses the
+`expired` terminal. A native submission receipt and its input position remain
+separate from committed control/application outcomes. Closing the transport
+cannot cancel those independently accepted operations.

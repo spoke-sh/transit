@@ -1,3 +1,4 @@
+import reactiveFixture from "../../../packages/zig/transit-serving/src/fixtures/reactive-v1.json" with { type: "json" };
 import diagnosticFixture from "../../../packages/zig/transit-protocol/src/fixtures/diagnostic-v1.json" with { type: "json" };
 import { describe, expect, test } from "vite-plus/test";
 import { SseDecoder, ReactiveError, Session, Transport } from "@rey/transit-reactive-client";
@@ -38,7 +39,7 @@ describe("generated reactive transport boundary", () => {
     const signed = {
       request: {
         version: 1,
-        definition: "75a5efed41df165c680b9d13116d10b3c72357e542eca9b96195d6b520714cb1",
+        definition: "4f6cb811c01a0e89111f7c5e4ff0425d91a7bd6eeaf0ca77c6d6d66399da4cbc",
         realm: 49,
         principal: 65536,
         sequence: 1,
@@ -131,7 +132,7 @@ describe("generated reactive transport boundary", () => {
       const signed = {
         request: {
           version: 1,
-          definition: "75a5efed41df165c680b9d13116d10b3c72357e542eca9b96195d6b520714cb1",
+          definition: "4f6cb811c01a0e89111f7c5e4ff0425d91a7bd6eeaf0ca77c6d6d66399da4cbc",
           realm: 49,
           principal: 65536,
           sequence: 1,
@@ -207,10 +208,10 @@ describe("generated reactive transport boundary", () => {
             status === 403
               ? "denied"
               : status === 410
-                ? "expired"
+                ? "gone"
                 : status === 0
                   ? "interrupted"
-                  : "reset_required",
+                  : "conflict",
         },
       });
       expect(inspections).toBe(1);
@@ -406,3 +407,160 @@ test.each(["valid", "foreign_generation", "foreign_resource", "foreign_query", "
     expect(calls).toBe(1);
   },
 );
+
+test.each(["valid", "malformed", "foreign_sequence"])(
+  "HTTP uncertainty preserves the signed request and owns only matching optional detail (%s)",
+  async (variant) => {
+    const signed = {
+      request: {
+        version: 1,
+        definition: diagnosticFixture.definition,
+        realm: 49,
+        principal: 65536,
+        sequence: 8,
+        command: { send: { pid: 1, value: "00" } },
+      },
+      signature: Array(64).fill(0),
+    };
+    const identity = {
+      domain: "transport",
+      id: variant === "foreign_sequence" ? "9" : "8",
+      realm: "49",
+      resource: null,
+      sequence: "8",
+    };
+    const diagnostic = {
+      ...structuredClone(diagnosticFixture),
+      code: "serving.send_unknown",
+      category: "unavailable",
+      stage: "submit",
+      outcome: "unknown",
+      evidence: "saved_intent",
+      identity,
+      facts: Array(16).fill(null),
+      actions: [{ kind: "resume_exact", target: identity }, null, null, null],
+    };
+    let calls = 0;
+    const session = new Session(
+      new Transport(async (_url, options) => {
+        ++calls;
+        expect(JSON.parse(options!.body as string)).toEqual({ submit: signed });
+        return new Response(
+          JSON.stringify({
+            err: "ServingRequestFailed",
+            reason: "unavailable",
+            diagnostic: variant === "malformed" ? {} : diagnostic,
+          }),
+          { status: 503, headers: { "Content-Type": "application/json" } },
+        );
+      }),
+      async () => () => {},
+    );
+    session.description = {
+      connection: { realm: 49, principal: 65536, service: 1, ingress: 1 },
+    } as never;
+    session.pending = {
+      signed: signed as never,
+      command: { close: { session: 1, generation: 2 } },
+      input: null,
+    };
+    await expect(session.recover()).rejects.toMatchObject({
+      status: 503,
+      reason: "unavailable",
+      diagnosticInvalid: variant !== "valid",
+      diagnostic: variant === "valid" ? diagnostic : undefined,
+    });
+    expect(session.pending?.signed).toEqual(signed);
+    expect(session.pending?.input).toBeNull();
+    expect(calls).toBe(1);
+  },
+);
+
+test.each([
+  [410, "unavailable", false],
+  [410, "closed", true],
+  [410, "expired", true],
+  [409, "conflict", false],
+  [409, "reset_required", false],
+  [403, "denied", true],
+] as const)(
+  "HTTP %s retains the specific %s reason without inventing a write outcome",
+  async (status, reason, clears) => {
+    const transport = new Transport(
+      async () =>
+        new Response(JSON.stringify({ err: "ServingRequestFailed", reason, diagnostic: null }), {
+          status,
+          headers: { "Content-Type": "application/json" },
+        }),
+    );
+    await expect(transport.host({ clock: {} })).rejects.toMatchObject({
+      status,
+      reason,
+      clearsProtectedState: clears,
+      diagnosticInvalid: false,
+    });
+  },
+);
+
+test("malformed optional stream detail cannot erase a closed terminal", () => {
+  const seen: unknown[] = [];
+  new SseDecoder().push(
+    new TextEncoder().encode(
+      'event: terminal\ndata: {"terminal":{"reason":"closed","diagnostic":{"bad":true}}}\n\n',
+    ),
+    (_item, message) => seen.push(message),
+  );
+  expect(seen).toEqual([{ terminal: { reason: "closed", diagnostic: { bad: true } } }]);
+  expect(new ReactiveError(0, "closed", { bad: true })).toMatchObject({
+    reason: "closed",
+    diagnosticInvalid: true,
+    clearsProtectedState: true,
+  });
+});
+
+test.each([
+  [409, "conflict"],
+  [410, "unavailable"],
+] as const)("SSE bootstrap HTTP %s preserves %s and its diagnostic", async (status, reason) => {
+  const diagnostic = {
+    ...diagnosticFixture,
+    code: "serving.read_conflict",
+    category: "conflict",
+    stage: "read",
+    outcome: "not_applicable",
+    evidence: "none",
+    identity: null,
+    actions: [null, null, null, null],
+  };
+  const transport = new Transport(
+    async () =>
+      new Response(JSON.stringify({ err: "ServingRequestFailed", reason, diagnostic }), {
+        status,
+        headers: { "Content-Type": "application/json" },
+      }),
+  );
+  const bootstrap = {
+    version: 1,
+    read: reactiveFixture.read,
+    attach: {
+      request: {
+        version: 1,
+        definition: diagnosticFixture.definition,
+        realm: 49,
+        principal: 65536,
+        sequence: 1,
+        command: { send: { pid: 9, value: "00" } },
+      },
+      signature: Array(64).fill(0),
+    },
+  };
+  await expect(
+    transport.events(bootstrap as never, () => {}, new AbortController().signal),
+  ).rejects.toMatchObject({
+    status,
+    reason,
+    diagnostic,
+    diagnosticInvalid: false,
+    clearsProtectedState: false,
+  });
+});

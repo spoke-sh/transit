@@ -122,7 +122,7 @@ pub fn attach(self: Self, bootstrap: root.ReactiveWire.Bootstrap, public_key: [3
     if (native.request.realm != request.scope.realm or native.request.principal != request.scope.principal or native.request.command.send.pid != request.scope.ingress) return error.ServingDenied;
     const frame = try root.station.Frame.decode(native.request.command.send.value);
     if (frame.kind != .cast) return error.InvalidServingCommand;
-    const command = try root.Model.Command.decode(frame.payload);
+    const command = try root.ServingDiagnostic.decodeCommand(frame.payload, self.base.diagnostic);
     if (command != .reactive or command.reactive != .attach) return error.InvalidServingCommand;
     const attachment = command.reactive.attach;
     if (attachment.identity.session != request.scope.session or attachment.identity.generation != request.scope.generation or

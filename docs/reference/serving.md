@@ -31,6 +31,15 @@ rejection says that control did not perform its requested transition; earlier
 admitted operations keep their own outcomes. Read its exact input disposition
 under current authorization before deciding on new work.
 
+HTTP failures include a finite reason and an optional shared diagnostic. The
+reason distinguishes absence, conflict, unavailable resources, closed/expired
+sessions, limits and current denial. The diagnostic carries the original cause
+and request-local evidence: validation before dispatch, an uncertain exact signed
+submission, native command rejection, or an accepted input still awaiting its
+domain outcome. A failed read never resolves an earlier write. Preserve the signed
+bytes and sequence when admission is unknown; native acceptance alone does not
+prove the application command or session control completed.
+
 ## Authorization and disclosure
 
 Commands preserve caller-signed native bytes. Scoped reads bind the requested

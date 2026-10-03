@@ -9,6 +9,7 @@ import type {
   ReactiveResponse,
   ServerMessage,
   SseItem,
+  Error as ErrorResponse,
 } from "./types";
 export type * from "./types";
 
@@ -30,7 +31,7 @@ export class ReactiveError extends Error {
   get clearsProtectedState(): boolean {
     return (
       this.status === 403 ||
-      this.status === 410 ||
+      (this.status === 410 && this.reason !== "unavailable") ||
       this.reason === "denied" ||
       this.reason === "expired" ||
       this.reason === "closed" ||
@@ -42,6 +43,40 @@ export class ReactiveError extends Error {
     );
   }
 }
+function requestFailure(status: number, value?: unknown): ReactiveError {
+  const fallback =
+    status === 403
+      ? "denied"
+      : status === 410
+        ? "gone"
+        : status === 409
+          ? "conflict"
+          : status === 429
+            ? "capacity"
+            : "unavailable";
+  if (!value || typeof value !== "object") return new ReactiveError(status, fallback);
+  const primary = { ...value, diagnostic: null };
+  if (!validate.Error(primary)) return new ReactiveError(status, fallback);
+  const response = value as ErrorResponse;
+  const reason = response.reason;
+  const statuses: Record<NonNullable<ErrorResponse["reason"]>, number[]> = {
+    denied: [403],
+    closed: [410],
+    expired: [410],
+    fenced: [409],
+    reset_required: [409],
+    not_found: [404],
+    conflict: [409],
+    pending: [409],
+    unavailable: [409, 410, 503, 504],
+    capacity: [429],
+    invalid_request: [400, 408, 413],
+    internal_failure: [502, 503],
+  };
+  if (reason && !statuses[reason].includes(status)) return new ReactiveError(status, fallback, {});
+  return new ReactiveError(status, reason ?? fallback, response.diagnostic);
+}
+
 function invalid(): never {
   throw new ReactiveError(0, "invalid_response");
 }
@@ -60,7 +95,15 @@ export function response(value: unknown): ReactiveResponse {
   return result;
 }
 export function message(value: unknown): ServerMessage {
-  if (!validate.ServerMessage(value)) invalid();
+  const primary =
+    value &&
+    typeof value === "object" &&
+    "terminal" in value &&
+    value.terminal &&
+    typeof value.terminal === "object"
+      ? { ...value, terminal: { ...value.terminal, diagnostic: null } }
+      : value;
+  if (!validate.ServerMessage(primary)) invalid();
   const result = value as ServerMessage;
   if ("observation" in result) response(result.observation);
   return result;
@@ -134,19 +177,21 @@ export class Transport {
       body,
       signal ? AbortSignal.any([signal, timeout]) : timeout,
     );
-    if (!result.ok) {
-      await result.body?.cancel();
-      throw new ReactiveError(
-        result.status,
-        result.status === 403
-          ? "denied"
-          : result.status === 410
-            ? "expired"
-            : result.status === 409
-              ? "reset_required"
-              : "unavailable",
-      );
+    if (!result.ok) return this.rejectResponse(result, signal);
+    return this.decodeJson(result, signal);
+  }
+  private async rejectResponse(result: Response, signal?: AbortSignal): Promise<never> {
+    let value: unknown;
+    try {
+      value = await this.decodeJson(result, signal);
+    } catch {
+      // The known status survives malformed or interrupted optional detail.
+      const failure = requestFailure(result.status);
+      throw new ReactiveError(failure.status, failure.reason, {});
     }
+    throw requestFailure(result.status, value);
+  }
+  private async decodeJson(result: Response, signal?: AbortSignal): Promise<unknown> {
     if (!result.headers.get("content-type")?.startsWith("application/json")) {
       await result.body?.cancel();
       invalid();
@@ -224,11 +269,30 @@ export class Transport {
         return value as HostResponse;
       } catch (error) {
         if (
+          "submit" in request &&
+          error instanceof ReactiveError &&
+          error.diagnostic &&
+          (error.diagnostic.stage === "submit" ||
+            ["unknown", "pending"].includes(error.diagnostic.outcome))
+        ) {
+          const identity = error.diagnostic.identity;
+          if (
+            error.diagnostic.stage !== "submit" ||
+            identity?.domain !== "transport" ||
+            identity.id !== String(request.submit.request.sequence) ||
+            identity.sequence !== String(request.submit.request.sequence) ||
+            identity.realm !== String(request.submit.request.realm)
+          )
+            error = new ReactiveError(error.status, error.reason, {});
+        }
+        if (
           !readOnly ||
           attempt >= 2 ||
           signal?.aborted ||
           !(error instanceof ReactiveError) ||
-          (error.status !== 429 && error.status !== 503)
+          (error.status !== 429 && error.status !== 503) ||
+          !["capacity", "unavailable"].includes(error.reason) ||
+          error.diagnostic?.category === "unsupported"
         )
           throw error;
         await new Promise((resolve) => setTimeout(resolve, 100 * (attempt + 1)));
@@ -275,19 +339,7 @@ export class Transport {
   ) {
     if (!validate.Bootstrap(bootstrap)) throw new ReactiveError(0, "invalid_request");
     const result = await this.post("/reactive/v1/events", bootstrap, signal);
-    if (!result.ok) {
-      await result.body?.cancel();
-      throw new ReactiveError(
-        result.status,
-        result.status === 403
-          ? "denied"
-          : result.status === 410
-            ? "expired"
-            : result.status === 409
-              ? "reset_required"
-              : "unavailable",
-      );
-    }
+    if (!result.ok) return this.rejectResponse(result, signal);
     if (!result.headers.get("content-type")?.startsWith("text/event-stream")) {
       await result.body?.cancel();
       invalid();

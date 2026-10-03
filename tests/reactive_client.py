@@ -36,7 +36,12 @@ def run(env, tls):
         env['sequences'][principal] = prepared['request']['sequence']
         if lost:
             env['fault']['armed'] = True
-            client({'submit': prepared}, 503, control)
+            lost_response = client({'submit': prepared}, 503, control)
+            detail = lost_response['diagnostic']
+            assert detail['code'] == 'serving.send_unknown' and detail['outcome'] == 'unknown', detail
+            assert detail['evidence'] == 'saved_intent', detail
+            assert detail['identity']['id'] == str(prepared['request']['sequence']), detail
+            assert detail['identity']['sequence'] == str(prepared['request']['sequence']), detail
             assert env['fault']['lost']
         receipt = client({'submit': prepared}, control=control)['receipt']['receipt']
         assert client({'submit': prepared}, control=control)['receipt']['receipt'] == receipt
@@ -72,7 +77,11 @@ def run(env, tls):
         assert changed['cursor']['position']['data_revision'] > first['cursor']['position']['data_revision']
         # Pausing has its own exact control and does not cancel the application.
         command({'close': dict(session=11, generation=generation)}, control=True)
-        assert with_stream.until('terminal')['reason'] == 'closed'
+        terminal = with_stream.until('terminal')
+        assert terminal['reason'] == 'closed', terminal
+        assert terminal['diagnostic']['code'] == 'reactive.session_closed', terminal
+        assert terminal['diagnostic']['outcome'] == 'not_applicable', terminal
+        assert terminal['diagnostic']['stage'] == 'read', terminal
     finally:
         with_stream.close()
     prepared = client({'prepare': {'renew': dict(identity=dict(session=11, generation=generation), expected=now + 28000, lease_before_ms=now + 29000)}}, control=True)['prepared']

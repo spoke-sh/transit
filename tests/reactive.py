@@ -249,6 +249,13 @@ def adversarial(env, tls, scope, bootstrap, attachment, cursor, command, origina
     peer = WebSocket(port, host, tls)
     peer.until('challenge')
     started = time.monotonic()
+    terminal = peer.until('terminal')
+    assert terminal['reason'] == 'interrupted', terminal
+    diagnostic = terminal['diagnostic']
+    assert diagnostic['code'] == 'reactive.challenge_timeout', diagnostic
+    assert diagnostic['outcome'] == 'not_submitted', diagnostic
+    assert diagnostic['evidence'] == 'local_before_dispatch', diagnostic
+    assert diagnostic['identity'] is None, diagnostic
     assert peer.receive()[0] == 8
     assert time.monotonic() - started < 3
     peer.close()

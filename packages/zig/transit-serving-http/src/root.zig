@@ -68,38 +68,37 @@ pub const Context = struct {
         self.diagnostics.event(.{ .name = "serving.http.request", .level = .warn, .outcome = .failed, .error_type = @errorName(err) });
     }
     pub fn handle(self: *@This(), io: std.Io, allocator: std.mem.Allocator, request: *std.http.Server.Request) anyerror!void {
-        self.dispatch(io, allocator, request) catch |err| {
+        var attempt: serving.ServingDiagnostic.Attempt = .{};
+        self.dispatch(io, allocator, request, &attempt) catch |err| {
             self.diagnostics.event(.{ .name = "serving.http.request", .level = .warn, .outcome = .failed, .error_type = @errorName(err) });
-            const status: std.http.Status = switch (err) {
-                error.ServingDenied, error.AccessDenied, error.SignatureVerificationFailed => .forbidden,
-                error.ServingOperationNotFound, error.ReactiveSessionNotFound, error.RefreshNotFound => .not_found,
-                error.ReactiveResetRequired, error.ReactiveAttachmentConflict, error.ReactiveGenerationConflict, error.ReactiveSubscriptionConflict, error.RefreshGenerationConflict, error.ServingResultPending, error.ServingSequenceConflict, error.Conflict => .conflict,
-                error.ResourceUnavailable, error.ReactiveSessionClosed, error.ReactiveSessionExpired => .gone,
-                error.AuthorityTimeout => .gateway_timeout,
-                error.StreamTooLong => .payload_too_large,
-                error.ServingCallerCapacity => .too_many_requests,
-                error.WebSocketHandshake, error.InvalidJsonShape, error.InvalidJsonConstant, error.InvalidReactiveScope, error.InvalidReactiveCursor, error.InvalidServingCommand, error.InvalidServingRead, error.InvalidServingIdentity, error.InvalidServingRecord, error.ServingPayloadTooLarge, error.InvalidFrame, error.UnsupportedFrame, error.InvalidCorrelation, error.MessageTooLarge, error.ValueTooLarge, error.InvalidValue, error.InvalidSequence, error.WrongProtocolRealm, error.InvalidCharacter, error.Overflow, error.DuplicateField, error.SyntaxError, error.UnexpectedToken, error.UnknownField, error.MissingField, error.InvalidEnumTag => .bad_request,
-                else => .service_unavailable,
-            };
-            return http.respond(request, status, "{\"err\":\"ServingRequestFailed\"}");
+            if (attempt.response_started) return err;
+            const info = serving.ServingDiagnostic.classification(err);
+            const failure: serving.Api.Error = .{ .err = .ServingRequestFailed, .reason = info.reason, .diagnostic = attempt.project(err) catch null };
+            var bytes: [8192]u8 = undefined;
+            var writer: std.Io.Writer = .fixed(&bytes);
+            var encoder: std.json.Stringify = .{ .writer = &writer };
+            try p.Json.write(failure, &encoder);
+            return respond(&attempt, request, @fromBackingInt(@intCast(info.status)), writer.buffered());
         };
     }
+
     pub fn validateRequest(self: *@This(), request: *std.http.Server.Request) !void {
         const config = self.config.gateway;
         if (!std.mem.eql(u8, (try http.header(request, "host")) orelse "", config.host)) return error.ServingDenied;
         if (try http.header(request, "origin")) |origin| if (!std.mem.eql(u8, origin, config.public_origin)) return error.ServingDenied;
         for ([_][]const u8{ "forwarded", "x-forwarded-host", "x-forwarded-proto", "x-forwarded-for", "x-transit-principal" }) |name| if (try http.header(request, name) != null) return error.ServingDenied;
     }
-    fn dispatch(self: *@This(), io: std.Io, allocator: std.mem.Allocator, request: *std.http.Server.Request) !void {
+    fn dispatch(self: *@This(), io: std.Io, allocator: std.mem.Allocator, request: *std.http.Server.Request, attempt: *serving.ServingDiagnostic.Attempt) !void {
         try self.validateRequest(request);
         const config = self.config.gateway;
-        if (request.head.method == .GET and std.mem.eql(u8, request.head.target, "/health")) return http.respond(request, .ok, "{\"ready\":true}");
-        if (config.reactive and (std.mem.eql(u8, request.head.target, "/reactive/v1/client") or std.mem.eql(u8, request.head.target, "/reactive/v1/client/control"))) return @import("PrivateClient.zig").handle(self, io, allocator, request);
-        if (config.reactive and std.mem.startsWith(u8, request.head.target, "/reactive/v1/")) return @import("ReactiveTransport.zig").handle(self, io, allocator, request);
-        if (request.head.method != .POST) return http.respond(request, .not_found, "{}");
+        if (request.head.method == .GET and std.mem.eql(u8, request.head.target, "/health")) return respond(attempt, request, .ok, "{\"ready\":true}");
+        if (config.reactive and (std.mem.eql(u8, request.head.target, "/reactive/v1/client") or std.mem.eql(u8, request.head.target, "/reactive/v1/client/control"))) return @import("PrivateClient.zig").handle(self, io, allocator, request, attempt);
+        if (config.reactive and std.mem.startsWith(u8, request.head.target, "/reactive/v1/")) return @import("ReactiveTransport.zig").handle(self, io, allocator, request, attempt);
+        if (request.head.method != .POST) return respond(attempt, request, .not_found, "{}");
         const submit = std.mem.eql(u8, request.head.target, "/serving/v1/command");
         const read = std.mem.eql(u8, request.head.target, "/serving/v1/read");
-        if (!submit and !read) return http.respond(request, .not_found, "{}");
+        if (!submit and !read) return respond(attempt, request, .not_found, "{}");
+        try attempt.label(if (submit) .control else .read, if (submit) "submit" else "read");
         if (!std.mem.eql(u8, (try http.header(request, "content-type")) orelse "", "application/json")) return error.InvalidServingCommand;
         // Bounded independent storage for all parsing, upstream clients and JSON.
         const memory = try allocator.alloc(u8, 2 * 1024 * 1024);
@@ -111,7 +110,7 @@ pub const Context = struct {
         defer wire.deinit();
         wire.observer = self.diagnostics;
         wire.timeout_ms = self.config.request_timeout_ms;
-        const adapter: serving.Adapter = .{ .resources = .{ .wire = &wire, .realm = self.config.realm, .principal = self.config.principal, .key = self.key }, .service = config.service, .ingress = config.ingress, .resource = config.resource };
+        const adapter: serving.Adapter = .{ .resources = .{ .wire = &wire, .realm = self.config.realm, .principal = self.config.principal, .key = self.key }, .service = config.service, .ingress = config.ingress, .resource = config.resource, .diagnostic = attempt };
         if (submit) {
             const parsed = try p.Json.parseFromSlice(p.Growth.SignedRequest, alloc, body);
             const index = try self.callerIndex(parsed.value.request.principal);
@@ -120,7 +119,7 @@ pub const Context = struct {
             if (!self.callers[index].acquire(false, config.per_caller_requests)) return error.ServingCallerCapacity;
             defer self.callers[index].release(false);
             const result = try adapter.submit(parsed.value, public_key);
-            return http.respond(request, .accepted, try p.Json.valueAlloc(alloc, result));
+            return respond(attempt, request, .accepted, try p.Json.valueAlloc(alloc, result));
         }
         const parsed = try p.Json.parseFromSlice(serving.Model.SignedRead, alloc, body);
         const index = try self.callerIndex(parsed.value.read.principal);
@@ -129,7 +128,7 @@ pub const Context = struct {
         if (!self.callers[index].acquire(false, config.per_caller_requests)) return error.ServingCallerCapacity;
         defer self.callers[index].release(false);
         const result = try adapter.read(parsed.value, public_key);
-        return http.respond(request, .ok, try p.Json.valueAlloc(alloc, result));
+        return respond(attempt, request, .ok, try p.Json.valueAlloc(alloc, result));
     }
     pub fn callerIndex(self: *@This(), principal: u64) !usize {
         for (self.config.gateway.callers, 0..) |caller, index| if (caller.principal == principal) return index;
@@ -139,4 +138,12 @@ pub const Context = struct {
 
 test {
     std.testing.refAllDecls(@This());
+    std.testing.refAllDecls(Context);
+}
+
+/// Mark the first response write before handing bytes to the HTTP layer.
+/// A partial write must never be followed by a second HTTP error response.
+pub fn respond(attempt: *serving.ServingDiagnostic.Attempt, request: *std.http.Server.Request, status: std.http.Status, body: []const u8) !void {
+    attempt.response_started = true;
+    return http.respond(request, status, body);
 }

@@ -53,6 +53,7 @@ const Task = struct {
     host: *Context,
     io: Io,
     allocator: std.mem.Allocator,
+    diagnostic: ?*serving.ServingDiagnostic.Attempt = null,
     fn upper(raw: ?*anyopaque) !u64 {
         const self: *Task = @ptrCast(@alignCast(raw.?));
         const now = Io.Clock.real.now(self.io).toMilliseconds();
@@ -68,14 +69,18 @@ const Task = struct {
     fn adapter(self: *Task, client: *serving.station.client.Client) serving.ReactiveAdapter {
         const host = self.host;
         const config = host.config.gateway;
-        return .{ .base = .{ .resources = .{ .wire = client, .realm = host.config.realm, .principal = host.config.principal, .key = host.key }, .service = config.service, .ingress = config.ingress, .resource = config.resource }, .clock = .{ .context = self, .upper = upper } };
+        return .{ .base = .{ .resources = .{ .wire = client, .realm = host.config.realm, .principal = host.config.principal, .key = host.key }, .service = config.service, .ingress = config.ingress, .resource = config.resource, .diagnostic = self.diagnostic }, .clock = .{ .context = self, .upper = upper } };
     }
     fn read(self: *Task, signed: r.SignedRead, key: [32]u8) !serving.ReactiveAdapter.Response {
+        if (self.diagnostic) |attempt| if (!attempt.dispatched) {
+            try attempt.label(.read, @tagName(signed.read.kind));
+        };
         const start = Io.Clock.awake.now(self.io);
         while (true) {
             var client = self.newClient();
             defer client.deinit();
             return self.adapter(&client).read(signed, key) catch |err| {
+                if (self.diagnostic) |attempt| attempt.rejected(err, client.last_rejection);
                 if (!self.retryRead(start, err)) return err;
                 try self.io.sleep(.fromMilliseconds(20), .awake);
                 continue;
@@ -88,6 +93,7 @@ const Task = struct {
             var client = self.newClient();
             defer client.deinit();
             self.adapter(&client).check(signed, key) catch |err| {
+                if (self.diagnostic) |attempt| attempt.rejected(err, client.last_rejection);
                 if (!self.retryRead(start, err)) return err;
                 try self.io.sleep(.fromMilliseconds(20), .awake);
                 continue;
@@ -140,7 +146,7 @@ const Task = struct {
     fn submit(self: *Task, signed: r.SignedSend, key: [32]u8, control: bool) !serving.Adapter.Receipt {
         const native = signed.native();
         const frame = try serving.station.Frame.decode(native.request.command.send.value);
-        const command = try serving.Model.Command.decode(frame.payload);
+        const command = try serving.ServingDiagnostic.decodeCommand(frame.payload, self.diagnostic);
         if (control and !wire.isControl(command)) return error.InvalidServingCommand;
         var client = self.newClient();
         defer client.deinit();
@@ -161,15 +167,15 @@ fn parse(comptime T: type, allocator: std.mem.Allocator, bytes: []const u8) !T {
 fn publicKey(host: *Context, principal: u64) ![32]u8 {
     return host.config.gateway.callers[try host.callerIndex(principal)].public_key;
 }
-pub fn handle(host: *Context, io: Io, allocator: std.mem.Allocator, request: *std.http.Server.Request) !void {
+pub fn handle(host: *Context, io: Io, allocator: std.mem.Allocator, request: *std.http.Server.Request, attempt: *serving.ServingDiagnostic.Attempt) !void {
     const description = if (std.mem.eql(u8, request.head.target, "/reactive/v1/openapi.json")) serving.Api.Format.openapi else if (std.mem.eql(u8, request.head.target, "/reactive/v1/asyncapi.json")) serving.Api.Format.asyncapi else null;
     if (description) |format| {
-        if (request.head.method != .GET) return http.respond(request, .not_found, "{}");
+        if (request.head.method != .GET) return @import("root.zig").respond(attempt, request, .not_found, "{}");
         const buffer = try allocator.alloc(u8, serving.Api.description_bytes);
         defer allocator.free(buffer);
         var output: Io.Writer = .fixed(buffer);
         try serving.Api.write(format, &output);
-        return http.respond(request, .ok, output.buffered());
+        return @import("root.zig").respond(attempt, request, .ok, output.buffered());
     }
     const discovery = std.mem.eql(u8, request.head.target, "/reactive/v1/discovery");
     const ws = std.mem.eql(u8, request.head.target, "/reactive/v1/websocket");
@@ -178,7 +184,8 @@ pub fn handle(host: *Context, io: Io, allocator: std.mem.Allocator, request: *st
     const challenge = std.mem.eql(u8, request.head.target, "/reactive/v1/challenge");
     const events = std.mem.eql(u8, request.head.target, "/reactive/v1/events");
     const read = std.mem.eql(u8, request.head.target, "/reactive/v1/read");
-    if (request.head.method != .POST or (!control and !challenge and !events and !read and !discovery)) return http.respond(request, .not_found, "{}");
+    if (request.head.method != .POST or (!control and !challenge and !events and !read and !discovery)) return @import("root.zig").respond(attempt, request, .not_found, "{}");
+    try attempt.label(if (control or events) .control else .read, if (events) "attach" else if (control) "control" else "reactive_read");
     if (!std.mem.eql(u8, (try http.header(request, "content-type")) orelse "", "application/json")) return error.InvalidServingCommand;
     var resume_id: [512]u8 = undefined;
     const last = if (try http.header(request, "last-event-id")) |id| blk: {
@@ -190,7 +197,7 @@ pub fn handle(host: *Context, io: Io, allocator: std.mem.Allocator, request: *st
     defer allocator.free(memory);
     var fixed = std.heap.FixedBufferAllocator.init(memory);
     const alloc = fixed.allocator();
-    var task: Task = .{ .host = host, .io = io, .allocator = alloc };
+    var task: Task = .{ .host = host, .io = io, .allocator = alloc, .diagnostic = attempt };
     const body = try request.readerExpectNone(&.{}).allocRemaining(alloc, .limited(r.max_message_bytes));
     if (events) {
         const bootstrap = try parse(wire.Bootstrap, alloc, body);
@@ -221,7 +228,7 @@ pub fn handle(host: *Context, io: Io, allocator: std.mem.Allocator, request: *st
         defer host.callers[index].release(false);
         var client = task.newClient();
         defer client.deinit();
-        return http.respond(request, .ok, try json(try task.adapter(&client).discovery(signed, key, alloc), &output));
+        return @import("root.zig").respond(attempt, request, .ok, try json(try task.adapter(&client).discovery(signed, key, alloc), &output));
     }
     if (control) {
         const signed = try parse(r.SignedSend, alloc, body);
@@ -230,7 +237,7 @@ pub fn handle(host: *Context, io: Io, allocator: std.mem.Allocator, request: *st
         try p.Ed25519.Signature.fromBytes(signed.signature).verify(&try p.Growth.digest(signed.native().request), try p.Ed25519.PublicKey.fromBytes(key));
         if (!host.callers[index].acquire(true, 1)) return error.ServingCallerCapacity;
         defer host.callers[index].release(true);
-        return http.respond(request, .accepted, try json(try task.submit(signed, key, true), &output));
+        return @import("root.zig").respond(attempt, request, .accepted, try json(try task.submit(signed, key, true), &output));
     }
     const signed = try parse(r.SignedRead, alloc, body);
     const index = try host.callerIndex(signed.read.scope.principal);
@@ -242,9 +249,9 @@ pub fn handle(host: *Context, io: Io, allocator: std.mem.Allocator, request: *st
     if (challenge) {
         if (signed.read.kind != .session or observed.session.phase != .open) return error.InvalidReactiveScope;
         const nonce = try host.challenges.issue(io, signed.read.scope);
-        return http.respond(request, .ok, try json(wire.ServerMessage{ .challenge = .{ .nonce = nonce } }, &output));
+        return @import("root.zig").respond(attempt, request, .ok, try json(wire.ServerMessage{ .challenge = .{ .nonce = nonce } }, &output));
     }
-    return http.respond(request, .ok, try json(observed, &output));
+    return @import("root.zig").respond(attempt, request, .ok, try json(observed, &output));
 }
 fn sseWrite(body: *std.http.BodyWriter, message: wire.ServerMessage) anyerror!void {
     var encoded: [r.max_message_bytes]u8 = undefined;
@@ -275,7 +282,8 @@ fn sse(task: *Task, fixed: *std.heap.FixedBufferAllocator, request: *std.http.Se
     sseLoop(task, fixed, &body, signed, key) catch |err| {
         // Headers already committed: a typed terminal or interrupted socket,
         // never a second HTTP status. Writes themselves have a finite deadline.
-        http.deadline(task.io, 1000, sseWrite, .{ &body, wire.ServerMessage{ .terminal = .{ .reason = wire.terminal(err) } } }) catch return;
+        const diagnostic = if (task.diagnostic) |attempt| attempt.project(err) catch null else null;
+        http.deadline(task.io, 1000, sseWrite, .{ &body, wire.ServerMessage{ .terminal = .{ .reason = wire.terminal(err), .diagnostic = diagnostic } } }) catch return;
         http.deadline(task.io, 1000, sseEnd, .{&body}) catch {};
         return;
     };
@@ -284,6 +292,7 @@ fn sseLoop(task: *Task, fixed: *std.heap.FixedBufferAllocator, body: *std.http.B
     try http.deadline(task.io, 1000, sseWrite, .{ body, wire.ServerMessage{ .attached = .{ .session = signed.read.scope.session, .generation = signed.read.scope.generation, .attachment = signed.read.attachment } } });
     var previous = signed.read.cursor;
     while (true) {
+        if (task.diagnostic) |attempt| attempt.* = .{ .mode = .read };
         fixed.reset();
         const result = try task.read(signed, key);
         const current = result.cursor.?;
@@ -322,13 +331,14 @@ const Socket = struct {
         if (close) self.closed = true;
         try self.ws.writeMessage(bytes, if (close) .connection_close else .pong);
     }
-    fn receive(self: *Socket) anyerror!void {
+    fn receive(self: *Socket, attempt: *serving.ServingDiagnostic.Attempt) anyerror!void {
         const memory = try self.allocator.alloc(u8, memory_bytes);
         defer self.allocator.free(memory);
         var fixed = std.heap.FixedBufferAllocator.init(memory);
-        var task: Task = .{ .host = self.host, .io = self.io, .allocator = fixed.allocator() };
+        var task: Task = .{ .host = self.host, .io = self.io, .allocator = fixed.allocator(), .diagnostic = attempt };
         var decoder: http.WebSocket.Decoder = .{};
         while (true) {
+            attempt.* = .{ .mode = .read };
             const message = try decoder.next(self.ws.input);
             fixed.reset();
             // Revalidate controls too. A ping does not extend the logical lease.
@@ -339,6 +349,7 @@ const Socket = struct {
                 .ping => try http.deadline(self.io, 1000, control, .{ self, message.bytes, false }),
                 .pong => {},
                 .text => {
+                    try attempt.label(.input, "websocket_message");
                     const incoming = try parse(wire.ClientMessage, fixed.allocator(), message.bytes);
                     fixed.reset();
                     const result: wire.ServerMessage = switch (incoming) {
@@ -358,13 +369,14 @@ const Socket = struct {
             }
         }
     }
-    fn events(self: *Socket) anyerror!void {
+    fn events(self: *Socket, attempt: *serving.ServingDiagnostic.Attempt) anyerror!void {
         const memory = try self.allocator.alloc(u8, memory_bytes);
         defer self.allocator.free(memory);
         var fixed = std.heap.FixedBufferAllocator.init(memory);
-        var task: Task = .{ .host = self.host, .io = self.io, .allocator = fixed.allocator() };
+        var task: Task = .{ .host = self.host, .io = self.io, .allocator = fixed.allocator(), .diagnostic = attempt };
         var previous = self.signed.read.cursor;
         while (true) {
+            attempt.* = .{ .mode = .read };
             fixed.reset();
             const result = try task.read(self.signed, self.key);
             const current = result.cursor.?;
@@ -375,15 +387,28 @@ const Socket = struct {
             try self.io.sleep(.fromMilliseconds(500), .awake);
         }
     }
-    fn run(self: *Socket) !void {
-        const Result = union(enum) { input: anyerror!void, events: anyerror!void };
+    const Outcome = struct { cause: ?anyerror = null, diagnostic: ?p.Diagnostic = null };
+    fn observed(self: *Socket, kind: enum { input, events }) Outcome {
+        var attempt: serving.ServingDiagnostic.Attempt = .{ .mode = .read };
+        const work = switch (kind) {
+            .input => self.receive(&attempt),
+            .events => self.events(&attempt),
+        };
+        work catch |err| return .{ .cause = err, .diagnostic = attempt.project(err) catch null };
+        return .{};
+    }
+    fn run(self: *Socket, diagnostic: *?p.Diagnostic) !void {
+        const Result = union(enum) { input: Outcome, events: Outcome };
         var messages: [2]Result = undefined;
         var select: Io.Select(Result) = .init(self.io, &messages);
         defer select.cancelDiscard();
-        try select.concurrent(.input, receive, .{self});
-        try select.concurrent(.events, events, .{self});
+        try select.concurrent(.input, observed, .{ self, .input });
+        try select.concurrent(.events, observed, .{ self, .events });
         switch (try select.await()) {
-            inline else => |result| try result,
+            inline else => |outcome| if (outcome.cause) |err| {
+                diagnostic.* = outcome.diagnostic;
+                return err;
+            },
         }
     }
 };
@@ -426,16 +451,31 @@ fn closeSocket(ws: *std.http.Server.WebSocket, code: [2]u8) anyerror!void {
     try ws.writeMessage(&code, .connection_close);
 }
 fn websocketRun(host: *Context, io: Io, allocator: std.mem.Allocator, ws: *std.http.Server.WebSocket) !void {
+    var attempt: serving.ServingDiagnostic.Attempt = .{};
+    var diagnostic: ?p.Diagnostic = null;
+    websocketSession(host, io, allocator, ws, &attempt, &diagnostic) catch |err| {
+        const detail = diagnostic orelse (attempt.project(err) catch null);
+        const terminal: wire.ServerMessage = .{ .terminal = .{ .reason = wire.terminal(err), .diagnostic = detail } };
+        var bytes: [r.max_message_bytes]u8 = undefined;
+        const encoded = json(terminal, &bytes) catch return err;
+        http.deadline(io, 1000, terminalSocket, .{ ws, encoded }) catch {};
+        return err;
+    };
+}
+fn terminalSocket(ws: *std.http.Server.WebSocket, bytes: []const u8) anyerror!void {
+    try ws.writeMessage(bytes, .text);
+}
+fn websocketSession(host: *Context, io: Io, allocator: std.mem.Allocator, ws: *std.http.Server.WebSocket, attempt: *serving.ServingDiagnostic.Attempt, diagnostic: *?p.Diagnostic) !void {
     const memory = try allocator.alloc(u8, memory_bytes);
     defer allocator.free(memory);
     var fixed = std.heap.FixedBufferAllocator.init(memory);
-    var task: Task = .{ .host = host, .io = io, .allocator = fixed.allocator() };
+    var task: Task = .{ .host = host, .io = io, .allocator = fixed.allocator(), .diagnostic = attempt };
     var nonce: [16]u8 = undefined;
     try io.randomSecure(&nonce);
     var encoded: [256]u8 = undefined;
     try ws.writeMessage(try json(wire.ServerMessage{ .challenge = .{ .nonce = nonce } }, &encoded), .text);
     var bootstrap: wire.Bootstrap = undefined;
-    try http.deadline(io, challenge_ms, first, .{ ws, fixed.allocator(), &bootstrap });
+    http.deadline(io, challenge_ms, first, .{ ws, fixed.allocator(), &bootstrap }) catch |err| return if (err == error.HttpDeadline) error.ReactiveChallengeTimeout else err;
     if (!std.mem.eql(u8, &bootstrap.read.read.nonce, &nonce)) return error.ServingDenied;
     const index = try host.callerIndex(bootstrap.read.read.scope.principal);
     const public_key = host.config.gateway.callers[index].public_key;
@@ -447,10 +487,7 @@ fn websocketRun(host: *Context, io: Io, allocator: std.mem.Allocator, ws: *std.h
     var socket: Socket = .{ .host = host, .io = io, .allocator = allocator, .ws = ws, .signed = bootstrap.read, .key = public_key };
     fixed.reset();
     try socket.send(.{ .attached = .{ .session = bootstrap.read.read.scope.session, .generation = bootstrap.read.read.scope.generation, .attachment = bootstrap.read.read.attachment } }, &task);
-    socket.run() catch |err| {
-        socket.send(.{ .terminal = .{ .reason = wire.terminal(err) } }, null) catch {};
-        return err;
-    };
+    try socket.run(diagnostic);
 }
 
 fn sseEnd(body: *std.http.BodyWriter) anyerror!void {

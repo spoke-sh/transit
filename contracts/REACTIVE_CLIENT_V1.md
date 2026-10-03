@@ -112,3 +112,16 @@ binds query diagnostics to the selected namespace. Malformed optional details
 are flagged independently without losing primary progress or scheduling work.
 A failed query pauses presentation with the last exact result; authority denial
 clears protected state. No diagnostic implicitly submits SQL or grants a budget.
+
+
+HTTP error bodies use the shared serving `Error` schema: primary `err`, optional
+finite `reason`, and optional owned `diagnostic`. Listener-level capacity or
+invalid HTTP requests can lack semantic detail. The HTTP status remains primary
+when an optional body is malformed or incomplete. A semantic reason must agree
+with the status; absent detail cannot turn a generic conflict into a required
+snapshot reset. Resource unavailability is distinct from session closure/expiry.
+
+Submission diagnostics bind to the exact signed request's realm and sequence.
+Invalid or mismatched optional detail is flagged without dropping pending work
+or retrying a command. Read-only capacity retries remain bounded. Terminal stream
+messages similarly retain their finite reason when optional detail is invalid.

@@ -12906,3 +12906,37 @@ counter and 35857 ms for verified query replacement; observed browser heaps were
 optional-diagnostic check is covered by the focused browser suite above.
 Adapter read/transport diagnostics, effects and semantic inventory completion
 remain separate work. No committed-HEAD clean qualification is claimed here.
+
+### Serving HTTP and stream attempt diagnostics — 2026-10-03
+
+The request-local projection distinguishes local rejection, failed read, unknown
+signed send, explicit native rejection and known native receipt. Stored/domain
+outcomes remain independent. HTTP error bodies and SSE/WebSocket terminals share
+the envelope. Separate concurrent socket tasks retain their own failure evidence;
+started responses cannot receive a second HTTP status. Unit checks preserve a
+truncated command's original `EndOfStream` as invalid input while transport EOF
+remains unavailable. API schema references keep both generated descriptions
+inside the existing 256 KiB bound.
+
+Executed `just test::serving`: **passed**, 8.39 seconds excluding compilation.
+Executed `just test::reactive-client`: **passed**, 3.62 seconds, including an
+independent peer's lost-submit reply with exact unknown identity and explicit
+closed-session SSE detail. Executed `just test::reactive-browser`: **passed**,
+13.25 seconds, covering actual Chromium/TLS, diagnostic bootstrap timeout,
+fragmented authentication, exact fallback and current authority/recovery.
+The initial browser and limits runs expected a close frame before the newly
+introduced diagnostic terminal and failed; their corrected assertions require
+the precise local-before-dispatch timeout before closure. Package tests and full
+`just check` pass. The first local follow-up unit invocation had a missing brace;
+a second invocation used the wrong build-file working directory. Corrected
+component-directory invocations pass.
+
+Logs: `/var/tmp/transit-serving-adapter-{native,native-client,integration2,check2}.log`.
+Executed `just test::reactive-limits`: **passed**, 62.24 seconds for the complete
+trace (52.58 seconds for its limit schedule), reserved health 0.004 seconds and
+two-gateway RSS 51,568,640 bytes below 256 MiB. After the full check, the final
+SSE HTTP decoder and closure/expiry presentation refinements pass strict
+TypeScript and **44/44** focused browser cases; log
+`/var/tmp/transit-serving-adapter-browser-unit4.log`. No committed-HEAD clean qualification is claimed by
+these focused results. Semantic inventory and operation/effect outcomes remain
+separate work.

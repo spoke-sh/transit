@@ -332,3 +332,28 @@ test("failed refresh pauses with the exact snapshot and makes no replacement que
   expect(controls).toBe(2);
   await view.pause();
 });
+
+test.each(["closed", "expired"])(
+  "%s pauses the view without presenting an authorization denial",
+  async (reason) => {
+    const session = attachedSession();
+    session.open = async () => {
+      session.scope = scope;
+    };
+    session.close = async () => {
+      session.scope = null;
+    };
+    const stopped = deferred<void>();
+    const view = new LiveView(session, async () => {
+      throw new ReactiveError(410, reason);
+    });
+    view.subscribe(() => {
+      if (view.getSnapshot().detail === reason) stopped.resolve();
+    });
+    await view.start();
+    await stopped.promise;
+    expect(view.getSnapshot()).toMatchObject({ phase: "paused", snapshot: null, detail: reason });
+    expect(view.following).toBe(false);
+    await view.pause();
+  },
+);

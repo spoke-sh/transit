@@ -10,6 +10,7 @@ schemas.update(json.loads((api / "client.json").read_text()))
 
 
 def ts(schema):
+    if "$ref" in schema: return schema["$ref"].rsplit("/", 1)[-1]
     if "const" in schema:
         return json.dumps(schema["const"])
     if "oneOf" in schema or "anyOf" in schema:
@@ -28,6 +29,8 @@ def ts(schema):
 def clean(value):
     if isinstance(value, list): return [clean(item) for item in value]
     if isinstance(value, dict):
+        if "$ref" in value and value["$ref"].startswith("#/components/schemas/"):
+            return {"$ref": value["$ref"].rsplit("/", 1)[-1]}
         # Embedded SSE data is explicitly decoded and validated as ServerMessage
         # by the runtime parser. contentSchema is an annotation, not validation.
         return {k: clean(v) for k, v in value.items() if not k.startswith("x-transit-") and k not in ("contentSchema", "contentMediaType")}
