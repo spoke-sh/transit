@@ -98,9 +98,8 @@ pub fn diagnostic(self: Self, realm: u64) !p.Diagnostic {
         .controller_release => .{ "exchange.preparation_released", "An explicit controller release closed incomplete preparation. This capture decision is separate from native effect settlement and remote cancellation." },
         .caller_closed => .{ "exchange.capture_closed", "The owner explicitly closed capture without a complete transcript. Inspect native effect settlement separately; capture closure does not establish a remote outcome." },
     };
-    var value = try d.init(description[0], .lifecycle, if (self.reason == .preparation_failure) .prepare else if (self.reason == .capture_failure) .output else .execute, .not_applicable, .none, description[1]);
-    if (self.effect != 0) value.identity = .{ .domain = .effect, .realm = .init(realm), .resource = .init(self.resource), .id = .init(self.effect) };
-    if (self.reason == .preparation_failure) value.identity = .{ .domain = .exchange, .realm = .init(realm), .resource = .init(self.resource), .id = .init(self.exchange) };
+    var value = try d.init(description[0], .lifecycle, if (self.reason == .preparation_failure) .prepare else if (self.reason == .capture_failure) .output else .execute, .not_applicable, .domain_status, description[1]);
+    value.identity = .{ .domain = if (self.effect != 0) .effect else .exchange, .realm = .init(realm), .resource = .init(self.resource), .id = .init(if (self.effect != 0) self.effect else self.exchange) };
     if (self.cause_len != 0 and self.cause_truncated == 0) value.cause = try d.Code.init(self.cause());
     try value.fact(.object, .execution, .{ .unsigned = .init(self.exchange) });
     try value.fact(.actual_resource, .execution, .{ .unsigned = .init(self.resource) });
@@ -166,4 +165,27 @@ test "independent EXF1 bytes preserve full exchange identity and admission order
     wrong = parsed.value.record;
     wrong.len -= 1;
     try t.expectError(error.InvalidExchangeRecord, decode(wrong));
+}
+
+test "capture inspection always targets original retained evidence without inferring dispatch" {
+    const t = std.testing;
+    var failure: Self = .{ .reason = .caller_closed, .resource = 7, .exchange = std.math.maxInt(u64), .owner = 2, .principal = 9, .input = 11 };
+    const before = try failure.diagnostic(1);
+    try t.expectEqual(.domain_status, before.evidence);
+    try t.expectEqual(.not_applicable, before.outcome);
+    try t.expectEqual(.exchange, before.identity.?.domain);
+    try t.expectEqual(std.math.maxInt(u64), try before.identity.?.id.value());
+    try t.expectEqualDeep(before.identity, before.actions[0].?.target);
+    try t.expectEqual(.inspect_status, before.actions[0].?.kind);
+    try t.expectEqual(null, before.actions[1]);
+    failure.phase = .capturing;
+    failure.effect = 4;
+    failure.attempt = 5;
+    const after = try failure.diagnostic(1);
+    try t.expectEqual(.domain_status, after.evidence);
+    try t.expectEqual(.not_applicable, after.outcome);
+    try t.expectEqual(.effect, after.identity.?.domain);
+    try t.expectEqual(@as(u64, 4), try after.identity.?.id.value());
+    try t.expectEqualDeep(after.identity, after.actions[0].?.target);
+    try t.expectEqual(null, after.actions[1]);
 }

@@ -13466,3 +13466,15 @@ The CLI suite passed 566 actual command cases. Logs:
 The gate's declared scope is compiler semantics. Runtime/adapter and grammar
 alternative completeness, and final committed-HEAD clean evidence, remain
 separate requirements.
+
+### Capture diagnostic inspection identity (2026-10-03)
+
+Pinned-shell `transit-exchange` package tests passed after capture diagnostics were
+bound to the retained exchange before an effect exists, or to the exact effect
+afterward. Both projections retain `not_applicable` for the independent remote
+outcome, report saved owner evidence and offer only identity-bound inspection.
+The test includes a maximum uint64 exchange identity. Log:
+`/var/tmp/transit-capture-inspection-unit4.log`. An initial invocation from the
+wrong build directory and an incorrect Decimal accessor did not pass; the recorded
+run includes the corrected fixture. No wire/persisted layout changed. Full clean
+committed-HEAD qualification remains separate.

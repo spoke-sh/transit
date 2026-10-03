@@ -107,3 +107,9 @@ See the [versioned contract](../../../contracts/STATION_EXCHANGE_V1.md). Run
 `nix develop --command bash -c 'cd packages/zig/transit-exchange && zig build test'`
 for publication composition, coverage, duplicate/conflict, quota/rollback,
 retirement and cleanup checks.
+
+
+Capture diagnostics identify the retained exchange when no effect intent exists,
+and the exact native effect once it exists. Their evidence is the saved owner
+status. Capture closure has no implication for the independent remote outcome;
+inspection targets the original identity and never dispatches another attempt.
