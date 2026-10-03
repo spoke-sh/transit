@@ -15,6 +15,7 @@ pub const Native = @import("Native.zig");
 pub const Upload = @import("Upload.zig");
 pub const Host = @import("Host.zig");
 pub const HostDiagnostic = @import("HostDiagnostic.zig");
+pub const MigrationFailure = @import("MigrationFailure.zig");
 pub const Migration = @import("Migration.zig");
 test {
     _ = @import("model_test.zig");

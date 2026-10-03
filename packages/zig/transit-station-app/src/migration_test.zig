@@ -67,7 +67,7 @@ fn mutations(turn: Turn) usize {
     return count;
 }
 test "independent migration layouts bind full-width identities and exact step arguments" {
-    const F = struct { version: u8, plan: M.Plan, plan_hex: p.Value, step: M.Step, step_digest: [32]u8, progress: M.Progress, progress_hex: p.Value, receipt: M.Receipt, receipt_hex: p.Value, key_hex: p.Value };
+    const F = struct { failure: root.MigrationFailure.Record, failure_hex: p.Value, witness: root.MigrationFailure.Witness, witness_hex: p.Value, version: u8, plan: M.Plan, plan_hex: p.Value, step: M.Step, step_digest: [32]u8, progress: M.Progress, progress_hex: p.Value, receipt: M.Receipt, receipt_hex: p.Value, key_hex: p.Value };
     const fixture = try p.Json.parseFromSlice(F, t.allocator, @embedFile("fixtures/migration-v1.json"));
     defer fixture.deinit();
     const value = fixture.value;
@@ -75,7 +75,13 @@ test "independent migration layouts bind full-width identities and exact step ar
     try t.expectEqualSlices(u8, &value.plan.digest, &try owner().proposalDigest(value.plan.proposal));
     try t.expectEqualSlices(u8, &value.step_digest, &try owner().stepDigest(value.plan, value.step));
     try t.expect(value.key_hex.eql(M.key(9, 'S', value.step.plan.value, value.step.ordinal.value)));
-    inline for (.{ .{ "plan", "plan_hex", 'A', M.Plan }, .{ "progress", "progress_hex", 'G', M.Progress }, .{ "receipt", "receipt_hex", 'S', M.Receipt } }) |item| {
+    var store: Store = .{};
+    defer store.entries.deinit();
+    var turn = try store.turn(44);
+    turn.delivery.input.position = value.failure.input;
+    try t.expectEqualDeep(value.failure, try root.MigrationFailure.capture(&turn, "MigrationStepConflict", value.failure.plan, value.failure.ordinal, 4));
+    try (try root.MigrationFailure.project(9, 49, 7, value.failure, value.witness, root.MigrationFailure.classification("MigrationStepConflict").?)).validate();
+    inline for (.{ .{ "plan", "plan_hex", 'A', M.Plan }, .{ "progress", "progress_hex", 'G', M.Progress }, .{ "receipt", "receipt_hex", 'S', M.Receipt }, .{ "failure", "failure_hex", 'e', root.MigrationFailure.Record }, .{ "witness", "witness_hex", 'f', root.MigrationFailure.Witness } }) |item| {
         const encoded = @field(value, item[1]);
         try t.expect(encoded.eql(try root.Records.encode(item[2], @field(value, item[0]))));
         try t.expectEqualDeep(@field(value, item[0]), try root.Records.decode(item[3], item[2], encoded));
@@ -192,4 +198,91 @@ test "unavailable ledger reads never settle a step or alter prior turn work" {
     try t.expectError(error.DomainFailure, owner().apply(&turn, step, &domain));
     try t.expectEqualDeep(before, turn.decision);
     try t.expectEqual(@as(?M.Receipt, null), try owner().receipt(&turn, step));
+}
+
+test "migration rejection witnesses preserve original ordinal commitment epoch and policy" {
+    var store: Store = .{};
+    defer store.entries.deinit();
+    try setup(&store);
+    var context: root.MigrationFailure.Witness = .none;
+    var selected = owner();
+    selected.failure = &context;
+    var begin = try store.turn(44);
+    _ = try selected.begin(&begin, proposal(7));
+    try store.commit(&begin);
+    var failed = try store.turn(44);
+    try t.expectError(error.MigrationBusy, selected.begin(&failed, proposal(8)));
+    try t.expectEqual(@as(u64, 7), context.head.active.value);
+    try t.expectEqual(@as(u64, 1), context.head.actual.value);
+    var domain: Domain = .{};
+    const future: M.Step = .{ .plan = .{ .value = 7 }, .ordinal = .{ .value = 3 }, .operation = 1 };
+    try t.expectError(error.MigrationStepConflict, selected.apply(&failed, future, &domain));
+    try t.expectEqual(@as(u64, 1), context.progress.next.value);
+    try t.expectEqual(@as(u64, 3), context.progress.supplied.value);
+    try t.expectEqual(@as(usize, 0), domain.calls);
+    const first: M.Step = .{ .plan = .{ .value = 7 }, .ordinal = .{ .value = 1 }, .operation = 1 };
+    var applied = try store.turn(44);
+    const receipt = try selected.apply(&applied, first, &domain);
+    try store.commit(&applied);
+    var altered = first;
+    altered.operation = 2;
+    try t.expectError(error.MigrationStepConflict, selected.apply(&failed, altered, &domain));
+    try t.expectEqualSlices(u8, &receipt.digest, &context.step.expected);
+    try t.expect(!std.mem.eql(u8, &context.step.expected, &context.step.actual));
+    var revoke = try store.turn(33);
+    try selected.setPolicy(&revoke, 44, .{ .value = 1 }, .{ .revision = .{ .value = 2 }, .migrate = false });
+    try store.commit(&revoke);
+    try t.expectError(error.MigrationDenied, selected.apply(&failed, first, &domain));
+    try t.expectEqual(@as(u64, 2), context.policy.actual.value);
+    try t.expect(!context.policy.migrate);
+    const retained = context;
+    var restore = try store.turn(33);
+    try selected.setPolicy(&restore, 44, .{ .value = 2 }, .{ .revision = .{ .value = 3 }, .migrate = true });
+    try store.commit(&restore);
+    try t.expectEqualDeep(retained, context);
+    var abandon = try store.turn(44);
+    _ = try selected.abandon(&abandon, .{ .value = 7 });
+    try store.commit(&abandon);
+    var changed = proposal(8);
+    changed.source = @splat(9);
+    try t.expectError(error.MigrationSourceChanged, selected.begin(&failed, changed));
+    try t.expectEqualSlices(u8, &changed.source, &context.head.source);
+    try t.expectEqualSlices(u8, &owner().configuration.initial_contract, &context.head.observed);
+    try t.expectEqual(@as(usize, 0), mutations(failed));
+}
+
+test "migration diagnostic bounds and unsigned exhaustion never invoke the transform" {
+    const failure = root.MigrationFailure;
+    var store: Store = .{};
+    defer store.entries.deinit();
+    try setup(&store);
+    var context: failure.Witness = .none;
+    var selected = owner();
+    selected.failure = &context;
+    var begin = try store.turn(44);
+    _ = try selected.begin(&begin, proposal(7));
+    try store.commit(&begin);
+    try store.entries.put(M.key(9, 'G', 7, 0), try root.Records.encode('G', M.Progress{ .next = .{ .value = std.math.maxInt(u64) } }));
+    var turn = try store.turn(44);
+    var domain: Domain = .{};
+    try t.expectError(error.MigrationOrdinalExhausted, selected.apply(&turn, .{ .plan = .{ .value = 7 }, .ordinal = .{ .value = std.math.maxInt(u64) }, .operation = 1 }, &domain));
+    try t.expectEqual(@as(usize, 0), domain.calls);
+    try t.expectEqual(@as(usize, 0), mutations(turn));
+    var invalid = proposal(8);
+    invalid.expected.value = std.math.maxInt(u64);
+    try t.expectError(error.InvalidMigrationProposal, selected.proposalDigest(invalid));
+    var policy_turn = try store.turn(33);
+    try t.expectError(error.InvalidMigrationPolicy, selected.setPolicy(&policy_turn, 44, .{ .value = std.math.maxInt(u64) }, .{ .revision = .{}, .migrate = true }));
+    const record = try failure.capture(&turn, &@as([96]u8, @splat('a')), .{ .value = 7 }, .{ .value = 1 }, 1);
+    try t.expectEqual(@as(u16, 159), (try root.Records.encode('e', record)).len);
+    const witness: failure.Witness = .{ .head = .{ .expected = .{ .value = 1 }, .actual = .{ .value = 2 }, .source = @splat(1), .observed = @splat(2), .target = @splat(3), .active = .{ .value = 7 } } };
+    try t.expectEqual(@as(u16, 125), (try root.Records.encode('f', witness)).len);
+    inline for (.{ "MigrationDenied", "MigrationPolicyConflict", "InvalidMigrationPolicy", "InvalidMigrationProposal", "InvalidMigrationStep", "MigrationPlanConflict", "MigrationBusy", "MigrationSourceChanged", "MigrationPlanAbsent", "MigrationStepConflict", "MigrationNotActive", "MigrationAlreadyApplied", "MigrationOrdinalExhausted" }) |cause| {
+        const detail = try failure.project(9, 49, 7, try failure.capture(&turn, cause, .{ .value = 7 }, .{ .value = 1 }, 1), .none, failure.classification(cause).?);
+        try t.expectEqual(p.Diagnostic.Outcome.input_rejected, detail.outcome);
+        try t.expectEqual(p.Diagnostic.Evidence.domain_status, detail.evidence);
+        for (detail.actions) |slot| if (slot) |action| try t.expect(action.kind == .inspect_status or action.kind == .inspect_scope);
+    }
+    try t.expect(failure.classification("OutOfMemory") == null);
+    try t.expect(failure.classification("Unavailable") == null);
 }

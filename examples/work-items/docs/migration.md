@@ -37,3 +37,23 @@ integers, explicitly numbered union tags, one-byte booleans and bounded Values.
 Tags are initialize=0, policy=1, put=2, begin=3, step=4, abandon=5, release_writes=6. The declared
 writer is separate from the administrator and current per-operator migration
 policies. Files, reviewed plans and interface declarations confer no rights.
+
+Each rejected input has paired records under `00 57`, application:u64be, tag `e`
+or `f`, principal:u64be and native input:u64be. Their `AP1e`/`AP1f` values use the
+shared migration failure record and this application's witness. Witness tags are
+ledger=0 (the shared migration witness), epoch=1 (expected/actual epoch, active
+plan, observed/expected contracts and expected-contract presence), cursor=2
+(expected/actual commitments and byte lengths), verification=3 (copy/verify/ready
+phase and copied/verified counts), state=4 (epoch, row key, supplied int64 state),
+target=5 (u32 Table). The largest witness occupies 126 bytes. Cursor commitments
+hash `transit.work_items.cursor.v1\0` and the exact cursor bytes.
+
+The operator reports a semantic explanation on stderr and a structured diagnostic
+with `accepted`, `committed: false` and the original cause on stdout. The native
+input can be admitted while its domain command is rejected. After uncertainty,
+retain the recovery file and reconcile its original signed request. A rejected
+input does not cancel the migration or undo activation. Later policy changes and
+successful steps do not rewrite its original evidence; current resource read
+permission still applies. Stored source values outside the supported encoding
+leave the input unresolved as `WorkItemSourceInvalid`, preserving tentative rows,
+progress and receipts for operator recovery.

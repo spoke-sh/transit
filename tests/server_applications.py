@@ -150,6 +150,14 @@ def run(cli, node, host, worker, operator):
         exported = {key: json.loads(value) for key, value in (line.split(': ', 1) for line in yaml_connection.read_text().splitlines())}
         assert exported == json.loads(connections['inspector'].read_text())
         domain(connections['operator'], 'authorize', 'authorize')
+        invalid = domain(connections['writer'], 'put', 'invalid-state', 99, 99, expect='InvalidWorkItemState')
+        rejected = json.loads(invalid.stdout)
+        detail = rejected['diagnostic']
+        assert rejected['accepted'] > 0 and rejected['committed'] is False, rejected
+        assert detail['code'] == 'work_items.invalid_state' and detail['outcome'] == 'input_rejected', detail
+        facts = {item['field']: item['value'] for item in detail['facts'] if item}
+        assert facts['source_key'] == {'signed': '99'} and facts['supplied_value'] == {'signed': '99'}, facts
+        assert 'stack trace' not in invalid.stderr.lower() and 'operator.zig:' not in invalid.stderr, invalid.stderr
         for i in range(19):
             domain(connections['writer'], 'put', f'put-{i}', i - 9, i % 2)
         assert domain(connections['inspector'], 'inspect')['rows'] == 19
@@ -195,6 +203,8 @@ def run(cli, node, host, worker, operator):
         assert complete['head']['epoch'] == '2' and complete['rows'] == 19 and complete['pages'] >= 3, complete
         domain(connections['writer'], 'put', 'paused-put', 1, 20, expect='WorkItemPublicationPaused')
         domain(connections['operator'], 'release', 'release')
+        recovered = domain(connections['writer'], 'put', 'invalid-state', 99, 99, expect='InvalidWorkItemState')
+        assert json.loads(recovered.stdout) == rejected, 'original input rejection changed after activation'
         domain(connections['writer'], 'put', 'released-put', 1, 10)
         for physical in ('/transit-node ', 'ursula server'):
             prior = fixture.status()['roles'][0]['generation']

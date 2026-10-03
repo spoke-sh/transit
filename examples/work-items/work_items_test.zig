@@ -8,8 +8,10 @@ const Store = struct {
     entries: std.AutoHashMap(p.Value, p.Value) = .init(t.allocator),
     position: u64 = 0,
     pages: usize = 0,
+    fail_read: bool = false,
     fn read(raw: *anyopaque, _: p.Growth.View, key: p.Value) anyerror!?p.Value {
         const self: *@This() = @ptrCast(@alignCast(raw));
+        if (self.fail_read) return error.MigrationDenied;
         return self.entries.get(key);
     }
     fn page(raw: *anyopaque, _: p.Growth.View, after: ?p.Value) anyerror!Page {
@@ -173,4 +175,86 @@ test "target corruption and current migration denial cannot activate or partly c
     var final = try store.turn(44);
     try t.expectEqual(1, (try ledger.head(&final)).epoch.value);
     try t.expectEqualDeep(progress, try ledger.progress(&final, .{ .value = 2 }));
+}
+
+fn handleCommand(store: *Store, principal: u64, command: W.Command) !u64 {
+    var turn = try store.turn(principal);
+    const frame: s.Frame = .{ .kind = .cast, .payload = try command.encode() };
+    turn.delivery.input.value = try frame.encode();
+    var behavior: W.Behavior = .{ .owner = owner() };
+    const handler = behavior.interface();
+    try handler.handle(handler.context, &turn, frame);
+    try store.commit(&turn);
+    return turn.delivery.input.position;
+}
+fn failureAt(store: *Store, principal: u64, input: u64) !W.Failure.Disposition {
+    const Reader = struct {
+        store: *Store,
+        pub fn read(self: *@This(), key: p.Value) !?p.Value {
+            return self.store.entries.get(key);
+        }
+    };
+    var reader: Reader = .{ .store = store };
+    return (try W.Failure.read(owner().configuration, &reader, principal, input)) orelse error.MissingFailure;
+}
+test "work-item handler retains original cursor policy ordinal and state witnesses" {
+    var store: Store = .{};
+    defer store.entries.deinit();
+    try setup(&store, 3);
+    const invalid_state = try handleCommand(&store, 55, .{ .put = .{ .epoch = .{ .value = 1 }, .id = 19, .state = 99 } });
+    const bad_state = try failureAt(&store, 55, invalid_state);
+    try t.expectEqual(@as(i64, 99), bad_state.witness.state.value);
+    try t.expectEqual(@as(i64, 19), bad_state.witness.state.key);
+    _ = try handleCommand(&store, 44, .{ .begin = try owner().proposal(2) });
+    const future = try handleCommand(&store, 44, .{ .step = .{ .plan = .{ .value = 2 }, .ordinal = .{ .value = 3 }, .operation = 1 } });
+    const future_failure = try failureAt(&store, 44, future);
+    try t.expectEqual(@as(u64, 1), future_failure.witness.ledger.progress.next.value);
+    try t.expectEqual(@as(u64, 3), future_failure.witness.ledger.progress.supplied.value);
+    const mismatch = try handleCommand(&store, 44, .{ .step = .{ .plan = .{ .value = 2 }, .ordinal = .{ .value = 1 }, .operation = 1, .arguments = try p.Value.init("wrong cursor") } });
+    const original_cursor = try failureAt(&store, 44, mismatch);
+    try t.expectEqualStrings("work_items.cursor_changed", original_cursor.diagnostic.code.slice());
+    try t.expectEqual(@as(u16, 0), original_cursor.witness.cursor.expected_bytes);
+    try t.expectEqual(@as(u16, 12), original_cursor.witness.cursor.actual_bytes);
+    const activation = try handleCommand(&store, 44, .{ .step = .{ .plan = .{ .value = 2 }, .ordinal = .{ .value = 1 }, .operation = 2 } });
+    const premature = try failureAt(&store, 44, activation);
+    try t.expectEqual(@as(u16, 2), premature.record.operation);
+    try t.expectEqual(.copy, premature.witness.verification.phase);
+    _ = try store.execute(33, .{ .policy = .{ .principal = 44, .expected = .{ .value = 1 }, .next = .{ .revision = .{ .value = 2 }, .migrate = false } } });
+    const denial = try handleCommand(&store, 44, .{ .step = .{ .plan = .{ .value = 2 }, .ordinal = .{ .value = 1 }, .operation = 1 } });
+    const denied = try failureAt(&store, 44, denial);
+    try t.expectEqual(@as(u64, 2), denied.witness.ledger.policy.actual.value);
+    try t.expect(!denied.witness.ledger.policy.migrate);
+    _ = try store.execute(33, .{ .policy = .{ .principal = 44, .expected = .{ .value = 2 }, .next = .{ .revision = .{ .value = 3 }, .migrate = true } } });
+    _ = try finish(&store, 2);
+    try t.expectEqualDeep(denied, try failureAt(&store, 44, denial));
+    try t.expectEqualDeep(original_cursor, try failureAt(&store, 44, mismatch));
+    try t.expectEqualDeep(future_failure, try failureAt(&store, 44, future));
+    for ([_]W.Failure.Disposition{ denied, original_cursor, future_failure, premature, bad_state }) |failure| {
+        try t.expectEqual(p.Diagnostic.Outcome.input_rejected, failure.diagnostic.outcome);
+        for (failure.diagnostic.actions) |slot| if (slot) |action| try t.expect(action.kind == .inspect_status or action.kind == .inspect_scope);
+    }
+    _ = store.entries.remove(W.witnessKey(9, 44, denial));
+    try t.expectError(error.InvalidMigrationFailure, failureAt(&store, 44, denial));
+    try store.entries.put(W.dispositionKey(9, 44, denial), try p.Value.init("MigrationDenied"));
+    try t.expectError(error.InvalidApplicationRecord, failureAt(&store, 44, denial));
+}
+
+test "invalid stored values and failed reads never become caller rejections" {
+    var store: Store = .{};
+    defer store.entries.deinit();
+    try setup(&store, 2);
+    var corrupt = try store.turn(44);
+    const table = try s.Table.open(&corrupt, 1);
+    try table.upsert(&corrupt, .{ .key = -19, .value = .{ .int64 = 99 } });
+    try store.commit(&corrupt);
+    _ = try store.execute(44, .{ .begin = try owner().proposal(2) });
+    const command: W.Command = .{ .step = .{ .plan = .{ .value = 2 }, .ordinal = .{ .value = 1 }, .operation = 1 } };
+    try t.expectError(error.WorkItemSourceInvalid, handleCommand(&store, 44, command));
+    try t.expect(!store.entries.contains(W.dispositionKey(9, 44, store.position)));
+    var read = try store.turn(44);
+    try t.expect((try (try s.Table.open(&read, 2)).get(&read, -20)) == null);
+    try t.expectEqual(@as(u64, 1), (try (try owner().ledger()).progress(&read, .{ .value = 2 })).next.value);
+    store.fail_read = true;
+    try t.expectError(error.MigrationDenied, handleCommand(&store, 44, command));
+    try t.expect(!store.entries.contains(W.dispositionKey(9, 44, store.position)));
 }

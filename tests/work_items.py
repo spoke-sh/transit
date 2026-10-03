@@ -124,6 +124,11 @@ def run(node, worker_binary, caller):
             for _ in range(9): invoke('step')
             # The copy is complete, but activation must still wait for verification.
             current_worker.kill(); current_worker.wait(timeout=10)
+            # Rejected-input witnesses must survive a cold store reconstruction
+            # before later successful steps and activation can change the ledger.
+            current_node.kill(); current_node.wait(timeout=10)
+            fixture.stop(); fixture.start()
+            current_node = authority()
             invoke('fence')
             current_worker = worker('worker-verify-recovered')
             invoke('finish')

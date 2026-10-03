@@ -88,6 +88,14 @@ administrator release of writes follow separately. A changed UI definition
 cannot claim data has migrated. Abandonment cannot undo activation or erase plan
 and step evidence; broader transforms need their own implementation and proof.
 
+Rejected migration inputs retain the original policy, epoch/contract, step
+commitment or ordinal conflict. Work-item rejections also identify mismatched
+cursor commitments, incomplete verification counts and invalid submitted states.
+These records survive later progress or activation and remain separate from
+committed step receipts. Inspection requires current resource access. Stored-data
+corruption and infrastructure failures leave the input unresolved rather than
+claiming a terminal caller rejection.
+
 ## Contracts and commands
 
 - [Local installation guide](../../apps/transit-cli/docs/applications.md): management commands, exports, replacement and recovery.

@@ -9,7 +9,7 @@ const Realm = 51;
 const Operator = 65537;
 const Worker = 65536;
 const Admin = @import("growing_support.zig").Admin(Realm);
-pub const Saved = struct { pid: u64, resource: u64, generation: u64, activation: u8 = 8 };
+pub const Saved = struct { pid: u64, resource: u64, generation: u64, activation: u8 = 8, denied_input: u64 = 0, cursor_input: u64 = 0, ordinal_input: u64 = 0 };
 pub fn owner(saved: Saved) W {
     return .{ .configuration = .{ .application = 9, .realm = Realm, .administrator = Operator, .writer = Operator, .resource = saved.resource } };
 }
@@ -67,9 +67,19 @@ pub const Caller = struct {
             if (std.Io.Clock.boot.now(io).toMilliseconds() > deadline) return error.WorkerTimeout;
             try io.sleep(.fromMilliseconds(25), .awake);
         }
-        const disposition = try self.query(.{ .read_entries = .{ .resource = self.saved.resource, .keys = .{W.dispositionKey(9, Operator, receipt.position)} ++ @as([7]?p.Value, @splat(null)) } });
-        const error_value = if (disposition.body.read_entries.entries[0]) |entry| entry.value else null;
-        if (reason) |expected| try t.expectEqualStrings(expected, (error_value orelse return error.MissingDisposition).slice()) else try t.expect(error_value == null);
+        var reader = try self.read();
+        const failure = try W.Failure.read(owner(self.saved).configuration, &reader, Operator, receipt.position);
+        if (reason) |expected| {
+            const value = failure orelse return error.MissingDisposition;
+            try t.expectEqualStrings(expected, value.record.cause.slice());
+            try t.expectEqual(p.Diagnostic.Outcome.input_rejected, value.diagnostic.outcome);
+            const frame = try (s.Frame{ .kind = .cast, .payload = payload }).encode();
+            var digest = std.crypto.hash.sha2.Sha256.init(.{});
+            digest.update("transit.application.migration.input.v1\x00");
+            digest.update(frame.slice());
+            try t.expectEqualSlices(u8, &digest.finalResult(), &value.record.payload);
+            for (value.diagnostic.actions) |slot| if (slot) |action| try t.expect(action.kind == .inspect_status or action.kind == .inspect_scope);
+        } else try t.expect(failure == null);
         return receipt.position;
     }
 };
@@ -134,10 +144,13 @@ pub fn main(init: std.process.Init) !void {
         var reader = try caller.read();
         const before = try ledger.progress(&reader, .{ .value = 2 });
         _ = try caller.send(init.io, .{ .policy = .{ .principal = Operator, .expected = .{ .value = 1 }, .next = .{ .revision = .{ .value = 2 }, .migrate = false } } }, null);
-        _ = try caller.send(init.io, .{ .step = .{ .plan = .{ .value = 2 }, .ordinal = before.next, .operation = 1, .arguments = before.cursor } }, "MigrationDenied");
+        saved.denied_input = try caller.send(init.io, .{ .step = .{ .plan = .{ .value = 2 }, .ordinal = before.next, .operation = 1, .arguments = before.cursor } }, "MigrationDenied");
         reader = try caller.read();
         try t.expectEqualDeep(before, try ledger.progress(&reader, .{ .value = 2 }));
         _ = try caller.send(init.io, .{ .policy = .{ .principal = Operator, .expected = .{ .value = 2 }, .next = .{ .revision = .{ .value = 3 }, .migrate = true } } }, null);
+        saved.cursor_input = try caller.send(init.io, .{ .step = .{ .plan = .{ .value = 2 }, .ordinal = before.next, .operation = 1, .arguments = try p.Value.init("wrong cursor") } }, "WorkItemCursorChanged");
+        saved.ordinal_input = try caller.send(init.io, .{ .step = .{ .plan = .{ .value = 2 }, .ordinal = .{ .value = before.next.value + 2 }, .operation = 1, .arguments = before.cursor } }, "MigrationStepConflict");
+        try write(init, saved_path, saved);
     } else if (std.mem.eql(u8, phase, "step") or std.mem.eql(u8, phase, "finish")) {
         for (0..100) |_| {
             var reader = try caller.read();
@@ -162,5 +175,20 @@ pub fn main(init: std.process.Init) !void {
         _ = try caller.send(init.io, .{ .release_writes = .{ .epoch = .{ .value = 2 }, .contract = head.contract } }, null);
         _ = try caller.send(init.io, .{ .put = .{ .epoch = .{ .value = 2 }, .id = 99, .state = 20 } }, null);
         _ = try caller.send(init.io, .{ .abandon = .{ .value = 2 } }, "MigrationAlreadyApplied");
+        reader = try caller.read();
+        const denial = (try W.Failure.read(owner(saved).configuration, &reader, Operator, saved.denied_input)).?;
+        try t.expectEqual(@as(u64, 2), denial.witness.ledger.policy.actual.value);
+        try t.expect(!denial.witness.ledger.policy.migrate);
+        const cursor_failure = (try W.Failure.read(owner(saved).configuration, &reader, Operator, saved.cursor_input)).?;
+        try t.expectEqualStrings("work_items.cursor_changed", cursor_failure.diagnostic.code.slice());
+        try t.expect(!std.mem.eql(u8, &cursor_failure.witness.cursor.expected, &cursor_failure.witness.cursor.actual));
+        const ordinal_failure = (try W.Failure.read(owner(saved).configuration, &reader, Operator, saved.ordinal_input)).?;
+        try t.expectEqual(ordinal_failure.witness.ledger.progress.next.value + 2, ordinal_failure.witness.ledger.progress.supplied.value);
+        try t.expectEqual(W.app.Migration.Phase.active, ordinal_failure.witness.ledger.progress.phase);
+        // Historical rejection is unchanged after activation and later policy restoration.
+        try t.expectEqual(W.app.Migration.Phase.applied, (try ledger.progress(&reader, .{ .value = 2 })).phase);
+        _ = try admin.submit(.{ .grant_resource = .{ .resource = saved.resource, .subject = Operator, .permissions = p.State.permission(.inspect) } });
+        var denied_reader = try caller.read();
+        try t.expectError(error.AccessDenied, W.Failure.read(owner(saved).configuration, &denied_reader, Operator, saved.denied_input));
     } else return error.UnknownPhase;
 }

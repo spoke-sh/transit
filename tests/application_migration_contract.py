@@ -20,7 +20,13 @@ def fixture():
     progress = dict(next=str(maximum), phase='active', cursor='6364', input=92)
     progress_wire = struct.pack('<QB', maximum, 1) + b'\x02cd' + struct.pack('<Q', 92)
     receipt = dict(plan=str(maximum), ordinal=str(maximum - 1), digest=list(step_digest), input=92, progress=progress)
-    return dict(version=1, plan=plan, plan_hex=(b'AP1A' + wire + digest + struct.pack('<QQ', 44, 91)).hex(),
+    cause = b'MigrationStepConflict'
+    failure = dict(cause=cause.hex(), input=93, plan=str(maximum), ordinal=str(maximum - 1), operation=4,
+                   payload=list(hashlib.sha256(b'transit.application.migration.input.v1\0proposal').digest()))
+    failure_wire = b'AP1e' + bytes([len(cause)]) + cause + struct.pack('<QQQH', 93, maximum, maximum - 1, 4) + bytes(failure['payload'])
+    witness = dict(step=dict(expected=list(step_digest), actual=list(range(32))))
+    witness_wire = b'AP1f\x04' + step_digest + bytes(range(32))
+    return dict(version=1, failure=failure, failure_hex=failure_wire.hex(), witness=witness, witness_hex=witness_wire.hex(), plan=plan, plan_hex=(b'AP1A' + wire + digest + struct.pack('<QQ', 44, 91)).hex(),
                 step=step, step_digest=list(step_digest), progress=progress, progress_hex=(b'AP1G' + progress_wire).hex(),
                 receipt=receipt, receipt_hex=(b'AP1S' + struct.pack('<QQ', maximum, maximum - 1) + step_digest + struct.pack('<Q', 92) + progress_wire).hex(),
                 key_hex=(b'\x00M' + struct.pack('>Q', 9) + b'S' + struct.pack('>QQ', maximum, maximum - 1)).hex())

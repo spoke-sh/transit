@@ -154,3 +154,10 @@ compiler and incomplete-upload evidence survives later state changes. Native
 observations expose the typed input disposition alongside the independent receipt;
 all selected fields fit one eight-key read. The input commitment contains no
 payload values. Infrastructure failure still leaves accepted work unresolved.
+
+`MigrationFailure` captures policy, proposal, epoch/contract and step witnesses
+at the original rejecting check. Applications commit its bounded record and
+witness only after rolling back the attempted transition; work-items adds its
+cursor, verification and submitted-state evidence. The operator projects typed
+`input_rejected` detail after a current authorized read. Original step receipts
+and activation remain independent, and later state cannot rewrite the witness.

@@ -6674,7 +6674,7 @@
       },
       "outcomes": {
         "Definition": [
-          "@\"682928908924c932d9281f8e4fa5ed4adff2c704e39bb4bf11aba4bd2cbeeeda\""
+          "c750e7034f20d2446bfe44c7ad19a3ca45b415a0a02754523dc280cf74e20d15"
         ],
         "Command": [
           "grant",
@@ -8813,16 +8813,17 @@
     "packages/zig/transit-station-app/src/Migration.zig": {
       "errors": {
         "InvalidMigrationConfiguration": 2,
-        "InvalidMigrationPolicy": 1,
-        "InvalidMigrationProposal": 1,
+        "InvalidMigrationPolicy": 2,
+        "InvalidMigrationProposal": 2,
         "InvalidMigrationStep": 1,
         "MigrationAlreadyApplied": 1,
         "MigrationBusy": 1,
         "MigrationConfigurationChanged": 3,
         "MigrationCursorTooLarge": 1,
-        "MigrationDenied": 7,
+        "MigrationDenied": 6,
         "MigrationNotActive": 2,
         "MigrationNotInitialized": 2,
+        "MigrationOrdinalExhausted": 1,
         "MigrationPlanAbsent": 3,
         "MigrationPlanConflict": 1,
         "MigrationPolicyConflict": 1,
@@ -8838,6 +8839,26 @@
         "Transition": [
           "advance",
           "activate"
+        ]
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
+    "packages/zig/transit-station-app/src/MigrationFailure.zig": {
+      "errors": {
+        "InvalidMigrationFailure": 7
+      },
+      "outcomes": {
+        "Witness": [
+          "none",
+          "policy",
+          "head",
+          "plan",
+          "step",
+          "progress",
+          "owner"
         ]
       },
       "imports": [
@@ -9117,6 +9138,7 @@
         "Host.zig",
         "HostDiagnostic.zig",
         "Migration.zig",
+        "MigrationFailure.zig",
         "Model.zig",
         "Native.zig",
         "Publication.zig",

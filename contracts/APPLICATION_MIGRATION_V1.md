@@ -83,6 +83,31 @@ never permission to expire work, unpause writes, discard receipts or infer that 
 step did not commit. Current resource grants and permanent retirement continue to
 apply to reads and replay independently of the ledger.
 
+Rejected inputs retain evidence separately from committed plan/step receipts.
+The shared owner captures the policy, original plan/step commitments, next ordinal,
+phase, active plan or expected/observed epoch and contracts at the failing check.
+It performs no extra metadata reads to reconstruct that explanation. An absent
+policy is explicit; abandonment of an applied plan retains its observed progress
+without inferring a current head. Counter overflow is a specific invalid policy,
+invalid proposal or exhausted step-ordinal rejection. Exhaustion does not invoke
+the domain transform.
+
+The work-item command handler rolls back the attempted decision before recording
+a rejection and its companion witness in two mutations. Its domain witnesses
+retain cursor commitments and lengths, copy/verification phase and counts,
+submitted state/key, target Table or data epoch/contract. Invalid values already
+stored in the source use `WorkItemSourceInvalid` and remain unresolved, as do
+read, allocation and transform failures; they are not invalid caller values.
+Later progress, policy restoration and activation do not rewrite a historical
+rejection. Current resource read rights govern disclosure.
+
+The diagnostic outcome is `input_rejected`, with the exact input and original
+plan/ordinal when available. It does not settle the whole migration, release the
+write pause, erase earlier steps or authorize a fresh retry. Retained phase and
+step receipts establish those separate outcomes. The application operator emits
+the complete structured diagnostic with `committed: false`, preserving native
+admission separately from domain acceptance.
+
 ## Verification
 
 Independent canonical fixtures precede transport wiring. Deterministic tests must
@@ -129,3 +154,25 @@ protects the commit boundary, not the honesty of arbitrary domain computation.
 The work-item owner enforces its write pause and verifies the complete target
 before activation. Other application owners must enforce the same boundary for
 their own transforms.
+
+### Rejected input records
+
+The shared bounded rejection record contains, in order, cause (a length-prefixed
+Value of 1–96 bytes), native input:u64, plan:u64, ordinal:u64, operation:u16 and
+the complete original Station frame commitment:32 bytes. The commitment is
+SHA-256 over `transit.application.migration.input.v1\0` and the frame. Zero plan,
+ordinal or operation indicates an inapplicable identity where the command does
+not name one; a submitted step operation zero remains available as invalid input.
+With the `AP1e` header, the primary record occupies at most 159 bytes.
+
+The shared witness is a numbered union: none=0; policy=1 (principal, expected and
+actual policy revisions, presence and migration permission); head=2 (expected and
+actual epoch, source/observed/target contract commitments, active plan); plan=3
+(original/submitted commitments, owner and caller); step=4 (original/submitted
+commitments); progress=5 (next/supplied ordinals, phase, active plan and whether
+that active identity was observed); owner=6 (plan owner and caller). Its largest
+`AP1f` record occupies 125 bytes. The work-item witness wraps this union and adds
+the application variants described in its [migration guide](../examples/work-items/docs/migration.md).
+Both records must exist at the same authorized resource view; missing companions,
+old bare error strings and mismatched input identities reject. Independent fixtures
+pin full-width record layouts and the original frame commitment.

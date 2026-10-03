@@ -12769,3 +12769,39 @@ native publication, browser recovery and disk-backed Ursula. An earlier package
 invocation used an invalid build-file working directory; corrected package and
 root checks passed. Migration, reactive/effect mappings and complete semantic
 inventory coverage remain separate increments.
+
+### Original migration rejection evidence — 2026-10-03
+
+Migration owners retain the original policy, epoch/contract, plan/step commitment,
+ordinal and phase evidence at the rejecting check. Work-items adds cursor,
+verification, target Table and submitted-state witnesses. Its handler discards
+the attempted transition before committing the two rejection records. A shared
+definition cutover rejects older stored framework semantics and signed requests;
+generated contracts/bindings and independent fixtures are regenerated.
+
+Executed application package and work-item unit tests: **passed**. Independent
+Python bytes pin full-width migration failure records and frame commitments.
+Tests cover every shared expected reason's outcome/actions, maximum 159-byte
+primary and 125-byte shared witness records, original policy/ordinal/digest
+evidence, cursor and state detail after activation, missing/old records, counter
+exhaustion before transform execution and failed-read rollback. Invalid stored
+source values use a distinct unresolved error and cannot commit tentative rows
+or a caller rejection.
+
+Executed `just test::work-items`: **passed**, 13.58 seconds excluding compilation,
+55 turns, at most four mutations/142 value bytes and 20 bounded page reads. It
+covers nineteen rows, exact operator/worker retries, two fresh-key replacements
+and two node/disk-store restarts. Historical policy, cursor and ordinal witnesses
+survive later activation and restored policy. Current resource read revocation
+returns `AccessDenied` before disclosure. An earlier run expected the less specific
+`Rejected` error at that assertion; it is not counted as a pass.
+
+Executed `just test::work-items-browser`: **passed**, 80.30 seconds. The real browser
+retains publication/schema migration, exact recovery/cancellation, gateway
+replacement and current denial. Executed `just test::server-applications`:
+**passed**, 41.547 seconds, nineteen rows and 21 receipts through installed CLI
+applications and replacement/recovery. The real operator emits structured invalid
+state detail without a Zig stack trace, and exact saved replay after activation
+returns byte-equivalent parsed diagnostic content. Full `just check` passes,
+including generated contracts, 481 CLI cases, frontend tests and the handbook build.
+Reactive/effect mappings and complete semantic inventory coverage remain open.

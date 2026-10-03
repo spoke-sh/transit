@@ -8,7 +8,15 @@ const M = app.Migration;
 const Wide = app.Model.Wide;
 const Self = @This();
 pub const Configuration = struct { application: u64, realm: u64, administrator: u64, writer: u64, resource: u64 };
+pub const Failure = @import("WorkItemFailure.zig");
 configuration: Configuration,
+failure: ?*Failure.Context = null,
+fn remember(self: Self, witness: Failure.Witness) void {
+    if (self.failure) |failure| failure.domain = witness;
+}
+fn rememberEpoch(self: Self, expected: Wide, head: M.Head, contract: ?[32]u8) void {
+    self.remember(.{ .epoch = .{ .expected = expected, .actual = head.epoch, .active = head.active, .actual_contract = head.contract, .expected_contract = contract orelse @splat(0), .contract_known = contract != null } });
+}
 pub const Command = union(enum(u8)) {
     initialize: void = 0,
     policy: struct { principal: u64, expected: Wide, next: M.Policy } = 1,
@@ -50,7 +58,7 @@ pub fn source(self: Self, table: u32) !query.SourceDefinition {
     return .{ .resource = self.configuration.resource, .source = .{ .table = .{ .id = table, .schema = .{ .names = .{ try .init("id"), try .init(if (table == 1) "status" else "state") }, .value_type = .int64 } } } };
 }
 pub fn ledger(self: Self) !M {
-    return .{ .configuration = .{ .application = self.configuration.application, .realm = self.configuration.realm, .administrator = self.configuration.administrator, .initial_epoch = .{ .value = 1 }, .initial_contract = try (try self.source(1)).fingerprint() } };
+    return .{ .configuration = .{ .application = self.configuration.application, .realm = self.configuration.realm, .administrator = self.configuration.administrator, .initial_epoch = .{ .value = 1 }, .initial_contract = try (try self.source(1)).fingerprint() }, .failure = if (self.failure) |failure| &failure.ledger else null };
 }
 pub fn proposal(self: Self, id: u32) !M.Proposal {
     if (id < 2) return error.InvalidWorkItemPlan;
@@ -82,10 +90,22 @@ pub fn execute(self: Self, turn: *s.Turn, command: Command) !void {
         .put => |value| {
             if (turn.delivery.input.origin.external.principal != self.configuration.writer) return error.WorkItemDenied;
             const head = try owner.head(turn);
-            if (head.active.value != 0) return error.WorkItemMigrationPaused;
-            if (head.epoch.value != value.epoch.value) return error.WorkItemEpochChanged;
-            if (head.epoch.value != 1 and !(try app.Records.decode(Active, 'a', (try turn.read(active_table)) orelse return error.WorkItemStateMissing)).writes) return error.WorkItemPublicationPaused;
-            if (value.state != (if (head.epoch.value == 1) @as(i64, 0) else 10) and value.state != (if (head.epoch.value == 1) @as(i64, 1) else 20)) return error.InvalidWorkItemState;
+            if (head.active.value != 0) {
+                self.rememberEpoch(value.epoch, head, null);
+                return error.WorkItemMigrationPaused;
+            }
+            if (head.epoch.value != value.epoch.value) {
+                self.rememberEpoch(value.epoch, head, null);
+                return error.WorkItemEpochChanged;
+            }
+            if (head.epoch.value != 1 and !(try app.Records.decode(Active, 'a', (try turn.read(active_table)) orelse return error.WorkItemStateMissing)).writes) {
+                self.rememberEpoch(value.epoch, head, null);
+                return error.WorkItemPublicationPaused;
+            }
+            if (value.state != (if (head.epoch.value == 1) @as(i64, 0) else 10) and value.state != (if (head.epoch.value == 1) @as(i64, 1) else 20)) {
+                self.remember(.{ .state = .{ .epoch = head.epoch, .key = value.id, .value = value.state } });
+                return error.InvalidWorkItemState;
+            }
             const table = try s.Table.open(turn, try self.selected(turn));
             try table.upsert(turn, .{ .key = value.id, .value = .{ .int64 = value.state } });
         },
@@ -93,14 +113,22 @@ pub fn execute(self: Self, turn: *s.Turn, command: Command) !void {
             if (value.plan.value < 2 or value.plan.value > std.math.maxInt(u32) or !std.meta.eql(value, try self.proposal(@intCast(value.plan.value)))) return error.InvalidWorkItemPlan;
             const exists = try owner.plan(turn, value.plan) != null;
             _ = try owner.begin(turn, value);
-            if (!exists) _ = try s.Table.create(turn, @intCast(value.plan.value), (try self.source(@intCast(value.plan.value))).source.table.schema);
+            if (!exists) {
+                _ = s.Table.create(turn, @intCast(value.plan.value), (try self.source(@intCast(value.plan.value))).source.table.schema) catch |err| {
+                    if (err == error.TableExists) self.remember(.{ .target = @intCast(value.plan.value) });
+                    return err;
+                };
+            }
         },
         .step => |value| _ = try owner.apply(turn, value, self),
         .abandon => |value| _ = try owner.abandon(turn, value),
         .release_writes => |value| {
             if (turn.delivery.input.origin.external.principal != self.configuration.administrator) return error.WorkItemDenied;
             const head = try owner.head(turn);
-            if (head.epoch.value != value.epoch.value or head.epoch.value != 2 or head.active.value != 0 or !std.mem.eql(u8, &head.contract, &value.contract)) return error.WorkItemEpochChanged;
+            if (head.epoch.value != value.epoch.value or head.epoch.value != 2 or head.active.value != 0 or !std.mem.eql(u8, &head.contract, &value.contract)) {
+                self.rememberEpoch(value.epoch, head, value.contract);
+                return error.WorkItemEpochChanged;
+            }
             var state = try app.Records.decode(Active, 'a', (try turn.read(active_table)) orelse return error.WorkItemStateMissing);
             if (state.writes) return;
             state.writes = true;
@@ -113,15 +141,24 @@ fn pageAfter(table: s.Table, turn: *s.Turn, cursor: Cursor) !s.Table.Page {
     return table.page(turn, if (cursor.has_after) .{ .source = .{ .view = turn.view.id }, .resource = table.resource, .revision = turn.view.revision, .table = table.id, .schema = try table.schema.fingerprint(), .after = cursor.after } else null);
 }
 pub fn apply(self: Self, turn: *s.Turn, plan: M.Plan, progress: M.Progress, step: M.Step) !M.Transition {
-    if (!step.arguments.eql(progress.cursor)) return error.WorkItemCursorChanged;
+    if (!step.arguments.eql(progress.cursor)) {
+        self.remember(Failure.cursor(progress.cursor, step.arguments));
+        return error.WorkItemCursorChanged;
+    }
     var cursor = try Cursor.decode(progress.cursor);
     const target: u32 = @intCast(plan.proposal.plan.value);
     if (step.operation == 2) {
-        if (cursor.phase != .ready or cursor.copied != cursor.verified) return error.WorkItemVerificationIncomplete;
+        if (cursor.phase != .ready or cursor.copied != cursor.verified) {
+            self.remember(.{ .verification = .{ .phase = cursor.phase, .copied = cursor.copied, .verified = cursor.verified } });
+            return error.WorkItemVerificationIncomplete;
+        }
         try turn.write(active_table, try app.Records.encode('a', Active{ .table = target, .writes = false }));
         return .{ .activate = {} };
     }
-    if (step.operation != 1 or cursor.phase == .ready) return error.InvalidWorkItemStep;
+    if (step.operation != 1 or cursor.phase == .ready) {
+        self.remember(.{ .verification = .{ .phase = cursor.phase, .copied = cursor.copied, .verified = cursor.verified } });
+        return error.InvalidWorkItemStep;
+    }
     const from = try s.Table.open(turn, 1);
     const to = try s.Table.open(turn, target);
     const page = try pageAfter(if (cursor.phase == .copy) from else to, turn, cursor);
@@ -145,20 +182,24 @@ pub fn apply(self: Self, turn: *s.Turn, plan: M.Plan, progress: M.Progress, step
         cursor.after = 0;
         if (cursor.phase == .ready and cursor.copied != cursor.verified) return error.WorkItemVerificationFailed;
     }
-    _ = self;
     return .{ .advance = try cursor.encode() };
 }
 fn translate(value: query.fuze.model.Cell) !i64 {
-    if (value != .int64) return error.InvalidWorkItemState;
+    if (value != .int64) return error.WorkItemSourceInvalid;
     return switch (value.int64) {
         0 => 10,
         1 => 20,
-        else => error.InvalidWorkItemState,
+        else => error.WorkItemSourceInvalid,
     };
 }
 pub fn dispositionKey(application: u64, principal: u64, input: u64) p.Value {
     var key = app.Records.key(application, 'e', principal, input);
     key.data[1] = 'W';
+    return key;
+}
+pub fn witnessKey(application: u64, principal: u64, input: u64) p.Value {
+    var key = dispositionKey(application, principal, input);
+    key.data[10] = 'f';
     return key;
 }
 pub const Behavior = struct {
@@ -177,8 +218,22 @@ pub const Behavior = struct {
         try get(raw).owner.initialize(turn);
     }
     fn disposition(self: *@This(), turn: *s.Turn, reason: []const u8) !void {
+        return self.dispositionContext(turn, reason, null, .{});
+    }
+    fn dispositionContext(self: *@This(), turn: *s.Turn, reason: []const u8, command: ?Command, context: Failure.Context) !void {
         const principal = if (turn.delivery.input.origin == .external) turn.delivery.input.origin.external.principal else 0;
-        try turn.write(dispositionKey(self.owner.configuration.application, principal, turn.delivery.input.position), try p.Value.init(reason));
+        const plan: Wide = if (command) |cmd| switch (cmd) {
+            .begin => |proposal_value| proposal_value.plan,
+            .step => |step| step.plan,
+            .abandon => |id| id,
+            else => .{},
+        } else .{};
+        const ordinal: Wide = if (command) |cmd| if (cmd == .step) cmd.step.ordinal else .{} else .{};
+        const operation: u16 = if (command) |cmd| if (cmd == .step) cmd.step.operation else 0 else 0;
+        const record = try app.MigrationFailure.capture(turn, reason, plan, ordinal, operation);
+        try turn.write(dispositionKey(self.owner.configuration.application, principal, turn.delivery.input.position), try app.Records.encode('e', record));
+        const witness: Failure.Witness = context.domain orelse .{ .ledger = context.ledger };
+        try turn.write(witnessKey(self.owner.configuration.application, principal, turn.delivery.input.position), try app.Records.encode('f', witness));
     }
     fn reject(raw: ?*anyopaque, turn: *s.Turn) anyerror!bool {
         const self = get(raw);
@@ -238,21 +293,23 @@ pub const Behavior = struct {
             }
         }
         const before = turn.decision;
-        self.owner.execute(turn, try Command.decode(frame.payload)) catch |err| {
+        const command = try Command.decode(frame.payload);
+        var context: Failure.Context = .{};
+        var owner_value = self.owner;
+        owner_value.failure = &context;
+        owner_value.execute(turn, command) catch |err| {
             turn.decision = before;
             if (turn.read_error != null or !requestError(err)) return err;
-            try self.disposition(turn, @errorName(err));
+            try self.dispositionContext(turn, @errorName(err), command, context);
         };
     }
 };
 fn requestError(err: anyerror) bool {
-    return switch (err) {
-        error.WorkItemDenied, error.WorkItemMigrationPaused, error.WorkItemPublicationPaused, error.WorkItemEpochChanged, error.InvalidWorkItemState, error.InvalidWorkItemPlan, error.InvalidWorkItemStep, error.WorkItemCursorChanged, error.WorkItemVerificationIncomplete, error.MigrationDenied, error.MigrationPolicyConflict, error.InvalidMigrationPolicy, error.MigrationPlanConflict, error.MigrationBusy, error.MigrationSourceChanged, error.MigrationPlanAbsent, error.MigrationStepConflict, error.MigrationNotActive, error.MigrationAlreadyApplied, error.InvalidMigrationStep, error.InvalidMigrationProposal, error.TableExists => true,
-        // Corrupt data, read failures and transform failures leave the input
-        // unresolved. They must never become a fabricated successful step.
-        else => false,
-    };
+    // The finite domain map excludes infrastructure, corruption and transform
+    // failures. Those leave the input unresolved and preserve its original work.
+    return Failure.classification(@errorName(err)) != null;
 }
+
 test {
     _ = @import("work_items_test.zig");
 }

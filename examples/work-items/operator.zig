@@ -31,7 +31,13 @@ fn print(init: std.process.Init, value: anytype) !void {
     try writer.interface.writeByte('\n');
     try writer.interface.flush();
 }
-pub fn main(init: std.process.Init) !void {
+pub fn main(init: std.process.Init) void {
+    run(init) catch |err| {
+        if (err != error.DomainRejected) std.debug.print("error: {s}\n", .{@errorName(err)});
+        std.process.exit(1);
+    };
+}
+fn run(init: std.process.Init) !void {
     const args = try init.minimal.args.toSlice(init.arena.allocator());
     if (args.len == 3 and std.mem.eql(u8, args[1], "manifest")) {
         const declaration: A.Declaration = .{ .application = "work-items", .roles = &.{.{ .name = "data", .contract = "work-items-v1", .artifact = .{ .path = args[2] }, .configuration = "{\"application\":9}", .accesses = &.{.{ .name = "state", .resource = "data", .permissions = 7 }} }}, .resources = &.{.{ .name = "data", .writer = "data" }}, .callers = &.{ .{ .name = "operator", .send_to = "data", .reads = &.{.{ .resource = "data" }} }, .{ .name = "writer", .send_to = "data", .reads = &.{.{ .resource = "data" }} }, .{ .name = "inspector", .reads = &.{.{ .resource = "data" }} } }, .initialize = &.{.{ .role = "data", .caller = "operator", .value = try (s.Frame{ .kind = .cast, .payload = try (W.Command{ .initialize = {} }).encode() }).encode() }} };
@@ -123,8 +129,9 @@ pub fn main(init: std.process.Init) !void {
         try init.io.sleep(.fromMilliseconds(50), .awake);
     }
     var reader = try resources.open(resource);
-    if (try reader.read(W.dispositionKey(9, config.principal, receipt.position))) |reason| {
-        std.debug.print("work-items: {s}\n", .{reason.slice()});
+    if (try W.Failure.read(owner.configuration, &reader, config.principal, receipt.position)) |failure| {
+        std.debug.print("work-items: {s} [{s}] ({s})\n", .{ failure.diagnostic.message.slice(), failure.diagnostic.code.slice(), failure.record.cause.slice() });
+        try print(init, .{ .accepted = receipt.position, .committed = false, .err = failure.record.cause.slice(), .diagnostic = failure.diagnostic });
         return error.DomainRejected;
     }
     try print(init, .{ .accepted = receipt.position, .committed = true });
