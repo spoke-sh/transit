@@ -73,6 +73,10 @@ Examples include the actual body-size limit, a later invalid header/target piece
 and the credential-reference index that fails policy. Credential contents and
 private binding paths remain withheld. Inspection creates no new attempt.
 
+If admission rejects a call, no route or capture exists for it. An `accept`
+activation reports the missing admitted call and preserves the correlated
+rejection; it does not replace that rejection with a capture lookup failure.
+
 ## Capture and publication
 
 HTTP and gRPC reuse the [Exchange contract](../../contracts/STATION_EXCHANGE_V1.md)

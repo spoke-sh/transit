@@ -372,6 +372,15 @@ def run(node, cli, raw_library, worker, install, label, *, public_release=False,
                         exchange=2**64-2, followup={'parent': 2**64-1, 'reason': reason})
                     result = invoke()
                     assert result['phase'] == 'not_admitted' and result['outcome'] == 'not_committed'
+                    # An accept activation must preserve the admission failure
+                    # instead of inspecting nonexistent child capture evidence.
+                    own(service)
+                    worker_config.update(generation=service['generation'], mode='accept')
+                    refused = subprocess.run([worker, config_file('worker', worker_config)],
+                                             capture_output=True, timeout=30)
+                    missing_call = b'MissingGrpcCall' if rpc else b'MissingHttpCall'
+                    assert refused.returncode != 0 and missing_call in refused.stderr, refused
+                    assert b'ExchangeNotFound' not in refused.stderr and not refused.stdout, refused
                     outputs = deliver()
                     assert len(outputs) == 1 and outputs[0]['destination'] == caller['pid']
                     import hashlib

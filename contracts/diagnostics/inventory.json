@@ -2223,7 +2223,7 @@
         "InvalidGrpcCredential": 2,
         "InvalidGrpcIdempotencyKey": 1,
         "MissingGrpcBatch": 1,
-        "MissingGrpcCall": 1,
+        "MissingGrpcCall": 2,
         "MissingGrpcRequest": 1,
         "MissingReconciliationDeadline": 1,
         "OutOfMemory": 1,
@@ -2262,7 +2262,7 @@
       },
       "open_error_set_uses": 2,
       "propagation": {
-        "try": 112,
+        "try": 114,
         "catch": 14
       },
       "imports": [
@@ -2332,7 +2332,7 @@
         "InvalidHttpCapture": 2,
         "InvalidHttpCredential": 2,
         "InvalidHttpIdempotencyKey": 1,
-        "MissingHttpCall": 1,
+        "MissingHttpCall": 2,
         "MissingHttpRequest": 1,
         "MissingReconciliationDeadline": 1,
         "OutOfMemory": 2,
@@ -2369,7 +2369,7 @@
       },
       "open_error_set_uses": 3,
       "propagation": {
-        "try": 113,
+        "try": 115,
         "catch": 16
       },
       "imports": [

@@ -13785,3 +13785,21 @@ passes **568 real commands**, including absent input and schema paths with origi
 OS/read causes and no result output. `just test::file-query` passes all **190 cases**,
 including checked gzip, exact codecs, cancellation, immutable capture and the
 192 MiB input under a 96 MiB address-space bound. No wire format changes.
+
+### Rejected connector admission before capture inspection (2026-10-03)
+
+Clean `just ci-clean --complete` at `20c88a421543eeb3ac7855cc987b71bfbdb7db9f`
+passed its first 45 tasks, then failed the HTTP worker's rejected-followup case:
+an accepted-preparation diagnostic lookup replaced `MissingHttpCall` with
+`ExchangeNotFound` for a child that had never been admitted. Both HTTP and gRPC
+workers now establish the admitted route before reading capture failure evidence.
+The shared installed SDK schedule exercises a fresh `accept` activation after
+each rejected followup, preserving the single original correlated rejection and
+asserting no result output or invented capture failure.
+
+Full pinned `just check` and the installed Python HTTP schedule pass with the fix.
+The complete worker, all-language and clean-checkout reruns remain separate
+qualification. The failed clean checkout is retained at
+`/var/tmp/transit-ci-hko3_uj9`, with `completed: false`; it is not a clean pass.
+Logs: `/var/tmp/transit-diagnostics-qualified-clean.log` and
+`/var/tmp/transit-diagnostics-admission-{check,http,sdk}.log`.

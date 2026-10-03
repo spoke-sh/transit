@@ -377,6 +377,10 @@ fn run(init: std.process.Init, diagnostics: *telemetry.Runtime) !void {
     } else return error.WorkerMailboxBusy;
     if (config.mode == .prepare or config.mode == .accept) preparation: {
         if (config.mode == .accept) {
+            // Rejected calls allocate neither a route nor a capture. Establish
+            // admission before inspecting an accepted preparation failure.
+            var source = try driver.reader.reader(ex.resource);
+            _ = (try rpc.Service.route(ex, &source)) orelse return error.MissingGrpcCall;
             if (try driver.reader.failure(ex.resource, ex.id)) |original| {
                 if (original.reason == .preparation_failure) {
                     try driver.apply(.publish);
