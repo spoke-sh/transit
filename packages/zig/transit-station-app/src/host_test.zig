@@ -70,3 +70,29 @@ test "application host keeps declaration coordinates and exact attempt evidence"
     try t.expectEqual(.not_applicable, read_denied.outcome);
     try t.expectEqual(.read, read_denied.stage);
 }
+
+test "every application host cause preserves failed-read and dispatched-command evidence" {
+    const config: app.Host.Config = .{ .scope = .{ .realm = 1, .application = 2, .pid = 3, .resource = 4, .namespace = .{ .value = 5 } } };
+    const signed: app.Native.Signed = .{ .prepared = try app.Native.prepare(config.scope, 6, .{ .value = 7 }, .initialize), .signature = @splat(0) };
+    for (app.HostDiagnostic.entries) |entry| {
+        const read = try app.HostDiagnostic.attempt(config, .info, entry.cause, false, null);
+        try t.expectEqualStrings(entry.code, read.code.slice());
+        try t.expectEqual(entry.category, read.category);
+        try t.expectEqual(.not_applicable, read.outcome);
+        const sent = try app.HostDiagnostic.attempt(config, .{ .submit = signed }, entry.cause, true, null);
+        const rejected = entry.cause == error.AccessDenied or entry.cause == error.Conflict or entry.cause == error.Rejected;
+        try t.expectEqual(if (rejected) app.protocol.Diagnostic.Outcome.not_applicable else .unknown, sent.outcome);
+        try t.expectEqualDeep(sent.identity, sent.actions[1].?.target);
+        try t.expectEqual(if (rejected) app.protocol.Diagnostic.ActionKind.inspect_scope else .resume_exact, sent.actions[1].?.kind);
+    }
+    var invalid = config;
+    var wire = app.station.client.Client.init(t.allocator, t.io, "http://127.0.0.1:1");
+    defer wire.deinit();
+    var detail: ?app.protocol.Diagnostic = null;
+    try t.expectError(error.InvalidApplicationOperators, app.Host.runDiagnostic(t.allocator, &wire, invalid, .info, &detail));
+    try t.expectEqualStrings("application.invalid_operators", detail.?.code.slice());
+    invalid.operators[0] = 6;
+    var result = try app.Host.runDiagnostic(t.allocator, &wire, invalid, .info, &detail);
+    defer result.deinit();
+    try t.expect(detail == null);
+}

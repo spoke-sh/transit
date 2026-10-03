@@ -1024,6 +1024,205 @@
         "ReadFailed": {"code": "query.transport_unavailable","category": "unavailable","actions": ["retry_read"]},
         "WriteFailed": {"code": "query.transport_unavailable","category": "unavailable","actions": ["retry_read"]}
       }
+    },
+    "application.compiler": {
+      "source": "packages/zig/transit-station-app/src/Diagnostic.zig",
+      "registry_kind": "error",
+      "projection": "packages/zig/transit-station-app/src/Diagnostic.zig",
+      "profile": "Offline application compiler",
+      "context": "Original bounded member/option/nested SQL coordinates and limit witness",
+      "durable_evidence": "Local input only",
+      "disclosure": "Caller input and authorized evidence only; option values, credentials and source rows are excluded",
+      "recovery": "Correct the local input; no command was sent",
+      "defaults": {
+        "identity": null,
+        "outcome": "not_submitted",
+        "evidence": "local_before_dispatch",
+        "facts": []
+      },
+      "scenarios": {
+        "parse": {
+          "stage": "parse"
+        },
+        "output": {
+          "stage": "output",
+          "facts": [
+            [
+              "completion",
+              "execution",
+              "provided"
+            ]
+          ]
+        }
+      },
+      "cases": {
+        "MissingInterfaceOption": {"code": "application.missing_interface_option","category": "binding","actions": ["correct_input"]},
+        "DuplicateInterfaceOption": {"code": "application.duplicate_interface_option","category": "binding","actions": ["correct_input"]},
+        "UnknownInterfaceOption": {"code": "application.unknown_interface_option","category": "binding","actions": ["correct_input"]},
+        "InvalidInterfaceOption": {"code": "application.invalid_interface_option","category": "binding","actions": ["correct_input"]},
+        "UnsupportedInterfaceOption": {"code": "application.unsupported_interface_option","category": "unsupported","actions": ["correct_input"]},
+        "MissingInterfaceReference": {"code": "application.missing_interface_reference","category": "binding","actions": ["correct_input"]},
+        "ForeignInterfaceDeclaration": {"code": "application.foreign_interface_declaration","category": "binding","actions": ["correct_input"]},
+        "DuplicateInterfaceName": {"code": "application.duplicate_interface_name","category": "binding","actions": ["correct_input"]},
+        "DuplicateInterfacePath": {"code": "application.duplicate_interface_path","category": "binding","actions": ["correct_input"]},
+        "IncompatibleRenderer": {"code": "application.incompatible_renderer","category": "binding","actions": ["correct_input"]},
+        "IncompatibleAction": {"code": "application.incompatible_action","category": "binding","actions": ["correct_input"]},
+        "UnsupportedInterfaceWatch": {"code": "application.unsupported_interface_watch","category": "unsupported","actions": ["correct_input"]},
+        "InvalidQueryBudget": {"code": "application.invalid_query_budget","category": "binding","actions": ["correct_input"]},
+        "UnsupportedInspectionBudget": {"code": "application.unsupported_inspection_budget","category": "unsupported","actions": ["correct_input"]},
+        "UnsupportedInterfaceVersion": {"code": "application.unsupported_interface_version","category": "unsupported","actions": ["correct_input"]},
+        "InterfaceCapacity": {"code": "application.interface_capacity","category": "limit","actions": ["correct_input"]},
+        "InterfaceOptionCapacity": {"code": "application.interface_option_capacity","category": "limit","actions": ["correct_input"]},
+        "InterfaceLiteralTooLarge": {"code": "application.interface_literal_too_large","category": "limit","actions": ["correct_input"]},
+        "InterfaceCommentDepth": {"code": "application.interface_comment_depth","category": "limit","actions": ["correct_input"]},
+        "UnterminatedInterfaceComment": {"code": "application.unterminated_interface_comment","category": "syntax","actions": ["correct_input"]},
+        "UnterminatedInterfaceLiteral": {"code": "application.unterminated_interface_literal","category": "syntax","actions": ["correct_input"]},
+        "UnsupportedInterfaceStatement": {"code": "application.unsupported_interface_statement","category": "unsupported","actions": ["correct_input"]},
+        "InvalidInterfaceSyntax": {"code": "application.invalid_interface_syntax","category": "syntax","actions": ["correct_input"]},
+        "InvalidInterfaceName": {"code": "application.invalid_interface_name","category": "binding","actions": ["correct_input"]},
+        "InvalidInterfaceSchema": {"code": "application.invalid_interface_schema","category": "binding","actions": ["correct_input"]},
+        "InvalidInterfaceIdentity": {"code": "application.invalid_interface_identity","category": "binding","actions": ["correct_input"]},
+        "InvalidInterfaceRevision": {"code": "application.invalid_interface_revision","category": "binding","actions": ["correct_input"]},
+        "InvalidInterfacePath": {"code": "application.invalid_interface_path","category": "binding","actions": ["correct_input"]},
+        "ReservedInterfacePath": {"code": "application.reserved_interface_path","category": "unsupported","actions": ["correct_input"]},
+        "InvalidInterfaceText": {"code": "application.invalid_interface_text","category": "binding","actions": ["correct_input"]},
+        "InvalidInterfaceCommand": {"code": "application.invalid_interface_command","category": "binding","actions": ["correct_input"]},
+        "UsageExpectedParseOrFormatAndFile": {"code": "application.usage_expected_parse_or_format_and_file","category": "syntax","actions": ["correct_input"]},
+        "UnknownApplicationCommand": {"code": "application.unknown_application_command","category": "syntax","actions": ["correct_input"]},
+        "FileNotFound": {"code": "application.file_not_found","category": "unavailable","actions": ["correct_input"]},
+        "AccessDenied": {"code": "application.access_denied","category": "access","actions": ["inspect_scope"]},
+        "StreamTooLong": {"code": "application.stream_too_long","category": "limit","actions": ["correct_input"]},
+        "OutOfMemory": {"code": "application.out_of_memory","category": "unavailable","actions": ["correct_input"]},
+        "WriteFailed": {"code": "application.write_failed","category": "unavailable","actions": ["correct_input"]},
+        "BrokenPipe": {"code": "application.broken_pipe","category": "unavailable","actions": ["correct_input"]},
+        "InterfaceProgramTooLarge": {"code": "application.program_too_large","category": "limit","actions": ["correct_input"]},
+        "SyntaxError": {"code": "application.invalid_json","category": "syntax","actions": ["correct_input"]},
+        "UnexpectedEndOfInput": {"code": "application.invalid_json","category": "syntax","actions": ["correct_input"]},
+        "UnexpectedToken": {"code": "application.invalid_json","category": "syntax","actions": ["correct_input"]},
+        "UnknownField": {"code": "application.unknown_json_field","category": "binding","actions": ["correct_input"]},
+        "DuplicateField": {"code": "application.duplicate_json_field","category": "syntax","actions": ["correct_input"]},
+        "MissingField": {"code": "application.missing_json_field","category": "binding","actions": ["correct_input"]},
+        "InvalidCharacter": {"code": "application.invalid_json_value","category": "binding","actions": ["correct_input"]},
+        "InvalidNumber": {"code": "application.invalid_json_value","category": "binding","actions": ["correct_input"]},
+        "Overflow": {"code": "application.invalid_json_value","category": "binding","actions": ["correct_input"]},
+        "InvalidJsonShape": {"code": "application.invalid_json_shape","category": "binding","actions": ["correct_input"]}
+      }
+    },
+    "application.host": {
+      "source": "packages/zig/transit-station-app/src/HostDiagnostic.zig",
+      "registry_kind": "error",
+      "projection": "packages/zig/transit-station-app/src/HostDiagnostic.zig",
+      "profile": "Application host current reads and exact signed submission",
+      "context": "Caller scope, proposal, source commitment and exact signed sequence; unrecorded read truncation origin is explicit",
+      "durable_evidence": "Original saved scope/operation/sequence; this attempt never substitutes for a publication receipt",
+      "disclosure": "Caller input and authorized evidence only; option values, credentials and source rows are excluded",
+      "recovery": "Inspect current receipt or scope; read retry is not fresh publication; exact uncertain submission retains its identity",
+      "defaults": {
+        "identity": {
+          "domain": "application",
+          "id": "2",
+          "realm": "1",
+          "resource": "4",
+          "sequence": null
+        },
+        "outcome": "not_applicable",
+        "evidence": "none",
+        "facts": [
+          [
+            "operation",
+            "caller",
+            "provided"
+          ]
+        ]
+      },
+      "scenarios": {
+        "read": {
+          "stage": "read"
+        },
+        "dispatched": {
+          "code": "application.send_unknown",
+          "category": "unavailable",
+          "stage": "submit",
+          "outcome": "unknown",
+          "evidence": "saved_intent",
+          "identity": {
+            "domain": "transport",
+            "id": "7",
+            "realm": "1",
+            "resource": "4",
+            "sequence": "7"
+          },
+          "facts": [
+            [
+              "operation",
+              "caller",
+              "provided"
+            ],
+            [
+              "argument",
+              "caller",
+              "provided"
+            ],
+            [
+              "source_basis",
+              "caller",
+              "provided"
+            ]
+          ],
+          "actions": [
+            "inspect_status",
+            "resume_exact"
+          ]
+        }
+      },
+      "cases": {
+        "InvalidApplicationOperators": {"code": "application.invalid_operators","category": "binding","actions": ["inspect_status"]},
+        "MessageTooLarge": {"code": "application.command_too_large","category": "limit","actions": ["inspect_status"]},
+        "ApplicationPartTooLarge": {"code": "application.record_part_too_large","category": "integrity","actions": ["inspect_status","contact_operator"]},
+        "InvalidAuthorityResponse": {"code": "application.invalid_authority_response","category": "integrity","actions": ["inspect_status","contact_operator"]},
+        "InvalidResourceRead": {"code": "application.invalid_resource_read","category": "integrity","actions": ["inspect_status","contact_operator"]},
+        "EndOfStream": {"code": "application.read_truncated","category": "unavailable","actions": ["inspect_status","retry_read"],"scenarios": {"read": {"facts": [["operation","caller","provided"],["source_kind","owner","unrecorded"]]}}},
+        "UnsafePrincipal": {"code": "application.unsafe_reader","category": "access","actions": ["inspect_status","inspect_scope"]},
+        "ApplicationOperatorDenied": {"code": "application.operator_denied","category": "access","actions": ["inspect_status","inspect_scope"]},
+        "ApplicationOperationDenied": {"code": "application.input_disposition","category": "access","actions": ["inspect_status","inspect_scope"]},
+        "ApplicationScopeChanged": {"code": "application.scope_changed","category": "conflict","actions": ["inspect_status","retry_read"]},
+        "ApplicationDigestMismatch": {"code": "application.digest_mismatch","category": "integrity","actions": ["inspect_status","contact_operator"]},
+        "ApplicationOperationConflict": {"code": "application.operation_conflict","category": "conflict","actions": ["inspect_status","retry_read"]},
+        "ApplicationAlreadyApplied": {"code": "application.already_applied","category": "lifecycle","actions": ["inspect_status"]},
+        "ApplicationOperationNotFound": {"code": "application.operation_not_found","category": "lifecycle","actions": ["inspect_status"]},
+        "ApplicationUploadUnavailable": {"code": "application.upload_unavailable","category": "integrity","actions": ["inspect_status","contact_operator"]},
+        "ApplicationNotInitialized": {"code": "application.not_initialized","category": "lifecycle","actions": ["inspect_status"]},
+        "ApplicationPublicationChanged": {"code": "application.publication_changed","category": "conflict","actions": ["inspect_status","retry_read"]},
+        "ApplicationNotPublished": {"code": "application.not_published","category": "lifecycle","actions": ["inspect_status"]},
+        "InvalidApplicationProgram": {"code": "application.program_mismatch","category": "binding","actions": ["inspect_status"]},
+        "InvalidApplicationSelection": {"code": "application.invalid_selection","category": "binding","actions": ["inspect_status"]},
+        "InvalidApplicationScope": {"code": "application.invalid_scope","category": "binding","actions": ["inspect_status"]},
+        "InvalidApplicationOperation": {"code": "application.invalid_operation","category": "binding","actions": ["inspect_status"]},
+        "InvalidApplicationProposal": {"code": "application.invalid_proposal","category": "binding","actions": ["inspect_status"]},
+        "InvalidApplicationPart": {"code": "application.invalid_part","category": "binding","actions": ["inspect_status"]},
+        "InvalidApplicationPolicy": {"code": "application.invalid_policy","category": "binding","actions": ["inspect_status"]},
+        "Overflow": {"code": "application.revision_exhausted","category": "limit","actions": ["inspect_status"]},
+        "InvalidSequence": {"code": "application.invalid_sequence","category": "binding","actions": ["inspect_status"]},
+        "AccessDenied": {"code": "application.read_denied","category": "access","actions": ["inspect_status","inspect_scope"],"scenarios": {"dispatched": {"code": "application.command_rejected","category": "access","outcome": "not_applicable","evidence": "none","actions": ["inspect_status","inspect_scope"]}}},
+        "Rejected": {"code": "application.authority_rejected","category": "conflict","actions": ["inspect_status","retry_read"],"scenarios": {"dispatched": {"code": "application.command_rejected","category": "conflict","outcome": "not_applicable","evidence": "none","actions": ["inspect_status","inspect_scope"]}}},
+        "Conflict": {"code": "application.authority_rejected","category": "conflict","actions": ["inspect_status","retry_read"],"scenarios": {"dispatched": {"code": "application.command_rejected","category": "conflict","outcome": "not_applicable","evidence": "none","actions": ["inspect_status","inspect_scope"]}}},
+        "MissingPublicationChunk": {"code": "application.record_unavailable","category": "integrity","actions": ["inspect_status","contact_operator"]},
+        "InvalidApplicationRecord": {"code": "application.record_unavailable","category": "integrity","actions": ["inspect_status","contact_operator"]},
+        "InvalidPublicationDescriptor": {"code": "application.record_unavailable","category": "integrity","actions": ["inspect_status","contact_operator"]},
+        "AuthorityTimeout": {"code": "application.unavailable","category": "unavailable","actions": ["inspect_status","retry_read"]},
+        "ConnectionRefused": {"code": "application.unavailable","category": "unavailable","actions": ["inspect_status","retry_read"]},
+        "ConnectionResetByPeer": {"code": "application.unavailable","category": "unavailable","actions": ["inspect_status","retry_read"]},
+        "NetworkUnreachable": {"code": "application.unavailable","category": "unavailable","actions": ["inspect_status","retry_read"]},
+        "UpstreamUnavailable": {"code": "application.unavailable","category": "unavailable","actions": ["inspect_status","retry_read"]},
+        "OutOfMemory": {"code": "application.unavailable","category": "unavailable","actions": ["inspect_status","retry_read"]},
+        "AuthorityUnavailable": {"code": "application.unavailable","category": "unavailable","actions": ["inspect_status","retry_read"]},
+        "ConnectionTimedOut": {"code": "application.unavailable","category": "unavailable","actions": ["inspect_status","retry_read"]},
+        "HostUnreachable": {"code": "application.unavailable","category": "unavailable","actions": ["inspect_status","retry_read"]},
+        "HttpConnectionClosing": {"code": "application.unavailable","category": "unavailable","actions": ["inspect_status","retry_read"]},
+        "NameServerFailure": {"code": "application.unavailable","category": "unavailable","actions": ["inspect_status","retry_read"]},
+        "ReadFailed": {"code": "application.unavailable","category": "unavailable","actions": ["inspect_status","retry_read"]},
+        "WriteFailed": {"code": "application.unavailable","category": "unavailable","actions": ["inspect_status","retry_read"]}
+      }
     }
   }
 }

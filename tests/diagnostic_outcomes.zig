@@ -32,6 +32,18 @@ fn queries(out: *std.Io.Writer) !void {
         }
     }
 }
+fn applicationCallers(out: *std.Io.Writer) !void {
+    for (a.Diagnostic.entries) |entry| {
+        try emitScenario(out, "application.compiler", @errorName(entry.cause), "parse", try (a.Diagnostic{ .stage = .parse }).structured(entry.cause));
+        try emitScenario(out, "application.compiler", @errorName(entry.cause), "output", try (a.Diagnostic{ .stage = .output }).structured(entry.cause));
+    }
+    const config: a.Host.Config = .{ .scope = .{ .realm = 1, .application = 2, .pid = 3, .resource = 4, .namespace = .{ .value = 5 } } };
+    const signed: a.Native.Signed = .{ .prepared = try a.Native.prepare(config.scope, 6, .{ .value = 7 }, .initialize), .signature = @splat(0) };
+    for (a.HostDiagnostic.entries) |entry| {
+        try emitScenario(out, "application.host", @errorName(entry.cause), "read", try a.HostDiagnostic.attempt(config, .info, entry.cause, false, null));
+        try emitScenario(out, "application.host", @errorName(entry.cause), "dispatched", try a.HostDiagnostic.attempt(config, .{ .submit = signed }, entry.cause, true, null));
+    }
+}
 fn mutations(out: *std.Io.Writer) !void {
     const r = q.TableMutationRecords;
     const base: r.Status = .{ .reference = .{ .resource = 7, .domain = .table_mutation, .namespace = 19, .record = 1, .spec = .{ .format = q.TableMutationRequest.format, .length = 1, .digest = @splat(1) } }, .principal = 9, .table = 1, .declaration = @splat(2), .policy_revision = 1 };
@@ -188,5 +200,6 @@ pub fn main(init: std.process.Init) !void {
     try publications(&stdout.interface);
     try migrations(&stdout.interface);
     try queryCallers(&stdout.interface);
+    try applicationCallers(&stdout.interface);
     try stdout.interface.flush();
 }

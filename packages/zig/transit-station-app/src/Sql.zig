@@ -15,6 +15,10 @@ pub fn parse(gpa: std.mem.Allocator, source: []const u8) !Parsed {
 }
 pub fn parseDiagnostic(gpa: std.mem.Allocator, source: []const u8, diagnostic: ?*Diagnostic) !Parsed {
     if (diagnostic) |detail| detail.reset(.parse);
+    if (source.len > m.max_program_bytes) {
+        Diagnostic.capacity(diagnostic, "application program", "bytes", false, m.max_program_bytes, source.len);
+        return error.InterfaceProgramTooLarge;
+    }
     try m.text(source, m.max_program_bytes);
     var arena = std.heap.ArenaAllocator.init(gpa);
     errdefer arena.deinit();
@@ -96,7 +100,10 @@ const Parser = struct {
                     if (self.index >= self.source.len) return error.UnterminatedInterfaceComment;
                     if (std.mem.startsWith(u8, self.source[self.index..], "/*")) {
                         depth += 1;
-                        if (depth > 16) return error.InterfaceCommentDepth;
+                        if (depth > 16) {
+                            Diagnostic.capacity(self.diagnostic, "comment nesting", "levels", false, 16, depth);
+                            return error.InterfaceCommentDepth;
+                        }
                         self.index += 2;
                     } else if (std.mem.startsWith(u8, self.source[self.index..], "*/")) {
                         depth -= 1;
@@ -124,7 +131,10 @@ const Parser = struct {
             if (byte == quote) {
                 if (self.index < self.source.len and self.source[self.index] == quote) self.index += 1 else return result.toOwnedSlice(self.allocator);
             }
-            if (result.items.len == 4096) return error.InterfaceLiteralTooLarge;
+            if (result.items.len == 4096) {
+                Diagnostic.capacity(self.diagnostic, "decoded literal", "bytes", false, 4096, result.items.len + 1);
+                return error.InterfaceLiteralTooLarge;
+            }
             try result.append(self.allocator, byte);
         }
         return error.UnterminatedInterfaceLiteral;
@@ -160,7 +170,10 @@ const Parser = struct {
         try self.require('(');
         var result: Options = .{ .diagnostic = self.diagnostic };
         while (true) {
-            if (result.length == result.values.len) return error.InterfaceOptionCapacity;
+            if (result.length == result.values.len) {
+                Diagnostic.capacity(self.diagnostic, "option slots", "options", false, result.values.len, result.length + 1);
+                return error.InterfaceOptionCapacity;
+            }
             try self.space();
             const offset = self.index;
             const key = try self.name();
@@ -224,13 +237,22 @@ const Parser = struct {
             var fields = try self.options();
             if (self.diagnostic != null) try self.sites.append(self.allocator, .{ .kind = kind, .name = name_value, .offset = member_offset, .options = fields });
             if (std.mem.eql(u8, kind, "theme")) {
-                if (themes.items.len == 2) return error.InterfaceCapacity;
+                if (themes.items.len == 2) {
+                    Diagnostic.capacity(self.diagnostic, "themes", "members", false, 2, themes.items.len + 1);
+                    return error.InterfaceCapacity;
+                }
                 try themes.append(self.allocator, .{ .name = name_value, .density = try fields.enumeration("density", @FieldType(m.Theme, "density")) });
             } else if (std.mem.eql(u8, kind, "screen")) {
-                if (screens.items.len == m.max_members) return error.InterfaceCapacity;
+                if (screens.items.len == m.max_members) {
+                    Diagnostic.capacity(self.diagnostic, "screens", "members", false, m.max_members, screens.items.len + 1);
+                    return error.InterfaceCapacity;
+                }
                 try screens.append(self.allocator, .{ .name = name_value, .path = try fields.string("path"), .label = try fields.string("label"), .area = try fields.enumeration("area", m.Area), .renderer = try fields.enumeration("renderer", m.Renderer), .binding = try fields.string("binding") });
             } else if (std.mem.eql(u8, kind, "binding")) {
-                if (bindings.items.len == m.max_members) return error.InterfaceCapacity;
+                if (bindings.items.len == m.max_members) {
+                    Diagnostic.capacity(self.diagnostic, "bindings", "members", false, m.max_members, bindings.items.len + 1);
+                    return error.InterfaceCapacity;
+                }
                 const tag = try fields.enumeration("kind", std.meta.Tag(@FieldType(m.Binding, "source")));
                 var source: @FieldType(m.Binding, "source") = undefined;
                 switch (tag) {
@@ -247,7 +269,10 @@ const Parser = struct {
                 }
                 try bindings.append(self.allocator, .{ .name = name_value, .source = source });
             } else if (std.mem.eql(u8, kind, "action")) {
-                if (actions.items.len == m.max_members) return error.InterfaceCapacity;
+                if (actions.items.len == m.max_members) {
+                    Diagnostic.capacity(self.diagnostic, "actions", "members", false, m.max_members, actions.items.len + 1);
+                    return error.InterfaceCapacity;
+                }
                 const tag = try fields.enumeration("kind", std.meta.Tag(@FieldType(m.Action, "target")));
                 const target = try fields.string("target");
                 const selected: @FieldType(m.Action, "target") = switch (tag) {

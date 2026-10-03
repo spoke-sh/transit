@@ -33,6 +33,13 @@ source location when available. `Sql.parseDiagnostic` and
 Embedded SELECT positions are relative to that SELECT; arbitrary option values
 are not copied into the diagnostic.
 
+Capacity diagnostics identify the first failing member dimension or parser bound,
+its measured/attempted count, unit, limit and `at_least`/`at_most` rule. Member
+minimums remain distinct from maximums. Option slots, decoded literal bytes,
+comment nesting and complete program bytes retain their own bounds. Parser
+measurements stop at the first rejected byte/slot; they do not claim to have
+scanned the remaining declaration.
+
 `transit-app --diagnostics=json parse|format|module FILE` writes one shared
 diagnostic envelope per failure on stderr and exits with status 1. The option
 also applies to `schema`. Successful stdout remains the requested model, SQL,
@@ -109,6 +116,12 @@ unconfirmed signed commands retain their exact sequence/digest and recovery
 guidance. Read failures and caller-supplied upload observations never establish
 a terminal publication outcome. `HostDiagnostic.acquisition` explains incomplete
 or denied published-definition reads without returning a partial definition.
+
+The compiler and host expose finite reviewed diagnostic registries. Invalid
+operator configuration, encoded command capacity and invalid native/resource
+evidence have specific codes. Known transport causes retain failed-read versus
+uncertain-submission distinctions. A truncated read with no retained origin marks
+that origin unrecorded; it does not invent a publication or abandonment outcome.
 
 `Migration` adds the separate [data-owner ledger](../../../contracts/APPLICATION_MIGRATION_V1.md).
 Initialize its immutable configuration, provision current per-operator migration

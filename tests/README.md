@@ -13562,3 +13562,23 @@ actual public classifier; those were reviewed and corrected. The first unit run
 after the placeholder improvement exposed two assertions expecting the previous
 generic cause; both now require `UnboundParameters`. These tests contain no
 authority or submission and do not replace runtime/restart qualification.
+
+### Application caller mappings and capacity witnesses (2026-10-03)
+
+Pinned `just test::unit`, `test::diagnostic-mappings`, `test::diagnostic-outcomes`,
+`test::diagnostic-grammar` and `test::application-grammar` pass. The compiler/host
+registries contain fifty/forty-six causes across 38/28 owner-error pairs with no
+unmapped literal causes in those selected owners. The independent matrix executes
+**916 projections in nineteen declared surfaces**, including every compiler cause
+at parse/output and every host cause during reads and after dispatch. Unknown
+sends keep exact recovery targets; native rejection establishes no publication
+receipt. Actual invalid operator configuration is rejected before transport.
+
+Capacity tests check missing themes/screens, all four collection maximums, the
+third parsed theme, the 17th option/comment level, the 4,097th decoded literal
+byte and a 65,537-byte program. Actual human/JSON CLI cases assert first dimension,
+unit, minimum/maximum rule and exact counts without option-value disclosure.
+Independent application grammar/model agreement and visual formatting round trips
+still pass. Logs: `/var/tmp/transit-app-semantic-{unit,check,final}.log`.
+These local checks do not claim committed-HEAD clean or installed adapter recovery
+qualification.

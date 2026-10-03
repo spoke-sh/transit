@@ -89,7 +89,13 @@ pub const Definition = struct {
         try native(self.realm);
         if (self.revision.value == 0) return error.InvalidInterfaceRevision;
         try identifier(self.name);
-        if (self.themes.len == 0 or self.themes.len > 2 or self.screens.len == 0 or self.screens.len > max_members or self.bindings.len > max_members or self.actions.len > max_members) return error.InterfaceCapacity;
+        inline for (.{ .{ "themes", 1, 2 }, .{ "screens", 1, max_members }, .{ "bindings", 0, max_members }, .{ "actions", 0, max_members } }) |range| {
+            const count = @field(self, range[0]).len;
+            if (count < range[1] or count > range[2]) {
+                Diagnostic.capacity(diagnostic, range[0], "members", count < range[1], if (count < range[1]) range[1] else range[2], count);
+                return error.InterfaceCapacity;
+            }
+        }
         try unique(self.themes, diagnostic, "theme");
         try unique(self.screens, diagnostic, "screen");
         try unique(self.bindings, diagnostic, "binding");

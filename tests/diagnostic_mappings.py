@@ -151,14 +151,13 @@ def self_test(manifest, surface, files):
     changed['sources']['packages/zig/transit-fuze/src/SqlNewOwner.zig'] = {'errors': {'NewExpectedUserFailure': 1}}
     rejected(changed_surface=changed)
     for named in manifest['boundaries']:
-        if named.get('registry_kind') != 'named_class':
-            continue
         changed = dict(files)
         entry = next(iter(named['codes'].values()))
         changed[named['registry']] = changed[named['registry']].replace(entry['code'], 'changed.semantic.code')
         rejected(changed_files=changed)
         changed = copy.deepcopy(surface)
-        changed['sources'][named['owners'][0]]['errors']['NewExpectedMigrationFailure'] = 1
+        owner = next(path for path in surface['sources'] if path not in named['exclude'] and any(fnmatchcase(path, pattern) for pattern in named['owners']))
+        changed['sources'][owner]['errors']['NewExpectedBoundaryFailure'] = 1
         rejected(changed_surface=changed)
 
 

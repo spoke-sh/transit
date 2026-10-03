@@ -17,6 +17,7 @@ expected: ?[]const u8 = null,
 sql: ?@import("root.zig").serving.query.fuze.SqlDiagnostic = null,
 reference: [64]u8 = @splat(0),
 reference_len: usize = 0,
+bound: ?struct { dimension: []const u8, unit: []const u8, minimum: bool, limit: usize, actual: usize } = null,
 
 pub fn reset(self: *Self, stage: @FieldType(Self, "stage")) void {
     self.* = .{ .stage = stage, .format = self.format, .file = self.file };
@@ -33,6 +34,10 @@ pub fn subject(self: ?*Self, kind: []const u8, name: []const u8) void {
     detail.expected = null;
     detail.reference_len = 0;
     detail.sql = null;
+    detail.bound = null;
+}
+pub fn capacity(self: ?*Self, dimension: []const u8, unit: []const u8, minimum: bool, limit: usize, actual: usize) void {
+    if (self) |detail| detail.bound = .{ .dimension = dimension, .unit = unit, .minimum = minimum, .limit = limit, .actual = actual };
 }
 pub fn target(self: ?*Self, value: []const u8) void {
     const detail = self orelse return;
@@ -75,6 +80,7 @@ pub fn render(self: Self, out: *std.Io.Writer, cause: anyerror) !void {
         try out.writeAll(".\n");
     }
     if (self.expected) |expected| try out.print("Expected {s}.\n", .{expected});
+    if (self.bound) |value| try out.print("{s}: {d} {s}; requires {s} {d}.\n", .{ value.dimension, value.actual, value.unit, if (value.minimum) "at least" else "at most", value.limit });
     if (self.sql) |nested| {
         try out.writeAll("Embedded SELECT (coordinates within the binding SQL):\n");
         try nested.render(out);
@@ -190,6 +196,13 @@ pub fn structured(self: Self, cause: anyerror) !d {
     if (self.option_len != 0) try result.text(.option, .caller, self.option[0..self.option_len]);
     if (self.reference_len != 0) try result.text(.scope, .caller, self.reference[0..self.reference_len]);
     if (self.expected) |expected| try result.text(.expected_type, .schema, expected);
+    if (self.bound) |value| {
+        try result.text(.budget, .owner, value.dimension);
+        try result.text(.unit, .owner, value.unit);
+        try result.text(.constraint, .owner, if (value.minimum) "at_least" else "at_most");
+        try result.fact(.limit, .owner, .{ .unsigned = .init(value.limit) });
+        try result.fact(.actual_count, .caller, .{ .unsigned = .init(value.actual) });
+    }
     if (self.stage == .output) try result.fact(.completion, .execution, .{ .boolean = false });
     if (result.actions[0] == null) try result.action(switch (info.category) {
         .internal, .integrity => .contact_operator,
@@ -200,111 +213,80 @@ pub fn structured(self: Self, cause: anyerror) !d {
     return result;
 }
 const Classification = struct { code: []const u8, category: d.Category };
+pub const entries = [_]struct { cause: anyerror, code: []const u8, category: d.Category }{
+    .{ .cause = error.MissingInterfaceOption, .code = "application.missing_interface_option", .category = .binding },
+    .{ .cause = error.DuplicateInterfaceOption, .code = "application.duplicate_interface_option", .category = .binding },
+    .{ .cause = error.UnknownInterfaceOption, .code = "application.unknown_interface_option", .category = .binding },
+    .{ .cause = error.InvalidInterfaceOption, .code = "application.invalid_interface_option", .category = .binding },
+    .{ .cause = error.UnsupportedInterfaceOption, .code = "application.unsupported_interface_option", .category = .unsupported },
+    .{ .cause = error.MissingInterfaceReference, .code = "application.missing_interface_reference", .category = .binding },
+    .{ .cause = error.ForeignInterfaceDeclaration, .code = "application.foreign_interface_declaration", .category = .binding },
+    .{ .cause = error.DuplicateInterfaceName, .code = "application.duplicate_interface_name", .category = .binding },
+    .{ .cause = error.DuplicateInterfacePath, .code = "application.duplicate_interface_path", .category = .binding },
+    .{ .cause = error.IncompatibleRenderer, .code = "application.incompatible_renderer", .category = .binding },
+    .{ .cause = error.IncompatibleAction, .code = "application.incompatible_action", .category = .binding },
+    .{ .cause = error.UnsupportedInterfaceWatch, .code = "application.unsupported_interface_watch", .category = .unsupported },
+    .{ .cause = error.InvalidQueryBudget, .code = "application.invalid_query_budget", .category = .binding },
+    .{ .cause = error.UnsupportedInspectionBudget, .code = "application.unsupported_inspection_budget", .category = .unsupported },
+    .{ .cause = error.UnsupportedInterfaceVersion, .code = "application.unsupported_interface_version", .category = .unsupported },
+    .{ .cause = error.InterfaceCapacity, .code = "application.interface_capacity", .category = .limit },
+    .{ .cause = error.InterfaceOptionCapacity, .code = "application.interface_option_capacity", .category = .limit },
+    .{ .cause = error.InterfaceLiteralTooLarge, .code = "application.interface_literal_too_large", .category = .limit },
+    .{ .cause = error.InterfaceCommentDepth, .code = "application.interface_comment_depth", .category = .limit },
+    .{ .cause = error.UnterminatedInterfaceComment, .code = "application.unterminated_interface_comment", .category = .syntax },
+    .{ .cause = error.UnterminatedInterfaceLiteral, .code = "application.unterminated_interface_literal", .category = .syntax },
+    .{ .cause = error.UnsupportedInterfaceStatement, .code = "application.unsupported_interface_statement", .category = .unsupported },
+    .{ .cause = error.InvalidInterfaceSyntax, .code = "application.invalid_interface_syntax", .category = .syntax },
+    .{ .cause = error.InvalidInterfaceName, .code = "application.invalid_interface_name", .category = .binding },
+    .{ .cause = error.InvalidInterfaceSchema, .code = "application.invalid_interface_schema", .category = .binding },
+    .{ .cause = error.InvalidInterfaceIdentity, .code = "application.invalid_interface_identity", .category = .binding },
+    .{ .cause = error.InvalidInterfaceRevision, .code = "application.invalid_interface_revision", .category = .binding },
+    .{ .cause = error.InvalidInterfacePath, .code = "application.invalid_interface_path", .category = .binding },
+    .{ .cause = error.ReservedInterfacePath, .code = "application.reserved_interface_path", .category = .unsupported },
+    .{ .cause = error.InvalidInterfaceText, .code = "application.invalid_interface_text", .category = .binding },
+    .{ .cause = error.InvalidInterfaceCommand, .code = "application.invalid_interface_command", .category = .binding },
+    .{ .cause = error.UsageExpectedParseOrFormatAndFile, .code = "application.usage_expected_parse_or_format_and_file", .category = .syntax },
+    .{ .cause = error.UnknownApplicationCommand, .code = "application.unknown_application_command", .category = .syntax },
+    .{ .cause = error.FileNotFound, .code = "application.file_not_found", .category = .unavailable },
+    .{ .cause = error.AccessDenied, .code = "application.access_denied", .category = .access },
+    .{ .cause = error.StreamTooLong, .code = "application.stream_too_long", .category = .limit },
+    .{ .cause = error.OutOfMemory, .code = "application.out_of_memory", .category = .unavailable },
+    .{ .cause = error.WriteFailed, .code = "application.write_failed", .category = .unavailable },
+    .{ .cause = error.BrokenPipe, .code = "application.broken_pipe", .category = .unavailable },
+    .{ .cause = error.InterfaceProgramTooLarge, .code = "application.program_too_large", .category = .limit },
+    .{ .cause = error.SyntaxError, .code = "application.invalid_json", .category = .syntax },
+    .{ .cause = error.UnexpectedEndOfInput, .code = "application.invalid_json", .category = .syntax },
+    .{ .cause = error.UnexpectedToken, .code = "application.invalid_json", .category = .syntax },
+    .{ .cause = error.UnknownField, .code = "application.unknown_json_field", .category = .binding },
+    .{ .cause = error.DuplicateField, .code = "application.duplicate_json_field", .category = .syntax },
+    .{ .cause = error.MissingField, .code = "application.missing_json_field", .category = .binding },
+    .{ .cause = error.InvalidCharacter, .code = "application.invalid_json_value", .category = .binding },
+    .{ .cause = error.InvalidNumber, .code = "application.invalid_json_value", .category = .binding },
+    .{ .cause = error.Overflow, .code = "application.invalid_json_value", .category = .binding },
+    .{ .cause = error.InvalidJsonShape, .code = "application.invalid_json_shape", .category = .binding },
+};
 fn classification(cause: anyerror) Classification {
-    return switch (cause) {
-        error.MissingInterfaceOption => .{ .code = "application.missing_interface_option", .category = .binding },
-        error.DuplicateInterfaceOption => .{ .code = "application.duplicate_interface_option", .category = .binding },
-        error.UnknownInterfaceOption => .{ .code = "application.unknown_interface_option", .category = .binding },
-        error.InvalidInterfaceOption => .{ .code = "application.invalid_interface_option", .category = .binding },
-        error.UnsupportedInterfaceOption => .{ .code = "application.unsupported_interface_option", .category = .unsupported },
-        error.MissingInterfaceReference => .{ .code = "application.missing_interface_reference", .category = .binding },
-        error.ForeignInterfaceDeclaration => .{ .code = "application.foreign_interface_declaration", .category = .binding },
-        error.DuplicateInterfaceName => .{ .code = "application.duplicate_interface_name", .category = .binding },
-        error.DuplicateInterfacePath => .{ .code = "application.duplicate_interface_path", .category = .binding },
-        error.IncompatibleRenderer => .{ .code = "application.incompatible_renderer", .category = .binding },
-        error.IncompatibleAction => .{ .code = "application.incompatible_action", .category = .binding },
-        error.UnsupportedInterfaceWatch => .{ .code = "application.unsupported_interface_watch", .category = .unsupported },
-        error.InvalidQueryBudget => .{ .code = "application.invalid_query_budget", .category = .binding },
-        error.UnsupportedInspectionBudget => .{ .code = "application.unsupported_inspection_budget", .category = .unsupported },
-        error.UnsupportedInterfaceVersion => .{ .code = "application.unsupported_interface_version", .category = .unsupported },
-        error.InterfaceCapacity => .{ .code = "application.interface_capacity", .category = .limit },
-        error.InterfaceOptionCapacity => .{ .code = "application.interface_option_capacity", .category = .limit },
-        error.InterfaceLiteralTooLarge => .{ .code = "application.interface_literal_too_large", .category = .limit },
-        error.InterfaceCommentDepth => .{ .code = "application.interface_comment_depth", .category = .limit },
-        error.UnterminatedInterfaceComment => .{ .code = "application.unterminated_interface_comment", .category = .syntax },
-        error.UnterminatedInterfaceLiteral => .{ .code = "application.unterminated_interface_literal", .category = .syntax },
-        error.UnsupportedInterfaceStatement => .{ .code = "application.unsupported_interface_statement", .category = .unsupported },
-        error.InvalidInterfaceSyntax => .{ .code = "application.invalid_interface_syntax", .category = .syntax },
-        error.InvalidInterfaceName => .{ .code = "application.invalid_interface_name", .category = .binding },
-        error.InvalidInterfaceSchema => .{ .code = "application.invalid_interface_schema", .category = .binding },
-        error.InvalidInterfaceIdentity => .{ .code = "application.invalid_interface_identity", .category = .binding },
-        error.InvalidInterfaceRevision => .{ .code = "application.invalid_interface_revision", .category = .binding },
-        error.InvalidInterfacePath => .{ .code = "application.invalid_interface_path", .category = .binding },
-        error.ReservedInterfacePath => .{ .code = "application.reserved_interface_path", .category = .unsupported },
-        error.InvalidInterfaceText => .{ .code = "application.invalid_interface_text", .category = .binding },
-        error.InvalidInterfaceCommand => .{ .code = "application.invalid_interface_command", .category = .binding },
-        error.UsageExpectedParseOrFormatAndFile => .{ .code = "application.usage_expected_parse_or_format_and_file", .category = .syntax },
-        error.UnknownApplicationCommand => .{ .code = "application.unknown_application_command", .category = .syntax },
-        error.FileNotFound => .{ .code = "application.file_not_found", .category = .unavailable },
-        error.AccessDenied => .{ .code = "application.access_denied", .category = .access },
-        error.StreamTooLong => .{ .code = "application.stream_too_long", .category = .limit },
-        error.OutOfMemory => .{ .code = "application.out_of_memory", .category = .unavailable },
-        error.WriteFailed => .{ .code = "application.write_failed", .category = .unavailable },
-        error.BrokenPipe => .{ .code = "application.broken_pipe", .category = .unavailable },
-        error.InterfaceProgramTooLarge => .{ .code = "application.program_too_large", .category = .limit },
-        error.SyntaxError, error.UnexpectedEndOfInput, error.UnexpectedToken => .{ .code = "application.invalid_json", .category = .syntax },
-        error.UnknownField => .{ .code = "application.unknown_json_field", .category = .binding },
-        error.DuplicateField => .{ .code = "application.duplicate_json_field", .category = .syntax },
-        error.MissingField => .{ .code = "application.missing_json_field", .category = .binding },
-        error.InvalidCharacter, error.InvalidNumber, error.Overflow => .{ .code = "application.invalid_json_value", .category = .binding },
-        error.InvalidJsonShape => .{ .code = "application.invalid_json_shape", .category = .binding },
-        else => .{ .code = "application.internal_failure", .category = .internal },
-    };
+    for (entries) |entry| if (entry.cause == cause) return .{ .code = entry.code, .category = entry.category };
+    return .{ .code = "application.internal_failure", .category = .internal };
 }
 
 /// Persisted cause names never use build-local numeric error identities.
 pub fn namedExplanation(name: []const u8) ?[]const u8 {
-    inline for (.{
-        error.MissingInterfaceOption,
-        error.DuplicateInterfaceOption,
-        error.UnknownInterfaceOption,
-        error.InvalidInterfaceOption,
-        error.UnsupportedInterfaceOption,
-        error.MissingInterfaceReference,
-        error.ForeignInterfaceDeclaration,
-        error.DuplicateInterfaceName,
-        error.DuplicateInterfacePath,
-        error.IncompatibleRenderer,
-        error.IncompatibleAction,
-        error.UnsupportedInterfaceWatch,
-        error.InvalidQueryBudget,
-        error.UnsupportedInspectionBudget,
-        error.UnsupportedInterfaceVersion,
-        error.InterfaceCapacity,
-        error.InterfaceOptionCapacity,
-        error.InterfaceLiteralTooLarge,
-        error.InterfaceCommentDepth,
-        error.UnterminatedInterfaceComment,
-        error.UnterminatedInterfaceLiteral,
-        error.UnsupportedInterfaceStatement,
-        error.InvalidInterfaceSyntax,
-        error.InvalidInterfaceName,
-        error.InvalidInterfaceSchema,
-        error.InvalidInterfaceIdentity,
-        error.InvalidInterfaceRevision,
-        error.InvalidInterfacePath,
-        error.ReservedInterfacePath,
-        error.InvalidInterfaceText,
-        error.InvalidInterfaceCommand,
-        error.UsageExpectedParseOrFormatAndFile,
-        error.UnknownApplicationCommand,
-        error.FileNotFound,
-        error.AccessDenied,
-        error.StreamTooLong,
-        error.OutOfMemory,
-        error.WriteFailed,
-        error.BrokenPipe,
-        error.InterfaceProgramTooLarge,
-        error.SyntaxError,
-        error.UnexpectedEndOfInput,
-        error.UnexpectedToken,
-        error.UnknownField,
-        error.DuplicateField,
-        error.MissingField,
-        error.InvalidCharacter,
-        error.InvalidNumber,
-        error.Overflow,
-        error.InvalidJsonShape,
-    }) |cause| if (std.mem.eql(u8, name, @errorName(cause))) return explanation(cause);
+    for (entries) |entry| if (std.mem.eql(u8, name, @errorName(entry.cause))) return explanation(entry.cause);
     return null;
+}
+
+test "every offline application cause has a specific no-send diagnostic" {
+    for (entries, 0..) |entry, index| {
+        for (entries[0..index]) |before| try std.testing.expect(entry.cause != before.cause);
+        const detail = try (Self{ .stage = .parse }).structured(entry.cause);
+        try std.testing.expectEqualStrings(entry.code, detail.code.slice());
+        try std.testing.expectEqual(entry.category, detail.category);
+        try std.testing.expectEqual(.not_submitted, detail.outcome);
+        try std.testing.expectEqual(.local_before_dispatch, detail.evidence);
+        try std.testing.expect(namedExplanation(@errorName(entry.cause)) != null);
+        for (detail.actions) |slot| if (slot) |action| {
+            try std.testing.expect(action.kind != .resume_exact and action.kind != .cancel_mutation);
+        };
+    }
 }

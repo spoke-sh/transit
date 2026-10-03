@@ -102,3 +102,56 @@ test "failed declaration diagnostics own their member and option after parse sto
     try t.expectEqual(8, diagnostic.line);
     try t.expect(std.mem.indexOf(u8, out.buffered(), "No application was published.") != null);
 }
+
+test "application capacity witnesses identify the first dimension and exact bound" {
+    var parsed = try sql.parse(t.allocator, fixture);
+    defer parsed.deinit();
+    var detail: root.Diagnostic = .{};
+    var definition = parsed.definition;
+    definition.themes = &.{};
+    try t.expectError(error.InterfaceCapacity, definition.validateDiagnostic(&detail));
+    try t.expectEqualStrings("themes", detail.bound.?.dimension);
+    try t.expect(detail.bound.?.minimum);
+    try t.expectEqual(@as(usize, 1), detail.bound.?.limit);
+    try t.expectEqual(@as(usize, 0), detail.bound.?.actual);
+    definition = parsed.definition;
+    definition.screens = &.{};
+    try t.expectError(error.InterfaceCapacity, definition.validateDiagnostic(&detail));
+    try t.expectEqualStrings("screens", detail.bound.?.dimension);
+    inline for (.{ "themes", "screens", "bindings", "actions" }) |name| {
+        definition = parsed.definition;
+        const maximum = if (comptime std.mem.eql(u8, name, "themes")) 2 else m.max_members;
+        const Item = std.meta.Child(@FieldType(m.Definition, name));
+        const excess: [maximum + 1]Item = @splat(@field(definition, name)[0]);
+        @field(definition, name) = &excess;
+        try t.expectError(error.InterfaceCapacity, definition.validateDiagnostic(&detail));
+        try t.expectEqualStrings(name, detail.bound.?.dimension);
+        try t.expect(!detail.bound.?.minimum);
+        try t.expectEqual(@as(usize, maximum), detail.bound.?.limit);
+        try t.expectEqual(@as(usize, maximum + 1), detail.bound.?.actual);
+        try (try detail.structured(error.InterfaceCapacity)).validate();
+    }
+    const extra = fixture ++ "CREATE THEME board.extra WITH (density = 'compact');";
+    try t.expectError(error.InterfaceCapacity, sql.parseDiagnostic(t.allocator, extra, &detail));
+    try t.expectEqualStrings("themes", detail.bound.?.dimension);
+    try t.expectEqual(@as(usize, 3), detail.bound.?.actual);
+    var oversize: [m.max_program_bytes + 1]u8 = @splat(' ');
+    try t.expectError(error.InterfaceProgramTooLarge, sql.parseDiagnostic(t.allocator, &oversize, &detail));
+    try t.expectEqualStrings("application program", detail.bound.?.dimension);
+    try t.expectEqual(@as(usize, oversize.len), detail.bound.?.actual);
+    try t.expect(detail.offset == null);
+    const nested = "/*/*/*/*/*/*/*/*/*/*/*/*/*/*/*/*/**/*/*/*/*/*/*/*/*/*/*/*/*/*/*/*/*/" ++ fixture;
+    try t.expectError(error.InterfaceCommentDepth, sql.parseDiagnostic(t.allocator, nested, &detail));
+    try t.expectEqualStrings("comment nesting", detail.bound.?.dimension);
+    try t.expectEqual(@as(usize, 17), detail.bound.?.actual);
+    const literal: [4097]u8 = @splat('x');
+    const long_literal = try std.fmt.allocPrint(t.allocator, "CREATE INTERFACE board WITH (entry = '{s}');", .{literal});
+    defer t.allocator.free(long_literal);
+    try t.expectError(error.InterfaceLiteralTooLarge, sql.parseDiagnostic(t.allocator, long_literal, &detail));
+    try t.expectEqualStrings("decoded literal", detail.bound.?.dimension);
+    try t.expectEqual(@as(usize, 4097), detail.bound.?.actual);
+    const too_many_options = "CREATE INTERFACE board WITH (a=1,b=1,c=1,d=1,e=1,f=1,g=1,h=1,i=1,j=1,k=1,l=1,m=1,n=1,o=1,p=1,q=1);";
+    try t.expectError(error.InterfaceOptionCapacity, sql.parseDiagnostic(t.allocator, too_many_options, &detail));
+    try t.expectEqualStrings("option slots", detail.bound.?.dimension);
+    try t.expectEqual(@as(usize, 17), detail.bound.?.actual);
+}

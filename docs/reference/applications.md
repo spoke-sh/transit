@@ -51,6 +51,12 @@ semantic validation. Offline parse/format/module generation performs no publicat
 query submission or effect dispatch. Structural schema validity alone cannot
 validate graph references, grants or runtime capability.
 
+Capacity errors name the first failing collection or parser bound, with its
+count, unit, limit and minimum/maximum rule. A missing required screen or theme
+is distinct from exceeding its maximum. Literal, option, comment-depth and
+program-byte failures retain their original measurements without disclosing
+option values.
+
 The [application SQL reference](sql/application.md) describes `CREATE INTERFACE`,
 `CREATE THEME`, `CREATE SCREEN`, `CREATE BINDING` and `CREATE ACTION`, including
 their required options and a complete program.
@@ -66,6 +72,10 @@ location and distinguish local validation from signed-command dispatch. Unknown
 admission identifies the exact saved sequence; native rejection and failed reads
 do not imply a terminal publication outcome. Board's definition editor displays
 this shared evidence and retains pending signed work for explicit recovery.
+
+Invalid operator configuration and malformed authority/resource evidence have
+separate diagnostics. Unavailable or truncated reads preserve the selected
+application; if the truncation's origin was not recorded, that absence is explicit.
 
 Publication status retains rejected-input detail separately from the operation's
 receipt. Original compiler locations refer to the verified assembled body;

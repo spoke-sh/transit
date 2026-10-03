@@ -72,7 +72,7 @@ def reference(source):
     return model
 
 
-def run(command, data, directory, success=True, expected=()):
+def run(command, data, directory, success=True, expected=(), facts=None):
     path = directory / 'input'
     path.write_text(data)
     result = subprocess.run([CLI, command, path], capture_output=True, text=True)
@@ -97,6 +97,9 @@ def run(command, data, directory, success=True, expected=()):
         if diagnostic['location']:
             assert diagnostic['location']['source'] == str(path)
             assert int(diagnostic['location']['line']) >= 1 and int(diagnostic['location']['byte_column']) >= 1
+        for field, value in (facts or {}).items():
+            assert any(fact and fact['field'] == field and fact['value'] == value
+                       for fact in diagnostic['facts']), (field, diagnostic)
     else:
         machine = subprocess.run([CLI, '--diagnostics=json', command, path], capture_output=True, text=True)
         assert machine.returncode == 0 and machine.stdout == result.stdout and not machine.stderr
@@ -161,6 +164,17 @@ def main():
         ]
         for source, messages in diagnostics:
             run('parse', source, directory, False, messages)
+        for source, dimension, actual, limit, rule, unit in [
+            (fixture.split(';')[0] + ';', 'themes', 0, 1, 'at_least', 'members'),
+            (fixture + "CREATE THEME board.extra WITH (density = 'compact');", 'themes', 3, 2, 'at_most', 'members'),
+            ("CREATE INTERFACE board WITH (entry = '" + 'x' * 4097 + "');", 'decoded literal', 4097, 4096, 'at_most', 'bytes'),
+            ('/*' * 17 + '*/' * 17 + fixture, 'comment nesting', 17, 16, 'at_most', 'levels'),
+        ]:
+            run('parse', source, directory, False, facts={
+                'budget': {'text': dimension}, 'unit': {'text': unit},
+                'constraint': {'text': rule}, 'limit': {'unsigned': str(limit)},
+                'actual_count': {'unsigned': str(actual)},
+            })
         malformed_json = subprocess.run([CLI, '--diagnostics=json', 'format', directory/'absent'], capture_output=True, text=True)
         assert malformed_json.returncode == 1 and not malformed_json.stdout
         detail = json.loads(malformed_json.stderr)

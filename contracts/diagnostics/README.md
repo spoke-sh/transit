@@ -112,3 +112,11 @@ The EBNF gate measures parser alternatives, not every possible lexical byte,
 combination, implementation budget or authority schedule. Those continue to use
 the owning unit, CLI and runtime proofs. No execution authority is present in
 this compiler-only fixture. Expected semantics have no automatic record mode.
+
+The application compiler and host have separate closed boundaries. The compiler
+projects all fifty registered causes at parse/output boundaries; the host projects
+all forty-six causes as failed reads and dispatched commands. The finite entries
+also own named explanations, avoiding a second cause shortlist. Owner unit and
+actual compiler fixtures verify first-dimension capacity witnesses and no-send
+configuration validation. These mappings do not certify arbitrary application
+transform errors or unlisted external-library failures.
