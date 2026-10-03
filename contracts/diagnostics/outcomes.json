@@ -2494,5 +2494,147 @@
         "UnsupportedAtomType": {"code": "file.unsupported_atom_type","category": "unsupported","stage": "execute","actions": ["correct_input"],"scenarios": {"schema_file": {"stage": "decode"}}}
       }
     }
+ ,
+    "query.phase": {
+      "source": "packages/zig/transit-query/src/UnifiedRequest.zig",
+      "type": "Phase",
+      "projection": "packages/zig/transit-query/src/Bridge.zig",
+      "profile": "Authorized requester status with complete, pending and terminal phases",
+      "context": "Valid encoded synthetic request status; denied and rejected include an original failure, complete includes a valid result reference.",
+      "durable_evidence": "Original retained status; fixture checks projection, not a storage transition.",
+      "disclosure": "Owner must authorize the read before projection; fixture performs no authority access.",
+      "recovery": "Successful or pending status has no error. Cancelled/retired waits are observational and cannot undo disclosed output.",
+      "defaults": {},
+      "scenarios": {
+            "default": {}
+      }
+,
+      "cases": {
+        "uploading": {"absent": true},
+        "sealed": {"absent": true},
+        "admitted": {"absent": true},
+        "complete": {"absent": true},
+        "cancelled": {"code": "query.cancelled","category": "lifecycle","stage": "control","outcome": "cancelled","evidence": "domain_status","identity": {"domain": "query","id": "19","realm": null,"resource": null,"sequence": null},"facts": [],"actions": ["inspect_status"]},
+        "retired": {"code": "query.retired","category": "lifecycle","stage": "control","outcome": "retired","evidence": "domain_status","identity": {"domain": "query","id": "19","realm": null,"resource": null,"sequence": null},"facts": [],"actions": ["inspect_status"]},
+        "denied": {"evidence": "domain_status","identity": {"domain": "query","id": "19","realm": null,"resource": null,"sequence": null},"facts": [["completion","execution","provided"]],"code": "query.policy_denied","category": "access","actions": ["inspect_status","inspect_scope"],"stage": "admission","outcome": "rejected"},
+        "rejected": {"evidence": "domain_status","identity": {"domain": "query","id": "19","realm": null,"resource": null,"sequence": null},"facts": [["completion","execution","provided"]],"code": "query.arithmetic_overflow","category": "limit","actions": ["inspect_status","correct_input"],"stage": "execute","outcome": "rejected"}
+      }
+    },
+    "query.flight_failure": {
+      "source": "packages/zig/transit-query/src/QueryFailure.zig",
+      "type": "Code",
+      "projection": "packages/zig/transit-flight/src/Diagnostic.zig",
+      "profile": "Flight saved failure detail and gRPC status",
+      "context": "Same original query failure and exact namespace; explicit RPC status including retirement override",
+      "durable_evidence": "Projection uses the retained owner record. This executable checks the mapping; owner commit/replay/restart proofs verify persistence.",
+      "disclosure": "Project only after the owning read has established current authority. Fixture values are synthetic; additional payloads/credentials are not inferred.",
+      "recovery": "Inspect saved namespace; correct/recompile only from a confirmed rejection; current access/lifecycle remains separate",
+      "defaults": {
+            "evidence": "domain_status",
+            "identity": {
+                  "domain": "query",
+                  "id": "19",
+                  "realm": null,
+                  "resource": null,
+                  "sequence": null
+            },
+            "facts": [
+                  [
+                        "completion",
+                        "execution",
+                        "provided"
+                  ]
+            ]
+      },
+      "scenarios": {
+            "admission.denied": {
+                  "stage": "admission",
+                  "outcome": "rejected"
+            },
+            "admission.rejected": {
+                  "stage": "admission",
+                  "outcome": "rejected"
+            },
+            "admission.retired": {
+                  "stage": "admission",
+                  "outcome": "retired",
+                  "transport_status": 9
+            },
+            "execution.denied": {
+                  "stage": "execute",
+                  "outcome": "rejected"
+            },
+            "execution.rejected": {
+                  "stage": "execute",
+                  "outcome": "rejected"
+            },
+            "execution.retired": {
+                  "stage": "execute",
+                  "outcome": "retired",
+                  "transport_status": 9
+            }
+      }
+,
+      "cases": {
+        "policy_denied": {"code": "query.policy_denied","category": "access","actions": ["inspect_status","inspect_scope"],"transport_status": 7},
+        "access_denied": {"code": "query.access_denied","category": "access","actions": ["inspect_status","inspect_scope"],"transport_status": 7},
+        "resource_unavailable": {"code": "query.resource_unavailable","category": "unavailable","actions": ["inspect_status","inspect_scope"],"transport_status": 9},
+        "request_unpublished": {"code": "query.request_unpublished","category": "lifecycle","actions": ["inspect_status","inspect_scope"],"transport_status": 9},
+        "publisher_mismatch": {"code": "query.publisher_mismatch","category": "access","actions": ["inspect_status","inspect_scope"],"transport_status": 7},
+        "document_history_gap": {"code": "query.document_history_gap","category": "lifecycle","actions": ["inspect_status","inspect_scope"],"transport_status": 9},
+        "document_retired": {"code": "query.document_retired","category": "lifecycle","actions": ["inspect_status","inspect_scope"],"transport_status": 9},
+        "document_resync_required": {"code": "query.document_resync_required","category": "lifecycle","actions": ["inspect_status","inspect_scope"],"transport_status": 9},
+        "budget_exceeded": {"code": "query.budget_exceeded","category": "limit","actions": ["inspect_status","correct_input"],"transport_status": 8},
+        "projection_budget": {"code": "query.projection_budget","category": "limit","actions": ["inspect_status","correct_input"],"transport_status": 8},
+        "expansion_missing": {"code": "query.expansion_missing","category": "binding","actions": ["inspect_status","correct_input"],"transport_status": 9},
+        "expansion_null": {"code": "query.expansion_null","category": "binding","actions": ["inspect_status","correct_input"],"transport_status": 9},
+        "expansion_conflict": {"code": "query.expansion_conflict","category": "conflict","actions": ["inspect_status","correct_input"],"transport_status": 9},
+        "expansion_type_error": {"code": "query.expansion_type_error","category": "binding","actions": ["inspect_status","correct_input"],"transport_status": 9},
+        "cell_type_error": {"code": "query.cell_type_error","category": "binding","actions": ["inspect_status","correct_input"],"transport_status": 9},
+        "cell_conflict": {"code": "query.cell_conflict","category": "conflict","actions": ["inspect_status","correct_input"],"transport_status": 9},
+        "arithmetic_overflow": {"code": "query.arithmetic_overflow","category": "limit","actions": ["inspect_status","correct_input"],"transport_status": 11},
+        "segment_byte_limit": {"code": "query.segment_byte_limit","category": "limit","actions": ["inspect_status","correct_input"],"transport_status": 8},
+        "type_mismatch": {"code": "query.type_mismatch","category": "binding","actions": ["inspect_status","correct_input"],"transport_status": 3},
+        "unsupported_aggregate": {"code": "query.unsupported_aggregate","category": "unsupported","actions": ["inspect_status","correct_input"],"transport_status": 12},
+        "unknown_column": {"code": "query.unknown_column","category": "binding","actions": ["inspect_status","correct_input"],"transport_status": 3},
+        "invalid_projection": {"code": "query.invalid_projection","category": "binding","actions": ["inspect_status","correct_input"],"transport_status": 3},
+        "duplicate_projection": {"code": "query.duplicate_projection","category": "binding","actions": ["inspect_status","correct_input"],"transport_status": 3},
+        "invalid_bundle": {"code": "query.invalid_bundle","category": "binding","actions": ["inspect_status","correct_input"],"transport_status": 3},
+        "invalid_source": {"code": "query.invalid_source","category": "binding","actions": ["inspect_status","correct_input"],"transport_status": 3},
+        "invalid_prefix": {"code": "query.invalid_prefix","category": "binding","actions": ["inspect_status","correct_input"],"transport_status": 3},
+        "invalid_path": {"code": "query.invalid_path","category": "binding","actions": ["inspect_status","correct_input"],"transport_status": 3},
+        "invalid_projection_budget": {"code": "query.invalid_projection_budget","category": "binding","actions": ["inspect_status","correct_input"],"transport_status": 3},
+        "invalid_text_projection": {"code": "query.invalid_text_projection","category": "binding","actions": ["inspect_status","correct_input"],"transport_status": 3},
+        "invalid_element_projection": {"code": "query.invalid_element_projection","category": "binding","actions": ["inspect_status","correct_input"],"transport_status": 3},
+        "unsupported_source": {"code": "query.unsupported_source","category": "unsupported","actions": ["inspect_status","correct_input"],"transport_status": 12},
+        "unsupported_decoder": {"code": "query.unsupported_decoder","category": "unsupported","actions": ["inspect_status","correct_input"],"transport_status": 12},
+        "unsupported_document_source": {"code": "query.unsupported_document_source","category": "unsupported","actions": ["inspect_status","correct_input"],"transport_status": 12},
+        "invalid_source_encoding": {"code": "query.invalid_source_encoding","category": "integrity","actions": ["inspect_status","contact_operator"],"transport_status": 3},
+        "invalid_plan_encoding": {"code": "query.invalid_plan_encoding","category": "integrity","actions": ["inspect_status","contact_operator"],"transport_status": 3},
+        "plan_definition_mismatch": {"code": "query.plan_definition_mismatch","category": "integrity","actions": ["inspect_status","contact_operator"],"transport_status": 3},
+        "invalid_output_names": {"code": "query.invalid_output_names","category": "binding","actions": ["inspect_status","correct_input"],"transport_status": 3},
+        "unsupported_plan": {"code": "query.unsupported_plan","category": "unsupported","actions": ["inspect_status","correct_input"],"transport_status": 12},
+        "plan_too_large": {"code": "query.plan_too_large","category": "limit","actions": ["inspect_status","correct_input"],"transport_status": 8},
+        "bundle_too_large": {"code": "query.bundle_too_large","category": "limit","actions": ["inspect_status","correct_input"],"transport_status": 8},
+        "truncated_input": {"code": "query.truncated_input","category": "integrity","actions": ["inspect_status","contact_operator"],"transport_status": 3},
+        "source_changed": {"code": "query.source_changed","category": "conflict","actions": ["inspect_status","recompile"],"transport_status": 9},
+        "table_schema_changed": {"code": "query.table_schema_changed","category": "conflict","actions": ["inspect_status","recompile"],"transport_status": 9},
+        "invalid_budget": {"code": "query.invalid_budget","category": "binding","actions": ["inspect_status","correct_input"],"transport_status": 3},
+        "namespace_in_use": {"code": "query.namespace_in_use","category": "conflict","actions": ["inspect_status","correct_input"],"transport_status": 10},
+        "query_after_mutation": {"code": "query.query_after_mutation","category": "binding","actions": ["inspect_status","correct_input"],"transport_status": 9},
+        "nonfinite_value": {"code": "query.nonfinite_value","category": "binding","actions": ["inspect_status","correct_input"],"transport_status": 3},
+        "invalid_utf8": {"code": "query.invalid_utf8","category": "binding","actions": ["inspect_status","correct_input"],"transport_status": 3},
+        "cell_too_large": {"code": "query.cell_too_large","category": "limit","actions": ["inspect_status","correct_input"],"transport_status": 8},
+        "invalid_column_name": {"code": "query.invalid_column_name","category": "binding","actions": ["inspect_status","correct_input"],"transport_status": 3},
+        "invalid_column_count": {"code": "query.invalid_column_count","category": "binding","actions": ["inspect_status","correct_input"],"transport_status": 3},
+        "duplicate_column": {"code": "query.duplicate_column","category": "binding","actions": ["inspect_status","correct_input"],"transport_status": 3},
+        "unsupported_schema": {"code": "query.unsupported_schema","category": "unsupported","actions": ["inspect_status","correct_input"],"transport_status": 12},
+        "peer_mismatch": {"code": "query.peer_mismatch","category": "access","actions": ["inspect_status","inspect_scope"],"transport_status": 7},
+        "invalid_request_reference": {"code": "query.invalid_request_reference","category": "binding","actions": ["inspect_status","correct_input"],"transport_status": 3},
+        "writer_not_ready": {"code": "query.writer_not_ready","category": "unavailable","actions": ["inspect_status","inspect_scope"],"transport_status": 9},
+        "request_resource_expired": {"code": "query.request_resource_expired","category": "lifecycle","actions": ["inspect_status","inspect_scope"],"transport_status": 9},
+        "request_resource_missing": {"code": "query.request_resource_missing","category": "lifecycle","actions": ["inspect_status","inspect_scope"],"transport_status": 9}
+      }
+    }
   }
 }

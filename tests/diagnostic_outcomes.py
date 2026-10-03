@@ -19,6 +19,9 @@ MANIFEST = ROOT / 'contracts/diagnostics/outcomes.json'
 
 
 def normalize(row):
+    if row.get("absent") is True:
+        assert set(row) == {"family", "variant", "scenario", "absent"}, row
+        return {"absent": True}
     result = {key: value for key, value in row.items()
               if key not in ('family', 'variant', 'scenario', 'facts', 'actions')}
     if result.get('transport_status') is None:
@@ -54,7 +57,7 @@ def validate(manifest, surface, rows):
             variants = set(surface['sources'][definition['source']]['outcomes'][definition['type']])
         assert set(definition['cases']) == variants, ('unmapped outcome', family)
         for variant, case in definition['cases'].items():
-            assert case['code'], (family, variant)
+            assert case.get('code') or case.get('absent') is True, (family, variant)
             for scenario, context in definition['scenarios'].items():
                 base = {key: value for key, value in case.items() if key != 'scenarios'}
                 expected[family, variant, scenario] = definition['defaults'] | base | context | case.get('scenarios', {}).get(scenario, {})
@@ -90,8 +93,11 @@ def self_test(manifest, surface, rows):
     changed[0]['facts'][0]['availability'] = 'withheld'
     rejected(changed_rows=changed)
     changed = copy.deepcopy(rows)
-    row = next(row for row in changed if row['outcome'] == 'closed_unknown')
+    row = next(row for row in changed if row.get('outcome') == 'closed_unknown')
     row['actions'][0]['kind'] = 'resume_exact'
+    rejected(changed_rows=changed)
+    changed = copy.deepcopy(rows)
+    next(row for row in changed if row.get('absent'))['code'] = 'invented.pending_failure'
     rejected(changed_rows=changed)
     changed = copy.deepcopy(surface)
     first = next(iter(manifest['families'].values()))

@@ -13722,3 +13722,17 @@ codecs/results, checked gzip, quotas, cancellation/cleanup, immutable capture an
 passes **566 real command cases** with no credential/configuration disclosure,
 stdout contamination or provisioning. Documentation links also pass. Open external
 callbacks and OS errors are not claimed to be a finite enumerated set.
+
+### Query lifecycle and saved Flight status matrix (2026-10-03)
+
+`just test::diagnostic-outcomes` passes **2,851 projections across 30 declared
+surfaces**. All eight requester phases invoke the actual status projector with
+valid encoded status. Uploading, sealed, admitted and complete have no diagnostic;
+the mutation checks reject fabricated pending failures. Cancelled/retired and
+original denied/rejected outcomes retain their independent meanings. Every saved
+query failure also crosses both stages and denied/rejected/retired presentation
+through the real Flight detail and RPC status projector. Retired presentation
+preserves the original cause and returns FAILED_PRECONDITION. An initial checker
+assumed every observation had an outcome field; it was fixed to accommodate
+explicit diagnostic absence and rerun. Documentation links pass. This fixture
+does not replace authorization, durable transition or restart proofs.

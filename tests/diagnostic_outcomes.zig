@@ -31,6 +31,8 @@ fn queries(out: *std.Io.Writer) !void {
             inline for (.{ q.UnifiedRequest.Phase.denied, q.UnifiedRequest.Phase.rejected, q.UnifiedRequest.Phase.retired }) |phase| {
                 const failure: q.QueryFailure = .{ .code = code, .stage = stage };
                 try emitScenario(out, "query.failure", @tagName(code), comptime @tagName(stage) ++ "." ++ @tagName(phase), try failure.diagnostic(19, phase));
+                const flight: @import("transit_flight").Diagnostic = .{ .namespace = 19, .phase = phase, .failure = failure };
+                try emitTransport(out, "query.flight_failure", @tagName(code), comptime @tagName(stage) ++ "." ++ @tagName(phase), try flight.structured(), flight.status());
             }
         }
     }
@@ -257,6 +259,7 @@ pub fn main(init: std.process.Init) !void {
     var buffer: [8192]u8 = undefined;
     var stdout = std.Io.File.stdout().writerStreaming(init.io, &buffer);
     try queries(&stdout.interface);
+    try queryPhases(&stdout.interface);
     try mutations(&stdout.interface);
     try catalogs(&stdout.interface);
     try serving(&stdout.interface);
@@ -273,4 +276,20 @@ pub fn main(init: std.process.Init) !void {
     try servingCallers(&stdout.interface);
     try applicationCallers(&stdout.interface);
     try stdout.interface.flush();
+}
+
+fn queryPhases(out: *std.Io.Writer) !void {
+    inline for (comptime std.meta.tags(q.UnifiedRequest.Phase)) |phase| {
+        var value: q.UnifiedRequest.Status = .{ .reference = .{ .resource = 7, .domain = .query_request, .namespace = 19, .record = 1, .spec = .{ .format = q.Bundle.format, .length = 32, .digest = @splat(1) } }, .phase = phase };
+        if (phase == .admitted or phase == .complete or phase == .denied or phase == .rejected) value.correlation = 12;
+        if (phase == .denied) value.failure = .{ .code = .policy_denied, .stage = .admission };
+        if (phase == .rejected) value.failure = .{ .code = .arithmetic_overflow, .stage = .execution };
+        if (phase == .complete) value.manifest = .{ .resource = 8, .domain = .query_result, .namespace = 29, .record = q.UnifiedRecords.manifest_record, .spec = .{ .format = q.UnifiedRecords.manifest_format, .length = 1, .digest = @splat(2) } };
+        if (try q.Bridge.statusDiagnostic(value)) |detail| {
+            try emit(out, "query.phase", @tagName(phase), detail);
+        } else {
+            try std.json.Stringify.value(.{ .family = "query.phase", .variant = @tagName(phase), .scenario = "default", .absent = true }, .{}, out);
+            try out.writeByte('\n');
+        }
+    }
 }

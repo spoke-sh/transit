@@ -76,8 +76,8 @@ The projection fixture uses valid synthetic retained records. It does not execut
 an authority, prove current access, reproduce a rejecting turn or verify all
 optional witness values. Owner tests and restart/commit/disclosure proofs retain
 those responsibilities. A listed enum's completeness is not completeness across
-all runtime adapters or grammar alternatives. In particular, query lifecycle status without a failure and application-owned transform errors
-remain separate coverage obligations.
+all runtime adapters or grammar alternatives. Application-owned transform errors remain open callback failures; they cannot
+be exhaustively enumerated by a shared runtime.
 
 The query caller boundary checks its own finite causes and delegated retained
 query/transport classifications. Reviewed overlaps are explicit; an added cause
@@ -175,3 +175,12 @@ context; human rendering and unknown callbacks run in the unit suite. Capture
 storage and scalar overflow retain their original contextual overrides. No file
 projection manufactures a saved command, completion or remote outcome. External
 I/O/callback sets remain open under the compiler boundary gate.
+
+The requester phase matrix invokes the public status projector with validated
+records for all eight phases. Uploading, sealed, admitted and complete deliberately
+produce no diagnostic; the gate rejects fabricated errors on these observations.
+Cancelled/retired status and original denied/rejected failures retain their own
+evidence and actions. Every retained query code also crosses both recorded stages
+and all three failure phases through Flight's actual detail/status projector,
+including retirement's status override. These cases supplement the real durable
+query/restart proofs rather than simulating their storage transitions.
