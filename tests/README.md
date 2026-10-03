@@ -13362,7 +13362,21 @@ The first full check found the C public API definition needed regeneration;
 `just bindings::generate` followed by the complete check passed. Logs:
 `/var/tmp/transit-exchange-diagnostic-{build,check2,regenerate}.log`.
 
-The installed HTTP/gRPC language matrix and full HTTP disk schedule are running
-at this increment; they are not yet passed evidence. Their completion results
-must be recorded before final qualification. Committed-HEAD clean checkout
-verification remains outstanding.
+All twenty installed ordinary HTTP/gRPC schedules passed: Python, TypeScript,
+Rust, Ruby, C, C++, Java, .NET, Erlang and Elixir. Each retained the exact native
+effect identity and completed outcome, absent capture failure, original follow-up
+rejection evidence, current replay denial, owned bytes and one external send.
+C/C++ HTTP was repeated after regenerating and rebuilding its public API definition.
+Logs: `/var/tmp/transit-exchange-diagnostic-sdk-group{1,2}.log` and
+`/var/tmp/transit-exchange-diagnostic-c-final.log`.
+
+Full `just test::http-worker` passed in 1083.97 seconds excluding compilation,
+with seventeen sends, nine applications and two cancellation requests. Native
+capture-failure reads exactly match the original cause after failure-input receipt
+loss, worker/node/store replacement and retirement; native effect reads match the
+original reconciliation closure. Capture-resource access alone fails the independent
+connector-PID inspection check. The 8 MiB hot limit spills 810 cold objects and
+94,682,099 bytes. Log: `/var/tmp/transit-exchange-diagnostic-http-proof.log`.
+This qualification is for the exchange diagnostic read definition at `8be70f5f`;
+subsequent preparation-evidence work requires its own proof. Committed-HEAD clean
+checkout verification remains outstanding.
