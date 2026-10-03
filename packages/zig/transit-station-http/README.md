@@ -103,3 +103,10 @@ credentials. This evidence is separate from native effect settlement. A worker
 replays an admitted failure input after replacement; a cause lost before admission
 is explicitly unrecorded. The worker JSON returns separate nullable capture and
 effect diagnostics without claiming remote rollback or authorizing a fresh send.
+
+The transport preserves available socket, TLS and HTTP body-framing causes.
+`CertificateHostMismatch` differs from an untrusted or invalid certificate path;
+TLS truncation and invalid/truncated HTTP chunks differ from a generic read
+failure. Request-body input failures are distinct from missing/truncated response
+heads. Capture callback failures keep their own cause. These details do not
+change timeout, certificate verification, partial-capture or no-retry semantics.

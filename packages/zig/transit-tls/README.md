@@ -32,3 +32,13 @@ does not itself qualify HTTP/2 or gRPC framing.
 Run `nix develop --command bash -c 'cd packages/zig/transit-tls && zig build test'`.
 Transport/deployment qualification belongs to its consumers; M15 owns the initial
 HTTP integration and M16 will qualify its HTTP/2 use separately.
+
+Certificate failures retain the validation check: an absent trust path, a
+non-CA issuer, missing certificate-signing usage, excessive path length,
+server-authentication usage mismatch or a name constraint. Malformed/empty/
+truncated/oversized certificate data and exhausted validation scratch have
+separate errors. These errors carry no certificate bytes, names or key material.
+The pinned validator reports `NoTrustedPath` if every one of several candidate
+paths fails; it does not select an invented single cause for that case.
+Socket adapters can read the TLS reader's `read_err` and the socket reader/writer
+cause slots when an I/O interface returns `ReadFailed` or `WriteFailed`.

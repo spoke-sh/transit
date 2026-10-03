@@ -75,6 +75,17 @@ fn emit(capture: Capture, kind: http.Kind, bytes: []const u8) !void {
         offset = end;
     }
 }
+// The std I/O interfaces deliberately return wrapper errors. Unwrap only
+// their own populated cause slots; never substitute a later request or capture
+// failure, and never log response bytes or TLS material for explanation.
+fn readCause(err: anyerror, raw: *const std.Io.net.Stream.Reader, secure: ?*const tls.Client) anyerror {
+    if (err != error.ReadFailed) return err;
+    if (secure) |client| if (client.read_err) |cause| return cause;
+    return raw.err orelse err;
+}
+fn writeCause(err: anyerror, raw: *const std.Io.net.Stream.Writer) anyerror {
+    return if (err == error.WriteFailed) raw.err orelse err else err;
+}
 fn run(gpa: std.mem.Allocator, io: std.Io, endpoint: Endpoint, request: http.Request, body: *std.Io.Reader, secrets: ?http.Request.Resolver, capture: Capture) !Result {
     const started = std.Io.Clock.awake.now(io);
     const started_ms: u64 = @intCast(std.Io.Clock.real.now(io).toMilliseconds());
@@ -117,26 +128,33 @@ fn run(gpa: std.mem.Allocator, io: std.Io, endpoint: Endpoint, request: http.Req
             .write_buffer = &tls_output,
             .entropy = &entropy,
             .realtime_now = now,
-        }) catch return error.TlsInitializationFailed;
+        }) catch |err| return writeCause(readCause(err, &raw_reader, null), &raw_writer);
     }
     defer if (endpoint.tls) std.crypto.secureZero(u8, std.mem.asBytes(&secure));
     const writer = if (endpoint.tls) &secure.writer else &raw_writer.interface;
-    try writer.writeAll(head);
+    writer.writeAll(head) catch |err| return writeCause(err, &raw_writer);
     var buffer: [segment_bytes]u8 = undefined;
     var remaining = request.body_bytes;
     while (remaining != 0) {
         const count: usize = @intCast(@min(remaining, buffer.len));
-        try body.readSliceAll(buffer[0..count]);
-        try writer.writeAll(buffer[0..count]);
+        body.readSliceAll(buffer[0..count]) catch |err| return switch (err) {
+            error.EndOfStream => error.HttpRequestBodyTruncated,
+            error.ReadFailed => error.HttpRequestBodyReadFailed,
+        };
+        writer.writeAll(buffer[0..count]) catch |err| return writeCause(err, &raw_writer);
         remaining -= count;
     }
-    try writer.flush();
-    if (endpoint.tls) try raw_writer.interface.flush();
+    writer.flush() catch |err| return writeCause(err, &raw_writer);
+    if (endpoint.tls) raw_writer.interface.flush() catch |err| return writeCause(err, &raw_writer);
     var reader: std.http.Reader = .{ .in = if (endpoint.tls) &secure.reader else &raw_reader.interface, .interface = undefined, .state = .ready, .max_head_len = http.Request.maximum_head_bytes };
     var interim: u8 = 0;
     var omitted: u32 = 0;
     const response = while (true) {
-        const bytes = try reader.receiveHead();
+        const bytes = reader.receiveHead() catch |err| return switch (err) {
+            error.HttpRequestTruncated => error.HttpResponseHeadTruncated,
+            error.HttpConnectionClosing => error.HttpResponseMissing,
+            else => readCause(err, &raw_reader, if (endpoint.tls) &secure else null),
+        };
         const parsed = try http.validateResponse(bytes);
         if (parsed.status.class() != .informational) break parsed;
         if (parsed.status == .switching_protocols or interim == 4) return error.UnsupportedHttpResponse;
@@ -159,7 +177,7 @@ fn run(gpa: std.mem.Allocator, io: std.Io, endpoint: Endpoint, request: http.Req
     if (!no_body) {
         const stream = reader.bodyReader(&.{}, response.transfer_encoding, response.content_length);
         while (true) {
-            const count = try stream.readSliceShort(&buffer);
+            const count = stream.readSliceShort(&buffer) catch |err| return if (err == error.ReadFailed and reader.body_err != null) reader.body_err.? else readCause(err, &raw_reader, if (endpoint.tls) &secure else null);
             if (count > endpoint.response_bytes - total) return error.HttpResponseTooLarge;
             if (count != 0) try emit(capture, .response_body, buffer[0..count]);
             total += count;

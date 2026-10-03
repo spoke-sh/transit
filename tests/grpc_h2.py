@@ -14,7 +14,7 @@ import h2.settings
 
 
 def verify(binary, cert, key, payload):
-    for mode in ("Flow", "Missing", "Truncated", "Compressed", "EarlyStatus", "DuplicateStatus"):
+    for mode in ("Flow", "Missing", "Truncated", "Compressed", "EarlyStatus", "DuplicateStatus", "DroppedTls"):
         failures, requests = [], []
         fragments = [0]
         with socket.socket() as listener:
@@ -40,6 +40,7 @@ def verify(binary, cert, key, payload):
                                 for event in events:
                                     if isinstance(event, h2.events.RequestReceived):
                                         stream = event.stream_id
+                                        if mode == "DroppedTls": return
                                         fields = [(b":status", b"200"), (b"content-type", b"application/grpc+proto")]
                                         if mode == "EarlyStatus": fields.append((b"grpc-status", b"0"))
                                         connection.send_headers(stream, fields)
@@ -87,6 +88,6 @@ def verify(binary, cert, key, payload):
                 assert result["capture_complete"] and result["status"] == 0 and result["sent"] == 4 and result["received"] == 3 and result["half_closed"], result
                 assert result["sha256"] == hashlib.sha256(payload*3).hexdigest(), result
             else:
-                expected = {"Missing": "MissingStatus", "Truncated": "Internal", "Compressed": "Internal", "EarlyStatus": "MalformedResponse", "DuplicateStatus": "MalformedResponse"}[mode]
+                expected = {"Missing": "MissingStatus", "Truncated": "Internal", "Compressed": "Internal", "EarlyStatus": "MalformedResponse", "DuplicateStatus": "MalformedResponse", "DroppedTls": "TlsConnectionTruncated"}[mode]
                 assert result.get("error") == expected, (mode, result)
     print("gRPC HTTP/2 peer: 64-byte send credit and 16-KiB receive credit progress together; missing, truncated, compressed and forged terminal envelopes reject.")

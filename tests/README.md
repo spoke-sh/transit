@@ -6,6 +6,31 @@ earlier entry refers to that entry's source, not automatically to HEAD. The late
 records its reruns and remaining qualification separately; earlier consolidation
 results do not qualify the changed stored layout by inheritance.
 
+## Connector transport cause evidence — 2026-10-03
+
+HTTP and gRPC unwrap only populated socket/TLS cause slots at the failing I/O
+boundary. Certificate verification retains the failing path check; multiple
+failed candidate paths still report `NoTrustedPath`. Capture callback failures
+remain independent, and no new retry is introduced.
+
+`just test::unit`, `just test::http-transport`, `just test::grpc-transport` and
+`just test::tls-alpn` pass. HTTP covers **26 single-send requests**, missing and
+truncated responses, invalid chunk delimiters and independent TLS 1.2/1.3 peers
+with exact hostname, trust, CA, signing usage, EKU, name-constraint and path-length
+errors. Rejected handshakes send no application bytes. The gRPC proof covers all
+four shapes, **8 grpcio calls**, malformed/flow-control cases and an abrupt TLS
+close whose original cause survives the HTTP/2 `ConnectionClosed` wrapper.
+Full `just check` passes, including native/generated/frontend checks, **517 CLI
+cases**, **75 Board unit cases** and the handbook build.
+
+Logs: `/var/tmp/transit-transport-cause-{check,http-verified,grpc-final,alpn}.log`.
+Initial fixtures exposed the HTTP/2 wrapper and stale generic certificate
+assertions; corrected assertions and projections pass. A malformed hexadecimal
+chunk fixture also exposed overly permissive chunk-size parsing in the pinned
+standard library; strict chunk grammar remains separate work. These results do
+not establish installed connector SDK adoption, complete semantic inventory or
+committed-HEAD clean qualification.
+
 ## Connector capture failure evidence — 2026-10-03
 
 The `exchange-failure-witness` current-v1 cutover retains a 197-byte first-closure
@@ -32,9 +57,11 @@ unwrapping available transport causes remains separate work.
 Logs: `/var/tmp/transit-exchange-native.log`,
 `/var/tmp/transit-exchange-check.log`,
 `/var/tmp/transit-exchange-board-unit.log` and
-`/var/tmp/transit-exchange-board-final.log`. The gRPC disk schedule is still
-running at this record; its new per-shape recovery/retirement assertions are
-not claimed passed here. Neither Board connector browser proofs, installed
+`/var/tmp/transit-exchange-board-final.log`. At commit `27d33757`, the gRPC disk schedule also passes in **358.30 s**:
+all four shapes preserve recovered-incomplete versus native abandonment,
+explicitly leave the lost cause unrecorded, emit only inspection guidance and
+retain the same capture diagnostic after retirement. It records **9 sends**,
+**8 remote applications** and **658 cold objects**. Neither Board connector browser proofs, installed
 connector SDK adoption, complete semantic inventory nor committed-HEAD clean
 qualification is established by this increment.
 

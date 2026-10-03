@@ -69,7 +69,10 @@ def verify_paths(binary, root):
                 if name == "valid":
                     assert result.get("status") == 200 and requests == ["/path"], (name, version, result)
                 else:
-                    assert result["error"] == "TlsInitializationFailed" and requests == [], (name, version, result)
+                    expected = {"nonca": "NotACertificateAuthority", "usage": "KeyUsageForbidsCertSigning",
+                                "purpose": "ExtendedKeyUsageMismatch", "names": "NameConstraintViolated",
+                                "pathlen": "PathLenConstraintExceeded"}[name]
+                    assert result["error"] == expected and requests == [], (name, version, result)
             finally:
                 server.shutdown(); server.server_close(); thread.join(timeout=5)
     print("TLS path validation: TLS 1.2/1.3 valid chains accepted; non-CA, signing usage, path length, server purpose and name constraints rejected before HTTP bytes.")

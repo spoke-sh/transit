@@ -33,10 +33,12 @@ pub const max_chain_len = 10;
 /// candidate lists -- a few hundred bytes for a real chain).
 const scratch_len = 16 * 1024;
 
-pub const Error = error{
-    /// The chain does not lead to the bundle under RFC 5280, or a
-    /// certificate in it is malformed.
-    TlsCertificateNotVerified,
+pub const Error = x509.VerifyChainError || error{
+    TlsCertificateEmpty,
+    TlsCertificateTruncated,
+    TlsCertificateTooLarge,
+    TlsCertificateMalformed,
+    TlsValidationWorkspaceExceeded,
 };
 
 /// Refuse a certificate std's parser must not see (see the file header).
@@ -47,20 +49,27 @@ pub fn checkWellFormed(der: []const u8) Error!void {
 
 pub const certificate_buffer_len = x509.safe.max_certificate_len + x509.safe.parse_slack;
 pub fn parse(der: []const u8, scratch: []u8) Error!Certificate.Parsed {
-    const safe = x509.safe.safeCertificate(der, scratch) catch return error.TlsCertificateNotVerified;
-    return safe.parse() catch return error.TlsCertificateNotVerified;
+    const safe = x509.safe.safeCertificate(der, scratch) catch |err| return switch (err) {
+        error.Empty => error.TlsCertificateEmpty,
+        error.Truncated => error.TlsCertificateTruncated,
+        error.TooLarge => error.TlsCertificateTooLarge,
+        error.ScratchTooSmall => error.TlsValidationWorkspaceExceeded,
+        else => error.TlsCertificateMalformed,
+    };
+    return safe.parse();
 }
 
 test "TLS rejects primitive descent and incomplete DER before standard parsing" {
     for ([_][]const u8{ "", "\x30\x07\x04\x05\x30\x83\x01\x00\x00", "\x30\x02\x03\x00" }) |bytes| {
-        try std.testing.expectError(error.TlsCertificateNotVerified, checkWellFormed(bytes));
+        if (checkWellFormed(bytes)) |_| return error.TestExpectedError else |_| {}
     }
 }
 
 /// Verify `chain` (leaf first, as the server sent it, each one already
 /// through `checkWellFormed`) against `bundle` at `now_sec`.
 pub fn verifyAgainstBundle(chain: []const []const u8, bundle: *const Certificate.Bundle, now_sec: i64) Error!void {
-    if (chain.len == 0 or chain.len > max_chain_len) return error.TlsCertificateNotVerified;
+    if (chain.len == 0) return error.EmptyChain;
+    if (chain.len > max_chain_len) return error.ChainTooLong;
     // Trust anchors: the bundle's certificate for every issuer name the chain
     // mentions. `Bundle` keys one certificate per subject, which is all a
     // path can end in.
@@ -78,14 +87,14 @@ pub fn verifyAgainstBundle(chain: []const []const u8, bundle: *const Certificate
             n += 1;
         }
     }
-    if (n == 0) return error.TlsCertificateNotVerified;
+    if (n == 0) return error.NoTrustedPath;
 
     var scratch: [scratch_len]u8 = undefined;
     var fba: std.heap.FixedBufferAllocator = .init(&scratch);
     _ = x509.verifyChain(fba.allocator(), chain, anchors[0..n], .{
         .now_sec = now_sec,
         .required_eku = .server_auth,
-    }) catch return error.TlsCertificateNotVerified;
+    }) catch |err| return if (err == error.OutOfMemory) error.TlsValidationWorkspaceExceeded else err;
 }
 
 /// The whole DER of the bundle certificate starting at `at`. The bundle's
@@ -167,7 +176,7 @@ test "a leaf signed by another leaf's key is refused (ziglang/zig #35877)" {
         const i = try (Certificate{ .buffer = iss, .index = 0 }).parse();
         try s.verify(i, now);
     }
-    try testing.expectError(error.TlsCertificateNotVerified, verifyAgainstBundle(chain, &bundle, now));
+    try testing.expectError(error.NotACertificateAuthority, verifyAgainstBundle(chain, &bundle, now));
 }
 
 test "a leaf restricted to clientAuth is no server" {
@@ -175,7 +184,7 @@ test "a leaf restricted to clientAuth is no server" {
     defer bundle.deinit(testing.allocator);
     var c: Chain = .{};
     const chain = try c.of(&.{ @embedFile("testdata/leaf-client.pem"), @embedFile("testdata/inter.pem") });
-    try testing.expectError(error.TlsCertificateNotVerified, verifyAgainstBundle(chain, &bundle, now));
+    try testing.expectError(error.ExtendedKeyUsageMismatch, verifyAgainstBundle(chain, &bundle, now));
 }
 
 test "a chain to a root the bundle does not hold is refused" {
@@ -183,12 +192,14 @@ test "a chain to a root the bundle does not hold is refused" {
     defer bundle.deinit(testing.allocator);
     var c: Chain = .{};
     const chain = try c.of(&.{ @embedFile("testdata/leaf.pem"), @embedFile("testdata/inter.pem") });
-    try testing.expectError(error.TlsCertificateNotVerified, verifyAgainstBundle(chain, &bundle, now));
+    try testing.expectError(error.NoTrustedPath, verifyAgainstBundle(chain, &bundle, now));
 }
 
 test "malformed DER never reaches std's parser" {
     const cases = [_][]const u8{ "", "\x30", "\x30\x84\xff\xff\xff\xff", "\x30\x03\x30\x01", "not a certificate" };
-    for (cases) |d| try testing.expectError(error.TlsCertificateNotVerified, checkWellFormed(d));
+    for (cases) |d| if (checkWellFormed(d)) |_| return error.TestExpectedError else |_| {};
+    try testing.expectError(error.TlsCertificateEmpty, checkWellFormed(""));
+    try testing.expectError(error.TlsCertificateTruncated, checkWellFormed("\x30"));
 }
 
 // ── fuzz: a server's Certificate message is attacker bytes ──────────────────
@@ -273,5 +284,5 @@ test "corpus: the seeds reach the verifier through Smith -- honest verifies, for
     const m = chainFromSeed(forged, &buf, &chain);
     try testing.expectEqual(@as(usize, 3), m);
     for (chain[0..m]) |der| try checkWellFormed(der);
-    try testing.expectError(error.TlsCertificateNotVerified, verifyAgainstBundle(chain[0..m], &bundle, now));
+    try testing.expectError(error.NotACertificateAuthority, verifyAgainstBundle(chain[0..m], &bundle, now));
 }

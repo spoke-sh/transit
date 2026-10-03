@@ -4152,6 +4152,44 @@
         "kernels.zig"
       ]
     },
+    "apps/transit-station-grpc-worker/main.zig": {
+      "errors": {
+        "ExchangeNotFound": 2,
+        "ExpectedConfiguration": 1,
+        "ExpiredReconciliation": 3,
+        "GrpcAdmissionDenied": 3,
+        "GrpcAdmissionNotConfigured": 2,
+        "GrpcCredentialCapacity": 1,
+        "GrpcCredentialNotGranted": 2,
+        "GrpcEndpointChanged": 1,
+        "GrpcExplicitTrustRequired": 1,
+        "GrpcFollowupChanged": 1,
+        "GrpcFollowupNotGranted": 3,
+        "GrpcFollowupNotSettled": 2,
+        "GrpcReplayGap": 1,
+        "GrpcRequestChanged": 2,
+        "GrpcRequestNotGranted": 1,
+        "GrpcRequestTooLarge": 2,
+        "IncompatibleExchangeLifetime": 1,
+        "InvalidConfiguration": 1,
+        "InvalidExchangeAttempt": 1,
+        "InvalidGrpcCapture": 5,
+        "InvalidGrpcCredential": 1,
+        "InvalidGrpcIdempotencyKey": 1,
+        "MissingGrpcBatch": 1,
+        "MissingGrpcCall": 1,
+        "MissingGrpcRequest": 1,
+        "MissingReconciliationDeadline": 1,
+        "UnknownEffect": 1,
+        "WorkerMailboxBusy": 1
+      },
+      "outcomes": {},
+      "imports": [
+        "std",
+        "telemetry",
+        "transit_station_grpc"
+      ]
+    },
     "apps/transit-station-host/main.zig": {
       "errors": {
         "ExpectedHostConfiguration": 1,
@@ -4166,6 +4204,56 @@
         "station_abi",
         "std",
         "transit_station"
+      ]
+    },
+    "apps/transit-station-http-worker/main.zig": {
+      "errors": {
+        "AmbiguousHttpRedirect": 1,
+        "DuplicateHttpCredential": 1,
+        "ExchangeClosed": 1,
+        "ExchangeNotFound": 2,
+        "ExpectedConfiguration": 1,
+        "ExpiredReconciliation": 4,
+        "HttpAdmissionDenied": 3,
+        "HttpAdmissionNotConfigured": 2,
+        "HttpCredentialCapacity": 1,
+        "HttpCredentialNotGranted": 3,
+        "HttpCredentialReferenceRequired": 1,
+        "HttpCredentialRequiresTls": 1,
+        "HttpEndpointChanged": 3,
+        "HttpExplicitTrustRequired": 1,
+        "HttpFollowupChanged": 2,
+        "HttpFollowupNotGranted": 3,
+        "HttpFollowupNotSettled": 2,
+        "HttpFollowupTargetChanged": 1,
+        "HttpHeadersOversize": 1,
+        "HttpRedirectChanged": 1,
+        "HttpRedirectNotCaptured": 2,
+        "HttpRedirectScope": 1,
+        "HttpReplayGap": 3,
+        "HttpRequestTooLarge": 4,
+        "HttpRetryChanged": 4,
+        "IncompatibleExchangeLifetime": 1,
+        "InvalidConfiguration": 1,
+        "InvalidExchangeAttempt": 1,
+        "InvalidHttpBodyLength": 2,
+        "InvalidHttpCapture": 3,
+        "InvalidHttpCredential": 1,
+        "InvalidHttpIdempotencyKey": 1,
+        "MissingHttpCall": 1,
+        "MissingHttpRequest": 1,
+        "MissingReconciliationDeadline": 1,
+        "UnknownEffect": 1,
+        "UnsupportedHttpCancellation": 1,
+        "UnsupportedHttpReconciliation": 1,
+        "UnsupportedHttpRedirect": 1,
+        "WorkerMailboxBusy": 1
+      },
+      "outcomes": {},
+      "imports": [
+        "std",
+        "telemetry",
+        "transit_station_http"
       ]
     },
     "packages/zig/transit-board-api/src/Document.zig": {
@@ -6581,6 +6669,140 @@
         "std",
         "zarrow",
         "zarrow_compute"
+      ]
+    },
+    "packages/zig/transit-grpc/src/Descriptor.zig": {
+      "errors": {
+        "GrpcDescriptorCapacity": 5,
+        "GrpcDescriptorMethodAmbiguous": 1,
+        "GrpcDescriptorMethodMissing": 2,
+        "GrpcDescriptorTypeMissingOrAmbiguous": 1,
+        "InvalidGrpcDescriptor": 9,
+        "InvalidGrpcRequest": 1
+      },
+      "outcomes": {},
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
+    "packages/zig/transit-grpc/src/Server.zig": {
+      "errors": {
+        "CompressedUnsupported": 3,
+        "DuplicateGrpcHeader": 1,
+        "GrpcBudgetExceeded": 6,
+        "GrpcCancelled": 6,
+        "GrpcCapacity": 1,
+        "GrpcConnectionClosing": 1,
+        "GrpcResponseFinished": 1,
+        "HttpDeadline": 1,
+        "InvalidGrpcRequest": 6,
+        "InvalidGrpcServerLimits": 1,
+        "InvalidGrpcShape": 3,
+        "InvalidGrpcStatus": 2,
+        "InvalidGrpcTimeout": 3
+      },
+      "outcomes": {
+        "ReadEvent": [
+          "bytes"
+        ]
+      },
+      "imports": [
+        "grpc",
+        "http",
+        "root.zig",
+        "std",
+        "transit_http_server"
+      ]
+    },
+    "packages/zig/transit-grpc/src/root.zig": {
+      "errors": {
+        "ConnectionClosed": 1,
+        "GrpcBudgetExceeded": 7,
+        "GrpcOutcomeUnknown": 1,
+        "InvalidGrpcEndpoint": 1,
+        "InvalidGrpcLimits": 1,
+        "InvalidGrpcMetadata": 3,
+        "InvalidGrpcRequest": 4,
+        "InvalidGrpcShape": 3,
+        "MissingGrpcStatus": 1,
+        "MissingGrpcTrust": 1,
+        "ReadFailed": 1,
+        "WriteFailed": 1
+      },
+      "outcomes": {
+        "Shape": [
+          "unary",
+          "server_streaming",
+          "client_streaming",
+          "bidi"
+        ],
+        "Event": [
+          "initial_metadata",
+          "message",
+          "trailers",
+          "half_close"
+        ],
+        "Choice": [
+          "response",
+          "timeout"
+        ]
+      },
+      "imports": [
+        "Descriptor.zig",
+        "Server.zig",
+        "grpc",
+        "http",
+        "protobuf",
+        "std",
+        "transit_tls"
+      ]
+    },
+    "packages/zig/transit-http-server/src/WebSocket.zig": {
+      "errors": {
+        "WebSocketBinaryUnsupported": 2,
+        "WebSocketHandshake": 8,
+        "WebSocketInvalidUtf8": 3,
+        "WebSocketMessageTooLarge": 3,
+        "WebSocketProtocol": 10
+      },
+      "outcomes": {
+        "Opcode": [
+          "text",
+          "close",
+          "ping",
+          "pong"
+        ]
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
+    "packages/zig/transit-http-server/src/root.zig": {
+      "errors": {
+        "AmbiguousFraming": 1,
+        "DuplicateHeader": 1,
+        "HttpCapacity": 1,
+        "HttpDeadline": 1,
+        "InvalidHost": 1,
+        "InvalidHttpLimits": 1,
+        "InvalidTarget": 1,
+        "MissingHost": 1,
+        "UnsupportedContentEncoding": 1,
+        "UnsupportedExpectation": 1,
+        "UnsupportedHttpVersion": 1,
+        "UnsupportedTransferEncoding": 1
+      },
+      "outcomes": {
+        "Result": [
+          "completed",
+          "timeout"
+        ]
+      },
+      "imports": [
+        "WebSocket.zig",
+        "std"
       ]
     },
     "packages/zig/transit-protocol/src/Diagnostic.zig": {
@@ -10739,18 +10961,26 @@
     },
     "packages/zig/transit-station-http/src/Transport.zig": {
       "errors": {
+        "EndOfStream": 1,
+        "HttpConnectionClosing": 1,
         "HttpHeadersOversize": 1,
         "HttpOutcomeUnknown": 1,
+        "HttpRequestBodyReadFailed": 1,
+        "HttpRequestBodyTruncated": 1,
         "HttpRequestTooLarge": 1,
+        "HttpRequestTruncated": 1,
+        "HttpResponseHeadTruncated": 1,
+        "HttpResponseMissing": 1,
         "HttpResponseTooLarge": 2,
         "IncompleteHttpBody": 1,
         "InvalidHttpEndpoint": 1,
         "InvalidHttpFraming": 2,
         "InvalidHttpHeader": 1,
         "MissingHttpCredential": 1,
-        "TlsInitializationFailed": 1,
+        "ReadFailed": 3,
         "UnframedTlsResponse": 1,
-        "UnsupportedHttpResponse": 1
+        "UnsupportedHttpResponse": 1,
+        "WriteFailed": 1
       },
       "outcomes": {
         "Choice": [
@@ -11347,6 +11577,88 @@
         "Waiting.zig",
         "transit_client",
         "transit_fuze"
+      ]
+    },
+    "packages/zig/transit-tls/src/Client.zig": {
+      "errors": {
+        "Canceled": 1,
+        "CertificatePublicKeyInvalid": 1,
+        "ChainTooLong": 1,
+        "EmptyChain": 1,
+        "EndOfStream": 6,
+        "IdentityElement": 1,
+        "InsufficientEntropy": 1,
+        "InvalidEncoding": 2,
+        "ReadFailed": 6,
+        "TlsAlert": 2,
+        "TlsBadLength": 1,
+        "TlsBadRecordMac": 4,
+        "TlsBadRsaSignatureBitCount": 1,
+        "TlsBadSignatureScheme": 2,
+        "TlsCertificateNotVerified": 3,
+        "TlsConnectionTruncated": 4,
+        "TlsDecodeError": 4,
+        "TlsDecryptError": 2,
+        "TlsDecryptFailure": 7,
+        "TlsIllegalParameter": 24,
+        "TlsRecordOverflow": 8,
+        "TlsSequenceOverflow": 1,
+        "TlsUnexpectedMessage": 27,
+        "Unexpected": 2
+      },
+      "outcomes": {
+        "CipherState": [
+          "cleartext",
+          "handshake",
+          "application"
+        ],
+        "HandshakeState": [
+          "hello",
+          "encrypted_extensions",
+          "certificate",
+          "trust_chain_established",
+          "server_hello_done",
+          "finished"
+        ]
+      },
+      "imports": [
+        "builtin",
+        "std",
+        "verify.zig"
+      ]
+    },
+    "packages/zig/transit-tls/src/root.zig": {
+      "errors": {},
+      "outcomes": {},
+      "imports": [
+        "Client.zig",
+        "builtin",
+        "std",
+        "verify.zig"
+      ]
+    },
+    "packages/zig/transit-tls/src/verify.zig": {
+      "errors": {
+        "ChainTooLong": 1,
+        "Empty": 1,
+        "EmptyChain": 1,
+        "NoPem": 2,
+        "NoTrustedPath": 1,
+        "OutOfMemory": 1,
+        "ScratchTooSmall": 1,
+        "TlsCertificateEmpty": 1,
+        "TlsCertificateMalformed": 1,
+        "TlsCertificateTooLarge": 1,
+        "TlsCertificateTruncated": 1,
+        "TlsValidationWorkspaceExceeded": 2,
+        "TooLarge": 1,
+        "Truncated": 1
+      },
+      "outcomes": {},
+      "imports": [
+        "std",
+        "testkit",
+        "x509"
       ]
     }
   },

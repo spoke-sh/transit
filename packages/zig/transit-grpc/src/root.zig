@@ -100,6 +100,14 @@ const FlushWriter = struct {
         try self.raw.flush();
     }
 };
+fn ioCause(err: anyerror, reader: *const std.Io.net.Stream.Reader, writer: *const std.Io.net.Stream.Writer, secure: ?*const tls.Client) anyerror {
+    // The pinned HTTP/2 session wraps reader failure and EOF as ConnectionClosed.
+    if (err == error.ReadFailed or err == error.ConnectionClosed) {
+        if (secure) |client| if (client.read_err) |cause| return cause;
+        return reader.err orelse err;
+    }
+    return if (err == error.WriteFailed) writer.err orelse err else err;
+}
 fn run(gpa: std.mem.Allocator, io: std.Io, endpoint: Endpoint, request: Request, capture: Capture) !Result {
     try endpoint.validate();
     try request.validate(endpoint.limits);
@@ -129,7 +137,7 @@ fn run(gpa: std.mem.Allocator, io: std.Io, endpoint: Endpoint, request: Request,
         var entropy: [tls.Client.Options.entropy_len]u8 = undefined;
         defer std.crypto.secureZero(u8, &entropy);
         try io.randomSecure(&entropy);
-        secure = try tls.Client.init(&reader.interface, &writer.interface, .{
+        secure = tls.Client.init(&reader.interface, &writer.interface, .{
             .host = .{ .explicit = endpoint.host },
             .ca = .{ .bundle = .{ .gpa = bounded, .io = io, .lock = &lock, .bundle = &trust } },
             .read_buffer = &buffers[2],
@@ -137,25 +145,25 @@ fn run(gpa: std.mem.Allocator, io: std.Io, endpoint: Endpoint, request: Request,
             .entropy = &entropy,
             .realtime_now = now,
             .required_alpn = "h2",
-        });
+        }) catch |err| return ioCause(err, &reader, &writer, null);
     }
     defer if (endpoint.tls) std.crypto.secureZero(u8, std.mem.asBytes(&secure));
     var output: FlushWriter = .{ .target = if (endpoint.tls) &secure.writer else &writer.interface, .raw = &writer.interface };
-    var session = try http.h2_client.Session.init(bounded, if (endpoint.tls) &secure.reader else &reader.interface, &output.interface, .{
+    var session = http.h2_client.Session.init(bounded, if (endpoint.tls) &secure.reader else &reader.interface, &output.interface, .{
         .settings = .{ .enable_push = false, .max_concurrent_streams = 1, .initial_window_size = 16384, .max_header_list_size = endpoint.limits.metadata_bytes, .header_table_size = 4096 },
         .max_header_block = endpoint.limits.metadata_bytes,
         .max_unproductive_frames = 64,
         .max_reset_streams = 4,
         .max_continuation_frames = 8,
-    });
+    }) catch |err| return ioCause(err, &reader, &writer, if (endpoint.tls) &secure else null);
     defer session.deinit();
     // Consume the server's initial settings before the first request so a
     // smaller receive window constrains every outgoing message from the start.
-    try session.advance();
+    session.advance() catch |err| return ioCause(err, &reader, &writer, if (endpoint.tls) &secure else null);
     var channel = wire.Channel.init(bounded, &session, .{ .max_recv_message_size = endpoint.limits.message_bytes, .max_send_message_size = endpoint.limits.message_bytes, .scheme = if (endpoint.tls) "https" else "http", .read_chunk = 4096, .user_agent = null });
     var authority_buffer: [280]u8 = undefined;
     channel.authority = try std.fmt.bufPrint(&authority_buffer, "{s}:{d}", .{ endpoint.host, endpoint.port });
-    var call = try channel.start(request.method, .{ .metadata = request.metadata, .timeout = .fromMillis(endpoint.timeout_ms) });
+    var call = channel.start(request.method, .{ .metadata = request.metadata, .timeout = .fromMillis(endpoint.timeout_ms) }) catch |err| return ioCause(err, &reader, &writer, if (endpoint.tls) &secure else null);
     defer call.deinit();
     var result: Result = .{ .status = 0, .sent_messages = 0, .received_messages = 0, .sent_bytes = 0, .received_bytes = 0, .half_closed = false };
     var frame_buffer: [16384 + wire.frame.header_len]u8 = undefined;
@@ -173,7 +181,7 @@ fn run(gpa: std.mem.Allocator, io: std.Io, endpoint: Endpoint, request: Request,
                 frame = frame_buffer[0 .. 5 + message.len];
                 sent = 0;
             }
-            const count = try session.sendDataPartial(call.sid, frame[sent..]);
+            const count = session.sendDataPartial(call.sid, frame[sent..]) catch |err| return ioCause(err, &reader, &writer, if (endpoint.tls) &secure else null);
             sent += count;
             result.sent_bytes += @intCast(count);
             progress = count != 0;
@@ -182,12 +190,12 @@ fn run(gpa: std.mem.Allocator, io: std.Io, endpoint: Endpoint, request: Request,
                 frame = "";
             }
         } else if (!result.half_closed) {
-            try call.closeSend();
+            call.closeSend() catch |err| return ioCause(err, &reader, &writer, if (endpoint.tls) &secure else null);
             try capture.emit(capture.context, .half_close);
             result.half_closed = true;
             progress = true;
         }
-        const event = try call.pollReceive();
+        const event = call.pollReceive() catch |err| return ioCause(err, &reader, &writer, if (endpoint.tls) &secure else null);
         if (!head_captured and call.head != null) {
             if (call.initialMetadata().?.fields.len > 64) return error.GrpcBudgetExceeded;
             try capture.emit(capture.context, .{ .initial_metadata = call.initialMetadata().?.fields });
@@ -214,7 +222,7 @@ fn run(gpa: std.mem.Allocator, io: std.Io, endpoint: Endpoint, request: Request,
                 return result;
             },
         }
-        if (!progress) try session.advance();
+        if (!progress) session.advance() catch |err| return ioCause(err, &reader, &writer, if (endpoint.tls) &secure else null);
     }
 }
 fn timeout(io: std.Io, milliseconds: u32) !void {

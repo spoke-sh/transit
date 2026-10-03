@@ -73,3 +73,8 @@ Units reject truncated/oversize input, duplicates and missing types/methods.
 Durable worker recovery, all ten SDKs and local/Compose/reference placement have
 separate Station proofs. `Descriptor.at` also enumerates validated methods for
 [offline request helper generation](../transit-station-grpc/README.md#offline-generated-helpers).
+
+Transport failures preserve populated TLS/socket read and write causes across
+HTTP/2 session operations. They remain distinct from protocol validation, capture
+callback failure and an observed RPC status. No transport error triggers redial
+or establishes whether the remote application performed its operation.

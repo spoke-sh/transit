@@ -227,7 +227,7 @@ pub const InitError = error{
     NotSquare,
     NonCanonical,
     WeakPublicKey,
-} || std.Io.Writer.Error || std.Io.Reader.ShortError || std.Io.Cancelable;
+} || verify.Error || std.Io.Writer.Error || std.Io.Reader.ShortError || std.Io.Cancelable;
 
 /// Initiates a TLS handshake and establishes a TLSv1.2 or TLSv1.3 session.
 ///
@@ -693,7 +693,7 @@ pub fn init(input: *Reader, output: *Writer, options: Options) InitError!Client 
                             // verify.zig. (std: parse bare, verify link by link.)
                             const der = certd.rest();
                             try verify.checkWellFormed(der);
-                            if (peer_chain_len == verify.max_chain_len) return error.TlsCertificateNotVerified;
+                            if (peer_chain_len == verify.max_chain_len) return error.ChainTooLong;
                             peer_chain[peer_chain_len] = der;
                             peer_chain_len += 1;
 
@@ -715,7 +715,7 @@ pub fn init(input: *Reader, output: *Writer, options: Options) InitError!Client 
 
                         // An empty list: nothing to trust (std left the state
                         // at .certificate and failed on the next message).
-                        if (peer_chain_len == 0) return error.TlsCertificateNotVerified;
+                        if (peer_chain_len == 0) return error.EmptyChain;
                         switch (options.ca) {
                             .no_verification => handshake_state = .trust_chain_established,
                             .self_signed => {

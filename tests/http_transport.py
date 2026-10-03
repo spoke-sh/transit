@@ -41,7 +41,11 @@ def run(binary):
                     return
                 if path == "/dropped":
                     return
-                if path == "/smuggling":
+                if path == "/bad-chunk":
+                    self.request.sendall(b"HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n1\rX0123456789abcdef\r\n")
+                elif path == "/partial-head":
+                    self.request.sendall(b"HTTP/1.1 200")
+                elif path == "/smuggling":
                     self.request.sendall(b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\nTransfer-Encoding: chunked\r\n\r\n0\r\n\r\n")
                 elif path == "/truncated":
                     self.request.sendall(b"HTTP/1.1 200 OK\r\nContent-Length: 40\r\n\r\nshort")
@@ -99,16 +103,22 @@ def run(binary):
                     assert invoke("/no-body")["bytes"] == 0
                     assert invoke("/redirect")["status"] == 307
                     assert invoke("/smuggling")["error"] == "InvalidHttpFraming"
-                    assert "error" in invoke("/truncated")
+                    bad_chunk = invoke("/bad-chunk")
+                    assert bad_chunk["error"] == "HttpChunkInvalid", (tls, bad_chunk)
+                    partial = invoke("/partial-head")
+                    assert partial["error"] == ("TlsConnectionTruncated" if tls else "HttpResponseHeadTruncated"), partial
+                    truncated = invoke("/truncated")
+                    assert truncated["error"] == ("TlsConnectionTruncated" if tls else "IncompleteHttpBody"), truncated
                     assert invoke("/small")["error"] == "HttpResponseTooLarge"
                     assert invoke("/capture-failure")["error"] == "CaptureUnavailable"
-                    assert "error" in invoke("/dropped")
+                    dropped = invoke("/dropped")
+                    assert dropped["error"] == ("TlsConnectionTruncated" if tls else "HttpResponseMissing"), dropped
                     assert invoke("/timeout")["error"] == "HttpOutcomeUnknown"
                     close = invoke("/close")
                     assert close.get("error") == "UnframedTlsResponse" if tls else close["bytes"] == len(payload)
                     if tls:
-                        assert invoke("/wrong-host")["error"] == "TlsInitializationFailed"
-                        assert invoke("/wrong-ca", other_cert)["error"] == "TlsInitializationFailed"
+                        assert invoke("/wrong-host")["error"] == "CertificateHostMismatch"
+                        assert invoke("/wrong-ca", other_cert)["error"] == "NoTrustedPath"
                         assert "http-pin.invalid" in names and "localhost" in names
                 finally:
                     server.shutdown()
