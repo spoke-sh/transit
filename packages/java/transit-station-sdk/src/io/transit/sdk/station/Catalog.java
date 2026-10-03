@@ -123,8 +123,8 @@ public final class Catalog {
             }
         }
     }
-    public record Receipt(CreateTable request,long principal,long input,Outcome outcome) {}
-    public record Disposition(Scope scope,Origin origin,long principal,long input,Bytes payload,DispositionOutcome outcome) {}
+    public record Receipt(CreateTable request,long principal,long input,Outcome outcome,JsonObject diagnostic) {}
+    public record Disposition(Scope scope,Origin origin,long principal,long input,Bytes payload,DispositionOutcome outcome,JsonObject diagnostic) {}
 
     private static Scope scope(JsonElement value) {
         JsonObject v=fields(value,"realm","resource","catalog");return new Scope(new ResourceRef(number(v.get("realm"),1),number(v.get("resource"),1)),NativeValues.wide(v.get("catalog"),true));
@@ -205,9 +205,9 @@ public final class Catalog {
         return admission(reply);
     }
     static Receipt receipt(JsonElement value,CreateTable original) {
-        JsonObject v=fields(value,"request","principal","input","outcome");CreateTable actual=request(v.get("request"));
+        JsonObject v=fields(value,"request","principal","input","outcome","diagnostic");CreateTable actual=request(v.get("request"));
         if(!actual.equals(original))throw incompatible("catalog-original-request");
-        return new Receipt(actual,number(v.get("principal"),0),number(v.get("input"),1),variant(Outcome.class,v.get("outcome")));
+        return new Receipt(actual,number(v.get("principal"),0),number(v.get("input"),1),variant(Outcome.class,v.get("outcome")),object(v.get("diagnostic")).deepCopy());
     }
     private static TransitException uncertain() { return new TransitException(TransitException.Kind.UNKNOWN_OUTCOME,6,null,"catalog-submit"); }
     /** One bounded owned port; cancelling a future does not release native work. */
@@ -267,8 +267,8 @@ public final class Catalog {
             JsonObject action=input("input_disposition",prepared,position);
             return worker.submit(b -> {
                 JsonElement value=result(b.catalog(action),"disposition");if(value.isJsonNull())return Optional.empty();
-                JsonObject v=fields(value,"scope","origin","principal","input","payload","outcome");Bytes payload=new Bytes(unhex(v.get("payload"),32));if(payload.size()!=32)throw incompatible("catalog-payload");
-                return Optional.of(new Disposition(scope(v.get("scope")),variant(Origin.class,v.get("origin")),number(v.get("principal"),0),number(v.get("input"),1),payload,variant(DispositionOutcome.class,v.get("outcome"))));
+                JsonObject v=fields(value,"scope","origin","principal","input","payload","outcome","diagnostic");Bytes payload=new Bytes(unhex(v.get("payload"),32));if(payload.size()!=32)throw incompatible("catalog-payload");
+                return Optional.of(new Disposition(scope(v.get("scope")),variant(Origin.class,v.get("origin")),number(v.get("principal"),0),number(v.get("input"),1),payload,variant(DispositionOutcome.class,v.get("outcome")),object(v.get("diagnostic")).deepCopy()));
             });
         }
         public CompletableFuture<Optional<Receipt>> status(CreateTable original) {

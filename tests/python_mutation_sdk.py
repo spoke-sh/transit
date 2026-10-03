@@ -45,11 +45,12 @@ def result(action, value):
     if name == 'compile': return {'compiled':dict(request=value.request.hex(),reference=value.reference.data.hex())}
     if name in ('next','prepare'): return {'prepared':None if value is None else value.data.decode()}
     if name == 'submit': return {'receipt':dict(position=value)}
-    if name in ('observe','rejection'): return {'observation' if name == 'observe' else name:None if value is None else value.value}
+    if name == 'observe': return {'observation':value.value}
+    if name == 'rejection': return {'rejection':None if value is None else dict(principal=value.principal,input=value.input,payload=value.payload.hex(),reason=value.reason.value,diagnostic=value.diagnostic)}
     if name == 'status':
         return {'status':None if value is None else dict(reference=value.reference.data.hex(),principal=value.principal,table=value.table,
             declaration=value.declaration.hex(),policy_revision=str(value.policy_revision),phase=value.phase.value,
-            affected_rows=value.affected_rows,reason=value.reason.value,input=value.input,
+            affected_rows=value.affected_rows,reason=value.reason.value,input=value.input,diagnostic=value.diagnostic,
             conflict=None if value.conflict is None else dict(key=str(value.conflict.key),row=value.conflict.row))}
     raise ValueError('Unsupported result')
 

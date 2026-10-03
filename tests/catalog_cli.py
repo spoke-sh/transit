@@ -1,5 +1,6 @@
 """Real catalog CLI invocations; recovery uses the CLI's original private files."""
 import json
+import copy
 from pathlib import Path
 import stat
 import subprocess
@@ -25,6 +26,30 @@ class Cli:
             if kind in artifact and (artifact[kind]['request'] if kind == 'compiled' else artifact[kind]['next'] if kind == 'page' else artifact[kind]) == value:
                 return path
         raise AssertionError('Recovery must use the original saved CLI artifact')
+
+    def cursor_file(self, value):
+        try:
+            return self.saved('page', value)
+        except AssertionError:
+            # Read-only adversarial continuation probes use a separate copy of
+            # an actual page. Never alter a saved command or original page.
+            for path in self.root.glob('output-*.json'):
+                artifact = json.loads(path.read_bytes())
+                cursor = artifact.get('page', {}).get('next')
+                if cursor is None: continue
+                candidate = copy.deepcopy(value)
+                candidate['resource_revision'] = cursor['resource_revision']
+                candidate['scope'] = cursor['scope']
+                if candidate != cursor: continue
+                artifact['page']['next'] = value
+                artifact['page']['resource_revision'] = value['resource_revision']
+                for entry in artifact['page']['entries']:
+                    if entry is not None: entry['scope'] = value['scope']
+                altered = self.root / f'altered-cursor-{uuid.uuid4().hex}.json'
+                altered.write_text(json.dumps(artifact))
+                altered.chmod(0o600)
+                return altered
+            raise
 
     def invoke(self, command, arguments):
         result = subprocess.run([self.executable, '--diagnostics=json', 'catalog', command, *map(str, arguments)], cwd=self.root, capture_output=True, text=True, timeout=30)
@@ -56,7 +81,7 @@ class Cli:
             args += ['--object', value['object'], '--revision', value['revision']]
         elif name == 'list':
             if value is not None:
-                path = self.saved('page', value)
+                path = self.cursor_file(value)
                 args += ['--file', path]
         elif name in ('prepare_create', 'status'):
             path = self.saved('compiled', value)

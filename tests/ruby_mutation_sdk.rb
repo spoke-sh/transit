@@ -41,12 +41,14 @@ def call(client,action)
     {prepared: client.public_send("prepare_#{control}",reference(ref)).data}
   when 'submit' then {receipt: {position: client.submit(prepared(value))}}
   when 'observe' then {observation: client.observe(prepared(value.fetch('prepared')),value.fetch('input'))}
-  when 'rejection' then {rejection: client.rejection(prepared(value.fetch('prepared')),value.fetch('input'))}
+  when 'rejection'
+    v = client.rejection(prepared(value.fetch('prepared')),value.fetch('input'))
+    {rejection: v && {principal: v.principal,input: v.input,payload: v.payload.unpack1('H*'),reason: v.reason,diagnostic: v.diagnostic}}
   when 'status'
     v = client.status(reference(value))
     {status: v && {reference: v.reference.data.unpack1('H*'),principal: v.principal,table: v.table,
       declaration: v.declaration.unpack1('H*'),policy_revision: v.policy_revision.to_s,phase: v.phase,
-      affected_rows: v.affected_rows,reason: v.reason,input: v.input,conflict: v.conflict && {key: v.conflict.key.to_s,row: v.conflict.row}}}
+      affected_rows: v.affected_rows,reason: v.reason,input: v.input,diagnostic: v.diagnostic,conflict: v.conflict && {key: v.conflict.key.to_s,row: v.conflict.row}}}
   else raise 'Unsupported mutation test action'
   end
 end

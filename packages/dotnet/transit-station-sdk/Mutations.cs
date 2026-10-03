@@ -79,7 +79,8 @@ public static class Mutations
         if (row > 3) throw V.Incompatible("conflict-row");
         return new Conflict(NativeValues.Signed(value["key"]), (byte)row);
     }
-    public sealed record Status(Reference Reference, ulong Principal, uint Table, Bytes Declaration, ulong PolicyRevision, Phase Phase, byte AffectedRows, Reason Reason, ulong Input, Conflict? Conflict);
+    public sealed record Disposition(ulong Principal, ulong Input, Bytes Payload, Rejection Reason, JsonObject Diagnostic);
+    public sealed record Status(Reference Reference, ulong Principal, uint Table, Bytes Declaration, ulong PolicyRevision, Phase Phase, byte AffectedRows, Reason Reason, ulong Input, Conflict? Conflict, JsonObject Diagnostic);
     private static Prepared? ParsePrepared(JsonNode? value) => value is null ? null : new(new Bytes(V.Utf8.GetBytes(V.String(value))));
 
     /// <summary>One bounded operation. Dispose joins after local wait cancellation.</summary>
@@ -125,9 +126,9 @@ public static class Mutations
             var action = V.Obj(("observe", V.Obj(("prepared", V.Utf8.GetString(prepared.Bytes.Copy())), ("input", V.Counter(input)))));
             return worker.Invoke(b => Variant<Observation>(b.TableMutation(action)["observation"]), cancellation);
         }
-        public Task<Rejection?> RejectionAsync(Prepared prepared, ulong input, CancellationToken cancellation = default) {
+        public Task<Disposition?> RejectionAsync(Prepared prepared, ulong input, CancellationToken cancellation = default) {
             var action = V.Obj(("rejection", V.Obj(("prepared", V.Utf8.GetString(prepared.Bytes.Copy())), ("input", V.Counter(input)))));
-            return worker.Invoke(b => Field(b.TableMutation(action), "rejection") is {} v ? (Rejection?)Variant<Rejection>(v) : null, cancellation);
+            return worker.Invoke(b => Field(b.TableMutation(action), "rejection") is {} v ? new Disposition(V.Number(v["principal"]), V.Number(v["input"], 1), Fixed(v["payload"], 32), Variant<Rejection>(v["reason"]), V.Object(v["diagnostic"]).DeepClone().AsObject()) : null, cancellation);
         }
         public Task<Status?> StatusAsync(Reference reference, CancellationToken cancellation = default) {
             var action = V.Obj(("status", Hex(reference.Bytes)));
@@ -136,7 +137,7 @@ public static class Mutations
                 Reference actual = new(Fixed(v["reference"], 72));
                 if (actual != reference || V.Number(v["table"], 1) != Connection.Table) throw V.Incompatible("mutation-status-target");
                 ulong affected = V.Number(v["affected_rows"]); if (affected > 3) throw V.Incompatible("mutation-row-count");
-                return new Status(actual, V.Number(v["principal"], 1), Connection.Table, Fixed(v["declaration"], 32), V.Counter(NativeValues.Wide(v["policy_revision"], true)), Variant<Phase>(v["phase"]), (byte)affected, Variant<Reason>(v["reason"]), V.Number(v["input"]), ReadConflict(v["conflict"]));
+                return new Status(actual, V.Number(v["principal"], 1), Connection.Table, Fixed(v["declaration"], 32), V.Counter(NativeValues.Wide(v["policy_revision"], true)), Variant<Phase>(v["phase"]), (byte)affected, Variant<Reason>(v["reason"]), V.Number(v["input"]), ReadConflict(v["conflict"]), V.Object(v["diagnostic"]).DeepClone().AsObject());
             }, cancellation);
         }
         public async ValueTask DisposeAsync() { try { await worker.CloseAsync().ConfigureAwait(false); } finally { worker.CloseSnapshot(); } }

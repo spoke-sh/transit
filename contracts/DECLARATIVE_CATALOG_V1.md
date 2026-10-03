@@ -346,6 +346,16 @@ Changed cursor scope/revision or referenced definition/Table metadata returns a
 conflict through the native ABI/port. A caller must not combine pages across
 resource revisions or silently restart a failed continuation.
 
+`Bridge.Receipt` and `Bridge.Disposition` each include a mandatory shared
+`diagnostic`. Receipt projections identify the original operation, scope, name,
+object, Table, native input and applied/rejected outcome. Input projections
+identify their native input and payload commitment separately from a creation
+receipt. The ABI, native port, CLI and all SDK status models retain these owned
+values. They are disclosed only after current native and catalog read checks;
+they never substitute a later catalog observation for a saved outcome or imply
+that CREATE TABLE can be cancelled. Missing diagnostics in these neutral values
+are incompatible with the current contract definition.
+
 Resident work holds one native page, at most eight definitions, a configuration/
 policy batch and at most one eight-key dependent batch. Private-turn sources use
 their existing bounded point reads for definitions and Table descriptors. Durable names, definitions and

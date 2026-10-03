@@ -69,10 +69,10 @@ def call(client, action)
   when 'input_disposition'
     r = client.input_disposition(prepared(v.fetch('prepared')), v.fetch('input'))
     { disposition: r && { scope: scope_json(r.scope), origin: r.origin, principal: r.principal, input: r.input,
-      payload: r.payload.unpack1('H*'), outcome: r.outcome } }
+      payload: r.payload.unpack1('H*'), outcome: r.outcome, diagnostic: r.diagnostic } }
   when 'status'
     r = client.status(request(v))
-    { status: r && { request: request_json(r.request), principal: r.principal, input: r.input, outcome: r.outcome } }
+    { status: r && { request: request_json(r.request), principal: r.principal, input: r.input, outcome: r.outcome, diagnostic: r.diagnostic } }
   else raise 'Unsupported catalog test action'
   end
 end

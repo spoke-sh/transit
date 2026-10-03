@@ -61,10 +61,30 @@ def neutral(encoded):
                     principal=17, operation=str(2**64 - 1), input=2)
     cursor = dict(definition=json.loads(encoded)['native_definition'], scope=scope,
                   resource_revision=2, after='items')
+    def fact(field, origin, kind, value):
+        return dict(field=field, origin=origin, availability='provided', value={kind:value})
+    def diagnostic(code, stage, message, domain, identity, facts):
+        target = dict(domain=domain, id=identity, realm='1', resource='7', sequence=None)
+        return dict(version=1, definition=json.loads(encoded)['native_definition'], code=code,
+                    category='lifecycle', stage=stage, outcome='applied', evidence='domain_status',
+                    message=message, cause=None,
+                    identity=target,
+                    location=None, facts=facts+[None]*(16-len(facts)),
+                    actions=[dict(kind='inspect_status', target=target)]+[None]*3)
+    receipt_diagnostic = diagnostic('catalog.applied', 'execute',
+        'This CREATE TABLE applied. Its receipt records the original declaration; inspect the current catalog separately if its present binding is needed.',
+        'catalog', request['operation'], [fact('native_input','owner','unsigned','2'),
+        fact('scope','owner','unsigned',scope['catalog']), fact('object','caller','unsigned',request['object']),
+        fact('table','caller','unsigned','9'), fact('name','caller','text','items')])
+    disposition['diagnostic'] = diagnostic('catalog.input.initialized', 'admission',
+        'The catalog initialization command applied. This disposition does not describe a CREATE TABLE outcome.',
+        'transport', '2', [fact('native_input','owner','unsigned','2'), fact('scope','owner','unsigned',scope['catalog']),
+        fact('source_basis','owner','digest',list(bytes.fromhex(disposition['payload']))),
+        fact('operation','owner','text','catalog input')])
     return json.dumps(dict(connection=dict(scope=scope, owner=3, principal=17),
                            configuration=configuration, policy=policy, change=change,
                            compiled=dict(request=request, canonical=records['request']),
-                           receipt=dict(request=request, principal=17, input=2, outcome='applied'),
+                           receipt=dict(request=request, principal=17, input=2, outcome='applied', diagnostic=receipt_diagnostic),
                            disposition=disposition, metadata=metadata, cursor=cursor,
                            page=dict(resource_revision=2, entries=[metadata] + [None] * 7, next=cursor)), indent=2) + '\n'
 

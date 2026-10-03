@@ -88,7 +88,12 @@ internal static class CatalogValues
             Check(Reject<TransitException>(() => Decode("Admission", JsonNode.Parse(json))).Kind == ErrorKind.UnknownOutcome);
         Check(((AdmissionReceipt)Decode("Admission", JsonNode.Parse("{\"receipt\":{\"position\":7}}"))!).Position == 7);
         var receipt = JsonNode.Parse(Program.Obj(("request", Program.Json(request)), ("principal", 17), ("input", 7), ("outcome", "applied")).ToJsonString())!;
-        Check(((C.Receipt)Decode("ParseReceipt", receipt, request)!).Request == request);
+        Reject<TransitException>(() => Decode("ParseReceipt", receipt, request));
+        receipt["diagnostic"] = JsonNode.Parse(File.ReadAllText("../diagnostic.json"));
+        var retainedReceipt = (C.Receipt)Decode("ParseReceipt", receipt, request)!;
+        Check(retainedReceipt.Request == request);
+        receipt["diagnostic"]!["message"] = "";
+        Check(retainedReceipt.Diagnostic["message"]!.GetValue<string>().Length > 0);
         foreach (string invalid in new[] { "1", "01", "+1", "18446744073709551616" }) {
             receipt["request"]!["object"] = invalid;
             Reject<TransitException>(() => Decode("ParseReceipt", receipt, request));

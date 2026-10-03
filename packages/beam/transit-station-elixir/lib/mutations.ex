@@ -52,6 +52,12 @@ defmodule Transit.Station.Sdk.Mutations.Conflict do
   defstruct [:key, :row]
 end
 
+defmodule Transit.Station.Sdk.Mutations.Disposition do
+  @enforce_keys [:principal, :input, :payload, :reason, :diagnostic]
+  @derive {Inspect, only: [:reason]}
+  defstruct [:principal, :input, :payload, :reason, :diagnostic]
+end
+
 defmodule Transit.Station.Sdk.Mutations.Status do
   @enforce_keys [
     :reference,
@@ -63,7 +69,8 @@ defmodule Transit.Station.Sdk.Mutations.Status do
     :affected_rows,
     :reason,
     :input,
-    :conflict
+    :conflict,
+    :diagnostic
   ]
   @derive {Inspect, only: [:phase, :affected_rows]}
   defstruct [
@@ -76,7 +83,8 @@ defmodule Transit.Station.Sdk.Mutations.Status do
     :affected_rows,
     :reason,
     :input,
-    :conflict
+    :conflict,
+    :diagnostic
   ]
 end
 
@@ -88,7 +96,17 @@ defmodule Transit.Station.Sdk.Mutations do
   """
   alias Transit.Client
   alias Transit.Station.Sdk.Runner
-  alias __MODULE__.{Connection, Reference, Compiled, Prepared, Description, Status, Conflict}
+
+  alias __MODULE__.{
+    Connection,
+    Reference,
+    Compiled,
+    Prepared,
+    Description,
+    Status,
+    Conflict,
+    Disposition
+  }
 
   def open(
         %Client.Config{} = config,
@@ -151,12 +169,16 @@ defmodule Transit.Station.Sdk.Mutations do
       {:transit_mutation_description, Client.native(v.resource), v.table, v.names, v.value_type,
        v.resource_revision, v.policy_revision, v.declaration, v.permissions, native(v.active)}
 
+  def native(%Disposition{} = v),
+    do: {:transit_mutation_disposition, v.principal, v.input, v.payload, v.reason, v.diagnostic}
+
   def native(%Conflict{} = v), do: {:transit_mutation_conflict, v.key, v.row}
 
   def native(%Status{} = v),
     do:
       {:transit_mutation_status, native(v.reference), v.principal, v.table, v.declaration,
-       v.policy_revision, v.phase, v.affected_rows, v.reason, v.input, native(v.conflict)}
+       v.policy_revision, v.phase, v.affected_rows, v.reason, v.input, native(v.conflict),
+       v.diagnostic}
 
   def native(%Client.AdmissionReceipt{position: position}), do: {:transit_admission, position}
   def native(nil), do: :undefined
@@ -195,7 +217,7 @@ defmodule Transit.Station.Sdk.Mutations do
 
   def convert(
         {:transit_mutation_status, reference, principal, table, declaration, policy_revision,
-         phase, affected_rows, reason, input, conflict}
+         phase, affected_rows, reason, input, conflict, diagnostic}
       ),
       do: %Status{
         reference: convert(reference),
@@ -207,8 +229,18 @@ defmodule Transit.Station.Sdk.Mutations do
         affected_rows: affected_rows,
         reason: reason,
         input: input,
-        conflict: convert(conflict)
+        conflict: convert(conflict),
+        diagnostic: diagnostic
       }
+
+  def convert({:transit_mutation_disposition, principal, input, payload, reason, diagnostic}),
+    do: %Disposition{
+      principal: principal,
+      input: input,
+      payload: payload,
+      reason: reason,
+      diagnostic: diagnostic
+    }
 
   def convert({:transit_mutation_conflict, key, row}), do: %Conflict{key: key, row: row}
   def convert({:transit_admission, _} = value), do: Client.convert(value)

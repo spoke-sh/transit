@@ -244,11 +244,11 @@ transit_sdk_error transit_station_catalog_input_disposition(transit_station_cata
         transit_station_catalog_disposition result{};result.found=true;result.scope=parse_scope(r,v,"disposition/scope");result.principal=r.number(v,"disposition/principal",true);result.input=r.number(v,"disposition/input");
         result.origin=static_cast<transit_station_catalog_origin>(variant(r.field(v,"disposition/origin",true),{"external","process","effect"}));
         result.outcome=static_cast<transit_station_catalog_disposition_outcome>(variant(r.field(v,"disposition/outcome",true),{"initialized","policy_applied","invalid_command","denied","identity_conflict","stale_policy"}));
-        const auto payload=unhex(r.field(v,"disposition/payload",true),32);if(payload.size()!=32)fail(TRANSIT_SDK_INCOMPATIBLE_NATIVE,"catalog-payload");std::copy(payload.begin(),payload.end(),result.payload);*out=result;});
+        const auto payload=unhex(r.field(v,"disposition/payload",true),32);if(payload.size()!=32)fail(TRANSIT_SDK_INCOMPATIBLE_NATIVE,"catalog-payload");std::copy(payload.begin(),payload.end(),result.payload);result.diagnostic=diagnostic(r,v,"disposition/diagnostic");*out=result;});
 }
 transit_sdk_error transit_station_catalog_status_read(transit_station_catalog_client *client,const Request *original,transit_station_catalog_receipt *out) {
     Uninterruptible guard;if(out)*out={};return run(client,[&](NativeCatalog &n){require(original && out,"catalog-status");const auto expected=request_wire(*original);const auto v=n.call("{\"status\":"+expected+"}");const auto &r=n.local.raw;if(r.field(v,"status")=="null")return;
         transit_station_catalog_receipt result{};result.found=true;result.request=parse_request(r,v,"status/request");if(request_wire(result.request)!=expected)fail(TRANSIT_SDK_INCOMPATIBLE_NATIVE,"catalog-original-request");
-        result.principal=r.number(v,"status/principal",true);result.input=r.number(v,"status/input");result.outcome=static_cast<transit_station_catalog_outcome>(variant(r.field(v,"status/outcome",true),{"applied","name_conflict","object_conflict","table_conflict"}));*out=result;});
+        result.principal=r.number(v,"status/principal",true);result.input=r.number(v,"status/input");result.outcome=static_cast<transit_station_catalog_outcome>(variant(r.field(v,"status/outcome",true),{"applied","name_conflict","object_conflict","table_conflict"}));result.diagnostic=diagnostic(r,v,"status/diagnostic");*out=result;});
 }
 }

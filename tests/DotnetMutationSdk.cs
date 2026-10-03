@@ -51,11 +51,11 @@ static class Program
         }
         if (action["observe"] is {} observe) return Obj(("observation", Name(await client.ObserveAsync(Prepared(Text(observe, "prepared")), Number(observe, "input")))));
         if (action["rejection"] is {} rejection) {
-            var v = await client.RejectionAsync(Prepared(Text(rejection, "prepared")), Number(rejection, "input")); return Obj(("rejection", v is null ? null : Name(v.Value)));
+            var v = await client.RejectionAsync(Prepared(Text(rejection, "prepared")), Number(rejection, "input")); return Obj(("rejection", v is null ? null : Obj(("principal",v.Principal),("input",v.Input),("payload",Hex(v.Payload)),("reason",Name(v.Reason)),("diagnostic",v.Diagnostic))));
         }
         Check(action.ContainsKey("status")); var status = await client.StatusAsync(Reference(Text(action, "status")));
         return Obj(("status", status is null ? null : Obj(("reference", Hex(status.Reference.Bytes)), ("principal", status.Principal), ("table", status.Table), ("declaration", Hex(status.Declaration)),
-            ("policy_revision", status.PolicyRevision.ToString()), ("phase", Name(status.Phase)), ("affected_rows", status.AffectedRows), ("reason", Name(status.Reason)), ("input", status.Input), ("conflict", status.Conflict is {} c ? Obj(("key", c.Key.ToString()), ("row", c.Row)) : null))));
+            ("policy_revision", status.PolicyRevision.ToString()), ("phase", Name(status.Phase)), ("affected_rows", status.AffectedRows), ("reason", Name(status.Reason)), ("input", status.Input), ("diagnostic",status.Diagnostic), ("conflict", status.Conflict is {} c ? Obj(("key", c.Key.ToString()), ("row", c.Row)) : null))));
     }
     static async Task Main(string[] args) {
         var config = JsonNode.Parse(File.ReadAllText(args[0]))!; var c = config["connection"]!; ulong realm = Number(c, "realm");

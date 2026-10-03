@@ -629,6 +629,7 @@ pub struct Receipt {
     pub principal: u64,
     pub input: u64,
     pub outcome: Outcome,
+    pub diagnostic: Value,
 }
 #[derive(Clone, Debug)]
 pub struct Disposition {
@@ -638,6 +639,7 @@ pub struct Disposition {
     pub input: u64,
     pub payload: [u8; 32],
     pub outcome: DispositionOutcome,
+    pub diagnostic: Value,
 }
 
 fn prepared(value: &Value) -> Result<Prepared> {
@@ -832,6 +834,7 @@ impl Client {
                 "input",
                 "payload",
                 "outcome",
+                "diagnostic",
             ],
         )?;
         let origin = match string(field(value, "origin")?, "origin")? {
@@ -858,6 +861,7 @@ impl Client {
                 .try_into()
                 .map_err(|_| malformed())?,
             outcome,
+            diagnostic: field(value, "diagnostic")?.clone(),
         }))
     }
     pub fn status(&mut self, original: &CreateTable) -> Result<Option<Receipt>> {
@@ -866,7 +870,10 @@ impl Client {
         if value.is_null() {
             return Ok(None);
         }
-        object(value, &["request", "principal", "input", "outcome"])?;
+        object(
+            value,
+            &["request", "principal", "input", "outcome", "diagnostic"],
+        )?;
         let request = CreateTable::parse(field(value, "request")?)?;
         if request != *original {
             return Err(malformed());
@@ -883,6 +890,7 @@ impl Client {
             principal: number(field(value, "principal")?, "principal", true)?,
             input: number(field(value, "input")?, "input", false)?,
             outcome,
+            diagnostic: field(value, "diagnostic")?.clone(),
         }))
     }
     pub fn close(mut self) -> Result<()> {

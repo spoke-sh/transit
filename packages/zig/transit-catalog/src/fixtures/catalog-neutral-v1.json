@@ -61,7 +61,7 @@
         "value_type": "utf8"
       }
     },
-    "canonical": "5443413171fa6238a764ef187c86f45e32afff56618c36105cd5541e956dc0b559dff51f2201000000000000000700000000000000ffffffffffffffffffffffffffffffffffffffffffffffff09000000056974656d730e54424c31030269640576616c7565"
+    "canonical": "5443413171695a46c853d1442c3eae1b8079694b2f04b616b1798d25f50fc243325f596ee201000000000000000700000000000000ffffffffffffffffffffffffffffffffffffffffffffffff09000000056974656d730e54424c31030269640576616c7565"
   },
   "receipt": {
     "request": {
@@ -84,7 +84,94 @@
     },
     "principal": 17,
     "input": 2,
-    "outcome": "applied"
+    "outcome": "applied",
+    "diagnostic": {
+      "version": 1,
+      "definition": "695a46c853d1442c3eae1b8079694b2f04b616b1798d25f50fc243325f596ee2",
+      "code": "catalog.applied",
+      "category": "lifecycle",
+      "stage": "execute",
+      "outcome": "applied",
+      "evidence": "domain_status",
+      "message": "This CREATE TABLE applied. Its receipt records the original declaration; inspect the current catalog separately if its present binding is needed.",
+      "cause": null,
+      "identity": {
+        "domain": "catalog",
+        "id": "18446744073709551615",
+        "realm": "1",
+        "resource": "7",
+        "sequence": null
+      },
+      "location": null,
+      "facts": [
+        {
+          "field": "native_input",
+          "origin": "owner",
+          "availability": "provided",
+          "value": {
+            "unsigned": "2"
+          }
+        },
+        {
+          "field": "scope",
+          "origin": "owner",
+          "availability": "provided",
+          "value": {
+            "unsigned": "18446744073709551615"
+          }
+        },
+        {
+          "field": "object",
+          "origin": "caller",
+          "availability": "provided",
+          "value": {
+            "unsigned": "18446744073709551615"
+          }
+        },
+        {
+          "field": "table",
+          "origin": "caller",
+          "availability": "provided",
+          "value": {
+            "unsigned": "9"
+          }
+        },
+        {
+          "field": "name",
+          "origin": "caller",
+          "availability": "provided",
+          "value": {
+            "text": "items"
+          }
+        },
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
+      ],
+      "actions": [
+        {
+          "kind": "inspect_status",
+          "target": {
+            "domain": "catalog",
+            "id": "18446744073709551615",
+            "realm": "1",
+            "resource": "7",
+            "sequence": null
+          }
+        },
+        null,
+        null,
+        null
+      ]
+    }
   },
   "disposition": {
     "scope": {
@@ -96,7 +183,120 @@
     "principal": 17,
     "input": 2,
     "payload": "968f7ea7ee80bd16a852f75debc59f15b99722313c7a3e7f4c88f901ae24fdf6",
-    "outcome": "initialized"
+    "outcome": "initialized",
+    "diagnostic": {
+      "version": 1,
+      "definition": "695a46c853d1442c3eae1b8079694b2f04b616b1798d25f50fc243325f596ee2",
+      "code": "catalog.input.initialized",
+      "category": "lifecycle",
+      "stage": "admission",
+      "outcome": "applied",
+      "evidence": "domain_status",
+      "message": "The catalog initialization command applied. This disposition does not describe a CREATE TABLE outcome.",
+      "cause": null,
+      "identity": {
+        "domain": "transport",
+        "id": "2",
+        "realm": "1",
+        "resource": "7",
+        "sequence": null
+      },
+      "location": null,
+      "facts": [
+        {
+          "field": "native_input",
+          "origin": "owner",
+          "availability": "provided",
+          "value": {
+            "unsigned": "2"
+          }
+        },
+        {
+          "field": "scope",
+          "origin": "owner",
+          "availability": "provided",
+          "value": {
+            "unsigned": "18446744073709551615"
+          }
+        },
+        {
+          "field": "source_basis",
+          "origin": "owner",
+          "availability": "provided",
+          "value": {
+            "digest": [
+              150,
+              143,
+              126,
+              167,
+              238,
+              128,
+              189,
+              22,
+              168,
+              82,
+              247,
+              93,
+              235,
+              197,
+              159,
+              21,
+              185,
+              151,
+              34,
+              49,
+              60,
+              122,
+              62,
+              127,
+              76,
+              136,
+              249,
+              1,
+              174,
+              36,
+              253,
+              246
+            ]
+          }
+        },
+        {
+          "field": "operation",
+          "origin": "owner",
+          "availability": "provided",
+          "value": {
+            "text": "catalog input"
+          }
+        },
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
+      ],
+      "actions": [
+        {
+          "kind": "inspect_status",
+          "target": {
+            "domain": "transport",
+            "id": "2",
+            "realm": "1",
+            "resource": "7",
+            "sequence": null
+          }
+        },
+        null,
+        null,
+        null
+      ]
+    }
   },
   "metadata": {
     "scope": {
@@ -124,7 +324,7 @@
     "input": 2
   },
   "cursor": {
-    "definition": "fa6238a764ef187c86f45e32afff56618c36105cd5541e956dc0b559dff51f22",
+    "definition": "695a46c853d1442c3eae1b8079694b2f04b616b1798d25f50fc243325f596ee2",
     "scope": {
       "realm": 1,
       "resource": 7,
@@ -170,7 +370,7 @@
       null
     ],
     "next": {
-      "definition": "fa6238a764ef187c86f45e32afff56618c36105cd5541e956dc0b559dff51f22",
+      "definition": "695a46c853d1442c3eae1b8079694b2f04b616b1798d25f50fc243325f596ee2",
       "scope": {
         "realm": 1,
         "resource": 7,

@@ -557,6 +557,9 @@ def run(node, proof, catalog_host, port_host, library, cli, languages=(), growth
                               owner=host_config['writer']['pid'], principal=1234)
             check_profiles(port_host, root, proxy_url, connection)
             caller_results = []
+            caller_rejections = []
+            saved_denial = dict(prepared=rejected_prepared.decode(), input=rejected)
+            expected_denial = None
             factories = [('abi', lambda: Native(library, proxy_url, connection)),
                          ('port', lambda: Port(port_host, root, proxy_url, connection)),
                          ('cli', lambda: Cli(cli, root, proxy_url, connection))]
@@ -569,6 +572,17 @@ def run(node, proof, catalog_host, port_host, library, cli, languages=(), growth
                 assert caps['definition'] == definition.hex() and caps['create_table'] and caps['conditional_policy']
                 description = client.call({'describe': {}})['description']
                 assert description['configuration']['scope'] == connection['scope'] and description['policy']['revision'] == '5'
+                # CLI artifact recovery is separately exercised with its own saved files.
+                if name != 'cli':
+                    disposition = client.call({'input_disposition':saved_denial})['disposition']
+                    assert disposition['outcome'] == 'denied' and disposition['input'] == rejected
+                    detail = disposition['diagnostic']
+                    assert detail['code'] == 'catalog.input.denied' and detail['outcome'] == 'input_rejected'
+                    assert detail['identity']['domain'] == 'transport' and detail['identity']['id'] == str(rejected)
+                    facts = {fact['field']:fact['value'] for fact in detail['facts'] if fact}
+                    assert facts['source_basis'] == {'digest':list(bytes.fromhex(disposition['payload']))}
+                    if expected_denial is None: expected_denial = disposition
+                    else: assert disposition == expected_denial, (name,disposition)
                 for invalid_sql, code, column, offset in (
                     ('CREATE TABLE items (id UTF8 NOT NULL,value UTF8 NULL)', 'sql.unsupported_table_key', 'id', 20),
                     ('CREATE TABLE items (id INT64 NOT NULL,id UTF8 NULL)', 'sql.duplicate_column', 'id', 38),
@@ -647,8 +661,30 @@ def run(node, proof, catalog_host, port_host, library, cli, languages=(), growth
                 await_value(lambda: client.call({'observe': dict(prepared=prepared, input=position)})['observation'] == 'processed')
                 status = client.call({'status': request})['status']
                 assert status['outcome'] == 'applied' and status['request'] == request and status['input'] == position
+                assert status['diagnostic']['code'] == 'catalog.applied' and status['diagnostic']['outcome'] == 'applied'
                 assert client.call({'input_disposition': dict(prepared=prepared, input=position)})['disposition'] is None
                 caller_results.append((client, request, status))
+                for conflict_index, conflict in enumerate(('name_conflict','object_conflict','table_conflict')):
+                    operation = maximum - 1000 - index * 3 - conflict_index
+                    conflict_name = sql_name if conflict == 'name_conflict' else f'diag_{index}_{conflict_index}'
+                    compiled_conflict = client.call({'compile':dict(operation=str(operation),
+                        object=request['object'] if conflict == 'object_conflict' else str(operation),
+                        table=table_id if conflict == 'table_conflict' else 1000 + index * 3 + conflict_index,
+                        sql=statement.replace('items', conflict_name))})['compiled']
+                    conflict_request = compiled_conflict['request']
+                    conflict_prepared = client.call({'prepare_create':conflict_request})['prepared']
+                    conflict_input = client.call({'submit':conflict_prepared})['receipt']['position']
+                    result = await_value(lambda: client.call({'status':conflict_request})['status'])
+                    assert result['outcome'] == conflict and result['input'] == conflict_input, (name,result)
+                    detail = result['diagnostic']
+                    assert detail == caller_results[0][0].call({'status':conflict_request})['status']['diagnostic']
+                    assert detail['code'] == 'catalog.' + conflict and detail['outcome'] == 'rejected'
+                    assert detail['identity']['id'] == str(operation) and detail['evidence'] == 'domain_status'
+                    facts = {fact['field']:fact['value'] for fact in detail['facts'] if fact}
+                    assert facts['name'] == {'text':conflict_name} and facts['object'] == {'unsigned':conflict_request['object']}
+                    assert [a['kind'] for a in detail['actions'] if a] == ['inspect_status','inspect_scope','correct_input']
+                    assert client.call({'input_disposition':dict(prepared=conflict_prepared,input=conflict_input)})['disposition'] is None
+                    caller_rejections.append((client,conflict_request,result))
             # Revoke native read rights after the list's initial policy/name
             # reads but before its dependent definition batch reaches authority.
             metadata_gate['armed'] = True
@@ -839,7 +875,7 @@ def run(node, proof, catalog_host, port_host, library, cli, languages=(), growth
             for name, client in metadata_clients:
                 for action in ({'list': None}, {'lookup': 'items'}, {'definition': dict(object=str(maximum), revision='1')}):
                     metadata_call(name, client, action, 4)
-            for client, request, status in caller_results:
+            for client, request, status in caller_results + caller_rejections:
                 try:
                     client.call({'status': request})
                     raise AssertionError('Revoked catalog inspection disclosed an earlier result')
@@ -847,8 +883,10 @@ def run(node, proof, catalog_host, port_host, library, cli, languages=(), growth
                     assert error.status == 4 and error.detail['err'] == 'CatalogDenied', error
             restored = invoke('send-policy', 7, 'true', 'true')['position']
             await_value(lambda: invoke('observe-control', restored) == 'processed')
-            for client, request, status in caller_results:
+            for client, request, status in caller_results + caller_rejections:
                 assert client.call({'status': request})['status'] == status
+                if client_names[id(client)] != 'cli':
+                    assert client.call({'input_disposition':saved_denial})['disposition'] == expected_denial
             invoke('revoke-reader')
             invoke('list', error='AccessDenied')
             invoke('lookup', 'items', error='AccessDenied')
@@ -857,12 +895,17 @@ def run(node, proof, catalog_host, port_host, library, cli, languages=(), growth
                 for action in ({'list': None}, {'lookup': 'items'}, {'definition': dict(object=str(maximum), revision='1')}):
                     metadata_call(name, client, action, 4)
             invoke('input-disposition', rejected, error='AccessDenied')
-            for client, request, _ in caller_results:
+            for client, request, _ in caller_results + caller_rejections:
                 try:
                     client.call({'status': request})
                     raise AssertionError('Revoked native reads disclosed an earlier result')
                 except Failure as error:
                     assert error.status == 4, error
+            for client, _, _ in caller_results:
+                if client_names[id(client)] == 'cli': continue
+                try: client.call({'input_disposition':saved_denial})
+                except Failure as error: assert error.status == 4, error
+                else: raise AssertionError('Revoked native reads disclosed an earlier input diagnostic')
             stop_worker()
             assert not failures and all(f['recovered'] for f in faults.values())
             assert counts['max_mutations'] == 4 and counts['max_value_bytes'] <= 256

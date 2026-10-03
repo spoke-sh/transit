@@ -51,11 +51,11 @@ async function call(action) {
   if (name === 'observe') return { observation:await client.observe(prepared(v.prepared), v.input) };
   if (name === 'input_disposition') {
     const r = await client.inputDisposition(prepared(v.prepared), v.input);
-    return { disposition:r === undefined ? null : { scope:scopeJson(r.scope), origin:r.origin, principal:r.principal, input:r.input, payload:hex(r.payload), outcome:r.outcome } };
+    return { disposition:r === undefined ? null : { scope:scopeJson(r.scope), origin:r.origin, principal:r.principal, input:r.input, payload:hex(r.payload), outcome:r.outcome, diagnostic:r.diagnostic } };
   }
   if (name === 'status') {
     const r = await client.status(request(v));
-    return { status:r === undefined ? null : { request:requestJson(r.request), principal:r.principal, input:r.input, outcome:r.outcome } };
+    return { status:r === undefined ? null : { request:requestJson(r.request), principal:r.principal, input:r.input, outcome:r.outcome, diagnostic:r.diagnostic } };
   }
   throw new Error('Unsupported catalog test action');
 }

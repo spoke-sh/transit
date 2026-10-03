@@ -47,7 +47,12 @@ typedef struct transit_station_table_mutation_status {
     transit_station_table_mutation_phase phase; uint8_t affected_rows;
     transit_station_table_mutation_reason reason; uint64_t input;
     bool has_conflict; int64_t conflict_key; uint8_t conflict_row; /* one-based */
+    transit_sdk_diagnostic diagnostic;
 } transit_station_table_mutation_status;
+typedef struct transit_station_table_mutation_disposition {
+    bool found; uint64_t principal, input; uint8_t payload[32];
+    transit_station_table_mutation_rejection reason; transit_sdk_diagnostic diagnostic;
+} transit_station_table_mutation_disposition;
 
 /* Imports copy input. Compiled request <=799 bytes, prepared UTF-8 <=8192 bytes.
  * Persist both canonical request and complete reference, and each opaque signed
@@ -70,7 +75,7 @@ transit_sdk_error transit_station_table_mutation_prepare_control(transit_station
  * Receipt means admission; null next means inspect status, not success. */
 transit_sdk_error transit_station_table_mutation_submit(transit_station_table_mutation_client *, const transit_station_table_mutation_prepared *, uint64_t *position);
 transit_sdk_error transit_station_table_mutation_observe(transit_station_table_mutation_client *, const transit_station_table_mutation_prepared *, uint64_t input, transit_station_table_mutation_observation *out);
-transit_sdk_error transit_station_table_mutation_input_rejection(transit_station_table_mutation_client *, const transit_station_table_mutation_prepared *, uint64_t input, bool *found, transit_station_table_mutation_rejection *out);
+transit_sdk_error transit_station_table_mutation_input_rejection(transit_station_table_mutation_client *, const transit_station_table_mutation_prepared *, uint64_t input, transit_station_table_mutation_disposition *out);
 transit_sdk_error transit_station_table_mutation_status_read(transit_station_table_mutation_client *, transit_station_table_mutation_reference, transit_station_table_mutation_status *out);
 /* Operations block on one bounded worker; overlap returns BUSY. Close joins.
  * Join caller threads before destroying/moving any borrowed owner. */

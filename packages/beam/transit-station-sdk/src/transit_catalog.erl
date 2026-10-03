@@ -171,11 +171,11 @@ operation(B,{observe,Prepared,Input}) ->
     known(request(B,#{<<"observe">>=>#{<<"prepared">>=>saved(Prepared),<<"input">>=>counter(Input)}},<<"observation">>),[pending,processed]);
 operation(B,{input_disposition,Prepared,Input}) ->
     optional(request(B,#{<<"input_disposition">>=>#{<<"prepared">>=>saved(Prepared),<<"input">>=>counter(Input)}},<<"disposition">>),fun(Value)->
-        V=fields(Value,[<<"scope">>,<<"origin">>,<<"principal">>,<<"input">>,<<"payload">>,<<"outcome">>]),
+        V=fields(Value,[<<"scope">>,<<"origin">>,<<"principal">>,<<"input">>,<<"payload">>,<<"outcome">>,<<"diagnostic">>]),
         #transit_catalog_disposition{scope=parse_scope(maps:get(<<"scope">>,V)),origin=known(maps:get(<<"origin">>,V),[external,process,effect]),principal=transit_sdk_value:counter(maps:get(<<"principal">>,V),0),
-            input=counter(maps:get(<<"input">>,V)),payload=fixed(maps:get(<<"payload">>,V),32),outcome=known(maps:get(<<"outcome">>,V),[initialized,policy_applied,invalid_command,denied,identity_conflict,stale_policy])} end);
+            input=counter(maps:get(<<"input">>,V)),payload=fixed(maps:get(<<"payload">>,V),32),outcome=known(maps:get(<<"outcome">>,V),[initialized,policy_applied,invalid_command,denied,identity_conflict,stale_policy]),diagnostic=maps:get(<<"diagnostic">>,V)} end);
 operation(B,{status,Original}) ->
     optional(request(B,#{<<"status">>=>create(Original)},<<"status">>),fun(Value)->
-        V=fields(Value,[<<"request">>,<<"principal">>,<<"input">>,<<"outcome">>]),
+        V=fields(Value,[<<"request">>,<<"principal">>,<<"input">>,<<"outcome">>,<<"diagnostic">>]),
         case parse_create(maps:get(<<"request">>,V)) =:= Original of true->ok; false->transit_sdk_value:fail(incompatible_native,catalog_original_request) end,
-        #transit_catalog_receipt{request=Original,principal=transit_sdk_value:counter(maps:get(<<"principal">>,V),0),input=counter(maps:get(<<"input">>,V)),outcome=known(maps:get(<<"outcome">>,V),[applied,name_conflict,object_conflict,table_conflict])} end).
+        #transit_catalog_receipt{request=Original,principal=transit_sdk_value:counter(maps:get(<<"principal">>,V),0),input=counter(maps:get(<<"input">>,V)),outcome=known(maps:get(<<"outcome">>,V),[applied,name_conflict,object_conflict,table_conflict]),diagnostic=maps:get(<<"diagnostic">>,V)} end).

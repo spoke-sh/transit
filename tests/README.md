@@ -12595,3 +12595,39 @@ and root unit runs include them. Log:
 Full `just check` passes for this Flight increment, including 481 real CLI cases,
 generated-contract and inventory drift checks, frontend tests and the public
 documentation build. Log: `/var/tmp/transit-flight-detail-check.log`.
+
+### Owned write status diagnostics across SDKs — 2026-10-03
+
+Neutral mutation statuses and catalog receipts/dispositions expose their shared
+owner diagnostic. Mutation input reads return the complete retained disposition,
+including exact native input and payload commitment, instead of a reason alone.
+The C/C++ structures, all ten SDK models, generated contracts and signing fixtures
+use a coordinated current-definition cutover. Ruby copies and freezes nested
+write diagnostics; C validates and owns bounded inline diagnostic JSON.
+
+Executed `just test::table-mutation` with Python, Node, Ruby, Rust, C, C++, Java,
+.NET, Erlang and Elixir selected: **passed**, 213.734 seconds. Every installed
+caller compares complete terminal diagnostics with the native projection, checks
+the actual duplicate key/row and zero affected rows, and reads an unsealed APPLY
+input rejection without treating its still-active upload as terminal. Original
+status/disposition evidence survives node/store restart; current revoked grants
+deny later reads. The seven mutation profiles retain exact lost-reply recovery.
+After the Ruby copy fix, `just test::table-mutation --sdk ruby` passed again in
+53.715 seconds, including native, port and CLI profiles.
+
+Executed `just test::catalog` with the same ten SDKs: **passed**, 132.280 seconds.
+All callers exercise name/object/Table conflicts and compare the shared owner
+projection, preserve successful receipts, and reject status reads after policy
+or native-grant revocation. Native/port/SDK callers compare the complete retained
+input-denial diagnostic and its payload commitment after restoration. CLI input
+recovery uses its own original private artifacts. The metadata matrix also
+checks separately copied stale/foreign CLI page artifacts; original pages and
+signed commands stay byte-identical. Earlier attempts stopped at stale fixture
+shapes, Ruby diagnostic aliasing, a Java fixture import warning, and CLI artifact
+probe assumptions; none is counted as a passing proof.
+
+All SDK packages build. Root units (including the independently constructed
+catalog neutral fixture), Python type checks, TypeScript checks and full
+`just check` pass. The full check preceded the final Ruby copy/test-fixture fixes;
+the installed reruns above include them. Complete semantic inventory coverage and
+the final committed-HEAD `ci-clean` remain separate gates.

@@ -317,11 +317,13 @@ export class Page {
 }
 export type Observation = "pending" | "processed";
 export type Outcome = "applied" | "name_conflict" | "object_conflict" | "table_conflict";
+export type Diagnostic = import("./unified.ts").Diagnostic;
 export interface Receipt {
   readonly request: CreateTable;
   readonly principal: number;
   readonly input: number;
   readonly outcome: Outcome;
+  readonly diagnostic: Diagnostic;
 }
 export type DispositionOutcome =
   | "initialized"
@@ -337,6 +339,7 @@ export interface Disposition {
   readonly input: number;
   readonly payload: Uint8Array;
   readonly outcome: DispositionOutcome;
+  readonly diagnostic: Diagnostic;
 }
 function scope(value: Scope): NativeScope {
   if (!(value instanceof Scope)) throw new TypeError("Expected catalog scope");
@@ -652,6 +655,7 @@ export class Client {
         input: integer(value.input, "input"),
         payload,
         outcome: value.outcome,
+        diagnostic: value.diagnostic,
       });
     });
   }
@@ -668,6 +672,7 @@ export class Client {
         principal: integer(value.principal, "principal", 0),
         input: integer(value.input, "input"),
         outcome: value.outcome,
+        diagnostic: value.diagnostic,
       });
     });
   }

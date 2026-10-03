@@ -216,8 +216,8 @@ module Transit
           super(resource_revision: revision, entries: entries.dup.freeze, next: continuation)
         end
       end
-      Receipt = Data.define(:request, :principal, :input, :outcome)
-      Disposition = Data.define(:scope, :origin, :principal, :input, :payload, :outcome)
+      Receipt = Data.define(:request, :principal, :input, :outcome, :diagnostic)
+      Disposition = Data.define(:scope, :origin, :principal, :input, :payload, :outcome, :diagnostic)
       class Client
         attr_reader :connection
         def self.open(config, credential, connection)
@@ -312,20 +312,20 @@ module Transit
         def input_disposition(prepared, position)
           v = read(input('input_disposition', prepared, position), 'disposition')
           return nil if v.nil?
-          Values.object(v, %w[scope origin principal input payload outcome])
+          Values.object(v, %w[scope origin principal input payload outcome diagnostic])
           payload = Internal.unhex(v.fetch('payload'), 32).freeze
           raise IncompatibleNative, 'Invalid catalog payload digest' unless payload.bytesize == 32
           Disposition.new(scope: Values.scope(v.fetch('scope')), origin: Values.enum(v.fetch('origin'), %w[external process effect]),
             principal: Internal.integer(v.fetch('principal'), min: 0), input: Internal.integer(v.fetch('input')), payload: payload,
-            outcome: Values.enum(v.fetch('outcome'), %w[initialized policy_applied invalid_command denied identity_conflict stale_policy]))
+            outcome: Values.enum(v.fetch('outcome'), %w[initialized policy_applied invalid_command denied identity_conflict stale_policy]), diagnostic: Value.diagnostic(v.fetch('diagnostic')))
         end
         def status(original)
           v = read({ 'status' => Values.typed(original, CreateTable).wire }, 'status')
           return nil if v.nil?
-          Values.object(v, %w[request principal input outcome]); request = Values.request(v.fetch('request'))
+          Values.object(v, %w[request principal input outcome diagnostic]); request = Values.request(v.fetch('request'))
           raise IncompatibleNative, 'Catalog status differs from original request' unless request == original
           Receipt.new(request: request, principal: Internal.integer(v.fetch('principal'), min: 0), input: Internal.integer(v.fetch('input')),
-            outcome: Values.enum(v.fetch('outcome'), %w[applied name_conflict object_conflict table_conflict]))
+            outcome: Values.enum(v.fetch('outcome'), %w[applied name_conflict object_conflict table_conflict]), diagnostic: Value.diagnostic(v.fetch('diagnostic')))
         end
         def close = @worker.close
         private

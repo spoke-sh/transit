@@ -70,7 +70,8 @@ public final class Mutations {
         if(row>3)throw incompatible("conflict-row");
         return Optional.of(new Conflict(NativeValues.signed(v.get("key")),(int)row));
     }
-    public record Status(Reference reference,long principal,long table,Bytes declaration,long policyRevision,Phase phase,int affectedRows,Reason reason,long input,Optional<Conflict> conflict) {}
+    public record Disposition(long principal,long input,Bytes payload,Rejection reason,JsonObject diagnostic) {}
+    public record Status(Reference reference,long principal,long table,Bytes declaration,long policyRevision,Phase phase,int affectedRows,Reason reason,long input,Optional<Conflict> conflict,JsonObject diagnostic) {}
     private static Optional<Prepared> prepared(JsonElement value) {
         if(value==null)throw incompatible("mutation-prepared");
         return value.isJsonNull()?Optional.empty():Optional.of(new Prepared(new Bytes(string(value).getBytes(StandardCharsets.UTF_8))));
@@ -129,9 +130,9 @@ public final class Mutations {
             JsonObject action=obj("observe",obj("prepared",text(prepared.bytes().copy()),"input",counter(input,1)));
             return worker.submit(b -> variant(Observation.class,b.tableMutation(action).get("observation")));
         }
-        public CompletableFuture<Optional<Rejection>> rejection(Prepared prepared,long input) {
+        public CompletableFuture<Optional<Disposition>> rejection(Prepared prepared,long input) {
             JsonObject action=obj("rejection",obj("prepared",text(prepared.bytes().copy()),"input",counter(input,1)));
-            return worker.submit(b -> {JsonElement v=b.tableMutation(action).get("rejection");return v.isJsonNull()?Optional.empty():Optional.of(variant(Rejection.class,v));});
+            return worker.submit(b -> {JsonElement v=b.tableMutation(action).get("rejection");return v.isJsonNull()?Optional.empty():Optional.of(new Disposition(number(v.getAsJsonObject().get("principal"),0),number(v.getAsJsonObject().get("input"),1),fixed(v.getAsJsonObject().get("payload"),32),variant(Rejection.class,v.getAsJsonObject().get("reason")),object(v.getAsJsonObject().get("diagnostic")).deepCopy()));});
         }
         public CompletableFuture<Optional<Status>> status(Reference reference) {
             JsonObject action=obj("status",hex(reference.bytes()));
@@ -140,7 +141,7 @@ public final class Mutations {
                 Reference actual=new Reference(fixed(v.get("reference"),72));
                 if(!actual.equals(reference) || number(v.get("table"),1)!=connection.table())throw incompatible("mutation-status-target");
                 long affected=number(v.get("affected_rows"),0);if(affected>3)throw incompatible("mutation-row-count");
-                return Optional.of(new Status(actual,number(v.get("principal"),1),connection.table(),fixed(v.get("declaration"),32),revision(v.get("policy_revision")),variant(Phase.class,v.get("phase")),(int)affected,variant(Reason.class,v.get("reason")),number(v.get("input"),0),conflict(v.get("conflict"))));
+                return Optional.of(new Status(actual,number(v.get("principal"),1),connection.table(),fixed(v.get("declaration"),32),revision(v.get("policy_revision")),variant(Phase.class,v.get("phase")),(int)affected,variant(Reason.class,v.get("reason")),number(v.get("input"),0),conflict(v.get("conflict")),object(v.get("diagnostic")).deepCopy()));
             });
         }
         @Override public void close() { worker.close(); }

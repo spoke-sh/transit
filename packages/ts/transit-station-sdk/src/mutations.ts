@@ -11,6 +11,7 @@ import { configuration, integer, owned, text } from "@transit/client/internal";
 import { MutationBridge } from "./bridge.ts";
 import { hex, unhex } from "./framing.ts";
 import { wide, nativeWide } from "./values.ts";
+import type { Diagnostic } from "./unified.ts";
 import type { CellType } from "./table.ts";
 
 /** An explicit target; read-query access does not enable mutation. */
@@ -126,6 +127,13 @@ export interface Conflict {
   /** One-based input row in the rejected INSERT. */
   readonly row: number;
 }
+export interface Disposition {
+  readonly principal: number;
+  readonly input: number;
+  readonly payload: Uint8Array;
+  readonly reason: Rejection;
+  readonly diagnostic: Diagnostic;
+}
 export interface Status {
   readonly reference: Reference;
   readonly principal: number;
@@ -137,6 +145,7 @@ export interface Status {
   readonly conflict: Conflict | undefined;
   readonly reason: Reason;
   readonly input: number;
+  readonly diagnostic: Diagnostic;
 }
 function positive(value: bigint): string {
   const checked = wide(value);
@@ -282,13 +291,21 @@ export class Client {
     if (!("observation" in value)) throw new IncompatibleNative("Expected input observation");
     return value.observation;
   }
-  async rejection(prepared: Prepared, position: number): Promise<Rejection | undefined> {
+  async rejection(prepared: Prepared, position: number): Promise<Disposition | undefined> {
     const value = await this.#bridge.call({
       rejection: { prepared: saved(prepared), input: integer(position, "input") },
     });
     if (!("rejection" in value))
       throw new IncompatibleNative("Expected input rejection observation");
-    return value.rejection ?? undefined;
+    const v = value.rejection;
+    if (v === null) return undefined;
+    return Object.freeze({
+      principal: integer(v.principal, "principal", 0),
+      input: integer(v.input, "input"),
+      payload: digest(v.payload),
+      reason: v.reason,
+      diagnostic: v.diagnostic,
+    });
   }
   async status(ref: Reference): Promise<Status | undefined> {
     const value = await this.#bridge.call({ status: reference(ref) });
@@ -314,6 +331,7 @@ export class Client {
             }),
       reason: v.reason,
       input: integer(v.input, "input", 0),
+      diagnostic: v.diagnostic,
     });
   }
   close(): Promise<void> {

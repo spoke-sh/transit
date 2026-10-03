@@ -24,8 +24,8 @@ struct TableSource { uint32_t table; Schema schema; };
 struct Definition { Scope scope; uint64_t object, revision; std::string name; TableSource source; uint64_t principal, operation, input; };
 struct Cursor { std::string definition; Scope scope; uint64_t resource_revision; std::string after; };
 struct Page { uint64_t resource_revision; std::vector<Definition> entries; std::optional<Cursor> next; };
-struct Receipt { CreateTable request; uint64_t principal, input; Outcome outcome; };
-struct Disposition { Scope scope; Origin origin; uint64_t principal, input; std::array<uint8_t,32> payload; DispositionOutcome outcome; };
+struct Receipt { CreateTable request; uint64_t principal, input; Outcome outcome; std::string diagnostic; };
+struct Disposition { Scope scope; Origin origin; uint64_t principal, input; std::array<uint8_t,32> payload; DispositionOutcome outcome; std::string diagnostic; };
 namespace detail {
 inline void invalid() { transit_sdk_error error{};error.kind=TRANSIT_SDK_INVALID_ARGUMENT;throw Error(error); }
 inline transit_station_cell_kind type(Type v) {
@@ -139,12 +139,12 @@ public:
     }
     std::optional<Disposition> input_disposition(const Prepared &prepared,uint64_t input) {
         transit_station_catalog_disposition out{};check(transit_station_catalog_input_disposition(value_.get(),prepared.native(),input,&out));if(!out.found)return {};
-        Disposition result{detail::from(out.scope),static_cast<Origin>(out.origin),out.principal,out.input,{},static_cast<DispositionOutcome>(out.outcome)};
+        Disposition result{detail::from(out.scope),static_cast<Origin>(out.origin),out.principal,out.input,{},static_cast<DispositionOutcome>(out.outcome),std::string(out.diagnostic.json,out.diagnostic.size)};
         std::copy_n(out.payload,32,result.payload.begin());return result;
     }
     std::optional<Receipt> status(const CreateTable &original) {
         const auto request=detail::native(original);transit_station_catalog_receipt out{};check(transit_station_catalog_status_read(value_.get(),&request,&out));if(!out.found)return {};
-        return Receipt{detail::from(out.request),out.principal,out.input,static_cast<Outcome>(out.outcome)};
+        return Receipt{detail::from(out.request),out.principal,out.input,static_cast<Outcome>(out.outcome),std::string(out.diagnostic.json,out.diagnostic.size)};
     }
     void close() { check(transit_station_catalog_close(value_.get())); }
 };

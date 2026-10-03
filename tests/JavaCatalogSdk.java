@@ -59,8 +59,8 @@ public final class JavaCatalogSdk {
             case "prepare_policy" -> {var v=value.getAsJsonObject();yield json("prepared",saved(await(client.preparePolicy(new PolicyChange(wide(v,"expected_revision"),policy(v.getAsJsonObject("policy")))))));}
             case "submit" -> {String original=value.getAsString();var p=prepared(original);try{yield json("receipt",json("position",await(client.submit(p)).position()));}finally{if(!saved(p).equals(original))throw new AssertionError("Changed recovery bytes");}}
             case "observe" -> {var v=value.getAsJsonObject();yield json("observation",tag(await(client.observe(prepared(text(v,"prepared")),v.get("input").getAsLong()))));}
-            case "input_disposition" -> {var v=value.getAsJsonObject();yield json("disposition",await(client.inputDisposition(prepared(text(v,"prepared")),v.get("input").getAsLong())).map(r -> json("scope",json(r.scope()),"origin",tag(r.origin()),"principal",r.principal(),"input",r.input(),"payload",HexFormat.of().formatHex(r.payload().copy()),"outcome",tag(r.outcome()))).orElse(null));}
-            case "status" -> json("status",await(client.status(request(value.getAsJsonObject()))).map(r -> json("request",json(r.request()),"principal",r.principal(),"input",r.input(),"outcome",tag(r.outcome()))).orElse(null));
+            case "input_disposition" -> {var v=value.getAsJsonObject();yield json("disposition",await(client.inputDisposition(prepared(text(v,"prepared")),v.get("input").getAsLong())).map(r -> json("scope",json(r.scope()),"origin",tag(r.origin()),"principal",r.principal(),"input",r.input(),"payload",HexFormat.of().formatHex(r.payload().copy()),"outcome",tag(r.outcome()),"diagnostic",r.diagnostic())).orElse(null));}
+            case "status" -> json("status",await(client.status(request(value.getAsJsonObject()))).map(r -> json("request",json(r.request()),"principal",r.principal(),"input",r.input(),"outcome",tag(r.outcome()),"diagnostic",r.diagnostic())).orElse(null));
             default -> throw new AssertionError("Unknown catalog action");
         };
     }

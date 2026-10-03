@@ -70,10 +70,10 @@ static inline void emit_page(const transit_station_catalog_page *v){
 }
 static inline void emit_status(const transit_station_catalog_receipt *v){
     const char *names[]={"applied","name_conflict","object_conflict","table_conflict"};printf("{\"status\":0,\"value\":{\"status\":");
-    if(v->found){assert(v->outcome<=TRANSIT_CATALOG_TABLE_CONFLICT);printf("{\"request\":");emit_request(&v->request);printf(",\"principal\":%llu,\"input\":%llu,\"outcome\":\"%s\"}",(unsigned long long)v->principal,(unsigned long long)v->input,names[v->outcome]);}else printf("null");puts("}}");
+    if(v->found){assert(v->outcome<=TRANSIT_CATALOG_TABLE_CONFLICT);printf("{\"request\":");emit_request(&v->request);printf(",\"principal\":%llu,\"input\":%llu,\"outcome\":\"%s\",\"diagnostic\":%.*s}",(unsigned long long)v->principal,(unsigned long long)v->input,names[v->outcome],(int)v->diagnostic.size,v->diagnostic.json);}else printf("null");puts("}}");
 }
 static inline void emit_disposition(const transit_station_catalog_disposition *v){
     const char *origins[]={"external","process","effect"};const char *outcomes[]={"initialized","policy_applied","invalid_command","denied","identity_conflict","stale_policy"};
-    printf("{\"status\":0,\"value\":{\"disposition\":");if(v->found){assert(v->origin<=TRANSIT_CATALOG_EFFECT && v->outcome<=TRANSIT_CATALOG_STALE_POLICY);printf("{\"scope\":");emit_scope(v->scope);printf(",\"origin\":\"%s\",\"principal\":%llu,\"input\":%llu,\"payload\":\"",origins[v->origin],(unsigned long long)v->principal,(unsigned long long)v->input);transit_sdk_bytes payload={v->payload,32};print_hex(payload);printf("\",\"outcome\":\"%s\"}",outcomes[v->outcome]);}else printf("null");puts("}}");
+    printf("{\"status\":0,\"value\":{\"disposition\":");if(v->found){assert(v->origin<=TRANSIT_CATALOG_EFFECT && v->outcome<=TRANSIT_CATALOG_STALE_POLICY);printf("{\"scope\":");emit_scope(v->scope);printf(",\"origin\":\"%s\",\"principal\":%llu,\"input\":%llu,\"payload\":\"",origins[v->origin],(unsigned long long)v->principal,(unsigned long long)v->input);transit_sdk_bytes payload={v->payload,32};print_hex(payload);printf("\",\"outcome\":\"%s\",\"diagnostic\":%.*s}",outcomes[v->outcome],(int)v->diagnostic.size,v->diagnostic.json);}else printf("null");puts("}}");
 }
 #endif

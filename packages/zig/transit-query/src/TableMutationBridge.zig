@@ -86,9 +86,20 @@ pub const Status = struct {
     reason: r.Reason,
     input: u64,
     conflict: ?struct { key: []const u8, row: u8 },
+    diagnostic: p.Diagnostic,
     pub fn fromNative(alloc: Allocator, value: r.Status) !Status {
         _ = try value.encode();
-        return .{ .reference = try c.hex(alloc, (try value.reference.encode()).slice()), .principal = value.principal, .table = value.table, .declaration = try c.hex(alloc, &value.declaration), .policy_revision = try c.decimal(alloc, value.policy_revision), .phase = value.phase, .affected_rows = value.affected_rows, .reason = value.reason, .input = value.input, .conflict = if (value.conflict) |conflict| .{ .key = try std.fmt.allocPrint(alloc, "{d}", .{conflict.key}), .row = conflict.row } else null };
+        return .{ .reference = try c.hex(alloc, (try value.reference.encode()).slice()), .principal = value.principal, .table = value.table, .declaration = try c.hex(alloc, &value.declaration), .policy_revision = try c.decimal(alloc, value.policy_revision), .phase = value.phase, .affected_rows = value.affected_rows, .reason = value.reason, .input = value.input, .conflict = if (value.conflict) |conflict| .{ .key = try std.fmt.allocPrint(alloc, "{d}", .{conflict.key}), .row = conflict.row } else null, .diagnostic = try q.MutationDiagnostic.status(value) };
+    }
+};
+pub const Disposition = struct {
+    principal: u64,
+    input: u64,
+    payload: p.Value,
+    reason: q.TableMutationWriter.Rejection,
+    diagnostic: p.Diagnostic,
+    pub fn fromNative(value: q.TableMutationWriter.Disposition) !Disposition {
+        return .{ .principal = value.principal, .input = value.input, .payload = try .init(&value.payload), .reason = value.reason, .diagnostic = try q.MutationDiagnostic.input(value) };
     }
 };
 pub const Result = union(enum) {
@@ -98,7 +109,7 @@ pub const Result = union(enum) {
     prepared: ?[]const u8,
     receipt: p.Receipt,
     observation: Client.Observation,
-    rejection: ?q.TableMutationWriter.Rejection,
+    rejection: ?Disposition,
     status: ?Status,
 };
 pub fn reference(alloc: Allocator, text: []const u8) !Ref {
@@ -131,7 +142,7 @@ pub fn applyDiagnostic(alloc: Allocator, client: *Client, action: Action, bindin
         },
         .submit => |v| .{ .receipt = try client.submit(try prepared(alloc, v)) },
         .observe => |v| .{ .observation = try client.observe(try prepared(alloc, v.prepared), v.input) },
-        .rejection => |v| .{ .rejection = try client.rejection(try prepared(alloc, v.prepared), v.input) },
+        .rejection => |v| .{ .rejection = if (try client.inputDisposition(try prepared(alloc, v.prepared), v.input)) |value| try Disposition.fromNative(value) else null },
         .status => |v| .{ .status = if (try client.status(try reference(alloc, v))) |value| try Status.fromNative(alloc, value) else null },
     };
 }

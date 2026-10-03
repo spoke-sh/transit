@@ -124,10 +124,13 @@ transit_sdk_error transit_station_table_mutation_submit(transit_station_table_mu
 transit_sdk_error transit_station_table_mutation_observe(transit_station_table_mutation_client *client,const transit_station_table_mutation_prepared *command,uint64_t input,transit_station_table_mutation_observation *out) {
     Uninterruptible guard;if(out)*out={};return run(client,[&](NativeMutation &n){require(out,"mutation-observe");counter(input);const auto v=n.call("{\"observe\":{\"prepared\":"+prepared_wire(command)+",\"input\":"+decimal(input)+"}}");const char *names[]={"pending","processed"};*out=static_cast<transit_station_table_mutation_observation>(variant(n.local.raw.field(v,"observation",true),names,2));});
 }
-transit_sdk_error transit_station_table_mutation_input_rejection(transit_station_table_mutation_client *client,const transit_station_table_mutation_prepared *command,uint64_t input,bool *found,transit_station_table_mutation_rejection *out) {
-    Uninterruptible guard;if(found)*found=false;if(out)*out={};return run(client,[&](NativeMutation &n){require(found && out,"mutation-rejection");counter(input);const auto v=n.call("{\"rejection\":{\"prepared\":"+prepared_wire(command)+",\"input\":"+decimal(input)+"}}");if(n.local.raw.field(v,"rejection")=="null")return;
+transit_sdk_error transit_station_table_mutation_input_rejection(transit_station_table_mutation_client *client,const transit_station_table_mutation_prepared *command,uint64_t input,transit_station_table_mutation_disposition *out) {
+    Uninterruptible guard;if(out)*out={};return run(client,[&](NativeMutation &n){require(out,"mutation-rejection");counter(input);const auto v=n.call("{\"rejection\":{\"prepared\":"+prepared_wire(command)+",\"input\":"+decimal(input)+"}}");if(n.local.raw.field(v,"rejection")=="null")return;
         const char *names[]={"invalid_command","denied","identity_conflict","busy","not_found","not_active","upload_closed","not_sealed","invalid_part","incomplete_upload","source_changed","stale_policy"};
-        *out=static_cast<transit_station_table_mutation_rejection>(variant(n.local.raw.field(v,"rejection",true),names,12));*found=true;});
+        transit_station_table_mutation_disposition result{};result.found=true;
+        result.reason=static_cast<transit_station_table_mutation_rejection>(variant(n.local.raw.field(v,"rejection/reason",true),names,12));
+        result.principal=n.local.raw.number(v,"rejection/principal",true);result.input=n.local.raw.number(v,"rejection/input");
+        fixed(n.local.raw,v,"rejection/payload",result.payload,32);result.diagnostic=diagnostic(n.local.raw,v,"rejection/diagnostic");*out=result;});
 }
 transit_sdk_error transit_station_table_mutation_status_read(transit_station_table_mutation_client *client,Reference reference,transit_station_table_mutation_status *out) {
     Uninterruptible guard;if(out)*out={};return run(client,[&](NativeMutation &n){require(out,"mutation-status");const auto v=n.call("{\"status\":"+reference_wire(reference)+"}");const auto &r=n.local.raw;if(r.field(v,"status")=="null")return;
@@ -143,6 +146,7 @@ transit_sdk_error transit_station_table_mutation_status_read(transit_station_tab
             result.conflict_row=static_cast<uint8_t>(row);
         }
         require(result.has_conflict==(result.reason==TRANSIT_TABLE_MUTATION_ROW_EXISTS),"mutation-conflict");
+        result.diagnostic=diagnostic(r,v,"status/diagnostic");
         *out=result;
     });
 }

@@ -66,8 +66,8 @@ static class Program
                 finally { Check(Saved(prepared) == original); }
             }
             case "observe": return Obj(("observation", Name(await client.ObserveAsync(Prepared(Text(value, "prepared")), Number(value, "input")))));
-            case "input_disposition": { var v = await client.InputDispositionAsync(Prepared(Text(value, "prepared")), Number(value, "input")); return Obj(("disposition", v is null ? null : Obj(("scope", Json(v.Scope)), ("origin", Name(v.Origin)), ("principal", v.Principal), ("input", v.Input), ("payload", Hex(v.Payload)), ("outcome", Name(v.Outcome))))); }
-            case "status": { var v = await client.StatusAsync(Request(value)); return Obj(("status", v is null ? null : Obj(("request", Json(v.Request)), ("principal", v.Principal), ("input", v.Input), ("outcome", Name(v.Outcome))))); }
+            case "input_disposition": { var v = await client.InputDispositionAsync(Prepared(Text(value, "prepared")), Number(value, "input")); return Obj(("disposition", v is null ? null : Obj(("scope", Json(v.Scope)), ("origin", Name(v.Origin)), ("principal", v.Principal), ("input", v.Input), ("payload", Hex(v.Payload)), ("outcome", Name(v.Outcome)), ("diagnostic",v.Diagnostic)))); }
+            case "status": { var v = await client.StatusAsync(Request(value)); return Obj(("status", v is null ? null : Obj(("request", Json(v.Request)), ("principal", v.Principal), ("input", v.Input), ("outcome", Name(v.Outcome)), ("diagnostic",v.Diagnostic)))); }
             default: throw new Exception("Unknown catalog action");
         }
     }

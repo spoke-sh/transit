@@ -120,6 +120,15 @@ class Conflict:
 
 
 @dataclass(frozen=True, slots=True)
+class Disposition:
+    principal: int
+    input: int
+    payload: bytes
+    reason: Rejection
+    diagnostic: dict[str, Any]
+
+
+@dataclass(frozen=True, slots=True)
 class Status:
     reference: Reference
     principal: int
@@ -131,6 +140,7 @@ class Status:
     conflict: Conflict | None
     reason: Reason
     input: int
+    diagnostic: dict[str, Any]
 
 
 def _wide(value: int, name: str) -> int:
@@ -163,7 +173,14 @@ def _status(value: dict[str, Any] | None) -> Status | None:
                   None if value['conflict'] is None else Conflict(
                       integer(int(value['conflict']['key']), 'conflict key', minimum=-(1 << 63), maximum=(1 << 63)-1),
                       integer(value['conflict']['row'], 'conflict row', minimum=1, maximum=3)), Reason(value['reason']),
-                  integer(value['input'], 'input', minimum=0))
+                  integer(value['input'], 'input', minimum=0), value['diagnostic'])
+
+
+def _disposition(value: dict[str, Any] | None) -> Disposition | None:
+    if value is None: return None
+    return Disposition(integer(value['principal'], 'principal', minimum=0),
+                       integer(value['input'], 'input'), _digest(value['payload']),
+                       Rejection(value['reason']), value['diagnostic'])
 
 
 def _compiled(value: dict[str, Any]) -> Compiled:
@@ -247,9 +264,9 @@ class Client:
     def observe(self, prepared: Prepared, position: int) -> Observation:
         return Observation(self._call(_input('observe',prepared,position))['observation'])
 
-    def rejection(self, prepared: Prepared, position: int) -> Rejection | None:
+    def rejection(self, prepared: Prepared, position: int) -> Disposition | None:
         value = self._call(_input('rejection',prepared,position))['rejection']
-        return None if value is None else Rejection(value)
+        return _disposition(value)
 
     def status(self, reference: Reference) -> Status | None:
         return _status(self._call({'status':reference.data.hex()})['status'])
@@ -299,9 +316,9 @@ class AsyncClient:
     async def observe(self, prepared: Prepared, position: int) -> Observation:
         return Observation((await self._call(_input('observe',prepared,position)))['observation'])
 
-    async def rejection(self, prepared: Prepared, position: int) -> Rejection | None:
+    async def rejection(self, prepared: Prepared, position: int) -> Disposition | None:
         value = (await self._call(_input('rejection',prepared,position)))['rejection']
-        return None if value is None else Rejection(value)
+        return _disposition(value)
 
     async def status(self, reference: Reference) -> Status | None:
         return _status((await self._call({'status':reference.data.hex()}))['status'])

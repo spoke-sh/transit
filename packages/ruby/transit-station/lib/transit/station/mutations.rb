@@ -50,8 +50,9 @@ module Transit
       Description = Data.define(:resource, :table, :names, :value_type, :resource_revision, :policy_revision,
         :declaration, :permissions, :active)
       Conflict = Data.define(:key, :row)
+      Disposition = Data.define(:principal, :input, :payload, :reason, :diagnostic)
       Status = Data.define(:reference, :principal, :table, :declaration, :policy_revision, :phase,
-        :affected_rows, :reason, :input, :conflict)
+        :affected_rows, :reason, :input, :conflict, :diagnostic)
       module Values
         module_function
         def reference(value)
@@ -141,7 +142,10 @@ module Transit
           call(input('observe', prepared, position)).fetch('observation').to_sym
         end
         def rejection(prepared, position)
-          call(input('rejection', prepared, position)).fetch('rejection')&.to_sym
+          v = call(input('rejection', prepared, position)).fetch('rejection')
+          return nil if v.nil?
+          Disposition.new(principal: Internal.integer(v.fetch('principal'), min: 0), input: Internal.integer(v.fetch('input')),
+            payload: Values.digest(v.fetch('payload')), reason: v.fetch('reason').to_sym, diagnostic: Value.diagnostic(v.fetch('diagnostic')))
         end
         def status(reference)
           encoded = Values.reference(reference)
@@ -153,7 +157,7 @@ module Transit
           Status.new(reference: Reference.new(data: Internal.unhex(v.fetch('reference'), 72)), principal: Internal.integer(v.fetch('principal')),
             table: connection.table, declaration: Values.digest(v.fetch('declaration')), policy_revision: Values.revision(v.fetch('policy_revision')),
             phase: v.fetch('phase').to_sym, affected_rows: Internal.integer(v.fetch('affected_rows'), min: 0, max: 3),
-            reason: v.fetch('reason').to_sym, input: Internal.integer(v.fetch('input'), min: 0),
+            reason: v.fetch('reason').to_sym, input: Internal.integer(v.fetch('input'), min: 0), diagnostic: Value.diagnostic(v.fetch('diagnostic')),
             conflict: v.fetch('conflict').then { |c| c.nil? ? nil : Conflict.new(
               key: Internal.integer(Integer(c.fetch('key'), 10), min: -(1 << 63), max: (1 << 63)-1),
               row: Internal.integer(c.fetch('row'), min: 1, max: 3)) })

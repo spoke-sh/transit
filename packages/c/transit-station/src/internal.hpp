@@ -52,6 +52,14 @@ transit_station_document_change document_change_parse(const Raw &, const Bytes &
 transit_station_document_field document_field_parse(const Raw &, const Bytes &, const std::string &);
 transit_station_document_dot document_dot_parse(const Raw &, const Bytes &, const std::string &);
 Bytes document_reader_run(transit_station_document_reader *, uint64_t realm, const std::function<Bytes(Bridge &)> &);
+inline transit_sdk_diagnostic diagnostic(const Raw &raw, const Bytes &value, const std::string &path) {
+    const auto text = raw.field(value, path);
+    require(text.size() <= 32768 && raw.transit_diagnostic_validate(reinterpret_cast<const uint8_t *>(text.data()), text.size()) == 1, "invalid-diagnostic");
+    transit_sdk_diagnostic result{};
+    result.size = text.size();
+    std::copy(text.begin(), text.end(), result.json);
+    return result;
+}
 inline Bytes json(const std::string &text) { return Bytes(text.begin(), text.end()); }
 inline std::string decimal(uint64_t value) { return std::to_string(value); }
 inline std::string signed_decimal(int64_t value) { return std::to_string(value); }

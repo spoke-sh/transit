@@ -17,6 +17,14 @@ ROOT = Path(__file__).resolve().parents[1]
 
 def install(root, languages):
     root.mkdir()
+    # Matching, independently generated neutral evidence for decoder ownership
+    # tests. The authority schedules below verify live owner projections.
+    diagnostic = json.loads((ROOT / 'packages/zig/transit-catalog/src/fixtures/catalog-neutral-v1.json').read_text())['receipt']['diagnostic']
+    diagnostic['identity']['realm'] = '46'
+    diagnostic['facts'][0]['value']['unsigned'] = '7'
+    diagnostic['facts'][3]['value']['unsigned'] = str((1 << 32) - 1)
+    diagnostic['actions'][0]['target']['realm'] = '46'
+    (root / 'diagnostic.json').write_text(json.dumps(diagnostic))
     factories = []
     for language in languages:
         if language in ('erlang', 'elixir'):

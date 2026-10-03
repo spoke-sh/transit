@@ -9,5 +9,6 @@
     resource_revision, policy_revision, declaration :: binary(), permissions = [], active = undefined}).
 -record(transit_mutation_conflict, {key :: integer(), row :: 1..3}).
 -record(transit_mutation_status, {reference :: #transit_mutation_reference{}, principal, table,
-    declaration :: binary(), policy_revision, phase, affected_rows, reason, input, conflict}).
+    declaration :: binary(), policy_revision, phase, affected_rows, reason, input, conflict, diagnostic :: map()}).
+-record(transit_mutation_disposition, {principal, input, payload :: binary(), reason, diagnostic :: map()}).
 -endif.

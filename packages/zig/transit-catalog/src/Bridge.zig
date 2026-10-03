@@ -117,9 +117,10 @@ pub const Receipt = struct {
     principal: u64,
     input: u64,
     outcome: m.Outcome,
+    diagnostic: p.Diagnostic,
     pub fn fromNative(allocator: Allocator, value: m.Receipt) !Receipt {
         try value.validate();
-        return .{ .request = try CreateTable.fromNative(allocator, value.request), .principal = value.principal, .input = value.input, .outcome = value.outcome };
+        return .{ .request = try CreateTable.fromNative(allocator, value.request), .principal = value.principal, .input = value.input, .outcome = value.outcome, .diagnostic = try c.Diagnostic.receipt(value) };
     }
 };
 pub const Disposition = struct {
@@ -129,9 +130,10 @@ pub const Disposition = struct {
     input: u64,
     payload: p.Value,
     outcome: @FieldType(m.Disposition, "outcome"),
+    diagnostic: p.Diagnostic,
     pub fn fromNative(allocator: Allocator, value: m.Disposition) !Disposition {
         try value.validate();
-        return .{ .scope = try Scope.fromNative(allocator, value.scope), .origin = value.origin, .principal = value.principal, .input = value.input, .payload = try .init(&value.payload), .outcome = value.outcome };
+        return .{ .scope = try Scope.fromNative(allocator, value.scope), .origin = value.origin, .principal = value.principal, .input = value.input, .payload = try .init(&value.payload), .outcome = value.outcome, .diagnostic = try c.Diagnostic.input(value) };
     }
 };
 /// Neutral metadata owns its text through the supplied allocator. These values

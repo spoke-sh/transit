@@ -61,14 +61,14 @@ int main(int argc,char **argv){
                 auto bytes=out->data();emit_prepared({bytes.data(),bytes.size()});
             }else if(!strcmp(command,"status")){
                 auto v=client.status(cpp_request(request()));transit_station_catalog_receipt out{};
-                if(v){out.found=true;out.request=c_request(v->request);out.principal=v->principal;out.input=v->input;out.outcome=static_cast<transit_station_catalog_outcome>(v->outcome);}emit_status(&out);
+                if(v){out.found=true;out.request=c_request(v->request);out.principal=v->principal;out.input=v->input;out.outcome=static_cast<transit_station_catalog_outcome>(v->outcome);out.diagnostic.size=v->diagnostic.size();std::copy(v->diagnostic.begin(),v->diagnostic.end(),out.diagnostic.json);}emit_status(&out);
             }else{
                 auto bytes=unhex(args[1]);Bytes saved(bytes.data,bytes.data+bytes.size);free((void *)bytes.data);
                 auto prepared=cat::Prepared::recover(saved);retained_bytes=saved;std::fill(saved.begin(),saved.end(),0);assert(prepared.data()==retained_bytes);retained=std::move(prepared);
                 if(!strcmp(command,"submit"))printf("{\"status\":0,\"value\":{\"receipt\":{\"position\":%llu}}}\n",static_cast<unsigned long long>(client.submit(*retained)));
                 else if(!strcmp(command,"observe"))printf("{\"status\":0,\"value\":{\"observation\":\"%s\"}}\n",client.observe(*retained,number(args[2]))==cat::Observation::Pending?"pending":"processed");
                 else {assert(!strcmp(command,"input_disposition"));auto v=client.input_disposition(*retained,number(args[2]));transit_station_catalog_disposition out{};
-                    if(v){out.found=true;out.scope=c_scope(v->scope);out.origin=static_cast<transit_station_catalog_origin>(v->origin);out.principal=v->principal;out.input=v->input;std::copy(v->payload.begin(),v->payload.end(),out.payload);out.outcome=static_cast<transit_station_catalog_disposition_outcome>(v->outcome);}emit_disposition(&out);
+                    if(v){out.found=true;out.scope=c_scope(v->scope);out.origin=static_cast<transit_station_catalog_origin>(v->origin);out.principal=v->principal;out.input=v->input;std::copy(v->payload.begin(),v->payload.end(),out.payload);out.outcome=static_cast<transit_station_catalog_disposition_outcome>(v->outcome);out.diagnostic.size=v->diagnostic.size();std::copy(v->diagnostic.begin(),v->diagnostic.end(),out.diagnostic.json);}emit_disposition(&out);
                 }
                 assert(retained->data()==retained_bytes);
             }

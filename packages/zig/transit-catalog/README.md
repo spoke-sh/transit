@@ -60,6 +60,10 @@ control and rejected-input dispositions. Both require the caller's current read
 authorization before disclosure. They perform no reads, preserve historical
 outcomes after catalog changes, and never offer cancellation of CREATE TABLE.
 
+The neutral bridge's receipts and input dispositions include these projections
+as mandatory `diagnostic` fields. The CLI and all SDK status models retain the
+owned envelope alongside the original request or input commitment.
+
 The [catalog CLI](../../../apps/transit-cli/docs/catalog.md) uses this same owner
 for offline compilation, private saved preparation, exact submission, outcomes
 and bounded metadata. Its saved pages retain the exact continuation and reject

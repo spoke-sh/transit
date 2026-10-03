@@ -63,9 +63,9 @@ def result(action, value):
     if name == 'observe': return dict(observation=value.value)
     if name == 'input_disposition':
         return dict(disposition=None if value is None else dict(scope=scope_json(value.scope), origin=value.origin.value,
-            principal=value.principal, input=value.input, payload=value.payload.hex(), outcome=value.outcome.value))
+            principal=value.principal, input=value.input, payload=value.payload.hex(), outcome=value.outcome.value, diagnostic=value.diagnostic))
     if name == 'status':
-        return dict(status=None if value is None else dict(request=request_json(value.request), principal=value.principal, input=value.input, outcome=value.outcome.value))
+        return dict(status=None if value is None else dict(request=request_json(value.request), principal=value.principal, input=value.input, outcome=value.outcome.value, diagnostic=value.diagnostic))
     raise AssertionError('Unknown catalog test result')
 
 

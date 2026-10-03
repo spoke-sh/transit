@@ -194,3 +194,15 @@ emitting its response. These checks do not authorize recovery actions. C errors
 own a bounded 32 KiB JSON buffer, with zero size for absent detail. The error
 layout and generated binding resources require the matching current definition;
 foreign headers/libraries and native artifacts reject before use.
+
+Table mutation statuses, catalog receipts and input dispositions also carry a
+mandatory `diagnostic` (`Diagnostic` in .NET). These values preserve the original
+domain outcome and recovery guidance after the native buffer or client is
+released. Mutation `rejection` reads return a disposition with principal, native
+input, payload commitment, reason and diagnostic. An input rejection can leave
+the original upload recoverable; inspect its mutation status separately.
+Catalog name, object and Table conflicts identify the original requested target.
+Current read authorization applies to all retained detail. A failed read never
+replaces previously saved evidence with an inferred outcome. C embeds diagnostic
+JSON and byte count in the status/disposition struct; C++ owns a JSON string;
+the other SDKs retain their language's JSON object or map.

@@ -77,11 +77,11 @@ fn call(client: &mut m::Client, action: &Value) -> transit_client::Result<Value>
         json!({"observation":tag(client.observe(&prepared,number(v,"input"))?)})
     } else if let Some(v) = action.get("rejection") {
         let prepared = m::Prepared::from_data(text(v, "prepared").to_owned())?;
-        json!({"rejection":client.rejection(&prepared,number(v,"input"))?.map(tag)})
+        json!({"rejection":client.rejection(&prepared,number(v,"input"))?.map(|v|json!({"principal":v.principal,"input":v.input,"payload":hex(&v.payload),"reason":tag(v.reason),"diagnostic":v.diagnostic}))})
     } else if let Some(v) = action.get("status") {
         json!({"status":client.status(&reference(v.as_str().unwrap()))?.map(|v|json!({
             "reference":hex(v.reference.data()),"principal":v.principal,"table":v.table,"declaration":hex(&v.declaration),
-            "policy_revision":v.policy_revision.to_string(),"phase":tag(v.phase),"affected_rows":v.affected_rows,"reason":tag(v.reason),"input":v.input,"conflict":v.conflict.map(|c| json!({"key":c.key.to_string(),"row":c.row}))}))})
+            "policy_revision":v.policy_revision.to_string(),"phase":tag(v.phase),"affected_rows":v.affected_rows,"reason":tag(v.reason),"input":v.input,"diagnostic":v.diagnostic,"conflict":v.conflict.map(|c| json!({"key":c.key.to_string(),"row":c.row}))}))})
     } else {
         panic!("Unsupported test action")
     })

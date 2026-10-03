@@ -40,7 +40,7 @@ int main(int argc,char **argv) {
                     else {
                         const auto out=client.rejection(prepared,std::stoull(second));
                         const char *names[]={"invalid_command","denied","identity_conflict","busy","not_found","not_active","upload_closed","not_sealed","invalid_part","incomplete_upload","source_changed","stale_policy"};
-                        printf("{\"status\":0,\"value\":{\"rejection\":");if(out)printf("\"%s\"",names[static_cast<size_t>(*out)]);else printf("null");puts("}}");
+                        printf("{\"status\":0,\"value\":{\"rejection\":");if(out){printf("{\"principal\":%llu,\"input\":%llu,\"reason\":\"%s\",\"payload\":\"",(unsigned long long)out->principal,(unsigned long long)out->input,names[static_cast<size_t>(out->reason)]);print_hex({out->payload.data(),out->payload.size()});printf("\",\"diagnostic\":%s}",out->diagnostic.c_str());}else printf("null");puts("}}");
                     }
                 } catch(...) {assert(prepared.data()==saved);retained=std::move(prepared);retained_bytes=saved;throw;}
                 assert(prepared.data()==saved);retained=std::move(prepared);retained_bytes=saved;
@@ -48,7 +48,7 @@ int main(int argc,char **argv) {
                 assert(!strcmp(command,"status"));const auto out=client.status(reference(first));
                 const char *phases[]={"uploading","sealed","applied","rejected","cancelled"};const char *reasons[]={"none","row_exists","source_changed","invalid_request","denied","budget"};
                 printf("{\"status\":0,\"value\":{\"status\":");
-                if(out){printf("{\"reference\":\"");print_hex({out->reference.data(),out->reference.size()});printf("\",\"phase\":\"%s\",\"affected_rows\":%u,\"reason\":\"%s\",\"input\":%llu,\"conflict\":",phases[static_cast<size_t>(out->phase)],out->affected_rows,reasons[static_cast<size_t>(out->reason)],(unsigned long long)out->input);if(out->conflict) printf("{\"key\":\"%lld\",\"row\":%u}",(long long)out->conflict->key,out->conflict->row);else printf("null");printf("}");}else printf("null");puts("}}");
+                if(out){printf("{\"reference\":\"");print_hex({out->reference.data(),out->reference.size()});printf("\",\"phase\":\"%s\",\"affected_rows\":%u,\"reason\":\"%s\",\"input\":%llu,\"conflict\":",phases[static_cast<size_t>(out->phase)],out->affected_rows,reasons[static_cast<size_t>(out->reason)],(unsigned long long)out->input);if(out->conflict) printf("{\"key\":\"%lld\",\"row\":%u}",(long long)out->conflict->key,out->conflict->row);else printf("null");printf(",\"diagnostic\":%s}",out->diagnostic.c_str());}else printf("null");puts("}}");
             }
         } catch(const Error &error) {emit_error(error.detail());}
     }

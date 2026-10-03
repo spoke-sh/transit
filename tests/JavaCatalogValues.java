@@ -112,7 +112,12 @@ public final class JavaCatalogValues {
         TransitException denial=new TransitException(TransitException.Kind.ACCESS_DENIED,4,"CatalogDenied","injected");
         check(rejects(TransitException.class,() -> Catalog.submission(() -> {throw denial;}))==denial);
         JsonObject receipt=new JsonObject();receipt.add("request",request.wire());receipt.addProperty("principal",17);receipt.addProperty("input",7);receipt.addProperty("outcome","applied");
-        check(Catalog.receipt(receipt,request).request().object().equals(MAX));
+        rejects(TransitException.class,() -> Catalog.receipt(receipt,request));
+        receipt.add("diagnostic",new Gson().fromJson(Files.readString(Path.of("../diagnostic.json")),JsonObject.class));
+        Receipt retainedReceipt=Catalog.receipt(receipt,request);
+        check(retainedReceipt.request().object().equals(MAX));
+        receipt.getAsJsonObject("diagnostic").addProperty("message","");
+        check(!retainedReceipt.diagnostic().get("message").getAsString().isEmpty());
         for(String invalid:List.of("1","01","+1","18446744073709551616")) {
             receipt.getAsJsonObject("request").addProperty("object",invalid);
             rejects(TransitException.class,() -> Catalog.receipt(receipt,request));

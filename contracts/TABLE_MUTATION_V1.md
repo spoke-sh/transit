@@ -478,6 +478,17 @@ rules. No mutation value passes through a JavaScript floating-point number.
 | `rejection {prepared, input}` | Optional separate writer disposition after processing |
 | `status` | Original full reference; reads durable status under current native grants, even after mutation-policy revocation; returns null when absent |
 
+Every non-null neutral status includes the mandatory shared `diagnostic`
+projection of its original phase, conflict and policy/schema evidence. A
+non-null `rejection` is an owned object containing `principal`, native `input`,
+32-byte `payload` commitment as hex, `reason`, and its mandatory `diagnostic`.
+It identifies rejection of that input, independently of the mutation's saved
+status. The scalar-only rejection shape is not accepted by this definition.
+All SDK status and disposition models preserve these fields; C stores diagnostic
+JSON inline with its byte count, and C++ owns the JSON string. The native Zig
+`inputDisposition` method returns the complete checked owner record; `rejection`
+is its reason-only convenience accessor.
+
 Begin includes Table ID and decimal policy revision. Parts include ordinal,
 second-half flag and bounded hex bytes. Seal/apply/cancel carry the full reference.
 Compilation binds the caller's explicitly configured resource, writer and Table.

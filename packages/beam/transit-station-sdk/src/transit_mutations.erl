@@ -94,8 +94,11 @@ operation(B,_,{observe,Prepared,Input}) ->
     known(V,[pending,processed]);
 operation(B,_,{rejection,Prepared,Input}) ->
     #{<<"rejection">>:=V}=request(B,#{<<"rejection">>=>#{<<"prepared">>=>saved(Prepared),<<"input">>=>counter(Input)}}),
-    optional(V,fun(X)->known(X,[invalid_command,denied,identity_conflict,busy,not_found,not_active,
-        upload_closed,not_sealed,invalid_part,incomplete_upload,source_changed,stale_policy]) end);
+    optional(V,fun(X)->#transit_mutation_disposition{
+        principal=transit_sdk_value:counter(maps:get(<<"principal">>,X),0),input=counter(maps:get(<<"input">>,X)),
+        payload=decoded(maps:get(<<"payload">>,X),32),diagnostic=maps:get(<<"diagnostic">>,X),
+        reason=known(maps:get(<<"reason">>,X),[invalid_command,denied,identity_conflict,busy,not_found,not_active,
+        upload_closed,not_sealed,invalid_part,incomplete_upload,source_changed,stale_policy])} end);
 operation(B,#transit_mutation_connection{table=Table},{status,Reference}) ->
     #{<<"status">>:=V}=request(B,#{<<"status">>=>reference(Reference)}),
     optional(V,fun(X)->
@@ -106,7 +109,7 @@ operation(B,#transit_mutation_connection{table=Table},{status,Reference}) ->
             phase=known(maps:get(<<"phase">>,X),[uploading,sealed,applied,rejected,cancelled]),
             affected_rows=transit_sdk_value:integer(maps:get(<<"affected_rows">>,X),0,3),
             reason=known(maps:get(<<"reason">>,X),[none,row_exists,source_changed,invalid_request,denied,budget]),
-            input=transit_sdk_value:counter(maps:get(<<"input">>,X),0),
+            input=transit_sdk_value:counter(maps:get(<<"input">>,X),0),diagnostic=maps:get(<<"diagnostic">>,X),
             conflict=optional(maps:get(<<"conflict">>,X),fun(C)->#transit_mutation_conflict{
                 key=transit_sdk_value:signed(maps:get(<<"key">>,C)),
                 row=transit_sdk_value:integer(maps:get(<<"row">>,C),1,3)} end)} end).

@@ -6,6 +6,19 @@ module Transit
     I64_MAX = (1 << 63) - 1
     module Value
       module_function
+      # Diagnostic collections must not borrow a mutable decoded response.
+      def diagnostic(value)
+        Internal.validate!(Internal::SCHEMAS.fetch('Diagnostic'), value)
+        copy = lambda do |item|
+          case item
+          when Hash then item.to_h { |key, child| [key.dup.freeze, copy.call(child)] }.freeze
+          when Array then item.map { |child| copy.call(child) }.freeze
+          when String then item.dup.freeze
+          else item
+          end
+        end
+        copy.call(value)
+      end
       def codec_bound(codec, bound)
         unless %i[type_id version max_encoded_bytes encode decode].all? { |method| codec.respond_to?(method) }
           raise CodecError, 'Expected an explicit versioned codec'

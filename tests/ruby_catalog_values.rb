@@ -58,8 +58,13 @@ begin
   raise 'Wrong admission' unless client.submit(prepared) == 1
   reply.response = Transit::AccessDenied.new('Denied', status: 4, code: 'AccessDenied')
   raise 'Definite rejection changed' unless rejects(Transit::AccessDenied) { client.submit(prepared) }.equal?(reply.response)
-  reply.response = {'status'=>{'request'=>request.wire,'principal'=>17,'input'=>1,'outcome'=>'applied'}}
-  raise 'Lost full-width identity' unless client.status(request).request.object == (1 << 64)-1
+  reply.response = {'status'=>{'request'=>request.wire,'principal'=>17,'input'=>7,'outcome'=>'applied'}}
+  rejects(Transit::IncompatibleNative) { client.status(request) }
+  reply.response['status']['diagnostic'] = JSON.parse(File.read('../diagnostic.json'))
+  retained_receipt = client.status(request)
+  raise 'Lost full-width identity' unless retained_receipt.request.object == (1 << 64)-1
+  reply.response['status']['diagnostic']['message'].clear
+  raise 'Borrowed diagnostic' if retained_receipt.diagnostic['message'].empty?
   reply.response['status']['request']['object'] = '1'
   rejects(Transit::IncompatibleNative) { client.status(request) }
   [(1 << 64)-1, '01', '+1', '18446744073709551616'].each do |bad|

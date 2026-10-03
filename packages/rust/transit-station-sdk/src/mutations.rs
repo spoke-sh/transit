@@ -208,6 +208,14 @@ pub struct Conflict {
     pub key: i64,
     pub row: u8,
 }
+#[derive(Clone, Debug)]
+pub struct Disposition {
+    pub principal: u64,
+    pub input: u64,
+    pub payload: [u8; 32],
+    pub reason: Rejection,
+    pub diagnostic: Value,
+}
 #[derive(Clone)]
 pub struct Status {
     pub reference: Reference,
@@ -220,6 +228,7 @@ pub struct Status {
     pub conflict: Option<Conflict>,
     pub reason: Reason,
     pub input: u64,
+    pub diagnostic: Value,
 }
 fn digest(value: &Value) -> Result<[u8; 32]> {
     unhex(string(value, "mutation-digest")?, 32)?
@@ -374,14 +383,20 @@ impl Client {
             },
         )
     }
-    pub fn rejection(&mut self, prepared: &Prepared, input: u64) -> Result<Option<Rejection>> {
+    pub fn rejection(&mut self, prepared: &Prepared, input: u64) -> Result<Option<Disposition>> {
         let result =
             self.call(json!({"rejection":{"prepared":prepared.data(),"input":position(input)?}}))?;
         let value = field(&result, "rejection")?;
         if value.is_null() {
             Ok(None)
         } else {
-            Ok(Some(Rejection::parse(value)?))
+            Ok(Some(Disposition {
+                principal: number(field(value, "principal")?, "principal", true)?,
+                input: number(field(value, "input")?, "input", false)?,
+                payload: digest(field(value, "payload")?)?,
+                reason: Rejection::parse(field(value, "reason")?)?,
+                diagnostic: field(value, "diagnostic")?.clone(),
+            }))
         }
     }
     pub fn status(&mut self, reference: &Reference) -> Result<Option<Status>> {
@@ -423,6 +438,7 @@ impl Client {
             },
             reason: Reason::parse(field(v, "reason")?)?,
             input: number(field(v, "input")?, "input", true)?,
+            diagnostic: field(v, "diagnostic")?.clone(),
         }))
     }
     pub fn close(&mut self) -> Result<()> {

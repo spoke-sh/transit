@@ -47,11 +47,11 @@ action(A,C,#{<<"submit">>:=Bytes})->
     end;
 action(A,C,#{<<"observe">>:=#{<<"prepared">>:=Bytes,<<"input">>:=Input}})->#{observation=>atom_to_binary(result(A:observe(C,prepared(Bytes),Input)))};
 action(A,C,#{<<"input_disposition">>:=#{<<"prepared">>:=Bytes,<<"input">>:=Input}})->
-    #{disposition=>optional(result(A:input_disposition(C,prepared(Bytes),Input)),fun(#transit_catalog_disposition{scope=S,origin=O,principal=P,input=I,payload=Payload,outcome=Outcome})->
-        #{scope=>scope_json(S),origin=>atom_to_binary(O),principal=>P,input=>I,payload=>hex(Payload),outcome=>atom_to_binary(Outcome)} end)};
+    #{disposition=>optional(result(A:input_disposition(C,prepared(Bytes),Input)),fun(#transit_catalog_disposition{scope=S,origin=O,principal=P,input=I,payload=Payload,outcome=Outcome,diagnostic=Diagnostic})->
+        #{scope=>scope_json(S),origin=>atom_to_binary(O),principal=>P,input=>I,payload=>hex(Payload),outcome=>atom_to_binary(Outcome),diagnostic=>Diagnostic} end)};
 action(A,C,#{<<"status">>:=V})->Original=request(V),
-    #{status=>optional(result(A:status(C,Original)),fun(#transit_catalog_receipt{request=R,principal=P,input=I,outcome=O})->
-        Original=R,#{request=>request_json(R),principal=>P,input=>I,outcome=>atom_to_binary(O)} end)}.
+    #{status=>optional(result(A:status(C,Original)),fun(#transit_catalog_receipt{request=R,principal=P,input=I,outcome=O,diagnostic=Diagnostic})->
+        Original=R,#{request=>request_json(R),principal=>P,input=>I,outcome=>atom_to_binary(O),diagnostic=>Diagnostic} end)}.
 loop(A,C)->case io:get_line("") of
     eof->ok;
     Line->Action=json:decode(unicode:characters_to_binary(Line)),case maps:is_key(<<"close">>,Action) of

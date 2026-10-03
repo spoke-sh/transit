@@ -258,6 +258,7 @@ class Receipt:
     principal: int
     input: int
     outcome: Outcome
+    diagnostic: dict[str, Any]
 
 
 @dataclass(frozen=True, slots=True)
@@ -268,6 +269,7 @@ class Disposition:
     input: int
     payload: bytes
     outcome: DispositionOutcome
+    diagnostic: dict[str, Any]
 
 
 def _object(value: object, fields: str) -> dict[str, Any]:
@@ -368,14 +370,14 @@ def _description(value: object) -> Description:
 
 def _receipt(value: object) -> Receipt | None:
     if value is None: return None
-    v = _object(value, 'request principal input outcome')
-    return Receipt(_request(v['request']), integer(v['principal'], 'principal', minimum=0), integer(v['input'], 'input'), Outcome(v['outcome']))
+    v = _object(value, 'request principal input outcome diagnostic')
+    return Receipt(_request(v['request']), integer(v['principal'], 'principal', minimum=0), integer(v['input'], 'input'), Outcome(v['outcome']), v['diagnostic'])
 
 
 def _disposition(value: object) -> Disposition | None:
     if value is None: return None
-    v = _object(value, 'scope origin principal input payload outcome')
-    return Disposition(_scope(v['scope']), Origin(v['origin']), integer(v['principal'], 'principal', minimum=0), integer(v['input'], 'input'), _hex(v['payload'], 32, True), DispositionOutcome(v['outcome']))
+    v = _object(value, 'scope origin principal input payload outcome diagnostic')
+    return Disposition(_scope(v['scope']), Origin(v['origin']), integer(v['principal'], 'principal', minimum=0), integer(v['input'], 'input'), _hex(v['payload'], 32, True), DispositionOutcome(v['outcome']), v['diagnostic'])
 
 
 def _prepared(value: object) -> Prepared: return Prepared(_text(value, 8192).encode())

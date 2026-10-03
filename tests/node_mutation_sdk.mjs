@@ -42,12 +42,12 @@ async function call(action) {
   }
   if ('submit' in action) return { receipt:await client.submit(prepared(action.submit)) };
   if ('observe' in action) return { observation:await client.observe(prepared(action.observe.prepared),action.observe.input) };
-  if ('rejection' in action) return { rejection:(await client.rejection(prepared(action.rejection.prepared),action.rejection.input)) ?? null };
+  if ('rejection' in action) { const v=await client.rejection(prepared(action.rejection.prepared),action.rejection.input); return {rejection:v === undefined ? null : {...v,payload:hex(v.payload)}}; }
   if ('status' in action) {
     const v = await client.status(ref(action.status));
     return { status:v === undefined ? null : { reference:hex(v.reference.data),principal:v.principal,table:v.table,
       declaration:hex(v.declaration),policy_revision:v.policyRevision.toString(),phase:v.phase,affected_rows:v.affectedRows,
-      reason:v.reason,input:v.input,conflict:v.conflict === undefined ? null : {key:v.conflict.key.toString(),row:v.conflict.row} } };
+      reason:v.reason,input:v.input,diagnostic:v.diagnostic,conflict:v.conflict === undefined ? null : {key:v.conflict.key.toString(),row:v.conflict.row} } };
   }
   throw new Error('Unsupported mutation test action');
 }

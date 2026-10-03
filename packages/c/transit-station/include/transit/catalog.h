@@ -52,10 +52,12 @@ typedef struct transit_station_catalog_page {
 } transit_station_catalog_page;
 typedef struct transit_station_catalog_receipt {
     bool found; transit_station_catalog_create_table request; uint64_t principal, input; transit_station_catalog_outcome outcome;
+    transit_sdk_diagnostic diagnostic;
 } transit_station_catalog_receipt;
 typedef struct transit_station_catalog_disposition {
     bool found; transit_station_catalog_scope scope; transit_station_catalog_origin origin; uint64_t principal, input;
     uint8_t payload[32]; transit_station_catalog_disposition_outcome outcome;
+    transit_sdk_diagnostic diagnostic;
 } transit_station_catalog_disposition;
 typedef struct transit_station_catalog_client transit_station_catalog_client;
 typedef struct transit_station_catalog_compiled transit_station_catalog_compiled;

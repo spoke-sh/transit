@@ -185,8 +185,8 @@ public static class Catalog
         public bool Equals(Page? other) => other is not null && ResourceRevision == other.ResourceRevision && Next == other.Next && Entries.SequenceEqual(other.Entries);
         public override int GetHashCode() { HashCode hash = new(); hash.Add(ResourceRevision); hash.Add(Next); foreach (var entry in Entries) hash.Add(entry); return hash.ToHashCode(); }
     }
-    public sealed record Receipt(CreateTable Request, ulong Principal, ulong Input, Outcome Outcome);
-    public sealed record Disposition(Scope Scope, Origin Origin, ulong Principal, ulong Input, Bytes Payload, DispositionOutcome Outcome);
+    public sealed record Receipt(CreateTable Request, ulong Principal, ulong Input, Outcome Outcome, JsonObject Diagnostic);
+    public sealed record Disposition(Scope Scope, Origin Origin, ulong Principal, ulong Input, Bytes Payload, DispositionOutcome Outcome, JsonObject Diagnostic);
     private static Scope ParseScope(JsonNode? value) {
         var v = Fields(value, "realm", "resource", "catalog");
         return new(new ResourceRef(V.Number(v["realm"], 1), V.Number(v["resource"], 1)), NativeValues.Wide(v["catalog"], true));
@@ -250,9 +250,9 @@ public static class Catalog
         catch (Exception) { throw new TransitException(ErrorKind.UnknownOutcome, "catalog-receipt", 6); }
     }
     internal static Receipt ParseReceipt(JsonNode? value, CreateTable original) {
-        var v = Fields(value, "request", "principal", "input", "outcome"); var actual = ParseRequest(v["request"]);
+        var v = Fields(value, "request", "principal", "input", "outcome", "diagnostic"); var actual = ParseRequest(v["request"]);
         if (actual != original) throw V.Incompatible("catalog-original-request");
-        return new(actual, V.Number(v["principal"]), V.Number(v["input"], 1), Variant<Outcome>(v["outcome"]));
+        return new(actual, V.Number(v["principal"]), V.Number(v["input"], 1), Variant<Outcome>(v["outcome"]), V.Object(v["diagnostic"]).DeepClone().AsObject());
     }
     /// <summary>Cancellation abandons a local wait; disposal joins native ownership.</summary>
     public sealed class Client : IAsyncDisposable {
@@ -302,9 +302,9 @@ public static class Catalog
             var action = Input("input_disposition", prepared, input);
             return worker.Invoke<Disposition?>(b => {
                 var value = Result(b.Catalog(action), "disposition"); if (value is null) return null;
-                var v = Fields(value, "scope", "origin", "principal", "input", "payload", "outcome"); Bytes payload = new(V.Unhex(v["payload"], 32));
+                var v = Fields(value, "scope", "origin", "principal", "input", "payload", "outcome", "diagnostic"); Bytes payload = new(V.Unhex(v["payload"], 32));
                 if (payload.Length != 32) throw V.Incompatible("catalog-payload");
-                return new(ParseScope(v["scope"]), Variant<Origin>(v["origin"]), V.Number(v["principal"]), V.Number(v["input"], 1), payload, Variant<DispositionOutcome>(v["outcome"]));
+                return new(ParseScope(v["scope"]), Variant<Origin>(v["origin"]), V.Number(v["principal"]), V.Number(v["input"], 1), payload, Variant<DispositionOutcome>(v["outcome"]), V.Object(v["diagnostic"]).DeepClone().AsObject());
             }, cancellation);
         }
         public Task<Receipt?> StatusAsync(CreateTable original, CancellationToken cancellation = default) {

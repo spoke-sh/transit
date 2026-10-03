@@ -107,15 +107,15 @@ defmodule Transit.Station.Sdk.Catalog.Page do
 end
 
 defmodule Transit.Station.Sdk.Catalog.Receipt do
-  @enforce_keys [:request, :principal, :input, :outcome]
+  @enforce_keys [:request, :principal, :input, :outcome, :diagnostic]
   @derive {Inspect, only: []}
-  defstruct [:request, :principal, :input, :outcome]
+  defstruct [:request, :principal, :input, :outcome, :diagnostic]
 end
 
 defmodule Transit.Station.Sdk.Catalog.Disposition do
-  @enforce_keys [:scope, :origin, :principal, :input, :payload, :outcome]
+  @enforce_keys [:scope, :origin, :principal, :input, :payload, :outcome, :diagnostic]
   @derive {Inspect, only: []}
-  defstruct [:scope, :origin, :principal, :input, :payload, :outcome]
+  defstruct [:scope, :origin, :principal, :input, :payload, :outcome, :diagnostic]
 end
 
 defmodule Transit.Station.Sdk.Catalog do
@@ -258,12 +258,13 @@ defmodule Transit.Station.Sdk.Catalog do
       {:transit_catalog_page, v.resource_revision, Enum.map(v.entries, &native/1), native(v.next)}
 
   def native(%Receipt{} = v),
-    do: {:transit_catalog_receipt, native(v.request), v.principal, v.input, v.outcome}
+    do:
+      {:transit_catalog_receipt, native(v.request), v.principal, v.input, v.outcome, v.diagnostic}
 
   def native(%Disposition{} = v),
     do:
       {:transit_catalog_disposition, native(v.scope), v.origin, v.principal, v.input, v.payload,
-       v.outcome}
+       v.outcome, v.diagnostic}
 
   def native(%Client.AdmissionReceipt{position: position}), do: {:transit_admission, position}
   def native(nil), do: :undefined
@@ -369,18 +370,28 @@ defmodule Transit.Station.Sdk.Catalog do
       next: convert(next)
     }
 
-  def convert({:transit_catalog_receipt, request, principal, input, outcome}),
-    do: %Receipt{request: convert(request), principal: principal, input: input, outcome: outcome}
-
-  def convert({:transit_catalog_disposition, scope, origin, principal, input, payload, outcome}),
-    do: %Disposition{
-      scope: convert(scope),
-      origin: origin,
+  def convert({:transit_catalog_receipt, request, principal, input, outcome, diagnostic}),
+    do: %Receipt{
+      request: convert(request),
       principal: principal,
       input: input,
-      payload: payload,
-      outcome: outcome
+      outcome: outcome,
+      diagnostic: diagnostic
     }
+
+  def convert(
+        {:transit_catalog_disposition, scope, origin, principal, input, payload, outcome,
+         diagnostic}
+      ),
+      do: %Disposition{
+        scope: convert(scope),
+        origin: origin,
+        principal: principal,
+        input: input,
+        payload: payload,
+        outcome: outcome,
+        diagnostic: diagnostic
+      }
 
   def convert({:transit_admission, _} = value), do: Client.convert(value)
   def convert(:undefined), do: nil

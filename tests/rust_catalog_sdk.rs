@@ -144,9 +144,9 @@ fn call(client: &mut m::Client, action: &Value) -> Result<Value> {
     } else if let Some(v) = action.get("observe") {
         json!({"observation":tag(client.observe(&m::Prepared::from_data(text(v,"prepared").into())?,number(v,"input"))?)})
     } else if let Some(v) = action.get("input_disposition") {
-        json!({"disposition":client.input_disposition(&m::Prepared::from_data(text(v,"prepared").into())?,number(v,"input"))?.map(|v|json!({"scope":scope_json(v.scope),"origin":tag(v.origin),"principal":v.principal,"input":v.input,"payload":hex(&v.payload),"outcome":tag(v.outcome)}))})
+        json!({"disposition":client.input_disposition(&m::Prepared::from_data(text(v,"prepared").into())?,number(v,"input"))?.map(|v|json!({"scope":scope_json(v.scope),"origin":tag(v.origin),"principal":v.principal,"input":v.input,"payload":hex(&v.payload),"outcome":tag(v.outcome),"diagnostic":v.diagnostic}))})
     } else if let Some(v) = action.get("status") {
-        json!({"status":client.status(&request(v)?)?.map(|v|json!({"request":request_json(&v.request),"principal":v.principal,"input":v.input,"outcome":tag(v.outcome)}))})
+        json!({"status":client.status(&request(v)?)?.map(|v|json!({"request":request_json(&v.request),"principal":v.principal,"input":v.input,"outcome":tag(v.outcome),"diagnostic":v.diagnostic}))})
     } else {
         panic!("Unsupported catalog action")
     })

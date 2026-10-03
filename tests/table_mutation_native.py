@@ -292,7 +292,7 @@ def run(node, proof, host, port_host, library, cli, *, sdks=(), cold=False):
             # A valid but premature apply is acknowledged with a disposition,
             # leaving upload state intact and subsequent accepted work runnable.
             premature = mutation({'prepare':{'apply':compiled['reference']}})['prepared']
-            assert submit(premature) == 'not_sealed'
+            assert submit(premature)['reason'] == 'not_sealed'
             assert mutation({'status':compiled['reference']})['status'] == current
             for _ in range(16):
                 prepared = mutation({'next':compiled})['prepared']
@@ -316,6 +316,7 @@ def run(node, proof, host, port_host, library, cli, *, sdks=(), cold=False):
             factories = [('native',lambda: Native(library,proxy_url,connection)),('port',lambda: Port(port_host,root,proxy_url,connection)),('cli',lambda: Cli(cli,root,proxy_url,connection))]
             factories += [(label,lambda factory=factory: factory(proxy_url,connection,root)) for label,factory in installed]
             foreign_statuses = []
+            foreign_dispositions = []
             caller_timings = []
             profile_measurements = []
             for caller_index,(label,factory) in enumerate(factories):
@@ -452,6 +453,25 @@ def run(node, proof, host, port_host, library, cli, *, sdks=(), cold=False):
                         observation = dict(prepared=prepared,input=receipt['position'])
                         assert owner.call({'observe':observation}) == {'observation':'processed'}
                         assert owner.call({'rejection':observation}) == {'rejection':None}
+                        if profile == 'cancel_upload' and step == 0:
+                            # An admitted APPLY against the unsealed upload has
+                            # its own disposition; it does not reject the SQL.
+                            before = owner.call({'status':request['reference']})['status']
+                            assert before['phase'] == 'uploading'
+                            early = owner.call({'prepare':{'apply':request['reference']}})['prepared']
+                            early_receipt = owner.call({'submit':early})['receipt']
+                            processed(early_receipt['position'])
+                            early_input = dict(prepared=early,input=early_receipt['position'])
+                            disposition = owner.call({'rejection':early_input})['rejection']
+                            assert disposition['reason'] == 'not_sealed' and disposition['input'] == early_receipt['position'], (label,disposition)
+                            assert disposition == mutation({'rejection':early_input})['rejection'], (label,disposition)
+                            detail = disposition['diagnostic']
+                            assert detail['code'] == 'mutation.input.not_sealed' and detail['outcome'] == 'input_rejected'
+                            assert detail['identity']['domain'] == 'transport' and detail['identity']['id'] == str(disposition['input'])
+                            facts = {fact['field']:fact['value'] for fact in detail['facts'] if fact}
+                            assert facts['source_basis'] == {'digest':list(bytes.fromhex(disposition['payload']))}
+                            assert owner.call({'status':request['reference']})['status'] == before
+                            foreign_dispositions.append((label,early_input,disposition))
                         prepared = owner.call({'next':request})['prepared']
                         if prepared is None: break
                     else: raise AssertionError((label,profile,'Bounded stage count exceeded'))
@@ -460,6 +480,16 @@ def run(node, proof, host, port_host, library, cli, *, sdks=(), cold=False):
                     assert outcome['reference'] == request['reference']
                     assert (outcome['phase'],outcome['reason'],outcome['affected_rows']) == (phase,reason,affected), (label,profile,outcome)
                     assert outcome['conflict'] == (dict(key='2',row=2) if reason == 'row_exists' else None), (label,profile,outcome)
+                    detail = outcome['diagnostic']
+                    assert detail == mutation({'status':request['reference']})['status']['diagnostic'], (label,profile,detail)
+                    assert detail['outcome'] == phase and detail['evidence'] == 'domain_status'
+                    assert detail['identity']['domain'] == 'mutation' and detail['identity']['id'] == str(profile_namespace)
+                    facts = {fact['field']:fact['value'] for fact in detail['facts'] if fact}
+                    assert facts['affected_rows'] == {'unsigned':str(affected)}
+                    assert all(action['kind'] not in ('resume_exact','cancel_mutation') for action in detail['actions'] if action)
+                    if reason == 'row_exists':
+                        assert detail['code'] == 'mutation.primary_key_conflict'
+                        assert facts['key'] == {'signed':'2'} and facts['input_row'] == {'unsigned':'2'}
                     rows = snapshot(profile_namespace,phase,[('replacement',),value,(None,)],affected)
                     assert rows['reason'] == reason and rows['input'] == receipt['position']
                     assert rows['rows'][0] == previous_rows[0] and rows['rows'][2] == previous_rows[2]
@@ -481,10 +511,13 @@ def run(node, proof, host, port_host, library, cli, *, sdks=(), cold=False):
                         recovered_input=receipt['position']))
                     print(f'Mutation caller {label}: {profile}, exact saved recovery and terminal identity passed.',flush=True)
                 foreign_statuses.extend((owner,reference,status) for reference,status in history)
+                foreign_dispositions[:] = [(owner if who == label else who, observed, value) for who,observed,value in foreign_dispositions]
                 caller_timings.append(dict(caller=label,seconds=round(time.monotonic()-caller_started,3)))
                 print(f'Mutation caller {label}: all seven profiles passed.',flush=True)
             for reader,reference,result in foreign_statuses:
                 assert reader.call({'status':reference})['status'] == result
+            for reader,observed,result in foreign_dispositions:
+                assert reader.call({'rejection':observed})['rejection'] == result
             writer.kill(); writer.wait(timeout=10); writer = None
             # Retain all installed-callers' exact outcomes across a physical
             # store/node restart, independently of their local handle lifetime.
@@ -492,6 +525,8 @@ def run(node, proof, host, port_host, library, cli, *, sdks=(), cold=False):
             fixture.stop(); fixture.start(); start()
             for reader,reference,result in foreign_statuses:
                 assert reader.call({'status':reference})['status'] == result
+            for reader,observed,result in foreign_dispositions:
+                assert reader.call({'rejection':observed})['rejection'] == result
             invoke('revoke-reader')
             mutation({'status':compiled['reference']},error='AccessDenied')
             invoke('inspect',1,error='AccessDenied')
@@ -499,6 +534,10 @@ def run(node, proof, host, port_host, library, cli, *, sdks=(), cold=False):
                 try: reader.call({'status':reference})
                 except Failure as error: assert error.status == 4, error
                 else: raise AssertionError('Foreign status reader ignored current revocation')
+            for reader,observed,_ in foreign_dispositions:
+                try: reader.call({'rejection':observed})
+                except Failure as error: assert error.status == 4, error
+                else: raise AssertionError('Foreign input reader ignored current revocation')
             assert counts['max_mutations'] == 4
             if cold_store:
                 assert cold_store.data_objects() > 0, 'Mutation history did not spill to cold storage'

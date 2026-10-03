@@ -255,3 +255,8 @@ key/row and policy or descriptor mismatch evidence. `bound` verifies the origina
 immutable request before adding its column name. Terminal results and rejected
 inputs retain distinct recovery guidance; projection never reads current rows or
 changes work. See the [mutation record contract](../../../contracts/TABLE_MUTATION_V1.md#record-and-command-encodings).
+
+`TableMutationBridge.Status.diagnostic` and `.Disposition.diagnostic` carry these
+projections through the ABI, native port, CLI and all SDK models. The bridge's
+`rejection` response retains the complete checked input disposition, including
+principal, native input and payload commitment, separately from mutation status.
