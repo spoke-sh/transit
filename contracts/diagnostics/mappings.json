@@ -302,6 +302,134 @@
           "category": "unsupported"
         }
       }
+    },
+    {
+      "id": "migration-ledger",
+      "owners": [
+        "packages/zig/transit-station-app/src/Migration.zig"
+      ],
+      "exclude": [],
+      "registry": "packages/zig/transit-station-app/src/MigrationFailure.zig",
+      "registry_kind": "named_class",
+      "projection": "packages/zig/transit-station-app/src/MigrationFailure.zig",
+      "profile": "Application data-owner migration ledger; application transforms own additional finite rejection classifications",
+      "stage": "Input/control/admission/execute/cleanup as recorded by the original failed check",
+      "outcome": "input_rejected, separate from plan progress and committed step receipts",
+      "durable_evidence": "Original input commitment and original policy/plan/step/epoch witness in a companion record; owner rolls back before recording rejection",
+      "context": "Original caller/plan/ordinal, expected/observed policies, epochs/contracts, commitments and progress when the rejecting check supplies them",
+      "disclosure": "Current resource read authority; application values belong to the owning application and are not inferred by the ledger",
+      "recovery": "Inspect exact plan and retained receipts; current denial and rejected inputs never imply plan cancellation or fresh retry permission",
+      "propagation": "Native/storage/allocation, configuration and invalid transform output remain unresolved. Application transform failures require an application-owned finite classification; unknown errors must not become terminal rejection.",
+      "codes": {
+        "MigrationDenied": {
+          "code": "migration.denied",
+          "category": "access"
+        },
+        "MigrationPolicyConflict": {
+          "code": "migration.policy_conflict",
+          "category": "conflict"
+        },
+        "InvalidMigrationPolicy": {
+          "code": "migration.invalid_policy",
+          "category": "binding"
+        },
+        "InvalidMigrationProposal": {
+          "code": "migration.invalid_proposal",
+          "category": "binding"
+        },
+        "InvalidMigrationStep": {
+          "code": "migration.invalid_step",
+          "category": "binding"
+        },
+        "MigrationPlanConflict": {
+          "code": "migration.plan_conflict",
+          "category": "conflict"
+        },
+        "MigrationBusy": {
+          "code": "migration.active_plan",
+          "category": "conflict"
+        },
+        "MigrationSourceChanged": {
+          "code": "migration.source_changed",
+          "category": "conflict"
+        },
+        "MigrationPlanAbsent": {
+          "code": "migration.plan_absent",
+          "category": "lifecycle"
+        },
+        "MigrationStepConflict": {
+          "code": "migration.step_conflict",
+          "category": "conflict"
+        },
+        "MigrationNotActive": {
+          "code": "migration.not_active",
+          "category": "lifecycle"
+        },
+        "MigrationOrdinalExhausted": {
+          "code": "migration.ordinal_exhausted",
+          "category": "limit"
+        },
+        "MigrationAlreadyApplied": {
+          "code": "migration.already_applied",
+          "category": "lifecycle"
+        }
+      },
+      "exceptions": [
+        {
+          "source": "packages/zig/transit-station-app/src/Migration.zig",
+          "cause": "InvalidMigrationConfiguration",
+          "disposition": "internal_invariant",
+          "reason": "Invalid immutable owner configuration is an integration fault, not a terminal caller rejection. Initialization writes nothing.",
+          "tests": [
+            {
+              "source": "packages/zig/transit-station-app/src/migration_test.zig",
+              "name": "migration configuration and transform faults remain unresolved without changing decisions"
+            }
+          ]
+        },
+        {
+          "source": "packages/zig/transit-station-app/src/Migration.zig",
+          "cause": "MigrationConfigurationChanged",
+          "disposition": "internal_invariant",
+          "reason": "Stored owner configuration differs from the configured owner. Do not adopt or reset it; the input remains unresolved.",
+          "tests": [
+            {
+              "source": "packages/zig/transit-station-app/src/migration_test.zig",
+              "name": "migration configuration and transform faults remain unresolved without changing decisions"
+            }
+          ]
+        },
+        {
+          "source": "packages/zig/transit-station-app/src/Migration.zig",
+          "cause": "MigrationNotInitialized",
+          "disposition": "internal_invariant",
+          "reason": "Missing bootstrap state cannot be interpreted as a caller plan rejection; the input remains unresolved.",
+          "tests": [
+            {
+              "source": "packages/zig/transit-station-app/src/migration_test.zig",
+              "name": "migration configuration and transform faults remain unresolved without changing decisions"
+            }
+          ]
+        },
+        {
+          "source": "packages/zig/transit-station-app/src/Migration.zig",
+          "cause": "MigrationCursorTooLarge",
+          "disposition": "internal_invariant",
+          "reason": "The application transform violated its output cursor bound. Roll back every tentative mutation and leave the input unresolved.",
+          "tests": [
+            {
+              "source": "packages/zig/transit-station-app/src/migration_test.zig",
+              "name": "migration configuration and transform faults remain unresolved without changing decisions"
+            }
+          ]
+        }
+      ],
+      "tests": [
+        {
+          "source": "packages/zig/transit-station-app/src/migration_test.zig",
+          "name": "migration diagnostic bounds and unsigned exhaustion never invoke the transform"
+        }
+      ]
     }
   ]
 }

@@ -92,7 +92,11 @@ Rejected migration inputs retain the original policy, epoch/contract, step
 commitment or ordinal conflict. Work-item rejections also identify mismatched
 cursor commitments, incomplete verification counts and invalid submitted states.
 These records survive later progress or activation and remain separate from
-committed step receipts. Inspection requires current resource access. Stored-data
+committed step receipts. Plan diagnostics distinguish active work, confirmed
+activation and explicit abandonment, with the original plan identity, reviewed
+epoch/contracts and next step ordinal. They offer inspection; the application
+selects any continuation and its exact arguments. Abandonment leaves earlier
+committed steps and staged data intact. Inspection requires current resource access. Stored-data
 corruption and infrastructure failures leave the input unresolved rather than
 claiming a terminal caller rejection.
 

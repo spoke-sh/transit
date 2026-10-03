@@ -108,6 +108,16 @@ step receipts establish those separate outcomes. The application operator emits
 the complete structured diagnostic with `committed: false`, preserving native
 admission separately from domain acceptance.
 
+`MigrationDiagnostic.progress` projects an authorized retained plan/progress pair.
+Its stable codes are `migration.active`, `migration.applied` and
+`migration.abandoned`, with outcomes `pending`, `applied` and `cancelled`.
+The last outcome describes abandonment of this plan, not reversal of earlier
+steps. Evidence is `domain_status`; inspection targets the exact plan and resource.
+Facts retain the original owner, admission/latest input, proposal commitment,
+reviewed source/target epochs and contracts, next step ordinal and phase.
+The opaque application cursor is not copied into the diagnostic. Generic migration
+cannot infer transform arguments or authorize a successor from a status read.
+
 ## Verification
 
 Independent canonical fixtures precede transport wiring. Deterministic tests must

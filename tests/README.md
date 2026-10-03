@@ -13498,3 +13498,26 @@ passed (5,135 local links in 510 files). Final log:
 a nonexistent documentation task after the outcome/inventory checks passed;
 the documented rerun executes the actual documentation checker. Clean CI remains
 separate and unclaimed.
+
+### Migration progress and closed error boundary (2026-10-03)
+
+Pinned `test::unit`, `test::diagnostic-mappings`, `test::diagnostic-outcomes` and
+`test::work-items` passed. The migration boundary covers 13 classified input
+causes and four explicit unresolved configuration/transform faults; the new fault
+test verifies no initial mutations and full rollback of tentative domain writes.
+The complete projection matrix now runs 514 cases across 16 declared surfaces,
+including the three plan phases and all shared input causes. Maximum uint64 plan
+identity and invalid progress records are checked separately.
+
+The actual work-item worker proof passed in **13.53 seconds** with 19 rows, two
+fresh-key fenced replacements, node/disk restart, exact operator/worker retries,
+complete verification and old-epoch rejection. It now reads and checks the plan
+diagnostic through the same current-authorized native resource path before/after
+recovery and activation. It observed 55 turns, at most four mutations, 142-byte
+values and 20 pages. Log: `/var/tmp/transit-migration-diagnostics-check.log`.
+The real example worker/operator binaries built from their component manifest
+(`/var/tmp/transit-migration-operator-build.log`); the standalone operator's new
+JSON inspection field is compiled, not separately exercised by that native proof.
+The final mapping/outcome/documentation checks passed in
+`/var/tmp/transit-migration-diagnostics-final.log`. Clean committed-HEAD CI is not
+claimed by these focused results.

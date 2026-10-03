@@ -155,6 +155,13 @@ pub fn main(init: std.process.Init) !void {
         for (0..100) |_| {
             var reader = try caller.read();
             const progress = try ledger.progress(&reader, .{ .value = 2 });
+            const plan = (try ledger.plan(&reader, .{ .value = 2 })).?;
+            const detail = try W.app.MigrationDiagnostic.progress(9, Realm, saved.resource, plan, progress);
+            try t.expectEqual(if (progress.phase == .applied) p.Diagnostic.Outcome.applied else .pending, detail.outcome);
+            try t.expectEqualStrings(if (progress.phase == .applied) "migration.applied" else "migration.active", detail.code.slice());
+            try t.expectEqual(@as(u64, 2), try detail.identity.?.id.value());
+            try t.expectEqualDeep(detail.identity, detail.actions[0].?.target);
+            try t.expectEqual(null, detail.actions[1]);
             if (progress.phase == .applied) break;
             const cursor = try W.Cursor.decode(progress.cursor);
             const command: W.Command = .{ .step = .{ .plan = .{ .value = 2 }, .ordinal = progress.next, .operation = if (cursor.phase == .ready) 2 else 1, .arguments = progress.cursor } };

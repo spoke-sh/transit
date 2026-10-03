@@ -58,8 +58,8 @@ must be added with their own executable cases before completeness is claimed.
 `outcomes.json` owns reviewed semantic expectations for retained query failures,
 mutation phases/reasons/input rejections, catalog receipts/input dispositions,
 serving waits/input rejections, Follow stops, exchange capture closure, native
-effect phases/closures and publication phases/input rejections. Each family names
-its actual source enum, projection, context, disclosure and recovery contract.
+effect phases/closures and publication phases/input rejections. Shared migration progress and input rejections are included. Each family names
+its actual source enum or closed classification registry, projection, context, disclosure and recovery contract.
 Every enum tag requires an executable projection. Query codes run across both
 recorded stages and all three supported failure phases.
 
@@ -76,6 +76,12 @@ The projection fixture uses valid synthetic retained records. It does not execut
 an authority, prove current access, reproduce a rejecting turn or verify all
 optional witness values. Owner tests and restart/commit/disclosure proofs retain
 those responsibilities. A listed enum's completeness is not completeness across
-all runtime adapters or grammar alternatives. In particular, migration inputs,
-query lifecycle status without a failure and application-owned transform errors
+all runtime adapters or grammar alternatives. In particular, query lifecycle status without a failure and application-owned transform errors
 remain separate coverage obligations.
+
+
+The migration ledger mapping boundary covers all thirteen terminal input causes.
+Invalid/changed owner configuration, absent initialization and oversized transform
+output are explicit unresolved exceptions, tested for unchanged decisions and
+rollback. Allocation/storage and application-defined transform failures still
+propagate to their owning boundary; the shared ledger cannot invent their meaning.

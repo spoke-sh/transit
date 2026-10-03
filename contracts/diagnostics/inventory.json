@@ -11078,6 +11078,25 @@
         "std"
       ]
     },
+    "packages/zig/transit-station-app/src/MigrationDiagnostic.zig": {
+      "errors": {
+        "InvalidMigrationRecord": 3
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "progress()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 15,
+        "catch": 1
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
     "packages/zig/transit-station-app/src/MigrationFailure.zig": {
       "errors": {
         "InvalidMigrationFailure": 7
@@ -11566,6 +11585,7 @@
         "Host.zig",
         "HostDiagnostic.zig",
         "Migration.zig",
+        "MigrationDiagnostic.zig",
         "MigrationFailure.zig",
         "Model.zig",
         "Native.zig",

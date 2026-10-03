@@ -13,6 +13,7 @@ import subprocess
 import sys
 
 from diagnostic_inventory import ROOT, inventory
+from diagnostic_mappings import registry_entries
 
 MANIFEST = ROOT / 'contracts/diagnostics/outcomes.json'
 
@@ -39,7 +40,11 @@ def validate(manifest, surface, rows):
     for family, definition in manifest['families'].items():
         for field in ('projection', 'profile', 'context', 'disclosure', 'durable_evidence', 'recovery'):
             assert definition[field], (family, field)
-        assert set(definition['cases']) == set(surface['sources'][definition['source']]['outcomes'][definition['type']]), ('unmapped outcome', family)
+        if 'registry_kind' in definition:
+            variants = {entry[0] for entry in registry_entries((ROOT / definition['source']).read_text(), definition['registry_kind'])}
+        else:
+            variants = set(surface['sources'][definition['source']]['outcomes'][definition['type']])
+        assert set(definition['cases']) == variants, ('unmapped outcome', family)
         for variant, case in definition['cases'].items():
             assert case['code'], (family, variant)
             for scenario, context in definition['scenarios'].items():
@@ -99,7 +104,7 @@ def main():
     count = validate(manifest, surface, rows)
     self_test(manifest, surface, rows)
     print(f'Diagnostic outcomes: {count} executed projections across '
-          f'{len(manifest["families"])} complete declared enum surfaces; semantic drift mutations rejected.')
+          f'{len(manifest["families"])} complete declared outcome surfaces; semantic drift mutations rejected.')
 
 
 if __name__ == '__main__':

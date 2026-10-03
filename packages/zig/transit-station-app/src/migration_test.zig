@@ -286,3 +286,35 @@ test "migration diagnostic bounds and unsigned exhaustion never invoke the trans
     try t.expect(failure.classification("OutOfMemory") == null);
     try t.expect(failure.classification("Unavailable") == null);
 }
+
+test "migration configuration and transform faults remain unresolved without changing decisions" {
+    const failure = root.MigrationFailure;
+    inline for (.{ error.InvalidMigrationConfiguration, error.MigrationConfigurationChanged, error.MigrationNotInitialized, error.MigrationCursorTooLarge, error.OutOfMemory, error.Unavailable }) |cause| try t.expect(!failure.expected(cause));
+    var store: Store = .{};
+    defer store.entries.deinit();
+    var turn = try store.turn(33);
+    try t.expectError(error.MigrationNotInitialized, owner().begin(&turn, proposal(7)));
+    try t.expectEqual(@as(usize, 0), mutations(turn));
+    var invalid = owner();
+    invalid.configuration.application = 0;
+    try t.expectError(error.InvalidMigrationConfiguration, invalid.initialize(&turn));
+    try t.expectEqual(@as(usize, 0), mutations(turn));
+    try setup(&store);
+    invalid = owner();
+    invalid.configuration.initial_contract = @splat(9);
+    try t.expectError(error.MigrationConfigurationChanged, invalid.initialize(&turn));
+    try t.expectEqual(@as(usize, 0), mutations(turn));
+    var begin = try store.turn(44);
+    _ = try owner().begin(&begin, proposal(7));
+    try store.commit(&begin);
+    var input = try store.turn(44);
+    const original = input.decision;
+    var bad_transform: struct {
+        pub fn apply(_: *@This(), target: *Turn, _: M.Plan, _: M.Progress, _: M.Step) !M.Transition {
+            try target.write(try p.Value.init("tentative"), try p.Value.init("must roll back"));
+            return .{ .advance = try p.Value.init(&@as([129]u8, @splat(0))) };
+        }
+    } = .{};
+    try t.expectError(error.MigrationCursorTooLarge, owner().apply(&input, .{ .plan = .{ .value = 7 }, .ordinal = .{ .value = 1 }, .operation = 1 }, &bad_transform));
+    try t.expectEqualDeep(original, input.decision);
+}

@@ -82,7 +82,7 @@ fn run(init: std.process.Init) !void {
             cursor = page.next;
             if (cursor == null) break;
         }
-        return print(init, .{ .head = head, .migration = progress, .cursor = if (progress) |value| try W.Cursor.decode(value.cursor) else null, .rows = count, .pages = pages });
+        return print(init, .{ .head = head, .migration = progress, .migration_diagnostic = if (progress) |value| try W.app.MigrationDiagnostic.progress(9, config.realm, resource, plan.?, value) else null, .cursor = if (progress) |value| try W.Cursor.decode(value.cursor) else null, .rows = count, .pages = pages });
     }
     if (args.len < 4) return error.ExpectedRecoveryFile;
     const path = args[3];

@@ -15,6 +15,15 @@ from diagnostic_inventory import ROOT, inventory, production, tokens
 
 MANIFEST = ROOT / 'contracts/diagnostics/mappings.json'
 ENTRY = re.compile(r'\. cause = error \. (\w+) , \. code = ("(?:\\.|[^"\\])*") , \. category = \. (\w+)')
+NAMED_ENTRY = re.compile(r'\. name = ("(?:\\.|[^"\\])*") , \. value = \. \{ \. code = ("(?:\\.|[^"\\])*") , \. category = \. (\w+)')
+
+
+def registry_entries(text, kind='error'):
+    registry = ' '.join(production(text))
+    if kind == 'error':
+        return ENTRY.findall(registry)
+    assert kind == 'named_class', kind
+    return [(json.loads(cause), code, category) for cause, code, category in NAMED_ENTRY.findall(registry)]
 
 
 def tests_exist(tests, files):
@@ -34,14 +43,15 @@ def validate(manifest, surface, files):
         ids.add(identity)
         for field in ('profile', 'stage', 'outcome', 'durable_evidence', 'context', 'disclosure', 'recovery', 'propagation'):
             assert boundary[field], (identity, field)
-        registry = ' '.join(production(files[boundary['registry']]))
-        entries = ENTRY.findall(registry)
+        kind = boundary.get('registry_kind', 'error')
+        entries = registry_entries(files[boundary['registry']], kind)
         causes = {cause for cause, _, _ in entries}
         codes = [json.loads(code) for _, code, _ in entries]
         assert entries and len(causes) == len(entries) == len(set(codes)), identity
         assert boundary['codes'] == {cause: {'code': json.loads(code), 'category': category}
                                      for cause, code, category in entries}, ('changed semantic mapping', identity)
-        assert causes == set(surface['sources'][boundary['registry']]['errors']), 'unclassified registry error'
+        if kind == 'error':
+            assert causes == set(surface['sources'][boundary['registry']]['errors']), 'unclassified registry error'
         tests_exist(boundary['tests'], files)
         owners = [path for path in surface['sources'] if any(fnmatchcase(path, pattern) for pattern in boundary['owners']) and path not in boundary['exclude']]
         assert owners, identity
@@ -100,6 +110,16 @@ def self_test(manifest, surface, files):
     changed = copy.deepcopy(surface)
     changed['sources']['packages/zig/transit-fuze/src/SqlNewOwner.zig'] = {'errors': {'NewExpectedUserFailure': 1}}
     rejected(changed_surface=changed)
+    for named in manifest['boundaries']:
+        if named.get('registry_kind') != 'named_class':
+            continue
+        changed = dict(files)
+        entry = next(iter(named['codes'].values()))
+        changed[named['registry']] = changed[named['registry']].replace(entry['code'], 'changed.semantic.code')
+        rejected(changed_files=changed)
+        changed = copy.deepcopy(surface)
+        changed['sources'][named['owners'][0]]['errors']['NewExpectedMigrationFailure'] = 1
+        rejected(changed_surface=changed)
 
 
 def main():

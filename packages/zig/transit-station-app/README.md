@@ -119,7 +119,11 @@ The owner must reject unsupported transforms before beginning, enforce its write
 pause, and prove complete target verification before activating. Policy is
 separate from interface publication permission. `abandon` cannot undo activation
 or discard plan/step evidence. Point reads and caller-owned fixed values keep
-ledger work independent of historical plan/step cardinality.
+ledger work independent of historical plan/step cardinality. `MigrationDiagnostic.progress`
+projects the retained plan and progress after an authorized read. It distinguishes
+active, applied and abandoned plans and preserves the reviewed basis and next
+ordinal without choosing application cursor arguments. The work-item operator
+includes this envelope as `migration_diagnostic` in inspection output.
 
 The independent record/digest fixtures and package tests cover twenty retained
 steps, exact reconstruction, conflicting plans and ordinals, current denial,

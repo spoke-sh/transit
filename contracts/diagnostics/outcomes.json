@@ -710,6 +710,156 @@
         "InvalidApplicationProgram": {"code": "publication.invalid_program","category": "binding","stage": "compile","actions": ["inspect_status"]},
         "InterfaceProgramTooLarge": {"code": "publication.program_limit","category": "limit","stage": "compile","actions": ["inspect_status"]}
       }
+    },
+    "migration.phase": {
+      "source": "packages/zig/transit-station-app/src/Migration.zig",
+      "type": "Phase",
+      "projection": "packages/zig/transit-station-app/src/MigrationDiagnostic.zig",
+      "profile": "Shared data-owner migration ledger",
+      "context": "Original reviewed plan, epoch/contract commitments, input and next ordinal; cursor contents and optional rejection witnesses remain application-owned",
+      "durable_evidence": "Authorized retained plan/progress or original input rejection; commit/restart proofs remain separate",
+      "disclosure": "Current resource access required; no extra source rows or application cursor values are disclosed",
+      "recovery": "Inspect exact plan; activation cannot be undone by abandonment; earlier steps survive input rejection and abandonment; application chooses any continuation",
+      "defaults": {
+        "category": "lifecycle",
+        "evidence": "domain_status",
+        "identity": {
+          "domain": "migration",
+          "id": "19",
+          "realm": "1",
+          "resource": "7",
+          "sequence": null
+        },
+        "facts": [
+          [
+            "object",
+            "owner",
+            "provided"
+          ],
+          [
+            "principal",
+            "owner",
+            "provided"
+          ],
+          [
+            "first_occurrence",
+            "owner",
+            "provided"
+          ],
+          [
+            "native_input",
+            "owner",
+            "provided"
+          ],
+          [
+            "source_basis",
+            "owner",
+            "provided"
+          ],
+          [
+            "expected_revision",
+            "owner",
+            "provided"
+          ],
+          [
+            "required",
+            "owner",
+            "provided"
+          ],
+          [
+            "expected_schema",
+            "owner",
+            "provided"
+          ],
+          [
+            "proposal",
+            "owner",
+            "provided"
+          ],
+          [
+            "step",
+            "owner",
+            "provided"
+          ],
+          [
+            "operation",
+            "owner",
+            "provided"
+          ]
+        ],
+        "actions": [
+          "inspect_status"
+        ]
+      },
+      "scenarios": {
+        "default": {}
+      },
+      "cases": {
+        "active": {"code": "migration.active","stage": "execute","outcome": "pending"},
+        "applied": {"code": "migration.applied","stage": "execute","outcome": "applied"},
+        "abandoned": {"code": "migration.abandoned","stage": "control","outcome": "cancelled"}
+      }
+    },
+    "migration.input": {
+      "source": "packages/zig/transit-station-app/src/MigrationFailure.zig",
+      "registry_kind": "named_class",
+      "projection": "packages/zig/transit-station-app/src/MigrationFailure.zig",
+      "profile": "Shared data-owner migration ledger",
+      "context": "Original reviewed plan, epoch/contract commitments, input and next ordinal; cursor contents and optional rejection witnesses remain application-owned",
+      "durable_evidence": "Authorized retained plan/progress or original input rejection; commit/restart proofs remain separate",
+      "disclosure": "Current resource access required; no extra source rows or application cursor values are disclosed",
+      "recovery": "Inspect exact plan; activation cannot be undone by abandonment; earlier steps survive input rejection and abandonment; application chooses any continuation",
+      "defaults": {
+        "outcome": "input_rejected",
+        "evidence": "domain_status",
+        "identity": {
+          "domain": "migration",
+          "id": "19",
+          "realm": "1",
+          "resource": "7",
+          "sequence": null
+        },
+        "facts": [
+          [
+            "native_input",
+            "owner",
+            "provided"
+          ],
+          [
+            "source_basis",
+            "owner",
+            "provided"
+          ],
+          [
+            "step",
+            "owner",
+            "provided"
+          ],
+          [
+            "operation",
+            "owner",
+            "provided"
+          ]
+        ]
+      },
+      "scenarios": {
+        "default": {}
+      },
+      "cases": {
+        "MigrationDenied": {"code": "migration.denied","category": "access","stage": "admission","actions": ["inspect_status","inspect_scope"]},
+        "MigrationPolicyConflict": {"code": "migration.policy_conflict","category": "conflict","stage": "control","actions": ["inspect_status"]},
+        "InvalidMigrationPolicy": {"code": "migration.invalid_policy","category": "binding","stage": "input","actions": ["inspect_status"]},
+        "InvalidMigrationProposal": {"code": "migration.invalid_proposal","category": "binding","stage": "input","actions": ["inspect_status"]},
+        "InvalidMigrationStep": {"code": "migration.invalid_step","category": "binding","stage": "input","actions": ["inspect_status"]},
+        "MigrationPlanConflict": {"code": "migration.plan_conflict","category": "conflict","stage": "admission","actions": ["inspect_status"]},
+        "MigrationBusy": {"code": "migration.active_plan","category": "conflict","stage": "admission","actions": ["inspect_status"]},
+        "MigrationSourceChanged": {"code": "migration.source_changed","category": "conflict","stage": "admission","actions": ["inspect_status"]},
+        "MigrationPlanAbsent": {"code": "migration.plan_absent","category": "lifecycle","stage": "admission","actions": ["inspect_status"]},
+        "MigrationStepConflict": {"code": "migration.step_conflict","category": "conflict","stage": "admission","actions": ["inspect_status"]},
+        "MigrationNotActive": {"code": "migration.not_active","category": "lifecycle","stage": "admission","actions": ["inspect_status"]},
+        "MigrationOrdinalExhausted": {"code": "migration.ordinal_exhausted","category": "limit","stage": "execute","actions": ["inspect_status"]},
+        "MigrationAlreadyApplied": {"code": "migration.already_applied","category": "lifecycle","stage": "cleanup","actions": ["inspect_status"]}
+      }
     }
   }
 }

@@ -156,6 +156,17 @@ fn publications(out: *std.Io.Writer) !void {
     }
 }
 
+fn migrations(out: *std.Io.Writer) !void {
+    const plan: a.Migration.Plan = .{ .proposal = .{ .plan = .{ .value = 19 }, .expected = .{ .value = 1 }, .next = .{ .value = 2 }, .source = @splat(1), .target = @splat(2), .transform = 1 }, .digest = @splat(3), .principal = 9, .input = 11 };
+    inline for (comptime std.meta.tags(a.Migration.Phase)) |phase| {
+        try emit(out, "migration.phase", @tagName(phase), try a.MigrationDiagnostic.progress(9, 1, 7, plan, .{ .phase = phase, .next = .{ .value = 2 }, .input = 12 }));
+    }
+    for (a.MigrationFailure.mappings) |mapping| {
+        const record: a.MigrationFailure.Record = .{ .cause = try p.Value.init(mapping.name), .input = 11, .plan = .{ .value = 19 }, .ordinal = .{ .value = 2 }, .operation = 1, .payload = @splat(3) };
+        try emit(out, "migration.input", mapping.name, try a.MigrationFailure.project(9, 1, 7, record, .none, a.MigrationFailure.classification(mapping.name).?));
+    }
+}
+
 pub fn main(init: std.process.Init) !void {
     var buffer: [8192]u8 = undefined;
     var stdout = std.Io.File.stdout().writerStreaming(init.io, &buffer);
@@ -168,5 +179,6 @@ pub fn main(init: std.process.Init) !void {
     try closures(&stdout.interface);
     try refresh(&stdout.interface);
     try publications(&stdout.interface);
+    try migrations(&stdout.interface);
     try stdout.interface.flush();
 }
