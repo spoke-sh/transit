@@ -179,3 +179,12 @@ separation, current read-only revocation and physical restart. Outbound Flight
 remains a separately authorized RPC connector effect with recorded capture,
 terminal outcome and network-free replay. Native inbound query reads cannot
 silently authorize an outbound call.
+
+Flight result conversion refuses unsigned COUNT values above signed int64 maximum
+with `flight.integer_out_of_range` (UNIMPLEMENTED), output-stage evidence and the
+exact column/value/range. This is a transport-profile limitation, not a failed
+computation; the native uint64 result remains unchanged. Invalid Arrow or IPC
+result evidence maps to DATA_LOSS. Invalid clock observations and ticket expiry
+remain separate failures. The gateway retains native rejection evidence before
+disposing its RPC client, and adds a selected query target only when available and
+permitted by the diagnostic's disclosure category.

@@ -2500,6 +2500,180 @@
           "name": "every inspection cause preserves read evidence and native denial priority"
         }
       ]
+    },
+    {
+      "id": "flight-rpc",
+      "owners": [
+        "packages/zig/transit-flight/src/Ipc.zig",
+        "packages/zig/transit-flight/src/Metadata.zig",
+        "packages/zig/transit-flight/src/TableResult.zig",
+        "packages/zig/transit-flight/src/Ticket.zig"
+      ],
+      "exclude": [],
+      "registry": "packages/zig/transit-flight/src/RpcCodes.zig",
+      "projection": "packages/zig/transit-flight/src/DiagnosticDetail.zig",
+      "shared_codes": true,
+      "profile": "Flight RPC command, ticket, metadata and result adapter",
+      "stage": "Input, read or output as reported by the owning check",
+      "outcome": "Failed attempt is not_applicable; original compiler, saved query and actual dispatch evidence take precedence at the gateway",
+      "durable_evidence": "No terminal query outcome is inferred from ticket, transport or result-conversion failure",
+      "context": "Original cause and bounded result conversion column/type/value; caller query selection survives permitted failed reads",
+      "disclosure": "No retained query identity or execution facts after current access denial; native denial cause remains explicit",
+      "recovery": "Inspect exact saved query or correct the adapter input; no fresh submission or invented cancellation",
+      "propagation": "Known shared query causes delegate through the separately checked query boundary. Gateway configuration and socket cancellation are outside this selected per-RPC value-owner boundary.",
+      "codes": {
+        "FlightUnauthenticated": {
+          "code": "flight.authentication_required",
+          "category": "access"
+        },
+        "FlightTicketScope": {
+          "code": "flight.ticket_scope",
+          "category": "access"
+        },
+        "FlightTicketExpired": {
+          "code": "flight.ticket_expired",
+          "category": "lifecycle"
+        },
+        "FlightCallerCapacity": {
+          "code": "flight.caller_capacity",
+          "category": "limit"
+        },
+        "FlightSequenceConflict": {
+          "code": "flight.sequence_conflict",
+          "category": "conflict"
+        },
+        "InvalidFlightTicket": {
+          "code": "flight.invalid_ticket",
+          "category": "integrity"
+        },
+        "InvalidQueryIdentity": {
+          "code": "flight.invalid_sequence",
+          "category": "binding"
+        },
+        "InvalidFlightCommand": {
+          "code": "flight.invalid_command",
+          "category": "binding"
+        },
+        "InvalidFlightMetadata": {
+          "code": "flight.invalid_command",
+          "category": "binding"
+        },
+        "UnsupportedFlightCommand": {
+          "code": "flight.unsupported_operation",
+          "category": "unsupported"
+        },
+        "UnsupportedFlightMetadata": {
+          "code": "flight.unsupported_operation",
+          "category": "unsupported"
+        },
+        "UnsupportedFlightType": {
+          "code": "flight.unsupported_operation",
+          "category": "unsupported"
+        },
+        "UnsupportedQuery": {
+          "code": "flight.unsupported_operation",
+          "category": "unsupported"
+        },
+        "DuplicateGrpcHeader": {
+          "code": "flight.duplicate_header",
+          "category": "syntax"
+        },
+        "Truncated": {
+          "code": "flight.invalid_encoding",
+          "category": "syntax"
+        },
+        "VarintOverflow": {
+          "code": "flight.invalid_encoding",
+          "category": "syntax"
+        },
+        "FieldNumberZero": {
+          "code": "flight.invalid_encoding",
+          "category": "syntax"
+        },
+        "FieldNumberOutOfRange": {
+          "code": "flight.invalid_encoding",
+          "category": "syntax"
+        },
+        "UnsupportedWireType": {
+          "code": "flight.invalid_encoding",
+          "category": "syntax"
+        },
+        "NonMinimalTag": {
+          "code": "flight.invalid_encoding",
+          "category": "syntax"
+        },
+        "DepthExceeded": {
+          "code": "flight.invalid_encoding",
+          "category": "syntax"
+        },
+        "InvalidUtf8": {
+          "code": "flight.invalid_encoding",
+          "category": "syntax"
+        },
+        "InvalidEnumValue": {
+          "code": "flight.invalid_encoding",
+          "category": "syntax"
+        },
+        "UnknownField": {
+          "code": "flight.invalid_encoding",
+          "category": "syntax"
+        },
+        "ServingDenied": {
+          "code": "flight.access_denied",
+          "category": "access"
+        },
+        "SignatureVerificationFailed": {
+          "code": "flight.access_denied",
+          "category": "access"
+        },
+        "ServiceUnpublished": {
+          "code": "flight.resource_unavailable",
+          "category": "lifecycle"
+        },
+        "ProcessTerminated": {
+          "code": "flight.resource_unavailable",
+          "category": "lifecycle"
+        },
+        "ProcessExpired": {
+          "code": "flight.resource_unavailable",
+          "category": "lifecycle"
+        },
+        "GrpcBudgetExceeded": {
+          "code": "flight.capacity_exceeded",
+          "category": "limit"
+        },
+        "QueryChanged": {
+          "code": "flight.read_conflict",
+          "category": "conflict"
+        },
+        "ServiceReadConflict": {
+          "code": "flight.read_conflict",
+          "category": "conflict"
+        },
+        "ClockUnavailable": {
+          "code": "flight.clock_unavailable",
+          "category": "unavailable"
+        },
+        "InvalidFlightIpc": {
+          "code": "flight.invalid_result_encoding",
+          "category": "integrity"
+        },
+        "InvalidArrowResult": {
+          "code": "flight.invalid_result_encoding",
+          "category": "integrity"
+        },
+        "FlightIntegerOutOfRange": {
+          "code": "flight.integer_out_of_range",
+          "category": "unsupported"
+        }
+      },
+      "exceptions": [],
+      "tests": [
+        {
+          "source": "packages/zig/transit-flight/src/DiagnosticDetail.zig",
+          "name": "every Flight RPC cause has an explicit status and safe failed-attempt projection"
+        }
+      ]
     }
   ]
 }

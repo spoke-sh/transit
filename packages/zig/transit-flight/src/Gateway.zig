@@ -152,25 +152,29 @@ fn handleOnce(self: *Self, io: Io, allocator: std.mem.Allocator, request: server
     var client: q.UnifiedClient = .{ .wire = &wire, .connection = .{ .realm = caller.connection.realm, .principal = caller.connection.principal, .source = caller.connection.source, .resource = caller.connection.resource, .requester = caller.connection.requester, .requests = caller.connection.requests }, .key = caller.key };
     const adapter: s.Adapter = .{ .service = caller.service, .ingress = caller.connection.requester, .resource = caller.ingress_resource, .resources = .{ .wire = &wire, .realm = caller.connection.realm, .principal = self.config.inspector, .key = self.config.inspector_key } };
     var call: Call = .{ .gateway = self, .io = io, .allocator = alloc, .caller = caller, .client = &client, .adapter = adapter, .response = response, .workspace = workspace, .sql_diagnostic = sql_diagnostic, .query_diagnostic = query_diagnostic, .attempt_diagnostic = attempt_diagnostic };
-    const method = try request.method();
-    if (std.mem.eql(u8, method, root.method_prefix ++ "DoGet")) {
-        var ticket = try pb.decode(w.Ticket, alloc, request.message, .{ .max_arena_bytes = 65536 });
-        defer ticket.deinit();
-        return call.get(ticket.value.ticket);
-    }
-    if (std.mem.eql(u8, method, root.method_prefix ++ "GetFlightInfo") or std.mem.eql(u8, method, root.method_prefix ++ "GetSchema")) {
-        var descriptor = try pb.decode(w.FlightDescriptor, alloc, request.message, .{ .max_arena_bytes = 65536 });
-        defer descriptor.deinit();
-        if (descriptor.value.type != .CMD or descriptor.value.path.len != 0 or descriptor.value.cmd.len == 0 or descriptor.value.cmd.len > 8192) return error.InvalidFlightCommand;
-        return call.describe(request, descriptor.value, std.mem.endsWith(u8, method, "/GetSchema"));
-    }
-    if (std.mem.eql(u8, method, root.method_prefix ++ "ListActions")) {
-        var empty = try pb.decode(w.Empty, alloc, request.message, .{ .max_arena_bytes = 65536 });
-        defer empty.deinit();
-        try call.authorize(false);
-        return; // No supported actions, especially no prepare/transaction action.
-    }
-    return error.UnsupportedFlightCommand;
+    return call.run(request) catch |err| {
+        if (sql_diagnostic.* == null and query_diagnostic.* == null) {
+            if (attempt_diagnostic.* == null) attempt_diagnostic.* = root.DiagnosticDetail.attempt(err, root.DiagnosticDetail.statusFor(err)) catch null;
+            if (attempt_diagnostic.*) |*detail| {
+                // A denied read discloses no retained query identity. A selected
+                // first sequence is caller context only after current access.
+                if (detail.category != .access and detail.identity == null) if (call.first_sequence) |sequence| {
+                    detail.identity = .{ .domain = .query, .id = .init(sequence), .realm = .init(caller.connection.realm), .resource = .init(caller.connection.requests) };
+                    for (&detail.actions) |*slot| if (slot.*) |*action| {
+                        action.target = detail.identity;
+                    };
+                };
+                if (wire.last_rejection) |cause| {
+                    var present = false;
+                    for (detail.facts) |slot| if (slot) |fact| {
+                        if (fact.field == .native_cause) present = true;
+                    };
+                    if (!present) detail.text(.native_cause, .authority, @tagName(cause)) catch {};
+                }
+            }
+        }
+        return err;
+    };
 }
 fn digest(bytes: []const u8) [32]u8 {
     var value: [32]u8 = undefined;
@@ -193,10 +197,31 @@ const Call = struct {
     output: [f.Unified.Arrow.segment_bytes]u8 = undefined,
     next_sequence: ?u64 = null,
     ticket_buffer: [root.Ticket.max_bytes]u8 = undefined,
+    fn run(self: *Call, request: server.Request) !void {
+        const method = try request.method();
+        if (std.mem.eql(u8, method, root.method_prefix ++ "DoGet")) {
+            var ticket = try pb.decode(w.Ticket, self.allocator, request.message, .{ .max_arena_bytes = 65536 });
+            defer ticket.deinit();
+            return self.get(ticket.value.ticket);
+        }
+        if (std.mem.eql(u8, method, root.method_prefix ++ "GetFlightInfo") or std.mem.eql(u8, method, root.method_prefix ++ "GetSchema")) {
+            var descriptor = try pb.decode(w.FlightDescriptor, self.allocator, request.message, .{ .max_arena_bytes = 65536 });
+            defer descriptor.deinit();
+            if (descriptor.value.type != .CMD or descriptor.value.path.len != 0 or descriptor.value.cmd.len == 0 or descriptor.value.cmd.len > 8192) return error.InvalidFlightCommand;
+            return self.describe(request, descriptor.value, std.mem.endsWith(u8, method, "/GetSchema"));
+        }
+        if (std.mem.eql(u8, method, root.method_prefix ++ "ListActions")) {
+            var empty = try pb.decode(w.Empty, self.allocator, request.message, .{ .max_arena_bytes = 65536 });
+            defer empty.deinit();
+            try self.authorize(false);
+            return; // No supported actions, especially no prepare/transaction action.
+        }
+        return error.UnsupportedFlightCommand;
+    }
     fn now(self: *Call) !u64 {
         const time = Io.Clock.real.now(self.io).toMilliseconds();
         if (time < 0 or time > p.max_counter) return error.ClockUnavailable;
-        return std.math.add(u64, @intCast(time), self.gateway.config.clock_error_ms);
+        return std.math.add(u64, @intCast(time), self.gateway.config.clock_error_ms) catch return error.ClockUnavailable;
     }
     fn authorize(self: *Call, admission: bool) !void {
         try self.response.check();
@@ -282,7 +307,7 @@ const Call = struct {
         }
         try self.authorize(false);
         if (schema_only) return self.send(w.SchemaResult{ .schema = schema });
-        const expires = try std.math.add(u64, try self.now(), self.gateway.config.ticket_ttl_ms);
+        const expires = std.math.add(u64, try self.now(), self.gateway.config.ticket_ttl_ms) catch return error.ClockUnavailable;
         const bytes = try (root.Ticket{ .scope = self.caller.scope(), .expires_ms = expires, .reference = reference }).issue(self.gateway.config.ticket_key, &self.ticket_buffer);
         // Flight SQL requires TicketStatementQuery in a protobuf Any envelope.
         var statement_buffer: [2048]u8 = undefined;
@@ -418,6 +443,7 @@ const Call = struct {
                 try self.disclose(ticket, w.FlightData{ .data_header = ipc.batch_header, .data_body = ipc.batch_body });
             },
             .statement => |value| {
+                self.first_sequence = value.correlation;
                 var cursor: ?q.UnifiedResult.Cursor = null;
                 while (true) {
                     try self.response.check();
@@ -443,7 +469,7 @@ const Call = struct {
     fn tableParts(self: *Call, captured: q.UnifiedResult.Page, rows: *const f.Unified.Inspect.Batch) !root.Ipc.Parts {
         const layout = try root.TableResult.init(self.caller.schema, captured.plan);
         try layout.checkSchema(captured.schema);
-        const bytes = try layout.encode(rows, &self.output, self.workspace);
+        const bytes = try layout.encodeDiagnostic(rows, &self.output, self.workspace, self.attempt_diagnostic);
         return root.Ipc.parts(bytes, self.workspace);
     }
     fn disclose(self: *Call, ticket: root.Ticket, value: w.FlightData) !void {

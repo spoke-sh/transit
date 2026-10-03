@@ -28,3 +28,11 @@ python3 packages/zig/transit-flight/generate.py`; add `--check` to detect drift.
 Independent Python/C consumers use the pinned `flight` shell described in
 [nix](../../../nix/README.md). Their standard Arrow/ADBC behavior must be proved
 against this adapter, including metadata, before it is advertised as supported.
+
+`DiagnosticDetail.codes` defines the finite Flight RPC causes and statuses; known
+query causes delegate to their shared owner. `TableResult.encodeDiagnostic`
+retains the column and exact uint64/range when COUNT cannot fit the Flight int64
+profile. That output failure does not change the durable computation outcome.
+The RPC boundary retains native rejection detail before client disposal and binds
+permitted failed reads to their selected query. Current denial omits protected
+query identity and execution facts.

@@ -35,6 +35,10 @@ pub fn checkSchema(self: *const Self, schema: m.Schema) !void {
 }
 
 pub fn encode(self: *const Self, rows: *const m.Inspect.Batch, output: []u8, workspace: []u8) ![]const u8 {
+    return self.encodeDiagnostic(rows, output, workspace, null);
+}
+
+pub fn encodeDiagnostic(self: *const Self, rows: *const m.Inspect.Batch, output: []u8, workspace: []u8, diagnostic: ?*?root.query.protocol.Diagnostic) ![]const u8 {
     if (rows.columns != self.len or rows.count > m.max_rows) return error.InvalidArrowResult;
     var fixed: std.heap.FixedBufferAllocator = .init(workspace);
     const allocator = fixed.allocator();
@@ -54,7 +58,13 @@ pub fn encode(self: *const Self, rows: *const m.Inspect.Batch, output: []u8, wor
                 .null => if (self.nullable[index]) try builder.appendNull() else return error.InvalidArrowResult,
                 .value => |value| switch (value) {
                     .int64 => |number| try builder.append(number),
-                    .uint64 => |number| try builder.append(std.math.cast(i64, number) orelse return error.Overflow),
+                    .uint64 => |number| {
+                        const narrowed = std.math.cast(i64, number) orelse {
+                            if (diagnostic) |detail| detail.* = integerRange(column.name.slice(), number) catch null;
+                            return error.FlightIntegerOutOfRange;
+                        };
+                        try builder.append(narrowed);
+                    },
                     else => return error.UnsupportedFlightType,
                 },
                 else => return error.InvalidArrowResult,
@@ -66,6 +76,17 @@ pub fn encode(self: *const Self, rows: *const m.Inspect.Batch, output: []u8, wor
     var batch = try a.RecordBatch.initBorrowed(allocator, .{ .fields = fields[0..self.len] }, arrays[0..self.len]);
     defer batch.deinit();
     return f.encode(allocator, batch, output);
+}
+
+fn integerRange(column: []const u8, number: u64) !root.query.protocol.Diagnostic {
+    var result = try root.DiagnosticDetail.attempt(error.FlightIntegerOutOfRange, 12);
+    try result.text(.column, .schema, column);
+    try result.text(.expected_type, .owner, "int64");
+    try result.text(.actual_type, .execution, "uint64");
+    try result.fact(.supplied_value, .execution, .{ .unsigned = .init(number) });
+    try result.fact(.limit, .owner, .{ .unsigned = .init(std.math.maxInt(i64)) });
+    try result.fact(.completion, .execution, .{ .boolean = false });
+    return result;
 }
 
 test "Table Flight conversion preserves full-width cells, projection nullability and aggregate types" {
@@ -104,7 +125,15 @@ test "Table Flight conversion preserves full-width cells, projection nullability
         _ = try count.encode(&rows, &output, workspace);
         try t.expect(!count.nullable[0]);
         rows.cells[0][0] = .{ .value = .{ .uint64 = std.math.maxInt(u64) } };
-        try t.expectError(error.Overflow, count.encode(&rows, &output, workspace));
+        var detail: ?root.query.protocol.Diagnostic = null;
+        try t.expectError(error.FlightIntegerOutOfRange, count.encodeDiagnostic(&rows, &output, workspace, &detail));
+        try t.expectEqualStrings("flight.integer_out_of_range", detail.?.code.slice());
+        try t.expectEqual(.output, detail.?.stage);
+        try t.expectEqual(.not_applicable, detail.?.outcome);
+        try t.expectEqualStrings("present", detail.?.facts[0].?.value.?.text.slice());
+        try t.expectEqual(std.math.maxInt(u64), try detail.?.facts[3].?.value.?.unsigned.value());
+        try t.expectEqual(std.math.maxInt(i64), try detail.?.facts[4].?.value.?.unsigned.value());
+        try t.expect(!detail.?.facts[5].?.value.?.boolean);
     }
     var plan: m.Plan = .{ .projection = &.{ 1, 1 } };
     plan.output_names[0] = try .init("first");

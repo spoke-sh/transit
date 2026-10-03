@@ -2085,6 +2085,63 @@
         "UntrustedTime": {"code": "inspection.authority_rejected","category": "conflict","actions": ["inspect_scope"]},
         "WrongProtocolRealm": {"code": "inspection.authority_rejected","category": "conflict","actions": ["inspect_scope"]}
       }
+    },
+    "flight.rpc": {
+      "source": "packages/zig/transit-flight/src/RpcCodes.zig",
+      "registry_kind": "error",
+      "projection": "packages/zig/transit-flight/src/DiagnosticDetail.zig",
+      "profile": "Flight RPC command, ticket, metadata and result adapter",
+      "context": "Original cause and bounded result conversion column/type/value; caller query selection survives permitted failed reads",
+      "disclosure": "No retained query identity or execution facts after current access denial; native denial cause remains explicit",
+      "durable_evidence": "No terminal query outcome is inferred from ticket, transport or result-conversion failure",
+      "recovery": "Inspect exact saved query or correct the adapter input; no fresh submission or invented cancellation",
+      "defaults": {
+        "identity": null,
+        "outcome": "not_applicable",
+        "evidence": "none",
+        "facts": []
+      },
+      "scenarios": {
+        "default": {}
+      },
+      "cases": {
+        "FlightUnauthenticated": {"code": "flight.authentication_required","category": "access","stage": "input","transport_status": 16,"actions": ["inspect_scope"]},
+        "FlightTicketScope": {"code": "flight.ticket_scope","category": "access","stage": "read","transport_status": 7,"actions": ["inspect_scope"]},
+        "FlightTicketExpired": {"code": "flight.ticket_expired","category": "lifecycle","stage": "read","transport_status": 9,"actions": ["inspect_status"]},
+        "FlightCallerCapacity": {"code": "flight.caller_capacity","category": "limit","stage": "admission","transport_status": 8,"actions": ["inspect_scope"]},
+        "FlightSequenceConflict": {"code": "flight.sequence_conflict","category": "conflict","stage": "submit","transport_status": 10,"actions": ["inspect_status"]},
+        "InvalidFlightTicket": {"code": "flight.invalid_ticket","category": "integrity","stage": "read","transport_status": 3,"actions": ["contact_operator"]},
+        "InvalidQueryIdentity": {"code": "flight.invalid_sequence","category": "binding","stage": "input","transport_status": 3,"actions": ["correct_input"]},
+        "InvalidFlightCommand": {"code": "flight.invalid_command","category": "binding","stage": "input","transport_status": 3,"actions": ["correct_input"]},
+        "InvalidFlightMetadata": {"code": "flight.invalid_command","category": "binding","stage": "input","transport_status": 3,"actions": ["correct_input"]},
+        "UnsupportedFlightCommand": {"code": "flight.unsupported_operation","category": "unsupported","stage": "input","transport_status": 12,"actions": ["correct_input"]},
+        "UnsupportedFlightMetadata": {"code": "flight.unsupported_operation","category": "unsupported","stage": "input","transport_status": 12,"actions": ["correct_input"]},
+        "UnsupportedFlightType": {"code": "flight.unsupported_operation","category": "unsupported","stage": "input","transport_status": 12,"actions": ["correct_input"]},
+        "UnsupportedQuery": {"code": "flight.unsupported_operation","category": "unsupported","stage": "input","transport_status": 12,"actions": ["correct_input"]},
+        "DuplicateGrpcHeader": {"code": "flight.duplicate_header","category": "syntax","stage": "input","transport_status": 3,"actions": ["correct_input"]},
+        "Truncated": {"code": "flight.invalid_encoding","category": "syntax","stage": "decode","transport_status": 3,"actions": ["correct_input"]},
+        "VarintOverflow": {"code": "flight.invalid_encoding","category": "syntax","stage": "decode","transport_status": 3,"actions": ["correct_input"]},
+        "FieldNumberZero": {"code": "flight.invalid_encoding","category": "syntax","stage": "decode","transport_status": 3,"actions": ["correct_input"]},
+        "FieldNumberOutOfRange": {"code": "flight.invalid_encoding","category": "syntax","stage": "decode","transport_status": 3,"actions": ["correct_input"]},
+        "UnsupportedWireType": {"code": "flight.invalid_encoding","category": "syntax","stage": "decode","transport_status": 3,"actions": ["correct_input"]},
+        "NonMinimalTag": {"code": "flight.invalid_encoding","category": "syntax","stage": "decode","transport_status": 3,"actions": ["correct_input"]},
+        "DepthExceeded": {"code": "flight.invalid_encoding","category": "syntax","stage": "decode","transport_status": 3,"actions": ["correct_input"]},
+        "InvalidUtf8": {"code": "flight.invalid_encoding","category": "syntax","stage": "decode","transport_status": 3,"actions": ["correct_input"]},
+        "InvalidEnumValue": {"code": "flight.invalid_encoding","category": "syntax","stage": "decode","transport_status": 3,"actions": ["correct_input"]},
+        "UnknownField": {"code": "flight.invalid_encoding","category": "syntax","stage": "decode","transport_status": 3,"actions": ["correct_input"]},
+        "ServingDenied": {"code": "flight.access_denied","category": "access","stage": "read","transport_status": 7,"actions": ["inspect_scope"]},
+        "SignatureVerificationFailed": {"code": "flight.access_denied","category": "access","stage": "read","transport_status": 7,"actions": ["inspect_scope"]},
+        "ServiceUnpublished": {"code": "flight.resource_unavailable","category": "lifecycle","stage": "read","transport_status": 9,"actions": ["inspect_status"]},
+        "ProcessTerminated": {"code": "flight.resource_unavailable","category": "lifecycle","stage": "read","transport_status": 9,"actions": ["inspect_status"]},
+        "ProcessExpired": {"code": "flight.resource_unavailable","category": "lifecycle","stage": "read","transport_status": 9,"actions": ["inspect_status"]},
+        "GrpcBudgetExceeded": {"code": "flight.capacity_exceeded","category": "limit","stage": "read","transport_status": 8,"actions": ["inspect_scope"]},
+        "QueryChanged": {"code": "flight.read_conflict","category": "conflict","stage": "read","transport_status": 14,"actions": ["inspect_status"]},
+        "ServiceReadConflict": {"code": "flight.read_conflict","category": "conflict","stage": "read","transport_status": 14,"actions": ["inspect_status"]},
+        "ClockUnavailable": {"code": "flight.clock_unavailable","category": "unavailable","stage": "read","transport_status": 14,"actions": ["retry_read"]},
+        "InvalidFlightIpc": {"code": "flight.invalid_result_encoding","category": "integrity","stage": "output","transport_status": 15,"actions": ["contact_operator"]},
+        "InvalidArrowResult": {"code": "flight.invalid_result_encoding","category": "integrity","stage": "output","transport_status": 15,"actions": ["contact_operator"]},
+        "FlightIntegerOutOfRange": {"code": "flight.integer_out_of_range","category": "unsupported","stage": "output","transport_status": 12,"actions": ["inspect_status"]}
+      }
     }
   }
 }

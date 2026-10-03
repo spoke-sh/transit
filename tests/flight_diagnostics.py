@@ -70,6 +70,9 @@ def verify(context):
         assert [fact for fact in denied['facts'] if fact] == [{
             'field': 'operation', 'origin': 'caller', 'availability': 'provided',
             'value': {'text': 'Flight RPC'},
+        }, {
+            'field': 'native_cause', 'origin': 'authority', 'availability': 'provided',
+            'value': {'text': 'AccessDenied'},
         }], denied
     else:
         raise AssertionError('retained diagnostic disclosed after current access was revoked')

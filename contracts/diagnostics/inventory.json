@@ -4108,45 +4108,9 @@
     },
     "packages/zig/transit-flight/src/DiagnosticDetail.zig": {
       "errors": {
-        "AccessDenied": 1,
-        "DepthExceeded": 2,
-        "DuplicateGrpcHeader": 2,
-        "FieldNumberOutOfRange": 2,
-        "FieldNumberZero": 2,
-        "FlightCallerCapacity": 2,
-        "FlightSequenceConflict": 2,
-        "FlightTicketExpired": 2,
-        "FlightTicketScope": 2,
-        "FlightUnauthenticated": 2,
-        "GrpcBudgetExceeded": 1,
+        "FlightIntegerOutOfRange": 1,
         "InvalidDiagnosticBudget": 1,
-        "InvalidEnumValue": 2,
-        "InvalidFlightCommand": 2,
-        "InvalidFlightMetadata": 2,
-        "InvalidFlightTicket": 2,
-        "InvalidQueryIdentity": 2,
-        "InvalidUtf8": 2,
-        "NonMinimalTag": 2,
-        "ProcessExpired": 1,
-        "ProcessTerminated": 1,
-        "QueryAccessDenied": 1,
-        "QueryBudgetExceeded": 1,
-        "QueryBusy": 1,
-        "QueryChanged": 1,
-        "QuerySourceUnavailable": 1,
-        "ResourceUnavailable": 1,
-        "ServiceReadConflict": 1,
-        "ServiceUnpublished": 1,
-        "ServingDenied": 1,
-        "SignatureVerificationFailed": 1,
-        "Truncated": 2,
-        "UnknownField": 2,
-        "UnsupportedFlightCommand": 2,
-        "UnsupportedFlightMetadata": 2,
-        "UnsupportedFlightType": 2,
-        "UnsupportedQuery": 2,
-        "UnsupportedWireType": 2,
-        "VarintOverflow": 2
+        "ResourceUnavailable": 1
       },
       "outcomes": {},
       "error_sets": {},
@@ -4159,10 +4123,11 @@
       },
       "open_error_set_uses": 2,
       "propagation": {
-        "try": 19,
+        "try": 22,
         "catch": 1
       },
       "imports": [
+        "RpcCodes.zig",
         "root.zig",
         "std"
       ]
@@ -4170,7 +4135,7 @@
     "packages/zig/transit-flight/src/Gateway.zig": {
       "errors": {
         "Canceled": 1,
-        "ClockUnavailable": 1,
+        "ClockUnavailable": 3,
         "Conflict": 1,
         "FlightCallerCapacity": 1,
         "FlightSequenceConflict": 1,
@@ -4203,6 +4168,7 @@
         "Call.get()": "<inferred>",
         "Call.manifestDigest()": "<inferred>",
         "Call.now()": "<inferred>",
+        "Call.run()": "<inferred>",
         "Call.send()": "<inferred>",
         "Call.tableParts()": "<inferred>",
         "Call.upload()": "<inferred>",
@@ -4215,8 +4181,8 @@
       },
       "open_error_set_uses": 1,
       "propagation": {
-        "try": 88,
-        "catch": 15
+        "try": 87,
+        "catch": 20
       },
       "imports": [
         "root.zig",
@@ -4281,10 +4247,61 @@
         "std"
       ]
     },
+    "packages/zig/transit-flight/src/RpcCodes.zig": {
+      "errors": {
+        "ClockUnavailable": 1,
+        "DepthExceeded": 1,
+        "DuplicateGrpcHeader": 1,
+        "FieldNumberOutOfRange": 1,
+        "FieldNumberZero": 1,
+        "FlightCallerCapacity": 1,
+        "FlightIntegerOutOfRange": 1,
+        "FlightSequenceConflict": 1,
+        "FlightTicketExpired": 1,
+        "FlightTicketScope": 1,
+        "FlightUnauthenticated": 1,
+        "GrpcBudgetExceeded": 1,
+        "InvalidArrowResult": 1,
+        "InvalidEnumValue": 1,
+        "InvalidFlightCommand": 1,
+        "InvalidFlightIpc": 1,
+        "InvalidFlightMetadata": 1,
+        "InvalidFlightTicket": 1,
+        "InvalidQueryIdentity": 1,
+        "InvalidUtf8": 1,
+        "NonMinimalTag": 1,
+        "ProcessExpired": 1,
+        "ProcessTerminated": 1,
+        "QueryChanged": 1,
+        "ServiceReadConflict": 1,
+        "ServiceUnpublished": 1,
+        "ServingDenied": 1,
+        "SignatureVerificationFailed": 1,
+        "Truncated": 1,
+        "UnknownField": 1,
+        "UnsupportedFlightCommand": 1,
+        "UnsupportedFlightMetadata": 1,
+        "UnsupportedFlightType": 1,
+        "UnsupportedQuery": 1,
+        "UnsupportedWireType": 1,
+        "VarintOverflow": 1
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {},
+      "open_error_set_uses": 2,
+      "propagation": {
+        "try": 0,
+        "catch": 0
+      },
+      "imports": [
+        "root.zig"
+      ]
+    },
     "packages/zig/transit-flight/src/TableResult.zig": {
       "errors": {
+        "FlightIntegerOutOfRange": 2,
         "InvalidArrowResult": 5,
-        "Overflow": 1,
         "UnsupportedFlightType": 3
       },
       "outcomes": {},
@@ -4292,12 +4309,14 @@
       "error_returns": {
         "checkSchema()": "<inferred>",
         "encode()": "<inferred>",
-        "init()": "<inferred>"
+        "encodeDiagnostic()": "<inferred>",
+        "init()": "<inferred>",
+        "integerRange()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 12,
-        "catch": 0
+        "try": 19,
+        "catch": 1
       },
       "imports": [
         "root.zig",

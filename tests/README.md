@@ -13642,3 +13642,25 @@ control latency **0.100 seconds**. Log:
 `/var/tmp/transit-inspection-board-proof.log`. The asset build reports its existing
 large-chunk warning; the proof completes successfully. Browser and clean
 committed-HEAD qualification remain separate.
+
+### Flight RPC causes and result conversion (2026-10-03)
+
+Pinned units, inventory, semantic mappings and documentation checks pass. The RPC
+registry covers 36 causes and twelve selected command/ticket/metadata/result
+owner-error pairs. Independent status projections bring the matrix to **1,801
+cases across 26 declared surfaces**. Actual Table result conversion tests exercise
+COUNT at maximum uint64, preserving the output alias, exact value, int64 maximum
+and incomplete-output marker without claiming failed computation.
+Logs: `/var/tmp/transit-flight-rpc-{unit,semantic,docs}.log`.
+
+The pinned Flight shell's `zig build test-flight -Doptimize=ReleaseSafe` passes
+actual Flight and installed Python/C ADBC schema, row, metadata and exact-retry
+checks, plus saved arithmetic failure after gateway replacement and current denial.
+Denied detail retains only the caller operation and native AccessDenied cause.
+The same task with `-Dflight-faults=true` also passes delayed concurrent fetches,
+data admission limits with control progress, one-byte HTTP/2 credit stall, malformed
+frames, pooled authentication, sequence conflicts, foreign/tampered tickets,
+revocation after a real batch, interrupted duplicate fetch, gateway/worker/node/store
+restart and permanent source retirement. Observed gateway RSS was **79,896,576
+bytes**. Logs: `/var/tmp/transit-flight-rpc-{proof,faults}.log`. These focused results
+remain distinct from final clean committed-HEAD qualification.

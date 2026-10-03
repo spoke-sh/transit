@@ -226,6 +226,13 @@ fn inspections(out: *std.Io.Writer) !void {
     }
 }
 
+fn flightCalls(out: *std.Io.Writer) !void {
+    const owner = @import("transit_flight").DiagnosticDetail;
+    for (owner.codes.entries) |entry| {
+        try emitTransport(out, "flight.rpc", @errorName(entry.cause), "default", try owner.attempt(entry.cause, owner.statusFor(entry.cause)), owner.statusFor(entry.cause));
+    }
+}
+
 pub fn main(init: std.process.Init) !void {
     var buffer: [8192]u8 = undefined;
     var stdout = std.Io.File.stdout().writerStreaming(init.io, &buffer);
@@ -242,6 +249,7 @@ pub fn main(init: std.process.Init) !void {
     try queryCallers(&stdout.interface);
     try writeCallers(&stdout.interface);
     try inspections(&stdout.interface);
+    try flightCalls(&stdout.interface);
     try applicationCallers(&stdout.interface);
     try stdout.interface.flush();
 }

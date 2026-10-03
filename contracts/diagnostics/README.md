@@ -142,3 +142,10 @@ mappings. The independent matrix checks each selected cause both as a failed rea
 and under current denial, plus retention of every native error tag. Read-specific
 native meanings override generic rejection only where the owner defines them;
 other tags remain explicit native causes without inventing a domain outcome.
+
+The Flight RPC boundary checks command/ticket/metadata/result-owner mappings and
+independent status projections. Shared query failures retain their separately
+checked semantics. COUNT narrowing records the original value and output column;
+invalid Arrow/IPC evidence is distinct from an unsupported integer range. Gateway
+startup configuration and closed-socket control flow are outside this selected
+RPC value-owner boundary.

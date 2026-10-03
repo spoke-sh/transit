@@ -117,3 +117,15 @@ for client compatibility and memory, connection and deadline limits. See the
 Outbound Flight is a separate [recorded connector](../../packages/zig/transit-station-flight/README.md).
 Replay reads its authorized capture without network dispatch. Flight SQL access
 is not permission to bypass connector policy for external effects.
+
+A COUNT value above `9223372036854775807` is valid in the native query's uint64
+result but cannot be represented by this Flight profile. `flight.integer_out_of_range`
+reports the result column, actual value, required type and maximum at the output
+stage. It leaves the saved query outcome unchanged; use the native query result
+interface to read that value. Invalid Arrow/IPC result evidence instead produces
+an integrity diagnostic. Clock failures remain distinct from ticket expiry.
+
+Failed RPC reads retain the selected query identity when available and permitted.
+Current denial suppresses that identity and execution facts while retaining the
+native denial cause. Earlier compiler, terminal-outcome and uncertain-upload
+diagnostics keep priority over the RPC fallback.
