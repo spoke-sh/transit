@@ -203,6 +203,14 @@ HTTP transfer coding is removed from body bytes; this is application-boundary
 capture, not TCP/TLS packet or chunk-extension capture. Compression other than
 identity, protocol switching, ambiguous framing and unframed TLS bodies reject.
 
+Chunk framing follows [HTTP/1.1 chunk syntax](https://www.rfc-editor.org/rfc/rfc9112.html#section-7.1):
+hexadecimal sizes, CRLF delimiters and syntactically valid token/quoted extensions.
+Extensions are ignored. Each size/extension line is bounded to 8,192 bytes before
+CRLF; trailers share an 8,192-byte buffer including delimiters. Invalid syntax,
+uint64 size overflow, truncated framing, chunk-line and trailer capacity failures
+have separate causes. A chunk exceeding the remaining response-body allowance
+rejects before its body is read. Failed framing never emits a completion record.
+
 Header names and approved lines retain their bytes/order. Non-allowlisted values
 become `{{omitted}}`; Set-Cookie, Authorization, Proxy-Authorization,
 WWW-Authenticate and Proxy-Authenticate are always omitted. Omission counts include

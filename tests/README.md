@@ -6,6 +6,23 @@ earlier entry refers to that entry's source, not automatically to HEAD. The late
 records its reruns and remaining qualification separately; earlier consolidation
 results do not qualify the changed stored layout by inheritance.
 
+## HTTP chunk diagnostic evidence — 2026-10-03
+
+The owned bounded chunk parser replaces the pinned standard-library parser for
+chunked response bodies. Component tests cover hexadecimal boundaries, quoted
+extensions, all framing truncation positions, invalid delimiters, body capacity,
+line/trailer storage and bytes after the completed message. Independent
+`just test::http-transport` passes **46 single-send requests** across plaintext
+and TLS, including non-hexadecimal size, bare LF, invalid extension, size overflow,
+line/trailer capacity, truncated body/trailers and forbidden trailer fields.
+The real capture callback asserts absence of a completion record on each new
+failure. Valid quoted extensions preserve the exact body digest and omissions.
+TLS closure retains the original TLS cause where available. Log:
+`/var/tmp/transit-http-chunk-peer.log`. Full `just check` passes, including native
+and generated checks, 517 CLI cases, 75 Board unit cases, frontend validation
+and the handbook; log `/var/tmp/transit-http-chunk-check.log`. This is not a
+committed-HEAD clean qualification.
+
 ## Connector transport cause evidence — 2026-10-03
 
 HTTP and gRPC unwrap only populated socket/TLS cause slots at the failing I/O

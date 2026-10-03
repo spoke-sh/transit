@@ -3,6 +3,7 @@
 const std = @import("std");
 const http = @import("root.zig");
 const tls = @import("transit_tls");
+const Chunked = @import("Chunked.zig");
 pub const segment_bytes = 4096;
 pub const Endpoint = struct {
     host: []const u8,
@@ -174,10 +175,12 @@ fn run(gpa: std.mem.Allocator, io: std.Io, endpoint: Endpoint, request: http.Req
     omitted += safe.omitted;
     try emit(capture, .response_head, safe.bytes);
     var total: u64 = 0;
+    var chunk_buffer: [http.Request.maximum_head_bytes]u8 = undefined;
+    var chunks: Chunked = .{ .input = reader.in, .scratch = &chunk_buffer, .budget = endpoint.response_bytes };
     if (!no_body) {
-        const stream = reader.bodyReader(&.{}, response.transfer_encoding, response.content_length);
+        const stream = if (response.transfer_encoding == .chunked) null else reader.bodyReader(&.{}, response.transfer_encoding, response.content_length);
         while (true) {
-            const count = stream.readSliceShort(&buffer) catch |err| return if (err == error.ReadFailed and reader.body_err != null) reader.body_err.? else readCause(err, &raw_reader, if (endpoint.tls) &secure else null);
+            const count = (if (stream) |plain| plain.readSliceShort(&buffer) else chunks.read(&buffer)) catch |err| return if (err == error.ReadFailed and reader.body_err != null) reader.body_err.? else readCause(err, &raw_reader, if (endpoint.tls) &secure else null);
             if (count > endpoint.response_bytes - total) return error.HttpResponseTooLarge;
             if (count != 0) try emit(capture, .response_body, buffer[0..count]);
             total += count;
@@ -186,8 +189,8 @@ fn run(gpa: std.mem.Allocator, io: std.Io, endpoint: Endpoint, request: http.Req
         if (response.content_length) |length| if (total != length) return error.IncompleteHttpBody;
     }
     if (total == 0) try emit(capture, .response_body, "");
-    if (reader.trailers.len != 0) {
-        const trailers = try captureHeaders(endpoint, reader.trailers, true, &head_buffer);
+    if (chunks.trailers.len != 0) {
+        const trailers = try captureHeaders(endpoint, chunks.trailers, true, &head_buffer);
         omitted += trailers.omitted;
         try emit(capture, .response_trailers, trailers.bytes);
     }

@@ -17,6 +17,18 @@ def run(binary):
     failures = []
     names = []
     payload = bytes((i * 17 + 3) % 256 for i in range(16387))
+    chunk_cases = {
+        "/chunk-hex": (b"ZZZ\r\n", "HttpChunkInvalid"),
+        "/chunk-lf": (b"1\na\r\n0\r\n\r\n", "HttpChunkInvalid"),
+        "/chunk-extension": (b'1;x="unterminated\r\n', "HttpChunkInvalid"),
+        "/chunk-overflow": (b"10000000000000000\r\n", "HttpChunkSizeOverflow"),
+        "/chunk-line-limit": (b"0" * 8193 + b"\r\n", "HttpChunkLineTooLong"),
+        "/chunk-trailer-limit": (b"0\r\nX: " + b"x" * 8192 + b"\r\n\r\n", "HttpTrailersOversize"),
+        "/chunk-body-truncated": (b"3\r\na", "HttpChunkTruncated"),
+        "/chunk-trailer-truncated": (b"0\r\nX-Trailer: value\r\n", "HttpChunkTruncated"),
+        "/chunk-trailer-framing": (b"0\r\nContent-Length: 3\r\n\r\n", "InvalidHttpFraming"),
+        "/chunk-trailer-header": (b"0\r\nInvalid Header: x\r\n\r\n", "InvalidHttpHeader"),
+    }
 
     class Peer(socketserver.BaseRequestHandler):
         def handle(self):
@@ -41,7 +53,9 @@ def run(binary):
                     return
                 if path == "/dropped":
                     return
-                if path == "/bad-chunk":
+                if path in chunk_cases:
+                    self.request.sendall(b"HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n" + chunk_cases[path][0])
+                elif path == "/bad-chunk":
                     self.request.sendall(b"HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n1\rX0123456789abcdef\r\n")
                 elif path == "/partial-head":
                     self.request.sendall(b"HTTP/1.1 200")
@@ -59,7 +73,8 @@ def run(binary):
                     self.request.sendall(b"HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\nSet-Cookie: fixture-secret\r\nContent-Type: application/octet-stream\r\n\r\n")
                     for offset in range(0, len(payload), 257):
                         piece = payload[offset:offset + 257]
-                        self.request.sendall(f"{len(piece):x}\r\n".encode() + piece + b"\r\n")
+                        extension = b'; name = "a;\\\"b"; flag' if offset == 0 else b""
+                        self.request.sendall(f"{len(piece):x}".encode() + extension + b"\r\n" + piece + b"\r\n")
                     self.request.sendall(b"0\r\nX-Private: fixture-secret\r\n\r\n")
             except (BrokenPipeError, ConnectionResetError, ssl.SSLError):
                 pass  # Expected when validation/capture rejects the response.
@@ -105,6 +120,11 @@ def run(binary):
                     assert invoke("/smuggling")["error"] == "InvalidHttpFraming"
                     bad_chunk = invoke("/bad-chunk")
                     assert bad_chunk["error"] == "HttpChunkInvalid", (tls, bad_chunk)
+                    for path, (_, cause) in chunk_cases.items():
+                        malformed = invoke(path)
+                        expected = "TlsConnectionTruncated" if tls and cause == "HttpChunkTruncated" else cause
+                        assert malformed["error"] == expected, (tls, path, malformed)
+                        assert malformed["completed"] is False, malformed
                     partial = invoke("/partial-head")
                     assert partial["error"] == ("TlsConnectionTruncated" if tls else "HttpResponseHeadTruncated"), partial
                     truncated = invoke("/truncated")

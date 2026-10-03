@@ -10845,6 +10845,21 @@
         "transit_grpc"
       ]
     },
+    "packages/zig/transit-station-http/src/Chunked.zig": {
+      "errors": {
+        "EndOfStream": 2,
+        "HttpChunkInvalid": 12,
+        "HttpChunkLineTooLong": 1,
+        "HttpChunkSizeOverflow": 2,
+        "HttpChunkTruncated": 2,
+        "HttpResponseTooLarge": 1,
+        "HttpTrailersOversize": 2
+      },
+      "outcomes": {},
+      "imports": [
+        "std"
+      ]
+    },
     "packages/zig/transit-station-http/src/Inspection.zig": {
       "errors": {
         "ExchangeUnavailable": 1,
@@ -10989,6 +11004,7 @@
         ]
       },
       "imports": [
+        "Chunked.zig",
         "root.zig",
         "std",
         "transit_tls"

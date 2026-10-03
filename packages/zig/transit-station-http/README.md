@@ -105,6 +105,9 @@ is explicitly unrecorded. The worker JSON returns separate nullable capture and
 effect diagnostics without claiming remote rollback or authorizing a fresh send.
 
 The transport preserves available socket, TLS and HTTP body-framing causes.
+Its owned chunk parser checks hexadecimal sizes, CRLF and extension syntax with
+fixed 8 KiB line/trailer storage. Size overflow, malformed framing, truncated
+chunks, line/trailer bounds and response-body capacity remain distinct errors.
 `CertificateHostMismatch` differs from an untrusted or invalid certificate path;
 TLS truncation and invalid/truncated HTTP chunks differ from a generic read
 failure. Request-body input failures are distinct from missing/truncated response

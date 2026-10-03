@@ -7,6 +7,7 @@ const Collector = struct {
     bytes: usize = 0,
     calls: usize = 0,
     fail: bool = false,
+    completed: bool = false,
     fn capture(raw: *anyopaque, kind: http.Kind, bytes: []const u8) !void {
         const self: *Collector = @ptrCast(@alignCast(raw));
         if (self.fail) return error.CaptureUnavailable;
@@ -17,6 +18,7 @@ const Collector = struct {
             self.bytes += bytes.len;
         }
         self.calls += 1;
+        if (kind == .completion) self.completed = true;
     }
 };
 pub fn main(init: std.process.Init) !void {
@@ -36,6 +38,6 @@ pub fn main(init: std.process.Init) !void {
     var output = std.Io.File.stdout().writerStreaming(init.io, &output_buffer);
     if (result) |r| {
         try output.interface.print("{{\"status\":{d},\"bytes\":{d},\"omitted\":{d},\"sha256\":\"{x}\"}}\n", .{ r.status, r.bytes, r.omitted_headers, collector.hash.finalResult() });
-    } else |err| try output.interface.print("{{\"error\":\"{s}\",\"captured\":{d}}}\n", .{ @errorName(err), collector.bytes });
+    } else |err| try output.interface.print("{{\"error\":\"{s}\",\"captured\":{d},\"completed\":{}}}\n", .{ @errorName(err), collector.bytes, collector.completed });
     try output.interface.flush();
 }

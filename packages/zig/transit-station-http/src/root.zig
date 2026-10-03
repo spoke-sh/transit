@@ -86,6 +86,7 @@ pub fn validateResponse(bytes: []const u8) !std.http.Client.Response.Head {
     return head;
 }
 test {
+    _ = @import("Chunked.zig");
     _ = Request;
     _ = Inspection;
     _ = @import("http_test.zig");
