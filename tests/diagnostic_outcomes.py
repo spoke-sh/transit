@@ -29,8 +29,10 @@ def normalize(row):
             continue
         assert action['target'] == row['identity'], ('wrong action target', row)
         result['actions'].append(action['kind'])
-    if row['outcome'] in ('input_rejected', 'unknown', 'closed_unknown'):
+    if row['outcome'] in ('input_rejected', 'closed_unknown'):
         assert set(result['actions']) <= {'inspect_status', 'inspect_scope', 'contact_operator'}, row
+    if row['outcome'] == 'unknown' and 'resume_exact' in result['actions']:
+        assert row['evidence'] == 'saved_intent' and row['identity']['domain'] == 'transport' and row['identity']['sequence'] is not None, row
     return result
 
 
@@ -40,7 +42,11 @@ def validate(manifest, surface, rows):
     for family, definition in manifest['families'].items():
         for field in ('projection', 'profile', 'context', 'disclosure', 'durable_evidence', 'recovery'):
             assert definition[field], (family, field)
-        if 'registry_kind' in definition:
+        if 'mapping_boundary' in definition:
+            mappings = json.loads((ROOT / 'contracts/diagnostics/mappings.json').read_text())
+            boundary, = [item for item in mappings['boundaries'] if item['id'] == definition['mapping_boundary']]
+            variants = set(boundary['codes'])
+        elif 'registry_kind' in definition:
             variants = {entry[0] for entry in registry_entries((ROOT / definition['source']).read_text(), definition['registry_kind'])}
         else:
             variants = set(surface['sources'][definition['source']]['outcomes'][definition['type']])
@@ -48,7 +54,8 @@ def validate(manifest, surface, rows):
         for variant, case in definition['cases'].items():
             assert case['code'], (family, variant)
             for scenario, context in definition['scenarios'].items():
-                expected[family, variant, scenario] = definition['defaults'] | case | context
+                base = {key: value for key, value in case.items() if key != 'scenarios'}
+                expected[family, variant, scenario] = definition['defaults'] | base | context | case.get('scenarios', {}).get(scenario, {})
     seen = set()
     for row in rows:
         key = row['family'], row['variant'], row['scenario']

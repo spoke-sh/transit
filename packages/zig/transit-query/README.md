@@ -226,6 +226,15 @@ recording its actual submission boundary. Unknown sends identify the exact
 sequence; a local malformed token remains unsent. Board and application gateways
 use this owner instead of reconstructing execution evidence from transport errors.
 
+`ApiDiagnostic` maps caller, lifecycle, result-integrity and transport failures
+through reviewed finite classifications. Read errors retain caller-selected query
+identity without claiming existence or a terminal outcome. `Workspace` and the
+native query ABI qualify that identity and all action targets with their
+connection's realm/requester resource; authority rejections retain the native
+cause separately. Final segment coverage mismatch is `InvalidResultCoverage`,
+distinct from a result that is still incomplete. Saved commands and selection
+survive denied inspection while result disclosure remains authorized separately.
+
 `QueryFailure` owns the stable finite-query terminal codes and bounded `UQF1`
 codec. Source closure and requester status retain the same original failure.
 `UnifiedCapture.advanceDiagnostic` additionally captures page, segment and

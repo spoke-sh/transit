@@ -69,11 +69,15 @@ pub fn build(b: *std.Build) void {
     }) });
     b.step("six-benchmark", "Build the specialized six-type execution control").dependOn(&b.addInstallArtifact(six_benchmark, .{}).step);
     const catalog = b.dependency("transit_catalog", .{ .target = target, .optimize = optimize });
+    const diagnostic_cases = b.addSystemCommand(&.{ "python3", "-B" });
+    diagnostic_cases.addFileArg(b.path("tests/diagnostic_case_codes.py"));
+    diagnostic_cases.addFileArg(b.path("contracts/diagnostics/mappings.json"));
+    const diagnostic_cases_file = diagnostic_cases.addOutputFileArg("causes.zig");
     const diagnostic_outcomes = b.addExecutable(.{ .name = "transit-diagnostic-outcomes", .root_module = b.createModule(.{
         .root_source_file = b.path("tests/diagnostic_outcomes.zig"),
         .target = target,
         .optimize = optimize,
-        .imports = &.{ .{ .name = "transit_station_app", .module = application.module("transit_station_app") }, .{ .name = "transit_query", .module = query.module("transit_query") }, .{ .name = "transit_catalog", .module = catalog.module("transit_catalog") }, .{ .name = "transit_serving", .module = serving.module("transit_serving") }, .{ .name = "transit_exchange", .module = exchange.module("transit_exchange") } },
+        .imports = &.{ .{ .name = "diagnostic_cases", .module = b.createModule(.{ .root_source_file = diagnostic_cases_file, .target = target, .optimize = optimize }) }, .{ .name = "transit_station_app", .module = application.module("transit_station_app") }, .{ .name = "transit_query", .module = query.module("transit_query") }, .{ .name = "transit_catalog", .module = catalog.module("transit_catalog") }, .{ .name = "transit_serving", .module = serving.module("transit_serving") }, .{ .name = "transit_exchange", .module = exchange.module("transit_exchange") } },
     }) });
     b.step("diagnostic-outcomes", "Build executable semantic outcome projections").dependOn(&b.addInstallArtifact(diagnostic_outcomes, .{}).step);
     const diagnostic_outcomes_test = b.addSystemCommand(&.{ "python3", "-B" });

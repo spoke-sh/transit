@@ -97,6 +97,7 @@ pub fn applyStructured(allocator: std.mem.Allocator, client: *q.UnifiedClient, c
     }
     return applyDiagnostic(allocator, client, config, request, &binding) catch |err| {
         out.* = diagnostic(request, err, binding, false, null) catch null;
+        q.ApiDiagnostic.qualify(out, client.connection);
         nativeCause(out, client.wire.last_rejection);
         return err;
     };
@@ -185,11 +186,25 @@ pub fn diagnostic(request: Request, cause: anyerror, binding: q.fuze.Sql.Binding
         .submit => if (dispatched) .submit else .prepare,
         else => .read,
     };
-    return q.ApiDiagnostic.attempt(@tagName(request), stage, switch (request) {
+    var result = try q.ApiDiagnostic.attempt(@tagName(request), stage, switch (request) {
         .compile => |value| value.sql,
         .inspect => |value| value.sql,
         else => null,
-    }, cause, binding, dispatched, identity);
+    }, cause, binding, dispatched, identity orelse switch (request) {
+        .status => |value| q.ApiDiagnostic.namespace(value),
+        inline .next, .next_draft, .page, .prepare_control => |value| q.ApiDiagnostic.namespace(value.namespace),
+        else => null,
+    });
+    const generation: ?[]const u8 = switch (request) {
+        .next_draft => |value| value.generation,
+        .draft_close => |value| value,
+        .draft_status => |value| value,
+        else => null,
+    };
+    if (generation) |text| if (v.unsigned(text)) |value| {
+        try result.fact(.generation, .caller, .{ .unsigned = .init(value) });
+    } else |_| {};
+    return result;
 }
 
 const Scope = struct { definition: q.SourceDefinition, limits: q.Bundle.Limits, name: m.Name };

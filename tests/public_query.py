@@ -144,10 +144,16 @@ def run(node, host, cli, proof):
             path = fixture.root / "source.json"
             options = json.loads(path.read_text()); options["generation"] = generation; path.write_text(json.dumps(options))
             # Keep the source stopped while checking current rights over its durable prefix.
+            saved_bundle = send(".bundle")
+            saved_sequence = provision("next-sequence").stdout
             provision("revoke")
             assert send(".next")["err"] == "IncompleteResult"
             assert send(".resume 1")["err"] == "AccessDenied"
-            assert send(".next")["err"] == "NamespaceRequired"
+            # Denial invalidates result access, not original recovery evidence.
+            assert send(".next")["err"] == "IncompleteResult"
+            assert send(".status")["status"]["phase"] == "admitted"
+            assert send(".bundle") == saved_bundle
+            assert provision("next-sequence").stdout == saved_sequence
             provision("restore")
             assert send(".resume 1")["status"]["phase"] == "admitted"
             source = start("source-recovered", [host, str(path)])
@@ -182,7 +188,9 @@ def run(node, host, cli, proof):
             provision("restore")
             provision("revoke")
             assert send(".resume 1")["err"] == "AccessDenied"
-            assert send(".status")["err"] == "NamespaceRequired"
+            assert send(".status")["status"]["phase"] == "complete"
+            denied_page = send(".next")
+            assert denied_page["err"] == "AccessDenied", denied_page
             provision("restore")
             assert send(".resume 1")["status"]["phase"] == "complete"
             assert send(".next")["ordinal"] == "0"
@@ -204,7 +212,8 @@ def run(node, host, cli, proof):
             provision("revoke")
             assert send(".next")["err"] == "IncompleteResult"
             assert send(".resume 3")["err"] == "AccessDenied"
-            assert send(".next")["err"] == "NamespaceRequired"
+            assert send(".next")["err"] == "IncompleteResult"
+            assert send(".status")["status"]["phase"] == "admitted"
             provision("restore")
             assert send(".resume 3")["status"]["phase"] == "admitted"
             assert submit(".cancel")["status"]["phase"] == "cancelled"
@@ -212,7 +221,8 @@ def run(node, host, cli, proof):
             provision("retire-source")
             retired = send(".resume 1")
             assert retired["err"] in ("QuerySourceUnavailable", "ResourceUnavailable"), retired
-            assert send(".next")["err"] == "NamespaceRequired"
+            assert send(".next")["err"] == "IncompleteResult"
+            assert send(".status")["status"]["phase"] == "cancelled"
             assert fault["startup"] == {65536, 65537}, fault["startup"]
             shell.close()
             print("public query: transient startup reads, real shell/hosts, 41 exact int64/null rows, exact retry, fenced crash recovery, busy admission, schema rejection, incomplete-result refusal, cancellation and read-time revocation passed")

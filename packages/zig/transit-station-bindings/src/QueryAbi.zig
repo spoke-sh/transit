@@ -71,7 +71,11 @@ pub fn call(pointer: *Client, json: [*]const u8, len: usize, out: *?*base.Buffer
     }
     var detail: q.fuze.Sql.Binding = .{};
     const result = bridge.applyDiagnostic(alloc, &client.client, action.value, &detail) catch |err| {
-        const diagnostic = q.ApiDiagnostic.project(action.value, err, detail, action.value == .submit, identity) catch null;
+        var diagnostic = q.ApiDiagnostic.project(action.value, err, detail, action.value == .submit, identity) catch null;
+        q.ApiDiagnostic.qualify(&diagnostic, client.client.connection);
+        if (diagnostic) |*value| if (client.wire.last_rejection) |native| {
+            value.text(.native_cause, .authority, @tagName(native)) catch {};
+        };
         base.output(.{ .err = @errorName(err), .protocol_error = client.wire.last_rejection, .diagnostic = diagnostic }, out) catch {};
         if (action.value == .submit and err != error.AccessDenied and err != error.Rejected and err != error.Conflict) return .uncertain;
         if (err == error.QueryReadConflict) return .conflict;
@@ -148,6 +152,19 @@ test "query caller handle needs no activation and preserves uncertainty after ex
     const local = try std.json.parseFromSlice(struct { err: []const u8, diagnostic: q.protocol.Diagnostic }, alloc, base.Api.station_buffer_data(rejection.?)[0..base.Api.station_buffer_size(rejection.?)], .{});
     try t.expectEqual(.not_submitted, local.value.diagnostic.outcome);
     try t.expect(local.value.diagnostic.identity == null);
+
+    const read = "{\"status\":\"19\"}";
+    var unavailable: ?*base.Buffer = null;
+    try t.expectEqual(.unavailable, call(pointer.?, read.ptr, read.len, &unavailable));
+    defer base.Api.station_buffer_destroy(unavailable);
+    const failed_read = try std.json.parseFromSlice(struct { err: []const u8, protocol_error: ?[]const u8, diagnostic: q.protocol.Diagnostic }, alloc, base.Api.station_buffer_data(unavailable.?)[0..base.Api.station_buffer_size(unavailable.?)], .{});
+    const read_detail = failed_read.value.diagnostic;
+    try t.expectEqualStrings("query.transport_unavailable", read_detail.code.slice());
+    try t.expectEqual(.not_applicable, read_detail.outcome);
+    try t.expectEqual(@as(u64, 19), try read_detail.identity.?.id.value());
+    try t.expectEqual(@as(u64, 7), try read_detail.identity.?.realm.?.value());
+    try t.expectEqual(@as(u64, 12), try read_detail.identity.?.resource.?.value());
+    try t.expectEqualDeep(read_detail.identity, read_detail.actions[0].?.target);
 }
 
 test "failure to parse for lack of memory is not a syntax error" {

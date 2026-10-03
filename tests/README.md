@@ -13521,3 +13521,25 @@ JSON inspection field is compiled, not separately exercised by that native proof
 The final mapping/outcome/documentation checks passed in
 `/var/tmp/transit-migration-diagnostics-final.log`. Clean committed-HEAD CI is not
 claimed by these focused results.
+
+### Query caller diagnostic boundary (2026-10-03)
+
+The pinned semantic mapping and outcome gates pass: 105 query caller causes,
+49 owner/error pairs and 724 total projections across seventeen declared surfaces.
+Each caller cause is exercised as a failed status read and after dispatch, with
+distinct native rejection and uncertain-send expectations. Native ABI units check
+an actual refused connection, exact realm/resource/namespace action targets and
+preserved saved submission identity. Corrupt final result coverage is tested
+separately from a pending result. Full `just check` passes, including native,
+generated, CLI, frontend and handbook checks; log
+`/var/tmp/transit-query-caller-full.log`.
+
+`just test::public-query` passes real shell/host execution, 41 exact int64/null
+rows, exact retries, fenced crash recovery, busy admission, schema rejection,
+incomplete-result refusal, cancellation and read-time revocation. The proof now
+asserts that denied resume preserves the bundle and query selection without
+advancing the caller sequence, and that result disclosure remains denied. Its
+first run exposed stale expectations that denial erased the selected namespace;
+those were corrected to the documented retained-work behavior before the passing
+rerun (`/var/tmp/transit-query-caller-public-proof2.log`). These are focused/local
+checks; committed-HEAD clean CI remains separate.

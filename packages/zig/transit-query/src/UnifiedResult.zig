@@ -99,9 +99,21 @@ pub fn page(reference: Ref, expected: Expected, cursor: ?Cursor, source: anytype
     next.chain = try segment.extend(next.chain);
     if (next.rows > manifest.checkpoint.progress.rows or next.bytes > manifest.checkpoint.bytes) return error.InvalidQueryCursor;
     const complete = next.ordinal == manifest.checkpoint.progress.segments;
-    if (complete and (next.rows != manifest.checkpoint.progress.rows or next.bytes != manifest.checkpoint.bytes or !std.mem.eql(u8, &next.chain, &manifest.checkpoint.chain))) return error.IncompleteResult;
+    if (complete) try completeCoverage(next, manifest.checkpoint.progress.rows, manifest.checkpoint.bytes, manifest.checkpoint.chain);
     // Recheck current policy, Document lifecycle, request and result disposition
     // after all reads/decoding, before the caller may disclose this page.
     try live(reference, expected, opened, source);
     return .{ .manifest = manifest, .next = if (complete) null else next, .arrow = bytes, .schema = .{ .columns = try allocator.dupe(m.Column, schema.columns) }, .plan = opened.bundle.plan };
+}
+
+fn completeCoverage(cursor: Cursor, rows: u64, bytes: u64, chain: [32]u8) !void {
+    if (cursor.rows != rows or cursor.bytes != bytes or !std.mem.eql(u8, &cursor.chain, &chain)) return error.InvalidResultCoverage;
+}
+
+test "final result coverage corruption is distinct from a pending result" {
+    const cursor: Cursor = .{ .reference = .{ .resource = 7, .domain = .query_result, .namespace = 19, .record = 1, .spec = .{ .format = 1, .length = 1, .digest = @splat(0) } }, .rows = 8, .bytes = 32, .chain = @splat(1) };
+    try completeCoverage(cursor, 8, 32, @splat(1));
+    try std.testing.expectError(error.InvalidResultCoverage, completeCoverage(cursor, 9, 32, @splat(1)));
+    try std.testing.expectError(error.InvalidResultCoverage, completeCoverage(cursor, 8, 33, @splat(1)));
+    try std.testing.expectError(error.InvalidResultCoverage, completeCoverage(cursor, 8, 32, @splat(2)));
 }

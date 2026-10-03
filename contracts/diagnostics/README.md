@@ -50,7 +50,7 @@ Run `just test::diagnostic-mappings` for mapping drift and mutation checks. Full
 every registered cause through the public classifier and validates its resulting
 envelope, outcome and absence of unsafe recovery actions. Finding a test in source
 only establishes ownership; it does not count as executing that test. The mapping
-manifest currently certifies the named compiler boundary, not every inventoried
+manifest certifies its named compiler, migration and query caller boundaries, not every inventoried
 runtime/adapter boundary or every grammar alternative. Those remaining mappings
 must be added with their own executable cases before completeness is claimed.
 
@@ -78,6 +78,14 @@ optional witness values. Owner tests and restart/commit/disclosure proofs retain
 those responsibilities. A listed enum's completeness is not completeness across
 all runtime adapters or grammar alternatives. In particular, query lifecycle status without a failure and application-owned transform errors
 remain separate coverage obligations.
+
+The query caller boundary checks its own finite causes and delegated retained
+query/transport classifications. Reviewed overlaps are explicit; an added cause
+cannot silently inherit a different classifier. The executable matrix projects
+every mapped cause as both a failed status read and a dispatched command. This
+tests that local classifications never erase submission uncertainty. Native
+authority rejection remains distinct. `diagnostic_case_codes.py` only generates
+test inputs from the reviewed manifest; it cannot record expected semantics.
 
 
 The migration ledger mapping boundary covers all thirteen terminal input causes.

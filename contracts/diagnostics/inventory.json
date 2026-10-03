@@ -7697,19 +7697,68 @@
         "std"
       ]
     },
+    "packages/zig/transit-query/src/ApiCodes.zig": {
+      "errors": {
+        "Canceled": 1,
+        "Cancelled": 1,
+        "Conflict": 1,
+        "EndOfStream": 1,
+        "IncompleteResult": 1,
+        "InteractiveQueriesUnavailable": 1,
+        "InvalidAuthorityResponse": 1,
+        "InvalidPredicateProgram": 1,
+        "InvalidQueryCursor": 1,
+        "InvalidQueryIdentity": 1,
+        "InvalidQueryManifest": 1,
+        "InvalidQueryRequest": 1,
+        "InvalidQuerySearch": 1,
+        "InvalidQueryUpload": 1,
+        "InvalidResourceRead": 1,
+        "InvalidResultCoverage": 1,
+        "InvalidResultDigest": 1,
+        "InvalidResultSegment": 1,
+        "InvalidSqlCursor": 1,
+        "MissingResultSegment": 1,
+        "OutOfMemory": 1,
+        "QueryClosed": 1,
+        "QueryComplete": 1,
+        "QueryDraftClosed": 1,
+        "QueryDraftConflict": 1,
+        "QueryDraftExhausted": 1,
+        "QueryDraftNotFound": 1,
+        "QueryIdentityMismatch": 1,
+        "QueryReadConflict": 1,
+        "QueryRequesterFailed": 1,
+        "QueryRequesterUnavailable": 1,
+        "QuerySourceUnavailable": 1,
+        "QueryUploadIdentityConflict": 1,
+        "QueryUploadNotFound": 1,
+        "Rejected": 1,
+        "ResourceReadBatchUnavailable": 1,
+        "ResultUnavailable": 1
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {},
+      "open_error_set_uses": 2,
+      "propagation": {
+        "try": 0,
+        "catch": 0
+      },
+      "imports": [
+        "root.zig"
+      ]
+    },
     "packages/zig/transit-query/src/ApiDiagnostic.zig": {
       "errors": {
         "AccessDenied": 2,
-        "Conflict": 3,
-        "IncompleteResult": 2,
+        "Conflict": 1,
+        "EndOfStream": 1,
         "InvalidPredicateProgram": 2,
-        "InvalidQueryCursor": 2,
+        "InvalidQueryCursor": 1,
         "InvalidQueryRequest": 2,
-        "InvalidSqlCursor": 2,
-        "OutOfMemory": 2,
-        "QueryIdentityMismatch": 2,
-        "QueryReadConflict": 2,
-        "Rejected": 2
+        "InvalidSqlCursor": 1,
+        "Rejected": 1
       },
       "outcomes": {},
       "error_sets": {},
@@ -7719,10 +7768,11 @@
       },
       "open_error_set_uses": 3,
       "propagation": {
-        "try": 23,
-        "catch": 0
+        "try": 20,
+        "catch": 1
       },
       "imports": [
+        "ApiCodes.zig",
         "root.zig",
         "std"
       ]
@@ -9145,9 +9195,9 @@
     },
     "packages/zig/transit-query/src/UnifiedResult.zig": {
       "errors": {
-        "IncompleteResult": 1,
         "InvalidQueryCursor": 3,
         "InvalidQueryManifest": 2,
+        "InvalidResultCoverage": 1,
         "InvalidResultDigest": 1,
         "InvalidResultSegment": 1,
         "MissingResultSegment": 1,
@@ -9160,13 +9210,14 @@
       "error_returns": {
         "Open.outputSchema()": "<inferred>",
         "checkReference()": "<inferred>",
+        "completeCoverage()": "<inferred>",
         "live()": "<inferred>",
         "open()": "<inferred>",
         "page()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 37,
+        "try": 38,
         "catch": 0
       },
       "imports": [
@@ -9429,7 +9480,7 @@
       },
       "open_error_set_uses": 1,
       "propagation": {
-        "try": 51,
+        "try": 53,
         "catch": 7
       },
       "imports": [
@@ -12266,7 +12317,7 @@
       "open_error_set_uses": 2,
       "propagation": {
         "try": 0,
-        "catch": 18
+        "catch": 19
       },
       "imports": [
         "Abi.zig",

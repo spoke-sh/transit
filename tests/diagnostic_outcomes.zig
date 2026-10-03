@@ -167,6 +167,13 @@ fn migrations(out: *std.Io.Writer) !void {
     }
 }
 
+fn queryCallers(out: *std.Io.Writer) !void {
+    for (@import("diagnostic_cases").query_caller) |cause| {
+        try emitScenario(out, "query.caller", @errorName(cause), "read", try q.ApiDiagnostic.project(.{ .status = "19" }, cause, .{}, false, null));
+        try emitScenario(out, "query.caller", @errorName(cause), "dispatched", try q.ApiDiagnostic.project(.{ .submit = "saved" }, cause, .{}, true, .{ .domain = .transport, .id = .init(42), .sequence = .init(42) }));
+    }
+}
+
 pub fn main(init: std.process.Init) !void {
     var buffer: [8192]u8 = undefined;
     var stdout = std.Io.File.stdout().writerStreaming(init.io, &buffer);
@@ -180,5 +187,6 @@ pub fn main(init: std.process.Init) !void {
     try refresh(&stdout.interface);
     try publications(&stdout.interface);
     try migrations(&stdout.interface);
+    try queryCallers(&stdout.interface);
     try stdout.interface.flush();
 }

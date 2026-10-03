@@ -50,7 +50,7 @@
           "cause": "InvalidSqlCursor",
           "disposition": "mapped_boundary",
           "reason": "Editor cursor failure is an observational input error, separate from a submitted SQL statement or result cursor.",
-          "projection": "packages/zig/transit-query/src/ApiDiagnostic.zig",
+          "projection": "packages/zig/transit-query/src/ApiCodes.zig",
           "code": "query.invalid_sql_cursor",
           "tests": [
             {
@@ -428,6 +428,476 @@
         {
           "source": "packages/zig/transit-station-app/src/migration_test.zig",
           "name": "migration diagnostic bounds and unsigned exhaustion never invoke the transform"
+        }
+      ]
+    },
+    {
+      "id": "query-caller",
+      "owners": [
+        "packages/zig/transit-query/src/ApiDiagnostic.zig",
+        "packages/zig/transit-query/src/Bridge.zig",
+        "packages/zig/transit-query/src/UnifiedClient.zig",
+        "packages/zig/transit-query/src/UnifiedResult.zig",
+        "packages/zig/transit-query/src/Workspace.zig",
+        "packages/zig/transit-query/src/Interactive.zig",
+        "packages/zig/transit-query/src/Editor.zig"
+      ],
+      "exclude": [],
+      "registry": "packages/zig/transit-query/src/ApiCodes.zig",
+      "projection": "packages/zig/transit-query/src/ApiDiagnostic.zig",
+      "delegates": [
+        {
+          "source": "packages/zig/transit-query/src/QueryFailure.zig",
+          "kind": "query_failure"
+        },
+        {
+          "source": "packages/zig/transit-client/src/root.zig",
+          "kind": "transport_predicate"
+        }
+      ],
+      "overrides": [
+        "EndOfStream"
+      ],
+      "shared_codes": true,
+      "profile": "Non-SQL query caller attempts, with recorded query-failure and native transport classifiers; SQL compilation retains its own boundary",
+      "stage": "Actual compile/prepare/submit/read operation, with editor/result cursor failures at read",
+      "outcome": "Read/continuation failures do not settle earlier work; local validation is not_submitted; dispatched unconfirmed commands remain unknown",
+      "durable_evidence": "Read attempt evidence is distinct from saved domain outcomes; the selected namespace is caller context, not proof of existence or permission",
+      "context": "Selected namespace and draft generation; original cause, specific result/upload/requester failure; raw EndOfStream lacks origin attribution and says so",
+      "disclosure": "No extra metadata lookup, payload, credential or unrelated row disclosure; only existing original caller/owner evidence",
+      "recovery": "Exact namespace inspection, current scope or read retry according to cause; unknown submission reconciles only exact signed transport identity",
+      "propagation": "Unlisted dynamic/I/O errors remain internal or unknown after dispatch. Error names shared with source execution use the caller classifier first, including ambiguous EndOfStream. This is not a transitive whole-program proof.",
+      "codes": {
+        "QueryReadConflict": {
+          "code": "query.read_conflict",
+          "category": "conflict"
+        },
+        "Conflict": {
+          "code": "query.authority_conflict",
+          "category": "conflict"
+        },
+        "Rejected": {
+          "code": "query.authority_rejected",
+          "category": "conflict"
+        },
+        "InvalidQueryRequest": {
+          "code": "query.invalid_command",
+          "category": "binding"
+        },
+        "QueryIdentityMismatch": {
+          "code": "query.identity_mismatch",
+          "category": "conflict"
+        },
+        "InvalidQueryIdentity": {
+          "code": "query.invalid_identity",
+          "category": "binding"
+        },
+        "InvalidQueryCursor": {
+          "code": "query.invalid_cursor",
+          "category": "binding"
+        },
+        "InvalidSqlCursor": {
+          "code": "query.invalid_sql_cursor",
+          "category": "binding"
+        },
+        "InvalidPredicateProgram": {
+          "code": "query.invalid_predicate_program",
+          "category": "integrity"
+        },
+        "IncompleteResult": {
+          "code": "query.result_incomplete",
+          "category": "lifecycle"
+        },
+        "OutOfMemory": {
+          "code": "query.memory_unavailable",
+          "category": "unavailable"
+        },
+        "InvalidQueryUpload": {
+          "code": "query.invalid_upload_evidence",
+          "category": "integrity"
+        },
+        "QueryUploadIdentityConflict": {
+          "code": "query.upload_identity_conflict",
+          "category": "conflict"
+        },
+        "QueryUploadNotFound": {
+          "code": "query.upload_absent",
+          "category": "lifecycle"
+        },
+        "QueryRequesterUnavailable": {
+          "code": "query.requester_unavailable",
+          "category": "lifecycle"
+        },
+        "QueryRequesterFailed": {
+          "code": "query.requester_failed",
+          "category": "lifecycle"
+        },
+        "QuerySourceUnavailable": {
+          "code": "query.source_unavailable",
+          "category": "lifecycle"
+        },
+        "QueryDraftNotFound": {
+          "code": "query.draft_absent",
+          "category": "lifecycle"
+        },
+        "QueryDraftClosed": {
+          "code": "query.draft_closed",
+          "category": "lifecycle"
+        },
+        "QueryDraftConflict": {
+          "code": "query.draft_conflict",
+          "category": "conflict"
+        },
+        "QueryDraftExhausted": {
+          "code": "query.draft_start_limit",
+          "category": "limit"
+        },
+        "ResultUnavailable": {
+          "code": "query.result_unavailable",
+          "category": "lifecycle"
+        },
+        "InvalidQueryManifest": {
+          "code": "query.invalid_result_manifest",
+          "category": "integrity"
+        },
+        "MissingResultSegment": {
+          "code": "query.result_segment_missing",
+          "category": "integrity"
+        },
+        "InvalidResultSegment": {
+          "code": "query.invalid_result_segment",
+          "category": "integrity"
+        },
+        "InvalidResultDigest": {
+          "code": "query.result_digest_mismatch",
+          "category": "integrity"
+        },
+        "InvalidResultCoverage": {
+          "code": "query.result_coverage_mismatch",
+          "category": "integrity"
+        },
+        "InvalidResourceRead": {
+          "code": "query.invalid_resource_read",
+          "category": "integrity"
+        },
+        "InvalidAuthorityResponse": {
+          "code": "query.invalid_authority_response",
+          "category": "integrity"
+        },
+        "InvalidQuerySearch": {
+          "code": "query.invalid_search",
+          "category": "binding"
+        },
+        "InteractiveQueriesUnavailable": {
+          "code": "query.interactive_unavailable",
+          "category": "unsupported"
+        },
+        "ResourceReadBatchUnavailable": {
+          "code": "query.batch_read_unavailable",
+          "category": "unsupported"
+        },
+        "QueryClosed": {
+          "code": "query.snapshot_closed",
+          "category": "lifecycle"
+        },
+        "Cancelled": {
+          "code": "query.read_cancelled",
+          "category": "lifecycle"
+        },
+        "Canceled": {
+          "code": "query.attempt_cancelled",
+          "category": "unavailable"
+        },
+        "QueryComplete": {
+          "code": "query.iteration_complete",
+          "category": "lifecycle"
+        },
+        "EndOfStream": {
+          "code": "query.read_truncated",
+          "category": "unavailable"
+        },
+        "QueryDenied": {
+          "code": "query.policy_denied",
+          "category": "access"
+        },
+        "AccessDenied": {
+          "code": "query.access_denied",
+          "category": "access"
+        },
+        "ResourceUnavailable": {
+          "code": "query.resource_unavailable",
+          "category": "unavailable"
+        },
+        "PublicationNotPublished": {
+          "code": "query.request_unpublished",
+          "category": "lifecycle"
+        },
+        "UnexpectedQueryPublisher": {
+          "code": "query.publisher_mismatch",
+          "category": "access"
+        },
+        "DocumentHistoryGap": {
+          "code": "query.document_history_gap",
+          "category": "lifecycle"
+        },
+        "DocumentRetired": {
+          "code": "query.document_retired",
+          "category": "lifecycle"
+        },
+        "DocumentResyncRequired": {
+          "code": "query.document_resync_required",
+          "category": "lifecycle"
+        },
+        "QueryBudgetExceeded": {
+          "code": "query.budget_exceeded",
+          "category": "limit"
+        },
+        "QueryProjectionBudget": {
+          "code": "query.projection_budget",
+          "category": "limit"
+        },
+        "QueryExpansionMissing": {
+          "code": "query.expansion_missing",
+          "category": "binding"
+        },
+        "QueryExpansionNull": {
+          "code": "query.expansion_null",
+          "category": "binding"
+        },
+        "QueryExpansionConflict": {
+          "code": "query.expansion_conflict",
+          "category": "conflict"
+        },
+        "QueryExpansionTypeError": {
+          "code": "query.expansion_type_error",
+          "category": "binding"
+        },
+        "QueryTypeError": {
+          "code": "query.cell_type_error",
+          "category": "binding"
+        },
+        "QueryConflict": {
+          "code": "query.cell_conflict",
+          "category": "conflict"
+        },
+        "Overflow": {
+          "code": "query.arithmetic_overflow",
+          "category": "limit"
+        },
+        "QuerySegmentBudgetExceeded": {
+          "code": "query.segment_byte_limit",
+          "category": "limit"
+        },
+        "TypeMismatch": {
+          "code": "query.type_mismatch",
+          "category": "binding"
+        },
+        "UnsupportedAggregate": {
+          "code": "query.unsupported_aggregate",
+          "category": "unsupported"
+        },
+        "UnknownColumn": {
+          "code": "query.unknown_column",
+          "category": "binding"
+        },
+        "InvalidProjection": {
+          "code": "query.invalid_projection",
+          "category": "binding"
+        },
+        "DuplicateProjection": {
+          "code": "query.duplicate_projection",
+          "category": "binding"
+        },
+        "InvalidQueryBundle": {
+          "code": "query.invalid_bundle",
+          "category": "binding"
+        },
+        "InvalidQuerySource": {
+          "code": "query.invalid_source",
+          "category": "binding"
+        },
+        "InvalidQueryPrefix": {
+          "code": "query.invalid_prefix",
+          "category": "binding"
+        },
+        "InvalidQueryPath": {
+          "code": "query.invalid_path",
+          "category": "binding"
+        },
+        "InvalidProjectionBudget": {
+          "code": "query.invalid_projection_budget",
+          "category": "binding"
+        },
+        "InvalidTextProjection": {
+          "code": "query.invalid_text_projection",
+          "category": "binding"
+        },
+        "InvalidElementProjection": {
+          "code": "query.invalid_element_projection",
+          "category": "binding"
+        },
+        "UnsupportedSource": {
+          "code": "query.unsupported_source",
+          "category": "unsupported"
+        },
+        "UnsupportedDecoder": {
+          "code": "query.unsupported_decoder",
+          "category": "unsupported"
+        },
+        "UnsupportedDocumentSource": {
+          "code": "query.unsupported_document_source",
+          "category": "unsupported"
+        },
+        "InvalidSourceEncoding": {
+          "code": "query.invalid_source_encoding",
+          "category": "integrity"
+        },
+        "InvalidPlanEncoding": {
+          "code": "query.invalid_plan_encoding",
+          "category": "integrity"
+        },
+        "UnsupportedPlanDefinition": {
+          "code": "query.plan_definition_mismatch",
+          "category": "integrity"
+        },
+        "InvalidOutputNames": {
+          "code": "query.invalid_output_names",
+          "category": "binding"
+        },
+        "UnsupportedPlan": {
+          "code": "query.unsupported_plan",
+          "category": "unsupported"
+        },
+        "PlanTooLarge": {
+          "code": "query.plan_too_large",
+          "category": "limit"
+        },
+        "QueryBundleTooLarge": {
+          "code": "query.bundle_too_large",
+          "category": "limit"
+        },
+        "SourceChanged": {
+          "code": "query.source_changed",
+          "category": "conflict"
+        },
+        "TableSchemaChanged": {
+          "code": "query.table_schema_changed",
+          "category": "conflict"
+        },
+        "InvalidQueryBudget": {
+          "code": "query.invalid_budget",
+          "category": "binding"
+        },
+        "QueryNamespaceInUse": {
+          "code": "query.namespace_in_use",
+          "category": "conflict"
+        },
+        "QueryAfterMutation": {
+          "code": "query.query_after_mutation",
+          "category": "binding"
+        },
+        "NonFiniteValue": {
+          "code": "query.nonfinite_value",
+          "category": "binding"
+        },
+        "InvalidUtf8": {
+          "code": "query.invalid_utf8",
+          "category": "binding"
+        },
+        "CellTooLarge": {
+          "code": "query.cell_too_large",
+          "category": "limit"
+        },
+        "InvalidColumnName": {
+          "code": "query.invalid_column_name",
+          "category": "binding"
+        },
+        "InvalidColumnCount": {
+          "code": "query.invalid_column_count",
+          "category": "binding"
+        },
+        "DuplicateColumn": {
+          "code": "query.duplicate_column",
+          "category": "binding"
+        },
+        "UnsupportedSchema": {
+          "code": "query.unsupported_schema",
+          "category": "unsupported"
+        },
+        "UnexpectedQueryPeer": {
+          "code": "query.peer_mismatch",
+          "category": "access"
+        },
+        "InvalidPublicationReference": {
+          "code": "query.invalid_request_reference",
+          "category": "binding"
+        },
+        "TableQueryWriterNotReady": {
+          "code": "query.writer_not_ready",
+          "category": "unavailable"
+        },
+        "RequestResourceExpired": {
+          "code": "query.request_resource_expired",
+          "category": "lifecycle"
+        },
+        "RequestResourceMissing": {
+          "code": "query.request_resource_missing",
+          "category": "lifecycle"
+        },
+        "AuthorityTimeout": {
+          "code": "query.transport_unavailable",
+          "category": "unavailable"
+        },
+        "AuthorityUnavailable": {
+          "code": "query.transport_unavailable",
+          "category": "unavailable"
+        },
+        "NameServerFailure": {
+          "code": "query.transport_unavailable",
+          "category": "unavailable"
+        },
+        "ConnectionRefused": {
+          "code": "query.transport_unavailable",
+          "category": "unavailable"
+        },
+        "ConnectionTimedOut": {
+          "code": "query.transport_unavailable",
+          "category": "unavailable"
+        },
+        "NetworkUnreachable": {
+          "code": "query.transport_unavailable",
+          "category": "unavailable"
+        },
+        "HostUnreachable": {
+          "code": "query.transport_unavailable",
+          "category": "unavailable"
+        },
+        "ConnectionResetByPeer": {
+          "code": "query.transport_unavailable",
+          "category": "unavailable"
+        },
+        "HttpConnectionClosing": {
+          "code": "query.transport_unavailable",
+          "category": "unavailable"
+        },
+        "ReadFailed": {
+          "code": "query.transport_unavailable",
+          "category": "unavailable"
+        },
+        "WriteFailed": {
+          "code": "query.transport_unavailable",
+          "category": "unavailable"
+        }
+      },
+      "exceptions": [],
+      "tests": [
+        {
+          "source": "packages/zig/transit-query/src/ApiDiagnostic.zig",
+          "name": "every caller code preserves read identity and cannot override an uncertain send"
+        },
+        {
+          "source": "packages/zig/transit-query/src/UnifiedResult.zig",
+          "name": "final result coverage corruption is distinct from a pending result"
         }
       ]
     }

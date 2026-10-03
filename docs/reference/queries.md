@@ -11,6 +11,20 @@ identify instruction, literal-storage or stack bounds as a plan-construction
 failure. These local failures do not replace an already uncertain submission or
 authorize retrying a new command.
 
+Caller errors distinguish pending results, closed snapshots, missing uploads,
+draft conflicts, invalid cursors, corrupt manifests/segments/coverage and
+unavailable authority. Inspection failures retain the selected query namespace,
+realm and requester resource in the diagnostic and its action targets. They do
+not establish whether earlier work completed. A refused status read preserves
+the shell's saved command and query selection; result disclosure still requires
+current access.
+
+Read failures identify whether retrying that read is appropriate. An unconfirmed
+submission instead retains its exact sequence and reconciliation action. If a
+truncated read reaches the caller without transport/decoder origin evidence,
+the diagnostic explicitly marks that origin unrecorded. It does not infer
+corruption or authorize submitting the SQL again.
+
 ## Source declarations
 
 A query selects one explicit KV decoder, Table schema or accepted Document

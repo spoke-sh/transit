@@ -18,10 +18,36 @@ ENTRY = re.compile(r'\. cause = error \. (\w+) , \. code = ("(?:\\.|[^"\\])*") ,
 NAMED_ENTRY = re.compile(r'\. name = ("(?:\\.|[^"\\])*") , \. value = \. \{ \. code = ("(?:\\.|[^"\\])*") , \. category = \. (\w+)')
 
 
+def function_tokens(text, name):
+    values = production(text)
+    starts = [i for i in range(len(values) - 2) if values[i:i + 3] == ['fn', name, '(']]
+    assert len(starts) == 1, ('ambiguous/missing classification function', name)
+    start = values.index('{', starts[0])
+    depth = 1
+    end = start + 1
+    while depth:
+        depth += (values[end] == '{') - (values[end] == '}')
+        end += 1
+    return values[start + 1:end - 1]
+
+
 def registry_entries(text, kind='error'):
     registry = ' '.join(production(text))
     if kind == 'error':
         return ENTRY.findall(registry)
+    if kind == 'query_failure':
+        body = function_tokens(text, 'fromError')
+        entries = re.findall(r'error \. (\w+) = > \. (\w+)', ' '.join(body))
+        assert {cause for cause, _ in entries} == {body[i + 2] for i in range(len(body) - 2) if body[i:i + 2] == ['error', '.']}
+        # Categories are reviewed independently and exercised by the outcome
+        # driver. This delegate checks the actual error-to-recorded-code path.
+        cases = json.loads((ROOT / 'contracts/diagnostics/outcomes.json').read_text())['families']['query.failure']['cases']
+        return [(cause, json.dumps('query.' + code), cases[code]['category']) for cause, code in entries]
+    if kind == 'transport_predicate':
+        body = function_tokens(text, 'unavailable')
+        causes = [body[i + 2] for i in range(len(body) - 2) if body[i:i + 2] == ['error', '.']]
+        assert len(causes) == len(set(causes)) and causes
+        return [(cause, json.dumps('query.transport_unavailable'), 'unavailable') for cause in causes]
     assert kind == 'named_class', kind
     return [(json.loads(cause), code, category) for cause, code, category in NAMED_ENTRY.findall(registry)]
 
@@ -45,13 +71,27 @@ def validate(manifest, surface, files):
             assert boundary[field], (identity, field)
         kind = boundary.get('registry_kind', 'error')
         entries = registry_entries(files[boundary['registry']], kind)
-        causes = {cause for cause, _, _ in entries}
+        own_causes = {cause for cause, _, _ in entries}
+        assert entries and len(own_causes) == len(entries), identity
+        overrides = set()
+        combined = {cause: (cause, code, category) for cause, code, category in entries}
+        for delegate in boundary.get('delegates', []):
+            delegated = registry_entries(files[delegate['source']], delegate['kind'])
+            assert delegated
+            for cause, code, category in delegated:
+                if cause in combined:
+                    overrides.add(cause)
+                else:
+                    combined[cause] = cause, code, category
+        assert overrides == set(boundary.get('overrides', [])), ('unreviewed classifier overlap', identity, overrides)
+        entries = list(combined.values())
+        causes = set(combined)
         codes = [json.loads(code) for _, code, _ in entries]
-        assert entries and len(causes) == len(entries) == len(set(codes)), identity
+        assert boundary.get('shared_codes', False) or len(codes) == len(set(codes)), identity
         assert boundary['codes'] == {cause: {'code': json.loads(code), 'category': category}
                                      for cause, code, category in entries}, ('changed semantic mapping', identity)
         if kind == 'error':
-            assert causes == set(surface['sources'][boundary['registry']]['errors']), 'unclassified registry error'
+            assert own_causes == set(surface['sources'][boundary['registry']]['errors']), 'unclassified registry error'
         tests_exist(boundary['tests'], files)
         owners = [path for path in surface['sources'] if any(fnmatchcase(path, pattern) for pattern in boundary['owners']) and path not in boundary['exclude']]
         assert owners, identity
@@ -128,6 +168,7 @@ def main():
     paths = set(surface['sources'])
     for boundary in manifest['boundaries']:
         paths.update((boundary['registry'], boundary['projection']))
+        paths.update(delegate['source'] for delegate in boundary.get('delegates', []))
         for mapping in [boundary, *boundary['exceptions']]:
             paths.update(test['source'] for test in mapping['tests'])
             if 'projection' in mapping:
