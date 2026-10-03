@@ -25,6 +25,9 @@ fn execute(store: *Store, command: r.Command) !r.Status {
     var turn = try input(store, 10, command);
     const result = try admission.dispatch(&turn);
     try store.commit(turn);
+    const diagnostic = try q.MutationDiagnostic.status(result);
+    try t.expectEqual(.domain_status, diagnostic.evidence);
+    try t.expectEqual(@backingInt(result.phase) < @backingInt(r.Phase.applied), diagnostic.outcome == .pending);
     return result;
 }
 fn prepare(store: *Store, request: Request, namespace: u64) !void {
@@ -151,6 +154,9 @@ test "mutation policy revisions fence uploads; revocation permits only closure a
     try store.commit(turn);
     const result = try execute(&store, .{ .apply = try reference(&store, 1) });
     try t.expectEqual(.denied, result.reason);
+    try t.expectEqual(.policy_disabled, result.witness.?.kind);
+    try t.expectEqual(2, result.witness.?.policy_revision);
+    try t.expectEqual(0, result.witness.?.permissions);
     try t.expectEqual(null, try row(&store, table, 1));
     turn = try input(&store, 10, .{ .begin = .{ .reference = try request.reference(2), .table = 1, .policy_revision = 1 } });
     try t.expectError(error.MutationDenied, admission.dispatch(&turn));
@@ -164,8 +170,13 @@ test "mutation policy revisions fence uploads; revocation permits only closure a
     var buffer: [Request.max_bytes]u8 = undefined;
     try parts(&store, try request.reference(2), try request.encode(&buffer));
     _ = try execute(&store, .{ .seal = try reference(&store, 2) });
-    try t.expectEqual(.denied, (try execute(&store, .{ .apply = try reference(&store, 2) })).reason);
+    const operation_rejected = try execute(&store, .{ .apply = try reference(&store, 2) });
+    try t.expectEqual(.denied, operation_rejected.reason);
+    try t.expectEqual(.operation_denied, operation_rejected.witness.?.kind);
+    try t.expectEqual(1, operation_rejected.witness.?.operation);
+    try t.expectEqual(2, operation_rejected.witness.?.permissions);
     try t.expect(std.meta.eql(result, try execute(&store, .{ .apply = try reference(&store, 1) })));
+    try t.expectEqualDeep(try q.MutationDiagnostic.status(result), try q.MutationDiagnostic.status(try execute(&store, .{ .apply = try reference(&store, 1) })));
     _ = try execute(&store, .{ .begin = .{ .reference = try request.reference(3), .table = 1, .policy_revision = 3 } });
     turn = try store.capture();
     grant.revision = 4; // Even an unchanged permission mask fences old uploads.
@@ -234,8 +245,22 @@ test "source changes and malformed immutable requests reject without rows; unava
     changed.value_type = .binary;
     try turn.write(s.Table.descriptorKey(1), try s.Table.encodeSchema(changed));
     try store.commit(turn);
-    try t.expectEqual(.source_changed, (try execute(&store, .{ .apply = try reference(&store, 2) })).reason);
+    const rejected = try execute(&store, .{ .apply = try reference(&store, 2) });
+    try t.expectEqual(.source_changed, rejected.reason);
+    try t.expectEqual(.table_declaration, rejected.witness.?.kind);
+    const actual = try r.declaration(.{ .resource = table.resource, .id = table.id, .schema = changed });
+    try t.expectEqualSlices(u8, &actual, &rejected.witness.?.declaration);
     try t.expectEqual(null, store.state.get(s.Table.rowKey(1, 1)));
+    // Repair and recover. The authorized saved result still explains the
+    // descriptor observed at rejection, without reading the repaired Table.
+    turn = try store.capture();
+    try turn.write(s.Table.descriptorKey(1), try s.Table.encodeSchema(table.schema));
+    try store.commit(turn);
+    var recovered = try store.clone();
+    defer recovered.deinit();
+    const replayed = try execute(&recovered, .{ .apply = try reference(&recovered, 2) });
+    try t.expectEqualDeep(rejected, replayed);
+    try t.expectEqualDeep(try q.MutationDiagnostic.status(rejected), try q.MutationDiagnostic.status(replayed));
 }
 
 test "mutation policy, statuses and command bytes agree with the independent fixture" {
@@ -270,6 +295,16 @@ test "mutation policy, statuses and command bytes agree with the independent fix
         try t.expectEqual(case.input, current.input);
         try t.expect(std.meta.eql(fixture_reference, current.reference));
         try t.expectEqualSlices(u8, encoded.slice(), (try current.encode()).slice());
+        const diagnostic = try q.MutationDiagnostic.status(current);
+        try diagnostic.validate();
+        if (current.witness != null) {
+            var absent = current;
+            absent.witness = null;
+            try t.expectError(error.InvalidMutationRecord, absent.encode());
+            var wrong = encoded;
+            wrong.data[148] = 2;
+            try t.expectError(error.InvalidMutationRecord, r.Status.decode(wrong));
+        }
         for (0..encoded.len) |len| {
             if (r.Status.decode(try pvalue.init(encoded.slice()[0..len]))) |_| return error.AcceptedTruncation else |_| {}
         }
@@ -494,6 +529,15 @@ test "conflict witness is the first rejecting input row and survives later data 
             try t.expectEqual(0, rejected.affected_rows);
             try t.expectEqual(key, rejected.conflict.?.key);
             try t.expectEqual(ordinal, rejected.conflict.?.row);
+            const diagnostic = try q.MutationDiagnostic.bound(rejected, request, try .init("items"));
+            try t.expectEqualStrings("mutation.primary_key_conflict", diagnostic.code.slice());
+            for (diagnostic.facts) |slot| if (slot) |fact| switch (fact.field) {
+                .column => try t.expectEqualStrings("id", fact.value.?.text.slice()),
+                .key => try t.expectEqual(key, try fact.value.?.signed.value()),
+                .input_row => try t.expectEqual(ordinal, try fact.value.?.unsigned.value()),
+                else => {},
+            };
+            for (diagnostic.actions) |slot| if (slot) |action| try t.expect(action.kind != .resume_exact and action.kind != .cancel_mutation);
             for (10..13) |absent| try t.expectEqual(null, try row(&store, table, @intCast(absent)));
             // Remove the conflicting stored row. Recovery still reports the
             // witness from the original execution, not the current Table.
@@ -505,6 +549,7 @@ test "conflict witness is the first rejecting input row and survives later data 
             try t.expect(std.meta.eql(rejected, try execute(&recovered, command)));
             var turn = try recovered.capture();
             try t.expect(std.meta.eql(rejected, (try admission.status(&turn, 2)).?));
+            try t.expectEqualDeep(diagnostic, try q.MutationDiagnostic.bound((try admission.status(&turn, 2)).?, request, try .init("items")));
             try t.expectEqual(null, try row(&recovered, table, key));
             // Every truncated record, including the previous 139-byte shape,
             // fails rather than synthesizing an absent witness.

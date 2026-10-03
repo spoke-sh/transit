@@ -4248,6 +4248,13 @@
         "std"
       ]
     },
+    "packages/zig/transit-catalog/src/Diagnostic.zig": {
+      "errors": {},
+      "outcomes": {},
+      "imports": [
+        "root.zig"
+      ]
+    },
     "packages/zig/transit-catalog/src/Inspection.zig": {
       "errors": {
         "CatalogConfigurationChanged": 1,
@@ -4321,6 +4328,7 @@
         "Bridge.zig",
         "Catalog.zig",
         "Client.zig",
+        "Diagnostic.zig",
         "Inspection.zig",
         "Model.zig",
         "Records.zig",
@@ -6375,6 +6383,13 @@
         ],
         "Field": [
           "object",
+          "name",
+          "table",
+          "native_input",
+          "affected_rows",
+          "argument",
+          "option",
+          "permissions",
           "scope",
           "column",
           "qualifier",
@@ -6452,7 +6467,7 @@
       },
       "outcomes": {
         "Definition": [
-          "be7a3db742439eb8c40fbb090fe27fa81cd2e15165cfaa9b6b9599d34e5f1415"
+          "fa6238a764ef187c86f45e32afff56618c36105cd5541e956dc0b559dff51f22"
         ],
         "Command": [
           "grant",
@@ -6912,6 +6927,16 @@
         "std"
       ]
     },
+    "packages/zig/transit-query/src/MutationDiagnostic.zig": {
+      "errors": {
+        "InvalidMutationDiagnostic": 4
+      },
+      "outcomes": {},
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
     "packages/zig/transit-query/src/QueryFailure.zig": {
       "errors": {
         "AccessDenied": 1,
@@ -7197,7 +7222,7 @@
         "ExpectedCast": 1,
         "ExpectedExternalOrigin": 1,
         "InvalidMutationCommand": 2,
-        "InvalidMutationRecord": 9,
+        "InvalidMutationRecord": 10,
         "MutationAfterWrite": 1,
         "MutationBudgetExceeded": 1,
         "MutationBusy": 2,
@@ -7293,7 +7318,7 @@
     "packages/zig/transit-query/src/TableMutationRecords.zig": {
       "errors": {
         "InvalidMutationCommand": 7,
-        "InvalidMutationRecord": 14
+        "InvalidMutationRecord": 27
       },
       "outcomes": {
         "Phase": [
@@ -7310,6 +7335,16 @@
           "invalid_request",
           "denied",
           "budget"
+        ],
+        "Kind": [
+          "policy_missing",
+          "policy_disabled",
+          "policy_revision",
+          "policy_declaration",
+          "operation_denied",
+          "table_missing",
+          "table_declaration",
+          "request_declaration"
         ],
         "Command": [
           "execute",
@@ -7773,6 +7808,7 @@
         "Editor.zig",
         "ExecutionDiagnostic.zig",
         "Interactive.zig",
+        "MutationDiagnostic.zig",
         "QueryFailure.zig",
         "RuntimeWitness.zig",
         "SourceDefinition.zig",

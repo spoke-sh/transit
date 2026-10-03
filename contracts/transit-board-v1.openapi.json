@@ -5617,7 +5617,7 @@
                   "definition": {
                     "type": "string",
                     "enum": [
-                      "be7a3db742439eb8c40fbb090fe27fa81cd2e15165cfaa9b6b9599d34e5f1415"
+                      "fa6238a764ef187c86f45e32afff56618c36105cd5541e956dc0b559dff51f22"
                     ]
                   },
                   "code": {
@@ -5905,6 +5905,13 @@
                               "type": "string",
                               "enum": [
                                 "object",
+                                "name",
+                                "table",
+                                "native_input",
+                                "affected_rows",
+                                "argument",
+                                "option",
+                                "permissions",
                                 "scope",
                                 "column",
                                 "qualifier",
@@ -15054,7 +15061,7 @@
                               "definition": {
                                 "type": "string",
                                 "enum": [
-                                  "be7a3db742439eb8c40fbb090fe27fa81cd2e15165cfaa9b6b9599d34e5f1415"
+                                  "fa6238a764ef187c86f45e32afff56618c36105cd5541e956dc0b559dff51f22"
                                 ]
                               },
                               "code": {
@@ -15342,6 +15349,13 @@
                                           "type": "string",
                                           "enum": [
                                             "object",
+                                            "name",
+                                            "table",
+                                            "native_input",
+                                            "affected_rows",
+                                            "argument",
+                                            "option",
+                                            "permissions",
                                             "scope",
                                             "column",
                                             "qualifier",

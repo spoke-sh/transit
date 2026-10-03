@@ -188,6 +188,7 @@ test "Table descriptor, immutable definition, name and exact receipt share four 
     const req = try request();
     const receipt = try owner.createTable(&turn, req);
     try t.expectEqual(.applied, receipt.outcome);
+    try t.expectEqual(.applied, (try c.Diagnostic.receipt(receipt)).outcome);
     try t.expectEqual(4, count(&turn));
     try t.expect(store.state.get(s.Table.descriptorKey(req.table)) == null);
     const created = (try owner.lookup(&turn, req.name)).?;
@@ -227,10 +228,15 @@ test "conditional conflicts retain their original outcome and never adopt Tables
         turn = try store.capture(17);
         const receipt = try owner.createTable(&turn, req);
         try t.expectEqual(outcome, receipt.outcome);
+        const diagnostic = try c.Diagnostic.receipt(receipt);
+        try t.expectEqual(.rejected, diagnostic.outcome);
+        try t.expectEqual(.catalog, diagnostic.identity.?.domain);
+        for (diagnostic.actions) |slot| if (slot) |action| try t.expect(action.kind != .cancel_mutation and action.kind != .resume_exact);
         try t.expectEqual(1, count(&turn));
         try store.commit(turn);
         turn = try store.capture(17);
         try t.expect(std.meta.eql(receipt, try owner.createTable(&turn, req)));
+        try t.expectEqualDeep(diagnostic, try c.Diagnostic.receipt(try owner.createTable(&turn, req)));
         try t.expectEqual(0, count(&turn));
     }
     // Even an unrelated Table with exactly the requested schema is not adopted.

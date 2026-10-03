@@ -12432,3 +12432,29 @@ changing the transport retry rules. Rendering treats text as text and creates no
 action buttons. Logs: `/var/tmp/transit-board-diagnostic-full-check3.log` and
 `/var/tmp/transit-board-diagnostic-status-check.log`. This does not establish
 application-editor, reactive-adapter or every inspection error mapping.
+
+### Mutation rejection evidence and owner projections — 2026-10-02
+
+`just test::unit` passed the mutation/catalog owner changes. Mutation rejection
+records preserve the rejecting policy revision, permission mask or declaration
+fingerprint in a 192-byte status, within one native value and the existing four
+mutation slots. Real admission tests assert the revoked-policy and excluded
+operation witnesses, descriptor repair followed by store reconstruction and exact
+replay, and signed-extreme conflict keys at each of three input positions. The
+shared projections preserve outcome and recovery actions after those changes.
+Catalog tests assert applied and all three conflict receipts, exact replay and
+separate control/input dispositions. Rejected inputs never acquire invented
+mutation/catalog operation identities or cancellation instructions.
+
+Independent Python fixtures additionally encode all eight mismatch-witness kinds;
+codec checks cover every truncation, canonical absent slots and inconsistent
+status/witness combinations. Those fixture projections establish codec coverage,
+not execution reachability for every kind. Installed SDK and disk-backed proof
+coverage for the new mismatch witnesses remains separate from these owner tests.
+
+`just check` then passed the current-definition cutover, generated contract and
+binding drift, owner tests, 460 real CLI diagnostic cases, TypeScript/browser
+component suites and documentation build (5,062 local links). All eight witness
+fixtures and their malformed-record checks ran in this full check. The lexical
+inventory gate was updated explicitly; it remains separate from semantic case
+completeness. `ci-clean` has not yet qualified this increment.

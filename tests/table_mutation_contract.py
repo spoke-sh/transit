@@ -51,7 +51,19 @@ def records(requests):
     for phase,count,reason,input_id in [(1,0,0,0),(2,0,0,0),(3,3,0,123),(4,0,1,124),(5,0,0,125)]:
         value = b'TMS1'+reference+struct.pack('<QI',10,9)+declaration+struct.pack('<QBBBQ',4,phase,count,reason,input_id)
         value += struct.pack('<Bq', 2 if reason == 1 else 0, -1 if reason == 1 else 0)
+        value += bytes(44)  # Mandatory absent-witness flag and canonical slot.
         statuses.append(dict(phase=phase,affected=count,reason=reason,input=input_id,wire_hex=value.hex()))
+    for kind in range(1, 9):
+        reason = 4 if kind <= 5 else 2
+        # Non-applicable fields remain zero; expected policy revision is four.
+        revision = 5 if kind in (2, 3, 4, 5) else 0
+        permissions = 2 if kind in (3, 4, 5) else 0
+        actual = hashlib.sha256(b'changed declaration').digest() if kind in (4, 7, 8) else bytes(32)
+        witness = struct.pack('<BQB', kind, revision, permissions) + actual + bytes([1 if kind == 5 else 0])
+        value = (b'TMS1' + reference + struct.pack('<QI', 10, 9) + declaration
+                 + struct.pack('<QBBBQ', 4, 4, 0, reason, 126) + bytes(9) + b'\1' + witness)
+        assert len(value) == 192
+        statuses.append(dict(phase=4, affected=0, reason=reason, input=126, wire_hex=value.hex()))
     commands = [b'TMB1'+reference+struct.pack('<IQ',9,4),
                 b'TMP1'+reference+struct.pack('<IB',0,0)+data[:128],
                 b'TMP1'+reference+struct.pack('<IB',0,1)+data[128:256],

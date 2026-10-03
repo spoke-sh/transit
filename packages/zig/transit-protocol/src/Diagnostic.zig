@@ -15,6 +15,13 @@ pub const Origin = enum { caller, execution, schema, authority, owner };
 pub const ActionKind = enum { correct_input, inspect_status, resume_exact, cancel_wait, cancel_mutation, refresh, recompile, retry_read, inspect_scope, reconcile_effect, contact_operator };
 pub const Field = enum {
     object,
+    name,
+    table,
+    native_input,
+    affected_rows,
+    argument,
+    option,
+    permissions,
     scope,
     column,
     qualifier,

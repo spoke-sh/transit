@@ -79,6 +79,11 @@ fn rejected(turn: *s.Turn, reason: Writer.Rejection) !void {
     try t.expectEqual(turn.delivery.input.position, result.input);
     try t.expectEqual(turn.delivery.input.origin.external.principal, result.principal);
     try t.expectEqualSlices(u8, &try Writer.Disposition.fingerprint(turn.delivery.input.value), &result.payload);
+    const diagnostic = try q.MutationDiagnostic.input(result);
+    try t.expectEqual(.input_rejected, diagnostic.outcome);
+    try t.expectEqual(.transport, diagnostic.identity.?.domain);
+    try t.expectEqual(result.input, try diagnostic.identity.?.id.value());
+    for (diagnostic.actions) |slot| if (slot) |action| try t.expect(action.kind != .resume_exact and action.kind != .cancel_mutation);
 }
 test "mutation writer initializes only the explicit principal/configuration in four native slots" {
     var store: Store = .{};

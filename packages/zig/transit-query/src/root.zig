@@ -43,6 +43,7 @@ pub const Assistance = @import("Assistance.zig");
 pub const SqlInspection = @import("SqlInspection.zig");
 pub const SqlCompilation = @import("SqlCompilation.zig");
 pub const TableMutationRequest = @import("TableMutationRequest.zig");
+pub const MutationDiagnostic = @import("MutationDiagnostic.zig");
 pub const TableMutationRecords = @import("TableMutationRecords.zig");
 pub const TableMutationAdmission = @import("TableMutationAdmission.zig");
 pub const TableMutationClient = @import("TableMutationClient.zig");

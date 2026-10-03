@@ -54,6 +54,12 @@ creation/control actions or saved bytes.
 The [catalog ABI/port](../transit-station-bindings/docs/catalog.md) composes these
 values with explicit native handle ownership and transport uncertainty.
 
+`Diagnostic.receipt` projects every creation outcome using the original request,
+scope, name, object and Table identities. `Diagnostic.input` separately projects
+control and rejected-input dispositions. Both require the caller's current read
+authorization before disclosure. They perform no reads, preserve historical
+outcomes after catalog changes, and never offer cancellation of CREATE TABLE.
+
 The [catalog CLI](../../../apps/transit-cli/docs/catalog.md) uses this same owner
 for offline compilation, private saved preparation, exact submission, outcomes
 and bounded metadata. Its saved pages retain the exact continuation and reject

@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "definition": "be7a3db742439eb8c40fbb090fe27fa81cd2e15165cfaa9b6b9599d34e5f1415",
+  "definition": "fa6238a764ef187c86f45e32afff56618c36105cd5541e956dc0b559dff51f22",
   "minimum_stack_bytes": 8388608,
   "limits": {
     "max_counter": 9007199254740991,
@@ -430,7 +430,7 @@
         "definition": {
           "type": "string",
           "enum": [
-            "be7a3db742439eb8c40fbb090fe27fa81cd2e15165cfaa9b6b9599d34e5f1415"
+            "fa6238a764ef187c86f45e32afff56618c36105cd5541e956dc0b559dff51f22"
           ]
         },
         "operation_metadata": {
@@ -484,7 +484,7 @@
       ],
       "x-transit-defaults": {
         "version": 1,
-        "definition": "be7a3db742439eb8c40fbb090fe27fa81cd2e15165cfaa9b6b9599d34e5f1415",
+        "definition": "fa6238a764ef187c86f45e32afff56618c36105cd5541e956dc0b559dff51f22",
         "operation_metadata": true,
         "opaque_retry": true,
         "native_v1": true,
@@ -519,7 +519,7 @@
         "definition": {
           "type": "string",
           "enum": [
-            "be7a3db742439eb8c40fbb090fe27fa81cd2e15165cfaa9b6b9599d34e5f1415"
+            "fa6238a764ef187c86f45e32afff56618c36105cd5541e956dc0b559dff51f22"
           ]
         },
         "code": {
@@ -807,6 +807,13 @@
                     "type": "string",
                     "enum": [
                       "object",
+                      "name",
+                      "table",
+                      "native_input",
+                      "affected_rows",
+                      "argument",
+                      "option",
+                      "permissions",
                       "scope",
                       "column",
                       "qualifier",

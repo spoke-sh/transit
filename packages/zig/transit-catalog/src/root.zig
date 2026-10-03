@@ -2,6 +2,7 @@
 pub const station = @import("transit_station");
 pub const protocol = station.protocol;
 pub const fuze = station.fuze;
+pub const Diagnostic = @import("Diagnostic.zig");
 pub const Model = @import("Model.zig");
 pub const Records = @import("Records.zig");
 pub const Catalog = @import("Catalog.zig");

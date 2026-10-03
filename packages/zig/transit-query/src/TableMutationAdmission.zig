@@ -53,10 +53,29 @@ fn checkActive(turn: *Turn, namespace: u64) !void {
     if (try active(turn) != namespace) return error.MutationNotActive;
 }
 fn permitted(turn: *Turn, current: r.Status) !r.Policy {
-    const grant = (try policy(turn, current.principal, current.table)) orelse return error.MutationDenied;
-    if (grant.permissions == 0 or grant.revision != current.policy_revision or !std.mem.eql(u8, &grant.declaration, &current.declaration)) return error.MutationDenied;
-    const table = s.Table.open(turn, current.table) catch |err| return if (err == error.TableNotFound) error.MutationSourceChanged else err;
-    if (!std.mem.eql(u8, &current.declaration, &try r.declaration(table))) return error.MutationSourceChanged;
+    var witness: ?r.Witness = null;
+    return permittedDetailed(turn, current, &witness);
+}
+fn permittedDetailed(turn: *Turn, current: r.Status, witness: *?r.Witness) !r.Policy {
+    const grant = (try policy(turn, current.principal, current.table)) orelse {
+        witness.* = .{ .kind = .policy_missing };
+        return error.MutationDenied;
+    };
+    if (grant.permissions == 0 or grant.revision != current.policy_revision or !std.mem.eql(u8, &grant.declaration, &current.declaration)) {
+        const kind: r.Witness.Kind = if (grant.permissions == 0) .policy_disabled else if (grant.revision != current.policy_revision) .policy_revision else .policy_declaration;
+        witness.* = .{ .kind = kind, .policy_revision = grant.revision, .permissions = grant.permissions, .declaration = if (kind == .policy_declaration) grant.declaration else @splat(0) };
+        return error.MutationDenied;
+    }
+    const table = s.Table.open(turn, current.table) catch |err| {
+        if (err != error.TableNotFound) return err;
+        witness.* = .{ .kind = .table_missing };
+        return error.MutationSourceChanged;
+    };
+    const actual = try r.declaration(table);
+    if (!std.mem.eql(u8, &current.declaration, &actual)) {
+        witness.* = .{ .kind = .table_declaration, .declaration = actual };
+        return error.MutationSourceChanged;
+    }
     return grant;
 }
 fn begin(turn: *Turn, principal: u64, value: r.Begin) !r.Status {
@@ -109,7 +128,7 @@ fn apply(turn: *Turn, current: *r.Status) !void {
     if (current.terminal()) return;
     if (current.phase != .sealed) return error.MutationNotSealed;
     // Preserve the publication policy gate before accessing retained chunks.
-    _ = permitted(turn, current.*) catch |err| return switch (err) {
+    _ = permittedDetailed(turn, current.*, &current.witness) catch |err| return switch (err) {
         error.MutationDenied => close(turn, current, .rejected, .denied, 0),
         error.MutationSourceChanged => close(turn, current, .rejected, .source_changed, 0),
         else => err,
@@ -122,14 +141,25 @@ fn apply(turn: *Turn, current: *r.Status) !void {
     return applyRequest(turn, current, request);
 }
 fn applyRequest(turn: *Turn, current: *r.Status, request: Request) !void {
-    const grant = permitted(turn, current.*) catch |err| return switch (err) {
+    const grant = permittedDetailed(turn, current.*, &current.witness) catch |err| return switch (err) {
         error.MutationDenied => close(turn, current, .rejected, .denied, 0),
         error.MutationSourceChanged => close(turn, current, .rejected, .source_changed, 0),
         else => err,
     };
     if (request.realm != turn.delivery.realm or request.writer != turn.delivery.pid or request.resource != turn.view.resource or request.table != current.table) return close(turn, current, .rejected, .invalid_request, 0);
-    if (!std.mem.eql(u8, &current.declaration, &try r.declaration(request.target()))) return close(turn, current, .rejected, .source_changed, 0);
-    if (!grant.permits(request.plan.operation)) return close(turn, current, .rejected, .denied, 0);
+    const request_declaration = try r.declaration(request.target());
+    if (!std.mem.eql(u8, &current.declaration, &request_declaration)) {
+        current.witness = .{ .kind = .request_declaration, .declaration = request_declaration };
+        return close(turn, current, .rejected, .source_changed, 0);
+    }
+    if (!grant.permits(request.plan.operation)) {
+        current.witness = .{ .kind = .operation_denied, .policy_revision = grant.revision, .permissions = grant.permissions, .operation = switch (request.plan.operation) {
+            .insert => 1,
+            .update => 2,
+            .delete => 3,
+        } };
+        return close(turn, current, .rejected, .denied, 0);
+    }
     var conflict: ?q.fuze.TableMutation.Conflict = null;
     const result = s.TableMutation.applyDetailed(turn, request.target(), request.plan, &conflict) catch |err| {
         if (turn.read_error != null) return err;
@@ -138,7 +168,10 @@ fn applyRequest(turn: *Turn, current: *r.Status, request: Request) !void {
                 current.conflict = conflict orelse return error.InvalidMutationRecord;
                 break :blk close(turn, current, .rejected, .row_exists, 0);
             },
-            error.TableNotFound, error.TableSchemaChanged => close(turn, current, .rejected, .source_changed, 0),
+            // All descriptor checks already ran in this same immutable view.
+            // A contradictory later result is an integrity failure, not a
+            // invented source-change witness or an acknowledged input.
+            error.TableNotFound, error.TableSchemaChanged => error.InvalidMutationRecord,
             error.MutationBudgetExceeded => close(turn, current, .rejected, .budget, 0),
             else => err,
         };

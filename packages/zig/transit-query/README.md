@@ -248,3 +248,10 @@ adapter batch's key/decoding evidence. Current native and query-policy checks
 precede disclosure; no later source read reconstructs a failing row. KV keys use
 bounded hex, Table keys preserve signed width, and Document expansion identifies
 elements by counter/replica. These local details do not change durable job records.
+
+`MutationDiagnostic` projects authorized mutation statuses and rejected input
+dispositions into owned diagnostic values. Statuses retain the original conflict
+key/row and policy or descriptor mismatch evidence. `bound` verifies the original
+immutable request before adding its column name. Terminal results and rejected
+inputs retain distinct recovery guidance; projection never reads current rows or
+changes work. See the [mutation record contract](../../../contracts/TABLE_MUTATION_V1.md#record-and-command-encodings).

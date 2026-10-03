@@ -70,6 +70,61 @@ pub const Policy = struct {
 };
 pub const Phase = enum(u8) { uploading = 1, sealed = 2, applied = 3, rejected = 4, cancelled = 5 };
 pub const Reason = enum(u8) { none = 0, row_exists = 1, source_changed = 2, invalid_request = 3, denied = 4, budget = 5 };
+/// Metadata observed in the same private view that rejects a mutation. The
+/// fixed slot keeps the status within one Value and therefore one turn write.
+pub const Witness = struct {
+    pub const Kind = enum(u8) { policy_missing = 1, policy_disabled, policy_revision, policy_declaration, operation_denied, table_missing, table_declaration, request_declaration };
+    pub const encoded_bytes = 43;
+    kind: Kind,
+    policy_revision: u64 = 0,
+    permissions: u8 = 0,
+    declaration: [32]u8 = @splat(0),
+    operation: u8 = 0,
+    pub fn encode(self: Witness) [encoded_bytes]u8 {
+        var bytes: [encoded_bytes]u8 = @splat(0);
+        bytes[0] = @backingInt(self.kind);
+        std.mem.writeInt(u64, bytes[1..9], self.policy_revision, .little);
+        bytes[9] = self.permissions;
+        bytes[10..42].* = self.declaration;
+        bytes[42] = self.operation;
+        return bytes;
+    }
+    pub fn decode(bytes: *const [encoded_bytes]u8) !Witness {
+        return .{ .kind = std.enums.fromInt(Kind, bytes[0]) orelse return error.InvalidMutationRecord, .policy_revision = std.mem.readInt(u64, bytes[1..9], .little), .permissions = bytes[9], .declaration = bytes[10..42].*, .operation = bytes[42] };
+    }
+    fn validate(self: Witness, current: Status) !void {
+        var canonical: Witness = .{ .kind = self.kind };
+        switch (self.kind) {
+            .policy_missing => if (current.reason != .denied) return error.InvalidMutationRecord,
+            .policy_disabled, .policy_revision, .policy_declaration, .operation_denied => {
+                if (current.reason != .denied) return error.InvalidMutationRecord;
+                try identity(self.policy_revision);
+                if (self.permissions > 7) return error.InvalidMutationRecord;
+                canonical.policy_revision = self.policy_revision;
+                canonical.permissions = self.permissions;
+                switch (self.kind) {
+                    .policy_disabled => if (self.permissions != 0) return error.InvalidMutationRecord,
+                    .policy_revision => if (self.policy_revision == current.policy_revision) return error.InvalidMutationRecord,
+                    .policy_declaration => {
+                        if (std.mem.eql(u8, &self.declaration, &current.declaration)) return error.InvalidMutationRecord;
+                        canonical.declaration = self.declaration;
+                    },
+                    .operation_denied => {
+                        if (self.operation < 1 or self.operation > 3 or self.permissions & (@as(u8, 1) << @intCast(self.operation - 1)) != 0) return error.InvalidMutationRecord;
+                        canonical.operation = self.operation;
+                    },
+                    else => unreachable,
+                }
+            },
+            .table_missing => if (current.reason != .source_changed) return error.InvalidMutationRecord,
+            .table_declaration, .request_declaration => {
+                if (current.reason != .source_changed or std.mem.eql(u8, &self.declaration, &current.declaration)) return error.InvalidMutationRecord;
+                canonical.declaration = self.declaration;
+            },
+        }
+        if (!std.meta.eql(self, canonical)) return error.InvalidMutationRecord;
+    }
+};
 pub const Status = struct {
     reference: Ref,
     principal: u64,
@@ -82,6 +137,7 @@ pub const Status = struct {
     reason: Reason = .none,
     input: u64 = 0,
     conflict: ?q.fuze.TableMutation.Conflict = null,
+    witness: ?Witness = null,
     pub fn terminal(self: Status) bool {
         return self.phase != .uploading and self.phase != .sealed;
     }
@@ -91,6 +147,8 @@ pub const Status = struct {
         try identity(self.policy_revision);
         if (self.table == 0 or self.affected_rows > q.fuze.TableMutation.max_rows) return error.InvalidMutationRecord;
         if ((self.reason == .row_exists) != (self.conflict != null)) return error.InvalidMutationRecord;
+        if ((self.reason == .source_changed or self.reason == .denied) != (self.witness != null)) return error.InvalidMutationRecord;
+        if (self.witness) |witness| try witness.validate(self);
         if (self.conflict) |conflict| if (conflict.row == 0 or conflict.row > q.fuze.TableMutation.max_rows) return error.InvalidMutationRecord;
         if (self.terminal()) {
             try identity(self.input);
@@ -104,7 +162,7 @@ pub const Status = struct {
     }
     pub fn encode(self: Status) !p.Value {
         try self.validate();
-        var bytes: [148]u8 = undefined;
+        var bytes: [192]u8 = undefined;
         var writer: std.Io.Writer = .fixed(&bytes);
         try writer.writeAll("TMS1");
         try writer.writeAll((try self.reference.encode()).slice());
@@ -116,6 +174,8 @@ pub const Status = struct {
         try writer.writeInt(u64, self.input, .little);
         try writer.writeByte(if (self.conflict) |conflict| conflict.row else 0);
         try writer.writeInt(i64, if (self.conflict) |conflict| conflict.key else 0, .little);
+        try writer.writeByte(@intFromBool(self.witness != null));
+        try writer.writeAll(&if (self.witness) |witness| witness.encode() else @as([Witness.encoded_bytes]u8, @splat(0)));
         return p.Value.init(writer.buffered());
     }
     pub fn decode(value: p.Value) !Status {
@@ -136,6 +196,9 @@ pub const Status = struct {
         const row = try reader.takeByte();
         const conflict_key = try reader.takeInt(i64, .little);
         if (row != 0) result.conflict = .{ .row = row, .key = conflict_key } else if (conflict_key != 0) return error.InvalidMutationRecord;
+        const has_witness = try reader.takeByte();
+        const witness = try reader.takeArray(Witness.encoded_bytes);
+        if (has_witness == 1) result.witness = try Witness.decode(witness) else if (has_witness != 0 or !std.mem.allEqual(u8, witness, 0)) return error.InvalidMutationRecord;
         try finish(&reader);
         try result.validate();
         return result;

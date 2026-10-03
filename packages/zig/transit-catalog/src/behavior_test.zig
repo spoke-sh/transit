@@ -36,7 +36,12 @@ fn external(principal: u64) p.Growth.Origin {
     return .{ .external = .{ .principal = principal, .policy_revision = 1 } };
 }
 fn disposition(turn: *s.Turn) !?m.Disposition {
-    return if (try turn.read(r.key(config.scope.catalog, 'e', turn.delivery.input.position, 0))) |value| try r.decode(m.Disposition, 'e', value) else null;
+    const result = if (try turn.read(r.key(config.scope.catalog, 'e', turn.delivery.input.position, 0))) |value| try r.decode(m.Disposition, 'e', value) else return null;
+    const diagnostic = try c.Diagnostic.input(result);
+    try t.expectEqual(.transport, diagnostic.identity.?.domain);
+    try t.expectEqual(result.input, try diagnostic.identity.?.id.value());
+    try t.expectEqual(result.outcome == .initialized or result.outcome == .policy_applied, diagnostic.outcome == .applied);
+    return result;
 }
 fn count(turn: s.Turn) usize {
     var total: usize = 0;

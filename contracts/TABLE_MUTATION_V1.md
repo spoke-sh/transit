@@ -244,6 +244,14 @@ reads, corrupt stored descriptors or broken immutable publication integrity
 propagate as errors; they never become acknowledged invalid user requests. Any
 error restores the incoming proposal and preserves sticky read failure.
 
+`denied` and `source_changed` retain metadata from the rejecting private view.
+The witness distinguishes missing, disabled, revised or differently bound policy,
+an operation excluded by its permission mask, a missing Table, a changed Table
+descriptor, and a request descriptor inconsistent with the staged declaration.
+Observed policy revisions, permission masks and descriptor fingerprints survive
+later repair and exact replay. Reading this evidence uses current native access;
+rendering it performs no new policy or Table reads.
+
 Repeated apply/cancel of a terminal namespace preserves the original result and
 input identity without reselecting rows. Cancellation before application records
 `cancelled`; an uploading publication is abandoned. Cancellation remains possible
@@ -263,7 +271,7 @@ existing domain. All integers below are little-endian and fields are contiguous.
 | Record | Fields after four-byte magic |
 | --- | --- |
 | Policy `TML1`, 57 bytes | principal u64, Table u32, revision u64, declaration 32 bytes, permissions u8 |
-| Status `TMS1`, 148 bytes | existing `SPF1` reference 72 bytes, principal u64, Table u32, declaration 32 bytes, policy revision u64, phase u8, affected rows u8, reason u8, terminal input u64, conflicting input row u8, conflicting key i64 |
+| Status `TMS1`, 192 bytes | existing `SPF1` reference 72 bytes, principal u64, Table u32, declaration 32 bytes, policy revision u64, phase u8, affected rows u8, reason u8, terminal input u64, conflicting input row u8, conflicting key i64, witness-present u8, witness 43 bytes |
 
 Phases are uploading=1, sealed=2, applied=3, rejected=4, cancelled=5. Reasons are
 none=0, row_exists=1, source_changed=2, invalid_request=3, denied=4, budget=5.
@@ -279,6 +287,28 @@ none and zero to three affected rows. Rejected has a nonzero reason and zero
 count. Cancelled has reason none and zero count. Every terminal phase requires a
 positive input within the native safe-integer limit. Missing, truncated, trailing
 or inconsistent fields reject; stored values never receive compatibility defaults.
+
+The witness is present exactly for `denied` and `source_changed`. Its fields are
+kind u8, observed policy revision u64, permissions u8, observed declaration
+32 bytes, operation u8. Kinds are policy_missing=1, policy_disabled=2,
+policy_revision=3, policy_declaration=4, operation_denied=5, table_missing=6,
+table_declaration=7, request_declaration=8. Policy kinds 2–5 require a positive
+observed revision and a mask within 0–7 (insert=1, update=2, delete=4). Kind 2
+requires zero permissions; kind 3 requires a revision different from the status.
+Kinds 4, 7 and 8 require a fingerprint different from the expected declaration.
+Kind 5 records insert=1, update=2 or delete=3, excluded by the observed mask.
+All unused fields are zero. An absent witness uses flag zero and 43 zero bytes;
+flag one requires a valid kind and matching status reason. Other flags reject.
+The former shorter status shapes reject rather than synthesizing evidence.
+
+`MutationDiagnostic.status` projects each phase and reason into the shared
+diagnostic contract. `bound` additionally verifies the original request
+fingerprint before disclosing its primary-key column and caller-supplied name.
+`input` projects a writer disposition separately, identifying its native input
+rather than inventing a mutation namespace. A terminal result offers no resume
+or cancellation action. Pending mutations retain exact-resume and cancellation
+guidance; input rejection alone grants neither. Budget quantities absent from
+the owner record are marked `unrecorded`.
 
 | Cast payload magic | Following fields |
 | --- | --- |
