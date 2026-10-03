@@ -28,6 +28,14 @@ HTTP/2, metadata and deframing, with four 16,645-byte TLS I/O buffers and one
 16,389-byte outgoing frame buffer outside it. This is a live-call bound; there
 is no retained-history collection here. Deadlines are finite, at most five minutes.
 
+`Limits`, `Endpoint` and `Request` offer `validateDiagnostic` alongside ordinary
+validation. The optional first-failure witness owns its field path and records
+the exact failing check and measured values. It distinguishes message count,
+individual message bytes, framed bytes and metadata accounting; later message
+and metadata failures retain their original index. Routing, metadata and message
+contents are withheld. Initialize the witness to `null` for each independent
+operation. Validation does not allocate, dial or grant execution authority.
+
 A single owner alternates partial sends with nonblocking response consumption.
 It returns receive credit when bytes leave the HTTP/2 queue and invokes the
 capture callback before consuming another complete message. The callback must

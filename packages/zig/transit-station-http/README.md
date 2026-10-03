@@ -129,3 +129,8 @@ piece kinds and byte limits are distinct; redirect failures identify captured
 status, missing Location, scope and target checks. Canonical policy comparison
 still decides acceptance. Its diagnostic names the first differing nested field
 without borrowing policy memory or returning private routing/header/target values.
+Retained redirect headers distinguish an absent Location, an explicitly omitted
+Location and a second conflicting Location. The ambiguity witness records the
+first excess count (two against a maximum of one), without returning either
+target. Invalid stored framing remains an integrity failure. Request rendering
+retains indexed target/header checks and preparation records the original bounds.

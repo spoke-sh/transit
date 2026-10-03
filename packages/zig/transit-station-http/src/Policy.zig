@@ -50,6 +50,24 @@ pub const Prepared = struct {
         return result;
     }
 };
+/// Interpret a complete retained final response head; never fetch remote state.
+pub fn capturedLocation(head: []const u8, terminal: u16, context: ?*?Rejection) !?[]const u8 {
+    if (head.len < 17 or !std.mem.startsWith(u8, head, "HTTP/1.1 ") or !std.mem.endsWith(u8, head, "\r\n\r\n")) return error.InvalidHttpCapture;
+    const status = try std.fmt.parseInt(u16, head[9..12], 10);
+    if (status < 200 or status != terminal) return error.InvalidHttpCapture;
+    var location: ?[]const u8 = null;
+    var lines = std.mem.splitSequence(u8, head, "\r\n");
+    _ = lines.next();
+    while (lines.next()) |line| {
+        if (line.len == 0) break;
+        const colon = std.mem.indexOfScalar(u8, line, ':') orelse return error.InvalidHttpCapture;
+        if (!std.ascii.eqlIgnoreCase(line[0..colon], "location")) continue;
+        if (location != null) return fail(context, .maximum, "parent.location.count", .{ .unsigned = 1 }, .{ .unsigned = 2 }, error.AmbiguousHttpRedirect);
+        location = std.mem.trim(u8, line[colon + 1 ..], " \t");
+    }
+    if (location) |target| if (std.mem.eql(u8, target, "{{omitted}}")) return fail(context, .available, "parent.location", .{ .text = "captured Location" }, .unrecorded, error.HttpReplayGap);
+    return location;
+}
 /// Parent capture/kernel disposition and body equality are checked by the worker.
 /// This function permits only the declared request change under frozen scope.
 pub fn followup(gpa: std.mem.Allocator, reason: Reason, parent: Prepared, next: Prepared, status: ?u16, location: ?[]const u8) !Reference {
@@ -57,13 +75,13 @@ pub fn followup(gpa: std.mem.Allocator, reason: Reason, parent: Prepared, next: 
 }
 pub fn followupDiagnostic(gpa: std.mem.Allocator, reason: Reason, parent: Prepared, next: Prepared, status: ?u16, location: ?[]const u8, context: ?*?Rejection) !Reference {
     var head: [http.Request.maximum_head_bytes]u8 = undefined;
-    _ = try next.request.render(next.host, next.port, &head, null, false);
+    _ = try next.request.renderDiagnostic(next.host, next.port, &head, null, false, context);
     const selected = try parent.selectedDiagnostic(reason, context);
     var expected = parent;
     switch (reason) {
         .retry => {
             const policy = parent.retry_policy.?;
-            try http.validateHeader(policy.key_header, "");
+            http.validateHeader(policy.key_header, "") catch |err| return fail(context, .decode, "policy.retry.key_header", .{ .text = "valid header name" }, .redacted, err);
             var count: usize = 0;
             for (next.request.headers) |header| if (std.ascii.eqlIgnoreCase(header.name, policy.key_header)) {
                 count += 1;

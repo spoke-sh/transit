@@ -4157,7 +4157,7 @@
       "errors": {
         "ExchangeNotFound": 2,
         "ExpectedConfiguration": 1,
-        "ExpiredReconciliation": 4,
+        "ExpiredReconciliation": 6,
         "GrpcAdmissionDenied": 4,
         "GrpcAdmissionNotConfigured": 2,
         "GrpcCredentialCapacity": 2,
@@ -4168,7 +4168,7 @@
         "GrpcFollowupNotGranted": 3,
         "GrpcFollowupNotSettled": 5,
         "GrpcReplayGap": 1,
-        "GrpcRequestChanged": 2,
+        "GrpcRequestChanged": 3,
         "GrpcRequestNotGranted": 1,
         "GrpcRequestTooLarge": 2,
         "IncompatibleExchangeLifetime": 1,
@@ -4183,7 +4183,8 @@
         "MissingReconciliationDeadline": 1,
         "OutOfMemory": 1,
         "UnknownEffect": 1,
-        "WorkerMailboxBusy": 1
+        "WorkerMailboxBusy": 1,
+        "WriteFailed": 1
       },
       "outcomes": {},
       "imports": [
@@ -4228,18 +4229,18 @@
         "HttpFollowupNotGranted": 3,
         "HttpFollowupNotSettled": 2,
         "HttpFollowupTargetChanged": 1,
-        "HttpHeadersOversize": 1,
+        "HttpHeadersOversize": 3,
         "HttpRedirectChanged": 1,
         "HttpRedirectNotCaptured": 2,
         "HttpRedirectScope": 1,
-        "HttpReplayGap": 3,
+        "HttpReplayGap": 2,
         "HttpRequestTooLarge": 6,
         "HttpRetryChanged": 4,
         "IncompatibleExchangeLifetime": 1,
         "InvalidConfiguration": 1,
         "InvalidExchangeAttempt": 1,
         "InvalidHttpBodyLength": 3,
-        "InvalidHttpCapture": 3,
+        "InvalidHttpCapture": 2,
         "InvalidHttpCredential": 2,
         "InvalidHttpIdempotencyKey": 1,
         "MissingHttpCall": 1,
@@ -6896,15 +6897,35 @@
         "transit_http_server"
       ]
     },
+    "packages/zig/transit-grpc/src/Validation.zig": {
+      "errors": {},
+      "outcomes": {
+        "Check": [
+          "equal",
+          "maximum",
+          "different",
+          "decode",
+          "policy"
+        ],
+        "Scalar": [
+          "unsigned",
+          "text",
+          "redacted"
+        ]
+      },
+      "imports": [
+        "std"
+      ]
+    },
     "packages/zig/transit-grpc/src/root.zig": {
       "errors": {
         "ConnectionClosed": 1,
         "GrpcBudgetExceeded": 7,
         "GrpcOutcomeUnknown": 1,
-        "InvalidGrpcEndpoint": 1,
-        "InvalidGrpcLimits": 1,
-        "InvalidGrpcMetadata": 3,
-        "InvalidGrpcRequest": 4,
+        "InvalidGrpcEndpoint": 3,
+        "InvalidGrpcLimits": 2,
+        "InvalidGrpcMetadata": 4,
+        "InvalidGrpcRequest": 7,
         "InvalidGrpcShape": 3,
         "MissingGrpcStatus": 1,
         "MissingGrpcTrust": 1,
@@ -6932,6 +6953,7 @@
       "imports": [
         "Descriptor.zig",
         "Server.zig",
+        "Validation.zig",
         "grpc",
         "http",
         "protobuf",
@@ -10883,7 +10905,7 @@
     },
     "packages/zig/transit-station-grpc/src/Batch.zig": {
       "errors": {
-        "InvalidGrpcBatch": 5
+        "InvalidGrpcBatch": 2
       },
       "outcomes": {},
       "imports": [
@@ -10950,12 +10972,13 @@
         "GrpcCredentialReferenceRequired": 2,
         "GrpcCredentialRequiresTls": 2,
         "GrpcFollowupChanged": 3,
-        "GrpcFollowupNotGranted": 3,
+        "GrpcFollowupNotGranted": 5,
         "GrpcRequestChanged": 1,
         "GrpcRequestNotGranted": 3,
         "InvalidGrpcIdempotencyKey": 5,
-        "InvalidGrpcPolicy": 2,
-        "NonCanonicalGrpcPolicy": 1
+        "InvalidGrpcPolicy": 6,
+        "NonCanonicalGrpcPolicy": 1,
+        "WriteFailed": 1
       },
       "outcomes": {},
       "imports": [
@@ -10988,9 +11011,11 @@
         "GrpcMetadataCapacity": 1,
         "GrpcSecretUnresolved": 1,
         "InvalidGrpcMetadata": 2,
-        "InvalidGrpcRequest": 2,
+        "InvalidGrpcRequest": 5,
         "InvalidGrpcSecret": 4,
-        "NonCanonicalGrpcRequest": 1
+        "NonCanonicalGrpcRequest": 1,
+        "OutOfMemory": 1,
+        "WriteFailed": 1
       },
       "outcomes": {
         "Value": [
@@ -11008,7 +11033,7 @@
         "GrpcNamespaceInUse": 1,
         "GrpcRequestIdentityConflict": 1,
         "GrpcRequestTooLarge": 1,
-        "InvalidGrpcRequestReference": 7,
+        "InvalidGrpcRequestReference": 6,
         "InvalidPublicationUpload": 1,
         "PublicationUploadIdentityConflict": 1,
         "PublicationUploadNamespaceInUse": 1
@@ -11099,13 +11124,15 @@
     },
     "packages/zig/transit-station-http/src/Policy.zig": {
       "errors": {
+        "AmbiguousHttpRedirect": 1,
         "HttpFollowupChanged": 3,
         "HttpFollowupNotGranted": 7,
         "HttpFollowupTargetChanged": 1,
         "HttpRedirectChanged": 1,
         "HttpRedirectNotCaptured": 2,
         "HttpRedirectScope": 1,
-        "HttpReplayGap": 1,
+        "HttpReplayGap": 2,
+        "InvalidHttpCapture": 3,
         "InvalidHttpIdempotencyKey": 5,
         "UnsupportedHttpCancellation": 1,
         "UnsupportedHttpReconciliation": 1,

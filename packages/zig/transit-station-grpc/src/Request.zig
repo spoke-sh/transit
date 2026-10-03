@@ -15,7 +15,29 @@ pub fn validate(self: Self) !void {
     return self.validateDiagnostic(null);
 }
 fn reject(context: ?*?rpc.Service.Rejection, check: rpc.exchange.AdmissionRejection.Check, field: []const u8, expected: rpc.exchange.AdmissionRejection.Scalar, actual: rpc.exchange.AdmissionRejection.Scalar, cause: anyerror) anyerror {
-    if (context) |slot| slot.* = rpc.Service.Rejection.detail(.invalid_request, check, field, expected, actual, cause);
+    if (context) |slot| if (slot.* == null) {
+        slot.* = rpc.Service.Rejection.detail(.invalid_request, check, field, expected, actual, cause);
+    };
+    return cause;
+}
+fn scalar(value: rpc.transport.Validation.Scalar) rpc.exchange.AdmissionRejection.Scalar {
+    return switch (value) {
+        .unsigned => |v| .{ .unsigned = v },
+        .text => |v| .{ .text = v },
+        .redacted => .redacted,
+    };
+}
+pub fn transportFailure(context: ?*?rpc.Service.Rejection, detail: ?rpc.transport.Validation, reason: rpc.exchange.AdmissionRejection.Reason, cause: anyerror) anyerror {
+    if (detail) |value| if (context) |slot| if (slot.* == null) {
+        const check: rpc.exchange.AdmissionRejection.Check = switch (value.check) {
+            .equal => .equal,
+            .maximum => .maximum,
+            .different => .different,
+            .decode => .decode,
+            .policy => .policy,
+        };
+        slot.* = rpc.Service.Rejection.detail(reason, check, value.path(), scalar(value.expected), scalar(value.actual), cause);
+    };
     return cause;
 }
 pub fn validateDiagnostic(self: Self, context: ?*?rpc.Service.Rejection) !void {
@@ -40,7 +62,8 @@ pub fn validateDiagnostic(self: Self, context: ?*?rpc.Service.Rejection) !void {
             },
         } };
     }
-    try (rpc.transport.Request{ .method = self.method, .shape = self.shape, .messages = if (self.shape == .unary or self.shape == .server_streaming) &.{""} else &.{}, .metadata = fields[0..self.metadata.len] }).validate(.{});
+    var detail: ?rpc.transport.Validation = null;
+    (rpc.transport.Request{ .method = self.method, .shape = self.shape, .messages = if (self.shape == .unary or self.shape == .server_streaming) &.{""} else &.{}, .metadata = fields[0..self.metadata.len] }).validateDiagnostic(.{}, &detail) catch |err| return transportFailure(context, detail, .invalid_request, err);
 }
 pub fn provenance(self: Self, buffer: []u8) ![]const u8 {
     try self.validate();
@@ -85,22 +108,30 @@ pub fn parse(gpa: std.mem.Allocator, bytes: []const u8) !Owned {
     return parseDiagnostic(gpa, bytes, null);
 }
 pub fn parseDiagnostic(gpa: std.mem.Allocator, bytes: []const u8, context: ?*?rpc.Service.Rejection) !Owned {
-    if (bytes.len == 0 or bytes.len > maximum_bytes) return error.InvalidGrpcRequest;
+    if (bytes.len == 0) return reject(context, .different, "request.metadata.bytes", .{ .unsigned = 0 }, .{ .unsigned = 0 }, error.InvalidGrpcRequest);
+    if (bytes.len > maximum_bytes) return reject(context, .maximum, "request.metadata.bytes", .{ .unsigned = maximum_bytes }, .{ .unsigned = bytes.len }, error.InvalidGrpcRequest);
     var arena: std.heap.ArenaAllocator = .init(gpa);
     errdefer arena.deinit();
     const a = arena.allocator();
-    const wire = try std.json.parseFromSliceLeaky(Wire, a, bytes, .{ .allocate = .alloc_always });
-    if (wire.version != 1 or wire.descriptor_digest.len != 64 or wire.metadata.len > 64) return error.InvalidGrpcRequest;
+    const wire = std.json.parseFromSliceLeaky(Wire, a, bytes, .{ .allocate = .alloc_always }) catch |err| {
+        if (err == error.OutOfMemory) return err;
+        return reject(context, .decode, "request.metadata", .{ .text = "request provenance JSON" }, .redacted, err);
+    };
+    if (wire.version != 1) return reject(context, .equal, "request.version", .{ .unsigned = 1 }, .{ .unsigned = wire.version }, error.InvalidGrpcRequest);
+    if (wire.descriptor_digest.len != 64) return reject(context, .equal, "request.descriptor_digest.bytes", .{ .unsigned = 64 }, .{ .unsigned = wire.descriptor_digest.len }, error.InvalidGrpcRequest);
+    if (wire.metadata.len > 64) return reject(context, .maximum, "request.metadata.count", .{ .unsigned = 64 }, .{ .unsigned = wire.metadata.len }, error.InvalidGrpcRequest);
     var request: Self = .{ .method = wire.method, .shape = wire.shape, .descriptor_digest = undefined };
-    _ = try std.fmt.hexToBytes(&request.descriptor_digest, wire.descriptor_digest);
+    _ = std.fmt.hexToBytes(&request.descriptor_digest, wire.descriptor_digest) catch |err| return reject(context, .decode, "request.descriptor_digest", .{ .text = "64 hexadecimal characters" }, .redacted, err);
     const entries = try a.alloc(Entry, wire.metadata.len);
-    for (entries, wire.metadata) |*entry, field| {
+    for (entries, wire.metadata, 0..) |*entry, field, index| {
         entry.* = .{ .name = field.name, .value = switch (field.value) {
             .secret => |secret| .{ .secret = secret },
             .literal_hex => |hex| blk: {
-                if (hex.len % 2 != 0) return error.InvalidGrpcMetadata;
+                var path_bytes: [64]u8 = undefined;
+                const path = try std.fmt.bufPrint(&path_bytes, "request.metadata[{d}].literal_hex", .{index});
+                if (hex.len % 2 != 0) return reject(context, .decode, path, .{ .text = "even hexadecimal byte length" }, .{ .unsigned = hex.len }, error.InvalidGrpcMetadata);
                 const literal = try a.alloc(u8, hex.len / 2);
-                _ = try std.fmt.hexToBytes(literal, hex);
+                _ = std.fmt.hexToBytes(literal, hex) catch |err| return reject(context, .decode, path, .{ .text = "hexadecimal bytes" }, .redacted, err);
                 break :blk .{ .literal = literal };
             },
         } };
@@ -108,7 +139,11 @@ pub fn parseDiagnostic(gpa: std.mem.Allocator, bytes: []const u8, context: ?*?rp
     request.metadata = entries;
     try request.validateDiagnostic(context);
     var canonical: [maximum_bytes]u8 = undefined;
-    if (!std.mem.eql(u8, bytes, try request.provenance(&canonical))) return error.NonCanonicalGrpcRequest;
+    const encoded = request.provenance(&canonical) catch |err| {
+        if (err != error.WriteFailed) return err;
+        return reject(context, .maximum, "request.metadata.bytes", .{ .unsigned = canonical.len }, .unrecorded, err);
+    };
+    if (!std.mem.eql(u8, bytes, encoded)) return reject(context, .equal, "request.metadata.encoding", .{ .text = "canonical provenance JSON" }, .redacted, error.NonCanonicalGrpcRequest);
     return .{ .arena = arena, .request = request };
 }
 /// Actual credential resolution belongs to the authorized executor. Borrowed

@@ -3,6 +3,8 @@ const std = @import("std");
 const http = @import("http");
 const wire = @import("grpc");
 const tls = @import("transit_tls");
+pub const Validation = @import("Validation.zig");
+const fail = Validation.fail;
 pub const Descriptor = @import("Descriptor.zig");
 pub const Server = @import("Server.zig");
 pub const protobuf = @import("protobuf");
@@ -16,8 +18,17 @@ pub const Limits = struct {
     response_messages: u32 = 64,
     metadata_bytes: u32 = 8192,
     pub fn validate(self: Limits) !void {
-        if (self.message_bytes == 0 or self.message_bytes > 16384 or self.request_bytes > 65536 or self.response_bytes > 262144 or
-            self.request_messages > 64 or self.response_messages > 64 or self.metadata_bytes == 0 or self.metadata_bytes > 8192) return error.InvalidGrpcLimits;
+        return self.validateDiagnostic(null);
+    }
+    pub fn validateDiagnostic(self: Limits, context: ?*?Validation) !void {
+        // Preserve original check order when several limits are invalid.
+        inline for (.{ "message_bytes", "request_bytes", "response_bytes", "request_messages", "response_messages", "metadata_bytes" }, .{ 16384, 65536, 262144, 64, 64, 8192 }) |field, maximum| {
+            const value = @field(self, field);
+            if (comptime std.mem.eql(u8, field, "message_bytes") or std.mem.eql(u8, field, "metadata_bytes")) {
+                if (value == 0) return fail(context, .different, "limits." ++ field, .{ .unsigned = 0 }, .{ .unsigned = 0 }, error.InvalidGrpcLimits);
+            }
+            if (value > maximum) return fail(context, .maximum, "limits." ++ field, .{ .unsigned = maximum }, .{ .unsigned = value }, error.InvalidGrpcLimits);
+        }
     }
 };
 pub const Endpoint = struct {
@@ -29,10 +40,15 @@ pub const Endpoint = struct {
     timeout_ms: u32 = 10000,
     limits: Limits = .{},
     pub fn validate(self: Endpoint) !void {
-        try self.limits.validate();
-        _ = try std.Io.net.HostName.init(self.host);
-        _ = try std.Io.net.Ip4Address.parse(self.address, self.port);
-        if (self.port == 0 or self.timeout_ms == 0 or self.timeout_ms > 300000) return error.InvalidGrpcEndpoint;
+        return self.validateDiagnostic(null);
+    }
+    pub fn validateDiagnostic(self: Endpoint, context: ?*?Validation) !void {
+        try self.limits.validateDiagnostic(context);
+        _ = std.Io.net.HostName.init(self.host) catch |err| return fail(context, .decode, "endpoint.host", .{ .text = "valid hostname" }, .redacted, err);
+        _ = std.Io.net.Ip4Address.parse(self.address, self.port) catch |err| return fail(context, .decode, "endpoint.address", .{ .text = "numeric IPv4 address" }, .redacted, err);
+        if (self.port == 0) return fail(context, .different, "endpoint.port", .{ .unsigned = 0 }, .{ .unsigned = 0 }, error.InvalidGrpcEndpoint);
+        if (self.timeout_ms == 0) return fail(context, .different, "endpoint.timeout_ms", .{ .unsigned = 0 }, .{ .unsigned = 0 }, error.InvalidGrpcEndpoint);
+        if (self.timeout_ms > 300000) return fail(context, .maximum, "endpoint.timeout_ms", .{ .unsigned = 300000 }, .{ .unsigned = self.timeout_ms }, error.InvalidGrpcEndpoint);
     }
 };
 pub const Request = struct {
@@ -41,27 +57,39 @@ pub const Request = struct {
     messages: []const []const u8,
     metadata: []const Entry = &.{},
     pub fn validate(self: Request, limits: Limits) !void {
-        try limits.validate();
-        if (self.method.len < 4 or self.method.len > 512 or self.method[0] != '/' or self.metadata.len > 64) return error.InvalidGrpcRequest;
-        const slash = std.mem.indexOfScalarPos(u8, self.method, 1, '/') orelse return error.InvalidGrpcRequest;
-        if (slash == 1 or slash == self.method.len - 1 or std.mem.indexOfScalarPos(u8, self.method, slash + 1, '/') != null) return error.InvalidGrpcRequest;
-        for (self.method[1..], 1..) |byte, index| if (index != slash and !std.ascii.isAlphanumeric(byte) and byte != '_' and byte != '.') return error.InvalidGrpcRequest;
-        if (self.messages.len > limits.request_messages) return error.GrpcBudgetExceeded;
-        if ((self.shape == .unary or self.shape == .server_streaming) and self.messages.len != 1) return error.InvalidGrpcShape;
+        return self.validateDiagnostic(limits, null);
+    }
+    pub fn validateDiagnostic(self: Request, limits: Limits, context: ?*?Validation) !void {
+        try limits.validateDiagnostic(context);
+        if (self.method.len < 4) return fail(context, .policy, "request.method.bytes", .{ .text = "at least 4 bytes" }, .{ .unsigned = self.method.len }, error.InvalidGrpcRequest);
+        if (self.method.len > 512) return fail(context, .maximum, "request.method.bytes", .{ .unsigned = 512 }, .{ .unsigned = self.method.len }, error.InvalidGrpcRequest);
+        if (self.method[0] != '/') return fail(context, .decode, "request.method", .{ .text = "/service/method" }, .redacted, error.InvalidGrpcRequest);
+        if (self.metadata.len > 64) return fail(context, .maximum, "request.metadata.count", .{ .unsigned = 64 }, .{ .unsigned = self.metadata.len }, error.InvalidGrpcRequest);
+        const slash = std.mem.indexOfScalarPos(u8, self.method, 1, '/') orelse return fail(context, .decode, "request.method", .{ .text = "/service/method" }, .redacted, error.InvalidGrpcRequest);
+        if (slash == 1 or slash == self.method.len - 1 or std.mem.indexOfScalarPos(u8, self.method, slash + 1, '/') != null) return fail(context, .decode, "request.method", .{ .text = "/service/method" }, .redacted, error.InvalidGrpcRequest);
+        for (self.method[1..], 1..) |byte, index| if (index != slash and !std.ascii.isAlphanumeric(byte) and byte != '_' and byte != '.') return fail(context, .decode, "request.method", .{ .text = "letters/digits/_/. and separator" }, .redacted, error.InvalidGrpcRequest);
+        if (self.messages.len > limits.request_messages) return fail(context, .maximum, "request.messages.count", .{ .unsigned = limits.request_messages }, .{ .unsigned = self.messages.len }, error.GrpcBudgetExceeded);
+        if ((self.shape == .unary or self.shape == .server_streaming) and self.messages.len != 1) return fail(context, .equal, "request.messages.count", .{ .unsigned = 1 }, .{ .unsigned = self.messages.len }, error.InvalidGrpcShape);
         var total: u64 = 0;
-        for (self.messages) |message| {
-            if (message.len > limits.message_bytes) return error.GrpcBudgetExceeded;
+        for (self.messages, 0..) |message, index| {
+            if (message.len > limits.message_bytes) {
+                var path: [64]u8 = undefined;
+                return fail(context, .maximum, try std.fmt.bufPrint(&path, "request.messages[{d}].bytes", .{index}), .{ .unsigned = limits.message_bytes }, .{ .unsigned = message.len }, error.GrpcBudgetExceeded);
+            }
             total += message.len + wire.frame.header_len;
         }
-        if (total > limits.request_bytes) return error.GrpcBudgetExceeded;
+        if (total > limits.request_bytes) return fail(context, .maximum, "request.framed_bytes", .{ .unsigned = limits.request_bytes }, .{ .unsigned = total }, error.GrpcBudgetExceeded);
         total = 0;
-        for (self.metadata) |field| {
-            if (field.name.len == 0 or wire.metadata.isReserved(field.name)) return error.InvalidGrpcMetadata;
-            for (field.name) |byte| if (!(byte >= 'a' and byte <= 'z') and !std.ascii.isDigit(byte) and byte != '_' and byte != '-' and byte != '.') return error.InvalidGrpcMetadata;
-            if (!std.mem.endsWith(u8, field.name, "-bin")) for (field.value) |byte| if (byte < 32 or byte > 126) return error.InvalidGrpcMetadata;
+        for (self.metadata, 0..) |field, index| {
+            var path_bytes: [64]u8 = undefined;
+            const path = try std.fmt.bufPrint(&path_bytes, "request.metadata[{d}].name", .{index});
+            if (field.name.len == 0) return fail(context, .different, path, .{ .unsigned = 0 }, .{ .unsigned = 0 }, error.InvalidGrpcMetadata);
+            if (wire.metadata.isReserved(field.name)) return fail(context, .policy, path, .{ .text = "non-reserved metadata name" }, .redacted, error.InvalidGrpcMetadata);
+            for (field.name) |byte| if (!(byte >= 'a' and byte <= 'z') and !std.ascii.isDigit(byte) and byte != '_' and byte != '-' and byte != '.') return fail(context, .decode, path, .{ .text = "lowercase letters/digits/_/-/." }, .redacted, error.InvalidGrpcMetadata);
+            if (!std.mem.endsWith(u8, field.name, "-bin")) for (field.value) |byte| if (byte < 32 or byte > 126) return fail(context, .decode, try std.fmt.bufPrint(&path_bytes, "request.metadata[{d}].value", .{index}), .{ .text = "printable ASCII" }, .redacted, error.InvalidGrpcMetadata);
             total += field.name.len + field.value.len * 2 + 32;
         }
-        if (total > limits.metadata_bytes) return error.GrpcBudgetExceeded;
+        if (total > limits.metadata_bytes) return fail(context, .maximum, "request.metadata.bytes", .{ .unsigned = limits.metadata_bytes }, .{ .unsigned = total }, error.GrpcBudgetExceeded);
     }
 };
 pub const Field = http.hpack.Field;
@@ -252,4 +280,31 @@ test "finite requests reject shape, framing and metadata errors before transport
 test {
     _ = Descriptor;
     _ = Server;
+}
+
+test "transport preflight retains first field and exact original limit measurements" {
+    const t = std.testing;
+    inline for (.{ "message_bytes", "request_bytes", "response_bytes", "request_messages", "response_messages", "metadata_bytes" }, .{ 16384, 65536, 262144, 64, 64, 8192 }) |field, maximum| {
+        var limits: Limits = .{};
+        @field(limits, field) = maximum;
+        try limits.validate();
+        @field(limits, field) = maximum + 1;
+        var detail: ?Validation = null;
+        try t.expectError(error.InvalidGrpcLimits, limits.validateDiagnostic(&detail));
+        try t.expectEqualStrings("limits." ++ field, detail.?.path());
+        try t.expectEqual(@as(u64, maximum), detail.?.expected.unsigned);
+        try t.expectEqual(@as(u64, maximum + 1), detail.?.actual.unsigned);
+    }
+    var detail: ?Validation = null;
+    const request: Request = .{ .method = "/test.Service/Method", .shape = .unary, .messages = &.{ "", "" } };
+    try t.expectError(error.InvalidGrpcShape, request.validateDiagnostic(.{}, &detail));
+    try t.expectEqualStrings("request.messages.count", detail.?.path());
+    try t.expectEqual(@as(u64, 1), detail.?.expected.unsigned);
+    try t.expectEqual(@as(u64, 2), detail.?.actual.unsigned);
+    const first = detail;
+    try t.expectError(error.InvalidGrpcLimits, request.validateDiagnostic(.{ .message_bytes = 0 }, &detail));
+    try t.expectEqualDeep(first, detail);
+    detail = null;
+    try t.expectError(error.InvalidGrpcLimits, request.validateDiagnostic(.{ .message_bytes = 0, .request_bytes = 65537 }, &detail));
+    try t.expectEqualStrings("limits.message_bytes", detail.?.path());
 }

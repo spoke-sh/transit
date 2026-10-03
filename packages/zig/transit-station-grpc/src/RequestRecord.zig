@@ -7,6 +7,12 @@ const Pub = x.Publication;
 pub const metadata_id: u64 = 1;
 pub const batch_id: u64 = 2;
 pub const maximum_batch_bytes = rpc.Batch.maximum_bytes;
+fn fail(context: ?*?rpc.Service.Rejection, check: x.AdmissionRejection.Check, field: []const u8, expected: x.AdmissionRejection.Scalar, actual: x.AdmissionRejection.Scalar) anyerror {
+    if (context) |slot| if (slot.* == null) {
+        slot.* = rpc.Service.Rejection.detail(.invalid_request, check, field, expected, actual, error.InvalidGrpcRequestReference);
+    };
+    return error.InvalidGrpcRequestReference;
+}
 pub const Reference = struct {
     pub const magic = "GRQ1";
     resource: u64,
@@ -21,7 +27,17 @@ pub const Reference = struct {
     shape: rpc.Shape,
     descriptor_digest: [32]u8,
     pub fn validate(self: Reference) !void {
-        if (self.resource == 0 or self.resource > x.p.max_counter or self.namespace == 0 or self.metadata_bytes == 0 or self.metadata_bytes > rpc.Request.maximum_bytes or (self.batch_bytes < 8 or self.batch_bytes > maximum_batch_bytes) or self.endpoint_revision == 0 or self.reconcile_before_ms == 0 or self.max_attempts == 0) return error.InvalidGrpcRequestReference;
+        return self.validateDiagnostic(null);
+    }
+    pub fn validateDiagnostic(self: Reference, context: ?*?rpc.Service.Rejection) !void {
+        if (self.resource == 0) return fail(context, .different, "request.resource", .{ .unsigned = 0 }, .{ .unsigned = 0 });
+        if (self.resource > x.p.max_counter) return fail(context, .maximum, "request.resource", .{ .unsigned = x.p.max_counter }, .{ .unsigned = self.resource });
+        if (self.namespace == 0) return fail(context, .different, "request.namespace", .{ .unsigned = 0 }, .{ .unsigned = 0 });
+        if (self.metadata_bytes == 0) return fail(context, .different, "request.metadata.bytes", .{ .unsigned = 0 }, .{ .unsigned = 0 });
+        if (self.metadata_bytes > rpc.Request.maximum_bytes) return fail(context, .maximum, "request.metadata.bytes", .{ .unsigned = rpc.Request.maximum_bytes }, .{ .unsigned = self.metadata_bytes });
+        if (self.batch_bytes < 8) return fail(context, .policy, "request.batch.bytes", .{ .text = "at least 8 bytes" }, .{ .unsigned = self.batch_bytes });
+        if (self.batch_bytes > maximum_batch_bytes) return fail(context, .maximum, "request.batch.bytes", .{ .unsigned = maximum_batch_bytes }, .{ .unsigned = self.batch_bytes });
+        inline for (.{ "endpoint_revision", "reconcile_before_ms", "max_attempts" }) |field| if (@field(self, field) == 0) return fail(context, .different, "request." ++ field, .{ .unsigned = 0 }, .{ .unsigned = 0 });
     }
     pub fn encode(self: Reference) !x.p.Value {
         return x.codec.encode(self);
@@ -111,11 +127,17 @@ pub fn validateContent(gpa: std.mem.Allocator, reference: Reference, metadata: [
     return validateContentDiagnostic(gpa, reference, metadata, batch, null);
 }
 pub fn validateContentDiagnostic(gpa: std.mem.Allocator, reference: Reference, metadata: []const u8, batch: []const u8, context: ?*?rpc.Service.Rejection) !rpc.Request.Owned {
-    try reference.validate();
-    if (!std.meta.eql(reference.metadataSpec(), try Pub.Digest.of(rpc.protocol_format, metadata)) or !std.meta.eql(reference.batchSpec(), try Pub.Digest.of(rpc.protocol_format, batch))) return error.InvalidGrpcRequestReference;
+    try reference.validateDiagnostic(context);
+    if (metadata.len != reference.metadata_bytes) return fail(context, .equal, "request.metadata.bytes", .{ .unsigned = reference.metadata_bytes }, .{ .unsigned = metadata.len });
+    const metadata_spec = try Pub.Digest.of(rpc.protocol_format, metadata);
+    if (!std.mem.eql(u8, &reference.metadata_digest, &metadata_spec.digest)) return fail(context, .equal, "request.metadata.digest", .{ .digest = reference.metadata_digest }, .{ .digest = metadata_spec.digest });
+    if (batch.len != reference.batch_bytes) return fail(context, .equal, "request.batch.bytes", .{ .unsigned = reference.batch_bytes }, .{ .unsigned = batch.len });
+    const batch_spec = try Pub.Digest.of(rpc.protocol_format, batch);
+    if (!std.mem.eql(u8, &reference.batch_digest, &batch_spec.digest)) return fail(context, .equal, "request.batch.digest", .{ .digest = reference.batch_digest }, .{ .digest = batch_spec.digest });
     var owned = try rpc.Request.parseDiagnostic(gpa, metadata, context);
     errdefer owned.deinit();
-    if (owned.request.shape != reference.shape or !std.mem.eql(u8, &owned.request.descriptor_digest, &reference.descriptor_digest)) return error.InvalidGrpcRequestReference;
-    _ = try rpc.Batch.decode(batch, reference.shape, .{});
+    if (owned.request.shape != reference.shape) return fail(context, .equal, "request.shape", .{ .text = @tagName(reference.shape) }, .{ .text = @tagName(owned.request.shape) });
+    if (!std.mem.eql(u8, &owned.request.descriptor_digest, &reference.descriptor_digest)) return fail(context, .equal, "request.descriptor_digest", .{ .digest = reference.descriptor_digest }, .{ .digest = owned.request.descriptor_digest });
+    _ = try rpc.Batch.decodeDiagnostic(batch, reference.shape, .{}, context);
     return owned;
 }

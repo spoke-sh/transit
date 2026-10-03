@@ -98,13 +98,14 @@ const Driver = struct {
         const config = self.config;
         if (config.credentials.len > credentials.len) return validationFailure(failure, rpc.Service.Rejection.detail(.denied, .maximum, "policy.credentials", .{ .unsigned = credentials.len }, .{ .unsigned = config.credentials.len }, error.GrpcCredentialCapacity), error.GrpcCredentialCapacity);
         for (config.credentials, 0..) |credential, index| {
-            if (credential.file.len == 0) return validationFailure(failure, rpc.Service.Rejection.detail(.denied, .policy, "policy.credentials", .redacted, .redacted, error.InvalidGrpcCredential), error.InvalidGrpcCredential);
+            var path_bytes: [64]u8 = undefined;
+            if (credential.file.len == 0) return validationFailure(failure, rpc.Service.Rejection.detail(.denied, .policy, try std.fmt.bufPrint(&path_bytes, "policy.credentials[{d}].file", .{index}), .{ .text = "credential file reference" }, .redacted, error.InvalidGrpcCredential), error.InvalidGrpcCredential);
             credentials[index] = .{ .binding = credential.binding, .version = credential.version, .metadata = credential.metadata };
         }
         const request = input.request.request;
         const result: rpc.Policy.Prepared = .{ .endpoint_revision = config.endpoint_revision, .host = config.endpoint.host, .address = config.endpoint.address, .port = config.endpoint.port, .tls = config.endpoint.tls, .timeout_ms = config.endpoint.timeout_ms, .limits = config.endpoint.limits, .response_metadata = config.response_metadata, .credentials = credentials[0..config.credentials.len], .trust_digest = try trustDigest(self.gpa, self.io, config.endpoint), .method = request.method, .shape = request.shape, .descriptor_digest = request.descriptor_digest, .metadata_digest = (try x.Publication.Digest.of(2, input.metadata)).digest, .batch_digest = (try x.Publication.Digest.of(2, input.batch)).digest, .retry_policy = config.retry_policy };
         result.validateRequestDiagnostic(request, failure) catch |err| return validationFailure(failure, rpc.Service.Rejection.detail(.denied, .policy, "request.policy", .unrecorded, .unrecorded, err), err);
-        _ = rpc.Batch.decode(input.batch, request.shape, config.endpoint.limits) catch |err| return validationFailure(failure, rpc.Service.Rejection.detail(.invalid_request, .decode, "request.batch", .unrecorded, .{ .unsigned = input.batch.len }, err), err);
+        _ = try rpc.Batch.decodeDiagnostic(input.batch, request.shape, config.endpoint.limits, failure);
         if (config.admission) |policy| try rpc.Service.validateRequestDiagnostic(policy.scope, request, failure);
         return result;
     }
@@ -167,9 +168,12 @@ const Driver = struct {
             if (failure) |detail| return .{ .rejected = detail };
             return err;
         };
-        const decision = self.validateFollowupDiagnostic(policy, input.request.request, &failure) catch |err| switch (err) {
-            error.GrpcFollowupNotSettled, error.ExpiredReconciliation, error.GrpcFollowupNotGranted, error.InvalidGrpcIdempotencyKey, error.GrpcFollowupChanged, error.GrpcRequestNotGranted, error.GrpcRequestChanged, error.GrpcCredentialNotGranted => return .{ .rejected = failure orelse rpc.Service.Rejection.detail(.denied, .policy, "followup.policy", .unrecorded, .unrecorded, err) },
-            else => return err,
+        const decision = self.validateFollowupDiagnostic(policy, input.request.request, &failure) catch |err| {
+            if (failure) |detail| return .{ .rejected = detail };
+            return switch (err) {
+                error.GrpcFollowupNotSettled, error.ExpiredReconciliation, error.GrpcFollowupNotGranted, error.InvalidGrpcIdempotencyKey, error.GrpcFollowupChanged, error.GrpcRequestNotGranted, error.GrpcRequestChanged, error.GrpcCredentialNotGranted => return .{ .rejected = failure orelse rpc.Service.Rejection.detail(.denied, .policy, "followup.policy", .unrecorded, .unrecorded, err) },
+                else => return err,
+            };
         };
         return .{ .accepted = decision orelse return error.GrpcFollowupNotGranted };
     }
@@ -216,11 +220,16 @@ fn prepare(driver: *Driver, failure: ?*?rpc.Service.Rejection) !void {
     var credentials: [16]rpc.Policy.Credential = undefined;
     const prepared = try driver.preparedDiagnostic(input, &credentials, failure);
     var policy_buffer: [8192]u8 = undefined;
-    const policy_bytes = try prepared.encode(&policy_buffer);
+    const policy_bytes = prepared.encode(&policy_buffer) catch |err| {
+        if (err != error.WriteFailed) return err;
+        return Driver.validationFailure(failure, rpc.Service.Rejection.detail(.invalid_request, .maximum, "policy.bytes", .{ .unsigned = policy_buffer.len }, .unrecorded, err), err);
+    };
     const prior = driver.reader.inspect(ex.resource, ex.id) catch |err| if (err == error.ExchangeNotFound) null else return err;
     if (prior) |descriptor| if (descriptor.phase != .preparing) return;
     const deadline = if (prior) |descriptor| descriptor.reconcile_before_ms else config.reconcile_before_ms orelse return error.MissingReconciliationDeadline;
-    if (reference) |ref| if (deadline != ref.reconcile_before_ms) return error.GrpcRequestChanged;
+    if (reference) |ref| if (deadline != ref.reconcile_before_ms) return Driver.validationFailure(failure, rpc.Service.Rejection.detail(.invalid_request, .equal, "request.reconcile_before_ms", .{ .unsigned = ref.reconcile_before_ms }, .{ .unsigned = deadline }, error.GrpcRequestChanged), error.GrpcRequestChanged);
+    const observed_clock = now(driver.io);
+    if (deadline <= observed_clock) return Driver.validationFailure(failure, rpc.Service.Rejection.detail(.denied, .before, "preparation.clock_ms", .{ .unsigned = deadline }, .{ .unsigned = observed_clock }, error.ExpiredReconciliation), error.ExpiredReconciliation);
     const followup = try driver.validateFollowupDiagnostic(prepared, input.request.request, failure);
     try driver.apply(.{ .create = .{ .deadline = deadline, .limits = capture_limits, .policy = followup } });
     if (config.followup == null) try driver.apply(.{ .attempts = if (reference) |ref| ref.max_attempts else config.max_attempts });

@@ -13412,3 +13412,26 @@ preparation cause/input and rejection of invented dispatch evidence, after
 formatting the added fixture. Logs: `/var/tmp/transit-preparation-check2.log` and
 `/var/tmp/transit-preparation-board-check2.log`. Committed-HEAD clean qualification
 remains separate.
+
+### Connector preparation field witnesses — 2026-10-03
+
+The gRPC transport, Station gRPC and Station HTTP unit suites passed. They exercise
+each transport limit's exact bound, shape/count precedence, later metadata/message
+indices, original batch truncation and framed byte counts, twelve policy failure
+classes, eleven request-reference checks, noncanonical/invalid-hex input and
+allocation failure without fabricated rejection evidence. HTTP units distinguish
+duplicate, omitted and missing Location from invalid retained framing. The first
+adapter run exposed a fixture reusing a diagnostic across independent operations;
+resetting that fixture preserves the production first-failure rule.
+
+Rebuilt installed Python recovery schedules passed for HTTP (**13.17 s**) and
+gRPC (**13.43 s**), with original field evidence after admitted-input receipt loss,
+corrected configuration, worker/node/store restart, current denial and retirement,
+and zero external sends. Full `just test::grpc-worker` passed in **358.95 s**
+excluding compilation: nine sends, eight applications, an 8 MiB hot limit,
+656 cold objects and 63,895,897 object-store bytes. Full `just check` passed.
+Logs: `/var/tmp/transit-connector-field-{final-build,recovery,grpc-worker,check}.log`,
+`/var/tmp/transit-grpc-field-unit2.log`,
+`/var/tmp/transit-grpc-transport-field-unit.log` and
+`/var/tmp/transit-http-field-unit.log`. Clean committed-HEAD qualification remains
+separate; source inventory enhancements made afterward have their own check.

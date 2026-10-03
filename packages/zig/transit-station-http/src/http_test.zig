@@ -219,3 +219,21 @@ test "request rendering attributes later pieces and header bounds without disclo
     try t.expectEqual(@as(u64, 64), context.?.expected_number);
     try t.expectEqual(@as(u64, 65), context.?.actual_number);
 }
+
+test "captured redirect ambiguity retains first excess count without revealing targets" {
+    var detail: ?http.Service.Rejection = null;
+    try t.expectError(error.AmbiguousHttpRedirect, http.Policy.capturedLocation("HTTP/1.1 307 Redirect\r\nLocation: /private-one\r\nlocation: /private-two\r\n\r\n", 307, &detail));
+    try t.expectEqualStrings("parent.location.count", detail.?.field[0..detail.?.field_len]);
+    try t.expectEqual(@as(u64, 1), detail.?.expected_number);
+    try t.expectEqual(@as(u64, 2), detail.?.actual_number);
+    const encoded = try http.exchange.codec.encode(detail.?);
+    try t.expect(std.mem.indexOf(u8, encoded.slice(), "private") == null);
+    detail = null;
+    try t.expectError(error.HttpReplayGap, http.Policy.capturedLocation("HTTP/1.1 307 Redirect\r\nLocation: {{omitted}}\r\n\r\n", 307, &detail));
+    try t.expectEqual(.unrecorded, detail.?.actual_kind);
+    detail = null;
+    try t.expectError(error.InvalidHttpCapture, http.Policy.capturedLocation("HTTP/1.1 200 OK\r\n\r\n", 307, &detail));
+    try t.expectEqual(null, detail);
+    try t.expectEqualStrings("/path", (try http.Policy.capturedLocation("HTTP/1.1 307 Redirect\r\nLocation: /path\r\n\r\n", 307, &detail)).?);
+    try t.expectEqual(null, try http.Policy.capturedLocation("HTTP/1.1 307 Redirect\r\n\r\n", 307, &detail));
+}

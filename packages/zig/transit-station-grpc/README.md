@@ -129,3 +129,14 @@ including batch digest and endpoint limits. Request parsing carries optional
 original metadata/credential validation evidence through admission; credential
 contents are withheld. The canonical comparison still decides acceptance and a
 policy correction never rewrites a delivered rejection.
+
+Preparation diagnostics also retain individual frozen-policy checks: version,
+endpoint/trust requirements, limits, credential index/member, response metadata
+allowlist and retry policy. `Batch.decodeDiagnostic` distinguishes the envelope,
+message count, indexed length-prefix/body truncation, trailing bytes and framed
+transport budgets. Request provenance identifies version, descriptor hex and
+indexed literal-hex failures; malformed JSON retains its decoding cause without
+claiming an unavailable member coordinate. These witnesses use the same validation
+path as ordinary parsing and preparation. Allocation and infrastructure failures
+do not become deterministic request rejection. An accepted request can retain the
+original preparation witness through the shared Exchange closure contract.

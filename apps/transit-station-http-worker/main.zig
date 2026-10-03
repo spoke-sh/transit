@@ -139,7 +139,7 @@ const Driver = struct {
     pub const effectFor = Engine.effectFor;
     pub const load = Engine.load;
     pub const loadFrom = Engine.loadFrom;
-    fn capturedLocation(self: *Driver, parent: x.Exchange, descriptor: x.Descriptor, buffer: []u8) !?[]const u8 {
+    fn capturedLocation(self: *Driver, parent: x.Exchange, descriptor: x.Descriptor, buffer: []u8, failure: ?*?http.Service.Rejection) !?[]const u8 {
         var used: usize = 0;
         var segment_buffer: [8192]u8 = undefined;
         for (0..descriptor.segments) |ordinal| {
@@ -147,7 +147,7 @@ const Driver = struct {
             if ((try parent.member(&source, @intCast(ordinal))).kind != @backingInt(http.Kind.response_head)) continue;
             const bytes = try self.loadFrom(parent, @intCast(ordinal), &segment_buffer);
             for (bytes) |byte| {
-                if (used == buffer.len) return error.HttpHeadersOversize;
+                if (used == buffer.len) return validationFailure(failure, http.Service.Rejection.detail(.denied, .maximum, "parent.response_head.bytes", .{ .unsigned = buffer.len }, .{ .unsigned = used + 1 }, error.HttpHeadersOversize), error.HttpHeadersOversize);
                 buffer[used] = byte;
                 used += 1;
                 if (!std.mem.endsWith(u8, buffer[0..used], "\r\n\r\n")) continue;
@@ -158,18 +158,7 @@ const Driver = struct {
                     continue;
                 }
                 if (status != descriptor.terminal_code) return error.InvalidHttpCapture;
-                var location: ?[]const u8 = null;
-                var lines = std.mem.splitSequence(u8, buffer[0..used], "\r\n");
-                _ = lines.next();
-                while (lines.next()) |line| {
-                    if (line.len == 0) break;
-                    const colon = std.mem.indexOfScalar(u8, line, ':') orelse return error.InvalidHttpCapture;
-                    if (!std.ascii.eqlIgnoreCase(line[0..colon], "location")) continue;
-                    if (location != null) return error.AmbiguousHttpRedirect;
-                    location = std.mem.trim(u8, line[colon + 1 ..], " \t");
-                }
-                if (location) |target| if (std.mem.eql(u8, target, "{{omitted}}")) return error.HttpReplayGap;
-                return location;
+                return http.Policy.capturedLocation(buffer[0..used], @intCast(descriptor.terminal_code), failure);
             }
         }
         return error.HttpReplayGap;
@@ -203,23 +192,28 @@ const Driver = struct {
         defer self.gpa.free(body);
         _ = try http.RequestRecord.read(&self.reader, reference, http.RequestRecord.body_id, body);
         var follow_failure: ?http.Service.Rejection = null;
-        const decision = self.validateFollowupDiagnostic(self.gpa, prepared, body, &follow_failure) catch |err| switch (err) {
-            error.HttpRedirectNotCaptured,
-            error.HttpFollowupNotSettled,
-            error.ExpiredReconciliation,
-            error.HttpFollowupNotGranted,
-            error.InvalidHttpIdempotencyKey,
-            error.HttpRedirectScope,
-            error.HttpRedirectChanged,
-            error.UnsupportedHttpRedirect,
-            error.HttpFollowupTargetChanged,
-            error.UnsupportedHttpReconciliation,
-            error.UnsupportedHttpCancellation,
-            error.HttpFollowupChanged,
-            error.HttpRetryChanged,
-            error.HttpReplayGap,
-            => return .{ .rejected = follow_failure orelse http.Service.Rejection.detail(.denied, .policy, "followup.policy", .unrecorded, .unrecorded, err) },
-            else => return err,
+        const decision = self.validateFollowupDiagnostic(self.gpa, prepared, body, &follow_failure) catch |err| {
+            if (follow_failure) |detail| return .{ .rejected = detail };
+            return switch (err) {
+                error.HttpRedirectNotCaptured,
+                error.HttpFollowupNotSettled,
+                error.ExpiredReconciliation,
+                error.HttpFollowupNotGranted,
+                error.InvalidHttpIdempotencyKey,
+                error.HttpRedirectScope,
+                error.HttpRedirectChanged,
+                error.UnsupportedHttpRedirect,
+                error.HttpFollowupTargetChanged,
+                error.UnsupportedHttpReconciliation,
+                error.UnsupportedHttpCancellation,
+                error.HttpFollowupChanged,
+                error.HttpRetryChanged,
+                error.HttpReplayGap,
+                error.AmbiguousHttpRedirect,
+                error.HttpHeadersOversize,
+                => return .{ .rejected = follow_failure orelse http.Service.Rejection.detail(.denied, .policy, "followup.policy", .unrecorded, .unrecorded, err) },
+                else => return err,
+            };
         };
         return .{ .accepted = decision orelse return error.HttpFollowupNotGranted };
     }
@@ -256,7 +250,7 @@ const Driver = struct {
         const parsed = try std.json.parseFromSlice(Prepared, gpa, try self.loadFrom(parent, 0, &previous), .{});
         defer parsed.deinit();
         var head_buffer: [8192]u8 = undefined;
-        const location = if (follow.reason == .redirect) try self.capturedLocation(parent, descriptor, &head_buffer) else null;
+        const location = if (follow.reason == .redirect) try self.capturedLocation(parent, descriptor, &head_buffer, failure) else null;
         const policy = try http.Policy.followupDiagnostic(gpa, follow.reason, parsed.value, prepared_value, if (follow.reason == .redirect) @intCast(descriptor.terminal_code) else null, location, failure);
         if (follow.reason == .reconcile or follow.reason == .cancel) {
             if (body.len != 0) {

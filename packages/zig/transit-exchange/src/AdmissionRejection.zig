@@ -63,6 +63,12 @@ pub fn For(comptime wire_magic: *const [4]u8, comptime protocol: x.OutcomeDiagno
             if (result.cause_len == 0) store(@errorName(cause), &result.cause, &result.cause_len, &result.cause_truncated);
             return result;
         }
+        pub fn atField(self: Self, field: []const u8) Self {
+            var result = self;
+            result.field = @splat(0);
+            store(field, &result.field, &result.field_len, &result.field_truncated);
+            return result;
+        }
         pub fn validate(self: Self) !void {
             if (self.input > x.p.max_counter or (self.input == 0 and !std.mem.allEqual(u8, &self.request, 0))) return error.InvalidAdmissionRejection;
             try bounded(&self.field, self.field_len, self.field_truncated);
