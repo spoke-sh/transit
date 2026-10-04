@@ -102,14 +102,17 @@ try {
   );
   await follow(counter);
   await expect(counter.locator("#rows tr").first()).toHaveText("12");
+  const retainedBasis = await counter.locator("#basis").textContent();
   await stage("retire");
-  await expect(counter.locator("#status")).toHaveAttribute("data-phase", "denied");
-  await expect(counter.locator("#rows tr")).toHaveCount(0);
-  await expect(counter.locator("#basis")).toHaveText("No authorized snapshot.");
+  await expect(counter.locator("#status")).toHaveAttribute("data-phase", "disconnected");
+  await expect(counter.locator("#status")).toContainText("serving.resource_unavailable");
+  await expect(counter.locator("#status")).toContainText("not evidence of session expiry");
+  await expect(counter.locator("#rows tr").first()).toHaveText("12");
+  await expect(counter.locator("#basis")).toHaveText(retainedBasis);
   assert.deepEqual(errors, []);
   assert.deepEqual(await context.cookies(), []);
   console.log(
-    "Live-view lifecycle: shared-principal tabs, actual stream loss/resume without session replacement, pagehide/expiry, visible watch-generation reset, explicit resnapshot and source retirement passed.",
+    "Live-view lifecycle: shared-principal tabs, actual stream loss/resume without session replacement, pagehide/expiry, visible watch-generation reset, explicit resnapshot and original source-unavailability detail with retained exact basis after retirement passed.",
   );
 } catch (error) {
   console.error("Recent control outcomes:", operations);

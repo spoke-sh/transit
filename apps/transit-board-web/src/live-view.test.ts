@@ -1,4 +1,5 @@
 import { expect, test } from "vite-plus/test";
+import diagnosticFixture from "../../../packages/zig/transit-protocol/src/fixtures/diagnostic-v1.json" with { type: "json" };
 import { LiveView, ReactiveError, Session, type Snapshot } from "@rey/transit-reactive-client";
 const scope = {
   realm: 1,
@@ -405,3 +406,71 @@ test("operation failure detail survives ordinary snapshot updates without stoppi
   expect(view.following).toBe(true);
   await view.pause();
 });
+
+test.each(["terminal", "http"])(
+  "%s source unavailability survives reconnect without inventing denial or a new snapshot",
+  async (boundary) => {
+    const session = attachedSession();
+    let opens = 0;
+    session.open = async () => {
+      ++opens;
+      session.scope = scope;
+    };
+    session.close = async () => {
+      session.scope = null;
+    };
+    session.inspect = async () =>
+      ({ observation: { data_revision: 10, basis: snapshot.basis } }) as never;
+    const diagnostic = {
+      ...structuredClone(diagnosticFixture),
+      code: "serving.resource_unavailable",
+      category: "unavailable",
+      stage: "read",
+      outcome: "not_applicable",
+      evidence: "none",
+      cause: "ResourceUnavailable",
+      message: "The original source is unavailable. Inspect the retained resource.",
+      identity: null,
+      location: null,
+      facts: Array(16).fill(null),
+      actions: [{ kind: "retry_read", target: null }, null, null, null],
+    };
+    const current = deferred<void>();
+    const interrupted = deferred<void>();
+    const reconnecting = deferred<void>();
+    let attachments = 0;
+    session.follow = async (consume, signal) => {
+      if (++attachments === 1) {
+        consume({ attached: { session: 5, generation: 6, attachment: 1 } });
+        await interrupted.promise;
+        if (boundary === "http") throw new ReactiveError(410, "unavailable", diagnostic);
+        consume({ terminal: { reason: "interrupted", diagnostic: diagnostic as never } });
+      } else {
+        reconnecting.resolve();
+        if (!signal.aborted)
+          await new Promise<void>((resolve) =>
+            signal.addEventListener("abort", () => resolve(), { once: true }),
+          );
+      }
+    };
+    let reads = 0;
+    const view = new LiveView(session, async () => {
+      ++reads;
+      return snapshot;
+    });
+    view.subscribe(() => {
+      if (view.getSnapshot().phase === "current") current.resolve();
+    });
+    await view.start();
+    await current.promise;
+    interrupted.resolve();
+    await reconnecting.promise;
+    expect(view.getSnapshot()).toMatchObject({ phase: "disconnected", snapshot });
+    expect(view.getSnapshot().detail).toContain(diagnostic.message);
+    expect(view.getSnapshot().detail).toContain("serving.resource_unavailable");
+    expect(session.scope).toEqual(scope);
+    expect(opens).toBe(1);
+    expect(reads).toBe(1);
+    await view.pause();
+  },
+);

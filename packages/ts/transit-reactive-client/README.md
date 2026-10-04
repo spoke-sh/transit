@@ -86,3 +86,10 @@ later current-scope error independently. Current denial clears protected state
 and suppresses prior diagnostic facts; it does not resubmit accepted controls.
 The [shared diagnostic package](../transit-diagnostics/README.md) owns validation
 and rendering. Explicit session closure and lease expiry have distinct reasons.
+
+Stream terminals and refused attachment reads retain their semantic diagnostic
+while reconnecting the same session. Reconnection bookkeeping cannot replace that
+detail with generic connection advice. Source unavailability, including a retired
+source, retains the last disclosed snapshot and its exact basis; it does not
+establish permission denial, session expiry or a new query outcome. Current denial
+still clears protected state.

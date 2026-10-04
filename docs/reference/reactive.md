@@ -73,6 +73,12 @@ not rewrite the earlier stop or restart the generation. The browser keeps the
 last exact result on non-authority failures and shows the retained detail; current
 denial still clears protected state.
 
+A disconnected view retains the diagnostic from its interrupted stream or failed
+attachment read while reconnecting the same session. Source unavailability does
+not establish permission revocation: the already disclosed snapshot keeps its
+original basis, with no replacement coverage claimed. Reconnection progress does
+not overwrite the failure with generic advice.
+
 Failed Follow reader checks identify the identity field or permission mask,
 resource writer/lifecycle, or template phase and missing manifest. The diagnostic
 retains the policy/resource revision observed at that check. Native read failures

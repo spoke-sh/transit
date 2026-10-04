@@ -359,6 +359,7 @@ export class LiveView<T> {
   }
   private async stream(epoch: number, signal: AbortSignal) {
     while (!signal.aborted && epoch === this.epoch) {
+      let reportedFailure = false;
       try {
         if (!this.session.pending && !this.session.busy) {
           // Attaching owns the caller sequence until its receipt is known.
@@ -368,14 +369,22 @@ export class LiveView<T> {
             await sleep(500, signal);
             continue;
           }
-          await this.session.follow((message) => this.accept(message), signal);
+          await this.session.follow((message) => {
+            if ("terminal" in message) reportedFailure = true;
+            this.accept(message);
+          }, signal);
         }
       } catch (error) {
-        if (!signal.aborted && epoch === this.epoch) this.fail(error);
+        if (!signal.aborted && epoch === this.epoch) {
+          reportedFailure = true;
+          this.fail(error);
+        }
       }
       this.attached = false;
       this.connected = false;
-      if (!signal.aborted)
+      // A new attachment attempt does not replace the observed failure with
+      // generic connection advice. Successful observation establishes recovery.
+      if (!signal.aborted && !reportedFailure && this.state.phase !== "disconnected")
         this.publish({
           phase: "disconnected",
           detail: "Reconnecting the same session; displayed basis is unchanged.",

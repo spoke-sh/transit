@@ -13854,3 +13854,25 @@ It was deliberately interrupted during `bindings::native` for this correction:
 The independent browser preflight measured **3.314 seconds** against the unchanged
 three-second Board control bound while other checks ran. That failed run is not
 counted as browser qualification; isolation and a complete rerun remain required.
+
+### Reactive reconnect diagnostic retention (2026-10-03)
+
+The isolated browser lane at `1786ce1d` passed its first six tasks, then failed
+the lifecycle fixture's obsolete expectation that source retirement means denial.
+The current adapter reports source unavailability separately from permission
+revocation. Investigation also found that the reconnect loop replaced a valid
+stream/HTTP diagnostic with generic connection advice. The shared view now keeps
+that diagnostic through the next attachment attempt; current denial still clears
+protected state, while unavailable sources retain the already disclosed exact
+snapshot and basis without claiming replacement coverage.
+
+Full pinned `just check` passes, including **77 Board tests**. Two new cases
+exercise actual view-loop scheduling for interrupted stream and HTTP 410
+diagnostics, retaining the original snapshot and session across reconnect. The
+real TLS/Chromium lifecycle proof passes in **60.84 seconds** excluding compilation:
+shared-principal tabs, actual network loss/resume, unchanged sessions, pagehide,
+generation reset, explicit resnapshot and source retirement with visible semantic
+detail. Logs: `/var/tmp/transit-diagnostics-reconnect-{check,lifecycle}.log`.
+The failed browser lane remains incomplete at `/var/tmp/transit-ci-kmpsq18h`;
+qualification of the three affected reactive tasks in a fresh checkout remains
+separate from this focused pass.
