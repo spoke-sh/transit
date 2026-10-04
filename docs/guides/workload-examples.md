@@ -44,7 +44,7 @@ transit console
 
 ```text
 .mode table
-.timing on
+.timer on
 SELECT id, value FROM items WHERE id >= 0 LIMIT 8;
 SELECT COUNT(*) FROM items;
 ```

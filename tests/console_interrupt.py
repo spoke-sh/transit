@@ -7,7 +7,7 @@ import subprocess
 import threading
 import time
 
-from console_terminal import Terminal
+from console_terminal import ANSI, Terminal
 from console_settings import read_show
 
 
@@ -73,8 +73,8 @@ def check(binary, path, root, kind, invoke, fault):
         terminal.expect('\rtransit> \r')
 
     try:
-        terminal.send('.timing on\r')
-        terminal.expect('transit> .timing on\r\n')
+        terminal.send('.timer on\r')
+        terminal.expect('transit> .timer on\r\n')
         # No upload exists yet: Ctrl-C must not cancel the previous saved query.
         before = recovery.read_bytes()
         sends = fault['console_sends']
@@ -232,7 +232,10 @@ def check(binary, path, root, kind, invoke, fault):
         query = record()['namespace']
         terminal.send('\x03')
         upload.release.set()
-        idle('query cancellation could not be confirmed')
+        idle('query.saved_work_unresolved')
+        diagnostic = ANSI.sub(b'', terminal.screen)
+        assert b'Code: query.saved_work_unresolved; stage: reconcile.' in diagnostic, diagnostic
+        assert b'Cause: InvalidAuthorityResponse.' in diagnostic and f'query {query}: unknown.'.encode() in diagnostic, diagnostic
         assert f'Query {query} cancelled.'.encode() not in terminal.screen
         saved = record()
         assert saved['namespace'] == query and saved['pending']['signed'] == cancellations[0]
@@ -258,7 +261,7 @@ def check(binary, path, root, kind, invoke, fault):
         # 130; diagnostics must not leak into machine stdout.
         fault['console_waiting'].clear(); fault['console_delay'].set()
         timing_rc = root/'timing.rc'
-        timing_rc.write_text('.timing on\n')
+        timing_rc.write_text('.timer on\n')
         batch = subprocess.Popen([binary, 'console', '--init', str(timing_rc), '--config', str(path),
                                   '-c', 'SELECT COUNT(*) FROM items'],
                                  stdout=subprocess.PIPE, stderr=subprocess.PIPE)

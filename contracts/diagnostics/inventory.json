@@ -7961,7 +7961,7 @@
           "quit",
           "connect",
           "show",
-          "timing",
+          "timer",
           "execute"
         ],
         "Request.mode": [

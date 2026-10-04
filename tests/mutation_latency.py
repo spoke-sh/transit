@@ -31,7 +31,7 @@ class Console:
                                         env={'PATH': '/unavailable'})
         self.buffers = [bytearray(), bytearray()]
         if not executable:
-            self.process.stdin.write(b'.timing on\n')
+            self.process.stdin.write(b'.timer on\n')
             self.process.stdin.flush()
 
     def call(self, sql):

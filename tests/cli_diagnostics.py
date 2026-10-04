@@ -488,20 +488,20 @@ with tempfile.TemporaryDirectory(prefix='transit-cli-diagnostics-') as directory
     assert parse_show(shown.stdout)['connection_source'] == '--config'
     shown = invoke(['console'], 0, env=dict(environment, TRANSIT_CONSOLE_CONFIG=str(connection)), cwd=project, data=b'.show\n')
     assert parse_show(shown.stdout)['connection_source'] == 'TRANSIT_CONSOLE_CONFIG'
-    (home/'.transitrc').write_text('.timing off\n')
-    (project/'.transitrc').write_text('.timing on\n')
+    (home/'.transitrc').write_text('.timer off\n')
+    (project/'.transitrc').write_text('.timer on\n')
     shown = invoke(['console', '--config', connection], 0, env=environment, cwd=project, data=b'.show\n')
     settings = parse_show(shown.stdout)
     assert settings['timing'] == 'on' and settings['timing_source'] == str(project/'.transitrc')
-    shown = invoke(['console', '--config', connection], 0, env=environment, cwd=project, data=b'.timing off\n.show\n')
+    shown = invoke(['console', '--config', connection], 0, env=environment, cwd=project, data=b'.timer off\n.show\n')
     settings = parse_show(shown.stdout)
-    assert settings['timing'] == 'off' and settings['timing_source'] == '.timing'
+    assert settings['timing'] == 'off' and settings['timing_source'] == '.timer'
     for format in ('table', 'json'):
-        for text in (b'.timing\n', b'.timing \t\n', b'.timing private-must-not-appear\n', b'.timing on off\n'):
+        for text in (b'.timer\n', b'.timer \t\n', b'.timer private-must-not-appear\n', b'.timer on off\n'):
             invoke(['console', '--no-rc', '--config', connection, '--format', format], 1,
-                   env=environment, cwd=project, data=text+b'.show\n', stderr='Usage: .timing on|off\nInput: "<stdin>"; statement 1 starts at byte 0, line 1, byte column 1.\nPreviously completed commands: 0; their effects are not rolled back by this failure.\n')
+                   env=environment, cwd=project, data=text+b'.show\n', stderr='Usage: .timer on|off\nInput: "<stdin>"; statement 1 starts at byte 0, line 1, byte column 1.\nPreviously completed commands: 0; their effects are not rolled back by this failure.\n')
     shown = invoke(['console', '--no-rc', '--config', connection], 0, env=environment, cwd=project,
-                   data=b'.timing\ton\n.show\n')
+                   data=b'.timer\ton\n.show\n')
     assert parse_show(shown.stdout)['timing'] == 'on'
     # Both early declaration validation and query compilation report timing
     # after the entire diagnostic, in one-shot and streamed batch input.
@@ -524,8 +524,8 @@ with tempfile.TemporaryDirectory(prefix='transit-cli-diagnostics-') as directory
     for format in ('table', 'json'):
         terminal = Terminal(CLI, connection, format=format, cwd=project)
         try:
-            terminal.send('.timing on\r')
-            terminal.expect('transit> .timing on\r\n')
+            terminal.send('.timer on\r')
+            terminal.expect('transit> .timer on\r\n')
             for statement, hint in timed_errors:
                 terminal.send(statement+'\r')
                 terminal.expect(hint)
@@ -533,15 +533,15 @@ with tempfile.TemporaryDirectory(prefix='transit-cli-diagnostics-') as directory
                 display = ANSI.sub(b'', terminal.screen)
                 assert display.count(b'Time: ') == 1, display
                 assert display.index(b'error: ') < display.index(hint.encode()) < display.index(b'Time: '), display
-            for text in ('.timing', '.timing off on'):
+            for text in ('.timer', '.timer off on'):
                 terminal.send(text+'\r')
-                terminal.expect('Usage: .timing on|off\r\n')
+                terminal.expect('Usage: .timer on|off\r\n')
                 terminal.send('.show\r')
                 settings = read_show(terminal)
                 assert settings['timing'] == 'on' and settings['format'] == format, settings
                 assert b'Time: ' not in terminal.screen, terminal.screen
-            terminal.send('.timing off\r')
-            terminal.expect('transit> .timing off\r\n')
+            terminal.send('.timer off\r')
+            terminal.expect('transit> .timer off\r\n')
             terminal.send('.show\r')
             assert read_show(terminal)['timing'] == 'off'
         finally:
@@ -590,10 +590,10 @@ with tempfile.TemporaryDirectory(prefix='transit-cli-diagnostics-') as directory
         ):
             terminal = Terminal(CLI, connection, format=format, cwd=project, env=color_env)
             try:
-                terminal.send('.timing on\r')
-                terminal.expect('transit> .timing on\r\n')
-                echo, _ = committed_display(terminal, '.timing on')
-                assert (b'\x1b[36mtiming'+reset in echo) == colored, echo
+                terminal.send('.timer on\r')
+                terminal.expect('transit> .timer on\r\n')
+                echo, _ = committed_display(terminal, '.timer on')
+                assert (b'\x1b[36mtimer'+reset in echo) == colored, echo
                 for statement, hint, category, cause in (
                     ('.unknown', '.help', None, 'UnknownConsoleCommand'),
                     ('CREATE TABLE people (id INT64, name BINARY);', '.help CREATE TABLE', 'binding', 'UnspecifiedNullability'),
@@ -679,8 +679,8 @@ with tempfile.TemporaryDirectory(prefix='transit-cli-diagnostics-') as directory
         result = invoke(['console', '--config', connection, '--format', format, '-c', 'SELECT;'], 1,
                         env=dict(environment, TERM='xterm-256color', NO_COLOR='', CLICOLOR_FORCE='1'), cwd=project)
         assert b'\x1b' not in result.stderr and b'\x1b' not in result.stdout, result
-    (project/'.transitrc').write_text('.timing invalid\n')
-    invoke(['console', '--config', connection], env=environment, cwd=project, contains=('.timing must be on or off',))
+    (project/'.transitrc').write_text('.timer invalid\n')
+    invoke(['console', '--config', connection], env=environment, cwd=project, contains=('.timer must be on or off',))
     (project/'.transitrc').write_text('SELECT private-must-not-appear;\n')
     invoke(['console', '--config', connection], env=environment, cwd=project, contains=('startup command',))
     shown = invoke(['console', '--no-rc', '--config', connection], 0, env=environment, cwd=project, data=b'.show\n')
@@ -775,7 +775,7 @@ with tempfile.TemporaryDirectory(prefix='transit-cli-json-') as directory:
     assert location['source'] == str(script) and location['statement'] == '2', location
     assert location['offset'] == str(text.encode().index(b'typo')) and location['line'] == '3' and location['byte_column'] == '10', location
     assert facts(detail)['completed_statements'] == {'unsigned':'1'}
-    _,detail,records = machine(args,data=b'.timing on\nSELECT typo FROM items;\n')
+    _,detail,records = machine(args,data=b'.timer on\nSELECT typo FROM items;\n')
     assert len(records) == 2 and records[1]['timing']['unit'] == 'ms', records
     assert detail['code'] == 'sql.unknown_column'
     for ddl,code,offset in [('CREATE TABLE items (id UTF8 NOT NULL,value UTF8 NULL)','sql.unsupported_table_key',20),

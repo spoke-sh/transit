@@ -463,10 +463,10 @@ pub const Console = struct {
             return;
         }
         if (std.mem.eql(u8, text, ".show")) return @import("Show.zig").write(self.out, .{ .connection = self.preferences.connection, .connection_source = self.preferences.connection_source, .url = self.client.wire.url, .format = self.session.format, .format_source = self.preferences.format_source, .timing = self.preferences.timing, .timing_source = self.preferences.timing_source });
-        if (std.mem.eql(u8, text, ".timing")) return error.InvalidTimingCommand;
-        if (std.mem.startsWith(u8, text, ".timing ") or std.mem.startsWith(u8, text, ".timing\t")) {
-            self.preferences.timing = Preferences.onOff(text[8..]) catch return error.InvalidTimingCommand;
-            self.preferences.timing_source = ".timing";
+        if (std.mem.eql(u8, text, ".timer")) return error.InvalidTimingCommand;
+        if (std.mem.startsWith(u8, text, ".timer ") or std.mem.startsWith(u8, text, ".timer\t")) {
+            self.preferences.timing = Preferences.onOff(text[7..]) catch return error.InvalidTimingCommand;
+            self.preferences.timing_source = ".timer";
             return;
         }
         if (std.mem.eql(u8, text, ".tables")) {

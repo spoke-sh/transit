@@ -36,12 +36,12 @@ The console merges settings in this order; later assignments win:
 
 Missing files are skipped; an unreadable or invalid file stops startup. Each file
 is at most 64 KiB. Blank lines and `#` comment lines are ignored. Only `.mode`,
-`.timing` and `.connect` settings are accepted; SQL and recovery operations cannot run at startup.
+`.timer` and `.connect` settings are accepted; SQL and recovery operations cannot run at startup.
 For example, a project `.transitrc` can contain:
 
 ```text
 .mode table
-.timing on
+.timer on
 # Optional remote or separate connection:
 # .connect connection.yaml
 ```
@@ -301,7 +301,7 @@ error and returns to the prompt when recovery permits.
 | `.sources`, `.schema` | Currently authorized query source and schema |
 | `.schema writer` | Currently authorized Table writer name, columns, types and metadata revision |
 | `.mode table\|json` | Result presentation |
-| `.timing on\|off` | Set query wall-time reporting (off by default) |
+| `.timer on\|off` | Set query wall-time reporting (off by default) |
 | `.show` | Aligned text showing effective console settings and origins |
 | `.connect PATH` | Switch connection in an interactive session |
 | `.status`, `.info` | Saved write/query status, or query result evidence |
@@ -349,7 +349,7 @@ conflict states remain distinct. Pages are verified through the shared query
 client and read under current grants. Rows are released after each page; the
 console never accumulates the whole result. Prompts and diagnostics use stderr.
 
-`.timing on` reports monotonic elapsed milliseconds to stderr after each SQL or
+`.timer on` reports monotonic elapsed milliseconds to stderr after each SQL or
 `.resume` attempt, including failed attempts. The timing line is the final output
 for the command, after results, errors, recovery guidance and cancellation messages,
 before the next prompt. Measurements finish before diagnostic presentation.
@@ -375,8 +375,8 @@ sync throughout the operation, and `render` writes the final presentation.
 An admission acknowledgement alone is not a completed mutation. These phases
 partition client wall time; worker and storage work can occur during several of them.
 Sub-millisecond work can display as zero. Timing does not change JSON stdout or
-query recovery, and `.timing off` disables it. Missing, invalid or extra arguments
-print `Usage: .timing on|off` to stderr without changing the setting. Interactive
+query recovery, and `.timer off` disables it. Missing, invalid or extra arguments
+print `Usage: .timer on|off` to stderr without changing the setting. Interactive
 input returns to the prompt; batch input stops with exit status 1. Use `.show` to
 inspect the current setting. Interactive connection changes
 retain the current mode and timing preference.

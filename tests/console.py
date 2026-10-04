@@ -62,7 +62,7 @@ def check(binary, root, kind, invoke, expected, fault, config, tls=False):
 
         # Unsupported SQL does not allocate an identity or send a mutation.
         before = fault['console_sends']
-        invalid = run(b'.timing on\nCREATE KV items (UTF8);', expected_code=1)
+        invalid = run(b'.timer on\nCREATE KV items (UTF8);', expected_code=1)
         assert b'Time: ' in invalid.stderr and b'error: ' in invalid.stderr and not invalid.stdout
         assert invalid.stderr.count(b'Time: ') == 1 and invalid.stderr.splitlines()[-1].startswith(b'Time: '), invalid.stderr
         assert fault['console_sends'] == before
@@ -78,7 +78,7 @@ def check(binary, root, kind, invoke, expected, fault, config, tls=False):
         fault['lost'], fault['retry'] = None, False
         sql = 'SELECT *' if kind == 'document' else 'SELECT value'
         statement = sql+'\n/* ; .quit /* nested ; */ */ FROM items\nLIMIT 33;\n'
-        result = run(('.timing on\n'+statement).encode(), expected_code=1)
+        result = run(('.timer on\n'+statement).encode(), expected_code=1)
         assert not result.stdout and b'InvalidAuthorityResponse' in result.stderr, result
         assert result.stderr.count(b'Time: ') == 1 and result.stderr.splitlines()[-1].startswith(b'Time: '), result.stderr
         record = json.loads(recovery.read_text())
@@ -97,7 +97,7 @@ def check(binary, root, kind, invoke, expected, fault, config, tls=False):
         assert parse_show(shown)['format'] == 'json'
         assert recovery.read_bytes() == saved and fault['console_sends'] == before
         assert not fault['retry'], 'settings inspection retried uncertain work'
-        result = run(b'.timing on\n.resume\n', args=('--format', 'json'), timed=True)
+        result = run(b'.timer on\n.resume\n', args=('--format', 'json'), timed=True)
         assert fault['retry'], 'resume did not retry the original signed request'
         pages = [json.loads(line) for line in result.stdout.splitlines()]
         assert pages and pages[-1]['complete_coverage']
@@ -110,7 +110,8 @@ def check(binary, root, kind, invoke, expected, fault, config, tls=False):
         # Explicit resume rereads the same result under current grants.
         invoke('revoke', direct=True)
         denied = run(b'.resume\n', expected_code=1)
-        assert not denied.stdout and b'permission denied' in denied.stderr, denied
+        assert not denied.stdout and b'Code: query.saved_work_unresolved; stage: reconcile.' in denied.stderr, denied
+        assert b'Cause: AccessDenied.' in denied.stderr and f'query {query_id}: unknown.'.encode() in denied.stderr, denied
         assert json.loads(recovery.read_text())['namespace'] == query_id
         invoke('restore', direct=True)
         table = run(b'.resume\n').stdout
@@ -170,14 +171,14 @@ def check(binary, root, kind, invoke, expected, fault, config, tls=False):
         script.write_text(count_sql+';\n'+count_sql)
         result = run(args=('-f', str(script), '--format', 'json'))
         assert len(result.stdout.splitlines()) == 2
-        result = run(('.timing on\n.show\n'+count_sql).encode(), args=('--format', 'json'), timed=True)
+        result = run(('.timer on\n.show\n'+count_sql).encode(), args=('--format', 'json'), timed=True)
         shown, page = result.stdout.rsplit(b'\n', 2)[:2]
         settings = parse_show(shown+b'\n')
         assert settings['format'] == 'json' and settings['timing'] == 'on'
         assert json.loads(page)['complete_coverage']
         # A shared destination observes result output before the timing footer.
         combined = subprocess.run([binary, 'console', '--no-rc', '--config', str(path), '--format', 'json'],
-                                  input=('.timing on\n'+count_sql).encode(), stdout=subprocess.PIPE,
+                                  input=('.timer on\n'+count_sql).encode(), stdout=subprocess.PIPE,
                                   stderr=subprocess.STDOUT, timeout=420)
         assert combined.returncode == 0, combined
         lines = combined.stdout.splitlines()

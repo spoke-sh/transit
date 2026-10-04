@@ -49,14 +49,14 @@ fn read(self: *Self, init: std.process.Init, name: []const u8, optional: bool, d
         if (std.mem.startsWith(u8, text, ".mode ")) {
             self.format = std.meta.stringToEnum(Options.Format, std.mem.trim(u8, text[6..], " \t")) orelse return diagnostic.invalidField(".mode", "must be table or json", null);
             self.format_source = absolute;
-        } else if (std.mem.startsWith(u8, text, ".timing ")) {
-            self.timing = onOff(text[8..]) catch return diagnostic.invalidField(".timing", "must be on or off", null);
+        } else if (std.mem.startsWith(u8, text, ".timer ")) {
+            self.timing = onOff(text[7..]) catch return diagnostic.invalidField(".timer", "must be on or off", null);
             self.timing_source = absolute;
         } else if (std.mem.startsWith(u8, text, ".connect ")) {
             const file = argument(allocator, text[9..]) catch return diagnostic.invalidField(".connect", "requires a file path", null);
             self.connection = try std.fs.path.resolve(allocator, &.{ std.fs.path.dirname(absolute).?, file });
             self.connection_source = absolute;
-        } else return diagnostic.invalidField("startup command", "must be .mode, .timing or .connect", "Startup files configure the console; use -f to execute SQL.");
+        } else return diagnostic.invalidField("startup command", "must be .mode, .timer or .connect", "Startup files configure the console; use -f to execute SQL.");
     }
 }
 pub fn onOff(raw: []const u8) !bool {

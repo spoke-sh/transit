@@ -20,7 +20,7 @@ pub fn write(console: *Console, topic: []const u8) !void {
         \\SQL is limited to 4096 UTF-8 bytes and eight output columns.
         \\Writes: INSERT, UPDATE, DELETE and CREATE TABLE through explicitly configured authorized routes.
         \\.help [SQL|INSERT|UPDATE|DELETE|CREATE TABLE] .tables .schema [writer] .sources .mode table|json
-        \\.timing on|off .connect PATH .show .info .quit
+        \\.timer on|off .connect PATH .show .info .quit
         \\.execute FILE runs one JSON query object: sql and optional parameters.
         \\Recovery: .status .resume [query ID] .cancel
         \\Ctrl-R searches SQL and dot-command history in ~/.transit_history. Enter accepts a match for editing.
@@ -31,7 +31,7 @@ pub fn write(console: *Console, topic: []const u8) !void {
         return error.UnknownHelpTopic;
     const writer = console.writes != null and console.writes.?.mutation != null;
     const catalog = console.writes != null and console.writes.?.catalog != null;
-    if (console.session.format == .json) return console.json(.{ .commands = [_][]const u8{ "help", "tables", "schema", "sources", "mode", "timing", "connect", "show", "execute", "info", "quit", "status", "resume", "cancel" }, .help = text, .table_writer_configured = writer, .catalog_configured = catalog, .authorization = "checked at execution" });
+    if (console.session.format == .json) return console.json(.{ .commands = [_][]const u8{ "help", "tables", "schema", "sources", "mode", "timer", "connect", "show", "execute", "info", "quit", "status", "resume", "cancel" }, .help = text, .table_writer_configured = writer, .catalog_configured = catalog, .authorization = "checked at execution" });
     try console.out.writeAll(text);
     try console.out.print("Table writer: {s}; catalog: {s}. Authorization is checked at execution.\n", .{ if (writer) "configured" else "not configured", if (catalog) "configured" else "not configured" });
 }

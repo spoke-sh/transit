@@ -86,24 +86,24 @@ test "SQL identifiers and quoted names use the default foreground" {
     try style.sql(&out, "select \"FROM\", selectivity from \"items\"");
     try std.testing.expectEqualStrings("\x1b[36mselect\x1b[0m \"FROM\", selectivity \x1b[36mfrom\x1b[0m \"items\"", out.buffered());
     out.end = 0;
-    try style.sql(&out, ".timing on");
-    try std.testing.expectEqualStrings(".\x1b[36mtiming\x1b[0m on", out.buffered());
+    try style.sql(&out, ".timer on");
+    try std.testing.expectEqualStrings(".\x1b[36mtimer\x1b[0m on", out.buffered());
 }
 
 test "contextual SQL colors survive scrolling and leave dot arguments plain" {
-    const value = ".read SELECT 'unterminated; /*\n.timing on\nSELECT value FROM items WHERE value IS VALUE;";
+    const value = ".read SELECT 'unterminated; /*\n.timer on\nSELECT value FROM items WHERE value IS VALUE;";
     const syntax = Syntax.init(value);
     // Editor scrolling need not start at the beginning or visit bytes in order.
     try std.testing.expectEqual(Color.word, syntax.at(std.mem.lastIndexOf(u8, value, "VALUE").?));
     try std.testing.expectEqual(Color.plain, syntax.at(std.mem.indexOf(u8, value, "value").?));
     try std.testing.expectEqual(Color.plain, syntax.at(std.mem.indexOf(u8, value, "SELECT").?));
-    try std.testing.expectEqual(Color.word, syntax.at(std.mem.indexOf(u8, value, "timing").?));
+    try std.testing.expectEqual(Color.word, syntax.at(std.mem.indexOf(u8, value, "timer").?));
     try std.testing.expectEqual(Color.plain, syntax.at(value.len));
     var buffer: [1024]u8 = undefined;
     var out: std.Io.Writer = .fixed(&buffer);
     try (Self{ .enabled = true }).sql(&out, value);
     try std.testing.expectEqualStrings(
-        ".\x1b[36mread\x1b[0m SELECT 'unterminated; /*\n.\x1b[36mtiming\x1b[0m on\n\x1b[36mSELECT\x1b[0m value \x1b[36mFROM\x1b[0m items \x1b[36mWHERE\x1b[0m value \x1b[36mIS\x1b[0m \x1b[36mVALUE\x1b[0m;",
+        ".\x1b[36mread\x1b[0m SELECT 'unterminated; /*\n.\x1b[36mtimer\x1b[0m on\n\x1b[36mSELECT\x1b[0m value \x1b[36mFROM\x1b[0m items \x1b[36mWHERE\x1b[0m value \x1b[36mIS\x1b[0m \x1b[36mVALUE\x1b[0m;",
         out.buffered(),
     );
     out.end = 0;

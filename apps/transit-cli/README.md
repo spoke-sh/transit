@@ -40,7 +40,7 @@ Separate connections require writer routes; compatible CREATE TABLE requires
 an explicitly configured catalog;
 `.help INSERT` and `.help CREATE TABLE` explain syntax, configuration and
 recovery inside the shell. Its `.transitrc` hierarchy
-configures `.connect` and `.mode`; server `transit.yaml` settings overlay the
+configures `.connect`, `.mode` and `.timer`; server `transit.yaml` settings overlay the
 installed bundle's defaults. See the linked component guides for precedence,
 limits and recovery.
 

@@ -316,6 +316,36 @@ and passes all 517 cases (`/var/tmp/transit-file-witness-final-cli.log`).
 These checks do not establish complete recursive descriptor attribution, the
 semantic inventory gate or committed-HEAD clean qualification.
 
+## Console timer command — 2026-10-04
+
+The console timing toggle is `.timer on|off`, including startup scripts, local
+dispatch, completion, help, correction messages and settings provenance. Timing
+measurements and their machine fields retain their existing definitions.
+
+After locked dependency installation, full pinned `just check` passes, including
+**586 real CLI diagnostic cases**, the shared completion fixtures, terminal
+color/history/signal checks, generated contracts and the documentation build.
+The CLI cases exercise startup precedence, on/off toggles, invalid and extra
+arguments, tab separation and timing after diagnostics in both result formats.
+`just build::debug transit` also passes.
+
+The Table console integration initially stopped at three stale diagnostic
+assertions. The parameter fixture now expects `UnboundParameters` for omitted
+bindings (`90a76f05`), matching the existing compilation unit test. The denied
+resume and uncertain-cancellation fixtures check `query.saved_work_unresolved`,
+the original cause and saved query identity instead of obsolete human summaries.
+These corrections do not change runtime behavior or relax no-output/recovery checks.
+
+The final pinned `just test::console table` run passes against disk storage and
+native workers in **393.59 s**. It covers batch and PTY commands, timing footer
+ordering, completion and settings, exact saved-query and cancellation recovery,
+current read denial, interrupted output, and private-CA/hostname checks. An earlier
+run was interrupted and is not counted as completed evidence.
+
+Logs: `/var/tmp/transit-timer-check.log`, `/var/tmp/transit-timer-build.log` and
+`/var/tmp/transit-timer-console-resumed.log`. Committed-HEAD clean qualification is
+not rerun.
+
 ## Contextual console SQL highlighting — 2026-10-04
 
 The basic correction at `f8d2f42c` gives identifiers the default terminal

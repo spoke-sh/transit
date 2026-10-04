@@ -27,7 +27,7 @@ pub const Response = struct {
     items: []const Item,
 };
 /// Shared console vocabulary; dispatchers must reject unimplemented operations.
-pub const Meta = enum { help, info, tables, sources, schema, status, @"resume", cancel, mode, quit, connect, show, timing, execute };
+pub const Meta = enum { help, info, tables, sources, schema, status, @"resume", cancel, mode, quit, connect, show, timer, execute };
 const Builder = struct {
     allocator: std.mem.Allocator,
     prefix: []const u8,
@@ -179,7 +179,7 @@ fn meta(allocator: std.mem.Allocator, request: Request) !Completion {
         try builder.add("writer", .meta, "Inspect the configured authorized Table writer");
     } else if (std.mem.eql(u8, request.sql[1..end], "help")) {
         for ([_][]const u8{ "SQL", "INSERT", "UPDATE", "DELETE", "CREATE TABLE" }) |topic| try builder.add(topic, .meta, "Local SQL help");
-    } else if (std.mem.eql(u8, request.sql[1..end], "timing")) {
+    } else if (std.mem.eql(u8, request.sql[1..end], "timer")) {
         try builder.add("on", .meta, "Enable query timing");
         try builder.add("off", .meta, "Disable query timing");
     }

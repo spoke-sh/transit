@@ -200,7 +200,7 @@ fn renderFailure(self: Self, out: *std.Io.Writer, err: anyerror) !void {
         try out.writeByte(' ');
         return diagnostic.renderStyled(out, self.style);
     }
-    if (err == error.InvalidTimingCommand) return self.style.hint(out, "Usage: .timing on|off\n");
+    if (err == error.InvalidTimingCommand) return self.style.hint(out, "Usage: .timer on|off\n");
     const Advice = struct { []const u8, ?[]const u8 };
     const advice: ?Advice = switch (err) {
         error.InstallationInUse => .{ "another server manages this installation", "Stop the existing manager before starting another server for this installation." },

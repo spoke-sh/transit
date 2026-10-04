@@ -180,15 +180,15 @@ def check(binary, path, root, kind, invoke, fault):
         terminal.send('\x03')
         terminal.expect('transit> ')
         assert fault['console_sends'] == sends, 'editing/completion sent a native mutation'
-        terminal.send('.timing on\r')
-        terminal.expect('transit> .timing on\r\n')
+        terminal.send('.timer on\r')
+        terminal.expect('transit> .timer on\r\n')
         terminal.send('.connect '+str(path)+'\r')
         terminal.expect('transit> .connect '+str(path)+'\r\n')
         terminal.send('.show\r')
         shown = read_show(terminal)
-        assert shown['timing'] == 'on' and shown['timing_source'] == '.timing', shown
-        terminal.send('.timing off\r')
-        terminal.expect('transit> .timing off\r\n')
+        assert shown['timing'] == 'on' and shown['timing_source'] == '.timer', shown
+        terminal.send('.timer off\r')
+        terminal.expect('transit> .timer off\r\n')
         assert terminal.call('.tables')['description']['source']['capabilities'][kind]
         terminal.expect('transit> .tables\r\n')
         terminal.send('SELECT * FROM items\r')
@@ -224,11 +224,11 @@ def check(binary, path, root, kind, invoke, fault):
         assert b'COUNT' not in ANSI.sub(b'', terminal.screen)
         invoke('restore', direct=True)
         sends = fault['console_sends']
-        terminal.send('.timing on\r.connect '+json.dumps(str(path))+'\r.show\r')
+        terminal.send('.timer on\r.connect '+json.dumps(str(path))+'\r.show\r')
         settings = read_show(terminal)
         assert settings['connection'] == str(path) and settings['connection_source'] == '.connect'
         assert settings['format'] == 'json' and settings['format_source'] == '.mode'
-        assert settings['timing'] == 'on' and settings['timing_source'] == '.timing'
+        assert settings['timing'] == 'on' and settings['timing_source'] == '.timer'
         assert fault['console_sends'] == sends
         # Interrupt a real native read; no durable cancellation or fresh query.
         sends = fault['console_sends']

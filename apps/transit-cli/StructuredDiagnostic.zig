@@ -72,7 +72,7 @@ fn general(self: Cli, err: anyerror) !d {
         error.ConsoleWriterRequired => .{ "cli.writer_required", .unsupported, .prepare, "Configure writes.table to execute this Table mutation. A query connection does not grant writes." },
         error.ConsoleCatalogRequired => .{ "cli.catalog_required", .unsupported, .prepare, "Configure writes.catalog to execute CREATE TABLE." },
         error.ConsoleRecoveryRequired => .{ "cli.recovery_required", .binding, .prepare, "Automatic queries require a private recovery_file in the console configuration." },
-        error.InvalidTimingCommand => .{ "cli.invalid_timing", .syntax, .input, "Use .timing on or .timing off." },
+        error.InvalidTimingCommand => .{ "cli.invalid_timing", .syntax, .input, "Use .timer on or .timer off." },
         error.UnknownConsoleCommand, error.UnknownHelpTopic, error.UnknownCommand => .{ "cli.unknown_command", .unsupported, .input, "Use .help to inspect supported commands and SQL routes." },
         error.CatalogCancellationUnsupported => .{ "catalog.cancellation_unsupported", .unsupported, .control, "CREATE TABLE cannot be cancelled. Inspect or reconcile the saved creation; interrupting does not undo it." },
         error.NoQuery, error.NoSavedWrite, error.NoPendingSubmission => .{ "cli.no_saved_operation", .lifecycle, .reconcile, "This connection has no saved operation for the requested recovery command." },

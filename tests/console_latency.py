@@ -165,7 +165,7 @@ def main():
             Path(str(gate) + '.ready').touch()
         fixture.ready()
         invalid = subprocess.run([fixture.cli, 'console', '--no-rc'],
-                                 input='.timing on\nCREATE KV items (UTF8);', cwd=fixture.root,
+                                 input='.timer on\nCREATE KV items (UTF8);', cwd=fixture.root,
                                  capture_output=True, text=True, timeout=30,
                                  env={'PATH': '/unavailable'})
         assert invalid.returncode == 1 and not invalid.stdout, invalid
@@ -190,7 +190,7 @@ def main():
         durable = fixture.root / 'durable-connection.yaml'
         durable.write_text(json.dumps(fixture.console_config()))
         def execute(mode, sql, execution=args.execution):
-            script.write_text('.timing on\n' + sql + '\n')
+            script.write_text('.timer on\n' + sql + '\n')
             connection = ['--config', str(durable)] if execution == 'durable' else []
             return measured_run([fixture.cli, 'console', '--no-rc', *connection, '--format', mode,
                                  '-f', str(script)], fixture.root, node=authority[0])

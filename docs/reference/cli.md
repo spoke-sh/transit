@@ -46,7 +46,7 @@ The console derives its connection from the local server topology and retained
 installation; no generated console configuration file is needed. Defaults use
 `./.transit` and `http://127.0.0.1:19105`.
 It merges `/etc/transit/transitrc`, `~/.transitrc` and `./.transitrc`.
-Only `.connect PATH`, `.mode table|json` and `.timing on|off` settings are allowed there.
+Only `.connect PATH`, `.mode table|json` and `.timer on|off` settings are allowed there.
 `--init FILE` replaces that hierarchy; `--no-rc` skips it.
 `TRANSIT_CONSOLE_CONFIG` overrides the rc connection and `--config` overrides
 that variable. `--format` overrides rc presentation settings. Connection files
@@ -209,7 +209,7 @@ commands are unsupported. Completion never submits.
 | `.sources`, `.schema` | Inspect the authorized query source and schema |
 | `.tables` | List the configured catalog, or the query source when no catalog is configured |
 | `.mode table\|json` | Select result presentation |
-| `.timing on\|off` | Report query phase wall times to stderr; off by default |
+| `.timer on\|off` | Report query phase wall times to stderr; off by default |
 | `.connect PATH` | Switch connection in a terminal, after resolving outstanding work |
 | `.show` | Effective settings and their origins as aligned text, including in JSON result mode |
 | `.status`, `.info` | Saved write/query status, or query evidence |

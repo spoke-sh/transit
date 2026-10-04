@@ -33,7 +33,7 @@ credential come from that installation, with a default private recovery record.
 There is no generated console configuration file, and the console never
 initializes or repairs server state. Incomplete installation records reject.
 Console rc settings merge system `/etc/transit/transitrc`, home `~/.transitrc`
-and project `./.transitrc`, in that order. Only `.connect PATH`, `.mode` and `.timing`
+and project `./.transitrc`, in that order. Only `.connect PATH`, `.mode` and `.timer`
 settings are allowed; no startup SQL or durable operations execute. Missing
 files skip; other failures stop. `--init FILE` replaces discovery and `--no-rc`
 disables it. They are mutually exclusive. Rc connection paths resolve against
@@ -319,7 +319,7 @@ not execution identity or recovery authority. The
 defines search keys, local-file handling and limits.
 
 The console exposes `.help`, `.info`, `.tables`, `.sources`, `.schema`, `.status`,
-`.resume [ID]`, `.cancel`, `.mode table|json`, `.timing on|off`, `.show`, `.connect PATH` and `.quit`.
+`.resume [ID]`, `.cancel`, `.mode table|json`, `.timer on|off`, `.show`, `.connect PATH` and `.quit`.
 `.show` emits one setting per line on stdout, with right-aligned names, aligned
 colons and escaped text values, independently of the query result format.
 Automatic connection selection is `(automatic)`; boolean settings use `on`/`off`.
@@ -379,7 +379,7 @@ two-second deadline. Completed results stream under finite page limits and
 per-request deadlines, without the completion-wait budget. Bounds and supported source types belong in the
 [console guide](../apps/transit-cli/docs/console.md).
 
-Timing is off by default. `.timing on` reports monotonic wall milliseconds after
+Timing is off by default. `.timer on` reports monotonic wall milliseconds after
 SQL and resume attempts, including failures, to stderr. The timing line follows
 all result and diagnostic output for that command, including cancellation messages,
 and precedes the next interactive prompt. Diagnostic presentation is outside the
@@ -387,8 +387,8 @@ measured interval. The total and preparation,
 compilation, submission/advancement, wait, fetch/verification, render/output and
 persistence phases describe client-observed work, not engine-only execution.
 Sub-millisecond phases can report zero. Reporting does not change result stdout
-or recovery. `.timing off` disables it. Missing, invalid or extra arguments emit
-`Usage: .timing on|off` on stderr, leave the setting unchanged, and return to the
+or recovery. `.timer off` disables it. Missing, invalid or extra arguments emit
+`Usage: .timer on|off` on stderr, leave the setting unchanged, and return to the
 interactive prompt; batch input stops with exit status 1. `.show` includes the
 current setting. Mode and timing
 survive an interactive connection change.
