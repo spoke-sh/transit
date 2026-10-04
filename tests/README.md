@@ -6,6 +6,84 @@ earlier entry refers to that entry's source, not automatically to HEAD. The late
 records its reruns and remaining qualification separately; earlier consolidation
 results do not qualify the changed stored layout by inheritance.
 
+## Semantic diagnostic closeout
+
+Recorded 2026-10-03. The reviewed diagnostic implementation is qualified by full
+pinned `just check`, the focused proofs recorded below and **all 82 tasks** in
+the six-lane CI inventory across isolated clean checkouts. The implementation
+basis is `c79b9cf1b2b913136eea094b838f3059592530d6`; the later production change is
+reactive reconnect presentation at `192430f43008dee2f5fa9d0e7266185b79069f4c`.
+Fixture corrections at `67a30e89`, `1786ce1d` and `16f30893` do not alter runtime
+authority, stored/wire semantics or the current definition
+`9d3f4b28d873a0f082bca76aca29ae36f7d4afe9b337484a161323819cd67db9`.
+
+| Executed selection | Source revision | Passed tasks |
+| --- | --- | ---: |
+| Complete core, growth, experience and launcher lanes | `c79b9cf1` | 57 (22 + 26 + 7 + 2) |
+| Bindings check/native through .NET SDK | `c79b9cf1` | 10 |
+| BEAM SDK, ten-language interoperability, model, delivery and SQL rewrite proofs | `67a30e89` | 5 |
+| SQL differential proof, SDK gRPC faults and connector preparation recovery | `1786ce1d` | 3 |
+| Board, query, HTTP and gRPC browser tasks | `1786ce1d` | 4 |
+| Reactive browser, views and lifecycle tasks | `16f30893` | 3 |
+
+The four complete lanes used `just ci-clean --lane <lane>`. Bindings and browser
+qualification retained passed prefixes after failures, then executed the remaining
+or affected tasks from the checked task inventory in new local clones of committed
+HEAD, with no inherited workspace build outputs. Each clone installed locked
+frontend dependencies and used the pinned bindings shell with its own persistent
+`TMPDIR`. The final reactive selection includes every consumer suite affected by
+the reconnect change. This is a consolidated task qualification, **not a passed
+single `just ci-clean --complete` invocation or six uninterrupted lane passes**.
+
+The evidence audit checks every recorded revision, exact task selection, result
+count and exit status, then matches the union against all 82 inventory entries
+without gaps or duplicates. Its index is
+`.cache/ci/clean/16f3089364c7-diagnostics-qualification.json`; the referenced
+metadata/results remain under `.cache/ci/clean/`. Incomplete runs keep
+`completed: false`, including the failed formatter, SQL driver and lifecycle tasks.
+Logs: `/var/tmp/transit-diagnostics-clean-{runtime,bindings,browser,reactive}.log`.
+
+Full `just check` passes after the reconnect correction, including **568 real CLI
+diagnostic cases**, **77 Board tests**, generated/native/frontend checks and the
+documentation site. The semantic gates execute **2,868 independent projections
+across 30 declared surfaces**, **197 public compiler cases covering 243 grammar
+obligations**, and sixteen compiler-inferred boundaries plus eleven unknown-cause
+projections. File qualification passes **190 real CLI cases**, including bounded
+large-input execution. The SQL proof independently checks 174 SELECT ASTs, 142
+plans/Arrow results and 37 parameter ASTs with 26 parameterized plans and twenty
+exact rejections, alongside mutation, declaration and unified-source cases.
+
+All ten installed SDKs pass their individual recovery/caller tasks and the ten
+cross-language counter/query pairs. The separate twenty HTTP/gRPC SDK schedules
+at `8ff184f1` include rejected-followup acceptance without a child exchange or send;
+the clean SDK tasks also exercise those schedules. Clean connector preparation
+checks preserve accepted-call failure evidence through lost receipts and restart.
+The clean Board browser observes **0.098 seconds** maximum control latency against
+the unchanged three-second bound. Final reactive tasks pass in **129.96, 294.78
+and 65.56 seconds**; the lifecycle's native/browser portion takes **54.61 seconds**
+excluding compilation. Current denial clears protected state; unavailable sources
+retain their original diagnostic and exact previously disclosed basis.
+
+Qualification exposed and corrected the following additional fixture issues.
+Elixir's formatter rejected two diagnostic assertions; canonical parsed code was
+unchanged after formatting. The SQL proof adapter still expected scalar parameter
+indices after source-aware records were introduced; it now projects their indices
+for predicates and both LIMIT positions. The first standalone reactive retry at
+`192430f4` completed protocol/browser checks but failed to write its trace because
+`.cache/verification` was absent; the fixture now creates its own output directory.
+Those failed runs are not passes. A Nix cached-derivation launch failure was retried
+with evaluation caching disabled, without toolchain or lockfile changes. A dirty
+documentation edit also prevented one lane from launching and was set aside before
+retry. Neither launch-only attempt executed qualification tasks.
+
+The [coverage contract](../contracts/diagnostics/README.md) defines the limits:
+eleven selected mapping boundaries are distinct from retained outcomes, grammar
+branches and compiler-inferred error sets. Conservative inferred sets do not prove
+reachability. Open OS/library/application callbacks are not exhaustively enumerable;
+unknown causes preserve their original evidence and uncertainty. Parser branch
+coverage does not establish every lexical byte, input combination or authority
+schedule, and reference-only grammar does not become executable.
+
 ## Schema discovery diagnostic evidence — 2026-10-03
 
 Discovery retains the first input-field/list-index witness, invalid name and

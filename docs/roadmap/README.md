@@ -51,7 +51,7 @@ before Station, so higher-level abstractions grow on an inspectable kernel.
 | [M41](M41.md) | Declarative benchmark coverage and measurement | 28 components measured and full TPC coverage inventoried; clean qualification in progress; complete suites blocked |
 | [M42](M42.md) | PostgreSQL and MySQL wire access | Proposed read/write profile; Zig adapters over interactive queries and explicit mutation/catalog owners, durable write recovery, TLS/authentication, typed parameters and independent client qualification |
 | [M43](M43.md) | Durable Table mutation latency | In progress: end-to-end measurement, bounded mutation admission, shared read/write amplification and recovery qualification |
-| [M44](M44.md) | Semantic declarative diagnostics | In progress: durable conflict witnesses, precise compiler/runtime attribution and outcome-specific recovery guidance across interfaces |
+| [M44](M44.md) | Semantic declarative diagnostics | Complete for reviewed interfaces: durable witnesses, precise attribution, recovery guidance and semantic coverage gates; clean task inventory qualified |
 
 The historical [pre-Station review](../history/reviews/PRE_STATION.md) led to the completed
 [M8 readiness requirements](M8.md#exit-criteria). Station now builds on the resource

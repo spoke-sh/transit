@@ -50,9 +50,12 @@ Run `just test::diagnostic-mappings` for mapping drift and mutation checks. Full
 every registered cause through the public classifier and validates its resulting
 envelope, outcome and absence of unsafe recovery actions. Finding a test in source
 only establishes ownership; it does not count as executing that test. The mapping
-manifest certifies its named compiler, migration and query caller boundaries, not every inventoried
-runtime/adapter boundary or every grammar alternative. Those remaining mappings
-must be added with their own executable cases before completeness is claimed.
+manifest checks eleven named boundaries: SQL compilation, migration, query callers,
+application compilation, application hosting, mutation callers, catalog callers,
+Board inspection, Flight RPC, serving adapters and file callers. Each boundary
+selects its production owners and explicit exceptions. Retained outcomes, grammar
+branches and inferred error sets have separate gates below; no one manifest
+establishes all transitive runtime behavior.
 
 
 `outcomes.json` owns reviewed semantic expectations for retained query failures,
@@ -115,7 +118,7 @@ this compiler-only fixture. Expected semantics have no automatic record mode.
 
 The application compiler and host have separate closed boundaries. The compiler
 projects all fifty registered causes at parse/output boundaries; the host projects
-all forty-six causes as failed reads and dispatched commands. The finite entries
+all forty-seven causes as failed reads and dispatched commands. The finite entries
 also own named explanations, avoiding a second cause shortlist. Owner unit and
 actual compiler fixtures verify first-dimension capacity witnesses and no-send
 configuration validation. These mappings do not certify arbitrary application
