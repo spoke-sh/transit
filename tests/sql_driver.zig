@@ -27,7 +27,7 @@ fn writeProjection(out: anytype, projection: *const sql.Projection) !void {
     };
     try out.endArray();
 }
-fn writeAtom(out: anytype, atom: *const sql.PredicateAtom, parameter: ?u32) !void {
+fn writeAtom(out: anytype, atom: *const sql.PredicateAtom, parameter: ?sql.Parameter) !void {
     switch (atom.*) {
         .all => try out.write(null),
         .state => |*state| {
@@ -55,7 +55,7 @@ fn writeAtom(out: anytype, atom: *const sql.PredicateAtom, parameter: ?u32) !voi
             try out.objectField("kind");
             try out.write(if (parameter != null) "parameter" else @tagName(comparison.literal));
             try out.objectField("value");
-            if (parameter) |index| try out.write(index) else switch (comparison.literal) {
+            if (parameter) |site| try out.write(site.index) else switch (comparison.literal) {
                 .null => try out.write(null),
                 inline .int64, .uint64, .float64 => |value| try out.write(value),
                 .boolean => |value| try out.write(value),
@@ -122,14 +122,14 @@ const AstView = struct {
             inline else => |value, tag| try writeAtom(out, &@as(sql.PredicateAtom, @unionInit(sql.PredicateAtom, @tagName(tag), value)), self.parameters.comparison),
         }
         try out.objectField("limit");
-        if (self.parameters.limit) |index| try out.write(.{ .parameter = index }) else try out.write(ast.limit);
+        if (self.parameters.limit) |site| try out.write(.{ .parameter = site.index }) else try out.write(ast.limit);
         try out.objectField("input");
         if (ast.input) |*input| {
             try out.beginObject();
             try out.objectField("projection");
             try writeProjection(out, &input.projection);
             try out.objectField("limit");
-            if (self.parameters.input_limit) |index| try out.write(.{ .parameter = index }) else try out.write(input.limit);
+            if (self.parameters.input_limit) |site| try out.write(.{ .parameter = site.index }) else try out.write(input.limit);
             try out.objectField("alias");
             try out.write(input.alias.slice());
             try out.endObject();
