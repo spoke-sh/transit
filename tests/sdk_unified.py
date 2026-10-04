@@ -280,12 +280,12 @@ def install_java(root, fixtures):
     names = ('transit-client', 'transit-native-client', 'transit-station-sdk', 'transit-native-station')
     for name in (*[f'{name}-0.2.0.jar' for name in names], 'gson-2.12.1.jar'):
         shutil.copy2(ROOT/'.cache/bindings/java'/name, lib/name)
-    env = {k: v for k, v in os.environ.items() if k not in ('CLASSPATH', 'JAVA_TOOL_OPTIONS', 'JDK_JAVA_OPTIONS', 'TRANSIT_HOST')}
+    env = {k: v for k, v in os.environ.items() if k not in ('CLASSPATH', 'JAVA_TOOL_OPTIONS', '_JAVA_OPTIONS', 'JDK_JAVA_OPTIONS', 'TRANSIT_HOST')}
     source = root/'JavaUnifiedSdk.java'; shutil.copyfile(ROOT/'tests'/source.name, source)
     classes = root/'classes'; classes.mkdir()
     subprocess.run(['javac', '--release', '21', '-Xlint:all', '-Werror', '-cp', str(lib/'*'), '-d', classes, source], cwd=root, env=env, check=True)
     source.unlink()
-    command = ['java', '-cp', os.pathsep.join([str(classes), str(lib/'*')]), 'JavaUnifiedSdk']
+    command = ['java', f'-Djava.io.tmpdir={root}', '-cp', os.pathsep.join([str(classes), str(lib/'*')]), 'JavaUnifiedSdk']
     subprocess.run([*command, 'codecs', fixtures], cwd=root, env=env, check=True, timeout=90)
     def open_callers(url, connection, state, kind):
         config = root/'client.json'

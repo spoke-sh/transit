@@ -11,6 +11,14 @@ incompatible native artifacts raise `INCOMPATIBLE_NATIVE`. `ClientConfig.nativeH
 provides an explicit executable override. The build uses JDK tools and emits POMs;
 Maven resolution/publication is not part of the local installation proof.
 
+Native extraction, temporary configuration and process-start I/O failures raise
+`LOCAL_IO`, with the original JVM exception available through `getCause()` and its
+type in `code()`. They do not establish artifact incompatibility or an authority
+rejection. The JVM's `java.io.tmpdir` selects temporary storage; configure it with
+`-Djava.io.tmpdir=/your/writable/directory`. The directory needs capacity for each
+concurrent extracted native executable. Cleanup failure cannot replace the
+original startup failure; additional cleanup errors are suppressed exceptions.
+
 ```java
 var config = new ClientConfig(URI.create("http://127.0.0.1:8080"),
     ClientConfig.Profile.NATIVE_V1);

@@ -117,6 +117,11 @@ public final class Values {
         } catch (IOException error) { throw incompatible("contract-resource"); }
     }
     public static TransitException incompatible(String phase) { return new TransitException(INCOMPATIBLE_NATIVE, phase); }
+    public static TransitException localIo(String phase, IOException cause) {
+        var failure = new TransitException(LOCAL_IO, -1, cause.getClass().getSimpleName(), phase);
+        failure.initCause(cause);
+        return failure;
+    }
     public static TransitException nativeError(int status, JsonElement value, String phase) {
         String code = null;
         if (value.isJsonObject()) {

@@ -28,11 +28,12 @@ public final class NativeArtifact implements AutoCloseable {
             Files.setPosixFilePermissions(executable, PosixFilePermissions.fromString("rwx------"));
             return new NativeArtifact(directory, executable);
         } catch (IOException | RuntimeException error) {
+            RuntimeException failure = error instanceof IOException io ? Values.localIo("native-artifact", io) : (RuntimeException) error;
             if (directory != null) {
                 try { Files.deleteIfExists(directory.resolve("transit-" + family + "-host")); Files.deleteIfExists(directory); }
-                catch (IOException ignored) { /* Preserve acquisition failure. */ }
+                catch (IOException cleanup) { failure.addSuppressed(cleanup); }
             }
-            throw Values.incompatible("native-artifact");
+            throw failure;
         }
     }
     @Override public void close() {

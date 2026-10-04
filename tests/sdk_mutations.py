@@ -186,7 +186,7 @@ def install_java(target):
     names=('transit-client','transit-native-client','transit-station-sdk','transit-native-station')
     for name in (*[f'{name}-0.2.0.jar' for name in names],'gson-2.12.1.jar'):
         shutil.copy2(ROOT/'.cache/bindings/java'/name,library/name)
-    environment={k:v for k,v in os.environ.items() if k not in ('CLASSPATH','JAVA_TOOL_OPTIONS','JDK_JAVA_OPTIONS','TRANSIT_HOST','TRANSIT_LIBRARY_DIR')}
+    environment={k:v for k,v in os.environ.items() if k not in ('CLASSPATH','JAVA_TOOL_OPTIONS', '_JAVA_OPTIONS','JDK_JAVA_OPTIONS','TRANSIT_HOST','TRANSIT_LIBRARY_DIR')}
     source=target/'JavaMutationSdk.java';shutil.copy2(ROOT/'tests'/source.name,source)
     classes=target/'classes';classes.mkdir()
     subprocess.run(['javac','--release','21','-Xlint:all','-Werror','-cp',str(library/'*'),'-d',str(classes),str(source)],cwd=target,env=environment,check=True)
@@ -194,7 +194,7 @@ def install_java(target):
     def create(url,connection,state):
         config=target/'client.json'
         config.write_text(json.dumps(dict(url=url,connection=connection,seed_file=str(state/'caller.seed'))))
-        return Consumer(['java','-cp',str(classes)+os.pathsep+str(library/'*'),'JavaMutationSdk',str(config)],environment,target)
+        return Consumer(['java',f'-Djava.io.tmpdir={target}','-cp',str(classes)+os.pathsep+str(library/'*'),'JavaMutationSdk',str(config)],environment,target)
     return 'java',create
 
 

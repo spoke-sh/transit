@@ -37,10 +37,13 @@ public final class Port implements AutoCloseable {
             Files.write(configuration, document);
             process = new ProcessBuilder(artifact.executable().toString(), configuration.toString()).redirectError(ProcessBuilder.Redirect.DISCARD).start();
         } catch (IOException | RuntimeException error) {
+            RuntimeException failure = error instanceof IOException io ? Values.localIo("native-start", io) : (RuntimeException) error;
             if (created != null) {
-                try { Files.deleteIfExists(created.resolve("host.json")); Files.deleteIfExists(created); } catch (IOException ignored) { }
+                try { Files.deleteIfExists(created.resolve("host.json")); Files.deleteIfExists(created); }
+                catch (IOException cleanup) { failure.addSuppressed(cleanup); }
             }
-            artifact.close(); throw Values.incompatible("native-start");
+            try { artifact.close(); } catch (RuntimeException cleanup) { failure.addSuppressed(cleanup); }
+            throw failure;
         }
         timer = new ScheduledThreadPoolExecutor(1, runnable -> {
             Thread thread = new Thread(runnable, "transit-port-deadline"); thread.setDaemon(true); return thread;

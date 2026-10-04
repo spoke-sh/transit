@@ -11,7 +11,7 @@ public final class TransitException extends RuntimeException {
     public enum Kind {
         BUSY, CLOSED, INCOMPATIBLE_NATIVE, UNSUPPORTED_CAPABILITY, AUTHORITY_REJECTED,
         ACCESS_DENIED, STALE_OWNERSHIP, PROCESS_RETIRED, HISTORY_UNAVAILABLE,
-        READ_FAILED, TURN_EXPIRED, CODEC, HANDLER, MISSING_VALUE, UNKNOWN_OUTCOME, BLOCKED, BUDGET_EXCEEDED, CLEANUP
+        READ_FAILED, TURN_EXPIRED, CODEC, HANDLER, MISSING_VALUE, UNKNOWN_OUTCOME, BLOCKED, BUDGET_EXCEEDED, CLEANUP, LOCAL_IO
     }
     private final Kind kind;
     private final int status;
@@ -24,7 +24,8 @@ public final class TransitException extends RuntimeException {
     }
     public TransitException(Kind kind, int status, String code, String phase, JsonObject diagnostic, boolean diagnosticInvalid) {
         super("Transit " + phase + " failed (" + kind + ")" + (kind == Kind.INCOMPATIBLE_NATIVE ?
-            "; install matching Transit 0.2.0 JARs or provide a compatible native executable" : ""));
+            "; install matching Transit 0.2.0 JARs or provide a compatible native executable" : kind == Kind.LOCAL_IO ?
+            "; check storage and permissions for java.io.tmpdir and the configured native executable" : ""));
         this.kind = kind; this.status = status; this.code = code; this.phase = phase;
         this.diagnostic = diagnostic == null ? null : diagnostic.toString(); this.diagnosticInvalid = diagnosticInvalid;
     }

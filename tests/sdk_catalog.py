@@ -256,7 +256,7 @@ def install_java(target):
         shutil.copy2(ROOT / '.cache/bindings/java' / filename, destination)
         artifacts[filename] = hashlib.sha256(destination.read_bytes()).hexdigest()
     (target / 'artifacts.json').write_text(json.dumps(artifacts))
-    environment = {k:v for k,v in os.environ.items() if k not in ('CLASSPATH', 'JAVA_TOOL_OPTIONS', 'JDK_JAVA_OPTIONS', 'TRANSIT_HOST', 'TRANSIT_LIBRARY_DIR')}
+    environment = {k:v for k,v in os.environ.items() if k not in ('CLASSPATH', 'JAVA_TOOL_OPTIONS', '_JAVA_OPTIONS', 'JDK_JAVA_OPTIONS', 'TRANSIT_HOST', 'TRANSIT_LIBRARY_DIR')}
     sources = [target / name for name in ('JavaCatalogSdk.java', 'JavaCatalogValues.java')]
     for source in sources: shutil.copy2(ROOT / 'tests' / source.name, source)
     classes = target / 'classes'
@@ -271,12 +271,12 @@ def install_java(target):
     shutil.copy2(ROOT / 'tests/catalog_port_host.py', faults / 'host')
     (faults / 'host').chmod(0o700)
     classpath = str(classes) + os.pathsep + str(library / '*')
-    subprocess.run(['java', '-cp', classpath, 'io.transit.sdk.station.JavaCatalogValues', str(faults)], cwd=target, env=environment, check=True, timeout=90)
+    subprocess.run(['java', f'-Djava.io.tmpdir={target}', '-cp', classpath, 'io.transit.sdk.station.JavaCatalogValues', str(faults)], cwd=target, env=environment, check=True, timeout=90)
     shutil.rmtree(faults)
     def create(url, connection, state):
         config = target / 'client.json'
         config.write_text(json.dumps(dict(url=url, connection=connection, seed_file=str(state / 'caller.seed'))))
-        return Consumer(['java', '-cp', classpath, 'JavaCatalogSdk', str(config)], environment, target)
+        return Consumer(['java', f'-Djava.io.tmpdir={target}', '-cp', classpath, 'JavaCatalogSdk', str(config)], environment, target)
     return 'java', create
 
 

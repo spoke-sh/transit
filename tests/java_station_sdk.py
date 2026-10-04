@@ -15,7 +15,7 @@ def run(node, cli, library, artifacts, http_worker=None, *, execute=None):
         raise ValueError("The full Station SDK schedule requires the HTTP worker binary")
     root = Path(__file__).resolve().parents[1]
     def install(target):
-        environment = {k: v for k, v in os.environ.items() if k not in ('CLASSPATH', 'JAVA_TOOL_OPTIONS', 'JDK_JAVA_OPTIONS', 'TRANSIT_HOST')}
+        environment = {k: v for k, v in os.environ.items() if k not in ('CLASSPATH', 'JAVA_TOOL_OPTIONS', '_JAVA_OPTIONS', 'JDK_JAVA_OPTIONS', 'TRANSIT_HOST')}
         lib = target / 'lib'
         lib.mkdir()
         for name in ('transit-client-0.2.0.jar', 'transit-native-client-0.2.0.jar', 'transit-station-sdk-0.2.0.jar',
@@ -52,7 +52,7 @@ public final class StationArtifactCheck {
                 if entry.filename == 'META-INF/MANIFEST.MF': data = data.replace(b'Implementation-Version: 0.2.0', b'Implementation-Version: 99.0.0')
                 altered.writestr(entry, data)
         dependencies = sorted(path for path in lib.glob('*.jar') if path.name != 'transit-client-0.2.0.jar')
-        subprocess.run(['java', '-cp', os.pathsep.join(map(str, [classes, mismatched, *dependencies])), 'StationArtifactCheck'], env=environment, cwd=target, check=True, timeout=20)
+        subprocess.run(['java', f'-Djava.io.tmpdir={target}', '-cp', os.pathsep.join(map(str, [classes, mismatched, *dependencies])), 'StationArtifactCheck'], env=environment, cwd=target, check=True, timeout=20)
         mismatched.unlink()
         # Generic state and Table APIs reject values of the wrong public type.
         invalid = target / 'WrongValue.java'
@@ -70,9 +70,9 @@ public final class StationArtifactCheck {
         shutil.copy2(root / 'packages/zig/transit-station-grpc/src/fixtures/service.json', grpc_fixtures)
         golden = target / 'grpc-golden.json'
         golden.write_text(json.dumps({'profile': 'native_v1', 'grpc_fixtures': str(grpc_fixtures)}))
-        subprocess.run(['java', '-cp', classpath, 'JavaStationSdk', 'grpc-golden', str(golden)], env=environment, cwd=target, check=True, timeout=30)
-        return Consumer(environment, lambda mode, config: ['java', '-cp', classpath, 'JavaStationSdk', mode, str(config)],
-            lambda config, role: ['java', '-cp', str(lib / '*'), 'io.transit.examples.CounterMain', str(config), role, '--commits', '1'],
+        subprocess.run(['java', f'-Djava.io.tmpdir={target}', '-cp', classpath, 'JavaStationSdk', 'grpc-golden', str(golden)], env=environment, cwd=target, check=True, timeout=30)
+        return Consumer(environment, lambda mode, config: ['java', f'-Djava.io.tmpdir={target}', '-cp', classpath, 'JavaStationSdk', mode, str(config)],
+            lambda config, role: ['java', f'-Djava.io.tmpdir={target}', '-cp', str(lib / '*'), 'io.transit.examples.CounterMain', str(config), role, '--commits', '1'],
             'thread-handler', extra_failures=('error-stop', 'error-block'), arrow_adapter=False)
     (execute or schedule)(node, cli, library, install, 'Java')
     if execute is None: http_schedule(node, cli, library, http_worker, install, 'Java', public_release=True, public_followup=True)

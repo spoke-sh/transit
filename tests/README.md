@@ -13827,3 +13827,30 @@ Log: `/var/tmp/transit-diagnostics-tls-close-proof.log`.
 The failed clean run remains incomplete at `/var/tmp/transit-ci-__ng_3be` and
 `/var/tmp/transit-diagnostics-complete-clean.log`; completed tasks do not establish
 a full clean pass. Final qualification must include the corrected fixture.
+
+### Java local startup failure attribution (2026-10-03)
+
+The installed Java Station preflight at `77919e97` failed while two workers
+extracted 162,931,597-byte native artifacts into the JVM's default `/tmp`, which
+had only 196 MiB free. `TMPDIR` did not select JVM temporary storage. The SDK
+discarded the extraction exception and reported incompatible native artifacts.
+Java now reports extraction/configuration/process-start I/O as `LOCAL_IO`, with
+the original exception and type, no native status or authority rejection, and
+explicit temporary-storage guidance. Cleanup errors cannot replace that cause.
+Genuine version failures preserve their original compatibility classification.
+
+Installed raw-client cases pass actual invalid temporary-directory failures at
+extraction and configuration creation, and a missing process interpreter. They
+assert original cause, local phase, absent durable outcome and removal of temporary
+artifacts. All Java proof consumers select fixture-owned `java.io.tmpdir` paths
+and exclude inherited JVM option injection. Full pinned `just check` passes.
+Logs: `/var/tmp/transit-diagnostics-java-{check,io}.log`.
+
+The earlier clean run at `77919e97` passed all core, growth, experience and launcher
+tasks plus `bindings::check`, including HTTP worker recovery in **1,008.02 seconds**.
+It was deliberately interrupted during `bindings::native` for this correction:
+58 passed tasks and one interrupted task, `completed: false`, retained at
+`/var/tmp/transit-ci-hp6auj1_`. It does not establish a full clean pass.
+The independent browser preflight measured **3.314 seconds** against the unchanged
+three-second Board control bound while other checks ran. That failed run is not
+counted as browser qualification; isolation and a complete rerun remain required.
