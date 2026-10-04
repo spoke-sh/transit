@@ -120,6 +120,9 @@ pub fn parseDeclarationDetailed(text: []const u8, location: ?*Location, location
     if (locations) |value| value.* = .{};
     try validateText(text);
     var parser: Parser = .{ .lexer = .{ .text = text }, .location = location };
+    return declaration(&parser, locations);
+}
+fn declaration(parser: *Parser, locations: ?*DeclarationLocations) !?f.Declaration.Definition {
     try parser.advance();
     if (!parser.word("CREATE")) return null;
     try parser.advance();
@@ -171,6 +174,9 @@ pub fn parseMutationLocated(text: []const u8, location: ?*Location) !?Mutation {
     if (location) |value| value.* = .{};
     try validateText(text);
     var parser: Parser = .{ .lexer = .{ .text = text }, .location = location };
+    return mutation(&parser);
+}
+fn mutation(parser: *Parser) !?Mutation {
     try parser.advance();
     const insert = parser.word("INSERT");
     const update = parser.word("UPDATE");
@@ -220,10 +226,13 @@ pub fn parseInspectionLocated(text: []const u8, location: ?*Location) !?Inspecti
     if (location) |value| value.* = .{};
     try validateText(text);
     var parser: Parser = .{ .lexer = .{ .text = text }, .location = location };
+    return inspection(&parser);
+}
+fn inspection(parser: *Parser) !?Inspection {
     try parser.advance();
     if (parser.word("EXPLAIN")) {
         var ast: Ast = undefined;
-        try statement(&parser, &ast);
+        try statement(parser, &ast);
         return .{ .explain = ast };
     }
     if (parser.word("DESCRIBE")) {
@@ -242,7 +251,7 @@ pub fn parseInspectionLocated(text: []const u8, location: ?*Location) !?Inspecti
             }
         }
         if (parser.token.tag == .eof or parser.token.tag == .semi) {
-            if (location) |value| value.expected = "TABLES, SOURCES, SINKS or CONNECTIONS";
+            if (parser.location) |value| value.expected = "TABLES, SOURCES, SINKS or CONNECTIONS";
             return error.InvalidSqlSyntax;
         }
         return error.UnsupportedCatalog;
@@ -289,6 +298,33 @@ fn statement(parser: *Parser, ast: *Ast) !void {
     ast.limit = try parser.limit(false);
     try parser.end();
     return;
+}
+
+/// Local presentation roles. These are neither wire fields nor proof of validity.
+pub const TokenRole = enum(u8) { unknown, keyword, identifier, function, type_name, literal, number, parameter, comment };
+
+/// Annotate the prefix consumed by the owning parser, including incomplete input.
+/// No catalog, allocation or dispatch. Unclassified suffixes remain unknown.
+/// Caller storage has one role per input byte and must not exceed the SQL bound.
+pub fn classifyTokens(text: []const u8, roles: []TokenRole) void {
+    @memset(roles, .unknown);
+    if (roles.len != text.len) return;
+    validateText(text) catch return;
+    var probe: Lexer = .{ .text = text };
+    const first = (probe.next() catch return);
+    if (first.tag != .word) return;
+    var parameters: ParameterSites = .{};
+    var parser: Parser = .{ .lexer = .{ .text = text, .parameters_enabled = true }, .roles = roles, .parameters = &parameters };
+    if (std.ascii.eqlIgnoreCase(first.text, "SELECT")) {
+        var ast: Ast = undefined;
+        statement(&parser, &ast) catch {};
+    } else if (std.ascii.eqlIgnoreCase(first.text, "INSERT") or std.ascii.eqlIgnoreCase(first.text, "UPDATE") or std.ascii.eqlIgnoreCase(first.text, "DELETE")) {
+        _ = mutation(&parser) catch null;
+    } else if (std.ascii.eqlIgnoreCase(first.text, "CREATE")) {
+        _ = declaration(&parser, null) catch null;
+    } else if (std.ascii.eqlIgnoreCase(first.text, "EXPLAIN") or std.ascii.eqlIgnoreCase(first.text, "DESCRIBE") or std.ascii.eqlIgnoreCase(first.text, "SHOW")) {
+        _ = inspection(&parser) catch null;
+    }
 }
 
 /// Shared checked SQL literal decoding; the returned value owns its bytes.
@@ -414,12 +450,26 @@ const Lexer = struct {
 };
 const Parser = struct {
     lexer: Lexer,
-    token: Token = undefined,
+    token: Token = .{ .tag = .eof, .text = "" },
+    roles: ?[]TokenRole = null,
     assistance: ?*Hints = null,
     location: ?*Location = null,
     parameters: ?*ParameterSites = null,
     name_role: NameRole = .source,
+    fn annotate(self: *Parser, role: TokenRole) void {
+        if (self.roles) |roles| @memset(roles[self.lexer.start..][0..self.token.text.len], role);
+    }
     fn advance(self: *Parser) !void {
+        if (self.roles) |roles| if (self.token.text.len != 0 and roles[self.lexer.start] == .unknown) {
+            self.annotate(switch (self.token.tag) {
+                .word => .keyword,
+                .quoted => .identifier,
+                .string => .literal,
+                .integer => if (self.token.text[0] == '$') .parameter else .number,
+                else => .unknown,
+            });
+        };
+
         defer {
             if (self.location) |location| location.* = .{ .offset = self.lexer.start };
         }
@@ -462,6 +512,7 @@ const Parser = struct {
     fn declarationType(self: *Parser) !m.Type {
         if (self.location) |location| location.expected = "INT64, BOOL, UTF8 or BINARY";
         const result: m.Type = if (self.word("INT64")) .int64 else if (self.word("BOOL")) .boolean else if (self.word("UTF8")) .utf8 else if (self.word("BINARY")) .binary else return error.UnsupportedDeclarationType;
+        self.annotate(.type_name);
         try self.advance();
         return result;
     }
@@ -475,6 +526,7 @@ const Parser = struct {
         };
         if (token.tag != .word and token.tag != .quoted) return error.InvalidSqlSyntax;
         if (token.tag == .word and isReserved(token.text)) return error.InvalidSqlSyntax;
+        self.annotate(.identifier);
         const raw = if (token.tag == .quoted) token.text[1 .. token.text.len - 1] else token.text;
         if (raw.len > bytes.len) return error.InvalidColumnName;
         for (raw, 0..) |byte, i| bytes[i] = if (token.tag == .word) std.ascii.toLower(byte) else byte;
@@ -527,6 +579,7 @@ const Parser = struct {
     fn selection(self: *Parser, result: *Selection) !void {
         const count = self.word("COUNT");
         if (count or self.word("SUM")) {
+            self.annotate(.function);
             try self.advance();
             try self.require(.left);
             if (count) {
@@ -684,11 +737,13 @@ const Parser = struct {
             return .null;
         }
         if (self.word("NULL")) {
+            self.annotate(.literal);
             try self.advance();
             return .null;
         }
         if (self.word("TRUE") or self.word("FALSE")) {
             const value = self.word("TRUE");
+            self.annotate(.literal);
             try self.advance();
             return .{ .boolean = value };
         }
@@ -704,6 +759,7 @@ const Parser = struct {
             }
             try self.advance();
             if (try self.take(.cast)) {
+                if (self.word("BYTEA") or self.word("UINT64") or self.word("FLOAT64")) self.annotate(.type_name);
                 const result: Literal = if (self.word("BYTEA")) .{ .binary = value } else if (self.word("UINT64")) blk: {
                     const bytes = value.slice();
                     if (bytes.len == 0) return error.InvalidNumericLiteral;
@@ -721,6 +777,7 @@ const Parser = struct {
             }
             return .{ .utf8 = value };
         }
+        if (self.token.tag == .minus or self.token.tag == .plus) self.annotate(.number);
         const negative = try self.take(.minus);
         if (!negative) _ = try self.take(.plus);
         if (self.token.tag == .cursor) if (self.assistance) |h| h.symbol(.integer);
@@ -733,6 +790,7 @@ const Parser = struct {
     }
     fn parameter(self: *Parser) !?Parameter {
         if (self.token.tag != .integer or self.token.text.len == 0 or self.token.text[0] != '$') return null;
+        self.annotate(.parameter);
         if (self.parameters == null) return error.UnboundParameters;
         const index = std.fmt.parseInt(u32, self.token.text[1..], 10) catch return error.InvalidParameterIndex;
         if (index == 0) return error.InvalidParameterIndex;

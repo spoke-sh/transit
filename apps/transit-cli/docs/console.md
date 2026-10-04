@@ -414,9 +414,23 @@ history.
 
 The horizontally scrolling, highlighted draft renders newline, Unicode
 and control bytes as visible escapes; the underlying SQL remains unchanged.
-Reserved SQL words use cyan. Unquoted names and double-quoted identifiers use
-the terminal's default foreground, including table names, columns and aliases.
-Single-quoted strings use green, numbers magenta and comments dim text.
+SQL keywords, aggregate functions and type names use cyan. Unquoted names and
+double-quoted identifiers use the terminal's default foreground, including
+table names, columns, qualifiers and aliases. Classification follows the
+production parser: `value` is plain in `SELECT value FROM items` and cyan after
+`IS` in `WHERE value IS VALUE`. The same distinction applies to contextual
+words such as `UPDATE`, `EXPLAIN`, `UINT64` and `FLOAT64`. Single-quoted strings,
+Boolean literals and literal `NULL` use green; numbers and `$n` parameters use
+magenta; comments use dim text. Operators, punctuation and `*` stay plain.
+Dot command names use cyan and their arguments stay plain.
+
+Drafts, submitted SQL and diagnostic excerpts share these roles. Diagnostics
+retain the original roles through redaction and clipping; masked bytes stay
+plain. Each statement is classified locally within the 4,096-byte input bound,
+without catalog access. Incomplete or malformed SQL keeps the roles established
+before the error, then uses reserved-word and lexical colors for the remaining
+text. Reference-only statement families use lexical colors. Highlighting does
+not establish validity, name resolution or execution support.
 Diagnostics emphasize the error label and identifier, category, location and
 caret, and highlight SQL vocabulary and dot commands in corrective guidance.
 Color uses stderr's terminal status independently of the result format; redirected

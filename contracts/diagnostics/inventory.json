@@ -1545,13 +1545,14 @@
       "error_sets": {},
       "error_returns": {
         "hint()": "<inferred>",
+        "source()": "<inferred>",
         "sql()": "<inferred>",
         "text()": "<inferred>",
         "write()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 11,
+        "try": 13,
         "catch": 3
       },
       "imports": [
@@ -5572,6 +5573,17 @@
           "gt",
           "ge",
           "semi"
+        ],
+        "TokenRole": [
+          "unknown",
+          "keyword",
+          "identifier",
+          "function",
+          "type_name",
+          "literal",
+          "number",
+          "parameter",
+          "comment"
         ]
       },
       "error_sets": {},
@@ -5596,8 +5608,11 @@
         "Parser.selection()": "<inferred>",
         "Parser.sourceAlias()": "<inferred>",
         "Parser.take()": "<inferred>",
+        "declaration()": "<inferred>",
         "hints()": "<inferred>",
+        "inspection()": "<inferred>",
         "literalCell()": "<inferred>",
+        "mutation()": "<inferred>",
         "parse()": "<inferred>",
         "parseDeclaration()": "<inferred>",
         "parseDeclarationDetailed()": "<inferred>",
@@ -5615,7 +5630,7 @@
       "open_error_set_uses": 0,
       "propagation": {
         "try": 139,
-        "catch": 7
+        "catch": 13
       },
       "imports": [
         "SqlBinding.zig",
@@ -5797,7 +5812,6 @@
           "cause",
           "location",
           "expected",
-          "source",
           "marker",
           "hint"
         ],
@@ -5810,6 +5824,7 @@
       },
       "error_sets": {},
       "error_returns": {
+        "Plain.source()": "<inferred>",
         "Plain.write()": "<inferred>",
         "render()": "<inferred>",
         "renderRemote()": "<inferred>",
@@ -5818,7 +5833,7 @@
       },
       "open_error_set_uses": 5,
       "propagation": {
-        "try": 54,
+        "try": 55,
         "catch": 29
       },
       "imports": [
@@ -5851,14 +5866,15 @@
       "error_returns": {
         "Scan.init()": "<inferred>",
         "Scan.next()": "<inferred>",
+        "expectRoles()": "<inferred>",
         "replacement()": "<inferred>",
         "significant()": "<inferred>",
         "terminator()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 6,
-        "catch": 0
+        "try": 7,
+        "catch": 2
       },
       "imports": [
         "Sql.zig",

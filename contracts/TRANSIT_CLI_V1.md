@@ -294,6 +294,15 @@ error. Dot commands start an empty input statement; slash commands are rejected.
 TTY editing supports movement, deletion, Up/Down recall, Ctrl-R reverse substring
 history search, completion accept/dismiss/undo, resize and Ctrl-C draft clearing.
 Submitted SQL and dot commands retain the draft's token colors in scrollback.
+SQL keywords, aggregate functions and types are cyan; table/column names,
+qualifiers and aliases use the default foreground, including quoted identifiers
+and contextual words in name positions. Strings, Boolean literals and literal
+NULL are green, numbers and parameters magenta, and comments dim. Punctuation
+and dot-command arguments are plain. Classification uses production parser roles
+with lexical colors for incomplete, malformed and reference-only syntax; it
+does not imply validation, binding or execution support. Redacted diagnostic
+excerpts retain original token roles through masking and clipping, with masked
+bytes plain.
 Console diagnostics highlight error labels, identifiers, categories, coordinates,
 carets and correction commands on terminal stderr. Nonempty `NO_COLOR` or
 `TERM=dumb` disables color; redirected stderr is plain even with

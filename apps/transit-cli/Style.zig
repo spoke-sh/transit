@@ -36,29 +36,45 @@ pub fn text(self: Self, out: *std.Io.Writer, color: Color, value: []const u8) !v
 
 /// Shared token colors for the editable draft, submitted echo and redacted SQL.
 pub const Syntax = struct {
-    scan: ?input.Scan,
-    token: ?input.Token = null,
-    command_start: ?usize = null,
+    roles: [fuze.Sql.max_statement_bytes]fuze.Sql.TokenRole = @splat(.unknown),
 
     pub fn init(value: []const u8) Syntax {
-        const start = std.mem.indexOfNone(u8, value, " \t\r\n") orelse value.len;
-        return .{ .scan = input.Scan.init(value) catch null, .command_start = if (start < value.len and value[start] == '.') start + 1 else null };
+        _ = input.Scan.init(value) catch return .{};
+        var result: Syntax = .{};
+        var start: usize = 0;
+        while (start < value.len) {
+            start += std.mem.indexOfNone(u8, value[start..], " \t\r\n") orelse break;
+            if (value[start] == '.') {
+                const end = start + (std.mem.indexOfScalar(u8, value[start..], '\n') orelse value.len - start);
+                const command_end = start + (std.mem.indexOfAny(u8, value[start..end], " \t\r") orelse end - start);
+                // Shell arguments are not SQL, even when they contain keywords,
+                // quotes, path separators or comment delimiters.
+                @memset(result.roles[start..end], .identifier);
+                @memset(result.roles[start + 1 .. command_end], .keyword);
+                start = end;
+            } else {
+                const end = start + (input.terminator(value[start..]) catch null orelse value.len - start);
+                input.classify(value[start..end], result.roles[start..end]);
+                start = end;
+            }
+        }
+        return result;
     }
 
-    pub fn at(self: *Syntax, offset: usize) Color {
-        if (self.scan) |*scan| while (self.token == null or self.token.?.end <= offset) {
-            self.token = scan.next() catch null;
-            if (self.token == null) break;
-        };
-        return if (self.token) |token| switch (token.kind) {
-            .word => if (if (self.command_start) |start| start == token.start else fuze.Sql.isReserved(self.scan.?.text[token.start..token.end])) .word else .plain,
-            .string => .literal,
-            .number => .number,
-            .comment => .comment,
-            else => .plain,
-        } else .plain;
+    pub fn at(self: *const Syntax, offset: usize) Color {
+        return if (offset < self.roles.len) roleColor(self.roles[offset]) else .plain;
     }
 };
+
+fn roleColor(role: fuze.Sql.TokenRole) Color {
+    return switch (role) {
+        .keyword, .function, .type_name => .word,
+        .literal => .literal,
+        .comment => .comment,
+        .number, .parameter => .number,
+        .unknown, .identifier => .plain,
+    };
+}
 
 test "SQL identifiers and quoted names use the default foreground" {
     var buffer: [512]u8 = undefined;
@@ -74,11 +90,82 @@ test "SQL identifiers and quoted names use the default foreground" {
     try std.testing.expectEqualStrings(".\x1b[36mtiming\x1b[0m on", out.buffered());
 }
 
+test "contextual SQL colors survive scrolling and leave dot arguments plain" {
+    const value = ".read SELECT 'unterminated; /*\n.timing on\nSELECT value FROM items WHERE value IS VALUE;";
+    const syntax = Syntax.init(value);
+    // Editor scrolling need not start at the beginning or visit bytes in order.
+    try std.testing.expectEqual(Color.word, syntax.at(std.mem.lastIndexOf(u8, value, "VALUE").?));
+    try std.testing.expectEqual(Color.plain, syntax.at(std.mem.indexOf(u8, value, "value").?));
+    try std.testing.expectEqual(Color.plain, syntax.at(std.mem.indexOf(u8, value, "SELECT").?));
+    try std.testing.expectEqual(Color.word, syntax.at(std.mem.indexOf(u8, value, "timing").?));
+    try std.testing.expectEqual(Color.plain, syntax.at(value.len));
+    var buffer: [1024]u8 = undefined;
+    var out: std.Io.Writer = .fixed(&buffer);
+    try (Self{ .enabled = true }).sql(&out, value);
+    try std.testing.expectEqualStrings(
+        ".\x1b[36mread\x1b[0m SELECT 'unterminated; /*\n.\x1b[36mtiming\x1b[0m on\n\x1b[36mSELECT\x1b[0m value \x1b[36mFROM\x1b[0m items \x1b[36mWHERE\x1b[0m value \x1b[36mIS\x1b[0m \x1b[36mVALUE\x1b[0m;",
+        out.buffered(),
+    );
+    out.end = 0;
+    try (Self{}).sql(&out, value);
+    try std.testing.expectEqualStrings(value, out.buffered());
+}
+
+test "SQL colors preserve incomplete Unicode and multiple statements" {
+    const value = "SELECT \"café\" FROM items; SELECT value FROM items WHERE value = 'it''s; FROM";
+    var buffer: [1024]u8 = undefined;
+    var out: std.Io.Writer = .fixed(&buffer);
+    try (Self{ .enabled = true }).sql(&out, value);
+    try std.testing.expectEqualStrings(
+        "\x1b[36mSELECT\x1b[0m \"café\" \x1b[36mFROM\x1b[0m items; \x1b[36mSELECT\x1b[0m value \x1b[36mFROM\x1b[0m items \x1b[36mWHERE\x1b[0m value = \x1b[32m'it''s; FROM\x1b[0m",
+        out.buffered(),
+    );
+}
+
+test "diagnostic colors use original context after redaction and clipping" {
+    for ([_][]const u8{
+        "SELECT value FROM items " ++ @as([80]u8, @splat(' ')) ++ "WHERE value IS VALUE LIMIT;",
+        "SELECT value FROM items " ++ @as([80]u8, @splat(' ')) ++ "WHERE value = '99.123'::FLOAT64 LIMIT;",
+    }, [_][]const u8{ "VALUE", "FLOAT64" }) |value, keyword| {
+        const diagnostic = fuze.SqlDiagnostic.query(value, error.InvalidSqlSyntax, true).?;
+        try std.testing.expect(std.mem.startsWith(u8, diagnostic.context[0..diagnostic.context_len], "..."));
+        for (diagnostic.context[0..diagnostic.context_len], diagnostic.context_roles[0..diagnostic.context_len]) |byte, role| {
+            if (byte == '*') try std.testing.expectEqual(fuze.Sql.TokenRole.unknown, role);
+        }
+        var buffer: [4096]u8 = undefined;
+        var out: std.Io.Writer = .fixed(&buffer);
+        try diagnostic.renderStyled(&out, Self{ .enabled = true });
+        var token_buffer: [64]u8 = undefined;
+        const colored = try std.fmt.bufPrint(&token_buffer, "\x1b[36m{s}\x1b[0m", .{keyword});
+        try std.testing.expect(std.mem.indexOf(u8, out.buffered(), colored) != null);
+        try std.testing.expect(std.mem.indexOf(u8, out.buffered(), "\x1b[36mvalue") == null);
+        try std.testing.expect(std.mem.indexOf(u8, out.buffered(), "99.123") == null);
+        var plain_buffer: [4096]u8 = undefined;
+        var plain: std.Io.Writer = .fixed(&plain_buffer);
+        try diagnostic.render(&plain);
+        out.end = 0;
+        try diagnostic.renderStyled(&out, Self{});
+        try std.testing.expectEqualStrings(plain.buffered(), out.buffered());
+    }
+}
+
 pub fn sql(self: Self, out: *std.Io.Writer, value: []const u8) !void {
     var syntax = Syntax.init(value);
     var active: Color = .plain;
     for (value, 0..) |byte, offset| {
         const color = syntax.at(offset);
+        if (color != active) try out.writeAll(self.code(color));
+        active = color;
+        try out.writeByte(byte);
+    }
+    if (active != .plain) try out.writeAll(self.code(.plain));
+}
+
+/// Excerpt roles were captured before masking and clipping the original input.
+pub fn source(self: Self, out: *std.Io.Writer, value: []const u8, roles: []const fuze.Sql.TokenRole) !void {
+    var active: Color = .plain;
+    for (value, roles) |byte, role| {
+        const color = roleColor(role);
         if (color != active) try out.writeAll(self.code(color));
         active = color;
         try out.writeByte(byte);
@@ -108,14 +195,13 @@ pub fn hint(self: Self, out: *std.Io.Writer, value: []const u8) !void {
 
 pub fn write(self: Self, out: *std.Io.Writer, part: fuze.SqlDiagnostic.Part, value: []const u8) !void {
     switch (part) {
-        .source => try self.sql(out, value),
         .hint => try self.hint(out, value),
         else => try self.text(out, switch (part) {
             .summary => .emphasis,
             .category => .category,
             .cause, .marker => .failure,
             .location, .expected => .word,
-            .source, .hint => unreachable,
+            .hint => unreachable,
         }, value),
     }
 }

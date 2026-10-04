@@ -560,6 +560,27 @@ with tempfile.TemporaryDirectory(prefix='transit-cli-diagnostics-') as directory
 
     sgr = re.compile(rb'\x1b\[[0-9;]*m')
     reset = b'\x1b[0m'
+    def assert_sql_colors(rendered, text, tokens):
+        # Assert every visible byte, including plain names and punctuation.
+        plain, actual, active, offset = bytearray(), [], None, 0
+        for escape in ANSI.finditer(rendered):
+            part = rendered[offset:escape.start()]
+            plain.extend(part)
+            actual.extend([active] * len(part))
+            code = escape.group()
+            if code.endswith(b'm'):
+                active = None if code == reset else code
+            offset = escape.end()
+        plain.extend(rendered[offset:])
+        actual.extend([active] * (len(rendered)-offset))
+        assert bytes(plain) == text, (plain, text)
+        expected, offset = [None] * len(text), 0
+        for token, code in tokens:
+            start = text.index(token, offset)
+            offset = start + len(token)
+            expected[start:offset] = [code] * len(token)
+        assert actual == expected, (rendered, tokens)
+
     plain_diagnostics = {}
     for format in ('table', 'json'):
         for color_env, colored in (
@@ -612,6 +633,40 @@ with tempfile.TemporaryDirectory(prefix='transit-cli-diagnostics-') as directory
                     else:
                         assert not sgr.search(terminal.screen), terminal.screen
                     assert not select.select([terminal.process.stdout], [], [], .05)[0], 'diagnostic leaked to stdout'
+                cyan, green = b'\x1b[36m', b'\x1b[32m'
+                for statement, hint, tokens in (
+                    ('SELECT value FROM items WHERE value IS VALUE LIMIT;', '.help SQL',
+                     ((b'SELECT', cyan), (b'FROM', cyan), (b'WHERE', cyan), (b'IS', cyan), (b'VALUE', cyan), (b'LIMIT', cyan))),
+                    ('EXPLAIN SELECT value AS explain FROM update WHERE value IS VALUE LIMIT;', '.help SQL',
+                     ((b'EXPLAIN', cyan), (b'SELECT', cyan), (b'AS', cyan), (b'FROM', cyan), (b'WHERE', cyan), (b'IS', cyan), (b'VALUE', cyan), (b'LIMIT', cyan))),
+                    ('INSERT INTO update (id, value) VALUES (1, TRUE) trailing;', '.help INSERT',
+                     ((b'INSERT', cyan), (b'INTO', cyan), (b'VALUES', cyan), (b'1', b'\x1b[35m'), (b'TRUE', green))),
+                ):
+                    # These fail locally, after the contextual tokens. No server
+                    # or binding success is needed to color an editable draft.
+                    terminal.resize(160)
+                    terminal.send('\x1b[200~'+statement+'\x1b[201~')
+                    terminal.expect('transit> '+statement)
+                    draft = terminal.screen.split(b'\r\x1b[2K')[-1]
+                    # The editor appends cursor movement after its text.
+                    assert_sql_colors(draft, ('transit> '+statement+'\r').encode(), tokens if colored else ())
+                    terminal.send('\r')
+                    terminal.expect(hint)
+                    terminal.expect('ms)\r\n')
+                    echo, diagnostic = committed_display(terminal, statement)
+                    assert_sql_colors(echo, ('transit> '+statement+'\r\n').encode(), tokens if colored else ())
+                    content = ANSI.sub(b'', diagnostic).split(b'Time: ')[0]
+                    if statement in plain_diagnostics:
+                        assert content == plain_diagnostics[statement], (content, plain_diagnostics[statement])
+                    else:
+                        plain_diagnostics[statement] = content
+                    if colored and b'IS VALUE' in statement.encode():
+                        assert cyan+b'VALUE'+reset in diagnostic, diagnostic
+                        assert cyan+b'value'+reset not in diagnostic, diagnostic
+                    if not colored:
+                        assert not sgr.search(terminal.screen), terminal.screen
+                    assert not select.select([terminal.process.stdout], [], [], .05)[0], 'highlighting sent a query or leaked a diagnostic'
+                    CASES += 1
                 terminal.send('.show\r')
                 assert read_show(terminal)['timing'] == 'on'
                 assert b'Time: ' not in terminal.screen, terminal.screen

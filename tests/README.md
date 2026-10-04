@@ -316,6 +316,45 @@ and passes all 517 cases (`/var/tmp/transit-file-witness-final-cli.log`).
 These checks do not establish complete recursive descriptor attribution, the
 semantic inventory gate or committed-HEAD clean qualification.
 
+## Contextual console SQL highlighting — 2026-10-04
+
+The basic correction at `f8d2f42c` gives identifiers the default terminal
+foreground. The contextual implementation records roles in the production
+parser and combines them with tolerant lexical tokens for incomplete input.
+Drafts and submitted echoes share the classifier; diagnostic excerpts own roles
+captured before masking and clipping. These are local presentation values,
+without changes to parser acceptance, serialized contracts or dispatch.
+
+Pinned lifecycle and unit checks cover all twelve contextual identifier words
+in column, qualifier, source and alias positions; all five state predicates;
+aggregate, derived-input, cast, parameter, mutation, declaration and inspection
+forms; multiple statements; incomplete quotes, comments and malformed suffixes;
+Unicode and the 4,096-byte bound. Renderer checks cover random offset access,
+dot-command argument isolation, disabled color, clipped context and plain masked
+bytes. This finite corpus does not establish every possible malformed input or
+make reference-only grammar executable.
+
+`just test::cli-diagnostics` passes **586 real CLI cases**. New PTY assertions
+check every visible byte's color in editable drafts and committed scrollback,
+including contextual names and literals. Table/JSON result modes, nonempty
+`NO_COLOR`, `TERM=dumb`, diagnostic redaction and unchanged plain text are covered.
+`just test::sql` passes the independent grammar/compiler proof: **174 SELECT
+ASTs**, **142 plans/Arrow results**, 72 unified-source results, 24 mutation ASTs,
+156 declaration ASTs and 37 parameter ASTs, alongside their rejection cases.
+`just build::debug transit` rebuilds the installed console.
+
+Full pinned `just check` passes after locked frontend dependency installation,
+including diagnostic inventory/mapping/error/outcome/grammar gates, unit tests,
+the CLI matrix, terminal history and signal checks, generated contracts,
+frontend checks and the documentation build.
+
+Logs: `/var/tmp/transit-highlighting-context-tests.log`,
+`/var/tmp/transit-highlighting-pty.log`, `/var/tmp/transit-highlighting-sql.log`
+`/var/tmp/transit-highlighting-build.log` and
+`/var/tmp/transit-highlighting-check.log`. These are working-tree checks;
+the committed-HEAD clean suite and full service integration inventory are not
+rerun for this presentation change.
+
 ## Console scrollback and diagnostic highlighting — 2026-10-02
 
 Submitted SQL and dot commands use the draft's token colors when committed to

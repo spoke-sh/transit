@@ -121,6 +121,19 @@ whole-token replacement while respecting quotes, nested comments and UTF-8.
 Neither reads a catalog nor executes a statement. Callers filter expectations
 against their authorized schema and executable capability profile.
 
+`SqlInput.classify` combines tolerant lexical tokens with `Sql.classifyTokens`,
+which records roles as the production SELECT, mutation, declaration and
+inspection parsers consume input. Keywords, names, aggregate functions, types,
+literals, numbers, parameters and comments have distinct presentation roles;
+contextual words remain identifiers in name positions. Each semicolon-delimited
+statement is classified independently. Incomplete or malformed suffixes retain
+lexical roles, including unfinished strings, quoted identifiers and comments.
+The caller supplies one role per UTF-8 byte within the 4,096-byte input bound;
+classification allocates no memory, reads no catalog and grants no authority.
+These local roles do not change parser acceptance or serialized contracts.
+`SqlDiagnostic` owns excerpt roles captured before redaction and clipping;
+its styled renderer supplies those roles alongside the escaped source text.
+
 `Unified.Stream.stepDiagnostic` optionally captures the first failing scan row,
 page row, source column, operation and postfix predicate instruction. Page cell
 validation and eager predicate evaluation retain their existing order. Its owned

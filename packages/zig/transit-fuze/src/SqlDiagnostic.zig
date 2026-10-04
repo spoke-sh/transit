@@ -20,6 +20,7 @@ line: usize = 1,
 column: usize = 1,
 // Owned, redacted and escaped context survives the caller's input buffer.
 context: [512]u8 = @splat(0),
+context_roles: [512]sql.TokenRole = @splat(.unknown),
 context_len: usize = 0,
 caret: usize = 0,
 detail: [1024]u8 = @splat(0),
@@ -309,6 +310,9 @@ fn source(self: *Self, text: []const u8, location: sql.Location) void {
     const end = @min(line_end, begin + 120);
     var hidden: [sql.max_statement_bytes]bool = @splat(false);
     var scan = input.Scan.init(text) catch return;
+    var roles: [sql.max_statement_bytes]sql.TokenRole = undefined;
+    input.classify(text, roles[0..text.len]);
+    @memset(&self.context_roles, .unknown);
     while (true) {
         const before = scan.position;
         const token = (scan.next() catch {
@@ -321,6 +325,7 @@ fn source(self: *Self, text: []const u8, location: sql.Location) void {
     if (begin > line_start) out.writeAll("...") catch unreachable;
     for (text[begin..end], begin..) |byte, i| {
         if (i == offset) self.caret = out.end;
+        const first = out.end;
         if (hidden[i]) {
             out.writeByte('*') catch unreachable;
         } else switch (byte) {
@@ -328,6 +333,7 @@ fn source(self: *Self, text: []const u8, location: sql.Location) void {
             '\t' => out.writeAll("    ") catch unreachable,
             else => out.print("\\x{x:0>2}", .{byte}) catch unreachable,
         }
+        if (!hidden[i]) @memset(self.context_roles[first..out.end], roles[i]);
     }
     if (offset == end) self.caret = out.end;
     if (end < line_end) out.writeAll("...") catch unreachable;
@@ -399,8 +405,11 @@ pub fn render(self: *const Self, out: *std.Io.Writer) !void {
     return self.renderStyled(out, Plain{});
 }
 
-pub const Part = enum { summary, category, cause, location, expected, source, marker, hint };
+pub const Part = enum { summary, category, cause, location, expected, marker, hint };
 const Plain = struct {
+    pub fn source(_: Plain, out: *std.Io.Writer, text: []const u8, _: []const sql.TokenRole) !void {
+        try out.writeAll(text);
+    }
     pub fn write(_: Plain, out: *std.Io.Writer, _: Part, text: []const u8) !void {
         try out.writeAll(text);
     }
@@ -428,7 +437,7 @@ pub fn renderStyled(self: *const Self, out: *std.Io.Writer, style: anytype) !voi
             try style.write(out, .expected, expected);
         }
         try out.writeAll("\n  ");
-        try style.write(out, .source, self.context[0..self.context_len]);
+        try style.source(out, self.context[0..self.context_len], self.context_roles[0..self.context_len]);
         try out.writeAll("\n  ");
         try out.splatByteAll(' ', self.caret);
         try style.write(out, .marker, "^--- error here");
