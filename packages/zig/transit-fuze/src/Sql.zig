@@ -313,6 +313,15 @@ pub fn literalCell(literal: Literal) !m.Cell {
     };
 }
 
+/// Case-insensitive reserved words shared by parsing and local presentation.
+/// Contextual words such as VALUE and UPDATE remain valid identifiers.
+pub fn isReserved(word: []const u8) bool {
+    inline for (.{ "SELECT", "WHERE", "LIMIT", "COUNT", "SUM", "IS", "AND", "OR", "TRUE", "FALSE", "BYTEA", "CREATE", "CONNECTION", "CONNECTIONS", "SOURCE", "SOURCES", "SINK", "SINKS", "TABLE", "TABLES", "DOCUMENT", "KV", "TO", "FROM", "INTO", "WITH", "GRANT", "REVOKE", "ON", "SHOW", "DESCRIBE", "NOT", "NULL", "SECRET", "AS", "OF", "FOR", "SYSTEM_TIME", "INT64", "BOOL", "UTF8", "BINARY" }) |keyword| {
+        if (std.ascii.eqlIgnoreCase(word, keyword)) return true;
+    }
+    return false;
+}
+
 pub const Tag = enum { cursor, eof, word, quoted, string, integer, left, right, comma, dot, star, cast, plus, minus, eq, ne, lt, le, gt, ge, semi };
 const Token = struct { tag: Tag, text: []const u8 };
 const Lexer = struct {
@@ -465,12 +474,7 @@ const Parser = struct {
             return error.IncompleteSql;
         };
         if (token.tag != .word and token.tag != .quoted) return error.InvalidSqlSyntax;
-        // Match the reference grammar's reserved keyword set exactly.
-        if (token.tag == .word) {
-            inline for (.{ "SELECT", "WHERE", "LIMIT", "COUNT", "SUM", "IS", "AND", "OR", "TRUE", "FALSE", "BYTEA", "CREATE", "CONNECTION", "CONNECTIONS", "SOURCE", "SOURCES", "SINK", "SINKS", "TABLE", "TABLES", "DOCUMENT", "KV", "TO", "FROM", "INTO", "WITH", "GRANT", "REVOKE", "ON", "SHOW", "DESCRIBE", "NOT", "NULL", "SECRET", "AS", "OF", "FOR", "SYSTEM_TIME", "INT64", "BOOL", "UTF8", "BINARY" }) |keyword| {
-                if (std.ascii.eqlIgnoreCase(token.text, keyword)) return error.InvalidSqlSyntax;
-            }
-        }
+        if (token.tag == .word and isReserved(token.text)) return error.InvalidSqlSyntax;
         const raw = if (token.tag == .quoted) token.text[1 .. token.text.len - 1] else token.text;
         if (raw.len > bytes.len) return error.InvalidColumnName;
         for (raw, 0..) |byte, i| bytes[i] = if (token.tag == .word) std.ascii.toLower(byte) else byte;

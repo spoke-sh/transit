@@ -38,9 +38,11 @@ pub fn text(self: Self, out: *std.Io.Writer, color: Color, value: []const u8) !v
 pub const Syntax = struct {
     scan: ?input.Scan,
     token: ?input.Token = null,
+    command_start: ?usize = null,
 
     pub fn init(value: []const u8) Syntax {
-        return .{ .scan = input.Scan.init(value) catch null };
+        const start = std.mem.indexOfNone(u8, value, " \t\r\n") orelse value.len;
+        return .{ .scan = input.Scan.init(value) catch null, .command_start = if (start < value.len and value[start] == '.') start + 1 else null };
     }
 
     pub fn at(self: *Syntax, offset: usize) Color {
@@ -49,14 +51,28 @@ pub const Syntax = struct {
             if (self.token == null) break;
         };
         return if (self.token) |token| switch (token.kind) {
-            .word => .word,
-            .string, .quoted => .literal,
+            .word => if (if (self.command_start) |start| start == token.start else fuze.Sql.isReserved(self.scan.?.text[token.start..token.end])) .word else .plain,
+            .string => .literal,
             .number => .number,
             .comment => .comment,
             else => .plain,
         } else .plain;
     }
 };
+
+test "SQL identifiers and quoted names use the default foreground" {
+    var buffer: [512]u8 = undefined;
+    var out: std.Io.Writer = .fixed(&buffer);
+    const style: Self = .{ .enabled = true };
+    try style.sql(&out, "SELECT id, value FROM items;");
+    try std.testing.expectEqualStrings("\x1b[36mSELECT\x1b[0m id, value \x1b[36mFROM\x1b[0m items;", out.buffered());
+    out.end = 0;
+    try style.sql(&out, "select \"FROM\", selectivity from \"items\"");
+    try std.testing.expectEqualStrings("\x1b[36mselect\x1b[0m \"FROM\", selectivity \x1b[36mfrom\x1b[0m \"items\"", out.buffered());
+    out.end = 0;
+    try style.sql(&out, ".timing on");
+    try std.testing.expectEqualStrings(".\x1b[36mtiming\x1b[0m on", out.buffered());
+}
 
 pub fn sql(self: Self, out: *std.Io.Writer, value: []const u8) !void {
     var syntax = Syntax.init(value);

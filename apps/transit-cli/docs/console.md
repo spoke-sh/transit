@@ -414,6 +414,9 @@ history.
 
 The horizontally scrolling, highlighted draft renders newline, Unicode
 and control bytes as visible escapes; the underlying SQL remains unchanged.
+Reserved SQL words use cyan. Unquoted names and double-quoted identifiers use
+the terminal's default foreground, including table names, columns and aliases.
+Single-quoted strings use green, numbers magenta and comments dim text.
 Diagnostics emphasize the error label and identifier, category, location and
 caret, and highlight SQL vocabulary and dot commands in corrective guidance.
 Color uses stderr's terminal status independently of the result format; redirected

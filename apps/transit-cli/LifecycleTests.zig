@@ -6,6 +6,7 @@ test {
     _ = @import("Settings.zig");
     _ = @import("Show.zig");
     _ = @import("Results.zig");
+    _ = @import("Style.zig");
     _ = @import("ConsoleWrites.zig");
     _ = @import("server/Gateway.zig");
     _ = @import("server/Process.zig");
