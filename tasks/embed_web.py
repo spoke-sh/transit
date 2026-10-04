@@ -16,7 +16,7 @@ output.parent.mkdir(parents=True, exist_ok=True)
 # rather than racing over Vite's shared, emptied dist directory.
 with tempfile.TemporaryDirectory(prefix="web-assets-", dir=output.parent) as directory:
     dist = Path(directory)
-    subprocess.run(["vp", "build", "--outDir", str(dist)], cwd=application, check=True)
+    subprocess.run(["vp", "build", "--outDir", str(dist), "--emptyOutDir"], cwd=application, check=True)
     assets = sorted(path for path in dist.rglob("*") if path.is_file())
     assert (dist / "index.html") in assets and len(assets) <= 128
     assert sum(path.stat().st_size for path in assets) <= 8 * 1024 * 1024

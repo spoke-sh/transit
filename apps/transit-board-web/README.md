@@ -5,6 +5,21 @@ Vite+ 0.3.3 toolchain, packaged as `@rey/transit-board-web`. The static output i
 embedded by the [Board executable](../transit-board/README.md), which hosts the private inspection and optional Table query APIs on the
 same origin. There is no production JavaScript server.
 
+The build splits inspection, query/reactive and application clients from the
+React/route entry, with a small shared bundler runtime. Route renderers remain
+together and module preloading is disabled to avoid a burst of static requests
+against the embedded host's bounded handler pool. This reduces individual file
+size; these shared chunks still load on initial entry. All assets remain embedded
+in the executable. The browser proof checks the module graph on initial entry,
+navigation and direct nested-route reload, with at most five JavaScript assets
+and each below 900 kB. Vite's separate 500 kB advisory remains enabled.
+
+Standalone validators share repeated, scope-independent schema fragments during
+generation through [the build helper](../../tasks/validator_schema.mjs). Public
+schemas and runtime validation rules remain unchanged, and browsers still need
+no runtime schema compilation or `eval`. The contract check compares shared and
+original validation on positive and negative fixtures and checks generated drift.
+
 M18 adds a v1 workspace for explicitly configured KV/Table/Document sources.
 It reuses the shared Zig SQL/finite-upload/page boundary, with runtime-validated
 full-width scalar and nested cell states. Source capabilities, budgets, exact

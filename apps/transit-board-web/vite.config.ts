@@ -2,11 +2,31 @@ import { defineConfig } from "vite-plus";
 import react from "@vitejs/plugin-react";
 import { tanstackRouter } from "@tanstack/router-plugin/vite";
 export default defineConfig({
-  // These bounded renderer artifacts share one declaration context. Route
-  // splitting fanned a single navigation into more simultaneous static reads
-  // than the host's finite handler pool, causing module-load 503 failures.
+  // Keep route renderers together: they share a declaration context and many
+  // small lazy chunks previously overwhelmed the host's bounded request pool.
   plugins: [tanstackRouter({ target: "react", autoCodeSplitting: false }), react()],
-  build: { sourcemap: false, assetsInlineLimit: 0 },
+  build: {
+    sourcemap: false,
+    assetsInlineLimit: 0,
+    // Discover shared chunks after the entry loads, instead of
+    // preloading them alongside HTML, CSS and the entry into four handler slots.
+    modulePreload: false,
+    rolldownOptions: {
+      output: {
+        codeSplitting: {
+          includeDependenciesRecursively: false,
+          groups: [
+            { name: "inspection", test: /packages\/ts\/transit-board-client\// },
+            {
+              name: "query",
+              test: /packages\/ts\/transit-(query-client|reactive-client|diagnostics)\/|ajv\/dist\/runtime\//,
+            },
+            { name: "application", test: /packages\/ts\/transit-application\// },
+          ],
+        },
+      },
+    },
+  },
   test: {
     include: ["src/**/*.test.ts", "../../packages/ts/transit-board-client/src/**/*.test.ts"],
   },

@@ -5653,6 +5653,36 @@ that scoped outbox/history projections do not disclose hidden endpoints.
 
 ## Board qualification
 
+### Embedded asset splitting — 2026-10-04
+
+Pinned `just build::debug` emits five JavaScript assets totaling **2,175,523
+bytes**, with a largest chunk of **819,589 bytes**, compared with the previously
+reported 7,232,360-byte single bundle. The entry is 406.17 kB, inspection 636.88
+kB, query/reactive 819.58 kB, application 312.28 kB and bundler runtime 0.58 kB.
+Repeated standalone validator fragments are shared during generation; the public
+schemas and generated declarations remain unchanged. Shared chunks load on entry,
+with module preloading disabled and route renderers kept together. The two chunks
+above Vite's 500 kB advisory still produce warnings; the warning limit is unchanged.
+
+Full `just check` passes, including validator drift, 77 Board unit tests and the
+documentation build. An initial run stopped on generator formatting, which was
+corrected. The final conservative nested-reference guard then passes three focused
+schema-sharing comparisons and unchanged regeneration of all five validator
+packages. Fixtures check positive/negative values, bounds, Unicode, unions,
+boolean schemas, reference scopes, constant data and nested reference targets.
+
+`just transit-board::browser` passes all five Chromium tests in 18.6 seconds;
+its real embedded/API proof records 0.092 seconds maximum control latency. The
+browser checks cold entry, navigation and direct nested-route reload, successful
+JavaScript responses, at most five scripts and each below 900 kB.
+`just transit-board::query-browser` passes its API/recovery proof and the 47.9-second
+browser run, including exact retry and clearing on current revocation. No host
+connection/request bound is raised. Logs are
+`/var/tmp/transit-board-splitting-{build,browser,query-browser,check-final}.log`.
+These runs do not establish a clean committed-HEAD CI pass.
+
+### Inspection and browser proofs
+
 `just transit-board::check` checks exact Zig/OpenAPI regeneration, generated TypeScript and
 standalone validator drift, strict TypeScript, Vite+ formatting/lint and unit tests.
 `just transit-board::test` runs Zig ingress tests and `tests/board.py` against disk-backed

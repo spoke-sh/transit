@@ -1,12 +1,17 @@
 import AxeBuilder from "@axe-core/playwright";
-import { expect, test } from "@playwright/test";
+import { expect, test, type Response } from "@playwright/test";
 const pid = process.env.BOARD_TEST_PID!;
 const sink = process.env.BOARD_TEST_SINK!;
 test("real embedded UI explains kernel evidence and retains focus while polling", async ({
   page,
 }) => {
   const errors: string[] = [];
+  const scripts = new Map<string, Response>();
   page.on("pageerror", (error) => errors.push(error.message));
+  page.on("response", (response) => {
+    if (response.request().resourceType() === "script" && response.url().includes("/assets/"))
+      scripts.set(response.url(), response);
+  });
   await page.goto("/");
   await expect(page.getByRole("heading", { name: "Relief atlas" })).toBeVisible();
   const selection = page.getByRole("button", { name: `Select process ${pid}`, exact: true });
@@ -51,6 +56,15 @@ test("real embedded UI explains kernel evidence and retains focus while polling"
   await expect(page.getByLabel("Board access key")).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Sign out" })).toHaveCount(0);
   expect(errors).toEqual([]);
+  // Exercise the embedded module graph on cold entry, navigation and deep-link
+  // reload. Chunking must not regress to a monolith or exhaust static handlers.
+  expect(scripts.size).toBeGreaterThan(1);
+  expect(scripts.size).toBeLessThanOrEqual(5);
+  for (const response of scripts.values()) {
+    expect(response.status(), response.url()).toBe(200);
+    expect(response.headers()["content-type"]).toContain("javascript");
+    expect((await response.body()).length, response.url()).toBeLessThan(900_000);
+  }
 });
 
 test("state associations disclose resources without interpreting application data", async ({
