@@ -236,6 +236,7 @@ def run_trace(env, tls):
         from reactive_limits import run
         run(env, tls, scope)
     target = Path(__file__).resolve().parents[1] / '.cache/verification/m20-reactive-trace.json'
+    target.parent.mkdir(parents=True, exist_ok=True)
     target.write_text(json.dumps(TRACE))
     print(f'Reactive initial trace: empty snapshot, Table progress/outcome, WebSocket-to-HTTP exact retry, SSE cursor resume and attachment fencing passed in {time.monotonic() - start:.2f}s', flush=True)
 
