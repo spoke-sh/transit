@@ -48,7 +48,7 @@ def compile_requests(owners, scope, kind, root, fault, *, capability_owners=()):
     (root / 'parameter-compilation.json').write_text(json.dumps(request))
     wrong_types = ({'int64': '-9223372036854775808'}, {'uint64': '18446744073709551615'},
                    {'float_bits': '0000000000000080'}, {'boolean': False}, {'binary': '00ff80'})
-    invalid_bindings = [([], 'ParameterCountMismatch'), (None, 'UnsupportedConstruct')]
+    invalid_bindings = [([], 'ParameterCountMismatch'), (None, 'UnboundParameters')]
     invalid_bindings.extend(([value], 'TypeMismatch') for value in wrong_types)
     for parameters, error in invalid_bindings:
         invalid = {**request, 'parameters': parameters}
