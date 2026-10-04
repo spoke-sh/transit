@@ -33,6 +33,7 @@ generate:
 
 # Check typed contract and generated browser-resource drift.
 contract:
+    vp exec node --test tests/validator_schema.mjs
     python3 -B packages/ts/transit-diagnostics/generate.py --check
     vp exec node packages/ts/transit-diagnostics/validators.mjs --check
     zig build query-api

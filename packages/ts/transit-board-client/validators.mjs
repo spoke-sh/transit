@@ -1,14 +1,18 @@
 import { readFileSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
+import { shareValidatorSchemas } from "../../../tasks/validator_schema.mjs";
 import Ajv2020 from "ajv/dist/2020.js";
 import standalone from "ajv/dist/standalone/index.js";
 const schemas = JSON.parse(readFileSync(new URL("./src/schemas.json", import.meta.url), "utf8"));
 const ajv = new Ajv2020({
   allErrors: false,
+  // Reuse referenced validators instead of duplicating them in every response.
+  inlineRefs: false,
   code: { source: true, esm: true, lines: true },
   strict: true,
 });
-for (const [name, schema] of Object.entries(schemas)) ajv.addSchema(schema, name);
+for (const [name, schema] of Object.entries(shareValidatorSchemas(ajv, schemas)))
+  ajv.addSchema(schema, name);
 const generated = standalone(
   ajv,
   Object.fromEntries(Object.keys(schemas).map((name) => [name, name])),

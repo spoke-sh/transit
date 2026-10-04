@@ -12,6 +12,11 @@ policy can forbid it. Numeric IDs are checked against JavaScript's safe integer
 range, values use Transit's lowercase hex representation, and unknown fields or
 malformed tagged unions are rejected. A type assertion never replaces validation.
 
+Validator generation shares identical schema fragments that contain no references
+or schema-scope declarations. AJV compiles them as reusable functions to reduce
+duplicated browser code. The public schemas remain unchanged; contract checks
+cover generation drift and accepted/rejected values before and after sharing.
+
 The small transport wrapper exposes `capabilities` and
 `read(resource, pid?, continuation?, signal?)`. Inspection fetches are GET-only and manage
 no Board credentials. Same-origin credentials can support deployment-managed
