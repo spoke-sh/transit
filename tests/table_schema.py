@@ -14,6 +14,7 @@ ROOT = Path(__file__).resolve().parents[1]
 FIXTURE = ROOT / 'packages/zig/transit-fuze/src/fixtures/table-schema.json'
 DEFINITION = b'transit.table.schema.v1.2026-10-05'
 TYPES = b'transit.fuze.types.v1.2026-09-30'
+ROWS = b'transit.table.row.v1.2026-10-05'
 
 
 def fixtures():
@@ -32,6 +33,21 @@ def fixtures():
             value = b'FVL1' + struct.pack('<H', len(descriptor)) + descriptor + b'\0\3\1'
             encoded += struct.pack('<I', len(value)) + value
     encoded += struct.pack('<HQ', 1, 11)
+
+    storage_type = b'FTY1' + bytes([len(TYPES)]) + TYPES + bytes([22, len(columns)])
+    for identity, _, tag, nullable, _ in columns:
+        label = f'{identity:016x}'.encode()
+        storage_type += bytes([len(label)]) + label + bytes([nullable]) + tag
+    layout = hashlib.sha256(b'transit.table.layout.v1\0' + DEFINITION +
+                            struct.pack('<Q', 7) + hashlib.sha256(storage_type).digest()).digest()
+    row_payload = b'\3\3' + struct.pack('<i', 12)
+    name = '東京é'.encode()
+    row_payload += b'\3' + struct.pack('<I', len(name)) + name + b'\3\1\1'
+    row_bytes = b'FTR1' + bytes([len(ROWS)]) + ROWS + layout + struct.pack('>QQI', 7, 12, 0)
+    row_bytes += b'FVL1' + struct.pack('<H', len(storage_type)) + storage_type + b'\0' + row_payload
+    int32 = b'FTY1' + bytes([len(TYPES)]) + TYPES + b'\x09'
+    key_bytes = b'FTK1' + bytes([len(ROWS)]) + ROWS + struct.pack('<QHQ', 7, 1, 11)
+    key_bytes += b'FVL1' + struct.pack('<H', len(int32)) + int32 + b'\0\3' + struct.pack('<i', 12)
 
     def assignment(column, kind, value=None):
         result = dict(column=column, kind=kind)
@@ -90,7 +106,9 @@ def fixtures():
         expected, error = evaluate(assignments)
         cases.append(dict(name=name, assignments=assignments, expected=expected, error=error))
     return dict(definition=DEFINITION.decode(), oracle='Python values/Unicode scalar length/struct',
-                schema_hex=encoded.hex(), fingerprint=hashlib.sha256(encoded).hexdigest(), cases=cases)
+                schema_hex=encoded.hex(), fingerprint=hashlib.sha256(encoded).hexdigest(), cases=cases,
+                row_hex=row_bytes.hex(), layout=layout.hex(), key_hex=key_bytes.hex(),
+                key_digest=hashlib.sha256(key_bytes).hexdigest())
 
 
 def main():

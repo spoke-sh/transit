@@ -19,9 +19,13 @@ pub const SqlDiagnostic = @import("SqlDiagnostic.zig");
 pub const SqlInput = @import("SqlInput.zig");
 pub const TableMutation = @import("TableMutation.zig");
 pub const TableSchema = @import("TableSchema.zig");
+pub const TableRow = @import("TableRow.zig");
+pub const TableEvolution = @import("TableEvolution.zig");
 pub const Declaration = @import("Declaration.zig");
 test {
     _ = TableSchema;
+    _ = TableRow;
+    _ = TableEvolution;
     _ = SqlInput;
     _ = SqlDiagnostic;
     _ = FileQuery;

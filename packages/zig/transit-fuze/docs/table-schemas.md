@@ -39,3 +39,16 @@ revision, column order, defaults and key order.
 
 The [Table schema contract](../../../../contracts/TABLE_SCHEMA_V1.md) owns the
 exact envelope, identity and validation rules.
+
+`TableRow` encodes schema-bound physical rows with stable identities and owns
+decoded values. Its layout fingerprint excludes names/defaults/revisions, so
+metadata-only changes retain row bytes while complete schema fingerprints still
+fence old prepared work. It also supplies canonical equality-key bytes and typed
+key comparison; the storage owner must handle digest collisions explicitly.
+
+`TableEvolution.apply` returns a borrowed successor and classifies its required
+work as metadata, complete existing-row validation or rewrite. `Transition.row`
+preserves existing values by ID, initializes new columns and performs checked
+exact numeric casts. Keep the input schema, change and supplied column scratch
+alive. Storage owns source capture, complete iteration, indexes, publication and
+recovery; successful pure validation does not complete ALTER.

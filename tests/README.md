@@ -10605,6 +10605,15 @@ storage, SQL execution, catalog routing, DDL publication or restart recovery.
 Those remain separate implementation and proof obligations in
 [M46](../docs/roadmap/M46.md) and [#75](https://github.com/rupurt/rey/issues/75).
 
+The subsequent physical-row/key run passes 34 focused tests; the evolution run
+passes 33, including shared schema/type dependencies. Independent Python bytes
+add a complete physical row, layout fingerprint, equality key and digest. Cases
+exercise signed-zero key normalization with exact stored IEEE bits, object/layout
+mismatch, nested ownership, distinct duplicate-row identities, metadata-only
+rename/default changes, nonreused dropped IDs, required-field tightening,
+overflow/inexact conversion rejection and key-index rebuild requirements. These
+remain pure envelopes/transitions, with no disk/publication claim.
+
 ## Fuze logical type foundation
 
 The local `Types` profile has nine passing focused Zig tests, including 46

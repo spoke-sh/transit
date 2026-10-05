@@ -46,6 +46,75 @@ truncation, trailing bytes, invalid identities/types/defaults/keys and exceeded
 budgets. No fallback interpretation or default definition is permitted.
 SHA-256 over the complete envelope is the schema fingerprint.
 
+## Physical rows and keys
+
+`TableRow` defines pure row/value envelopes, independently of publication and
+index admission. A row identity is `(origin: u64, operation: u64, ordinal: u32)`;
+origin and operation are nonzero, ordinal is zero-based. The owning writer assigns
+and durably retains these identities. Exact retries reuse the original identity;
+different duplicate rows have different identities. Identity bytes are the three
+big-endian integers in that order, so byte order is identity order.
+
+The physical row type is a logical struct in column order. Each field uses its
+column ID as 16 lowercase hexadecimal ASCII digits, with the column's type and
+nullable flag; optional is false. Validate both the user-named and physical
+descriptors under shared descriptor limits. The layout fingerprint is SHA-256 of
+`transit.table.layout.v1` followed by NUL, the schema definition string without a
+length, the object u64 little-endian and the physical type's 32-byte fingerprint.
+Names, defaults, schema revision and key declarations do not change this digest.
+It describes physical interpretation, never admission to a newer schema revision.
+Prepared and saved operations still require the complete schema fingerprint.
+
+`FTR1` contains magic, u8-length mandatory definition
+`transit.table.row.v1.2026-10-05`, the 32-byte layout fingerprint, the 20 identity
+bytes and an `FVL1` nonnullable/nonoptional struct cell of the physical type. The
+maximum envelope is the fixed header plus the logical value codec's 2 MiB bound.
+Decoding requires an expected schema, checks layout and exact physical descriptor,
+owns every decoded value, then checks current row constraints. It rejects source
+error/conflict states, foreign definitions, truncation and trailing bytes.
+
+Canonical equality keys are `FTK1`, u8-length row definition, object u64,
+u16 key-column count, then each column's u64 ID and complete `FVL1` nonnullable
+value envelope in declared key order. Integers outside identity bytes are
+little-endian. Variable components retain their codec framing. Floating zero
+normalizes to positive zero for keys only; row codecs retain the original bits.
+UTF-8 and binary keys use exact bytes, with no collation or Unicode normalization.
+The maximum canonical key is 2 MiB plus 64 KiB, under the row's shared value
+budgets. This is an equality encoding, not an ordered SQL index encoding.
+
+An index may address a key by SHA-256 of the canonical key, but a matching digest
+never establishes uniqueness. It must compare actual typed key values using
+`sameKey`, retaining distinct collision candidates. `sameKey` and `encodeKey`
+reject schemas without a declared primary key. The pure APIs do not implement
+index collision buckets or publish a uniqueness decision.
+
+## Pure schema evolution
+
+`TableEvolution.apply` produces one validated successor revision for add/drop/
+rename column, set/drop default, nullability and admitted type changes. Addition
+allocates the current next-column ID and advances the floor; dropping never
+lowers it. A primary-key column cannot be dropped or made nullable. Dropping the
+last column rejects. Rename preserves ID and rejects duplicate names.
+
+Name/default changes classify as metadata-only. Changed UTF-8 character limits
+require existing-row validation. A changed physical layout requires rewriting
+rows. These classifications are work requirements, not evidence that existing
+rows passed. Adding a required field without a default may be valid for an empty
+Table; transforming any existing row fails. Changing defaults affects subsequent
+inserts/DEFAULT assignments, never earlier stored cells.
+
+Row transformation selects preserved values by column ID and initializes only
+new IDs. Type changes admit identical descriptors, checked signed/unsigned/
+decimal conversions, integer-to-float and float-width conversions. All conversions
+reject overflow and inexact rounding, including typed defaults. Text, temporal
+and nested conversions between different descriptors reject. Key type changes
+require index rebuilding. Tightened constraints validate every existing row.
+
+Storage must freeze the source basis, process complete validation/rewrites with
+bounded work, fence conflicting publication and atomically publish the successor
+head. A pure transition does not perform these steps. Retained readers continue
+to use their original schema; accepted operations cannot rebind to its successor.
+
 ## Ownership
 
 Borrowed schemas and assignment results retain their original owners. Decode

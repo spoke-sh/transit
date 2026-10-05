@@ -60,6 +60,33 @@ pub const Schema = struct {
         for (self.columns, output[0..self.columns.len]) |column, *field| field.* = column.field();
         return .{ .structure = output[0..self.columns.len] };
     }
+    /// The physical descriptor uses column identities as field labels. User
+    /// renames/default changes do not change stored value bytes or layout.
+    pub fn storageType(self: Schema, output: *[max_columns]t.Field, names: *[max_columns][16]u8) !t.Type {
+        _ = try self.rowType(output);
+        for (self.columns, 0..) |column, i| {
+            var id: [8]u8 = undefined;
+            std.mem.writeInt(u64, &id, column.id, .big);
+            names[i] = std.fmt.bytesToHex(&id, .lower);
+            output[i].name = &names[i];
+        }
+        return .{ .structure = output[0..self.columns.len] };
+    }
+    /// Physical row interpretation only. Preparation/admission must retain the
+    /// full schema fingerprint; this digest never authorizes stale operations.
+    pub fn layoutFingerprint(self: Schema) ![32]u8 {
+        try self.validate();
+        var fields: [max_columns]t.Field = undefined;
+        var names: [max_columns][16]u8 = undefined;
+        var hash = std.crypto.hash.sha2.Sha256.init(.{});
+        hash.update("transit.table.layout.v1\x00");
+        hash.update(definition);
+        var object: [8]u8 = undefined;
+        std.mem.writeInt(u64, &object, self.object, .little);
+        hash.update(&object);
+        hash.update(&try (try self.storageType(&fields, &names)).fingerprint());
+        return hash.finalResult();
+    }
     pub fn validate(self: Schema) !void {
         if (self.object == 0 or self.revision == 0 or self.next_column == 0) return error.InvalidTableSchemaIdentity;
         var fields: [max_columns]t.Field = undefined;
@@ -74,6 +101,8 @@ pub const Schema = struct {
             if (column.default) |value| try column.check(value);
         }
         try row_type.validate(.{});
+        var names: [max_columns][16]u8 = undefined;
+        try (try self.storageType(&fields, &names)).validate(.{});
         if (self.primary_key.len > self.columns.len) return error.InvalidPrimaryKey;
         for (self.primary_key, 0..) |id, i| {
             const column = self.columns[try self.index(id)];

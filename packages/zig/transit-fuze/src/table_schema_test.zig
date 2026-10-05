@@ -102,7 +102,7 @@ test "independent Python oracle fixes schema bytes and row/default/constraint re
     const Input = struct { column: u64, kind: enum { integer, text, null, default }, integer: i64 = 0, text: []const u8 = "" };
     const Case = struct { name: []const u8, assignments: []Input, expected: [][]const u8, @"error": ?[]const u8 };
     const Fixture = struct { definition: []const u8, oracle: []const u8, schema_hex: []const u8, fingerprint: []const u8, cases: []Case };
-    const parsed = try std.json.parseFromSlice(Fixture, expect.allocator, @embedFile("fixtures/table-schema.json"), .{});
+    const parsed = try std.json.parseFromSlice(Fixture, expect.allocator, @embedFile("fixtures/table-schema.json"), .{ .ignore_unknown_fields = true });
     defer parsed.deinit();
     try expect.expectEqualStrings(s.definition, parsed.value.definition);
     var expected: [s.max_bytes]u8 = undefined;

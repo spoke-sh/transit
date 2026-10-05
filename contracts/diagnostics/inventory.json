@@ -6010,6 +6010,49 @@
         "Unified.zig"
       ]
     },
+    "packages/zig/transit-fuze/src/TableEvolution.zig": {
+      "errors": {
+        "InvalidColumnCount": 1,
+        "InvalidSchemaTransition": 1,
+        "PrimaryKeyColumnRequired": 1,
+        "ReusedColumnIdentity": 1,
+        "RowBufferTooSmall": 1,
+        "UnknownColumn": 1,
+        "UnsupportedSchemaConversion": 2
+      },
+      "outcomes": {
+        "Change": [
+          "add",
+          "drop",
+          "rename",
+          "default",
+          "nullable",
+          "type"
+        ],
+        "Work": [
+          "metadata",
+          "validate_rows",
+          "rewrite_rows"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "Transition.row()": "<inferred>",
+        "apply()": "<inferred>",
+        "castSupported()": "<inferred>",
+        "convert()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 23,
+        "catch": 1
+      },
+      "imports": [
+        "TableSchema.zig",
+        "Types.zig",
+        "std"
+      ]
+    },
     "packages/zig/transit-fuze/src/TableMutation.zig": {
       "errors": {
         "DuplicateColumn": 1,
@@ -6055,6 +6098,39 @@
         "std"
       ]
     },
+    "packages/zig/transit-fuze/src/TableRow.zig": {
+      "errors": {
+        "InvalidRowIdentity": 1,
+        "InvalidTableRowEncoding": 3,
+        "NoPrimaryKey": 2,
+        "RowBufferTooSmall": 1,
+        "TableRowTooLarge": 1,
+        "TableSchemaChanged": 1,
+        "UnsupportedTableRowDefinition": 1
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "Identity.decode()": "<inferred>",
+        "Identity.encode()": "<inferred>",
+        "Identity.validate()": "<inferred>",
+        "Row.encode()": "<inferred>",
+        "decode()": "<inferred>",
+        "encodeKey()": "<inferred>",
+        "keyDigest()": "<inferred>",
+        "sameKey()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 39,
+        "catch": 0
+      },
+      "imports": [
+        "TableSchema.zig",
+        "Types.zig",
+        "std"
+      ]
+    },
     "packages/zig/transit-fuze/src/TableSchema.zig": {
       "errors": {
         "CharacterLimitExceeded": 1,
@@ -6094,8 +6170,10 @@
         "Schema.fingerprint()": "<inferred>",
         "Schema.index()": "<inferred>",
         "Schema.insert()": "<inferred>",
+        "Schema.layoutFingerprint()": "<inferred>",
         "Schema.named()": "<inferred>",
         "Schema.rowType()": "<inferred>",
+        "Schema.storageType()": "<inferred>",
         "Schema.update()": "<inferred>",
         "Schema.validate()": "<inferred>",
         "Schema.validateRow()": "<inferred>",
@@ -6106,7 +6184,7 @@
       },
       "open_error_set_uses": 1,
       "propagation": {
-        "try": 74,
+        "try": 80,
         "catch": 0
       },
       "imports": [
@@ -6824,7 +6902,9 @@
         "Sql.zig",
         "SqlDiagnostic.zig",
         "SqlInput.zig",
+        "TableEvolution.zig",
         "TableMutation.zig",
+        "TableRow.zig",
         "TableSchema.zig",
         "Types.zig",
         "Unified.zig",
