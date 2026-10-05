@@ -15,6 +15,8 @@ pub fn WithTransport(comptime Transport: type) type {
         pid: u64,
         generation: u64,
         observed_position: ?u64 = null,
+        idle: bool = false,
+        idle_wait_ms: u32 = 0,
         key: p.Ed25519.KeyPair,
 
         pub const Delivery = struct {
@@ -50,7 +52,11 @@ pub fn WithTransport(comptime Transport: type) type {
         };
 
         pub fn receive(self: *Self) !?Delivery {
-            const response = try self.client.query(.{ .realm = self.realm, .principal = self.principal, .kind = .{ .process = self.pid } }, self.key);
+            const selector: g.Query = .{ .realm = self.realm, .principal = self.principal, .kind = .{ .process = self.pid } };
+            const response = if (self.idle and self.idle_wait_ms != 0) wait: {
+                if (@hasDecl(Transport, "waitForChange")) break :wait try self.client.waitForChange(selector, self.key, .{ .after = self.observed_position.?, .milliseconds = self.idle_wait_ms });
+                return error.UnsupportedWait;
+            } else try self.client.query(selector, self.key);
             self.observed_position = response.position;
             const process = response.body.process.process;
             switch (process.lifecycle) {
@@ -61,7 +67,11 @@ pub fn WithTransport(comptime Transport: type) type {
             if (process.failure != null) return error.BlockedProcess;
             if (!g.processReady(process)) return error.InvalidLifecycle;
             if (process.owner != self.principal or process.generation != self.generation) return error.StaleActivation;
-            const input = response.body.process.input orelse return null;
+            const input = response.body.process.input orelse {
+                self.idle = true;
+                return null;
+            };
+            self.idle = false;
             return .{ .realm = self.realm, .principal = self.principal, .pid = self.pid, .generation = self.generation, .sequence = try std.math.add(u64, response.principal_sequence, 1), .revision = process.revision, .input = input, .permit = if (process.turn_permit) |permit| permit.id else null, .needs_permit = process.work_before_ms != null and process.turn_permit == null, .work_before_ms = process.work_before_ms, .settle_before_ms = process.settle_before_ms };
         }
 

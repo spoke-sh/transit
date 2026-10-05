@@ -103,7 +103,10 @@ normal response retain their existing definitions. The hint grants no rights.
 When the authorized query's position equals POSITION, the node waits for a local
 publication hint or the bounded timeout without holding authority/backend access.
 It registers against the publication lock, so a commit between observation and
-registration cannot be lost. After waking it runs the signed query again,
+registration cannot be lost. Point sends and turns notify the affected process;
+turns with outputs also notify delivery/output waiters. Grant and lifecycle
+changes conservatively notify all registered scopes. This reduces unrelated
+worker traffic without requiring a durable watch registry. After waking it runs the signed query again,
 including current key, grant, scope, lifecycle and authority-tail checks. A
 revocation can therefore return denial. Hints may be coalesced or spurious;
 remote-node commits are discovered by the timeout's current read. Query selectors

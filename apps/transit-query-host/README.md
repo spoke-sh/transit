@@ -132,8 +132,8 @@ markers still prevent reuse; private key bytes are cleared on exit. The
 [query example](../../examples/state-query/docs/placement.md) exercises physical
 placement; consult its proof ledger before relying on a particular profile.
 
-Idle process and courier loops use bounded native notification waits before
-re-observing work. The adaptive idle interval bounds each wait, capped at one
+Idle process loops combine bounded notification waits with their next receive.
+Couriers wait before re-observing their current output page. The adaptive idle interval bounds each wait, capped at one
 second. Native publication wakes local waiters; timeout refresh covers other
 nodes and lost hints. Unavailable reads retain the configured polling fallback.
 Pending exact commands are reconciled before entering the idle path. A wake

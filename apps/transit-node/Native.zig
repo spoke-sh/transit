@@ -8,6 +8,7 @@ const telemetry = observations.telemetry;
 const g = wire.protocol.Growth;
 const http = @import("transit_http_server");
 const Engine = core.growing.Engine(adapter.Store, adapter.PackedPageStore);
+const Notifications = @import("Notifications.zig");
 const Maintenance = @import("GrowingMaintenance.zig");
 const Config = struct {
     profile: enum { native_v1 } = .native_v1,
@@ -75,7 +76,7 @@ const Server = struct {
     accept_trace_parent: bool,
     mutex: *std.Io.Mutex = undefined,
     locked: bool = false,
-    changed: *std.Io.Condition = undefined,
+    changed: *Notifications = undefined,
     lock_wait_ns: u64 = 0,
     work_started: ?std.Io.Clock.Timestamp = null,
     cache_hits: u64 = 0,
@@ -219,7 +220,7 @@ const Server = struct {
             const position = self.engine.submit(parsed.value) catch |err| return self.failure(request, err);
             // Coalesced local hints only. Reconciliation can also discover a
             // commit by another node; every waiter still revalidates its query.
-            self.changed.broadcast(self.io);
+            self.changed.publish(self.io, parsed.value.request.command);
             self.observation.protocol_outcome = .receipt;
             self.observation.realm = parsed.value.request.realm;
             self.observation.sequence = parsed.value.request.sequence;
@@ -245,10 +246,7 @@ const Server = struct {
                     try self.mutex.lock(self.io);
                     defer self.mutex.unlock(self.io);
                     if (self.engine.head.position == wait.after) {
-                        self.changed.waitTimeout(self.io, self.mutex, .{ .duration = .{ .raw = .fromMilliseconds(wait.milliseconds), .clock = .awake } }) catch |err| switch (err) {
-                            error.Timeout => {},
-                            else => return err,
-                        };
+                        try self.changed.wait(self.io, self.mutex, parsed.value.query, wait.milliseconds);
                     }
                 }
                 try self.acquire();
@@ -271,7 +269,7 @@ const Context = struct {
     server: *Server,
     diagnostics: *telemetry.Runtime,
     mutex: std.Io.Mutex = .init,
-    changed: std.Io.Condition = .init,
+    changed: Notifications = .{},
     pub fn isWait(_: *@This(), request: *std.http.Server.Request) bool {
         return (http.header(request, "x-transit-wait") catch null) != null;
     }

@@ -59,7 +59,11 @@ Snapshot release and combined finish reads carry a checked control-admission
 hint; signed authorization and request semantics remain mandatory.
 `waitForChange` uses the service's independent wait admission with a 1–1000 ms
 bound. It does not retry or cache permission. `Session.observed_position` records
-the last successful process observation for idle-loop registration. It is a hint,
+the last successful process observation for idle-loop registration. Setting
+`Session.idle_wait_ms` makes a receive following an empty observation combine
+waiting and the next receive; a nonempty delivery clears the idle state. Zero
+disables waiting. Substituted transports must implement `waitForChange` when
+waiting is enabled. The position is a hint,
 not a retained read cut, checkpoint or authority to execute an input.
 
 `ResourceReader.Batches.init` and `SnapshotReader.Support.init` can share one
