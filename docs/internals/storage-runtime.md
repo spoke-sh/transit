@@ -90,8 +90,8 @@ page size increases from 8,480 to 16,952 bytes. The
 [proof ledger](../../tests/README.md#durable-table-mutation-latency) separately
 records native disk restart, acknowledgement faults, cold-tier persistence,
 latency controls and incomplete runs. The experiment alone proves no latency or
-provider-memory bound. Reproduce it with `just test::page-layout --output FILE`
-in the pinned development environment.
+provider-memory bound. The [proof ledger](../../tests/README.md#durable-table-mutation-latency)
+owns the reproducible command and its pinned development environment.
 
 The native instrumented idle control completes 21 cases. Its first INSERT stages
 20 pages and makes 22 provider POSTs, versus 61/59 in the matched frozen idle
