@@ -103,14 +103,14 @@
     {
       "source": "packages/zig/transit-core/src/pages.zig",
       "symbol": "leaf_entries",
-      "expression": "4",
+      "expression": "8",
       "classification": "working-set",
       "meaning": "Entries in one leaf, not total resource size."
     },
     {
       "source": "packages/zig/transit-core/src/pages.zig",
       "symbol": "branch_children",
-      "expression": "5",
+      "expression": "32",
       "classification": "working-set",
       "meaning": "Children in one branch, not number of resources."
     },

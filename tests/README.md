@@ -10930,9 +10930,99 @@ qualification is recorded separately.
 
 ## Durable Table mutation latency
 
-Tracked by [issue #55](https://github.com/rupurt/rey/issues/55). Qualification is
-in progress; the following measurements are diagnostic evidence, not a latency
-SLO or an assertion that unexecuted gates passed.
+The [2026-10-04 campaign](mutation_latency/results/2026-10-04/README.md) preserves
+all intermediate and corrected-provider reports, fixed diagnostic categories,
+executable hashes, temporary probe patches and failed recovery fixtures. The
+matched-provider comparison completes 140 cases per implementation: one-row
+INSERT/UPDATE/DELETE p50 changes 346/334/329 to 135/152/143 ms, and p95 changes
+404/402/546 to 154/179/148 ms. Each case verifies affected rows and an independent
+read. Both use the corrected Ursula, fresh ext4 installations, default caches
+and workers. Shared-host work remains a confounder; these are not SLOs or p99s.
+
+Corrected-provider default and fixed-20-ms controls each complete 700 cases.
+Independent direct-client, 120-row, 120-update-history, cache-64, reader and
+idle-gap controls complete 140 cases each. The combined direct-client repeat
+completes 700 cases and 5,729 concurrent reads with no uncertainty or restart.
+The earlier combined control remains failed because its reader stopped during
+an authority-timeout restart, despite verification of all 700 writes. Longer
+loaded default/row controls also record supervisor restarts; the longest default
+statement is 13.6 seconds. Setup retries, failed controls and bounded telemetry
+omissions remain visible in the reports.
+
+The temporary provider probe identifies `ProviderColdBackpressure` after 273
+cases. Pinned Ursula's planner left a large second stream unflushed whenever a
+small first stream consumed part of the batch budget. The local Nix correction
+sizes subsequent chunks against remaining budget. Both final upstream checks
+pass: 83 stream units and six integration tests. `just doctor`, full `just check`
+and the corrected-provider 1,024-key S3 proof with two cache pages pass. Official
+container images are not qualified by the local patched-provider results.
+
+The clean run at `d4c1eb3f` was interrupted after 63 passed tasks when the provider
+correction superseded it; the `4ef3f598` run was interrupted after discovering a
+public-document ownership error. Neither is complete. At `fe4b5181`, clean CI
+passes 43 tasks, including the unchanged-deadline physical query-delivery proof,
+then fails the gRPC worker's cold-object count. Diagnostic inspection finds
+actual Ursula `_packs` cold data; the fixture counted only `chunks`. The
+`1fda5643` counter correction recognizes both pinned paths and tests that startup,
+snapshot and empty-directory metadata do not count. Spill requirements, provider
+limits and proof deadlines remain unchanged.
+
+On 2026-10-05 UTC, committed-source `just ci-clean` at `3a52d102` completes all
+**75 ordinary tasks** in 6,789.17 seconds. The [task results](mutation_latency/results/2026-10-04/clean-3a-complete.json)
+and [completion metadata](mutation_latency/results/2026-10-04/clean-3a-complete.meta.json)
+retain exact task order, source and exit codes. The physical query-delivery phase
+passes in 18.065 seconds under its existing 600-second deadline. Native/port/CLI
+Table mutation recovery checks 23 lost receipts; the
+[structured records](mutation_latency/results/2026-10-04/clean-3a-runtime-evidence.json)
+preserve the phase and binary evidence. The gRPC worker observes 135 cold objects;
+the HTTP worker observes 193, with unchanged 8 MiB hot limits. All installed SDK
+tasks pass, and the [ten-language ring](mutation_latency/results/2026-10-04/clean-3a-public-interop.json)
+checks restarted replies, lost receipts, typed Tables/queries and original IPC.
+The [local Station readiness proof](mutation_latency/results/2026-10-04/clean-3a-station-readiness.json)
+retains its injected outage, replacement and cleanup results.
+
+A separate clean experience lane at `cd9fde43` completes all seven tasks after
+public documentation updates. Changes following the fully qualified runtime
+contain documentation/evidence only. Ordinary clean CI does not include the
+browser tier or external Compose/Substrate profiles; these results do not qualify
+the unpatched official Ursula container. Failed earlier controls remain failed,
+and the recorded loaded-run timeout/restart tails remain a performance limit.
+
+Compact-page qualification on 2026-10-04 (the current-definition cutover candidate
+following `213acb3b`) passed root units, `just check`, hot packed/closed disk page
+proofs, the 1,024-key S3 page proof with two cache slots, resource-simulation smoke,
+and real server/service lifecycle proofs. The deepest supported tree test also
+passes a complete-candidate mutation at height 32. Malformed/truncated/old page
+bytes reject; packed-provider newline framing and the canonical base64 envelope
+are checked separately. The S3 write phase stages 758 pages and attempts 3,985,924
+page payload bytes, including the envelope; retained-root recovery stages none.
+This is format/recovery evidence, not completed transport-pressure qualification.
+The shared definition and independently signed/generated consumers cut over
+together; old installations reject rather than being reset or decoded as new.
+
+
+The isolated `just test::page-layout --output /var/tmp/page-layout.json` study
+uses the production immutable-tree algorithm in temporary modules. Four codec/
+geometry variants and monolithic/separate roots retain the old snapshots and
+round-trip every staged page. Its store counts reads, stages and encoded bytes
+for 50 synthetic private turn candidates at 64/1024 rows and equal receipt history.
+It does not execute native authorization, provider I/O, durability or latency.
+The study alone does not qualify an installation format; the current codec and
+its native qualification have separate evidence.
+
+The 2026-10-04 run at `fdb449a4` completed all sixteen cases. At 1024 rows,
+compact 8-entry leaves/32-child branches used 782 page reads, 468 stages and
+613,884 encoded bytes versus 1,790/1,391/1,403,546 for 4/5 JSON pages. Resident
+page objects grew from 8,480 to 16,952 bytes. Separate roots in that compact
+geometry used 938 reads, 550 stages and 696,327 bytes: partitioning is not selected
+as a latency optimization from this workload. Native qualification remains
+necessary before accepting any format change.
+
+
+Tracked by [issue #55](https://github.com/rupurt/rey/issues/55). The historical
+measurements below retain their original scope and failures. Completed clean
+qualification is recorded above; no measurement establishes a latency SLO or
+turns an unexecuted gate into a pass.
 
 The initial supplied transcript placed 5.78–6.28 seconds inside `submit` for
 single-row mutations. Read-only source and owned ReleaseSafe experiments at

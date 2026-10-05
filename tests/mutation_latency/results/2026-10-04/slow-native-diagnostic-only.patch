@@ -1,0 +1,77 @@
+diff --git a/apps/transit-cli/server/Server.zig b/apps/transit-cli/server/Server.zig
+index 8808581d..18eb1ba8 100644
+--- a/apps/transit-cli/server/Server.zig
++++ b/apps/transit-cli/server/Server.zig
+@@ -54,7 +54,10 @@ pub fn run(init: std.process.Init, options: @import("../Options.zig").Options, d
+     const self = try init.gpa.create(Self);
+     defer init.gpa.destroy(self);
+     self.* = .{ .init = init, .installation = &installation, .executable = executable, .diagnostic = diagnostic, .config_path = options.path orelse "transit.yaml / server defaults", .ui = !options.no_ui };
+-    defer self.stop();
++    defer {
++        self.stop();
++        self.transportDiagnostic();
++    }
+     var restarts: u8 = 0;
+     while (!Signals.interrupted()) {
+         self.cycle() catch |err| {
+@@ -242,6 +245,12 @@ fn worker(self: *Self, allocator: std.mem.Allocator, role: Role) !void {
+ }
+
+ fn transportDiagnostic(self: *Self) void {
++    const node = &self.processes[@backingInt(Role.node)].stderr;
++    var lines = std.mem.splitScalar(u8, node.bytes[0..node.length], '\n');
++    while (lines.next()) |line| {
++        if (line.len <= 256 and std.mem.startsWith(u8, line, "native slow diagnostic: ")) std.debug.print("{s}\n", .{line});
++    }
++
+     const log = &self.processes[@backingInt(Role.gateway)].stderr;
+     const prefix = "gateway transport: ";
+     const offset = std.mem.lastIndexOf(u8, log.bytes[0..log.length], prefix) orelse return;
+diff --git a/apps/transit-node/Native.zig b/apps/transit-node/Native.zig
+index 06a55dda..7c6d5c75 100644
+--- a/apps/transit-node/Native.zig
++++ b/apps/transit-node/Native.zig
+@@ -28,7 +28,8 @@ const Config = struct {
+ pub fn run(init: std.process.Init, bytes: []const u8, mode: anytype, diagnostics: *telemetry.Runtime) !void {
+     const parsed = try std.json.parseFromSlice(Config, init.gpa, bytes, .{});
+     defer parsed.deinit();
+-    const config = parsed.value;
++    var config = parsed.value;
++    config.request_metrics = true;
+     if (config.request_timeout_ms == 0 or config.request_timeout_ms > 60000) return error.InvalidTimeout;
+     var client = try adapter.ursula.Client.init(init.gpa, init.io, .{ .base_url = config.ursula_url, .max_response_bytes = 256 * 1024 });
+     defer client.deinit();
+@@ -294,6 +295,19 @@ const Context = struct {
+         server.changed = &self.changed;
+         server.observation = .{ .span = self.diagnostics.begin(.server, null) };
+         var failure: ?anyerror = null;
++        defer {
++            const wait_ms = (server.observation.wait_ns orelse 0) / std.time.ns_per_ms;
++            const work_ms = (server.observation.work_ns orelse 0) / std.time.ns_per_ms;
++            if (wait_ms >= 500 or work_ms >= 500 or failure != null) {
++                const metrics = server.metrics;
++                std.debug.print("native slow diagnostic: wait_ms={d} work_ms={d} provider_ms={d} requests={d} failure={s}\n", .{
++                    wait_ms, work_ms,
++                    if (metrics) |value| value.provider.elapsed_ns / std.time.ns_per_ms else 0,
++                    if (metrics) |value| value.provider.requests else 0,
++                    if (failure) |err| @errorName(err) else if (metrics) |value| value.failure orelse "none" else "none",
++                });
++            }
++        }
+         const read_only = !std.mem.eql(u8, request.head.target, "/v1/command");
+         defer server.observation.finish("transit.http.request", failure, if (failure) |err| err == error.Canceled else false, read_only);
+         server.handle(request) catch |err| {
+diff --git a/apps/transit-node/main.zig b/apps/transit-node/main.zig
+index cf367f37..750dca5e 100644
+--- a/apps/transit-node/main.zig
++++ b/apps/transit-node/main.zig
+@@ -3,7 +3,8 @@ const telemetry = @import("transit_observability").telemetry;
+ const wire = @import("transit_client");
+ pub fn main(init: std.process.Init) !void {
+     const args = try init.minimal.args.toSlice(init.arena.allocator());
+-    const config = try telemetry.Config.environment(init.environ_map);
++    var config = try telemetry.Config.environment(init.environ_map);
++    config.level = .err;
+     var diagnostics = if (args.len == 3 and std.mem.eql(u8, args[2], "--maintain")) telemetry.Runtime.init(init.io, "transit-maintenance", config) else telemetry.Runtime.init(init.io, "transit-node", config);
+     diagnostics.start();
+     defer diagnostics.stop();

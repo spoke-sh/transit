@@ -50,7 +50,7 @@ before Station, so higher-level abstractions grow on an inspectable kernel.
 | [M40](M40.md) | Extended SQL operations and relational composition | Selected: remaining reference operations beyond M34/M36, historical reads, bulk data, transactions and parameters |
 | [M41](M41.md) | Declarative benchmark coverage and measurement | 28 components measured and full TPC coverage inventoried; clean qualification in progress; complete suites blocked |
 | [M42](M42.md) | PostgreSQL and MySQL wire access | Proposed read/write profile; Zig adapters over interactive queries and explicit mutation/catalog owners, durable write recovery, TLS/authentication, typed parameters and independent client qualification |
-| [M43](M43.md) | Durable Table mutation latency | In progress: end-to-end measurement, bounded mutation admission, shared read/write amplification and recovery qualification |
+| [M43](M43.md) | Durable Table mutation latency | Implemented and locally qualified: shared candidates/caller work, authorized wake-ups, compact pages, provider correction and 75-task clean recovery qualification |
 | [M44](M44.md) | Semantic declarative diagnostics | Complete for reviewed interfaces: durable witnesses, precise attribution, recovery guidance and semantic coverage gates; clean task inventory qualified |
 
 The historical [pre-Station review](../history/reviews/PRE_STATION.md) led to the completed

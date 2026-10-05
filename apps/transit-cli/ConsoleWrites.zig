@@ -203,9 +203,7 @@ pub fn start(self: *Self, console: *Console, text: []const u8, route: q.fuze.Sql
             if (!description.policy.permits(request.plan.operation)) return error.MutationDenied;
             timing.enter(.prepare);
             const namespace = try identity(self.io);
-            // A collision is a conflict, never adoption of somebody else's work.
-            if (try self.readOnly(q.TableMutationClient.status, .{ writer, try request.reference(namespace) }) != null) return error.MutationIdentityConflict;
-            const pending = (try self.readOnly(q.TableMutationClient.prepareNext, .{ writer, namespace, request })) orelse return error.MutationIdentityConflict;
+            const pending = try self.readOnly(q.TableMutationClient.prepareNew, .{ writer, namespace, request });
             break :mutation .{ .mutation = .{ .namespace = namespace, .request = request, .pending = pending, .input = null } };
         },
         .declaration => creation: {
@@ -301,17 +299,15 @@ fn advance(self: *Self, console: *Console, timing: *Timing) !void {
                         try self.saveTimed(timing);
                     }
                     timing.enter(.wait);
-                    if (try self.readOnly(q.TableMutationClient.observe, .{ writer, pending, value.input.? }) == .pending) {
+                    const progress = try self.readOnly(q.TableMutationClient.progress, .{ writer, pending, value.input.? });
+                    if (progress == .pending) {
                         try self.io.sleep(.fromMilliseconds(50), .awake);
                         continue;
                     }
                     timing.enter(.fetch);
-                    if (try self.readOnly(q.TableMutationClient.inputDisposition, .{ writer, pending, value.input.? })) |reason| {
-                        // Keep the frozen command and input for current-authorized
-                        // inspection of the rejection on subsequent .status.
-                        const current = try self.readOnly(q.TableMutationClient.status, .{ writer, try value.request.reference(value.namespace) });
-                        // An input rejection is not a terminal mutation. Keep an
-                        // active upload recoverable, including explicit cancel.
+                    const current = progress.processed.status;
+                    if (progress.processed.disposition) |reason| {
+                        // Preserve exact input evidence for .status and cancellation.
                         if (current == null or current.?.terminal() or !self.record.cancelling) {
                             self.record.complete = current == null or current.?.terminal();
                             try self.saveTimed(timing);
@@ -320,34 +316,27 @@ fn advance(self: *Self, console: *Console, timing: *Timing) !void {
                             return error.MutationInputRejected;
                         }
                     }
-                    value.pending = null;
-                    value.input = null;
-                    try self.saveTimed(timing);
+                    if (current) |outcome| if (outcome.terminal()) {
+                        return self.finishMutation(console, timing, value, outcome);
+                    };
                 }
                 const reference = try value.request.reference(value.namespace);
                 timing.enter(.prepare);
-                // prepareNext already batches the full terminal status with the
-                // metadata needed for a successor. Avoid a separate status read
-                // on every intermediate upload command.
-                value.pending = if (self.record.cancelling) cancel: {
+                const next: q.TableMutationClient.Next = if (self.record.cancelling) cancel: {
                     timing.enter(.fetch);
                     const outcome = try self.readOnly(q.TableMutationClient.status, .{ writer, reference });
                     timing.enter(.prepare);
-                    break :cancel if (outcome != null and outcome.?.terminal()) null else try self.readOnly(q.TableMutationClient.prepare, .{ writer, .{ .cancel = reference } });
-                } else try self.readOnly(q.TableMutationClient.prepareNext, .{ writer, value.namespace, value.request });
-                if (value.pending == null) {
-                    timing.enter(.fetch);
-                    const outcome = (try self.readOnly(q.TableMutationClient.status, .{ writer, reference })) orelse return error.InvalidConsoleRecovery;
-                    if (!outcome.terminal()) return error.InvalidConsoleRecovery;
-                    self.record.complete = true;
-                    try self.saveTimed(timing);
-                    if (outcome.phase == .rejected) {
-                        console.diagnostic.write = try WriteDiagnostic.mutation(self.record.name.?, value.request, outcome);
-                        if (console.session.format == .json) try self.emitMutation(console, value.*, outcome, null);
-                        return error.MutationRejected;
-                    }
-                    _ = try self.statusTimed(console, timing);
-                    return;
+                    if (outcome) |terminal| if (terminal.terminal()) break :cancel .{ .complete = terminal };
+                    break :cancel .{ .prepared = try self.readOnly(q.TableMutationClient.prepare, .{ writer, .{ .cancel = reference } }) };
+                } else try self.readOnly(q.TableMutationClient.prepareNextResult, .{ writer, value.namespace, value.request });
+                switch (next) {
+                    .complete => |outcome| return self.finishMutation(console, timing, value, outcome),
+                    .prepared => |pending| {
+                        // Until this atomic replacement, the previous saved input
+                        // remains sufficient to repeat observation after a crash.
+                        value.pending = pending;
+                        value.input = null;
+                    },
                 }
                 try self.saveTimed(timing);
             },
@@ -385,6 +374,20 @@ fn advance(self: *Self, console: *Console, timing: *Timing) !void {
             },
         }
     }
+}
+fn finishMutation(self: *Self, console: *Console, timing: *Timing, value: *Mutation, outcome: q.TableMutationRecords.Status) !void {
+    if (!outcome.terminal()) return error.InvalidConsoleRecovery;
+    value.pending = null;
+    value.input = null;
+    self.record.complete = true;
+    try self.saveTimed(timing);
+    timing.enter(.render);
+    if (outcome.phase == .rejected) {
+        console.diagnostic.write = try WriteDiagnostic.mutation(self.record.name.?, value.request, outcome);
+        if (console.session.format == .json) try self.emitMutation(console, value.*, outcome, null);
+        return error.MutationRejected;
+    }
+    try self.emitMutation(console, value.*, outcome, null);
 }
 pub fn cancel(self: *Self, console: *Console) !void {
     const operation = self.record.operation orelse return error.NoSavedWrite;
@@ -477,6 +480,13 @@ pub fn unresolvedDiagnostic(self: Self, cause: anyerror) !q.protocol.Diagnostic 
     const d = q.protocol.Diagnostic;
     var value = try d.init("write.saved_work_unresolved", .lifecycle, .reconcile, .unknown, .saved_intent, "The saved write needs reconciliation. Preserve its original recovery file; do not repeat the SQL or replace its operation identity.");
     value.cause = try d.Code.init(@errorName(cause));
+    // Preserve the validated native category as evidence, while a 503 still
+    // leaves the exact saved mutation unresolved. Do not infer nonacceptance.
+    if (self.record.operation.? == .mutation) {
+        if (self.mutation) |client| if (client.wire.last_rejection) |native|
+            try value.text(.native_cause, .authority, @tagName(native));
+    } else if (self.catalog) |client| if (client.transport.last_rejection) |native|
+        try value.text(.native_cause, .authority, @tagName(native));
     switch (self.record.operation.?) {
         .mutation => |operation| value.identity = .{ .domain = .mutation, .id = .init(operation.namespace), .realm = .init(operation.request.realm), .resource = .init(operation.request.resource) },
         .creation => |operation| value.identity = .{ .domain = .catalog, .id = .init(operation.request.operation), .realm = .init(operation.request.scope.realm), .resource = .init(operation.request.scope.resource) },

@@ -267,6 +267,11 @@ pub fn Engine(comptime Journal: type, comptime PageStore: type) type {
             if (self.head.position >= p.max_counter) return error.InvalidPosition;
             try self.checkCapacity(request.command);
             var candidate = try self.state();
+            var pending: catalog.Candidate = .{};
+            switch (request.command) {
+                .send, .open_view, .close_view, .turn, .turn_with_versions, .deliver => candidate.pending = &pending,
+                else => {},
+            }
             var next = self.head;
             const needs_time = switch (request.command) {
                 .grant, .create_principal, .revoke, .terminate, .close_view, .grant_resource, .retire_resource, .checkpoint, .runtime_observe, .payload_ready, .retire_payload, .payload_deleted, .collect => false,
@@ -307,6 +312,7 @@ pub fn Engine(comptime Journal: type, comptime PageStore: type) type {
             mutations[count] = try catalog.putMutation(address(.principal, request.principal), principal_value);
             mutations[count + 1] = try catalog.putMutation(try catalog.key(.receipt, request.principal, request.sequence, ""), Receipt{ .position = self.head.position, .digest = try g.digest(request) });
             try candidate.mutate(mutations[0 .. count + 2]);
+            try candidate.flush();
             next.catalog = candidate.snapshot;
             next.position += 1;
             return .{ .record = .{ .position = self.head.position, .previous = self.head.catalog.root, .next = next, .request = request, .time = sample } };

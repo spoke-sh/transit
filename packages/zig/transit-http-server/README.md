@@ -42,3 +42,9 @@ bound elapsed reads/writes, serialize writers and join both socket directions.
 Framing alone grants no application authority. Unit checks pin fragmented UTF-8,
 canonical lengths, control/close restrictions and exhaustion. Consuming peers and
 TLS/proxy qualification remain part of M20's separate integration matrix.
+
+Contexts may classify notification waits with `isWait(request)` and configure
+`wait_requests`. Their admission counter is independent of ordinary/control
+requests; all share the explicit connection bound. The default enables no wait
+slots. The context owns authentication, wait deadlines and revalidation. A wait
+must release domain locks while sleeping; admission is released on every exit.

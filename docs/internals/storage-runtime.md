@@ -38,6 +38,148 @@ Actual latency and memory conclusions need measurements. The
 read/write amplification; a configured cache budget is not an observed RSS
 bound, and retained storage bytes are not resident memory.
 
+## Reducing durable mutation work
+
+The question is which work a short Table mutation can share or avoid while
+preserving admission, a frozen execution basis, and atomic rows/outcome/input
+progress. The model here is one serialized realm authority, immutable retained
+pages, authorized external workers and conditional durable publication. Provider
+errors can leave staged or accepted bytes without a receipt. Notifications and
+telemetry are volatile; neither establishes the mutation outcome.
+
+The implementation combines three independent mechanisms:
+
+- The [shared mutation caller](../../packages/zig/transit-query/src/TableMutationClient.zig)
+  prepares compatible metadata in one authorized batch and observes processed
+  input with disposition/status evidence. The console keeps the acknowledged
+  input until a next-request or terminal checkpoint atomically replaces it.
+  A crash between observation and checkpoint therefore leaves an exact recovery
+  basis; it does not require a new SQL operation.
+- The [catalog candidate](../../packages/zig/transit-core/src/catalog.zig)
+  overlays a command-bounded set of changed records, including receipts/control
+  state. Repeated keys collapse before one tree rewrite. Reads see pending
+  changes; scans reject an unflushed overlay. Immutable staging can leave
+  unreachable pages on failure, but only the final conditional append changes
+  the published root. The private bound follows command quotas, never retained
+  resource cardinality.
+- [Worker notifications](../../apps/transit-node/Notifications.zig) register under
+  the same mutex used by local publication, then release it while waiting.
+  Publication scopes reduce unrelated wakeups. Every wake or bounded timeout
+  repeats current authorization and authority reads. Cancellation releases the
+  slot; a different node's publication is found on timeout. Coalescing is safe
+  for this scheduling hint because the subsequent read establishes state. It
+  cannot supply complete change coverage for joins or maintained derivations.
+
+The [compact page codec](../../packages/zig/transit-core/src/PageCodec.zig) uses
+8-entry leaves and 32-child branches. The
+[backend mapping](../../packages/zig/transit-backend-ursula/docs/pages.md)
+wraps those bytes in canonical base64 JSON records for pinned Ursula record
+coordinates. Binary encoding removes generic JSON page parsing and shallow
+branches reduce path copies. The cost is a larger decoded page/cache slot and
+base64 framing. These are separate from compute vector widths, Arrow batches
+and application publication segments; the native mutation quota is unchanged.
+A current-definition cutover prevents old stored pages from being reinterpreted.
+
+The [layout experiment](../../tests/mutation_latency/results/2026-10-04/page-layout.json)
+counts actual operations in the production tree with an in-memory measurement
+store, 50 synthetic turns, retained roots, 64/1,024 rows and matching receipt
+populations. At 1,024 rows, compact 8/32 monolithic roots used 782 reads and 468
+stages versus 1,790 and 1,391 for JSON 4/5 roots. Raw encoded bytes decreased
+from 1,403,546 to 613,884; these counts exclude the provider envelope. Decoded
+page size increases from 8,480 to 16,952 bytes. The
+[proof ledger](../../tests/README.md#durable-table-mutation-latency) separately
+records native disk restart, acknowledgement faults, cold-tier persistence,
+latency controls and incomplete runs. The experiment alone proves no latency or
+provider-memory bound. The [proof ledger](../../tests/README.md#durable-table-mutation-latency)
+owns the reproducible command and its pinned development environment.
+
+The native instrumented idle control completes 21 cases. Its first INSERT stages
+20 pages and makes 22 provider POSTs, versus 61/59 in the matched frozen idle
+control; both include background work. Across the retained successful native
+attempts, median send/view-open/turn work is 43.01/36.86/76.79 ms and provider I/O
+is 39.43/34.29/70.54 ms. Median lock wait rounds to zero in that idle control.
+These are overlapping phase measurements under proxies, not isolated disk-fsync
+costs or sums that predict the ordinary console latency. They favor reducing
+provider work before introducing concurrent authority execution. The
+[raw campaign](../../tests/mutation_latency/results/2026-10-04/README.md)
+records the matched controls and failed attempts.
+
+An unproxied 280-case control with 120 retained rows samples slow requests
+separately. One request spends 1,891 of 1,900 ms in provider I/O across 86 attempts;
+another read waits 1,879 ms before doing 4 ms of work. The
+[bounded slow samples](../../tests/mutation_latency/results/2026-10-04/slow-diagnostic-events.json)
+retain 64 of 77 events meeting a 500 ms wait/work threshold or reporting failure.
+They establish that long provider work can occupy serialized access and delay
+other requests. The threshold sample is not an all-request distribution, and
+that control does not reproduce the authority-timeout restarts observed in other
+loaded runs. Short idle lock waits therefore do not establish negligible
+queueing under load. Moving preparation out of serialized access remains subject
+to the publication contracts below.
+
+### Cold-flush budget starvation
+
+The unproxied mutation campaign also asks whether reducing foreground latency
+exposes provider backpressure. A diagnostic build observes Ursula
+`ColdBackpressure`; bounded provider samples show the hot backlog approaching
+its 8 MiB admission limit with no cold-write errors. This distinguishes that
+failure from a gateway socket close. Proxies slow the workload and can conceal
+the pressure, so their completed runs cannot resolve the unproxied failure.
+
+In the pinned provider's flush planner, let the batch target be `B`, the first
+stream's eligible bytes `a` with `0 < a < B`, and the next stream's backlog at
+least `B`. Planning the next chunk at size `B` then rejecting `a + B > B` leaves
+`B - a` unused. If the first stream receives more bytes between every pass, the
+second stream can remain unflushed until admission fails. The
+[provider patch](../../nix/ursula-cold-flush.patch) caps subsequent candidates at
+the remaining batch budget. It preserves immutable chunk publication, the
+existing first-candidate policy and the hot-memory limit. A repeated two-stream
+regression checks progress, exact offsets, bounded aggregate bytes and the
+separation between planning and publication. This corrects avoidable starvation;
+it does not promise admission when incoming bytes exceed durable drain capacity.
+
+The local Nix package owns this correction. Official pinned container images
+remain a separate provider profile. The [campaign evidence](../../tests/mutation_latency/results/2026-10-04/README.md)
+records diagnostic-only build patches and failed runs; a provider category never
+authorizes a fresh retry of an uncertain Transit command.
+
+Corrected-provider controls complete 700-case default and fixed-poll workloads
+without uncertain writes. A separate combined direct-client/history/reader
+repeat completes 700 cases and 5,729 reads without a restart. Other completed
+controls still observe authority-timeout restarts, and the first combined
+control loses its reader. The correction addresses the diagnosed flush-budget
+starvation; it does not establish bounded queueing or uninterrupted availability.
+
+### Alternatives and contract boundaries
+
+Separate data/control roots used 938 reads and 550 stages in the same 8/32
+experiment, more than the monolithic candidate. That result rejects root
+partitioning as this workload's point-write optimization. Independent schema
+and branch lifetimes can still justify resource roots; global permissions,
+process ownership and effect histories must keep their own authority. A broader
+scan/branch workload could change the storage choice.
+
+Small writes still require send, durable view capture and a turn commit. Removing
+view capture would change recovery and source-basis validation, not merely
+remove a redundant request. An ephemeral execution lease would need a defined
+commit witness, fencing, revocation, resource retention and crash reconstruction
+contract. No such bypass is enabled. Derived query maintenance remains outside
+this synchronous mutation path.
+
+Moving immutable preparation outside serialized engine access would require a
+frozen validated basis and owned storage clients/buffers. Before publication the
+operation must recheck grants, ownership, expected versions, receipts and the
+conditional predecessor. Conflict handling must preserve the original request
+identity and bound both discarded candidates and queued work. These obligations
+remain even though the candidate's pages are immutable. The current shared
+engine/client ownership therefore remains serialized.
+
+Group commit could amortize provider flushes across independent operations, but
+adds queueing to an isolated write and changes per-command acknowledgement and
+failure behavior. It is not enabled by page batching. A throughput experiment
+must distinguish offered load, admission, queue residence, individual receipts
+and uncertain batch outcomes. The current evidence does not establish a safe
+single-write improvement from group commit or horizontal authority execution.
+
 ## Placement and recovery
 
 A provider binding maps a logical PID to physical execution. Provider readiness,

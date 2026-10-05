@@ -1,0 +1,57 @@
+diff --git a/apps/transit-cli/server/Server.zig b/apps/transit-cli/server/Server.zig
+index 8808581d..3d16deb6 100644
+--- a/apps/transit-cli/server/Server.zig
++++ b/apps/transit-cli/server/Server.zig
+@@ -54,7 +54,10 @@ pub fn run(init: std.process.Init, options: @import("../Options.zig").Options, d
+     const self = try init.gpa.create(Self);
+     defer init.gpa.destroy(self);
+     self.* = .{ .init = init, .installation = &installation, .executable = executable, .diagnostic = diagnostic, .config_path = options.path orelse "transit.yaml / server defaults", .ui = !options.no_ui };
+-    defer self.stop();
++    defer {
++        self.stop();
++        self.transportDiagnostic();
++    }
+     var restarts: u8 = 0;
+     while (!Signals.interrupted()) {
+         self.cycle() catch |err| {
+@@ -242,6 +245,14 @@ fn worker(self: *Self, allocator: std.mem.Allocator, role: Role) !void {
+ }
+ 
+ fn transportDiagnostic(self: *Self) void {
++    const node = &self.processes[@backingInt(Role.node)].stderr;
++    const native_prefix = "native work failure: ";
++    if (std.mem.lastIndexOf(u8, node.bytes[0..node.length], native_prefix)) |offset| {
++        const tail = node.bytes[offset + native_prefix.len .. node.length];
++        if (std.mem.indexOfScalar(u8, tail, '\n')) |end| {
++            if (end > 0 and end <= 64) std.debug.print("server native work: {s}\n", .{tail[0..end]});
++        }
++    }
+     const log = &self.processes[@backingInt(Role.gateway)].stderr;
+     const prefix = "gateway transport: ";
+     const offset = std.mem.lastIndexOf(u8, log.bytes[0..log.length], prefix) orelse return;
+diff --git a/apps/transit-node/Native.zig b/apps/transit-node/Native.zig
+index 06a55dda..0af123bd 100644
+--- a/apps/transit-node/Native.zig
++++ b/apps/transit-node/Native.zig
+@@ -184,6 +184,7 @@ const Server = struct {
+         // Opt-in work diagnostics retain a compiler-defined cause category.
+         // No arbitrary provider text, keys, payloads or authorization details.
+         self.work_failure = @errorName(err);
++        std.debug.print("native work failure: {s}\n", .{@errorName(err)});
+         const code = std.meta.stringToEnum(wire.protocol.ErrorCode, @errorName(err)) orelse .AuthorityUnavailable;
+         const status: std.http.Status = switch (code) {
+             .Conflict, .QueryExpired, .HistoryReclaimed => .conflict,
+diff --git a/apps/transit-node/main.zig b/apps/transit-node/main.zig
+index cf367f37..750dca5e 100644
+--- a/apps/transit-node/main.zig
++++ b/apps/transit-node/main.zig
+@@ -3,7 +3,8 @@ const telemetry = @import("transit_observability").telemetry;
+ const wire = @import("transit_client");
+ pub fn main(init: std.process.Init) !void {
+     const args = try init.minimal.args.toSlice(init.arena.allocator());
+-    const config = try telemetry.Config.environment(init.environ_map);
++    var config = try telemetry.Config.environment(init.environ_map);
++    config.level = .err;
+     var diagnostics = if (args.len == 3 and std.mem.eql(u8, args[2], "--maintain")) telemetry.Runtime.init(init.io, "transit-maintenance", config) else telemetry.Runtime.init(init.io, "transit-node", config);
+     diagnostics.start();
+     defer diagnostics.stop();

@@ -95,6 +95,22 @@ def reusable_connections(fixture):
         assert response(fixture, '/v1/query', json.dumps(query).encode(), direct=direct)[0] == 403
         assert response(fixture, '/v1/query', json.dumps(query).encode(),
                         {'X-Transit-Control': 'snapshot'}, direct)[0] == 400
+    from server_application_faults import ExistingKey, native
+    root_key = ExistingKey(fixture.root, fixture.installation / 'root.seed')
+    watched = native(root_key, fixture.config['realm'], 0, {'process': fixture.record()['provision'][4]})
+    encoded = json.dumps(watched).encode()
+    status, body = response(fixture, '/v1/query', encoded)
+    assert status == 200
+    position = json.loads(body)['position']
+    started = time.monotonic()
+    status, body = response(fixture, '/v1/query', encoded, {'X-Transit-Wait': f'{position}:150'})
+    assert status == 200 and json.loads(body)['position'] >= position, (status, body)
+    if json.loads(body)['position'] == position:
+        assert time.monotonic() - started >= .12, 'gateway discarded notification hint'
+    for invalid in ('1:0', '01:1', '1:1001'):
+        assert response(fixture, '/v1/query', encoded, {'X-Transit-Wait': invalid})[0] == 400
+    assert response(fixture, '/v1/query', encoded,
+                    {'X-Transit-Wait': f'{position}:10', 'X-Transit-Control': 'snapshot'})[0] == 400
     closing_gateway_response(fixture)
     from server_write_observation import run as write_observation
     write_observation(fixture)

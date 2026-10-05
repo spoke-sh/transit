@@ -157,12 +157,34 @@ pub const RecordCache = struct {
     }
 };
 
+/// Complete native turn: closed views, rows/resource, outputs/effect, process,
+/// principal/receipt, and retained-version creation/release. The bound follows
+/// per-command protocol limits; it is independent of durable catalog size.
+pub const Candidate = struct {
+    const g = @import("root.zig").protocol.Growth;
+    pub const capacity = g.turn_views * 3 + g.turn_mutations + 1 + g.turn_outputs * 6 + 3 + 1 + 2 + g.version_changes * 6;
+    mutations: [capacity]pages.Mutation = undefined,
+    len: usize = 0,
+    fn put(self: *Candidate, mutation: pages.Mutation) !void {
+        for (self.mutations[0..self.len]) |*previous| {
+            if (std.mem.eql(u8, previous.key.slice(), mutation.key.slice())) {
+                previous.* = mutation;
+                return;
+            }
+        }
+        if (self.len == capacity) return error.CandidateMutationBudget;
+        self.mutations[self.len] = mutation;
+        self.len += 1;
+    }
+};
+
 pub fn Catalog(comptime Store: type) type {
     return struct {
         const Self = @This();
         tree: pages.Tree(Store),
         snapshot: Snapshot,
         record_cache: ?*RecordCache = null,
+        pending: ?*Candidate = null,
 
         pub fn open(store: *Store, snapshot: Snapshot) !Self {
             try snapshot.validate();
@@ -177,7 +199,13 @@ pub fn Catalog(comptime Store: type) type {
         pub fn getMany(self: *const Self, comptime T: type, addresses: []const pages.Key) ![pages.page_entries]?T {
             if (addresses.len > pages.page_entries) return error.PageReadBudget;
             for (addresses) |address| try validateKey(&address);
-            const values = try self.tree.getMany(self.snapshot.root, addresses);
+            var values = try self.tree.getMany(self.snapshot.root, addresses);
+            if (self.pending) |pending| for (addresses, 0..) |address, i| {
+                for (pending.mutations[0..pending.len]) |mutation| if (std.mem.eql(u8, mutation.key.slice(), address.slice())) {
+                    values[i] = mutation.value;
+                    break;
+                };
+            };
             var result: [pages.page_entries]?T = @splat(null);
             for (values, 0..) |value, i| if (value) |bytes| {
                 result[i] = try decode(T, &bytes);
@@ -185,6 +213,9 @@ pub fn Catalog(comptime Store: type) type {
             return result;
         }
         fn getBytes(self: *const Self, address: pages.Key) !?pages.Value {
+            if (self.pending) |pending| for (pending.mutations[0..pending.len]) |mutation| {
+                if (std.mem.eql(u8, mutation.key.slice(), address.slice())) return mutation.value;
+            };
             const cache = if (RecordCache.eligible(address)) self.record_cache else null;
             if (cache) |records| {
                 records.select(self.snapshot.root);
@@ -207,6 +238,7 @@ pub fn Catalog(comptime Store: type) type {
             comptime owned(@TypeOf(value));
             try validateKey(&address);
             const bytes = try encode(value);
+            if (self.pending) |pending| return pending.put(.{ .key = address, .value = bytes });
             const exists = try self.tree.get(self.snapshot.root, address) != null;
             const count = if (exists) self.snapshot.records else try std.math.add(u64, self.snapshot.records, 1);
             // Construct completely before changing the candidate. A failed page
@@ -222,6 +254,10 @@ pub fn Catalog(comptime Store: type) type {
                 if (mutation.value) |value| try value.validate();
                 for (mutations[0..i]) |previous| if (std.mem.eql(u8, previous.key.slice(), mutation.key.slice())) return error.DuplicatePageMutation;
                 addresses[i] = mutation.key;
+            }
+            if (self.pending) |pending| {
+                for (mutations) |mutation| try pending.put(mutation);
+                return;
             }
             // Count against one immutable cut before staging. Share paths for
             // this bounded batch, just as native point reads do; retain no
@@ -242,11 +278,37 @@ pub fn Catalog(comptime Store: type) type {
         /// retention/deletion permission; this method grants neither.
         pub fn remove(self: *Self, address: pages.Key) !void {
             try validateKey(&address);
+            if (self.pending) |pending| return pending.put(.{ .key = address, .value = null });
             if (try self.tree.get(self.snapshot.root, address) == null) return;
             const next = try self.tree.remove(self.snapshot.root, address);
             self.snapshot = .{ .root = next, .records = try std.math.sub(u64, self.snapshot.records, 1) };
         }
+        /// Stage only after validating the complete command. Failure retains
+        /// the old snapshot; staged orphan bytes grant no publication authority.
+        pub fn flush(self: *Self) !void {
+            const pending = self.pending orelse return;
+            var records = self.snapshot.records;
+            var offset: usize = 0;
+            while (offset < pending.len) {
+                const group = pending.mutations[offset..@min(offset + pages.page_entries, pending.len)];
+                var keys: [pages.page_entries]pages.Key = undefined;
+                for (group, 0..) |mutation, i| keys[i] = mutation.key;
+                const previous = try self.tree.getMany(self.snapshot.root, keys[0..group.len]);
+                for (group, 0..) |mutation, i| {
+                    if (previous[i] == null and mutation.value != null) records = try std.math.add(u64, records, 1);
+                    if (previous[i] != null and mutation.value == null) records = try std.math.sub(u64, records, 1);
+                }
+                offset += group.len;
+            }
+            const tree: pages.BoundedTree(Store, Candidate.capacity) = .{ .store = self.tree.store };
+            const root = try tree.mutate(self.snapshot.root, pending.mutations[0..pending.len]);
+            self.snapshot = .{ .root = root, .records = records };
+            self.pending = null;
+        }
         pub fn scan(self: *const Self, comptime T: type, range: Range, after: ?pages.Key) !Batch(T) {
+            // Deferred candidates are enabled only for commands whose reads are
+            // points. Never silently scan an earlier cut after private writes.
+            if (self.pending) |pending| if (pending.len != 0) return error.UnflushedCandidateScan;
             const prefix = range.prefix();
             if (after) |cursor| {
                 try validateKey(&cursor);

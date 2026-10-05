@@ -16,6 +16,8 @@ pub const max_body = protocol.max_body;
 pub const Input = protocol.Growth.Input;
 pub const Receipt = protocol.Receipt;
 
+pub const WaitHint = @import("WaitHint.zig");
+
 pub const Client = struct {
     /// Temporary transport availability is not an authority decision. This
     /// classifies only; callers still retain exact uncertain mutation bytes.
@@ -42,6 +44,7 @@ pub const Client = struct {
     url: []const u8,
     timeout_ms: u32 = 5000,
     last_exchange_ms: ?i64 = null,
+    wait_hint: ?WaitHint = null,
     observer: ?*telemetry.Runtime = null,
     parent_context: ?telemetry.Context = null,
     call_context: ?telemetry.Context = null,
@@ -154,7 +157,7 @@ pub const Client = struct {
         var buffer: [max_body]u8 = undefined;
         var writer: std.Io.Writer = .fixed(&buffer);
         const parent_header = if (self.call_context) |context| context.header() else @as([55]u8, @splat(0));
-        var headers: [2]std.http.Header = undefined;
+        var headers: [3]std.http.Header = undefined;
         var header_count: usize = 0;
         if (self.call_context != null) {
             headers[header_count] = .{ .name = "traceparent", .value = &parent_header };
@@ -167,6 +170,11 @@ pub const Client = struct {
         } else false;
         if (control) {
             headers[header_count] = .{ .name = "x-transit-control", .value = "snapshot" };
+            header_count += 1;
+        }
+        var wait_buffer: [32]u8 = undefined;
+        if (self.wait_hint) |hint| {
+            headers[header_count] = .{ .name = "x-transit-wait", .value = try hint.format(&wait_buffer) };
             header_count += 1;
         }
         const response = self.http.fetch(.{
@@ -232,6 +240,16 @@ pub const Client = struct {
     pub fn submit(self: *Client, signed: protocol.Growth.SignedRequest) !Receipt {
         try protocol.Growth.validate(signed.request);
         return self.call(Receipt, "/v1/command", signed);
+    }
+    /// Wait for an authority-position hint, then perform a fresh authorized
+    /// read. Lost/coalesced wakeups and another node's commits are covered by
+    /// the bounded timeout. This is neither a change log nor an execution grant.
+    pub fn waitForChange(self: *Client, selector: protocol.Growth.Query, key: protocol.Ed25519.KeyPair, hint: WaitHint) !protocol.Growth.Response {
+        try hint.validate();
+        if (!WaitHint.allows(selector)) return error.InvalidWaitHint;
+        self.wait_hint = hint;
+        defer self.wait_hint = null;
+        return self.query(selector, key);
     }
     pub fn query(self: *Client, selector: protocol.Growth.Query, key: protocol.Ed25519.KeyPair) !protocol.Growth.Response {
         return self.call(protocol.Growth.Response, "/v1/query", try protocol.Growth.signQuery(selector, key));
@@ -302,6 +320,7 @@ test "a full metadata view fits the bounded HTTP response" {
 }
 
 test {
+    _ = WaitHint;
     _ = @import("ConcurrencyTests.zig");
     _ = SnapshotReader;
     _ = Session;

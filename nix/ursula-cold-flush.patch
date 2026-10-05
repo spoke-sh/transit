@@ -1,0 +1,64 @@
+--- a/crates/ursula-stream/src/state_machine/cold.rs
++++ b/crates/ursula-stream/src/state_machine/cold.rs
+@@ -155,7 +155,15 @@
+             let candidate = self.plan_next_cold_flush_from_start(
+                 start_for,
+                 if drain_group { 1 } else { min_hot_bytes },
+-                max_flush_bytes,
++                // A preceding small stream must not starve the next stream:
++                // plan its prefix against the remaining batch budget. Keep
++                // the existing first-candidate policy for callers whose
++                // per-chunk limit exceeds their batch target.
++                if candidates.is_empty() {
++                    max_flush_bytes
++                } else {
++                    max_flush_bytes.min(max_batch_bytes - batch_bytes)
++                },
+                 group_hot_bytes,
+             )?;
+             let Some(candidate) = candidate else {
+--- a/crates/ursula-stream/src/state_machine/tests.rs
++++ b/crates/ursula-stream/src/state_machine/tests.rs
+@@ -1691,6 +1691,42 @@
+             .sum::<usize>(),
+         4
+     );
++}
++
++#[test]
++fn plan_next_cold_flush_batch_does_not_starve_a_large_second_stream() {
++    let mut machine = machine();
++    create_stream(&mut machine, "a-journal");
++    create_stream(&mut machine, "z-pages");
++    assert!(matches!(
++        machine.apply(append_cmd(stream("z-pages"), b"abcdefghijkl", Append::default())),
++        StreamResponse::Appended { .. }
++    ));
++    for pass in 0..4 {
++        assert!(matches!(
++            machine.apply(append_cmd(stream("a-journal"), b"x", Append::default())),
++            StreamResponse::Appended { .. }
++        ));
++        let candidates = machine.plan_next_cold_flush_batch(4, 4, 4, 4)
++            .expect("plan bounded mixed-stream batch");
++        assert_eq!(candidates.len(), 2);
++        assert_eq!(candidates[0].stream_id, stream("a-journal"));
++        assert_eq!(candidates[0].payload, b"x");
++        assert_eq!(candidates[1].stream_id, stream("z-pages"));
++        assert_eq!((candidates[1].start_offset, candidates[1].end_offset), (pass * 3, (pass + 1) * 3));
++        assert_eq!(candidates.iter().map(|candidate| candidate.payload.len()).sum::<usize>(), 4);
++        // Planning alone does not advance durable cold coverage.
++        assert_eq!(machine.hot_start_offset(&stream("z-pages")), pass * 3);
++        for (index, candidate) in candidates.iter().enumerate() {
++            let response = machine.apply(flush_candidate_cmd(
++                candidate.stream_id.clone(), candidate,
++                &format!("s3://bucket/fair-flush/{pass}/{index}"),
++            ));
++            assert!(!matches!(response, StreamResponse::Error { .. }), "{response:?}");
++        }
++    }
++    assert_eq!(machine.hot_payload_len(&stream("z-pages")), Ok(0));
++    assert_eq!(machine.hot_payload_len(&stream("a-journal")), Ok(0));
+ }
+
+ #[test]

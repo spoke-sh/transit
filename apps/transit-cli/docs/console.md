@@ -538,7 +538,9 @@ on stderr, independently of `--format table|json` result output. Known mutation
 rejections retain the actual Table/key/input-row witness and have no resume or
 cancel action. Rejected inputs retain their native input identity separately
 from any overall mutation outcome. Unresolved saved writes identify the original
-operation and support exact reconciliation; CREATE TABLE has no cancel action.
+operation, preserve a validated native error category when available, and support
+exact reconciliation. A 503 remains an uncertain outcome, including a capacity
+response; the console does not automatically resend it. CREATE TABLE has no cancel action.
 The [CLI reference](../../../docs/reference/cli.md#structured-errors) specifies
 source coordinates, timing records and stream boundaries.
 

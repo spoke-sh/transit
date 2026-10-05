@@ -15,7 +15,10 @@ it does not decode previous inline-state histories or translate saved operations
 See [versioning](../docs/reference/versioning.md).
 
 Resources, entries, associations and durable views live in immutable paged
-catalogs. A prepared turn stages private pages. Only a conditional journal append
+catalogs. The current immutable-page format uses compact `TPG1` binary pages,
+eight leaf entries and 32 branch children within a 24 KiB encoded bound. The
+shared definition distinguishes this format from prior JSON page histories;
+old heads reject before catalog access. A prepared turn stages private pages. Only a conditional journal append
 publishes the resulting root, input progress, mutations, outputs and receipt.
 An abandoned candidate cannot become committed state through page discovery.
 Recovery opens the accepted root and loads pages on demand without invoking

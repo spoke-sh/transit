@@ -22,6 +22,18 @@ Every read checks the expected digest, page shape and child height. Unknown
 versions, malformed ordering, missing pages and corrupted bytes fail explicitly.
 There is no missing-page-as-empty fallback.
 
+Pages use canonical binary encoding: `TPG1`, one-byte height and count, then
+exactly the occupied entries. A leaf entry contains a one-byte key length,
+little-endian two-byte value length and those bytes. A branch entry contains a
+one-byte minimum-key length, key bytes, 32-byte digest and 16-byte opaque locator.
+Height zero selects leaves; positive height selects branches. Counts, key/value
+bounds, ordering, height and exact end-of-input are validated. Missing entries,
+trailing bytes, old JSON pages and unknown magic reject. Decoding allocates no
+parser arena and returns an owned page. The worst-case encodings fit the unchanged
+24 KiB byte budget; a resident page object occupies 16,952 bytes on the measured
+64-bit target. Cache and sibling-stage budgets still count pages, so deployments
+must account for this object size independently of retained data size.
+
 `Tree(Store)` borrows a provider exposing `load(reference)` and
 `stage(reference, page)`, which returns the persisted reference with its locator.
 Core checks that staging preserved the content digest. The provider owns durable placement and cache policy;
@@ -29,7 +41,7 @@ core does not import provider APIs. `get`, `put`, `remove`, `mutate` and `scan` 
 root references. A snapshot retains one immutable root instead of copying all
 entries. Deleting a key creates a new version; older roots keep their values.
 
-Bounds are per node or operation: four entries per leaf, five children per branch,
+Bounds are per node or operation: eight entries per leaf, 32 children per branch,
 64 key bytes, 2,048 value bytes and eight returned entries per scan. Encoding is
 limited to 24 KiB. Height is limited to 32 to bound recursion/work; that is an
 explicit address-space guard, not a 32-row catalog. Metadata and identity
@@ -132,3 +144,26 @@ scale. The [Ursula page proof](../../transit-backend-ursula/docs/pages.md) addit
 checks cold bounded caches and disk restart/checkpoint/trim. Integration with the
 native authority and Station has separate executable schedules and recorded
 results in the [proof ledger](../../../../tests/README.md).
+
+## Complete command candidates
+
+Send, view open/close, delivery and turn preparation collect their complete
+catalog write set before staging. Point reads include pending replacements and
+deletions. These commands perform no scans over pending changes; such a scan
+fails explicitly instead of reading an earlier cut. Other commands retain their
+existing immediate private staging.
+
+The private budget is derived from native turn limits: three records per closed
+view, one per row plus resource metadata, six per output, three for an effect,
+one process, two retry records, and six per retained-version change. This is 71
+records, independent of retained rows or realm size. Repeated changes to a key
+replace its pending value. The page builder shares affected paths across this
+complete set; provider append batches remain bounded to eight pages. Page
+geometry, encoded bytes, read pages and native mutation limits are unchanged.
+
+Only the completed snapshot is eligible for conditional journal publication.
+Failed validation stages no candidate pages. Staging failure can leave immutable
+orphan bytes but preserves the prior snapshot. A competing publication still
+invalidates the proposal; pending memory never grants authority. The catalog
+unit proof compares against individual writes, retains old roots, and injects
+acknowledgement loss at every staging point.

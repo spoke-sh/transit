@@ -6,8 +6,8 @@ query measurements below do not measure file discovery or type inference.
 
 The console executes fresh interactive queries through leased native snapshots
 and client-side Fuze. It avoids the durable upload/result-publication workflow
-whose measured costs motivated this change. This page records local measurements
-from 2026-09-29, their limits and the remaining storage improvements.
+whose measured costs motivated this change. This page records local read and mutation measurements, their limits and the
+remaining storage costs.
 
 Interactive `.timer` separates local `compile`, snapshot `open`, `fetch`
 (including execution and current validation), `render` and snapshot `release`.
@@ -77,7 +77,8 @@ attempts**, versus 108 and 553 in the previous fixture. Uninstrumented idle node
 CPU is 0.03 seconds versus 0.18 in this round's baseline. Worker and courier
 polling backs off from 100 ms to one second and resets on activity. Newly queued
 durable work can therefore wait for the next poll; interactive reads do not
-wait for those workers. Event-driven wake-ups remain separate work.
+wait for those workers. These measurements precede the bounded worker
+notifications described with the mutation measurements below.
 
 ## Why the read path is cheaper
 
@@ -171,10 +172,11 @@ page/candidate reconstruction and repeated policy reads accompany continuations.
 This supports exact durable recovery but is costly for a short interactive read.
 These turn counts are an observation, not a minimum imposed by durability.
 
-Each update also maintains receipts and protocol indexes. The current immutable
-catalog tree holds four entries per leaf and five children per branch; successive
-key updates copy paths. The packed backend performs a provider request for each
-page miss or staged page. This multiplies small logical operations into many
+Each update also maintains receipts and protocol indexes. The measured revision used four entries per leaf and five children per branch;
+successive key updates copied paths. The current compact tree has eight entries
+per leaf and 32 children per branch, and complete bounded candidates share path
+copies. The packed backend performs a provider request for each page miss or
+bounded group of staged pages. This multiplies small logical operations into many
 reads and writes. Increasing cache capacity leaves the measured 1,471 staged
 pages unchanged.
 
@@ -283,9 +285,8 @@ The fixture uses a persistent console. `--client` selects the separately compile
 `transit-mutation-latency-client` public Zig consumer. That control checkpoints
 exact prepared requests and receipts and emits terminal outcomes, but does not
 perform console rendering or maintain the console's full recovery record; its
-local persistence costs therefore differ. The direct control stops on any failed
-request; the console retries unavailable observations during its bounded write
-wait. Neither caller automatically retries
+local persistence costs therefore differ. Both callers retry unavailable observations within the original bounded write
+wait; exact mutation submission remains single-attempt. Neither caller automatically retries
 an uncertain send. Terminal outcome and row visibility, rather than admission
 acknowledgement, define completion.
 
@@ -300,6 +301,13 @@ requests, and provider time is included in work time; sums are not an exclusive
 wall-time decomposition. `--no-native-metrics` supports comparison with binaries
 that lack this diagnostic configuration field.
 
+The shared caller prepares a new request in one authorized batch and combines
+processed-input disposition with terminal status observation. It retains exact
+request identity, authorization and input-progress checks. Console recovery
+keeps the last acknowledged input until an atomic next-request or completion
+checkpoint replaces it. A restored checkpoint can discover a completed outcome
+without sending another mutation.
+
 The small-request path uses one send, one captured view and one committed turn.
 Requests up to 223 canonical bytes avoid the begin/part/seal/apply sequence.
 Batched captured reads, an eight-key turn-local cache and compatible catalog
@@ -313,9 +321,44 @@ The [executed mutation evidence](../../tests/README.md#durable-table-mutation-la
 records observations and outstanding limits. No latency SLO follows from these
 shared-host samples. Empirical nearest-rank p95 requires at least 20 samples per
 case and p99 at least 100; smaller runs report null for those percentiles.
-Worker polling remains a control to evaluate after reducing work. A faster
-poll alone can increase authority contention and does not establish a scheduling
-improvement.
+Idle workers use bounded authorized waits on the observed process or output
+position. Waits release the authority lock, have separate admission capacity,
+and revalidate current authorization after a publication or timeout. Notifications
+are volatile and coalesced; timeout reads cover missed or other-node publications.
+An unavailable wait falls back to the bounded worker interval. Fixed worker
+intervals remain a measurement control, not a latency guarantee.
+
+A matched-provider comparison on the shared development host records these
+single-row distributions, with 20 samples per case. Both use the same corrected
+local Ursula provider, fresh disk fixtures, eight resident pages and default
+workers. Each completes 140 cases with independent row verification:
+
+| Control | INSERT p50 / p95 | UPDATE p50 / p95 | DELETE p50 / p95 |
+| --- | ---: | ---: | ---: |
+| Frozen earlier implementation | 346 / 404 ms | 334 / 402 ms | 329 / 546 ms |
+| Shared candidates, scoped waits and compact pages | 135 / 154 ms | 152 / 179 ms | 143 / 148 ms |
+
+The [raw campaign and reproduction](../../tests/mutation_latency/results/2026-10-04/README.md)
+retain source/binary hashes, all seven cases, failed controls and instrumentation
+limits. The runs match provider and fixture settings, while shared-host load
+remains uncontrolled. They establish no p99 or latency SLO.
+
+A separate unproxied direct caller completes 700 cases and 5,729 concurrent reads
+with 12 retained rows, six setup updates and a 64-page cache. Its single-row
+INSERT/UPDATE/DELETE p50 is 285/346/285 ms and p95 323/405/323 ms. Independent
+row-count, retained-history, cache, idle-gap, reader and fixed-polling controls
+also complete. Longer loaded default and row-count controls record supervisor
+authority-timeout restarts; the longest default statement takes 13.6 seconds.
+An earlier combined control fails when its concurrent reader stops during a
+restart. Completed repeats do not erase those availability and tail limits.
+
+The local provider includes a bounded cold-flush correction: a small journal
+prefix previously prevented a larger page stream from fitting into the same
+flush batch, eventually producing `ColdBackpressure`. Subsequent chunks now
+use the remaining batch budget. The hot-memory limit and acknowledgement rules
+are unchanged. The official container image remains a separate, unpatched
+provider profile; see the [provider mapping](../../packages/zig/transit-backend-ursula/docs/upstream.md).
+Native 503 responses still require exact saved recovery rather than fresh SQL.
 
 Record the backing filesystem when comparing storage latency. A file-backed WAL
 inside a temporary directory can reside on tmpfs; that run does not measure

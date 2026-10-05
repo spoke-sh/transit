@@ -348,6 +348,9 @@ distinct. The shared client does not discover a writer or provision these grants
 | `observe(prepared, receipt.position)` | `pending` or `processed` input progress for that admitted send, never a fabricated row result |
 | `rejection(prepared, receipt.position)` | Optional recorded input rejection, checked against the original principal, payload and input; separate from terminal request status |
 | `status(original_reference)` | Optional durable status bound to the original reference, principal and Table; current native read rights apply |
+| `prepareNew(namespace, request)` | One initial command; rejects any existing namespace, including an identical terminal request |
+| `progress(prepared, receipt.position)` | Mailbox progress, then disposition and status from one current authorized resource batch; terminal status alone never proves input processing |
+| `prepareNextResult(namespace, request)` | The next prepared command or the complete terminal status already read during selection |
 | `prepareNext(namespace, request)` | One direct execute or next begin/part/seal/apply command from committed state, or null for an existing terminal result |
 
 The saved envelope has required `version` (1), current `definition`, `connection`

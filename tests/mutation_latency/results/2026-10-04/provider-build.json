@@ -1,0 +1,15 @@
+{
+  "source_revision": "4ef3f598e79c9669cbd64f7234d57be0da46ab98",
+  "upstream_version": "0.5.1",
+  "upstream_source_revision": "2b4391a",
+  "nix_derivation": "/nix/store/y9n3ywphy7wd5q9cxzd391iymdbfrbgs-ursula-0.5.1-transit-cold-flush.drv",
+  "output": "/nix/store/xpd2aybg0sf6w4ixdjsjqgwsd1rc4zqv-ursula-0.5.1-transit-cold-flush",
+  "binary_sha256": "fbe7707f2fe52e5ae31cadf6a2f8b3a4079b6b25ec3f6ae2daf01ba0d55683e4",
+  "patch_sha256": "46022361ecc7efd555f51ff988313fa0e46f63b5f2b1924e22fc94839abce397",
+  "upstream_unit_tests_passed": 83,
+  "upstream_integration_tests_passed": 6,
+  "doctor_exit_code": 0,
+  "upstream_tests_log_sha256": "e1503aa737b7a875dc874b4dce83e60a9e9c1953c2a24df631612c5b7c4835dc",
+  "limits": "Unchanged 8 MiB group hot storage; no retry, wire or stored-format change",
+  "profile": "local Nix provider; official container unchanged"
+}

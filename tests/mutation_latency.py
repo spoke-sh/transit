@@ -24,7 +24,7 @@ class Console:
     """One persistent process, bounded simultaneous stdout/stderr draining."""
     def __init__(self, fixture, config=None, executable=None):
         args = ([executable, str(config)] if executable else
-                [fixture.cli, 'console', '--no-rc', '--format', 'json',
+                [fixture.cli, '--diagnostics=json', 'console', '--no-rc', '--format', 'json',
                  *(['--config', str(config)] if config else [])])
         self.process = subprocess.Popen(args, cwd=fixture.root, stdin=subprocess.PIPE,
                                         stdout=subprocess.PIPE, stderr=subprocess.PIPE,
@@ -39,7 +39,8 @@ class Console:
         self.last_measurement = {'elapsed_ns': 0, 'timing': None}
         self.process.stdin.write((sql.rstrip(';') + ';\n').encode())
         self.process.stdin.flush()
-        output = timing = None
+        output = timing = failure = None
+        phases = None
         with selectors.DefaultSelector() as selector:
             for index, pipe in enumerate((self.process.stdout, self.process.stderr)):
                 selector.register(pipe, selectors.EVENT_READ, index)
@@ -50,6 +51,9 @@ class Console:
                 for key, _ in selector.select(.1):
                     data = os.read(key.fileobj.fileno(), 65536)
                     if not data:
+                        self.last_measurement['elapsed_ns'] = time.monotonic_ns() - started
+                        if failure is not None:
+                            raise RuntimeError(failure)
                         raise RuntimeError('caller exited before complete result: ' + self.buffers[1].decode())
                     self.buffers[key.data].extend(data)
                     if len(self.buffers[key.data]) > 2 * 1024 * 1024:
@@ -62,13 +66,43 @@ class Console:
                             if output is not None:
                                 raise ValueError('unexpected multiple result pages')
                             output = json.loads(line)
+                        elif line.startswith(b'{'):
+                            diagnostic = json.loads(line)
+                            if 'timing' in diagnostic:
+                                timing = line.decode()
+                                phases = diagnostic['timing']['phases']
+                                self.last_measurement.update(elapsed_ns=time.monotonic_ns() - started,
+                                                             timing=timing, phase_ms=phases)
+                            else:
+                                # Keep only fixed diagnostic categories. Facts,
+                                # source text and operation identities stay in
+                                # the original local recovery evidence.
+                                failure = diagnostic['code']
+                                for field in ('code', 'cause', 'outcome', 'stage'):
+                                    self.last_measurement[field] = diagnostic.get(field)
+                                for fact in diagnostic.get('facts', []):
+                                    if fact and fact['field'] == 'native_cause' and fact.get('value'):
+                                        self.last_measurement['native_cause'] = fact['value']['text']
                         elif line.startswith(b'Time: '):
                             timing = line.decode()
-                            self.last_measurement.update(elapsed_ns=time.monotonic_ns() - started, timing=timing)
+                            phases = {key: int(value) for key, value in re.findall(r'(\w+) (\d+) ms', timing)}
+                            self.last_measurement.update(elapsed_ns=time.monotonic_ns() - started, timing=timing, phase_ms=phases)
                         elif line:
-                            raise RuntimeError(line.decode())
+                            # A human diagnostic spans several lines and can
+                            # precede its deferred timing line. Keep only the
+                            # fixed cause category, never identities or facts.
+                            failure = failure or line.decode()
+                            cause = re.fullmatch(rb'Cause: ([A-Za-z0-9_]+)\.', line)
+                            if cause:
+                                self.last_measurement['cause'] = cause[1].decode()
+                            native = re.fullmatch(rb'NativeCause: ([A-Za-z0-9_]+)\.', line)
+                            if native:
+                                self.last_measurement['native_cause'] = native[1].decode()
+                if failure is not None and timing is not None:
+                    self.last_measurement['elapsed_ns'] = time.monotonic_ns() - started
+                    raise RuntimeError(failure)
         return output, {'elapsed_ns': time.monotonic_ns() - started, 'timing': timing,
-                        'phase_ms': {key: int(value) for key, value in re.findall(r'(\w+) (\d+) ms', timing)}}
+                        'phase_ms': phases}
 
     def close(self):
         if self.process.poll() is None:
@@ -92,6 +126,22 @@ def distribution(values):
     return result
 
 
+def supervisor_evidence(root):
+    """Retain bounded fixed restart causes even when the workload completes."""
+    path = root / 'manager-0.stderr'
+    if not path.exists():
+        return {'available': False, 'truncated': False, 'restarts': []}
+    with path.open('rb') as log:
+        data = log.read(65537)
+    known = {'AuthorityTimeout', 'AuthorityUnavailable', 'ChildExited',
+             'ColdBucketCreationFailed', 'HttpConnectionClosing', 'HttpCapacity',
+             'RoleReadinessTimeout'}
+    causes = re.findall(rb'^error: server role failed; retrying the same installation: ([A-Za-z0-9_]{1,64})$',
+                        data[:65536], re.M)
+    return {'available': True, 'truncated': len(data) > 65536 or len(causes) > 4,
+            'restarts': [cause.decode() if cause.decode() in known else 'other' for cause in causes[:4]]}
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     for name in ('cli', 'node', 'host'):
@@ -111,6 +161,7 @@ def main():
     args = parser.parse_args()
     assert ctypes.CDLL(None).prctl(36, 1, 0, 0, 0) == 0
     report = {'status': 'running', 'samples': [], 'errors': [], 'unknown_outcomes': 0,
+              'reader_queries': [0] * args.readers, 'reader_failures': [],
               'controls': {k: str(v) if isinstance(v, Path) else v for k, v in vars(args).items()},
               'caller': 'client' if args.client else 'console',
               'source_revision': subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True).strip(),
@@ -200,7 +251,7 @@ def main():
         idle_before = {name: probe.snapshot() for name, probe in probes.items()}
         time.sleep(1)
         report['idle_attempts'] = {name: dict(probe.snapshot() - idle_before[name]) for name, probe in probes.items()}
-        reader_counts = [0] * args.readers
+        reader_counts = report['reader_queries']
         def read(index):
             shell = None
             try:
@@ -215,6 +266,10 @@ def main():
                     reader_counts[index] += 1
             except Exception as error:
                 reader_errors.append(str(error))
+                measurement = getattr(shell, 'last_measurement', {})
+                report['reader_failures'].append({'reader': index, **{
+                    field: measurement[field] for field in ('elapsed_ns', 'phase_ms', 'code', 'cause', 'outcome', 'stage', 'native_cause')
+                    if field in measurement}})
             finally:
                 if shell:
                     shell.close()
@@ -264,8 +319,11 @@ def main():
         for thread in threads:
             thread.join(timeout=340)
         fixture.cleanup()
+        report['supervisor'] = supervisor_evidence(fixture.root)
         for probe in probes.values():
             probe.close()
+        if 'native' in probes:
+            report['native_trace'] = probes['native'].trace()
         save()
         if report['status'] == 'complete':
             shutil.rmtree(fixture.root)

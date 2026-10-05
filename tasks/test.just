@@ -597,3 +597,7 @@ file-benchmark *args:
     set -euo pipefail
     zig build file-benchmark -Doptimize=ReleaseSafe
     "${TRANSIT_FUZE_BENCH_PYTHON:?Enter nix develop .#benchmarks}" -B tests/fuze_benchmarks/run.py zig-out/bin/transit-file-benchmark "$@"
+
+# Isolated immutable-tree prototypes; never opens native installation state.
+page-layout *args:
+    python3 -B tests/page_layout.py {{args}}

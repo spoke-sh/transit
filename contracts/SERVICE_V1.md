@@ -81,7 +81,7 @@ become `AuthorityUnavailable`. The client rejects unknown/malformed error bodies
 and invalid success responses instead of inventing a durable result.
 
 HTTP bodies and client response buffers are bounded at 256 KiB. Canonical mutation
-records are bounded at 8 KiB. The shared server allows 16 connections, four ordinary requests and two reserved
+records are bounded at 8 KiB. The shared server allows 16 connections, four ordinary requests, four notification waits and two reserved
 control requests, with at most 64 requests per connection. Header timeout is the
 lesser of one second and the configured request timeout; it supports HTTP/1.1 keep-alive.
 Network parsing and response writes may overlap, while authority/backend access
@@ -92,6 +92,34 @@ a five-second request timeout. These bounds do not promise rate fairness.
 `close_snapshot` or a finishing `snapshot_read`. Other query kinds with this hint,
 unknown hint values and duplicate hint headers reject. This unsigned scheduling
 hint does not change authorization or prove that release succeeded.
+
+`x-transit-wait: POSITION:MILLISECONDS` is an optional scheduling hint for
+`process`, `delivery` and `outputs` queries. Both numbers use canonical unsigned
+decimal; POSITION is at most the native maximum counter and MILLISECONDS is
+1–1000. Duplicate headers, unsupported query kinds, future positions, command
+requests and combinations with the control hint reject. The signed query and
+normal response retain their existing definitions. The hint grants no rights.
+
+When the authorized query's position equals POSITION, the node waits for a local
+publication hint or the bounded timeout without holding authority/backend access.
+It registers against the publication lock, so a commit between observation and
+registration cannot be lost. Point sends and turns notify the affected process;
+turns with outputs also notify delivery/output waiters. Grant and lifecycle
+changes conservatively notify all registered scopes. This reduces unrelated
+worker traffic without requiring a durable watch registry. After waking it runs the signed query again,
+including current key, grant, scope, lifecycle and authority-tail checks. A
+revocation can therefore return denial. Hints may be coalesced or spurious;
+remote-node commits are discovered by the timeout's current read. Query selectors
+with an explicit stale cut retain their normal conflict behavior.
+
+Wait admission is separate from ordinary reads and reserved controls, bounded
+to four active requests within the same 16-connection limit. Cancellation or
+transport loss releases admission; a disconnected peer's undetected wait is
+bounded by its timeout. No durable subscription, change coverage, replay cursor,
+automatic mutation retry or execution permission is created. Callers preserve
+pending signed work and use bounded read retries or polling after unavailable
+waits. The local gateway forwards the validated hint through a separate bounded
+upstream pool.
 
 Signatures authenticate callers; they neither encrypt responses nor authenticate
 the response transport. A listener outside a trusted private network requires an
