@@ -38,6 +38,7 @@
           vite-plus = pkgs.callPackage ./nix/vite-plus.nix { };
           transit = pkgs.callPackage ./nix/transit.nix { inherit zig vite-plus; };
           minio = pkgs.callPackage ./nix/minio.nix { };
+          ursula = import ./nix/ursula.nix { upstream = ursula-overlay.packages.${system}.ursula; };
           reference = pkgs.callPackage ./nix/reference-tools.nix {
             pins = builtins.fromJSON (builtins.readFile ./deploy/reference/versions.json);
           };
@@ -46,12 +47,12 @@
           inherit pkgs;
           sql-tools = pkgs.callPackage ./nix/sql-tools.nix { };
           inherit (reference) kind kubectl-ate;
-          inherit (ursula-overlay.packages.${system}) ursula ursulactl;
+          inherit (ursula-overlay.packages.${system}) ursulactl;
+          inherit ursula;
           inherit zig kubectl-transit;
           inherit transit minio;
           transit-local = pkgs.callPackage ./nix/transit-local.nix {
-            inherit transit minio;
-            inherit (ursula-overlay.packages.${system}) ursula;
+            inherit transit minio ursula;
           };
           inherit vite-plus;
         }
@@ -67,6 +68,7 @@
             kubectl-transit
             sql-tools
             transit
+            ursula
             ;
         }
         // nixpkgs.lib.optionalAttrs (system == "x86_64-linux") {

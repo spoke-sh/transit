@@ -10,13 +10,24 @@ records the overlay revision. [ursula-zig](https://github.com/rupurt/ursula-zig)
 is the selected Zig client, pinned by revision and package hash in
 [build.zig.zon](../build.zig.zon).
 
+The local Nix provider includes the
+[cold-flush planner correction](../../../../nix/ursula.nix). It sizes subsequent
+chunks against the remaining batch budget, so a busy small journal cannot
+repeatedly block a larger page stream from using that space. The upstream source,
+Cargo lock and Rust toolchain stay pinned; the patch changes neither storage
+formats nor admission limits. Its derivation runs the upstream stream tests and
+a repeated mixed-stream flushing regression. See the
+[toolchain guide](../../../../nix/README.md) for build and update ownership.
+
 Container deployments use the [official Ursula image](https://github.com/tonbo-io/ursula/pkgs/container/ursula),
 not a separately built Nix image. The matching `0.5.1` release and immutable
 multi-platform manifest digest are pinned in
 [`deploy/reference/versions.json`](../../../../deploy/reference/versions.json). Update this
 pin deliberately alongside the development overlay and rerun disk recovery
 checks. Supply an explicit disk-backed configuration and persistent volume;
-the upstream image's bundled configuration uses an in-memory WAL.
+the upstream image's bundled configuration uses an in-memory WAL. These official
+images do not include the local Nix cold-flush correction; local latency results
+do not qualify the image's behavior under that pressure schedule.
 
 ## Client integration surface
 

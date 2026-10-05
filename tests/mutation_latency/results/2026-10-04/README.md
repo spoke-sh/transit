@@ -35,6 +35,8 @@ fixture paths refer to retained local evidence; they are not portable installati
 | [gateway-diagnostic-client](gateway-diagnostic-client.json.gz) | failed | 124 | `4f5aa7a9d4a59e44572350a7fac8416f6de3cd539fd83bb808342c60615a6556` |
 | [notified-default](notified-default.json.gz) | complete | 140 | `3c3c8aae1c2e7395eabf937d6b55f8653e8047e703d8239e52e28488d914ac3e` |
 | [scoped-default](scoped-default.json.gz) | complete | 140 | `c306f8c15b218c2672b32291a5577e6b62de68721c0e4e368a9f3e71a142a515` |
+| [native-diagnostic-client](native-diagnostic-client.json.gz) | failed | 111 | `b81f3df93784cb97cf14154245a08e24f94cfe20679afb4fa7ac2cc1e3f996d3` |
+| [provider-diagnostic-client](provider-diagnostic-client.json.gz) | failed | 273 | `327dd06943e878884da64ef14009cd9179ff6a45054e954d4ba9dc9d601e5151` |
 
 ## Interpretation
 
@@ -94,3 +96,25 @@ cardinality and `--age` adds retained updates at fixed cardinality. `--idle-ms`,
 `--instrument` is a separate diagnostic profile. Nearest-rank p95 requires 20
 samples per case; p99 requires 100. Incomplete runs establish neither a successful
 workload nor its latency distribution.
+
+## Provider refusal diagnosis
+
+`native-diagnostic-client` fails after 111 cases and captures
+`ServiceUnavailable` inside the node. `provider-diagnostic-client` fails after
+273 cases and captures `ProviderColdBackpressure`, using the temporary
+[provider probe](provider-diagnostic-only.patch). The gateway probe had already
+excluded its transport catch path for a separate reproduced failure. The
+[bounded metric samples](provider-metrics-tail.json) record hot bytes reaching
+8,296,095 (high watermark 8,368,963), below the 8 MiB rejection threshold before
+the failed append, with zero observed cold-write errors. These samples end before
+the refusal and do not claim its counter is zero. The diagnostic build retains
+only fixed provider categories; arbitrary response bodies are not logged.
+
+The pinned flush planner can repeatedly select a small journal prefix, then
+discard a full-sized page chunk because their sum exceeds its batch target. The
+[local provider correction](../../../../nix/ursula-cold-flush.patch) sizes later
+chunks against the remaining target. Its repeated two-stream unit case preserves
+planning/publication separation and exact offsets. The hot limit remains 8 MiB.
+The first patched provider build passes all 83 upstream stream units and six
+integration tests. End-to-end qualification of the corrected provider is recorded
+separately; this diagnosis does not retroactively complete failed controls.

@@ -6,6 +6,18 @@ OpenSSL for independent signed/TLS peers, the DuckDB CLI, and Kubernetes tools. 
 and checksums live in [vite-plus.nix](vite-plus.nix). Linux and macOS on x86_64
 and aarch64 are configured; native checks on every platform are not claimed.
 
+[ursula.nix](ursula.nix) derives the local provider from the locked Ursula 0.5.1
+overlay and applies [a bounded cold-flush correction](ursula-cold-flush.patch).
+After a small stream consumes part of a flush batch, the next stream can use the
+remaining bytes. The upstream planner could repeatedly discard that next chunk
+and reach hot-storage admission pressure. The derivation runs the upstream
+`ursula-stream` tests, including a sustained two-stream regression, and exports
+the corrected binary through `nix build .#ursula`, the development shells and
+the local bundle. `flake.lock`, upstream source/Cargo hashes, the Rust toolchain
+and `ursulactl` remain deliberately unchanged. The patch asserts its reviewed
+upstream version; an overlay upgrade requires reviewing and removing or rebasing
+it. Official container images do not contain this local correction.
+
 The M9 Arrow integration uses Zig `0.17.0-dev.2267+48abf1a34`, matching
 the selected zarrow fork. The Zig overlay update is deliberate; Ursula and
 general development-package pins remain unchanged.

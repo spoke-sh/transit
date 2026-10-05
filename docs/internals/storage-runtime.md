@@ -104,6 +104,32 @@ provider work before introducing concurrent authority execution. The
 [raw campaign](../../tests/mutation_latency/results/2026-10-04/README.md)
 records the matched controls and failed attempts.
 
+### Cold-flush budget starvation
+
+The unproxied mutation campaign also asks whether reducing foreground latency
+exposes provider backpressure. A diagnostic build observes Ursula
+`ColdBackpressure`; bounded provider samples show the hot backlog approaching
+its 8 MiB admission limit with no cold-write errors. This distinguishes that
+failure from a gateway socket close. Proxies slow the workload and can conceal
+the pressure, so their completed runs cannot resolve the unproxied failure.
+
+In the pinned provider's flush planner, let the batch target be `B`, the first
+stream's eligible bytes `a` with `0 < a < B`, and the next stream's backlog at
+least `B`. Planning the next chunk at size `B` then rejecting `a + B > B` leaves
+`B - a` unused. If the first stream receives more bytes between every pass, the
+second stream can remain unflushed until admission fails. The
+[provider patch](../../nix/ursula-cold-flush.patch) caps subsequent candidates at
+the remaining batch budget. It preserves immutable chunk publication, the
+existing first-candidate policy and the hot-memory limit. A repeated two-stream
+regression checks progress, exact offsets, bounded aggregate bytes and the
+separation between planning and publication. This corrects avoidable starvation;
+it does not promise admission when incoming bytes exceed durable drain capacity.
+
+The local Nix package owns this correction. Official pinned container images
+remain a separate provider profile. The [campaign evidence](../../tests/mutation_latency/results/2026-10-04/README.md)
+records diagnostic-only build patches and failed runs; a provider category never
+authorizes a fresh retry of an uncertain Transit command.
+
 ### Alternatives and contract boundaries
 
 Separate data/control roots used 938 reads and 550 stages in the same 8/32
