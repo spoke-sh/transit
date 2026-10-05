@@ -49,6 +49,10 @@ fn value(index: usize) p.Value {
 }
 
 test "independent leaf rewrites share bounded batches without publishing partial locators" {
+    try leafBatches(8);
+    try leafBatches(24);
+}
+fn leafBatches(comptime count: usize) !void {
     const Batched = struct {
         inner: Store = .{},
         batches: usize = 0,
@@ -75,21 +79,21 @@ test "independent leaf rewrites share bounded batches without publishing partial
     };
     var store: Batched = .{};
     defer store.inner.deinit();
-    const tree: p.Tree(Batched) = .{ .store = &store };
+    const tree: p.BoundedTree(Batched, count) = .{ .store = &store };
     var root: ?p.Reference = null;
-    for (0..64) |i| root = try tree.put(root, key(i), value(i));
-    var mutations: [p.mutation_batch]p.Mutation = undefined;
-    for (&mutations, 0..) |*mutation, i| mutation.* = .{ .key = key(i * 8), .value = value(1000 + i) };
+    for (0..128) |i| root = try tree.put(root, key(i), value(i));
+    var mutations: [count]p.Mutation = undefined;
+    for (&mutations, 0..) |*mutation, i| mutation.* = .{ .key = key(i * 4), .value = value(1000 + i) };
     store.singles = 0;
     const before = store.inner.writes;
     const next = try tree.mutate(root, &mutations);
-    try t.expectEqual(@as(usize, 1), store.batches);
+    try t.expectEqual(count / p.mutation_batch, store.batches);
     try t.expectEqual(@as(usize, 1), store.singles);
     try t.expectEqual(p.mutation_batch, store.largest);
     const staged = store.inner.writes - before;
-    for (0..64) |i| {
+    for (0..128) |i| {
         try t.expectEqualDeep(value(i), (try tree.get(root, key(i))).?);
-        try t.expectEqualDeep(value(if (i % 8 == 0) 1000 + i / 8 else i), (try tree.get(next, key(i))).?);
+        try t.expectEqualDeep(value(if (i % 4 == 0 and i / 4 < count) 1000 + i / 4 else i), (try tree.get(next, key(i))).?);
     }
     // Every accepted-but-lost batch frame and parent acknowledgement fails the
     // candidate. The original root retains its exact values and references.
@@ -97,7 +101,7 @@ test "independent leaf rewrites share bounded batches without publishing partial
         store.inner.lose_at = store.inner.writes + offset;
         try t.expectError(error.StagingAcknowledgementLost, tree.mutate(root, &mutations));
         store.inner.lose_at = null;
-        for (0..64) |i| try t.expectEqualDeep(value(i), (try tree.get(root, key(i))).?);
+        for (0..128) |i| try t.expectEqualDeep(value(i), (try tree.get(root, key(i))).?);
     }
 }
 

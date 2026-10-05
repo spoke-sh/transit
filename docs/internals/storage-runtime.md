@@ -55,6 +55,10 @@ The implementation combines three independent mechanisms:
   input until a next-request or terminal checkpoint atomically replaces it.
   A crash between observation and checkpoint therefore leaves an exact recovery
   basis; it does not require a new SQL operation.
+  After a pending observation it can wait for a process notification for at most
+  50 ms. The remembered position is bound to the exact signed input. Wait-capacity
+  refusal backs off and makes an ordinary authorized read; denial and uncertain
+  transport errors do not become permission or a repeated mutation.
 - The [catalog candidate](../../packages/zig/transit-core/src/catalog.zig)
   overlays a command-bounded set of changed records, including receipts/control
   state. Repeated keys collapse before one tree rewrite. Reads see pending
@@ -69,6 +73,17 @@ The implementation combines three independent mechanisms:
   slot; a different node's publication is found on timeout. Coalescing is safe
   for this scheduling hint because the subsequent read establishes state. It
   cannot supply complete change coverage for joins or maintained derivations.
+
+The [tree builder](../../packages/zig/transit-core/src/pages.zig) also collects
+independent leaf rewrites under one parent into batches of at most eight pages.
+Previously each affected leaf was staged before visiting its sibling, even when
+their writes had no dependency. Only the parent needs those persisted locators.
+The buffer lives at the leaf frontier, so its page count does not multiply with
+recursive height or the command's larger private metadata budget. A failed or
+partial acknowledgement returns no candidate root; already accepted pages can
+remain unreachable. The [fault tests](../../packages/zig/transit-core/src/pages_test.zig)
+exercise real opaque locators and lose each leaf/parent acknowledgement while
+checking all values at the retained root.
 
 The [compact page codec](../../packages/zig/transit-core/src/PageCodec.zig) uses
 8-entry leaves and 32-child branches. The
