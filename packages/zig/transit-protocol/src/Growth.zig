@@ -5,8 +5,8 @@ pub const version = 1;
 /// Contract-set fingerprint, independent of the public version label. Replace
 /// this identifier on an incompatible pre-1.0 cutover, including changed stored
 /// Station/query semantics. Never reuse it to reinterpret accepted history.
-/// SHA-256 of transit.native.v1.accepted-preparation-witness.2026-10-03.
-pub const Definition = enum { @"9d3f4b28d873a0f082bca76aca29ae36f7d4afe9b337484a161323819cd67db9" };
+/// SHA-256 of transit.native.v1.compact-pages-8x32.2026-10-04.
+pub const Definition = enum { @"57343ef043d4dc7f9612a7ca3309e9218dd527c0f3826a519ff0d29b761b4a82" };
 pub const current_definition: Definition = @fromBackingInt(0);
 pub const Id = u64;
 pub const request_domain = "transit.request.v1\x00";
@@ -595,6 +595,8 @@ test "native responses require the current contract definition even with a v1 la
     const incomplete_output_names = "{\"version\":1,\"definition\":\"34f920f3044133818431378d99c1db55f7c714e43c6966acb71197b0a4d69090\",\"realm\":42,\"position\":1,\"principal_sequence\":0,\"body\":{\"identity\":{\"principal\":0,\"permissions\":1,\"pid\":null,\"policy_revision\":0}}}";
     try t.expectError(error.InvalidEnumTag, std.json.parseFromSlice(Response, t.allocator, incomplete_output_names, .{}));
     inline for (.{
+        // Pre-compact immutable page definition.
+        "9d3f4b28d873a0f082bca76aca29ae36f7d4afe9b337484a161323819cd67db9",
         // Previous publication input dispositions omitted retained typed witnesses.
         "682928908924c932d9281f8e4fa5ed4adff2c704e39bb4bf11aba4bd2cbeeeda",
         // Previous serving dispositions retained only a bare error name.
@@ -800,8 +802,8 @@ test "v1 turn and entries signatures match independent canonical bytes" {
     // Altering Turn or the entries-query defaults breaks retained receipts.
     const request: Request = .{ .realm = 42, .principal = 0, .sequence = 1, .command = .{ .turn = .{ .pid = 2, .generation = 3, .input = 4, .expected_revision = 0 } } };
     const query: Query = .{ .realm = 42, .principal = 0, .kind = .{ .entries = .{ .view = 5 } } };
-    try std.testing.expectEqualStrings("2e052dc53ab9ffe88565c33829726e77da60cf52c572f4d64dd7be77fad48ed7", &std.fmt.bytesToHex(try digest(request), .lower));
-    try std.testing.expectEqualStrings("73344a0cecd432f321e1a9155b7e10874765062014968a881fbaa73ff573d70d", &std.fmt.bytesToHex(try queryDigest(query), .lower));
+    try std.testing.expectEqualStrings("2232d3230a1786f1d92999b85764d2d10f126370469fadc2508c7853e9d56ba0", &std.fmt.bytesToHex(try digest(request), .lower));
+    try std.testing.expectEqualStrings("e078496c4aedda37d75a662e2c99baed338acff008d63dde1ddf1308d48d93f3", &std.fmt.bytesToHex(try queryDigest(query), .lower));
 }
 
 test "retained version proposals and responses reject foreign duplicate and forged bases" {

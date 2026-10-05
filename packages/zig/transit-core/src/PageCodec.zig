@@ -1,4 +1,4 @@
-//! Experimental codec used only by the isolated page-layout study.
+//! Canonical compact immutable-page encoding; no allocation or alternate decoder.
 const std = @import("std");
 pub fn encode(page: anytype, bytes: []u8) ![]const u8 {
     try page.validate();

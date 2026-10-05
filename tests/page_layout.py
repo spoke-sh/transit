@@ -27,12 +27,13 @@ def main():
     args.output.parent.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(prefix='transit-page-layout-', dir=os.environ.get('TMPDIR', '/var/tmp')) as directory:
         work = Path(directory)
-        (work / 'compact.zig').write_bytes((root / 'tests/page_layout_codec.zig').read_bytes())
+        (work / 'compact.zig').write_bytes((root / 'packages/zig/transit-core/src/PageCodec.zig').read_bytes())
         for name, leaves, branches, compact in [('current', 4, 5, False), ('compact', 4, 5, True),
                                                ('wide-branch', 4, 32, True), ('wide-leaf', 8, 32, True)]:
             candidate = re.sub(r'pub const leaf_entries = \d+;', f'pub const leaf_entries = {leaves};', source)
             candidate = re.sub(r'pub const branch_children = \d+;', f'pub const branch_children = {branches};', candidate)
             if compact:
+                candidate = candidate.replace('const Layout = @This();', '')
                 candidate = 'const Layout = @This();\n' + candidate.replace('//!', '//')
                 start = candidate.index('    pub fn encode(self: *const Page,')
                 end = candidate.index('    pub fn reference(self: *const Page)', start)
@@ -44,6 +45,23 @@ def main():
         return @import("compact.zig").decode(Layout, bytes);
     }
 ''' + candidate[end:]
+            else:
+                start = candidate.index('    pub fn encode(self: *const Page,')
+                end = candidate.index('    pub fn reference(self: *const Page)', start)
+                candidate = candidate[:start] + """    pub fn encode(self: *const Page, bytes: []u8) ![]const u8 {
+        try self.validate();
+        var writer: std.Io.Writer = .fixed(bytes);
+        try std.json.Stringify.value(self, .{}, &writer);
+        return writer.buffered();
+    }
+    pub fn decode(allocator: std.mem.Allocator, bytes: []const u8) !Page {
+        if (bytes.len > max_encoded_bytes) return error.InvalidPage;
+        const parsed = try std.json.parseFromSlice(Page, allocator, bytes, .{});
+        defer parsed.deinit();
+        try parsed.value.validate();
+        return parsed.value;
+    }
+""" + candidate[end:]
             (work / 'pages.zig').write_text(candidate)
             binary = work / name
             subprocess.run(['zig', 'build-exe', '-OReleaseSafe', '--dep', 'pages',

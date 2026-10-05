@@ -486,10 +486,9 @@
         "ConsoleRecoveryWriteFailed": 2,
         "ConsoleWriterRequired": 2,
         "FileNotFound": 1,
-        "InvalidConsoleRecovery": 12,
+        "InvalidConsoleRecovery": 11,
         "InvalidWriteConfiguration": 3,
         "MutationDenied": 1,
-        "MutationIdentityConflict": 2,
         "MutationInputRejected": 1,
         "MutationRejected": 1,
         "NoSavedWrite": 3,
@@ -513,6 +512,7 @@
         "clearComplete()": "<inferred>",
         "describe()": "<inferred>",
         "emitMutation()": "<inferred>",
+        "finishMutation()": "<inferred>",
         "identity()": "<inferred>",
         "mutationStatus()": "<inferred>",
         "open()": "<inferred>",
@@ -529,7 +529,7 @@
       },
       "open_error_set_uses": 2,
       "propagation": {
-        "try": 111,
+        "try": 104,
         "catch": 4
       },
       "imports": [
@@ -1963,8 +1963,8 @@
       },
       "open_error_set_uses": 2,
       "propagation": {
-        "try": 10,
-        "catch": 3
+        "try": 12,
+        "catch": 5
       },
       "imports": [
         "Files.zig",
@@ -3424,6 +3424,7 @@
         "ProcessTerminated": 1,
         "ReadVersionReleased": 1,
         "StaleActivation": 1,
+        "UnsupportedWait": 1,
         "WrongActivation": 3
       },
       "outcomes": {},
@@ -3444,7 +3445,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 8,
+        "try": 9,
         "catch": 0
       },
       "imports": [
@@ -3479,6 +3480,27 @@
       "open_error_set_uses": 1,
       "propagation": {
         "try": 8,
+        "catch": 2
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
+    "packages/zig/transit-client/src/WaitHint.zig": {
+      "errors": {
+        "InvalidWaitHint": 5
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "format()": "<inferred>",
+        "parse()": "<inferred>",
+        "validate()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 2,
         "catch": 2
       },
       "imports": [
@@ -3603,6 +3625,7 @@
         "HttpConnectionClosing": 1,
         "InvalidAuthorityResponse": 4,
         "InvalidSeed": 1,
+        "InvalidWaitHint": 1,
         "NameServerFailure": 1,
         "NetworkUnreachable": 1,
         "OutOfMemory": 1,
@@ -3626,11 +3649,12 @@
         "Client.query()": "<inferred>",
         "Client.submit()": "<inferred>",
         "Client.timeout()": "anyerror",
+        "Client.waitForChange()": "<inferred>",
         "readKey()": "<inferred>"
       },
       "open_error_set_uses": 6,
       "propagation": {
-        "try": 11,
+        "try": 13,
         "catch": 8
       },
       "imports": [
@@ -3638,6 +3662,7 @@
         "ResourceReader.zig",
         "Session.zig",
         "SnapshotReader.zig",
+        "WaitHint.zig",
         "bootstrap.zig",
         "delivery.zig",
         "std",
@@ -7341,7 +7366,7 @@
           "deadline"
         ],
         "Definition": [
-          "@\"9d3f4b28d873a0f082bca76aca29ae36f7d4afe9b337484a161323819cd67db9\""
+          "@\"57343ef043d4dc7f9612a7ca3309e9218dd527c0f3826a519ff0d29b761b4a82\""
         ],
         "Effect.phase": [
           "pending",
@@ -8828,7 +8853,7 @@
         "InvalidMutationRecord": 2,
         "MutationBusy": 1,
         "MutationDenied": 4,
-        "MutationIdentityConflict": 15,
+        "MutationIdentityConflict": 16,
         "MutationNotActive": 1,
         "MutationNotFound": 1,
         "MutationPrincipalMismatch": 1,
@@ -8839,7 +8864,15 @@
         "StaleMutationPolicy": 2
       },
       "outcomes": {
+        "Next": [
+          "prepared",
+          "complete"
+        ],
         "Observation": [
+          "pending",
+          "processed"
+        ],
+        "Progress": [
           "pending",
           "processed"
         ]
@@ -8856,13 +8889,18 @@
         "compileSql()": "<inferred>",
         "compileSqlDiagnostic()": "<inferred>",
         "describe()": "<inferred>",
+        "dispositionFrom()": "<inferred>",
         "grant()": "<inferred>",
         "inputDisposition()": "<inferred>",
         "observe()": "<inferred>",
         "prepare()": "<inferred>",
+        "prepareNew()": "<inferred>",
         "prepareNext()": "<inferred>",
+        "prepareNextResult()": "<inferred>",
+        "progress()": "<inferred>",
         "reference()": "<inferred>",
         "rejection()": "<inferred>",
+        "selectNext()": "<inferred>",
         "sign()": "<inferred>",
         "status()": "<inferred>",
         "statusFrom()": "<inferred>",
@@ -8871,7 +8909,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 74,
+        "try": 81,
         "catch": 1
       },
       "imports": [

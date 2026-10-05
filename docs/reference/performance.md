@@ -171,10 +171,11 @@ page/candidate reconstruction and repeated policy reads accompany continuations.
 This supports exact durable recovery but is costly for a short interactive read.
 These turn counts are an observation, not a minimum imposed by durability.
 
-Each update also maintains receipts and protocol indexes. The current immutable
-catalog tree holds four entries per leaf and five children per branch; successive
-key updates copy paths. The packed backend performs a provider request for each
-page miss or staged page. This multiplies small logical operations into many
+Each update also maintains receipts and protocol indexes. The measured revision used four entries per leaf and five children per branch;
+successive key updates copied paths. The current compact tree has eight entries
+per leaf and 32 children per branch, and complete bounded candidates share path
+copies. The packed backend performs a provider request for each page miss or
+bounded group of staged pages. This multiplies small logical operations into many
 reads and writes. Increasing cache capacity leaves the measured 1,471 staged
 pages unchanged.
 
@@ -283,9 +284,8 @@ The fixture uses a persistent console. `--client` selects the separately compile
 `transit-mutation-latency-client` public Zig consumer. That control checkpoints
 exact prepared requests and receipts and emits terminal outcomes, but does not
 perform console rendering or maintain the console's full recovery record; its
-local persistence costs therefore differ. The direct control stops on any failed
-request; the console retries unavailable observations during its bounded write
-wait. Neither caller automatically retries
+local persistence costs therefore differ. Both callers retry unavailable observations within the original bounded write
+wait; exact mutation submission remains single-attempt. Neither caller automatically retries
 an uncertain send. Terminal outcome and row visibility, rather than admission
 acknowledgement, define completion.
 
@@ -300,6 +300,13 @@ requests, and provider time is included in work time; sums are not an exclusive
 wall-time decomposition. `--no-native-metrics` supports comparison with binaries
 that lack this diagnostic configuration field.
 
+The shared caller prepares a new request in one authorized batch and combines
+processed-input disposition with terminal status observation. It retains exact
+request identity, authorization and input-progress checks. Console recovery
+keeps the last acknowledged input until an atomic next-request or completion
+checkpoint replaces it. A restored checkpoint can discover a completed outcome
+without sending another mutation.
+
 The small-request path uses one send, one captured view and one committed turn.
 Requests up to 223 canonical bytes avoid the begin/part/seal/apply sequence.
 Batched captured reads, an eight-key turn-local cache and compatible catalog
@@ -313,9 +320,12 @@ The [executed mutation evidence](../../tests/README.md#durable-table-mutation-la
 records observations and outstanding limits. No latency SLO follows from these
 shared-host samples. Empirical nearest-rank p95 requires at least 20 samples per
 case and p99 at least 100; smaller runs report null for those percentiles.
-Worker polling remains a control to evaluate after reducing work. A faster
-poll alone can increase authority contention and does not establish a scheduling
-improvement.
+Idle workers use bounded authorized waits on the observed process or output
+position. Waits release the authority lock, have separate admission capacity,
+and revalidate current authorization after a publication or timeout. Notifications
+are volatile and coalesced; timeout reads cover missed or other-node publications.
+An unavailable wait falls back to the bounded worker interval. Fixed worker
+intervals remain a measurement control, not a latency guarantee.
 
 Record the backing filesystem when comparing storage latency. A file-backed WAL
 inside a temporary directory can reside on tmpfs; that run does not measure

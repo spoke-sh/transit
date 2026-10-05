@@ -129,7 +129,7 @@ fn stageImpl(self: *Self, ref: pages.Reference, page: *const pages.Page) !void {
     self.create_payload_bytes_attempted += body.len;
     var created = try self.journal.send(.{ .create_stream = .{
         .stream = self.stream(ref, &name),
-        .options = .{ .body = body, .closed = true },
+        .options = .{ .body = body, .closed = true, .content_type = "application/octet-stream" },
     } });
     defer created.deinit();
     try created.head.requireSuccess();

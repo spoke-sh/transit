@@ -5,6 +5,7 @@ const adapter = @import("root.zig");
 const pages = @import("transit_core").pages;
 const observations = @import("transit_observability");
 const Self = @This();
+const max_record_bytes = 2 + std.base64.standard.Encoder.calcSize(pages.max_encoded_bytes);
 const Cached = struct { reference: pages.Reference, page: pages.Page, used: u64 };
 
 allocator: std.mem.Allocator,
@@ -121,9 +122,56 @@ fn fetch(self: *Self, ref: pages.Reference, position: u64) !pages.Page {
     try response.head.requireSuccess();
     const meta = try response.head.metadata();
     if (meta.record_start != position or meta.record_next != try std.math.add(u64, position, 1)) return error.PageUnavailable;
-    const page = try pages.Page.decode(self.allocator, response.body);
+    // Record reads use newline-delimited JSON framing. Remove exactly that
+    // provider delimiter before checking our canonical record envelope.
+    const body = response.body;
+    if (body.len == 0 or body[body.len - 1] != '\n') return error.CorruptPage;
+    const page = try decodeRecord(self.allocator, body[0 .. body.len - 1]);
     try ref.verify(&page);
     return page;
+}
+// Ursula's pinned record-coordinate profile addresses JSON records. The
+// backend owns a canonical base64 JSON-string envelope around generic compact
+// page bytes; no provider framing or base64 policy enters the core tree.
+fn encodeRecord(page: *const pages.Page, output: []u8) ![]const u8 {
+    var bytes: [pages.max_encoded_bytes]u8 = undefined;
+    const binary = try page.encode(&bytes);
+    const count = std.base64.standard.Encoder.calcSize(binary.len);
+    if (count + 2 > output.len) return error.PageValueTooLarge;
+    output[0] = '"';
+    _ = std.base64.standard.Encoder.encode(output[1..][0..count], binary);
+    output[count + 1] = '"';
+    return output[0 .. count + 2];
+}
+fn decodeRecord(allocator: std.mem.Allocator, body: []const u8) !pages.Page {
+    if (body.len < 2 or body.len > max_record_bytes or body[0] != '"' or body[body.len - 1] != '"') return error.CorruptPage;
+    const encoded = body[1 .. body.len - 1];
+    const size = std.base64.standard.Decoder.calcSizeForSlice(encoded) catch return error.CorruptPage;
+    if (size > pages.max_encoded_bytes) return error.CorruptPage;
+    var bytes: [pages.max_encoded_bytes]u8 = undefined;
+    std.base64.standard.Decoder.decode(bytes[0..size], encoded) catch return error.CorruptPage;
+    const page = try pages.Page.decode(allocator, bytes[0..size]);
+    var canonical: [max_record_bytes]u8 = undefined;
+    if (!std.mem.eql(u8, body, try encodeRecord(&page, &canonical))) return error.CorruptPage;
+    return page;
+}
+
+test "packed records preserve compact pages and reject noncanonical or old records" {
+    const t = std.testing;
+    var page: pages.Page = .{ .count = 1, .body = .{ .leaf = @splat(null) } };
+    page.body.leaf[0] = .{ .key = try .init("a"), .value = try .init("b") };
+    var bytes: [max_record_bytes]u8 = undefined;
+    const record = try encodeRecord(&page, &bytes);
+    const decoded = try decodeRecord(t.allocator, record);
+    try (try page.reference()).verify(&decoded);
+    // The envelope is one JSON string, without escaping or whitespace. Its
+    // canonical form is also checked after decoding the complete binary page.
+    for ([_][]const u8{ "", "{}", "[]", "null", "\"!\"", "\"VFBH\"\n", " \"VFBH\"", "\"\\u0056FBH\"" }) |bad| {
+        try t.expectError(error.CorruptPage, decodeRecord(t.allocator, bad));
+    }
+    const last = record.len - 3;
+    bytes[last] = '!';
+    try t.expectError(error.CorruptPage, decodeRecord(t.allocator, record));
 }
 pub fn stage(self: *Self, ref: pages.Reference, page: *const pages.Page) !pages.Reference {
     if (!std.mem.allEqual(u8, &ref.location, 0)) return error.UnsupportedPageLocation;
@@ -141,8 +189,8 @@ fn append(self: *Self, ref: pages.Reference, page: *const pages.Page) !pages.Ref
     // Only the separate authority journal needs conditional successor fencing.
     // Never retry a lost/malformed acknowledgement here: no usable locator was
     // established, and the unpublished bytes may have become an orphan.
-    var bytes: [pages.max_encoded_bytes]u8 = undefined;
-    const body = try page.encode(&bytes);
+    var bytes: [max_record_bytes]u8 = undefined;
+    const body = try encodeRecord(page, &bytes);
     self.requests +|= 1;
     self.create_payload_bytes_attempted +|= body.len;
     var response = try self.authority.send(.{ .append = .{
@@ -160,19 +208,19 @@ fn append(self: *Self, ref: pages.Reference, page: *const pages.Page) !pages.Ref
     return result;
 }
 
-/// Bounded immutable staging, with the same format-2 record locators as stage.
+/// Bounded immutable staging, with the same format-1 record locators as stage.
 /// A complete acknowledgement is required before any references are returned.
 /// Accepted but unacknowledged bytes are retained orphans; never retry here.
 pub fn stageMany(self: *Self, batch: []const pages.Page, output: []pages.Reference) !void {
     if (batch.len == 0 or batch.len > pages.mutation_batch or output.len != batch.len) return error.PageMutationBudget;
-    const encoded = try self.allocator.alloc([pages.max_encoded_bytes]u8, batch.len);
+    const encoded = try self.allocator.alloc([max_record_bytes]u8, batch.len);
     defer self.allocator.free(encoded);
     var frames: [pages.mutation_batch][]const u8 = undefined;
     var references: [pages.mutation_batch]pages.Reference = undefined;
     var bytes: u64 = 0;
     for (batch, 0..) |*page, i| {
         references[i] = try page.reference();
-        frames[i] = try page.encode(&encoded[i]);
+        frames[i] = try encodeRecord(page, &encoded[i]);
         bytes += frames[i].len;
     }
     var observation = observations.begin(self.authority.observer, .storage_operation, "page.stage_batch", self.authority.parent_context);
@@ -266,7 +314,8 @@ test "verified page cache retains recently read roots within its resident bound"
     const t = std.testing;
     var store = try Self.init(t.allocator, .{ .client = undefined, .stream = .{ .bucket = "test", .name = "test" } }, 2);
     defer store.deinit();
-    const page: pages.Page = .{ .count = 1, .body = .{ .leaf = .{ .{ .key = try .init("a"), .value = try .init("b") }, null, null, null } } };
+    var page: pages.Page = .{ .count = 1, .body = .{ .leaf = @splat(null) } };
+    page.body.leaf[0] = .{ .key = try .init("a"), .value = try .init("b") };
     const ref = try page.reference();
     store.remember(located(ref, 0), page);
     store.remember(located(ref, 1), page);

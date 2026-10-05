@@ -10930,13 +10930,27 @@ qualification is recorded separately.
 
 ## Durable Table mutation latency
 
+Compact-page qualification on 2026-10-04 (the current-definition cutover candidate
+following `213acb3b`) passed root units, `just check`, hot packed/closed disk page
+proofs, the 1,024-key S3 page proof with two cache slots, resource-simulation smoke,
+and real server/service lifecycle proofs. The deepest supported tree test also
+passes a complete-candidate mutation at height 32. Malformed/truncated/old page
+bytes reject; packed-provider newline framing and the canonical base64 envelope
+are checked separately. The S3 write phase stages 758 pages and attempts 3,985,924
+page payload bytes, including the envelope; retained-root recovery stages none.
+This is format/recovery evidence, not completed transport-pressure qualification.
+The shared definition and independently signed/generated consumers cut over
+together; old installations reject rather than being reset or decoded as new.
+
+
 The isolated `just test::page-layout --output /var/tmp/page-layout.json` study
 uses the production immutable-tree algorithm in temporary modules. Four codec/
 geometry variants and monolithic/separate roots retain the old snapshots and
 round-trip every staged page. Its store counts reads, stages and encoded bytes
 for 50 synthetic private turn candidates at 64/1024 rows and equal receipt history.
 It does not execute native authorization, provider I/O, durability or latency.
-The compact codec is an experimental input, not an accepted installation format.
+The study alone does not qualify an installation format; the current codec and
+its native qualification have separate evidence.
 
 The 2026-10-04 run at `fdb449a4` completed all sixteen cases. At 1024 rows,
 compact 8-entry leaves/32-child branches used 782 page reads, 468 stages and

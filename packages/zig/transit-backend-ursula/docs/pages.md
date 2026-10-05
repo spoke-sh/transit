@@ -53,7 +53,8 @@ automatic retry. Accepted records remain unreachable until the authority commits
 an enclosing root. Single-page and batched staging use the same format-1 locators.
 
 Tree mutation batches use this operation for sibling pages. The encoded staging
-buffer is bounded by eight times 24 KiB; upstream request framing owns a second
+buffer is bounded by eight times 32,770 bytes (a base64 JSON string for at most
+24 KiB of compact bytes); upstream request framing owns a second
 bounded copy. This primitive reduces provider requests and discarded path copies.
 It does not change application mutation quotas, expand inline values or replace
 the durable query result-publication protocol.
@@ -153,3 +154,15 @@ file lengths totaled 18,620,141 bytes. WAL lengths after restart totaled
 comparisons or a bound for arbitrary dataset sizes. The unchanged roughly 32,000
 write-phase page requests still require amplification work. The S3 fixture now
 also requires persisted Ursula chunk objects; startup metadata alone cannot pass.
+
+Core pages use the current compact `TPG1` encoding. The closed mapping stores
+raw `application/octet-stream` bodies. The packed mapping uses canonical base64
+JSON strings because the pinned provider exposes record coordinates for JSON
+streams. Reads remove exactly the provider's final newline delimiter, then
+reject whitespace, escapes, noncanonical base64 and old JSON page
+objects; the envelope belongs to the adapter, not the core tree. Eight-entry
+leaves and 32-child branches fit the 24 KiB binary bound; the packed envelope
+fits 32,770 bytes. Attempted provider payload counters include the envelope. A cache slot owns one decoded page (16,952 bytes on the
+measured 64-bit target), independent of the durable population. The current
+contract definition rejects pre-cutover heads before reading their catalogs;
+there is no old JSON decoder, conversion or empty-state fallback.

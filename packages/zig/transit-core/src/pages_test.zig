@@ -465,3 +465,50 @@ test "batch validation and every staging failure leave the published root intact
     try t.expectEqualDeep(root, unchanged);
     try t.expectEqual(before, store.writes);
 }
+
+test "compact pages reject truncation, trailing bytes, old JSON and noncanonical structure" {
+    const page: p.Page = .{ .count = 1, .body = .{ .leaf = leaf: {
+        var entries: [p.leaf_entries]?p.Entry = @splat(null);
+        entries[0] = .{ .key = key(1), .value = value(2) };
+        break :leaf entries;
+    } } };
+    var buffer: [p.max_encoded_bytes]u8 = undefined;
+    const encoded = try page.encode(&buffer);
+    try t.expectEqualStrings("TPG1", encoded[0..4]);
+    for (0..encoded.len) |length| try t.expectError(error.InvalidPage, p.Page.decode(t.allocator, encoded[0..length]));
+    buffer[encoded.len] = 0;
+    try t.expectError(error.InvalidPage, p.Page.decode(t.allocator, buffer[0 .. encoded.len + 1]));
+    const old = try std.json.Stringify.valueAlloc(t.allocator, page, .{});
+    defer t.allocator.free(old);
+    try t.expectError(error.InvalidPage, p.Page.decode(t.allocator, old));
+    buffer[3] = '2';
+    try t.expectError(error.InvalidPage, p.Page.decode(t.allocator, encoded));
+    buffer[3] = '1';
+    buffer[5] = 0;
+    try t.expectError(error.InvalidPage, p.Page.decode(t.allocator, encoded));
+    buffer[5] = 1;
+    buffer[6] = 65; // Key length exceeds its owned representation.
+    try t.expectError(error.InvalidPage, p.Page.decode(t.allocator, encoded));
+    // Every maximal branch and leaf remains below the unchanged 24 KiB bound.
+    var branch: p.Page = .{ .height = 1, .count = p.branch_children, .body = .{ .branch = @splat(null) } };
+    for (&branch.body.branch, 0..) |*slot, i| slot.* = .{ .minimum = key(i), .reference = try page.reference() };
+    const branch_bytes = try branch.encode(&buffer);
+    try t.expectEqualDeep(branch, try p.Page.decode(t.allocator, branch_bytes));
+    buffer[4] = 0; // A branch cannot be reinterpreted as leaf bytes.
+    try t.expectError(error.InvalidPage, p.Page.decode(t.allocator, branch_bytes));
+}
+
+test "complete candidate at maximum height keeps leaf workspace off recursive frames" {
+    var store: Store = .{};
+    defer store.deinit();
+    const tree: p.BoundedTree(Store, @import("catalog.zig").Candidate.capacity) = .{ .store = &store };
+    var root = try tree.put(null, key(1), value(1));
+    for (1..p.max_height + 1) |height| {
+        var page: p.Page = .{ .height = @intCast(height), .count = 1, .body = .{ .branch = @splat(null) } };
+        page.body.branch[0] = .{ .minimum = key(1), .reference = root };
+        root = try store.stage(try page.reference(), &page);
+    }
+    const changed = try tree.mutate(root, &.{.{ .key = key(1), .value = value(2) }});
+    try t.expectEqualDeep(value(1), (try tree.get(root, key(1))).?);
+    try t.expectEqualDeep(value(2), (try tree.get(changed, key(1))).?);
+}

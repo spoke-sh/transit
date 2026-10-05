@@ -1,9 +1,10 @@
 //! Immutable ordered pages. Staging returns a candidate root; only the authority
 //! journal may publish it. A store is injected and owns persistence/cache policy.
 const std = @import("std");
+const Layout = @This();
 pub const version = 1;
-pub const leaf_entries = 4;
-pub const branch_children = 5;
+pub const leaf_entries = 8;
+pub const branch_children = 32;
 pub const max_height = 32;
 pub const max_encoded_bytes = 24 * 1024;
 pub const page_entries = 8;
@@ -56,6 +57,11 @@ pub fn Bytes(comptime capacity: usize) type {
 }
 pub const Key = Bytes(64);
 pub const Value = Bytes(2048);
+comptime {
+    if (6 + leaf_entries * (3 + 64 + 2048) > max_encoded_bytes or
+        6 + branch_children * (1 + 64 + 32 + 16) > max_encoded_bytes)
+        @compileError("Page geometry exceeds its encoded byte budget");
+}
 pub const Entry = struct { key: Key, value: Value };
 pub const Child = struct { minimum: Key, reference: Reference };
 pub const Mutation = struct { key: Key, value: ?Value };
@@ -111,17 +117,11 @@ pub const Page = struct {
         }
     }
     pub fn encode(self: *const Page, bytes: []u8) ![]const u8 {
-        try self.validate();
-        var writer: std.Io.Writer = .fixed(bytes);
-        try std.json.Stringify.value(self, .{}, &writer);
-        return writer.buffered();
+        return @import("PageCodec.zig").encode(self, bytes);
     }
     pub fn decode(allocator: std.mem.Allocator, bytes: []const u8) !Page {
-        if (bytes.len > max_encoded_bytes) return error.InvalidPage;
-        const parsed = try std.json.parseFromSlice(Page, allocator, bytes, .{});
-        defer parsed.deinit();
-        try parsed.value.validate();
-        return parsed.value;
+        _ = allocator;
+        return @import("PageCodec.zig").decode(Layout, bytes) catch return error.InvalidPage;
     }
     pub fn reference(self: *const Page) !Reference {
         var bytes: [max_encoded_bytes]u8 = undefined;
@@ -350,43 +350,47 @@ pub fn BoundedTree(comptime Store: type, comptime budget: usize) type {
             }
             return count;
         }
+        // Leaf merge workspace is not retained on recursive branch frames.
+        // Its bound follows the private write set, not tree depth/cardinality.
+        fn mutateLeaf(self: Self, original: ?Page, ref: ?Reference, mutations: []const Mutation) !Changed {
+            var result: Changed = .{ .height = 0 };
+            var merged: [leaf_entries + budget]Entry = undefined;
+            var count: usize = 0;
+            var index: usize = 0;
+            const previous_count: usize = if (original) |page| page.count else 0;
+            for (mutations) |mutation| {
+                while (index < previous_count and order(&original.?.body.leaf[index].?.key, &mutation.key) == .lt) : (index += 1) {
+                    merged[count] = original.?.body.leaf[index].?;
+                    count += 1;
+                }
+                if (index < previous_count and order(&original.?.body.leaf[index].?.key, &mutation.key) == .eq) index += 1;
+                if (mutation.value) |value| {
+                    merged[count] = .{ .key = mutation.key, .value = value };
+                    count += 1;
+                }
+            }
+            while (index < previous_count) : (index += 1) {
+                merged[count] = original.?.body.leaf[index].?;
+                count += 1;
+            }
+            if (original != null and count == previous_count) {
+                const unchanged = for (merged[0..count], 0..) |entry, i| {
+                    if (!std.meta.eql(entry, original.?.body.leaf[i].?)) break false;
+                } else true;
+                if (unchanged) {
+                    result.children[0] = .{ .minimum = original.?.minimum(), .reference = ref.? };
+                    result.count = 1;
+                    return result;
+                }
+            }
+            try self.leaves(merged[0..count], &result);
+            return result;
+        }
         fn mutatePage(self: Self, ref: ?Reference, height: ?u8, mutations: []const Mutation) anyerror!Changed {
             const original: ?Page = if (ref) |reference| try self.load(reference, height) else null;
             const level: u8 = if (original) |page| page.height else 0;
             var result: Changed = .{ .height = level };
-            if (level == 0) {
-                var merged: [leaf_entries + budget]Entry = undefined;
-                var count: usize = 0;
-                var index: usize = 0;
-                const previous_count: usize = if (original) |page| page.count else 0;
-                for (mutations) |mutation| {
-                    while (index < previous_count and order(&original.?.body.leaf[index].?.key, &mutation.key) == .lt) : (index += 1) {
-                        merged[count] = original.?.body.leaf[index].?;
-                        count += 1;
-                    }
-                    if (index < previous_count and order(&original.?.body.leaf[index].?.key, &mutation.key) == .eq) index += 1;
-                    if (mutation.value) |value| {
-                        merged[count] = .{ .key = mutation.key, .value = value };
-                        count += 1;
-                    }
-                }
-                while (index < previous_count) : (index += 1) {
-                    merged[count] = original.?.body.leaf[index].?;
-                    count += 1;
-                }
-                if (original != null and count == previous_count) {
-                    const unchanged = for (merged[0..count], 0..) |entry, i| {
-                        if (!std.meta.eql(entry, original.?.body.leaf[i].?)) break false;
-                    } else true;
-                    if (unchanged) {
-                        result.children[0] = .{ .minimum = original.?.minimum(), .reference = ref.? };
-                        result.count = 1;
-                        return result;
-                    }
-                }
-                try self.leaves(merged[0..count], &result);
-                return result;
-            }
+            if (level == 0) return self.mutateLeaf(original, ref, mutations);
             var merged: [branch_children + budget]Child = undefined;
             var count: usize = 0;
             var first: usize = 0;
