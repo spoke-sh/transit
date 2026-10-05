@@ -15,7 +15,7 @@ class Reuse(unittest.TestCase):
                 pass
             def do_GET(self):
                 peers.append(self.client_address)
-                self.send_response(200)
+                self.send_response(503 if len(peers) == 2 else 200)
                 self.send_header('Content-Length', '2')
                 if len(peers) == 3:
                     self.send_header('Connection', 'close')
@@ -38,6 +38,8 @@ class Reuse(unittest.TestCase):
             self.assertEqual(peers[1], peers[2])
             self.assertNotEqual(peers[2], peers[3])
             self.assertEqual(probe.snapshot()['attempts'], 4)
+            self.assertEqual(probe.trace()['failed_completed'], 1)
+            self.assertEqual(probe.trace()['failed_retained'][0]['status'], 503)
         finally:
             client.close()
             probe.close()

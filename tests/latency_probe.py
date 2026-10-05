@@ -18,6 +18,8 @@ class Probe:
         assert endpoint.scheme == 'http' and endpoint.hostname == '127.0.0.1'
         self.counts = Counter()
         self.events = deque(maxlen=2048)
+        self.failed_events = deque(maxlen=64)
+        self.completed_failures = 0
         self.started_ns = time.monotonic_ns()
         self.completed_events = 0
         self.lock = threading.Lock()
@@ -161,6 +163,9 @@ class Probe:
                             owner.completed_events += 1
                             event['ordinal'] = owner.completed_events
                             owner.events.append(event)
+                            if event.get('failure') is not None or event.get('status', 0) >= 400:
+                                owner.completed_failures += 1
+                                owner.failed_events.append(event)
 
             do_GET = do_POST = do_PUT = do_DELETE = do_HEAD = forward
 
@@ -177,7 +182,10 @@ class Probe:
     def trace(self):
         with self.lock:
             return {'completed': self.completed_events, 'retained': list(self.events),
-                    'omitted': self.completed_events - len(self.events)}
+                    'omitted': self.completed_events - len(self.events),
+                    'failed_completed': self.completed_failures,
+                    'failed_retained': list(self.failed_events),
+                    'failed_omitted': self.completed_failures - len(self.failed_events)}
 
     def close(self):
         self.server.shutdown()
