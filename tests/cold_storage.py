@@ -167,9 +167,12 @@ hot_size_low = "4MiB"
         return total
 
     def data_objects(self):
-        # This pinned MinIO layout stores one xl.meta per object. Require actual
-        # Ursula chunk objects, not merely MinIO's bucket/startup metadata.
-        return sum(1 for _ in (self.root / self.bucket).glob("**/chunks/*/xl.meta"))
+        # Pinned Ursula writes either individual stream chunks or shared packs
+        # for multi-stream flushes. MinIO stores one xl.meta per object. Count
+        # both data layouts, excluding snapshots and bucket/startup metadata.
+        root = self.root / self.bucket / 'pages'
+        return sum(1 for pattern in ('*/*/chunks/*/xl.meta', '*/_packs/*/*/xl.meta')
+                   for path in root.glob(pattern) if path.is_file())
 
     def stop(self):
         """Join the owned native process without removing its disk evidence."""

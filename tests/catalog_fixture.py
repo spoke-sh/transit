@@ -11,6 +11,25 @@ from storage import Fixture
 
 
 def run(retain=retain_recovery_fixture):
+    cold = ColdStore()
+    try:
+        objects = cold.root / cold.bucket
+        for name in ('pages/bucket/stream/snapshots/one/xl.meta',
+                     'pages/bucket/_packs/00000000/empty.bin',
+                     'bucket-startup/xl.meta'):
+            path = objects / name
+            path.parent.mkdir(parents=True, exist_ok=True)
+            if path.name == 'empty.bin': path.mkdir()
+            else: path.write_bytes(b'metadata')
+        assert cold.data_objects() == 0, 'Metadata or empty object directory counted as data'
+        for count, name in enumerate(('pages/bucket/stream/chunks/one.bin/xl.meta',
+                                      'pages/bucket/_packs/00000000/two.bin/xl.meta'), 1):
+            path = objects / name
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_bytes(b'object metadata')
+            assert cold.data_objects() == count, 'Cold chunks and shared packs must both count'
+    finally:
+        cold.__exit__(None, None, None)
     with tempfile.TemporaryDirectory(prefix='transit-retention-control-') as parent:
         destination = Path(parent) / 'catalog.json'
         fixture, cold = Fixture(), ColdStore()
@@ -72,7 +91,7 @@ def run(retain=retain_recovery_fixture):
             cold.process = None  # The injected object never created a child.
             cold.__exit__(None, None, None)
             fixture.__exit__(None, None, None)
-    print('Catalog fixture: native child joined before cold-state retention; unjoined state remains private and retained.', flush=True)
+    print('Catalog fixture: cold chunks/packs counted; native child joined before retention; unjoined state remains private and retained.', flush=True)
 
 
 if __name__ == '__main__':
