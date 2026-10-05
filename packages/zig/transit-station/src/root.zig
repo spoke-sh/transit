@@ -8,6 +8,7 @@ pub const Table = @import("Table.zig");
 pub const TableData = @import("TableData.zig");
 pub const TableCandidate = @import("TableCandidate.zig");
 pub const TablePages = @import("TablePages.zig");
+pub const TableHead = @import("TableHead.zig");
 pub const TableMutation = @import("TableMutation.zig");
 pub const Publication = @import("Publication.zig");
 pub const PublicationReference = @import("PublicationReference.zig");

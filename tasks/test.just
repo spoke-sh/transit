@@ -575,6 +575,7 @@ fuze-types:
 # General Table schema identities, row constraints and independent byte oracle.
 table-schema:
     python3 -B tests/table_schema.py
+    python3 -B tests/table_storage.py
     zig test packages/zig/transit-fuze/src/TableRow.zig
     zig test packages/zig/transit-fuze/src/TableEvolution.zig
     zig test packages/zig/transit-fuze/src/SqlTypes.zig

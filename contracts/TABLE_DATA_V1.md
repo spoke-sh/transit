@@ -1,8 +1,8 @@
 # General Table candidate data v1
 
 This format composes pure general Table candidates over the
-[Station immutable index](STATION_INDEX_V1.md). It does not define or admit a
-native Table head, catalog lifecycle or transaction. The owner supplies current
+[Station immutable index](STATION_INDEX_V1.md), with a captured-KV head codec.
+It does not admit catalog lifecycle or a SQL transaction. The owner supplies current
 authorization, frozen source identity, staging and atomic publication.
 
 Each Table uses one index with unsigned lexicographic keys. Row keys are ASCII
@@ -72,6 +72,9 @@ every read/write. The `d` key has ID/index zero and stores `STM1`, the exact
 Missing, foreign or malformed definitions reject. Initialization never adopts a
 preexisting budget with a missing manifest. Manifest and Publication budget are
 initialized together; changing the configured limits rejects.
+When both records are absent, one bounded committed namespace page must prove
+there are no orphan records. Private namespace writes cannot hide or substitute
+for that check. Read failure rejects initialization.
 
 Records of 1–246 bytes use the `i` tag, record ID and index zero. Their value is
 `STP1`, format:u32le, payload length:u16le and payload. Larger records use the
@@ -96,3 +99,34 @@ storage alone does not grant permission for admission, head publication, cleanup
 or ID reuse. Cancellation/retirement and reference-safe collection remain owner
 operations. This storage adapter does not publish a native Table head or expose
 the general profile through SQL callers.
+
+## Table heads
+
+`TableHead` stores one `h` record at ID/index zero in the Table namespace. Its
+`STH1` value is the 32-byte shared definition, resource:u64, object:u64,
+head revision:u64, schema reference (48 bytes), root-presence:u8, optional root,
+row count:u64, next record ID:u64, pending operation:u64 and retired:u8.
+All integers are little-endian; the root-presence and retired flags are 0 or 1.
+A root is record reference (48 bytes), level:u8, minimum key length:u8, minimum
+key bytes and entry count:u64. The minimum is a 21-byte row or 53-byte key entry.
+The maximum complete head is 245 bytes. Trailing/truncated values, invalid flags,
+foreign definitions, wrong resources and inconsistent identities/counts reject.
+
+The head binds one resource/object and exact immutable schema/data references.
+Schema and root IDs precede the next-record floor. Empty Tables have no root;
+opening the schema checks that total index entries equal row count times one
+(unkeyed) or two (keyed). A schema decode checks its object identity. Schema
+revision and head revision are distinct; pending work does not reinterpret rows.
+
+Creation requires an absent head, revision-one schema and empty data, after
+schema storage is readable in the enclosing turn. Replacement compares the
+complete expected head bytes, requires the next revision and a nondecreasing
+record floor, and prepares one private write. The owner validates all successor
+records before replacement and publishes outcome/input progress atomically.
+These helpers do not manufacture current permissions or operation admission.
+
+A retired head is permanent and cannot have pending work. Neither creation nor
+replacement can reset it. Its schema and immutable data remain available to
+separately authorized retained readers and recovery owners; loading a head alone
+does not admit a new read/write or resolve a live catalog name. Catalog DROP
+dependencies, name removal/reuse and physical cleanup remain explicit owner work.

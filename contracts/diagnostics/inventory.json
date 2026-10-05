@@ -15323,6 +15323,46 @@
         "transit_fuze"
       ]
     },
+    "packages/zig/transit-station/src/TableHead.zig": {
+      "errors": {
+        "CrossResourceTransaction": 2,
+        "EndOfStream": 1,
+        "IncompatibleTableStorage": 1,
+        "InvalidTableHead": 17,
+        "TableCapacity": 1,
+        "TableExists": 1,
+        "TableHeadChanged": 1,
+        "TableNotFound": 2,
+        "TableRetired": 1
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "create()": "<inferred>",
+        "decode()": "<inferred>",
+        "encode()": "<inferred>",
+        "load()": "<inferred>",
+        "parse()": "<inferred>",
+        "readSchema()": "<inferred>",
+        "reference()": "<inferred>",
+        "replace()": "<inferred>",
+        "takeReference()": "<inferred>",
+        "validate()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 62,
+        "catch": 4
+      },
+      "imports": [
+        "ImmutableIndex.zig",
+        "TablePages.zig",
+        "Turn.zig",
+        "std",
+        "transit_client",
+        "transit_fuze"
+      ]
+    },
     "packages/zig/transit-station/src/TableMutation.zig": {
       "errors": {
         "RowExists": 1,
@@ -15349,9 +15389,9 @@
     "packages/zig/transit-station/src/TablePages.zig": {
       "errors": {
         "CrossResourceTransaction": 1,
-        "IncompatibleTableStorage": 2,
+        "IncompatibleTableStorage": 3,
         "InvalidTablePage": 11,
-        "InvalidTableStorage": 4,
+        "InvalidTableStorage": 7,
         "PublicationLimitsChanged": 1,
         "PublicationTooLarge": 1,
         "TablePageBufferTooSmall": 1,
@@ -15373,6 +15413,7 @@
         "check()": "<inferred>",
         "checkManifest()": "<inferred>",
         "create()": "<inferred>",
+        "emptyNamespace()": "<inferred>",
         "encode()": "<inferred>",
         "read()": "<inferred>",
         "stage()": "<inferred>",
@@ -15381,7 +15422,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 30,
+        "try": 35,
         "catch": 2
       },
       "imports": [
@@ -15533,6 +15574,7 @@
         "Table.zig",
         "TableCandidate.zig",
         "TableData.zig",
+        "TableHead.zig",
         "TableMutation.zig",
         "TablePages.zig",
         "Turn.zig",

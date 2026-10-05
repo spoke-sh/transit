@@ -57,3 +57,11 @@ can compose its row, final index page, head and outcome into four private writes
 Larger candidates require staging turns before a final head decision. The owner
 must preserve input identity, source root and reservation across those turns.
 These helpers do not perform catalog admission or establish end-to-end latency.
+
+`TableHead` binds the resource/object, head revision, exact schema/root, row count,
+record-ID floor, pending work and retirement in one native value. `create`
+requires a staged revision-one schema and an absent head; `replace` compares
+the complete expected head before preparing a successor. The owner composes its
+receipt and input progress in that same turn. Retirement cannot be reset, while
+separately authorized retained readers can still decode the original schema and
+data. This helper does not implement catalog DROP, name reuse or write admission.

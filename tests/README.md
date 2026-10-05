@@ -10663,6 +10663,19 @@ These use captured-turn in-memory stores, not a disk-backed Table service or
 native head/admission/recovery integration. Logs are in the owned campaign
 `/var/tmp/transit-table-75-_el6xx0v/table-pages-test3.log`.
 
+The page checkpoint passes full pinned `just check`, including the existing
+generated/native contracts, diagnostic boundaries, CLI cases, frontend checks
+and handbook build (`pages-check.log` in the same campaign). Subsequent namespace
+hardening separately rejects orphan committed/private records before manifest
+creation. The head checkpoint passes **68/68 Station tests**: actual head/schema
+publication, a four-write small insert, stale replacement rejection, irreversible
+retirement with retained data, count/identity constraints and malformed envelopes.
+Independent Python bytes fix head/page/manifest encodings and namespace keys;
+`just test::table-schema` and root checks include fixture drift. The head test
+run takes 904 ms with 22 MiB reported maximum resident memory; this is a test
+process measurement, not a runtime performance result. Full checks and clean CI
+for subsequent head/transaction changes are separate obligations.
+
 ## Fuze logical type foundation
 
 The local `Types` profile has nine passing focused Zig tests, including 46

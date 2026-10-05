@@ -8,6 +8,7 @@ const Index = @import("ImmutableIndex.zig");
 const Data = @import("TableData.zig");
 const Candidate = @import("TableCandidate.zig");
 const Pages = @import("TablePages.zig");
+const Head = @import("TableHead.zig");
 const Store = struct {
     state: std.AutoHashMapUnmanaged(p.Value, p.Value) = .empty,
     revision: u64 = 1,
@@ -18,7 +19,27 @@ const Store = struct {
     }
     fn capture(self: *Store) !Turn {
         self.input += 1;
-        return Turn.init(.{ .realm = 1, .principal = 65536, .pid = 2, .generation = 3, .sequence = self.input, .revision = self.revision, .input = .{ .position = self.input, .ordinal = self.input, .value = .{}, .origin = .{ .external = .{ .principal = 0, .policy_revision = 0 } } }, .permit = null, .needs_permit = false }, .{ .id = self.input + 1000, .pid = 2, .principal = 65536, .generation = 3, .input = self.input, .process_revision = self.revision, .resource = 7, .revision = self.revision, .deadline_ms = 10000 }, .{ .context = self, .read = read });
+        return Turn.init(.{ .realm = 1, .principal = 65536, .pid = 2, .generation = 3, .sequence = self.input, .revision = self.revision, .input = .{ .position = self.input, .ordinal = self.input, .value = .{}, .origin = .{ .external = .{ .principal = 0, .policy_revision = 0 } } }, .permit = null, .needs_permit = false }, .{ .id = self.input + 1000, .pid = 2, .principal = 65536, .generation = 3, .input = self.input, .process_revision = self.revision, .resource = 7, .revision = self.revision, .deadline_ms = 10000 }, .{ .context = self, .read = read, .page = page });
+    }
+    fn page(raw: *anyopaque, _: p.Growth.View, after: ?p.Value) !Turn.Page {
+        const self: *Store = @ptrCast(@alignCast(raw));
+        if (self.denied) return error.AccessDenied;
+        var result: Turn.Page = .{};
+        var cursor = after;
+        for (&result.entries) |*slot| {
+            var next: ?p.Growth.Entry = null;
+            var entries = self.state.iterator();
+            while (entries.next()) |entry| {
+                const key = entry.key_ptr.*;
+                if (cursor) |old| if (std.mem.order(u8, key.slice(), old.slice()) != .gt) continue;
+                if (next) |found| if (std.mem.order(u8, key.slice(), found.key.slice()) != .lt) continue;
+                next = .{ .key = key, .value = entry.value_ptr.*, .revision = self.revision };
+            }
+            slot.* = next;
+            cursor = if (next) |found| found.key else return result;
+        }
+        result.next = cursor;
+        return result;
     }
     fn read(raw: *anyopaque, _: p.Growth.View, key: p.Value) !?p.Value {
         const self: *Store = @ptrCast(@alignCast(raw));
@@ -227,4 +248,132 @@ test "Table page bounds and failed turn composition preserve prior private write
     try store.state.put(t.allocator, Pages.key(9, 'i', 1), saved);
     turn = try store.capture();
     try t.expectError(error.TablePageBufferTooSmall, pages.read(&turn, ref, output[0..3]));
+}
+
+test "Table namespace initialization refuses orphan records without adopting their definition" {
+    var store: Store = .{};
+    defer store.deinit();
+    const orphan = Pages.key(9, 'i', 7);
+    try store.state.put(t.allocator, orphan, try p.Value.init("orphan"));
+    var turn = try store.capture();
+    const limits: Pub.Limits = .{ .record_bytes = 256, .staging_bytes = 256, .staging_records = 1 };
+    try t.expectError(error.IncompatibleTableStorage, Pages.create(&turn, 9, limits));
+    try t.expectEqual(@as(usize, 0), writes(turn));
+    _ = store.state.remove(orphan);
+    try turn.write(orphan, try p.Value.init("private orphan"));
+    try t.expectError(error.InvalidTableStorage, Pages.create(&turn, 9, limits));
+    try t.expectEqual(@as(usize, 1), writes(turn));
+}
+
+test "Table head binds schema and exact successor, retains retired data and rejects reset" {
+    var store: Store = .{};
+    defer store.deinit();
+    const pages = try store.create();
+    var bytes: [f.TableSchema.max_bytes]u8 = undefined;
+    const encoded = try schema.encode(&bytes);
+    const schema_ref: Pages.Reference = .{ .id = 1, .spec = try Pub.Digest.of(Pages.schema_format, encoded) };
+    var turn = try store.capture();
+    try t.expectEqual(.ready, try pages.stage(&turn, schema_ref, encoded));
+    const head: Head = .{ .resource = 7, .object = 9, .revision = 1, .schema = schema_ref, .next_record = 2 };
+    try head.create(t.allocator, &turn);
+    try store.commit(turn);
+    turn = try store.capture();
+    try t.expectEqualDeep(head, try Head.load(&turn, 9));
+    try t.expectError(error.TableExists, head.create(t.allocator, &turn));
+    var owned = try head.readSchema(t.allocator, &turn);
+    defer owned.deinit();
+    try t.expectEqualDeep(try schema.fingerprint(), try owned.schema.fingerprint());
+
+    var reader: Pages.Reader(*Turn) = .{ .pages = pages, .source = &turn };
+    var overlay = try Candidate.Overlay(*@TypeOf(reader)).init(t.allocator, &reader, 2, 2 + Candidate.max_records);
+    defer overlay.deinit();
+    const data: Data = .{ .schema = owned.schema, .index = head.index };
+    var cells: [2]f.Types.Values.Cell = undefined;
+    const changed = try data.insert(t.allocator, &overlay, row(1, "Ada", &cells));
+    _ = try overlay.finish(changed.data.index);
+    for (overlay.records.items) |record| if (record.reachable) try t.expectEqual(.ready, try pages.stage(&turn, .{ .id = record.id, .spec = record.spec }, record.bytes));
+    var after = head;
+    after.revision += 1;
+    after.index = changed.data.index;
+    after.rows = 1;
+    after.next_record = overlay.nextId();
+    try head.replace(&turn, after);
+    try turn.put(try p.Value.init("outcome"), p.Value.integer(1));
+    try t.expectEqual(@as(usize, 4), writes(turn));
+    try store.commit(turn);
+    turn = try store.capture();
+    try t.expectError(error.TableHeadChanged, head.replace(&turn, after));
+    try t.expectEqual(@as(usize, 0), writes(turn));
+    var retired = after;
+    retired.revision += 1;
+    retired.retired = true;
+    try after.replace(&turn, retired);
+    try store.commit(turn);
+    turn = try store.capture();
+    try t.expectEqualDeep(retired, try Head.load(&turn, 9));
+    try t.expectError(error.TableRetired, retired.replace(&turn, after));
+    try t.expectError(error.TableExists, head.create(t.allocator, &turn));
+    var retained = (try changed.data.get(t.allocator, &reader, row(1, "", &cells).identity)).?;
+    defer retained.deinit();
+    try t.expectEqualStrings("Ada", retained.row().cells[1].value.atom.bytes);
+    var retired_schema = try retired.readSchema(t.allocator, &turn);
+    defer retired_schema.deinit();
+
+    const head_bytes = try after.encode();
+    try t.expectEqual(@as(u16, 245), head_bytes.len);
+    try t.expectEqualDeep(after, try Head.decode(head_bytes));
+    for (0..head_bytes.len) |length| try t.expectError(error.InvalidTableHead, Head.decode(try p.Value.init(head_bytes.data[0..length])));
+    var bad = head_bytes;
+    bad.data[4] ^= 1;
+    try t.expectError(error.IncompatibleTableStorage, Head.decode(bad));
+    bad = head_bytes;
+    bad.data[bad.len] = 0;
+    bad.len += 1;
+    try t.expectError(error.InvalidTableHead, Head.decode(bad));
+    var invalid = after;
+    invalid.next_record = invalid.schema.id;
+    try t.expectError(error.InvalidTableHead, invalid.encode());
+    invalid = retired;
+    invalid.pending = 1;
+    try t.expectError(error.InvalidTableHead, invalid.encode());
+    invalid = after;
+    invalid.rows = 2;
+    try t.expectError(error.InvalidTableHead, invalid.readSchema(t.allocator, &turn));
+}
+
+fn expectHex(hex: []const u8, bytes: []const u8) !void {
+    var output: [512]u8 = undefined;
+    try t.expectEqualSlices(u8, try std.fmt.hexToBytes(&output, hex), bytes);
+}
+test "typed Table head and page layouts match independent Python bytes" {
+    const Fixture = struct { native_definition: []const u8, manifest_hex: []const u8, inline_hex: []const u8, head_hex: []const u8, head_key_hex: []const u8, page_key_hex: []const u8 };
+    const fixture = try std.json.parseFromSlice(Fixture, t.allocator, @embedFile("fixtures/table-storage.json"), .{});
+    defer fixture.deinit();
+    const expected = fixture.value;
+    try t.expectEqualStrings(@tagName(p.Growth.current_definition), expected.native_definition);
+    var minimum: [21]u8 = undefined;
+    minimum[0] = 'R';
+    minimum[1..].* = try (f.TableRow.Identity{ .origin = 2, .operation = 30, .ordinal = 0 }).encode();
+    const head: Head = .{
+        .resource = 7,
+        .object = 9,
+        .revision = 4,
+        .schema = .{ .id = 7, .spec = .{ .format = Pages.schema_format, .length = 120, .digest = @splat(17) } },
+        .index = .{ .root = .{ .id = 9, .spec = .{ .format = Index.format, .length = 180, .digest = @splat(34) }, .level = 0, .minimum = try Index.Key.init(&minimum), .entries = 3 } },
+        .rows = 3,
+        .next_record = 10,
+    };
+    const encoded = try head.encode();
+    try expectHex(expected.head_hex, encoded.slice());
+    try t.expectEqualDeep(head, try Head.decode(encoded));
+    try expectHex(expected.head_key_hex, Head.key(9).slice());
+    try expectHex(expected.page_key_hex, Pages.key(9, 'i', 7).slice());
+    var store: Store = .{};
+    defer store.deinit();
+    var turn = try store.capture();
+    const pages = try Pages.create(&turn, 9, .{ .record_bytes = 65536, .staging_bytes = 65536, .staging_records = 1 });
+    try expectHex(expected.manifest_hex, (try turn.read(Pages.key(9, 'd', 0))).?.slice());
+    const bytes = "typed page";
+    try t.expectEqual(.ready, try pages.stage(&turn, .{ .id = 7, .spec = try Pub.Digest.of(Pages.schema_format, bytes) }, bytes));
+    try expectHex(expected.inline_hex, (try turn.read(Pages.key(9, 'i', 7))).?.slice());
 }

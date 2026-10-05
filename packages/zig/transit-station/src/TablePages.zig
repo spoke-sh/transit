@@ -57,6 +57,27 @@ fn validate(ref: Reference) !void {
     };
     if (ref.spec.length == 0 or ref.spec.length > limit) return error.InvalidTablePage;
 }
+fn emptyNamespace(turn: *Turn, object: u64) !void {
+    const full = key(object, 0, 0);
+    const prefix = try p.Value.init(full.data[0..14]);
+    for (turn.decision.mutations) |slot| if (slot) |mutation| {
+        if (std.mem.startsWith(u8, mutation.key.slice(), prefix.slice())) return error.InvalidTableStorage;
+    };
+    var committed = turn.committed();
+    const page = try committed.page(prefix);
+    var previous = prefix;
+    var ended = false;
+    for (page.entries) |slot| {
+        if (slot) |entry| {
+            try p.State.key(entry.key);
+            try entry.value.validate();
+            if (ended or entry.revision > turn.view.revision or std.mem.order(u8, previous.slice(), entry.key.slice()) != .lt) return error.InvalidTableStorage;
+            previous = entry.key;
+            if (std.mem.startsWith(u8, entry.key.slice(), prefix.slice())) return error.IncompatibleTableStorage;
+        } else ended = true;
+    }
+    if (page.next) |next| if (previous.eql(prefix) or !previous.eql(next)) return error.InvalidTableStorage;
+}
 /// Initialization does not publish a Table head or make an existing namespace
 /// compatible. Missing/foreign manifests with prior records are never adopted.
 pub fn create(turn: *Turn, object: u64, limits: Pub.Limits) !Self {
@@ -70,6 +91,7 @@ pub fn create(turn: *Turn, object: u64, limits: Pub.Limits) !Self {
         if (!std.meta.eql(quota.limits, limits) or limit != limits.record_bytes) return error.PublicationLimitsChanged;
     } else {
         if (try turn.read(key(object, 'b', 0)) != null) return error.IncompatibleTableStorage;
+        try emptyNamespace(turn, object);
         _ = try Pub.create(turn, .table, object, limits);
         try turn.write(key(object, 'd', 0), manifest(limits.record_bytes));
     }
