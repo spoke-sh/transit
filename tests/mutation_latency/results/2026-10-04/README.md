@@ -48,6 +48,12 @@ fixture paths refer to retained local evidence; they are not portable installati
 | [fixed-pressure](fixed-pressure.json.gz) | complete | 700 | `4f08dbcfcd69f236832dd4c54aeaa1c5dc48821f1d0957bd5f983caccd27c4a7` |
 | [slow-diagnostic-rows](slow-diagnostic-rows.json.gz) | complete | 280 | `e2124059fdfa6241ce0963b51c02d27ac690ee9cd9edb11d2ea377cbb0feaf0c` |
 
+| [fixed-client-history-repeat](fixed-client-history-repeat.json.gz) | complete | 700 | `217253e5edb3939c23032b4cc2f056396763fd5e7c16a3c6e75e82f1914d58c5` |
+
+| [baseline-fixed-provider](baseline-fixed-provider.json.gz) | complete | 140 | `7faa0e0adebc48575c3f465bad26aa78c67b8909810d2016a2ca7cfb2db9af6b` |
+
+| [fixed-default-paired](fixed-default-paired.json.gz) | complete | 140 | `f15c61186e890848bb6962300aee66f79ef0b10392dde291e9e249f97a0187a4` |
+
 ## Interpretation
 
 `baseline` freezes `623cde9b`, `caller` is `fa1fbf29`, `batched` is `3d1dc02e`,
@@ -175,3 +181,17 @@ a 500 ms wait/work threshold or reporting failure. One retained sample spends
 work and resulting serialized queueing. They do not directly reproduce or prove
 the cause of every earlier authority timeout, and are not a distribution of all
 requests. The temporary probe is absent from the shipped runtime.
+
+The subsequent `fixed-client-history-repeat` completes all 700 mutation cases and
+5,729 concurrent reads with no reader failure, uncertain write or runtime restart.
+It uses 12 retained rows, six setup updates and a 64-page cache. Single-row
+INSERT/UPDATE/DELETE p50 is 285/346/285 ms and p95 323/405/323 ms. This separate
+successful workload does not erase the failed first combined control.
+
+`baseline-fixed-provider` and `fixed-default-paired` run the frozen old/new Transit
+binaries sequentially with the same corrected provider, fresh default fixtures
+and 20 repetitions. Both complete 140 cases without uncertain writes or restart.
+INSERT/UPDATE/DELETE p50 changes from 346/334/329 to 135/152/143 ms and p95 from
+404/402/546 to 154/179/148 ms. The gRPC cold-storage diagnostic overlaps part of
+these controls; the larger CI campaign has stopped. This matches configuration
+and provider, not host interference, and establishes no p99 or deployment SLO.
