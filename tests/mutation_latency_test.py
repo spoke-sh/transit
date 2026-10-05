@@ -2,11 +2,30 @@
 import json
 import subprocess
 import sys
+import tempfile
 import unittest
-from mutation_latency import Console
+from pathlib import Path
+from mutation_latency import Console, supervisor_evidence
 
 
 class Evidence(unittest.TestCase):
+    def test_successful_workload_retains_only_bounded_supervisor_causes(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            self.assertFalse(supervisor_evidence(root)['available'])
+            log = root / 'manager-0.stderr'
+            prefix = 'error: server role failed; retrying the same installation: '
+            log.write_text('PRIVATE\n' + prefix + 'AuthorityTimeout\n' + prefix + 'UnrecognizedDetail\n')
+            evidence = supervisor_evidence(root)
+            self.assertEqual(evidence['restarts'], ['AuthorityTimeout', 'other'])
+            self.assertFalse(evidence['truncated'])
+            self.assertNotIn('PRIVATE', json.dumps(evidence))
+            self.assertNotIn('UnrecognizedDetail', json.dumps(evidence))
+            log.write_text((prefix + 'ChildExited\n') * 8 + 'PRIVATE' * 11000)
+            evidence = supervisor_evidence(root)
+            self.assertTrue(evidence['truncated'])
+            self.assertEqual(evidence['restarts'], ['ChildExited'] * 4)
+
     def test_fragmented_failure_keeps_cause_and_deferred_timing(self):
         for timing_first in (False, True):
             with self.subTest(timing_first=timing_first):
