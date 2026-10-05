@@ -50,6 +50,11 @@ pub fn main(init: std.process.Init) !void {
     var output = std.Io.File.stdout().writerStreaming(init.io, &output_buffer);
     while (try input.interface.takeDelimiter('\n')) |sql| {
         const started = std.Io.Clock.awake.now(init.io);
+        errdefer {
+            if (wire.last_rejection) |native| std.debug.print("NativeCause: {s}.\n", .{@tagName(native)});
+            const elapsed = started.durationTo(std.Io.Clock.awake.now(init.io)).toMilliseconds();
+            std.debug.print("Time: {d} ms (client {d} ms)\n", .{ elapsed, elapsed });
+        }
         const reads: Reads = .{ .io = init.io, .deadline = std.Io.Clock.boot.now(init.io).toMilliseconds() + 300000 };
         const request = try reads.call(q.TableMutationClient.compileSql, .{ &client, try q.fuze.model.Name.init("items"), sql });
         var random: [8]u8 = undefined;

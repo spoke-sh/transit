@@ -529,7 +529,7 @@
       },
       "open_error_set_uses": 2,
       "propagation": {
-        "try": 104,
+        "try": 106,
         "catch": 4
       },
       "imports": [

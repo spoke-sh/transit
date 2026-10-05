@@ -24,8 +24,20 @@ class Probe:
         owner = self
 
         class Handler(BaseHTTPRequestHandler):
+            protocol_version = 'HTTP/1.1'
             disable_nagle_algorithm = True
             wbufsize = 65536
+            def setup(self):
+                super().setup()
+                self.connection.settimeout(1 if native else 60)
+                self.upstream = HTTPConnection(endpoint.hostname, endpoint.port, timeout=60)
+
+            def finish(self):
+                try:
+                    super().finish()
+                finally:
+                    self.upstream.close()
+
             def log_message(self, *_):
                 pass
 
@@ -53,7 +65,10 @@ class Probe:
                         labels.append('snapshot_open')
                     labels.append('principal:' + str(envelope['principal']))
                     labels.append('principal:' + str(envelope['principal']) + ':' + classified)
-                connection = HTTPConnection(endpoint.hostname, endpoint.port, timeout=60)
+                # Preserve sequential connection reuse through the diagnostic
+                # proxy. HTTP/1.0 plus a fresh upstream for every request can
+                # hide exactly the socket-lifetime failures being investigated.
+                connection = self.upstream
                 started = time.monotonic_ns()
                 event = {'start_ns': started - owner.started_ns, 'method': self.command,
                          'wait_hint': self.headers.get('X-Transit-Wait') is not None}
@@ -114,19 +129,27 @@ class Probe:
                                                  'AccessDenied', 'Conflict'):
                                 rejection = 'other'
                             owner.counts['rejection:' + rejection] += 1
+                            event['rejection'] = rejection
                     self.send_response(response.status)
                     for key, val in response.getheaders():
                         if key.lower() not in ('transfer-encoding', 'connection', 'content-length'):
                             self.send_header(key, val)
                     self.send_header('Content-Length', str(len(data)))
+                    if response.will_close:
+                        self.send_header('Connection', 'close')
+                        self.close_connection = True
                     self.end_headers()
                     self.wfile.write(data)
                     self.wfile.flush()
                 except (BrokenPipeError, ConnectionResetError) as error:
+                    connection.close()
+                    self.close_connection = True
                     event["failure"] = type(error).__name__
                     with owner.lock:
                         owner.counts['disconnected'] += 1
                 except OSError as error:
+                    connection.close()
+                    self.close_connection = True
                     event["failure"] = type(error).__name__
                     with owner.lock:
                         owner.counts['transport_failures'] += 1
@@ -138,7 +161,6 @@ class Probe:
                             owner.completed_events += 1
                             event['ordinal'] = owner.completed_events
                             owner.events.append(event)
-                    connection.close()
 
             do_GET = do_POST = do_PUT = do_DELETE = do_HEAD = forward
 

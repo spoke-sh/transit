@@ -80,6 +80,9 @@ class Console:
                                 failure = diagnostic['code']
                                 for field in ('code', 'cause', 'outcome', 'stage'):
                                     self.last_measurement[field] = diagnostic.get(field)
+                                for fact in diagnostic.get('facts', []):
+                                    if fact and fact['field'] == 'native_cause' and fact.get('value'):
+                                        self.last_measurement['native_cause'] = fact['value']['text']
                         elif line.startswith(b'Time: '):
                             timing = line.decode()
                             phases = {key: int(value) for key, value in re.findall(r'(\w+) (\d+) ms', timing)}
@@ -92,6 +95,9 @@ class Console:
                             cause = re.fullmatch(rb'Cause: ([A-Za-z0-9_]+)\.', line)
                             if cause:
                                 self.last_measurement['cause'] = cause[1].decode()
+                            native = re.fullmatch(rb'NativeCause: ([A-Za-z0-9_]+)\.', line)
+                            if native:
+                                self.last_measurement['native_cause'] = native[1].decode()
                 if failure is not None and timing is not None:
                     self.last_measurement['elapsed_ns'] = time.monotonic_ns() - started
                     raise RuntimeError(failure)

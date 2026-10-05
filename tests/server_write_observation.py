@@ -18,6 +18,15 @@ def run(fixture):
         def do_POST(self):
             body = self.rfile.read(int(self.headers['Content-Length']))
             envelope = json.loads(body)
+            if self.path == '/v1/command' and state['mode'] == 'refuse_send':
+                state['commands'].append(body)
+                state['mode'] = None
+                self.send_response(503)
+                data = b'{"err":"HttpCapacity"}'
+                self.send_header('Content-Length', str(len(data)))
+                self.end_headers()
+                self.wfile.write(data)
+                return
             if self.path == '/v1/query' and state['mode'] == 'reads':
                 operation = next(iter(envelope['query']['kind']))
                 if operation == 'process' and state['receipt_checkpoint'] is None and saved.exists():
@@ -113,6 +122,15 @@ def run(fixture):
             assert state['commands'][-1] == state['commands'][-2], 'explicit recovery changed signed bytes'
             assert fixture.console('SELECT value FROM items WHERE id = -82;\n')[-1]['cells'][0][0]['value']['int64'] == '820'
             applied(invoke('DELETE FROM items WHERE id = -82;'))
+            state.update(mode='refuse_send', admitted=False)
+            before = len(state['commands'])
+            failed = invoke('INSERT INTO items (id, value) VALUES (-83, 830);', expected=1)
+            assert 'native_cause: HttpCapacity' in failed.stderr, failed.stderr
+            assert len(state['commands']) == before + 1, '503 was automatically retried'
+            assert not json.loads(saved.read_text())['complete']
+            applied(invoke('.resume'))
+            assert state['commands'][-1] == state['commands'][-2]
+            applied(invoke('DELETE FROM items WHERE id = -83;'))
             print('Transit write observation: capacity retries preserve one send; lost receipt requires explicit exact recovery.', flush=True)
         finally:
             proxy.shutdown()

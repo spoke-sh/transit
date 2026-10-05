@@ -85,6 +85,7 @@ const Server = struct {
     before_pages: u64 = 0,
     before_bytes: u64 = 0,
     metrics: ?Work = null,
+    work_failure: ?[]const u8 = null,
 
     const Work = struct {
         wait_ns: u64,
@@ -94,6 +95,7 @@ const Server = struct {
         staged_pages: u64,
         staged_bytes: u64,
         provider: adapter.Metrics,
+        failure: ?[]const u8 = null,
     };
 
     fn acquire(self: *Server) !void {
@@ -134,6 +136,7 @@ const Server = struct {
                 .staged_pages = self.engine.page_store.created - self.before_pages,
                 .staged_bytes = self.engine.page_store.create_payload_bytes_attempted - self.before_bytes,
                 .provider = delta,
+                .failure = self.work_failure,
             };
             if (previous) |prior| {
                 inline for (.{ "wait_ns", "work_ns", "cache_hits", "cache_misses", "staged_pages", "staged_bytes" }) |field|
@@ -178,6 +181,9 @@ const Server = struct {
             else => false,
         };
         if (denied) return self.json(request, .forbidden, wire.protocol.ErrorResponse{ .err = .AccessDenied });
+        // Opt-in work diagnostics retain a compiler-defined cause category.
+        // No arbitrary provider text, keys, payloads or authorization details.
+        self.work_failure = @errorName(err);
         const code = std.meta.stringToEnum(wire.protocol.ErrorCode, @errorName(err)) orelse .AuthorityUnavailable;
         const status: std.http.Status = switch (code) {
             .Conflict, .QueryExpired, .HistoryReclaimed => .conflict,

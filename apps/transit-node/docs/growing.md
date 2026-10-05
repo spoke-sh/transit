@@ -159,7 +159,10 @@ the corresponding service and recovery proofs.
 ## Per-request measurement
 
 With `request_metrics: true`, native JSON responses that acquire authority access
-include an unsigned `x-transit-work` JSON header. It contains lock wait and work
+include an unsigned `x-transit-work` JSON header. Its nullable `failure` field
+retains a compiler-defined error name for failed authorized work; access denials
+omit that cause. It includes no provider message, key, payload or credential,
+and never establishes a durable outcome. It contains lock wait and work
 nanoseconds, decoded cache hits/misses, staged pages/bytes, and provider request,
 transport failure, elapsed-time, append payload byte and response byte counters.
 Provider time is contained in work time; these durations must not be added.

@@ -480,6 +480,13 @@ pub fn unresolvedDiagnostic(self: Self, cause: anyerror) !q.protocol.Diagnostic 
     const d = q.protocol.Diagnostic;
     var value = try d.init("write.saved_work_unresolved", .lifecycle, .reconcile, .unknown, .saved_intent, "The saved write needs reconciliation. Preserve its original recovery file; do not repeat the SQL or replace its operation identity.");
     value.cause = try d.Code.init(@errorName(cause));
+    // Preserve the validated native category as evidence, while a 503 still
+    // leaves the exact saved mutation unresolved. Do not infer nonacceptance.
+    if (self.record.operation.? == .mutation) {
+        if (self.mutation) |client| if (client.wire.last_rejection) |native|
+            try value.text(.native_cause, .authority, @tagName(native));
+    } else if (self.catalog) |client| if (client.transport.last_rejection) |native|
+        try value.text(.native_cause, .authority, @tagName(native));
     switch (self.record.operation.?) {
         .mutation => |operation| value.identity = .{ .domain = .mutation, .id = .init(operation.namespace), .realm = .init(operation.request.realm), .resource = .init(operation.request.resource) },
         .creation => |operation| value.identity = .{ .domain = .catalog, .id = .init(operation.request.operation), .realm = .init(operation.request.scope.realm), .resource = .init(operation.request.scope.resource) },
