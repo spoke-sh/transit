@@ -22,12 +22,14 @@ pub const TableSchema = @import("TableSchema.zig");
 pub const TableRow = @import("TableRow.zig");
 pub const TableEvolution = @import("TableEvolution.zig");
 pub const SqlTypes = @import("SqlTypes.zig");
+pub const TableDdl = @import("TableDdl.zig");
 pub const Declaration = @import("Declaration.zig");
 test {
     _ = TableSchema;
     _ = TableRow;
     _ = TableEvolution;
     _ = SqlTypes;
+    _ = TableDdl;
     _ = SqlInput;
     _ = SqlDiagnostic;
     _ = FileQuery;

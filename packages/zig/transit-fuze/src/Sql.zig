@@ -161,7 +161,7 @@ fn declaration(parser: *Parser, locations: ?*DeclarationLocations) !?f.Declarati
     try parser.end();
     return .{ .name = name, .body = body };
 }
-fn validateText(text: []const u8) !void {
+pub fn validateText(text: []const u8) !void {
     if (text.len > max_statement_bytes) return error.StatementTooLarge;
     if (!std.unicode.utf8ValidateSlice(text) or std.mem.indexOfScalar(u8, text, 0) != null) return error.InvalidSqlEncoding;
 }
@@ -359,14 +359,14 @@ pub fn isReserved(word: []const u8) bool {
 }
 
 pub const Tag = enum { cursor, eof, word, quoted, string, integer, left, right, comma, dot, star, cast, plus, minus, eq, ne, lt, le, gt, ge, semi };
-const Token = struct { tag: Tag, text: []const u8 };
-const Lexer = struct {
+pub const Token = struct { tag: Tag, text: []const u8 };
+pub const Lexer = struct {
     text: []const u8,
     position: usize = 0,
     cursor_enabled: bool = false,
     parameters_enabled: bool = false,
     start: usize = 0,
-    fn next(self: *Lexer) !Token {
+    pub fn next(self: *Lexer) !Token {
         while (self.position < self.text.len) {
             self.start = self.position;
             const rest = self.text[self.position..];

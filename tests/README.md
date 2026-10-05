@@ -10630,6 +10630,15 @@ retains INT8's eight-bit meaning, checks decimal/VARCHAR/temporal parameters and
 rejects unqualified padding, binary lengths, FLOAT precision and time-zone forms.
 These are resolver tests; native DDL admission is not established by them.
 
+The Fuze package suite passes seven general DDL tests, including the reported
+nullable CREATE example, a realistic five-column schema, composite keys, escaped
+Unicode names, recursive type/default constructors, exact scalar/temporal values,
+map ordering/duplicate rejection, incompatible constraints, bound ALTER/DROP
+identity, complete input consumption and allocator-failure cleanup. The first
+run exposed a duplicate-key diagnostic falling back to `InvalidPrimaryKey`; the
+compiler now retains `DuplicatePrimaryKeyColumn` before binding. This is compiler
+evidence, not console execution or independent ANTLR lifecycle qualification.
+
 ## Fuze logical type foundation
 
 The local `Types` profile has nine passing focused Zig tests, including 46

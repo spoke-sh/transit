@@ -110,6 +110,12 @@ nullable defaults, typed defaults and declared keys. Its owned codec and exact
 bounds are documented in [Table schemas](docs/table-schemas.md). Storage and SQL
 admission retain their separate profiles.
 
+`TableDdl` compiles general typed CREATE/ALTER/DROP through the shared SQL lexer
+and schema model. It owns names, descriptors and typed defaults in an arena;
+ALTER/DROP retain the captured object/schema identity. The
+[compiler contract](../../../contracts/TABLE_DDL_V1.md) separates these pure
+definitions from catalog/native/console admission.
+
 `Sql.parseDeclaration` and `Declaration.compile` parse and validate offline
 `CREATE TABLE`, `CREATE KV` and `CREATE DOCUMENT` definitions. Definitions own
 their names and up to eight Table columns, preserve omitted nullability and

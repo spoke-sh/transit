@@ -58,3 +58,9 @@ parameters. Its [alias table](../../../../contracts/TABLE_SCHEMA_V1.md#scalar-sq
 defines widths, decimal defaults, VARCHAR character limits and exact temporal
 precision. Unsupported padding/precision/time-zone semantics reject. A resolved
 descriptor does not imply that a particular SQL transport admits that type.
+
+`TableDdl.compile` supplies allocator-owned general CREATE/ALTER/DROP compilation
+against this model. Its [compiler contract](../../../../contracts/TABLE_DDL_V1.md)
+defines target binding, clauses, recursive type/value constructors and rejection
+rules. `target` extracts only the header for authorized lookup; full compilation
+is still required. This compiler does not widen native or console DDL admission.

@@ -6010,6 +6010,55 @@
         "Unified.zig"
       ]
     },
+    "packages/zig/transit-fuze/src/SqlTyped.zig": {
+      "errors": {
+        "DuplicateMapKey": 1,
+        "InvalidBinaryLiteral": 3,
+        "InvalidColumnName": 1,
+        "InvalidLiteral": 3,
+        "InvalidMapKey": 1,
+        "InvalidRowWidth": 1,
+        "InvalidSqlSyntax": 6,
+        "InvalidTypeParameters": 3,
+        "NullableMapKey": 1,
+        "TypeBudgetExceeded": 2,
+        "UnknownSqlType": 1,
+        "UnknownUnionAlternative": 1,
+        "UnsupportedConstruct": 1,
+        "UnsupportedNestedCharacterLimit": 1,
+        "ValueBudgetExceeded": 3
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "advance()": "<inferred>",
+        "dataType()": "anyerror",
+        "finish()": "<inferred>",
+        "init()": "<inferred>",
+        "name()": "<inferred>",
+        "nested()": "anyerror",
+        "nullability()": "<inferred>",
+        "number()": "<inferred>",
+        "require()": "<inferred>",
+        "requireWord()": "<inferred>",
+        "take()": "<inferred>",
+        "takeWord()": "<inferred>",
+        "unquote()": "<inferred>",
+        "unsigned()": "<inferred>",
+        "value()": "anyerror"
+      },
+      "open_error_set_uses": 3,
+      "propagation": {
+        "try": 108,
+        "catch": 3
+      },
+      "imports": [
+        "Sql.zig",
+        "SqlTypes.zig",
+        "Types.zig",
+        "std"
+      ]
+    },
     "packages/zig/transit-fuze/src/SqlTypes.zig": {
       "errors": {
         "ConflictingTimeZone": 1,
@@ -6041,6 +6090,59 @@
       },
       "imports": [
         "Types.zig",
+        "std"
+      ]
+    },
+    "packages/zig/transit-fuze/src/TableDdl.zig": {
+      "errors": {
+        "DuplicateColumnConstraint": 2,
+        "DuplicatePrimaryKeyColumn": 1,
+        "InvalidColumnCount": 1,
+        "InvalidPrimaryKey": 1,
+        "InvalidSqlSyntax": 1,
+        "MultiplePrimaryKeys": 3,
+        "NullablePrimaryKey": 2,
+        "TableNotFound": 1,
+        "TableSchemaRequired": 1,
+        "UnknownColumn": 1,
+        "UnsupportedAlterTable": 1,
+        "UnsupportedCascade": 2,
+        "UnsupportedSchemaConversion": 1,
+        "UnsupportedStatement": 2,
+        "UnsupportedTableConstraint": 3
+      },
+      "outcomes": {
+        "Alter.action": [
+          "columns",
+          "rename_table"
+        ],
+        "Statement": [
+          "create",
+          "alter",
+          "drop"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "Create.bind()": "<inferred>",
+        "alter()": "<inferred>",
+        "column()": "<inferred>",
+        "compile()": "<inferred>",
+        "create()": "<inferred>",
+        "drop()": "<inferred>",
+        "selectedColumn()": "<inferred>",
+        "target()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 93,
+        "catch": 0
+      },
+      "imports": [
+        "Sql.zig",
+        "SqlTyped.zig",
+        "TableEvolution.zig",
+        "TableSchema.zig",
         "std"
       ]
     },
@@ -6941,6 +7043,7 @@
         "SqlDiagnostic.zig",
         "SqlInput.zig",
         "SqlTypes.zig",
+        "TableDdl.zig",
         "TableEvolution.zig",
         "TableMutation.zig",
         "TableRow.zig",
