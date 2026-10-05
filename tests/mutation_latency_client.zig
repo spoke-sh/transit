@@ -1,5 +1,5 @@
 //! Persistent public-client control for the owned mutation latency experiment.
-//! Exact requests are checkpointed before submission. Failure exits without retry.
+//! Exact requests are checkpointed before submission. Only unavailable reads retry.
 const std = @import("std");
 const q = @import("transit_query");
 const Config = struct { url: []const u8, seed_file: []const u8, connection: q.TableMutationClient.Connection };
@@ -16,6 +16,21 @@ fn checkpoint(init: std.process.Init, value: anytype) !void {
     try file.replace(init.io);
     if (std.c.fsync(directory.handle) != 0) return error.CheckpointSyncFailed;
 }
+
+const Reads = struct {
+    io: std.Io,
+    deadline: i64,
+    fn call(self: Reads, comptime read: anytype, args: std.meta.ArgsTuple(@TypeOf(read))) anyerror!@typeInfo(@typeInfo(@TypeOf(read)).@"fn".return_type.?).error_union.payload {
+        while (true) {
+            if (std.Io.Clock.boot.now(self.io).toMilliseconds() >= self.deadline) return error.OutcomeUnknown;
+            return @call(.auto, read, args) catch |err| {
+                if (!q.wire.Client.unavailable(err)) return err;
+                try self.io.sleep(.fromMilliseconds(50), .awake);
+                continue;
+            };
+        }
+    }
+};
 
 pub fn main(init: std.process.Init) !void {
     const args = try init.minimal.args.toSlice(init.arena.allocator());
@@ -35,26 +50,34 @@ pub fn main(init: std.process.Init) !void {
     var output = std.Io.File.stdout().writerStreaming(init.io, &output_buffer);
     while (try input.interface.takeDelimiter('\n')) |sql| {
         const started = std.Io.Clock.awake.now(init.io);
-        const request = try client.compileSql(try .init("items"), sql);
+        const reads: Reads = .{ .io = init.io, .deadline = std.Io.Clock.boot.now(init.io).toMilliseconds() + 300000 };
+        const request = try reads.call(q.TableMutationClient.compileSql, .{ &client, try q.fuze.model.Name.init("items"), sql });
         var random: [8]u8 = undefined;
         try init.io.randomSecure(&random);
         const namespace = std.mem.readInt(u64, &random, .little) | 1;
-        const reference = try request.reference(namespace);
         var commands: u32 = 0;
-        while (try client.prepareNext(namespace, request)) |pending| {
+        var next: q.TableMutationClient.Next = .{ .prepared = try reads.call(q.TableMutationClient.prepareNew, .{ &client, namespace, request }) };
+        const status = mutation: while (true) {
+            const pending = switch (next) {
+                .prepared => |value| value,
+                .complete => |value| break :mutation value,
+            };
             commands += 1;
             if (commands > 32) return error.CommandBudgetExceeded;
             try checkpoint(init, .{ .request = request, .namespace = namespace, .pending = pending, .input = @as(?u64, null), .complete = false });
             const receipt = try client.submit(pending);
             try checkpoint(init, .{ .request = request, .namespace = namespace, .pending = pending, .input = receipt.position, .complete = false });
-            while (try client.observe(pending, receipt.position) == .pending) {
-                if (started.durationTo(std.Io.Clock.awake.now(init.io)).toMilliseconds() >= 300000) return error.OutcomeUnknown;
-                try init.io.sleep(.fromMilliseconds(50), .awake);
-            }
-            if (try client.rejection(pending, receipt.position) != null) return error.MutationInputRejected;
-        }
-        const status = (try client.status(reference)) orelse return error.MissingOutcome;
-        if (!status.terminal()) return error.MissingOutcome;
+            const outcome = observation: while (true) {
+                const progress = try reads.call(q.TableMutationClient.progress, .{ &client, pending, receipt.position });
+                switch (progress) {
+                    .processed => |value| break :observation value,
+                    .pending => try init.io.sleep(.fromMilliseconds(50), .awake),
+                }
+            };
+            if (outcome.disposition != null) return error.MutationInputRejected;
+            if (outcome.status) |value| if (value.terminal()) break :mutation value;
+            next = try reads.call(q.TableMutationClient.prepareNextResult, .{ &client, namespace, request });
+        };
         try checkpoint(init, .{ .request = request, .namespace = namespace, .outcome = status, .complete = true });
         try std.json.Stringify.value(.{ .mutation = .{ .phase = @tagName(status.phase), .affected_rows = status.affected_rows } }, .{}, &output.interface);
         try output.interface.writeByte('\n');

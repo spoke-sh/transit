@@ -34,6 +34,11 @@ See the [mutation contract](../../../contracts/TABLE_MUTATION_V1.md).
 `TableMutationClient` supplies the shared Zig caller for applications that expose
 that owner: current metadata/SQL compilation, canonical saved signed commands,
 explicit submission, input observation, status and bounded upload resumption.
+`prepareNew` rejects namespace collisions in its preparation batch. `progress`
+checks mailbox advancement before returning both input disposition and mutation
+status from one authorized resource cut. `prepareNextResult` preserves terminal
+evidence acquired during successor selection. These composed Zig helpers avoid
+redundant reads; the neutral caller's individual actions keep their contracts.
 It retains full request identity across caller and writer recovery. Preparing the
 next step requires reconciling the preceding exact command first; a native send
 receipt is admission, and only a terminal mutation status establishes the result.

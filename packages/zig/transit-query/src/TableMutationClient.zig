@@ -61,6 +61,12 @@ pub const Prepared = struct {
 /// Processed means this admitted input is behind the current mailbox head. Only
 /// a terminal Status describes whether rows were applied, rejected or cancelled.
 pub const Observation = enum { pending, processed };
+pub const Outcome = struct {
+    disposition: ?q.TableMutationWriter.Disposition,
+    status: ?r.Status,
+};
+pub const Progress = union(enum) { pending, processed: Outcome };
+pub const Next = union(enum) { prepared: Prepared, complete: r.Status };
 
 fn reference(command: r.Command) !Ref {
     return switch (command) {
@@ -227,15 +233,45 @@ pub fn inputDisposition(self: *Self, prepared: Prepared, input: u64) !?q.TableMu
     try self.validate(prepared);
     if (input == 0 or input > p.max_counter) return error.InvalidMutationPrepared;
     const current = try self.batch(&.{r.key('e', input, 0)});
+    return self.dispositionFrom(&current, prepared, input);
+}
+fn dispositionFrom(self: *Self, current: *const q.wire.ResourceReader.Batch, prepared: Prepared, input: u64) !?q.TableMutationWriter.Disposition {
     const value = (try current.read(r.key('e', input, 0))) orelse return null;
     const result = try q.TableMutationWriter.Disposition.decode(value);
     if (result.input != input or result.principal != self.connection.principal or !std.mem.eql(u8, &result.payload, &try q.TableMutationWriter.Disposition.fingerprint(prepared.signed.request.command.send.value))) return error.MutationIdentityConflict;
     return result;
 }
+/// Retain the mailbox progress check, then acquire both kinds of outcome at one
+/// current authorized resource cut. A terminal request alone cannot establish
+/// that this particular admitted input was processed.
+pub fn progress(self: *Self, prepared: Prepared, input: u64) !Progress {
+    if (try self.observe(prepared, input) == .pending) return .pending;
+    const ref = try checkedReference(prepared);
+    const current = try self.batch(&.{ r.key('e', input, 0), r.key('u', ref.namespace, 0) });
+    return .{ .processed = .{
+        .disposition = try self.dispositionFrom(&current, prepared, input),
+        .status = try self.statusFrom(&current, ref),
+    } };
+}
+/// A new namespace must be unused, even when an existing request is terminal
+/// and happens to have identical bytes. Preparation never adopts other work.
+pub fn prepareNew(self: *Self, namespace: u64, request: Request) !Prepared {
+    return (try self.selectNext(namespace, request, true)).prepared;
+}
 /// Select one successor only after reconciling the preceding Prepared receipt
 /// and observing its input processed. Canonical request/reference identity stays
 /// fixed throughout upload, seal and apply; this is never an uncertain-send retry.
 pub fn prepareNext(self: *Self, namespace: u64, request: Request) !?Prepared {
+    return switch (try self.prepareNextResult(namespace, request)) {
+        .prepared => |value| value,
+        .complete => null,
+    };
+}
+/// Returns the terminal evidence already read while selecting a successor.
+pub fn prepareNextResult(self: *Self, namespace: u64, request: Request) !Next {
+    return self.selectNext(namespace, request, false);
+}
+fn selectNext(self: *Self, namespace: u64, request: Request, fresh: bool) !Next {
     try request.validate();
     if (request.realm != self.connection.realm or request.writer != self.connection.writer or request.resource != self.connection.resource or request.table != self.connection.table) return error.MutationIdentityConflict;
     const ref = try request.reference(namespace);
@@ -245,18 +281,19 @@ pub fn prepareNext(self: *Self, namespace: u64, request: Request) !?Prepared {
         if (!std.meta.eql(description.table.schema, request.plan.schema)) return error.MutationSourceChanged;
         if (!description.policy.permits(request.plan.operation)) return error.MutationDenied;
         try self.available(description.active, namespace);
-        if (ref.spec.length <= r.inline_bytes) return try self.sign(.{ .execute = .{ .namespace = namespace, .policy_revision = description.policy.revision, .request = request } });
-        return try self.sign(.{ .begin = .{ .reference = ref, .table = request.table, .policy_revision = description.policy.revision } });
+        if (ref.spec.length <= r.inline_bytes) return .{ .prepared = try self.sign(.{ .execute = .{ .namespace = namespace, .policy_revision = description.policy.revision, .request = request } }) };
+        return .{ .prepared = try self.sign(.{ .begin = .{ .reference = ref, .table = request.table, .policy_revision = description.policy.revision } }) };
     };
-    if (stored.terminal()) return null;
+    if (fresh) return error.MutationIdentityConflict;
+    if (stored.terminal()) return .{ .complete = stored };
     if (try a.active(&current) != namespace) return error.MutationNotActive;
-    if (stored.phase == .sealed) return try self.sign(.{ .apply = ref });
+    if (stored.phase == .sealed) return .{ .prepared = try self.sign(.{ .apply = ref }) };
     const description = try self.grant(&current);
     if (description.policy.revision != stored.policy_revision) return error.StaleMutationPolicy;
     if (!std.meta.eql(description.table.schema, request.plan.schema) or !std.mem.eql(u8, &description.policy.declaration, &stored.declaration)) return error.MutationSourceChanged;
     const descriptor = try ref.publication().inspect(&current, ref.record);
     if (descriptor.state != .staging or !std.meta.eql(descriptor.spec, ref.spec)) return error.InvalidMutationRecord;
-    if (descriptor.written == ref.spec.chunks()) return try self.sign(.{ .seal = ref });
+    if (descriptor.written == ref.spec.chunks()) return .{ .prepared = try self.sign(.{ .seal = ref }) };
     var buffer: [Request.max_bytes]u8 = undefined;
     const bytes = try request.encode(&buffer);
     const chunk = bytes[descriptor.written * s.Publication.chunk_bytes ..][0..try ref.spec.size(descriptor.written)];
@@ -265,5 +302,5 @@ pub fn prepareNext(self: *Self, namespace: u64, request: Request) !?Prepared {
         if (chunk.len <= r.part_bytes or half.len != r.part_bytes or !std.mem.eql(u8, half.slice(), chunk[0..r.part_bytes])) return error.MutationIdentityConflict;
     }
     const offset: usize = if (first != null) r.part_bytes else 0;
-    return try self.sign(.{ .part = .{ .reference = ref, .ordinal = descriptor.written, .second = first != null, .bytes = chunk[offset..@min(offset + r.part_bytes, chunk.len)] } });
+    return .{ .prepared = try self.sign(.{ .part = .{ .reference = ref, .ordinal = descriptor.written, .second = first != null, .bytes = chunk[offset..@min(offset + r.part_bytes, chunk.len)] } }) };
 }
