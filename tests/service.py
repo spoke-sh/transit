@@ -270,7 +270,21 @@ def run(node, worker, cli):
             assert malformed["failure"] == malformed_input
             assert malformed["consumed"] == 0 and malformed["owner"] is None
             from service_wait import run as wait_proof
-            wait_proof(post, sign_query, query, command, malformed_pid, worker_key, worker_public)
+            remote_config = root / "remote-node.json"
+            remote_port = free_port()
+            remote_config.write_text(json.dumps(dict(json.loads(config.read_text()), port=remote_port)))
+            remote = start(node, remote_config)
+            remote_url = f"http://127.0.0.1:{remote_port}"
+            wait_ready(store.http, remote, remote_url + "/health")
+            def remote_command(value):
+                nonlocal seq
+                seq += 1
+                request = urllib.request.Request(remote_url + '/v1/command', json.dumps(signed(value, seq)).encode(),
+                                                 {'Content-Type': 'application/json'})
+                with store.http.open(request, timeout=5) as response:
+                    return json.load(response)['position']
+            wait_proof(post, sign_query, query, command, malformed_pid, worker_key, worker_public, url, remote_command)
+            stop(remote)
             print("Signed service ingress, scoped/revoked reads, bounded requests, worker fencing and disk recovery passed.")
         except BaseException:
             for log in logs:
