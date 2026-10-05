@@ -364,7 +364,7 @@ and 1,280 reads, with INSERT/UPDATE/DELETE p50 138/156/137 ms.
 The [raw controls](../../tests/mutation_latency/results/2026-10-05/README.md)
 retain exact source/binary provenance and shared-host limitations.
 
-`just test::growing-load` runs a separate ReleaseSafe finite offered-load fixture.
+The [finite offered-load fixture](../../tests/growing_load.py) uses ReleaseSafe binaries.
 It schedules 48 requests independently, records generator queueing, separates
 admitted and refused attempts, and captures authority wait/work counters.
 Only accepted inputs are drained and checked after node/provider restart;
