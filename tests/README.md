@@ -23,7 +23,17 @@ stages are incomplete, not zero. Parser/correlation tests cover lost stages,
 ambiguous admission, unrelated inputs and observation before receipt delivery.
 Use `just test::mutation-latency --repeat 3 --instrument --output /var/tmp/completion-counts.json`
 inside the pinned environment. Proxies change timing; use uninstrumented controls
-for ordinary latency. Further provider, contention and clean qualification are
+for ordinary latency.
+
+Leaf-frontier batching passes root unit checks, including a depth-32 tree,
+complete-command staging faults and a separate opaque-locator store. Eight
+independent leaf replacements use one bounded batch plus one parent stage;
+losing any staged acknowledgement preserves every value at the old root.
+The physical packed-page proof (`--keys 256 --cache 2`) passes write, provider
+SIGKILL/recovery, checkpoint and trim recovery, including accepted batch replies
+that are lost, incomplete or partially failed. A development compile failure
+from an extra semicolon was corrected before the passing unit run.
+Further provider, contention and clean qualification are
 in progress under [issue #73](https://github.com/rupurt/rey/issues/73).
 
 Evidence is scoped to each recorded revision or definition. “Current” in an
