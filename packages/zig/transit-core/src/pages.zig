@@ -186,18 +186,39 @@ pub fn BoundedTree(comptime Store: type, comptime budget: usize) type {
                 offset += count;
             }
         }
-        fn leaves(self: Self, entries: []const Entry, output: *Changed) !void {
-            var batch: [(leaf_entries + budget + leaf_entries - 1) / leaf_entries]Page = undefined;
+        // At the leaf frontier, independent siblings share one bounded provider
+        // batch. Destination pointers refer to the caller's stable child array;
+        // none may be read or returned until flush has verified every locator.
+        const LeafStages = struct {
+            tree: Self,
+            pages: [mutation_batch]Page = undefined,
+            destinations: [mutation_batch]*Child = undefined,
+            count: usize = 0,
+            fn add(self: *LeafStages, page: Page, destination: *Child) !void {
+                self.pages[self.count] = page;
+                self.destinations[self.count] = destination;
+                self.count += 1;
+                if (self.count == mutation_batch) try self.flush();
+            }
+            fn flush(self: *LeafStages) !void {
+                if (self.count == 0) return;
+                var children: [mutation_batch]Child = undefined;
+                try self.tree.stages(self.pages[0..self.count], children[0..self.count]);
+                for (self.destinations[0..self.count], children[0..self.count]) |destination, child| destination.* = child;
+                self.count = 0;
+            }
+        };
+        fn leaves(entries: []const Entry, output: []Child, pending: *LeafStages) !usize {
             const count = std.math.divCeil(usize, entries.len, leaf_entries) catch unreachable;
-            for (batch[0..count], 0..) |*page, i| {
+            for (output[0..count], 0..) |*child, i| {
                 // Leave room on both sides of a split. Packing the first page
                 // full repeatedly splits the left spine on descending inserts.
                 const group = entries[i * entries.len / count .. (i + 1) * entries.len / count];
-                page.* = .{ .count = @intCast(group.len), .body = .{ .leaf = @splat(null) } };
+                var page: Page = .{ .count = @intCast(group.len), .body = .{ .leaf = @splat(null) } };
                 for (group, 0..) |entry, j| page.body.leaf[j] = entry;
+                try pending.add(page, child);
             }
-            try self.stages(batch[0..count], output.children[0..count]);
-            output.count = count;
+            return count;
         }
         fn branches(self: Self, children: []const Child, output: *Changed) !void {
             var batch: [(branch_children + budget + branch_children - 1) / branch_children]Page = undefined;
@@ -354,6 +375,14 @@ pub fn BoundedTree(comptime Store: type, comptime budget: usize) type {
         // Its bound follows the private write set, not tree depth/cardinality.
         fn mutateLeaf(self: Self, original: ?Page, ref: ?Reference, mutations: []const Mutation) !Changed {
             var result: Changed = .{ .height = 0 };
+            var pending: LeafStages = .{ .tree = self };
+            result.count = try mutateLeafInto(original, ref, mutations, &result.children, &pending);
+            try pending.flush();
+            return result;
+        }
+        // Keep this merge workspace out of recursive branch frames. Its bound
+        // depends on the command write set, never retained tree cardinality.
+        fn mutateLeafInto(original: ?Page, ref: ?Reference, mutations: []const Mutation, output: []Child, pending: *LeafStages) !usize {
             var merged: [leaf_entries + budget]Entry = undefined;
             var count: usize = 0;
             var index: usize = 0;
@@ -378,13 +407,33 @@ pub fn BoundedTree(comptime Store: type, comptime budget: usize) type {
                     if (!std.meta.eql(entry, original.?.body.leaf[i].?)) break false;
                 } else true;
                 if (unchanged) {
-                    result.children[0] = .{ .minimum = original.?.minimum(), .reference = ref.? };
-                    result.count = 1;
-                    return result;
+                    output[0] = .{ .minimum = original.?.minimum(), .reference = ref.? };
+                    return 1;
                 }
             }
-            try self.leaves(merged[0..count], &result);
-            return result;
+            return leaves(merged[0..count], output, pending);
+        }
+        // One leaf frontier at a time. The eight-page staging buffer is not
+        // retained on ancestor frames and does not grow with the write set.
+        fn mutateLeafChildren(self: Self, original: *const Page, mutations: []const Mutation, output: []Child) !usize {
+            var pending: LeafStages = .{ .tree = self };
+            var count: usize = 0;
+            var first: usize = 0;
+            const children = original.body.branch;
+            for (children[0..original.count], 0..) |slot, i| {
+                var end = first;
+                while (end < mutations.len and (i + 1 == original.count or order(&mutations[end].key, &children[i + 1].?.minimum) == .lt)) : (end += 1) {}
+                if (first == end) {
+                    output[count] = slot.?;
+                    count += 1;
+                } else {
+                    const page = try self.load(slot.?.reference, 0);
+                    count += try mutateLeafInto(page, slot.?.reference, mutations[first..end], output[count..], &pending);
+                }
+                first = end;
+            }
+            try pending.flush();
+            return count;
         }
         fn mutatePage(self: Self, ref: ?Reference, height: ?u8, mutations: []const Mutation) anyerror!Changed {
             const original: ?Page = if (ref) |reference| try self.load(reference, height) else null;
@@ -395,7 +444,9 @@ pub fn BoundedTree(comptime Store: type, comptime budget: usize) type {
             var count: usize = 0;
             var first: usize = 0;
             const children = original.?.body.branch;
-            for (children[0..original.?.count], 0..) |slot, i| {
+            if (level == 1) {
+                count = try self.mutateLeafChildren(&original.?, mutations, &merged);
+            } else for (children[0..original.?.count], 0..) |slot, i| {
                 var end = first;
                 while (end < mutations.len and (i + 1 == original.?.count or order(&mutations[end].key, &children[i + 1].?.minimum) == .lt)) : (end += 1) {}
                 if (first == end) {

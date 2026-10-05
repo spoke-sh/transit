@@ -350,6 +350,7 @@ distinct. The shared client does not discover a writer or provision these grants
 | `status(original_reference)` | Optional durable status bound to the original reference, principal and Table; current native read rights apply |
 | `prepareNew(namespace, request)` | One initial command; rejects any existing namespace, including an identical terminal request |
 | `progress(prepared, receipt.position)` | Mailbox progress, then disposition and status from one current authorized resource batch; terminal status alone never proves input processing |
+| `waitObserve(prepared, receipt.position)` / `waitProgress(prepared, receipt.position)` | Same evidence as immediate observation/progress; after an earlier pending read of this exact input, uses a bounded authorized wait |
 | `prepareNextResult(namespace, request)` | The next prepared command or the complete terminal status already read during selection |
 | `prepareNext(namespace, request)` | One direct execute or next begin/part/seal/apply command from committed state, or null for an existing terminal result |
 
@@ -480,6 +481,17 @@ rules. No mutation value passes through a JavaScript floating-point number.
 | `observe {prepared, input}` | Pending/processed progress for the original admitted input |
 | `rejection {prepared, input}` | Optional separate writer disposition after processing |
 | `status` | Original full reference; reads durable status under current native grants, even after mutation-policy revocation; returns null when absent |
+
+Neutral `observe` uses the shared bounded-wait helper. After a pending read of
+the same signed command and input, it may wait up to 50 ms for a publication
+hint before returning a fresh authorized observation. The cached position is
+only a scheduling hint, discarded after native observation errors and when the
+input is processed. Local prepared-input validation happens before observation.
+Wakeups, timeouts and handle replacement never establish an outcome. Exhausted
+wait admission backs off for 50 ms and uses an ordinary current read, preserving
+progress when all wait slots are occupied. Other failures propagate. Transport
+deadlines and caller cancellation retain their own bounds. No saved envelope,
+neutral action/result layout or durable protocol definition changes.
 
 Every non-null neutral status includes the mandatory shared `diagnostic`
 projection of its original phase, conflict and policy/schema evidence. A

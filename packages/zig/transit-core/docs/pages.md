@@ -63,7 +63,12 @@ sparse neighbors before splitting a parent, including a formerly full spine
 at the height guard. Merging stages new immutable pages and preserves retained
 roots; staging failure or lost acknowledgement does not publish a candidate.
 When the provider supports `stageMany`, sibling pages are staged as a bounded
-group; otherwise the same tree uses individual staging calls. Every returned
+group. Independent leaf rewrites below the same parent share a staging buffer
+of at most eight pages, including splits; the buffer flushes before building
+their parent. It lives only at the leaf frontier, not on every recursive ancestor
+frame, and does not grow with the private write set or retained cardinality.
+Destinations remain private until every locator in that batch is verified.
+Otherwise the same tree uses individual staging calls. Every returned
 reference is checked against its expected digest before becoming a candidate. Deletion removes
 empty subtrees and collapses a one-child root; internal one-child pages retain
 their height. It does not yet rebalance sparse siblings. This can amplify storage

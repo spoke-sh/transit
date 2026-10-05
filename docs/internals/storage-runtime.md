@@ -55,6 +55,10 @@ The implementation combines three independent mechanisms:
   input until a next-request or terminal checkpoint atomically replaces it.
   A crash between observation and checkpoint therefore leaves an exact recovery
   basis; it does not require a new SQL operation.
+  After a pending observation it can wait for a process notification for at most
+  50 ms. The remembered position is bound to the exact signed input. Wait-capacity
+  refusal backs off and makes an ordinary authorized read; denial and uncertain
+  transport errors do not become permission or a repeated mutation.
 - The [catalog candidate](../../packages/zig/transit-core/src/catalog.zig)
   overlays a command-bounded set of changed records, including receipts/control
   state. Repeated keys collapse before one tree rewrite. Reads see pending
@@ -69,6 +73,17 @@ The implementation combines three independent mechanisms:
   slot; a different node's publication is found on timeout. Coalescing is safe
   for this scheduling hint because the subsequent read establishes state. It
   cannot supply complete change coverage for joins or maintained derivations.
+
+The [tree builder](../../packages/zig/transit-core/src/pages.zig) also collects
+independent leaf rewrites under one parent into batches of at most eight pages.
+Previously each affected leaf was staged before visiting its sibling, even when
+their writes had no dependency. Only the parent needs those persisted locators.
+The buffer lives at the leaf frontier, so its page count does not multiply with
+recursive height or the command's larger private metadata budget. A failed or
+partial acknowledgement returns no candidate root; already accepted pages can
+remain unreachable. The [fault tests](../../packages/zig/transit-core/src/pages_test.zig)
+exercise real opaque locators and lose each leaf/parent acknowledgement while
+checking all values at the retained root.
 
 The [compact page codec](../../packages/zig/transit-core/src/PageCodec.zig) uses
 8-entry leaves and 32-child branches. The
@@ -179,6 +194,27 @@ failure behavior. It is not enabled by page batching. A throughput experiment
 must distinguish offered load, admission, queue residence, individual receipts
 and uncertain batch outcomes. The current evidence does not establish a safe
 single-write improvement from group commit or horizontal authority execution.
+
+The [completion campaign](../../tests/mutation_latency/results/2026-10-05/README.md)
+separates these costs empirically. Bounded caller waits and leaf-frontier batches
+reduce console INSERT/UPDATE/DELETE medians from 142/153/138 ms to 113/130/112 ms
+in fresh 140-case controls. Separate instrumented controls reduce median provider
+requests for admission/view/turn from 16/11/29 to 14/8/22. The post-turn-receipt
+observation tail is about 5 ms, followed by about 9 ms for outcome acquisition and
+caller completion. Proxies affect these times; receipts do not timestamp fsync.
+This favors further measured storage work over treating caller polling as the
+whole remaining cost. It does not justify dropping the durable view contract.
+
+The finite overload control offers 48 independently scheduled native sends at
+1 ms intervals with four generator workers: four are admitted and 44 receive
+explicit pre-admission capacity refusal. At 50 ms intervals all 48 are admitted.
+Both controls verify exact accepted receipts and resulting rows after restart;
+refused sends are not retried. The first control also refuses the control command,
+which succeeds after the burst. These observations expose admission contention
+and distinguish refusal from lost accepted work. They are short experiments on
+one serialized authority, with qualification running concurrently, not a
+sustainable SQL throughput or control-latency guarantee. Any concurrent
+preparation or group-commit implementation must preserve those distinctions.
 
 ## Placement and recovery
 

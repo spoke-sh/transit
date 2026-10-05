@@ -71,3 +71,10 @@ explicit `url` and `seed_file`; importing an adapter creates no native handle.
 Port `shutdown` joins and destroys its owners before acknowledging closure.
 Host-task cancellation or lost shutdown acknowledgement does not cancel durable
 work; keep prepared strings and known receipts outside the child process.
+
+Repeated `observe` actions for the same pending input use the shared client's
+bounded notification wait, at most 50 ms per native wait. Every response checks
+current authority; a cached position supplies only a scheduling hint. Wait-slot
+exhaustion uses bounded backoff and an ordinary read. The action never retries a
+mutation or turns a timeout into a terminal result. Joined cancellation and the
+configured transport deadline still apply.

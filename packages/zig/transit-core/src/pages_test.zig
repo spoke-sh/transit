@@ -48,6 +48,63 @@ fn value(index: usize) p.Value {
     return p.Value.init(&buffer) catch unreachable;
 }
 
+test "independent leaf rewrites share bounded batches without publishing partial locators" {
+    try leafBatches(8);
+    try leafBatches(24);
+}
+fn leafBatches(comptime count: usize) !void {
+    const Batched = struct {
+        inner: Store = .{},
+        batches: usize = 0,
+        singles: usize = 0,
+        largest: usize = 0,
+        pub fn load(self: *@This(), ref: p.Reference) !p.Page {
+            return self.inner.load(ref);
+        }
+        pub fn stage(self: *@This(), ref: p.Reference, page: *const p.Page) !p.Reference {
+            self.singles += 1;
+            return self.locate(ref, page);
+        }
+        fn locate(self: *@This(), ref: p.Reference, page: *const p.Page) !p.Reference {
+            var located = ref;
+            std.mem.writeInt(u64, located.location[0..8], self.inner.writes + 1, .big);
+            return self.inner.stage(located, page);
+        }
+        pub fn stageMany(self: *@This(), batch: []const p.Page, output: []p.Reference) !void {
+            try t.expect(batch.len <= p.mutation_batch);
+            self.batches += 1;
+            self.largest = @max(self.largest, batch.len);
+            for (batch, output) |*page, *reference| reference.* = try self.locate(try page.reference(), page);
+        }
+    };
+    var store: Batched = .{};
+    defer store.inner.deinit();
+    const tree: p.BoundedTree(Batched, count) = .{ .store = &store };
+    var root: ?p.Reference = null;
+    for (0..128) |i| root = try tree.put(root, key(i), value(i));
+    var mutations: [count]p.Mutation = undefined;
+    for (&mutations, 0..) |*mutation, i| mutation.* = .{ .key = key(i * 4), .value = value(1000 + i) };
+    store.singles = 0;
+    const before = store.inner.writes;
+    const next = try tree.mutate(root, &mutations);
+    try t.expectEqual(count / p.mutation_batch, store.batches);
+    try t.expectEqual(@as(usize, 1), store.singles);
+    try t.expectEqual(p.mutation_batch, store.largest);
+    const staged = store.inner.writes - before;
+    for (0..128) |i| {
+        try t.expectEqualDeep(value(i), (try tree.get(root, key(i))).?);
+        try t.expectEqualDeep(value(if (i % 4 == 0 and i / 4 < count) 1000 + i / 4 else i), (try tree.get(next, key(i))).?);
+    }
+    // Every accepted-but-lost batch frame and parent acknowledgement fails the
+    // candidate. The original root retains its exact values and references.
+    for (0..staged) |offset| {
+        store.inner.lose_at = store.inner.writes + offset;
+        try t.expectError(error.StagingAcknowledgementLost, tree.mutate(root, &mutations));
+        store.inner.lose_at = null;
+        for (0..128) |i| try t.expectEqualDeep(value(i), (try tree.get(root, key(i))).?);
+    }
+}
+
 test "bounded point batches share paths and preserve input order, absence and failure" {
     var store: Store = .{};
     defer store.deinit();

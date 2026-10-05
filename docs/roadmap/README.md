@@ -52,6 +52,7 @@ before Station, so higher-level abstractions grow on an inspectable kernel.
 | [M42](M42.md) | PostgreSQL and MySQL wire access | Proposed read/write profile; Zig adapters over interactive queries and explicit mutation/catalog owners, durable write recovery, TLS/authentication, typed parameters and independent client qualification |
 | [M43](M43.md) | Durable Table mutation latency | Implemented and locally qualified: shared candidates/caller work, authorized wake-ups, compact pages, provider correction and 75-task clean recovery qualification |
 | [M44](M44.md) | Semantic declarative diagnostics | Complete for reviewed interfaces: durable witnesses, precise attribution, recovery guidance and semantic coverage gates; clean task inventory qualified |
+| [M45](M45.md) | Mutation completion and authority efficiency | Implemented and qualified: bounded completion waits, leaf staging batches, attribution and finite load controls; pending merge |
 
 The historical [pre-Station review](../history/reviews/PRE_STATION.md) led to the completed
 [M8 readiness requirements](M8.md#exit-criteria). Station now builds on the resource

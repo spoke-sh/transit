@@ -299,11 +299,8 @@ fn advance(self: *Self, console: *Console, timing: *Timing) !void {
                         try self.saveTimed(timing);
                     }
                     timing.enter(.wait);
-                    const progress = try self.readOnly(q.TableMutationClient.progress, .{ writer, pending, value.input.? });
-                    if (progress == .pending) {
-                        try self.io.sleep(.fromMilliseconds(50), .awake);
-                        continue;
-                    }
+                    const progress = try self.readOnly(q.TableMutationClient.waitProgress, .{ writer, pending, value.input.? });
+                    if (progress == .pending) continue;
                     timing.enter(.fetch);
                     const current = progress.processed.status;
                     if (progress.processed.disposition) |reason| {

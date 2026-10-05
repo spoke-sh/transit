@@ -126,6 +126,47 @@ def distribution(values):
     return result
 
 
+def completion_timeline(events, started, completed, principal=10):
+    """Correlate only fixed native identities, never decode SQL/value payloads.
+
+    These are proxy request/response observations, not fsync or commit instants.
+    A worker/caller read can finish before the commit receipt reaches its sender.
+    Missing or ambiguous evidence remains explicitly incomplete.
+    """
+    observed = [e for e in events if e.get('response_ns', -1) >= started
+                and e.get('response_ns', completed + 1) <= completed and e.get('status') == 200]
+    sends = [e for e in observed if e.get('operation') == 'update:send'
+             and e.get('principal') == principal]
+    if len(sends) != 1:
+        return {'complete': False, 'reason': 'missing_or_multiple_admissions'}
+    send = sends[0]
+    same = [e for e in observed if e.get('pid') == send['pid'] and e.get('input') == send['position']]
+    views = [e for e in same if e.get('operation') == 'update:open_view']
+    turns = [e for e in same if e.get('operation') in ('update:turn', 'update:turn_with_versions')]
+    if len(views) != 1 or len(turns) != 1:
+        return {'complete': False, 'reason': 'missing_or_multiple_worker_stages'}
+    view, turn = views[0], turns[0]
+    reads = [e for e in observed if e.get('operation') == 'read:process'
+             and e.get('principal') == principal and e.get('pid') == send['pid']
+             and e.get('position', 0) >= send['position']
+             and 'head_input' in e and (e['head_input'] is None or e['head_input'] > send['position'])]
+    if not reads:
+        return {'complete': False, 'reason': 'missing_processed_observation'}
+    read = min(reads, key=lambda e: e['response_ns'])
+    def stage(event):
+        return {'start_ns': event['start_ns'] - started,
+                'response_ns': event['response_ns'] - started,
+                'work': event.get('work')}
+    return {'complete': True, 'admission': stage(send), 'view': stage(view), 'turn': stage(turn),
+            'processed_observed_ns': read['response_ns'] - started,
+            'caller_complete_ns': completed - started,
+            'after_turn_receipt_ns': max(0, read['response_ns'] - turn['response_ns']),
+            'observation_precedes_turn_receipt': read['response_ns'] < turn['response_ns'],
+            'after_processed_observation_ns': completed - read['response_ns'],
+            'caller_process_reads': sum(e.get('operation') == 'read:process' and e.get('principal') == principal for e in observed),
+            'caller_wait_requests': sum(e.get('operation') == 'read:process' and e.get('principal') == principal and e.get('wait_hint', False) for e in observed)}
+
+
 def supervisor_evidence(root):
     """Retain bounded fixed restart causes even when the workload completes."""
     path = root / 'manager-0.stderr'
@@ -228,15 +269,20 @@ def main():
             if case and args.idle_ms:
                 time.sleep(args.idle_ms / 1000)
             before = {name: probe.snapshot() for name, probe in probes.items()}
+            native = probes.get('native')
+            started = time.monotonic_ns() - native.started_ns if native else None
             try:
                 result, measurement = writer.call(sql)
             except Exception:
                 report['unknown_outcomes'] += 1
                 report['failed_sample'] = {'case': case, **writer.last_measurement, 'attempts': {name: dict(probe.snapshot() - before[name]) for name, probe in probes.items()}}
                 raise
+            completed = time.monotonic_ns() - native.started_ns if native else None
             assert result['mutation']['phase'] == 'applied', result
             assert result['mutation']['affected_rows'] == affected, result
             if case:
+                if native:
+                    measurement['completion_timeline'] = completion_timeline(native.trace()['retained'], started, completed)
                 report['samples'].append({'case': case, **measurement,
                     'attempts': {name: dict(probe.snapshot() - before[name]) for name, probe in probes.items()}})
                 save()

@@ -39,6 +39,13 @@ checks mailbox advancement before returning both input disposition and mutation
 status from one authorized resource cut. `prepareNextResult` preserves terminal
 evidence acquired during successor selection. These composed Zig helpers avoid
 redundant reads; the neutral caller's individual actions keep their contracts.
+`waitObserve` and `waitProgress` use a bounded notification hint after observing
+the same exact input pending. They retain only its scheduling position and wait
+at most 50 ms per native wait, with current checks after wake/timeout. Exhausted
+wait admission uses bounded backoff followed by an ordinary authorized read.
+The console and neutral SDK `observe` action use these helpers. A timeout is
+not completion, and observation never resubmits a command. `observe` and
+`progress` remain available for immediate current reads.
 It retains full request identity across caller and writer recovery. Preparing the
 next step requires reconciling the preceding exact command first; a native send
 receipt is admission, and only a terminal mutation status establishes the result.

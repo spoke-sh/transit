@@ -529,7 +529,7 @@
       },
       "open_error_set_uses": 2,
       "propagation": {
-        "try": 106,
+        "try": 105,
         "catch": 4
       },
       "imports": [
@@ -8848,6 +8848,7 @@
     },
     "packages/zig/transit-query/src/TableMutationClient.zig": {
       "errors": {
+        "InvalidAuthorityResponse": 1,
         "InvalidMutationConnection": 2,
         "InvalidMutationPrepared": 9,
         "InvalidMutationRecord": 2,
@@ -8893,10 +8894,12 @@
         "grant()": "<inferred>",
         "inputDisposition()": "<inferred>",
         "observe()": "<inferred>",
+        "observeBounded()": "<inferred>",
         "prepare()": "<inferred>",
         "prepareNew()": "<inferred>",
         "prepareNext()": "<inferred>",
         "prepareNextResult()": "<inferred>",
+        "processed()": "<inferred>",
         "progress()": "<inferred>",
         "reference()": "<inferred>",
         "rejection()": "<inferred>",
@@ -8905,12 +8908,14 @@
         "status()": "<inferred>",
         "statusFrom()": "<inferred>",
         "submit()": "<inferred>",
-        "validate()": "<inferred>"
+        "validate()": "<inferred>",
+        "waitObserve()": "<inferred>",
+        "waitProgress()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 81,
-        "catch": 1
+        "try": 84,
+        "catch": 2
       },
       "imports": [
         "root.zig",

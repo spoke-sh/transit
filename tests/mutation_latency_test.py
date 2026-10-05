@@ -5,10 +5,32 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
-from mutation_latency import Console, supervisor_evidence
+from mutation_latency import Console, supervisor_evidence, completion_timeline
 
 
 class Evidence(unittest.TestCase):
+    def test_completion_timeline_matches_input_and_keeps_receipt_overlap(self):
+        def event(operation, start, end, **fields):
+            return dict(operation=operation, start_ns=start, response_ns=end, status=200, pid=2, **fields)
+        events = [event('update:send', 110, 120, principal=10, position=7),
+                  event('update:open_view', 130, 140, principal=11, input=7),
+                  event('update:turn', 160, 190, principal=11, input=7),
+                  event('read:process', 145, 150, principal=10, position=8, head_input=7),
+                  event('read:process', 155, 185, principal=10, position=10, head_input=None, wait_hint=True),
+                  event('update:turn', 175, 195, principal=11, input=6)]
+        result = completion_timeline(events, 100, 200)
+        self.assertTrue(result['complete'])
+        self.assertEqual(result['turn']['response_ns'], 90)
+        self.assertEqual(result['processed_observed_ns'], 85)
+        self.assertEqual(result['after_processed_observation_ns'], 15)
+        self.assertEqual(result['after_turn_receipt_ns'], 0)
+        self.assertTrue(result['observation_precedes_turn_receipt'])
+        self.assertEqual(result['caller_process_reads'], 2)
+        self.assertEqual(result['caller_wait_requests'], 1)
+        self.assertFalse(completion_timeline(events[1:], 100, 200)['complete'])
+        self.assertFalse(completion_timeline(events + [events[0]], 100, 200)['complete'])
+        self.assertFalse(completion_timeline(events[:4], 100, 200)['complete'])
+
     def test_successful_workload_retains_only_bounded_supervisor_causes(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

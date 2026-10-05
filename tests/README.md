@@ -1,5 +1,92 @@
 # Validation and milestone evidence
 
+## Mutation completion follow-up
+
+The follow-up to merged `96943293` starts with a fresh ReleaseSafe physical-disk
+140-case control: INSERT/UPDATE/DELETE p50 142/153/138 ms. Bounded caller waits
+at `799a7a69` complete the same seven-case control with p50 131/149/129 ms.
+Shared-host measurements do not establish an SLO or isolate host variance.
+The real local-server proof passes forced pending observations with a paused
+Table owner, exhausted wait admission, denied observation and exact saved
+recovery. Ordinary read fallback completes with all wait requests refused;
+denial issues no fallback or repeated mutation. Existing lost-receipt and
+acknowledged-checkpoint recovery schedules also pass. Root unit checks pass.
+An initial development proof used an unsupported INSERT spelling and failed
+before wait admission; the corrected explicit-column schedule passes.
+
+The mutation fixture's instrumented `completion_timeline` correlates one native
+send receipt with view/turn commands at the same PID/input, then the caller's
+processed-input observation. It retains separate request/response coordinates,
+overlapping receipt delivery, caller completion and bounded work counters.
+No row payload, signature or credential enters this trace. Missing or multiple
+stages are incomplete, not zero. Parser/correlation tests cover lost stages,
+ambiguous admission, unrelated inputs and observation before receipt delivery.
+Use `just test::mutation-latency --repeat 3 --instrument --output /var/tmp/completion-counts.json`
+inside the pinned environment. Proxies change timing; use uninstrumented controls
+for ordinary latency.
+
+Leaf-frontier batching passes root unit checks, including a depth-32 tree,
+complete-command staging faults and a separate opaque-locator store. Eight
+independent leaf replacements use one bounded batch plus one parent stage;
+losing any staged acknowledgement preserves every value at the old root.
+The physical packed-page proof (`--keys 256 --cache 2`) passes write, provider
+SIGKILL/recovery, checkpoint and trim recovery, including accepted batch replies
+that are lost, incomplete or partially failed. A development compile failure
+from an extra semicolon was corrected before the passing unit run.
+The bounded-batch unit case also passes 24 leaf replacements across three
+eight-page buffers with every acknowledgement fault. The concurrent-reader
+control completes 140 writes and 1,280 reads without uncertainty or restart.
+
+The original finite offered-load harness assumed all 48 requests were admitted;
+the first four-worker/1 ms run fails on explicit `HttpCapacity` refusals. The
+corrected ReleaseSafe harness records those refusals separately and supplies the
+accepted sender set to its independent Zig drain oracle. The repeated burst
+admits four, refuses 44 and preserves all four receipts and resulting rows through
+node/provider loss. Its control command is refused during the burst and succeeds
+afterward; this is not a control-latency guarantee. Only accepted sends are
+replayed. Other 503s and uncertain exchanges still fail qualification.
+The paced 50 ms control admits all 48, refuses none, preserves revocation and
+passes the same drain/restart checks. Its admitted p50/p95 is 16.4/26.6 ms;
+the later drain takes 2.54 s. Both load controls overlap qualification and are
+native admission experiments, not sustainable end-to-end SQL throughput.
+The cold packed-page proof also passes 1,024 keys with two cache pages, owned
+MinIO, all acknowledgement faults, provider replacement and checkpoint/trim.
+Retained roots stay exact and recovery stages no pages.
+
+The first full check stops at the expected diagnostic-inventory drift from the
+new wait boundary and explicit invalid-response check. Existing semantic mappings
+cover the added cause; the reviewed inventory is regenerated and independent
+mapping checks pass. The second check reaches documentation validation before
+the linked measurement artifact is committed and stops there; the artifact and
+all documentation links subsequently pass. A third check rejects a repository
+test command in the public performance reference; replacing it with the fixture
+link restores the documentation boundary. Full pinned `just check` then passes,
+including 77 Board tests and the documentation site build.
+
+All **75 ordinary CI tasks** pass in one uninterrupted `just ci-clean --work-root
+/var/tmp` run at `be0e03d1547bfa5aadc38c199068f49594e2906c`: core 22, growth 26,
+experience 7, launchers 2 and bindings 18. The isolated checkout installs locked
+frontend dependencies and inherits no workspace build outputs. The
+[qualification record](verification/results/m45-completion-2026-10-05.json)
+embeds every result and completion record, exact revision, toolchain identity,
+commands and log hashes. Its audit matches all ordered ordinary inventory entries
+without gaps or failures. An earlier clean preflight rejects the user's untracked
+DuckDB files; qualification moves to an owned clone without altering those files.
+The first clone run is interrupted to include the documentation correction and
+remains incomplete; the complete run above replaces no failure with a skipped pass.
+
+The final real console recovery proof also passes. The selected exhaustive
+resource campaign runs four seeds, 1,170 traces, 22,652 events and 2,342 executions,
+replaying every trace identically across the observed page/journal/trim fault
+boundaries. Its [raw report](mutation_latency/results/2026-10-05/resource-exhaustive.json.gz)
+retains the finite selection; it does not prove arbitrary-fault correctness.
+The [measurement archive](mutation_latency/results/2026-10-05/README.md) retains
+before/after controls and failed experiments. Browser and external-placement tiers
+and sustained multi-writer SQL throughput are outside this qualification. Runtime
+qualification remains tied to the revision above; later closeout commits change
+only documentation and evidence. This completes the scoped implementation gates
+for [issue #73](https://github.com/rupurt/rey/issues/73), pending merge.
+
 Evidence is scoped to each recorded revision or definition. “Current” in an
 earlier entry refers to that entry's source, not automatically to HEAD. The latest
 [publication-domain cutover](#publication-domains-and-coordinated-caller-cutover)
