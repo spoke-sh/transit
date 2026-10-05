@@ -96,6 +96,32 @@ test "ALTER binds stable identities and source revision; DROP cannot target a re
 test "Table DDL allocation failures release recursive parsed names types and defaults" {
     try e.checkAllAllocationFailures(e.allocator, allocationCase, .{});
 }
+test "Table DDL diagnostics retain actual causes and never classify unknown execution failures" {
+    const diagnostic = @import("SqlDiagnostic.zig");
+    const cases = .{
+        .{ "CREATE TABLE t (id INT NULL PRIMARY KEY)", "sql.nullable_primary_key" },
+        .{ "CREATE TABLE t (name VARCHAR(2) DEFAULT '東京é')", "sql.character_limit_exceeded" },
+        .{ "CREATE TABLE t (n DECIMAL(3,1) DEFAULT 1.25)", "sql.inexact" },
+        .{ "CREATE TABLE t (n INTEGER DEFAULT )", "sql.invalid_sql_syntax" },
+    };
+    inline for (cases) |case| {
+        var location: @import("Sql.zig").Location = .{};
+        if (ddl.compile(e.allocator, case[0], null, &location)) |success| {
+            var owned = success;
+            owned.deinit();
+            return error.ExpectedRejection;
+        } else |cause| {
+            const detail = diagnostic.tableDdl(case[0], cause, location).?;
+            try e.expectEqual(cause, detail.cause);
+            const envelope = try detail.structured();
+            try e.expectEqualStrings(case[1], envelope.code.slice());
+            try e.expectEqual(@import("transit_protocol").Diagnostic.Outcome.not_submitted, envelope.outcome);
+            for (envelope.actions) |slot| if (slot) |action| try e.expect(action.kind != .resume_exact and action.kind != .cancel_mutation);
+        }
+    }
+    try e.expect(diagnostic.tableDdl("CREATE TABLE t (id INT)", error.UnregisteredCallbackFailure, .{}) == null);
+    try e.expect(diagnostic.tableDdl("CREATE TABLE t (id INT)", error.OutOfMemory, .{}) == null);
+}
 test "DDL target extraction is only routing and maps canonicalize keys without losing duplicates" {
     var arena: std.heap.ArenaAllocator = .init(e.allocator);
     defer arena.deinit();

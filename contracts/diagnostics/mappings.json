@@ -3,11 +3,14 @@
   "boundaries": [
     {
       "id": "sql-compilation",
-      "profile": "Finite SQL, prepared parameters, literal Table mutations, offline state declarations and cursor assistance",
+      "profile": "Finite SQL, prepared parameters, literal Table mutations, offline state declarations and cursor assistance, general Table schemas and DDL compilation",
       "owners": [
         "packages/zig/transit-fuze/src/Sql*.zig",
         "packages/zig/transit-fuze/src/Prepared.zig",
-        "packages/zig/transit-fuze/src/Declaration.zig"
+        "packages/zig/transit-fuze/src/Declaration.zig",
+        "packages/zig/transit-fuze/src/TableDdl.zig",
+        "packages/zig/transit-fuze/src/TableSchema.zig",
+        "packages/zig/transit-fuze/src/TableEvolution.zig"
       ],
       "exclude": [
         "packages/zig/transit-fuze/src/SqlCodes.zig",
@@ -60,6 +63,18 @@
             {
               "source": "packages/zig/transit-fuze/src/SqlInput.zig",
               "name": "cursor ranges replace whole tokens and reject split UTF-8 or protected lexical context"
+            }
+          ]
+        },
+        {
+          "source": "packages/zig/transit-fuze/src/TableSchema.zig",
+          "cause": "WriteFailed",
+          "disposition": "control_flow",
+          "reason": "The fixed default-value encoding buffer catches WriteFailed and reports TableSchemaTooLarge before a compiled schema is returned. Caller-owned codec output buffers remain a separate pure encoding boundary.",
+          "tests": [
+            {
+              "source": "packages/zig/transit-fuze/src/table_schema_test.zig",
+              "name": "oversized typed defaults report the schema limit before encoding"
             }
           ]
         }
@@ -249,6 +264,10 @@
           "code": "sql.unsupported_aggregate",
           "category": "unsupported"
         },
+        "UnsupportedSchema": {
+          "code": "sql.unsupported_schema",
+          "category": "unsupported"
+        },
         "UnsupportedAggregateLimit": {
           "code": "sql.unsupported_aggregate_limit",
           "category": "unsupported"
@@ -301,9 +320,217 @@
           "code": "sql.unsupported_table_type",
           "category": "unsupported"
         },
-        "UnsupportedSchema": {
-          "code": "sql.unsupported_schema",
+        "DuplicateMapKey": {
+          "code": "sql.duplicate_map_key",
+          "category": "constraint"
+        },
+        "InvalidLiteral": {
+          "code": "sql.invalid_literal",
+          "category": "binding"
+        },
+        "InvalidMapKey": {
+          "code": "sql.invalid_map_key",
+          "category": "constraint"
+        },
+        "InvalidRowWidth": {
+          "code": "sql.invalid_row_width",
+          "category": "binding"
+        },
+        "InvalidTypeParameters": {
+          "code": "sql.invalid_type_parameters",
+          "category": "binding"
+        },
+        "NullableMapKey": {
+          "code": "sql.nullable_map_key",
+          "category": "constraint"
+        },
+        "TypeBudgetExceeded": {
+          "code": "sql.type_budget_exceeded",
+          "category": "limit"
+        },
+        "ValueBudgetExceeded": {
+          "code": "sql.value_budget_exceeded",
+          "category": "limit"
+        },
+        "UnknownSqlType": {
+          "code": "sql.unknown_sql_type",
           "category": "unsupported"
+        },
+        "UnknownUnionAlternative": {
+          "code": "sql.unknown_union_alternative",
+          "category": "binding"
+        },
+        "UnsupportedNestedCharacterLimit": {
+          "code": "sql.unsupported_nested_character_limit",
+          "category": "unsupported"
+        },
+        "ConflictingTimeZone": {
+          "code": "sql.conflicting_time_zone",
+          "category": "binding"
+        },
+        "InvalidCharacterLimit": {
+          "code": "sql.invalid_character_limit",
+          "category": "binding"
+        },
+        "InvalidDecimal": {
+          "code": "sql.invalid_decimal",
+          "category": "binding"
+        },
+        "UnsupportedBinaryLength": {
+          "code": "sql.unsupported_binary_length",
+          "category": "unsupported"
+        },
+        "UnsupportedCharacterPadding": {
+          "code": "sql.unsupported_character_padding",
+          "category": "unsupported"
+        },
+        "UnsupportedFloatPrecision": {
+          "code": "sql.unsupported_float_precision",
+          "category": "unsupported"
+        },
+        "UnsupportedTemporalPrecision": {
+          "code": "sql.unsupported_temporal_precision",
+          "category": "unsupported"
+        },
+        "UnsupportedTimeZoneType": {
+          "code": "sql.unsupported_time_zone_type",
+          "category": "unsupported"
+        },
+        "DuplicateColumnConstraint": {
+          "code": "sql.duplicate_column_constraint",
+          "category": "constraint"
+        },
+        "DuplicatePrimaryKeyColumn": {
+          "code": "sql.duplicate_primary_key_column",
+          "category": "constraint"
+        },
+        "InvalidPrimaryKey": {
+          "code": "sql.invalid_primary_key",
+          "category": "constraint"
+        },
+        "MultiplePrimaryKeys": {
+          "code": "sql.multiple_primary_keys",
+          "category": "constraint"
+        },
+        "NullablePrimaryKey": {
+          "code": "sql.nullable_primary_key",
+          "category": "constraint"
+        },
+        "TableNotFound": {
+          "code": "sql.table_not_found",
+          "category": "binding"
+        },
+        "TableSchemaRequired": {
+          "code": "sql.table_schema_required",
+          "category": "binding"
+        },
+        "UnsupportedAlterTable": {
+          "code": "sql.unsupported_alter_table",
+          "category": "unsupported"
+        },
+        "UnsupportedCascade": {
+          "code": "sql.unsupported_cascade",
+          "category": "unsupported"
+        },
+        "UnsupportedSchemaConversion": {
+          "code": "sql.unsupported_schema_conversion",
+          "category": "unsupported"
+        },
+        "UnsupportedTableConstraint": {
+          "code": "sql.unsupported_table_constraint",
+          "category": "unsupported"
+        },
+        "InvalidSchemaTransition": {
+          "code": "sql.invalid_schema_transition",
+          "category": "integrity"
+        },
+        "PrimaryKeyColumnRequired": {
+          "code": "sql.primary_key_column_required",
+          "category": "constraint"
+        },
+        "ReusedColumnIdentity": {
+          "code": "sql.reused_column_identity",
+          "category": "integrity"
+        },
+        "RowBufferTooSmall": {
+          "code": "sql.row_buffer_too_small",
+          "category": "limit"
+        },
+        "CharacterLimitExceeded": {
+          "code": "sql.character_limit_exceeded",
+          "category": "constraint"
+        },
+        "DuplicateAssignment": {
+          "code": "sql.duplicate_assignment",
+          "category": "constraint"
+        },
+        "DuplicateColumnIdentity": {
+          "code": "sql.duplicate_column_identity",
+          "category": "integrity"
+        },
+        "InvalidColumnIdentity": {
+          "code": "sql.invalid_column_identity",
+          "category": "integrity"
+        },
+        "InvalidKeyWidth": {
+          "code": "sql.invalid_key_width",
+          "category": "binding"
+        },
+        "InvalidTableDefault": {
+          "code": "sql.invalid_table_default",
+          "category": "binding"
+        },
+        "InvalidTableSchemaEncoding": {
+          "code": "sql.invalid_table_schema_encoding",
+          "category": "integrity"
+        },
+        "InvalidTableSchemaIdentity": {
+          "code": "sql.invalid_table_schema_identity",
+          "category": "integrity"
+        },
+        "NoPrimaryKey": {
+          "code": "sql.no_primary_key",
+          "category": "binding"
+        },
+        "TableConflict": {
+          "code": "sql.table_conflict",
+          "category": "constraint"
+        },
+        "TableSchemaTooLarge": {
+          "code": "sql.table_schema_too_large",
+          "category": "limit"
+        },
+        "TableTypeError": {
+          "code": "sql.table_type_error",
+          "category": "constraint"
+        },
+        "UnsupportedPrimaryKeyType": {
+          "code": "sql.unsupported_primary_key_type",
+          "category": "unsupported"
+        },
+        "UnsupportedTableSchemaDefinition": {
+          "code": "sql.unsupported_table_schema_definition",
+          "category": "unsupported"
+        },
+        "MissingRequiredField": {
+          "code": "sql.missing_required_field",
+          "category": "constraint"
+        },
+        "NullNotAllowed": {
+          "code": "sql.null_not_allowed",
+          "category": "constraint"
+        },
+        "Overflow": {
+          "code": "sql.overflow",
+          "category": "constraint"
+        },
+        "Inexact": {
+          "code": "sql.inexact",
+          "category": "constraint"
+        },
+        "InvalidArrayLength": {
+          "code": "sql.invalid_array_length",
+          "category": "constraint"
         }
       }
     },

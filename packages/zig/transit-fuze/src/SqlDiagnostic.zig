@@ -111,6 +111,19 @@ test "SQL code registry is unique and every entry projects a valid bounded value
 /// return null so transport, permission and uncertain-outcome advice survives.
 /// `inspection` means this interface accepts DESCRIBE/SHOW TABLES/EXPLAIN.
 pub fn query(text: []const u8, cause: anyerror, inspection: bool) ?Self {
+    for (@import("SqlCodes.zig").entries) |entry| if (entry.cause == cause) {
+        if (entry.summary) |summary| return .{
+            .kind = switch (entry.category) {
+                .syntax => .syntax,
+                .unsupported => .unsupported,
+                .limit => .limit,
+                else => .binding,
+            },
+            .cause = cause,
+            .summary = summary,
+            .hint = entry.hint.?,
+        };
+    };
     const semantic = switch (cause) {
         error.InvalidColumnCount => "Check the column count allowed by this source profile.",
         error.InvalidMutationPlan => "Supply one to three distinct typed INSERT rows, one value UPDATE or one primary-key DELETE.",
@@ -223,6 +236,28 @@ pub fn query(text: []const u8, cause: anyerror, inspection: bool) ?Self {
 
 /// Consume context captured by the failing compiler operation, never by a
 /// later catalog read or a guess at similarly spelled source text.
+pub fn tableDdl(text: []const u8, cause: anyerror, location: sql.Location) ?Self {
+    const kind = category(cause) orelse return null;
+    var result = query(text, cause, false) orelse Self{ .kind = .binding, .cause = cause, .summary = "Table declaration cannot be compiled", .hint = "Check the declared types, columns and selected schema lifecycle syntax." };
+    // The existing native declaration parser has a narrower profile. Never
+    // replace a captured general-DDL failure with the result of reparsing it.
+    if (result.cause != cause) result = .{
+        .kind = switch (kind) {
+            .syntax => .syntax,
+            .unsupported => .unsupported,
+            .limit => .limit,
+            else => .binding,
+        },
+        .cause = cause,
+        .summary = "Table declaration cannot be compiled",
+        .hint = "Check the declared types, columns and selected schema lifecycle syntax.",
+    };
+    result.route = .declaration;
+    result.source(text, location);
+    return result;
+}
+
+/// Project binding evidence captured at compilation, without later catalog reads.
 pub fn bound(text: []const u8, cause: anyerror, inspection: bool, binding: sql.Binding) ?Self {
     var result = query(text, cause, inspection) orelse return null;
     result.binding = binding;

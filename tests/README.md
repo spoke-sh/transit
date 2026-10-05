@@ -10639,6 +10639,16 @@ run exposed a duplicate-key diagnostic falling back to `InvalidPrimaryKey`; the
 compiler now retains `DuplicatePrimaryKeyColumn` before binding. This is compiler
 evidence, not console execution or independent ANTLR lifecycle qualification.
 
+The first repository check at this checkpoint stops at a missing mapping for
+`DuplicateMapKey`. Reviewed mappings now cover 113 SQL compiler causes, including
+general DDL/type failures. A second mapping run exposes the bounded schema-default
+writer error; its owner now projects `TableSchemaTooLarge` with an executable
+oversized-default test. The Fuze package suite, diagnostic mappings and inferred
+error-boundary checks pass after these corrections. DDL diagnostics preserve the
+original cause and location and leave unknown/allocator failures unclassified;
+compile rejection never acquires uncertain-write recovery advice. This does not
+constitute a full repository-check or clean-CI pass.
+
 ## Fuze logical type foundation
 
 The local `Types` profile has nine passing focused Zig tests, including 46

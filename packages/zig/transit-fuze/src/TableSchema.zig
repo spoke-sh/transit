@@ -197,7 +197,7 @@ pub const Schema = struct {
             try writer.writeInt(u32, column.max_characters orelse 0, .little);
             try writer.writeByte(@intFromBool(column.default != null));
             if (column.default) |cell| {
-                const encoded = try t.Codec.encode(cell, column.field(), &value);
+                const encoded = t.Codec.encode(cell, column.field(), &value) catch |err| return if (err == error.WriteFailed) error.TableSchemaTooLarge else err;
                 try writer.writeInt(u32, @intCast(encoded.len), .little);
                 try writer.writeAll(encoded);
             }

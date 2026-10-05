@@ -299,6 +299,15 @@
       "reason": "Transport, allocator or callback APIs expose anyerror. Selected known causes are mapped separately; arbitrary external causes cannot be enumerated.",
       "exceptions": {},
       "fallback": "serving"
+    },
+    "sql-table-ddl": {
+      "causes": null,
+      "mappings": [
+        "sql-compilation"
+      ],
+      "reason": "Recursive typed parsing and logical codecs expose anyerror, including allocation failure. Reviewed known causes are mapped; unknown causes remain at their original caller boundary.",
+      "exceptions": {},
+      "fallback": "sql-table-ddl"
     }
   },
   "fallbacks": {
@@ -423,6 +432,10 @@
     "file": {
       "source": "apps/transit-cli/FileDiagnosticTests.zig",
       "name": "file unknown callbacks and storage context preserve original failure and incomplete output"
+    },
+    "sql-table-ddl": {
+      "source": "packages/zig/transit-fuze/src/table_ddl_test.zig",
+      "name": "Table DDL diagnostics retain actual causes and never classify unknown execution failures"
     }
   }
 }

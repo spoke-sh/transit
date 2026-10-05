@@ -232,3 +232,16 @@ test "column IDs are nonzero, unique and below the retained allocation floor" {
     changed.next_column = 40;
     try expect.expectError(error.InvalidColumnIdentity, changed.validate());
 }
+
+test "oversized typed defaults report the schema limit before encoding" {
+    const bytes = try expect.allocator.alloc(u8, s.max_bytes);
+    defer expect.allocator.free(bytes);
+    @memset(bytes, 'x');
+    const oversized: s.Schema = .{ .object = 1, .revision = 1, .next_column = 2, .columns = &.{.{
+        .id = 1,
+        .name = "payload",
+        .type = .binary,
+        .default = text(bytes),
+    }} };
+    try expect.expectError(error.TableSchemaTooLarge, oversized.validate());
+}
