@@ -37,6 +37,16 @@ fixture paths refer to retained local evidence; they are not portable installati
 | [scoped-default](scoped-default.json.gz) | complete | 140 | `c306f8c15b218c2672b32291a5577e6b62de68721c0e4e368a9f3e71a142a515` |
 | [native-diagnostic-client](native-diagnostic-client.json.gz) | failed | 111 | `b81f3df93784cb97cf14154245a08e24f94cfe20679afb4fa7ac2cc1e3f996d3` |
 | [provider-diagnostic-client](provider-diagnostic-client.json.gz) | failed | 273 | `327dd06943e878884da64ef14009cd9179ff6a45054e954d4ba9dc9d601e5151` |
+| [fixed-client-history](fixed-client-history.json.gz) | failed | 700 | `fe9902edcfe1b47cd46bffd8c194423efb231893897ea4b624a44fe6ffb9cd77` |
+| [fixed-default](fixed-default.json.gz) | complete | 700 | `285a5dbb7832f55d915c38f0ed1b6efe1f90a7ff9606885edee71f865fdf78c6` |
+| [fixed-client](fixed-client.json.gz) | complete | 140 | `5260768ee8fad16e6d9c4f7e40dedf6a7e47e548497a3c70cbce3b576033a1a0` |
+| [fixed-rows](fixed-rows.json.gz) | complete | 140 | `22fcccc49306a01acc14389b46c89c347d54659240eaeb2b122936f0cf67124e` |
+| [fixed-history](fixed-history.json.gz) | complete | 140 | `022dd7d8ec1ef9a3898fb45e952806e710c646fc1c595cc19972a6da377a45f2` |
+| [fixed-cache](fixed-cache.json.gz) | complete | 140 | `22e2195a7a82b1fee74f3f529577e0bdc99f1f7d595b2d77762c444a7c0c97f9` |
+| [fixed-readers](fixed-readers.json.gz) | complete | 140 | `f61b064f3239549cde75d60e8e35ad2956ae5ab7d1c95dc4dfeda10ae58e1140` |
+| [fixed-idle](fixed-idle.json.gz) | complete | 140 | `509a11925ba74df3c63a6a1201980454474b5bbd7c8f0c368892ca73ff1ed4d2` |
+| [fixed-pressure](fixed-pressure.json.gz) | complete | 700 | `4f08dbcfcd69f236832dd4c54aeaa1c5dc48821f1d0957bd5f983caccd27c4a7` |
+| [slow-diagnostic-rows](slow-diagnostic-rows.json.gz) | complete | 280 | `e2124059fdfa6241ce0963b51c02d27ac690ee9cd9edb11d2ea377cbb0feaf0c` |
 
 ## Interpretation
 
@@ -118,3 +128,50 @@ planning/publication separation and exact offsets. The hot limit remains 8 MiB.
 The first patched provider build passes all 83 upstream stream units and six
 integration tests. End-to-end qualification of the corrected provider is recorded
 separately; this diagnosis does not retroactively complete failed controls.
+
+## Corrected-provider controls
+
+[Provider build provenance](provider-build.json) identifies the bounded-flush
+correction committed in `4ef3f598`. The frozen `fixed` Transit executables use the
+compact runtime and diagnostics through that source; `fe4b5181` changes only
+documentation. The early declared `9e68a171+bounded-provider-flush` build label
+describes that runtime plus the provider correction; executable hashes and the
+actual runner source revision remain authoritative. Later runner changes retain
+reader failures and bounded supervisor categories. A dirty runner checkout can
+include temporary diagnostic sources that are absent from the frozen binaries.
+
+`fixed-default` and `fixed-pressure` each complete 700 cases. The latter uses a
+fixed 20 ms worker interval and reports no runtime restart. The former records an
+authority-timeout restart; its INSERT/UPDATE/DELETE p50 is 448/492/447 ms, p95
+732/860/578 ms, and maximum statement time is 13.6 seconds during recovery. The
+longer run grows more retained history than the original 140-case baseline.
+These are shared-host controls with simultaneous integration work, not a paired
+speedup comparison or an error-free availability guarantee.
+
+The direct caller, 120-row, 120-update-history, cache-64, one-reader and idle-gap
+controls each complete 140 cases. The 120-row control records two runtime
+authority-timeout restarts. Several controls also record cold-bucket setup
+retries before workload readiness. Those setup events are not mutation failures.
+
+`fixed-client-history` is **failed**: all 700 mutation cases and final row count
+verify with zero uncertain writes, but its reader stops during the supervisor
+restart. Its original runner loses the reader's detailed cause and cannot
+establish continued reader load; no successful workload percentiles are derived
+from it. Its [supervisor sidecar](fixed-client-history-supervisor.json) was
+captured from the owned fixture. Subsequent reports retain reader progress and
+structured failure categories directly.
+
+The [corrected-provider S3 proof](fixed-pages-s3.json) passes 1,024-key writes,
+interrupted batch acknowledgements, retained-root restart, checkpoint and trim
+recovery with two resident cache pages. This proof retains its own source and
+provider provenance; it does not establish mutation latency.
+
+The [slow-request probe](slow-native-diagnostic-only.patch) is temporary and
+unproxied. It completes 280 cases with 120 rows and no restart. The
+[bounded slow samples](slow-diagnostic-events.json) retain 64 of 77 events meeting
+a 500 ms wait/work threshold or reporting failure. One retained sample spends
+1,891 of 1,900 ms in provider I/O across 86 attempts, while another read waits
+1,879 ms before doing 4 ms of work. These observations establish long provider
+work and resulting serialized queueing. They do not directly reproduce or prove
+the cause of every earlier authority timeout, and are not a distribution of all
+requests. The temporary probe is absent from the shipped runtime.
