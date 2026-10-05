@@ -577,6 +577,7 @@ table-schema:
     python3 -B tests/table_schema.py
     zig test packages/zig/transit-fuze/src/TableRow.zig
     zig test packages/zig/transit-fuze/src/TableEvolution.zig
+    zig test packages/zig/transit-fuze/src/SqlTypes.zig
 
 # Independent CSV/JSONL records, schema binding, denial and allocation schedules.
 fuze-sources:

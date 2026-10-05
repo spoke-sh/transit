@@ -52,3 +52,9 @@ preserves existing values by ID, initializes new columns and performs checked
 exact numeric casts. Keep the input schema, change and supplied column scratch
 alive. Storage owns source capture, complete iteration, indexes, publication and
 recovery; successful pure validation does not complete ALTER.
+
+`SqlTypes.resolve` normalizes selected scalar SQL names and validates their
+parameters. Its [alias table](../../../../contracts/TABLE_SCHEMA_V1.md#scalar-sql-type-name-resolver)
+defines widths, decimal defaults, VARCHAR character limits and exact temporal
+precision. Unsupported padding/precision/time-zone semantics reject. A resolved
+descriptor does not imply that a particular SQL transport admits that type.

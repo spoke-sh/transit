@@ -115,6 +115,46 @@ bounded work, fence conflicting publication and atomically publish the successor
 head. A pure transition does not perform these steps. Retained readers continue
 to use their original schema; accepted operations cannot rebind to its successor.
 
+## Scalar SQL type-name resolver
+
+`SqlTypes.resolve(name, parameters, zone)` is a pure name/parameter resolver.
+Its availability does not widen SQL parser or native Table admission. Names
+compare case-insensitively; multiword names use one ASCII space. Every alias
+returns the same logical descriptor as its canonical spelling.
+
+| Spellings | Result |
+| --- | --- |
+| INT8, TINYINT | int8 |
+| INT16, SMALLINT | int16 |
+| INT32, INT, INTEGER | int32 |
+| INT64, BIGINT | int64 |
+| INT128 | int128 |
+| UINT8/16/32/64/128 | corresponding unsigned width |
+| FLOAT32, REAL | float32 |
+| FLOAT64, DOUBLE, DOUBLE PRECISION, FLOAT | float64 |
+| BOOL, BOOLEAN | boolean |
+| UTF8, TEXT, VARCHAR, CHARACTER VARYING | UTF-8 |
+| BINARY, BLOB, BYTEA | binary |
+| DECIMAL, NUMERIC | exact decimal |
+| DATE, TIME, TIMESTAMP, TIMESTAMPTZ, INTERVAL, UUID, JSON | corresponding logical family |
+
+INT8 always means eight bits, including under SQL alias resolution. PostgreSQL's
+internal eight-byte alias is not imported. Numeric display widths reject.
+VARCHAR(n)/CHARACTER VARYING(n) set a positive Unicode-scalar character limit;
+without a parameter they are unbounded within row byte/work limits. TEXT/UTF8
+parameters reject. CHAR/CHARACTER padding and BINARY(n)/VARBINARY length semantics
+are unqualified and reject. FLOAT(p) rejects; FLOAT without p means float64.
+
+DECIMAL/NUMERIC without parameters means (38,0), one parameter selects precision
+with scale zero, and two select precision/scale. Precision is 1–38 and scale is
+0–precision; binding/conversion is exact with no silent rounding.
+TIME has nanosecond precision, admitting an explicit (9); TIMESTAMP has microsecond
+precision, admitting an explicit (6). Other precisions reject rather than being
+ignored. TIMESTAMP defaults to civil; WITH TIME ZONE selects UTC and WITHOUT TIME
+ZONE selects civil. TIMESTAMPTZ means UTC and conflicts with WITHOUT TIME ZONE.
+TIME WITHOUT TIME ZONE is admitted; TIME WITH TIME ZONE rejects. No named-zone,
+calendar conversion, enum/domain/spatial or arbitrary-precision type is implied.
+
 ## Ownership
 
 Borrowed schemas and assignment results retain their original owners. Decode

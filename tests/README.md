@@ -10624,6 +10624,12 @@ read denial and preserves the accepted root after partial candidate storage.
 These use in-memory immutable test stores. They establish candidate semantics,
 not durable Table head publication, a performance comparison or disk recovery.
 
+The scalar SQL name resolver passes 20 focused tests including shared logical
+type dependencies. It normalizes all 37 selected aliases in upper/lower case,
+retains INT8's eight-bit meaning, checks decimal/VARCHAR/temporal parameters and
+rejects unqualified padding, binary lengths, FLOAT precision and time-zone forms.
+These are resolver tests; native DDL admission is not established by them.
+
 ## Fuze logical type foundation
 
 The local `Types` profile has nine passing focused Zig tests, including 46

@@ -6010,6 +6010,40 @@
         "Unified.zig"
       ]
     },
+    "packages/zig/transit-fuze/src/SqlTypes.zig": {
+      "errors": {
+        "ConflictingTimeZone": 1,
+        "InvalidCharacterLimit": 1,
+        "InvalidDecimal": 1,
+        "InvalidTypeParameters": 4,
+        "UnknownSqlType": 1,
+        "UnsupportedBinaryLength": 2,
+        "UnsupportedCharacterPadding": 1,
+        "UnsupportedFloatPrecision": 1,
+        "UnsupportedTemporalPrecision": 1,
+        "UnsupportedTimeZoneType": 2
+      },
+      "outcomes": {
+        "Zone": [
+          "unspecified",
+          "without",
+          "with"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "resolve()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 0,
+        "catch": 0
+      },
+      "imports": [
+        "Types.zig",
+        "std"
+      ]
+    },
     "packages/zig/transit-fuze/src/TableEvolution.zig": {
       "errors": {
         "InvalidColumnCount": 1,
@@ -6906,6 +6940,7 @@
         "Sql.zig",
         "SqlDiagnostic.zig",
         "SqlInput.zig",
+        "SqlTypes.zig",
         "TableEvolution.zig",
         "TableMutation.zig",
         "TableRow.zig",
