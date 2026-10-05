@@ -485,7 +485,8 @@ rules. No mutation value passes through a JavaScript floating-point number.
 Neutral `observe` uses the shared bounded-wait helper. After a pending read of
 the same signed command and input, it may wait up to 50 ms for a publication
 hint before returning a fresh authorized observation. The cached position is
-only a scheduling hint, discarded on errors and when the input is processed.
+only a scheduling hint, discarded after native observation errors and when the
+input is processed. Local prepared-input validation happens before observation.
 Wakeups, timeouts and handle replacement never establish an outcome. Exhausted
 wait admission backs off for 50 ms and uses an ordinary current read, preserving
 progress when all wait slots are occupied. Other failures propagate. Transport

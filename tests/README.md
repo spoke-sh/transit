@@ -58,8 +58,34 @@ new wait boundary and explicit invalid-response check. Existing semantic mapping
 cover the added cause; the reviewed inventory is regenerated and independent
 mapping checks pass. The second check reaches documentation validation before
 the linked measurement artifact is committed and stops there; the artifact and
-all 5,244 documentation links subsequently pass. Clean qualification is
-in progress under [issue #73](https://github.com/rupurt/rey/issues/73).
+all documentation links subsequently pass. A third check rejects a repository
+test command in the public performance reference; replacing it with the fixture
+link restores the documentation boundary. Full pinned `just check` then passes,
+including 77 Board tests and the documentation site build.
+
+All **75 ordinary CI tasks** pass in one uninterrupted `just ci-clean --work-root
+/var/tmp` run at `be0e03d1547bfa5aadc38c199068f49594e2906c`: core 22, growth 26,
+experience 7, launchers 2 and bindings 18. The isolated checkout installs locked
+frontend dependencies and inherits no workspace build outputs. The
+[qualification record](verification/results/m45-completion-2026-10-05.json)
+embeds every result and completion record, exact revision, toolchain identity,
+commands and log hashes. Its audit matches all ordered ordinary inventory entries
+without gaps or failures. An earlier clean preflight rejects the user's untracked
+DuckDB files; qualification moves to an owned clone without altering those files.
+The first clone run is interrupted to include the documentation correction and
+remains incomplete; the complete run above replaces no failure with a skipped pass.
+
+The final real console recovery proof also passes. The selected exhaustive
+resource campaign runs four seeds, 1,170 traces, 22,652 events and 2,342 executions,
+replaying every trace identically across the observed page/journal/trim fault
+boundaries. Its [raw report](mutation_latency/results/2026-10-05/resource-exhaustive.json.gz)
+retains the finite selection; it does not prove arbitrary-fault correctness.
+The [measurement archive](mutation_latency/results/2026-10-05/README.md) retains
+before/after controls and failed experiments. Browser and external-placement tiers
+and sustained multi-writer SQL throughput are outside this qualification. Runtime
+qualification remains tied to the revision above; later closeout commits change
+only documentation and evidence. This completes the scoped implementation gates
+for [issue #73](https://github.com/rupurt/rey/issues/73), pending merge.
 
 Evidence is scoped to each recorded revision or definition. “Current” in an
 earlier entry refers to that entry's source, not automatically to HEAD. The latest

@@ -50,6 +50,20 @@ The S3-compatible cold-page proof also passes 1,024 keys with a two-page cache,
 provider restart, checkpoint/trim and all three batch acknowledgement faults.
 Recovery stages no pages, and retained roots preserve exact values.
 
+The direct-caller controls each complete 140 independently verified cases with no
+uncertainty or observed restart. Baseline INSERT/UPDATE/DELETE p50 is 123/150/145 ms
+and p95 152/177/150 ms; the candidate records p50 113/134/113 ms and p95 128/163/129 ms.
+They run sequentially after clean qualification, without overlapping heavy checks.
+This caller omits console rendering and uses its own fsynced checkpoints for
+exact requests, receipts and terminal outcomes. Its timings compare that caller
+profile; they do not isolate rendering cost or establish console recovery parity.
+
+All 75 ordinary tasks pass in one isolated clean run at `be0e03d1`. The
+[qualification record](../../../verification/results/m45-completion-2026-10-05.json)
+retains every task, full-check and focused-proof outcomes, exact provenance and
+failed development attempts. The selected exhaustive resource control passes
+1,170 traces and 22,652 events with identical replay.
+
 ## Artifacts
 
 Compressed files preserve original report bytes. They contain fixed identities,
@@ -68,6 +82,9 @@ measurements and fixture paths, without credentials or original signed requests.
 | [offered-load-repeat](offered-load-repeat.json.gz) | passed | `6419c342f7f05ca31f424b21e7e5b4f5ee4f1d2380c294bd1eeb7f38b346c544` |
 | [leaf-batches-cold](leaf-batches-cold.json.gz) | passed | `ca223076efa711dbbb751fb3b54e503a1d7623541141e64e4c33c289da635a9f` |
 | [offered-load-paced](offered-load-paced.json.gz) | passed | `c851a0298fa27892b60e96f45ec837fcda65ba3b4ec4d3dd8eee377234fd5203` |
+| [baseline-direct](baseline-direct.json.gz) | complete | `fb141d9b38b09dd5e121f4a33a68974dd87f44736fff81a5891d8af1a58a0b27` |
+| [leaf-batches-direct](leaf-batches-direct.json.gz) | complete | `2b87bd9026c689f453d3fdeb992989534a2f3773ecbeafaa27a970027012c246` |
+| [resource-exhaustive](resource-exhaustive.json.gz) | passed | `c30ac8f4a04d5bf228ca4edcc32eeabae49d1ec8074c2bdd8f624e8b0570cb0b` |
 
 ## Reproduction and limits
 
@@ -78,7 +95,9 @@ After the build completes, run `python3 -B tests/mutation_latency.py
 PREFIX/bin/transit PREFIX/bin/transit-node PREFIX/bin/transit-query-host
 --repeat 20 --build-revision REVISION --output FILE`. Use fresh installations;
 do not reset or reuse another test's authority. `--instrument --repeat 3` selects
-attribution; `--readers 1 --repeat 20` selects the read-contention control.
+attribution; `--readers 1 --repeat 20` selects the read-contention control. Add
+`--client PREFIX/bin/transit-mutation-latency-client --repeat 20` for the separate
+direct-caller profile; run baseline and candidate sequentially after other checks.
 
 `just test::growing-load --rows 64 --cache 8 --workers 4 --interval-ms 1
 --output FILE` selects the separate finite overload profile. Requests are offered

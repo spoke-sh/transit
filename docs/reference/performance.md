@@ -372,7 +372,7 @@ rejected sends are not silently retried. A control command refused during the
 burst is checked separately after it. This native admission experiment does not
 measure simultaneous end-to-end SQL writers or sustainable throughput.
 
-A matched-provider comparison on the shared development host records these
+An earlier matched-provider comparison on the shared development host records these
 single-row distributions, with 20 samples per case. Both use the same corrected
 local Ursula provider, fresh disk fixtures, eight resident pages and default
 workers. Each completes 140 cases with independent row verification:

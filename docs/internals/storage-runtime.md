@@ -195,6 +195,27 @@ must distinguish offered load, admission, queue residence, individual receipts
 and uncertain batch outcomes. The current evidence does not establish a safe
 single-write improvement from group commit or horizontal authority execution.
 
+The [completion campaign](../../tests/mutation_latency/results/2026-10-05/README.md)
+separates these costs empirically. Bounded caller waits and leaf-frontier batches
+reduce console INSERT/UPDATE/DELETE medians from 142/153/138 ms to 113/130/112 ms
+in fresh 140-case controls. Separate instrumented controls reduce median provider
+requests for admission/view/turn from 16/11/29 to 14/8/22. The post-turn-receipt
+observation tail is about 5 ms, followed by about 9 ms for outcome acquisition and
+caller completion. Proxies affect these times; receipts do not timestamp fsync.
+This favors further measured storage work over treating caller polling as the
+whole remaining cost. It does not justify dropping the durable view contract.
+
+The finite overload control offers 48 independently scheduled native sends at
+1 ms intervals with four generator workers: four are admitted and 44 receive
+explicit pre-admission capacity refusal. At 50 ms intervals all 48 are admitted.
+Both controls verify exact accepted receipts and resulting rows after restart;
+refused sends are not retried. The first control also refuses the control command,
+which succeeds after the burst. These observations expose admission contention
+and distinguish refusal from lost accepted work. They are short experiments on
+one serialized authority, with qualification running concurrently, not a
+sustainable SQL throughput or control-latency guarantee. Any concurrent
+preparation or group-commit implementation must preserve those distinctions.
+
 ## Placement and recovery
 
 A provider binding maps a logical PID to physical execution. Provider readiness,
