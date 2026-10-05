@@ -14635,6 +14635,7 @@
         "erase()": "anyerror",
         "get()": "<inferred>",
         "insert()": "anyerror",
+        "inspect()": "<inferred>",
         "leaf()": "<inferred>",
         "load()": "<inferred>",
         "next()": "<inferred>",
@@ -14735,6 +14736,7 @@
           "document",
           "exchange",
           "application_definition",
+          "table",
           "_"
         ],
         "Outcome": [
@@ -15245,6 +15247,40 @@
         "transit_fuze"
       ]
     },
+    "packages/zig/transit-station/src/TableCandidate.zig": {
+      "errors": {
+        "InvalidTableCandidate": 12,
+        "InvalidTableReservation": 1,
+        "TableCandidateCapacity": 2,
+        "TableCandidateSealed": 2
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "Overlay().<return>.append()": "<inferred>",
+        "Overlay().<return>.finish()": "<inferred>",
+        "Overlay().<return>.init()": "<inferred>",
+        "Overlay().<return>.load()": "<inferred>",
+        "Overlay().<return>.loadBlob()": "<inferred>",
+        "Overlay().<return>.local()": "<inferred>",
+        "Overlay().<return>.mark()": "anyerror",
+        "Overlay().<return>.markBlob()": "<inferred>",
+        "Overlay().<return>.save()": "<inferred>",
+        "Overlay().<return>.saveBlob()": "<inferred>"
+      },
+      "open_error_set_uses": 1,
+      "propagation": {
+        "try": 13,
+        "catch": 0
+      },
+      "imports": [
+        "ImmutableIndex.zig",
+        "Publication.zig",
+        "TableData.zig",
+        "std",
+        "transit_fuze"
+      ]
+    },
     "packages/zig/transit-station/src/TableData.zig": {
       "errors": {
         "InvalidTableBlob": 3,
@@ -15307,6 +15343,54 @@
       "imports": [
         "Table.zig",
         "std",
+        "transit_fuze"
+      ]
+    },
+    "packages/zig/transit-station/src/TablePages.zig": {
+      "errors": {
+        "CrossResourceTransaction": 1,
+        "IncompatibleTableStorage": 2,
+        "InvalidTablePage": 11,
+        "InvalidTableStorage": 4,
+        "PublicationLimitsChanged": 1,
+        "PublicationTooLarge": 1,
+        "TablePageBufferTooSmall": 1,
+        "TablePageClosed": 1,
+        "TablePageIdentityConflict": 4,
+        "TablePageNotFound": 1,
+        "TableStorageNotFound": 1
+      },
+      "outcomes": {
+        "Step": [
+          "ready",
+          "progress"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "Reader().<return>.load()": "<inferred>",
+        "Reader().<return>.loadBlob()": "<inferred>",
+        "check()": "<inferred>",
+        "checkManifest()": "<inferred>",
+        "create()": "<inferred>",
+        "encode()": "<inferred>",
+        "read()": "<inferred>",
+        "stage()": "<inferred>",
+        "validate()": "<inferred>",
+        "validateInline()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 30,
+        "catch": 2
+      },
+      "imports": [
+        "ImmutableIndex.zig",
+        "Publication.zig",
+        "TableData.zig",
+        "Turn.zig",
+        "std",
+        "transit_client",
         "transit_fuze"
       ]
     },
@@ -15447,8 +15531,10 @@
         "Registry.zig",
         "Supervisor.zig",
         "Table.zig",
+        "TableCandidate.zig",
         "TableData.zig",
         "TableMutation.zig",
+        "TablePages.zig",
         "Turn.zig",
         "Waiting.zig",
         "transit_client",

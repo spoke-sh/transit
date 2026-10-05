@@ -42,3 +42,18 @@ The Table owner must publish data, indexes, terminal counts and input progress
 atomically, after complete statement validation. It must never expose intermediate
 candidate roots as successful statement prefixes. `TableData` itself performs no
 head publication, catalog mutation or kernel transaction.
+
+`TableCandidate.Overlay` holds one row operation's new records privately and
+marks the final root's reachable records before staging. Intermediate index paths
+are discarded without a storage round trip. The owner supplies a reserved ID
+interval and advances past all consumed IDs, including discarded paths. Memory
+is bounded by three index edits and one row, independent of Table size.
+
+`TablePages` adapts these records to captured or retained growing KV. A mandatory
+namespace manifest binds the shared native definition and record limit. Small
+pages use one inline KV value; larger pages use resumable Publication chunks.
+Both verify exact commitments and current source access. A small keyed insert
+can compose its row, final index page, head and outcome into four private writes.
+Larger candidates require staging turns before a final head decision. The owner
+must preserve input identity, source root and reservation across those turns.
+These helpers do not perform catalog admission or establish end-to-end latency.

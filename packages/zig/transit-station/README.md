@@ -10,7 +10,8 @@ reads, private KV mutations, durable calls, authenticated replies and typed
 quotas, one final visibility decision and resumable cleanup.
 [Ordered indexes](docs/indexes.md) use bounded path copying and resumable candidate
 nodes. [General Table candidates](docs/table-data.md) compose typed rows and
-collision-safe key indexes without publishing a Table head.
+collision-safe key indexes with bounded private overlays and resumable KV pages,
+without publishing a Table head.
 [Services](docs/services.md) provide scoped names, timed waits and supervision
 with a separately authorized controller. [Query capture](docs/queries.md) retains
 sources and publishes verified Arrow results across ordinary durable turns.

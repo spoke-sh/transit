@@ -45,3 +45,54 @@ holds one decoded collision/scan candidate at a time and releases it before the
 next. Small encodings use 4 KiB scratch; larger encodings allocate only within
 the row/key envelope bounds. Total Table size is not a resident-memory bound.
 Owners enforce operation work/deployment quotas and source lifetime separately.
+
+## Private row-operation overlay
+
+`TableCandidate.Overlay` borrows an authorized source and reserves a nonzero,
+exclusive-end record-ID interval. It builds one row operation without writing
+KV. At most three index edits create 195 nodes (two per level and one new root
+per edit) and one bounded row blob. Its allocation bound is 195 × 4096 bytes
+plus the maximum row envelope, independent of Table size. Allocation failure
+discards private bytes; previously accepted roots remain unchanged.
+
+Finishing verifies the successor's new node references and marks only reachable
+nodes and row blobs. Intermediate copied paths are not published. Their IDs
+remain consumed; the owner persists the reservation and never reuses them for
+different content. Child and row references precede their containing node in
+the same candidate interval. The sealed overlay rejects further writes.
+An owner must keep its frozen input/root and reserved interval across staging
+turns; this helper supplies neither an admission record nor a transaction.
+
+## Captured KV page storage
+
+`TablePages` stores records under Publication domain 8 and namespace equal to the
+stable Table object ID in one resource. It requires a namespace manifest before
+every read/write. The `d` key has ID/index zero and stores `STM1`, the exact
+32-byte shared native contract definition, and maximum record bytes:u32le.
+Missing, foreign or malformed definitions reject. Initialization never adopts a
+preexisting budget with a missing manifest. Manifest and Publication budget are
+initialized together; changing the configured limits rejects.
+
+Records of 1–246 bytes use the `i` tag, record ID and index zero. Their value is
+`STP1`, format:u32le, payload length:u16le and payload. Larger records use the
+ordinary Publication descriptor/chunks in the same namespace. Record length
+determines the representation; there is no fallback decoder. A record ID cannot
+change representation or content. Reads verify the complete spec digest and
+namespace definition under the supplied current/retained source. Missing data,
+denial, altered bytes and cross-resource access reject. The known formats are
+index `0x53495801`, row `0x54525701`, and schema `0x54534301` containing `FTS1`.
+
+`stage` returns `ready` or `progress`. A small record prepares one private KV
+write. A larger record performs one Publication begin/append/publish step, using
+at most two private writes. `ready` means the record can be composed into the
+enclosing turn; it does not mean that turn committed or the Table accepted the
+statement. Errors roll back this call's private writes and preserve read-error
+poisoning. Replay compares the immutable identity/spec and cannot overwrite it.
+
+The per-record limit applies to both representations. Publication quotas bound
+unfinished large records; the Table owner separately reserves complete operation
+work and native deployment quotas apply to all retained records. Completed page
+storage alone does not grant permission for admission, head publication, cleanup
+or ID reuse. Cancellation/retirement and reference-safe collection remain owner
+operations. This storage adapter does not publish a native Table head or expose
+the general profile through SQL callers.

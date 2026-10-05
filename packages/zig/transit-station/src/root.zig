@@ -6,6 +6,8 @@ pub const Turn = @import("Turn.zig");
 pub const GenServer = @import("GenServer.zig");
 pub const Table = @import("Table.zig");
 pub const TableData = @import("TableData.zig");
+pub const TableCandidate = @import("TableCandidate.zig");
+pub const TablePages = @import("TablePages.zig");
 pub const TableMutation = @import("TableMutation.zig");
 pub const Publication = @import("Publication.zig");
 pub const PublicationReference = @import("PublicationReference.zig");
@@ -21,6 +23,7 @@ pub const Metadata = @import("Metadata.zig");
 pub const fuze = @import("transit_fuze");
 test {
     _ = TableData;
+    _ = @import("table_pages_test.zig");
     _ = @import("growing_test.zig");
     _ = @import("query_growing_test.zig");
     _ = @import("publication_test.zig");

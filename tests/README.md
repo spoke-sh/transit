@@ -10649,6 +10649,20 @@ original cause and location and leave unknown/allocator failures unclassified;
 compile rejection never acquires uncertain-write recovery advice. This does not
 constitute a full repository-check or clean-CI pass.
 
+The Station package suite passes 65 tests after adding private Table overlays
+and captured-KV page storage. A small keyed insert stages only its row and final
+index leaf and composes a test head/outcome in exactly four private writes.
+Forty rows exercise multiple index levels, a 4 KiB row, lost pre-commit staging,
+retained roots and released Publication staging quota. Negative cases cover
+same-ID content changes, foreign/missing manifests, current denial, cross-resource
+reads, malformed/truncated pages, record limits, allocator failures and rollback
+when turn composition exceeds four writes. Initial development runs reject an
+extra Zig semicolon and a test that incorrectly expected different publication
+inputs to have identical attribution; both are corrected before the passing run.
+These use captured-turn in-memory stores, not a disk-backed Table service or
+native head/admission/recovery integration. Logs are in the owned campaign
+`/var/tmp/transit-table-75-_el6xx0v/table-pages-test3.log`.
+
 ## Fuze logical type foundation
 
 The local `Types` profile has nine passing focused Zig tests, including 46

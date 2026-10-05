@@ -47,7 +47,7 @@ pub fn Bytes(comptime capacity: usize) type {
 fn order(a: Key, b: Key) std.math.Order {
     return std.mem.order(u8, a.slice(), b.slice());
 }
-const Node = struct {
+pub const Node = struct {
     level: u8,
     used: u8,
     items: union { leaves: [fanout]Entry, branches: [fanout]Reference },
@@ -159,6 +159,11 @@ fn load(source: anytype, ref: Reference) !Node {
     const node = try decode(bytes);
     if (node.level != ref.level or !Key.eql(node.minimum(), ref.minimum) or try node.count() != ref.entries) return error.InvalidIndexReference;
     return node;
+}
+/// Read and verify one bounded node. Candidate owners use its references to
+/// publish only reachable pages; inspection conveys no source authority.
+pub fn inspect(source: anytype, ref: Reference) !Node {
+    return load(source, ref);
 }
 fn save(store: anytype, node: Node) !Reference {
     var buffer: [node_bytes]u8 = undefined;

@@ -25,9 +25,12 @@ format is `0x53495801` and its chunk chain covers these exact bytes.
 
 Updates copy only the bounded path to a leaf, split a full node deterministically
 and return a new root. Previously published roots retain their original content.
-A write sink allocates permanent unique record IDs and publishes each node before
-returning its reference. These individual publications do **not** accept a
-Document change. The consumer must atomically publish its validated final root,
+A write sink allocates unique record IDs and makes saved nodes readable through
+the same source during candidate construction. The Publication sink stores nodes
+durably; a bounded private overlay may defer storage until its final reachable
+set is known. Every reachable page must be available by final head publication.
+These individual page operations do **not** accept a
+Document or Table change. The consumer must atomically publish its validated final root,
 input progress and outputs through the ordinary fenced turn. An interrupted
 candidate is recoverable staging or explicitly reclaimable unreachable work;
 capacity failure cannot silently discard previously accepted roots.
@@ -45,6 +48,10 @@ publication commitment through an authorized current or retained source.
 References are never bearer grants. Retaining/releasing a root, retiring a
 Document and deciding whether a node is still reachable are consumer obligations;
 this library never infers permission to trim or delete nodes.
+
+`inspect` returns one verified bounded node for a consumer walking candidate
+references. It performs the same reference, count and commitment validation as
+lookup. It cannot bypass source authorization or prove a root is retained.
 
 Publication read/staging adapters keep an implementation cache of eight
 node bodies (32 KiB plus metadata), independent of total retained history. Each
