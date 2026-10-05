@@ -105,6 +105,11 @@ These plans are separate from read queries. The application invokes Station's
 private-turn helper under its own command authorization; public query transports
 reject mutation statements. See the [Table mutation contract](../../../contracts/TABLE_MUTATION_V1.md).
 
+`TableSchema` supplies the pure general schema/row model with stable column IDs,
+nullable defaults, typed defaults and declared keys. Its owned codec and exact
+bounds are documented in [Table schemas](docs/table-schemas.md). Storage and SQL
+admission retain their separate profiles.
+
 `Sql.parseDeclaration` and `Declaration.compile` parse and validate offline
 `CREATE TABLE`, `CREATE KV` and `CREATE DOCUMENT` definitions. Definitions own
 their names and up to eight Table columns, preserve omitted nullability and

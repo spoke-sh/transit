@@ -10587,6 +10587,24 @@ and `/tmp/transit-local-writes-combined.log`; final unit/lifecycle evidence is i
 `/tmp/transit-local-writes-final.log`. These are working-tree executions, not
 clean committed-HEAD or hosted CI evidence. `just ci-clean`, physical ENOSPC and
 installed SDK matrices were not run for this cutover.
+## General Table schema foundation
+
+`just test::table-schema` checks independently generated Python schema bytes and
+13 row/default/constraint cases, then executes the Zig schema and logical-type
+tests. The 2026-10-05 run passes 28 tests. It covers nonzero/nonreused column IDs,
+omitted nullable cells, explicit NULL versus DEFAULT, required fields, reordered
+assignments, integer overflow, Unicode scalar length, unsupported key types,
+all logical families as non-null typed defaults, nested optional missing versus
+source errors/conflicts, truncated envelopes, foreign definitions, canonical
+flags, ownership and allocation failures. The Python oracle imports no Transit
+implementation and fixes a complete schema encoding and SHA-256 fingerprint.
+
+The Fuze package's `zig build test` also passes with these schema tests enabled.
+This is pure model/codec evidence. It does not qualify generalized native Table
+storage, SQL execution, catalog routing, DDL publication or restart recovery.
+Those remain separate implementation and proof obligations in
+[M46](../docs/roadmap/M46.md) and [#75](https://github.com/rupurt/rey/issues/75).
+
 ## Fuze logical type foundation
 
 The local `Types` profile has nine passing focused Zig tests, including 46

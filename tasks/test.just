@@ -572,6 +572,11 @@ fuze-types:
     python3 -B tests/fuze_types.py
     zig test packages/zig/transit-fuze/src/Types.zig
 
+# General Table schema identities, row constraints and independent byte oracle.
+table-schema:
+    python3 -B tests/table_schema.py
+    zig test packages/zig/transit-fuze/src/TableSchema.zig
+
 # Independent CSV/JSONL records, schema binding, denial and allocation schedules.
 fuze-sources:
     python3 -B tests/fuze_sources.py

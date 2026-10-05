@@ -1,0 +1,209 @@
+{
+  "definition": "transit.table.schema.v1.2026-10-05",
+  "oracle": "Python values/Unicode scalar length/struct",
+  "schema_hex": "46545331227472616e7369742e7461626c652e736368656d612e76312e323032362d31302d303507000000000000000200000000000000320000000000000004000b00000000000000026964260046545931207472616e7369742e66757a652e74797065732e76312e323032362d30392d3330090000000000001b00000000000000046e616d65260046545931207472616e7369742e66757a652e74797065732e76312e323032362d30392d333005010300000000270000000000000006616374697665260046545931207472616e7369742e66757a652e74797065732e76312e323032362d30392d3330040000000000012f00000046564c31260046545931207472616e7369742e66757a652e74797065732e76312e323032362d30392d333004000301280000000000000006616d6f756e74280046545931207472616e7369742e66757a652e74797065732e76312e323032362d30392d333010120201000000000001000b00000000000000",
+  "fingerprint": "61b336e2f27ded27865cb4ab0757cd893c1bd87efb860c15e586b67b4f65c29a",
+  "cases": [
+    {
+      "name": "defaults",
+      "assignments": [
+        {
+          "column": 11,
+          "kind": "integer",
+          "integer": 1
+        }
+      ],
+      "expected": [
+        "int:1",
+        "null",
+        "bool:true",
+        "null"
+      ],
+      "error": null
+    },
+    {
+      "name": "reordered unicode",
+      "assignments": [
+        {
+          "column": 27,
+          "kind": "text",
+          "text": "東京é"
+        },
+        {
+          "column": 11,
+          "kind": "integer",
+          "integer": -12
+        }
+      ],
+      "expected": [
+        "int:-12",
+        "text:東京é",
+        "bool:true",
+        "null"
+      ],
+      "error": null
+    },
+    {
+      "name": "scalar length exceeds",
+      "assignments": [
+        {
+          "column": 11,
+          "kind": "integer",
+          "integer": 1
+        },
+        {
+          "column": 27,
+          "kind": "text",
+          "text": "東京éX"
+        }
+      ],
+      "expected": [],
+      "error": "CharacterLimitExceeded"
+    },
+    {
+      "name": "combining counts separately",
+      "assignments": [
+        {
+          "column": 11,
+          "kind": "integer",
+          "integer": 1
+        },
+        {
+          "column": 27,
+          "kind": "text",
+          "text": "éé"
+        }
+      ],
+      "expected": [],
+      "error": "CharacterLimitExceeded"
+    },
+    {
+      "name": "trailing spaces count",
+      "assignments": [
+        {
+          "column": 11,
+          "kind": "integer",
+          "integer": 1
+        },
+        {
+          "column": 27,
+          "kind": "text",
+          "text": "abc "
+        }
+      ],
+      "expected": [],
+      "error": "CharacterLimitExceeded"
+    },
+    {
+      "name": "missing required",
+      "assignments": [],
+      "expected": [],
+      "error": "MissingRequiredField"
+    },
+    {
+      "name": "explicit null",
+      "assignments": [
+        {
+          "column": 11,
+          "kind": "null"
+        }
+      ],
+      "expected": [],
+      "error": "NullNotAllowed"
+    },
+    {
+      "name": "explicit default",
+      "assignments": [
+        {
+          "column": 11,
+          "kind": "integer",
+          "integer": 1
+        },
+        {
+          "column": 39,
+          "kind": "default"
+        }
+      ],
+      "expected": [
+        "int:1",
+        "null",
+        "bool:true",
+        "null"
+      ],
+      "error": null
+    },
+    {
+      "name": "null does not default",
+      "assignments": [
+        {
+          "column": 11,
+          "kind": "integer",
+          "integer": 1
+        },
+        {
+          "column": 39,
+          "kind": "null"
+        }
+      ],
+      "expected": [],
+      "error": "NullNotAllowed"
+    },
+    {
+      "name": "duplicate",
+      "assignments": [
+        {
+          "column": 11,
+          "kind": "integer",
+          "integer": 1
+        },
+        {
+          "column": 11,
+          "kind": "integer",
+          "integer": 2
+        }
+      ],
+      "expected": [],
+      "error": "DuplicateAssignment"
+    },
+    {
+      "name": "unknown identity",
+      "assignments": [
+        {
+          "column": 99,
+          "kind": "default"
+        }
+      ],
+      "expected": [],
+      "error": "UnknownColumn"
+    },
+    {
+      "name": "integer overflow",
+      "assignments": [
+        {
+          "column": 11,
+          "kind": "integer",
+          "integer": 2147483648
+        }
+      ],
+      "expected": [],
+      "error": "Overflow"
+    },
+    {
+      "name": "integer lower boundary",
+      "assignments": [
+        {
+          "column": 11,
+          "kind": "integer",
+          "integer": -2147483648
+        }
+      ],
+      "expected": [
+        "int:-2147483648",
+        "null",
+        "bool:true",
+        "null"
+      ],
+      "error": null
+    }
+  ]
+}

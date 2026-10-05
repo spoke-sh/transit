@@ -18,8 +18,10 @@ pub const Prepared = @import("Prepared.zig");
 pub const SqlDiagnostic = @import("SqlDiagnostic.zig");
 pub const SqlInput = @import("SqlInput.zig");
 pub const TableMutation = @import("TableMutation.zig");
+pub const TableSchema = @import("TableSchema.zig");
 pub const Declaration = @import("Declaration.zig");
 test {
+    _ = TableSchema;
     _ = SqlInput;
     _ = SqlDiagnostic;
     _ = FileQuery;

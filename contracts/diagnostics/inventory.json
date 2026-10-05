@@ -6055,6 +6055,65 @@
         "std"
       ]
     },
+    "packages/zig/transit-fuze/src/TableSchema.zig": {
+      "errors": {
+        "CharacterLimitExceeded": 1,
+        "DuplicateAssignment": 1,
+        "DuplicateColumn": 1,
+        "DuplicateColumnIdentity": 1,
+        "DuplicatePrimaryKeyColumn": 1,
+        "InvalidCharacterLimit": 2,
+        "InvalidColumnCount": 2,
+        "InvalidColumnIdentity": 1,
+        "InvalidPrimaryKey": 2,
+        "InvalidRowWidth": 2,
+        "InvalidTableDefault": 1,
+        "InvalidTableSchemaEncoding": 3,
+        "InvalidTableSchemaIdentity": 1,
+        "NullablePrimaryKey": 1,
+        "RowBufferTooSmall": 2,
+        "TableConflict": 1,
+        "TableSchemaTooLarge": 3,
+        "TableTypeError": 1,
+        "UnknownColumn": 2,
+        "UnsupportedPrimaryKeyType": 1,
+        "UnsupportedTableSchemaDefinition": 1
+      },
+      "outcomes": {
+        "Assignment.value": [
+          "default",
+          "cell"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "Column.check()": "<inferred>",
+        "Schema.assign()": "<inferred>",
+        "Schema.clone()": "<inferred>",
+        "Schema.encode()": "<inferred>",
+        "Schema.fingerprint()": "<inferred>",
+        "Schema.index()": "<inferred>",
+        "Schema.insert()": "<inferred>",
+        "Schema.named()": "<inferred>",
+        "Schema.rowType()": "<inferred>",
+        "Schema.update()": "<inferred>",
+        "Schema.validate()": "<inferred>",
+        "Schema.validateRow()": "<inferred>",
+        "Schema.write()": "<inferred>",
+        "boolean()": "<inferred>",
+        "decode()": "<inferred>",
+        "stored()": "anyerror"
+      },
+      "open_error_set_uses": 1,
+      "propagation": {
+        "try": 74,
+        "catch": 0
+      },
+      "imports": [
+        "Types.zig",
+        "std"
+      ]
+    },
     "packages/zig/transit-fuze/src/TypeDiagnostic.zig": {
       "errors": {},
       "outcomes": {
@@ -6766,6 +6825,7 @@
         "SqlDiagnostic.zig",
         "SqlInput.zig",
         "TableMutation.zig",
+        "TableSchema.zig",
         "Types.zig",
         "Unified.zig",
         "execute.zig",
