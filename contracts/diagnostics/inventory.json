@@ -15435,6 +15435,78 @@
         "transit_fuze"
       ]
     },
+    "packages/zig/transit-station/src/TableWrite.zig": {
+      "errors": {
+        "CrossResourceTransaction": 1,
+        "IncompatibleTableStorage": 1,
+        "InvalidTableHead": 1,
+        "InvalidTableWrite": 4,
+        "InvalidTableWriteStatus": 9,
+        "MutationBudgetExceeded": 5,
+        "RowExists": 2,
+        "RowIdentityExists": 1,
+        "TableBusy": 1,
+        "TableCapacity": 2,
+        "TableRetired": 1,
+        "TableSchemaChanged": 1,
+        "TableWriteBasisChanged": 2,
+        "TableWriteIdentityConflict": 1,
+        "TableWriteNotFound": 1,
+        "WriteFailed": 1
+      },
+      "outcomes": {
+        "Change": [
+          "insert",
+          "update",
+          "delete"
+        ],
+        "Status.rejection": [
+          "none",
+          "row_exists",
+          "row_identity_exists"
+        ],
+        "Status.state": [
+          "building",
+          "applied",
+          "rejected",
+          "cancelled"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "Reference.validate()": "<inferred>",
+        "Request.insertIdentity()": "<inferred>",
+        "Request.reference()": "<inferred>",
+        "Status.decode()": "<inferred>",
+        "Status.encode()": "<inferred>",
+        "Status.validate()": "<inferred>",
+        "apply()": "<inferred>",
+        "cancel()": "<inferred>",
+        "checkPending()": "<inferred>",
+        "completion()": "<inferred>",
+        "increment()": "<inferred>",
+        "record()": "<inferred>",
+        "stageAll()": "<inferred>",
+        "status()": "<inferred>",
+        "step()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 50,
+        "catch": 10
+      },
+      "imports": [
+        "Publication.zig",
+        "TableCandidate.zig",
+        "TableData.zig",
+        "TableHead.zig",
+        "TablePages.zig",
+        "Turn.zig",
+        "std",
+        "transit_client",
+        "transit_fuze"
+      ]
+    },
     "packages/zig/transit-station/src/Turn.zig": {
       "errors": {
         "CorrelationAlreadyUsed": 1,
@@ -15577,6 +15649,7 @@
         "TableHead.zig",
         "TableMutation.zig",
         "TablePages.zig",
+        "TableWrite.zig",
         "Turn.zig",
         "Waiting.zig",
         "transit_client",

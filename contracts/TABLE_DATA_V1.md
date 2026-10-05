@@ -130,3 +130,71 @@ replacement can reset it. Its schema and immutable data remain available to
 separately authorized retained readers and recovery owners; loading a head alone
 does not admit a new read/write or resolve a live catalog name. Catalog DROP
 dependencies, name removal/reuse and physical cleanup remain explicit owner work.
+
+## Single-row publication and recovery
+
+`TableWrite` composes insert/update/delete over this representation. Its caller
+authenticates the principal, applies current read/write/cancel policy and routes
+the exact resource/object on every step. This helper does not infer permission
+from a request, head, receipt or PID. Native commit supplies current grants,
+resource revision validation, ownership and fencing. It performs no network I/O.
+
+A request contains resource, principal, operation, complete captured schema and
+one typed row insertion/replacement or row-identity deletion. Insert identity is
+`(principal + 1, operation, 0)`; root principal zero remains distinguishable and
+the row identity survives later key changes. SQL column assignments and
+predicate/multi-row selection require their separate statement owner. This
+single-row helper does not admit a loop of independently accepted rows as one
+atomic multi-row SQL statement.
+
+Request identity hashes the domain `transit.table.write.v1` followed by NUL,
+the raw 32-byte shared definition, resource/principal/operation:u64le, complete
+schema fingerprint, action:u8 (insert=1, update=2, delete=3), and exact `FTR1` row
+or 20-byte row identity. It recomputes the digest from typed input. Receipt keys
+are `00 57`, object:u64be, principal:u64be, operation:u64be, exactly 26 bytes.
+Different input at the same key rejects rather than overwriting the operation.
+
+The `STW1` receipt is exactly 158 bytes: magic, raw shared definition, resource,
+object, principal and operation (u64 each), request digest (32 bytes), admitted
+input, completed input, source head revision, first record, exclusive-end record,
+matched count and changed count (u64 each), state:u8 and rejection:u8. All value
+integers are little-endian. States are building=1, applied=2, rejected=3 and
+cancelled=4. Rejections are none=0, row exists=1 and row identity exists=2.
+Building has zero completion input; terminal input is nonzero and no earlier
+than admission. This profile's matched/changed counts are at most one, with
+changed no greater than matched. Rejection/cancellation have zero counts.
+Building requires a nonempty reserved range and one changed row. Unknown flags,
+inconsistent counts/identity, truncation and foreign definitions reject.
+
+The owner first builds a bounded private candidate against the current head and
+exact schema. It attempts to compose all needed pages, successor head and terminal
+receipt in one turn. If that cannot fit, it discards that private attempt and
+atomically reserves the complete record range in the head with a building receipt.
+The head still points at the original rows/schema. Its pending identifier is the
+first reserved record ID; this is separate from the caller's operation ID.
+
+Later steps reconstruct the same candidate from frozen input/root and the exact
+reservation. They verify head revision, pending identity, record range and counts
+before resuming page storage. Competing operations receive `TableBusy`; changed
+source/reservation state rejects. Staging does not publish a row prefix. A final
+turn swaps the head, clears pending work and saves exact terminal counts together.
+No returned private status is durable until native commit accepts the whole turn.
+Allocation/validation failures restore this call's private proposal, retaining
+read-error poisoning. A bounded staging turn may commit ready pages and continue
+later when final head/receipt writes would exceed the shared mutation budget.
+
+Exact terminal repeats return the original receipt before reading the current
+head/schema. Deleting a conflicting row does not convert an earlier rejection
+into an insertion. Retiring or replacing a catalog name does not rebind the
+original operation. Same-value updates match one/change zero; absent updates or
+deletes match/change zero. These counts are saved at publication, never reread
+from later Table state.
+
+Cancellation atomically clears this reservation's pending head and closes its
+receipt while preserving original data and the nondecreasing record floor.
+Repeated cancellation returns that terminal result; an applied write remains
+applied. Immutable candidate pages and any unfinished Publication quota remain
+retained for separate, authorized reference-safe cleanup. Cancellation itself
+does not reclaim bytes, reuse IDs, change earlier results or erase recovery
+evidence. Native caller/SQL admission and disk-fault qualification are separate
+from this captured-turn coordinator.

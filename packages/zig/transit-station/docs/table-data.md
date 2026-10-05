@@ -65,3 +65,17 @@ the complete expected head before preparing a successor. The owner composes its
 receipt and input progress in that same turn. Retirement cannot be reset, while
 separately authorized retained readers can still decode the original schema and
 data. This helper does not implement catalog DROP, name reuse or write admission.
+
+`TableWrite.step` coordinates one typed insertion, complete-row replacement or
+row-identity deletion. The owner supplies authenticated principal/operation,
+captured schema and current policy. The helper recomputes intent identity, uses a
+four-write direct publication when possible, or reserves IDs and a frozen head
+before resumable staging. The final head and exact matched/changed counts publish
+together. Other writes see `TableBusy` during staging. Repeated terminal intent
+returns its original receipt even after the Table changes or retires.
+
+`cancel` closes reserved work and releases the busy head without reusing IDs or
+erasing receipts. Candidate pages and unfinished storage quota await separate
+cleanup. Every returned result still belongs to the private turn until native
+commit succeeds. This coordinator requires an admission owner and does not
+compile SQL assignments, select predicates or grant access to receipts.

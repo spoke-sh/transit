@@ -9,6 +9,7 @@ const Data = @import("TableData.zig");
 const Candidate = @import("TableCandidate.zig");
 const Pages = @import("TablePages.zig");
 const Head = @import("TableHead.zig");
+const Write = @import("TableWrite.zig");
 const Store = struct {
     state: std.AutoHashMapUnmanaged(p.Value, p.Value) = .empty,
     revision: u64 = 1,
@@ -58,6 +59,18 @@ const Store = struct {
         const pages = try Pages.create(&turn, 9, .{ .record_bytes = f.TableRow.max_bytes, .staging_bytes = f.TableRow.max_bytes * 2, .staging_records = 2 });
         try self.commit(turn);
         return pages;
+    }
+    fn table(self: *Store) !Head {
+        const pages = try self.create();
+        var buffer: [f.TableSchema.max_bytes]u8 = undefined;
+        const bytes = try schema.encode(&buffer);
+        const ref: Pages.Reference = .{ .id = 1, .spec = try Pub.Digest.of(Pages.schema_format, bytes) };
+        var turn = try self.capture();
+        try t.expectEqual(.ready, try pages.stage(&turn, ref, bytes));
+        const head: Head = .{ .resource = 7, .object = 9, .revision = 1, .schema = ref, .next_record = 2 };
+        try head.create(t.allocator, &turn);
+        try self.commit(turn);
+        return head;
     }
 };
 const schema: f.TableSchema.Schema = .{ .object = 9, .revision = 1, .next_column = 3, .columns = &.{
@@ -346,7 +359,7 @@ fn expectHex(hex: []const u8, bytes: []const u8) !void {
     try t.expectEqualSlices(u8, try std.fmt.hexToBytes(&output, hex), bytes);
 }
 test "typed Table head and page layouts match independent Python bytes" {
-    const Fixture = struct { native_definition: []const u8, manifest_hex: []const u8, inline_hex: []const u8, head_hex: []const u8, head_key_hex: []const u8, page_key_hex: []const u8 };
+    const Fixture = struct { native_definition: []const u8, manifest_hex: []const u8, inline_hex: []const u8, head_hex: []const u8, head_key_hex: []const u8, page_key_hex: []const u8, write_key_hex: []const u8, write_status_hex: []const u8 };
     const fixture = try std.json.parseFromSlice(Fixture, t.allocator, @embedFile("fixtures/table-storage.json"), .{});
     defer fixture.deinit();
     const expected = fixture.value;
@@ -368,6 +381,25 @@ test "typed Table head and page layouts match independent Python bytes" {
     try t.expectEqualDeep(head, try Head.decode(encoded));
     try expectHex(expected.head_key_hex, Head.key(9).slice());
     try expectHex(expected.page_key_hex, Pages.key(9, 'i', 7).slice());
+    const receipt: Write.Status = .{
+        .reference = .{ .resource = 7, .object = 9, .principal = 1, .operation = 21, .digest = @splat(51) },
+        .admitted_input = 12,
+        .completed_input = 15,
+        .basis_revision = 1,
+        .first_record = 2,
+        .end_record = 5,
+        .matched = 1,
+        .changed = 1,
+        .state = .applied,
+    };
+    const receipt_bytes = try receipt.encode();
+    try expectHex(expected.write_key_hex, receipt.reference.key().slice());
+    try expectHex(expected.write_status_hex, receipt_bytes.slice());
+    try t.expectEqualDeep(receipt, try Write.Status.decode(receipt_bytes));
+    for (0..receipt_bytes.len) |length| try t.expectError(error.InvalidTableWriteStatus, Write.Status.decode(try p.Value.init(receipt_bytes.data[0..length])));
+    var wrong = receipt_bytes;
+    wrong.data[4] ^= 1;
+    try t.expectError(error.IncompatibleTableStorage, Write.Status.decode(wrong));
     var store: Store = .{};
     defer store.deinit();
     var turn = try store.capture();
@@ -376,4 +408,208 @@ test "typed Table head and page layouts match independent Python bytes" {
     const bytes = "typed page";
     try t.expectEqual(.ready, try pages.stage(&turn, .{ .id = 7, .spec = try Pub.Digest.of(Pages.schema_format, bytes) }, bytes));
     try expectHex(expected.inline_hex, (try turn.read(Pages.key(9, 'i', 7))).?.slice());
+}
+
+fn insertRequest(operation: u64, key_value: i128, value: []const u8, cells: *[2]f.Types.Values.Cell) Write.Request {
+    cells.* = .{ .{ .value = .{ .atom = .{ .signed = key_value } } }, .{ .value = .{ .atom = .{ .bytes = value } } } };
+    return .{ .resource = 7, .principal = 1, .operation = operation, .schema = schema, .change = .{ .insert = .{ .identity = .{ .origin = 2, .operation = operation, .ordinal = 0 }, .cells = cells } } };
+}
+test "point write publication retains exact counts, rejection and receipts after retirement" {
+    var store: Store = .{};
+    defer store.deinit();
+    const initial = try store.table();
+    var cells: [2]f.Types.Values.Cell = undefined;
+    const request = insertRequest(21, 1, "one", &cells);
+    const ref = try request.reference(t.allocator);
+    var turn = try store.capture();
+    const applied = try Write.step(t.allocator, &turn, request);
+    try t.expectEqual(.applied, applied.state);
+    try t.expectEqual(@as(u64, 1), applied.matched);
+    try t.expectEqual(@as(u64, 1), applied.changed);
+    try t.expectEqual(@as(usize, 4), writes(turn));
+    var before_commit = try store.capture();
+    try t.expectEqualDeep(initial, try Head.load(&before_commit, 9));
+    try t.expectEqual(null, try Write.status(&before_commit, ref));
+    try store.commit(turn);
+    turn = try store.capture();
+    try t.expectEqualDeep(applied, try Write.step(t.allocator, &turn, request));
+    try t.expectEqual(@as(usize, 0), writes(turn));
+    const inserted = try Head.load(&turn, 9);
+
+    var update = request;
+    update.operation = 22;
+    update.change = .{ .update = request.change.insert };
+    const same = try Write.step(t.allocator, &turn, update);
+    try t.expectEqual(.applied, same.state);
+    try t.expectEqual(@as(u64, 1), same.matched);
+    try t.expectEqual(@as(u64, 0), same.changed);
+    try t.expectEqual(@as(usize, 2), writes(turn));
+    try t.expectEqual(inserted.next_record, (try Head.load(&turn, 9)).next_record);
+    try store.commit(turn);
+
+    turn = try store.capture();
+    var duplicate_cells: [2]f.Types.Values.Cell = undefined;
+    const duplicate = insertRequest(23, 1, "two", &duplicate_cells);
+    const rejected = try Write.step(t.allocator, &turn, duplicate);
+    try t.expectEqual(.rejected, rejected.state);
+    try t.expectEqual(.row_exists, rejected.rejection);
+    try t.expectEqual(@as(usize, 1), writes(turn));
+    try store.commit(turn);
+
+    turn = try store.capture();
+    var remove = request;
+    remove.operation = 24;
+    remove.change = .{ .delete = request.change.insert.identity };
+    const removed = try Write.step(t.allocator, &turn, remove);
+    try t.expectEqual(@as(u64, 1), removed.changed);
+    try t.expectEqual(@as(u64, 0), (try Head.load(&turn, 9)).rows);
+    try store.commit(turn);
+    turn = try store.capture();
+    try t.expectEqualDeep(rejected, try Write.step(t.allocator, &turn, duplicate));
+    remove.operation = 25;
+    const absent = try Write.step(t.allocator, &turn, remove);
+    try t.expectEqual(@as(u64, 0), absent.matched);
+    try t.expectEqual(@as(u64, 0), absent.changed);
+    try store.commit(turn);
+
+    turn = try store.capture();
+    const current = try Head.load(&turn, 9);
+    var retired = current;
+    retired.revision += 1;
+    retired.retired = true;
+    try current.replace(&turn, retired);
+    try store.commit(turn);
+    turn = try store.capture();
+    try t.expectEqualDeep(applied, try Write.step(t.allocator, &turn, request));
+    try t.expectEqualDeep(rejected, try Write.step(t.allocator, &turn, duplicate));
+    var conflicting = request;
+    conflicting.change.insert.cells = &duplicate_cells;
+    try t.expectError(error.TableWriteIdentityConflict, Write.step(t.allocator, &turn, conflicting));
+    try t.expectEqual(@as(usize, 0), writes(turn));
+}
+test "large point write reserves before staging, fences competitors and accepts one complete root" {
+    var store: Store = .{};
+    defer store.deinit();
+    const initial = try store.table();
+    var large: [7000]u8 = @splat('x');
+    var cells: [2]f.Types.Values.Cell = undefined;
+    const request = insertRequest(31, 1, &large, &cells);
+    var turn = try store.capture();
+    var result = try Write.step(t.allocator, &turn, request);
+    try t.expectEqual(.building, result.state);
+    try t.expectEqual(@as(usize, 2), writes(turn));
+    try t.expectEqual(@as(u64, 0), (try Head.load(&turn, 9)).rows);
+    try t.expectEqual(initial.next_record, result.first_record);
+    try store.commit(turn);
+    const admitted = result;
+    turn = try store.capture();
+    var other_cells: [2]f.Types.Values.Cell = undefined;
+    const other = insertRequest(32, 2, "blocked", &other_cells);
+    try t.expectError(error.TableBusy, Write.step(t.allocator, &turn, other));
+    try t.expectEqual(@as(usize, 0), writes(turn));
+    var stages: usize = 0;
+    while (result.state == .building) {
+        turn = try store.capture();
+        result = try Write.step(t.allocator, &turn, request);
+        try t.expectEqual(admitted.admitted_input, result.admitted_input);
+        try t.expectEqual(admitted.first_record, result.first_record);
+        try t.expectEqual(admitted.end_record, result.end_record);
+        var observer = try store.capture();
+        try t.expectEqual(@as(u64, 0), (try Head.load(&observer, 9)).rows);
+        try t.expectEqual(.building, (try Write.status(&observer, try request.reference(t.allocator))).?.state);
+        // Discard this private proposal, recompute from the persisted source,
+        // then lose the successful reply by resuming again on the next iteration.
+        turn = try store.capture();
+        result = try Write.step(t.allocator, &turn, request);
+        try store.commit(turn);
+        stages += 1;
+        try t.expect(stages < 64);
+    }
+    try t.expect(stages > 20);
+    try t.expectEqual(.applied, result.state);
+    turn = try store.capture();
+    try t.expectEqualDeep(result, try Write.step(t.allocator, &turn, request));
+    try t.expectEqual(@as(usize, 0), writes(turn));
+    const head = try Head.load(&turn, 9);
+    try t.expectEqual(@as(u64, 1), head.rows);
+    try t.expectEqual(@as(u64, 0), head.pending);
+    try t.expectEqual(admitted.end_record, head.next_record);
+    var reader: Pages.Reader(*Turn) = .{ .pages = .{ .resource = 7, .object = 9 }, .source = &turn };
+    var saved = (try (Data{ .schema = schema, .index = head.index }).get(t.allocator, &reader, request.change.insert.identity)).?;
+    defer saved.deinit();
+    try t.expectEqualStrings(&large, saved.row().cells[1].value.atom.bytes);
+}
+test "point cancellation retains reservation and exact terminal result while new work proceeds" {
+    var store: Store = .{};
+    defer store.deinit();
+    _ = try store.table();
+    var large: [4096]u8 = @splat('x');
+    var cells: [2]f.Types.Values.Cell = undefined;
+    const request = insertRequest(41, 1, &large, &cells);
+    const ref = try request.reference(t.allocator);
+    var turn = try store.capture();
+    const admitted = try Write.step(t.allocator, &turn, request);
+    try store.commit(turn);
+    for (0..2) |_| {
+        turn = try store.capture();
+        try t.expectEqual(.building, (try Write.step(t.allocator, &turn, request)).state);
+        try store.commit(turn);
+    }
+    turn = try store.capture();
+    store.denied = true;
+    try t.expectError(error.AccessDenied, Write.cancel(&turn, ref));
+    try t.expectError(error.AccessDenied, turn.validate());
+    store.denied = false;
+    turn = try store.capture();
+    const cancelled = try Write.cancel(&turn, ref);
+    try t.expectEqual(.cancelled, cancelled.state);
+    try t.expectEqual(@as(usize, 2), writes(turn));
+    try store.commit(turn);
+    turn = try store.capture();
+    const empty = try Head.load(&turn, 9);
+    try t.expectEqual(@as(u64, 0), empty.rows);
+    try t.expectEqual(admitted.end_record, empty.next_record);
+    var next_cells: [2]f.Types.Values.Cell = undefined;
+    const next = insertRequest(42, 2, "next", &next_cells);
+    try t.expectEqual(.applied, (try Write.step(t.allocator, &turn, next)).state);
+    try store.commit(turn);
+    turn = try store.capture();
+    try t.expectEqualDeep(cancelled, try Write.cancel(&turn, ref));
+    try t.expectEqualDeep(cancelled, try Write.step(t.allocator, &turn, request));
+    try t.expectEqual(@as(usize, 0), writes(turn));
+    const budget = try (Pub{ .resource = 7, .domain = .table, .namespace = 9 }).budget(&turn);
+    try t.expectEqual(@as(u32, 1), budget.records);
+}
+
+fn writeAllocationCase(allocator: std.mem.Allocator) !void {
+    var store: Store = .{};
+    defer store.deinit();
+    const initial = try store.table();
+    var cells: [2]f.Types.Values.Cell = undefined;
+    const request = insertRequest(51, 1, "one", &cells);
+    var turn = try store.capture();
+    const before = turn.decision;
+    _ = Write.step(allocator, &turn, request) catch |err| {
+        try t.expectEqualDeep(before, turn.decision);
+        try t.expectEqualDeep(initial, try Head.load(&turn, 9));
+        return err;
+    };
+}
+test "point write allocation and turn-budget failures leave no private accepted prefix" {
+    try t.checkAllAllocationFailures(t.allocator, writeAllocationCase, .{});
+    var store: Store = .{};
+    defer store.deinit();
+    const initial = try store.table();
+    var cells: [2]f.Types.Values.Cell = undefined;
+    const request = insertRequest(51, 1, "one", &cells);
+    var turn = try store.capture();
+    for (0..3) |i| try turn.put(p.Value.integer(@intCast(i)), p.Value.integer(1));
+    const before = turn.decision;
+    try t.expectError(error.MutationBudgetExceeded, Write.step(t.allocator, &turn, request));
+    try t.expectEqualDeep(before, turn.decision);
+    try t.expectEqualDeep(initial, try Head.load(&turn, 9));
+    try t.expectEqual(null, try Write.status(&turn, try request.reference(t.allocator)));
+    var invalid = request;
+    invalid.change.insert.identity.operation += 1;
+    try t.expectError(error.InvalidTableWrite, invalid.reference(t.allocator));
 }

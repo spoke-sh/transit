@@ -10676,6 +10676,19 @@ run takes 904 ms with 22 MiB reported maximum resident memory; this is a test
 process measurement, not a runtime performance result. Full checks and clean CI
 for subsequent head/transaction changes are separate obligations.
 
+The single-row publication coordinator passes **72/72 Station tests**. New cases
+cover exact small-write publication, same-value/absent counts, retained rejection
+after conflict removal, receipts after retirement, changed-intent rejection,
+7 KiB staged rows with discarded pre-commit proposals, competing-write fencing,
+cancellation/current denial, nonreused reservations and later work. Allocation
+failures and a turn with three preexisting private writes restore the complete
+original proposal. Independent Python bytes cover the 158-byte write receipt
+and its full-width key; malformed/foreign records reject. The final suite reports
+1 s and 23 MiB maximum resident memory in `table-write-final-test.log` under the
+same campaign. This remains in-memory captured-turn evidence, without native
+SQL admission, predicate/multi-row publication, disk recovery or latency claims.
+Cancellation retains unfinished Publication quota pending explicit cleanup.
+
 ## Fuze logical type foundation
 
 The local `Types` profile has nine passing focused Zig tests, including 46

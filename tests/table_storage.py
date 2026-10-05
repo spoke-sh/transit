@@ -20,6 +20,9 @@ def fixtures():
     head += struct.pack('<QQQB', 3, 10, 0, 0)
     assert len(head) == 213
     payload = b'typed page'
+    status = b'STW1' + contract + struct.pack('<QQQQ', 7, 9, 1, 21) + bytes([51]) * 32
+    status += struct.pack('<QQQQQQQBB', 12, 15, 1, 2, 5, 1, 1, 2, 0)
+    assert len(status) == 158
     return {
         'native_definition': definition,
         'manifest_hex': (b'STM1' + contract + struct.pack('<I', 65536)).hex(),
@@ -27,6 +30,8 @@ def fixtures():
         'head_hex': head.hex(),
         'head_key_hex': (b'\0P' + struct.pack('>IQBQI', 8, 9, ord('h'), 0, 0)).hex(),
         'page_key_hex': (b'\0P' + struct.pack('>IQBQI', 8, 9, ord('i'), 7, 0)).hex(),
+        'write_key_hex': (b'\0W' + struct.pack('>QQQ', 9, 1, 21)).hex(),
+        'write_status_hex': status.hex(),
     }
 
 
@@ -39,7 +44,7 @@ def main():
         FIXTURE.write_text(encoded)
     elif not FIXTURE.is_file() or FIXTURE.read_text() != encoded:
         raise SystemExit('Typed Table storage fixtures drifted; review the current format before --record.')
-    print('Typed Table storage: independent head, inline page, manifest and namespace bytes passed.')
+    print('Typed Table storage: independent head, page, manifest, write receipt and namespace bytes passed.')
 
 
 if __name__ == '__main__':
