@@ -45,11 +45,20 @@ admits four, refuses 44 and preserves all four receipts and resulting rows throu
 node/provider loss. Its control command is refused during the burst and succeeds
 afterward; this is not a control-latency guarantee. Only accepted sends are
 replayed. Other 503s and uncertain exchanges still fail qualification.
+The paced 50 ms control admits all 48, refuses none, preserves revocation and
+passes the same drain/restart checks. Its admitted p50/p95 is 16.4/26.6 ms;
+the later drain takes 2.54 s. Both load controls overlap qualification and are
+native admission experiments, not sustainable end-to-end SQL throughput.
+The cold packed-page proof also passes 1,024 keys with two cache pages, owned
+MinIO, all acknowledgement faults, provider replacement and checkpoint/trim.
+Retained roots stay exact and recovery stages no pages.
 
 The first full check stops at the expected diagnostic-inventory drift from the
 new wait boundary and explicit invalid-response check. Existing semantic mappings
 cover the added cause; the reviewed inventory is regenerated and independent
-mapping checks pass. Further provider, contention and clean qualification are
+mapping checks pass. The second check reaches documentation validation before
+the linked measurement artifact is committed and stops there; the artifact and
+all 5,244 documentation links subsequently pass. Clean qualification is
 in progress under [issue #73](https://github.com/rupurt/rey/issues/73).
 
 Evidence is scoped to each recorded revision or definition. “Current” in an

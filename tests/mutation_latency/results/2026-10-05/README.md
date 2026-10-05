@@ -40,6 +40,16 @@ The initial control command is also refused and is checked separately after the
 burst. Rejected sends are not retried. This is a finite overload/recovery result,
 not sustainable throughput or simultaneous full SQL mutation capacity.
 
+The paced 50 ms control admits all 48 requests, refuses none, and completes
+revocation during the offered interval. Admitted p50/p95 is 16.4/26.6 ms;
+the subsequent drain takes 2.54 s. All receipts and exact rows survive restart.
+This experiment overlaps qualification and is an admission/recovery control,
+not an isolated end-to-end SQL benchmark.
+
+The S3-compatible cold-page proof also passes 1,024 keys with a two-page cache,
+provider restart, checkpoint/trim and all three batch acknowledgement faults.
+Recovery stages no pages, and retained roots preserve exact values.
+
 ## Artifacts
 
 Compressed files preserve original report bytes. They contain fixed identities,
@@ -56,6 +66,8 @@ measurements and fixture paths, without credentials or original signed requests.
 | [leaf-batches-pages](leaf-batches-pages.json.gz) | passed | `49d9fd295acf9cdeec5228ebbf34d037d5783e1a273cee0075e9151a7dd91b4d` |
 | [offered-load](offered-load.json.gz) | inconclusive | `ac5637bdb2d96e53fdc3c12885d3fd8301c29675b996c8aaa222c28cce907469` |
 | [offered-load-repeat](offered-load-repeat.json.gz) | passed | `6419c342f7f05ca31f424b21e7e5b4f5ee4f1d2380c294bd1eeb7f38b346c544` |
+| [leaf-batches-cold](leaf-batches-cold.json.gz) | passed | `ca223076efa711dbbb751fb3b54e503a1d7623541141e64e4c33c289da635a9f` |
+| [offered-load-paced](offered-load-paced.json.gz) | passed | `c851a0298fa27892b60e96f45ec837fcda65ba3b4ec4d3dd8eee377234fd5203` |
 
 ## Reproduction and limits
 
