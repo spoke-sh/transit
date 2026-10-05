@@ -5,6 +5,7 @@ pub const compute = @import("zarrow_compute");
 pub const model = @import("model.zig");
 pub const execution = @import("execute.zig");
 pub const FileQuery = @import("FileQuery.zig");
+pub const LogicalPredicate = @import("LogicalPredicate.zig");
 pub const FileSource = @import("FileSource.zig");
 pub const SourceCodec = @import("SourceCodec.zig");
 pub const LogicalJson = @import("LogicalJson.zig");

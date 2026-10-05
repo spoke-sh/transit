@@ -10689,6 +10689,11 @@ same campaign. This remains in-memory captured-turn evidence, without native
 SQL admission, predicate/multi-row publication, disk recovery or latency claims.
 Cancellation retains unfinished Publication quota pending explicit cleanup.
 
+Extracting logical predicate atoms/programs from file execution into the shared
+`LogicalPredicate` owner passes the Fuze package suite and semantic mapping gate.
+Existing finite predicate fixtures still exercise the same comparison, state,
+Boolean, ownership and error behavior. This refactor adds no Table SQL admission.
+
 ## Fuze logical type foundation
 
 The local `Types` profile has nine passing focused Zig tests, including 46

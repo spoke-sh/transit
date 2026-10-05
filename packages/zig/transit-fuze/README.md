@@ -19,6 +19,11 @@ The [logical type contract](../../../contracts/FUZE_TYPES_V1.md) specifies codec
 budgets and capability limits. These APIs do not extend SQL, persisted Tables,
 native query plans or Flight. Run `just test::fuze-types` for independent fixtures.
 
+`LogicalPredicate` owns typed scalar predicate atoms and bounded postfix Boolean
+programs over logical rows. File plans use these same primitives; source capture
+and statement admission remain with their callers. NULL/state handling, eager
+evaluation and comparison rejection follow the shared finite-query semantics.
+
 `Type.validateDiagnostic(limits, &failure)` retains the first recursive descriptor
 rejection in an owned `Types.Diagnostic`. `LogicalJson.decodeTypeContext` carries
 that record through JSON descriptor decoding alongside the separate lexical

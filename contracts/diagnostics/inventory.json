@@ -4788,30 +4788,23 @@
     },
     "packages/zig/transit-fuze/src/FileQuery.zig": {
       "errors": {
-        "CellTooLarge": 1,
         "DuplicateProjection": 1,
         "FailedQuery": 1,
         "IncompleteSource": 1,
         "InvalidOutputNames": 1,
         "InvalidProjection": 2,
-        "InvalidQuerySchema": 3,
+        "InvalidQuerySchema": 1,
         "Overflow": 1,
         "SourceChanged": 2,
         "TypeMismatch": 1,
-        "UnknownColumn": 7,
-        "UnsupportedAggregate": 2,
-        "UnsupportedComparison": 2
+        "UnknownColumn": 1,
+        "UnsupportedAggregate": 2
       },
       "outcomes": {
         "Failure.operation": [
           "predicate",
           "count",
           "sum"
-        ],
-        "Plan.Atom": [
-          "all",
-          "state",
-          "compare"
         ],
         "Plan.predicate": [
           "all",
@@ -4827,19 +4820,12 @@
         "Execution.next().<struct>.integer()": "<inferred>",
         "Memory.check()": "<inferred>",
         "Memory.read()": "<inferred>",
-        "Plan.Atom.truth()": "<inferred>",
-        "Plan.Atom.truth().<struct>.order()": "<inferred>",
-        "Plan.Atom.validate()": "<inferred>",
-        "Plan.Atom.validateShape()": "<inferred>",
-        "Plan.Atom.write()": "<inferred>",
         "Plan.fingerprint()": "<inferred>",
         "Plan.matches()": "<inferred>",
         "Plan.outputSchema()": "<inferred>",
         "Plan.validate()": "<inferred>",
         "Plan.validateOutput()": "<inferred>",
         "Plan.validateShape()": "<inferred>",
-        "Program.truth()": "<inferred>",
-        "Program.validate()": "<inferred>",
         "allocationSchedule()": "<inferred>",
         "compile()": "<inferred>",
         "compileDiagnostic()": "<inferred>",
@@ -4847,12 +4833,13 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 73,
+        "try": 62,
         "catch": 6
       },
       "imports": [
         "FileSource.zig",
         "Finite.zig",
+        "LogicalPredicate.zig",
         "PredicateMachine.zig",
         "Sql.zig",
         "SqlLowering.zig",
@@ -5261,6 +5248,42 @@
       },
       "imports": [
         "DescriptorJson.zig",
+        "Types.zig",
+        "std"
+      ]
+    },
+    "packages/zig/transit-fuze/src/LogicalPredicate.zig": {
+      "errors": {
+        "CellTooLarge": 1,
+        "InvalidQuerySchema": 2,
+        "UnknownColumn": 6,
+        "UnsupportedComparison": 2
+      },
+      "outcomes": {
+        "Atom": [
+          "all",
+          "state",
+          "compare"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "Atom.truth()": "<inferred>",
+        "Atom.truth().<struct>.order()": "<inferred>",
+        "Atom.validate()": "<inferred>",
+        "Atom.validateShape()": "<inferred>",
+        "Atom.write()": "<inferred>",
+        "Program.truth()": "<inferred>",
+        "Program.validate()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 11,
+        "catch": 0
+      },
+      "imports": [
+        "Finite.zig",
+        "PredicateMachine.zig",
         "Types.zig",
         "std"
       ]
@@ -7090,6 +7113,7 @@
         "LogicalArrow.zig",
         "LogicalCodec.zig",
         "LogicalJson.zig",
+        "LogicalPredicate.zig",
         "LogicalSchema.zig",
         "Prepared.zig",
         "SourceCodec.zig",

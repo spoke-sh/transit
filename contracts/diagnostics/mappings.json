@@ -3337,6 +3337,7 @@
         "apps/transit-cli/FileQuery.zig",
         "packages/zig/transit-fuze/src/FileFraming.zig",
         "packages/zig/transit-fuze/src/FileQuery.zig",
+        "packages/zig/transit-fuze/src/LogicalPredicate.zig",
         "packages/zig/transit-fuze/src/FileSource.zig",
         "packages/zig/transit-fuze/src/BoundedJson.zig",
         "packages/zig/transit-fuze/src/DescriptorJson.zig",
