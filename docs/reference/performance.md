@@ -77,7 +77,8 @@ attempts**, versus 108 and 553 in the previous fixture. Uninstrumented idle node
 CPU is 0.03 seconds versus 0.18 in this round's baseline. Worker and courier
 polling backs off from 100 ms to one second and resets on activity. Newly queued
 durable work can therefore wait for the next poll; interactive reads do not
-wait for those workers. Event-driven wake-ups remain separate work.
+wait for those workers. These measurements precede the bounded worker
+notifications described with the mutation measurements below.
 
 ## Why the read path is cheaper
 
@@ -327,24 +328,37 @@ are volatile and coalesced; timeout reads cover missed or other-node publication
 An unavailable wait falls back to the bounded worker interval. Fixed worker
 intervals remain a measurement control, not a latency guarantee.
 
-A completed compact-layout control on the shared development host records these
-single-row distributions, with 20 samples per case:
+A matched-provider comparison on the shared development host records these
+single-row distributions, with 20 samples per case. Both use the same corrected
+local Ursula provider, fresh disk fixtures, eight resident pages and default
+workers. Each completes 140 cases with independent row verification:
 
 | Control | INSERT p50 / p95 | UPDATE p50 / p95 | DELETE p50 / p95 |
 | --- | ---: | ---: | ---: |
-| Frozen pre-continuation baseline | 363 / 419 ms | 349 / 413 ms | 345 / 407 ms |
-| Complete candidates and scoped waits | 289 / 359 ms | 294 / 357 ms | 289 / 347 ms |
-| Compact pages with those changes | 144 / 165 ms | 161 / 176 ms | 145 / 164 ms |
-| Compact pages, 1.2-second idle gaps | 150 / 744 ms | 172 / 192 ms | 150 / 166 ms |
+| Frozen earlier implementation | 346 / 404 ms | 334 / 402 ms | 329 / 546 ms |
+| Shared candidates, scoped waits and compact pages | 135 / 154 ms | 152 / 179 ms | 143 / 148 ms |
 
 The [raw campaign and reproduction](../../tests/mutation_latency/results/2026-10-04/README.md)
 retain source/binary hashes, all seven cases, failed controls and instrumentation
-limits. The idle INSERT tail remains visible; these completed runs do not establish
-an error-free workload under arbitrary pressure. A separate instrumented direct
-caller with retained rows/history and one concurrent reader completes 100 samples
-per case, with different proxy/checkpoint costs. Unproxied controls also retain
-unresolved transport failures, so a later completed run cannot certify those
-failures as fixed. Native 503 responses still require exact saved recovery.
+limits. The runs match provider and fixture settings, while shared-host load
+remains uncontrolled. They establish no p99 or latency SLO.
+
+A separate unproxied direct caller completes 700 cases and 5,729 concurrent reads
+with 12 retained rows, six setup updates and a 64-page cache. Its single-row
+INSERT/UPDATE/DELETE p50 is 285/346/285 ms and p95 323/405/323 ms. Independent
+row-count, retained-history, cache, idle-gap, reader and fixed-polling controls
+also complete. Longer loaded default and row-count controls record supervisor
+authority-timeout restarts; the longest default statement takes 13.6 seconds.
+An earlier combined control fails when its concurrent reader stops during a
+restart. Completed repeats do not erase those availability and tail limits.
+
+The local provider includes a bounded cold-flush correction: a small journal
+prefix previously prevented a larger page stream from fitting into the same
+flush batch, eventually producing `ColdBackpressure`. Subsequent chunks now
+use the remaining batch budget. The hot-memory limit and acknowledgement rules
+are unchanged. The official container image remains a separate, unpatched
+provider profile; see the [provider mapping](../../packages/zig/transit-backend-ursula/docs/upstream.md).
+Native 503 responses still require exact saved recovery rather than fresh SQL.
 
 Record the backing filesystem when comparing storage latency. A file-backed WAL
 inside a temporary directory can reside on tmpfs; that run does not measure

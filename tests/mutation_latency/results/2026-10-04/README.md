@@ -195,3 +195,20 @@ INSERT/UPDATE/DELETE p50 changes from 346/334/329 to 135/152/143 ms and p95 from
 404/402/546 to 154/179/148 ms. The gRPC cold-storage diagnostic overlaps part of
 these controls; the larger CI campaign has stopped. This matches configuration
 and provider, not host interference, and establishes no p99 or deployment SLO.
+
+## Clean qualification attempts
+
+The [d4 task results](clean-d4-interrupted.json) and
+[completion metadata](clean-d4-interrupted.meta.json) retain the interrupted old
+provider run after 63 successes. The [4ef results](clean-4ef-interrupted.json) and
+[metadata](clean-4ef-interrupted.meta.json) retain the early stop for a known
+public-document ownership error. Neither is a completed clean suite.
+
+The [fe4 results](clean-fe4-failed.json) and [metadata](clean-fe4-failed.meta.json)
+record 43 successes followed by the gRPC cold-object assertion failure. The
+[diagnostic rerun](cold-pack-diagnosis.json) finds 135 actual shared packs and
+zero individual chunks; the old fixture counted only individual chunks.
+The counter correction preserves spill assertions and tests both pinned paths
+while excluding unrelated metadata. Previously recorded `cold_objects` may
+under-count shared packs; their nonzero assertions still establish actual data
+objects, not total object cardinality. Raw reports remain unchanged.

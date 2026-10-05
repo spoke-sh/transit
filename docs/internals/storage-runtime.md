@@ -104,6 +104,18 @@ provider work before introducing concurrent authority execution. The
 [raw campaign](../../tests/mutation_latency/results/2026-10-04/README.md)
 records the matched controls and failed attempts.
 
+An unproxied 280-case control with 120 retained rows samples slow requests
+separately. One request spends 1,891 of 1,900 ms in provider I/O across 86 attempts;
+another read waits 1,879 ms before doing 4 ms of work. The
+[bounded slow samples](../../tests/mutation_latency/results/2026-10-04/slow-diagnostic-events.json)
+retain 64 of 77 events meeting a 500 ms wait/work threshold or reporting failure.
+They establish that long provider work can occupy serialized access and delay
+other requests. The threshold sample is not an all-request distribution, and
+that control does not reproduce the authority-timeout restarts observed in other
+loaded runs. Short idle lock waits therefore do not establish negligible
+queueing under load. Moving preparation out of serialized access remains subject
+to the publication contracts below.
+
 ### Cold-flush budget starvation
 
 The unproxied mutation campaign also asks whether reducing foreground latency
@@ -129,6 +141,13 @@ The local Nix package owns this correction. Official pinned container images
 remain a separate provider profile. The [campaign evidence](../../tests/mutation_latency/results/2026-10-04/README.md)
 records diagnostic-only build patches and failed runs; a provider category never
 authorizes a fresh retry of an uncertain Transit command.
+
+Corrected-provider controls complete 700-case default and fixed-poll workloads
+without uncertain writes. A separate combined direct-client/history/reader
+repeat completes 700 cases and 5,729 reads without a restart. Other completed
+controls still observe authority-timeout restarts, and the first combined
+control loses its reader. The correction addresses the diagnosed flush-budget
+starvation; it does not establish bounded queueing or uninterrupted availability.
 
 ### Alternatives and contract boundaries
 

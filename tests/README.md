@@ -10930,6 +10930,44 @@ qualification is recorded separately.
 
 ## Durable Table mutation latency
 
+The [2026-10-04 campaign](mutation_latency/results/2026-10-04/README.md) preserves
+all intermediate and corrected-provider reports, fixed diagnostic categories,
+executable hashes, temporary probe patches and failed recovery fixtures. The
+matched-provider comparison completes 140 cases per implementation: one-row
+INSERT/UPDATE/DELETE p50 changes 346/334/329 to 135/152/143 ms, and p95 changes
+404/402/546 to 154/179/148 ms. Each case verifies affected rows and an independent
+read. Both use the corrected Ursula, fresh ext4 installations, default caches
+and workers. Shared-host work remains a confounder; these are not SLOs or p99s.
+
+Corrected-provider default and fixed-20-ms controls each complete 700 cases.
+Independent direct-client, 120-row, 120-update-history, cache-64, reader and
+idle-gap controls complete 140 cases each. The combined direct-client repeat
+completes 700 cases and 5,729 concurrent reads with no uncertainty or restart.
+The earlier combined control remains failed because its reader stopped during
+an authority-timeout restart, despite verification of all 700 writes. Longer
+loaded default/row controls also record supervisor restarts; the longest default
+statement is 13.6 seconds. Setup retries, failed controls and bounded telemetry
+omissions remain visible in the reports.
+
+The temporary provider probe identifies `ProviderColdBackpressure` after 273
+cases. Pinned Ursula's planner left a large second stream unflushed whenever a
+small first stream consumed part of the batch budget. The local Nix correction
+sizes subsequent chunks against remaining budget. Both final upstream checks
+pass: 83 stream units and six integration tests. `just doctor`, full `just check`
+and the corrected-provider 1,024-key S3 proof with two cache pages pass. Official
+container images are not qualified by the local patched-provider results.
+
+The clean run at `d4c1eb3f` was interrupted after 63 passed tasks when the provider
+correction superseded it; the `4ef3f598` run was interrupted after discovering a
+public-document ownership error. Neither is complete. At `fe4b5181`, clean CI
+passes 43 tasks, including the unchanged-deadline physical query-delivery proof,
+then fails the gRPC worker's cold-object count. Diagnostic inspection finds
+actual Ursula `_packs` cold data; the fixture counted only `chunks`. The
+`1fda5643` counter correction recognizes both pinned paths and tests that startup,
+snapshot and empty-directory metadata do not count. Spill requirements, provider
+limits and proof deadlines remain unchanged. A new committed-source full run at
+`3a52d102` is underway; no unreached check is claimed as passed.
+
 Compact-page qualification on 2026-10-04 (the current-definition cutover candidate
 following `213acb3b`) passed root units, `just check`, hot packed/closed disk page
 proofs, the 1,024-key S3 page proof with two cache slots, resource-simulation smoke,
