@@ -19,7 +19,7 @@ pub const Column = struct {
     pub fn field(self: Column) t.Field {
         return .{ .name = self.name, .type = self.type, .nullable = self.nullable };
     }
-    fn check(self: Column, cell: v.Cell) !void {
+    pub fn validateCell(self: Column, cell: v.Cell) !void {
         try cell.validate(self.field(), .{});
         try stored(cell);
         if (self.max_characters) |maximum| {
@@ -98,7 +98,7 @@ pub const Schema = struct {
                 if (std.mem.eql(u8, previous.name, column.name)) return error.DuplicateColumn;
             }
             if (column.max_characters) |limit| if (limit == 0 or column.type != .utf8) return error.InvalidCharacterLimit;
-            if (column.default) |value| try column.check(value);
+            if (column.default) |value| try column.validateCell(value);
         }
         try row_type.validate(.{});
         var names: [max_columns][16]u8 = undefined;
@@ -122,7 +122,7 @@ pub const Schema = struct {
         var fields: [max_columns]t.Field = undefined;
         const row: v.Cell = .{ .value = .{ .structure = cells } };
         try row.validate(.{ .name = "row", .type = try self.rowType(&fields) }, .{});
-        for (cells, self.columns) |cell, column| try column.check(cell);
+        for (cells, self.columns) |cell, column| try column.validateCell(cell);
     }
     pub fn validateKey(self: Schema, cells: []const v.Cell) !void {
         try self.validate();
@@ -132,7 +132,7 @@ pub const Schema = struct {
         for (self.primary_key, cells, 0..) |id, cell, i| {
             const column = self.columns[try self.index(id)];
             fields[i] = column.field();
-            try column.check(cell);
+            try column.validateCell(cell);
         }
         const row: v.Cell = .{ .value = .{ .structure = cells } };
         try row.validate(.{ .name = "key", .type = .{ .structure = fields[0..cells.len] } }, .{});
@@ -140,6 +140,7 @@ pub const Schema = struct {
     /// Output cells borrow the original cells/defaults. The caller retains both
     /// owners. Failure leaves scratch output unusable and publishes nothing.
     pub fn insert(self: Schema, assignments: []const Assignment, output: []v.Cell) ![]const v.Cell {
+        try self.validate();
         try self.validate();
         if (output.len < self.columns.len) return error.RowBufferTooSmall;
         const row = output[0..self.columns.len];
@@ -158,16 +159,29 @@ pub const Schema = struct {
         return row;
     }
     fn assign(self: Schema, assignments: []const Assignment, output: []v.Cell) !void {
+        try self.validateAssignments(assignments);
+        for (assignments) |assignment| {
+            const i = try self.index(assignment.column);
+            output[i] = switch (assignment.value) {
+                .default => self.columns[i].initial(),
+                .cell => |cell| cell,
+            };
+        }
+    }
+    /// Validate a typed patch independently of row existence. Omitted columns
+    /// remain unassigned; explicit DEFAULT must satisfy the column contract.
+    pub fn validateAssignments(self: Schema, assignments: []const Assignment) !void {
+        try self.validate();
         if (assignments.len > self.columns.len) return error.InvalidRowWidth;
         var seen: [max_columns]bool = @splat(false);
         for (assignments) |assignment| {
             const i = try self.index(assignment.column);
             if (seen[i]) return error.DuplicateAssignment;
             seen[i] = true;
-            output[i] = switch (assignment.value) {
+            try self.columns[i].validateCell(switch (assignment.value) {
                 .default => self.columns[i].initial(),
                 .cell => |cell| cell,
-            };
+            });
         }
     }
     pub fn encode(self: Schema, output: []u8) ![]const u8 {

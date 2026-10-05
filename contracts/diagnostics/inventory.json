@@ -5747,6 +5747,7 @@
         "InvalidProjection": 1,
         "InvalidQueryInteger": 1,
         "InvalidQueryScalar": 1,
+        "InvalidQuerySchema": 1,
         "InvalidRowWidth": 1,
         "InvalidSchemaTransition": 1,
         "InvalidSqlEncoding": 1,
@@ -5773,6 +5774,7 @@
         "ParameterGap": 1,
         "ParameterTypeConflict": 1,
         "PredicateTooComplex": 1,
+        "PredicateTooDeep": 1,
         "PrimaryKeyColumnRequired": 1,
         "QuerySourceChanged": 1,
         "ReusedColumnIdentity": 1,
@@ -5800,6 +5802,7 @@
         "UnsupportedCascade": 1,
         "UnsupportedCatalog": 1,
         "UnsupportedCharacterPadding": 1,
+        "UnsupportedComparison": 1,
         "UnsupportedConstruct": 1,
         "UnsupportedDeclaration": 1,
         "UnsupportedDeclarationType": 1,
@@ -5864,7 +5867,7 @@
         "InvalidUtf8": 2,
         "LiteralOutOfRange": 2,
         "LiteralTooLarge": 2,
-        "MutationBatchTooLarge": 2,
+        "MutationBatchTooLarge": 3,
         "NonFiniteValue": 2,
         "NotTableDeclaration": 2,
         "NullPrimaryKey": 2,
@@ -5890,7 +5893,7 @@
         "UnsupportedDeclarationType": 1,
         "UnsupportedLiteral": 1,
         "UnsupportedMutationPredicate": 1,
-        "UnsupportedNullComparison": 2,
+        "UnsupportedNullComparison": 3,
         "UnsupportedSchema": 2,
         "UnsupportedStatement": 2,
         "UnsupportedTableColumnCount": 1,
@@ -5932,7 +5935,7 @@
         "renderStyled()": "<inferred>",
         "structured()": "<inferred>"
       },
-      "open_error_set_uses": 6,
+      "open_error_set_uses": 7,
       "propagation": {
         "try": 55,
         "catch": 29
@@ -6222,6 +6225,60 @@
         "std"
       ]
     },
+    "packages/zig/transit-fuze/src/TableDml.zig": {
+      "errors": {
+        "DuplicateAssignment": 1,
+        "InvalidMutationColumns": 3,
+        "InvalidMutationPlan": 1,
+        "InvalidSqlSyntax": 1,
+        "MutationBatchTooLarge": 2,
+        "PredicateTooComplex": 1,
+        "PredicateTooDeep": 2,
+        "UnknownQualifier": 1,
+        "UnknownSource": 1,
+        "UnsupportedComparison": 1,
+        "UnsupportedMutationPredicate": 1,
+        "UnsupportedNullComparison": 1,
+        "UnsupportedStatement": 1
+      },
+      "outcomes": {
+        "Action": [
+          "insert",
+          "update",
+          "delete"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "Expression.append()": "<inferred>",
+        "Expression.conjunction()": "anyerror",
+        "Expression.disjunction()": "anyerror",
+        "Expression.unary()": "anyerror",
+        "Plan.matches()": "<inferred>",
+        "Plan.validate()": "<inferred>",
+        "columnIndex()": "<inferred>",
+        "compile()": "<inferred>",
+        "header()": "<inferred>",
+        "insert()": "<inferred>",
+        "parseAssignment()": "<inferred>",
+        "target()": "<inferred>",
+        "update()": "<inferred>"
+      },
+      "open_error_set_uses": 3,
+      "propagation": {
+        "try": 79,
+        "catch": 0
+      },
+      "imports": [
+        "Finite.zig",
+        "LogicalPredicate.zig",
+        "Sql.zig",
+        "SqlTyped.zig",
+        "TableSchema.zig",
+        "Types.zig",
+        "std"
+      ]
+    },
     "packages/zig/transit-fuze/src/TableEvolution.zig": {
       "errors": {
         "InvalidColumnCount": 1,
@@ -6379,7 +6436,7 @@
       },
       "error_sets": {},
       "error_returns": {
-        "Column.check()": "<inferred>",
+        "Column.validateCell()": "<inferred>",
         "Schema.assign()": "<inferred>",
         "Schema.clone()": "<inferred>",
         "Schema.encode()": "<inferred>",
@@ -6392,6 +6449,7 @@
         "Schema.storageType()": "<inferred>",
         "Schema.update()": "<inferred>",
         "Schema.validate()": "<inferred>",
+        "Schema.validateAssignments()": "<inferred>",
         "Schema.validateKey()": "<inferred>",
         "Schema.validateRow()": "<inferred>",
         "Schema.write()": "<inferred>",
@@ -6401,7 +6459,7 @@
       },
       "open_error_set_uses": 1,
       "propagation": {
-        "try": 83,
+        "try": 88,
         "catch": 1
       },
       "imports": [
@@ -7122,6 +7180,7 @@
         "SqlInput.zig",
         "SqlTypes.zig",
         "TableDdl.zig",
+        "TableDml.zig",
         "TableEvolution.zig",
         "TableMutation.zig",
         "TableRow.zig",

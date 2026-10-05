@@ -257,6 +257,40 @@ pub fn tableDdl(text: []const u8, cause: anyerror, location: sql.Location) ?Self
     return result;
 }
 
+/// The general typed compiler has already selected the mutation route. Never
+/// reparse its evidence with a narrower grammar or attach saved-write guidance.
+pub fn tableDml(text: []const u8, cause: anyerror, location: sql.Location) ?Self {
+    const kind = category(cause) orelse return null;
+    var result: Self = .{
+        .kind = switch (kind) {
+            .syntax => .syntax,
+            .unsupported => .unsupported,
+            .limit => .limit,
+            else => .binding,
+        },
+        .route = .mutation,
+        .cause = cause,
+        .summary = "Table mutation cannot be compiled",
+        .hint = "Use the bound Table's columns and typed constants; UPDATE accepts constant or DEFAULT assignments and WHERE accepts scalar comparisons and state tests with NOT, AND and OR.",
+    };
+    for (@import("SqlCodes.zig").entries) |entry| if (entry.cause == cause) {
+        if (entry.summary) |summary| {
+            result.summary = summary;
+            result.hint = entry.hint.?;
+        }
+        break;
+    };
+    if (cause == error.MutationBatchTooLarge) {
+        result.summary = "The INSERT row count is outside the statement bound";
+        result.hint = "Use 1 to 1024 rows per INSERT and keep SQL within its 4096-byte statement limit.";
+    } else if (cause == error.UnsupportedNullComparison) {
+        result.summary = "NULL requires a state test";
+        result.hint = "Use IS NULL or IS NOT NULL instead of comparing a value to NULL.";
+    }
+    result.source(text, location);
+    return result;
+}
+
 /// Project binding evidence captured at compilation, without later catalog reads.
 pub fn bound(text: []const u8, cause: anyerror, inspection: bool, binding: sql.Binding) ?Self {
     var result = query(text, cause, inspection) orelse return null;

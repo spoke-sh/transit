@@ -10694,6 +10694,19 @@ Extracting logical predicate atoms/programs from file execution into the shared
 Existing finite predicate fixtures still exercise the same comparison, state,
 Boolean, ownership and error behavior. This refactor adds no Table SQL admission.
 
+The typed DML compiler checkpoint passes **187/187 Fuze tests** and **72/72
+Station tests**. It covers reordered/defaulted multi-row INSERT, duplicate
+unkeyed values, stable assignment IDs, key updates, NULL/Boolean precedence,
+all-row DELETE, exact decimal/date comparisons, nested values, Unicode bindings,
+complete-input rejection and allocation failure. Schema insertion/patch validation
+also rejects an oversized schema before column-index workspace access. An initial
+Zig compile rejects a shadowed helper name; the corrected run passes. Diagnostic
+checks cover 18 inferred boundaries and 116 SQL codes; the mapping gate first
+rejects duplicate ownership of shared predicate errors, then passes with one
+source owner and the separate typed-DML projection. Documentation validation
+passes 5,285 local links across 520 files. These are compiler/captured-turn proofs,
+not native multi-row admission, ANTLR qualification or durable SQL execution.
+
 ## Fuze logical type foundation
 
 The local `Types` profile has nine passing focused Zig tests, including 46

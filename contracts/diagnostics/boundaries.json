@@ -308,6 +308,15 @@
       "reason": "Recursive typed parsing and logical codecs expose anyerror, including allocation failure. Reviewed known causes are mapped; unknown causes remain at their original caller boundary.",
       "exceptions": {},
       "fallback": "sql-table-ddl"
+    },
+    "sql-table-dml": {
+      "causes": null,
+      "mappings": [
+        "sql-compilation"
+      ],
+      "reason": "Recursive typed parsing and logical codecs expose anyerror, including allocation failure. Reviewed known causes are mapped; unknown causes remain at their original caller boundary.",
+      "exceptions": {},
+      "fallback": "sql-table-dml"
     }
   },
   "fallbacks": {
@@ -436,6 +445,10 @@
     "sql-table-ddl": {
       "source": "packages/zig/transit-fuze/src/table_ddl_test.zig",
       "name": "Table DDL diagnostics retain actual causes and never classify unknown execution failures"
+    },
+    "sql-table-dml": {
+      "source": "packages/zig/transit-fuze/src/table_dml_test.zig",
+      "name": "typed DML diagnostics preserve compile rejection without narrow-profile or recovery advice"
     }
   }
 }

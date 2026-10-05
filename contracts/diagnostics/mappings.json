@@ -3,14 +3,15 @@
   "boundaries": [
     {
       "id": "sql-compilation",
-      "profile": "Finite SQL, prepared parameters, literal Table mutations, offline state declarations and cursor assistance, general Table schemas and DDL compilation",
+      "profile": "Finite SQL, prepared parameters, literal Table mutations, offline state declarations and cursor assistance, general Table schemas and DDL compilation, typed Table DML and logical predicates",
       "owners": [
         "packages/zig/transit-fuze/src/Sql*.zig",
         "packages/zig/transit-fuze/src/Prepared.zig",
         "packages/zig/transit-fuze/src/Declaration.zig",
         "packages/zig/transit-fuze/src/TableDdl.zig",
         "packages/zig/transit-fuze/src/TableSchema.zig",
-        "packages/zig/transit-fuze/src/TableEvolution.zig"
+        "packages/zig/transit-fuze/src/TableEvolution.zig",
+        "packages/zig/transit-fuze/src/TableDml.zig"
       ],
       "exclude": [
         "packages/zig/transit-fuze/src/SqlCodes.zig",
@@ -531,6 +532,18 @@
         "InvalidArrayLength": {
           "code": "sql.invalid_array_length",
           "category": "constraint"
+        },
+        "PredicateTooDeep": {
+          "code": "sql.predicate_too_deep",
+          "category": "limit"
+        },
+        "UnsupportedComparison": {
+          "code": "sql.unsupported_comparison",
+          "category": "unsupported"
+        },
+        "InvalidQuerySchema": {
+          "code": "sql.invalid_query_schema",
+          "category": "binding"
         }
       }
     },

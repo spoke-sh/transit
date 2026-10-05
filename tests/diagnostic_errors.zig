@@ -25,6 +25,7 @@ pub fn main(init: std.process.Init) !void {
     try report(&stdout.interface, "sql-template", q.fuze.Sql.parseTemplate);
     try report(&stdout.interface, "sql-declaration", q.fuze.Declaration.compileTableDiagnostic);
     try report(&stdout.interface, "sql-table-ddl", q.fuze.TableDdl.compile);
+    try report(&stdout.interface, "sql-table-dml", q.fuze.TableDml.compile);
     try report(&stdout.interface, "sql-mutation", q.fuze.TableMutation.compileDiagnostic);
     try report(&stdout.interface, "sql-inspection", q.fuze.Sql.parseInspection);
     try report(&stdout.interface, "file-compiler", q.fuze.FileQuery.compileDiagnostic);

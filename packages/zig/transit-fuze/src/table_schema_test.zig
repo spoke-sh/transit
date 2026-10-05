@@ -245,3 +245,15 @@ test "oversized typed defaults report the schema limit before encoding" {
     }} };
     try expect.expectError(error.TableSchemaTooLarge, oversized.validate());
 }
+
+test "insert and patch validation reject an oversized schema before indexing columns" {
+    var excessive: [s.max_columns + 1]s.Column = @splat(columns[0]);
+    excessive[s.max_columns].id = 129;
+    var invalid = schema;
+    invalid.columns = &excessive;
+    invalid.next_column = 130;
+    var output: [s.max_columns + 1]Cell = undefined;
+    const assignments = [_]s.Assignment{.{ .column = 129, .value = .{ .cell = integer(1) } }};
+    try expect.expectError(error.InvalidColumnCount, invalid.insert(&assignments, &output));
+    try expect.expectError(error.InvalidColumnCount, invalid.validateAssignments(&assignments));
+}

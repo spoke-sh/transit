@@ -24,6 +24,12 @@ programs over logical rows. File plans use these same primitives; source capture
 and statement admission remain with their callers. NULL/state handling, eager
 evaluation and comparison rejection follow the shared finite-query semantics.
 
+`TableDml` compiles [typed Table statements](../../../contracts/TABLE_DML_V1.md)
+against a supplied name and complete schema. It owns generalized INSERT rows,
+constant/default UPDATE assignments and DELETE predicates using stable column
+IDs. It performs no source resolution or publication; statement owners retain
+authorization, frozen selection, atomic completion and recovery obligations.
+
 `Type.validateDiagnostic(limits, &failure)` retains the first recursive descriptor
 rejection in an owned `Types.Diagnostic`. `LogicalJson.decodeTypeContext` carries
 that record through JSON descriptor decoding alongside the separate lexical
