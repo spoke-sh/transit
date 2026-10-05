@@ -138,6 +138,11 @@ pub const Page = struct {
 /// Neither method publishes a
 /// resource head. Missing/corrupt pages are errors, never empty state.
 pub fn Tree(comptime Store: type) type {
+    return BoundedTree(Store, mutation_batch);
+}
+/// A private command's record budget can exceed one public mutation batch.
+/// It does not change page geometry, read budgets or provider batch bounds.
+pub fn BoundedTree(comptime Store: type, comptime budget: usize) type {
     return struct {
         const Self = @This();
         store: *Store,
@@ -165,17 +170,24 @@ pub fn Tree(comptime Store: type) type {
             return self.stage(&page);
         }
         fn stages(self: Self, batch: []const Page, output: []Child) !void {
-            if (@hasDecl(Store, "stageMany") and batch.len > 1) {
-                var refs: [mutation_batch]Reference = undefined;
-                try self.store.stageMany(batch, refs[0..batch.len]);
-                for (batch, refs[0..batch.len], output) |*page, ref, *child| {
-                    try ref.verify(page);
-                    child.* = .{ .minimum = page.minimum(), .reference = ref };
-                }
-            } else for (batch, output) |*page, *child| child.* = try self.stage(page);
+            var offset: usize = 0;
+            while (offset < batch.len) {
+                const count = @min(mutation_batch, batch.len - offset);
+                const group = batch[offset..][0..count];
+                const children = output[offset..][0..count];
+                if (@hasDecl(Store, "stageMany") and count > 1) {
+                    var refs: [mutation_batch]Reference = undefined;
+                    try self.store.stageMany(group, refs[0..count]);
+                    for (group, refs[0..count], children) |*page, ref, *child| {
+                        try ref.verify(page);
+                        child.* = .{ .minimum = page.minimum(), .reference = ref };
+                    }
+                } else for (group, children) |*page, *child| child.* = try self.stage(page);
+                offset += count;
+            }
         }
         fn leaves(self: Self, entries: []const Entry, output: *Changed) !void {
-            var batch: [(leaf_entries + mutation_batch + leaf_entries - 1) / leaf_entries]Page = undefined;
+            var batch: [(leaf_entries + budget + leaf_entries - 1) / leaf_entries]Page = undefined;
             const count = std.math.divCeil(usize, entries.len, leaf_entries) catch unreachable;
             for (batch[0..count], 0..) |*page, i| {
                 // Leave room on both sides of a split. Packing the first page
@@ -188,7 +200,7 @@ pub fn Tree(comptime Store: type) type {
             output.count = count;
         }
         fn branches(self: Self, children: []const Child, output: *Changed) !void {
-            var batch: [(branch_children + mutation_batch + branch_children - 1) / branch_children]Page = undefined;
+            var batch: [(branch_children + budget + branch_children - 1) / branch_children]Page = undefined;
             const count = std.math.divCeil(usize, children.len, branch_children) catch unreachable;
             for (batch[0..count], 0..) |*page, i| {
                 const group = children[i * children.len / count .. (i + 1) * children.len / count];
@@ -279,9 +291,9 @@ pub fn Tree(comptime Store: type) type {
         /// Rewrite each affected path once for a bounded atomic candidate.
         /// Staging is immutable; only the caller may publish the returned root.
         pub fn mutate(self: Self, root: ?Reference, mutations: []const Mutation) !?Reference {
-            if (mutations.len > mutation_batch) return error.PageMutationBudget;
+            if (mutations.len > budget) return error.PageMutationBudget;
             if (mutations.len == 0) return root;
-            var sorted: [mutation_batch]Mutation = undefined;
+            var sorted: [budget]Mutation = undefined;
             for (mutations, 0..) |mutation, i| {
                 try mutation.key.validate();
                 if (mutation.key.len == 0) return error.InvalidPageValue;
@@ -310,7 +322,7 @@ pub fn Tree(comptime Store: type) type {
             }
             return error.InvalidPageHeight;
         }
-        const Changed = struct { children: [branch_children + mutation_batch]Child = undefined, count: usize = 0, height: u8 };
+        const Changed = struct { children: [branch_children + budget]Child = undefined, count: usize = 0, height: u8 };
         /// Absorb split growth into sparse neighbors before growing the parent.
         /// Only adjacent pages at this level are loaded, two at a time; roots
         /// and all unaffected descendant references remain immutable.
@@ -343,7 +355,7 @@ pub fn Tree(comptime Store: type) type {
             const level: u8 = if (original) |page| page.height else 0;
             var result: Changed = .{ .height = level };
             if (level == 0) {
-                var merged: [leaf_entries + mutation_batch]Entry = undefined;
+                var merged: [leaf_entries + budget]Entry = undefined;
                 var count: usize = 0;
                 var index: usize = 0;
                 const previous_count: usize = if (original) |page| page.count else 0;
@@ -375,7 +387,7 @@ pub fn Tree(comptime Store: type) type {
                 try self.leaves(merged[0..count], &result);
                 return result;
             }
-            var merged: [branch_children + mutation_batch]Child = undefined;
+            var merged: [branch_children + budget]Child = undefined;
             var count: usize = 0;
             var first: usize = 0;
             const children = original.?.body.branch;

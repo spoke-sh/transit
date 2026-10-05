@@ -132,3 +132,26 @@ scale. The [Ursula page proof](../../transit-backend-ursula/docs/pages.md) addit
 checks cold bounded caches and disk restart/checkpoint/trim. Integration with the
 native authority and Station has separate executable schedules and recorded
 results in the [proof ledger](../../../../tests/README.md).
+
+## Complete command candidates
+
+Send, view open/close, delivery and turn preparation collect their complete
+catalog write set before staging. Point reads include pending replacements and
+deletions. These commands perform no scans over pending changes; such a scan
+fails explicitly instead of reading an earlier cut. Other commands retain their
+existing immediate private staging.
+
+The private budget is derived from native turn limits: three records per closed
+view, one per row plus resource metadata, six per output, three for an effect,
+one process, two retry records, and six per retained-version change. This is 71
+records, independent of retained rows or realm size. Repeated changes to a key
+replace its pending value. The page builder shares affected paths across this
+complete set; provider append batches remain bounded to eight pages. Page
+geometry, encoded bytes, read pages and native mutation limits are unchanged.
+
+Only the completed snapshot is eligible for conditional journal publication.
+Failed validation stages no candidate pages. Staging failure can leave immutable
+orphan bytes but preserves the prior snapshot. A competing publication still
+invalidates the proposal; pending memory never grants authority. The catalog
+unit proof compares against individual writes, retains old roots, and injects
+acknowledgement loss at every staging point.

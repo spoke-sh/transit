@@ -200,3 +200,63 @@ test "catalog mutation validation rejects the whole batch before page I/O" {
     try t.expectEqual(writes, store.writes);
     try t.expectEqualDeep(retained, catalog.snapshot);
 }
+
+test "complete candidates preserve read-your-writes and old roots through every staging failure" {
+    var store: Store = .{};
+    defer store.deinit();
+    var catalog = try c.Catalog(Store).open(&store, .{});
+    for (0..100) |i| try catalog.put(try c.key(.entry, 2, i, ""), @as(u64, i));
+    const original = catalog.snapshot;
+    const Changes = struct {
+        fn apply(candidate: anytype) !void {
+            for (0..40) |i| {
+                const address = try c.key(.entry, 2, i * 3, "");
+                if (i % 3 == 0) try candidate.remove(address) else try candidate.put(address, @as(u64, 500 + i));
+            }
+            // Replacing a pending key consumes no second slot; deletion is a
+            // visible value in the overlay, distinct from "not pending".
+            const address = try c.key(.entry, 2, 1, "");
+            try candidate.put(address, @as(u64, 1000));
+            try t.expectEqual(@as(?u64, 1000), try candidate.get(u64, address));
+            try candidate.remove(address);
+            try t.expectEqual(@as(?u64, null), try candidate.get(u64, address));
+        }
+    };
+    var separate = try c.Catalog(Store).open(&store, original);
+    const before_separate = store.writes;
+    try Changes.apply(&separate);
+    const separate_stages = store.writes - before_separate;
+    var pending: c.Candidate = .{};
+    catalog.pending = &pending;
+    const before = store.writes;
+    try Changes.apply(&catalog);
+    try t.expectEqual(before, store.writes);
+    try t.expectEqualDeep(original, catalog.snapshot);
+    try t.expectError(error.UnflushedCandidateScan, catalog.scan(u64, .{ .namespace = .entry }, null));
+    const observed = try catalog.getMany(u64, &.{ try c.key(.entry, 2, 1, ""), try c.key(.entry, 2, 3, "") });
+    try t.expectEqual(@as(?u64, null), observed[0]);
+    try t.expectEqual(@as(?u64, 501), observed[1]);
+    try catalog.flush();
+    const stages = store.writes - before;
+    try t.expect(stages < separate_stages);
+    try t.expectEqual(separate.snapshot.records, catalog.snapshot.records);
+    for (0..121) |i| {
+        const address = try c.key(.entry, 2, i, "");
+        try t.expectEqual(try separate.get(u64, address), try catalog.get(u64, address));
+    }
+    var retained = try c.Catalog(Store).open(&store, original);
+    try t.expectEqual(@as(?u64, 1), try retained.get(u64, try c.key(.entry, 2, 1, "")));
+    for (0..stages) |fault| {
+        var failed = try c.Catalog(Store).open(&store, original);
+        pending = .{};
+        failed.pending = &pending;
+        try Changes.apply(&failed);
+        store.lose_at = store.writes + fault;
+        try t.expectError(error.StagingAcknowledgementLost, failed.flush());
+        try t.expectEqualDeep(original, failed.snapshot);
+        store.lose_at = null;
+        try failed.flush();
+        try t.expectEqual(catalog.snapshot.records, failed.snapshot.records);
+    }
+    std.debug.print("Complete catalog candidate: {d} separate stages, {d} shared stages; all acknowledgement faults preserved the old root.\n", .{ separate_stages, stages });
+}
