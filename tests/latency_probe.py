@@ -78,6 +78,15 @@ class Probe:
                     event.update(operation=classified, principal=envelope['principal'])
                     if mutation:
                         event['sequence'] = envelope['sequence']
+                        command = envelope['command'][operation]
+                        if operation == 'turn_with_versions':
+                            command = command['turn']
+                        if operation in ('send', 'open_view', 'turn', 'turn_with_versions'):
+                            event['pid'] = command['pid']
+                            if 'input' in command:
+                                event['input'] = command['input']
+                    elif operation == 'process':
+                        event['pid'] = envelope['kind'][operation]
                 with owner.lock:
                     owner.counts['attempts'] += 1
                 try:
@@ -89,6 +98,13 @@ class Probe:
                     data = response.read(4 * 1024 * 1024 + 1)
                     if len(data) > 4 * 1024 * 1024:
                         raise ValueError('fixture response exceeds probe bound')
+                    event['response_ns'] = time.monotonic_ns() - owner.started_ns
+                    if native and response.status == 200 and self.path in ('/v1/query', '/v1/command'):
+                        result = json.loads(data)
+                        event['position'] = result['position']
+                        if not mutation and operation == 'process':
+                            head = result['body']['process']['input']
+                            event['head_input'] = head['position'] if head else None
                     with owner.lock:
                         for label in labels:
                             owner.counts[label] += length if label == 'request_bytes' else 1

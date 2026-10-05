@@ -328,6 +328,22 @@ are volatile and coalesced; timeout reads cover missed or other-node publication
 An unavailable wait falls back to the bounded worker interval. Fixed worker
 intervals remain a measurement control, not a latency guarantee.
 
+Mutation callers also use bounded authorized waits after observing the exact
+admitted input pending. The console and native SDK observation owner retain
+only a scheduling position, never cached permission or completion. They replace
+fixed completion sleeps with waits of at most 50 ms, then read current progress.
+Wait-slot exhaustion uses bounded backoff and ordinary read admission. The
+console still saves its original command and receipt before advancing; denied
+or unavailable observations never authorize another SQL submission.
+
+The instrumented mutation fixture correlates each small request's admission,
+view capture, turn receipt and caller observation by native PID/input identity.
+It reports request/response times and the tail after processed observation.
+These are proxy observations, not exact fsync/commit instants: another reader can
+observe publication before the worker receives its receipt. Missing, ambiguous
+or evicted trace evidence remains explicitly incomplete. Instrumented timing is
+separate from ordinary latency and does not change the console's phase meanings.
+
 A matched-provider comparison on the shared development host records these
 single-row distributions, with 20 samples per case. Both use the same corrected
 local Ursula provider, fresh disk fixtures, eight resident pages and default

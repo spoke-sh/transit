@@ -1,5 +1,31 @@
 # Validation and milestone evidence
 
+## Mutation completion follow-up
+
+The follow-up to merged `96943293` starts with a fresh ReleaseSafe physical-disk
+140-case control: INSERT/UPDATE/DELETE p50 142/153/138 ms. Bounded caller waits
+at `799a7a69` complete the same seven-case control with p50 131/149/129 ms.
+Shared-host measurements do not establish an SLO or isolate host variance.
+The real local-server proof passes forced pending observations with a paused
+Table owner, exhausted wait admission, denied observation and exact saved
+recovery. Ordinary read fallback completes with all wait requests refused;
+denial issues no fallback or repeated mutation. Existing lost-receipt and
+acknowledged-checkpoint recovery schedules also pass. Root unit checks pass.
+An initial development proof used an unsupported INSERT spelling and failed
+before wait admission; the corrected explicit-column schedule passes.
+
+The mutation fixture's instrumented `completion_timeline` correlates one native
+send receipt with view/turn commands at the same PID/input, then the caller's
+processed-input observation. It retains separate request/response coordinates,
+overlapping receipt delivery, caller completion and bounded work counters.
+No row payload, signature or credential enters this trace. Missing or multiple
+stages are incomplete, not zero. Parser/correlation tests cover lost stages,
+ambiguous admission, unrelated inputs and observation before receipt delivery.
+Use `just test::mutation-latency --repeat 3 --instrument --output /var/tmp/completion-counts.json`
+inside the pinned environment. Proxies change timing; use uninstrumented controls
+for ordinary latency. Further provider, contention and clean qualification are
+in progress under [issue #73](https://github.com/rupurt/rey/issues/73).
+
 Evidence is scoped to each recorded revision or definition. “Current” in an
 earlier entry refers to that entry's source, not automatically to HEAD. The latest
 [publication-domain cutover](#publication-domains-and-coordinated-caller-cutover)
