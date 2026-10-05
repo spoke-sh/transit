@@ -171,7 +171,16 @@ fn run(init: std.process.Init, diagnostics: *telemetry.Runtime) !void {
         observation.finish(.{ .name = "query.worker.step", .operation = @tagName(config.role), .level = if (step == .blocked) .err else if (step == .committed) .info else .debug, .outcome = if (step == .idle) .idle else if (step == .blocked) .rejected else .ok, .protocol_outcome = if (step == .committed) .receipt else .none, .realm = config.realm, .pid = config.pid, .generation = config.generation });
         if (step == .blocked) return server.handler_error orelse error.QueryHostBlocked;
         if (step == .idle) {
-            try init.io.sleep(.fromMilliseconds(idle_ms), .awake);
+            _ = wire.waitForChange(.{ .realm = config.realm, .principal = config.principal, .kind = .{ .process = config.pid } }, key, .{
+                .after = server.session.observed_position.?,
+                .milliseconds = @min(q.wire.WaitHint.max_ms, idle_ms),
+            }) catch |err| {
+                if (!q.wire.Client.unavailable(err) and err != error.Conflict) return err;
+                // Bounded fallback covers lost hints, pressure and restarts. No
+                // prepared operation is replaced; idle implies no pending send.
+                try init.io.sleep(.fromMilliseconds(config.interval_ms), .awake);
+                continue;
+            };
             idle_ms = @min(@max(config.interval_ms, config.idle_max_interval_ms), idle_ms * 2);
         } else idle_ms = config.interval_ms;
     }
@@ -216,7 +225,14 @@ fn courier(init: std.process.Init, wire: *q.wire.Client, config: Config, key: p.
             after = output.id;
         };
         if (pending == null and page.body.outputs.next == null) {
-            try init.io.sleep(.fromMilliseconds(idle_ms), .awake);
+            _ = wire.waitForChange(.{ .realm = config.realm, .principal = config.principal, .kind = .{ .outputs = .{} } }, key, .{
+                .after = page.position,
+                .milliseconds = @min(q.wire.WaitHint.max_ms, idle_ms),
+            }) catch |err| {
+                if (!q.wire.Client.unavailable(err) and err != error.Conflict) return err;
+                try init.io.sleep(.fromMilliseconds(config.interval_ms), .awake);
+                continue;
+            };
             idle_ms = @min(@max(config.interval_ms, config.idle_max_interval_ms), idle_ms * 2);
         } else idle_ms = config.interval_ms;
     }

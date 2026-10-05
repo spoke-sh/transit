@@ -14,6 +14,7 @@ pub fn WithTransport(comptime Transport: type) type {
         principal: u64,
         pid: u64,
         generation: u64,
+        observed_position: ?u64 = null,
         key: p.Ed25519.KeyPair,
 
         pub const Delivery = struct {
@@ -50,6 +51,7 @@ pub fn WithTransport(comptime Transport: type) type {
 
         pub fn receive(self: *Self) !?Delivery {
             const response = try self.client.query(.{ .realm = self.realm, .principal = self.principal, .kind = .{ .process = self.pid } }, self.key);
+            self.observed_position = response.position;
             const process = response.body.process.process;
             switch (process.lifecycle) {
                 .terminated => return error.ProcessTerminated,

@@ -64,7 +64,7 @@ pub fn run(init: std.process.Init, bytes: []const u8, mode: anytype, diagnostics
     defer listener.deinit(init.io);
     var context: Context = .{ .server = &server, .diagnostics = diagnostics };
     diagnostics.event(.{ .name = "service.ready" });
-    try http.serve(init.io, init.gpa, &listener, .{ .connections = 16, .requests = 4, .control_requests = 2, .header_timeout_ms = @min(1000, config.request_timeout_ms), .request_timeout_ms = config.request_timeout_ms, .requests_per_connection = 64 }, &context);
+    try http.serve(init.io, init.gpa, &listener, .{ .connections = 16, .requests = 4, .control_requests = 2, .wait_requests = 4, .header_timeout_ms = @min(1000, config.request_timeout_ms), .request_timeout_ms = config.request_timeout_ms, .requests_per_connection = 64 }, &context);
 }
 
 const Server = struct {
@@ -75,6 +75,8 @@ const Server = struct {
     accept_trace_parent: bool,
     mutex: *std.Io.Mutex = undefined,
     locked: bool = false,
+    changed: *std.Io.Condition = undefined,
+    lock_wait_ns: u64 = 0,
     work_started: ?std.Io.Clock.Timestamp = null,
     cache_hits: u64 = 0,
     cache_misses: u64 = 0,
@@ -95,7 +97,10 @@ const Server = struct {
 
     fn acquire(self: *Server) !void {
         const waiting = std.Io.Clock.Timestamp.now(self.io, .awake);
-        defer self.observation.wait_ns = @intCast(@max(0, waiting.durationTo(.now(self.io, .awake)).raw.toNanoseconds()));
+        defer {
+            self.lock_wait_ns = @intCast(@max(0, waiting.durationTo(.now(self.io, .awake)).raw.toNanoseconds()));
+            self.observation.wait_ns = (self.observation.wait_ns orelse 0) +| self.lock_wait_ns;
+        }
         try self.mutex.lock(self.io);
         self.locked = true;
         self.work_started = .now(self.io, .awake);
@@ -111,22 +116,30 @@ const Server = struct {
     }
     fn release(self: *Server) void {
         if (!self.locked) return;
-        self.observation.work_ns = @intCast(@max(0, self.work_started.?.durationTo(.now(self.io, .awake)).raw.toNanoseconds()));
+        const work_ns: u64 = @intCast(@max(0, self.work_started.?.durationTo(.now(self.io, .awake)).raw.toNanoseconds()));
+        self.observation.work_ns = (self.observation.work_ns orelse 0) +| work_ns;
         self.observation.cache_hits = self.engine.page_store.hits - self.cache_hits;
         self.observation.cache_misses = self.engine.page_store.misses - self.cache_misses;
         if (self.engine.journal.journal.metrics) |metrics| {
             var delta: adapter.Metrics = undefined;
             inline for (@typeInfo(adapter.Metrics).@"struct".field_names) |field|
                 @field(delta, field) = @field(metrics.*, field) - @field(self.before_metrics, field);
+            const previous = self.metrics;
             self.metrics = .{
-                .wait_ns = self.observation.wait_ns orelse 0,
-                .work_ns = self.observation.work_ns.?,
+                .wait_ns = self.lock_wait_ns,
+                .work_ns = work_ns,
                 .cache_hits = self.observation.cache_hits.?,
                 .cache_misses = self.observation.cache_misses.?,
                 .staged_pages = self.engine.page_store.created - self.before_pages,
                 .staged_bytes = self.engine.page_store.create_payload_bytes_attempted - self.before_bytes,
                 .provider = delta,
             };
+            if (previous) |prior| {
+                inline for (.{ "wait_ns", "work_ns", "cache_hits", "cache_misses", "staged_pages", "staged_bytes" }) |field|
+                    @field(self.metrics.?, field) +|= @field(prior, field);
+                inline for (@typeInfo(adapter.Metrics).@"struct".field_names) |field|
+                    @field(self.metrics.?.provider, field) +|= @field(prior.provider, field);
+            }
         }
         self.engine.journal.journal.parent_context = null;
         self.engine.page_store.authority.parent_context = null;
@@ -188,7 +201,12 @@ const Server = struct {
             try self.engine.refresh();
             return self.json(request, .ok, .{ .ready = true, .profile = "native_v1" });
         }
+        const hint: ?wire.WaitHint = if (try http.header(request, "x-transit-wait")) |value|
+            wire.WaitHint.parse(value) catch return self.json(request, .bad_request, wire.protocol.ErrorResponse{ .err = .InvalidRequest })
+        else
+            null;
         const mutation = std.mem.eql(u8, route, "/v1/command");
+        if (hint != null and (mutation or control)) return self.json(request, .bad_request, wire.protocol.ErrorResponse{ .err = .InvalidRequest });
         if (request.head.method != .POST or (!mutation and !std.mem.eql(u8, route, "/v1/query"))) return self.json(request, .not_found, wire.protocol.ErrorResponse{ .err = .NotFound });
         const bytes = request.readerExpectNone(&.{}).allocRemaining(self.allocator, .limited(wire.max_body)) catch return self.json(request, .bad_request, wire.protocol.ErrorResponse{ .err = .InvalidBody });
         defer self.allocator.free(bytes);
@@ -199,6 +217,9 @@ const Server = struct {
             try self.acquire();
             self.observation.protocol_outcome = .uncertain;
             const position = self.engine.submit(parsed.value) catch |err| return self.failure(request, err);
+            // Coalesced local hints only. Reconciliation can also discover a
+            // commit by another node; every waiter still revalidates its query.
+            self.changed.broadcast(self.io);
             self.observation.protocol_outcome = .receipt;
             self.observation.realm = parsed.value.request.realm;
             self.observation.sequence = parsed.value.request.sequence;
@@ -212,7 +233,30 @@ const Server = struct {
         if (control and parsed.value.query.kind != .close_snapshot and !(parsed.value.query.kind == .snapshot_read and parsed.value.query.kind.snapshot_read.finish)) return self.json(request, .bad_request, wire.protocol.ErrorResponse{ .err = .InvalidRequest });
         g.validateQuery(parsed.value.query) catch return self.json(request, .bad_request, wire.protocol.ErrorResponse{ .err = .InvalidRequest });
         try self.acquire();
-        const response = self.engine.query(parsed.value) catch |err| return self.failure(request, err);
+        if (hint != null and !wire.WaitHint.allows(parsed.value.query)) return self.json(request, .bad_request, wire.protocol.ErrorResponse{ .err = .InvalidRequest });
+        var response = self.engine.query(parsed.value) catch |err| return self.failure(request, err);
+        if (hint) |wait| {
+            if (wait.after > response.position) return self.json(request, .bad_request, wire.protocol.ErrorResponse{ .err = .InvalidRequest });
+            if (wait.after == response.position) {
+                self.release();
+                // Compare and register under the same lock used by publication;
+                // a commit between the read and registration cannot be missed.
+                {
+                    try self.mutex.lock(self.io);
+                    defer self.mutex.unlock(self.io);
+                    if (self.engine.head.position == wait.after) {
+                        self.changed.waitTimeout(self.io, self.mutex, .{ .duration = .{ .raw = .fromMilliseconds(wait.milliseconds), .clock = .awake } }) catch |err| switch (err) {
+                            error.Timeout => {},
+                            else => return err,
+                        };
+                    }
+                }
+                try self.acquire();
+                // Recheck signature, grants, scope, lifecycle and authority tail
+                // after every wake/timeout, including remote commits and revoke.
+                response = self.engine.query(parsed.value) catch |err| return self.failure(request, err);
+            }
+        }
         self.observation.protocol_outcome = .read;
         self.observation.realm = response.realm;
         self.observation.operation = @tagName(parsed.value.query.kind);
@@ -227,6 +271,10 @@ const Context = struct {
     server: *Server,
     diagnostics: *telemetry.Runtime,
     mutex: std.Io.Mutex = .init,
+    changed: std.Io.Condition = .init,
+    pub fn isWait(_: *@This(), request: *std.http.Server.Request) bool {
+        return (http.header(request, "x-transit-wait") catch null) != null;
+    }
     pub fn isControl(_: *@This(), request: *std.http.Server.Request) bool {
         return std.mem.eql(u8, request.head.target, "/v1/command") or
             (if (http.header(request, "x-transit-control") catch null) |value| std.mem.eql(u8, value, "snapshot") else false);
@@ -239,6 +287,7 @@ const Context = struct {
         server.io = io;
         server.allocator = allocator;
         server.mutex = &self.mutex;
+        server.changed = &self.changed;
         server.observation = .{ .span = self.diagnostics.begin(.server, null) };
         var failure: ?anyerror = null;
         const read_only = !std.mem.eql(u8, request.head.target, "/v1/command");

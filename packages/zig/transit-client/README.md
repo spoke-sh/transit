@@ -38,6 +38,7 @@ loop, durable waiting, and supervision.
 | --- | --- |
 | `Client.submit` | Sign a mutation and retain its exact request until the outcome is resolved |
 | `Client.query(.process)` / `Session.receive` | Read a process and its next input under current inspection/activation rights |
+| `Client.waitForChange(selector, key, hint)` | Bounded notification wait followed by a current authorized process/delivery/output query; hints can be lost or coalesced |
 | `Client.query(.delivery)` | Read scoped courier status without payload or general inspection access |
 | `Client.query(.inspection)` | Follow bounded process/history pages with explicit cut/expiry handling |
 | `Client.query` | Discover state capabilities and read metadata, associations, entries or captured views |
@@ -56,6 +57,10 @@ exchange remains a transport failure without automatic replay, including for
 signed mutations. A peer may close a connection after a response.
 Snapshot release and combined finish reads carry a checked control-admission
 hint; signed authorization and request semantics remain mandatory.
+`waitForChange` uses the service's independent wait admission with a 1–1000 ms
+bound. It does not retry or cache permission. `Session.observed_position` records
+the last successful process observation for idle-loop registration. It is a hint,
+not a retained read cut, checkpoint or authority to execute an input.
 
 `ResourceReader.Batches.init` and `SnapshotReader.Support.init` can share one
 checked capabilities response for the same caller and connection. Each requires

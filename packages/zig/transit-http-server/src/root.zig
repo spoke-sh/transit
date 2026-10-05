@@ -9,13 +9,14 @@ pub const Options = struct {
     connections: u8 = 16,
     requests: u8 = 8,
     control_requests: u8 = 2,
+    wait_requests: u8 = 0,
     header_timeout_ms: u32 = 1000,
     request_timeout_ms: u32 = 5000,
     requests_per_connection: u16 = 1,
 
     pub fn validate(self: Options) !void {
         if (self.connections < 2 or self.connections > 64 or self.requests == 0 or self.control_requests == 0 or
-            @as(u16, self.requests) + self.control_requests > self.connections or self.header_timeout_ms == 0 or
+            @as(u16, self.requests) + self.control_requests + self.wait_requests > self.connections or self.header_timeout_ms == 0 or
             self.header_timeout_ms > self.request_timeout_ms or self.request_timeout_ms > 300000 or
             self.requests_per_connection == 0 or self.requests_per_connection > 256) return error.InvalidHttpLimits;
     }
@@ -24,6 +25,15 @@ pub const Options = struct {
 pub const Admission = struct {
     data: std.atomic.Value(usize) = .init(0),
     control: std.atomic.Value(usize) = .init(0),
+    waits: std.atomic.Value(usize) = .init(0),
+    pub fn acquireWait(self: *Admission, limit: usize) bool {
+        var old = self.waits.load(.monotonic);
+        while (old < limit) old = self.waits.cmpxchgWeak(old, old + 1, .acquire, .monotonic) orelse return true;
+        return false;
+    }
+    pub fn releaseWait(self: *Admission) void {
+        std.debug.assert(self.waits.fetchSub(1, .release) > 0);
+    }
     pub fn acquire(self: *Admission, control: bool, limit: usize) bool {
         const count = if (control) &self.control else &self.data;
         var old = count.load(.monotonic);
@@ -59,7 +69,7 @@ pub fn validateHead(request: *std.http.Server.Request) !void {
     if (transfer) |value| if (!std.ascii.eqlIgnoreCase(value, "chunked")) return error.UnsupportedTransferEncoding;
     if (try header(request, "content-encoding")) |value| if (!std.ascii.eqlIgnoreCase(value, "identity")) return error.UnsupportedContentEncoding;
     if (try header(request, "expect") != null) return error.UnsupportedExpectation;
-    for ([_][]const u8{ "origin", "authorization", "content-type", "upgrade", "x-transit-control" }) |name| _ = try header(request, name);
+    for ([_][]const u8{ "origin", "authorization", "content-type", "upgrade", "x-transit-control", "x-transit-wait" }) |name| _ = try header(request, name);
 }
 
 pub fn respond(request: *std.http.Server.Request, status: std.http.Status, body: []const u8) !void {
@@ -141,9 +151,12 @@ pub fn serve(io: Io, allocator: std.mem.Allocator, listener: *Io.net.Server, opt
             validateHead(request) catch return respond(request, .bad_request, "{\"err\":\"InvalidHttpRequest\"}");
             const control = (request.head.method == .GET and std.mem.eql(u8, request.head.target, "/health")) or
                 (if (@hasDecl(@typeInfo(@TypeOf(ctx)).pointer.child, "isControl")) ctx.isControl(request) else false);
-            if (!admission.acquire(control, if (control) limits.control_requests else limits.requests))
+            const wait = if (@hasDecl(@typeInfo(@TypeOf(ctx)).pointer.child, "isWait")) ctx.isWait(request) else false;
+            if (wait) {
+                if (!admission.acquireWait(limits.wait_requests)) return respond(request, .service_unavailable, "{\"err\":\"HttpCapacity\"}");
+            } else if (!admission.acquire(control, if (control) limits.control_requests else limits.requests))
                 return respond(request, .service_unavailable, "{\"err\":\"HttpCapacity\"}");
-            defer admission.release(control);
+            defer if (wait) admission.releaseWait() else admission.release(control);
             // Each consumer enforces its own parse/output/compute allocation
             // budget; the neutral server allocates no request-body collection.
             handler_started.* = true;
