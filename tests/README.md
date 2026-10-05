@@ -33,7 +33,23 @@ The physical packed-page proof (`--keys 256 --cache 2`) passes write, provider
 SIGKILL/recovery, checkpoint and trim recovery, including accepted batch replies
 that are lost, incomplete or partially failed. A development compile failure
 from an extra semicolon was corrected before the passing unit run.
-Further provider, contention and clean qualification are
+The bounded-batch unit case also passes 24 leaf replacements across three
+eight-page buffers with every acknowledgement fault. The concurrent-reader
+control completes 140 writes and 1,280 reads without uncertainty or restart.
+
+The original finite offered-load harness assumed all 48 requests were admitted;
+the first four-worker/1 ms run fails on explicit `HttpCapacity` refusals. The
+corrected ReleaseSafe harness records those refusals separately and supplies the
+accepted sender set to its independent Zig drain oracle. The repeated burst
+admits four, refuses 44 and preserves all four receipts and resulting rows through
+node/provider loss. Its control command is refused during the burst and succeeds
+afterward; this is not a control-latency guarantee. Only accepted sends are
+replayed. Other 503s and uncertain exchanges still fail qualification.
+
+The first full check stops at the expected diagnostic-inventory drift from the
+new wait boundary and explicit invalid-response check. Existing semantic mappings
+cover the added cause; the reviewed inventory is regenerated and independent
+mapping checks pass. Further provider, contention and clean qualification are
 in progress under [issue #73](https://github.com/rupurt/rey/issues/73).
 
 Evidence is scoped to each recorded revision or definition. “Current” in an

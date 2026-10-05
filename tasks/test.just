@@ -68,7 +68,7 @@ codecs *args:
 
 # Finite offered-load, control latency and state-drain measurements (owned storage).
 growing-load *args:
-    zig build test-growing-load -- {{args}}
+    zig build test-growing-load -Doptimize=ReleaseSafe -- {{args}}
 
 # Repeated single-authority growth/load matrix with an owned S3-compatible tier.
 scale *args:

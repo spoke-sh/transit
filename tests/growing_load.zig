@@ -7,7 +7,7 @@ const t = std.testing;
 const realm = 46;
 const senders = 48;
 const base = 65536;
-const Expected = struct { pid: u64, resource: u64, rows: usize, admitted: u64 = 0, digest: [32]u8 = @splat(0) };
+const Expected = struct { pid: u64, resource: u64, rows: usize, accepted: [senders]bool = @splat(false), admitted: u64 = 0, digest: [32]u8 = @splat(0) };
 const Admin = struct {
     wire: *client.Client,
     key: p.Ed25519.KeyPair,
@@ -94,21 +94,22 @@ pub fn main(init: std.process.Init) !void {
         defer init.gpa.free(values);
         @memset(values, -1);
         const before = (try admin.query(.{ .process = expected.pid })).body.process.process;
-        try t.expectEqual(@as(u64, rows / 4 + senders), before.admitted);
+        const accepted = std.mem.count(bool, &expected.accepted, &.{true});
+        try t.expectEqual(@as(u64, rows / 4 + accepted), before.admitted);
         try t.expectEqual(@as(u64, rows / 4), before.consumed);
         var seen: [senders]bool = @splat(false);
-        for (0..senders) |_| {
+        for (0..accepted) |_| {
             const input = (try admin.query(.{ .process = expected.pid })).body.process.input.?;
             try t.expectEqual(payload, input.value.len);
             const index = std.mem.readInt(u64, input.value.data[0..8], .big);
             const id = std.mem.readInt(u64, input.value.data[8..16], .big);
-            try t.expect(index < rows and id < senders and !seen[id]);
+            try t.expect(index < rows and id < senders and expected.accepted[id] and !seen[id]);
             try t.expectEqual(base + id, input.origin.external.principal);
             seen[id] = true;
             values[index] = @intCast(id);
             try admin.turn(init.io, expected, .{ .{ .key = rowKey(index), .value = p.Value.integer(@intCast(id)) }, null, null, null });
         }
-        for (seen) |present| try t.expect(present);
+        try t.expectEqualSlices(bool, &expected.accepted, &seen);
         const resource = (try admin.query(.{ .resource = expected.resource })).body.resource;
         var after: ?p.Value = null;
         var count: usize = 0;

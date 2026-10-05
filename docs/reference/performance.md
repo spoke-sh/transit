@@ -344,6 +344,34 @@ observe publication before the worker receives its receipt. Missing, ambiguous
 or evicted trace evidence remains explicitly incomplete. Instrumented timing is
 separate from ordinary latency and does not change the console's phase meanings.
 
+A later physical-disk control compares the merged baseline with bounded caller
+waits and leaf-frontier staging. Each uninstrumented run completes all 140 cases
+with independent row verification and zero uncertain writes:
+
+| Control | INSERT p50 / p95 | UPDATE p50 / p95 | DELETE p50 / p95 |
+| --- | ---: | ---: | ---: |
+| Merged baseline | 142 / 151 ms | 153 / 187 ms | 138 / 150 ms |
+| Bounded caller waits | 131 / 140 ms | 149 / 177 ms | 129 / 140 ms |
+| Waits and leaf batches | 113 / 123 ms | 130 / 169 ms | 112 / 126 ms |
+
+Separate instrumented 21-case controls attribute median admission/view/turn
+provider requests of 16/11/29 before leaf batching and 14/8/22 afterward. Median
+authority work falls from 25.1/22.4/41.2 ms to 19.8/13.0/29.4 ms. The latter
+control observes processed input about 5 ms after the turn receipt and completes
+about 9 ms after that observation. These overlapping proxy observations do not
+measure independent fsync costs. A concurrent-reader control completes 140 writes
+and 1,280 reads, with INSERT/UPDATE/DELETE p50 138/156/137 ms.
+The [raw controls](../../tests/mutation_latency/results/2026-10-05/README.md)
+retain exact source/binary provenance and shared-host limitations.
+
+`just test::growing-load` runs a separate ReleaseSafe finite offered-load fixture.
+It schedules 48 requests independently, records generator queueing, separates
+admitted and refused attempts, and captures authority wait/work counters.
+Only accepted inputs are drained and checked after node/provider restart;
+rejected sends are not silently retried. A control command refused during the
+burst is checked separately after it. This native admission experiment does not
+measure simultaneous end-to-end SQL writers or sustainable throughput.
+
 A matched-provider comparison on the shared development host records these
 single-row distributions, with 20 samples per case. Both use the same corrected
 local Ursula provider, fresh disk fixtures, eight resident pages and default

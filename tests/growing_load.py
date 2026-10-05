@@ -25,7 +25,8 @@ from storage import Fixture, free_port, wait_ready
 
 def distribution(samples):
     ordered = sorted(samples)
-    return {f'p{p}': ordered[max(0, (len(ordered) * p + 99) // 100 - 1)] for p in (50, 95, 99)}
+    return {f'p{p}': ordered[max(0, (len(ordered) * p + 99) // 100 - 1)]
+            if len(ordered) >= minimum else None for p, minimum in ((50, 1), (95, 20), (99, 100))}
 
 
 def main():
@@ -50,7 +51,7 @@ def main():
     node, caller = (str(Path(path).resolve(strict=True)) for path in (args.node, args.caller))
     artifact = args.output or root / '.cache/verification/growing-load.json'
     artifact.parent.mkdir(parents=True, exist_ok=True)
-    evidence = dict(version=1, status='inconclusive', profile='single sequential v1 node, public Zig client, finite offered load',
+    evidence = dict(version=1, status='inconclusive', profile='serialized v1 authority, public Zig client, finite offered load',
                     revision=subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True).strip(),
                     dirty=bool(subprocess.check_output(['git', 'status', '--porcelain'])),
                     binaries={Path(p).name: hashlib.sha256(Path(p).read_bytes()).hexdigest() for p in (node, caller)},
@@ -70,7 +71,7 @@ def main():
             config = fixture.root / 'node.json'
             config.write_text(json.dumps(dict(profile='native_v1', genesis=dict(realm=46, root_key=public, max_clock_error_ms=10000),
                 ursula_url=fixture.url, bucket='growing-load', journal='authority', port=port,
-                resident_pages=args.cache, request_timeout_ms=15000)))
+                resident_pages=args.cache, request_timeout_ms=15000, request_metrics=True)))
             manifest = fixture.root / 'expected.json'
             log = resources.enter_context((fixture.root / 'node.log').open('w+'))
             authority = None
@@ -111,7 +112,8 @@ def main():
                     data = json.loads(response.read())
                     finished = time.monotonic()
                     return dict(status=response.status, receipt=data, offered=offered, finished=finished,
-                                queue_ms=(started - offered) * 1000, latency_ms=(finished - offered) * 1000)
+                                queue_ms=(started - offered) * 1000, latency_ms=(finished - offered) * 1000,
+                                work=json.loads(response.getheader('x-transit-work', 'null')))
                 finally:
                     connection.close()
 
@@ -136,22 +138,42 @@ def main():
                             control = control_pool.submit(request, prepared['control'], time.monotonic())
                     results = [f.result(timeout=60) for f in futures]
                     controlled = control.result(timeout=60)
-                assert all(r['status'] == 200 and r['receipt']['position'] > 0 for r in results), results
-                assert len({r['receipt']['position'] for r in results}) == 48
-                assert controlled['status'] == 200, controlled
+                # Refusal at the listener is known pre-admission. Never classify
+                # arbitrary 503s or failed exchanges as a safe rejection.
+                def capacity(result):
+                    return result['status'] == 503 and result['receipt'] == {'err': 'HttpCapacity'}
+                assert all(r['status'] == 200 or capacity(r) for r in results), results
+                accepted = [(body, r) for body, r in zip(prepared['requests'], results) if r['status'] == 200]
+                assert all(r['receipt']['position'] > 0 for _, r in accepted)
+                assert len({r['receipt']['position'] for _, r in accepted}) == len(accepted)
+                assert controlled['status'] == 200 or capacity(controlled), controlled
+                # Qualify revocation after the measured burst if its initial
+                # attempt was refused. Keep this outside admission throughput.
+                evidence['control_initial_status'] = controlled['status']
+                if capacity(controlled):
+                    retried_control = request(prepared['control'], time.monotonic())
+                    assert retried_control['status'] == 200, retried_control
+                    evidence['control_after_burst_ms'] = retried_control['latency_ms']
+                expected = json.loads(manifest.read_text())
+                expected['accepted'] = [r['status'] == 200 for r in results]
+                manifest.write_text(json.dumps(expected))
                 denied = request(prepared['denied'], time.monotonic())
                 assert denied['status'] == 403, denied
-                evidence.update(offered=48, admitted=48, rejected=0, uncertain=0,
+                evidence.update(offered=48, admitted=len(accepted), rejected=48-len(accepted), uncertain=0,
                                 latency_ms=distribution([r['latency_ms'] for r in results]),
+                                admitted_latency_ms=distribution([r['latency_ms'] for _, r in accepted]),
+                                rejected_latency_ms=distribution([r['latency_ms'] for r in results if capacity(r)]),
                                 generator_queue_ms=distribution([r['queue_ms'] for r in results]),
                                 generator_schedule_lag_ms=distribution(scheduling),
                                 control_latency_ms=controlled['latency_ms'],
-                                admitted_per_second=48 / (max(r['finished'] for r in results) - offered_at))
+                                admitted_per_second=len(accepted) / (max(r['finished'] for r in results) - offered_at),
+                                attempts=[{k: r[k] for k in ('status', 'queue_ms', 'latency_ms', 'work')} for r in results])
                 # Duplicate all receipts while the accepted backlog is retained.
-                for body, original in zip(prepared['requests'], results):
+                for body, original in accepted:
                     retried = request(body, time.monotonic())
                     assert retried['status'] == 200 and retried['receipt'] == original['receipt']
-                evidence['oldest_accepted_queue_age_lower_bound_ms'] = (time.monotonic() - min(r['finished'] for r in results)) * 1000
+                evidence['oldest_accepted_queue_age_lower_bound_ms'] = (
+                    (time.monotonic() - min(r['finished'] for _, r in accepted)) * 1000 if accepted else None)
                 started = time.monotonic()
                 evidence['drain'] = driver('drain')
                 evidence['drain_seconds'] = time.monotonic() - started
@@ -165,7 +187,7 @@ def main():
                 evidence['node_restart_seconds'] = start()
                 evidence['recovered'] = driver('recover')
                 # Historical receipts and revocation survive node/provider loss.
-                for body, original in zip(prepared['requests'], results):
+                for body, original in accepted:
                     retried = request(body, time.monotonic())
                     assert retried['status'] == 200 and retried['receipt'] == original['receipt']
                 assert request(prepared['denied'], time.monotonic())['status'] == 403
