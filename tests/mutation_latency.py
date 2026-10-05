@@ -24,7 +24,7 @@ class Console:
     """One persistent process, bounded simultaneous stdout/stderr draining."""
     def __init__(self, fixture, config=None, executable=None):
         args = ([executable, str(config)] if executable else
-                [fixture.cli, 'console', '--no-rc', '--format', 'json',
+                [fixture.cli, '--diagnostics=json', 'console', '--no-rc', '--format', 'json',
                  *(['--config', str(config)] if config else [])])
         self.process = subprocess.Popen(args, cwd=fixture.root, stdin=subprocess.PIPE,
                                         stdout=subprocess.PIPE, stderr=subprocess.PIPE,
@@ -39,7 +39,8 @@ class Console:
         self.last_measurement = {'elapsed_ns': 0, 'timing': None}
         self.process.stdin.write((sql.rstrip(';') + ';\n').encode())
         self.process.stdin.flush()
-        output = timing = None
+        output = timing = failure = None
+        phases = None
         with selectors.DefaultSelector() as selector:
             for index, pipe in enumerate((self.process.stdout, self.process.stderr)):
                 selector.register(pipe, selectors.EVENT_READ, index)
@@ -50,6 +51,9 @@ class Console:
                 for key, _ in selector.select(.1):
                     data = os.read(key.fileobj.fileno(), 65536)
                     if not data:
+                        self.last_measurement['elapsed_ns'] = time.monotonic_ns() - started
+                        if failure is not None:
+                            raise RuntimeError(failure)
                         raise RuntimeError('caller exited before complete result: ' + self.buffers[1].decode())
                     self.buffers[key.data].extend(data)
                     if len(self.buffers[key.data]) > 2 * 1024 * 1024:
@@ -62,13 +66,37 @@ class Console:
                             if output is not None:
                                 raise ValueError('unexpected multiple result pages')
                             output = json.loads(line)
+                        elif line.startswith(b'{'):
+                            diagnostic = json.loads(line)
+                            if 'timing' in diagnostic:
+                                timing = line.decode()
+                                phases = diagnostic['timing']['phases']
+                                self.last_measurement.update(elapsed_ns=time.monotonic_ns() - started,
+                                                             timing=timing, phase_ms=phases)
+                            else:
+                                # Keep only fixed diagnostic categories. Facts,
+                                # source text and operation identities stay in
+                                # the original local recovery evidence.
+                                failure = diagnostic['code']
+                                for field in ('code', 'cause', 'outcome', 'stage'):
+                                    self.last_measurement[field] = diagnostic.get(field)
                         elif line.startswith(b'Time: '):
                             timing = line.decode()
-                            self.last_measurement.update(elapsed_ns=time.monotonic_ns() - started, timing=timing)
+                            phases = {key: int(value) for key, value in re.findall(r'(\w+) (\d+) ms', timing)}
+                            self.last_measurement.update(elapsed_ns=time.monotonic_ns() - started, timing=timing, phase_ms=phases)
                         elif line:
-                            raise RuntimeError(line.decode())
+                            # A human diagnostic spans several lines and can
+                            # precede its deferred timing line. Keep only the
+                            # fixed cause category, never identities or facts.
+                            failure = failure or line.decode()
+                            cause = re.fullmatch(rb'Cause: ([A-Za-z0-9_]+)\.', line)
+                            if cause:
+                                self.last_measurement['cause'] = cause[1].decode()
+                if failure is not None and timing is not None:
+                    self.last_measurement['elapsed_ns'] = time.monotonic_ns() - started
+                    raise RuntimeError(failure)
         return output, {'elapsed_ns': time.monotonic_ns() - started, 'timing': timing,
-                        'phase_ms': {key: int(value) for key, value in re.findall(r'(\w+) (\d+) ms', timing)}}
+                        'phase_ms': phases}
 
     def close(self):
         if self.process.poll() is None:

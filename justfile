@@ -62,6 +62,7 @@ check-core:
     actionlint .github/workflows/*.yml
     python3 -B tests/benchmarks/test_runner.py
     python3 -B tests/fuze_benchmarks/test_runner.py
+    python3 -B tests/mutation_latency_test.py
     python3 -B tests/fuze_sources.py
     python3 -B tests/fuze_types.py
     python3 -B tests/ci_runner.py
