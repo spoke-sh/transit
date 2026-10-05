@@ -10614,6 +10614,16 @@ rename/default changes, nonreused dropped IDs, required-field tightening,
 overflow/inexact conversion rejection and key-index rebuild requirements. These
 remain pure envelopes/transitions, with no disk/publication claim.
 
+Station's package suite passes the general `TableData` candidate tests on
+2026-10-05: 72 keyed rows across multiple index levels, stable key updates,
+same-value/zero-match counts, duplicate keys and row identities, retained roots,
+32 KiB values, unkeyed duplicates, a synthetic digest collision, write failure
+after staging and allocation-failure cleanup. Index deletion separately removes
+a 512-key permutation, checks retained roots, prunes empty branches, rejects
+read denial and preserves the accepted root after partial candidate storage.
+These use in-memory immutable test stores. They establish candidate semantics,
+not durable Table head publication, a performance comparison or disk recovery.
+
 ## Fuze logical type foundation
 
 The local `Types` profile has nine passing focused Zig tests, including 46

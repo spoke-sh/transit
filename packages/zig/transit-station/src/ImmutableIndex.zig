@@ -273,6 +273,52 @@ pub fn put(self: Self, store: anytype, key: Key, value: Value) !Self {
     return .{ .root = try branch(store, previous.level + 1, &.{ split.left, right }) };
 }
 
+fn erase(store: anytype, ref: Reference, key: Key) anyerror!?Reference {
+    const node = try load(store, ref);
+    if (node.level == 0) {
+        var index: ?usize = null;
+        for (node.items.leaves[0..node.used], 0..) |entry, i| if (Key.eql(key, entry.key)) {
+            index = i;
+            break;
+        };
+        const removed = index orelse return ref;
+        if (node.used == 1) return null;
+        var items: [fanout]Entry = undefined;
+        @memcpy(items[0..removed], node.items.leaves[0..removed]);
+        @memcpy(items[removed .. node.used - 1], node.items.leaves[removed + 1 .. node.used]);
+        return try leaf(store, items[0 .. node.used - 1]);
+    }
+    const index = branchFor(&node, key);
+    const previous = node.items.branches[index];
+    const changed = try erase(store, previous, key);
+    if (changed) |reference| if (reference.id == previous.id) return ref;
+    var children: [fanout]Reference = undefined;
+    @memcpy(children[0..index], node.items.branches[0..index]);
+    var count = index;
+    if (changed) |reference| {
+        children[count] = reference;
+        count += 1;
+    }
+    @memcpy(children[count..][0 .. node.used - index - 1], node.items.branches[index + 1 .. node.used]);
+    count += node.used - index - 1;
+    if (count == 0) return null;
+    // Preserve levels within a tree. Only the root may collapse one-child paths.
+    return try branch(store, node.level, children[0..count]);
+}
+/// Copy only the erased key's path. Missing keys return the same root. Previously
+/// published roots remain readable; the owner publishes/reclaims candidates.
+pub fn remove(self: Self, store: anytype, key: Key) !Self {
+    try key.validate(true);
+    const previous = self.root orelse return self;
+    var root = try erase(store, previous, key) orelse return .{};
+    while (root.level != 0) {
+        const node = try load(store, root);
+        if (node.used != 1) break;
+        root = node.items.branches[0];
+    }
+    return .{ .root = root };
+}
+
 test "node codec rejects truncation ordering and trailing data" {
     const t = std.testing;
     var node: Node = .{ .level = 0, .used = 2, .items = .{ .leaves = undefined } };

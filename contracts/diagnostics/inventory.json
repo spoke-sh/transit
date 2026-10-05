@@ -6102,7 +6102,7 @@
       "errors": {
         "InvalidRowIdentity": 1,
         "InvalidTableRowEncoding": 3,
-        "NoPrimaryKey": 2,
+        "NoPrimaryKey": 1,
         "RowBufferTooSmall": 1,
         "TableRowTooLarge": 1,
         "TableSchemaChanged": 1,
@@ -6117,12 +6117,13 @@
         "Row.encode()": "<inferred>",
         "decode()": "<inferred>",
         "encodeKey()": "<inferred>",
+        "encodeKeyValues()": "<inferred>",
         "keyDigest()": "<inferred>",
         "sameKey()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 39,
+        "try": 41,
         "catch": 0
       },
       "imports": [
@@ -6141,11 +6142,13 @@
         "InvalidCharacterLimit": 2,
         "InvalidColumnCount": 2,
         "InvalidColumnIdentity": 1,
+        "InvalidKeyWidth": 1,
         "InvalidPrimaryKey": 2,
         "InvalidRowWidth": 2,
         "InvalidTableDefault": 1,
         "InvalidTableSchemaEncoding": 3,
         "InvalidTableSchemaIdentity": 1,
+        "NoPrimaryKey": 1,
         "NullablePrimaryKey": 1,
         "RowBufferTooSmall": 2,
         "TableConflict": 1,
@@ -6176,6 +6179,7 @@
         "Schema.storageType()": "<inferred>",
         "Schema.update()": "<inferred>",
         "Schema.validate()": "<inferred>",
+        "Schema.validateKey()": "<inferred>",
         "Schema.validateRow()": "<inferred>",
         "Schema.write()": "<inferred>",
         "boolean()": "<inferred>",
@@ -6184,7 +6188,7 @@
       },
       "open_error_set_uses": 1,
       "propagation": {
-        "try": 80,
+        "try": 84,
         "catch": 0
       },
       "imports": [
@@ -14436,18 +14440,20 @@
         "branch()": "<inferred>",
         "decode()": "<inferred>",
         "encode()": "<inferred>",
+        "erase()": "anyerror",
         "get()": "<inferred>",
         "insert()": "anyerror",
         "leaf()": "<inferred>",
         "load()": "<inferred>",
         "next()": "<inferred>",
         "put()": "<inferred>",
+        "remove()": "<inferred>",
         "save()": "<inferred>",
         "successor()": "anyerror"
       },
-      "open_error_set_uses": 2,
+      "open_error_set_uses": 3,
       "propagation": {
-        "try": 72,
+        "try": 79,
         "catch": 2
       },
       "imports": [
@@ -15047,6 +15053,48 @@
         "transit_fuze"
       ]
     },
+    "packages/zig/transit-station/src/TableData.zig": {
+      "errors": {
+        "InvalidTableBlob": 3,
+        "InvalidTableIndex": 4,
+        "RowExists": 2,
+        "RowIdentityExists": 1,
+        "WriteFailed": 3
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "Blob.decode()": "<inferred>",
+        "Blob.encode()": "<inferred>",
+        "Blob.validate()": "<inferred>",
+        "delete()": "<inferred>",
+        "digestValues()": "<inferred>",
+        "findDigest()": "<inferred>",
+        "findKey()": "<inferred>",
+        "get()": "<inferred>",
+        "identity()": "<inferred>",
+        "insert()": "<inferred>",
+        "keyValues()": "<inferred>",
+        "next()": "<inferred>",
+        "primaryKey()": "<inferred>",
+        "readRow()": "<inferred>",
+        "rowKey()": "<inferred>",
+        "storeRow()": "<inferred>",
+        "update()": "<inferred>",
+        "validate()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 81,
+        "catch": 3
+      },
+      "imports": [
+        "ImmutableIndex.zig",
+        "Publication.zig",
+        "std",
+        "transit_fuze"
+      ]
+    },
     "packages/zig/transit-station/src/TableMutation.zig": {
       "errors": {
         "RowExists": 1,
@@ -15207,6 +15255,7 @@
         "Registry.zig",
         "Supervisor.zig",
         "Table.zig",
+        "TableData.zig",
         "TableMutation.zig",
         "Turn.zig",
         "Waiting.zig",

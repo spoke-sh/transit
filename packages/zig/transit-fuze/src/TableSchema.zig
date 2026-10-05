@@ -124,6 +124,19 @@ pub const Schema = struct {
         try row.validate(.{ .name = "row", .type = try self.rowType(&fields) }, .{});
         for (cells, self.columns) |cell, column| try column.check(cell);
     }
+    pub fn validateKey(self: Schema, cells: []const v.Cell) !void {
+        try self.validate();
+        if (self.primary_key.len == 0) return error.NoPrimaryKey;
+        if (cells.len != self.primary_key.len) return error.InvalidKeyWidth;
+        var fields: [max_columns]t.Field = undefined;
+        for (self.primary_key, cells, 0..) |id, cell, i| {
+            const column = self.columns[try self.index(id)];
+            fields[i] = column.field();
+            try column.check(cell);
+        }
+        const row: v.Cell = .{ .value = .{ .structure = cells } };
+        try row.validate(.{ .name = "key", .type = .{ .structure = fields[0..cells.len] } }, .{});
+    }
     /// Output cells borrow the original cells/defaults. The caller retains both
     /// owners. Failure leaves scratch output unusable and publishes nothing.
     pub fn insert(self: Schema, assignments: []const Assignment, output: []v.Cell) ![]const v.Cell {

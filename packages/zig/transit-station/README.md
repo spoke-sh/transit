@@ -9,7 +9,9 @@ reads, private KV mutations, durable calls, authenticated replies and typed
 [Publications](docs/publications.md) stage larger immutable records with explicit
 quotas, one final visibility decision and resumable cleanup.
 [Ordered indexes](docs/indexes.md) use bounded path copying and resumable candidate
-nodes. [Services](docs/services.md) provide scoped names, timed waits and supervision
+nodes. [General Table candidates](docs/table-data.md) compose typed rows and
+collision-safe key indexes without publishing a Table head.
+[Services](docs/services.md) provide scoped names, timed waits and supervision
 with a separately authorized controller. [Query capture](docs/queries.md) retains
 sources and publishes verified Arrow results across ordinary durable turns.
 The [lifetime guide](docs/lifetimes.md) explains suspension and permanent retirement.

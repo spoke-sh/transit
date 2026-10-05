@@ -111,6 +111,46 @@ test "full width keys and maximum values fit bounded nodes" {
     try t.expect(store.max_read <= 4096);
 }
 
+test "immutable deletion prunes empty branches, preserves retained roots and allocates nothing for misses" {
+    var store: Store = .{};
+    defer store.deinit();
+    var tree: Index = .{};
+    for (0..512) |i| tree = try tree.put(&store, try key(i), try value(i));
+    const original = tree;
+    const allocations = store.records.items.len;
+    const missing = try tree.remove(&store, try key(999));
+    try t.expectEqual(original.root.?.id, missing.root.?.id);
+    try t.expectEqual(allocations, store.records.items.len);
+    // Remove a full permutation, including minima and entire interior subtrees.
+    for (0..512) |i| {
+        const selected = (i * 333) % 512;
+        tree = try tree.remove(&store, try key(selected));
+        try t.expectEqual(null, try tree.get(&store, try key(selected)));
+        try t.expect(Index.Value.eql(try value(selected), (try original.get(&store, try key(selected))).?));
+        if (i != 511) try t.expectEqual(@as(u64, 511 - i), tree.root.?.entries);
+    }
+    try t.expectEqual(null, tree.root);
+    try t.expectEqual(null, try tree.next(&store, null));
+    tree = try tree.put(&store, try key(7), try value(8));
+    try t.expectEqual(@as(u8, 0), tree.root.?.level);
+    try t.expect(Index.Value.eql(try value(8), (try tree.get(&store, try key(7))).?));
+}
+
+test "failed immutable deletion cannot expose a prefix or change the accepted root" {
+    var store: Store = .{};
+    defer store.deinit();
+    var tree: Index = .{};
+    for (0..80) |i| tree = try tree.put(&store, try key(i), try value(i));
+    store.fail_after = store.records.items.len + 1;
+    try t.expectError(error.StorageUnavailable, tree.remove(&store, try key(30)));
+    try t.expect(Index.Value.eql(try value(30), (try tree.get(&store, try key(30))).?));
+    store.fail_after = null;
+    const changed = try tree.remove(&store, try key(30));
+    try t.expectEqual(null, try changed.get(&store, try key(30)));
+    store.denied = true;
+    try t.expectError(error.AccessDenied, tree.remove(&store, try key(30)));
+}
+
 const p = @import("transit_client").protocol;
 const Turn = @import("Turn.zig");
 const Turns = struct {

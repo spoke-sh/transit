@@ -32,6 +32,12 @@ input progress and outputs through the ordinary fenced turn. An interrupted
 candidate is recoverable staging or explicitly reclaimable unreachable work;
 capacity failure cannot silently discard previously accepted roots.
 
+Removal copies only the selected path, prunes empty branches and collapses
+single-child paths at the root. Missing keys return the same root without new
+nodes. Removal produces an empty root after the last entry; it never deletes
+records referenced by earlier roots. The format and retained-root rules are
+identical for insertion and removal.
+
 Point lookup and strict-successor scans use bounded nodes/paths; callers choose
 a bounded output page. They must not load the entire tree or treat an empty
 page/error as proof of missing history. Every load validates the reference and

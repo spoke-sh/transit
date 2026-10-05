@@ -86,7 +86,13 @@ pub fn decode(allocator: std.mem.Allocator, schema: s.Schema, bytes: []const u8)
 /// object identity, key order and exact key descriptors do participate.
 pub fn encodeKey(schema: s.Schema, cells: []const Cell, output: []u8) ![]const u8 {
     try schema.validateRow(cells);
-    if (schema.primary_key.len == 0) return error.NoPrimaryKey;
+    var key: [s.max_columns]Cell = undefined;
+    for (schema.primary_key, 0..) |id, i| key[i] = cells[try schema.index(id)];
+    return encodeKeyValues(schema, key[0..schema.primary_key.len], output);
+}
+/// Key lookup accepts only key values, with no invented non-key row cells.
+pub fn encodeKeyValues(schema: s.Schema, cells: []const Cell, output: []u8) ![]const u8 {
+    try schema.validateKey(cells);
     const bounded = output[0..@min(output.len, max_key_bytes)];
     var writer: std.Io.Writer = .fixed(bounded);
     try writer.writeAll("FTK1");
@@ -94,15 +100,14 @@ pub fn encodeKey(schema: s.Schema, cells: []const Cell, output: []u8) ![]const u
     try writer.writeAll(definition);
     try writer.writeInt(u64, schema.object, .little);
     try writer.writeInt(u16, @intCast(schema.primary_key.len), .little);
-    for (schema.primary_key) |id| {
-        const i = try schema.index(id);
-        var cell = cells[i];
+    for (schema.primary_key, cells) |id, value| {
+        var cell = value;
         // Structural equality treats signed floating zeros as equal. Exact row
         // bytes still retain the original IEEE sign.
         if (cell.value.atom == .float and cell.value.atom.float == 0) cell.value.atom.float = 0;
         try writer.writeInt(u64, id, .little);
         // FVL1 contains its descriptor and state, with self-delimiting payloads.
-        const encoded = try t.Codec.encode(cell, schema.columns[i].field(), bounded[writer.end..]);
+        const encoded = try t.Codec.encode(cell, schema.columns[try schema.index(id)].field(), bounded[writer.end..]);
         writer.end += encoded.len;
     }
     return writer.buffered();
