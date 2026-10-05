@@ -1,15 +1,20 @@
 """Real console observation pressure and uncertain-send recovery, without replay."""
 from http.client import HTTPConnection
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from concurrent.futures import ThreadPoolExecutor
 import json
+import os
+import signal
 import subprocess
 import threading
+from server import children, command
 
 
 def run(fixture):
     state = {'mode': 'reads', 'admitted': False, 'commands': [],
              'remaining': {'process': 2, 'read_entries': 1}, 'refusals': 0, 'preflight': 1,
-             'receipt_checkpoint': None}
+             'receipt_checkpoint': None, 'waits': 0, 'ordinary_after_wait': 0}
+    wait_seen = threading.Event()
 
     class Proxy(BaseHTTPRequestHandler):
         def log_message(self, *_):
@@ -18,6 +23,20 @@ def run(fixture):
         def do_POST(self):
             body = self.rfile.read(int(self.headers['Content-Length']))
             envelope = json.loads(body)
+            hint = self.headers.get('X-Transit-Wait')
+            if self.path == '/v1/query' and hint:
+                state['waits'] += 1
+                wait_seen.set()
+                if state['mode'] in ('wait_capacity', 'wait_denied'):
+                    denied = state['mode'] == 'wait_denied'
+                    self.send_response(403 if denied else 503)
+                    data = b'{"err":"AccessDenied"}' if denied else b'{"err":"HttpCapacity"}'
+                    self.send_header('Content-Length', str(len(data)))
+                    self.end_headers()
+                    self.wfile.write(data)
+                    return
+            elif self.path == '/v1/query' and wait_seen.is_set():
+                state['ordinary_after_wait'] += 1
             if self.path == '/v1/command' and state['mode'] == 'refuse_send':
                 state['commands'].append(body)
                 state['mode'] = None
@@ -50,7 +69,10 @@ def run(fixture):
                     return
             upstream = HTTPConnection('127.0.0.1', fixture.config['ports']['gateway'], timeout=10)
             try:
-                upstream.request('POST', self.path, body, {'Content-Type': 'application/json'})
+                headers = {'Content-Type': 'application/json'}
+                if hint:
+                    headers['X-Transit-Wait'] = hint
+                upstream.request('POST', self.path, body, headers)
                 response = upstream.getresponse()
                 data = response.read()
                 if self.path == '/v1/command':
@@ -131,7 +153,48 @@ def run(fixture):
             applied(invoke('.resume'))
             assert state['commands'][-1] == state['commands'][-2]
             applied(invoke('DELETE FROM items WHERE id = -83;'))
+            # Hold the real owner before admission so pending observation is
+            # deterministic. Exhausted wait admission must fall back to an
+            # ordinary current read; denial must never use that fallback.
+            owners = [pid for pid in children(fixture.process.pid)
+                      if 'table_query_writer' in command(pid)]
+            assert len(owners) == 1, 'missing unique Table owner'
+            owner = owners[0]
+            for mode, key in [('wait_capacity', -84), ('wait_denied', -85)]:
+                wait_seen.clear()
+                state.update(mode=mode, waits=0, ordinary_after_wait=0)
+                before = len(state['commands'])
+                os.kill(owner, signal.SIGSTOP)
+                try:
+                    with ThreadPoolExecutor(max_workers=1) as pool:
+                        pending = pool.submit(invoke, f'INSERT INTO items (id, value) VALUES ({key}, 840);',
+                                              1 if mode == 'wait_denied' else 0)
+                        try:
+                            if not wait_seen.wait(timeout=5):
+                                if pending.done():
+                                    raise AssertionError(('caller exited before wait', pending.result()))
+                                raise AssertionError('caller never used bounded wait')
+                            if mode == 'wait_denied':
+                                denied = pending.result(timeout=5)
+                                assert 'AccessDenied' in denied.stderr, denied
+                                assert state['ordinary_after_wait'] == 0
+                                assert not json.loads(saved.read_text())['complete']
+                        finally:
+                            os.kill(owner, signal.SIGCONT)
+                        result = pending.result(timeout=10)
+                        if mode == 'wait_capacity':
+                            applied(result)
+                            assert state['ordinary_after_wait'] > 0, 'wait capacity starved ordinary observation'
+                finally:
+                    os.kill(owner, signal.SIGCONT)
+                assert len(state['commands']) == before + 1, 'observation resubmitted accepted work'
+                state['mode'] = None
+                if mode == 'wait_denied':
+                    applied(invoke('.resume'))
+                    assert len(state['commands']) == before + 1
+                applied(invoke(f'DELETE FROM items WHERE id = {key};'))
             print('Transit write observation: capacity retries preserve one send; lost receipt requires explicit exact recovery.', flush=True)
+            print('Mutation completion waits: bounded hints, exhausted-wait ordinary reads and denied observation recovery passed.', flush=True)
         finally:
             proxy.shutdown()
             thread.join(timeout=5)

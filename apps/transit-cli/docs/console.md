@@ -368,7 +368,11 @@ of the completion to the requester. These are client-observed phases rather than
 pure network or engine execution time.
 For Table mutations and catalog writes, `compile` measures local lowering;
 `prepare` includes current metadata, identity checks and signing each command.
-`submit` measures native send acknowledgements. `wait` includes processed-input
+`submit` measures native send acknowledgements. Table mutation completion uses
+bounded authorized notification waits instead of fixed sleeps after pending
+results. Wait capacity exhaustion falls back to ordinary reads with bounded
+backoff; unavailable observations retain their original deadline and saved
+command. `wait` includes processed-input
 observations and polling sleeps; `fetch` reads rejection and terminal outcome
 records. `persist` includes every atomic recovery-file replacement and file/directory
 sync throughout the operation, and `render` writes the final presentation.

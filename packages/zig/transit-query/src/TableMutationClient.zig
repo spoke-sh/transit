@@ -14,6 +14,10 @@ wire: *q.wire.Client,
 connection: Connection,
 key: p.Ed25519.KeyPair,
 batch_support: bool = false,
+// Only a scheduling position for the last pending input. Never cache progress,
+// policy, a terminal result or permission to disclose it.
+pending_observation: ?struct { signature: [64]u8, input: u64, position: u64 } = null,
+pub const completion_wait_ms: u32 = 50;
 
 pub const Connection = struct {
     realm: u64,
@@ -208,17 +212,46 @@ pub fn submit(self: *Self, prepared: Prepared) !p.Receipt {
 /// Supply the receipt position returned for this exact prepared send. This does
 /// not fabricate a mutation result from a native send acknowledgement.
 pub fn observe(self: *Self, prepared: Prepared, input: u64) !Observation {
+    return self.observeBounded(prepared, input, null);
+}
+/// One fresh observation, optionally waiting after an earlier pending read of
+/// this exact input. Every wake/timeout rechecks current authority. Capacity
+/// exhaustion falls back to an ordinary read after bounded backoff, so busy
+/// wait admission cannot hide a completed input indefinitely.
+pub fn waitObserve(self: *Self, prepared: Prepared, input: u64) !Observation {
+    return self.observeBounded(prepared, input, completion_wait_ms);
+}
+fn observeBounded(self: *Self, prepared: Prepared, input: u64, milliseconds: ?u32) !Observation {
     try self.validate(prepared);
     if (input == 0 or input > p.max_counter) return error.InvalidMutationPrepared;
-    const response = try self.resources().query(.{ .process = self.connection.writer });
+    errdefer self.pending_observation = null;
+    const previous = self.pending_observation;
+    self.pending_observation = null;
+    const query: g.Query = .{ .realm = self.connection.realm, .principal = self.connection.principal, .kind = .{ .process = self.connection.writer } };
+    const response = response: {
+        if (milliseconds) |duration| if (previous) |cursor| {
+            if (cursor.input == input and std.mem.eql(u8, &cursor.signature, &prepared.signed.signature)) {
+                break :response self.wire.waitForChange(query, self.key, .{ .after = cursor.position, .milliseconds = duration }) catch |err| {
+                    if (!q.wire.Client.unavailable(err) or self.wire.last_rejection != .HttpCapacity) return err;
+                    try self.wire.http.io.sleep(.fromMilliseconds(duration), .awake);
+                    break :response try self.wire.query(query, self.key);
+                };
+            }
+        };
+        break :response try self.wire.query(query, self.key);
+    };
     if (input > response.position) return error.InvalidMutationPrepared;
+    if (response.body != .process) return error.InvalidAuthorityResponse;
     const state = response.body.process;
     if (state.process.lifecycle != .running or state.process.failure != null) return error.MutationWriterUnavailable;
     if (state.input) |head| {
         if (head.position == input) {
             if (head.origin != .external or head.origin.external.principal != self.connection.principal or !head.value.eql(prepared.signed.request.command.send.value)) return error.MutationIdentityConflict;
         }
-        if (head.position <= input) return .pending;
+        if (head.position <= input) {
+            self.pending_observation = .{ .signature = prepared.signed.signature, .input = input, .position = response.position };
+            return .pending;
+        }
     }
     return .processed;
 }
@@ -246,6 +279,14 @@ fn dispositionFrom(self: *Self, current: *const q.wire.ResourceReader.Batch, pre
 /// that this particular admitted input was processed.
 pub fn progress(self: *Self, prepared: Prepared, input: u64) !Progress {
     if (try self.observe(prepared, input) == .pending) return .pending;
+    return self.processed(prepared, input);
+}
+/// The same result contract as progress, with bounded notification scheduling.
+pub fn waitProgress(self: *Self, prepared: Prepared, input: u64) !Progress {
+    if (try self.waitObserve(prepared, input) == .pending) return .pending;
+    return self.processed(prepared, input);
+}
+fn processed(self: *Self, prepared: Prepared, input: u64) !Progress {
     const ref = try checkedReference(prepared);
     const current = try self.batch(&.{ r.key('e', input, 0), r.key('u', ref.namespace, 0) });
     return .{ .processed = .{

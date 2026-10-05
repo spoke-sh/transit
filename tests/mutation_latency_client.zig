@@ -73,10 +73,10 @@ pub fn main(init: std.process.Init) !void {
             const receipt = try client.submit(pending);
             try checkpoint(init, .{ .request = request, .namespace = namespace, .pending = pending, .input = receipt.position, .complete = false });
             const outcome = observation: while (true) {
-                const progress = try reads.call(q.TableMutationClient.progress, .{ &client, pending, receipt.position });
+                const progress = try reads.call(q.TableMutationClient.waitProgress, .{ &client, pending, receipt.position });
                 switch (progress) {
                     .processed => |value| break :observation value,
-                    .pending => try init.io.sleep(.fromMilliseconds(50), .awake),
+                    .pending => {},
                 }
             };
             if (outcome.disposition != null) return error.MutationInputRejected;

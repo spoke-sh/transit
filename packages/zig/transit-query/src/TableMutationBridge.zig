@@ -141,7 +141,7 @@ pub fn applyDiagnostic(alloc: Allocator, client: *Client, action: Action, bindin
             break :blk .{ .prepared = if (next) |value| try value.save(alloc) else null };
         },
         .submit => |v| .{ .receipt = try client.submit(try prepared(alloc, v)) },
-        .observe => |v| .{ .observation = try client.observe(try prepared(alloc, v.prepared), v.input) },
+        .observe => |v| .{ .observation = try client.waitObserve(try prepared(alloc, v.prepared), v.input) },
         .rejection => |v| .{ .rejection = if (try client.inputDisposition(try prepared(alloc, v.prepared), v.input)) |value| try Disposition.fromNative(value) else null },
         .status => |v| .{ .status = if (try client.status(try reference(alloc, v))) |value| try Status.fromNative(alloc, value) else null },
     };
