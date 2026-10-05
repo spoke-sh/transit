@@ -6,6 +6,73 @@ earlier entry refers to that entry's source, not automatically to HEAD. The late
 records its reruns and remaining qualification separately; earlier consolidation
 results do not qualify the changed stored layout by inheritance.
 
+## Schema-on-demand final qualification
+
+The campaign started 2026-10-04 and qualified committed source
+`9b8b0e9359c408a5a330e61fbd68788895c9f1ef`. All **75 ordinary CI tasks** pass
+in five complete, uninterrupted `just ci-clean --lane <lane> --work-root /var/tmp`
+runs: core 22, growth 26, experience 7, launchers 2 and bindings 18. Each lane
+uses an isolated clean checkout, locked frontend dependencies and pinned Nix
+tools. The source stays unchanged throughout the campaign. The
+[retained evidence](verification/results/m39-final-qualification-2026-10-04.json)
+embeds every task result and lane completion record, exact commands, revision,
+toolchain identity and local log hashes. Its audit matches the ordered results
+against the ordinary inventory with no gaps, duplicates or failed tasks.
+
+A separate clean checkout at the same revision runs pinned
+`just test::unified-query` in ReleaseSafe, with an owned `TMPDIR` on ext4.
+All three sources preserve signed seed bytes and the original committed receipt,
+retry frozen upload, restart source/requester/node/disk store after segment
+staging, return exact complete results, reject currently revoked prefixes and
+release source pins. Resident authority stays within eight pages for KV/Table
+and 64 for Document; the hot store remains 8 MiB. The focused run uses native
+and port callers; installed SDK coverage belongs to the independently completed
+bindings lane.
+
+| Source | Rows | Segments | IPC bytes | Proof seconds |
+| --- | ---: | ---: | ---: | ---: |
+| KV | 41 | 6 | 13584 | 39.28 |
+| Table | 41 | 6 | 13584 | 40.66 |
+| Document | 12 | 2 | 9880 | 393.55 |
+
+Growth includes the 190-case real file-query proof, logical types/sources/Arrow
+and neutral codecs, Table read/write recovery, full HTTP/gRPC worker fault
+schedules and both real connector examples. Bindings includes installed
+Python/TypeScript logical owners, all ten language caller/Station suites,
+cross-language interoperability, model/SQL proofs and connector preparation
+recovery. The earlier saved-marker, staged-mutation and seed-retry corrections
+remain covered without changing their runtime or resident bounds.
+
+Station launcher recovery passes before cleanup, with replacement in 30.363 s
+and resumed query completion in 9.666 s under separate 60-second allowances.
+Growing query delivery takes 46.479 s under its existing 600-second allowance;
+other phases retain 180 seconds. These observations do not restore former
+allowances or establish new latency guarantees. No source correction, timeout
+increase, storage-threshold change or assertion relaxation was needed in this
+campaign. The original intermittent gRPC failure remains unclassified; this
+complete passing lane does not establish its historical cause. Earlier failed,
+interrupted and disk-pressure runs below retain their actual outcomes.
+
+This closes [issue #53](https://github.com/rupurt/rey/issues/53)'s ordinary and
+physical-disk qualification gates for the delivered profile. The historical
+[file comparison and native controls](fuze_benchmarks/results/2026-09-30/README.md)
+retain their measured revisions, raw samples, withdrawn experiments and frozen
+budgets; this campaign adds no file benchmark or DuckDB-parity claim. Local file
+captures remain ephemeral, and native Table/Flight and other language logical
+admission retain the [published surface limits](../docs/reference/sql/types.md#surface-capability-matrix).
+Browser and external-placement tiers, hosted execution/cost and broader mutation
+latency work in [issue #55](https://github.com/rupurt/rey/issues/55) are outside
+this closeout. Later closeout commits change only evidence and roadmap prose;
+this runtime qualification remains tied to the revision above.
+
+Full pinned `just check` also passes for the closeout changes, including 77 Board
+tests and the documentation build. Its first attempt fails when the default
+`/tmp` tmpfs runs out of space while the CLI diagnostic fixture copies its binary.
+The unchanged rerun uses the campaign's ext4 `TMPDIR` and passes. Both logs and
+exit statuses are retained in the evidence record; no source fix or assertion
+change is needed. This post-campaign environment failure does not replace any
+of the five complete clean lanes.
+
 ## Semantic diagnostic closeout
 
 Recorded 2026-10-03. The reviewed diagnostic implementation is qualified by full
