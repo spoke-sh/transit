@@ -10965,8 +10965,28 @@ then fails the gRPC worker's cold-object count. Diagnostic inspection finds
 actual Ursula `_packs` cold data; the fixture counted only `chunks`. The
 `1fda5643` counter correction recognizes both pinned paths and tests that startup,
 snapshot and empty-directory metadata do not count. Spill requirements, provider
-limits and proof deadlines remain unchanged. A new committed-source full run at
-`3a52d102` is underway; no unreached check is claimed as passed.
+limits and proof deadlines remain unchanged.
+
+On 2026-10-05 UTC, committed-source `just ci-clean` at `3a52d102` completes all
+**75 ordinary tasks** in 6,789.17 seconds. The [task results](mutation_latency/results/2026-10-04/clean-3a-complete.json)
+and [completion metadata](mutation_latency/results/2026-10-04/clean-3a-complete.meta.json)
+retain exact task order, source and exit codes. The physical query-delivery phase
+passes in 18.065 seconds under its existing 600-second deadline. Native/port/CLI
+Table mutation recovery checks 23 lost receipts; the
+[structured records](mutation_latency/results/2026-10-04/clean-3a-runtime-evidence.json)
+preserve the phase and binary evidence. The gRPC worker observes 135 cold objects;
+the HTTP worker observes 193, with unchanged 8 MiB hot limits. All installed SDK
+tasks pass, and the [ten-language ring](mutation_latency/results/2026-10-04/clean-3a-public-interop.json)
+checks restarted replies, lost receipts, typed Tables/queries and original IPC.
+The [local Station readiness proof](mutation_latency/results/2026-10-04/clean-3a-station-readiness.json)
+retains its injected outage, replacement and cleanup results.
+
+A separate clean experience lane at `cd9fde43` completes all seven tasks after
+public documentation updates. Changes following the fully qualified runtime
+contain documentation/evidence only. Ordinary clean CI does not include the
+browser tier or external Compose/Substrate profiles; these results do not qualify
+the unpatched official Ursula container. Failed earlier controls remain failed,
+and the recorded loaded-run timeout/restart tails remain a performance limit.
 
 Compact-page qualification on 2026-10-04 (the current-definition cutover candidate
 following `213acb3b`) passed root units, `just check`, hot packed/closed disk page
@@ -10999,9 +11019,10 @@ as a latency optimization from this workload. Native qualification remains
 necessary before accepting any format change.
 
 
-Tracked by [issue #55](https://github.com/rupurt/rey/issues/55). Qualification is
-in progress; the following measurements are diagnostic evidence, not a latency
-SLO or an assertion that unexecuted gates passed.
+Tracked by [issue #55](https://github.com/rupurt/rey/issues/55). The historical
+measurements below retain their original scope and failures. Completed clean
+qualification is recorded above; no measurement establishes a latency SLO or
+turns an unexecuted gate into a pass.
 
 The initial supplied transcript placed 5.78–6.28 seconds inside `submit` for
 single-row mutations. Read-only source and owned ReleaseSafe experiments at

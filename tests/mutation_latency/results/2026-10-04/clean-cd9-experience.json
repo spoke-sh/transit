@@ -1,0 +1,44 @@
+[
+  {
+    "lane": "experience",
+    "task": "transit-board::check",
+    "seconds": 76.15,
+    "exit_code": 0
+  },
+  {
+    "lane": "experience",
+    "task": "transit-docs::check",
+    "seconds": 64.59,
+    "exit_code": 0
+  },
+  {
+    "lane": "experience",
+    "task": "bindings::node-check",
+    "seconds": 8.7,
+    "exit_code": 0
+  },
+  {
+    "lane": "experience",
+    "task": "test::observability",
+    "seconds": 13.11,
+    "exit_code": 0
+  },
+  {
+    "lane": "experience",
+    "task": "transit-board::test",
+    "seconds": 10.99,
+    "exit_code": 0
+  },
+  {
+    "lane": "experience",
+    "task": "transit-board::query-test",
+    "seconds": 53.66,
+    "exit_code": 0
+  },
+  {
+    "lane": "experience",
+    "task": "launchers::local::test-station",
+    "seconds": 259.9,
+    "exit_code": 0
+  }
+]

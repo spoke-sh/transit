@@ -47,11 +47,8 @@ fixture paths refer to retained local evidence; they are not portable installati
 | [fixed-idle](fixed-idle.json.gz) | complete | 140 | `509a11925ba74df3c63a6a1201980454474b5bbd7c8f0c368892ca73ff1ed4d2` |
 | [fixed-pressure](fixed-pressure.json.gz) | complete | 700 | `4f08dbcfcd69f236832dd4c54aeaa1c5dc48821f1d0957bd5f983caccd27c4a7` |
 | [slow-diagnostic-rows](slow-diagnostic-rows.json.gz) | complete | 280 | `e2124059fdfa6241ce0963b51c02d27ac690ee9cd9edb11d2ea377cbb0feaf0c` |
-
 | [fixed-client-history-repeat](fixed-client-history-repeat.json.gz) | complete | 700 | `217253e5edb3939c23032b4cc2f056396763fd5e7c16a3c6e75e82f1914d58c5` |
-
 | [baseline-fixed-provider](baseline-fixed-provider.json.gz) | complete | 140 | `7faa0e0adebc48575c3f465bad26aa78c67b8909810d2016a2ca7cfb2db9af6b` |
-
 | [fixed-default-paired](fixed-default-paired.json.gz) | complete | 140 | `f15c61186e890848bb6962300aee66f79ef0b10392dde291e9e249f97a0187a4` |
 
 ## Interpretation
@@ -212,3 +209,21 @@ The counter correction preserves spill assertions and tests both pinned paths
 while excluding unrelated metadata. Previously recorded `cold_objects` may
 under-count shared packs; their nonzero assertions still establish actual data
 objects, not total object cardinality. Raw reports remain unchanged.
+
+The [completed 3a task results](clean-3a-complete.json) and
+[completion metadata](clean-3a-complete.meta.json) verify all 75 ordinary tasks
+in order, with zero failed exits and an explicit completed flag, at
+`3a52d102ede0763dff9b0590b11f21722dd163b7`. Elapsed suite time is 6,789.17 seconds,
+excluding initial checkout/dependency setup. The gRPC and HTTP worker proofs
+observe 135 and 193 cold objects respectively under unchanged 8 MiB hot limits.
+[Query/mutation records](clean-3a-runtime-evidence.json),
+[ten-language interoperability](clean-3a-public-interop.json) and
+[Station readiness recovery](clean-3a-station-readiness.json) retain their scoped
+results separately from latency controls.
+
+The later documentation source `cd9fde43` passes the separate seven-task clean
+experience lane; its [results](clean-cd9-experience.json) and
+[metadata](clean-cd9-experience.meta.json) do not stand in for a full suite.
+Subsequent source changes are documentation and evidence only. Neither ordinary
+CI nor that scoped lane qualifies the browser tier, external deployment profiles
+or the unpatched official provider image. Failed earlier attempts remain failed.

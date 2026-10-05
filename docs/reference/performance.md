@@ -6,8 +6,8 @@ query measurements below do not measure file discovery or type inference.
 
 The console executes fresh interactive queries through leased native snapshots
 and client-side Fuze. It avoids the durable upload/result-publication workflow
-whose measured costs motivated this change. This page records local measurements
-from 2026-09-29, their limits and the remaining storage improvements.
+whose measured costs motivated this change. This page records local read and mutation measurements, their limits and the
+remaining storage costs.
 
 Interactive `.timer` separates local `compile`, snapshot `open`, `fetch`
 (including execution and current validation), `render` and snapshot `release`.
