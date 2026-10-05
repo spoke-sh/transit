@@ -327,6 +327,25 @@ are volatile and coalesced; timeout reads cover missed or other-node publication
 An unavailable wait falls back to the bounded worker interval. Fixed worker
 intervals remain a measurement control, not a latency guarantee.
 
+A completed compact-layout control on the shared development host records these
+single-row distributions, with 20 samples per case:
+
+| Control | INSERT p50 / p95 | UPDATE p50 / p95 | DELETE p50 / p95 |
+| --- | ---: | ---: | ---: |
+| Frozen pre-continuation baseline | 363 / 419 ms | 349 / 413 ms | 345 / 407 ms |
+| Complete candidates and scoped waits | 289 / 359 ms | 294 / 357 ms | 289 / 347 ms |
+| Compact pages with those changes | 144 / 165 ms | 161 / 176 ms | 145 / 164 ms |
+| Compact pages, 1.2-second idle gaps | 150 / 744 ms | 172 / 192 ms | 150 / 166 ms |
+
+The [raw campaign and reproduction](../../tests/mutation_latency/results/2026-10-04/README.md)
+retain source/binary hashes, all seven cases, failed controls and instrumentation
+limits. The idle INSERT tail remains visible; these completed runs do not establish
+an error-free workload under arbitrary pressure. A separate instrumented direct
+caller with retained rows/history and one concurrent reader completes 100 samples
+per case, with different proxy/checkpoint costs. Unproxied controls also retain
+unresolved transport failures, so a later completed run cannot certify those
+failures as fixed. Native 503 responses still require exact saved recovery.
+
 Record the backing filesystem when comparing storage latency. A file-backed WAL
 inside a temporary directory can reside on tmpfs; that run does not measure
 physical-disk write cost. Place fixtures on the filesystem being measured and

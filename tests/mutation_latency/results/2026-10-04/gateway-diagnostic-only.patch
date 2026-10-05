@@ -1,0 +1,32 @@
+diff --git a/apps/transit-cli/server/Gateway.zig b/apps/transit-cli/server/Gateway.zig
+index 26775bc3..54ad85e1 100644
+--- a/apps/transit-cli/server/Gateway.zig
++++ b/apps/transit-cli/server/Gateway.zig
+@@ -75,7 +75,10 @@ const Context = struct {
+             forwarded[0] = .{ .name = "x-transit-wait", .value = value };
+             forwarded_count = 1;
+         }
+-        const response = slot.client.http.fetch(.{ .location = .{ .url = url }, .method = if (health) .GET else .POST, .payload = if (health) null else body, .headers = .{ .content_type = .{ .override = "application/json" } }, .redirect_behavior = .not_allowed, .extra_headers = forwarded[0..forwarded_count], .keep_alive = true, .response_writer = &writer }) catch return http.respond(request, .service_unavailable, "{\"err\":\"AuthorityUnavailable\"}");
++        const response = slot.client.http.fetch(.{ .location = .{ .url = url }, .method = if (health) .GET else .POST, .payload = if (health) null else body, .headers = .{ .content_type = .{ .override = "application/json" } }, .redirect_behavior = .not_allowed, .extra_headers = forwarded[0..forwarded_count], .keep_alive = true, .response_writer = &writer }) catch |err| {
++            std.debug.print("gateway transport: {s}\n", .{@errorName(err)});
++            return http.respond(request, .service_unavailable, "{\"err\":\"AuthorityUnavailable\"}");
++        };
+         try request.respond(writer.buffered(), .{ .status = response.status, .keep_alive = true, .extra_headers = &.{
+             .{ .name = "content-type", .value = "application/json" },
+             .{ .name = "cache-control", .value = "no-store" },
+diff --git a/apps/transit-cli/server/Server.zig b/apps/transit-cli/server/Server.zig
+index 8808581d..096f8cad 100644
+--- a/apps/transit-cli/server/Server.zig
++++ b/apps/transit-cli/server/Server.zig
+@@ -54,7 +54,10 @@ pub fn run(init: std.process.Init, options: @import("../Options.zig").Options, d
+     const self = try init.gpa.create(Self);
+     defer init.gpa.destroy(self);
+     self.* = .{ .init = init, .installation = &installation, .executable = executable, .diagnostic = diagnostic, .config_path = options.path orelse "transit.yaml / server defaults", .ui = !options.no_ui };
+-    defer self.stop();
++    defer {
++        self.stop();
++        self.transportDiagnostic();
++    }
+     var restarts: u8 = 0;
+     while (!Signals.interrupted()) {
+         self.cycle() catch |err| {

@@ -1,0 +1,10 @@
+{
+  "fixture": "/var/tmp/transit-server-proof-0c4fq_c_",
+  "operation": 3140012591686592351,
+  "original_recovery_sha256": "7a43a678df327323b4c7619091a0c1c75fcf7d34381cb7340a7834487c8da07c",
+  "status": "reconciled",
+  "exit_code": 0,
+  "complete": true,
+  "pending": false,
+  "affected_rows": 1
+}

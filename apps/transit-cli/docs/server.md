@@ -281,9 +281,11 @@ two-second attempt deadline. Shutdown gives each child one second for SIGTERM,
 then kills its group and joins it. These are physical lifecycle bounds, not
 extensions of accepted operation lifetimes.
 
-Source, requester and courier polling starts at 100 ms and doubles on idle steps
-up to one second, resetting on activity. New durable work may wait for that next
-poll; interactive console SELECT executes directly over native snapshots.
+Source, requester and courier idle intervals start at 100 ms and double up to
+one second, resetting on activity. Idle receives wait for bounded authorized
+process/output notifications, then revalidate current state. Timeouts reconcile
+missed and other-node publications; unavailable waits use the bounded interval.
+Interactive console SELECT executes directly over native snapshots.
 
 Once genesis has been observed, recovery never enables node bootstrap or creates
 a replacement cold bucket. Missing storage markers and an authority position
@@ -299,12 +301,12 @@ ownership and live disaster recovery are outside this profile.
 | Manager | Root key; provisioning and scoped caller key for initial casts | One 64 KiB installation record, one frozen request, nine children, 64 KiB streaming artifact hash buffer |
 | MinIO | Local provider credential only | Two Go scheduler threads, 256 MiB Go soft heap target; independent provider, no Transit authority |
 | Ursula | Disk WAL and local cold credential | One Raft group, two cores, 8 MiB hot data and 8 MiB cold read cache; 8 MiB uncommitted Raft payload cap, 64 live-read waiters per core, 512 MiB RSS admission threshold |
-| Authority | Genesis public root key, raw storage location | Eight decoded authority pages plus 16 immutable control records; 16 sockets, four data/two control requests, serialized engine work; 256 KiB native body/reply, two-second HTTP deadline |
+| Authority | Genesis public root key, raw storage location | Eight decoded authority pages plus 16 immutable control records; 16 sockets, four data/two control/four wait requests, serialized engine work; 256 KiB native body/reply, two-second HTTP deadline |
 | Maintenance | Separate admin/effect/delivery grant and raw storage location | One bounded scan/transition at a time, one-second idle interval, two-second operation deadline |
 | Source / Table writer | Fresh PID-scoped inspect/execute/publish grant; own resource and separate requester-resource read grant | Four MiB query workspace, one MiB adapter, four mutations per committed turn |
 | Requester | Fresh PID-scoped inspect/execute/publish grant and own resource | Four MiB workspace, one active finite query/upload; retained history remains durable |
 | Courier | Separate inspect/send/delivery grant | One bounded output page and one frozen delivery; recorded destinations remain authoritative |
-| Gateway | No signing key or raw provider access | 16 sockets, four data plus two control requests, six exclusive upstream clients; 8 KiB headers, 256 KiB body/reply; one-second header and four-second whole-request deadlines |
+| Gateway | No signing key or raw provider access | 16 sockets, four data/two control/four wait requests, six ordinary and four wait upstream clients; 8 KiB headers, 256 KiB body/reply; one-second header and four-second whole-request deadlines |
 | Board | Separate retained realm inspection-only key and explicit resource grants; no query/operator credential | Existing [Board limits](../../transit-board/README.md#bounds-and-observations); one child, bounded 256 KiB startup response |
 | Console | Realm-scoped inspect/send caller key, two specific resource read grants and separate Table INSERT/UPDATE/DELETE policy | Its separate [console bounds](console.md), private write recovery file and credential lock |
 
@@ -323,7 +325,7 @@ request and reconcile through the caller's recovery interface.
 The gateway forwards only native `/v1/query`, `/v1/command` and `/health` routes,
 preserving the signed body and upstream response status. Node and gateway permit
 64 sequential exchanges per connection; clients discard connections after 200 ms
-idle, and the listener bounds idle waits to one second. Commands, health and
+since an exchange started, and the listener bounds idle header waits to one second. Commands, health and
 checked snapshot release/finish requests use
 the control reserve; native authorization still decides every operation. Exact
 configured Host is required, and browser Origin, Authorization and forwarded
