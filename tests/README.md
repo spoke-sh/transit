@@ -10930,6 +10930,23 @@ qualification is recorded separately.
 
 ## Durable Table mutation latency
 
+The isolated `just test::page-layout --output /var/tmp/page-layout.json` study
+uses the production immutable-tree algorithm in temporary modules. Four codec/
+geometry variants and monolithic/separate roots retain the old snapshots and
+round-trip every staged page. Its store counts reads, stages and encoded bytes
+for 50 synthetic private turn candidates at 64/1024 rows and equal receipt history.
+It does not execute native authorization, provider I/O, durability or latency.
+The compact codec is an experimental input, not an accepted installation format.
+
+The 2026-10-04 run at `fdb449a4` completed all sixteen cases. At 1024 rows,
+compact 8-entry leaves/32-child branches used 782 page reads, 468 stages and
+613,884 encoded bytes versus 1,790/1,391/1,403,546 for 4/5 JSON pages. Resident
+page objects grew from 8,480 to 16,952 bytes. Separate roots in that compact
+geometry used 938 reads, 550 stages and 696,327 bytes: partitioning is not selected
+as a latency optimization from this workload. Native qualification remains
+necessary before accepting any format change.
+
+
 Tracked by [issue #55](https://github.com/rupurt/rey/issues/55). Qualification is
 in progress; the following measurements are diagnostic evidence, not a latency
 SLO or an assertion that unexecuted gates passed.

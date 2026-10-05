@@ -266,6 +266,8 @@ def main():
         fixture.cleanup()
         for probe in probes.values():
             probe.close()
+        if 'native' in probes:
+            report['native_trace'] = probes['native'].trace()
         save()
         if report['status'] == 'complete':
             shutil.rmtree(fixture.root)

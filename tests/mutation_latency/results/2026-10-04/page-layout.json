@@ -1,0 +1,259 @@
+{
+  "source_revision": "fdb449a4d63119f83144219c99a8a00333c7c0bf",
+  "tree_sha256": "482609c475e3340f5836bc21580dab0b8ed732fc019653aaffa4cf7fa6217429",
+  "scope": "50 private synthetic turn candidates; retained roots and codec round trips checked; no provider I/O, authority validation or native latency",
+  "variants": [
+    {
+      "name": "current",
+      "compact": false,
+      "generated_sha256": "482609c475e3340f5836bc21580dab0b8ed732fc019653aaffa4cf7fa6217429",
+      "results": [
+        {
+          "rows": 64,
+          "retained_receipts": 64,
+          "turns": 50,
+          "split_roots": false,
+          "leaf_entries": 4,
+          "branch_children": 5,
+          "resident_page_bytes": 8480,
+          "work": {
+            "reads": 1254,
+            "stages": 887,
+            "encoded_bytes": 925775
+          }
+        },
+        {
+          "rows": 64,
+          "retained_receipts": 64,
+          "turns": 50,
+          "split_roots": true,
+          "leaf_entries": 4,
+          "branch_children": 5,
+          "resident_page_bytes": 8480,
+          "work": {
+            "reads": 1254,
+            "stages": 837,
+            "encoded_bytes": 906312
+          }
+        },
+        {
+          "rows": 1024,
+          "retained_receipts": 1024,
+          "turns": 50,
+          "split_roots": false,
+          "leaf_entries": 4,
+          "branch_children": 5,
+          "resident_page_bytes": 8480,
+          "work": {
+            "reads": 1790,
+            "stages": 1391,
+            "encoded_bytes": 1403546
+          }
+        },
+        {
+          "rows": 1024,
+          "retained_receipts": 1024,
+          "turns": 50,
+          "split_roots": true,
+          "leaf_entries": 4,
+          "branch_children": 5,
+          "resident_page_bytes": 8480,
+          "work": {
+            "reads": 1890,
+            "stages": 1441,
+            "encoded_bytes": 1411409
+          }
+        }
+      ]
+    },
+    {
+      "name": "compact",
+      "compact": true,
+      "generated_sha256": "c14a5f39fc11e9b2330880020fed25af90e640f39f01279f7c12ad079b957d2f",
+      "results": [
+        {
+          "rows": 64,
+          "retained_receipts": 64,
+          "turns": 50,
+          "split_roots": false,
+          "leaf_entries": 4,
+          "branch_children": 5,
+          "resident_page_bytes": 8480,
+          "work": {
+            "reads": 1254,
+            "stages": 887,
+            "encoded_bytes": 306822
+          }
+        },
+        {
+          "rows": 64,
+          "retained_receipts": 64,
+          "turns": 50,
+          "split_roots": true,
+          "leaf_entries": 4,
+          "branch_children": 5,
+          "resident_page_bytes": 8480,
+          "work": {
+            "reads": 1254,
+            "stages": 837,
+            "encoded_bytes": 302204
+          }
+        },
+        {
+          "rows": 1024,
+          "retained_receipts": 1024,
+          "turns": 50,
+          "split_roots": false,
+          "leaf_entries": 4,
+          "branch_children": 5,
+          "resident_page_bytes": 8480,
+          "work": {
+            "reads": 1790,
+            "stages": 1391,
+            "encoded_bytes": 421254
+          }
+        },
+        {
+          "rows": 1024,
+          "retained_receipts": 1024,
+          "turns": 50,
+          "split_roots": true,
+          "leaf_entries": 4,
+          "branch_children": 5,
+          "resident_page_bytes": 8480,
+          "work": {
+            "reads": 1890,
+            "stages": 1441,
+            "encoded_bytes": 423703
+          }
+        }
+      ]
+    },
+    {
+      "name": "wide-branch",
+      "compact": true,
+      "generated_sha256": "5b543bd312af9fa8c0607ec956921f03fd36043aa1372ce5c49d907ff9a14bd5",
+      "results": [
+        {
+          "rows": 64,
+          "retained_receipts": 64,
+          "turns": 50,
+          "split_roots": false,
+          "leaf_entries": 4,
+          "branch_children": 32,
+          "resident_page_bytes": 8480,
+          "work": {
+            "reads": 1732,
+            "stages": 545,
+            "encoded_bytes": 424278
+          }
+        },
+        {
+          "rows": 64,
+          "retained_receipts": 64,
+          "turns": 50,
+          "split_roots": true,
+          "leaf_entries": 4,
+          "branch_children": 32,
+          "resident_page_bytes": 8480,
+          "work": {
+            "reads": 1768,
+            "stages": 544,
+            "encoded_bytes": 428646
+          }
+        },
+        {
+          "rows": 1024,
+          "retained_receipts": 1024,
+          "turns": 50,
+          "split_roots": false,
+          "leaf_entries": 4,
+          "branch_children": 32,
+          "resident_page_bytes": 8480,
+          "work": {
+            "reads": 1918,
+            "stages": 731,
+            "encoded_bytes": 658350
+          }
+        },
+        {
+          "rows": 1024,
+          "retained_receipts": 1024,
+          "turns": 50,
+          "split_roots": true,
+          "leaf_entries": 4,
+          "branch_children": 32,
+          "resident_page_bytes": 8480,
+          "work": {
+            "reads": 1900,
+            "stages": 648,
+            "encoded_bytes": 715422
+          }
+        }
+      ]
+    },
+    {
+      "name": "wide-leaf",
+      "compact": true,
+      "generated_sha256": "41e1ab5261301c56627c261a38653b2db88c3cd8a615811c3c5f4fcb55c863a2",
+      "results": [
+        {
+          "rows": 64,
+          "retained_receipts": 64,
+          "turns": 50,
+          "split_roots": false,
+          "leaf_entries": 8,
+          "branch_children": 32,
+          "resident_page_bytes": 16952,
+          "work": {
+            "reads": 939,
+            "stages": 297,
+            "encoded_bytes": 396462
+          }
+        },
+        {
+          "rows": 64,
+          "retained_receipts": 64,
+          "turns": 50,
+          "split_roots": true,
+          "leaf_entries": 8,
+          "branch_children": 32,
+          "resident_page_bytes": 16952,
+          "work": {
+            "reads": 762,
+            "stages": 350,
+            "encoded_bytes": 420532
+          }
+        },
+        {
+          "rows": 1024,
+          "retained_receipts": 1024,
+          "turns": 50,
+          "split_roots": false,
+          "leaf_entries": 8,
+          "branch_children": 32,
+          "resident_page_bytes": 16952,
+          "work": {
+            "reads": 782,
+            "stages": 468,
+            "encoded_bytes": 613884
+          }
+        },
+        {
+          "rows": 1024,
+          "retained_receipts": 1024,
+          "turns": 50,
+          "split_roots": true,
+          "leaf_entries": 8,
+          "branch_children": 32,
+          "resident_page_bytes": 16952,
+          "work": {
+            "reads": 938,
+            "stages": 550,
+            "encoded_bytes": 696327
+          }
+        }
+      ]
+    }
+  ]
+}

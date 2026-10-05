@@ -3,7 +3,7 @@
 The proxy changes transport costs. Compare instrumented runs separately from
 unproxied timings. No request/response payloads or credentials are retained.
 """
-from collections import Counter
+from collections import Counter, deque
 from http.client import HTTPConnection
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
@@ -17,6 +17,9 @@ class Probe:
         endpoint = urlsplit(target)
         assert endpoint.scheme == 'http' and endpoint.hostname == '127.0.0.1'
         self.counts = Counter()
+        self.events = deque(maxlen=2048)
+        self.started_ns = time.monotonic_ns()
+        self.completed_events = 0
         self.lock = threading.Lock()
         owner = self
 
@@ -52,6 +55,12 @@ class Probe:
                     labels.append('principal:' + str(envelope['principal']) + ':' + classified)
                 connection = HTTPConnection(endpoint.hostname, endpoint.port, timeout=60)
                 started = time.monotonic_ns()
+                event = {'start_ns': started - owner.started_ns, 'method': self.command,
+                         'wait_hint': self.headers.get('X-Transit-Wait') is not None}
+                if native and self.path in ('/v1/query', '/v1/command'):
+                    event.update(operation=classified, principal=envelope['principal'])
+                    if mutation:
+                        event['sequence'] = envelope['sequence']
                 with owner.lock:
                     owner.counts['attempts'] += 1
                 try:
@@ -59,6 +68,7 @@ class Probe:
                                if key.lower() not in ('host', 'connection', 'content-length')}
                     connection.request(self.command, self.path, body, headers)
                     response = connection.getresponse()
+                    event["status"] = response.status
                     data = response.read(4 * 1024 * 1024 + 1)
                     if len(data) > 4 * 1024 * 1024:
                         raise ValueError('fixture response exceeds probe bound')
@@ -73,6 +83,7 @@ class Probe:
                         metrics = response.getheader('x-transit-work')
                         if native and metrics is not None:
                             values = json.loads(metrics)
+                            event["work"] = values
                             for field in ('wait_ns', 'work_ns', 'cache_hits', 'cache_misses',
                                           'staged_pages', 'staged_bytes'):
                                 amount = values[field]
@@ -111,14 +122,22 @@ class Probe:
                     self.end_headers()
                     self.wfile.write(data)
                     self.wfile.flush()
-                except (BrokenPipeError, ConnectionResetError):
+                except (BrokenPipeError, ConnectionResetError) as error:
+                    event["failure"] = type(error).__name__
                     with owner.lock:
                         owner.counts['disconnected'] += 1
-                except OSError:
+                except OSError as error:
+                    event["failure"] = type(error).__name__
                     with owner.lock:
                         owner.counts['transport_failures'] += 1
                     self.send_error(503)
                 finally:
+                    if native:
+                        event['elapsed_ns'] = time.monotonic_ns() - started
+                        with owner.lock:
+                            owner.completed_events += 1
+                            event['ordinal'] = owner.completed_events
+                            owner.events.append(event)
                     connection.close()
 
             do_GET = do_POST = do_PUT = do_DELETE = do_HEAD = forward
@@ -132,6 +151,11 @@ class Probe:
     def snapshot(self):
         with self.lock:
             return self.counts.copy()
+
+    def trace(self):
+        with self.lock:
+            return {'completed': self.completed_events, 'retained': list(self.events),
+                    'omitted': self.completed_events - len(self.events)}
 
     def close(self):
         self.server.shutdown()
