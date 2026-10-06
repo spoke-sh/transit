@@ -16537,3 +16537,20 @@ coordinated contract definition replacement remain pending.
 The complete SQL suite also passes after the diagnostic additions and Table
 completion reservation (`general-table-sql-full3.log`, seven build steps). This
 retains the separately recorded independent grammar/AST/schema/plan counts.
+
+
+### Counter continuation across chunked Table indexes
+
+`general-counter-unit3.log` passes 4/4 ReleaseSafe tests. The new case inserts
+nineteen distinct keys, crossing inline-index and native-page bounds, and checks
+all prior rows after each completion. It retains the discarded-turn and exhausted
+output-budget schedules. Test execution takes 184 ms with 13 MiB peak RSS.
+
+The first combined serving lifetime/growth run failed with
+`PublicationReadAfterMutation`: a frozen counter command was written before the
+same turn acquired a chunked immutable index. The owner now commits that frozen
+command before a subsequent turn stages its Table write. The final Table,
+application progress and reply boundary remains unchanged. The second run passed
+64 retained operations but reached the cold-disabled fixture's 64 MiB hot-store
+ceiling at operation 169. It is failed growth evidence, not a lifetime/growth pass;
+qualification with bounded hot storage and cold spill remains separate.

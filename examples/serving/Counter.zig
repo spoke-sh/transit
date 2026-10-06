@@ -127,7 +127,6 @@ pub fn drive(allocator: std.mem.Allocator, turn: *s.Turn) !void {
     errdefer turn.decision = before;
     if (try s.Frame.source(turn.delivery.input) != turn.delivery.pid) return error.AccessDenied;
     var pending = (try first(turn)) orelse return;
-    var reserve: u8 = 2;
     if (pending.prepared == null) {
         const head = try s.TableHead.load(turn, object);
         var stored = try head.readSchema(allocator, turn);
@@ -148,15 +147,15 @@ pub fn drive(allocator: std.mem.Allocator, turn: *s.Turn) !void {
         const next = std.math.add(i64, previous, pending.delta) catch return finish(turn, pending, try p.Value.init("CounterOverflow"), false);
         pending.prepared = .{ .identity = selected orelse .{ .origin = pending.principal + 1, .operation = pending.input, .ordinal = 0 }, .value = next, .insert = selected == null };
         try turn.write(Pending.keyFor(pending.input), try pending.encode());
-        // The pending key already occupies one slot; terminal deletion reuses
-        // that slot, so only the application progress write needs reserving.
-        reserve = 1;
+        // Publication cursors read a committed cut. Persist the frozen command
+        // before acquiring any chunked index/value pages for its Table write.
+        return wake(turn);
     }
     const prepared = pending.prepared.?;
     const cells = [_]f.Types.Values.Cell{ .{ .value = .{ .atom = .{ .signed = pending.key } } }, .{ .value = .{ .atom = .{ .signed = prepared.value } } } };
     const row: f.TableRow.Row = .{ .identity = prepared.identity, .cells = &cells };
     const request: s.TableWrite.Request = .{ .resource = turn.view.resource, .principal = pending.principal, .operation = pending.input, .schema = schema, .change = if (prepared.insert) .{ .insert = row } else .{ .update = row }, .owner_binding = pending.intent };
-    const status = try s.TableWrite.stepWithReserve(allocator, turn, request, reserve);
+    const status = try s.TableWrite.stepWithReserve(allocator, turn, request, 2);
     if (status.state == .building) return wake(turn);
     if (status.state != .applied) return finish(turn, pending, try p.Value.init("CounterMutationRejected"), false);
     if (status.matched != 1) return error.CounterRowChanged;

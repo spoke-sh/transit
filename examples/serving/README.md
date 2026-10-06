@@ -39,8 +39,8 @@ readiness gate before publishing the service binding. The supplied runners admit
 quotas do not cap durable row or operation cardinality.
 
 Each accepted call is saved in paged state with its original ingress and reply
-correlation. The owner freezes the selected row identity and computed increment,
-then stages the typed row without exposing a partial update. The final turn
+correlation. The owner commits the selected row identity and computed increment
+before a later turn reads immutable Table pages and stages the typed row without exposing a partial update. The final turn
 publishes the Table head, exact mutation receipt, application progress and reply
 together within the native four-write budget. Lost turns reuse the frozen delta.
 Only the configured ingress's process origin can enqueue a counter call; only

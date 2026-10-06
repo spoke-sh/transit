@@ -146,3 +146,19 @@ test "counter continuation requires its owner and invocations require the config
     try t.expectEqualDeep(before, turn.decision);
     try t.expectEqual(1, std.mem.readInt(i64, (try complete(&store)).data[0..8], .little));
 }
+
+test "counter staging reads chunked growing indexes only before private mutation" {
+    var store: Store = .{};
+    defer store.deinit();
+    try setup(&store);
+    // Distinct rows force the immutable index beyond an inline record and a
+    // resident native page. A single repeatedly updated key misses this case.
+    for (0..19) |i| try enqueue(&store, i + 1, @intCast(i + 1), 1);
+    for (0..19) |i| {
+        try t.expectEqual(1, std.mem.readInt(i64, (try complete(&store)).data[0..8], .little));
+        for (0..i + 1) |row| try t.expectEqual(1, (try value(&store, @intCast(row + 1))).?);
+    }
+    var turn = try store.capture();
+    try t.expectEqual(19, (try s.TableHead.load(&turn, Counter.object)).rows);
+    try t.expectEqual(19, try (try turn.read(Counter.progress_key)).?.asInteger());
+}
