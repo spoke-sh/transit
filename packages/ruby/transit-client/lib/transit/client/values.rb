@@ -95,10 +95,37 @@ module Transit
     # This small validator accepts only the keywords emitted by the Zig schema
     # generator. Unknown schema keywords fail closed, rather than being ignored.
     def valid?(schema, value)
-      known = %w[type properties additionalProperties required maxProperties anyOf oneOf enum const minimum maximum maxLength pattern items minItems maxItems]
+      validate_rule(schema, value, schema, {}, 0)
+    rescue SystemStackError, RegexpError, TypeError, KeyError
+      false
+    end
+    def validate_rule(schema, value, root, active, depth)
+      return false unless schema.is_a?(Hash) && depth <= 128
+      # References are local to one generated root. Detect non-consuming cycles;
+      # recursive data may revisit the same schema with a different child value.
+      pair = [schema.object_id, value.object_id]
+      return false if active.key?(pair)
+      active[pair] = true
+      begin
+        validate_body(schema, value, root, active, depth)
+      ensure
+        active.delete(pair)
+      end
+    end
+    def validate_body(schema, value, root, active, depth)
+      known = %w[$defs $ref type properties additionalProperties required maxProperties anyOf oneOf enum const minimum maximum maxLength pattern items minItems maxItems]
       return false unless (schema.keys - known).empty?
-      return false if schema.key?('anyOf') && !schema['anyOf'].any? { |item| valid?(item, value) }
-      return false if schema.key?('oneOf') && schema['oneOf'].count { |item| valid?(item, value) } != 1
+      return false if %w[anyOf oneOf].any? { |key| schema.key?(key) && (!schema[key].is_a?(Array) || schema[key].empty?) }
+      return false if schema.key?('$defs') && (!schema.equal?(root) || !schema['$defs'].is_a?(Hash))
+      if schema.key?('$ref')
+        reference = schema['$ref']
+        return false unless reference.is_a?(String) && /\A#\/\$defs\/[A-Za-z0-9_]+\z/.match?(reference)
+        return false unless (schema.keys - %w[$ref $defs]).empty?
+        target = root.fetch('$defs', {})[reference.delete_prefix('#/$defs/')]
+        return validate_rule(target, value, root, active, depth)
+      end
+      return false if schema.key?('anyOf') && !schema['anyOf'].any? { |item| validate_rule(item, value, root, active, depth) }
+      return false if schema.key?('oneOf') && schema['oneOf'].count { |item| validate_rule(item, value, root, active, depth) } != 1
       return false if schema.key?('const') && schema['const'] != value
       return false if schema.key?('enum') && !schema['enum'].include?(value)
       case schema['type']
@@ -112,13 +139,13 @@ module Transit
           (!schema.key?('pattern') || Regexp.new("\\A(?:#{schema['pattern']})\\z").match?(value))
       when 'array'
         value.is_a?(Array) && value.length.between?(schema.fetch('minItems', 0), schema.fetch('maxItems', value.length)) &&
-          value.all? { |item| valid?(schema.fetch('items'), item) }
+          value.all? { |item| validate_rule(schema.fetch('items'), item, root, active, depth + 1) }
       when 'object'
         return false unless value.is_a?(Hash) && value.length <= schema.fetch('maxProperties', value.length)
         properties = schema.fetch('properties', {})
         (schema.fetch('required', []) - value.keys).empty? &&
           (schema['additionalProperties'] != false || (value.keys - properties.keys).empty?) &&
-          properties.all? { |name, child| !value.key?(name) || valid?(child, value[name]) }
+          properties.all? { |name, child| !value.key?(name) || validate_rule(child, value[name], root, active, depth + 1) }
       else false
       end
     end

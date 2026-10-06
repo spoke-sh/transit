@@ -11452,6 +11452,14 @@ campaign and are not qualification; the corrected tests preserve the pending-DDL
 fence and include explicit blocker provenance in the reviewed outcome manifest.
 The final coordinated shared-definition cutover and clean CI remain outstanding.
 
+Ruby's shared port validator accepts generated recursive local schema references
+with root isolation and rejects missing/external references, unsupported siblings,
+non-consuming reference cycles and cyclic host values. The independent recursive
+fixture passes in the pinned bindings shell (`table-ruby-schema2.log`) and is
+wired into the installed raw-client consumer without adding output to its machine
+protocol. This is focused source-level validator evidence; the general Ruby Table
+API and installed-package schedule remain separate qualification work.
+
 ## Fuze logical type foundation
 
 The local `Types` profile has nine passing focused Zig tests, including 46

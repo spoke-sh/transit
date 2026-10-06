@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 require 'transit/client'
 require 'json'
+require_relative 'schema_values'
 
 def check(value)
   raise 'Proof assertion failed' unless value

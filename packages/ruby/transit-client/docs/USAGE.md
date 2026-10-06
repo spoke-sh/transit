@@ -52,6 +52,9 @@ dispatch. Concurrent or reentrant work raises `Busy`; it is not queued without a
 bound. The native process owns the ABI's stack and bounded transport workspace.
 Ruby owns no native pointers. Requests/configuration/responses use generated
 size and schema bounds, including exact integers and valid UTF-8.
+Schema references resolve only within their generated root. Missing or external
+references, unsupported schema keywords and cyclic values reject locally;
+recursive schemas still validate each owned child against its exact type.
 
 The API is synchronous. Ruby's other threads continue while native I/O is in
 flight. An interrupted or killed caller thread abandons only its wait: the owned
