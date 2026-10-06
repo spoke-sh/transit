@@ -37,6 +37,13 @@ stale bindings before reading dependent literals, then returns an independently
 owned plan. The [Table query contract](../../../contracts/TABLE_QUERY_V1.md#canonical-logical-plans)
 defines its byte budget, field layout and separation from query admission.
 
+`LogicalStream` evaluates bounded logical pages with canonical resumable progress
+and Arrow segments. It shares the pull executor's ordered row operators and
+returns no candidate after an error or cancellation. Its
+[step contract](../../../contracts/TABLE_QUERY_V1.md#bounded-resumable-steps)
+keeps current authorization, captured source lifetime and atomic publication with
+the source owner.
+
 `TableDml` compiles [typed Table statements](../../../contracts/TABLE_DML_V1.md)
 against a supplied name and complete schema. It owns generalized INSERT rows,
 constant/default UPDATE assignments and DELETE predicates using stable column

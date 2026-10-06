@@ -6408,6 +6408,7 @@
         "DuplicateProjection": 1,
         "FailedQuery": 1,
         "IncompleteSource": 1,
+        "InvalidColumnCount": 1,
         "InvalidOutputNames": 1,
         "InvalidProjection": 2,
         "InvalidQuerySchema": 1,
@@ -6415,7 +6416,7 @@
         "SourceChanged": 1,
         "TypeMismatch": 1,
         "UnknownColumn": 1,
-        "UnsupportedAggregate": 2
+        "UnsupportedAggregate": 3
       },
       "outcomes": {
         "Failure.operation": [
@@ -6436,9 +6437,12 @@
       },
       "error_sets": {},
       "error_returns": {
+        "Counters.observe()": "<inferred>",
+        "Counters.observe().<struct>.integer()": "<inferred>",
+        "Counters.result()": "<inferred>",
         "Execution().<return>.init()": "<inferred>",
         "Execution().<return>.next()": "<inferred>",
-        "Execution().<return>.next().<struct>.integer()": "<inferred>",
+        "Execution().<return>.observe()": "<inferred>",
         "Plan.fingerprint()": "<inferred>",
         "Plan.matches()": "<inferred>",
         "Plan.outputSchema()": "<inferred>",
@@ -6448,8 +6452,8 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 36,
-        "catch": 5
+        "try": 38,
+        "catch": 6
       },
       "imports": [
         "FileValueDiagnostic.zig",
@@ -6478,6 +6482,49 @@
       "imports": [
         "LogicalJson.zig",
         "Types.zig",
+        "std"
+      ]
+    },
+    "packages/zig/transit-fuze/src/LogicalStream.zig": {
+      "errors": {
+        "ArrowShapeTooLarge": 1,
+        "Cancelled": 4,
+        "InvalidQueryOrdinal": 1,
+        "InvalidQueryProgress": 15,
+        "QueryComplete": 1,
+        "SourceChanged": 2
+      },
+      "outcomes": {
+        "Failure.operation": [
+          "validate",
+          "predicate",
+          "count",
+          "sum"
+        ],
+        "Finish": [
+          "source_end",
+          "limit"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "Progress.decode()": "<inferred>",
+        "Progress.encode()": "<inferred>",
+        "Progress.start()": "<inferred>",
+        "Progress.validate()": "<inferred>",
+        "encode()": "<inferred>",
+        "step()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 34,
+        "catch": 3
+      },
+      "imports": [
+        "LogicalArrow.zig",
+        "LogicalQuery.zig",
+        "Types.zig",
+        "execute.zig",
         "std"
       ]
     },
@@ -8658,6 +8705,7 @@
         "LogicalPredicate.zig",
         "LogicalQuery.zig",
         "LogicalSchema.zig",
+        "LogicalStream.zig",
         "Prepared.zig",
         "SourceCodec.zig",
         "Sql.zig",

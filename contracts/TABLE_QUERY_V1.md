@@ -90,6 +90,39 @@ noncanonical absent fields, invalid Boolean stacks, trailing bytes, stale bindin
 and oversized plans reject. Re-encoding a decoded plan reproduces its input.
 These local codec operations do not admit a durable job or acquire a snapshot.
 
+## Bounded resumable steps
+
+`LogicalStream.step` evaluates one page of at most eight logical rows under the
+exact bound plan. It uses `LogicalQuery.Counters` for the same eager predicates,
+row/value counts and source-order int64 SUM as pull execution. A page carries its
+binding, ordinal and source-end flag; a changed binding, repeated/skipped ordinal
+or already completed checkpoint rejects. Empty continuation pages are valid.
+LIMIT can finish a selected prefix without claiming to verify the source tail.
+
+Each successful step returns provisional progress and an optional complete Arrow
+segment in caller-owned buffers. A filtered page can produce no segment. Even an
+empty completed result produces schema/completion evidence; aggregates produce
+one final row. Nested values retain the logical Arrow layout and five states.
+The logical Arrow encoder retains its 4-MiB workspace and 64-KiB segment bounds.
+An oversized output fails; no successful partial segment or checkpoint is
+returned. Eight input rows bound this operation, independently of durable source
+cardinality and any future execution-vector layout.
+
+`FQS1` checkpoints are exactly 126 bytes: magic; 32-byte binding; 32-byte plan
+fingerprint; uint64 pages, scanned, selected, value-count, segments and output
+rows; sum-presence byte and int64 sum; finish byte (0 pending, 1 source-end,
+2 LIMIT). Integers are little-endian. Absent SUM has a zero payload. Decode checks
+the original plan and counter relationships, including selected/scanned ordering,
+page/segment coverage, aggregate state and exact LIMIT completion.
+
+Allocation/output failure, invalid rows, operator failure and cancellation return
+no candidate. Repeating a step from the same checkpoint and input yields the same
+bytes. First-failure evidence retains scan/page position and, where an operator
+provides it, column and predicate instruction. The source owner must validate
+current disclosure rights, retain its original cut, and atomically commit the
+adapter cursor, returned progress and publication evidence. These local steps do
+not themselves implement native durable admission, retention or publication.
+
 ## Signed native Table reads
 
 `transit-query.TableQuery` composes this compiler and executor with the general

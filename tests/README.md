@@ -11799,6 +11799,23 @@ The first extended scalar fixture used nonexistent width-specific float atom
 fields; using the shared float atom fixes that compile failure. These tests
 qualify the local `FQP1` codec, not durable query integration.
 
+Restartable logical steps pass **235/235 Fuze tests**
+(`table-logical-stream-test3.log`). All four finite operators run at each page
+width from one to eight with recursive rows and canonical plan/checkpoint
+replacement after every page. Independent expected rows/aggregates match emitted
+Arrow bytes. Additional checks cover a 12-column int128 result, independent
+Python checkpoint bytes, all five cell states, full-width counters, LIMIT 0,
+empty continuation/completion, eager predicate failure, source-order overflow,
+wrong bindings/ordinals, malformed progress and whole-row budgets. Allocation,
+output and cancellation faults preserve the original checkpoint and exact retry
+bytes. These are local restart simulations, not native retained-cut recovery.
+
+The shared pull/step row operators also pass **190 real file-query cases**
+(`table-logical-stream-file1.log`), including independent codecs/results,
+gzip, quotas, cancellation/cleanup, immutable capture and the 192-MiB input under
+a 96-MiB address-space limit. The operator refactor retains existing file-plan
+fingerprints and full-source verification after LIMIT.
+
 ## Fuze logical type foundation
 
 The local `Types` profile has nine passing focused Zig tests, including 46

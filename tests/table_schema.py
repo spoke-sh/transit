@@ -67,6 +67,8 @@ def fixtures():
                         literal_envelope + b'\0\1\1\1\3')
     query_identity = (b'transit.fuze.file-plan.v1\0' + b'\7' * 32 + query_schema + query_prefix +
                       query_limit + identity_program + b'output_names\0\1\6chosen\0')
+    query_progress = (b'FQS1' + b'\7' * 32 + hashlib.sha256(query_identity).digest() +
+                      struct.pack('<QQQQQQBqB', 1, 2, 1, 0, 1, 1, 0, 0, 1))
 
     def assignment(column, kind, value=None):
         result = dict(column=column, kind=kind)
@@ -137,6 +139,7 @@ def fixtures():
                 schema_hex=encoded.hex(), schema_json=json.dumps(neutral, separators=(',', ':')), fingerprint=hashlib.sha256(encoded).hexdigest(), cases=cases,
                 row_hex=row_bytes.hex(), layout=layout.hex(), key_hex=key_bytes.hex(), dml_hex=dml_bytes.hex(),
                 select_hex=query_bytes.hex(), select_fingerprint=hashlib.sha256(query_identity).hexdigest(),
+                select_progress_hex=query_progress.hex(),
                 key_digest=hashlib.sha256(key_bytes).hexdigest())
 
 

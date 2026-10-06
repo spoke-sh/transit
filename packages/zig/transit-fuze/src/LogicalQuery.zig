@@ -182,6 +182,50 @@ pub const Failure = struct {
         return self.expected[0..self.expected_len];
     }
 };
+/// Shared ordered row operators for pull execution and resumable bounded steps.
+/// A caller validates the immutable plan and row schema before entering. Failed
+/// counters are provisional and must never be committed as successful progress.
+pub const Counters = struct {
+    scanned: u64 = 0,
+    selected: u64 = 0,
+    value_count: u64 = 0,
+    sum: ?i64 = null,
+    pub const FailureSite = struct { operation: @FieldType(Failure, "operation"), column: u8, instruction: ?u8 = null };
+    pub fn observe(self: *Counters, plan: Plan, cells: []const values.Cell, failure: *?FailureSite) !bool {
+        failure.* = null;
+        if (cells.len != plan.schema.structure.len) return error.InvalidColumnCount;
+        self.scanned = try std.math.add(u64, self.scanned, 1);
+        if (plan.limit) |limit| if (self.selected == limit) return false;
+        var predicate_failure: ?Plan.PredicateFailure = null;
+        if (!(plan.matches(cells, &predicate_failure) catch |err| {
+            if (predicate_failure) |site| failure.* = .{ .operation = .predicate, .column = site.column, .instruction = site.instruction };
+            return err;
+        })) return false;
+        self.selected = try std.math.add(u64, self.selected, 1);
+        if (plan.aggregate == .count_values) self.value_count = finite.countValue(self.value_count, cells[plan.projection[0]]) catch |err| {
+            failure.* = .{ .operation = .count, .column = plan.projection[0] };
+            return err;
+        };
+        if (plan.aggregate == .sum) self.sum = finite.sum(self.sum, cells[plan.projection[0]], struct {
+            fn integer(value: values.Value) !i64 {
+                if (value != .atom or value.atom != .signed) return error.TypeMismatch;
+                return std.math.cast(i64, value.atom.signed) orelse error.Overflow;
+            }
+        }.integer) catch |err| {
+            failure.* = .{ .operation = .sum, .column = plan.projection[0] };
+            return err;
+        };
+        return true;
+    }
+    pub fn result(self: Counters, aggregate: finite.Aggregate) !values.Cell {
+        return switch (aggregate) {
+            .count => .{ .value = .{ .atom = .{ .unsigned = self.selected } } },
+            .count_values => .{ .value = .{ .atom = .{ .unsigned = self.value_count } } },
+            .sum => if (self.sum) |sum| .{ .value = .{ .atom = .{ .signed = sum } } } else .null,
+            .rows => error.UnsupportedAggregate,
+        };
+    }
+};
 pub const Verification = enum { full_source, selected_prefix };
 pub fn Execution(comptime Scan: type, comptime verification: Verification) type {
     return struct {
@@ -214,31 +258,10 @@ pub fn Execution(comptime Scan: type, comptime verification: Verification) type 
             while (if (verification == .selected_prefix and self.atLimit()) null else try self.scan.next()) |owned| {
                 var row = owned;
                 errdefer row.deinit();
-                self.scanned = try std.math.add(u64, self.scanned, 1);
-                var predicate_failure: ?Plan.PredicateFailure = null;
-                const matches = (self.plan.limit == null or self.selected != self.plan.limit.?) and
-                    (self.plan.matches(row.cells, &predicate_failure) catch |err| {
-                        if (predicate_failure) |item| self.capture(.predicate, row.cells, item.column, item.instruction);
-                        return err;
-                    });
-                if (!matches) {
+                if (!try self.observe(row.cells)) {
                     row.deinit();
                     continue;
                 }
-                self.selected = try std.math.add(u64, self.selected, 1);
-                if (self.plan.aggregate == .count_values) self.value_count = finite.countValue(self.value_count, row.cells[self.plan.projection[0]]) catch |err| {
-                    self.capture(.count, row.cells, self.plan.projection[0], null);
-                    return err;
-                };
-                if (self.plan.aggregate == .sum) self.sum = finite.sum(self.sum, row.cells[self.plan.projection[0]], struct {
-                    fn integer(value: values.Value) !i64 {
-                        if (value != .atom or value.atom != .signed) return error.TypeMismatch;
-                        return std.math.cast(i64, value.atom.signed) orelse error.Overflow;
-                    }
-                }.integer) catch |err| {
-                    self.capture(.sum, row.cells, self.plan.projection[0], null);
-                    return err;
-                };
                 if (self.plan.aggregate == .rows) {
                     const projected = try row.arena.allocator().alloc(values.Cell, self.plan.projection.len);
                     for (self.plan.projection, projected) |index, *cell| cell.* = row.cells[index];
@@ -253,12 +276,7 @@ pub fn Execution(comptime Scan: type, comptime verification: Verification) type 
                 var arena: std.heap.ArenaAllocator = .init(self.scan.allocator);
                 errdefer arena.deinit();
                 const cells = try arena.allocator().alloc(values.Cell, 1);
-                cells[0] = switch (self.plan.aggregate) {
-                    .count => .{ .value = .{ .atom = .{ .unsigned = self.selected } } },
-                    .count_values => .{ .value = .{ .atom = .{ .unsigned = self.value_count } } },
-                    .sum => if (self.sum) |sum| .{ .value = .{ .atom = .{ .signed = sum } } } else .null,
-                    .rows => unreachable,
-                };
+                cells[0] = try self.counters().result(self.plan.aggregate);
                 self.complete = true;
                 self.emitted = 1;
                 return .{ .arena = arena, .cells = cells };
@@ -268,6 +286,25 @@ pub fn Execution(comptime Scan: type, comptime verification: Verification) type 
         }
         fn atLimit(self: *const Self) bool {
             return if (self.plan.limit) |limit| self.selected == limit else false;
+        }
+        fn counters(self: *const Self) Counters {
+            return .{ .scanned = self.scanned, .selected = self.selected, .value_count = self.value_count, .sum = self.sum };
+        }
+        fn observe(self: *Self, cells: []const values.Cell) !bool {
+            var progress = self.counters();
+            defer {
+                self.scanned = progress.scanned;
+                self.selected = progress.selected;
+                self.value_count = progress.value_count;
+                self.sum = progress.sum;
+            }
+            var failure: ?Counters.FailureSite = null;
+            return progress.observe(self.plan, cells, &failure) catch |err| {
+                // Capture the same one-based row before the deferred copy.
+                self.scanned = progress.scanned;
+                if (failure) |site| self.capture(site.operation, cells, site.column, site.instruction);
+                return err;
+            };
         }
         fn capture(self: *Self, operation: @FieldType(Failure, "operation"), cells: []const values.Cell, column: u8, instruction: ?u8) void {
             if (self.failure != null or column >= self.plan.schema.structure.len or column >= cells.len) return;
