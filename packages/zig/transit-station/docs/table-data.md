@@ -64,6 +64,13 @@ header, chunk, ordinal and final digest still passes the same validation.
 Retired or unpublished descriptors reject before chunk acquisition; prefetch
 failures propagate without turning partial bytes into a readable record.
 
+`TablePages.Reader` retains at most eight verified immutable index-node bodies.
+A finite query can share this cache across its bounded pages. Reuse is scoped to
+the exact publication resource, namespace and captured read basis. Every access
+still checks the Table manifest and published descriptor; a new basis discards
+the byte cache. Cached bytes do not authorize disclosure or clear a failed read.
+Small inline records and row-value bodies retain their ordinary validation path.
+
 `TableHead` binds the resource/object, head revision, exact schema/root, row count,
 record-ID floor, pending work and retirement in one native value. `create`
 requires a staged revision-one schema and an absent head; `replace` compares

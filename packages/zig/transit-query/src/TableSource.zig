@@ -220,6 +220,7 @@ pub fn page(self: Self, allocator: std.mem.Allocator, basis: Basis, cursor: Curs
     if (!std.meta.eql(definition.head, basis.head)) return error.SourceChanged;
     const table: s.TableData = .{ .schema = definition.schema.schema, .index = basis.head.index };
     var pages: s.TablePages.Reader(@TypeOf(data)) = .{ .pages = .{ .resource = self.scope.resource, .object = self.object }, .source = data };
+    if (comptime @hasDecl(@typeInfo(@TypeOf(data)).pointer.child, "tableIndexCache")) pages.cache = data.tableIndexCache();
     var result: Page = .{ .basis = basis, .ordinal = cursor.ordinal, .next = cursor };
     errdefer result.deinit();
     result.next.ordinal = try std.math.add(u64, cursor.ordinal, 1);

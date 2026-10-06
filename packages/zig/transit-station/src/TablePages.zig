@@ -265,9 +265,17 @@ pub fn Reader(comptime Source: type) type {
     return struct {
         pages: Self,
         source: Source,
+        cache: ?*Index.Cache = null,
+        local_cache: Index.Cache = .{},
         pub fn load(self: *@This(), ref: Index.Reference, output: []u8) ![]const u8 {
             try ref.validate();
-            return self.pages.read(self.source, .{ .id = ref.id, .spec = ref.spec }, output);
+            if (ref.spec.length <= inline_bytes) return self.pages.read(self.source, .{ .id = ref.id, .spec = ref.spec }, output);
+            // Node bodies otherwise displace their own native chunks when a
+            // row scan revisits the root. Keep only eight verified nodes;
+            // Cache.load still opens each publication at this exact basis.
+            try prefetch(self.source, &.{ key(self.pages.object, 'd', 0), key(self.pages.object, 'r', ref.id) });
+            if (ref.spec.length > try self.pages.check(self.source)) return error.InvalidTablePage;
+            return (self.cache orelse &self.local_cache).load(self.pages.publication(), self.source, ref, output);
         }
         pub fn loadBlob(self: *@This(), ref: Data.Blob, output: []u8) ![]const u8 {
             try ref.validate();

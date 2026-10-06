@@ -16258,3 +16258,22 @@ definition reads group four known record addresses only after catalog rights
 are checked. The actual console and Board builds pass
 (`table-prefetch-app-build1.log`). Native request measurements and Table Board
 integration are running separately and are not established by these local tests.
+
+
+### Bounded Table index-node reuse
+
+All 88 Station and 115 query ReleaseSafe tests pass with eight verified immutable
+index bodies cached independently of the native entry buffer
+(`station-table-node-cache2.log`, `query-table-node-cache1.log`). The adversarial
+cache case verifies reuse through a second adapter, refetch at a changed cut,
+output-buffer bounds, incompatible manifests, retirement, current access denial
+and corrupt chunk rejection after a new basis. The first test run correctly
+kept a failed Station read sticky; the test now acquires a fresh turn before
+its separate corruption case (`station-table-node-cache1.log`).
+
+The preceding native Table scan improved from 231 to 157 requests for 41 rows,
+but still **failed** its old request ceiling (`interactive-logical-table4.log`).
+It passed the correctness, cancellation and disclosure schedules before that
+final budget gate. Those old limits describe a different physical layout and
+are not a performance pass for the generalized row/index representation. The
+latest node-cache runtime measurements remain a separate check.

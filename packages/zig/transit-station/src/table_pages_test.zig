@@ -1374,3 +1374,72 @@ test "Table page prefetch batches chunks without bypassing publication or digest
     reader = .{ .source = &turn, .view = turn.view };
     try t.expectError(error.AccessDenied, pages.read(&reader, ref, &output));
 }
+
+test "Table index cache reuses bodies but rechecks basis, manifest, lifecycle and access" {
+    var store: Store = .{};
+    defer store.deinit();
+    const pages = try store.create();
+    const payload: [Index.node_bytes]u8 = @splat('x');
+    const ref: Index.Reference = .{ .id = 20, .spec = try Pub.Digest.of(Index.format, &payload), .level = 0, .minimum = try Index.Key.init("a"), .entries = 1 };
+    for (0..64) |_| {
+        var turn = try store.capture();
+        const step = try pages.stage(&turn, .{ .id = ref.id, .spec = ref.spec }, &payload);
+        try store.commit(turn);
+        if (step == .ready) break;
+    } else return error.UnfinishedTestPage;
+    var turn = try store.capture();
+    const Source = struct {
+        source: *Turn,
+        view: p.Growth.View,
+        chunks: usize = 0,
+        headers: usize = 0,
+        pub fn read(self: *@This(), key: p.Value) !?p.Value {
+            if (key.len == 27 and key.data[14] == 'c') self.chunks += 1 else self.headers += 1;
+            return self.source.read(key);
+        }
+    };
+    var source: Source = .{ .source = &turn, .view = turn.view };
+    var cache: Index.Cache = .{};
+    var reader: Pages.Reader(*Source) = .{ .pages = pages, .source = &source, .cache = &cache };
+    var output: [Index.node_bytes]u8 = undefined;
+    try t.expectEqualStrings(&payload, try reader.load(ref, &output));
+    const chunks = source.chunks;
+    try t.expect(chunks > 1);
+    const headers = source.headers;
+    // A different adapter in the same captured query can share verified nodes.
+    reader = .{ .pages = pages, .source = &source, .cache = &cache };
+    try t.expectEqualStrings(&payload, try reader.load(ref, &output));
+    try t.expectEqual(chunks, source.chunks);
+    try t.expect(source.headers > headers);
+    try t.expectError(error.IndexNodeTooLarge, reader.load(ref, output[0..1]));
+    source.view.id += 1;
+    try t.expectEqualStrings(&payload, try reader.load(ref, &output));
+    try t.expectEqual(chunks * 2, source.chunks);
+
+    const manifest_key = Pages.key(9, 'd', 0);
+    const original = store.state.get(manifest_key).?;
+    var incompatible = original;
+    incompatible.data[4] ^= 1;
+    try store.state.put(t.allocator, manifest_key, incompatible);
+    try t.expectError(error.IncompatibleTableStorage, reader.load(ref, &output));
+    try store.state.put(t.allocator, manifest_key, original);
+    const record_key = Pages.key(9, 'r', ref.id);
+    const record = store.state.get(record_key).?;
+    var descriptor = try Pub.Descriptor.decode(record);
+    descriptor.state = .retired;
+    try store.state.put(t.allocator, record_key, try descriptor.encode());
+    try t.expectError(error.PublicationNotPublished, reader.load(ref, &output));
+    try store.state.put(t.allocator, record_key, record);
+    store.denied = true;
+    try t.expectError(error.AccessDenied, reader.load(ref, &output));
+    store.denied = false;
+    // A failed Station read stays failed. New access requires a fresh turn.
+    turn = try store.capture();
+
+    const location = Pub.key(.table, 9, 'c', ref.id, 0);
+    var damaged = store.state.get(location).?;
+    damaged.data[0] ^= 1;
+    try store.state.put(t.allocator, location, damaged);
+    source.view.id += 1;
+    try t.expectError(error.InvalidPublicationDigest, reader.load(ref, &output));
+}

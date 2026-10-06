@@ -124,6 +124,7 @@ const Scan = struct {
     view: @FieldType(q.wire.SnapshotReader, "view"),
     cache: [64]?Cached = @splat(null),
     cache_slot: usize = 0,
+    table_nodes: s.ImmutableIndex.Cache = .{},
     requests: u64 = 1,
     request_limit: u64,
     after: ?f.TableRow.Identity = null,
@@ -250,6 +251,7 @@ const Scan = struct {
         const definition = &self.definition.?;
         const data: s.TableData = .{ .schema = definition.schema.schema, .index = definition.head.index };
         var pages: s.TablePages.Reader(*Scan) = .{ .pages = .{ .resource = self.view.resource, .object = definition.metadata.object }, .source = self };
+        pages.cache = &self.table_nodes;
         const selected = if (self.point) |key| point: {
             if (self.point_read) break :point null;
             self.point_read = true;
