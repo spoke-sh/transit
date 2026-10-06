@@ -336,7 +336,7 @@
         "EndOfStream": 1,
         "FileNotFound": 1,
         "InteractiveQueryCancelled": 1,
-        "InvalidConfiguration": 7,
+        "InvalidConfiguration": 12,
         "InvalidConfigurationPath": 1,
         "InvalidCredentialFile": 1,
         "InvalidEndpoint": 7,
@@ -359,6 +359,7 @@
         "UnresolvedSubmission": 6,
         "UnsupportedCatalog": 1,
         "UnsupportedConsoleVersion": 2,
+        "UnsupportedConstruct": 1,
         "UnsupportedFormat": 1,
         "UnsupportedStatement": 1
       },
@@ -368,7 +369,8 @@
           "durable"
         ],
         "Config.profile": [
-          "unified_v1"
+          "unified_v1",
+          "catalog_v1"
         ],
         "Config.transport": [
           "loopback",
@@ -378,6 +380,7 @@
       },
       "error_sets": {},
       "error_returns": {
+        "Console.assist()": "<inferred>",
         "Console.dispatch()": "<inferred>",
         "Console.execute()": "<inferred>",
         "Console.executeCommand()": "<inferred>",
@@ -428,6 +431,7 @@
         "server/Installation.zig",
         "server/Provider.zig",
         "std",
+        "transit_catalog",
         "transit_query"
       ]
     },
@@ -513,7 +517,7 @@
         "ConsoleInterrupted": 2,
         "ConsoleRecoveryWriteFailed": 1,
         "InvalidConsoleRecovery": 1,
-        "InvalidWriteConfiguration": 2,
+        "InvalidWriteConfiguration": 1,
         "MutationInputRejected": 2,
         "MutationRejected": 1,
         "NoSavedWrite": 3,
@@ -544,7 +548,7 @@
       },
       "open_error_set_uses": 2,
       "propagation": {
-        "try": 74,
+        "try": 73,
         "catch": 3
       },
       "imports": [
@@ -6876,6 +6880,7 @@
       "imports": [
         "Finite.zig",
         "LogicalPredicate.zig",
+        "Sql.zig",
         "SqlTyped.zig",
         "Types.zig",
         "std"
@@ -7002,7 +7007,13 @@
         "UnsupportedNestedCharacterLimit": 1,
         "ValueBudgetExceeded": 3
       },
-      "outcomes": {},
+      "outcomes": {
+        "NameRole": [
+          "source",
+          "column",
+          "proposed"
+        ]
+      },
       "error_sets": {},
       "error_returns": {
         "advance()": "<inferred>",
@@ -7010,6 +7021,7 @@
         "finish()": "<inferred>",
         "init()": "<inferred>",
         "name()": "<inferred>",
+        "named()": "<inferred>",
         "nested()": "anyerror",
         "nullability()": "<inferred>",
         "number()": "<inferred>",
@@ -7102,10 +7114,12 @@
         "alter()": "<inferred>",
         "column()": "<inferred>",
         "compile()": "<inferred>",
+        "compileWithEditor()": "<inferred>",
         "create()": "<inferred>",
         "drop()": "<inferred>",
         "selectedColumn()": "<inferred>",
-        "target()": "<inferred>"
+        "target()": "<inferred>",
+        "targetWithEditor()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
@@ -7150,10 +7164,12 @@
         "Plan.validate()": "<inferred>",
         "columnIndex()": "<inferred>",
         "compile()": "<inferred>",
+        "compileWithEditor()": "<inferred>",
         "header()": "<inferred>",
         "insert()": "<inferred>",
         "parseAssignment()": "<inferred>",
         "target()": "<inferred>",
+        "targetWithEditor()": "<inferred>",
         "update()": "<inferred>"
       },
       "open_error_set_uses": 0,
@@ -7404,7 +7420,7 @@
         "UnknownSource": 1,
         "UnsupportedAggregate": 1,
         "UnsupportedAggregateLimit": 2,
-        "UnsupportedConstruct": 5
+        "UnsupportedConstruct": 6
       },
       "outcomes": {},
       "error_sets": {},
@@ -7415,12 +7431,15 @@
         "Selection.parse()": "<inferred>",
         "alias()": "<inferred>",
         "compile()": "<inferred>",
+        "compileWithEditor()": "<inferred>",
         "tail()": "<inferred>",
-        "target()": "<inferred>"
+        "target()": "<inferred>",
+        "targetQualifier()": "<inferred>",
+        "targetWithEditor()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 48,
+        "try": 53,
         "catch": 1
       },
       "imports": [
@@ -9396,7 +9415,8 @@
           "console"
         ],
         "Response.profile": [
-          "unified_v1"
+          "unified_v1",
+          "catalog_v1"
         ]
       },
       "error_sets": {},
@@ -10130,6 +10150,33 @@
       "propagation": {
         "try": 16,
         "catch": 0
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
+    "packages/zig/transit-query/src/TableAssistance.zig": {
+      "errors": {
+        "CatalogCursorChanged": 2,
+        "OutOfMemory": 1
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "Builder.add()": "<inferred>",
+        "complete()": "<inferred>",
+        "expectations()": "<inferred>",
+        "fixture()": "<inferred>",
+        "ignored()": "<inferred>",
+        "statement()": "<inferred>",
+        "suggestions()": "<inferred>",
+        "target()": "<inferred>"
+      },
+      "open_error_set_uses": 1,
+      "propagation": {
+        "try": 57,
+        "catch": 10
       },
       "imports": [
         "root.zig",
@@ -11225,6 +11272,7 @@
         "SqlCompilation.zig",
         "SqlInspection.zig",
         "SqlTemplate.zig",
+        "TableAssistance.zig",
         "TableMutationAdmission.zig",
         "TableMutationBridge.zig",
         "TableMutationClient.zig",

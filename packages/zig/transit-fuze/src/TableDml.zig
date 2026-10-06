@@ -174,19 +174,27 @@ fn header(parser: *Parser) !Target {
         try parser.requireWord("FROM");
         break :blk .delete;
     } else return error.UnsupportedStatement;
-    return .{ .kind = kind, .name = try parser.name() };
+    return .{ .kind = kind, .name = try parser.named(.source) };
 }
 /// Header inspection supplies a name for authorized resolution, not admission.
 pub fn target(allocator: std.mem.Allocator, text: []const u8) !Target {
+    return targetWithEditor(allocator, text, null);
+}
+pub fn targetWithEditor(allocator: std.mem.Allocator, text: []const u8, editor: ?*Parser.Editor) !Target {
     var parser = try Parser.init(allocator, text, null);
+    parser.editor = editor;
     return header(&parser);
 }
 pub fn compile(allocator: std.mem.Allocator, text: []const u8, name: []const u8, basis: s.Schema, location: ?*sql.Location) !Owned {
+    return compileWithEditor(allocator, text, name, basis, location, null);
+}
+pub fn compileWithEditor(allocator: std.mem.Allocator, text: []const u8, name: []const u8, basis: s.Schema, location: ?*sql.Location, editor: ?*Parser.Editor) !Owned {
     var schema = try basis.clone(allocator);
     errdefer schema.deinit();
     var arena: std.heap.ArenaAllocator = .init(allocator);
     errdefer arena.deinit();
     var parser = try Parser.init(arena.allocator(), text, location);
+    parser.editor = editor;
     const subject = try header(&parser);
     if (!std.mem.eql(u8, subject.name, name)) return error.UnknownSource;
     var plan: Plan = .{ .name = subject.name, .schema = schema.schema, .action = undefined };
@@ -220,7 +228,7 @@ fn insert(parser: *Parser, schema: s.Schema) ![]const []const Cell {
     if (try parser.take(.left)) {
         while (true) {
             if (count == columns.len) return error.InvalidMutationColumns;
-            const index = try schema.named(try parser.name());
+            const index = try schema.named(try parser.named(.column));
             for (columns[0..count]) |prior| if (prior == index) return error.DuplicateAssignment;
             columns[count] = index;
             count += 1;
@@ -249,10 +257,11 @@ fn insert(parser: *Parser, schema: s.Schema) ![]const []const Cell {
     return rows.toOwnedSlice(parser.allocator);
 }
 fn columnIndex(parser: *Parser, schema: s.Schema, name: []const u8) !usize {
-    var column = try parser.name();
+    var column = try parser.named(.column);
     if (try parser.take(.dot)) {
         if (!std.mem.eql(u8, column, name)) return error.UnknownQualifier;
-        column = try parser.name();
+        if (parser.boundary()) |editor| editor.qualifier = .init(column);
+        column = try parser.named(.column);
     }
     return schema.named(column);
 }

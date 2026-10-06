@@ -7,21 +7,18 @@ const Console = @import("Console.zig").Console;
 const Signals = @import("Signals.zig");
 const Recovery = @import("TableRecovery.zig");
 const Self = @This();
-pub const Config = struct { recovery_file: []const u8, catalog: c.TableClient.Connection };
+pub const Config = struct { recovery_file: []const u8 };
 io: std.Io,
 allocator: std.mem.Allocator,
 catalog: c.TableClient,
 storage: Recovery,
 read_deadline: ?i64 = null,
 
-pub fn validateConfig(config: Config, connection: q.UnifiedClient.Connection) !void {
+pub fn validateConfig(config: Config) !void {
     if (config.recovery_file.len == 0) return error.InvalidWriteConfiguration;
-    try config.catalog.validate();
-    if (config.catalog.scope.realm != connection.realm or config.catalog.principal != connection.principal) return error.InvalidWriteConfiguration;
 }
-pub fn open(init: std.process.Init, path: []const u8, config: Config, client: *q.UnifiedClient) !Self {
-    var catalog: c.TableClient = .{ .transport = client.wire, .connection = config.catalog, .key = client.key };
-    return .{ .io = init.io, .allocator = init.gpa, .catalog = catalog, .storage = try Recovery.open(init.io, init.gpa, path, &catalog) };
+pub fn open(init: std.process.Init, path: []const u8, client: *c.TableClient) !Self {
+    return .{ .io = init.io, .allocator = init.gpa, .catalog = client.*, .storage = try Recovery.open(init.io, init.gpa, path, client) };
 }
 pub fn close(self: *Self) void {
     self.storage.close();

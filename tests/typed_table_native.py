@@ -313,6 +313,12 @@ def run(node, proof, host, cli):
                 return result
 
             console('CREATE TABLE console_people (id INTEGER PRIMARY KEY, name VARCHAR(200) NOT NULL, active BOOLEAN DEFAULT TRUE, salary DECIMAL(18,2))')
+            assisted = call('assist', 'SELECT na FROM console_people', str(len('SELECT na')))
+            assert assisted['profile'] == 'catalog_v1' and [item['text'] for item in assisted['items']] == ['"name"'], assisted
+            sources = call('assist', 'SELECT * FROM console_', str(len('SELECT * FROM console_')))
+            assert '"console_people"' in [item['text'] for item in sources['items']], sources
+            altered = call('assist', 'ALTER TABLE console_people ALTER COLUMN name SET ', str(len('ALTER TABLE console_people ALTER COLUMN name SET ')))
+            assert {'DEFAULT', 'NOT', 'DATA'} <= {item['text'] for item in altered['items']}, altered
             inserted = console("INSERT INTO console_people (id,name,salary) VALUES (1,'Ada',125000.00), (2,'Grace',140000.00)")
             assert json.loads(inserted.stdout)['table_operation']['counts'] == {'matched': '2', 'changed': '2'}, inserted.stdout
             console("INSERT INTO console_people (id,name) VALUES (1,'duplicate')", fail=True)

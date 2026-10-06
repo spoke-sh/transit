@@ -204,10 +204,10 @@ const Editor = struct {
     }
     fn complete(self: *Editor) !void {
         self.dismiss();
-        var response = (q.Workspace.apply(self.arena.allocator(), self.console.client, self.console.config, .{ .assist = .{ .sql = self.text(), .cursor = @intCast(self.cursor), .generation = self.generation, .mode = .console } }) catch |err| {
+        var response = (self.console.assist(self.arena.allocator(), .{ .sql = self.text(), .cursor = @intCast(self.cursor), .generation = self.generation, .mode = .console }) catch |err| {
             if (Console.denied(err)) self.erasePrivate();
             return err;
-        }).assistance;
+        });
         if (Signals.interrupted()) return error.ConsoleInterrupted;
         // Input accumulated while a metadata read waited is a newer generation.
         // Process it before ever presenting/accepting the old response.
@@ -215,7 +215,7 @@ const Editor = struct {
             self.dismiss();
             return;
         }
-        if (self.console.interactive) {
+        if (self.console.interactive and self.console.writes == null) {
             const items = try self.arena.allocator().alloc(@TypeOf(response.items[0]), response.items.len);
             var count: usize = 0;
             for (response.items) |item| {
@@ -235,10 +235,10 @@ const Editor = struct {
         const selected = prior.items[self.selected];
         var arena: std.heap.ArenaAllocator = .init(self.console.init.gpa);
         defer arena.deinit();
-        const current = (q.Workspace.apply(arena.allocator(), self.console.client, self.console.config, .{ .assist = .{ .sql = self.text(), .cursor = @intCast(self.cursor), .generation = self.generation, .mode = .console } }) catch |err| {
+        const current = (self.console.assist(arena.allocator(), .{ .sql = self.text(), .cursor = @intCast(self.cursor), .generation = self.generation, .mode = .console }) catch |err| {
             if (Console.denied(err)) self.erasePrivate() else self.dismiss();
             return err;
-        }).assistance;
+        });
         if (Signals.interrupted()) return error.ConsoleInterrupted;
         if (Signals.pending() or current.generation != prior.generation or !std.meta.eql(current.range, prior.range) or !std.mem.eql(u8, &current.contract, &prior.contract) or !std.mem.eql(u8, current.policy_revision, prior.policy_revision)) {
             self.dismiss();

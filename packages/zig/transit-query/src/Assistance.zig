@@ -18,7 +18,7 @@ pub const Completion = struct {
 pub const Response = struct {
     version: u8 = 1,
     generation: u32,
-    profile: enum { unified_v1 } = .unified_v1,
+    profile: enum { unified_v1, catalog_v1 } = .unified_v1,
     resource: u64,
     contract: [32]u8,
     resource_revision: u64,
@@ -161,7 +161,7 @@ pub fn complete(allocator: std.mem.Allocator, name: m.Name, schema: m.Schema, re
     };
     return builder.finish(range);
 }
-fn meta(allocator: std.mem.Allocator, request: Request) !Completion {
+pub fn meta(allocator: std.mem.Allocator, request: Request) !Completion {
     const end = std.mem.indexOfAny(u8, request.sql, " \t\r\n") orelse request.sql.len;
     var builder: Builder = .{ .allocator = allocator, .prefix = request.sql[0..request.cursor], .quoted = false };
     errdefer builder.clear();
@@ -178,7 +178,7 @@ fn meta(allocator: std.mem.Allocator, request: Request) !Completion {
     } else if (std.mem.eql(u8, request.sql[1..end], "schema")) {
         try builder.add("writer", .meta, "Inspect the configured authorized Table writer");
     } else if (std.mem.eql(u8, request.sql[1..end], "help")) {
-        for ([_][]const u8{ "SQL", "INSERT", "UPDATE", "DELETE", "CREATE TABLE" }) |topic| try builder.add(topic, .meta, "Local SQL help");
+        for ([_][]const u8{ "SQL", "INSERT", "UPDATE", "DELETE", "CREATE TABLE", "ALTER TABLE", "DROP TABLE" }) |topic| try builder.add(topic, .meta, "Local SQL help");
     } else if (std.mem.eql(u8, request.sql[1..end], "timer")) {
         try builder.add("on", .meta, "Enable query timing");
         try builder.add("off", .meta, "Disable query timing");

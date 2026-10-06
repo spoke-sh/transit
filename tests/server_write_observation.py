@@ -100,7 +100,7 @@ def run(fixture):
             config.update(execution='interactive', url=f'http://127.0.0.1:{proxy.server_port}')
             done = fixture.record()['provision']
             saved = fixture.root / 'observation-writes.json'
-            config['writes'] = {'recovery_file': str(saved), 'catalog': {'scope': {'realm': fixture.config['realm'], 'resource': done[5], 'catalog': 1}, 'owner': done[4], 'principal': 10}}
+            config['writes'] = {'recovery_file': str(saved)}
             path = fixture.root / 'observation-console.json'
             path.write_text(json.dumps(config))
 

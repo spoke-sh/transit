@@ -11,6 +11,58 @@ lexer: sql.Lexer,
 token: sql.Token = .{ .tag = .eof, .text = "" },
 location: ?*sql.Location = null,
 depth: usize = 0,
+editor: ?*Editor = null,
+pub const NameRole = enum { source, column, proposed };
+pub const Identifier = struct {
+    bytes: [255]u8 = undefined,
+    len: u8,
+    pub fn init(raw: []const u8) Identifier {
+        std.debug.assert(raw.len <= 255);
+        var result: Identifier = .{ .len = @intCast(raw.len) };
+        @memcpy(result.bytes[0..raw.len], raw);
+        return result;
+    }
+    pub fn slice(self: *const Identifier) []const u8 {
+        return self.bytes[0..self.len];
+    }
+};
+pub const Editor = struct {
+    words: [32]?[]const u8 = @splat(null),
+    symbols: [16]?sql.Tag = @splat(null),
+    name_role: ?NameRole = null,
+    type_name: bool = false,
+    value_type: ?std.meta.Tag(t.Type) = null,
+    qualifier: ?Identifier = null,
+    sum_only: bool = false,
+    pub fn word(self: *Editor, value_: []const u8) void {
+        for (&self.words) |*slot| {
+            if (slot.*) |prior| {
+                if (std.mem.eql(u8, prior, value_)) return;
+            } else {
+                slot.* = value_;
+                return;
+            }
+        }
+        unreachable;
+    }
+    pub fn symbol(self: *Editor, value_: sql.Tag) void {
+        for (&self.symbols) |*slot| {
+            if (slot.* == value_) return;
+            if (slot.* == null) {
+                slot.* = value_;
+                return;
+            }
+        }
+        unreachable;
+    }
+};
+pub fn boundary(self: *Self) ?*Editor {
+    return if (self.token.tag == .eof) self.editor else null;
+}
+pub fn named(self: *Self, role: NameRole) ![]const u8 {
+    if (self.boundary()) |editor| editor.name_role = role;
+    return self.name();
+}
 pub fn init(allocator: std.mem.Allocator, text: []const u8, location: ?*sql.Location) !Self {
     if (location) |detail| detail.* = .{};
     try sql.validateText(text);
@@ -26,6 +78,7 @@ pub fn advance(self: *Self) !void {
     if (self.location) |location| location.* = .{ .offset = self.lexer.start };
 }
 pub fn word(self: Self, expected: []const u8) bool {
+    if (self.token.tag == .eof) if (self.editor) |editor| editor.word(expected);
     return self.token.tag == .word and std.ascii.eqlIgnoreCase(self.token.text, expected);
 }
 pub fn takeWord(self: *Self, expected: []const u8) !bool {
@@ -39,6 +92,7 @@ pub fn requireWord(self: *Self, expected: []const u8) !void {
     return error.InvalidSqlSyntax;
 }
 pub fn take(self: *Self, tag: sql.Tag) !bool {
+    if (self.boundary()) |editor| editor.symbol(tag);
     if (self.token.tag != tag) return false;
     try self.advance();
     return true;
@@ -130,6 +184,7 @@ fn nested(self: *Self) anyerror!t.Type {
     return result.type;
 }
 pub fn dataType(self: *Self) anyerror!names.Resolved {
+    if (self.boundary()) |editor| editor.type_name = true;
     if (self.depth == 16) return error.TypeBudgetExceeded;
     self.depth += 1;
     defer self.depth -= 1;
@@ -196,6 +251,7 @@ pub fn dataType(self: *Self) anyerror!names.Resolved {
     return names.resolve(name_text, parameters[0..count], zone);
 }
 pub fn value(self: *Self, expected: t.Type) anyerror!Cell {
+    if (self.boundary()) |editor| editor.value_type = std.meta.activeTag(expected);
     if (self.depth == 16) return error.ValueBudgetExceeded;
     self.depth += 1;
     defer self.depth -= 1;

@@ -128,39 +128,35 @@ its serialized caller and recovery-file locks.
 
 ```yaml
 version: 1
-profile: "unified_v1"
+profile: "catalog_v1"
 url: "http://127.0.0.1:8301"
 transport: "loopback"
 seed_file: "caller.key"
-connection:
-  realm: 42
-  principal: 1234
-  source: 1
-  resource: 7
-  requester: 2
-  requests: 8
-workspace:
-  name: "items"
-  source:
-    version: 1
+catalog:
+  scope:
+    realm: 42
     resource: 7
-    source:
-      table:
-        id: 1
-        names: ["id", "value"]
-        value_type: "int64"
-  limits:
-    pages: "1000"
-    segments: "100"
-    result_bytes: "1048576"
+    catalog: 1
+  owner: 1
+  principal: 1234
+table_limits:
+  requests: 10000
+  rows: 10000
+  result_bytes: 16777216
 request_timeout_ms: 5000
 format: "table"
 execution: "interactive"
 ```
 
 The example is a configuration shape, not allocated identities or a grant.
-Use the actual provisioned IDs and source contract. Table names, KV decoders
-and Document projections follow the [unified source guide](unified-query.md).
+Use the actual provisioned catalog IDs. Omitting `writes` creates a read-only
+console configuration: SELECT, EXPLAIN, discovery and assistance use the catalog
+without a write recovery file. Current permissions still decide each operation.
+The catalog profile does not accept fixed `connection`/`workspace` fields or a
+durable query `recovery_file`. Separately configured KV and Document queries use
+`profile: unified_v1` with `connection` and `workspace` as described in the
+[unified source guide](unified-query.md); those fields cannot be mixed with a
+catalog route.
 The timeout defaults to 5000 ms and must be 1–60000 ms.
 
 `loopback` accepts literal `127.0.0.1` or `::1` HTTP endpoints. Remote connections
@@ -184,23 +180,25 @@ Use `.help CREATE TABLE`, `.help ALTER TABLE`, `.help DROP TABLE`, `.help INSERT
 not grant access: native grants and separate catalog inspect/create/read/insert/
 update/delete/alter/drop policies apply when each operation runs.
 
-A separate connection supplies its provisioned catalog identities:
+Enable writes on that same catalog connection with:
 
 ```yaml
 writes:
   recovery_file: "console-writes.json"
-  catalog:
-    scope:
-      realm: 42
-      resource: 9
-      catalog: 1
-    owner: 3
-    principal: 1234
 ```
 
-Realm and principal must match the signing credential. The write recovery path
-must differ from any durable query recovery path. Paths resolve relative to the
-connection file. One credential lock serializes local write-capable consoles.
+The catalog principal must match the signing credential. Paths resolve relative
+to the connection file. One credential lock serializes local write-capable
+consoles. `.info` reads current catalog configuration and policy; it does not
+report a fixed Table schema as the catalog's scope.
+
+Completion obtains fresh authorized metadata and uses the general Table parsers
+for syntax and typed continuations. It supports 255-byte names and escapes quoted
+identifiers. Source search retains one catalog page and returns at most eight
+suggestions after at most 128 pages; narrow the prefix when the bounded search
+has no matching item. Metadata can change while editing: the console reacquires
+and validates the suggestion before inserting it. A changed revision or revoked
+inspection permission discards the suggestion; completion never applies SQL.
 
 ```sql
 CREATE TABLE people (
@@ -542,7 +540,7 @@ The categories distinguish syntax errors, unsupported constructs, exceeded
 bounds, source/type binding failures, grammar-only families and operations
 unavailable on the query interface. Grammar-family recognition alone does not
 validate the submitted syntax. `INSERT`, `UPDATE` and `DELETE` use an explicitly
-authorized catalog configured in `writes.catalog`. CREATE, ALTER and DROP use
+authorized catalog configured in `catalog`. CREATE, ALTER and DROP use
 the same catalog and their own current permissions. Missing
 routes point to `.help INSERT` or `.help CREATE TABLE`; grammar-only forms are
 identified without claiming executable support.

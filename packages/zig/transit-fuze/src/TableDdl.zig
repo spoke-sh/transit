@@ -28,14 +28,18 @@ pub const Target = struct { kind: std.meta.Tag(Statement), name: []const u8 };
 /// Header only, for authorized catalog resolution before bound compilation.
 /// The result borrows allocator storage and is never execution admission.
 pub fn target(allocator: std.mem.Allocator, text: []const u8) !Target {
+    return targetWithEditor(allocator, text, null);
+}
+pub fn targetWithEditor(allocator: std.mem.Allocator, text: []const u8, editor: ?*Parser.Editor) !Target {
     var parser = try Parser.init(allocator, text, null);
+    parser.editor = editor;
     const kind: std.meta.Tag(Statement) = if (try parser.takeWord("CREATE")) .create else if (try parser.takeWord("ALTER")) .alter else if (try parser.takeWord("DROP")) .drop else return error.UnsupportedStatement;
     try parser.requireWord("TABLE");
     if (try parser.takeWord("IF")) {
         if (kind == .create) try parser.requireWord("NOT") else if (kind != .drop) return error.InvalidSqlSyntax;
         try parser.requireWord("EXISTS");
     }
-    return .{ .kind = kind, .name = try parser.name() };
+    return .{ .kind = kind, .name = try parser.named(if (kind == .create) .proposed else .source) };
 }
 pub const Owned = struct {
     arena: std.heap.ArenaAllocator,
@@ -46,16 +50,20 @@ pub const Owned = struct {
     }
 };
 pub fn compile(allocator: std.mem.Allocator, text: []const u8, basis: ?s.Schema, location: ?*sql.Location) !Owned {
+    return compileWithEditor(allocator, text, basis, location, null);
+}
+pub fn compileWithEditor(allocator: std.mem.Allocator, text: []const u8, basis: ?s.Schema, location: ?*sql.Location, editor: ?*Parser.Editor) !Owned {
     var arena: std.heap.ArenaAllocator = .init(allocator);
     errdefer arena.deinit();
     var parser = try Parser.init(arena.allocator(), text, location);
+    parser.editor = editor;
     const statement: Statement = if (try parser.takeWord("CREATE")) .{ .create = try create(&parser) } else if (try parser.takeWord("ALTER")) .{ .alter = try alter(&parser, basis orelse return error.TableSchemaRequired) } else if (try parser.takeWord("DROP")) .{ .drop = try drop(&parser, basis) } else return error.UnsupportedStatement;
     try parser.finish();
     return .{ .arena = arena, .statement = statement };
 }
 const ParsedColumn = struct { value: s.Column, primary: bool, explicit_nullable: bool };
 fn column(parser: *Parser, id: s.ColumnId) !ParsedColumn {
-    const name = try parser.name();
+    const name = try parser.named(.proposed);
     const data_type = try parser.dataType();
     var value: s.Column = .{ .id = id, .name = name, .type = data_type.type, .max_characters = data_type.max_characters };
     var seen_null = false;
@@ -86,7 +94,7 @@ fn column(parser: *Parser, id: s.ColumnId) !ParsedColumn {
     return .{ .value = value, .primary = primary, .explicit_nullable = explicit_nullable };
 }
 fn unsupportedConstraint(parser: Parser) bool {
-    inline for (.{ "UNIQUE", "CHECK", "REFERENCES", "FOREIGN", "CONSTRAINT", "GENERATED", "IDENTITY", "COLLATE", "AUTO_INCREMENT" }) |word| if (parser.word(word)) return true;
+    inline for (.{ "UNIQUE", "CHECK", "REFERENCES", "FOREIGN", "CONSTRAINT", "GENERATED", "IDENTITY", "COLLATE", "AUTO_INCREMENT" }) |word| if (parser.token.tag == .word and std.ascii.eqlIgnoreCase(parser.token.text, word)) return true;
     return false;
 }
 fn create(parser: *Parser) !Create {
@@ -96,7 +104,7 @@ fn create(parser: *Parser) !Create {
         try parser.requireWord("NOT");
         try parser.requireWord("EXISTS");
     }
-    const name = try parser.name();
+    const name = try parser.named(.proposed);
     try parser.require(.left);
     var columns: std.ArrayList(s.Column) = .empty;
     var explicit_null: [s.max_columns]bool = @splat(false);
@@ -149,13 +157,13 @@ fn create(parser: *Parser) !Create {
     return result;
 }
 fn selectedColumn(parser: *Parser, schema: s.Schema) !s.ColumnId {
-    const name = try parser.name();
+    const name = try parser.named(.column);
     return schema.columns[try schema.named(name)].id;
 }
 fn alter(parser: *Parser, basis: s.Schema) !Alter {
     try basis.validate();
     try parser.requireWord("TABLE");
-    const name = try parser.name();
+    const name = try parser.named(.source);
     const action: @FieldType(Alter, "action") = if (try parser.takeWord("RENAME")) blk: {
         if (try parser.takeWord("TO")) break :blk .{ .rename_table = try parser.name() };
         _ = try parser.takeWord("COLUMN");
@@ -204,7 +212,7 @@ fn drop(parser: *Parser, basis: ?s.Schema) !Drop {
     try parser.requireWord("TABLE");
     const if_exists = try parser.takeWord("IF");
     if (if_exists) try parser.requireWord("EXISTS");
-    const name = try parser.name();
+    const name = try parser.named(.source);
     if (try parser.takeWord("CASCADE")) return error.UnsupportedCascade;
     _ = try parser.takeWord("RESTRICT");
     if (basis == null and !if_exists) return error.TableNotFound;

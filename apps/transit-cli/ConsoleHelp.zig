@@ -14,7 +14,7 @@ pub fn write(console: *Console, topic: []const u8) !void {
         \\One statement publishes atomically. A rejected row never leaves an inserted prefix.
         \\Affected counts mean changed rows; differing matched counts are reported separately.
         \\Use DESCRIBE people or .schema people for authorized columns, defaults and keys.
-        \\Configure writes.recovery_file and writes.catalog: {scope: {realm, resource, catalog}, owner, principal}.
+        \\Configure writes.recovery_file and catalog: {scope: {realm, resource, catalog}, owner, principal}.
         \\Native grants and current catalog policy are required; query access grants no writes.
         \\.status observes; .resume reconciles exact saved work; .cancel requests cancellation before publication.
         \\Ctrl-C stops waiting and retains recovery. It does not undo an accepted write.
@@ -59,8 +59,8 @@ pub fn write(console: *Console, topic: []const u8) !void {
         \\
     else
         return error.UnknownHelpTopic;
-    const catalog = console.writes != null;
-    if (console.session.format == .json) return console.json(.{ .commands = [_][]const u8{ "help", "tables", "schema", "sources", "mode", "timer", "connect", "show", "execute", "info", "quit", "status", "resume", "cancel" }, .help = text, .table_writer_configured = catalog, .catalog_configured = catalog, .authorization = "checked at execution" });
+    const catalog = console.catalog != null;
+    if (console.session.format == .json) return console.json(.{ .commands = [_][]const u8{ "help", "tables", "schema", "sources", "mode", "timer", "connect", "show", "execute", "info", "quit", "status", "resume", "cancel" }, .help = text, .table_writer_configured = console.writes != null, .catalog_configured = catalog, .authorization = "checked at execution" });
     try console.out.writeAll(text);
     try console.out.print("Table catalog: {s}. Authorization is checked at execution.\n", .{if (catalog) "configured" else "not configured"});
 }

@@ -12,10 +12,11 @@ pub fn parse(parser: *Parser, schema: t.Type, name: []const u8, unsupported: any
     return result;
 }
 pub fn columnIndex(parser: *Parser, schema: t.Type, name: []const u8) !usize {
-    var column = try parser.name();
+    var column = try parser.named(.column);
     if (try parser.take(.dot)) {
         if (!std.mem.eql(u8, column, name)) return error.UnknownQualifier;
-        column = try parser.name();
+        if (parser.boundary()) |editor| editor.qualifier = .init(column);
+        column = try parser.named(.column);
     }
     for (schema.structure, 0..) |field, i| if (std.mem.eql(u8, field.name, column)) return i;
     return error.UnknownColumn;
@@ -65,6 +66,7 @@ const Expression = struct {
             if (negate) try self.append(.negate);
             return;
         }
+        if (self.parser.boundary()) |editor| for ([_]@import("Sql.zig").Tag{ .eq, .ne, .lt, .le, .gt, .ge }) |tag| editor.symbol(tag);
         const op: @import("Finite.zig").Comparison = switch (self.parser.token.tag) {
             .eq => .eq,
             .ne => .ne,

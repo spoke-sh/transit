@@ -19,18 +19,18 @@ pub fn sql(console: *Console, request: @import("SqlInput.zig").Request) !void {
     defer arena.deinit();
     const allocator = arena.allocator();
     timing.enter(.compile);
-    const source = try console.config.source.native(allocator);
+    const source = try console.config.?.source.native(allocator);
     // Ordinary SQL keeps its pure compile path. Explicit bindings use the
     // shared compiler's current-access checks; opening still validates authority
     // independently before acquiring any data.
     var binding: q.fuze.Sql.Binding = .{};
     const bundle = if (request.parameters != null) compiled: {
-        const result = (q.Workspace.applyDiagnostic(allocator, console.client, console.config, .{ .compile = request }, &binding) catch |err| {
+        const result = (q.Workspace.applyDiagnostic(allocator, console.client.?, console.config.?, .{ .compile = request }, &binding) catch |err| {
             console.diagnostic.sql = q.fuze.SqlDiagnostic.bound(statement, err, true, binding);
             return err;
         }).compiled;
         break :compiled try q.Bundle.decode(allocator, try q.Values.unhex(allocator, result.bundle, q.Bundle.max_bytes));
-    } else q.Bundle.fromSqlDiagnostic(allocator, source, try .init(console.config.name), statement, try console.config.limits.native(), &binding) catch |err| {
+    } else q.Bundle.fromSqlDiagnostic(allocator, source, try .init(console.config.?.name), statement, try console.config.?.limits.native(), &binding) catch |err| {
         console.diagnostic.sql = q.fuze.SqlDiagnostic.bound(statement, err, true, binding);
         return err;
     };
@@ -38,7 +38,7 @@ pub fn sql(console: *Console, request: @import("SqlInput.zig").Request) !void {
     timing.enter(.open);
     var nonce: [16]u8 = undefined;
     try console.init.io.randomSecure(&nonce);
-    var query = try q.Interactive.open(console.client, bundle, nonce);
+    var query = try q.Interactive.open(console.client.?, bundle, nonce);
     defer query.close() catch {};
     const workspace = try allocator.alloc(u8, m.Arrow.working_bytes);
     const arrow = try allocator.alloc(u8, m.Arrow.segment_bytes);
@@ -56,7 +56,7 @@ pub fn sql(console: *Console, request: @import("SqlInput.zig").Request) !void {
         defer page_arena.deinit();
         const page_allocator = page_arena.allocator();
         var source_memory: std.heap.FixedBufferAllocator = .init(adapter);
-        const segment = query.next(console.client, source_memory.allocator(), workspace, arrow, &Signals.cancellation) catch |err| {
+        const segment = query.next(console.client.?, source_memory.allocator(), workspace, arrow, &Signals.cancellation) catch |err| {
             try interrupted();
             console.diagnostic.envelope = query.diagnostic;
             if (console.diagnostic.envelope) |*detail| {

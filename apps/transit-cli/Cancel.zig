@@ -20,15 +20,15 @@ pub fn interrupt(console: *Console) !void {
     report(console, "Cancelling query {d}...\n", .{id}) catch {};
     // Reconcile only the original frozen operation, never finish its upload or
     // replace an uncertain principal sequence with a newly prepared operation.
-    try u.settle(console.init, session, console.client);
-    var status = try console.client.status(id);
+    try u.settle(console.init, session, console.client.?);
+    var status = try console.client.?.status(id);
     if (status) |current| switch (current.phase) {
         .uploading, .sealed, .admitted => {
             if (console.recovery == null) return error.ConsoleRecoveryRequired;
-            session.pending = try console.client.prepare(.{ .cancel = id });
+            session.pending = try console.client.?.prepare(.{ .cancel = id });
             session.length = 0;
-            try u.settle(console.init, session, console.client);
-            status = (try console.client.status(id)) orelse return error.QueryUploadNotFound;
+            try u.settle(console.init, session, console.client.?);
+            status = (try console.client.?.status(id)) orelse return error.QueryUploadNotFound;
         },
         else => {},
     };
@@ -41,7 +41,7 @@ pub fn interrupt(console: *Console) !void {
                 if (Signals.interrupted()) return error.ConsoleInterrupted;
                 if (std.Io.Clock.boot.now(console.init.io).toMilliseconds() >= deadline) return error.QueryWaitTimedOut;
                 try console.init.io.sleep(.fromMilliseconds(20), .awake);
-                status = (try console.client.status(id)) orelse return error.QueryUploadNotFound;
+                status = (try console.client.?.status(id)) orelse return error.QueryUploadNotFound;
                 if (status.?.phase != .cancelled) return error.InvalidAuthorityResponse;
             }
         },

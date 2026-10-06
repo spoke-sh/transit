@@ -17,8 +17,14 @@ through the catalog's signed connection, without a separately configured source
 or requester per Table. It owns a leased snapshot, typed plan and bounded native
 entry cache. Each output is one owned logical row; current catalog and native
 authorization precede disclosure, including completion and empty output. Explicit
-request, row and canonical-byte budgets apply. The Zig adapter does not enable
-its console, durable-query or foreign-language routes implicitly.
+request, row and canonical-byte budgets apply. The console's `catalog_v1` profile uses this adapter. Durable-query and
+foreign-language routes retain their separately admitted profiles.
+
+`TableAssistance` reads current catalog metadata, derives continuations from the
+same general Table parsers and checks the metadata/policy revision again before
+returning. It bounds source searches to 128 pages and eight suggestions while
+retaining only one page. The terminal reacquires suggestions before accepting
+an edit. Completion is read-only and does not prepare or dispatch SQL.
 
 This package imports Station's, Catalog's and Document's public modules and has no kernel, storage or
 provider dependency. SQL compiles in Fuze. Interactive execution runs over a

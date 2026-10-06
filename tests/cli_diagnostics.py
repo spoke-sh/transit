@@ -334,6 +334,17 @@ with tempfile.TemporaryDirectory(prefix='transit-cli-diagnostics-') as directory
                'workspace': {'name': 'items', 'source': {'resource': 4, 'source': {'table': {'id': 1, 'names': ['key', 'value'], 'value_type': 'int64'}}},
                              'limits': {'pages': '1', 'segments': '1', 'result_bytes': '65536'}}}
     path = root / 'console.json'
+    catalog_console = dict(version=1, profile='catalog_v1', url=console['url'], transport='loopback',
+                           seed_file='missing.seed', catalog=dict(scope=dict(realm=1, resource=4, catalog=1), owner=3, principal=2))
+    for patch, field in (({'connection': console['connection']}, 'catalog'),
+                         ({'workspace': console['workspace']}, 'catalog'),
+                         ({'catalog': None}, 'catalog'),
+                         ({'execution': 'durable'}, 'execution'),
+                         ({'writes': {'recovery_file': ''}}, 'writes.recovery_file')):
+        path.write_text(json.dumps(dict(catalog_console, **patch)))
+        invoke(['console', '--config', path], contains=(field, 'invalid console configuration'))
+    path.write_text(json.dumps(catalog_console))
+    invoke(['console', '--config', path], contains=('seed_file', 'signing credential'))
     for patch, field in (({'version': 2}, 'version'), ({'request_timeout_ms': 0}, 'request_timeout_ms'), ({'url': 'http://user:private-must-not-appear@127.0.0.1:19105'}, 'url / transport / ca_file')):
         path.write_text(json.dumps(dict(console, **patch)))
         invoke(['console', '--config', path, '--format', 'json'], contains=(field,))

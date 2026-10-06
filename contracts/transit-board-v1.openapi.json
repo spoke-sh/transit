@@ -14563,7 +14563,8 @@
                   "profile": {
                     "type": "string",
                     "enum": [
-                      "unified_v1"
+                      "unified_v1",
+                      "catalog_v1"
                     ]
                   },
                   "resource": {

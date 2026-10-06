@@ -11082,6 +11082,28 @@ identity instead. These durations are scenario totals, not latency benchmarks.
 This checkpoint does not establish power-loss durability, all-family caller
 qualification, the final compatibility cutover or committed-HEAD clean CI.
 
+The console's direct `catalog_v1` configuration and parser-derived completion
+pass the expanded native proof in **91.213 seconds**, with the same 297 owner
+turns, 66 sends, four-mutation and 256-byte bounds
+(`catalog-console-native1.log`). The real signed fixture discovers a created
+Table, completes its column from the SELECT suffix and obtains ALTER continuations.
+The server suite passes in **35.61 seconds** (`catalog-console-server1.log`),
+including SELECT and `.info` through a catalog-only read-only connection without
+write recovery. Neither path needs the former fixed Table workspace fields.
+
+The query package passes **97/97 tests** (`table-assistance4.log`), including
+production-parser continuations, typed assignment/aggregate suggestions,
+unsupported continuation filtering, 255-byte/quoted/Unicode names, terminal
+control suppression and allocation-failure cleanup. Full pinned `just check`
+passes on the integration tree (`catalog-console-check1.log`); the final local
+suggestion filters and configuration diagnostic additions also pass focused query
+tests and **592 real CLI cases** (`catalog-console-diagnostics1.log`). Generated
+query/Board schemas and validators include the catalog assistance profile.
+Development compile failures caught a shadowed parser helper, a remaining optional
+client dereference and optional return coercion; no failed build is counted as
+passing evidence. The bounded catalog search returns at most eight suggestions
+from at most 128 pages and does not claim complete catalog enumeration.
+
 ## Fuze logical type foundation
 
 The local `Types` profile has nine passing focused Zig tests, including 46

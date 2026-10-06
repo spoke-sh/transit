@@ -140,6 +140,13 @@ ALTER/DROP retain the captured object/schema identity. The
 [compiler contract](../../../contracts/TABLE_DDL_V1.md) separates these pure
 definitions from catalog/native/console admission.
 
+`SqlTyped.Editor` captures bounded cursor expectations from the same Table DDL,
+DML and SELECT parsers. Their `compileWithEditor` and `targetWithEditor` entry
+points report syntax/name/type context without dispatching work. Catalog callers
+supply actual authorized schemas and filter suggestions by the selected execution
+profile. These expectations do not establish that an unfinished statement binds
+or executes.
+
 `Sql.parseDeclaration` and `Declaration.compile` parse and validate offline
 `CREATE TABLE`, `CREATE KV` and `CREATE DOCUMENT` definitions. Definitions own
 their names and up to eight Table columns, preserve omitted nullability and

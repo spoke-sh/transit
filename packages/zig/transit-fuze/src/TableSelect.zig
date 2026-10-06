@@ -12,8 +12,12 @@ const Reference = struct {
     name: []const u8,
     qualifier: ?[]const u8 = null,
     fn parse(parser: *Parser) !Reference {
-        const first = try parser.name();
-        return if (try parser.take(.dot)) .{ .qualifier = first, .name = try parser.name() } else .{ .name = first };
+        const first = try parser.named(.column);
+        if (try parser.take(.dot)) {
+            if (parser.boundary()) |editor| editor.qualifier = .init(first);
+            return .{ .qualifier = first, .name = try parser.named(.column) };
+        }
+        return .{ .name = first };
     }
     fn resolve(self: Reference, qualifier: []const u8, fields: []const t.Field) !u8 {
         if (self.qualifier) |value| if (!std.mem.eql(u8, value, qualifier)) return error.UnknownQualifier;
@@ -30,7 +34,9 @@ const Selection = struct {
     fn parse(parser: *Parser) !Selection {
         try parser.requireWord("SELECT");
         var result: Selection = .{};
-        if (parser.word("COUNT") or parser.word("SUM")) {
+        const is_count = parser.word("COUNT");
+        const is_sum = parser.word("SUM");
+        if (is_count or is_sum) {
             result.aggregate = if (parser.word("COUNT")) .count_values else .sum;
             try parser.advance();
             try parser.require(.left);
@@ -38,7 +44,10 @@ const Selection = struct {
                 if (result.aggregate != .count_values) return error.UnsupportedAggregate;
                 result.aggregate = .count;
                 result.star = true;
-            } else result.items[0].column = try Reference.parse(parser);
+            } else {
+                if (parser.boundary()) |editor| editor.sum_only = result.aggregate == .sum;
+                result.items[0].column = try Reference.parse(parser);
+            }
             try parser.require(.right);
             result.items[0].alias = if (try parser.takeWord("AS")) try parser.name() else null;
             result.count = 1;
@@ -80,14 +89,29 @@ pub const Owned = struct {
 };
 /// Resolves only the input name. Complete acceptance still requires compile.
 pub fn target(allocator: std.mem.Allocator, text: []const u8) ![]const u8 {
+    return targetWithEditor(allocator, text, null);
+}
+pub fn targetWithEditor(allocator: std.mem.Allocator, text: []const u8, editor: ?*Parser.Editor) ![]const u8 {
     var parser = try Parser.init(allocator, text, null);
+    parser.editor = editor;
     const selection = try Selection.parse(&parser);
     if (try parser.take(.left)) {
         if (selection.aggregate == .rows) return error.UnsupportedConstruct;
         const inner = try Selection.parse(&parser);
         if (inner.aggregate != .rows) return error.UnsupportedConstruct;
     }
-    return parser.name();
+    return parser.named(.source);
+}
+/// Header-only qualifier discovery for authorized editor metadata.
+pub fn targetQualifier(allocator: std.mem.Allocator, text: []const u8) ![]const u8 {
+    var parser = try Parser.init(allocator, text, null);
+    const selection = try Selection.parse(&parser);
+    if (try parser.take(.left)) {
+        if (selection.aggregate == .rows) return error.UnsupportedConstruct;
+        _ = try Selection.parse(&parser);
+    }
+    const name = try parser.name();
+    return alias(&parser, name);
 }
 fn alias(parser: *Parser, name: []const u8) ![]const u8 {
     if (try parser.takeWord("AS")) return parser.name();
@@ -104,6 +128,9 @@ fn tail(parser: *Parser, plan: *logical.Plan, qualifier: []const u8) !void {
     }
 }
 pub fn compile(allocator: std.mem.Allocator, text: []const u8, name: []const u8, schema: t.Type, basis: [32]u8, location: ?*sql.Location) !Owned {
+    return compileWithEditor(allocator, text, name, schema, basis, location, null);
+}
+pub fn compileWithEditor(allocator: std.mem.Allocator, text: []const u8, name: []const u8, schema: t.Type, basis: [32]u8, location: ?*sql.Location, editor: ?*Parser.Editor) !Owned {
     if (schema != .structure or schema.structure.len == 0 or schema.structure.len > max_columns) return error.InvalidQuerySchema;
     var descriptor = try schema.clone(allocator);
     errdefer descriptor.deinit();
@@ -111,12 +138,13 @@ pub fn compile(allocator: std.mem.Allocator, text: []const u8, name: []const u8,
     errdefer arena.deinit();
     const alloc = arena.allocator();
     var parser = try Parser.init(alloc, text, location);
+    parser.editor = editor;
     const outer = try Selection.parse(&parser);
     const derived = try parser.take(.left);
     if (derived and outer.aggregate == .rows) return error.UnsupportedConstruct;
     const selection = if (derived) try Selection.parse(&parser) else outer;
     if (derived and selection.aggregate != .rows) return error.UnsupportedConstruct;
-    const subject = try parser.name();
+    const subject = try parser.named(.source);
     if (!std.mem.eql(u8, subject, name)) return error.UnknownSource;
     const qualifier = try alias(&parser, subject);
     var plan = try selection.lower(alloc, descriptor.type, qualifier, basis);

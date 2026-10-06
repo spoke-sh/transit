@@ -156,14 +156,10 @@ class Fixture:
     def console_config(self):
         # Explicit remote-connection fixture from the observed allocation receipts.
         done = self.record()['provision']
-        return dict(version=1, profile='unified_v1', execution='durable', transport='loopback', url=self.url,
+        return dict(version=1, profile='catalog_v1', execution='interactive', transport='loopback', url=self.url,
                     seed_file=str(self.installation/'caller.seed'),
-                    recovery_file=str(self.installation/'console-recovery.json'),
-                    connection=dict(realm=self.config['realm'], principal=10, requester=done[0],
-                                    requests=done[1], source=done[4], resource=done[5]),
-                    workspace=dict(name='items', source=dict(version=1, resource=done[5],
-                        source=dict(table=dict(id=1, names=['id', 'value'], value_type='int64'))),
-                        limits=dict(pages='1000', segments='128', result_bytes='1048576')))
+                    catalog=dict(scope=dict(realm=self.config['realm'], resource=done[5], catalog=1),
+                                 owner=done[4], principal=10))
 
     def console(self, text, expected=0):
         result = subprocess.run([self.cli, "console", "--no-rc", "--format", "json"],
@@ -272,6 +268,15 @@ def run(cli, node, host):
         denied = subprocess.run([fixture.cli, 'console', '--no-rc', '--config', str(readonly), '-c',
                                  'INSERT INTO items (id, value) VALUES (9, 900)'], capture_output=True, text=True, timeout=15)
         assert denied.returncode == 1 and 'ConsoleWriterRequired' in denied.stderr, denied
+        read = subprocess.run([fixture.cli, 'console', '--no-rc', '--config', str(readonly), '--format', 'json',
+                               '-c', 'SELECT * FROM items'], capture_output=True, text=True, timeout=15)
+        assert read.returncode == 0, read
+        rows = table_results(json.loads(line) for line in read.stdout.splitlines())
+        assert rows and rows[0]['rows'], rows
+        info = subprocess.run([fixture.cli, 'console', '--no-rc', '--config', str(readonly), '--format', 'json'],
+                              input='.info\n', capture_output=True, text=True, timeout=15)
+        assert info.returncode == 0 and json.loads(info.stdout)['profile'] == 'catalog_v1', info
+        assert json.loads(info.stdout)['writes_configured'] is False
         # Kill a console after native admission while the owner cannot process
         # its input. A new console must resume the same saved operation.
         source_pid = next(pid for pid in children(fixture.process.pid) if '"catalog":' in command(pid))
