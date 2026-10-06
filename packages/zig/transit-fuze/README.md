@@ -141,8 +141,8 @@ ALTER/DROP retain the captured object/schema identity. The
 definitions from catalog/native/console admission.
 
 `SqlTyped.literal` captures unbound constructor syntax and source spans before
-`SqlLiteral.bind` admits it against a logical descriptor. The bound value owns
-its allocations in the caller's arena. Nested binding failures identify the
+`SqlLiteral.bind` admits it against a logical descriptor. Bound cells allocate in the caller's
+arena and byte values share the parsed syntax lifetime. Nested binding failures identify the
 original child or union alternative after parsing has advanced. Direct syntax
 callers are bounded to the SQL depth, node and text budgets before cell allocation;
 row width, nullability and constraints remain schema responsibilities.
@@ -170,15 +170,21 @@ whole-token replacement while respecting quotes, nested comments and UTF-8.
 Neither reads a catalog nor executes a statement. Callers filter expectations
 against their authorized schema and executable capability profile.
 
-`SqlInput.classify` combines tolerant lexical tokens with `Sql.classifyTokens`,
-which records roles as the production SELECT, mutation, declaration and
-inspection parsers consume input. Keywords, names, aggregate functions, types,
+`SqlInput.classify` combines tolerant lexical tokens with roles recorded as the
+production parsers consume input. `Sql.classifyTokens` covers finite source,
+parameter and inspection syntax; general Table DDL, DML and SELECT use their
+unbound syntax parsers. Column/source references retain their original spans
+through binding, including predicate and ALTER failures. Keywords, names, aggregate functions, types,
 literals, numbers, parameters and comments have distinct presentation roles;
 contextual words remain identifiers in name positions. Each semicolon-delimited
-statement is classified independently. Incomplete or malformed suffixes retain
+statement is classified independently. Type aliases, rich constructors and ALTER
+actions are contextual; those same spellings remain identifiers in name positions.
+Incomplete or malformed suffixes retain
 lexical roles, including unfinished strings, quoted identifiers and comments.
 The caller supplies one role per UTF-8 byte within the 4,096-byte input bound;
-classification allocates no memory, reads no catalog and grants no authority.
+classification reads no catalog and grants no authority. General Table syntax
+uses a fixed 256 KiB workspace without heap allocation. Exhaustion or malformed
+input retains consumed roles and lexical classification on the remaining suffix.
 These local roles do not change parser acceptance or serialized contracts.
 `SqlDiagnostic` owns excerpt roles captured before redaction and clipping;
 its styled renderer supplies those roles alongside the escaped source text.

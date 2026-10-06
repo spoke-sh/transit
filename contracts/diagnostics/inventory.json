@@ -6847,6 +6847,7 @@
       "error_returns": {
         "Scan.init()": "<inferred>",
         "Scan.next()": "<inferred>",
+        "classifyTableWithAllocator()": "<inferred>",
         "expectRoles()": "<inferred>",
         "replacement()": "<inferred>",
         "significant()": "<inferred>",
@@ -6854,11 +6855,15 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 7,
-        "catch": 2
+        "try": 13,
+        "catch": 3
       },
       "imports": [
         "Sql.zig",
+        "SqlTyped.zig",
+        "TableDdl.zig",
+        "TableDml.zig",
+        "TableSelect.zig",
         "std"
       ]
     },
@@ -6915,32 +6920,38 @@
       "errors": {
         "InvalidQuerySchema": 1,
         "InvalidSqlSyntax": 1,
-        "PredicateTooComplex": 1,
+        "PredicateTooComplex": 2,
         "PredicateTooDeep": 2,
-        "UnknownColumn": 1,
-        "UnknownQualifier": 1,
         "UnsupportedComparison": 1,
         "UnsupportedNullComparison": 1
       },
-      "outcomes": {},
+      "outcomes": {
+        "Syntax.Atom": [
+          "state",
+          "compare"
+        ]
+      },
       "error_sets": {},
       "error_returns": {
         "Expression.append()": "<inferred>",
         "Expression.conjunction()": "anyerror",
         "Expression.disjunction()": "anyerror",
         "Expression.unary()": "anyerror",
-        "columnIndex()": "<inferred>",
-        "parse()": "<inferred>"
+        "Syntax.bind()": "<inferred>",
+        "parse()": "<inferred>",
+        "syntax()": "<inferred>"
       },
-      "open_error_set_uses": 5,
+      "open_error_set_uses": 6,
       "propagation": {
-        "try": 30,
-        "catch": 0
+        "try": 32,
+        "catch": 1
       },
       "imports": [
         "Finite.zig",
         "LogicalPredicate.zig",
+        "PredicateMachine.zig",
         "Sql.zig",
+        "SqlReference.zig",
         "SqlTyped.zig",
         "Types.zig",
         "std"
@@ -7050,6 +7061,29 @@
         "Unified.zig"
       ]
     },
+    "packages/zig/transit-fuze/src/SqlReference.zig": {
+      "errors": {
+        "UnknownColumn": 1,
+        "UnknownQualifier": 1
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "parse()": "<inferred>",
+        "resolve()": "<inferred>",
+        "unqualified()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 4,
+        "catch": 0
+      },
+      "imports": [
+        "Sql.zig",
+        "SqlTyped.zig",
+        "std"
+      ]
+    },
     "packages/zig/transit-fuze/src/SqlTyped.zig": {
       "errors": {
         "InvalidBinaryLiteral": 1,
@@ -7087,6 +7121,7 @@
         "requireWord()": "<inferred>",
         "take()": "<inferred>",
         "takeWord()": "<inferred>",
+        "takeWordRole()": "<inferred>",
         "unquote()": "<inferred>",
         "unsigned()": "<inferred>",
         "value()": "anyerror"
@@ -7148,7 +7183,6 @@
         "NullablePrimaryKey": 2,
         "TableNotFound": 1,
         "TableSchemaRequired": 1,
-        "UnknownColumn": 1,
         "UnsupportedAlterTable": 1,
         "UnsupportedCascade": 2,
         "UnsupportedSchemaConversion": 1,
@@ -7160,7 +7194,21 @@
           "columns",
           "rename_table"
         ],
+        "AlterSyntax.action": [
+          "rename_table",
+          "add",
+          "rename",
+          "drop",
+          "default",
+          "nullable",
+          "type"
+        ],
         "Statement": [
+          "create",
+          "alter",
+          "drop"
+        ],
+        "Syntax": [
           "create",
           "alter",
           "drop"
@@ -7168,14 +7216,16 @@
       },
       "error_sets": {},
       "error_returns": {
+        "AlterSyntax.bind()": "<inferred>",
         "Create.bind()": "<inferred>",
+        "Syntax.bind()": "<inferred>",
         "alter()": "<inferred>",
         "column()": "<inferred>",
         "compile()": "<inferred>",
         "compileWithEditor()": "<inferred>",
         "create()": "<inferred>",
         "drop()": "<inferred>",
-        "selectedColumn()": "<inferred>",
+        "syntax()": "<inferred>",
         "target()": "<inferred>",
         "targetContext()": "<inferred>",
         "targetDiagnostic()": "<inferred>",
@@ -7183,24 +7233,27 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 93,
-        "catch": 0
+        "try": 95,
+        "catch": 1
       },
       "imports": [
         "Sql.zig",
+        "SqlReference.zig",
         "SqlTyped.zig",
+        "SqlTypes.zig",
         "TableEvolution.zig",
         "TableSchema.zig",
+        "Types.zig",
         "std"
       ]
     },
     "packages/zig/transit-fuze/src/TableDml.zig": {
       "errors": {
-        "DuplicateAssignment": 1,
-        "InvalidMutationColumns": 3,
+        "DuplicateAssignment": 2,
+        "InvalidMutationColumns": 6,
         "InvalidMutationPlan": 1,
-        "MutationBatchTooLarge": 4,
-        "UnknownQualifier": 1,
+        "InvalidRowWidth": 1,
+        "MutationBatchTooLarge": 5,
         "UnknownSource": 1,
         "UnsupportedMutationPredicate": 1,
         "UnsupportedStatement": 1,
@@ -7208,6 +7261,11 @@
       },
       "outcomes": {
         "Action": [
+          "insert",
+          "update",
+          "delete"
+        ],
+        "Syntax.action": [
           "insert",
           "update",
           "delete"
@@ -7222,12 +7280,14 @@
         "Plan.matches()": "<inferred>",
         "Plan.primaryKeyEquality()": "<inferred>",
         "Plan.validate()": "<inferred>",
-        "columnIndex()": "<inferred>",
+        "Syntax.bind()": "<inferred>",
+        "Value.bind()": "<inferred>",
+        "Value.parse()": "<inferred>",
         "compile()": "<inferred>",
         "compileWithEditor()": "<inferred>",
         "header()": "<inferred>",
         "insert()": "<inferred>",
-        "parseAssignment()": "<inferred>",
+        "syntax()": "<inferred>",
         "target()": "<inferred>",
         "targetContext()": "<inferred>",
         "targetDiagnostic()": "<inferred>",
@@ -7236,13 +7296,14 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 85,
-        "catch": 2
+        "try": 95,
+        "catch": 5
       },
       "imports": [
         "LogicalPredicate.zig",
         "Sql.zig",
         "SqlLogicalPredicate.zig",
+        "SqlReference.zig",
         "SqlTyped.zig",
         "TableSchema.zig",
         "Types.zig",
@@ -7476,11 +7537,9 @@
     "packages/zig/transit-fuze/src/TableSelect.zig": {
       "errors": {
         "InvalidProjection": 1,
-        "InvalidQuerySchema": 1,
+        "InvalidQuerySchema": 2,
         "InvalidSqlSyntax": 1,
         "LiteralOutOfRange": 1,
-        "UnknownColumn": 1,
-        "UnknownQualifier": 1,
         "UnknownSource": 1,
         "UnsupportedAggregate": 1,
         "UnsupportedAggregateLimit": 2,
@@ -7489,14 +7548,13 @@
       "outcomes": {},
       "error_sets": {},
       "error_returns": {
-        "Reference.parse()": "<inferred>",
-        "Reference.resolve()": "<inferred>",
         "Selection.lower()": "<inferred>",
         "Selection.parse()": "<inferred>",
+        "Syntax.bind()": "<inferred>",
         "alias()": "<inferred>",
         "compile()": "<inferred>",
         "compileWithEditor()": "<inferred>",
-        "tail()": "<inferred>",
+        "syntax()": "<inferred>",
         "target()": "<inferred>",
         "targetContext()": "<inferred>",
         "targetDiagnostic()": "<inferred>",
@@ -7505,7 +7563,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 53,
+        "try": 52,
         "catch": 1
       },
       "imports": [
@@ -7513,6 +7571,7 @@
         "LogicalQuery.zig",
         "Sql.zig",
         "SqlLogicalPredicate.zig",
+        "SqlReference.zig",
         "SqlTyped.zig",
         "TableSchema.zig",
         "Types.zig",
@@ -10282,8 +10341,8 @@
       },
       "open_error_set_uses": 1,
       "propagation": {
-        "try": 58,
-        "catch": 10
+        "try": 59,
+        "catch": 11
       },
       "imports": [
         "root.zig",

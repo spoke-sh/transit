@@ -63,6 +63,15 @@ fn target(allocator: std.mem.Allocator, text: []const u8) !?[]const u8 {
 pub fn expectations(allocator: std.mem.Allocator, text: []const u8, definition: ?Source) !Parser.Editor {
     var editor: Parser.Editor = .{};
     var parser = try Parser.init(allocator, text, null);
+    // Parsing is schema-independent. Keep the completion owner's authorized
+    // metadata scoped to the same source even before bound compilation finishes.
+    if (definition) |value| {
+        const subject = target(allocator, text) catch |err| blk: {
+            try ignored(err);
+            break :blk null;
+        };
+        if (subject) |name| if (!std.mem.eql(u8, name, value.name)) return editor;
+    }
     if (parser.token.tag == .eof) {
         for ([_][]const u8{ "SELECT", "INSERT", "UPDATE", "DELETE", "CREATE", "ALTER", "DROP", "SHOW", "DESCRIBE", "EXPLAIN" }) |word| editor.word(word);
         return editor;
@@ -264,6 +273,8 @@ test "general Table continuations come from selected production grammar and actu
     try fixture(allocator, "SELECT score FROM people WHERE active = ", &.{ "TRUE", "FALSE" }, &.{ "MISSING", "0" });
     try fixture(allocator, "SELECT wrong.", &.{}, &.{ "\"identifier\"", "\"display_name\"" });
     try fixture(allocator, "UPDATE absent SET ", &.{}, &.{ "\"identifier\"", "\"display_name\"" });
+    try fixture(allocator, "ALTER TABLE absent ALTER COLUMN ", &.{}, &.{ "\"identifier\"", "\"display_name\"" });
+    try fixture(allocator, "SELECT score FROM absent WHERE ", &.{}, &.{ "\"identifier\"", "\"display_name\"" });
 }
 test "identifier suggestions retain long Unicode and quoted names without terminal controls" {
     const allocator = std.testing.allocator;

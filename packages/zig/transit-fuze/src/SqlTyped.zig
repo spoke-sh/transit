@@ -14,6 +14,7 @@ location: ?*sql.Location = null,
 depth: usize = 0,
 previous_end: usize = 0,
 editor: ?*Editor = null,
+roles: ?[]sql.TokenRole = null,
 pub const NameRole = enum { source, column, proposed };
 pub const Identifier = struct {
     bytes: [255]u8 = undefined,
@@ -84,8 +85,17 @@ pub fn word(self: Self, expected: []const u8) bool {
     if (self.token.tag == .eof) if (self.editor) |editor| editor.word(expected);
     return self.token.tag == .word and std.ascii.eqlIgnoreCase(self.token.text, expected);
 }
+pub fn annotate(self: *Self, role: sql.TokenRole) void {
+    const roles = self.roles orelse return;
+    if (roles.len != self.lexer.text.len) return;
+    @memset(roles[self.lexer.start..self.lexer.position], role);
+}
 pub fn takeWord(self: *Self, expected: []const u8) !bool {
+    return self.takeWordRole(expected, .keyword);
+}
+pub fn takeWordRole(self: *Self, expected: []const u8, role: sql.TokenRole) !bool {
     if (!self.word(expected)) return false;
+    self.annotate(role);
     try self.advance();
     return true;
 }
@@ -109,6 +119,7 @@ pub fn finish(self: *Self) !void {
 }
 fn unquote(self: *Self, tag: sql.Tag) ![]const u8 {
     if (self.token.tag != tag) return error.InvalidSqlSyntax;
+    self.annotate(if (tag == .quoted) .identifier else .literal);
     const quote = self.token.text[0];
     const raw = self.token.text[1 .. self.token.text.len - 1];
     const output = try self.allocator.alloc(u8, raw.len);
@@ -128,6 +139,7 @@ fn unquote(self: *Self, tag: sql.Tag) ![]const u8 {
 pub fn name(self: *Self) ![]const u8 {
     const result = if (self.token.tag == .quoted) try self.unquote(.quoted) else blk: {
         if (self.token.tag != .word or sql.isReserved(self.token.text)) return error.InvalidSqlSyntax;
+        self.annotate(.identifier);
         const identifier = try self.allocator.dupe(u8, self.token.text);
         for (identifier) |*byte| byte.* = std.ascii.toLower(byte.*);
         try self.advance();
@@ -137,29 +149,36 @@ pub fn name(self: *Self) ![]const u8 {
     return result;
 }
 fn number(self: *Self) ![]const u8 {
+    if (self.token.tag == .minus or self.token.tag == .plus) self.annotate(.number);
     const negative = try self.take(.minus);
     if (!negative) _ = try self.take(.plus);
     if (self.token.tag != .integer) return error.InvalidSqlSyntax;
     const start = self.lexer.start;
+    self.annotate(.number);
     var end = start + self.token.text.len;
     try self.advance();
     if (self.token.tag == .dot and self.lexer.start == end) {
+        self.annotate(.number);
         end += self.token.text.len;
         try self.advance();
         if (self.token.tag != .integer or self.lexer.start != end) return error.InvalidLiteral;
+        self.annotate(.number);
         end += self.token.text.len;
         try self.advance();
     }
     if (self.token.tag == .word and self.lexer.start == end and std.ascii.toLower(self.token.text[0]) == 'e') {
         const exponent_only = self.token.text.len == 1;
+        self.annotate(.number);
         end += self.token.text.len;
         try self.advance();
         if (exponent_only) {
             if ((self.token.tag == .plus or self.token.tag == .minus) and self.lexer.start == end) {
+                self.annotate(.number);
                 end += 1;
                 try self.advance();
             }
             if (self.token.tag != .integer or self.lexer.start != end) return error.InvalidLiteral;
+            self.annotate(.number);
             end += self.token.text.len;
             try self.advance();
         }
@@ -195,6 +214,7 @@ pub fn dataType(self: *Self) anyerror!names.Resolved {
         if (self.location) |location| location.expected = "a logical type name";
         return error.InvalidSqlSyntax;
     }
+    self.annotate(.type_name);
     var name_text = self.token.text;
     try self.advance();
     if (std.ascii.eqlIgnoreCase(name_text, "STRUCT") or std.ascii.eqlIgnoreCase(name_text, "UNION")) {
@@ -232,8 +252,8 @@ pub fn dataType(self: *Self) anyerror!names.Resolved {
         try result.validate(.{});
         return .{ .type = result };
     }
-    if (std.ascii.eqlIgnoreCase(name_text, "DOUBLE") and try self.takeWord("PRECISION")) name_text = "DOUBLE PRECISION";
-    if (std.ascii.eqlIgnoreCase(name_text, "CHARACTER") and try self.takeWord("VARYING")) name_text = "CHARACTER VARYING";
+    if (std.ascii.eqlIgnoreCase(name_text, "DOUBLE") and try self.takeWordRole("PRECISION", .type_name)) name_text = "DOUBLE PRECISION";
+    if (std.ascii.eqlIgnoreCase(name_text, "CHARACTER") and try self.takeWordRole("VARYING", .type_name)) name_text = "CHARACTER VARYING";
     var parameters: [2]u32 = undefined;
     var count: usize = 0;
     if (try self.take(.left)) {
@@ -303,14 +323,14 @@ fn literalValue(self: *Self, expected: ?t.Type) anyerror!@FieldType(Literal, "va
     if (self.token.tag == .string) return .{ .string = try self.unquote(.string) };
     if (self.token.tag == .integer or self.token.tag == .minus or self.token.tag == .plus) return .{ .number = try self.number() };
     if (self.token.tag == .word) {
-        if (try self.takeWord("NULL")) return .null;
-        if (try self.takeWord("MISSING")) return .missing;
-        if (try self.takeWord("TRUE")) return .{ .boolean = true };
-        if (try self.takeWord("FALSE")) return .{ .boolean = false };
+        if (try self.takeWordRole("NULL", .literal)) return .null;
+        if (try self.takeWordRole("MISSING", .literal)) return .missing;
+        if (try self.takeWordRole("TRUE", .literal)) return .{ .boolean = true };
+        if (try self.takeWordRole("FALSE", .literal)) return .{ .boolean = false };
         inline for (.{ .{ "X", "binary" }, .{ "DATE", "date" }, .{ "TIME", "time" }, .{ "TIMESTAMP", "timestamp" }, .{ "UUID", "uuid" }, .{ "JSON", "json" } }) |prefix| {
-            if (try self.takeWord(prefix[0])) return @unionInit(@FieldType(Literal, "value"), prefix[1], try self.unquote(.string));
+            if (try self.takeWordRole(prefix[0], .type_name)) return @unionInit(@FieldType(Literal, "value"), prefix[1], try self.unquote(.string));
         }
-        if (try self.takeWord("UNION")) {
+        if (try self.takeWordRole("UNION", .function)) {
             try self.require(.left);
             const start = self.lexer.start;
             const selected = try self.name();
@@ -329,7 +349,7 @@ fn literalValue(self: *Self, expected: ?t.Type) anyerror!@FieldType(Literal, "va
             return .{ .tagged_union = .{ .name = selected, .selected = selected_span, .value = child } };
         }
         inline for (.{ .{ "STRUCT", "structure" }, .{ "LIST", "list" }, .{ "ARRAY", "array" }, .{ "MAP", "map" }, .{ "INTERVAL", "interval" } }) |constructor| {
-            if (try self.takeWord(constructor[0])) {
+            if (try self.takeWordRole(constructor[0], .function)) {
                 try self.require(.left);
                 var children: std.ArrayList(Literal) = .empty;
                 if (self.token.tag != .right) while (true) {

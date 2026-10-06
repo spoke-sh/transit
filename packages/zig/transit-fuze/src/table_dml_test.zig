@@ -108,6 +108,26 @@ test "DML compiler frees cloned schemas and literal arenas at every allocation f
     try e.checkAllAllocationFailures(e.allocator, allocationCase, .{});
 }
 
+test "DML binding attributes names qualifiers values and repeated assignments to their source" {
+    const cases = .{
+        .{ "UPDATE people SET absent=1", error.UnknownColumn, "absent" },
+        .{ "UPDATE people SET other.name='Ada'", error.UnknownQualifier, "other" },
+        .{ "UPDATE people SET name='Too long'", error.CharacterLimitExceeded, "'Too long'" },
+        .{ "UPDATE people SET name='Ada', name='Grace'", error.DuplicateAssignment, "name='Grace'" },
+        .{ "INSERT INTO people(id) VALUES (NULL)", error.NullNotAllowed, "NULL" },
+        .{ "INSERT INTO people(id,id) VALUES (1,2)", error.DuplicateAssignment, "id)" },
+        .{ "DELETE FROM people WHERE other.id=1", error.UnknownQualifier, "other" },
+        .{ "DELETE FROM people WHERE absent=1", error.UnknownColumn, "absent" },
+        .{ "DELETE FROM people WHERE id=9223372036854775808", error.Overflow, "9223372036854775808" },
+        .{ "DELETE FROM missing", error.UnknownSource, "missing" },
+    };
+    inline for (cases) |case| {
+        var location: @import("Sql.zig").Location = .{};
+        try e.expectError(case[1], dml.compile(e.allocator, case[0], "people", schema, &location));
+        try e.expectEqual(std.mem.indexOf(u8, case[0], case[2]).?, location.offset);
+    }
+}
+
 test "typed DML diagnostics preserve compile rejection without narrow-profile or recovery advice" {
     const diagnostic = @import("SqlDiagnostic.zig");
     const errors = .{ error.InvalidMutationColumns, error.UnsupportedMutationPredicate, error.PredicateTooDeep, error.UnsupportedComparison, error.MutationBatchTooLarge };

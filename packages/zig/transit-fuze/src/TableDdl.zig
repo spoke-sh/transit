@@ -5,6 +5,7 @@ const sql = @import("Sql.zig");
 const Parser = @import("SqlTyped.zig");
 const s = @import("TableSchema.zig");
 const evolution = @import("TableEvolution.zig");
+const Reference = @import("SqlReference.zig");
 pub const Create = struct {
     name: []const u8,
     if_not_exists: bool,
@@ -63,8 +64,9 @@ pub fn compileWithEditor(allocator: std.mem.Allocator, text: []const u8, basis: 
     errdefer arena.deinit();
     var parser = try Parser.init(arena.allocator(), text, location);
     parser.editor = editor;
-    const statement: Statement = if (try parser.takeWord("CREATE")) .{ .create = try create(&parser) } else if (try parser.takeWord("ALTER")) .{ .alter = try alter(&parser, basis orelse return error.TableSchemaRequired) } else if (try parser.takeWord("DROP")) .{ .drop = try drop(&parser, basis) } else return error.UnsupportedStatement;
+    const input = try syntax(&parser, basis);
     try parser.finish();
+    const statement = try input.bind(arena.allocator(), basis, location);
     return .{ .arena = arena, .statement = statement };
 }
 const ParsedColumn = struct { value: s.Column, primary: bool, explicit_nullable: bool };
@@ -115,7 +117,7 @@ fn create(parser: *Parser) !Create {
     var columns: std.ArrayList(s.Column) = .empty;
     var explicit_null: [s.max_columns]bool = @splat(false);
     var keys: std.ArrayList(s.ColumnId) = .empty;
-    var key_names: std.ArrayList([]const u8) = .empty;
+    var key_names: std.ArrayList(Reference) = .empty;
     var primary = false;
     while (true) {
         if (try parser.takeWord("PRIMARY")) {
@@ -125,7 +127,7 @@ fn create(parser: *Parser) !Create {
             try parser.require(.left);
             while (true) {
                 if (key_names.items.len == s.max_columns) return error.InvalidPrimaryKey;
-                try key_names.append(parser.allocator, try parser.name());
+                try key_names.append(parser.allocator, try Reference.unqualified(parser, .column));
                 if (!try parser.take(.comma)) break;
             }
             try parser.require(.right);
@@ -145,12 +147,8 @@ fn create(parser: *Parser) !Create {
     }
     try parser.require(.right);
     for (key_names.items) |key_name| {
-        var found: ?usize = null;
-        for (columns.items, 0..) |value, i| if (std.mem.eql(u8, key_name, value.name)) {
-            found = i;
-            break;
-        };
-        const i = found orelse return error.UnknownColumn;
+        const i = try key_name.resolve(name, columns.items, parser.location);
+        if (parser.location) |at| at.* = .{ .offset = key_name.span.start };
         if (explicit_null[i]) return error.NullablePrimaryKey;
         columns.items[i].nullable = false;
         for (keys.items) |id| if (id == columns.items[i].id) return error.DuplicatePrimaryKeyColumn;
@@ -162,67 +160,124 @@ fn create(parser: *Parser) !Create {
     _ = try result.bind(1);
     return result;
 }
-fn selectedColumn(parser: *Parser, schema: s.Schema) !s.ColumnId {
-    const name = try parser.named(.column);
-    return schema.columns[try schema.named(name)].id;
+pub const Syntax = union(enum) {
+    create: Create,
+    alter: AlterSyntax,
+    drop: struct { name: []const u8, if_exists: bool },
+    pub fn bind(self: Syntax, allocator: std.mem.Allocator, basis: ?s.Schema, location: ?*sql.Location) !Statement {
+        return switch (self) {
+            .create => |value| .{ .create = value },
+            .alter => |value| .{ .alter = try value.bind(allocator, basis orelse return error.TableSchemaRequired, location) },
+            .drop => |value| blk: {
+                if (basis == null and !value.if_exists) return error.TableNotFound;
+                break :blk .{ .drop = .{ .name = value.name, .if_exists = value.if_exists, .object = if (basis) |schema| schema.object else null, .schema = if (basis) |schema| try schema.fingerprint() else null } };
+            },
+        };
+    }
+};
+const AlterSyntax = struct {
+    name: []const u8,
+    column: ?Reference = null,
+    action: union(enum) {
+        rename_table: []const u8,
+        add: @FieldType(evolution.Change, "add"),
+        rename: []const u8,
+        drop,
+        default: ?Parser.Literal,
+        nullable: bool,
+        type: @import("SqlTypes.zig").Resolved,
+    },
+    fn bind(self: AlterSyntax, allocator: std.mem.Allocator, basis: s.Schema, location: ?*sql.Location) !Alter {
+        try basis.validate();
+        const index: ?usize = if (self.column) |column_| try column_.resolve(self.name, basis.columns, location) else null;
+        const id: s.ColumnId = if (index) |i| basis.columns[i].id else 0;
+        const action: @FieldType(Alter, "action") = switch (self.action) {
+            .rename_table => |name| .{ .rename_table = name },
+            .add => |added| .{ .columns = .{ .add = added } },
+            .rename => |name| .{ .columns = .{ .rename = .{ .column = id, .name = name } } },
+            .drop => .{ .columns = .{ .drop = id } },
+            .nullable => |value| .{ .columns = .{ .nullable = .{ .column = id, .value = value } } },
+            .type => |value| .{ .columns = .{ .type = .{ .column = id, .type = value.type, .max_characters = value.max_characters } } },
+            .default => |value| blk: {
+                var failure: ?Parser.Literal.Span = null;
+                const cell = if (value) |literal| literal.bind(allocator, basis.columns[index.?].type, &failure) catch |err| {
+                    if (location) |at| at.* = .{ .offset = (failure orelse literal.span).start };
+                    return err;
+                } else null;
+                break :blk .{ .columns = .{ .default = .{ .column = id, .value = cell } } };
+            },
+        };
+        if (action == .columns) {
+            var output: [s.max_columns]s.Column = undefined;
+            _ = try evolution.apply(basis, action.columns, &output);
+        }
+        return .{ .name = self.name, .object = basis.object, .schema = try basis.fingerprint(), .action = action };
+    }
+};
+/// Optional captured metadata supplies type hints, never a substitute binding.
+pub fn syntax(parser: *Parser, hints: ?s.Schema) !Syntax {
+    if (try parser.takeWord("CREATE")) return .{ .create = try create(parser) };
+    if (try parser.takeWord("ALTER")) return .{ .alter = try alter(parser, hints) };
+    if (try parser.takeWord("DROP")) return .{ .drop = try drop(parser) };
+    return error.UnsupportedStatement;
 }
-fn alter(parser: *Parser, basis: s.Schema) !Alter {
-    try basis.validate();
+fn alter(parser: *Parser, hints: ?s.Schema) !AlterSyntax {
     try parser.requireWord("TABLE");
-    const name = try parser.named(.source);
-    const action: @FieldType(Alter, "action") = if (try parser.takeWord("RENAME")) blk: {
-        if (try parser.takeWord("TO")) break :blk .{ .rename_table = try parser.name() };
+    var result: AlterSyntax = .{ .name = try parser.named(.source), .action = undefined };
+    result.action = if (try parser.takeWord("RENAME")) blk: {
+        if (try parser.takeWord("TO")) break :blk .{ .rename_table = try parser.named(.proposed) };
         _ = try parser.takeWord("COLUMN");
-        const id = try selectedColumn(parser, basis);
+        result.column = try Reference.unqualified(parser, .column);
         try parser.requireWord("TO");
-        break :blk .{ .columns = .{ .rename = .{ .column = id, .name = try parser.name() } } };
+        break :blk .{ .rename = try parser.named(.proposed) };
     } else if (try parser.takeWord("ADD")) blk: {
         _ = try parser.takeWord("COLUMN");
-        const added = try column(parser, basis.next_column);
+        const added = try column(parser, 1);
         if (added.primary) return error.UnsupportedTableConstraint;
-        break :blk .{ .columns = .{ .add = .{ .name = added.value.name, .type = added.value.type, .nullable = added.value.nullable, .default = added.value.default, .max_characters = added.value.max_characters } } };
+        break :blk .{ .add = .{ .name = added.value.name, .type = added.value.type, .nullable = added.value.nullable, .default = added.value.default, .max_characters = added.value.max_characters } };
     } else if (try parser.takeWord("DROP")) blk: {
         _ = try parser.takeWord("COLUMN");
-        const id = try selectedColumn(parser, basis);
+        result.column = try Reference.unqualified(parser, .column);
         if (try parser.takeWord("CASCADE")) return error.UnsupportedCascade;
         _ = try parser.takeWord("RESTRICT");
-        break :blk .{ .columns = .{ .drop = id } };
+        break :blk .drop;
     } else if (try parser.takeWord("ALTER")) blk: {
         _ = try parser.takeWord("COLUMN");
-        const id = try selectedColumn(parser, basis);
+        result.column = try Reference.unqualified(parser, .column);
         if (try parser.takeWord("SET")) {
-            if (try parser.takeWord("DEFAULT")) break :blk .{ .columns = .{ .default = .{ .column = id, .value = try parser.value(basis.columns[try basis.index(id)].type) } } };
+            if (try parser.takeWord("DEFAULT")) {
+                var expected: ?@import("Types.zig").Type = null;
+                if (hints) |basis| if (result.column.?.resolve(result.name, basis.columns, null)) |i| {
+                    expected = basis.columns[i].type;
+                } else |_| {};
+                break :blk .{ .default = try parser.literal(expected) };
+            }
             if (try parser.takeWord("NOT")) {
                 try parser.requireWord("NULL");
-                break :blk .{ .columns = .{ .nullable = .{ .column = id, .value = false } } };
+                break :blk .{ .nullable = false };
             }
             try parser.requireWord("DATA");
             try parser.requireWord("TYPE");
         } else if (try parser.takeWord("DROP")) {
-            if (try parser.takeWord("DEFAULT")) break :blk .{ .columns = .{ .default = .{ .column = id, .value = null } } };
+            if (try parser.takeWord("DEFAULT")) break :blk .{ .default = null };
             try parser.requireWord("NOT");
             try parser.requireWord("NULL");
-            break :blk .{ .columns = .{ .nullable = .{ .column = id, .value = true } } };
+            break :blk .{ .nullable = true };
         } else try parser.requireWord("TYPE");
         const data_type = try parser.dataType();
         if (parser.word("USING")) return error.UnsupportedSchemaConversion;
-        break :blk .{ .columns = .{ .type = .{ .column = id, .type = data_type.type, .max_characters = data_type.max_characters } } };
+        break :blk .{ .type = data_type };
     } else return error.UnsupportedAlterTable;
-    if (action == .columns) {
-        var output: [s.max_columns]s.Column = undefined;
-        _ = try evolution.apply(basis, action.columns, &output);
-    }
-    return .{ .name = name, .object = basis.object, .schema = try basis.fingerprint(), .action = action };
+    return result;
 }
-fn drop(parser: *Parser, basis: ?s.Schema) !Drop {
+fn drop(parser: *Parser) !@FieldType(Syntax, "drop") {
     try parser.requireWord("TABLE");
     const if_exists = try parser.takeWord("IF");
     if (if_exists) try parser.requireWord("EXISTS");
     const name = try parser.named(.source);
     if (try parser.takeWord("CASCADE")) return error.UnsupportedCascade;
     _ = try parser.takeWord("RESTRICT");
-    if (basis == null and !if_exists) return error.TableNotFound;
-    return .{ .name = name, .if_exists = if_exists, .object = if (basis) |schema| schema.object else null, .schema = if (basis) |schema| try schema.fingerprint() else null };
+    return .{ .name = name, .if_exists = if_exists };
 }
 
 test {

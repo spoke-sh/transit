@@ -351,6 +351,18 @@ def run(node, proof, host, cli):
                 offset = invalid.index('FROM') if 'SELECT FROM' in invalid else len(invalid)
                 assert f'line 1, column {offset + 1}' in failure.stderr, failure.stderr
                 assert 'Table SELECT cannot be compiled' in failure.stderr, failure.stderr
+            for invalid, token in (
+                ('SELECT absent FROM console_people WHERE id=1', 'absent'),
+                ('EXPLAIN SELECT absent FROM console_people WHERE id=1', 'absent'),
+                ('SELECT name FROM console_people WHERE wrong.id=1', 'wrong'),
+                ('EXPLAIN SELECT name FROM console_people WHERE salary=1.001', '1.001'),
+                ('UPDATE console_people SET absent=1', 'absent'),
+                ('INSERT INTO console_people (id,name) VALUES (3,NULL)', 'NULL'),
+                ('ALTER TABLE console_people DROP COLUMN absent', 'absent'),
+                ('CREATE TABLE bad (id INT, PRIMARY KEY(absent))', 'absent'),
+            ):
+                failure = console(invalid, fail=True)
+                assert f'line 1, column {invalid.index(token) + 1}' in failure.stderr, failure.stderr
             replays.discard('send')
             armed = 'send'
             console("UPDATE console_people SET name='Ada Lovelace' WHERE id=1", fail=True)

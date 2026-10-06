@@ -11180,6 +11180,24 @@ restore tests retain the ordinary allocator. The complete catalog suite passes
 **76/76 tests** (`sql-syntax-catalog2.log`). This repairs fault scheduling without
 changing the recovery implementation or counting either failed run as passed.
 
+The general SQL syntax/classification checkpoint passes **217/217 Fuze tests**,
+**98/98 query tests** and full pinned `just check` (`sql-syntax8.log`,
+`sql-syntax-query2.log`, `sql-syntax-check2.log`). Every scalar alias, recursive
+constructor positions, ALTER/DROP/EXPLAIN, malformed prefixes and comment-safe
+numeric spans have role assertions. A 4,092-byte dense statement fits the fixed
+256 KiB classification workspace. Name/value binding tests retain exact source
+positions, and completion refuses metadata for a different source. An earlier
+query test exposed that source-scope check; two development cases also used an
+incorrect expected overflow error and a default of the wrong type. Those failed
+runs remain in the campaign.
+
+The expanded native console proof passes in **113.504 seconds**
+(`sql-syntax-native1.log`), with 350 turns, 83 sends and the same four-mutation/
+256-byte native bounds. Actual SELECT/EXPLAIN, DML and DDL errors identify the
+failing source token after binding; the lost-reply/turn, restart, witness and
+large-output assertions remain. This scenario total is not a latency benchmark,
+a completed transport migration or committed-HEAD clean CI.
+
 ## Fuze logical type foundation
 
 The local `Types` profile has nine passing focused Zig tests, including 46

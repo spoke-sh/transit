@@ -3,32 +3,64 @@ const std = @import("std");
 const Parser = @import("SqlTyped.zig");
 const t = @import("Types.zig");
 const Predicate = @import("LogicalPredicate.zig");
-pub fn parse(parser: *Parser, schema: t.Type, name: []const u8, unsupported: anyerror) !Predicate.Program {
-    if (schema != .structure or schema.structure.len == 0 or schema.structure.len > 128) return error.InvalidQuerySchema;
-    var expression: Expression = .{ .parser = parser, .schema = schema, .name = name, .unsupported = unsupported };
-    try expression.disjunction(0);
-    const result: Predicate.Program = .{ .instructions = try parser.allocator.dupe(Predicate.Program.Instruction, expression.instructions[0..expression.count]) };
-    try result.validate(schema);
-    return result;
-}
-pub fn columnIndex(parser: *Parser, schema: t.Type, name: []const u8) !usize {
-    var column = try parser.named(.column);
-    if (try parser.take(.dot)) {
-        if (!std.mem.eql(u8, column, name)) return error.UnknownQualifier;
-        if (parser.boundary()) |editor| editor.qualifier = .init(column);
-        column = try parser.named(.column);
+const Reference = @import("SqlReference.zig");
+const sql = @import("Sql.zig");
+pub const Syntax = struct {
+    const Atom = union(enum) {
+        state: struct { column: Reference, value: t.State },
+        compare: struct { column: Reference, op: @import("Finite.zig").Comparison, value: Parser.Literal },
+    };
+    const Instruction = @import("PredicateMachine.zig").Instruction(Atom);
+    instructions: []const Instruction,
+    pub fn bind(self: Syntax, allocator: std.mem.Allocator, schema: t.Type, name: []const u8, location: ?*sql.Location) !Predicate.Program {
+        if (schema != .structure or schema.structure.len == 0 or schema.structure.len > 128) return error.InvalidQuerySchema;
+        if (self.instructions.len > Predicate.Program.max_instructions) return error.PredicateTooComplex;
+        const instructions = try allocator.alloc(Predicate.Program.Instruction, self.instructions.len);
+        for (self.instructions, instructions) |input, *output| {
+            output.* = switch (input) {
+                .conjunction => .conjunction,
+                .disjunction => .disjunction,
+                .negate => .negate,
+                .atom => |atom| .{ .atom = switch (atom) {
+                    .state => |state| .{ .state = .{ .column = @intCast(try state.column.resolve(name, schema.structure, location)), .value = state.value } },
+                    .compare => |compare| blk: {
+                        const index = try compare.column.resolve(name, schema.structure, location);
+                        var failure: ?Parser.Literal.Span = null;
+                        const cell = compare.value.bind(allocator, schema.structure[index].type, &failure) catch |err| {
+                            if (location) |at| at.* = .{ .offset = (failure orelse compare.value.span).start };
+                            return err;
+                        };
+                        if (location) |at| at.* = .{ .offset = compare.value.span.start };
+                        if (cell == .null) return error.UnsupportedNullComparison;
+                        if (cell != .value or cell.value != .atom) return error.UnsupportedComparison;
+                        const bound: Predicate.Atom = .{ .compare = .{ .column = @intCast(index), .op = compare.op, .value = cell.value.atom } };
+                        try bound.validate(schema);
+                        break :blk bound;
+                    },
+                } },
+            };
+        }
+        const result: Predicate.Program = .{ .instructions = instructions };
+        try result.validate(schema);
+        return result;
     }
-    for (schema.structure, 0..) |field, i| if (std.mem.eql(u8, field.name, column)) return i;
-    return error.UnknownColumn;
+};
+pub fn syntax(parser: *Parser, hints: ?t.Type, name: []const u8, unsupported: anyerror) !Syntax {
+    var expression: Expression = .{ .parser = parser, .hints = hints, .name = name, .unsupported = unsupported };
+    try expression.disjunction(0);
+    return .{ .instructions = try parser.allocator.dupe(Syntax.Instruction, expression.instructions[0..expression.count]) };
+}
+pub fn parse(parser: *Parser, schema: t.Type, name: []const u8, unsupported: anyerror) !Predicate.Program {
+    return (try syntax(parser, schema, name, unsupported)).bind(parser.allocator, schema, name, parser.location);
 }
 const Expression = struct {
     parser: *Parser,
-    schema: t.Type,
+    hints: ?t.Type,
     name: []const u8,
-    instructions: [Predicate.Program.max_instructions]Predicate.Program.Instruction = undefined,
+    instructions: [Predicate.Program.max_instructions]Syntax.Instruction = undefined,
     count: usize = 0,
     unsupported: anyerror,
-    fn append(self: *Expression, instruction: Predicate.Program.Instruction) !void {
+    fn append(self: *Expression, instruction: Syntax.Instruction) !void {
         if (self.count == self.instructions.len) return error.PredicateTooComplex;
         self.instructions[self.count] = instruction;
         self.count += 1;
@@ -58,11 +90,11 @@ const Expression = struct {
             try self.disjunction(depth + 1);
             return self.parser.require(.right);
         }
-        const index = try columnIndex(self.parser, self.schema, self.name);
+        const column = try Reference.parse(self.parser);
         if (try self.parser.takeWord("IS")) {
             const negate = try self.parser.takeWord("NOT");
             const state: t.State = if (try self.parser.takeWord("NULL")) .null else if (try self.parser.takeWord("MISSING")) .missing else if (try self.parser.takeWord("ERROR")) .type_error else if (try self.parser.takeWord("CONFLICT")) .conflict else return error.InvalidSqlSyntax;
-            try self.append(.{ .atom = .{ .state = .{ .column = @intCast(index), .value = state } } });
+            try self.append(.{ .atom = .{ .state = .{ .column = column, .value = state } } });
             if (negate) try self.append(.negate);
             return;
         }
@@ -77,9 +109,11 @@ const Expression = struct {
             else => return self.unsupported,
         };
         try self.parser.advance();
-        const cell = try self.parser.value(self.schema.structure[index].type);
-        if (cell == .null) return error.UnsupportedNullComparison;
-        if (cell != .value or cell.value != .atom) return error.UnsupportedComparison;
-        try self.append(.{ .atom = .{ .compare = .{ .column = @intCast(index), .op = op, .value = cell.value.atom } } });
+        var expected: ?t.Type = null;
+        if (self.hints) |schema| if (schema == .structure) {
+            if (column.resolve(self.name, schema.structure, null)) |index| expected = schema.structure[index].type else |_| {}
+        };
+        const value = try self.parser.literal(expected);
+        try self.append(.{ .atom = .{ .compare = .{ .column = column, .op = op, .value = value } } });
     }
 };

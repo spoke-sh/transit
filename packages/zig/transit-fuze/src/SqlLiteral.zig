@@ -1,5 +1,6 @@
 //! Parsed SQL literal syntax, independent of a bound column. Text and children
-//! borrow the parser input/arena. Binding returns arena-owned logical values.
+//! borrow the parser input/arena. Binding allocates cells in the caller arena;
+//! byte values continue to borrow the parsed syntax and share its lifetime.
 const std = @import("std");
 const t = @import("Types.zig");
 const Self = @This();

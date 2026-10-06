@@ -140,4 +140,24 @@ fn allocationCase(allocator: std.mem.Allocator) !void {
     defer owned.deinit();
     const schema: s.Schema = try owned.statement.create.bind(1);
     try schema.validate();
+    var altered = try ddl.compile(allocator, "ALTER TABLE t ALTER v SET DEFAULT STRUCT('new', LIST(1,2))", schema, null);
+    defer altered.deinit();
+    try e.expectEqual(@as(u64, 2), altered.statement.alter.action.columns.default.column);
+}
+
+test "DDL retains unknown key and ALTER column positions through deferred binding" {
+    var created = try ddl.compile(e.allocator, "CREATE TABLE people (id INT8, payload LIST(INT8))", null, null);
+    defer created.deinit();
+    const schema = try created.statement.create.bind(9);
+    const cases = .{
+        .{ "CREATE TABLE people (id INT8, PRIMARY KEY(absent))", error.UnknownColumn, "absent" },
+        .{ "ALTER TABLE people RENAME COLUMN absent TO renamed", error.UnknownColumn, "absent" },
+        .{ "ALTER TABLE people DROP COLUMN absent RESTRICT", error.UnknownColumn, "absent" },
+        .{ "ALTER TABLE people ALTER payload SET DEFAULT LIST(1,128)", error.Overflow, "128" },
+    };
+    inline for (cases) |case| {
+        var location: @import("Sql.zig").Location = .{};
+        try e.expectError(case[1], ddl.compile(e.allocator, case[0], schema, &location));
+        try e.expectEqual(std.mem.indexOf(u8, case[0], case[2]).?, location.offset);
+    }
 }

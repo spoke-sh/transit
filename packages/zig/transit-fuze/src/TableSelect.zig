@@ -8,23 +8,7 @@ const logical = @import("LogicalQuery.zig");
 const predicate = @import("SqlLogicalPredicate.zig");
 const Aggregate = @import("Finite.zig").Aggregate;
 const max_columns = @import("TableSchema.zig").max_columns;
-const Reference = struct {
-    name: []const u8,
-    qualifier: ?[]const u8 = null,
-    fn parse(parser: *Parser) !Reference {
-        const first = try parser.named(.column);
-        if (try parser.take(.dot)) {
-            if (parser.boundary()) |editor| editor.qualifier = .init(first);
-            return .{ .qualifier = first, .name = try parser.named(.column) };
-        }
-        return .{ .name = first };
-    }
-    fn resolve(self: Reference, qualifier: []const u8, fields: []const t.Field) !u8 {
-        if (self.qualifier) |value| if (!std.mem.eql(u8, value, qualifier)) return error.UnknownQualifier;
-        for (fields, 0..) |field, i| if (std.mem.eql(u8, self.name, field.name)) return @intCast(i);
-        return error.UnknownColumn;
-    }
-};
+const Reference = @import("SqlReference.zig");
 const Item = struct { column: Reference, alias: ?[]const u8 };
 const Selection = struct {
     aggregate: Aggregate = .rows,
@@ -38,6 +22,7 @@ const Selection = struct {
         const is_sum = parser.word("SUM");
         if (is_count or is_sum) {
             result.aggregate = if (parser.word("COUNT")) .count_values else .sum;
+            parser.annotate(.function);
             try parser.advance();
             try parser.require(.left);
             if (try parser.take(.star)) {
@@ -63,12 +48,12 @@ const Selection = struct {
         try parser.requireWord("FROM");
         return result;
     }
-    fn lower(self: Selection, allocator: std.mem.Allocator, schema: t.Type, qualifier: []const u8, basis: [32]u8) !logical.Plan {
+    fn lower(self: Selection, allocator: std.mem.Allocator, schema: t.Type, qualifier: []const u8, basis: [32]u8, location: ?*sql.Location) !logical.Plan {
         const count = if (self.star and self.aggregate == .rows) schema.structure.len else self.count;
         const columns = try allocator.alloc(u8, count);
         const names = try allocator.alloc(?[]const u8, count);
         for (columns, names, 0..) |*column, *name, i| {
-            column.* = if (self.star) (if (self.aggregate == .count) 0 else @intCast(i)) else try self.items[i].column.resolve(qualifier, schema.structure);
+            column.* = if (self.star) (if (self.aggregate == .count) 0 else @intCast(i)) else @intCast(try self.items[i].column.resolve(qualifier, schema.structure, location));
             name.* = if (self.star and self.aggregate == .rows) null else self.items[i].alias;
         }
         const plan: logical.Plan = .{ .schema = schema, .source_basis = basis, .projection = columns, .output_names = names, .aggregate = self.aggregate };
@@ -124,14 +109,60 @@ fn alias(parser: *Parser, name: []const u8) ![]const u8 {
     if (parser.token.tag == .quoted or (parser.token.tag == .word and !sql.isReserved(parser.token.text))) return parser.name();
     return name;
 }
-fn tail(parser: *Parser, plan: *logical.Plan, qualifier: []const u8) !void {
-    if (try parser.takeWord("WHERE")) plan.predicate = .{ .program = try predicate.parse(parser, plan.schema, qualifier, error.UnsupportedConstruct) };
+pub const Syntax = struct {
+    selection: Selection,
+    subject: Reference,
+    qualifier: []const u8,
+    predicate: ?predicate.Syntax = null,
+    limit: ?u64 = null,
+    outer: ?struct { selection: Selection, qualifier: []const u8 } = null,
+    pub fn bind(self: Syntax, allocator: std.mem.Allocator, name: []const u8, schema: t.Type, basis: [32]u8, location: ?*sql.Location) !logical.Plan {
+        if (schema != .structure or schema.structure.len == 0 or schema.structure.len > max_columns) return error.InvalidQuerySchema;
+        if (!std.mem.eql(u8, self.subject.name, name)) {
+            if (location) |at| at.* = .{ .offset = self.subject.span.start };
+            return error.UnknownSource;
+        }
+        var plan = try self.selection.lower(allocator, schema, self.qualifier, basis, location);
+        if (self.predicate) |expression| plan.predicate = .{ .program = try expression.bind(allocator, schema, self.qualifier, location) };
+        plan.limit = self.limit;
+        if (self.outer) |outer| {
+            var fields: [max_columns]t.Field = undefined;
+            const input_type = try plan.outputSchema(&fields);
+            const output = try outer.selection.lower(allocator, input_type, outer.qualifier, basis, location);
+            const projection = try allocator.dupe(u8, output.projection);
+            for (projection) |*index| index.* = plan.projection[index.*];
+            plan.projection = projection;
+            plan.output_names = output.output_names;
+            plan.aggregate = output.aggregate;
+        }
+        try plan.validateShape();
+        _ = try plan.fingerprint();
+        return plan;
+    }
+};
+pub fn syntax(parser: *Parser, hints: ?t.Type) !Syntax {
+    const outer = try Selection.parse(parser);
+    const derived = try parser.take(.left);
+    if (derived and outer.aggregate == .rows) return error.UnsupportedConstruct;
+    const selection = if (derived) try Selection.parse(parser) else outer;
+    if (derived and selection.aggregate != .rows) return error.UnsupportedConstruct;
+    const subject = try Reference.unqualified(parser, .source);
+    const qualifier = try alias(parser, subject.name);
+    var result: Syntax = .{ .selection = selection, .subject = subject, .qualifier = qualifier };
+    if (try parser.takeWord("WHERE")) result.predicate = try predicate.syntax(parser, hints, qualifier, error.UnsupportedConstruct);
     if (try parser.takeWord("LIMIT")) {
-        if (plan.aggregate != .rows) return error.UnsupportedAggregateLimit;
+        if (selection.aggregate != .rows) return error.UnsupportedAggregateLimit;
         if (parser.token.tag != .integer) return error.InvalidSqlSyntax;
-        plan.limit = std.fmt.parseInt(u64, parser.token.text, 10) catch return error.LiteralOutOfRange;
+        result.limit = std.fmt.parseInt(u64, parser.token.text, 10) catch return error.LiteralOutOfRange;
         try parser.advance();
     }
+    if (derived) {
+        try parser.require(.right);
+        try parser.requireWord("AS");
+        result.outer = .{ .selection = outer, .qualifier = try parser.name() };
+        if (parser.word("LIMIT")) return error.UnsupportedAggregateLimit;
+    }
+    return result;
 }
 pub fn compile(allocator: std.mem.Allocator, text: []const u8, name: []const u8, schema: t.Type, basis: [32]u8, location: ?*sql.Location) !Owned {
     return compileWithEditor(allocator, text, name, schema, basis, location, null);
@@ -145,34 +176,10 @@ pub fn compileWithEditor(allocator: std.mem.Allocator, text: []const u8, name: [
     const alloc = arena.allocator();
     var parser = try Parser.init(alloc, text, location);
     parser.editor = editor;
-    const outer = try Selection.parse(&parser);
-    const derived = try parser.take(.left);
-    if (derived and outer.aggregate == .rows) return error.UnsupportedConstruct;
-    const selection = if (derived) try Selection.parse(&parser) else outer;
-    if (derived and selection.aggregate != .rows) return error.UnsupportedConstruct;
-    const subject = try parser.named(.source);
-    if (!std.mem.eql(u8, subject, name)) return error.UnknownSource;
-    const qualifier = try alias(&parser, subject);
-    var plan = try selection.lower(alloc, descriptor.type, qualifier, basis);
-    try tail(&parser, &plan, qualifier);
-    if (derived) {
-        try parser.require(.right);
-        try parser.requireWord("AS");
-        const input_name = try parser.name();
-        var fields: [max_columns]t.Field = undefined;
-        const input_type = try plan.outputSchema(&fields);
-        const output = try outer.lower(alloc, input_type, input_name, basis);
-        const projection = try alloc.dupe(u8, output.projection);
-        for (projection) |*index| index.* = plan.projection[index.*];
-        plan.projection = projection;
-        plan.output_names = output.output_names;
-        plan.aggregate = output.aggregate;
-        if (parser.word("LIMIT")) return error.UnsupportedAggregateLimit;
-    }
+    const input = try syntax(&parser, schema);
     try parser.finish();
-    try plan.validateShape();
-    _ = try plan.fingerprint();
-    return .{ .arena = arena, .descriptor = descriptor, .name = subject, .plan = plan };
+    const plan = try input.bind(alloc, name, descriptor.type, basis, location);
+    return .{ .arena = arena, .descriptor = descriptor, .name = input.subject.name, .plan = plan };
 }
 
 test {

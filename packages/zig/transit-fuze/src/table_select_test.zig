@@ -7,6 +7,25 @@ const ddl = @import("TableDdl.zig");
 const dml = @import("TableDml.zig");
 const Cell = types.Values.Cell;
 const basis: [32]u8 = @splat(17);
+
+test "SELECT binding retains original projection and predicate coordinates" {
+    const schema: types.Type = .{ .structure = &.{.{ .name = "n", .type = .int8 }} };
+    const cases = .{
+        .{ "SELECT absent FROM people WHERE n=1", error.UnknownColumn, "absent" },
+        .{ "SELECT wrong.n FROM people", error.UnknownQualifier, "wrong" },
+        .{ "SELECT n FROM people WHERE absent=1", error.UnknownColumn, "absent" },
+        .{ "SELECT n FROM people WHERE wrong.n=1", error.UnknownQualifier, "wrong" },
+        .{ "SELECT n FROM people WHERE n=128 LIMIT 1", error.Overflow, "128" },
+        .{ "SELECT n FROM people WHERE n=NULL", error.UnsupportedNullComparison, "NULL" },
+        .{ "SELECT n FROM missing WHERE n=1", error.UnknownSource, "missing" },
+        .{ "SELECT SUM(q.absent) FROM (SELECT n FROM people) AS q", error.UnknownColumn, "absent" },
+    };
+    inline for (cases) |case| {
+        var location: @import("Sql.zig").Location = .{};
+        try e.expectError(case[1], select.compile(e.allocator, case[0], "people", schema, basis, &location));
+        try e.expectEqual(std.mem.indexOf(u8, case[0], case[2]).?, location.offset);
+    }
+}
 const Scan = struct {
     allocator: std.mem.Allocator,
     rows: []const []const Cell,

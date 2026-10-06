@@ -7,6 +7,8 @@ const s = @import("TableSchema.zig");
 const t = @import("Types.zig");
 const Predicate = @import("LogicalPredicate.zig");
 const Cell = t.Values.Cell;
+const Reference = @import("SqlReference.zig");
+const SqlPredicate = @import("SqlLogicalPredicate.zig");
 pub const max_rows = 1024;
 pub const max_intent_bytes = 4 * 1024 * 1024;
 pub const Action = union(enum) { insert: []const []const Cell, update: []const s.Assignment, delete };
@@ -165,7 +167,7 @@ pub const Owned = struct {
         self.* = undefined;
     }
 };
-pub const Target = struct { kind: std.meta.Tag(Action), name: []const u8 };
+pub const Target = struct { kind: std.meta.Tag(Action), name: []const u8, span: Parser.Literal.Span };
 fn header(parser: *Parser) !Target {
     const kind: std.meta.Tag(Action) = if (try parser.takeWord("INSERT")) blk: {
         try parser.requireWord("INTO");
@@ -174,7 +176,8 @@ fn header(parser: *Parser) !Target {
         try parser.requireWord("FROM");
         break :blk .delete;
     } else return error.UnsupportedStatement;
-    return .{ .kind = kind, .name = try parser.named(.source) };
+    const source = try Reference.unqualified(parser, .source);
+    return .{ .kind = kind, .name = source.name, .span = source.span };
 }
 /// Header inspection supplies a name for authorized resolution, not admission.
 pub fn target(allocator: std.mem.Allocator, text: []const u8) !Target {
@@ -201,84 +204,172 @@ pub fn compileWithEditor(allocator: std.mem.Allocator, text: []const u8, name: [
     errdefer arena.deinit();
     var parser = try Parser.init(arena.allocator(), text, location);
     parser.editor = editor;
-    const subject = try header(&parser);
-    if (!std.mem.eql(u8, subject.name, name)) return error.UnknownSource;
-    var plan: Plan = .{ .name = subject.name, .schema = schema.schema, .action = undefined };
-    plan.action = switch (subject.kind) {
-        .insert => .{ .insert = try insert(&parser, schema.schema) },
-        .update => .{ .update = try update(&parser, schema.schema, name) },
+    const input = try syntax(&parser, schema.schema);
+    try parser.finish();
+    const plan = try input.bind(arena.allocator(), name, schema.schema, location);
+    return .{ .arena = arena, .schema = schema, .plan = plan };
+}
+const Value = struct {
+    span: Parser.Literal.Span,
+    literal: ?Parser.Literal,
+    fn parse(parser: *Parser, expected: ?t.Type) !Value {
+        const start = parser.lexer.start;
+        if (try parser.takeWord("DEFAULT")) return .{ .span = .{ .start = start, .end = parser.previous_end }, .literal = null };
+        const value = try parser.literal(expected);
+        return .{ .span = value.span, .literal = value };
+    }
+    fn bind(self: Value, allocator: std.mem.Allocator, column: s.Column, location: ?*sql.Location) !s.Assignment {
+        var failure: ?Parser.Literal.Span = null;
+        const cell: @FieldType(s.Assignment, "value") = if (self.literal) |literal| .{ .cell = literal.bind(allocator, column.type, &failure) catch |err| {
+            if (location) |at| at.* = .{ .offset = (failure orelse self.span).start };
+            return err;
+        } } else .default;
+        column.validateCell(switch (cell) {
+            .default => column.initial(),
+            .cell => |value| value,
+        }) catch |err| {
+            if (location) |at| at.* = .{ .offset = self.span.start };
+            return err;
+        };
+        return .{ .column = column.id, .value = cell };
+    }
+};
+const Row = struct { span: Parser.Literal.Span, values: []const Value };
+const Assignment = struct { column: Reference, value: Value };
+pub const Syntax = struct {
+    subject: Target,
+    subject_span: Parser.Literal.Span,
+    action: union(enum) { insert: struct { columns: ?[]const Reference, rows: []const Row }, update: []const Assignment, delete },
+    predicate: ?SqlPredicate.Syntax = null,
+    pub fn bind(self: Syntax, allocator: std.mem.Allocator, name: []const u8, schema: s.Schema, location: ?*sql.Location) !Plan {
+        try schema.validate();
+        if (!std.mem.eql(u8, self.subject.name, name)) {
+            if (location) |at| at.* = .{ .offset = self.subject_span.start };
+            return error.UnknownSource;
+        }
+        var plan: Plan = .{ .name = self.subject.name, .schema = schema, .action = undefined };
+        plan.action = switch (self.action) {
+            .insert => |input| blk: {
+                var columns: [s.max_columns]usize = undefined;
+                const count = if (input.columns) |selected| selected.len else schema.columns.len;
+                if (count > columns.len) return error.InvalidMutationColumns;
+                for (columns[0..count], 0..) |*column, i| {
+                    column.* = if (input.columns) |selected| try selected[i].resolve(name, schema.columns, location) else i;
+                    for (columns[0..i]) |prior| if (prior == column.*) {
+                        if (location) |at| at.* = .{ .offset = input.columns.?[i].span.start };
+                        return error.DuplicateAssignment;
+                    };
+                }
+                if (input.rows.len == 0 or input.rows.len > max_rows) return error.MutationBatchTooLarge;
+                const rows = try allocator.alloc([]const Cell, input.rows.len);
+                for (input.rows, rows) |row, *output| {
+                    if (location) |at| at.* = .{ .offset = row.span.start };
+                    if (row.values.len != count) return error.InvalidRowWidth;
+                    var assignments: [s.max_columns]s.Assignment = undefined;
+                    for (row.values, columns[0..count], 0..) |value, index, i| assignments[i] = try value.bind(allocator, schema.columns[index], location);
+                    const cells = try allocator.alloc(Cell, schema.columns.len);
+                    _ = try schema.insert(assignments[0..count], cells);
+                    output.* = cells;
+                }
+                break :blk .{ .insert = rows };
+            },
+            .update => |input| blk: {
+                if (input.len == 0 or input.len > s.max_columns) return error.InvalidMutationColumns;
+                const assignments = try allocator.alloc(s.Assignment, input.len);
+                var seen: [s.max_columns]bool = @splat(false);
+                for (input, assignments) |assignment, *output| {
+                    const index = try assignment.column.resolve(name, schema.columns, location);
+                    if (seen[index]) {
+                        if (location) |at| at.* = .{ .offset = assignment.column.span.start };
+                        return error.DuplicateAssignment;
+                    }
+                    seen[index] = true;
+                    output.* = try assignment.value.bind(allocator, schema.columns[index], location);
+                }
+                break :blk .{ .update = assignments };
+            },
+            .delete => .delete,
+        };
+        if (self.predicate) |predicate| {
+            var fields: [s.max_columns]t.Field = undefined;
+            plan.predicate = try predicate.bind(allocator, try schema.rowType(&fields), name, location);
+        }
+        try plan.validate();
+        return plan;
+    }
+};
+/// Parse production DML without inventing a schema. Optional metadata affects
+/// cursor suggestions only; all admission and identity binding happens in bind.
+pub fn syntax(parser: *Parser, hints: ?s.Schema) !Syntax {
+    const subject = try header(parser);
+    const subject_span = subject.span;
+    var result: Syntax = .{ .subject = subject, .subject_span = subject_span, .action = undefined };
+    result.action = switch (subject.kind) {
+        .insert => .{ .insert = try insert(parser, hints) },
+        .update => .{ .update = try update(parser, hints, subject.name) },
         .delete => .delete,
     };
     if (subject.kind != .insert and try parser.takeWord("WHERE")) {
         var fields: [s.max_columns]t.Field = undefined;
-        plan.predicate = try @import("SqlLogicalPredicate.zig").parse(&parser, try schema.schema.rowType(&fields), name, error.UnsupportedMutationPredicate);
+        result.predicate = try SqlPredicate.syntax(parser, if (hints) |schema| try schema.rowType(&fields) else null, subject.name, error.UnsupportedMutationPredicate);
     }
-    try parser.finish();
-    try plan.validate();
-    return .{ .arena = arena, .schema = schema, .plan = plan };
+    return result;
 }
-fn parseAssignment(parser: *Parser, column: s.Column) !s.Assignment {
-    return .{ .column = column.id, .value = if (try parser.takeWord("DEFAULT")) .default else .{ .cell = try parser.value(column.type) } };
-}
-fn insert(parser: *Parser, schema: s.Schema) ![]const []const Cell {
-    var rows: std.ArrayList([]const Cell) = .empty;
+fn insert(parser: *Parser, hints: ?s.Schema) !@FieldType(@FieldType(Syntax, "action"), "insert") {
+    var rows: std.ArrayList(Row) = .empty;
+    const start = parser.lexer.start;
     if (try parser.takeWord("DEFAULT")) {
         try parser.requireWord("VALUES");
-        const row = try parser.allocator.alloc(Cell, schema.columns.len);
-        _ = try schema.insert(&.{}, row);
-        try rows.append(parser.allocator, row);
-        return rows.toOwnedSlice(parser.allocator);
+        const row = try parser.allocator.alloc(Row, 1);
+        row[0] = .{ .span = .{ .start = start, .end = parser.previous_end }, .values = &.{} };
+        return .{ .columns = &.{}, .rows = row };
     }
-    var columns: [s.max_columns]usize = undefined;
-    var count: usize = 0;
+    var columns: ?[]const Reference = null;
     if (try parser.take(.left)) {
+        var selected: std.ArrayList(Reference) = .empty;
         while (true) {
-            if (count == columns.len) return error.InvalidMutationColumns;
-            const index = try schema.named(try parser.named(.column));
-            for (columns[0..count]) |prior| if (prior == index) return error.DuplicateAssignment;
-            columns[count] = index;
-            count += 1;
+            if (selected.items.len == s.max_columns) return error.InvalidMutationColumns;
+            try selected.append(parser.allocator, try Reference.unqualified(parser, .column));
             if (!try parser.take(.comma)) break;
         }
         try parser.require(.right);
-    } else {
-        count = schema.columns.len;
-        for (columns[0..count], 0..) |*column, i| column.* = i;
+        columns = try selected.toOwnedSlice(parser.allocator);
     }
     try parser.requireWord("VALUES");
     while (true) {
         if (rows.items.len == max_rows) return error.MutationBatchTooLarge;
+        const row_start = parser.lexer.start;
         try parser.require(.left);
-        var assignments: [s.max_columns]s.Assignment = undefined;
-        for (columns[0..count], 0..) |column, i| {
-            if (i != 0) try parser.require(.comma);
-            assignments[i] = try parseAssignment(parser, schema.columns[column]);
+        var values: std.ArrayList(Value) = .empty;
+        while (true) {
+            if (values.items.len == s.max_columns) return error.InvalidMutationColumns;
+            var expected: ?t.Type = null;
+            if (hints) |schema| {
+                const ordinal = values.items.len;
+                const index = if (columns) |selected| (if (ordinal < selected.len) selected[ordinal].resolve("", schema.columns, null) catch null else null) else if (ordinal < schema.columns.len) ordinal else null;
+                if (index) |i| expected = schema.columns[i].type;
+            }
+            try values.append(parser.allocator, try Value.parse(parser, expected));
+            if (!try parser.take(.comma)) break;
         }
         try parser.require(.right);
-        const row = try parser.allocator.alloc(Cell, schema.columns.len);
-        _ = try schema.insert(assignments[0..count], row);
-        try rows.append(parser.allocator, row);
+        try rows.append(parser.allocator, .{ .span = .{ .start = row_start, .end = parser.previous_end }, .values = try values.toOwnedSlice(parser.allocator) });
         if (!try parser.take(.comma)) break;
     }
-    return rows.toOwnedSlice(parser.allocator);
+    return .{ .columns = columns, .rows = try rows.toOwnedSlice(parser.allocator) };
 }
-fn columnIndex(parser: *Parser, schema: s.Schema, name: []const u8) !usize {
-    var column = try parser.named(.column);
-    if (try parser.take(.dot)) {
-        if (!std.mem.eql(u8, column, name)) return error.UnknownQualifier;
-        if (parser.boundary()) |editor| editor.qualifier = .init(column);
-        column = try parser.named(.column);
-    }
-    return schema.named(column);
-}
-fn update(parser: *Parser, schema: s.Schema, name: []const u8) ![]const s.Assignment {
+fn update(parser: *Parser, hints: ?s.Schema, name: []const u8) ![]const Assignment {
     try parser.requireWord("SET");
-    var assignments: std.ArrayList(s.Assignment) = .empty;
+    var assignments: std.ArrayList(Assignment) = .empty;
     while (true) {
-        if (assignments.items.len == schema.columns.len) return error.InvalidMutationColumns;
-        const i = try columnIndex(parser, schema, name);
+        if (assignments.items.len == s.max_columns) return error.InvalidMutationColumns;
+        const column = try Reference.parse(parser);
         try parser.require(.eq);
-        try assignments.append(parser.allocator, try parseAssignment(parser, schema.columns[i]));
+        var expected: ?t.Type = null;
+        if (hints) |schema| if (column.resolve(name, schema.columns, null)) |index| {
+            expected = schema.columns[index].type;
+        } else |_| {};
+        try assignments.append(parser.allocator, .{ .column = column, .value = try Value.parse(parser, expected) });
         if (!try parser.take(.comma)) break;
     }
     return assignments.toOwnedSlice(parser.allocator);
