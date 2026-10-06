@@ -102,6 +102,8 @@ reference deployment and physical-capacity tests remain explicit commands.
 | `just bindings::mutation-ruby` | Build and install Ruby gems outside the checkout; prove immutable requests, full-width namespace recovery and current read denial |
 | `just bindings::mutation-node` | Build and install TypeScript packages outside the checkout; check owned mutation values, runtime response validation and exact receipt recovery with a full-width namespace |
 | `just test::sql-grammar`, `just test::sql-rewrites` | Regenerate the SQL reference parser, compare covered PostgreSQL ASTs, and type-check named Lean proofs with pinned optional tools |
+| `just test::table-ddl-sql` | Compare general Table DDL with independent aliases, defaults, keys, schema bytes and selected evolution semantics |
+| `just test::table-dml-sql` | Compare general Table DML with independent PostgreSQL/ANTLR ASTs and exact typed intent bytes; no native admission claim |
 | `just test::model [--tail N]` | Checks the finite TLA+ model, removed guards and concrete Zig counterexample schedules |
 | `just test::codecs [--fuzz=1000]` | Runs bounded signed JSON/frame corpora and allocation checks; optionally explores with LLVM fuzz coverage |
 | `just test::mutations` | Uses isolated committed clones to verify detection of omitted Zig guards |

@@ -16414,3 +16414,31 @@ baseline latency claim. No durable updates occur. The failed request ceilings
 remain active in the test; no warning threshold or assertion was raised to turn
 this result into a pass. Resolving the current physical-profile budgets, wider
 resident/cold-growth evidence and matched mutation performance remains open.
+
+### General Table grammar and independent compiler oracles
+
+The ReleaseSafe full SQL proof passes all seven build/run steps
+(`general-table-sql-full2.log` in the local Table-schema campaign). All 76
+published SQL examples parse. The 174 shared SELECT ASTs agree with
+libpg_query, 142 scalar plans and paged Arrow results agree with the independent
+reference, and the existing three-source/six-scalar/five-state suite retains
+72 successful results and 27 explicit failures. Parameter qualification retains
+26 canonical plans/results and 20 exact rejections. Its private scalar corpus
+is not the public logical Table parameter ABI.
+
+The new DDL oracle checks 270 grammar/compiler cases, including 238 exact
+schema/identity/type/default/evolution comparisons and independently encoded
+FTS1 bytes. Coverage includes all logical families, aliases, nested defaults,
+128 columns, nullable columns, composite/no primary key, selected ALTER and
+DROP, and separate offline KV/Document compilation. The DML oracle checks 44
+cases: 37 PostgreSQL/ANTLR AST comparisons and 33 exact independent typed FDM1
+plans. It covers reordered/omitted fields, DEFAULT, multi-row input, multiple
+assignments, general Boolean/state predicates and compound literals. Decoding
+the canonical intent retains its original fingerprint. These are pure
+compilation proofs, not evidence of admission, stored uniqueness or atomic
+publication; those have separate native schedules above.
+
+`just test::table-ddl-sql` and `just test::table-dml-sql` are focused entry points
+using the same implementations and oracles as `just test::sql`. Earlier runs
+failed to unwrap the schema-evolution transition and then found a stale scalar
+parameter fixture API in the full suite; neither is counted as passed.

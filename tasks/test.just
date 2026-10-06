@@ -286,6 +286,14 @@ sql-rewrites:
 sql:
     nix shell .#sql-tools --command zig build test-sql
 
+# General Table DDL grammar, exact schema bytes and pure evolution semantics.
+table-ddl-sql:
+    nix shell .#sql-tools --command zig build test-table-ddl-sql -Doptimize=ReleaseSafe
+
+# General Table DML grammar and independently encoded typed intent plans.
+table-dml-sql:
+    nix shell .#sql-tools --command zig build test-table-dml-sql -Doptimize=ReleaseSafe
+
 # Real Table mutation authority gates, exact frozen recovery and disk restart.
 [positional-arguments]
 table-mutation *args:

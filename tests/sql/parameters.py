@@ -1,7 +1,8 @@
 """Independent parameter AST, bound-plan bytes and actual paged Arrow results.
 
-Bindings operate on the reference AST, never on substituted SQL text. Neutral
-scalar fixtures use the existing public query representation consumed by Zig.
+Bindings operate on the reference AST, never on substituted SQL text. The
+private corpus scalar tags exercise the finite scalar compiler; public logical
+Table parameters have separate descriptor-bound query qualification.
 """
 import copy
 import json

@@ -10,19 +10,20 @@ not inputs to this checked grammar. The integer system-time fragment has no
 execution semantics; the intended language reserves that spelling for SQL
 temporal meaning and uses separate typed Transit selectors.
 
-The reference grammar covers finite `SELECT`, bounded literal Table mutations
-and administrative extension syntax. `TransitExtensions.g4` is the checked reference;
+The reference grammar covers finite SELECT, general typed Table DDL/DML and
+administrative extension syntax. `TransitExtensions.g4` is the checked reference;
 generated Python/ANTLR files stay in `.cache/verification/sql`, outside production.
-The implemented [Zig compiler](../../packages/zig/transit-fuze/docs/unified-sql.md)
-lowers SELECT syntax against declared KV/Table/Document schemas to the current
-`Unified.Plan` and canonical `FZP1` bytes. The shared parser owns the AST and
-cursor assistance; there is one compiler and execution definition. Its capability
-matrix covers whole-query limits, star projection, nested cell states, full-width
-count and unsupported null comparisons. Administrative reference grammar does not
-imply an executable administrative operation. The [proof ledger](../../tests/README.md)
-records independent grammar, plan and result checks. The shared grammar admits
-projection lists; lowering accepts up to eight explicit declared columns.
-No rewrite is enabled.
+The Zig compilers lower against explicit schemas and source commitments. General
+Table statements share `TableDdl`, `TableDml`, `TableSelect`, typed literals and
+logical descriptors; the source-bound logical query plan uses canonical `FQP1`
+bytes. Runtime authorization and storage publication remain separate from parsing.
+
+Table schemas and projections admit up to 128 columns. Logical types, parameter
+bounds, row budgets and operator/transport capabilities are checked by their
+owning compiler and runtime. Reference grammar acceptance alone does not enable
+a SQL entry point or an operator on every stored type. The
+[proof ledger](../../tests/README.md) records independent grammar, schema, plan
+and result checks. No optimizer rewrite is enabled.
 
 `parameterTemplate` is a separate checked root for the explicit Zig
 `Prepared` compiler. It permits typed `$n` comparison and LIMIT operands;
@@ -39,6 +40,8 @@ From the pinned development shell:
 ```sh
 just test::sql             # includes grammar + Zig AST/plan + Arrow checks
 just test::sql-grammar     # reference-only focused check
+just test::table-ddl-sql   # general schemas and selected evolution
+just test::table-dml-sql   # typed mutation plans; no publication claim
 just test::sql-rewrites
 just test::diagnostic-grammar # parser branches and actual compiler diagnostics
 ```
@@ -74,11 +77,14 @@ input rejection; prefixes and additional statements cannot pass as one query.
 under `standard_conforming_strings=on`. It does **not** mean all PostgreSQL SQL
 is accepted, full execution equivalence, or a formal superset theorem. In
 particular, Fuze's checked int64 sum differs from PostgreSQL's widened numeric
-sum, and Fuze supplies deterministic primary-key order without a SQL `ORDER BY`.
+sum. Finite source traversal follows each source's declared identity/index order;
+this does not implement SQL `ORDER BY`.
 DDL and connector extensions are additive syntax, not PostgreSQL compatibility
 cases. The separate [mutation corpus](corpus/mutations.json) compares bounded
-mutation ASTs and checks proposed Table storage bytes against an independent
-interpreter. These helper checks do not claim public admission or native recovery. The Transit-specific state predicates use independent ANTLR/Arrow
+Table syntax and exact typed `FDM1` plan bytes against an independent Python
+interpretation, including omitted/defaulted fields and compound literals. These
+compiler checks do not claim stored-row uniqueness, public admission or native
+recovery; the Table storage and native schedules qualify those separately. The Transit-specific state predicates use independent ANTLR/Arrow
 fixtures; uint64/float64 type suffixes have parser agreement without claiming
 PostgreSQL has those builtin types. Broader regression suites, fuzz discovery and server execution comparison
 remain outside this evidence.
@@ -86,7 +92,7 @@ remain outside this evidence.
 ## Grammar coverage
 
 The read grammar permits one source, an optional Boolean predicate over typed comparisons and exact cell-state tests,
-one to eight columns or star, row output, `COUNT(*)`, `COUNT(column)`, and `SUM(column)`. Identifiers
+a projection bounded by the declared schema or star, row output, `COUNT(*)`, `COUNT(column)`, and `SUM(column)`. Identifiers
 fold to lowercase unless quoted. Column qualification is optional; `FROM source
 AS alias` makes the alias its column qualifier. `AS` is required. The restricted
 aggregate input subquery has a separate outer alias. Row projections and
@@ -112,27 +118,32 @@ expression arithmetic, general casts,
 and adjacent-string concatenation
 are outside the grammar. `AS OF` remains a separately checked fragment.
 
-`CREATE TABLE`/`DOCUMENT`/`KV` have a separate bounded offline Zig compiler:
-`Sql.parseDeclaration` and `Declaration.compile` validate owned definitions and
-format canonical review SQL. The [state declaration contract](../STATE_DECLARATION_V1.md)
-preserves unspecified nullability and explicitly checks the current Table schema.
-The [declaration corpus](corpus/declarations.json) and generated type/nullability
-matrix compare Zig with independent ANTLR ASTs, formatting and Table fingerprints.
-These are not PostgreSQL DDL compatibility or administrative execution checks.
-The separate [declarative catalog helper](../DECLARATIVE_CATALOG_V1.md) creates
-and publishes a compatible Table inside an explicitly authorized Station turn.
-It does not enable CREATE in public SQL transports.
-`CREATE CONNECTION`/`SOURCE`/`SINK`, `GRANT`, `REVOKE`, and connector forms of
-`SHOW` remain grammar-only. No declaration compiler resolves catalogs, provisions
-resources or authorizes effects. `Sql.parseMutation` and
-`TableMutation.compile` recognize literal INSERT, key-equality UPDATE and DELETE.
-The [mutation contract](../TABLE_MUTATION_V1.md) defines the private-turn helper;
-query transports reject writes and applications explicitly authorize admission.
-The separate `Sql.parseInspection` entry point recognizes
-`DESCRIBE`, `SHOW` and `EXPLAIN SELECT` with the same bounded lexer and complete
-input checks. The [inspection owner](../SQL_INSPECTION_V1.md) executes description,
-Table listing and plan explanation in one configured source scope; the SELECT
-compiler continues to reject those statements as executable queries.
+`TableDdl.compile` owns general CREATE/ALTER/DROP compilation. CREATE defaults
+to nullable columns and supports aliases, logical descriptors, deterministic
+typed defaults and explicit single/composite primary keys. ALTER binds stable
+column identities to the original schema and defines a complete successor;
+existing-row validation and atomic publication remain runtime obligations. DROP
+binds the original object under RESTRICT semantics and preserves retained evidence.
+The [schema contract](../TABLE_SCHEMA_V1.md), [DDL contract](../TABLE_DDL_V1.md)
+and [Table reference](../../docs/reference/tables.md) own exact semantics.
+
+`TableDml.compile` binds INSERT column lists or positional rows, omitted/defaulted
+fields, multiple constant assignments and Boolean/state predicates. `FDM1`
+encodes the original schema fingerprint, exact typed values and ordered predicate
+program. Native publication accepts the complete operation or a truthful rejected
+outcome; a compiled plan alone proves neither acceptance nor application.
+
+The [declaration corpus](corpus/declarations.json) compares independent ANTLR
+schema construction, aliases/defaults/keys, canonical `FTS1` bytes and selected
+ALTER/DROP results. Offline KV/Document compilation retains its separate owned
+definitions and review formatting. These are not PostgreSQL DDL compatibility
+or administrative execution checks. General Table execution uses the configured,
+authorized catalog owner; CREATE does not provision a resource or grant access.
+Query-only transports continue to reject writes and administration.
+
+`CREATE CONNECTION`/`SOURCE`/`SINK`, `GRANT`, `REVOKE`, connector listing forms,
+and KV/Document publication remain grammar-only. No offline declaration resolves
+credentials, provisions resources or authorizes external effects.
 
 ## Lean scope
 

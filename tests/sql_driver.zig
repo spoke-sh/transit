@@ -5,11 +5,45 @@ const f = @import("transit_fuze");
 const sql = f.Sql;
 const m = f.Unified;
 const q = @import("transit_query");
+// Private corpus input for the finite scalar compiler, not the public logical
+// query ABI. Its width-specific tags keep these tests independent of catalog
+// schemas and the general Table parameter representation.
+const FixtureScalar = union(enum) {
+    int64: []const u8,
+    uint64: []const u8,
+    float_bits: []const u8,
+    boolean: bool,
+    utf8: []const u8,
+    binary: []const u8,
+
+    fn native(self: FixtureScalar, allocator: std.mem.Allocator) !m.Scalar {
+        const codec = q.document.JsonValues;
+        const result: m.Scalar = switch (self) {
+            .int64 => |text| blk: {
+                const negative = std.mem.startsWith(u8, text, "-");
+                const magnitude = try codec.unsigned(if (negative) text[1..] else text);
+                if (negative and magnitude == 0) return error.InvalidQueryInteger;
+                break :blk .{ .int64 = try std.fmt.parseInt(i64, text, 10) };
+            },
+            .uint64 => |text| .{ .uint64 = try codec.unsigned(text) },
+            .float_bits => |text| blk: {
+                if (text.len != 16) return error.InvalidQueryScalar;
+                const bytes = try codec.unhex(allocator, text, 8);
+                break :blk .{ .float64 = @bitCast(std.mem.readInt(u64, bytes[0..8], .little)) };
+            },
+            .boolean => |value| .{ .boolean = value },
+            .utf8 => |value| .{ .utf8 = value },
+            .binary => |text| .{ .binary = try codec.unhex(allocator, text, m.max_cell_bytes) },
+        };
+        try result.validate(std.meta.activeTag(result));
+        return result;
+    }
+};
 const Case = struct {
     id: []const u8,
     sql: []const u8,
     schema: struct { name: []const u8, columns: [2][]const u8, type: m.Type } = .{ .name = "items", .columns = .{ "id", "value" }, .type = .int64 },
-    parameters: ?[]const q.Values.Scalar = null,
+    parameters: ?[]const FixtureScalar = null,
 };
 fn writeColumn(out: anytype, column: *const sql.Column) !void {
     try out.write([2]?[]const u8{ if (column.qualifier) |*name| name.slice() else null, column.name.slice() });

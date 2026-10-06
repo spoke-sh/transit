@@ -149,6 +149,12 @@ pub fn build(b: *std.Build) void {
         .imports = &.{.{ .name = "transit_station", .module = station.module("transit_station") }},
     }) });
     sql_test.addArtifactArg(mutation_sql);
+    const table_dml_sql = b.addSystemCommand(&.{ "python3", "-B" });
+    table_dml_sql.addFileArg(b.path("tests/sql/mutations.py"));
+    table_dml_sql.addArtifactArg(mutation_sql);
+    table_dml_sql.has_side_effects = true;
+    table_dml_sql.stdio = .inherit;
+    b.step("test-table-dml-sql", "Compare general Table DML with independent typed plan semantics").dependOn(&table_dml_sql.step);
     const declaration_sql = b.addExecutable(.{ .name = "transit-declaration-sql-proof", .root_module = b.createModule(.{
         .root_source_file = b.path("tests/sql_declaration.zig"),
         .target = target,
@@ -156,6 +162,12 @@ pub fn build(b: *std.Build) void {
         .imports = &.{.{ .name = "transit_fuze", .module = fuze.module("transit_fuze") }},
     }) });
     sql_test.addArtifactArg(declaration_sql);
+    const table_ddl_sql = b.addSystemCommand(&.{ "python3", "-B" });
+    table_ddl_sql.addFileArg(b.path("tests/sql/declarations.py"));
+    table_ddl_sql.addArtifactArg(declaration_sql);
+    table_ddl_sql.has_side_effects = true;
+    table_ddl_sql.stdio = .inherit;
+    b.step("test-table-ddl-sql", "Compare general Table DDL with independent grammar/schema semantics").dependOn(&table_ddl_sql.step);
     sql_test.has_side_effects = true;
     sql_test.stdio = .inherit;
     b.step("test-sql", "Qualify SQL parser, plans and Arrow execution against independent references").dependOn(&sql_test.step);
