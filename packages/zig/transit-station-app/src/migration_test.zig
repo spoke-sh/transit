@@ -494,3 +494,39 @@ test "only owner self messages continue an admitted migration under current poli
     try t.expectEqualDeep(before, continuation.decision);
     try t.expectEqual(1, domain.calls);
 }
+
+test "corrupt staged migration evidence stays unresolved before caller attribution" {
+    var store: Store = .{};
+    defer store.entries.deinit();
+    try setup(&store);
+    var begin = try store.turn(44);
+    _ = try owner().begin(&begin, proposal(7));
+    try store.commit(&begin);
+    const step: M.Step = .{ .plan = .{ .value = 7 }, .ordinal = .{ .value = 1 }, .operation = 1 };
+    var domain: StagedDomain = .{};
+    var admit = try store.turn(44);
+    _ = try owner().stage(&admit, step, &domain);
+    try store.commit(&admit);
+    var read = try store.turn(44);
+    const original = (try owner().pending(&read, step)).?;
+    const address = M.key(9, 'S', 7, 1);
+    for (0..5) |variant| {
+        var corrupt = original;
+        switch (variant) {
+            0 => corrupt.input = 0,
+            1 => corrupt.step.ordinal.value = 2,
+            2 => corrupt.digest[0] ^= 1,
+            3 => corrupt.step.operation = 0,
+            4 => corrupt.step.arguments = try p.Value.init("corrupt"),
+            else => unreachable,
+        }
+        try store.entries.put(address, try root.Records.encode('T', corrupt));
+        var failed = try store.turn(44);
+        try failed.write(try p.Value.init("prior"), try p.Value.init("retained"));
+        const before = failed.decision;
+        try t.expectError(error.InvalidApplicationRecord, owner().stage(&failed, step, &domain));
+        try t.expectEqualDeep(before, failed.decision);
+        try t.expectEqual(0, domain.calls);
+    }
+    try t.expect(!root.MigrationFailure.expected(error.InvalidApplicationRecord));
+}

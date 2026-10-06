@@ -81,7 +81,8 @@ pub fn setPolicy(self: Self, turn: *Turn, principal: u64, expected: Wide, next: 
     }
     try turn.write(self.address('P', principal, 0), try c.encode('P', next));
 }
-fn authorize(self: Self, turn: *Turn) !u64 {
+/// Check current external migration authority before application-specific inspection.
+pub fn authorize(self: Self, turn: *Turn) !u64 {
     try self.check(turn);
     const principal = try who(turn);
     return self.authorizePrincipal(turn, principal);
@@ -213,6 +214,10 @@ fn applyInternal(self: Self, comptime staged: bool, continuation: bool, turn: *T
     const digest = try self.stepDigest(selected, step);
     var admitted: ?Pending = null;
     if (try self.stepRecord(turn, step)) |record| {
+        if (record == .pending) {
+            const stored_digest = self.stepDigest(selected, record.pending.step) catch return error.InvalidApplicationRecord;
+            if (!std.mem.eql(u8, &record.pending.digest, &stored_digest)) return error.InvalidApplicationRecord;
+        }
         const previous_digest = switch (record) {
             inline else => |value| value.digest,
         };
@@ -222,10 +227,7 @@ fn applyInternal(self: Self, comptime staged: bool, continuation: bool, turn: *T
         }
         switch (record) {
             .complete => |value| return value,
-            .pending => |value| {
-                if (!std.mem.eql(u8, &value.digest, &try self.stepDigest(selected, value.step))) return error.InvalidApplicationRecord;
-                admitted = value;
-            },
+            .pending => |value| admitted = value,
         }
     }
     if (continuation and admitted == null) return error.MigrationDenied;

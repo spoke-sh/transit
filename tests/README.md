@@ -16623,3 +16623,21 @@ bytes within ten seconds for that specific unavailable response; explicit
 caught a null diagnostic in that fixture helper. Only the sixth complete run is
 counted as passed. The hot-store ceiling was reduced from the cold-disabled
 fixture's 64 MiB to the existing cold fixture's eight MiB, not enlarged.
+
+
+### Stored staged-migration evidence before caller attribution
+
+`application-staged-migration4.log` passes 42/42 ReleaseSafe Station application
+tests (29 ms execution, 8 MiB peak test RSS). The added corruption schedule checks
+zero admission input, wrong stored ordinal, changed digest, invalid operation and
+changed stored arguments. Each remains `InvalidApplicationRecord`, preserves the
+existing proposal and invokes no domain transform. Validation of frozen evidence
+precedes comparing the caller's requested digest; stored corruption cannot become
+a terminal `MigrationStepConflict`. The public authority check also permits an
+application to gate target inspection before invoking `begin`.
+
+`general-work-items-mappings2.log` passes the declared semantic diagnostic mapping
+gate, including the explicit invariant exception tied to that executable test.
+Its preceding run correctly failed because the newly surfaced stored-record error
+had no reviewed disposition. Native application and browser runs are separate
+qualification; these package results do not establish their completion.

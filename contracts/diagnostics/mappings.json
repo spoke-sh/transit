@@ -760,6 +760,18 @@
               "name": "migration configuration and transform faults remain unresolved without changing decisions"
             }
           ]
+        },
+        {
+          "source": "packages/zig/transit-station-app/src/Migration.zig",
+          "cause": "InvalidApplicationRecord",
+          "disposition": "internal_invariant",
+          "reason": "Malformed stored step identity or inconsistent frozen arguments/digest are corruption, not a terminal caller rejection. Preserve the pending step and prior turn proposal without invoking the transform.",
+          "tests": [
+            {
+              "source": "packages/zig/transit-station-app/src/migration_test.zig",
+              "name": "corrupt staged migration evidence stays unresolved before caller attribution"
+            }
+          ]
         }
       ],
       "tests": [
