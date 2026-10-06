@@ -56,11 +56,17 @@ public final class Schema {
             case "integer", "number" -> number(schema, value);
             case "string" -> value.isJsonPrimitive() && value.getAsJsonPrimitive().isString() &&
                 (!schema.has("maxLength") || value.getAsString().codePointCount(0, value.getAsString().length()) <= schema.get("maxLength").getAsInt()) &&
-                (!schema.has("pattern") || java.util.regex.Pattern.compile(schema.get("pattern").getAsString()).matcher(value.getAsString()).matches());
+                (!schema.has("pattern") || pattern(schema.get("pattern").getAsString(), value.getAsString()));
             case "array" -> array(schema, value, root, active, depth);
             case "object" -> object(schema, value, root, active, depth);
             default -> false;
         };
+    }
+    private static boolean pattern(String pattern, String value) {
+        // Generated binary strings may contain millions of pairs; a recursive
+        // regex group per byte can exhaust the Java stack on valid input.
+        if (pattern.equals("^(?:[0-9a-f]{2})*$")) return Values.hexadecimal(value);
+        return java.util.regex.Pattern.compile(pattern).matcher(value).matches();
     }
     private static boolean number(JsonObject schema, JsonElement value) {
         if (!value.isJsonPrimitive() || !value.getAsJsonPrimitive().isNumber()) return false;

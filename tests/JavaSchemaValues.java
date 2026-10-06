@@ -30,6 +30,10 @@ public final class JavaSchemaValues {
             "{\"invented\":true}", "{\"oneOf\":[]}", "{\"anyOf\":[]}",
             "{\"$defs\":{},\"anyOf\":[{\"$defs\":{},\"type\":\"object\"}]}"
         }) check(!Schema.valid(object(invalid), object("{}")));
+        JsonObject hex = object("{\"type\":\"string\",\"pattern\":\"^(?:[0-9a-f]{2})*$\",\"maxLength\":800000}");
+        check(Schema.valid(hex, new JsonPrimitive("ab".repeat(300000))));
+        check(!Schema.valid(hex, new JsonPrimitive("A0")) && !Schema.valid(hex, new JsonPrimitive("a")));
+        check(io.transit.client.internal.Values.unhex(new JsonPrimitive("ab".repeat(300000)), 300000).length == 300000);
         JsonArray cycle = new JsonArray(); cycle.add(cycle);
         check(!Schema.valid(root, cycle));
         JsonElement deep = new JsonPrimitive(1);

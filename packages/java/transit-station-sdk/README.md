@@ -33,5 +33,7 @@ Arrow values, bounded futures and explicit signed retry tokens.
 The [Table mutation guide](docs/MUTATIONS.md) covers explicit SQL writes,
 immutable requests, bounded futures and exact saved-command recovery.
 
-The [catalog guide](docs/CATALOG.md) covers typed initialization, conditional
-policy and Table creation with immutable commands and joined native ownership.
+The [catalog guide](docs/CATALOG.md) covers general schemas, typed DML, ALTER/DROP,
+historical definitions and exact saved-intent recovery through the joined worker.
+The [logical value guide](docs/LOGICAL.md) describes owned recursive descriptors,
+exact values and bounded neutral codecs.

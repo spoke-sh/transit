@@ -20,9 +20,16 @@ public final class Port implements AutoCloseable {
     private final JsonObject schemas;
     private final String requestName;
     private final int maximumStatus;
+    private final int maximum;
+    private final int nestingLimit;
     private final ScheduledThreadPoolExecutor timer;
     private boolean closed;
     public Port(String family, Path override, JsonObject config, JsonObject schemas, String requestName) {
+        this(family, override, config, schemas, requestName, MAXIMUM, 64);
+    }
+    public Port(String family, Path override, JsonObject config, JsonObject schemas, String requestName, int maximum, int nestingLimit) {
+        if (maximum < 1 || nestingLimit < 1 || nestingLimit > 128) throw new IllegalArgumentException("Invalid native frame bounds");
+        this.maximum = maximum; this.nestingLimit = nestingLimit;
         this.schemas = schemas; this.requestName = requestName;
         maximumStatus = Values.resource("/io/transit/sdk/" + family + "/contract.json").getAsJsonObject("statuses")
             .entrySet().stream().mapToInt(entry -> entry.getValue().getAsInt()).max().orElseThrow();
@@ -60,7 +67,7 @@ public final class Port implements AutoCloseable {
         if (closed) throw new TransitException(CLOSED, phase);
         Schema.require(schema(requestName), request);
         byte[] bytes = (request.toString() + "\n").getBytes(StandardCharsets.UTF_8);
-        if (bytes.length > MAXIMUM) throw new IllegalArgumentException("Native line exceeds its bound");
+        if (bytes.length > maximum) throw new IllegalArgumentException("Native line exceeds its bound");
         // The deadline only terminates I/O. It never publishes a rejection or owns a user continuation.
         ScheduledFuture<?> deadline = timer.schedule(process::destroyForcibly, 65, TimeUnit.SECONDS);
         JsonObject envelope;
@@ -69,14 +76,21 @@ public final class Port implements AutoCloseable {
             if (process.getInputStream().available() != 0) throw new IOException("Unexpected native output");
             process.getOutputStream().write(bytes); process.getOutputStream().flush();
             ByteArrayOutputStream incoming = new ByteArrayOutputStream(1024);
-            for (;;) {
-                int value = process.getInputStream().read();
-                if (value == -1) throw new EOFException();
-                if (value == '\n') break;
-                if (incoming.size() >= MAXIMUM - 1) throw new IOException("Oversized native line");
-                incoming.write(value);
+            byte[] chunk = new byte[16384];
+            boolean ended = false;
+            while (!ended) {
+                int count = process.getInputStream().read(chunk, 0, Math.min(chunk.length, maximum - incoming.size() + 1));
+                if (count < 0) throw new EOFException();
+                if (incoming.size() + count > maximum) throw new IOException("Oversized native line");
+                for (int i = 0; i < count; i++) {
+                    if (chunk[i] == '\n') {
+                        if (i != count - 1) throw new IOException("Trailing native output");
+                        ended = true;
+                    }
+                }
+                incoming.write(chunk, 0, ended ? count - 1 : count);
             }
-            envelope = Values.object(Values.parse(incoming.toByteArray()));
+            envelope = Values.object(Values.parse(incoming.toByteArray(), nestingLimit));
             if (!envelope.keySet().equals(Set.of("status", "value"))) throw new IOException("Malformed native envelope");
             long parsed = Values.number(envelope.get("status"), 0);
             if (parsed > maximumStatus) throw new IOException("Unknown native status");

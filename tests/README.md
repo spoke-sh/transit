@@ -11495,6 +11495,35 @@ optional annotation dependency through a fixture-only parser call; using the
 existing Gson parsing API avoids adding a runtime dependency. This is source-level
 validator evidence, not an installed Java general Table qualification.
 
+The Java general Table API passes its installed lifecycle in **166.945 seconds**
+(`table-java-installed1.log`): typed nested INSERT, wide exact decimals,
+unchanged-value UPDATE counts, ALTER/default, stale-basis rejection, DELETE,
+DROP/name reuse, accepted historical definitions and original saved-intent outcomes
+through a replacement caller. Across 493 turns and 133 sends, maximums remain
+four native writes, 256-byte values and 1,398-byte progress commands. Lost-send,
+lost-turn and supplied-host receipt-loss schedules still pass. The external
+consumer uses independent packaged JARs and their native artifacts.
+
+Installed Java value checks cover all logical families, exact integer/float bits,
+owned binary/lists, aggregate node/name/data bounds, depth-15 conflicts, MAP child
+accounting, strict metadata/continuations and original compiled identity. Actual
+owned ports carry 600,000-byte payloads in both directions, reject malformed
+receipts and retain in-flight ownership after future cancellation until joined
+close. Allocation-loss injection retains uncertainty. The raw-client installed
+schedule separately passes recovery, seedless restart, disposal and revoked retry
+(`table-java-raw1.log`). Its schema checks include large canonical hex without
+recursive regex stack growth; raw frame and nesting bounds remain unchanged.
+
+Focused logical checks additionally exercise fifteen nested MAPs through the
+catalog JSON nesting limit while the unchanged raw JSON limit rejects the same
+wrapped data (`table-java-logical3.log`). The initial package compilation found a
+Java name collision with the existing Station `State`; explicitly naming
+`Catalog.State` fixes it, and rebuilt Station/example JARs pass. Documentation
+checks cover 5,298 links across 524 files; verification retains 59 invariants,
+53 bounds and 13 SDK scenarios. Source/package logs share the `table-java-`
+prefix in the same campaign. This checkpoint does not claim a new full repository
+or clean-CI pass; other SDK/query migrations and final qualification remain.
+
 ## Fuze logical type foundation
 
 The local `Types` profile has nine passing focused Zig tests, including 46

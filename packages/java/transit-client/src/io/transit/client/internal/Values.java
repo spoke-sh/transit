@@ -43,8 +43,16 @@ public final class Values {
     }
     public static byte[] unhex(JsonElement value, int bound) {
         String hex = string(value);
-        if (hex.length() > bound * 2 || !hex.matches("(?:[0-9a-f]{2})*")) throw incompatible("native-bytes");
+        if (hex.length() > bound * 2 || !hexadecimal(hex)) throw incompatible("native-bytes");
         return HexFormat.of().parseHex(hex);
+    }
+    public static boolean hexadecimal(String value) {
+        if ((value.length() & 1) != 0) return false;
+        for (int i = 0; i < value.length(); i++) {
+            char c = value.charAt(i);
+            if (!((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f'))) return false;
+        }
+        return true;
     }
     public static JsonObject object(JsonElement value) {
         if (value == null || !value.isJsonObject()) throw incompatible("native-object");
@@ -77,10 +85,12 @@ public final class Values {
         if (value instanceof Number v) return new JsonPrimitive(v);
         throw new IllegalArgumentException("Unsupported internal JSON value");
     }
-    public static JsonElement parse(byte[] bytes) throws IOException {
+    public static JsonElement parse(byte[] bytes) throws IOException { return parse(bytes, 64); }
+    public static JsonElement parse(byte[] bytes, int nestingLimit) throws IOException {
+        if (nestingLimit < 1 || nestingLimit > 128) throw new IllegalArgumentException("Invalid JSON nesting bound");
         String text = StandardCharsets.UTF_8.newDecoder().decode(ByteBuffer.wrap(bytes)).toString();
         try (JsonReader reader = new JsonReader(new StringReader(text))) {
-            reader.setStrictness(Strictness.STRICT); reader.setNestingLimit(64);
+            reader.setStrictness(Strictness.STRICT); reader.setNestingLimit(nestingLimit);
             JsonElement value = read(reader);
             if (reader.peek() != JsonToken.END_DOCUMENT) throw new IOException("Trailing JSON");
             return value;

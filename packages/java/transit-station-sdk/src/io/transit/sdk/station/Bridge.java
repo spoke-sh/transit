@@ -42,7 +42,10 @@ final class Bridge implements Worker.State<Void> {
         if (!"0.2.0".equals(Client.class.getPackage().getImplementationVersion())) throw incompatible("client-sdk-version");
         JsonObject schemas = resource("/io/transit/sdk/client/schemas.json");
         resource("/io/transit/sdk/station/schemas.json").entrySet().forEach(entry -> schemas.add(entry.getKey(), entry.getValue()));
-        port = new Port("station", nativeHost, config, schemas, "HostRequest");
+        JsonObject limits = resource("/io/transit/sdk/station/contract.json").getAsJsonObject("limits");
+        port = config.has("catalog_client")
+            ? new Port("station", nativeHost, config, schemas, "HostRequest", limits.get("catalog_line_bytes").getAsInt(), 96)
+            : new Port("station", nativeHost, config, schemas, "HostRequest");
         try {
             JsonObject hello = object(port.request(obj("hello", obj()), "hello"));
             if (!hello.keySet().equals(Set.of("host_version", "station_version", "transit_version"))) throw incompatible("station-version");

@@ -1,78 +1,98 @@
 import com.google.gson.*;
 import io.transit.client.*;
-import io.transit.sdk.station.Bytes;
 import io.transit.sdk.station.Catalog;
+import io.transit.sdk.station.Logical;
 import static io.transit.sdk.station.Catalog.*;
 import java.math.BigInteger;
+import java.nio.ByteBuffer;
+import java.nio.channels.FileChannel;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.*;
+import java.nio.file.attribute.PosixFilePermissions;
 import java.util.*;
 import java.util.concurrent.*;
 
-/** Installed public Java catalog consumer; saved commands remain opaque. */
+/** Installed Java general Table lifecycle and immutable recovery after name reuse. */
 public final class JavaCatalogSdk {
     private JavaCatalogSdk() {}
-    private static JsonObject json(Object... pairs) {
-        JsonObject out=new JsonObject();for(int i=0;i<pairs.length;i+=2){Object v=pairs[i+1];out.add((String)pairs[i],v==null?JsonNull.INSTANCE:v instanceof JsonElement j?j:v instanceof Number n?new JsonPrimitive(n):v instanceof Boolean b?new JsonPrimitive(b):new JsonPrimitive((String)v));}return out;
-    }
-    private static String text(JsonObject v,String key) { return v.get(key).getAsString(); }
-    private static BigInteger wide(JsonObject v,String key) { return new BigInteger(text(v,key)); }
-    private static String tag(Enum<?> v) { return v.name().toLowerCase(Locale.ROOT); }
+    private static BigInteger n(long value) { return BigInteger.valueOf(value); }
+    private static void check(boolean value) { if (!value) throw new AssertionError("Installed Table assertion"); }
     private static <T> T await(CompletableFuture<T> value) {
-        try{return value.join();}catch(CompletionException e){if(e.getCause() instanceof RuntimeException r)throw r;throw e;}
+        try { return value.join(); } catch (CompletionException e) { if (e.getCause() instanceof RuntimeException r) throw r; throw e; }
     }
-    private static Scope scope(JsonObject v) { return new Scope(new ResourceRef(v.get("realm").getAsLong(),v.get("resource").getAsLong()),wide(v,"catalog")); }
-    private static JsonObject json(Scope v) { return json("realm",v.resource().realm(),"resource",v.resource().resource(),"catalog",v.catalog().toString()); }
-    private static Configuration configuration(JsonObject v) { Scope s=scope(v.getAsJsonObject("scope"));return new Configuration(s,new ProcessRef(s.resource().realm(),v.get("owner").getAsLong()),v.get("administrator").getAsLong()); }
-    private static JsonObject json(Configuration v) { return json("scope",json(v.scope()),"owner",v.owner().pid(),"administrator",v.administrator()); }
-    private static Policy policy(JsonObject v) { return new Policy(scope(v.getAsJsonObject("scope")),v.get("principal").getAsLong(),wide(v,"revision"),v.get("inspect").getAsBoolean(),v.get("create").getAsBoolean()); }
-    private static JsonObject json(Policy v) { return json("scope",json(v.scope()),"principal",v.principal(),"revision",v.revision().toString(),"inspect",v.inspect(),"create",v.create()); }
-    private static CreateTable request(JsonObject v) {
-        JsonObject schema=v.getAsJsonObject("schema");return new CreateTable(scope(v.getAsJsonObject("scope")),wide(v,"operation"),wide(v,"object"),v.get("table").getAsLong(),text(v,"name"),new Schema(schema.getAsJsonArray("names").asList().stream().map(JsonElement::getAsString).toList(),Type.valueOf(text(schema,"value_type").toUpperCase(Locale.ROOT))));
+    private static Catalog.Client connect(JsonObject config) {
+        JsonObject c = config.getAsJsonObject("connection"), s = c.getAsJsonObject("scope"); long realm = s.get("realm").getAsLong();
+        Connection connection = new Connection(new ProcessRef(realm, c.get("owner").getAsLong()), new Scope(new ResourceRef(realm, s.get("resource").getAsLong()), new BigInteger(s.get("catalog").getAsString())));
+        return Catalog.Client.open(new ClientConfig(java.net.URI.create(config.get("url").getAsString()), ClientConfig.Profile.NATIVE_V1, 10000, null), new Credential(realm, c.get("principal").getAsLong(), Path.of(config.get("seed_file").getAsString())), connection);
     }
-    private static JsonObject json(CreateTable v) {
-        JsonArray names=new JsonArray();v.schema().names().forEach(names::add);return json("scope",json(v.scope()),"operation",v.operation().toString(),"object",v.object().toString(),"table",v.table(),"name",v.name(),"schema",json("names",names,"value_type",tag(v.schema().valueType())));
+    private static void persist(Path path, byte[] bytes) throws java.io.IOException {
+        try (FileChannel file = FileChannel.open(path, Set.of(StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING, StandardOpenOption.WRITE), PosixFilePermissions.asFileAttribute(PosixFilePermissions.fromString("rw-------")))) {
+            ByteBuffer data = ByteBuffer.wrap(bytes); while (data.hasRemaining()) file.write(data); file.force(true);
+        }
     }
-    private static Cursor cursor(JsonObject v) { return new Cursor(text(v,"definition"),scope(v.getAsJsonObject("scope")),v.get("resource_revision").getAsLong(),text(v,"after")); }
-    private static JsonObject json(Cursor v) { return json("definition",v.definition(),"scope",json(v.scope()),"resource_revision",v.resourceRevision(),"after",v.after()); }
-    private static JsonObject json(Definition v) {
-        JsonArray names=new JsonArray();v.source().schema().names().forEach(names::add);
-        return json("scope",json(v.scope()),"object",v.object().toString(),"revision",v.revision().toString(),"name",v.name(),"source",json("table",json("id",v.source().table(),"schema",json("names",names,"value_type",tag(v.source().schema().valueType())))),"principal",v.principal(),"operation",v.operation().toString(),"input",v.input());
+    private static Outcome finish(Catalog.Client client, Compiled compiled, Path root) throws java.io.IOException {
+        JsonObject saved = new JsonObject(); saved.addProperty("definition", compiled.saved().definition()); saved.addProperty("bytes", HexFormat.of().formatHex(compiled.saved().bytes()));
+        persist(root.resolve("intent.json"), saved.toString().getBytes(StandardCharsets.UTF_8));
+        Reference reference = compiled.intent().reference(); long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(120);
+        for (;;) {
+            check(System.nanoTime() < deadline); Next step = await(client.next(reference));
+            if (step.kind() == NextKind.TERMINAL) return step.outcome().orElseThrow();
+            if (step.kind() == NextKind.RUNNING) continue;
+            check(step.kind() == NextKind.SEND); Prepared prepared = step.prepared().orElseThrow();
+            persist(root.resolve("step.json"), prepared.bytes().copy()); long position = await(client.submit(prepared)).position();
+            persist(root.resolve("receipt.json"), Long.toString(position).getBytes(StandardCharsets.UTF_8));
+            for (;;) {
+                check(System.nanoTime() < deadline); Progress progress = await(client.progress(reference, prepared, position, true));
+                if (progress.observation() == Observation.PENDING) continue;
+                check(progress.disposition().isEmpty());
+                if (progress.outcome().isPresent() && progress.outcome().get().terminal()) return progress.outcome().get();
+                break;
+            }
+        }
     }
-    private static JsonObject json(Page v) {
-        JsonArray entries=new JsonArray();v.entries().forEach(item -> entries.add(json(item)));while(entries.size()<8)entries.add(JsonNull.INSTANCE);
-        return json("resource_revision",v.resourceRevision(),"entries",entries,"next",v.next().map(JavaCatalogSdk::json).orElse(null));
-    }
-    private static Prepared prepared(String text) { return new Prepared(new Bytes(text.getBytes(StandardCharsets.UTF_8))); }
-    private static String saved(Prepared v) { return new String(v.bytes().copy(),StandardCharsets.UTF_8); }
-    private static JsonObject call(Catalog.Client client,JsonObject action) {
-        String name=action.keySet().iterator().next();JsonElement value=action.get(name);
-        return switch(name) {
-            case "capabilities" -> {var v=await(client.capabilities());yield json("capabilities",json("version",v.version(),"definition",v.definition(),"initialize",v.initialize(),"create_table",v.createTable(),"conditional_policy",v.conditionalPolicy(),"current_metadata",v.currentMetadata(),"max_saved_bytes",v.maxSavedBytes(),"table_columns",v.tableColumns()));}
-            case "describe" -> {var v=await(client.describe());yield json("description",json("configuration",json(v.configuration()),"policy",json(v.policy()),"resource_revision",v.resourceRevision()));}
-            case "lookup" -> json("definition",await(client.lookup(value.getAsString())).map(JavaCatalogSdk::json).orElse(null));
-            case "definition" -> {var v=value.getAsJsonObject();yield json("definition",await(client.definition(wide(v,"object"),wide(v,"revision"))).map(JavaCatalogSdk::json).orElse(null));}
-            case "list" -> json("page",json(await(client.list(value.isJsonNull()?Optional.empty():Optional.of(cursor(value.getAsJsonObject()))))));
-            case "compile" -> {var v=value.getAsJsonObject();var r=await(client.compileSql(text(v,"sql"),wide(v,"operation"),wide(v,"object"),v.get("table").getAsLong()));yield json("compiled",json("request",json(r.request()),"canonical",HexFormat.of().formatHex(r.canonical().copy())));}
-            case "prepare_initialize" -> json("prepared",saved(await(client.prepareInitialize(configuration(value.getAsJsonObject())))));
-            case "prepare_create" -> json("prepared",saved(await(client.prepareCreate(request(value.getAsJsonObject())))));
-            case "prepare_policy" -> {var v=value.getAsJsonObject();yield json("prepared",saved(await(client.preparePolicy(new PolicyChange(wide(v,"expected_revision"),policy(v.getAsJsonObject("policy")))))));}
-            case "submit" -> {String original=value.getAsString();var p=prepared(original);try{yield json("receipt",json("position",await(client.submit(p)).position()));}finally{if(!saved(p).equals(original))throw new AssertionError("Changed recovery bytes");}}
-            case "observe" -> {var v=value.getAsJsonObject();yield json("observation",tag(await(client.observe(prepared(text(v,"prepared")),v.get("input").getAsLong()))));}
-            case "input_disposition" -> {var v=value.getAsJsonObject();yield json("disposition",await(client.inputDisposition(prepared(text(v,"prepared")),v.get("input").getAsLong())).map(r -> json("scope",json(r.scope()),"origin",tag(r.origin()),"principal",r.principal(),"input",r.input(),"payload",HexFormat.of().formatHex(r.payload().copy()),"outcome",tag(r.outcome()),"diagnostic",r.diagnostic())).orElse(null));}
-            case "status" -> json("status",await(client.status(request(value.getAsJsonObject()))).map(r -> json("request",json(r.request()),"principal",r.principal(),"input",r.input(),"outcome",tag(r.outcome()),"diagnostic",r.diagnostic())).orElse(null));
-            default -> throw new AssertionError("Unknown catalog action");
-        };
+    private static Logical.Cell atom(Logical.Atom value) { return new Logical.Present(value); }
+    private static Assignment assignment(long column, Logical.Cell value) { return new Assignment(n(column), value); }
+    private static JsonObject scenario(Catalog.Client client, JsonObject config, Path root, int index) throws java.io.IOException {
+        long base = 1100 + index * 100L, object = 12001 + index * 10L; String name = "sdk_people_" + index;
+        java.util.function.IntFunction<Identity> id = offset -> new Identity(n(base + offset), n(base + offset + 100000));
+        Description description = await(client.describe()); check(description.configuration().scope().equals(client.connection().scope())); check(description.policy().principal() == config.getAsJsonObject("connection").get("principal").getAsLong());
+        Compiled create = await(client.compileSql("CREATE TABLE " + name + " (id INTEGER PRIMARY KEY, payload STRUCT(data BINARY, label UTF8), amount DECIMAL(38,2))", id.apply(0), Optional.of(n(object))));
+        check(finish(client, create, root).phase() == Phase.APPLIED);
+        Definition original = await(client.lookup(name)).orElseThrow(); check(original.schema().columns().size() == 3 && original.schema().columns().get(1).type() instanceof Logical.Structure);
+        Logical.Cell payload = new Logical.Present(new Logical.Sequence(Logical.SequenceKind.STRUCTURE, List.of(atom(new Logical.Binary(new Logical.BinaryData(new byte[]{0, (byte)128, (byte)255}))), atom(new Logical.Utf8("東京")))));
+        Logical.Cell amount = atom(new Logical.DecimalValue(new BigInteger("123456789012345678901234567890")));
+        Compiled insert = await(client.prepare(name, id.apply(1), new Mutate(original.metadata().basis(), new Insert(List.of(List.of(assignment(3, amount), assignment(1, atom(new Logical.Signed(n(1)))), assignment(2, payload)))))));
+        Outcome applied = finish(client, insert, root); check(applied.counts().orElseThrow().equals(new Counts(n(1), n(1))));
+        Optional<List<Predicate>> predicate = Optional.of(List.of(new Comparison(n(1), CompareOperator.EQ, new Logical.Signed(n(1)))));
+        Compiled update = await(client.prepare(name, id.apply(2), new Mutate(original.metadata().basis(), new Update(List.of(assignment(3, amount)), predicate))));
+        check(finish(client, update, root).counts().orElseThrow().equals(new Counts(n(1), n(0))));
+        Compiled alter = await(client.prepare(name, id.apply(3), new Alter(original.metadata().basis(), new AddColumn("enabled", Logical.Scalar.BOOLEAN, false, Optional.of(atom(new Logical.BooleanValue(true))), Optional.empty()))));
+        check(finish(client, alter, root).phase() == Phase.APPLIED);
+        try { await(client.prepare(name, id.apply(4), new Drop(original.metadata().basis()))); throw new AssertionError("Stale basis retargeted work"); } catch (TransitException expected) { }
+        Definition current = await(client.lookup(name)).orElseThrow();
+        Compiled delete = await(client.prepare(name, id.apply(5), new Mutate(current.metadata().basis(), new Delete(predicate))));
+        check(finish(client, delete, root).counts().orElseThrow().equals(new Counts(n(1), n(1))));
+        check(finish(client, await(client.prepare(name, id.apply(6), new Drop(current.metadata().basis()))), root).phase() == Phase.APPLIED);
+        check(finish(client, await(client.compileSql("CREATE TABLE " + name + " (replacement TEXT)", id.apply(7), Optional.of(n(object + 1)))), root).phase() == Phase.APPLIED);
+        client.close();
+        try (Catalog.Client replacement = connect(config)) {
+            Intent loaded = await(replacement.load(new SavedIntent(insert.saved().definition(), insert.saved().bytes()))); check(loaded.object().equals(n(object)));
+            check(await(replacement.status(loaded.reference())).outcome().orElseThrow().equals(applied));
+            check(await(replacement.lookup(name)).orElseThrow().metadata().object().equals(n(object + 1)));
+            HistoricalDefinition historical = await(replacement.definition(n(object), original.metadata().revision())).orElseThrow();
+            check(historical.metadata().equals(original.metadata()) && historical.schema().equals(original.schema()));
+            check(await(replacement.definition(n(object), n(999))).isEmpty()); check(!await(replacement.list()).entries().isEmpty());
+        }
+        JsonObject result = new JsonObject(); result.addProperty("profile", "installed-java-general-table"); result.addProperty("original_object", Long.toString(object)); result.addProperty("replacement_object", Long.toString(object + 1));
+        JsonObject counts = new JsonObject(); counts.addProperty("matched", "1"); counts.addProperty("changed", "1"); result.add("counts", counts); return result;
     }
     public static void main(String[] args) throws Exception {
-        JsonObject cfg=new Gson().fromJson(Files.readString(Path.of(args[0])),JsonObject.class);var c=cfg.getAsJsonObject("connection");var s=scope(c.getAsJsonObject("scope"));
-        var connection=new Connection(new ProcessRef(s.resource().realm(),c.get("owner").getAsLong()),s);
-        try(var client=Catalog.Client.open(new ClientConfig(java.net.URI.create(text(cfg,"url")),ClientConfig.Profile.NATIVE_V1,10000,null),new Credential(s.resource().realm(),c.get("principal").getAsLong(),Path.of(text(cfg,"seed_file"))),connection)) {
-            System.out.println("{\"ready\":true}");var reader=new java.io.BufferedReader(new java.io.InputStreamReader(System.in,StandardCharsets.UTF_8));
-            for(String line;(line=reader.readLine())!=null;) {
-                JsonObject action=new Gson().fromJson(line,JsonObject.class);if(action.has("close"))break;
-                try{System.out.println(json("status",0,"value",call(client,action)));}
-                catch(TransitException e){System.out.println(json("status",e.status()>=0?e.status():e.kind()==TransitException.Kind.UNKNOWN_OUTCOME?6:1,"value",json("err",e.code(),"diagnostic",e.diagnostic(),"diagnostic_invalid",e.diagnosticInvalid())));}
+        Path path = Path.of(args[0]); JsonObject config = new Gson().fromJson(Files.readString(path), JsonObject.class);
+        try (Catalog.Client client = connect(config)) {
+            System.out.println("{\"ready\":true}"); var reader = new java.io.BufferedReader(new java.io.InputStreamReader(System.in, StandardCharsets.UTF_8));
+            for (String line; (line = reader.readLine()) != null;) {
+                JsonObject action = new Gson().fromJson(line, JsonObject.class); if (action.has("close")) break;
+                JsonObject result = new JsonObject(); result.addProperty("status", 0); result.add("value", scenario(client, config, path.getParent(), action.getAsJsonObject("scenario").get("index").getAsInt())); System.out.println(result);
             }
         }
         System.out.println("{\"closed\":true}");

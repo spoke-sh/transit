@@ -8,272 +8,311 @@ import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
+import java.util.function.Function;
 import java.util.function.Supplier;
 
-/** Typed catalog callers; shared Zig owns signing, authority and durable recovery. */
+/** General Tables; shared Zig owns compilation, authority and durable recovery. */
 public final class Catalog {
     private Catalog() {}
-    private static BigInteger positive(BigInteger value) {
-        u64(value);if(value.signum()==0)throw new IllegalArgumentException("Expected positive catalog identity");return value;
-    }
-    private static String name(String value) {
-        text(value,16);if(value.isEmpty())throw new IllegalArgumentException("Empty catalog name");return value;
-    }
-    private static String metadataName(String value) {
-        name(value);if(!value.matches("[A-Za-z_][A-Za-z_0-9]*"))throw new IllegalArgumentException("Expected ASCII catalog name");return value;
-    }
-    private static long table(long value) {
-        if(value<1 || value>0xffffffffL)throw new IllegalArgumentException("Invalid catalog Table identity");return value;
-    }
-    private static String tag(Enum<?> value) { return Objects.requireNonNull(value).name().toLowerCase(Locale.ROOT); }
-    private static JsonObject fields(JsonElement value,String... names) {
-        JsonObject out=object(value);if(!out.keySet().equals(Set.of(names)))throw incompatible("catalog-fields");return out;
-    }
-    private static JsonElement result(JsonElement value,String key) { return fields(value,key).get(key); }
-    private static <E extends Enum<E>> E variant(Class<E> type,JsonElement value) {
-        String text=string(value);
-        try { E out=Enum.valueOf(type,text.toUpperCase(Locale.ROOT));if(!tag(out).equals(text))throw incompatible("catalog-variant");return out; }
-        catch(IllegalArgumentException error) { throw incompatible("catalog-variant"); }
-    }
-    public enum Type { INT64, BOOLEAN, UTF8, BINARY }
+    static final JsonObject CONTRACT = resource("/io/transit/sdk/station/contract.json");
+    public static final String DEFINITION = string(CONTRACT.get("definition"));
+    static int limit(String name) { return CONTRACT.getAsJsonObject("limits").get(name).getAsInt(); }
+    static BigInteger positive(BigInteger value) { u64(value); if (value.signum() == 0) throw new IllegalArgumentException("Expected positive Table identity"); return value; }
+    static String name(String value) { text(value, 255); if (value.isEmpty() || value.indexOf(0) >= 0) throw new IllegalArgumentException("Invalid Table name"); return value; }
+    static String definition(String value) { if (!DEFINITION.equals(value)) throw new IllegalArgumentException("Missing or foreign Table definition"); return value; }
+    static Bytes digest(Bytes value) { if (value.size() != 32) throw new IllegalArgumentException("Expected digest"); return value; }
+    static String hex(Bytes value) { return HexFormat.of().formatHex(value.copy()); }
+    static long u32(long value) { if (value < 1 || value > 0xffffffffL) throw new IllegalArgumentException("Expected positive uint32"); return value; }
+    public enum Kind { CREATE, ALTER, RENAME, DROP, INSERT, UPDATE, DELETE }
+    public enum Phase { PREPARING, DELEGATED, BUILDING, APPLIED, UNCHANGED, REJECTED, CANCELLED }
     public enum Observation { PENDING, PROCESSED }
-    public enum Outcome { APPLIED, NAME_CONFLICT, OBJECT_CONFLICT, TABLE_CONFLICT }
-    public enum Origin { EXTERNAL, PROCESS, EFFECT }
-    public enum DispositionOutcome { INITIALIZED, POLICY_APPLIED, INVALID_COMMAND, DENIED, IDENTITY_CONFLICT, STALE_POLICY }
-    public record Scope(ResourceRef resource,BigInteger catalog) {
-        public Scope { Objects.requireNonNull(resource);positive(catalog); }
-        JsonObject wire() { return obj("realm",resource.realm(),"resource",resource.resource(),"catalog",catalog.toString()); }
+    public enum UploadPhase { UPLOADING, SEALED, READY, CANCELLED }
+    public enum DispositionOutcome { INITIALIZED, POLICY_APPLIED, DEPENDENCY_APPLIED, INVALID_COMMAND, BLOCKED, DENIED, IDENTITY_CONFLICT, STALE_POLICY }
+    public enum Control { CANCEL_OPERATION, CLEANUP_OPERATION, CANCEL_UPLOAD, COLLECT_UPLOAD }
+    public enum DependencyKind { QUERY_SOURCE, WRITER, WATCH, MAINTAINED_RELATION, HISTORY }
+    public record Scope(ResourceRef resource, BigInteger catalog) {
+        public Scope { Objects.requireNonNull(resource); positive(catalog); }
+        JsonObject wire() { return obj("realm", resource.realm(), "resource", resource.resource(), "catalog", catalog.toString()); }
     }
-    public record Connection(ProcessRef owner,Scope scope) {
-        public Connection {
-            Objects.requireNonNull(owner);Objects.requireNonNull(scope);
-            if(owner.realm()!=scope.resource().realm())throw new IllegalArgumentException("Catalog requires one realm");
-        }
+    public record Connection(ProcessRef owner, Scope scope) {
+        public Connection { Objects.requireNonNull(owner); Objects.requireNonNull(scope); if (owner.realm() != scope.resource().realm()) throw new IllegalArgumentException("Catalog requires one realm"); }
         JsonObject wire(Credential identity) {
-            if(identity.realm()!=owner.realm())throw new IllegalArgumentException("Different credential realm");
-            return obj("scope",scope.wire(),"owner",owner.pid(),"principal",identity.principal());
+            if (identity.realm() != owner.realm()) throw new IllegalArgumentException("Different credential realm");
+            return obj("scope", scope.wire(), "owner", owner.pid(), "principal", identity.principal());
         }
     }
-    public record Configuration(Scope scope,ProcessRef owner,long administrator) {
-        public Configuration { new Connection(owner,scope);counter(administrator,1); }
-        JsonObject wire() { return obj("scope",scope.wire(),"owner",owner.pid(),"administrator",administrator); }
+    public record TableLimits(long recordBytes, BigInteger stagingBytes, long stagingRecords) {
+        public TableLimits { u32(recordBytes); positive(stagingBytes); u32(stagingRecords); if (stagingBytes.compareTo(BigInteger.valueOf(recordBytes)) < 0) throw new IllegalArgumentException("Staging quota cannot hold a record"); }
+        JsonObject wire() { return obj("record_bytes", recordBytes, "staging_bytes", stagingBytes.toString(), "staging_records", stagingRecords); }
     }
-    public record Schema(List<String> names,Type valueType) {
+    public record Configuration(Scope scope, ProcessRef owner, long administrator, TableLimits tableLimits) {
+        public Configuration { new Connection(owner, scope); counter(administrator, 1); Objects.requireNonNull(tableLimits); }
+        JsonObject wire() { return obj("scope", scope.wire(), "owner", owner.pid(), "administrator", administrator, "table_limits", tableLimits.wire()); }
+    }
+    public record Rights(boolean inspect, boolean create, boolean read, boolean insert, boolean update, boolean delete, boolean alter, boolean drop) {
+        JsonObject wire() { return obj("inspect", inspect, "create", create, "read", read, "insert", insert, "update", update, "delete", delete, "alter", alter, "drop", drop); }
+    }
+    public record Policy(Scope scope, long principal, BigInteger revision, Rights rights) {
+        public Policy { Objects.requireNonNull(scope); counter(principal, 0); positive(revision); Objects.requireNonNull(rights); }
+        JsonObject wire() { JsonObject out = obj("scope", scope.wire(), "principal", principal, "revision", revision.toString()); rights.wire().entrySet().forEach(e -> out.add(e.getKey(), e.getValue())); return out; }
+    }
+    public record PolicyChange(BigInteger expectedRevision, Policy policy) {
+        public PolicyChange { u64(expectedRevision); Objects.requireNonNull(policy); if (!policy.revision().equals(expectedRevision.add(BigInteger.ONE))) throw new IllegalArgumentException("Expected successor policy revision"); }
+        JsonObject wire() { return obj("expected_revision", expectedRevision.toString(), "policy", policy.wire()); }
+    }
+    public record Column(BigInteger id, String name, Logical.Descriptor type, boolean nullable, Optional<Logical.Cell> defaultValue, Optional<Long> maxCharacters) {
+        public Column { positive(id); Catalog.name(name); Objects.requireNonNull(type); Objects.requireNonNull(defaultValue); maxCharacters.ifPresent(Catalog::u32); }
+        public Column(BigInteger id, String name, Logical.Descriptor type) { this(id, name, type, true, Optional.empty(), Optional.empty()); }
+        JsonObject wire() { JsonObject out = columnWire(name, type, nullable, defaultValue, maxCharacters); out.addProperty("id", id.toString()); return out; }
+    }
+    static JsonObject columnWire(String name, Logical.Descriptor type, boolean nullable, Optional<Logical.Cell> defaultValue, Optional<Long> maxCharacters) {
+        return obj("name", name, "type", Logical.typeWire(type), "nullable", nullable, "default", defaultValue.map(Logical::cellWire).orElse(null), "max_characters", maxCharacters.orElse(null));
+    }
+    public record Schema(BigInteger object, BigInteger revision, BigInteger nextColumn, List<Column> columns, List<BigInteger> primaryKey) {
         public Schema {
-            names=List.copyOf(names);if(names.size()!=2)throw new IllegalArgumentException("Catalog requires two column names");
-            names.forEach(Catalog::name);Objects.requireNonNull(valueType);
+            positive(object); positive(revision); positive(nextColumn); columns = Logical.owned(columns, 128); primaryKey = Logical.owned(primaryKey, columns.size());
+            if (columns.isEmpty()) throw new IllegalArgumentException("Expected Table columns"); primaryKey.forEach(Catalog::positive);
         }
-        JsonObject wire() { JsonArray list=new JsonArray();names.forEach(list::add);return obj("names",list,"value_type",tag(valueType)); }
-    }
-    public record CreateTable(Scope scope,BigInteger operation,BigInteger object,long table,String name,Schema schema) {
-        public CreateTable { Objects.requireNonNull(scope);positive(operation);positive(object);Catalog.table(table);Catalog.name(name);Objects.requireNonNull(schema); }
-        JsonObject wire() { return obj("scope",scope.wire(),"operation",operation.toString(),"object",object.toString(),"table",table,"name",name,"schema",schema.wire()); }
-    }
-    public record Policy(Scope scope,long principal,BigInteger revision,boolean inspect,boolean create) {
-        public Policy { Objects.requireNonNull(scope);counter(principal,0);positive(revision); }
-        JsonObject wire() { return obj("scope",scope.wire(),"principal",principal,"revision",revision.toString(),"inspect",inspect,"create",create); }
-    }
-    public record PolicyChange(BigInteger expectedRevision,Policy policy) {
-        public PolicyChange { u64(expectedRevision);Objects.requireNonNull(policy); }
-        JsonObject wire() { return obj("expected_revision",expectedRevision.toString(),"policy",policy.wire()); }
-    }
-    public record Compiled(CreateTable request,Bytes canonical) {
-        public Compiled {
-            Objects.requireNonNull(request);Objects.requireNonNull(canonical);
-            if(canonical.size()==0 || canonical.size()>256)throw new IllegalArgumentException("Invalid catalog canonical length");
+        public Schema(BigInteger object, BigInteger revision, BigInteger nextColumn, List<Column> columns) { this(object, revision, nextColumn, columns, List.of()); }
+        JsonObject wire() {
+            JsonArray cols = new JsonArray(), keys = new JsonArray(); columns.forEach(c -> cols.add(c.wire())); primaryKey.forEach(k -> keys.add(k.toString()));
+            JsonObject result = obj("definition", DEFINITION, "object", object.toString(), "revision", revision.toString(), "next_column", nextColumn.toString(), "columns", cols, "primary_key", keys);
+            text(result.toString(), 2 * 1024 * 1024); return result;
         }
     }
-    /** Save unchanged before submission, including before awaiting its future. */
-    public record Prepared(Bytes bytes) {
-        public Prepared {
-            Objects.requireNonNull(bytes);if(bytes.size()==0 || bytes.size()>8192)throw new IllegalArgumentException("Invalid saved catalog length");text(bytes.copy());
-        }
-        String wire() { return text(bytes.copy()); }
+    public record Identity(BigInteger operation, BigInteger namespace) {
+        public Identity { positive(operation); positive(namespace); }
+        JsonObject wire() { return obj("operation", operation.toString(), "namespace", namespace.toString()); }
     }
-    public record Capabilities(int version,String definition,boolean initialize,boolean createTable,boolean conditionalPolicy,boolean currentMetadata,int maxSavedBytes,int tableColumns) {}
-    public record Description(Configuration configuration,Policy policy,long resourceRevision) {}
-    public record TableSource(long table,Schema schema) {
-        public TableSource {
-            Catalog.table(table);Objects.requireNonNull(schema);schema.names().forEach(Catalog::metadataName);
-            if(schema.names().get(0).equals(schema.names().get(1)))throw new IllegalArgumentException("Duplicate catalog columns");
-        }
+    public record Basis(BigInteger object, BigInteger revision, Bytes schemaFingerprint) {
+        public Basis { positive(object); positive(revision); digest(schemaFingerprint); }
+        JsonObject wire() { return obj("object", object.toString(), "revision", revision.toString(), "schema_fingerprint", hex(schemaFingerprint)); }
     }
-    public record Definition(Scope scope,BigInteger object,BigInteger revision,String name,TableSource source,long principal,BigInteger operation,long input) {
-        public Definition { Objects.requireNonNull(scope);positive(object);positive(revision);metadataName(name);Objects.requireNonNull(source);counter(principal,0);positive(operation);counter(input,1); }
+    public record Metadata(Scope scope, BigInteger object, BigInteger revision, String name, Bytes schemaFingerprint, long principal, BigInteger operation, long admittedInput) {
+        public Metadata { Objects.requireNonNull(scope); positive(object); positive(revision); Catalog.name(name); digest(schemaFingerprint); counter(principal, 0); positive(operation); counter(admittedInput, 1); }
+        public Basis basis() { return new Basis(object, revision, schemaFingerprint); }
     }
-    /** Persist all original fields; never supply a default compatibility definition. */
-    public record Cursor(String definition,Scope scope,long resourceRevision,String after) {
-        public Cursor {
-            if(!string(CONTRACT.get("definition")).equals(definition))throw new IllegalArgumentException("Foreign catalog cursor definition");
-            Objects.requireNonNull(scope);counter(resourceRevision,1);metadataName(after);
-        }
-        JsonObject wire() { return obj("definition",definition,"scope",scope.wire(),"resource_revision",resourceRevision,"after",after); }
+    public record Head(BigInteger revision, BigInteger rows, BigInteger pending) { public Head { positive(revision); u64(rows); u64(pending); } }
+    public record Entry(Metadata metadata, Head head) { public Entry { Objects.requireNonNull(metadata); Objects.requireNonNull(head); } }
+    public record Definition(Metadata metadata, Head head, Schema schema) {}
+    public record HistoricalDefinition(Metadata metadata, Schema schema) {}
+    public record Cursor(String definition, Scope scope, long resourceRevision, BigInteger afterObject) {
+        public Cursor { Catalog.definition(definition); Objects.requireNonNull(scope); counter(resourceRevision, 0); positive(afterObject); }
+        JsonObject wire() { return obj("definition", definition, "scope", scope.wire(), "resource_revision", resourceRevision, "after_object", afterObject.toString()); }
     }
-    public record Page(long resourceRevision,List<Definition> entries,Optional<Cursor> next) {
+    public record Page(long resourceRevision, List<Entry> entries, Optional<Cursor> next) {
         public Page {
-            counter(resourceRevision,1);entries=List.copyOf(entries);Objects.requireNonNull(next);
-            if(entries.size()>8)throw new IllegalArgumentException("At most eight catalog definitions");
-            for(int i=1;i<entries.size();i++) {
-                Definition a=entries.get(i-1),b=entries.get(i);
-                if(!a.scope().equals(b.scope()) || a.name().compareTo(b.name())>=0)throw new IllegalArgumentException("Expected ordered definitions in one scope");
+            counter(resourceRevision, 0); entries = Logical.owned(entries, 8); Objects.requireNonNull(next);
+            for (int i = 1; i < entries.size(); i++) {
+                Metadata a = entries.get(i - 1).metadata(), b = entries.get(i).metadata();
+                if (!a.scope().equals(b.scope()) || a.object().compareTo(b.object()) >= 0) throw new IllegalArgumentException("Unordered or foreign Table entries");
             }
-            if(next.isPresent()) {
-                Cursor c=next.get();Definition last=entries.isEmpty()?null:entries.get(entries.size()-1);
-                if(last==null || !c.scope().equals(last.scope()) || !c.after().equals(last.name()) || c.resourceRevision()!=resourceRevision)throw new IllegalArgumentException("Cursor differs from catalog page");
+            if (next.isPresent()) {
+                Cursor c = next.get(); Metadata last = entries.isEmpty() ? null : entries.getLast().metadata();
+                if (c.resourceRevision() != resourceRevision || (last != null && (!c.scope().equals(last.scope()) || c.afterObject().compareTo(last.object()) < 0))) throw new IllegalArgumentException("Invalid Table continuation");
             }
         }
     }
-    public record Receipt(CreateTable request,long principal,long input,Outcome outcome,JsonObject diagnostic) {}
-    public record Disposition(Scope scope,Origin origin,long principal,long input,Bytes payload,DispositionOutcome outcome,JsonObject diagnostic) {}
-
-    private static Scope scope(JsonElement value) {
-        JsonObject v=fields(value,"realm","resource","catalog");return new Scope(new ResourceRef(number(v.get("realm"),1),number(v.get("resource"),1)),NativeValues.wide(v.get("catalog"),true));
+    public record Reference(String definition, Bytes digest) {
+        public Reference { Catalog.definition(definition); Catalog.digest(digest); }
+        JsonObject wire() { return obj("definition", definition, "digest", hex(digest)); }
     }
-    private static Configuration configuration(JsonElement value) {
-        JsonObject v=fields(value,"scope","owner","administrator");Scope s=scope(v.get("scope"));return new Configuration(s,new ProcessRef(s.resource().realm(),number(v.get("owner"),1)),number(v.get("administrator"),1));
+    /** Persist both fields unchanged before sending a step. */
+    public record SavedIntent(String definition, byte[] bytes) {
+        public SavedIntent { Catalog.definition(definition); bytes = io.transit.client.internal.Values.bytes(bytes, limit("catalog_intent_bytes")); if (bytes.length == 0) throw new IllegalArgumentException("Empty Table intent"); }
+        @Override public byte[] bytes() { return bytes.clone(); }
+        @Override public boolean equals(Object other) { return other instanceof SavedIntent saved && definition.equals(saved.definition) && Arrays.equals(bytes, saved.bytes); }
+        @Override public int hashCode() { return 31 * definition.hashCode() + Arrays.hashCode(bytes); }
+        @Override public String toString() { return "SavedIntent[owned recovery bytes=" + bytes.length + "]"; }
+        JsonObject wire() { return obj("definition", definition, "bytes", HexFormat.of().formatHex(bytes)); }
     }
-    private static Policy policy(JsonElement value) {
-        JsonObject v=fields(value,"scope","principal","revision","inspect","create");return new Policy(scope(v.get("scope")),number(v.get("principal"),0),NativeValues.wide(v.get("revision"),true),bool(v.get("inspect")),bool(v.get("create")));
+    public record Prepared(Bytes bytes) {
+        public Prepared { Objects.requireNonNull(bytes); if (bytes.size() == 0 || bytes.size() > limit("catalog_prepared_bytes")) throw new IllegalArgumentException("Invalid prepared Table length"); text(bytes.copy()); }
+        String wire() { return text(bytes.copy()); }
+        @Override public String toString() { return "Prepared[owned signed command]"; }
     }
-    private static CreateTable request(JsonElement value) {
-        JsonObject v=fields(value,"scope","operation","object","table","name","schema");JsonObject schema=fields(v.get("schema"),"names","value_type");
-        JsonElement names=schema.get("names");if(!names.isJsonArray() || names.getAsJsonArray().size()!=2)throw incompatible("catalog-columns");
-        return new CreateTable(scope(v.get("scope")),NativeValues.wide(v.get("operation"),true),NativeValues.wide(v.get("object"),true),table(number(v.get("table"),1)),name(string(v.get("name"))),new Schema(names.getAsJsonArray().asList().stream().map(item -> name(string(item))).toList(),variant(Type.class,schema.get("value_type"))));
+    public record Intent(Reference reference, Scope scope, ProcessRef owner, long principal, Identity identity, BigInteger object, Kind kind) {}
+    public record Compiled(Intent intent, SavedIntent saved) {}
+    public record Counts(BigInteger matched, BigInteger changed) {
+        public Counts { u64(matched); u64(changed); if (changed.compareTo(matched) > 0) throw new IllegalArgumentException("Changed exceeds matched"); }
     }
-    private static <T> T metadata(Supplier<T> decode) {
-        try { return decode.get(); }
-        catch(TransitException error) { throw error; }
-        catch(IllegalArgumentException | IllegalStateException | NullPointerException error) { throw incompatible("catalog-metadata"); }
+    public record Outcome(Kind kind, BigInteger operation, BigInteger object, Optional<BigInteger> actualObject, Phase phase, boolean terminal, Optional<Counts> counts, long admittedInput, Optional<Long> completedInput, JsonObject diagnostic) {
+        public Outcome { diagnostic = CatalogValues.diagnostic(diagnostic); }
+        @Override public JsonObject diagnostic() { return diagnostic.deepCopy(); }
     }
-    private static Optional<Definition> definition(JsonElement value) {
-        if(value.isJsonNull())return Optional.empty();
-        JsonObject v=fields(value,"scope","object","revision","name","source","principal","operation","input");
-        JsonObject table=fields(fields(v.get("source"),"table").get("table"),"id","schema");
-        JsonObject schema=fields(table.get("schema"),"names","value_type");JsonElement names=schema.get("names");
-        if(!names.isJsonArray() || names.getAsJsonArray().size()!=2)throw incompatible("catalog-columns");
-        TableSource source=new TableSource(number(table.get("id"),1),new Schema(names.getAsJsonArray().asList().stream().map(item -> metadataName(string(item))).toList(),variant(Type.class,schema.get("value_type"))));
-        return Optional.of(new Definition(scope(v.get("scope")),NativeValues.wide(v.get("object"),true),NativeValues.wide(v.get("revision"),true),string(v.get("name")),source,number(v.get("principal"),0),NativeValues.wide(v.get("operation"),true),number(v.get("input"),1)));
+    public record Upload(UploadPhase phase, int received, int total) {}
+    public record State(Optional<Outcome> outcome, Optional<Upload> upload) {}
+    public record Disposition(long input, DispositionOutcome outcome, JsonObject diagnostic) {
+        public Disposition { diagnostic = CatalogValues.diagnostic(diagnostic); }
+        @Override public JsonObject diagnostic() { return diagnostic.deepCopy(); }
     }
-    static Optional<Definition> resolved(JsonElement value,Scope scope,String name,BigInteger object,BigInteger revision) {
-        return metadata(() -> {
-            Optional<Definition> found=definition(value);
-            if(found.isPresent()) {
-                Definition v=found.get();
-                if(!v.scope().equals(scope) || (name!=null && !v.name().equals(name)) || (object!=null && !v.object().equals(object)) || (revision!=null && !v.revision().equals(revision)))throw incompatible("catalog-request-identity");
-            }
-            return found;
-        });
+    public enum NextKind { SEND, RUNNING, TERMINAL, UPLOAD_CANCELLED }
+    public record Next(NextKind kind, Optional<Prepared> prepared, Optional<Outcome> outcome) {}
+    public record Progress(Observation observation, Optional<Disposition> disposition, Optional<Outcome> outcome, Optional<Upload> upload) {}
+    public record Capabilities(int version, String definition, int maxColumns, int maxRows, int maxSqlBytes, int maxIntentBytes, int maxActionBytes, int maxPreparedBytes, int residentIntents) {}
+    public record Description(Configuration configuration, Policy policy, long resourceRevision) {}
+    public sealed interface AssignmentValue permits Default, CellValue {}
+    public enum Default implements AssignmentValue { VALUE }
+    public record CellValue(Logical.Cell cell) implements AssignmentValue { public CellValue { Objects.requireNonNull(cell); } }
+    public record Assignment(BigInteger column, AssignmentValue value) {
+        public Assignment { positive(column); Objects.requireNonNull(value); }
+        public Assignment(BigInteger column, Logical.Cell value) { this(column, new CellValue(value)); }
+        JsonObject wire() { return obj("column", column.toString(), "value", value instanceof CellValue cell ? obj("cell", Logical.cellWire(cell.cell())) : obj("default", obj())); }
     }
-    private static Optional<Cursor> cursor(JsonElement value) {
-        if(value.isJsonNull())return Optional.empty();
-        JsonObject v=fields(value,"definition","scope","resource_revision","after");
-        return Optional.of(new Cursor(string(v.get("definition")),scope(v.get("scope")),number(v.get("resource_revision"),1),string(v.get("after"))));
+    public sealed interface Predicate permits BooleanOperator, StatePredicate, Comparison { JsonObject wire(); }
+    public enum BooleanOperator implements Predicate {
+        ALL, NEGATE, CONJUNCTION, DISJUNCTION;
+        public JsonObject wire() { return this == ALL ? obj("atom", obj("all", obj())) : obj(Logical.tag(this), obj()); }
     }
-    static Page page(JsonElement value,Scope scope,Optional<Cursor> previous) {
-        return metadata(() -> {
-            JsonObject v=fields(value,"resource_revision","entries","next");JsonElement slots=v.get("entries");
-            if(!slots.isJsonArray() || slots.getAsJsonArray().size()!=8)throw incompatible("catalog-page-slots");
-            List<Definition> entries=new ArrayList<>();boolean ended=false;
-            for(JsonElement slot:slots.getAsJsonArray()) {
-                Optional<Definition> entry=definition(slot);
-                if(entry.isEmpty())ended=true;
-                else { if(ended || !entry.get().scope().equals(scope))throw incompatible("catalog-page-scope");entries.add(entry.get()); }
-            }
-            Page page=new Page(number(v.get("resource_revision"),1),entries,cursor(v.get("next")));
-            if(previous.isPresent()) {
-                Cursor c=previous.get();
-                if(page.resourceRevision()!=c.resourceRevision() || (!entries.isEmpty() && entries.get(0).name().compareTo(c.after())<=0))throw incompatible("catalog-continuation");
-            }
-            return page;
-        });
+    public enum CellState { MISSING, NULL, TYPE_ERROR, VALUE, CONFLICT }
+    public enum CompareOperator { EQ, NE, LT, LE, GT, GE }
+    public record StatePredicate(BigInteger column, CellState state) implements Predicate {
+        public StatePredicate { positive(column); Objects.requireNonNull(state); }
+        public JsonObject wire() { return obj("atom", obj("state", obj("column", column.toString(), "value", Logical.tag(state)))); }
     }
-    private static Capabilities capabilities(JsonElement value) {
-        JsonObject v=fields(value,"version","definition","initialize","create_table","conditional_policy","current_metadata","max_saved_bytes","table_columns");
-        if(number(v.get("version"),1)!=1 || !string(v.get("definition")).equals(string(CONTRACT.get("definition"))) || number(v.get("max_saved_bytes"),1)!=8192 || number(v.get("table_columns"),1)!=2)throw incompatible("catalog-capabilities");
-        return new Capabilities(1,string(v.get("definition")),bool(v.get("initialize")),bool(v.get("create_table")),bool(v.get("conditional_policy")),bool(v.get("current_metadata")),8192,2);
+    public record Comparison(BigInteger column, CompareOperator op, Logical.Atom value) implements Predicate {
+        public Comparison { positive(column); Objects.requireNonNull(op); Objects.requireNonNull(value); }
+        public JsonObject wire() { return obj("atom", obj("compare", obj("column", column.toString(), "op", Logical.tag(op), "value", Logical.atomWire(value)))); }
     }
-    private static Prepared prepared(JsonElement value) { return new Prepared(new Bytes(string(value).getBytes(StandardCharsets.UTF_8))); }
+    static Optional<List<Predicate>> predicates(Optional<List<Predicate>> values) { return values.map(list -> Logical.owned(list, 64)); }
+    static JsonElement predicateWire(Optional<List<Predicate>> values) { if (values.isEmpty()) return JsonNull.INSTANCE; JsonArray array = new JsonArray(); values.get().forEach(v -> array.add(v.wire())); return array; }
+    static JsonArray assignmentsWire(List<Assignment> values) { JsonArray result = new JsonArray(); values.forEach(v -> result.add(v.wire())); return result; }
+    public sealed interface Mutation permits Insert, Update, Delete { Kind kind(); JsonObject wire(); }
+    public record Insert(List<List<Assignment>> rows) implements Mutation {
+        public Insert { rows = Logical.owned(rows, 1024).stream().map(row -> Logical.owned(row, 128)).toList(); if (rows.isEmpty()) throw new IllegalArgumentException("Empty INSERT"); }
+        public Kind kind() { return Kind.INSERT; }
+        public JsonObject wire() { JsonArray values = new JsonArray(); rows.forEach(r -> values.add(assignmentsWire(r))); return obj("action", obj("insert", values), "predicate", null); }
+    }
+    public record Update(List<Assignment> assignments, Optional<List<Predicate>> predicate) implements Mutation {
+        public Update { assignments = Logical.owned(assignments, 128); predicate = predicates(predicate); }
+        public Update(List<Assignment> assignments) { this(assignments, Optional.empty()); }
+        public Kind kind() { return Kind.UPDATE; }
+        public JsonObject wire() { return obj("action", obj("update", assignmentsWire(assignments)), "predicate", predicateWire(predicate)); }
+    }
+    public record Delete(Optional<List<Predicate>> predicate) implements Mutation {
+        public Delete { predicate = predicates(predicate); }
+        public Delete() { this(Optional.empty()); }
+        public Kind kind() { return Kind.DELETE; }
+        public JsonObject wire() { return obj("action", obj("delete", obj()), "predicate", predicateWire(predicate)); }
+    }
+    public sealed interface Change permits AddColumn, DropColumn, RenameColumn, SetDefault, SetNullable, SetType { JsonObject wire(); }
+    public record AddColumn(String name, Logical.Descriptor type, boolean nullable, Optional<Logical.Cell> defaultValue, Optional<Long> maxCharacters) implements Change {
+        public AddColumn { new Column(BigInteger.ONE, name, type, nullable, defaultValue, maxCharacters); }
+        public AddColumn(String name, Logical.Descriptor type) { this(name, type, true, Optional.empty(), Optional.empty()); }
+        public JsonObject wire() { return obj("add", columnWire(name, type, nullable, defaultValue, maxCharacters)); }
+    }
+    public record DropColumn(BigInteger column) implements Change { public DropColumn { positive(column); } public JsonObject wire() { return obj("drop", column.toString()); } }
+    public record RenameColumn(BigInteger column, String name) implements Change { public RenameColumn { positive(column); Catalog.name(name); } public JsonObject wire() { return obj("rename", obj("column", column.toString(), "name", name)); } }
+    public record SetDefault(BigInteger column, Optional<Logical.Cell> value) implements Change { public SetDefault { positive(column); Objects.requireNonNull(value); } public JsonObject wire() { return obj("default", obj("column", column.toString(), "value", value.map(Logical::cellWire).orElse(null))); } }
+    public record SetNullable(BigInteger column, boolean nullable) implements Change { public SetNullable { positive(column); } public JsonObject wire() { return obj("nullable", obj("column", column.toString(), "value", nullable)); } }
+    public record SetType(BigInteger column, Logical.Descriptor type, Optional<Long> maxCharacters) implements Change {
+        public SetType { positive(column); Objects.requireNonNull(type); maxCharacters.ifPresent(Catalog::u32); }
+        public JsonObject wire() { return obj("type", obj("column", column.toString(), "type", Logical.typeWire(type), "max_characters", maxCharacters.orElse(null))); }
+    }
+    public sealed interface Operation permits Create, Alter, Rename, Drop, Mutate { Kind kind(); BigInteger object(); JsonObject wire(); }
+    public record Create(Schema schema, boolean ifNotExists) implements Operation {
+        public Create { Objects.requireNonNull(schema); }
+        public Create(Schema schema) { this(schema, false); }
+        public Kind kind() { return Kind.CREATE; } public BigInteger object() { return schema.object(); }
+        public JsonObject wire() { return obj("create", obj("schema", schema.wire(), "if_not_exists", ifNotExists)); }
+    }
+    public record Alter(Basis basis, Change change) implements Operation {
+        public Alter { Objects.requireNonNull(basis); Objects.requireNonNull(change); }
+        public Kind kind() { return Kind.ALTER; } public BigInteger object() { return basis.object(); }
+        public JsonObject wire() { return obj("alter", obj("basis", basis.wire(), "change", change.wire())); }
+    }
+    public record Rename(Basis basis, String name) implements Operation {
+        public Rename { Objects.requireNonNull(basis); Catalog.name(name); }
+        public Kind kind() { return Kind.RENAME; } public BigInteger object() { return basis.object(); }
+        public JsonObject wire() { return obj("rename", obj("basis", basis.wire(), "name", name)); }
+    }
+    public record Drop(Optional<Basis> basis, boolean ifExists) implements Operation {
+        public Drop { Objects.requireNonNull(basis); }
+        public Drop(Basis basis) { this(Optional.of(basis), false); }
+        public Kind kind() { return Kind.DROP; } public BigInteger object() { return basis.map(Basis::object).orElse(BigInteger.ZERO); }
+        public JsonObject wire() { return obj("drop", obj("basis", basis.map(Basis::wire).orElse(null), "if_exists", ifExists)); }
+    }
+    public record Mutate(Basis basis, Mutation mutation) implements Operation {
+        public Mutate { Objects.requireNonNull(basis); Objects.requireNonNull(mutation); }
+        public Kind kind() { return mutation.kind(); } public BigInteger object() { return basis.object(); }
+        public JsonObject wire() { return obj("mutate", obj("basis", basis.wire(), "mutation", mutation.wire())); }
+    }
+    public record Dependency(Scope scope, BigInteger object, BigInteger identity, ProcessRef owner, DependencyKind kind) {
+        public Dependency { new Connection(owner, scope); positive(object); positive(identity); Objects.requireNonNull(kind); }
+        JsonObject wire(boolean present) { return obj("scope", scope.wire(), "object", object.toString(), "identity", identity.toString(), "owner", owner.pid(), "kind", Logical.tag(kind), "present", present); }
+    }
     static Outcomes.AdmissionReceipt admission(JsonElement value) {
-        try { return new Outcomes.AdmissionReceipt(number(fields(result(value,"receipt"),"position").get("position"),1)); }
-        catch(RuntimeException | OutOfMemoryError error) { throw uncertain(); }
+        try { return new Outcomes.AdmissionReceipt(number(Logical.fields(CatalogValues.result(value, "receipt"), "position").get("position"), 1)); }
+        catch (RuntimeException | OutOfMemoryError error) { throw uncertain(); }
     }
     static Outcomes.AdmissionReceipt submission(Supplier<JsonObject> send) {
         JsonObject reply;
-        try { reply=send.get(); }
-        catch(TransitException error) { throw error; }
-        catch(RuntimeException | OutOfMemoryError error) { throw uncertain(); }
+        try { reply = send.get(); } catch (TransitException error) { throw error; } catch (RuntimeException | OutOfMemoryError error) { throw uncertain(); }
         return admission(reply);
     }
-    static Receipt receipt(JsonElement value,CreateTable original) {
-        JsonObject v=fields(value,"request","principal","input","outcome","diagnostic");CreateTable actual=request(v.get("request"));
-        if(!actual.equals(original))throw incompatible("catalog-original-request");
-        return new Receipt(actual,number(v.get("principal"),0),number(v.get("input"),1),variant(Outcome.class,v.get("outcome")),object(v.get("diagnostic")).deepCopy());
-    }
-    private static TransitException uncertain() { return new TransitException(TransitException.Kind.UNKNOWN_OUTCOME,6,null,"catalog-submit"); }
-    /** One bounded owned port; cancelling a future does not release native work. */
+    private static TransitException uncertain() { return new TransitException(TransitException.Kind.UNKNOWN_OUTCOME, 6, null, "catalog-submit"); }
+    /** One owned port and intent. Cancelling a future does not cancel native work. */
     public static final class Client implements AutoCloseable {
         private final Connection connection;
-        private final Worker<Bridge,Void> worker;
-        private Client(ClientConfig config,Credential credential,Connection connection) {
-            connection.wire(credential);this.connection=connection;
-            worker=new Worker<>(() -> {
-                Bridge bridge=Bridge.catalog(config,credential,connection);
+        private final long principal;
+        private final Worker<Bridge, Void> worker;
+        private Client(ClientConfig config, Credential credential, Connection connection) {
+            connection.wire(credential); this.connection = connection; this.principal = credential.principal();
+            worker = new Worker<>(() -> {
+                Bridge bridge = Bridge.catalog(config, credential, connection);
                 try {
-                    Capabilities caps=Catalog.capabilities(result(bridge.catalog(obj("capabilities",obj())),"capabilities"));
-                    if(!caps.initialize() || !caps.createTable() || !caps.conditionalPolicy() || !caps.currentMetadata())throw new TransitException(TransitException.Kind.UNSUPPORTED_CAPABILITY,"catalog-capabilities");
+                    Capabilities caps = CatalogValues.decode(() -> CatalogValues.capabilities(CatalogValues.result(bridge.catalog(obj("capabilities", obj())), "capabilities")));
+                    if (!CatalogValues.supported(caps)) throw new TransitException(TransitException.Kind.UNSUPPORTED_CAPABILITY, "catalog-capabilities");
                     return bridge;
-                } catch(RuntimeException | Error error) { bridge.close();throw error; }
+                } catch (RuntimeException | Error error) { bridge.close(); throw error; }
             });
         }
-        public static Client open(ClientConfig config,Credential credential,Connection connection) { return new Client(config,credential,connection); }
+        public static Client open(ClientConfig config, Credential credential, Connection connection) { return new Client(config, credential, connection); }
         public Connection connection() { return connection; }
-        public CompletableFuture<Capabilities> capabilities() { return worker.submit(b -> Catalog.capabilities(result(b.catalog(obj("capabilities",obj())),"capabilities"))); }
-        public CompletableFuture<Description> describe() {
-            return worker.submit(b -> {JsonObject v=fields(result(b.catalog(obj("describe",obj())),"description"),"configuration","policy","resource_revision");return new Description(configuration(v.get("configuration")),policy(v.get("policy")),number(v.get("resource_revision"),0));});
+        private <T> CompletableFuture<T> read(JsonObject action, String field, Function<JsonElement, T> decode) {
+            text(action.toString(), limit("catalog_action_bytes"));
+            return worker.submit(b -> { JsonObject response = b.catalog(action); return CatalogValues.decode(() -> decode.apply(CatalogValues.result(response, field))); });
         }
-        public CompletableFuture<Optional<Definition>> lookup(String name) {
-            String requested=metadataName(name);JsonObject action=obj("lookup",requested);
-            return worker.submit(b -> resolved(result(b.catalog(action),"definition"),connection.scope(),requested,null,null));
-        }
-        public CompletableFuture<Optional<Definition>> definition(BigInteger object,BigInteger revision) {
-            JsonObject action=obj("definition",obj("object",positive(object).toString(),"revision",positive(revision).toString()));
-            return worker.submit(b -> resolved(result(b.catalog(action),"definition"),connection.scope(),null,object,revision));
+        public CompletableFuture<Capabilities> capabilities() { return read(obj("capabilities", obj()), "capabilities", CatalogValues::capabilities); }
+        public CompletableFuture<Description> describe() { return read(obj("describe", obj()), "description", v -> CatalogValues.description(v, connection, principal)); }
+        public CompletableFuture<Optional<Definition>> lookup(String name) { String requested = Catalog.name(name); return read(obj("lookup", requested), "definition", v -> CatalogValues.resolved(v, connection.scope(), requested)); }
+        public CompletableFuture<Optional<HistoricalDefinition>> definition(BigInteger object, BigInteger revision) {
+            return read(obj("definition", obj("object", positive(object).toString(), "revision", positive(revision).toString())), "historical", v -> CatalogValues.historical(v, connection.scope(), object, revision));
         }
         public CompletableFuture<Page> list() { return list(Optional.empty()); }
         public CompletableFuture<Page> list(Optional<Cursor> cursor) {
-            Objects.requireNonNull(cursor);JsonObject action=obj("list",cursor.map(Cursor::wire).orElse(null));
-            return worker.submit(b -> page(result(b.catalog(action),"page"),connection.scope(),cursor));
+            if (cursor.isPresent() && !cursor.get().scope().equals(connection.scope())) throw new IllegalArgumentException("Foreign cursor");
+            return read(obj("list", cursor.map(Cursor::wire).orElse(null)), "page", v -> CatalogValues.page(v, connection.scope(), cursor));
         }
-        public CompletableFuture<Compiled> compileSql(String sql,BigInteger operation,BigInteger object,long table) {
-            if(text(sql,4096).isEmpty())throw new IllegalArgumentException("Empty catalog SQL");
-            JsonObject action=obj("compile",obj("sql",sql,"operation",positive(operation).toString(),"object",positive(object).toString(),"table",Catalog.table(table)));
-            return worker.submit(b -> {JsonObject v=fields(result(b.catalog(action),"compiled"),"request","canonical");return new Compiled(request(v.get("request")),new Bytes(unhex(v.get("canonical"),256)));});
+        public CompletableFuture<Compiled> compileSql(String sql, Identity identity, Optional<BigInteger> createObject) {
+            if (text(sql, 4096).isEmpty()) throw new IllegalArgumentException("Empty Table SQL");
+            JsonObject action = obj("compile", obj("sql", sql, "identity", identity.wire(), "create_object", createObject.map(v -> positive(v).toString()).orElse(null)));
+            return read(action, "compiled", v -> CatalogValues.compiled(v, connection, principal, identity, createObject.isPresent() ? Kind.CREATE : null, createObject.orElse(null)));
         }
-        private CompletableFuture<Prepared> prepare(String name,JsonObject value) {
-            JsonObject action=obj(name,value);return worker.submit(b -> prepared(result(b.catalog(action),"prepared")));
+        public CompletableFuture<Compiled> compileSql(String sql, Identity identity) { return compileSql(sql, identity, Optional.empty()); }
+        public CompletableFuture<Compiled> prepare(String name, Identity identity, Operation operation) {
+            JsonObject action = obj("prepare", obj("definition", DEFINITION, "identity", identity.wire(), "name", Catalog.name(name), "action", operation.wire()));
+            return read(action, "compiled", v -> CatalogValues.compiled(v, connection, principal, identity, operation.kind(), operation.object()));
         }
-        public CompletableFuture<Prepared> prepareInitialize(Configuration configuration) { return prepare("prepare_initialize",configuration.wire()); }
-        public CompletableFuture<Prepared> prepareCreate(CreateTable request) { return prepare("prepare_create",request.wire()); }
-        public CompletableFuture<Prepared> preparePolicy(PolicyChange change) { return prepare("prepare_policy",change.wire()); }
-        public CompletableFuture<Outcomes.AdmissionReceipt> submit(Prepared prepared) {
-            JsonObject action=obj("submit",prepared.wire());
-            return worker.submit(b -> submission(() -> b.catalog(action)));
+        public CompletableFuture<Intent> load(SavedIntent saved) { return read(obj("load", saved.wire()), "loaded", v -> CatalogValues.intent(v, connection, principal)); }
+        public CompletableFuture<Void> forget(Reference reference) { return read(obj("forget", reference.wire()), "forgotten", v -> { Logical.fields(v); return null; }); }
+        public CompletableFuture<Next> next(Reference reference) { return read(obj("next", reference.wire()), "next", CatalogValues::next); }
+        public CompletableFuture<State> status(Reference reference) { return read(obj("status", reference.wire()), "state", CatalogValues::state); }
+        private CompletableFuture<Prepared> prepared(String name, JsonObject value) { return read(obj(name, value), "prepared", CatalogValues::prepared); }
+        public CompletableFuture<Prepared> prepareResume(Reference reference) { return prepared("prepare_resume", reference.wire()); }
+        public CompletableFuture<Prepared> prepareControl(Reference reference, Control control) { return prepared("prepare_control", obj("intent", reference.wire(), "control", Logical.tag(control))); }
+        public CompletableFuture<Prepared> prepareInitialize(Configuration value) { return prepared("prepare_initialize", value.wire()); }
+        public CompletableFuture<Prepared> preparePolicy(PolicyChange value) { return prepared("prepare_policy", value.wire()); }
+        public CompletableFuture<Prepared> prepareDependency(Dependency value, boolean present) { return prepared("prepare_dependency", value.wire(present)); }
+        public CompletableFuture<Outcomes.AdmissionReceipt> submit(Prepared prepared) { JsonObject action = obj("submit", prepared.wire()); return worker.submit(b -> submission(() -> b.catalog(action))); }
+        private static JsonObject input(Prepared prepared, long position) { return obj("prepared", prepared.wire(), "input", counter(position, 1)); }
+        public CompletableFuture<Observation> observe(Prepared prepared, long position, boolean wait) { return read(obj(wait ? "wait_observe" : "observe", input(prepared, position)), "observation", v -> Logical.variant(Observation.class, v)); }
+        public CompletableFuture<Observation> observe(Prepared prepared, long position) { return observe(prepared, position, false); }
+        public CompletableFuture<Optional<Disposition>> inputDisposition(Prepared prepared, long position) { return read(obj("input_disposition", input(prepared, position)), "disposition", CatalogValues::disposition); }
+        public CompletableFuture<Progress> progress(Reference reference, Prepared prepared, long position, boolean wait) {
+            JsonObject value = input(prepared, position); value.add("intent", reference.wire()); return read(obj(wait ? "wait_progress" : "progress", value), "progress", CatalogValues::progress);
         }
-        private static JsonObject input(String name,Prepared prepared,long position) { return obj(name,obj("prepared",prepared.wire(),"input",counter(position,1))); }
-        public CompletableFuture<Observation> observe(Prepared prepared,long position) {
-            JsonObject action=input("observe",prepared,position);return worker.submit(b -> variant(Observation.class,result(b.catalog(action),"observation")));
-        }
-        public CompletableFuture<Optional<Disposition>> inputDisposition(Prepared prepared,long position) {
-            JsonObject action=input("input_disposition",prepared,position);
-            return worker.submit(b -> {
-                JsonElement value=result(b.catalog(action),"disposition");if(value.isJsonNull())return Optional.empty();
-                JsonObject v=fields(value,"scope","origin","principal","input","payload","outcome","diagnostic");Bytes payload=new Bytes(unhex(v.get("payload"),32));if(payload.size()!=32)throw incompatible("catalog-payload");
-                return Optional.of(new Disposition(scope(v.get("scope")),variant(Origin.class,v.get("origin")),number(v.get("principal"),0),number(v.get("input"),1),payload,variant(DispositionOutcome.class,v.get("outcome")),object(v.get("diagnostic")).deepCopy()));
-            });
-        }
-        public CompletableFuture<Optional<Receipt>> status(CreateTable original) {
-            JsonObject action=obj("status",original.wire());return worker.submit(b -> {JsonElement value=result(b.catalog(action),"status");return value.isJsonNull()?Optional.empty():Optional.of(receipt(value,original));});
-        }
+        public CompletableFuture<Progress> progress(Reference reference, Prepared prepared, long position) { return progress(reference, prepared, position, false); }
         @Override public void close() { worker.close(); }
     }
 }

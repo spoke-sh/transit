@@ -169,7 +169,7 @@ java-sdk-test: java-build
     python3 -B tests/java_station_sdk.py zig-out/bin/transit-node zig-out/bin/rey-cli zig-out/lib/libtransit_client.so .cache/bindings/java zig-out/bin/transit-station-http-worker
     python3 -B tests/sdk_grpc_runner.py zig-out/bin/transit-node zig-out/bin/rey-cli zig-out/lib/libtransit_client.so zig-out/bin/transit-station-grpc-worker .cache/bindings --language java
     just test::table-mutation --sdk java
-    just test::catalog --sdk java
+    just test::typed-tables --sdk java
 
 # Build isolated .NET NuGet packages with exact native dependencies.
 dotnet-build: build
@@ -388,7 +388,7 @@ catalog-c: c-build
 
 # Installed Java catalog futures, generated port validation and owned recovery.
 catalog-java: java-build
-    just test::catalog --sdk java
+    just test::typed-tables --sdk java
 
 # Installed .NET catalog tasks, generated ABI validation and joined ownership.
 catalog-dotnet: dotnet-build

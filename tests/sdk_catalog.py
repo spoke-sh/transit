@@ -258,12 +258,13 @@ def install_java(target):
         artifacts[filename] = hashlib.sha256(destination.read_bytes()).hexdigest()
     (target / 'artifacts.json').write_text(json.dumps(artifacts))
     environment = {k:v for k,v in os.environ.items() if k not in ('CLASSPATH', 'JAVA_TOOL_OPTIONS', '_JAVA_OPTIONS', 'JDK_JAVA_OPTIONS', 'TRANSIT_HOST', 'TRANSIT_LIBRARY_DIR')}
-    sources = [target / name for name in ('JavaCatalogSdk.java', 'JavaCatalogValues.java')]
+    sources = [target / name for name in ('JavaCatalogSdk.java', 'JavaCatalogValues.java', 'JavaLogicalValues.java', 'JavaSchemaValues.java')]
     for source in sources: shutil.copy2(ROOT / 'tests' / source.name, source)
     classes = target / 'classes'
     classes.mkdir()
     subprocess.run(['javac', '--release', '21', '-Xlint:all', '-Werror', '-cp', str(library / '*'), '-d', str(classes), *map(str, sources)], cwd=target, env=environment, check=True)
     for source in sources: source.unlink()
+    subprocess.run(['java', f'-Djava.io.tmpdir={target}', '-cp', str(classes) + os.pathsep + str(library / '*'), 'JavaSchemaValues'], cwd=target, env=environment, check=True)
     faults = target / 'faults'
     faults.mkdir()
     with zipfile.ZipFile(library / 'transit-native-station-0.2.0.jar') as archive:
