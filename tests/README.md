@@ -10941,6 +10941,17 @@ extended test used an incorrect UTF-8 atom field name and failed compilation;
 the corrected test uses the shared typed byte atom. Signed submission, durable
 console persistence and cross-language recovery integration remain separate.
 
+The general signed caller passes **73/73 catalog tests**
+(`table-client-test2.log`). Canonical prepared envelopes retain exact inline,
+begin, part, resume and cancellation payloads; missing/foreign top-level and
+native definitions, changed connection fields and extra saved bytes reject.
+Signature, scope, reference and intent-step substitution failures reject before
+network access. Metadata methods validate their connection before opening a
+source. The initial compile rejected the Zig-reserved name `resume`; the API is
+`prepareResume`. All caller entry points compile, including current-cut outcome
+batches and bounded notification waits. These tests do not yet qualify successful
+HTTP submission, wait scheduling or disk-backed general-owner recovery.
+
 ## Fuze logical type foundation
 
 The local `Types` profile has nine passing focused Zig tests, including 46

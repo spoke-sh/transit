@@ -153,6 +153,20 @@ Release each restored intent with `deinit`. `matches` ties a saved native send t
 the same command or exact upload/control step. Signed-send persistence and native
 authority remain distinct from this offline intent record.
 
+`TableClient` provides signed preparation/submission, owned metadata reads and
+exact recovery over these general owner hooks. Save the TCI1 intent and each
+`Prepared` send before submission. Retry an uncertain send with its original
+signature and sequence; `next` is for a reconciled successor step. It distinguishes
+running SQL, terminal SQL and cancellation of unadmitted transport. `prepareResume`
+explicitly schedules paused original work. Typed controls expose cancellation,
+candidate/body cleanup and conditional policy/dependency changes.
+
+`progress` checks native mailbox processing before reading application and input
+outcomes at one authorized cut. The notification variants retain only an exact
+input scheduling cursor and preserve bounded capacity backoff. They do not cache
+authorization. This general caller is not yet the console/ABI's configured path;
+those consumers require a coordinated current-definition cutover.
+
 A record owns scope, full-width object and metadata revision, exact name,
 immutable Table schema reference and complete schema fingerprint, principal,
 original operation and admission input. The metadata revision is independent of

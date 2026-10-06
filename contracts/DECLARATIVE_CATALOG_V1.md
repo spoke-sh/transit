@@ -686,3 +686,27 @@ inline body, matching upload header/spec/namespace, exact part offset/bytes, or
 the original DDL/DML cancellation/cleanup reference. Signature authentication and
 native send sequence recovery remain the signed client's responsibility. Neither
 restoration nor a matching transport step establishes application admission.
+
+`TableClient` is the signed general caller. `Prepared` retains mandatory current
+definition, format version 1, exact connection and original signed native send.
+Canonical JSON restoration is bounded to 8,192 bytes and owns every field. Submit
+verifies the connection and signature and makes one transport attempt; it does
+not look up a name, re-sign or retry. A separate TCI1 intent retains large bodies.
+The caller persists both intent and each pending Prepared before sending it.
+
+`next` checks current authorization and original outcomes, then prepares one
+inline send or upload step. It returns running while automatic owner execution
+is pending, terminal evidence when complete, or transport cancellation without
+inventing an SQL receipt. `prepareResume` explicitly schedules the same body or
+ready upload after a pause. It refuses an incomplete or cancelled upload.
+Initialization/policy/dependency and exact cancellation/cleanup controls use the
+same signed transport and current scoped owner checks.
+
+`observe` checks the exact admitted input and owner mailbox progress. `progress`
+then acquires its input disposition, original application outcome and upload
+status at one current authorized resource cut. A terminal SQL result by itself
+does not prove that a particular native send was processed. `waitObserve` and
+`waitProgress` retain only a scheduling cursor for the exact signature/input,
+use bounded change notification, and fall back to a fresh read after bounded
+capacity backoff. They cache no permission or completion claim. Metadata lookup
+and object-ordered listing return owned schemas/pages requiring explicit release.
