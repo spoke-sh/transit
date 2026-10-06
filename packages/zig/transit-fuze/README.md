@@ -41,6 +41,14 @@ stale bindings before reading dependent literals, then returns an independently
 owned plan. The [Table query contract](../../../contracts/TABLE_QUERY_V1.md#canonical-logical-plans)
 defines its byte budget, field layout and separation from query admission.
 
+`LogicalPrepared` owns general logical SELECT templates with typed comparison
+and LIMIT parameters, including Boolean predicates and recursive projections.
+Binding checks the complete source/schema commitment and returns independent
+canonical logical plans. Parameters retain exact integer/decimal/temporal values;
+unsupported comparisons stay unsupported. Input and plan budgets apply before a
+bound result is returned. See the [parameter contract](../../../contracts/SQL_PARAMETERS_V1.md#general-logical-template-compiler)
+for scope, ownership and the separate caller-integration boundary.
+
 `LogicalStream` evaluates bounded logical pages with canonical resumable progress
 and Arrow segments. It shares the pull executor's ordered row operators and
 returns no candidate after an error or cancellation. Its

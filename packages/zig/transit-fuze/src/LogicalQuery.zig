@@ -60,6 +60,12 @@ pub const Plan = struct {
         }
     }
     pub fn fingerprint(self: Plan) ![32]u8 {
+        return self.fingerprintInner() catch |err| switch (err) {
+            error.WriteFailed => error.PlanTooLarge,
+            else => err,
+        };
+    }
+    fn fingerprintInner(self: Plan) ![32]u8 {
         try self.validate();
         var bytes: [8192]u8 = undefined;
         var writer: std.Io.Writer = .fixed(&bytes);

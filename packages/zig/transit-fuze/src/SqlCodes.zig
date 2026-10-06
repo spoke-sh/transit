@@ -7,6 +7,7 @@ pub const Entry = struct {
     hint: ?[]const u8 = null,
 };
 pub const entries = [_]Entry{
+    .{ .cause = error.PlanTooLarge, .code = "sql.plan_too_large", .category = .limit, .summary = "The bound query exceeds the 8192-byte plan identity limit", .hint = "Reduce repeated predicate values or output names. Binding parameters does not remove the finite plan budget." },
     .{ .cause = error.PredicateTooDeep, .code = "sql.predicate_too_deep", .category = .limit, .summary = "The predicate nesting limit is exceeded", .hint = "Keep Table predicate parentheses and NOT nesting below 16 levels." },
     .{ .cause = error.UnsupportedComparison, .code = "sql.unsupported_comparison", .category = .unsupported, .summary = "The column type does not support this comparison", .hint = "Use a comparison qualified for the scalar type, or a state test such as IS NULL. Storage support alone does not imply comparison support." },
     .{ .cause = error.InvalidQuerySchema, .code = "sql.invalid_query_schema", .category = .binding, .summary = "The predicate schema is invalid", .hint = "Bind the predicate to the Table's complete structured schema before execution." },

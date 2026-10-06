@@ -11918,6 +11918,31 @@ and released source pins. Native and port SQL inspection/parameter comparisons
 pass. No installed language SDK or general-Table durable route is claimed by this
 run; its binaries were built before the subsequent logical-template changes.
 
+General logical parameter templates pass the **250-test Fuze suite** through
+full pinned `just check` (`table-logical-prepared-check1.log`). The tests cover
+21 scalar comparison descriptors, exact 128-bit and decimal values, negative
+floating zero, temporal/UUID values, independent canonical plan bytes, compound
+predicates at the 64-instruction bound, 13-column projection, derived input LIMIT
+and ordered SUM shape. Source/name/schema changes reject before result allocation;
+ordinals, descriptor conflicts, malformed positions, unsupported comparisons and
+oversized text/operands retain their actual failure. Owned plans survive releasing
+input and template storage, including exhaustive partial-allocation schedules.
+The first run finds a copied arena state before later growth, plus a reserved
+identifier and a too-generic expected parser error in new tests. Ownership transfer
+and test inputs/expectations are corrected. The second root-unit run passes its
+246-test intermediate suite. The third focused run finds the existing file plan
+budget test expecting `WriteFailed`; it now requires `PlanTooLarge`, and the final
+root suite passes all 250 tests without leaks.
+
+SQL and file diagnostics identify the 8192-byte bound-plan identity limit; codec
+caller-buffer exhaustion remains distinct. The semantic mapping and executed
+outcome matrices pass with those deliberate mappings. `just test::file-query`
+passes **190 real CLI cases** (`table-logical-prepared-file1.log`), including the
+192-MiB input under a 96-MiB address-space limit. Logical template compilation is
+local, with no implicit lookup, snapshot or admission. These passes do not claim
+migration of the neutral parameter, SDK, Flight, Board or console routes, nor a
+new named PREPARE/EXECUTE contract. Committed-HEAD clean qualification is pending.
+
 ## Fuze logical type foundation
 
 The local `Types` profile has nine passing focused Zig tests, including 46

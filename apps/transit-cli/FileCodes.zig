@@ -2,6 +2,7 @@
 const d = @import("transit_query").protocol.Diagnostic;
 pub const Entry = struct { cause: anyerror, code: []const u8, category: d.Category, message: []const u8 };
 pub const entries = [_]Entry{
+    .{ .cause = error.PlanTooLarge, .code = "file.plan_too_large", .category = .limit, .message = "The bound query exceeds the 8192-byte plan identity limit. Reduce repeated predicate values or output names." },
     .{ .cause = error.RaggedCsvRow, .code = "file.ragged_csv_row", .category = .binding, .message = "The CSV record has a different field count from its header." },
     .{ .cause = error.DuplicateField, .code = "file.duplicate_field", .category = .binding, .message = "The input contains a duplicate field name." },
     .{ .cause = error.UnknownField, .code = "file.unknown_field", .category = .binding, .message = "An input field is absent from the frozen schema." },

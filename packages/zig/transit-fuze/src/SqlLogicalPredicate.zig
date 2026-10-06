@@ -8,11 +8,14 @@ const sql = @import("Sql.zig");
 pub const Syntax = struct {
     const Atom = union(enum) {
         state: struct { column: Reference, value: t.State },
-        compare: struct { column: Reference, op: @import("Finite.zig").Comparison, value: Parser.Literal },
+        compare: struct { column: Reference, op: @import("Finite.zig").Comparison, value: union(enum) { literal: Parser.Literal, parameter: sql.Parameter } },
     };
     const Instruction = @import("PredicateMachine.zig").Instruction(Atom);
     instructions: []const Instruction,
     pub fn bind(self: Syntax, allocator: std.mem.Allocator, schema: t.Type, name: []const u8, location: ?*sql.Location) !Predicate.Program {
+        return self.bindParameters(allocator, schema, name, location, null);
+    }
+    pub fn bindParameters(self: Syntax, allocator: std.mem.Allocator, schema: t.Type, name: []const u8, location: ?*sql.Location, parameters: ?[]const t.Values.Atom) !Predicate.Program {
         if (schema != .structure or schema.structure.len == 0 or schema.structure.len > 128) return error.InvalidQuerySchema;
         if (self.instructions.len > Predicate.Program.max_instructions) return error.PredicateTooComplex;
         const instructions = try allocator.alloc(Predicate.Program.Instruction, self.instructions.len);
@@ -25,15 +28,21 @@ pub const Syntax = struct {
                     .state => |state| .{ .state = .{ .column = @intCast(try state.column.resolve(name, schema.structure, location)), .value = state.value } },
                     .compare => |compare| blk: {
                         const index = try compare.column.resolve(name, schema.structure, location);
-                        var failure: ?Parser.Literal.Span = null;
-                        const cell = compare.value.bind(allocator, schema.structure[index].type, &failure) catch |err| {
-                            if (location) |at| at.* = .{ .offset = (failure orelse compare.value.span).start };
-                            return err;
+                        const value = switch (compare.value) {
+                            .parameter => |site| try parameterValue(site, parameters, schema.structure[index].type, location),
+                            .literal => |literal| literal_blk: {
+                                var failure: ?Parser.Literal.Span = null;
+                                const cell = literal.bind(allocator, schema.structure[index].type, &failure) catch |err| {
+                                    if (location) |at| at.* = .{ .offset = (failure orelse literal.span).start };
+                                    return err;
+                                };
+                                if (location) |at| at.* = .{ .offset = literal.span.start };
+                                if (cell == .null) return error.UnsupportedNullComparison;
+                                if (cell != .value or cell.value != .atom) return error.UnsupportedComparison;
+                                break :literal_blk cell.value.atom;
+                            },
                         };
-                        if (location) |at| at.* = .{ .offset = compare.value.span.start };
-                        if (cell == .null) return error.UnsupportedNullComparison;
-                        if (cell != .value or cell.value != .atom) return error.UnsupportedComparison;
-                        const bound: Predicate.Atom = .{ .compare = .{ .column = @intCast(index), .op = compare.op, .value = cell.value.atom } };
+                        const bound: Predicate.Atom = .{ .compare = .{ .column = @intCast(index), .op = compare.op, .value = value } };
                         try bound.validate(schema);
                         break :blk bound;
                     },
@@ -45,6 +54,22 @@ pub const Syntax = struct {
         return result;
     }
 };
+/// The exact expected descriptor controls parameter width and representation.
+/// No literal parse, implicit cast or source error/conflict state is introduced.
+pub fn validateParameter(value: t.Values.Atom, expected: t.Type) !void {
+    if (value == .bytes and value.bytes.len > t.Query.max_cell_bytes) return error.CellTooLarge;
+    try expected.validate(.{});
+    try t.Semantics.validate(value, expected);
+}
+pub fn parameterValue(site: sql.Parameter, parameters: ?[]const t.Values.Atom, expected: t.Type, location: ?*sql.Location) !t.Values.Atom {
+    if (location) |at| at.* = .{ .offset = site.offset };
+    if (site.index == 0) return error.InvalidParameterIndex;
+    const values = parameters orelse return error.UnboundParameters;
+    if (site.index > values.len) return error.ParameterCountMismatch;
+    const value = values[site.index - 1];
+    try validateParameter(value, expected);
+    return value;
+}
 pub fn syntax(parser: *Parser, hints: ?t.Type, name: []const u8, unsupported: anyerror) !Syntax {
     var expression: Expression = .{ .parser = parser, .hints = hints, .name = name, .unsupported = unsupported };
     try expression.disjunction(0);
@@ -113,7 +138,7 @@ const Expression = struct {
         if (self.hints) |schema| if (schema == .structure) {
             if (column.resolve(self.name, schema.structure, null)) |index| expected = schema.structure[index].type else |_| {}
         };
-        const value = try self.parser.literal(expected);
+        const value: @FieldType(@FieldType(Syntax.Atom, "compare"), "value") = if (try self.parser.parameter()) |site| .{ .parameter = site } else .{ .literal = try self.parser.literal(expected) };
         try self.append(.{ .atom = .{ .compare = .{ .column = column, .op = op, .value = value } } });
     }
 };

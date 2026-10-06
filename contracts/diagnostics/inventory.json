@@ -863,6 +863,7 @@
         "OutputWriteFailed": 1,
         "Overflow": 1,
         "OversubscribedHuffmanTree": 1,
+        "PlanTooLarge": 1,
         "QueryConflict": 1,
         "QueryTypeError": 1,
         "RaggedCsvRow": 1,
@@ -6434,6 +6435,41 @@
         "std"
       ]
     },
+    "packages/zig/transit-fuze/src/LogicalPrepared.zig": {
+      "errors": {
+        "InvalidParameterIndex": 1,
+        "InvalidQuerySchema": 1,
+        "ParameterCountMismatch": 1,
+        "ParameterGap": 2,
+        "ParameterTypeConflict": 1,
+        "SourceChanged": 1,
+        "UnsupportedComparison": 1
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "bind()": "<inferred>",
+        "init()": "<inferred>",
+        "register()": "<inferred>",
+        "validate()": "<inferred>",
+        "witness()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 17,
+        "catch": 2
+      },
+      "imports": [
+        "LogicalPlanCodec.zig",
+        "LogicalPredicate.zig",
+        "Sql.zig",
+        "SqlLogicalPredicate.zig",
+        "SqlTyped.zig",
+        "TableSelect.zig",
+        "Types.zig",
+        "std"
+      ]
+    },
     "packages/zig/transit-fuze/src/LogicalQuery.zig": {
       "errors": {
         "DuplicateProjection": 1,
@@ -6444,10 +6480,12 @@
         "InvalidProjection": 2,
         "InvalidQuerySchema": 1,
         "Overflow": 1,
+        "PlanTooLarge": 1,
         "SourceChanged": 1,
         "TypeMismatch": 1,
         "UnknownColumn": 1,
-        "UnsupportedAggregate": 3
+        "UnsupportedAggregate": 3,
+        "WriteFailed": 1
       },
       "outcomes": {
         "Failure.operation": [
@@ -6475,6 +6513,7 @@
         "Execution().<return>.next()": "<inferred>",
         "Execution().<return>.observe()": "<inferred>",
         "Plan.fingerprint()": "<inferred>",
+        "Plan.fingerprintInner()": "<inferred>",
         "Plan.matches()": "<inferred>",
         "Plan.outputSchema()": "<inferred>",
         "Plan.validate()": "<inferred>",
@@ -6484,7 +6523,7 @@
       "open_error_set_uses": 0,
       "propagation": {
         "try": 38,
-        "catch": 6
+        "catch": 7
       },
       "imports": [
         "FileValueDiagnostic.zig",
@@ -7023,6 +7062,7 @@
         "ParameterCountMismatch": 1,
         "ParameterGap": 1,
         "ParameterTypeConflict": 1,
+        "PlanTooLarge": 1,
         "PredicateTooComplex": 1,
         "PredicateTooDeep": 1,
         "PrimaryKeyColumnRequired": 1,
@@ -7291,10 +7331,14 @@
     },
     "packages/zig/transit-fuze/src/SqlLogicalPredicate.zig": {
       "errors": {
+        "CellTooLarge": 1,
+        "InvalidParameterIndex": 1,
         "InvalidQuerySchema": 1,
         "InvalidSqlSyntax": 1,
+        "ParameterCountMismatch": 1,
         "PredicateTooComplex": 2,
         "PredicateTooDeep": 2,
+        "UnboundParameters": 1,
         "UnsupportedComparison": 1,
         "UnsupportedNullComparison": 1
       },
@@ -7302,6 +7346,10 @@
         "Syntax.Atom": [
           "state",
           "compare"
+        ],
+        "Syntax.Atom.compare.value": [
+          "literal",
+          "parameter"
         ]
       },
       "error_sets": {},
@@ -7311,12 +7359,15 @@
         "Expression.disjunction()": "anyerror",
         "Expression.unary()": "anyerror",
         "Syntax.bind()": "<inferred>",
+        "Syntax.bindParameters()": "<inferred>",
+        "parameterValue()": "<inferred>",
         "parse()": "<inferred>",
-        "syntax()": "<inferred>"
+        "syntax()": "<inferred>",
+        "validateParameter()": "<inferred>"
       },
       "open_error_set_uses": 6,
       "propagation": {
-        "try": 33,
+        "try": 38,
         "catch": 1
       },
       "imports": [
@@ -7462,10 +7513,13 @@
         "InvalidBinaryLiteral": 1,
         "InvalidColumnName": 1,
         "InvalidLiteral": 3,
+        "InvalidParameterIndex": 2,
+        "InvalidParameterSite": 1,
         "InvalidSqlSyntax": 8,
         "InvalidTypeParameters": 3,
         "NullableMapKey": 1,
         "TypeBudgetExceeded": 2,
+        "UnboundParameters": 1,
         "UnsupportedConstruct": 1,
         "UnsupportedNestedCharacterLimit": 1,
         "ValueBudgetExceeded": 2
@@ -7483,6 +7537,8 @@
         "dataType()": "anyerror",
         "finish()": "<inferred>",
         "init()": "<inferred>",
+        "initMode()": "<inferred>",
+        "initTemplate()": "<inferred>",
         "literal()": "anyerror",
         "literalValue()": "anyerror",
         "name()": "<inferred>",
@@ -7490,6 +7546,7 @@
         "nested()": "anyerror",
         "nullability()": "<inferred>",
         "number()": "<inferred>",
+        "parameter()": "<inferred>",
         "require()": "<inferred>",
         "requireWord()": "<inferred>",
         "take()": "<inferred>",
@@ -7501,8 +7558,8 @@
       },
       "open_error_set_uses": 5,
       "propagation": {
-        "try": 82,
-        "catch": 3
+        "try": 83,
+        "catch": 4
       },
       "imports": [
         "Sql.zig",
@@ -7943,6 +8000,7 @@
     },
     "packages/zig/transit-fuze/src/TableSelect.zig": {
       "errors": {
+        "InvalidParameterSite": 1,
         "InvalidProjection": 1,
         "InvalidQuerySchema": 2,
         "InvalidSqlSyntax": 1,
@@ -7958,6 +8016,7 @@
         "Selection.lower()": "<inferred>",
         "Selection.parse()": "<inferred>",
         "Syntax.bind()": "<inferred>",
+        "Syntax.bindParameters()": "<inferred>",
         "alias()": "<inferred>",
         "compile()": "<inferred>",
         "compileWithEditor()": "<inferred>",
@@ -7970,7 +8029,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 52,
+        "try": 54,
         "catch": 1
       },
       "imports": [
@@ -8768,6 +8827,7 @@
         "LogicalJson.zig",
         "LogicalPlanCodec.zig",
         "LogicalPredicate.zig",
+        "LogicalPrepared.zig",
         "LogicalQuery.zig",
         "LogicalSchema.zig",
         "LogicalStream.zig",

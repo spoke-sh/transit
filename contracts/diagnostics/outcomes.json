@@ -17030,6 +17030,17 @@
               "stage": "decode"
             }
           }
+        },
+        "PlanTooLarge": {
+          "code": "file.plan_too_large",
+          "category": "limit",
+          "stage": "execute",
+          "actions": [],
+          "scenarios": {
+            "schema_file": {
+              "stage": "decode"
+            }
+          }
         }
       }
     },

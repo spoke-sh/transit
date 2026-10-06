@@ -12,7 +12,8 @@
         "packages/zig/transit-fuze/src/TableSchema.zig",
         "packages/zig/transit-fuze/src/TableEvolution.zig",
         "packages/zig/transit-fuze/src/TableDml.zig",
-        "packages/zig/transit-fuze/src/TableSelect.zig"
+        "packages/zig/transit-fuze/src/TableSelect.zig",
+        "packages/zig/transit-fuze/src/LogicalPrepared.zig"
       ],
       "exclude": [
         "packages/zig/transit-fuze/src/SqlCodes.zig",
@@ -557,6 +558,10 @@
         "InvalidQuerySchema": {
           "code": "sql.invalid_query_schema",
           "category": "binding"
+        },
+        "PlanTooLarge": {
+          "code": "sql.plan_too_large",
+          "category": "limit"
         }
       }
     },
@@ -3967,6 +3972,10 @@
         "InvalidColumnCount": {
           "code": "file.invalid_row_shape",
           "category": "integrity"
+        },
+        "PlanTooLarge": {
+          "code": "file.plan_too_large",
+          "category": "limit"
         }
       }
     }

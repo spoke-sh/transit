@@ -115,16 +115,24 @@ pub const Syntax = struct {
     qualifier: []const u8,
     predicate: ?predicate.Syntax = null,
     limit: ?u64 = null,
+    limit_parameter: ?sql.Parameter = null,
     outer: ?struct { selection: Selection, qualifier: []const u8 } = null,
     pub fn bind(self: Syntax, allocator: std.mem.Allocator, name: []const u8, schema: t.Type, basis: [32]u8, location: ?*sql.Location) !logical.Plan {
+        return self.bindParameters(allocator, name, schema, basis, location, null);
+    }
+    pub fn bindParameters(self: Syntax, allocator: std.mem.Allocator, name: []const u8, schema: t.Type, basis: [32]u8, location: ?*sql.Location, parameters: ?[]const t.Values.Atom) !logical.Plan {
         if (schema != .structure or schema.structure.len == 0 or schema.structure.len > max_columns) return error.InvalidQuerySchema;
         if (!std.mem.eql(u8, self.subject.name, name)) {
             if (location) |at| at.* = .{ .offset = self.subject.span.start };
             return error.UnknownSource;
         }
         var plan = try self.selection.lower(allocator, schema, self.qualifier, basis, location);
-        if (self.predicate) |expression| plan.predicate = .{ .program = try expression.bind(allocator, schema, self.qualifier, location) };
+        if (self.predicate) |expression| plan.predicate = .{ .program = try expression.bindParameters(allocator, schema, self.qualifier, location, parameters) };
         plan.limit = self.limit;
+        if (self.limit_parameter) |site| {
+            if (self.limit != null) return error.InvalidParameterSite;
+            plan.limit = @intCast((try predicate.parameterValue(site, parameters, .uint64, location)).unsigned);
+        }
         if (self.outer) |outer| {
             var fields: [max_columns]t.Field = undefined;
             const input_type = try plan.outputSchema(&fields);
@@ -152,9 +160,13 @@ pub fn syntax(parser: *Parser, hints: ?t.Type) !Syntax {
     if (try parser.takeWord("WHERE")) result.predicate = try predicate.syntax(parser, hints, qualifier, error.UnsupportedConstruct);
     if (try parser.takeWord("LIMIT")) {
         if (selection.aggregate != .rows) return error.UnsupportedAggregateLimit;
-        if (parser.token.tag != .integer) return error.InvalidSqlSyntax;
-        result.limit = std.fmt.parseInt(u64, parser.token.text, 10) catch return error.LiteralOutOfRange;
-        try parser.advance();
+        if (try parser.parameter()) |site| {
+            result.limit_parameter = site;
+        } else {
+            if (parser.token.tag != .integer) return error.InvalidSqlSyntax;
+            result.limit = std.fmt.parseInt(u64, parser.token.text, 10) catch return error.LiteralOutOfRange;
+            try parser.advance();
+        }
     }
     if (derived) {
         try parser.require(.right);

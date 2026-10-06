@@ -20,6 +20,7 @@ pub const LogicalSchema = @import("LogicalSchema.zig");
 pub const Types = @import("Types.zig");
 pub const Unified = @import("Unified.zig");
 pub const Sql = @import("Sql.zig");
+pub const LogicalPrepared = @import("LogicalPrepared.zig");
 pub const Prepared = @import("Prepared.zig");
 pub const SqlDiagnostic = @import("SqlDiagnostic.zig");
 pub const SqlInput = @import("SqlInput.zig");
@@ -63,6 +64,7 @@ test {
     _ = Unified;
     _ = @import("sql_test.zig");
     _ = @import("prepared_test.zig");
+    _ = @import("logical_prepared_test.zig");
     _ = @import("stream_test.zig");
     _ = @import("inspect_test.zig");
     _ = @import("mutation_test.zig");
