@@ -121,6 +121,7 @@ test "typed DML diagnostics preserve compile rejection without narrow-profile or
         try e.expect(std.mem.indexOf(u8, failure.hint, ".resume") == null);
         try e.expect(std.mem.indexOf(u8, failure.hint, "primary-key DELETE") == null);
         try e.expect(std.mem.indexOf(u8, failure.hint, "one to three") == null);
+        if (cause == error.MutationBatchTooLarge) try e.expect(std.mem.indexOf(u8, failure.hint, "4 MiB") != null);
     }
     try e.expectEqual(null, diagnostic.tableDml("DELETE FROM people", error.OutOfMemory, .{}));
     try e.expectEqual(null, diagnostic.tableDml("DELETE FROM people", error.UnknownWriterFailure, .{}));

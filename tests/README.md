@@ -10767,6 +10767,15 @@ reject without publishing a successor. Final evidence is
 cover schema publication helpers; catalog rename/DROP/dependencies, native caller
 admission, disk recovery and performance qualification remain unproved here.
 
+The coordinator tree passes full pinned `just check`, including native/generated
+contracts, all diagnostic gates, unit/CLI checks, frontend suites and the handbook
+build (`schema-coordinators-check2.log`). Its first run stopped at the new typed
+intent scratch-buffer `WriteFailed` cause. That owner now retries within the
+bounded value envelope, projects a full-envelope limit as `MutationBatchTooLarge`,
+and has a reviewed control-flow mapping plus tested 4 MiB guidance. The passing
+run includes that correction. This remains a working-tree check, not committed
+clean CI or qualification of subsequent catalog/runtime integration.
+
 ## Fuze logical type foundation
 
 The local `Types` profile has nine passing focused Zig tests, including 46

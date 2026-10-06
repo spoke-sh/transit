@@ -281,8 +281,8 @@ pub fn tableDml(text: []const u8, cause: anyerror, location: sql.Location) ?Self
         break;
     };
     if (cause == error.MutationBatchTooLarge) {
-        result.summary = "The INSERT row count is outside the statement bound";
-        result.hint = "Use 1 to 1024 rows per INSERT and keep SQL within its 4096-byte statement limit.";
+        result.summary = "The Table mutation exceeds its row or typed-intent bound";
+        result.hint = "Use 1 to 1024 rows per INSERT, keep encoded typed intent within 4 MiB, and SQL within its 4096-byte statement limit.";
     } else if (cause == error.UnsupportedNullComparison) {
         result.summary = "NULL requires a state test";
         result.hint = "Use IS NULL or IS NOT NULL instead of comparing a value to NULL.";

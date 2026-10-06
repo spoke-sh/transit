@@ -150,7 +150,7 @@ const Intent = struct {
         const bytes = t.Codec.encode(value, field, &small) catch |err| blk: {
             if (err != error.WriteFailed) return err;
             large = try self.allocator.alloc(u8, t.Codec.max_bytes);
-            break :blk try t.Codec.encode(value, field, large.?);
+            break :blk t.Codec.encode(value, field, large.?) catch |failure| return if (failure == error.WriteFailed) error.MutationBatchTooLarge else failure;
         };
         try self.part(bytes);
     }

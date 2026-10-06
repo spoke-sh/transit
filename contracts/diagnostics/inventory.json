@@ -6231,7 +6231,7 @@
         "InvalidMutationColumns": 3,
         "InvalidMutationPlan": 1,
         "InvalidSqlSyntax": 1,
-        "MutationBatchTooLarge": 3,
+        "MutationBatchTooLarge": 4,
         "PredicateTooComplex": 1,
         "PredicateTooDeep": 2,
         "UnknownQualifier": 1,
@@ -6240,7 +6240,7 @@
         "UnsupportedMutationPredicate": 1,
         "UnsupportedNullComparison": 1,
         "UnsupportedStatement": 1,
-        "WriteFailed": 1
+        "WriteFailed": 2
       },
       "outcomes": {
         "Action": [
@@ -6272,8 +6272,8 @@
       },
       "open_error_set_uses": 3,
       "propagation": {
-        "try": 110,
-        "catch": 1
+        "try": 109,
+        "catch": 2
       },
       "imports": [
         "Finite.zig",

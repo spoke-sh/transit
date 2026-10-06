@@ -38,6 +38,18 @@
       ],
       "exceptions": [
         {
+          "source": "packages/zig/transit-fuze/src/TableDml.zig",
+          "cause": "WriteFailed",
+          "disposition": "control_flow",
+          "reason": "Typed intent encoding retries the small scratch buffer with the bounded value envelope. A full-envelope failure projects MutationBatchTooLarge; scratch exhaustion is not a transport or SQL syntax failure.",
+          "tests": [
+            {
+              "source": "packages/zig/transit-fuze/src/table_dml_test.zig",
+              "name": "typed intent binds complete rows, predicates and assignment semantics"
+            }
+          ]
+        },
+        {
           "source": "packages/zig/transit-fuze/src/Sql.zig",
           "cause": "IncompleteSql",
           "disposition": "control_flow",
