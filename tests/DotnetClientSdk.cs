@@ -19,6 +19,7 @@ internal static class Program
     }
     public static async Task Main(string[] args)
     {
+        SchemaValues.Run();
         string mode = args[0];
         JsonObject cfg = JsonNode.Parse(await File.ReadAllTextAsync(args[1]))!.AsObject();
         string root = Path.GetDirectoryName(args[1])!;

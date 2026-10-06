@@ -11524,6 +11524,16 @@ checks cover 5,298 links across 524 files; verification retains 59 invariants,
 prefix in the same campaign. This checkpoint does not claim a new full repository
 or clean-CI pass; other SDK/query migrations and final qualification remain.
 
+.NET's generated-schema validator resolves bounded local recursive references
+with isolated roots and rejects missing/external references, invalid siblings,
+unknown validation keywords and non-consuming cycles. Data depth and reference
+hops are bounded separately to prevent uncatchable stack exhaustion. Independent
+nullable/integer/recursive-array fixtures run inside each installed raw-client
+consumer without changing its machine output. The rebuilt NuGet packages and
+installed raw recovery/cancellation/disposal/revoked-retry schedule pass with zero
+compiler warnings (`table-dotnet-schema-{build,raw}1.log`). This qualifies the
+shared validator and raw client; the general .NET Table API remains separate work.
+
 ## Fuze logical type foundation
 
 The local `Types` profile has nine passing focused Zig tests, including 46
