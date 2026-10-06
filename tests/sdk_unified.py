@@ -245,10 +245,10 @@ class CConsumer(Consumer):
         return result
 
 
-def install_c(root, fixtures, language):
+def install_c(root, fixtures, language, packages=ROOT / '.cache/bindings/c'):
     root.mkdir()
     prefix = root/'installed'
-    for artifact in sorted((ROOT/'.cache/bindings/c').glob('*.tar.gz')):
+    for artifact in sorted(packages.glob('*.tar.gz')):
         with tarfile.open(artifact) as archive: archive.extractall(prefix, filter='data')
     env = {k: v for k, v in os.environ.items() if k not in ('TRANSIT_LIBRARY_DIR', 'LD_LIBRARY_PATH', 'LIBRARY_PATH', 'CPATH', 'CPLUS_INCLUDE_PATH', 'C_INCLUDE_PATH')}
     env['PKG_CONFIG_PATH'] = str(prefix/'lib/pkgconfig')

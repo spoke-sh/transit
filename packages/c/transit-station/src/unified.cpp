@@ -1,27 +1,54 @@
 #include "internal.hpp"
+#include "logical_internal.hpp"
 #include <transit/unified_query.h>
 #include <cmath>
 #include <limits>
 using namespace transit::sdk::internal;
 using namespace transit::sdk::station_detail;
+namespace logical = transit::sdk::logical_detail;
 
 struct transit_station_unified_bundle { Bytes bytes; };
 struct transit_station_unified_prepared { Bytes bytes; };
 struct transit_station_unified_cursor { Bytes bytes; };
+struct transit_station_unified_inspection { logical::Arena arena; transit_station_unified_inspection_info info{}; };
 namespace {
 const char *types[] = {"int64","uint64","float64","boolean","utf8","binary"};
 const char *states[] = {"missing","null","type_error","value","conflict"};
 const char *phases[] = {"uploading","sealed","admitted","complete","cancelled","denied","rejected","retired"};
-const char *type_name(transit_station_unified_type v) { require(v>=TRANSIT_UNIFIED_INT64 && v<=TRANSIT_UNIFIED_BINARY,"query-type");return types[v]; }
+const char *type_name(transit_station_unified_decoder_type v) { require(v>=TRANSIT_UNIFIED_INT64 && v<=TRANSIT_UNIFIED_BINARY,"query-type");return types[v]; }
 size_t select_name(const std::string &name,const char *const *names,size_t count) {
     for(size_t i=0;i<count;++i) if(name==names[i])return i;
     fail(TRANSIT_SDK_INCOMPATIBLE_NATIVE,"query-variant");
 }
 std::string string_bytes(transit_sdk_bytes v,size_t bound) { const auto bytes=copy(v,bound);return {bytes.begin(),bytes.end()}; }
-std::string column_wire(const transit_station_unified_column &v) {return "{\"name\":"+quote(text(v.name,64))+",\"type\":"+quote(type_name(v.type))+"}";}
+std::string query_name(const char *value) { const auto out=text(value,255);require(!out.empty(),"query-name");return out; }
+std::string column_wire(const transit_station_unified_column &v) {
+    require(v.type,"query-column-type");return logical::encode(logical::Json::object({
+        {"name",logical::Json::string(query_name(v.name))},{"type",logical::type_json(*v.type)},
+        {"nullable",logical::Json::boolean(v.nullable)},{"optional",logical::Json::boolean(v.optional)}}));
+}
+std::string decoder_column_wire(const transit_station_unified_decoder_column &v) { return "{\"name\":"+quote(text(v.name,32))+",\"type\":"+quote(type_name(v.type))+"}"; }
 std::string columns_wire(const transit_station_unified_column *columns,size_t count) {
-    require(columns && count>0 && count<=8,"query-columns");std::string out="[";
+    require(columns && count>0 && count<=128,"query-columns");std::string out="[";
     for(size_t i=0;i<count;++i){if(i)out+=',';out+=column_wire(columns[i]);}return out+"]";
+}
+std::string table_wire(const transit_station_unified_source &source) {
+    const auto &t=source.source.table;require(t.metadata && t.schema,"query-table-definition");
+    const auto &m=*t.metadata;const auto &s=*t.schema;const auto scope=m.scope;
+    process(t.owner);counter(scope.resource.realm);counter(scope.resource.resource);
+    require(t.owner.realm==scope.resource.realm && source.resource.realm==scope.resource.realm && source.resource.resource==scope.resource.resource && scope.catalog && m.object && m.revision && s.object==m.object,"query-table-identity");
+    require(s.columns && s.column_count>0 && s.column_count<=128,"query-table-columns");
+    require(m.commitment.bytes>0 && m.commitment.bytes<=436,"query-table-metadata");
+    std::vector<transit_logical_field> fields;fields.reserve(s.column_count);
+    for(size_t i=0;i<s.column_count;++i){const auto &c=s.columns[i];const auto name=query_name(c.name);fields.push_back({{reinterpret_cast<const uint8_t*>(c.name),name.size()},c.type,c.nullable,false});}
+    transit_logical_type_view row{};row.kind=TRANSIT_LOGICAL_STRUCTURE;row.as.fields={fields.data(),fields.size()};
+    auto digest=logical::Json::array();for(const auto b:m.commitment.digest)digest.items.push_back(logical::Json::integer(b));
+    using J=logical::Json;
+    return logical::encode(J::object({{"table",J::object({
+        {"scope",J::object({{"realm",J::integer(scope.resource.realm)},{"resource",J::integer(scope.resource.resource)},{"catalog",J::string(decimal(scope.catalog))}})},
+        {"owner",J::integer(t.owner.pid)},{"object",J::string(decimal(m.object))},
+        {"metadata",J::object({{"id",J::string(decimal(m.revision))},{"spec",J::object({{"format",J::integer(0x54434d01)},{"length",J::integer(m.commitment.bytes)},{"digest",digest}})}})},
+        {"row_type",logical::type_json(row)}})}}));
 }
 std::string path_wire(const char *const *names,size_t count) {
     require(count<=8 && (names || !count),"query-path");std::string out="[";
@@ -34,35 +61,26 @@ std::string source_wire(const transit_station_unified_source &v) {
     if(v.kind==TRANSIT_UNIFIED_KV) {
         const auto &k=v.source.kv;source="{\"kv\":{\"prefix\":"+quote(hex(copy(k.prefix,32)))+",\"key\":"+decoder_wire(k.key)+",\"value\":"+decoder_wire(k.value)+"}}";
     }else if(v.kind==TRANSIT_UNIFIED_TABLE) {
-        const auto &t=v.source.table;source="{\"table\":{\"id\":"+decimal(t.id)+",\"names\":["+quote(text(t.names[0],64))+","+quote(text(t.names[1],64))+"],\"value_type\":"+quote(type_name(t.value_type))+"}}";
+        source=table_wire(v);
     }else {
         require(v.kind==TRANSIT_UNIFIED_DOCUMENT,"query-source");const auto &d=v.source.document;const auto &r=d.reference;
         require(r.resource.realm==v.resource.realm && r.resource.resource==v.resource.resource,"query-document-resource");
         require(d.projections && d.projection_count>0 && d.projection_count<=8,"query-projections");
         std::string projections="[";const char *modes[]={"scalar","text","element_counter","element_replica"};
         for(size_t i=0;i<d.projection_count;++i){const auto &p=d.projections[i];require(p.mode>=TRANSIT_UNIFIED_SCALAR && p.mode<=TRANSIT_UNIFIED_ELEMENT_REPLICA,"query-projection-mode");if(i)projections+=',';
-            projections+="{\"column\":"+column_wire(p.column)+",\"path\":"+path_wire(p.path,p.path_count)+",\"relative\":"+(p.relative?"true":"false")+",\"mode\":"+quote(modes[p.mode])+",\"text_bytes\":"+decimal(p.text_bytes)+",\"text_steps\":"+decimal(p.text_steps)+"}";}
+            projections+="{\"column\":"+decoder_column_wire(p.column)+",\"path\":"+path_wire(p.path,p.path_count)+",\"relative\":"+(p.relative?"true":"false")+",\"mode\":"+quote(modes[p.mode])+",\"text_bytes\":"+decimal(p.text_bytes)+",\"text_steps\":"+decimal(p.text_steps)+"}";}
         source="{\"document\":{\"reference\":{\"resource\":"+decimal(r.resource.resource)+",\"document\":"+quote(decimal(r.document))+",\"epoch\":"+quote(decimal(r.epoch))+",\"type_revision\":"+decimal(r.type_revision)+",\"revision\":"+quote(decimal(r.revision))+"},\"change_format\":1,\"expand\":"+(d.has_expansion?path_wire(d.expand,d.expand_count):"null")+",\"projections\":"+projections+"]}}";
     }
     return "{\"version\":1,\"resource\":"+decimal(v.resource.resource)+",\"source\":"+source+"}";
 }
 std::string scalar_wire(const transit_station_unified_scalar &v) {
-    switch(v.type){
-    case TRANSIT_UNIFIED_INT64:return "{\"int64\":"+quote(signed_decimal(v.signed_value))+"}";
-    case TRANSIT_UNIFIED_UINT64:return "{\"uint64\":"+quote(decimal(v.unsigned_value))+"}";
-    case TRANSIT_UNIFIED_FLOAT64:{
-        require(std::isfinite(v.float_value),"query-float");static_assert(sizeof(double)==8 && std::numeric_limits<double>::is_iec559);
-        uint64_t bits;std::memcpy(&bits,&v.float_value,8);Bytes bytes(8);for(size_t i=0;i<8;++i)bytes[i]=static_cast<uint8_t>(bits>>(i*8));
-        return "{\"float_bits\":"+quote(hex(bytes))+"}";}
-    case TRANSIT_UNIFIED_BOOLEAN:return std::string("{\"boolean\":")+(v.boolean?"true}":"false}");
-    case TRANSIT_UNIFIED_UTF8:return "{\"utf8\":"+quote(string_bytes(v.bytes,4096))+"}";
-    case TRANSIT_UNIFIED_BINARY:return "{\"binary\":"+quote(hex(copy(v.bytes,4096)))+"}";
-    }fail(TRANSIT_SDK_INVALID_ARGUMENT,"query-scalar");
+    if(v.kind==TRANSIT_ATOM_UTF8 || v.kind==TRANSIT_ATOM_BINARY)require(v.as.bytes.size<=4096,"query-scalar-bound");
+    return logical::encode(logical::atom_json(v));
 }
 std::string atom_wire(const transit_station_unified_predicate_atom &v) {
     const char *comparisons[]={"eq","ne","lt","le","gt","ge"};
     if(v.kind==TRANSIT_UNIFIED_ALL)return "{\"all\":{}}";
-    require(v.column<8,"query-column");
+    require(v.column<128,"query-column");
     if(v.kind==TRANSIT_UNIFIED_IS_STATE){require(v.state>=TRANSIT_UNIFIED_MISSING && v.state<=TRANSIT_UNIFIED_CONFLICT,"query-state");return "{\"state\":{\"column\":"+decimal(v.column)+",\"value\":"+quote(states[v.state])+"}}";}
     require(v.kind==TRANSIT_UNIFIED_COMPARE,"query-predicate-atom");
     require(v.comparison>=TRANSIT_COMPARE_EQ && v.comparison<=TRANSIT_COMPARE_GE,"query-comparison");
@@ -87,12 +105,12 @@ std::string predicate_wire(const transit_station_unified_plan &v) {
     return result+"]}";
 }
 std::string plan_wire(const transit_station_unified_plan &v) {
-    require(v.projection && v.projection_count>0 && v.projection_count<=8,"query-projection");
+    require(v.projection && v.projection_count>0 && v.projection_count<=128,"query-projection");
     require(v.aggregate>=TRANSIT_AGGREGATE_ROWS && v.aggregate<=TRANSIT_AGGREGATE_COUNT_VALUES,"query-aggregate");
     const char *aggregates[]={"rows","count","sum","count_values"};
     std::string projection="[",names="[";
-    for(size_t i=0;i<8;++i){if(i>=v.projection_count)require(!v.output_names[i],"query-output-names");else{if(i)names+=',';names+=v.output_names[i]?quote(text(v.output_names[i],32)):"null";}}
-    for(size_t i=0;i<v.projection_count;++i){require(v.projection[i]<8,"query-column");if(i)projection+=',';projection+=decimal(v.projection[i]);}
+    for(size_t i=0;i<128;++i){if(i>=v.projection_count)require(!v.output_names[i],"query-output-names");else{if(i)names+=',';names+=v.output_names[i]?quote(query_name(v.output_names[i])):"null";}}
+    for(size_t i=0;i<v.projection_count;++i){require(v.projection[i]<128,"query-column");if(i)projection+=',';projection+=decimal(v.projection[i]);}
     const auto predicate=predicate_wire(v);
     return "{\"version\":1,\"projection\":"+projection+"],\"output_names\":"+names+"],\"predicate\":"+predicate+",\"aggregate\":"+quote(aggregates[v.aggregate])+",\"limit\":"+(v.has_limit?quote(decimal(v.limit)):"null")+"}";
 }
@@ -109,13 +127,16 @@ size_t array_size(const Raw &raw,const Bytes &bytes,const std::string &path,size
 void fixed_bytes(const Raw &raw,const Bytes &bytes,const std::string &path,uint8_t *out,size_t count) {
     const auto value=unhex(raw.field(bytes,path,true),count);require(value.size()==count,"query-reference-width");std::copy(value.begin(),value.end(),out);
 }
-void inspected_name(const Raw &raw,const Bytes &bytes,const std::string &path,char (&out)[33]) {
-    const auto value=raw.field(bytes,path,true);require(value.size()<=32 && value.find('\0')==std::string::npos,"inspection-name");
+template<size_t N> void inspected_name(const Raw &raw,const Bytes &bytes,const std::string &path,char (&out)[N]) {
+    const auto value=raw.field(bytes,path,true);require(!value.empty() && value.size()<N && value.find('\0')==std::string::npos,"inspection-name");
     std::copy(value.begin(),value.end(),out);out[value.size()]='\0';
 }
-transit_station_unified_source_description inspected_columns(const Raw &raw,const Bytes &bytes,const std::string &path) {
-    transit_station_unified_source_description out{};out.column_count=array_size(raw,bytes,path,8);require(out.column_count>0,"inspection-columns");
-    for(size_t i=0;i<out.column_count;++i){const auto column=path+"/"+decimal(i);inspected_name(raw,bytes,column+"/name",out.columns[i].name);out.columns[i].type=static_cast<transit_station_unified_type>(select_name(raw.field(bytes,column+"/type",true),types,6));}
+const transit_logical_type_view *parsed_type(const Raw &raw,const Bytes &bytes,const std::string &path,logical::Arena &arena) {
+    auto *out=arena.array<transit_logical_type_view>(1);const auto text=raw.field(bytes,path);*out=logical::type_from(logical::JsonParser(text).parse(),arena);return out;
+}
+transit_station_unified_source_description inspected_columns(const Raw &raw,const Bytes &bytes,const std::string &path,logical::Arena &arena) {
+    transit_station_unified_source_description out{};out.column_count=array_size(raw,bytes,path,128);require(out.column_count>0,"inspection-columns");
+    for(size_t i=0;i<out.column_count;++i){const auto column=path+"/"+decimal(i);inspected_name(raw,bytes,column+"/name",out.columns[i].name);out.columns[i].type=parsed_type(raw,bytes,column+"/type",arena);out.columns[i].nullable=raw.boolean(bytes,column+"/nullable");out.columns[i].optional=raw.boolean(bytes,column+"/optional");}
     return out;
 }
 // Raw::field serializes parsed JSON canonically. Match the complete tagged
@@ -128,7 +149,7 @@ size_t inspected_tag(const Raw &raw,const Bytes &bytes,const std::string &path,c
     }
     fail(TRANSIT_SDK_INCOMPATIBLE_NATIVE,"inspection-tag");
 }
-transit_station_unified_inspected_atom inspected_atom(const Raw &raw,const Bytes &bytes,const std::string &path) {
+transit_station_unified_inspected_atom inspected_atom(const Raw &raw,const Bytes &bytes,const std::string &path,logical::Arena &arena) {
     transit_station_unified_inspected_atom out{};const char *atoms[]={"all","state","compare"};
     out.kind=static_cast<transit_station_unified_predicate_kind>(inspected_tag(raw,bytes,path,atoms,3));
     const auto payload=path+"/"+atoms[out.kind];
@@ -139,16 +160,16 @@ transit_station_unified_inspected_atom inspected_atom(const Raw &raw,const Bytes
         else {
             const char *comparisons[]={"eq","ne","lt","le","gt","ge"};
             out.comparison=static_cast<transit_station_comparison>(select_name(raw.field(bytes,payload+"/op",true),comparisons,6));
-            out.type=static_cast<transit_station_unified_type>(select_name(raw.field(bytes,payload+"/type",true),types,6));
+            out.type=parsed_type(raw,bytes,payload+"/type",arena);
         }
     }
     return out;
 }
-void inspected_predicate(const Raw &raw,const Bytes &bytes,const std::string &path,transit_station_unified_explanation &out) {
+void inspected_predicate(const Raw &raw,const Bytes &bytes,const std::string &path,transit_station_unified_explanation &out,logical::Arena &arena) {
     const char *predicates[]={"all","state","compare","program"};
     out.predicate=static_cast<transit_station_unified_predicate_kind>(inspected_tag(raw,bytes,path,predicates,4));
     if(out.predicate!=TRANSIT_UNIFIED_PROGRAM){
-        const auto atom=inspected_atom(raw,bytes,path);std::copy_n(atom.column,33,out.column);
+        const auto atom=inspected_atom(raw,bytes,path,arena);std::copy_n(atom.column,256,out.column);
         out.state=atom.state;out.comparison=atom.comparison;out.type=atom.type;return;
     }
     const auto program=path+"/program";
@@ -159,7 +180,7 @@ void inspected_predicate(const Raw &raw,const Bytes &bytes,const std::string &pa
         const auto at=program+"/"+decimal(i);auto &instruction=out.instructions[i];
         instruction.kind=static_cast<transit_station_unified_instruction_kind>(inspected_tag(raw,bytes,at,instructions,4));
         const auto payload=at+"/"+instructions[instruction.kind];
-        if(instruction.kind==TRANSIT_UNIFIED_ATOM){instruction.atom=inspected_atom(raw,bytes,payload);++depth;}
+        if(instruction.kind==TRANSIT_UNIFIED_ATOM){instruction.atom=inspected_atom(raw,bytes,payload,arena);++depth;}
         else {
             const size_t needed=instruction.kind==TRANSIT_UNIFIED_NEGATE?1:2;
             if(raw.field(bytes,payload)!="{}" || depth<needed)fail(TRANSIT_SDK_INCOMPATIBLE_NATIVE,"inspection-program-shape");
@@ -188,44 +209,15 @@ struct NativeQuery {
         return local.result(status,buffer,"query-action",mutation);
     }
 };
-struct OwnedScalar {
-    transit_station_unified_scalar value{};Bytes bytes;
-    transit_station_unified_scalar view_value()const{auto out=value;out.bytes=view(bytes);return out;}
-};
-OwnedScalar scalar_parse(const Raw &raw,const Bytes &bytes,const std::string &path) {
-    const char *names[]={"int64","uint64","float_bits","boolean","utf8","binary"};size_t selected=6;
-    for(size_t i=0;i<6;++i)if(exists(raw,bytes,path+"/"+names[i])){require(selected==6,"query-scalar-union");selected=i;}
-    require(selected<6,"query-scalar");OwnedScalar out;out.value.type=static_cast<transit_station_unified_type>(selected);const auto p=path+"/"+names[selected];
-    if(selected==0)out.value.signed_value=signed_number(raw,bytes,p);
-    else if(selected==1)out.value.unsigned_value=wide(raw,bytes,p);
-    else if(selected==2){const auto data=unhex(raw.field(bytes,p,true),8);require(data.size()==8,"query-float");uint64_t bits=0;for(size_t i=0;i<8;++i)bits|=uint64_t(data[i])<<(8*i);std::memcpy(&out.value.float_value,&bits,8);require(std::isfinite(out.value.float_value),"query-float");}
-    else if(selected==3)out.value.boolean=raw.boolean(bytes,p);
-    else {const auto value=raw.field(bytes,p,true);out.bytes=selected==5?unhex(value,4096):Bytes(value.begin(),value.end());require(out.bytes.size()<=4096,"query-scalar-bound");}
-    return out;
-}
-struct OwnedCell;
-struct OwnedAlternative {uint64_t counter,replica;std::unique_ptr<OwnedCell> cell;};
-struct OwnedCell {
-    transit_station_unified_state state{};OwnedScalar scalar;std::string actual_kind;std::vector<OwnedAlternative> alternatives;
-    transit_station_unified_cell get()const{transit_station_unified_cell out{};out.state=state;out.value=scalar.view_value();std::copy(actual_kind.begin(),actual_kind.end(),out.actual_kind);out.alternative_count=alternatives.size();return out;}
-};
-OwnedCell cell_parse(const Raw &raw,const Bytes &bytes,const std::string &path,bool alternative=false) {
-    OwnedCell out;size_t selected=5;for(size_t i=0;i<5;++i)if(exists(raw,bytes,path+"/"+states[i])){require(selected==5,"query-cell-union");selected=i;}
-    require(selected<5 && (!alternative || (selected>0 && selected<4)),"query-cell-state");out.state=static_cast<transit_station_unified_state>(selected);
-    const auto p=path+"/"+states[selected];
-    if(selected==2){out.actual_kind=raw.field(bytes,p,true);require(out.actual_kind.size()<=16,"query-actual-kind");}
-    else if(selected==3)out.scalar=scalar_parse(raw,bytes,p);
-    else if(selected==4){const auto count=array_size(raw,bytes,p,8);require(count>=2,"query-conflicts");for(size_t i=0;i<count;++i){const auto entry=p+"/"+decimal(i);const auto counter=wide(raw,bytes,entry+"/counter"),replica=wide(raw,bytes,entry+"/replica");require(counter && replica,"query-dot");out.alternatives.push_back({counter,replica,std::make_unique<OwnedCell>(cell_parse(raw,bytes,entry+"/value",true))});}}
-    return out;
-}
+
 }
 struct transit_station_unified_client {
     Worker worker;std::unique_ptr<NativeQuery> native;transit_station_unified_connection connection;
     explicit transit_station_unified_client(transit_station_unified_connection c):connection(c){}
     ~transit_station_unified_client(){worker.close([&]{native.reset();});}
 };
-struct transit_station_unified_page {transit_station_unified_page_info info{};std::array<std::string,8> names;Bytes ipc;std::optional<Bytes> next;};
-struct transit_station_unified_rows {std::vector<std::vector<OwnedCell>> rows;};
+struct transit_station_unified_page {logical::Arena arena;transit_station_unified_page_info info{};std::array<std::string,128> names;Bytes ipc;std::optional<Bytes> next;};
+struct transit_station_unified_rows {logical::Arena arena;std::vector<std::vector<transit_logical_cell_view>> rows;};
 namespace {
 template<class F> transit_sdk_error run(transit_station_unified_client *owner,F &&work){return boundary([&]{require(owner,"query-client");owner->worker.run([&]{require(bool(owner->native),"query-client");work(*owner->native);});});}
 std::unique_ptr<transit_station_unified_prepared> prepared(const Raw &raw,const Bytes &value) {
@@ -235,13 +227,13 @@ std::unique_ptr<transit_station_unified_prepared> prepared(const Raw &raw,const 
 std::unique_ptr<transit_station_unified_page> page_parse(const Raw &raw,const Bytes &v,uint64_t realm) {
     auto out=std::make_unique<transit_station_unified_page>();auto &m=out->info.manifest;const std::string p="page/manifest/",b=p+"basis/";
     m.job=raw.number(v,p+"job");m.source=read_version(raw,v,p+"source");m.requester={realm,raw.number(v,p+"requester")};m.correlation=wide(raw,v,p+"correlation");m.policy_revision=wide(raw,v,p+"policy_revision");fixed_bytes(raw,v,p+"request",m.request,72);
-    const char *kinds[]={"kv","table","document"};m.source_kind=static_cast<transit_station_unified_source_kind>(select_name(raw.field(v,b+"kind",true),kinds,3));m.resource={realm,raw.number(v,b+"resource")};m.revision=raw.number(v,b+"revision",true);
-    digest(raw,v,b+"contract",m.source_digest);digest(raw,v,b+"schema",m.schema_digest);digest(raw,v,p+"plan",m.plan_digest);digest(raw,v,p+"chain",m.chain);
+    const char *kinds[]={"kv","table","document"};m.source_kind=static_cast<transit_station_unified_source_kind>(select_name(raw.field(v,b+"cut/kind",true),kinds,3));m.resource={realm,raw.number(v,b+"cut/resource")};m.revision=raw.number(v,b+"cut/revision",true);
+    digest(raw,v,b+"cut/head",m.source_head);digest(raw,v,b+"contract",m.source_digest);digest(raw,v,b+"schema",m.schema_digest);digest(raw,v,p+"plan",m.plan_digest);digest(raw,v,p+"chain",m.chain);
     m.pages=wide(raw,v,p+"pages");m.scanned=wide(raw,v,p+"scanned");m.selected=wide(raw,v,p+"selected");m.value_count=wide(raw,v,p+"value_count");m.segments=wide(raw,v,p+"segments");m.rows=wide(raw,v,p+"rows");m.byte_count=wide(raw,v,p+"bytes");
     m.has_sum=raw.field(v,p+"sum")!="null";if(m.has_sum)m.sum=signed_number(raw,v,p+"sum");const char *finished[]={"source_end","limit"};m.finished=static_cast<transit_station_unified_finished>(select_name(raw.field(v,p+"finished",true),finished,2));
     out->info.ordinal=wide(raw,v,"page/ordinal");const auto rows=raw.number(v,"page/rows",true);require(rows<=8,"query-row-bound");out->info.rows=static_cast<uint8_t>(rows);
-    out->info.column_count=array_size(raw,v,"page/columns",8);require(out->info.column_count>0,"query-columns");
-    for(size_t i=0;i<out->info.column_count;++i){const auto c="page/columns/"+decimal(i);out->names[i]=raw.field(v,c+"/name",true);require(out->names[i].size()<=64,"query-column-name");out->info.columns[i]={out->names[i].c_str(),static_cast<transit_station_unified_type>(select_name(raw.field(v,c+"/type",true),types,6))};}
+    out->info.column_count=array_size(raw,v,"page/columns",128);require(out->info.column_count>0,"query-columns");
+    for(size_t i=0;i<out->info.column_count;++i){const auto c="page/columns/"+decimal(i);out->names[i]=raw.field(v,c+"/name",true);require(!out->names[i].empty() && out->names[i].size()<=255 && out->names[i].find('\0')==std::string::npos,"query-column-name");out->info.columns[i]={out->names[i].c_str(),parsed_type(raw,v,c+"/type",out->arena),raw.boolean(v,c+"/nullable"),raw.boolean(v,c+"/optional")};}
     out->ipc=unhex(raw.field(v,"page/ipc",true),65536);out->info.ipc=view(out->ipc);
     if(raw.field(v,"page/next")!="null"){const auto next=raw.field(v,"page/next",true);require(next.size()<=4096,"query-cursor-bound");out->next=Bytes(next.begin(),next.end());}
     return out;
@@ -249,9 +241,9 @@ std::unique_ptr<transit_station_unified_page> page_parse(const Raw &raw,const By
 }
 extern "C" {
 transit_sdk_error transit_station_unified_prepare_bundle(const transit_station_unified_source *source,const transit_station_unified_plan *plan,transit_station_unified_budgets budgets,const char *directory,transit_station_unified_bundle **out){
-    Uninterruptible guard;if(out)*out=nullptr;return boundary([&]{require(source && plan && out,"query-bundle");const auto action="{\"prepare\":{\"source\":"+source_wire(*source)+",\"plan\":"+plan_wire(*plan)+",\"limits\":"+limits_wire(budgets)+"}}";auto bundle=std::make_unique<transit_station_unified_bundle>();Worker worker;worker.run([&]{Local local(directory);bundle->bytes=unhex(local.raw.field(codec(local,action),"prepared/bytes",true),16384);});*out=bundle.release();});
+    Uninterruptible guard;if(out)*out=nullptr;return boundary([&]{require(source && plan && out,"query-bundle");const auto action="{\"prepare\":{\"source\":"+source_wire(*source)+",\"plan\":"+plan_wire(*plan)+",\"limits\":"+limits_wire(budgets)+"}}";auto bundle=std::make_unique<transit_station_unified_bundle>();Worker worker;worker.run([&]{Local local(directory);bundle->bytes=unhex(local.raw.field(codec(local,action),"prepared/bytes",true),25069);});*out=bundle.release();});
 }
-transit_sdk_error transit_station_unified_bundle_import(transit_sdk_bytes bytes,transit_station_unified_bundle **out){if(out)*out=nullptr;return boundary([&]{require(out,"query-bundle");*out=new transit_station_unified_bundle{copy(bytes,16384)};});}
+transit_sdk_error transit_station_unified_bundle_import(transit_sdk_bytes bytes,transit_station_unified_bundle **out){if(out)*out=nullptr;return boundary([&]{require(out,"query-bundle");*out=new transit_station_unified_bundle{copy(bytes,25069)};});}
 transit_sdk_error transit_station_unified_bundle_bytes(const transit_station_unified_bundle *v,transit_sdk_bytes *out){if(out)*out={};return boundary([&]{require(v&&out,"query-bundle");*out=view(v->bytes);});}
 void transit_station_unified_bundle_destroy(transit_station_unified_bundle *v){delete v;}
 transit_sdk_error transit_station_unified_prepared_import(transit_sdk_bytes bytes,transit_station_unified_prepared **out){if(out)*out=nullptr;return boundary([&]{require(out,"query-prepared");*out=new transit_station_unified_prepared{copy(bytes,8192)};});}
@@ -273,34 +265,36 @@ transit_sdk_error transit_station_unified_compile_sql(transit_station_unified_cl
     Uninterruptible guard;if(out)*out=nullptr;return run(client,[&](NativeQuery &n){
         require(source&&out,"query-compilation");require(source->resource.realm==client->connection.resource.realm&&source->resource.resource==client->connection.resource.resource,"query-source-resource");
         std::string values="null";
-        if(parameters){require(parameters->count<=3 && (parameters->values || !parameters->count),"query-parameters");values="[";for(size_t i=0;i<parameters->count;++i){if(i)values+=',';values+=scalar_wire(parameters->values[i]);}values+=']';}
-        const auto result=n.call("{\"compile\":{\"scope\":{\"source\":"+source_wire(*source)+",\"name\":"+quote(text(name,32))+",\"limits\":"+limits_wire(budgets)+"},\"sql\":"+quote(text(sql,4096))+",\"parameters\":"+values+"}}");
-        *out=new transit_station_unified_bundle{unhex(n.local.raw.field(result,"compiled/bundle",true),16384)};
+        if(parameters){require(parameters->count<=65 && (parameters->values || !parameters->count),"query-parameters");values="[";for(size_t i=0;i<parameters->count;++i){if(i)values+=',';values+=scalar_wire(parameters->values[i]);}values+=']';}
+        const auto result=n.call("{\"compile\":{\"scope\":{\"source\":"+source_wire(*source)+",\"name\":"+quote(query_name(name))+",\"limits\":"+limits_wire(budgets)+"},\"sql\":"+quote(text(sql,4096))+",\"parameters\":"+values+"}}");
+        *out=new transit_station_unified_bundle{unhex(n.local.raw.field(result,"compiled/bundle",true),25069)};
     });
 }
-transit_sdk_error transit_station_unified_inspect_sql(transit_station_unified_client *client,const transit_station_unified_source *source,const char *name,const char *sql,transit_station_unified_budgets budgets,transit_station_unified_inspection *out){
-    Uninterruptible guard;if(out)*out={};return run(client,[&](NativeQuery &n){
+transit_sdk_error transit_station_unified_inspect_sql(transit_station_unified_client *client,const transit_station_unified_source *source,const char *name,const char *sql,transit_station_unified_budgets budgets,transit_station_unified_inspection **out){
+    Uninterruptible guard;if(out)*out=nullptr;return run(client,[&](NativeQuery &n){
         require(source&&out,"query-inspection");require(source->resource.realm==client->connection.resource.realm&&source->resource.resource==client->connection.resource.resource,"query-source-resource");
-        const auto v=n.call("{\"inspect\":{\"scope\":{\"source\":"+source_wire(*source)+",\"name\":"+quote(text(name,32))+",\"limits\":"+limits_wire(budgets)+"},\"sql\":"+quote(text(sql,4096))+"}}");
-        const auto &r=n.local.raw;const std::string p="inspection/",d=p+"details/";transit_station_unified_inspection result{};
+        const auto v=n.call("{\"inspect\":{\"scope\":{\"source\":"+source_wire(*source)+",\"name\":"+quote(query_name(name))+",\"limits\":"+limits_wire(budgets)+"},\"sql\":"+quote(text(sql,4096))+"}}");
+        const auto &r=n.local.raw;const std::string p="inspection/",d=p+"details/";auto owner=std::make_unique<transit_station_unified_inspection>();auto &result=owner->info;
         require(r.number(v,p+"version")==1&&r.field(v,p+"scope",true)=="configured_source"&&r.number(v,p+"resource")==source->resource.resource,"inspection-scope");
         inspected_name(r,v,p+"name",result.name);result.resource=source->resource;const char *kinds[]={"kv","table","document"};
         result.source_kind=static_cast<transit_station_unified_source_kind>(select_name(r.field(v,p+"source_kind",true),kinds,3));
         digest(r,v,p+"contract",result.source_digest);digest(r,v,p+"schema",result.schema_digest);
         result.resource_revision=r.number(v,p+"resource_revision",true);result.policy_revision=wide(r,v,p+"policy_revision");
-        if(exists(r,v,d+"description")){result.kind=TRANSIT_UNIFIED_DESCRIPTION;result.details.description=inspected_columns(r,v,d+"description/columns");}
+        if(exists(r,v,d+"description")){result.kind=TRANSIT_UNIFIED_DESCRIPTION;result.details.description=inspected_columns(r,v,d+"description/columns",owner->arena);}
         else if(exists(r,v,d+"tables")){result.kind=TRANSIT_UNIFIED_TABLES;auto &list=result.details.tables;list.count=array_size(r,v,d+"tables",1);for(size_t i=0;i<list.count;++i)inspected_name(r,v,d+"tables/"+decimal(i),list.names[i]);}
         else {result.kind=TRANSIT_UNIFIED_EXPLANATION;const auto e=d+"explanation/";auto &plan=result.details.explanation;
             const char *operators[]={"scan","filter","limit","project","count","sum","count_values"};plan.operator_count=array_size(r,v,e+"operators",4);require(plan.operator_count>=2,"inspection-operators");
             for(size_t i=0;i<plan.operator_count;++i)plan.operators[i]=static_cast<transit_station_unified_inspection_operator>(select_name(r.field(v,e+"operators/"+decimal(i),true),operators,7));
-            inspected_predicate(r,v,e+"predicate",plan);
-            plan.projection_count=array_size(r,v,e+"projection",8);for(size_t i=0;i<plan.projection_count;++i)inspected_name(r,v,e+"projection/"+decimal(i),plan.projection[i]);
+            inspected_predicate(r,v,e+"predicate",plan,owner->arena);
+            plan.projection_count=array_size(r,v,e+"projection",128);for(size_t i=0;i<plan.projection_count;++i)inspected_name(r,v,e+"projection/"+decimal(i),plan.projection[i]);
             plan.has_limit=r.field(v,e+"limit")!="null";if(plan.has_limit)plan.limit=wide(r,v,e+"limit");const char *aggregates[]={"rows","count","sum","count_values"};plan.aggregate=static_cast<transit_station_aggregate>(select_name(r.field(v,e+"aggregate",true),aggregates,4));
-            plan.output=inspected_columns(r,v,e+"columns");plan.budgets={wide(r,v,e+"budgets/pages"),wide(r,v,e+"budgets/segments"),wide(r,v,e+"budgets/result_bytes")};
+            plan.output=inspected_columns(r,v,e+"columns",owner->arena);plan.budgets={wide(r,v,e+"budgets/pages"),wide(r,v,e+"budgets/segments"),wide(r,v,e+"budgets/result_bytes")};
         }
-        *out=result;
+        *out=owner.release();
     });
 }
+transit_sdk_error transit_station_unified_inspection_get(const transit_station_unified_inspection *v,const transit_station_unified_inspection_info **out){if(out)*out=nullptr;return boundary([&]{require(v&&out,"query-inspection");*out=&v->info;});}
+void transit_station_unified_inspection_destroy(transit_station_unified_inspection *v){delete v;}
 transit_sdk_error transit_station_unified_prepare_next(transit_station_unified_client *client,uint64_t ns,const transit_station_unified_bundle *bundle,transit_station_unified_prepared **out){
     Uninterruptible guard;if(out)*out=nullptr;return run(client,[&](NativeQuery &n){require(ns&&bundle&&out,"query-next");auto value=prepared(n.local.raw,n.call("{\"next\":{\"namespace\":"+quote(decimal(ns))+",\"bundle\":"+quote(hex(bundle->bytes))+"}}"));*out=value.release();});
 }
@@ -328,9 +322,9 @@ transit_sdk_error transit_station_unified_page_get(const transit_station_unified
 transit_sdk_error transit_station_unified_page_next(const transit_station_unified_page *v,transit_station_unified_cursor **out){if(out)*out=nullptr;return boundary([&]{require(v&&out,"query-page");if(v->next)*out=new transit_station_unified_cursor{*v->next};});}
 void transit_station_unified_page_destroy(transit_station_unified_page *v){delete v;}
 transit_sdk_error transit_station_unified_decode_arrow(const transit_station_unified_column *columns,size_t count,transit_sdk_bytes ipc,uint8_t rows,const char *directory,transit_station_unified_rows **out){
-    Uninterruptible guard;if(out)*out=nullptr;return boundary([&]{require(out&&rows<=8,"query-arrow");const auto action="{\"inspect_arrow\":{\"columns\":"+columns_wire(columns,count)+",\"rows\":"+decimal(rows)+",\"ipc\":"+quote(hex(copy(ipc,65536)))+"}}";auto decoded=std::make_unique<transit_station_unified_rows>();Worker worker;worker.run([&]{Local local(directory);const auto v=codec(local,action);require(array_size(local.raw,v,"rows",8)==rows,"query-row-count");for(size_t row=0;row<rows;++row){std::vector<OwnedCell> cells;const auto path="rows/"+decimal(row);require(array_size(local.raw,v,path,8)==count,"query-column-count");for(size_t col=0;col<count;++col)cells.push_back(cell_parse(local.raw,v,path+"/"+decimal(col)));decoded->rows.push_back(std::move(cells));}});*out=decoded.release();});
+    Uninterruptible guard;if(out)*out=nullptr;return boundary([&]{require(out&&rows<=8,"query-arrow");const auto action="{\"inspect_arrow\":{\"columns\":"+columns_wire(columns,count)+",\"rows\":"+decimal(rows)+",\"ipc\":"+quote(hex(copy(ipc,65536)))+"}}";auto decoded=std::make_unique<transit_station_unified_rows>();Worker worker;worker.run([&]{Local local(directory);const auto v=logical::parse(codec(local,action));v.fields({"rows"});const auto &values=v.at("rows").array(8);require(values.size()==rows,"query-row-count");for(const auto &row:values){std::vector<transit_logical_cell_view> cells;const auto &columns=row.array(128);require(columns.size()==count,"query-column-count");for(const auto &cell:columns)cells.push_back(logical::cell_from(cell,decoded->arena));decoded->rows.push_back(std::move(cells));}});*out=decoded.release();});
 }
-transit_sdk_error transit_station_unified_rows_cell(const transit_station_unified_rows *v,size_t row,size_t col,transit_station_unified_cell *out){if(out)*out={};return boundary([&]{require(v&&out&&row<v->rows.size()&&col<v->rows[row].size(),"query-cell");*out=v->rows[row][col].get();});}
-transit_sdk_error transit_station_unified_rows_alternative(const transit_station_unified_rows *v,size_t row,size_t col,size_t alt,transit_station_unified_alternative *out){if(out)*out={};return boundary([&]{require(v&&out&&row<v->rows.size()&&col<v->rows[row].size()&&alt<v->rows[row][col].alternatives.size(),"query-alternative");const auto &a=v->rows[row][col].alternatives[alt];*out={a.counter,a.replica,a.cell->get()};});}
+transit_sdk_error transit_station_unified_rows_cell(const transit_station_unified_rows *v,size_t row,size_t col,transit_logical_cell_view *out){if(out)*out={};return boundary([&]{require(v&&out&&row<v->rows.size()&&col<v->rows[row].size(),"query-cell");*out=v->rows[row][col];});}
+
 void transit_station_unified_rows_destroy(transit_station_unified_rows *v){delete v;}
 }

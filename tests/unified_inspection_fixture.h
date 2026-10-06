@@ -3,6 +3,8 @@
 #define TRANSIT_TEST_UNIFIED_INSPECTION_H
 #include <transit/unified_query.h>
 #include <stdio.h>
+#include <assert.h>
+#include <string.h>
 static void inspection_text(const char *value) {
     putchar('"');
     for(const unsigned char *p=(const unsigned char *)value;*p;++p) {
@@ -12,26 +14,30 @@ static void inspection_text(const char *value) {
     }
     putchar('"');
 }
-static const char *inspection_types[]={"int64","uint64","float64","boolean","utf8","binary"};
+static void inspection_type(const transit_logical_type_view *view) {
+    transit_logical_type *owner=NULL;assert(transit_logical_type_create(view,&owner).kind==TRANSIT_SDK_OK);
+    transit_sdk_buffer encoded;memset(&encoded,0,sizeof(encoded));assert(transit_logical_type_encode(owner,&encoded).kind==TRANSIT_SDK_OK);
+    fwrite(encoded.data,1,encoded.size,stdout);transit_sdk_buffer_release(&encoded);transit_logical_type_destroy(owner);
+}
 static void inspection_columns(const transit_station_unified_source_description *value) {
     putchar('[');
     for(size_t i=0;i<value->column_count;++i) {
         if(i)putchar(',');printf("{\"name\":");inspection_text(value->columns[i].name);
-        printf(",\"type\":\"%s\"}",inspection_types[value->columns[i].type]);
+        printf(",\"type\":");inspection_type(value->columns[i].type);printf(",\"nullable\":%s,\"optional\":%s}",value->columns[i].nullable?"true":"false",value->columns[i].optional?"true":"false");
     }
     putchar(']');
 }
-static void inspection_atom(transit_station_unified_predicate_kind kind,const char *column,transit_station_unified_state state,transit_station_comparison comparison,transit_station_unified_type type) {
+static void inspection_atom(transit_station_unified_predicate_kind kind,const char *column,transit_station_unified_state state,transit_station_comparison comparison,const transit_logical_type_view *type) {
     if(kind==TRANSIT_UNIFIED_ALL)printf("{\"all\":{}}");
     else if(kind==TRANSIT_UNIFIED_IS_STATE){
         const char *states[]={"missing","null","type_error","value","conflict"};
         printf("{\"state\":{\"column\":");inspection_text(column);printf(",\"value\":\"%s\"}}",states[state]);
     }else {
         const char *comparisons[]={"eq","ne","lt","le","gt","ge"};
-        printf("{\"compare\":{\"column\":");inspection_text(column);printf(",\"op\":\"%s\",\"type\":\"%s\"}}",comparisons[comparison],inspection_types[type]);
+        printf("{\"compare\":{\"column\":");inspection_text(column);printf(",\"op\":\"%s\",\"type\":",comparisons[comparison]);inspection_type(type);printf("}}");
     }
 }
-static void print_inspection(const transit_station_unified_inspection *value) {
+static void print_inspection(const transit_station_unified_inspection_info *value) {
     const char *kinds[]={"kv","table","document"};
     printf("{\"inspection\":{\"version\":1,\"scope\":\"configured_source\",\"name\":");inspection_text(value->name);
     printf(",\"resource\":%llu,\"source_kind\":\"%s\",\"resource_revision\":%llu,\"policy_revision\":\"%llu\",\"contract\":[",

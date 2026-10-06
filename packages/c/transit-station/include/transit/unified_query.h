@@ -1,32 +1,30 @@
 #ifndef TRANSIT_SDK_UNIFIED_QUERY_H
 #define TRANSIT_SDK_UNIFIED_QUERY_H
 #include <transit/station.h>
+#include <transit/catalog.h>
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 /* Explicit v1 profile. Input pointers are borrowed only for the synchronous
  * operation. Native Zig validates semantics; these are language-owned types. */
-typedef enum transit_station_unified_type {
+typedef enum transit_station_unified_decoder_type {
     TRANSIT_UNIFIED_INT64, TRANSIT_UNIFIED_UINT64, TRANSIT_UNIFIED_FLOAT64,
     TRANSIT_UNIFIED_BOOLEAN, TRANSIT_UNIFIED_UTF8, TRANSIT_UNIFIED_BINARY
-} transit_station_unified_type;
+} transit_station_unified_decoder_type;
 typedef enum transit_station_unified_state {
     TRANSIT_UNIFIED_MISSING, TRANSIT_UNIFIED_NULL, TRANSIT_UNIFIED_TYPE_ERROR,
     TRANSIT_UNIFIED_VALUE, TRANSIT_UNIFIED_CONFLICT
 } transit_station_unified_state;
-typedef struct transit_station_unified_scalar {
-    transit_station_unified_type type;
-    int64_t signed_value; uint64_t unsigned_value; double float_value;
-    bool boolean; transit_sdk_bytes bytes;
-} transit_station_unified_scalar;
-typedef struct transit_station_unified_column { const char *name; transit_station_unified_type type; } transit_station_unified_column;
-typedef struct transit_station_unified_decoder { uint8_t version; transit_station_unified_type type; } transit_station_unified_decoder;
+typedef transit_logical_atom transit_station_unified_scalar;
+typedef struct transit_station_unified_column { const char *name; const transit_logical_type_view *type; bool nullable, optional; } transit_station_unified_column;
+typedef struct transit_station_unified_decoder_column { const char *name; transit_station_unified_decoder_type type; } transit_station_unified_decoder_column;
+typedef struct transit_station_unified_decoder { uint8_t version; transit_station_unified_decoder_type type; } transit_station_unified_decoder;
 typedef enum transit_station_unified_projection_mode {
     TRANSIT_UNIFIED_SCALAR, TRANSIT_UNIFIED_TEXT, TRANSIT_UNIFIED_ELEMENT_COUNTER, TRANSIT_UNIFIED_ELEMENT_REPLICA
 } transit_station_unified_projection_mode;
 typedef struct transit_station_unified_projection {
-    transit_station_unified_column column;
+    transit_station_unified_decoder_column column;
     const char *const *path; size_t path_count;
     bool relative; transit_station_unified_projection_mode mode;
     uint16_t text_bytes, text_steps; /* Explicit budgets, normally 4096 each. */
@@ -37,7 +35,7 @@ typedef struct transit_station_unified_source {
     transit_sdk_resource resource;
     union {
         struct { transit_sdk_bytes prefix; transit_station_unified_decoder key, value; } kv;
-        struct { uint32_t id; const char *names[2]; transit_station_unified_type value_type; } table;
+        struct { transit_sdk_process owner; const transit_station_catalog_metadata *metadata; const transit_station_catalog_schema *schema; } table;
         struct {
             transit_station_document_reference reference;
             const transit_station_unified_projection *projections; size_t projection_count;
@@ -69,7 +67,7 @@ typedef struct transit_station_unified_plan {
     uint8_t column; transit_station_unified_state state;
     transit_station_comparison comparison; transit_station_unified_scalar value;
     /* Null names retain defaults; slots beyond projection_count must be null. */
-    const char *output_names[8];
+    const char *output_names[128];
     /* PROGRAM borrows 1..64 postfix instructions through prepare_bundle.
      * Other predicate kinds require NULL/0. Programs cannot nest. */
     const transit_station_unified_instruction *instructions; size_t instruction_count;
@@ -105,13 +103,13 @@ typedef struct transit_station_unified_description {
 } transit_station_unified_description;
 typedef enum transit_station_unified_inspection_kind { TRANSIT_UNIFIED_DESCRIPTION, TRANSIT_UNIFIED_TABLES, TRANSIT_UNIFIED_EXPLANATION } transit_station_unified_inspection_kind;
 typedef enum transit_station_unified_inspection_operator { TRANSIT_UNIFIED_SCAN, TRANSIT_UNIFIED_FILTER, TRANSIT_UNIFIED_INPUT_LIMIT, TRANSIT_UNIFIED_PROJECT, TRANSIT_UNIFIED_COUNT, TRANSIT_UNIFIED_SUM, TRANSIT_UNIFIED_COUNT_VALUES } transit_station_unified_inspection_operator;
-typedef struct transit_station_unified_inspected_column { char name[33]; transit_station_unified_type type; } transit_station_unified_inspected_column;
-typedef struct transit_station_unified_source_description { transit_station_unified_inspected_column columns[8]; size_t column_count; } transit_station_unified_source_description;
-typedef struct transit_station_unified_table_listing { char names[1][33]; size_t count; } transit_station_unified_table_listing;
+typedef struct transit_station_unified_inspected_column { char name[256]; const transit_logical_type_view *type; bool nullable, optional; } transit_station_unified_inspected_column;
+typedef struct transit_station_unified_source_description { transit_station_unified_inspected_column columns[128]; size_t column_count; } transit_station_unified_source_description;
+typedef struct transit_station_unified_table_listing { char names[1][256]; size_t count; } transit_station_unified_table_listing;
 typedef struct transit_station_unified_inspected_atom {
     transit_station_unified_predicate_kind kind;
-    char column[33]; transit_station_unified_state state;
-    transit_station_comparison comparison; transit_station_unified_type type;
+    char column[256]; transit_station_unified_state state;
+    transit_station_comparison comparison; const transit_logical_type_view *type;
 } transit_station_unified_inspected_atom;
 typedef struct transit_station_unified_inspected_instruction {
     transit_station_unified_instruction_kind kind;
@@ -120,23 +118,26 @@ typedef struct transit_station_unified_inspected_instruction {
 typedef struct transit_station_unified_explanation {
     transit_station_unified_inspection_operator operators[4]; size_t operator_count;
     transit_station_unified_predicate_kind predicate;
-    char column[33]; transit_station_unified_state state;
-    transit_station_comparison comparison; transit_station_unified_type type;
-    char projection[8][33]; size_t projection_count;
+    char column[256]; transit_station_unified_state state;
+    transit_station_comparison comparison; const transit_logical_type_view *type;
+    char projection[128][256]; size_t projection_count;
     bool has_limit; uint64_t limit; transit_station_aggregate aggregate;
     transit_station_unified_source_description output;
     transit_station_unified_budgets budgets;
     /* PROGRAM owns its redacted atoms inline; no input/client pointers. */
     transit_station_unified_inspected_instruction instructions[64]; size_t instruction_count;
 } transit_station_unified_explanation;
-/* Entirely caller-owned, with no borrowed pointers or destroy operation.
+/* Views borrow an immutable inspection owner, independently of its client.
  * Bounds describe one configured source, not a fixed-size realm catalog. */
-typedef struct transit_station_unified_inspection {
-    char name[33]; transit_sdk_resource resource; transit_station_unified_source_kind source_kind;
+typedef struct transit_station_unified_inspection_info {
+    char name[256]; transit_sdk_resource resource; transit_station_unified_source_kind source_kind;
     uint8_t source_digest[32], schema_digest[32]; uint64_t resource_revision, policy_revision;
     transit_station_unified_inspection_kind kind;
     union { transit_station_unified_source_description description; transit_station_unified_table_listing tables; transit_station_unified_explanation explanation; } details;
-} transit_station_unified_inspection;
+} transit_station_unified_inspection_info;
+typedef struct transit_station_unified_inspection transit_station_unified_inspection;
+transit_sdk_error transit_station_unified_inspection_get(const transit_station_unified_inspection *, const transit_station_unified_inspection_info **out);
+void transit_station_unified_inspection_destroy(transit_station_unified_inspection *);
 /* No activation or writer ownership. One in-flight operation; close joins.
  * Join all caller threads before destroying any public owner. */
 transit_sdk_error transit_station_unified_open(const transit_sdk_config *, const transit_sdk_credential *, transit_station_unified_connection, transit_station_unified_client **out);
@@ -144,10 +145,10 @@ transit_sdk_error transit_station_unified_close(transit_station_unified_client *
 void transit_station_unified_client_destroy(transit_station_unified_client *);
 transit_sdk_error transit_station_unified_describe(transit_station_unified_client *, const transit_station_unified_source *, transit_station_unified_description *out);
 /* Current scoped metadata; no snapshot, query admission or literal disclosure.
- * Name/SQL are bounded UTF-8 strings; output is zeroed on failure. */
-transit_sdk_error transit_station_unified_inspect_sql(transit_station_unified_client *, const transit_station_unified_source *, const char *name, const char *sql, transit_station_unified_budgets, transit_station_unified_inspection *out);
+ * Name/SQL are bounded UTF-8 strings; output is NULL on failure. */
+transit_sdk_error transit_station_unified_inspect_sql(transit_station_unified_client *, const transit_station_unified_source *, const char *name, const char *sql, transit_station_unified_budgets, transit_station_unified_inspection **out);
 /* NULL bindings select ordinary SQL; a non-NULL empty set selects a template
- * without placeholders. At most three values; all inputs borrow for this call.
+ * without placeholders. At most 65 values; all inputs borrow for this call.
  * On success out owns its bundle independently; failure leaves out NULL.
  * Compilation uses current source access and performs no upload or admission. */
 typedef struct transit_station_unified_bindings { const transit_station_unified_scalar *values; size_t count; } transit_station_unified_bindings;
@@ -180,17 +181,17 @@ typedef struct transit_station_unified_manifest {
     uint64_t job; transit_station_read_version source; transit_sdk_process requester;
     uint64_t correlation, policy_revision; uint8_t request[72];
     transit_station_unified_source_kind source_kind; transit_sdk_resource resource; uint64_t revision;
-    uint8_t source_digest[32], schema_digest[32], plan_digest[32];
+    uint8_t source_head[32], source_digest[32], schema_digest[32], plan_digest[32];
     uint64_t pages, scanned, selected, value_count, segments, rows, byte_count;
     bool has_sum; int64_t sum; transit_station_unified_finished finished; uint8_t chain[32];
 } transit_station_unified_manifest;
 typedef struct transit_station_unified_page_info {
     transit_station_unified_manifest manifest;
     uint64_t ordinal; uint8_t rows;
-    transit_station_unified_column columns[8]; size_t column_count;
+    transit_station_unified_column columns[128]; size_t column_count;
     transit_sdk_bytes ipc;
 } transit_station_unified_page_info;
-/* Output pages own IPC/names independently of the client. Info pointers borrow
+/* Output pages own IPC/names/descriptors independently of the client. Info pointers borrow
  * the page until destroy. Cursors own bytes and are never bearer grants. */
 transit_sdk_error transit_station_unified_page_read(transit_station_unified_client *, uint64_t namespace_id, const transit_station_unified_cursor *, transit_station_unified_page **out);
 transit_sdk_error transit_station_unified_page_get(const transit_station_unified_page *, transit_station_unified_page_info *out);
@@ -198,17 +199,8 @@ transit_sdk_error transit_station_unified_page_next(const transit_station_unifie
 void transit_station_unified_page_destroy(transit_station_unified_page *);
 /* Standalone Arrow decoding establishes shape, not current access/completion.
  * Cell byte views borrow the rows owner until destroy. */
-typedef struct transit_station_unified_cell {
-    transit_station_unified_state state;
-    transit_station_unified_scalar value;
-    char actual_kind[17]; size_t alternative_count;
-} transit_station_unified_cell;
-typedef struct transit_station_unified_alternative {
-    uint64_t counter, replica; transit_station_unified_cell cell;
-} transit_station_unified_alternative;
 transit_sdk_error transit_station_unified_decode_arrow(const transit_station_unified_column *, size_t column_count, transit_sdk_bytes ipc, uint8_t rows, const char *native_directory, transit_station_unified_rows **out);
-transit_sdk_error transit_station_unified_rows_cell(const transit_station_unified_rows *, size_t row, size_t column, transit_station_unified_cell *out);
-transit_sdk_error transit_station_unified_rows_alternative(const transit_station_unified_rows *, size_t row, size_t column, size_t alternative, transit_station_unified_alternative *out);
+transit_sdk_error transit_station_unified_rows_cell(const transit_station_unified_rows *, size_t row, size_t column, transit_logical_cell_view *out);
 void transit_station_unified_rows_destroy(transit_station_unified_rows *);
 
 #ifdef __cplusplus

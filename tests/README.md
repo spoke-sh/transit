@@ -16038,3 +16038,18 @@ C/C++ artifacts pass 46 actual native-library boundary cases
 missing/malformed commitments, bounded requests, uncertain receipts and deferred
 POSIX cancellation with close joining native work. This boundary schedule does
 not establish durable catalog or query recovery.
+
+
+### C and C++ logical query callers
+
+The C ReleaseSafe query library and C++ ownership/codec check pass with
+catalog-bound Table sources, shared logical descriptors/atoms/cells and owned
+inspection results (`c-query-package-build1.log`, `cpp-query-check1.log` in the
+local Table-schema campaign). Fresh installed C11/C++17 consumers compile with
+warnings as errors and pass independent source/Boolean/Arrow fixtures, all five
+cell states, input-buffer release, 128 Unicode columns, uint128 predicates,
+nested uint128/null results and malformed Arrow rejection
+(`c-query-installed3.log`). C++ client-copy rejection is preserved. These local
+checks do not establish current-source authorization, retained inspection/page
+lifetimes or durable query recovery; those require the common catalog query
+fixture migration.
