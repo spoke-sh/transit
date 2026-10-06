@@ -10819,6 +10819,25 @@ references. These remain in-memory proposal
 proofs; signed routing, disk/restart and caller/performance qualification are not
 established by this checkpoint.
 
+Catalog-bound DML routing passes **46/46 catalog tests** and **86/86 Station
+tests** (`catalog-dml-final.log`, `catalog-dml-station.log`). A small keyed INSERT
+publishes in exactly four writes; exact-key UPDATE uses the point path and
+preserves matched=1/changed=0. Multi-row INSERT and predicates with additional
+conditions select the finite coordinator. Tests preserve original outcomes after
+DROP/name reuse, reject changed metadata at occupied operation IDs, fence DDL and
+DML in both directions, allow original cancellation after action revocation and
+deny receipt disclosure after inspect revocation. Another catalog cannot inspect
+those outcomes merely by sharing the same native resource. Read permission is
+separate from inspection. These routing proofs still do not qualify native
+command transport, console latency or installed SDK behavior.
+
+The catalog lifecycle/DML integration tree passes full pinned `just check`,
+including generated native/ABI contracts, all diagnostic gates, unit and CLI
+proofs, frontend suites and documentation build (`catalog-integrated-check2.log`).
+The first run stopped at stale inventory after removing a duplicate schema
+validation call; regenerated reviewed inventory passes. This is a working-tree
+check, not native general-Table disk qualification or committed clean CI.
+
 ## Fuze logical type foundation
 
 The local `Types` profile has nine passing focused Zig tests, including 46

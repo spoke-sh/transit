@@ -161,7 +161,8 @@ column cannot change the original request digest, and a deleted/recreated key
 cannot make an old deletion remove the replacement row.
 
 Request identity hashes the domain `transit.table.write.v1` followed by NUL,
-the raw 32-byte shared definition, resource/principal/operation:u64le, complete
+the raw 32-byte shared definition, resource/principal/operation:u64le, a 32-byte
+enclosing-owner binding (zero for standalone unbound helpers), complete
 schema fingerprint, action:u8 (insert=1, update=2, delete=3), and exact `FTR1` row
 or 20-byte row identity. It recomputes the digest from typed input. Receipt keys
 are `00 57`, object:u64be, principal:u64be, operation:u64be, exactly 26 bytes.
@@ -225,8 +226,10 @@ from this captured-turn coordinator.
 
 `TableStatement` accepts a bound `TableDml.Plan` and the same authenticated
 resource/principal/operation identity. Its request digest hashes the domain
-`transit.table.statement.v1\0`, raw shared native definition, three IDs as u64le
-and the complete typed DML fingerprint. It shares `STW1` outcome keys with point
+`transit.table.statement.v1\0`, raw shared native definition, three IDs as u64le,
+the 32-byte enclosing-owner binding and the complete typed DML fingerprint.
+That binding is part of exact intent, never a grant or trusted caller hash.
+It shares `STW1` outcome keys with point
 writes: changing coordinator or intent at an occupied identity rejects.
 
 Admission reserves a bounded immutable record interval and records the busy

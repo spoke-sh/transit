@@ -67,6 +67,23 @@ receipts. It does not reclaim accepted history or promise physical erasure after
 DROP. `historical` verifies the original applied catalog/Table outcome before
 accepting published metadata as a historical definition.
 
+`TableDmlRequest` binds the complete typed plan to its original catalog scope,
+name and immutable metadata reference. Routing uses `TableWrite` for one inserted
+row or an exact conjunction containing every primary-key equality and no extra
+predicate. Other selected finite statements use `TableStatement`. The catalog
+recomputes the enclosing-owner binding from the complete request, including
+predicates; switching routes or changing metadata/intent at an occupied operation
+rejects. The ordinary small-row insert retains its four-write publication path.
+
+`mutate` requires current inspect and action-specific permission. Pending DDL
+fences new DML; a pending Table write fences new DDL. Exact terminal receipts are
+returned before consulting a possibly renamed, altered or retired live schema.
+`mutationStatus`, `cancelMutation` and `cleanupMutation` verify original ownership
+and current inspect permission; execution revocation does not erase accepted
+work. `readDefinition` separately requires current read permission and exact
+metadata, returning the original live schema during pending evolution. Its
+caller must retain the native cut for subsequent row reads.
+
 A record owns scope, full-width object and metadata revision, exact name,
 immutable Table schema reference and complete schema fingerprint, principal,
 original operation and admission input. The metadata revision is independent of

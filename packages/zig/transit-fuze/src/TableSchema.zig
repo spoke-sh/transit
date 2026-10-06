@@ -141,7 +141,6 @@ pub const Schema = struct {
     /// owners. Failure leaves scratch output unusable and publishes nothing.
     pub fn insert(self: Schema, assignments: []const Assignment, output: []v.Cell) ![]const v.Cell {
         try self.validate();
-        try self.validate();
         if (output.len < self.columns.len) return error.RowBufferTooSmall;
         const row = output[0..self.columns.len];
         for (self.columns, row) |column, *cell| cell.* = column.initial();

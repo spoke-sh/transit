@@ -3191,9 +3191,9 @@
         "CatalogCleanupNotClosed": 1,
         "CatalogConfigurationChanged": 1,
         "CatalogCursorChanged": 1,
-        "CatalogDefinitionChanged": 10,
+        "CatalogDefinitionChanged": 13,
         "CatalogDefinitionMissing": 8,
-        "CatalogDenied": 7,
+        "CatalogDenied": 11,
         "CatalogDependencyConflict": 1,
         "CatalogIdentityConflict": 5,
         "CatalogNotInitialized": 1,
@@ -3201,7 +3201,7 @@
         "CatalogOwnerChanged": 1,
         "CatalogPolicyConflict": 1,
         "CatalogScopeChanged": 1,
-        "CatalogSourceChanged": 3,
+        "CatalogSourceChanged": 4,
         "CrossResourceTransaction": 1,
         "InvalidCatalogBinding": 3,
         "InvalidCatalogDependency": 7,
@@ -3210,8 +3210,10 @@
         "InvalidCatalogPolicy": 5,
         "InvalidCatalogReceipt": 4,
         "QueryAfterMutation": 1,
-        "TableBusy": 3,
-        "TableNotFound": 2
+        "TableBusy": 4,
+        "TableNotFound": 6,
+        "TableRetired": 2,
+        "TableWriteNotFound": 2
       },
       "outcomes": {},
       "error_sets": {},
@@ -3225,10 +3227,13 @@
         "blockingDependency()": "<inferred>",
         "boundStep()": "<inferred>",
         "cancel()": "<inferred>",
+        "cancelMutation()": "<inferred>",
         "check()": "<inferred>",
         "cleanup()": "<inferred>",
+        "cleanupMutation()": "<inferred>",
         "close()": "<inferred>",
         "createStep()": "<inferred>",
+        "dataBinding()": "<inferred>",
         "emptyObjectNamespace()": "<inferred>",
         "historical()": "<inferred>",
         "initialize()": "<inferred>",
@@ -3236,6 +3241,8 @@
         "lookup()": "<inferred>",
         "matchingPending()": "<inferred>",
         "metadata()": "<inferred>",
+        "mutate()": "<inferred>",
+        "mutationStatus()": "<inferred>",
         "object()": "<inferred>",
         "operation()": "<inferred>",
         "outcome()": "<inferred>",
@@ -3243,6 +3250,7 @@
         "policy()": "<inferred>",
         "principal()": "<inferred>",
         "publishObject()": "<inferred>",
+        "readDefinition()": "<inferred>",
         "recordCandidate()": "<inferred>",
         "resolve()": "<inferred>",
         "restrict()": "<inferred>",
@@ -3257,7 +3265,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 208,
+        "try": 236,
         "catch": 2
       },
       "imports": [
@@ -3360,6 +3368,34 @@
       "error_returns": {
         "digest()": "<inferred>",
         "tableAlter()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 16,
+        "catch": 0
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
+    "packages/zig/transit-catalog/src/TableDmlRequest.zig": {
+      "errors": {
+        "InvalidCatalogIdentity": 1
+      },
+      "outcomes": {
+        "Route": [
+          "point",
+          "finite"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "Route.cancel()": "<inferred>",
+        "Route.reference()": "<inferred>",
+        "Route.step()": "<inferred>",
+        "binding()": "<inferred>",
+        "route()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
@@ -3474,6 +3510,7 @@
         "TableCatalog.zig",
         "TableCatalogRecords.zig",
         "TableDdlRequest.zig",
+        "TableDmlRequest.zig",
         "TableMetadata.zig",
         "TableMetadataStore.zig",
         "transit_station"
@@ -6738,7 +6775,7 @@
       },
       "open_error_set_uses": 1,
       "propagation": {
-        "try": 88,
+        "try": 87,
         "catch": 1
       },
       "imports": [

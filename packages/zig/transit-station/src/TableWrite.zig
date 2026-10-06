@@ -25,6 +25,8 @@ pub const Request = struct {
     operation: u64,
     schema: f.TableSchema.Schema,
     change: Change,
+    /// Exact enclosing catalog/source intent; a digest is not authorization.
+    owner_binding: [32]u8 = @splat(0),
     /// Canonical intent is recomputed, never accepted as a caller-provided hash.
     pub fn reference(self: Request, allocator: std.mem.Allocator) !Reference {
         if (self.resource == 0 or self.resource > p.max_counter or self.principal > p.max_counter or self.operation == 0) return error.InvalidTableWrite;
@@ -37,6 +39,7 @@ pub const Request = struct {
         std.mem.writeInt(u64, ids[8..16], self.principal, .little);
         std.mem.writeInt(u64, ids[16..24], self.operation, .little);
         hash.update(&ids);
+        hash.update(&self.owner_binding);
         hash.update(&try self.schema.fingerprint());
         hash.update(&.{@backingInt(std.meta.activeTag(self.change))});
         switch (self.change) {

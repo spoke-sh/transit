@@ -575,3 +575,68 @@ pub fn cleanup(self: Self, turn: *s.Turn, who: u64, id: u64, digest: [32]u8) !bo
     }
     return true;
 }
+
+pub const DmlRequest = c.TableDmlRequest;
+fn dataBinding(self: Self, source: anytype, request: DmlRequest) !void {
+    const current = (try self.object(source, request.plan.schema.object)) orelse return error.TableNotFound;
+    if (current.state != .live) return error.TableRetired;
+    if (!std.meta.eql(current.metadata, request.metadata)) return error.CatalogDefinitionChanged;
+    if (current.pending_operation != 0) return error.TableBusy;
+    const record = try self.metadata(source, current);
+    if (!std.mem.eql(u8, record.name.slice(), request.plan.name) or !std.mem.eql(u8, &record.schema_fingerprint, &try request.plan.schema.fingerprint())) return error.CatalogDefinitionChanged;
+    const head = try s.TableHead.load(source, current.object);
+    if (head.retired or !std.meta.eql(head.schema, record.schema)) return error.CatalogSourceChanged;
+}
+/// Inspect and action policy are current. A terminal exact receipt is returned
+/// before consulting the live name/schema, including after DROP or RENAME.
+pub fn mutate(self: Self, allocator: std.mem.Allocator, turn: *s.Turn, request: DmlRequest) !s.TableWrite.Status {
+    const before = turn.decision;
+    errdefer turn.decision = before;
+    try self.owner(turn);
+    if (try principal(turn) != request.principal) return error.CatalogDenied;
+    _ = try self.authorize(turn, request.principal, .inspect);
+    _ = try self.authorize(turn, request.principal, request.right());
+    var scratch: [c.fuze.TableSchema.max_columns]c.fuze.Types.Values.Cell = undefined;
+    const route = try request.route(allocator, self.configuration.scope, &scratch);
+    const ref = try route.reference(allocator);
+    _ = (try self.object(turn, ref.object)) orelse return error.TableNotFound;
+    if (try s.TableWrite.status(turn, ref)) |previous| if (previous.state != .building) return previous;
+    try self.dataBinding(turn, request);
+    return route.step(allocator, turn);
+}
+pub fn mutationStatus(self: Self, allocator: std.mem.Allocator, source: anytype, who: u64, request: DmlRequest) !?s.TableWrite.Status {
+    _ = try self.authorize(source, who, .inspect);
+    if (who != request.principal) return error.CatalogDenied;
+    var scratch: [c.fuze.TableSchema.max_columns]c.fuze.Types.Values.Cell = undefined;
+    const route = try request.route(allocator, self.configuration.scope, &scratch);
+    const ref = try route.reference(allocator);
+    _ = (try self.object(source, ref.object)) orelse return error.TableNotFound;
+    return s.TableWrite.status(source, ref);
+}
+pub fn cancelMutation(self: Self, allocator: std.mem.Allocator, turn: *s.Turn, request: DmlRequest) !s.TableWrite.Status {
+    const before = turn.decision;
+    errdefer turn.decision = before;
+    try self.owner(turn);
+    if (try principal(turn) != request.principal) return error.CatalogDenied;
+    _ = (try self.mutationStatus(allocator, turn, request.principal, request)) orelse return error.TableWriteNotFound;
+    var scratch: [c.fuze.TableSchema.max_columns]c.fuze.Types.Values.Cell = undefined;
+    return (try request.route(allocator, self.configuration.scope, &scratch)).cancel(allocator, turn);
+}
+pub fn cleanupMutation(self: Self, allocator: std.mem.Allocator, turn: *s.Turn, request: DmlRequest) !bool {
+    const before = turn.decision;
+    errdefer turn.decision = before;
+    try self.owner(turn);
+    if (try principal(turn) != request.principal) return error.CatalogDenied;
+    const result = (try self.mutationStatus(allocator, turn, request.principal, request)) orelse return error.TableWriteNotFound;
+    return s.TableCleanup.step(turn, result.reference);
+}
+/// Capture a schema-bound data source under independent current read permission.
+/// A caller must retain the native source cut for subsequent row reads.
+pub fn readDefinition(self: Self, allocator: std.mem.Allocator, source: anytype, who: u64, id: u64, expected: s.TablePages.Reference) !Definition {
+    _ = try self.authorize(source, who, .inspect);
+    _ = try self.authorize(source, who, .read);
+    const current = (try self.object(source, id)) orelse return error.TableNotFound;
+    if (current.state != .live) return error.TableRetired;
+    if (!std.meta.eql(current.metadata, expected)) return error.CatalogDefinitionChanged;
+    return self.resolve(allocator, source, current, try self.metadata(source, current));
+}

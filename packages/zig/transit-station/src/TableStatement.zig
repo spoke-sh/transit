@@ -18,6 +18,8 @@ pub const Request = struct {
     principal: u64,
     operation: u64,
     plan: f.TableDml.Plan,
+    /// Exact enclosing catalog/source intent; a digest is not authorization.
+    owner_binding: [32]u8 = @splat(0),
     pub fn reference(self: Request, allocator: std.mem.Allocator) !Write.Reference {
         if (self.resource == 0 or self.resource > p.max_counter or self.principal > p.max_counter or self.operation == 0) return error.InvalidTableWrite;
         var hash = std.crypto.hash.sha2.Sha256.init(.{});
@@ -28,6 +30,7 @@ pub const Request = struct {
         std.mem.writeInt(u64, ids[8..16], self.principal, .little);
         std.mem.writeInt(u64, ids[16..24], self.operation, .little);
         hash.update(&ids);
+        hash.update(&self.owner_binding);
         hash.update(&try self.plan.fingerprint(allocator));
         return .{ .resource = self.resource, .object = self.plan.schema.object, .principal = self.principal, .operation = self.operation, .digest = hash.finalResult() };
     }

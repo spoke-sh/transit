@@ -506,3 +506,154 @@ test "ALTER validates populated rows atomically and keeps rejected metadata priv
     try t.expect(row.row().cells[2].value.atom.boolean);
     try t.expectEqualDeep(insert.change.insert.identity, row.identity);
 }
+
+fn dml(store: *TestStore, request: c.TableDmlRequest) !s.TableWrite.Status {
+    for (0..2000) |_| {
+        var turn = try store.capture(request.principal);
+        const result = try owner.mutate(t.allocator, &turn, request);
+        var lost = try store.capture(request.principal);
+        try t.expectEqualDeep(result, try owner.mutate(t.allocator, &lost, request));
+        try t.expectEqualDeep(turn.decision, lost.decision);
+        try store.commit(turn);
+        if (result.state != .building) return result;
+    }
+    return error.TestUnexpectedResult;
+}
+fn keyedCreate() !c.TableDdlRequest {
+    var request = try createRequest(10, 1, "people");
+    request.action.create.schema.columns = &.{ .{ .id = 1, .name = "id", .type = .int32, .nullable = false }, .{ .id = 2, .name = "name", .type = .utf8 } };
+    request.action.create.schema.primary_key = &.{1};
+    return request;
+}
+test "catalog routes point and finite DML with exact counts and original post-drop receipts" {
+    var store: TestStore = .{};
+    defer store.deinit();
+    try ready(&store);
+    const creation = try keyedCreate();
+    const created = try ddl(&store, creation);
+    var insert = try c.fuze.TableDml.compile(t.allocator, "INSERT INTO people VALUES (1, 'Ada')", "people", creation.action.create.schema, null);
+    defer insert.deinit();
+    const request: c.TableDmlRequest = .{ .principal = 17, .operation = 2, .metadata = created.operation.metadata, .plan = insert.plan };
+    var scratch: [c.fuze.TableSchema.max_columns]c.fuze.Types.Values.Cell = undefined;
+    try t.expectEqual(.point, std.meta.activeTag(try request.route(t.allocator, owner.configuration.scope, &scratch)));
+    var turn = try store.capture(17);
+    const accepted = try owner.mutate(t.allocator, &turn, request);
+    try t.expectEqual(.applied, accepted.state);
+    try t.expectEqual(@as(usize, 4), countWrites(turn));
+    try t.expectEqual(@as(u64, 1), accepted.matched);
+    try t.expectEqual(@as(u64, 1), accepted.changed);
+    try store.commit(turn);
+    var update = try c.fuze.TableDml.compile(t.allocator, "UPDATE people SET name = 'Ada' WHERE id = 1", "people", creation.action.create.schema, null);
+    defer update.deinit();
+    const patch: c.TableDmlRequest = .{ .principal = 17, .operation = 3, .metadata = created.operation.metadata, .plan = update.plan };
+    try t.expectEqual(.point, std.meta.activeTag(try patch.route(t.allocator, owner.configuration.scope, &scratch)));
+    const unchanged = try dml(&store, patch);
+    try t.expectEqual(@as(u64, 1), unchanged.matched);
+    try t.expectEqual(@as(u64, 0), unchanged.changed);
+    var many = try c.fuze.TableDml.compile(t.allocator, "INSERT INTO people VALUES (2, 'B'), (3, 'C')", "people", creation.action.create.schema, null);
+    defer many.deinit();
+    const batch: c.TableDmlRequest = .{ .principal = 17, .operation = 4, .metadata = created.operation.metadata, .plan = many.plan };
+    try t.expectEqual(.finite, std.meta.activeTag(try batch.route(t.allocator, owner.configuration.scope, &scratch)));
+    const inserted = try dml(&store, batch);
+    try t.expectEqual(@as(u64, 2), inserted.changed);
+    var filtered = try c.fuze.TableDml.compile(t.allocator, "DELETE FROM people WHERE id = 2 AND name = 'different'", "people", creation.action.create.schema, null);
+    defer filtered.deinit();
+    const remove: c.TableDmlRequest = .{ .principal = 17, .operation = 5, .metadata = created.operation.metadata, .plan = filtered.plan };
+    try t.expectEqual(.finite, std.meta.activeTag(try remove.route(t.allocator, owner.configuration.scope, &scratch)));
+    try t.expectEqual(@as(u64, 0), (try dml(&store, remove)).matched);
+    _ = try ddl(&store, .{ .principal = 17, .operation = 6, .object = 10, .expected_revision = 1, .name = creation.name, .action = .{ .drop = .{} } });
+    _ = try ddl(&store, try createRequest(11, 7, "people"));
+    turn = try store.capture(17);
+    try t.expectEqualDeep(accepted, try owner.mutate(t.allocator, &turn, request));
+    try t.expectEqualDeep(accepted, (try owner.mutationStatus(t.allocator, &turn, 17, request)).?);
+    var fresh = request;
+    fresh.operation = 8;
+    try t.expectError(error.TableRetired, owner.mutate(t.allocator, &turn, fresh));
+    var changed = request;
+    changed.metadata.id += 1;
+    try t.expectError(error.TableWriteIdentityConflict, owner.mutate(t.allocator, &turn, changed));
+}
+test "catalog fences new DML during DDL and DDL during finite DML" {
+    var store: TestStore = .{};
+    defer store.deinit();
+    try ready(&store);
+    const creation = try keyedCreate();
+    const created = try ddl(&store, creation);
+    var plan = try c.fuze.TableDml.compile(t.allocator, "INSERT INTO people VALUES (1, 'A'), (2, 'B')", "people", creation.action.create.schema, null);
+    defer plan.deinit();
+    const request: c.TableDmlRequest = .{ .principal = 17, .operation = 2, .metadata = created.operation.metadata, .plan = plan.plan };
+    var turn = try store.capture(17);
+    try t.expectEqual(.building, (try owner.mutate(t.allocator, &turn, request)).state);
+    try store.commit(turn);
+    const rename: c.TableDdlRequest = .{ .principal = 17, .operation = 3, .object = 10, .expected_revision = 1, .name = creation.name, .action = .{ .rename = try Meta.Name.init("persons") } };
+    turn = try store.capture(17);
+    try t.expectError(error.TableBusy, owner.step(t.allocator, &turn, rename));
+    _ = try owner.cancelMutation(t.allocator, &turn, request);
+    try store.commit(turn);
+    turn = try store.capture(17);
+    _ = try owner.step(t.allocator, &turn, rename);
+    try store.commit(turn);
+    var later = request;
+    later.operation = 4;
+    turn = try store.capture(17);
+    try t.expectError(error.TableBusy, owner.mutate(t.allocator, &turn, later));
+    var observed = try owner.readDefinition(t.allocator, &turn, 17, 10, created.operation.metadata);
+    defer observed.deinit();
+    try t.expectEqual(@as(u64, 0), observed.head.rows);
+    _ = try ddl(&store, rename);
+    turn = try store.capture(17);
+    try t.expectError(error.CatalogDefinitionChanged, owner.mutate(t.allocator, &turn, later));
+    try t.expectEqual(.cancelled, (try owner.mutationStatus(t.allocator, &turn, 17, request)).?.state);
+    for (0..100) |_| {
+        turn = try store.capture(17);
+        const done = try owner.cleanupMutation(t.allocator, &turn, request);
+        try store.commit(turn);
+        if (done) return;
+    }
+    return error.TestUnexpectedResult;
+}
+
+test "catalog data policy separates inspection execution and receipt cancellation" {
+    var store: TestStore = .{};
+    defer store.deinit();
+    try ready(&store);
+    const creation = try keyedCreate();
+    const created = try ddl(&store, creation);
+    var plan = try c.fuze.TableDml.compile(t.allocator, "INSERT INTO people VALUES (1, 'A'), (2, 'B')", "people", creation.action.create.schema, null);
+    defer plan.deinit();
+    const request: c.TableDmlRequest = .{ .principal = 17, .operation = 2, .metadata = created.operation.metadata, .plan = plan.plan };
+    var turn = try store.capture(17);
+    _ = try owner.mutate(t.allocator, &turn, request);
+    try store.commit(turn);
+    var rights = try m.Policy.administrator(owner.configuration.scope, 17);
+    rights.revision = 2;
+    rights.insert = false;
+    rights.read = false;
+    turn = try store.capture(17);
+    try owner.setPolicy(&turn, 1, rights);
+    try store.commit(turn);
+    turn = try store.capture(17);
+    try t.expectError(error.CatalogDenied, owner.mutate(t.allocator, &turn, request));
+    try t.expectError(error.CatalogDenied, owner.readDefinition(t.allocator, &turn, 17, 10, request.metadata));
+    try t.expectEqual(.building, (try owner.mutationStatus(t.allocator, &turn, 17, request)).?.state);
+    try t.expectEqual(.cancelled, (try owner.cancelMutation(t.allocator, &turn, request)).state);
+    try store.commit(turn);
+    turn = try store.capture(17);
+    rights.revision = 3;
+    rights.inspect = false;
+    try owner.setPolicy(&turn, 2, rights);
+    try store.commit(turn);
+    turn = try store.capture(17);
+    try t.expectError(error.CatalogDenied, owner.mutationStatus(t.allocator, &turn, 17, request));
+    try t.expectError(error.CatalogDenied, owner.cancelMutation(t.allocator, &turn, request));
+    try t.expectError(error.CatalogDenied, owner.cleanupMutation(t.allocator, &turn, request));
+    try t.expectEqual(@as(usize, 0), countWrites(turn));
+    var other = owner;
+    other.configuration.scope.catalog = 2;
+    try other.initialize(&turn);
+    try store.commit(turn);
+    turn = try store.capture(17);
+    try t.expectError(error.TableNotFound, other.mutationStatus(t.allocator, &turn, 17, request));
+    turn = try store.capture(18);
+    try t.expectError(error.CatalogDenied, owner.mutate(t.allocator, &turn, request));
+}
