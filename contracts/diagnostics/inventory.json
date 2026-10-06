@@ -5514,59 +5514,28 @@
     },
     "packages/zig/transit-fuze/src/FileQuery.zig": {
       "errors": {
-        "DuplicateProjection": 1,
-        "FailedQuery": 1,
-        "IncompleteSource": 1,
-        "InvalidOutputNames": 1,
-        "InvalidProjection": 2,
-        "InvalidQuerySchema": 1,
-        "Overflow": 1,
-        "SourceChanged": 2,
-        "TypeMismatch": 1,
-        "UnknownColumn": 1,
-        "UnsupportedAggregate": 2
+        "SourceChanged": 1
       },
-      "outcomes": {
-        "Failure.operation": [
-          "predicate",
-          "count",
-          "sum"
-        ],
-        "Plan.predicate": [
-          "all",
-          "state",
-          "compare",
-          "program"
-        ]
-      },
+      "outcomes": {},
       "error_sets": {},
       "error_returns": {
-        "Execution.init()": "<inferred>",
-        "Execution.next()": "<inferred>",
-        "Execution.next().<struct>.integer()": "<inferred>",
         "Memory.check()": "<inferred>",
         "Memory.read()": "<inferred>",
-        "Plan.fingerprint()": "<inferred>",
-        "Plan.matches()": "<inferred>",
-        "Plan.outputSchema()": "<inferred>",
-        "Plan.validate()": "<inferred>",
-        "Plan.validateOutput()": "<inferred>",
-        "Plan.validateShape()": "<inferred>",
         "allocationSchedule()": "<inferred>",
         "compile()": "<inferred>",
         "compileDiagnostic()": "<inferred>",
+        "execute()": "<inferred>",
         "lowerAtom()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 62,
-        "catch": 6
+        "try": 26,
+        "catch": 1
       },
       "imports": [
         "FileSource.zig",
         "Finite.zig",
-        "LogicalPredicate.zig",
-        "PredicateMachine.zig",
+        "LogicalQuery.zig",
         "Sql.zig",
         "SqlLowering.zig",
         "Types.zig",
@@ -5664,6 +5633,7 @@
         "FileFraming.zig",
         "FileValueDiagnostic.zig",
         "Inference.zig",
+        "LogicalQuery.zig",
         "Types.zig",
         "std"
       ]
@@ -6009,6 +5979,63 @@
       },
       "imports": [
         "Finite.zig",
+        "PredicateMachine.zig",
+        "Types.zig",
+        "std"
+      ]
+    },
+    "packages/zig/transit-fuze/src/LogicalQuery.zig": {
+      "errors": {
+        "DuplicateProjection": 1,
+        "FailedQuery": 1,
+        "IncompleteSource": 1,
+        "InvalidOutputNames": 1,
+        "InvalidProjection": 2,
+        "InvalidQuerySchema": 1,
+        "Overflow": 1,
+        "SourceChanged": 1,
+        "TypeMismatch": 1,
+        "UnknownColumn": 1,
+        "UnsupportedAggregate": 2
+      },
+      "outcomes": {
+        "Failure.operation": [
+          "predicate",
+          "count",
+          "sum"
+        ],
+        "Plan.predicate": [
+          "all",
+          "state",
+          "compare",
+          "program"
+        ],
+        "Verification": [
+          "full_source",
+          "selected_prefix"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "Execution().<return>.init()": "<inferred>",
+        "Execution().<return>.next()": "<inferred>",
+        "Execution().<return>.next().<struct>.integer()": "<inferred>",
+        "Plan.fingerprint()": "<inferred>",
+        "Plan.matches()": "<inferred>",
+        "Plan.outputSchema()": "<inferred>",
+        "Plan.validate()": "<inferred>",
+        "Plan.validateOutput()": "<inferred>",
+        "Plan.validateShape()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 36,
+        "catch": 5
+      },
+      "imports": [
+        "FileValueDiagnostic.zig",
+        "Finite.zig",
+        "LogicalPredicate.zig",
         "PredicateMachine.zig",
         "Types.zig",
         "std"
@@ -6711,6 +6738,40 @@
         "std"
       ]
     },
+    "packages/zig/transit-fuze/src/SqlLogicalPredicate.zig": {
+      "errors": {
+        "InvalidQuerySchema": 1,
+        "InvalidSqlSyntax": 1,
+        "PredicateTooComplex": 1,
+        "PredicateTooDeep": 2,
+        "UnknownColumn": 1,
+        "UnknownQualifier": 1,
+        "UnsupportedComparison": 1,
+        "UnsupportedNullComparison": 1
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "Expression.append()": "<inferred>",
+        "Expression.conjunction()": "anyerror",
+        "Expression.disjunction()": "anyerror",
+        "Expression.unary()": "anyerror",
+        "columnIndex()": "<inferred>",
+        "parse()": "<inferred>"
+      },
+      "open_error_set_uses": 5,
+      "propagation": {
+        "try": 30,
+        "catch": 0
+      },
+      "imports": [
+        "Finite.zig",
+        "LogicalPredicate.zig",
+        "SqlTyped.zig",
+        "Types.zig",
+        "std"
+      ]
+    },
     "packages/zig/transit-fuze/src/SqlLowering.zig": {
       "errors": {
         "DuplicateColumn": 1,
@@ -6956,15 +7017,10 @@
         "DuplicateAssignment": 1,
         "InvalidMutationColumns": 3,
         "InvalidMutationPlan": 1,
-        "InvalidSqlSyntax": 1,
         "MutationBatchTooLarge": 4,
-        "PredicateTooComplex": 1,
-        "PredicateTooDeep": 2,
         "UnknownQualifier": 1,
         "UnknownSource": 1,
-        "UnsupportedComparison": 1,
         "UnsupportedMutationPredicate": 1,
-        "UnsupportedNullComparison": 1,
         "UnsupportedStatement": 1,
         "WriteFailed": 2
       },
@@ -6977,10 +7033,6 @@
       },
       "error_sets": {},
       "error_returns": {
-        "Expression.append()": "<inferred>",
-        "Expression.conjunction()": "anyerror",
-        "Expression.disjunction()": "anyerror",
-        "Expression.unary()": "anyerror",
         "Intent.cell()": "<inferred>",
         "Intent.number()": "<inferred>",
         "Intent.part()": "<inferred>",
@@ -6996,15 +7048,15 @@
         "target()": "<inferred>",
         "update()": "<inferred>"
       },
-      "open_error_set_uses": 3,
+      "open_error_set_uses": 0,
       "propagation": {
-        "try": 109,
+        "try": 85,
         "catch": 2
       },
       "imports": [
-        "Finite.zig",
         "LogicalPredicate.zig",
         "Sql.zig",
+        "SqlLogicalPredicate.zig",
         "SqlTyped.zig",
         "TableSchema.zig",
         "Types.zig",
@@ -7229,6 +7281,47 @@
         "catch": 1
       },
       "imports": [
+        "Types.zig",
+        "std"
+      ]
+    },
+    "packages/zig/transit-fuze/src/TableSelect.zig": {
+      "errors": {
+        "InvalidProjection": 1,
+        "InvalidQuerySchema": 1,
+        "InvalidSqlSyntax": 1,
+        "LiteralOutOfRange": 1,
+        "UnknownColumn": 1,
+        "UnknownQualifier": 1,
+        "UnknownSource": 1,
+        "UnsupportedAggregate": 1,
+        "UnsupportedAggregateLimit": 2,
+        "UnsupportedConstruct": 5
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "Reference.parse()": "<inferred>",
+        "Reference.resolve()": "<inferred>",
+        "Selection.lower()": "<inferred>",
+        "Selection.parse()": "<inferred>",
+        "alias()": "<inferred>",
+        "compile()": "<inferred>",
+        "tail()": "<inferred>",
+        "target()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 48,
+        "catch": 1
+      },
+      "imports": [
+        "Finite.zig",
+        "LogicalQuery.zig",
+        "Sql.zig",
+        "SqlLogicalPredicate.zig",
+        "SqlTyped.zig",
+        "TableSchema.zig",
         "Types.zig",
         "std"
       ]
@@ -7941,6 +8034,7 @@
         "LogicalCodec.zig",
         "LogicalJson.zig",
         "LogicalPredicate.zig",
+        "LogicalQuery.zig",
         "LogicalSchema.zig",
         "Prepared.zig",
         "SourceCodec.zig",
@@ -7955,6 +8049,7 @@
         "TableMutation.zig",
         "TableRow.zig",
         "TableSchema.zig",
+        "TableSelect.zig",
         "Types.zig",
         "Unified.zig",
         "execute.zig",
@@ -9060,8 +9155,13 @@
         "AuthorityTransportDenied": 1,
         "Canceled": 1,
         "Cancelled": 1,
+        "CatalogConfigurationChanged": 1,
+        "CatalogDenied": 1,
+        "CatalogNotInitialized": 1,
+        "CatalogOwnerChanged": 1,
         "Conflict": 1,
         "EndOfStream": 1,
+        "FailedQuery": 1,
         "IncompleteResult": 1,
         "InteractiveQueriesUnavailable": 1,
         "InvalidAuthorityResponse": 1,
@@ -9083,6 +9183,7 @@
         "InvalidResultDigest": 1,
         "InvalidResultSegment": 1,
         "InvalidSqlCursor": 1,
+        "InvalidTableIndex": 1,
         "MissingResultSegment": 1,
         "OutOfMemory": 1,
         "ParameterCountMismatch": 1,
@@ -9096,9 +9197,11 @@
         "QueryDraftExhausted": 1,
         "QueryDraftNotFound": 1,
         "QueryIdentityMismatch": 1,
+        "QueryPageBudget": 1,
         "QueryReadConflict": 1,
         "QueryRequesterFailed": 1,
         "QueryRequesterUnavailable": 1,
+        "QueryResultBudget": 1,
         "QuerySourceChanged": 1,
         "QuerySourceUnavailable": 1,
         "QueryUploadIdentityConflict": 1,
@@ -9106,7 +9209,8 @@
         "Rejected": 1,
         "ResourceReadBatchUnavailable": 1,
         "ResultUnavailable": 1,
-        "SourceDefinitionTooLarge": 1
+        "SourceDefinitionTooLarge": 1,
+        "TableNotFound": 1
       },
       "outcomes": {},
       "error_sets": {},
@@ -10277,6 +10381,54 @@
         "std"
       ]
     },
+    "packages/zig/transit-query/src/TableQuery.zig": {
+      "errors": {
+        "AccessDenied": 1,
+        "Cancelled": 2,
+        "CatalogConfigurationChanged": 2,
+        "CatalogNotInitialized": 1,
+        "CatalogOwnerChanged": 2,
+        "Conflict": 1,
+        "FailedQuery": 2,
+        "InvalidQueryBudget": 1,
+        "InvalidResourceRead": 3,
+        "InvalidTableIndex": 2,
+        "QueryClosed": 1,
+        "QueryPageBudget": 1,
+        "QueryResultBudget": 4,
+        "Rejected": 1,
+        "TableNotFound": 1
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "Limits.validate()": "<inferred>",
+        "Scan.checkCancellation()": "<inferred>",
+        "Scan.configurationAt()": "<inferred>",
+        "Scan.current()": "<inferred>",
+        "Scan.fingerprint()": "<inferred>",
+        "Scan.next()": "<inferred>",
+        "Scan.open()": "<inferred>",
+        "Scan.page()": "<inferred>",
+        "Scan.prefetch()": "<inferred>",
+        "Scan.read()": "<inferred>",
+        "Scan.request()": "<inferred>",
+        "Scan.validateCurrent()": "<inferred>",
+        "close()": "<inferred>",
+        "next()": "<inferred>",
+        "open()": "<inferred>",
+        "schema()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 47,
+        "catch": 4
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
     "packages/zig/transit-query/src/TableQueryWriter.zig": {
       "errors": {
         "InvalidQueryPolicyChange": 2,
@@ -10970,6 +11122,7 @@
         "TableMutationRecords.zig",
         "TableMutationRequest.zig",
         "TableMutationWriter.zig",
+        "TableQuery.zig",
         "TableQueryWriter.zig",
         "UnifiedBehavior.zig",
         "UnifiedCapture.zig",
@@ -10983,6 +11136,7 @@
         "Workspace.zig",
         "builtin",
         "source_store_test.zig",
+        "transit_catalog",
         "transit_station",
         "transit_station_document"
       ]

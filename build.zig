@@ -1026,7 +1026,7 @@ pub fn build(b: *std.Build) void {
         .root_source_file = b.path("tests/typed_table_native.zig"),
         .target = target,
         .optimize = optimize,
-        .imports = &.{ .{ .name = "transit_catalog", .module = catalog.module("transit_catalog") }, .{ .name = "transit_station", .module = station.module("transit_station") } },
+        .imports = &.{ .{ .name = "transit_catalog", .module = catalog.module("transit_catalog") }, .{ .name = "transit_station", .module = station.module("transit_station") }, .{ .name = "transit_query", .module = query.module("transit_query") } },
     }) });
     build_test_step.dependOn(&typed_table_proof.step);
     const typed_table_native = b.addSystemCommand(&.{ "python3", "-B" });

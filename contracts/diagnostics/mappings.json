@@ -704,7 +704,8 @@
         "packages/zig/transit-query/src/Bundle.zig",
         "packages/zig/transit-query/src/SourceDefinition.zig",
         "packages/zig/transit-query/src/SqlCompilation.zig",
-        "packages/zig/transit-query/src/SqlTemplate.zig"
+        "packages/zig/transit-query/src/SqlTemplate.zig",
+        "packages/zig/transit-query/src/TableQuery.zig"
       ],
       "exclude": [],
       "registry": "packages/zig/transit-query/src/ApiCodes.zig",
@@ -1204,6 +1205,42 @@
         "AuthorityTransportDenied": {
           "code": "query.transport_denied",
           "category": "unavailable"
+        },
+        "QueryResultBudget": {
+          "code": "query.result_budget",
+          "category": "limit"
+        },
+        "QueryPageBudget": {
+          "code": "query.snapshot_read_budget",
+          "category": "limit"
+        },
+        "FailedQuery": {
+          "code": "query.failed_execution",
+          "category": "lifecycle"
+        },
+        "CatalogDenied": {
+          "code": "query.catalog_read_denied",
+          "category": "access"
+        },
+        "CatalogOwnerChanged": {
+          "code": "query.catalog_owner_changed",
+          "category": "conflict"
+        },
+        "CatalogConfigurationChanged": {
+          "code": "query.catalog_configuration_changed",
+          "category": "conflict"
+        },
+        "CatalogNotInitialized": {
+          "code": "query.catalog_uninitialized",
+          "category": "lifecycle"
+        },
+        "TableNotFound": {
+          "code": "query.table_absent",
+          "category": "lifecycle"
+        },
+        "InvalidTableIndex": {
+          "code": "query.invalid_table_index",
+          "category": "integrity"
         }
       },
       "exceptions": [],
@@ -2770,6 +2807,42 @@
         "AuthorityTransportDenied": {
           "code": "inspection.transport_denied",
           "category": "unavailable"
+        },
+        "QueryResultBudget": {
+          "code": "query.result_budget",
+          "category": "limit"
+        },
+        "QueryPageBudget": {
+          "code": "query.snapshot_read_budget",
+          "category": "limit"
+        },
+        "FailedQuery": {
+          "code": "query.failed_execution",
+          "category": "lifecycle"
+        },
+        "CatalogDenied": {
+          "code": "query.catalog_read_denied",
+          "category": "access"
+        },
+        "CatalogOwnerChanged": {
+          "code": "query.catalog_owner_changed",
+          "category": "conflict"
+        },
+        "CatalogConfigurationChanged": {
+          "code": "query.catalog_configuration_changed",
+          "category": "conflict"
+        },
+        "CatalogNotInitialized": {
+          "code": "query.catalog_uninitialized",
+          "category": "lifecycle"
+        },
+        "TableNotFound": {
+          "code": "query.table_absent",
+          "category": "lifecycle"
+        },
+        "InvalidTableIndex": {
+          "code": "query.invalid_table_index",
+          "category": "integrity"
         }
       },
       "exceptions": [],

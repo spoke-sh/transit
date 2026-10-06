@@ -1,6 +1,7 @@
 //! General typed Table proof through signed native ingress and GenServer hooks.
 const std = @import("std");
 const c = @import("transit_catalog");
+const q = @import("transit_query");
 const s = c.station;
 const p = c.protocol;
 const g = p.Growth;
@@ -167,6 +168,48 @@ fn inspect(init: std.process.Init, wire: *s.client.Client, caller: *c.TableClien
     try out.interface.writeAll("]}\n");
     try out.interface.flush();
 }
+fn select(init: std.process.Init, caller: *c.TableClient, text: []const u8, held: bool, limits: q.TableQuery.Limits) !void {
+    var nonce: [16]u8 = undefined;
+    try init.io.randomSecure(&nonce);
+    const cancelled = std.atomic.Value(bool).init(false);
+    var query = try q.TableQuery.open(init.gpa, caller, text, nonce, limits, &cancelled, null);
+    defer query.deinit();
+    if (held) {
+        try print(init, .{ .ready = true });
+        var input_buffer: [32]u8 = undefined;
+        var input = std.Io.File.stdin().readerStreaming(init.io, &input_buffer);
+        _ = try input.interface.takeByte();
+    }
+    var fields: [128]c.fuze.Types.Field = undefined;
+    const schema = try query.schema(&fields);
+    const schema_json = try c.fuze.LogicalJson.encodeType(init.gpa, schema);
+    defer init.gpa.free(schema_json);
+    var buffer: [4096]u8 = undefined;
+    var out = std.Io.File.stdout().writerStreaming(init.io, &buffer);
+    try out.interface.print("{{\"object\":{d},\"schema\":{s},\"rows\":[", .{ query.sourceObject(), schema_json });
+    var count: usize = 0;
+    while (query.next() catch |err| {
+        if (query.native_rejection) |reason| std.debug.print("Query authority rejection: {s}\n", .{@tagName(reason)});
+        return err;
+    }) |value| {
+        var row = value;
+        defer row.deinit();
+        if (count == 128) return error.ProofRowLimit;
+        if (count != 0) try out.interface.writeByte(',');
+        try out.interface.writeByte('[');
+        for (row.cells, schema.structure, 0..) |cell, field, i| {
+            if (i != 0) try out.interface.writeByte(',');
+            const json = try c.fuze.LogicalJson.encode(init.gpa, cell, field);
+            defer init.gpa.free(json);
+            try out.interface.writeAll(json);
+        }
+        try out.interface.writeByte(']');
+        count += 1;
+    }
+    if (!query.complete) return error.IncompleteSource;
+    try out.interface.print("],\"complete\":true,\"scanned\":{d}}}\n", .{query.execution.scanned});
+    try out.interface.flush();
+}
 pub fn main(init: std.process.Init) !void {
     const args = try init.minimal.args.toSlice(init.arena.allocator());
     if (args.len == 2 and std.mem.eql(u8, args[1], "public")) return print(init, (try key(7)).public_key.toBytes());
@@ -192,6 +235,14 @@ pub fn main(init: std.process.Init) !void {
     if (std.mem.eql(u8, mode, "initialize")) return submit(init, directory, &caller, try caller.prepareControl(.{ .initialize = owner }));
     if (std.mem.eql(u8, mode, "pump")) return pump(init, &wire, directory, config, if (args.len > 4) try std.fmt.parseInt(usize, args[4], 10) else 10000);
     if (std.mem.eql(u8, mode, "inspect")) return inspect(init, &wire, &caller, config, args[4]);
+    if (std.mem.startsWith(u8, mode, "select")) return select(init, &caller, args[4], std.mem.eql(u8, mode, "select-held"), if (args.len == 8) .{ .requests = try std.fmt.parseInt(u64, args[5], 10), .rows = try std.fmt.parseInt(u64, args[6], 10), .result_bytes = try std.fmt.parseInt(u64, args[7], 10) } else .{ .requests = 10000, .rows = 128, .result_bytes = 8 * 1024 * 1024 });
+    if (std.mem.eql(u8, mode, "policy")) {
+        const description = try caller.describe();
+        var policy = description.policy;
+        policy.revision += 1;
+        policy.read = std.mem.eql(u8, args[4], "allow");
+        return submit(init, directory, &caller, try caller.prepareControl(.{ .policy = .{ .expected_revision = description.policy.revision, .policy = policy } }));
+    }
     if (std.mem.eql(u8, mode, "retry-send")) return submit(init, directory, &caller, try prepared(init, directory));
     if (std.mem.eql(u8, mode, "compile")) {
         const operation = try std.fmt.parseInt(u64, args[4], 10);

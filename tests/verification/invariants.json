@@ -1694,6 +1694,7 @@
         "packages/zig/transit-catalog/src/TableBehavior.zig",
         "packages/zig/transit-catalog/src/TableClient.zig",
         "packages/zig/transit-catalog/src/TableIntent.zig",
+        "packages/zig/transit-query/src/TableQuery.zig",
         "tests/typed_table_native.zig",
         "tests/typed_table_native.py"
       ],
@@ -1704,9 +1705,12 @@
         "Exact matched/changed counts and atomic rejection of a multi-row insert",
         "ADD, RENAME and DROP COLUMN, finite DELETE, DROP/name reuse and unkeyed duplicate rows",
         "Lost accepted send and turn replies recover their original receipts after node/store replacement",
-        "Authorized courier delivers recorded continuations with at most four native mutations per turn"
+        "Authorized courier delivers recorded continuations with at most four native mutations per turn",
+        "Actual SQL SELECT, typed primary-key lookup, aggregates and request/row/result-byte budgets",
+        "Current read-policy denial blocks retained snapshots including LIMIT 0; ALTER/DROP/name reuse retain original captured rows",
+        "Authority replacement invalidates old snapshots without silently reopening a new cut"
       ],
-      "limits": "One signed Zig fixture and disk-backed store, eight resident authority pages; typed row inspection, not SQL SELECT. Deployed hosts, console, SDKs, all families/ALTER operations, memory growth, latency and host power loss require separate qualification.",
+      "limits": "One signed Zig fixture and disk-backed store, eight resident authority pages; actual general Table SQL reads. Deployed hosts, console, SDKs, all families/ALTER operations, memory growth, latency and host power loss require separate qualification.",
       "model": null,
       "qualification": "See tests/README.md#general-table-schema-foundation for passing and failed runs."
     },

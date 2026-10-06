@@ -12,7 +12,15 @@ committed-input observation, status, cancellation and verified result pages.
 upload/query; `UnifiedBehavior.Source` captures a declared KV, Table or Document
 source under current policy. Both execute in separately provisioned Station hosts.
 
-This package imports Station's and Document's public modules and has no kernel, storage or
+`TableQuery` executes [general typed Table SELECT](../../../contracts/TABLE_QUERY_V1.md)
+through the catalog's signed connection, without a separately configured source
+or requester per Table. It owns a leased snapshot, typed plan and bounded native
+entry cache. Each output is one owned logical row; current catalog and native
+authorization precede disclosure, including completion and empty output. Explicit
+request, row and canonical-byte budgets apply. The Zig adapter does not enable
+its console, durable-query or foreign-language routes implicitly.
+
+This package imports Station's, Catalog's and Document's public modules and has no kernel, storage or
 provider dependency. SQL compiles in Fuze. Interactive execution runs over a
 leased public snapshot in the client; durable execution runs in the separately
 hosted source behavior and result verification reuses Station. Current reads

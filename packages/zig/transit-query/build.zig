@@ -4,7 +4,8 @@ pub fn build(b: *std.Build) void {
     const optimize = b.standardOptimizeOption(.{});
     const station = b.dependency("transit_station", .{ .target = target, .optimize = optimize });
     const document = b.dependency("transit_station_document", .{ .target = target, .optimize = optimize });
-    const module = b.addModule("transit_query", .{ .root_source_file = b.path("src/root.zig"), .target = target, .optimize = optimize, .imports = &.{ .{ .name = "transit_station", .module = station.module("transit_station") }, .{ .name = "transit_station_document", .module = document.module("transit_station_document") } } });
+    const catalog = b.dependency("transit_catalog", .{ .target = target, .optimize = optimize });
+    const module = b.addModule("transit_query", .{ .root_source_file = b.path("src/root.zig"), .target = target, .optimize = optimize, .imports = &.{ .{ .name = "transit_station", .module = station.module("transit_station") }, .{ .name = "transit_station_document", .module = document.module("transit_station_document") }, .{ .name = "transit_catalog", .module = catalog.module("transit_catalog") } } });
     const tests = b.addTest(.{ .root_module = module });
     const api = b.addExecutable(.{ .name = "transit-query-api", .root_module = b.createModule(.{
         .root_source_file = b.path("src/export.zig"),

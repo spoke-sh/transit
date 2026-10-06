@@ -10993,6 +10993,30 @@ name collision and an unmapped LIMIT cause; the final tree preserves the existin
 syntax/range diagnostic causes. This remains compiler/operator evidence, not
 native Table SQL reads, installed callers or relational join qualification.
 
+The signed general `TableQuery` adapter passes **94/94 query-package tests**
+(`table-query-test2.log`) and the expanded native disk schedule. The latter now
+executes SQL projections, exact typed primary-key lookup, COUNT, LIMIT 0 and
+request/row/result-byte budget failures. A held query rejects current catalog
+read denial; another keeps its original object, schema and rows through UPDATE,
+column evolution, DROP and name reuse. Authority/store replacement invalidates
+the original snapshot, and a separately opened query reads the new object.
+The final run passes in **36.709 seconds**, with 142 owner turns and unchanged
+four-mutation/256-byte native bounds (`typed-table-select-native4.log`).
+
+The first expanded run failed its restart diagnostic assertion: cleanup replaced
+the original `QueryExpired` with a generic transport conflict. The query handle
+now retains the actual failed request's native cause before cleanup; local errors
+do not inherit another operation's rejection. Subsequent native runs pass. The
+first full check stopped at missing outcomes for the new query diagnostic cases;
+reviewed caller/Board/Flight/inspection cases now pass **2,922 projections across
+30 declared surfaces**. These remain signed Zig fixture proofs, without deployed
+console/host, all-family/SDK, cardinality-growth, latency or host-power-loss claims.
+Full pinned `just check` passes on the corrected query tree
+(`table-query-check2.log`), including generated contract/binding drift, native and
+CLI checks, semantic outcome cases, frontend checks/tests and the documentation
+build. Existing frontend lint warnings remain nonfatal. This does not replace
+committed-HEAD clean qualification or the remaining deployment migration.
+
 ## Fuze logical type foundation
 
 The local `Types` profile has nine passing focused Zig tests, including 46

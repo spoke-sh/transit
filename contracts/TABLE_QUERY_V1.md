@@ -55,3 +55,43 @@ operator failure. The first operator failure retains its original row, column,
 logical type, cell state, predicate instruction and source/plan fingerprints.
 That evidence does not itself authorize disclosure. Neither the compiler nor
 the generic executor implements source capture, persistence or query resumption.
+
+## Signed native Table reads
+
+`transit-query.TableQuery` composes this compiler and executor with the general
+catalog's signed connection and native leased snapshots. It resolves the supplied
+Table name inside one captured resource cut, validates the catalog's exact owner
+and configuration, and checks both inspect and read rights. Its binding commits
+the current shared definition, realm/resource/catalog/owner, captured resource
+revision, stable Table object, metadata commitment and complete Table head.
+
+Each output row is independently owned and released with `deinit`. The query
+rechecks current native authorization and scoped catalog policy after computation,
+before returning that row or successful completion. The same gate applies to
+cached data, empty results, aggregates and LIMIT 0. Sixty-four cached native
+entries belong exclusively to the captured cut; they never establish current
+permission. Complete primary-key equality uses the typed key index and still
+evaluates the predicate. Other predicates scan stable row identities.
+
+Schema evolution and DROP do not rewrite an already captured reader's identity.
+It may finish against its original schema and row root after a name is reused,
+subject to current read permission and native resource lifetime. A new name lookup
+selects the replacement object. This does not supply general historical AS OF
+queries, a cross-resource snapshot or authority to read a retired resource.
+
+Every query supplies positive limits for native snapshot requests, returned rows
+and canonical result bytes. The request budget includes acquisition, data reads
+and final policy validation; capability negotiation and explicit cleanup are
+outside it. Result bytes count the output descriptor and length-prefixed bound
+logical cells. Transport/Arrow/JSON framing has its own additional bounds. A query
+holds its two bounded schema owners, fixed cache, bounded index traversal and one
+decoded row; it does not materialize the Table. Returned row ownership belongs to
+the caller, which must release rows instead of retaining an unbounded result.
+
+Final validation releases the native snapshot. Close/deinit, cancellation, expiry
+and authority replacement preserve incomplete-output truth; no path silently
+opens a replacement cut. A failed handle cannot continue. The native rejection
+from a failed fetch is retained before cleanup can issue another native operation.
+The public Zig adapter is separate from the configured console, durable query and
+foreign-language integrations; their enabled capabilities are owned by those
+interfaces.

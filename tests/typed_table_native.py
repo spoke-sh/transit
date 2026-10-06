@@ -2,6 +2,7 @@
 from http.client import HTTPConnection
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
+import select
 from pathlib import Path
 import subprocess
 import sys
@@ -78,6 +79,7 @@ def run(node, proof):
         url = f'http://127.0.0.1:{proxy.server_port}'
         log = (root / 'node.log').open('w+')
         authority = None
+        readers = []
         started = time.monotonic()
         try:
             subprocess.run([node, str(config), '--initialize'], stdout=log, stderr=subprocess.STDOUT, check=True, timeout=30)
@@ -87,10 +89,12 @@ def run(node, proof):
                 wait_ready(fixture.http, process, direct + '/health')
                 return process
 
-            def call(mode, *args, fail=False):
+            def call(mode, *args, fail=False, expected_error=None):
                 result = subprocess.run([proof, url, mode, str(root), *map(str, args)], capture_output=True, text=True, timeout=300)
                 if fail:
                     assert result.returncode != 0, f'{mode} unexpectedly succeeded at lost-reply boundary'
+                    if expected_error:
+                        assert expected_error in result.stderr, (mode, result.stderr)
                     return None
                 if result.returncode:
                     raise RuntimeError(f'{mode}: {result.stderr[-12000:]}')
@@ -117,6 +121,23 @@ def run(node, proof):
             def applied(result):
                 assert result['state'] == 'terminal', result
                 assert result['outcome'] == 'applied' or (result['outcome'] == 'delegated' and result['table_outcome'] == 'applied'), result
+
+            def hold(sql):
+                process = subprocess.Popen([proof, url, 'select-held', str(root), sql], stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+                readers.append(process)
+                assert select.select([process.stdout], [], [], 30)[0], 'Table SELECT did not acquire its snapshot'
+                ready = process.stdout.readline()
+                assert ready == '{"ready":true}\n', (ready, process.poll())
+                return process
+
+            def release(process, error=None):
+                output, detail = process.communicate('x', timeout=30)
+                if error:
+                    assert process.returncode != 0 and error in detail, (output, detail)
+                    assert '"complete":true' not in output, output
+                    return None
+                assert process.returncode == 0, detail
+                return json.loads(output)
 
             authority = start()
             call('provision')
@@ -150,6 +171,23 @@ def run(node, proof):
             assert first[2] == {'null': {}}, first
             assert first[3] == {'value': {'atom': {'boolean': True}}}, first
             assert first[4] == {'value': {'atom': {'decimal': '12500000'}}}, first
+            selected = call('select', 'SELECT * FROM people')
+            assert selected['complete'] and selected['rows'] == data['rows'], selected
+            point = call('select', 'SELECT name, salary FROM people WHERE id=2')
+            assert point['scanned'] == 1 and point['rows'][0][0]['cell']['value']['atom']['utf8'] == 'Grace', point
+            assert call('select', 'SELECT COUNT(salary) FROM people')['rows'][0][0]['cell']['value']['atom']['unsigned'] == '2'
+            assert call('select', 'SELECT * FROM people LIMIT 0')['rows'] == []
+            call('select', 'SELECT * FROM people', 1, 128, 100000, fail=True, expected_error='QueryPageBudget')
+            call('select', 'SELECT * FROM people', 10000, 1, 100000, fail=True, expected_error='QueryResultBudget')
+            call('select', 'SELECT * FROM people', 10000, 128, 1, fail=True, expected_error='QueryResultBudget')
+            denied = hold('SELECT * FROM people')
+            call('policy', 'deny')
+            call('pump')
+            release(denied, 'CatalogDenied')
+            call('select', 'SELECT * FROM people LIMIT 0', fail=True, expected_error='CatalogDenied')
+            call('policy', 'allow')
+            call('pump')
+            frozen = hold('SELECT * FROM people')
             result = execute(3, "UPDATE people SET name = 'Ada Lovelace' WHERE id = 1")
             assert (result['matched'], result['changed']) == (1, 1), result
             result = execute(4, "UPDATE people SET name = 'Ada Lovelace' WHERE id = 1")
@@ -170,13 +208,29 @@ def run(node, proof):
             assert execute(11, 'CREATE TABLE people (id INT64, name UTF8)', 101)['outcome'] == 'applied'
             result = execute(12, "INSERT INTO people VALUES (1, 'same'), (1, 'same')")
             assert result['changed'] == 2 and call('inspect', 'people')['count'] == 2
+            old = release(frozen)
+            assert old['object'] == 100 and old['rows'] == selected['rows'], old
+            assert call('select', 'SELECT * FROM people')['object'] == 101
             (root / 'intent.bin').write_bytes(saved)
             result = call('status')
             assert result['outcome'] == 'applied' and result['changed'] == 2, result
             assert call('inspect', 'people')['object'] == 101
+            expired = hold('SELECT * FROM people')
+            authority.kill()
+            authority.wait(timeout=10)
+            authority = None
+            fixture.stop()
+            fixture.start()
+            authority = start()
+            release(expired, 'QueryExpired')
+            assert len(call('select', 'SELECT * FROM people')['rows']) == 2
             assert measurements['max_mutations'] <= 4 and measurements['max_value_bytes'] <= 256, measurements
             print(json.dumps(dict(profile='typed-table-native', seconds=round(time.monotonic() - started, 3), lost_reply_replays=sorted(replays), measurements=measurements)))
         finally:
+            for reader in readers:
+                if reader.poll() is None:
+                    reader.kill()
+                reader.communicate(timeout=10)
             if authority:
                 authority.kill()
                 authority.wait(timeout=10)
