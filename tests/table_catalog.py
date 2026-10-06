@@ -32,7 +32,11 @@ def fixture():
     obj = control(b'O', scope + struct.pack('<QB', maximum, 2) + reference + struct.pack('<QQQQ', 4, 0, 0, 0) + bytes(32))
     operation = control(b'R', scope + struct.pack('<QQQQ', 17, maximum, maximum, maximum) + bytes([68]) * 32 + bytes([3, 3, 0]) + reference + bytes(32) + struct.pack('<QQ', 5, 7))
     dependency = control(b'B', scope + struct.pack('<QQQB', maximum, 15, 4, 1))
-    actual_reference = struct.pack('<QII', 3, 0x54434d01, len(record)) + hashlib.sha256(record).digest()
+    commitment = hashlib.sha256(b'transit.station.publication.v1\0' + struct.pack('<II', 0x54434d01, len(record))).digest()
+    for index, offset in enumerate(range(0, len(record), 256)):
+        chunk = record[offset:offset + 256]
+        commitment = hashlib.sha256(b'\1' + commitment + struct.pack('<IH', index, len(chunk)) + chunk).digest()
+    actual_reference = struct.pack('<QII', 3, 0x54434d01, len(record)) + commitment
     command_header = b'TCQ1' + contract + scope + struct.pack('<QQQQ', 3, 17, maximum, maximum) + actual_reference + b'\3'
     assert len(command_header) == 141
     renamed = '人々'.encode()

@@ -10868,7 +10868,7 @@ Station frame payload. This is a size assertion, not native transport latency
 evidence or proof that the planned command header is implemented.
 
 Typed Table command bodies pass **50/50 catalog package tests**
-(`table-command-final.log`). Independent Python bytes fix the 141-byte header,
+(`table-command-final2.log`). Independent Python bytes fix the 141-byte header,
 full-width identities, immutable metadata commitment and Unicode rename payload.
 CREATE, every selected ALTER action, RENAME, bound/absent DROP and typed DML
 round-trip exactly. Tests reject all DDL truncations/trailing bytes, foreign
@@ -10878,6 +10878,10 @@ testing exposed nondeterministic allocation counts with a DML owner nested insid
 another arena; retaining DML's explicit independent owners removes that layer and
 passes the full failure schedule. These are codec and size proofs; native
 submission, continuation scheduling and transport latency remain separate.
+The first independent-fixture run failed: it used plain SHA-256 instead of the
+specified Publication chunk-chain commitment, and its strict metadata fixture
+reader omitted the new command fields. The corrected fixture and reader pass;
+the failed `table-command-final.log` is not qualification evidence.
 
 ## Fuze logical type foundation
 
