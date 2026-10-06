@@ -11588,6 +11588,18 @@ verification retains 59 invariants, 53 bounds and 13 SDK scenarios. C/C++ and BE
 catalog migrations, other enabled query routes, the coordinated definition cutover
 and final clean/performance qualification remain required before issue completion.
 
+
+The BEAM generated-contract validator passes independent recursive nullable,
+signed-integer and array fixtures inside the installed Erlang raw-client
+boundary test. It rejects missing/external references, invalid siblings, nested
+root definitions, unknown rules, empty unions, non-consuming cycles and excess
+data/reference depth. Separate roots remain isolated. A 600,000-byte canonical
+hex fixture and Unicode scalar-length cases cover the linear string checks.
+The public raw Erlang and Elixir schedules both pass recovery, seedless retry,
+owned I/O/disposal and revoked retry after rebuilding all eight OTP artifacts
+with warnings as errors (`table-beam-schema-{build,raw}1.log`). This qualifies the
+shared validator and raw callers, not the pending general BEAM Table API.
+
 ## Fuze logical type foundation
 
 The local `Types` profile has nine passing focused Zig tests, including 46

@@ -18,3 +18,9 @@ rejects overlap before requests reach the native worker queue. Explicit close
 joins admitted work, awaits native cleanup/exit and returns retained evidence.
 Observe startup and close results; killing a supervisor/VM can leave work
 uncertain. Local supervision never grants Transit ownership or retry authority.
+
+The generated contract validator resolves bounded root-local recursive schemas,
+keeps separate schema roots isolated, and rejects missing/external references,
+unknown validation rules and non-consuming cycles. Data depth and reference hops
+have separate bounds. Large canonical hex and UTF-8 length checks use linear
+scans without constructing payload-sized lists.

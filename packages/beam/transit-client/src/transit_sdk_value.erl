@@ -101,41 +101,72 @@ json(Bytes) ->
     catch _:_ -> fail(incompatible_native, json) end.
 require(Schema, Value) -> case valid(Schema, Value) of true -> Value; false -> fail(incompatible_native, schema) end.
 valid(Schema, Value) ->
+    try valid(Schema, Value, maps:get(<<"$defs">>, Schema, #{}), #{}, 0, 0, true)
+    catch _:_ -> false end.
+%% Data depth and non-consuming reference/union hops are separate bounds.
+%% BEAM values are immutable acyclic terms; references visited at this data node
+%% must not be revisited before consuming an object/array child.
+valid(S, V, Defs, Seen, Depth, Hops, Root) when is_map(S), is_map(Defs), Depth =< 128, Hops =< 128 ->
     Keywords = [<<"type">>, <<"properties">>, <<"additionalProperties">>, <<"required">>, <<"maxProperties">>,
-        <<"anyOf">>, <<"oneOf">>, <<"enum">>, <<"const">>, <<"minimum">>, <<"maximum">>, <<"maxLength">>, <<"pattern">>, <<"items">>, <<"minItems">>, <<"maxItems">>],
-    lists:all(fun(Key) -> case Key of <<"x-transit-", _/binary>> -> true; _ -> lists:member(Key, Keywords) end end, maps:keys(Schema))
-        andalso union(Schema, Value, <<"anyOf">>) andalso union(Schema, Value, <<"oneOf">>)
-        andalso (not maps:is_key(<<"const">>, Schema) orelse Value =:= maps:get(<<"const">>, Schema))
-        andalso (not maps:is_key(<<"enum">>, Schema) orelse lists:member(Value, maps:get(<<"enum">>, Schema)))
-        andalso typed(maps:get(<<"type">>, Schema, undefined), Schema, Value).
-union(Schema, Value, Kind) ->
-    case maps:find(Kind, Schema) of
+        <<"anyOf">>, <<"oneOf">>, <<"enum">>, <<"const">>, <<"minimum">>, <<"maximum">>, <<"maxLength">>, <<"pattern">>, <<"items">>, <<"minItems">>, <<"maxItems">>, <<"$ref">>, <<"$defs">>],
+    lists:all(fun(Key) -> case Key of <<"x-transit-", _/binary>> -> true; _ -> lists:member(Key, Keywords) end end, maps:keys(S))
+        andalso (not maps:is_key(<<"$defs">>, S) orelse Root)
+        andalso rule(S, V, Defs, Seen, Depth, Hops);
+valid(_, _, _, _, _, _, _) -> false.
+rule(#{<<"$ref">> := <<"#/$defs/", Name/binary>>} = S, V, Defs, Seen, Depth, Hops) ->
+    lists:all(fun(K) -> K =:= <<"$ref">> orelse K =:= <<"$defs">> end, maps:keys(S))
+        andalso reference_name(Name) andalso not maps:is_key(Name, Seen)
+        andalso maps:is_key(Name, Defs)
+        andalso valid(maps:get(Name, Defs), V, Defs, Seen#{Name => true}, Depth, Hops + 1, false);
+rule(#{<<"$ref">> := _}, _, _, _, _, _) -> false;
+rule(S, V, Defs, Seen, Depth, Hops) ->
+    union(S, V, <<"anyOf">>, Defs, Seen, Depth, Hops)
+        andalso union(S, V, <<"oneOf">>, Defs, Seen, Depth, Hops)
+        andalso (not maps:is_key(<<"const">>, S) orelse V =:= maps:get(<<"const">>, S))
+        andalso (not maps:is_key(<<"enum">>, S) orelse lists:member(V, maps:get(<<"enum">>, S)))
+        andalso typed(maps:get(<<"type">>, S, undefined), S, V, Defs, Depth).
+reference_name(<<>>) -> false;
+reference_name(B) -> reference_tail(B).
+reference_tail(<<>>) -> true;
+reference_tail(<<C, Rest/binary>>) when C >= $A, C =< $Z; C >= $a, C =< $z; C >= $0, C =< $9; C =:= $_ -> reference_tail(Rest);
+reference_tail(_) -> false.
+union(S, V, Kind, Defs, Seen, Depth, Hops) ->
+    case maps:find(Kind, S) of
         error -> true;
-        {ok, Branches} -> Count = length([ok || Branch <- Branches, valid(Branch, Value)]),
-            Count > 0 andalso (Kind =/= <<"oneOf">> orelse Count =:= 1)
-    end.
-typed(undefined, _, _) -> true;
-typed(<<"null">>, _, V) -> V =:= null;
-typed(<<"boolean">>, _, V) -> is_boolean(V);
-typed(Type, S, V) when Type =:= <<"integer">>; Type =:= <<"number">> ->
-    is_integer(V) andalso V >= maps:get(<<"minimum">>, S, V) andalso V =< maps:get(<<"maximum">>, S, V);
-typed(<<"string">>, S, V) when is_binary(V) ->
-    case unicode:characters_to_list(V) of
-        List when is_list(List) -> length(List) =< maps:get(<<"maxLength">>, S, length(List)) andalso pattern(S, V);
+        {ok, Branches} when is_list(Branches), Branches =/= [] ->
+            Count = length([ok || Branch <- Branches, valid(Branch, V, Defs, Seen, Depth, Hops + 1, false)]),
+            Count > 0 andalso (Kind =/= <<"oneOf">> orelse Count =:= 1);
         _ -> false
-    end;
-typed(<<"array">>, S, V) when is_list(V) ->
+    end.
+typed(undefined, _, _, _, _) -> true;
+typed(<<"null">>, _, V, _, _) -> V =:= null;
+typed(<<"boolean">>, _, V, _, _) -> is_boolean(V);
+typed(Type, S, V, _, _) when Type =:= <<"integer">>; Type =:= <<"number">> ->
+    is_integer(V) andalso V >= maps:get(<<"minimum">>, S, V) andalso V =< maps:get(<<"maximum">>, S, V);
+typed(<<"string">>, S, V, _, _) when is_binary(V) ->
+    utf8_bound(V, maps:get(<<"maxLength">>, S, byte_size(V))) andalso pattern(S, V);
+typed(<<"array">>, S, V, Defs, Depth) when is_list(V) ->
     length(V) >= maps:get(<<"minItems">>, S, 0) andalso length(V) =< maps:get(<<"maxItems">>, S, length(V))
-        andalso lists:all(fun(E) -> valid(maps:get(<<"items">>, S), E) end, V);
-typed(<<"object">>, S, V) when is_map(V) ->
+        andalso lists:all(fun(E) -> valid(maps:get(<<"items">>, S), E, Defs, #{}, Depth + 1, 0, false) end, V);
+typed(<<"object">>, S, V, Defs, Depth) when is_map(V) ->
     P = maps:get(<<"properties">>, S, #{}),
     map_size(V) =< maps:get(<<"maxProperties">>, S, map_size(V))
         andalso lists:all(fun(K) -> maps:is_key(K, V) end, maps:get(<<"required">>, S, []))
         andalso (maps:get(<<"additionalProperties">>, S, true) orelse lists:all(fun(K) -> maps:is_key(K, P) end, maps:keys(V)))
-        andalso lists:all(fun({K, Child}) -> not maps:is_key(K, V) orelse valid(Child, maps:get(K, V)) end, maps:to_list(P));
-typed(_, _, _) -> false.
+        andalso lists:all(fun({K, Child}) -> not maps:is_key(K, V) orelse valid(Child, maps:get(K, V), Defs, #{}, Depth + 1, 0, false) end, maps:to_list(P));
+typed(_, _, _, _, _) -> false.
+%% Count Unicode scalars without materializing a list proportional to a large
+%% hexadecimal/binary payload. The generated hex pattern is checked linearly.
+utf8_bound(<<>>, N) -> is_integer(N) andalso N >= 0;
+utf8_bound(<<_/utf8, Rest/binary>>, N) when is_integer(N), N > 0 -> utf8_bound(Rest, N - 1);
+utf8_bound(_, _) -> false.
+hex_pattern(<<>>) -> true;
+hex_pattern(<<A, B, Rest/binary>>) when ((A >= $0 andalso A =< $9) orelse (A >= $a andalso A =< $f)),
+                                      ((B >= $0 andalso B =< $9) orelse (B >= $a andalso B =< $f)) -> hex_pattern(Rest);
+hex_pattern(_) -> false.
 pattern(S, V) ->
     case maps:find(<<"pattern">>, S) of
         error -> true;
+        {ok, <<"^(?:[0-9a-f]{2})*$">>} -> hex_pattern(V);
         {ok, Pattern} -> re:run(V, <<"\\A(?:", Pattern/binary, ")\\z">>, [{capture, none}, {match_limit, 1000000}]) =:= match
     end.
