@@ -16073,3 +16073,16 @@ provisioning and the original lost-receipt retry completed in that failed run
 KV run exposed the separate predicate nesting limit regression. Its companion
 Table run was interrupted before qualification. Full native query recovery
 remains pending those corrections.
+
+### Bounded typed Boolean parsing
+
+Typed SELECT/UPDATE/DELETE parsing uses a fixed 64-entry operator stack with the
+separate 64-instruction postfix budget. Boundary checks admit 63 NOT operators
+plus one atom, 64 parentheses, and a mixed 64-entry stack; the next instruction
+or stack entry rejects with its respective budget error. Existing precedence,
+five-state truth and eager-error checks remain. ReleaseSafe Fuze passes 256
+tests (`fuze-boolean-stack2.log` in the local Table-schema campaign) and query
+passes all 114 tests, including five native catalog cases
+(`query-boolean-stack1.log`). The first Fuze run retained an obsolete 16-level
+rejection assertion; that failed run is not qualification. The native recovery
+schedules and installed-SDK reruns are separate evidence.

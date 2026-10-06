@@ -112,49 +112,78 @@ pub fn parameterValue(site: sql.Parameter, parameters: ?[]const t.Values.Atom, e
 }
 pub fn syntax(parser: *Parser, hints: ?t.Type, name: []const u8, unsupported: anyerror) !Syntax {
     var expression: Expression = .{ .parser = parser, .hints = hints, .name = name, .unsupported = unsupported };
-    try expression.disjunction(0);
+    try expression.parse();
     return .{ .instructions = try parser.allocator.dupe(Syntax.Instruction, expression.instructions[0..expression.count]) };
 }
 pub fn parse(parser: *Parser, schema: t.Type, name: []const u8, unsupported: anyerror) !Predicate.Program {
     return (try syntax(parser, schema, name, unsupported)).bind(parser.allocator, schema, name, parser.location);
 }
 const Expression = struct {
+    const Operator = enum { group, disjunction, conjunction, negate };
     parser: *Parser,
     hints: ?t.Type,
     name: []const u8,
     instructions: [Predicate.Program.max_instructions]Syntax.Instruction = undefined,
     count: usize = 0,
+    operators: [Predicate.Program.max_instructions]Operator = undefined,
+    pending: usize = 0,
     unsupported: anyerror,
     fn append(self: *Expression, instruction: Syntax.Instruction) !void {
         if (self.count == self.instructions.len) return error.PredicateTooComplex;
         self.instructions[self.count] = instruction;
         self.count += 1;
     }
-    fn disjunction(self: *Expression, depth: usize) anyerror!void {
-        if (depth == 16) return error.PredicateTooDeep;
-        try self.conjunction(depth);
-        while (try self.parser.takeWord("OR")) {
-            try self.conjunction(depth);
-            try self.append(.disjunction);
+    fn push(self: *Expression, operator: Operator) !void {
+        if (self.pending == self.operators.len) return error.PredicateTooDeep;
+        self.operators[self.pending] = operator;
+        self.pending += 1;
+    }
+    fn emit(self: *Expression) !void {
+        self.pending -= 1;
+        try self.append(switch (self.operators[self.pending]) {
+            .group => unreachable,
+            .disjunction => .disjunction,
+            .conjunction => .conjunction,
+            .negate => .negate,
+        });
+    }
+    fn parse(self: *Expression) !void {
+        var operand = true;
+        var groups: usize = 0;
+        while (true) {
+            if (operand) {
+                if (try self.parser.takeWord("NOT")) {
+                    try self.push(.negate);
+                    continue;
+                }
+                if (try self.parser.take(.left)) {
+                    try self.push(.group);
+                    groups += 1;
+                    continue;
+                }
+                try self.atom();
+                operand = false;
+                continue;
+            }
+            const operator: ?Operator = if (try self.parser.takeWord("AND")) .conjunction else if (try self.parser.takeWord("OR")) .disjunction else null;
+            if (operator) |next| {
+                while (self.pending > 0 and @backingInt(self.operators[self.pending - 1]) >= @backingInt(next)) try self.emit();
+                try self.push(next);
+                operand = true;
+                continue;
+            }
+            if (groups > 0) {
+                try self.parser.require(.right);
+                while (self.operators[self.pending - 1] != .group) try self.emit();
+                self.pending -= 1;
+                groups -= 1;
+                continue;
+            }
+            while (self.pending > 0) try self.emit();
+            return;
         }
     }
-    fn conjunction(self: *Expression, depth: usize) anyerror!void {
-        try self.unary(depth);
-        while (try self.parser.takeWord("AND")) {
-            try self.unary(depth);
-            try self.append(.conjunction);
-        }
-    }
-    fn unary(self: *Expression, depth: usize) anyerror!void {
-        if (depth == 16) return error.PredicateTooDeep;
-        if (try self.parser.takeWord("NOT")) {
-            try self.unary(depth + 1);
-            return self.append(.negate);
-        }
-        if (try self.parser.take(.left)) {
-            try self.disjunction(depth + 1);
-            return self.parser.require(.right);
-        }
+    fn atom(self: *Expression) !void {
         const column = try Reference.parse(self.parser);
         var expected: ?t.Type = null;
         if (self.hints) |schema| if (schema == .structure) {

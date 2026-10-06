@@ -8,6 +8,44 @@ const dml = @import("TableDml.zig");
 const Cell = types.Values.Cell;
 const basis: [32]u8 = @splat(17);
 
+test "typed SELECT and DML bound Boolean instruction and operator stacks independently" {
+    const schema: @import("TableSchema.zig").Schema = .{ .object = 1, .revision = 1, .next_column = 2, .columns = &.{.{ .id = 1, .name = "n", .type = .int64 }}, .primary_key = &.{} };
+    var fields: [128]types.Field = undefined;
+    const row_type = try schema.rowType(&fields);
+    for ([_]struct { negations: usize, groups: usize, failure: ?anyerror = null }{
+        .{ .negations = 63, .groups = 0 },
+        .{ .negations = 0, .groups = 64 },
+        .{ .negations = 32, .groups = 32 },
+        .{ .negations = 64, .groups = 0, .failure = error.PredicateTooComplex },
+        .{ .negations = 65, .groups = 0, .failure = error.PredicateTooDeep },
+        .{ .negations = 0, .groups = 65, .failure = error.PredicateTooDeep },
+        .{ .negations = 33, .groups = 32, .failure = error.PredicateTooDeep },
+    }) |case| {
+        var bytes: [4096]u8 = undefined;
+        var writer: std.Io.Writer = .fixed(&bytes);
+        for (0..case.negations) |_| try writer.writeAll("NOT ");
+        for (0..case.groups) |_| try writer.writeByte('(');
+        try writer.writeAll("n IS NULL");
+        for (0..case.groups) |_| try writer.writeByte(')');
+        const read = try std.fmt.allocPrint(e.allocator, "SELECT n FROM people WHERE {s}", .{writer.buffered()});
+        defer e.allocator.free(read);
+        const write = try std.fmt.allocPrint(e.allocator, "DELETE FROM people WHERE {s}", .{writer.buffered()});
+        defer e.allocator.free(write);
+        if (case.failure) |failure| {
+            try e.expectError(failure, select.compile(e.allocator, read, "people", row_type, basis, null));
+            try e.expectError(failure, dml.compile(e.allocator, write, "people", schema, null));
+        } else {
+            var query = try select.compile(e.allocator, read, "people", row_type, basis, null);
+            defer query.deinit();
+            var mutation = try dml.compile(e.allocator, write, "people", schema, null);
+            defer mutation.deinit();
+            var failed: ?logical.Plan.PredicateFailure = null;
+            try e.expectEqual(case.negations % 2 == 0, try query.plan.matches(&.{.null}, &failed));
+            try e.expectEqual(case.negations % 2 == 0, try mutation.plan.matches(&.{.null}));
+        }
+    }
+}
+
 test "Table SELECT and DML share all canonical five-state predicates" {
     const schema: @import("TableSchema.zig").Schema = .{ .object = 1, .revision = 1, .next_column = 2, .columns = &.{.{ .id = 1, .name = "n", .type = .int64 }}, .primary_key = &.{} };
     var fields: [128]types.Field = undefined;

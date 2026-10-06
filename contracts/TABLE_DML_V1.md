@@ -96,8 +96,9 @@ nested/JSON comparisons reject before row execution.
 Predicates use the same `LogicalPredicate` atoms and eager postfix Boolean
 machine as logical file plans. NULL comparisons retain unknown truth, NOT does
 not turn unknown into selected, and evaluated errors are not hidden by Boolean
-identities. Programs have at most 64 instructions and fewer than 16 levels of
-parenthesis/NOT nesting. Literal byte limits and scalar comparison admission
+identities. Programs have at most 64 instructions; parsing bounds pending
+operators and parentheses to 64 stack entries without recursive descent.
+Literal byte limits and scalar comparison admission
 remain the shared logical predicate limits; storage support does not expand them.
 
 `primaryKeyEquality` qualifies a point lookup only when the complete predicate

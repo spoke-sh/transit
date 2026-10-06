@@ -90,9 +90,9 @@ test "DML rejects invalid complete inputs and unsupported predicates before row 
     var deeply_nested: [512]u8 = undefined;
     var writer: std.Io.Writer = .fixed(&deeply_nested);
     try writer.writeAll("DELETE FROM people WHERE ");
-    for (0..16) |_| try writer.writeByte('(');
+    for (0..65) |_| try writer.writeByte('(');
     try writer.writeAll("id=1");
-    for (0..16) |_| try writer.writeByte(')');
+    for (0..65) |_| try writer.writeByte(')');
     try e.expectError(error.PredicateTooDeep, dml.compile(e.allocator, writer.buffered(), "people", schema, null));
 }
 fn allocationCase(allocator: std.mem.Allocator) !void {
