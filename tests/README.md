@@ -11782,6 +11782,13 @@ frames, uncertain receipts and joined worker-lifetime schedules also pass.
 These are local preparation and boundary checks, not another disk-backed
 lifecycle or whole-runtime memory measurement.
 
+Full pinned `just check` passes the aggregate-admission checkpoint at `1dd2a19e`
+(`table-sdk-budget-check2.log`), including generated contracts, native/CLI tests,
+frontend checks and the documentation production build. The first full run stops
+on diagnostic inventory drift from the two new early budget checks. Both causes
+already have explicit SQL diagnostic mappings; after reviewing and recording the
+changed propagation owners, the independent mapping gate and full rerun pass.
+
 ## Fuze logical type foundation
 
 The local `Types` profile has nine passing focused Zig tests, including 46
