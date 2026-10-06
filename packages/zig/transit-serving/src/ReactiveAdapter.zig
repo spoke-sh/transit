@@ -77,9 +77,9 @@ fn readOnce(self: Self, signed: r.SignedRead, public_key: [32]u8) !Acquisition {
         const source = before.source.?;
         var reader = try self.sourceReader(source);
         const observation = if (signed.read.kind == .snapshot) blk: {
-            result.snapshot = try root.TableWatch.snapshot(&reader, source);
+            result.snapshot = try root.TableWatch.snapshot(self.base.resources.wire.http.allocator, &reader, signed.read.scope.principal, source);
             break :blk result.snapshot.?.observation;
-        } else try root.TableWatch.observe(&reader, source);
+        } else try root.TableWatch.observe(self.base.resources.wire.http.allocator, &reader, signed.read.scope.principal, source);
         acquired = observation;
         var outcome: ?Outcome = null;
         if (before.session.operation != 0) {
@@ -88,7 +88,7 @@ fn readOnce(self: Self, signed: r.SignedRead, public_key: [32]u8) !Acquisition {
                 if (operation.phase != .admitted) outcome = .{ .resource = self.base.resource, .operation = operation.operation, .phase = operation.phase, .resolution_input = operation.resolution_input, .diagnostic = root.OperationDiagnostic.project(self.base.resources.realm, self.base.service, self.base.resource, operation) catch null };
             }
         }
-        const position: r.Position = .{ .scope = signed.read.scope, .watch_revision = source.revision, .resource = source.resource, .schema = source.schema, .data_revision = observation.data_revision, .outcome_position = if (outcome) |v| v.resolution_input else 0 };
+        const position: r.Position = .{ .scope = signed.read.scope, .watch_revision = source.revision, .resource = source.resource, .schema = observation.basis.schema, .data_revision = observation.data_revision, .outcome_position = if (outcome) |v| v.resolution_input else 0 };
         var changed = true;
         var outcome_changed = outcome != null;
         if (signed.read.cursor) |cursor| {
@@ -103,7 +103,7 @@ fn readOnce(self: Self, signed: r.SignedRead, public_key: [32]u8) !Acquisition {
         // Newer data is safely reported by the next poll; a changed declaration
         // cannot disclose a page from the previous schema.
         var latest = try self.sourceReader(source);
-        const current = try root.TableWatch.observe(&latest, source);
+        const current = try root.TableWatch.observe(self.base.resources.wire.http.allocator, &latest, signed.read.scope.principal, source);
         if (current.data_revision < observation.data_revision) return error.ReactiveResetRequired;
     }
     const after = try self.context(signed, public_key);
@@ -153,7 +153,7 @@ fn checkOnce(self: Self, signed: r.SignedRead, public_key: [32]u8) !void {
     const current = try self.context(signed, public_key);
     if (signed.read.kind == .session) return error.InvalidReactiveScope;
     var data = try self.sourceReader(current.source.?);
-    _ = try root.TableWatch.observe(&data, current.source.?);
+    _ = try root.TableWatch.observe(self.base.resources.wire.http.allocator, &data, signed.read.scope.principal, current.source.?);
 }
 
 pub fn discovery(self: Self, signed: root.Model.SignedRead, public_key: [32]u8, allocator: std.mem.Allocator) !root.Api.Discovery {
@@ -164,7 +164,7 @@ pub fn discovery(self: Self, signed: root.Model.SignedRead, public_key: [32]u8, 
     const source = (try root.ReactiveService.source(&scoped.data)) orelse return error.ServiceUnpublished;
     if (!source.published or !binding.published or source.target != binding.target) return error.ServiceUnpublished;
     var data = try self.sourceReader(source);
-    _ = try root.TableWatch.observe(&data, source);
+    _ = try root.TableWatch.observe(self.base.resources.wire.http.allocator, &data, signed.read.principal, source);
     const result: root.Api.Discovery = .{ .service = self.base.service, .ingress = self.base.ingress, .resource = self.base.resource, .binding_revision = binding.revision, .watch_revision = source.revision, .openapi_sha256 = try root.Api.digest(.openapi, allocator), .asyncapi_sha256 = try root.Api.digest(.asyncapi, allocator) };
     const latest = try self.base.read(signed, public_key);
     if (latest.policy_revision != base.policy_revision or !std.meta.eql(latest.binding, base.binding)) return error.ServiceReadConflict;

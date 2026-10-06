@@ -39,13 +39,7 @@ export const liveQuery = new LiveView<ResultPage>(querySession, async (signal, n
     // a watch watermark is not an immutable result or a retained source pin.
     return {
       value: page,
-      basis: {
-        kind: basis.cut.kind,
-        resource: basis.cut.resource,
-        revision: basis.cut.revision,
-        contract: basis.contract,
-        schema: basis.schema,
-      },
+      basis,
       namespace,
     };
   } catch (error) {

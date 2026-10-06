@@ -1,7 +1,8 @@
 # Sessions, watches and live views
 
 The reactive API supplies resumable notifications and exact snapshot refresh for
-int64 Table sources. A notification says the source may have
+catalog Tables with two INT64 columns and a single-column primary key on the
+first column. General Table storage and finite queries admit broader schemas. A notification says the source may have
 changed. It is not a new query result, every intermediate row change or a
 continuous SQL engine.
 
@@ -28,7 +29,7 @@ revocation without gaining source data through that cleanup operation.
 
 ## Snapshot and watch handoff
 
-Acquire the declared Table descriptor, data watermark and bounded first page at
+Acquire the declared catalog metadata/schema, Table-head watermark and first page at
 one exact resource revision through the shared operation. Reading "latest" and
 subscribing later loses changes between the two requests. A `more` flag sends
 larger snapshots through the existing finite query reader.
@@ -37,7 +38,13 @@ Preserve resource, source contract/schema and data-watermark evidence. Do not
 compare incompatible positions or treat framework bookkeeping as row changes.
 Missing retained coverage returns reset or interruption; it never silently
 pretends the stream remained continuous. A cursor does not extend a released
-query pin or the source's history lifetime.
+query pin or the source's history lifetime. The watermark is the native revision
+of the published Table-head entry. Head reservations or no-op completions can
+signal possible change; staged rows remain invisible. Query bookkeeping and
+changes to other Tables do not advance this head. Current catalog inspect/read
+rights are checked for the authenticated caller on each observation. ALTER/DROP
+or a different metadata commitment requires an explicit new snapshot; a watch
+never follows a reused name.
 
 ## Refresh a displayed result
 

@@ -16122,3 +16122,25 @@ cells. COUNT and the native lifecycle paths above have executed; shell, Board,
 browser, expiry and the combined writer schedule require their separate runs.
 The combined fixture's Zig provisioning uses the new catalog owner, while its
 Python interleaving/fault schedule is still being migrated and is not qualified.
+
+
+### Catalog-backed reactive observations and refresh authority
+
+ReleaseSafe serving checks pass all 48 tests (`serving-catalog-watch6.log` in the
+local Table-schema campaign). Real catalog-backed snapshots test every read
+boundary against concurrent cuts, full column names, explicit watch shape
+admission, atomic multi-row publication, metadata invalidation and current
+caller catalog denial. Head reservations may notify possible changes before
+publication but expose only committed rows. Retained refresh diagnostics require
+current caller catalog rights without requiring their old metadata to remain
+live. Native resource access and service policy checks remain separate.
+
+Generated OpenAPI/AsyncAPI/client schemas and the private host reflection check
+pass (`reactive-catalog-generate1.log`, `reactive-catalog-contract1.log`); Board
+TypeScript checking and 52 reactive/live-view cases pass
+(`reactive-catalog-ts-check1.log`, `reactive-catalog-ts-test1.log`). Board builds
+against the migrated reader (`serving-catalog-board2.log`). The final status
+catalog-authorization addition is covered by serving package compilation and
+local checks; the deployed native SSE/WebSocket/Follow examples still require
+migration and qualification. These checks do not qualify that remaining work or
+the coordinated shared-definition cutover.

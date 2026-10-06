@@ -58,9 +58,13 @@ Deterministic tests cover competing attachments, stale subscription controls,
 renewal/expiry races, retained growth, aggregate quota and failed reads. These
 checks do not advertise SSE/WebSocket or prove deployed recovery.
 
-`TableWatch` acquires the declared Table descriptor, data-progress entry and
-first bounded page at one exact current resource revision. The initial transport
-profile is an int64 Table; application integers encode as decimal strings. A
+`TableWatch` resolves immutable catalog metadata/schema, the Table-head entry
+and first bounded row page at one exact current resource revision. It requires
+current catalog inspect/read rights for the authenticated caller. The snapshot
+transport admits two INT64 columns with the first a non-null primary key;
+application integers encode as decimal strings. Head reservations may notify
+possible change before atomic row publication; unrelated query bookkeeping does
+not advance the watermark. Metadata changes require an explicit new snapshot. A
 `more` flag directs larger snapshots to the existing finite query reader.
 `covered` reuses `transit-query`'s source contract/schema basis, checking the
 identical resource and data watermark. It does not extend a query's released pin.

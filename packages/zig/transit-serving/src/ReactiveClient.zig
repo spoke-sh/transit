@@ -30,7 +30,7 @@ pub const Request = union(enum) {
     describe,
     clock,
     inspect: r.Read,
-    covered: struct { observation: root.TableWatch.Observation, captured: root.query.fuze.Unified.Basis },
+    covered: struct { observation: root.TableWatch.Observation, captured: root.query.Basis },
     prepare: Command,
     submit: r.SignedSend,
     observe: u64,
@@ -154,6 +154,15 @@ fn refreshStatusOnce(self: Self, adapter: root.Adapter, selection: root.RefreshM
     const source = (try self.query(.{ .read_access = view.source.resource })).body.read_access;
     const requester = (try self.query(.{ .read_access = adapter.resource })).body.read_access;
     if (source.writer != view.source.target or source.phase != .active or requester.writer != self.connection.ingress or requester.phase != .active) return error.ResourceUnavailable;
+    // Retained diagnostics remain readable across ALTER/DROP only while the
+    // caller retains current catalog rights. The service's native identity
+    // acquires these policy bytes but cannot lend its own catalog permission.
+    var catalog_policy = try adapter.resources.readBatch(view.source.resource, null, &.{
+        root.query.catalog.Records.key(view.source.catalog.value, 'c', 0, 0),
+        root.query.catalog.Records.key(view.source.catalog.value, 'p', self.connection.principal, 0),
+    });
+    if (catalog_policy.resource.writer != view.source.target or catalog_policy.resource.phase != .active) return error.ResourceUnavailable;
+    _ = try root.TableWatch.authorize(&catalog_policy, self.connection.principal, view.source);
     // These copied records are not disclosed until caller identity and current
     // service policy have been checked again. Mutable ingress writes cannot
     // expire the bounded head/view acquisition halfway through its read.

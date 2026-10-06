@@ -8,6 +8,7 @@ const s = root.station;
 const p = root.protocol;
 const r = root.ReactiveModel;
 const m = root.RefreshModel;
+const support = @import("table_watch_test_support.zig");
 const Store = q.testing.Store;
 const principal = 65536;
 const configuration: root.Model.Configuration = .{ .service = 10, .administrator = 11, .observer = 12 };
@@ -35,30 +36,18 @@ const Reader = struct {
         if (self.unavailable) return error.AuthorityUnavailable;
         if (self.denied or caller != principal or source.resource != self.source.resource or source.target != self.source.pid or !std.meta.eql(credentials, proof)) return error.ServingDenied;
     }
-    const Watch = struct {
-        turn: s.Turn,
-        store: *Store,
-        view: p.Growth.View,
-        pub fn read(self: *@This(), key: p.Value) !?p.Value {
-            return self.turn.read(key);
-        }
-        pub fn entry(self: *@This(), key: p.Value) !?p.Growth.Entry {
-            if (self.store.denied) return error.AccessDenied;
-            return if (self.store.state.get(key)) |value| .{ .key = key, .value = value, .revision = self.store.revisions.get(key).? } else null;
-        }
-    };
-    pub fn observe(self: @This(), source: r.Source) !root.TableWatch.Observation {
-        const turn = try self.open(source.resource);
-        var watch: Watch = .{ .turn = turn, .store = self.source, .view = turn.view };
-        return root.TableWatch.observeDiagnostic(&watch, source, self.diagnostic);
+    pub fn observe(self: @This(), caller: u64, source: r.Source) !root.TableWatch.Observation {
+        _ = try self.open(source.resource);
+        var watch = try support.Reader.open(self.source);
+        return root.TableWatch.observeDiagnostic(t.allocator, &watch, caller, source, self.diagnostic);
     }
-    pub fn result(self: @This(), turn: *s.Turn, namespace: u64, source: r.Source) !q.fuze.Unified.Basis {
+    pub fn result(self: @This(), turn: *s.Turn, namespace: u64, source: r.Source) !q.Basis {
         const status = (try q.UnifiedUpload.status(turn, namespace)) orelse return error.InvalidRefreshTemplate;
         if (status.phase != .complete) return error.InvalidRefreshTemplate;
         var arena = std.heap.ArenaAllocator.init(t.allocator);
         defer arena.deinit();
         const opened = try q.UnifiedResult.open(status.manifest.?, .{ .resource = source.resource, .source = source.target, .requester = turn.delivery.pid, .correlation = status.correlation, .request = status.reference }, self, arena.allocator());
-        return opened.manifest.checkpoint.progress.basis;
+        return try opened.manifest.checkpoint.basis(opened.bundle.source);
     }
 };
 const Rig = struct {
@@ -84,23 +73,21 @@ const Rig = struct {
         try self.requests.commit(turn);
     }
     fn mutate(self: *@This()) !void {
-        var turn = try self.source.capture();
-        const table = try s.Table.open(&turn, 1);
-        try table.upsert(&turn, .{ .key = 1, .value = .{ .int64 = @intCast(self.source.revision) } });
-        try turn.put(self.declaration.progress_key, p.Value.integer(@intCast(self.source.revision)));
-        try self.source.commit(turn);
+        var buffer: [128]u8 = undefined;
+        try support.mutate(&self.source, try std.fmt.bufPrint(&buffer, "UPDATE items SET \"count\" = {d} WHERE id = 1", .{self.source.revision}));
     }
     fn init(self: *@This()) !void {
-        var turn = try self.source.capture();
-        const table = try s.Table.create(&turn, 1, .{ .names = .{ try .init("id"), try .init("count") }, .value_type = .int64 });
-        self.declaration = .{ .revision = 1, .target = 3, .resource = 7, .table = 1, .progress_key = try p.Value.init("progress"), .schema = try table.schema.fingerprint() };
-        try turn.put(self.declaration.progress_key, p.Value.integer(0));
-        try self.source.commit(turn);
-        try self.mutate();
-        const bundle: q.Bundle = .{ .source = .{ .resource = 7, .source = .{ .table = .{ .id = 1, .schema = table.schema } } }, .plan = .{ .projection = &.{ 0, 1 } }, .limits = .{ .pages = 100, .segments = 100, .result_bytes = 1048576 } };
-        turn = try self.source.capture();
-        try q.UnifiedCapture.setPolicy(&turn, .{ .peer = 9, .requests = 8, .revision = 1, .allow = true, .limits = bundle.limits, .target = .{ .declaration = try q.Bundle.declaration(bundle.source) } });
-        try self.source.commit(turn);
+        self.declaration = try support.create(&self.source, "CREATE TABLE items (id INT64 PRIMARY KEY, \"count\" INT64)");
+        try support.mutate(&self.source, "INSERT INTO items VALUES (1, 0)");
+        var declaration = try support.declaration(&self.source);
+        defer declaration.deinit();
+        const source: q.SourceDefinition = .{ .resource = 7, .source = .{ .table = declaration.source } };
+        const limits: q.Bundle.Limits = .{ .pages = 100, .segments = 100, .result_bytes = 1048576 };
+        var arena: std.heap.ArenaAllocator = .init(t.allocator);
+        defer arena.deinit();
+        const bundle = try q.Bundle.fromSql(arena.allocator(), source, "items", "SELECT * FROM items", limits);
+        try support.delegate(&self.source, 9, 8, limits);
+        var turn: s.Turn = undefined;
         turn = try self.requests.capture();
         var service: root.Service = .{ .configuration = configuration };
         const handler = service.interface();
@@ -184,7 +171,7 @@ const Rig = struct {
         const job = try q.UnifiedCapture.start(&turn, status.reference, self.reader(), arena.allocator());
         try self.source.commit(turn);
         if (change_during_capture) try self.mutate();
-        const workspace = try t.allocator.alloc(u8, q.fuze.Unified.Arrow.working_bytes);
+        const workspace = try t.allocator.alloc(u8, q.fuze.LogicalArrow.working_bytes);
         defer t.allocator.free(workspace);
         const cancellation = q.fuze.execution.Cancellation.init(false);
         for (0..1000) |_| {
@@ -248,7 +235,7 @@ test "simulation: refresh source cuts survive replacement, interruption and in-f
         const status = (try q.UnifiedUpload.status(&turn, admitted.namespace.value)).?;
         try t.expectEqual(.complete, status.phase);
         const basis = try rig.reader().result(&turn, admitted.namespace.value, rig.declaration);
-        try t.expectEqual(rig.source.resource, basis.resource);
+        try t.expectEqual(rig.source.resource, basis.cut.resource);
         if (replace) {
             try t.expectError(error.RefreshGenerationConflict, rig.apply(.{ .acknowledged = .{ .selection = selected, .namespace = admitted.namespace } }));
             try t.expectEqual(.paused, (try rig.view(current)).phase);
@@ -509,31 +496,28 @@ test "cancelled selected upload stops Follow before bounded collection" {
     try t.expectEqual(@as(u64, 0), (try root.Refresh.scheduler(&turn)).generation);
 }
 
-test "watch failures retain original schema and progress evidence at the failing read" {
+test "watch failures retain original metadata and head revision evidence at the failing read" {
     var rig: Rig = .{};
     defer rig.deinit();
     try rig.init();
     var context: root.ServingFailure.Context = .{};
     const reader = rig.reader().withDiagnostic(&context);
     var declaration = rig.declaration;
-    declaration.schema = @splat(255);
-    try t.expectError(error.ReactiveResetRequired, reader.observe(declaration));
-    try t.expectEqualDeep(declaration.schema, context.witness.basis.expected);
-    try t.expectEqualDeep(rig.declaration.schema, context.witness.basis.actual);
+    declaration.metadata_digest = @splat(255);
+    try t.expectError(error.ReactiveResetRequired, reader.observe(principal, declaration));
+    try t.expectEqualDeep(declaration.metadata_digest, context.witness.basis.expected);
+    try t.expectEqualDeep(rig.declaration.metadata_digest, context.witness.basis.actual);
+    try t.expectEqual(.metadata, context.witness.basis.kind);
     declaration = rig.declaration;
-    declaration.progress_key = try p.Value.init("absent");
-    try t.expectError(error.ReactiveResetRequired, reader.observe(declaration));
-    try t.expect(!context.witness.progress.present);
-    try t.expectEqualStrings("absent", context.witness.progress.key[0..context.witness.progress.length]);
-    declaration = rig.declaration;
-    try rig.source.revisions.put(t.allocator, declaration.progress_key, p.max_counter);
-    try t.expectError(error.InvalidReactiveProgress, reader.observe(declaration));
+    const key = s.TableHead.key(declaration.object.value);
+    try rig.source.revisions.put(t.allocator, key, p.max_counter);
+    try t.expectError(error.InvalidReactiveProgress, reader.observe(principal, declaration));
     try t.expect(context.witness.progress.present);
     try t.expectEqual(p.max_counter, context.witness.progress.actual);
     try t.expect(context.witness.progress.limit < context.witness.progress.actual);
-    declaration.table = 2;
-    try t.expectError(error.TableNotFound, reader.observe(declaration));
-    try t.expectEqual(@as(u32, 2), context.witness.table);
+    declaration.object.value = 2;
+    try t.expectError(error.TableNotFound, reader.observe(principal, declaration));
+    try t.expectEqual(@as(u64, 2), context.witness.table.value);
 }
 
 test "selected query failure stays independent of earlier stop and classifies only permission denial as denied" {

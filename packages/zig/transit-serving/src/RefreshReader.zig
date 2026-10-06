@@ -89,14 +89,14 @@ pub fn authorize(self: Self, principal: u64, source: root.ReactiveModel.Source, 
     try self.checkResource(.requester, self.ingress, request_resource);
 }
 
-pub fn observe(self: Self, source: root.ReactiveModel.Source) !root.TableWatch.Observation {
+pub fn observe(self: Self, principal: u64, source: root.ReactiveModel.Source) !root.TableWatch.Observation {
     var failure: ?root.station.client.ResourceReader.Failure = null;
     var reader = self.resources.withFailure(&failure).open(source.resource) catch |err| {
         self.rememberResourceRead(.source, 0, failure, err);
         return err;
     };
-    return root.TableWatch.observeDiagnostic(&reader, source, self.diagnostic) catch |err| {
-        self.rememberResourceRead(.source, 0, failure, err);
+    return root.TableWatch.observeDiagnostic(self.resources.wire.http.allocator, &reader, principal, source, self.diagnostic) catch |err| {
+        if (err == error.CatalogDenied) self.rememberRead(.source, principal, source.resource, 0, err) else self.rememberResourceRead(.source, 0, failure, err);
         return err;
     };
 }
@@ -105,7 +105,7 @@ fn requireTemplate(self: Self, namespace: u64, phase: ?q.UnifiedRequest.Phase, m
     f.remember(self.diagnostic, .{ .reader_template = .{ .namespace = namespace, .present = phase != null, .phase = phase orelse .uploading, .manifest = phase != null and manifest } });
     return error.InvalidRefreshTemplate;
 }
-pub fn result(self: Self, turn: *root.station.Turn, namespace: u64, source: root.ReactiveModel.Source) !q.fuze.Unified.Basis {
+pub fn result(self: Self, turn: *root.station.Turn, namespace: u64, source: root.ReactiveModel.Source) !q.Basis {
     if (turn.view.resource != self.resource) {
         f.remember(self.diagnostic, .{ .target = .{ .kind = .resource, .expected = self.resource, .actual = turn.view.resource } });
         return error.ServingDenied;
@@ -123,7 +123,7 @@ pub fn result(self: Self, turn: *root.station.Turn, namespace: u64, source: root
         self.rememberResourceRead(.result, namespace, failure, err);
         return err;
     };
-    return opened.manifest.checkpoint.progress.basis;
+    return try opened.manifest.checkpoint.basis(opened.bundle.source);
 }
 
 test "refresh reader captures exact identity gates without borrowing live policy" {

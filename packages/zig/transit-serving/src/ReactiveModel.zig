@@ -12,18 +12,36 @@ pub const max_message_bytes = 8192;
 pub const max_fragments = 32;
 pub const subprotocol = "transit.reactive.v1";
 
+/// Compact immutable catalog commitment. The current metadata format is part
+/// of the shared v1 definition; no legacy watch decoder is selected by shape.
 pub const Source = struct {
     revision: u64,
     target: u64,
     resource: u64,
-    table: u32,
-    progress_key: p.Value,
-    schema: [32]u8,
+    realm: u64,
+    catalog: root.RefreshModel.Namespace,
+    object: root.RefreshModel.Namespace,
+    metadata_revision: root.RefreshModel.Namespace,
+    metadata_length: u32,
+    metadata_digest: [32]u8,
     published: bool = true,
+    pub fn scope(self: Source) root.query.catalog.TableCatalogRecords.Scope {
+        return .{ .realm = self.realm, .resource = self.resource, .catalog = self.catalog.value };
+    }
+    pub fn metadata(self: Source) root.station.TablePages.Reference {
+        return .{ .id = self.metadata_revision.value, .spec = .{ .format = root.query.catalog.TableMetadata.format, .length = self.metadata_length, .digest = self.metadata_digest } };
+    }
+    pub fn from(revision: u64, source: root.query.TableSource) !Source {
+        try source.validate();
+        const result: Source = .{ .revision = revision, .target = source.owner, .resource = source.scope.resource, .realm = source.scope.realm, .catalog = .{ .value = source.scope.catalog }, .object = .{ .value = source.object }, .metadata_revision = .{ .value = source.metadata.id }, .metadata_length = source.metadata.spec.length, .metadata_digest = source.metadata.spec.digest };
+        try result.validate();
+        return result;
+    }
     pub fn validate(self: Source) !void {
-        inline for (.{ "revision", "target", "resource", "table" }) |name| try m.identity(@field(self, name));
-        try self.progress_key.validate();
-        if (self.progress_key.len == 0 or self.progress_key.len > 32 or std.mem.allEqual(u8, &self.schema, 0)) return error.InvalidReactiveSource;
+        inline for (.{ "revision", "target", "resource", "realm" }) |name| try m.identity(@field(self, name));
+        self.scope().validate() catch return error.InvalidReactiveSource;
+        root.query.catalog.TableCatalogRecords.metadataReference(self.metadata()) catch return error.InvalidReactiveSource;
+        if (self.object.value == 0 or std.mem.allEqual(u8, &self.metadata_digest, 0)) return error.InvalidReactiveSource;
     }
 };
 pub const SessionIdentity = struct { session: u64, generation: u64 };
