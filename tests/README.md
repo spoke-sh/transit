@@ -11907,6 +11907,17 @@ fixtures, generated contracts, native/CLI checks and frontends/documentation.
 The policy record replacement is part of the pending coordinated definition
 cutover; committed-HEAD clean qualification remains outstanding.
 
+The declaration-target policy replacement also passes the actual ReleaseSafe
+`just test::unified-query` disk-backed recovery schedule
+(`table-query-policy-durable1.log`). KV returns 41 rows in six segments in
+**22.32 s**, the existing Table route returns 41/six in **22.67 s**, and Document
+returns 12/two in **225.34 s**, including 177.06 s of Document provisioning.
+All three preserve exact uploads after unavailable sends, current-policy denial,
+source/requester/node/disk-store replacement after staging, complete manifests
+and released source pins. Native and port SQL inspection/parameter comparisons
+pass. No installed language SDK or general-Table durable route is claimed by this
+run; its binaries were built before the subsequent logical-template changes.
+
 ## Fuze logical type foundation
 
 The local `Types` profile has nine passing focused Zig tests, including 46
