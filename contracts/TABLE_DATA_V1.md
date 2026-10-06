@@ -179,9 +179,11 @@ matched count and changed count (u64 each), state:u8 and rejection:u8. All value
 integers are little-endian. States are building=1, applied=2, rejected=3 and
 cancelled=4. Rejections are none=0, row exists=1 and row identity exists=2.
 Building has zero completion input; terminal input is nonzero and no earlier
-than admission. This profile's matched/changed counts are at most one, with
-changed no greater than matched. Rejection/cancellation have zero counts.
-Building requires a nonempty reserved range and one changed row. Unknown flags,
+than admission. Counts are full-width, with changed no greater than matched;
+single-row publication returns at most one. Rejection/cancellation have zero
+counts. Building requires a nonempty reserved range. The point coordinator records
+its one-row candidate counts; finite statements keep provisional counts in their
+private progress record and expose terminal counts only at publication. Unknown flags,
 inconsistent counts/identity, truncation and foreign definitions reject.
 
 The owner first builds a bounded private candidate against the current head and
@@ -216,3 +218,47 @@ retained for separate, authorized reference-safe cleanup. Cancellation itself
 does not reclaim bytes, reuse IDs, change earlier results or erase recovery
 evidence. Native caller/SQL admission and disk-fault qualification are separate
 from this captured-turn coordinator.
+
+## Atomic finite statements
+
+`TableStatement` accepts a bound `TableDml.Plan` and the same authenticated
+resource/principal/operation identity. Its request digest hashes the domain
+`transit.table.statement.v1\0`, raw shared native definition, three IDs as u64le
+and the complete typed DML fingerprint. It shares `STW1` outcome keys with point
+writes: changing coordinator or intent at an occupied identity rejects.
+
+Admission reserves a bounded immutable record interval and records the busy
+head, receipt and candidate progress atomically. The live schema/data root stays
+unchanged. Every later step verifies that exact head revision, pending identity,
+range and schema. INSERT assigns row identities `(principal+1, operation, ordinal)`.
+UPDATE/DELETE traverse the original immutable root in row-identity order and
+evaluate the complete predicate against original rows. Updated keys never change
+selection or cause revisits; inserted candidates do not extend the frozen source.
+
+Each step processes at most one source row and holds at most one row overlay.
+Unselected rows and same-value updates advance only progress. Changed rows stage
+their complete reachable pages before advancing the candidate root/cursor/counts
+and reserving a new interval. Each interval contains `TableCandidate.max_records`
+IDs; unused IDs stay consumed. This is a finite operation budget, not a collection
+cardinality bound. The candidate accumulates in durable immutable pages, not RAM.
+Native turns retain the four-mutation limit. A page-only turn may precede the
+three-write progress advance. Lost proposals repeat the same row and reserved
+IDs; a saved cursor never points beyond unpublished candidate pages.
+
+Completion atomically swaps the live root, updates row count, clears pending work,
+saves terminal matched/changed counts and removes progress. A duplicate key or row
+identity at any row rejects the entire statement and clears pending work while
+keeping the original live root and zero terminal counts. Cancellation has the
+same visibility boundary. Both retain candidate pages and ID floors for separate
+cleanup. Other failures restore the private proposal and leave admitted work
+available for exact reconciliation; no failure implicitly means rollback.
+
+Progress keys are `00 47`, object/principal/operation:u64be. `STG1` contains magic,
+raw native definition, request digest (32 bytes), head revision:u64le, optional
+index reference in the same representation as `STH1`, optional 20-byte row cursor
+(presence:u8 plus big-endian identity), insert ordinal:u32le, matched:u64le and
+changed:u64le. The largest keyed-root record is 229 bytes. Counts, flags, reference
+shape, source range and intent are checked before continuation. Progress is owner
+state, never caller-supplied proof that a prefix committed. The original live head
+is the frozen source until final publication. Retained roots keep their schema;
+terminal reconciliation does not reopen or rebind a later head.

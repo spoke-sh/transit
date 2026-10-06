@@ -10,6 +10,211 @@ const Candidate = @import("TableCandidate.zig");
 const Pages = @import("TablePages.zig");
 const Head = @import("TableHead.zig");
 const Write = @import("TableWrite.zig");
+const Statement = @import("TableStatement.zig");
+fn runStatement(store: *Store, request: Statement.Request) !Write.Status {
+    var initial_turn = try store.capture();
+    const initial = try Head.load(&initial_turn, 9);
+    const reference = try request.reference(t.allocator);
+    for (0..20000) |_| {
+        var discarded = try store.capture();
+        _ = try Statement.step(t.allocator, &discarded, request);
+        // Discard every proposal once. No successful row prefix is observable.
+        var turn = try store.capture();
+        const visible = try Head.load(&turn, 9);
+        try t.expectEqualDeep(initial.index, visible.index);
+        try t.expectEqual(initial.rows, visible.rows);
+        const result = try Statement.step(t.allocator, &turn, request);
+        try t.expect(writes(turn) <= 4);
+        try store.commit(turn);
+        if (result.state != .building) {
+            turn = try store.capture();
+            try t.expectEqualDeep(result, try Statement.step(t.allocator, &turn, request));
+            try t.expectEqual(@as(usize, 0), writes(turn));
+            try t.expectEqual(null, try turn.read(Statement.Progress.key(reference)));
+            return result;
+        }
+        try t.expect(writes(turn) > 0);
+    }
+    return error.StatementDidNotComplete;
+}
+fn sqlStatement(store: *Store, operation: u64, definition: f.TableSchema.Schema, sql: []const u8) !Write.Status {
+    var compiled = try f.TableDml.compile(t.allocator, sql, "items", definition, null);
+    defer compiled.deinit();
+    return runStatement(store, .{ .resource = 7, .principal = 1, .operation = operation, .plan = compiled.plan });
+}
+test "finite statements publish all rows or none, exact counts and original receipts" {
+    var store: Store = .{};
+    defer store.deinit();
+    _ = try store.table();
+    const inserted = try sqlStatement(&store, 200, schema, "INSERT INTO items VALUES (1,'one'),(2,'two'),(3,'three')");
+    try t.expectEqual(.applied, inserted.state);
+    try t.expectEqual(@as(u64, 3), inserted.matched);
+    try t.expectEqual(@as(u64, 3), inserted.changed);
+    var turn = try store.capture();
+    const original = try Head.load(&turn, 9);
+    const rejected = try sqlStatement(&store, 201, schema, "INSERT INTO items VALUES (4,'four'),(5,'five'),(2,'duplicate')");
+    try t.expectEqual(.rejected, rejected.state);
+    try t.expectEqual(.row_exists, rejected.rejection);
+    try t.expectEqual(@as(u64, 0), rejected.changed);
+    turn = try store.capture();
+    try t.expectEqualDeep(original.index, (try Head.load(&turn, 9)).index);
+    const updated = try sqlStatement(&store, 202, schema, "UPDATE items SET value='changed' WHERE id>=2");
+    try t.expectEqual(@as(u64, 2), updated.matched);
+    try t.expectEqual(@as(u64, 2), updated.changed);
+    const same = try sqlStatement(&store, 203, schema, "UPDATE items SET value='changed' WHERE id>=2");
+    try t.expectEqual(@as(u64, 2), same.matched);
+    try t.expectEqual(@as(u64, 0), same.changed);
+    const absent = try sqlStatement(&store, 204, schema, "DELETE FROM items WHERE id>10");
+    try t.expectEqual(@as(u64, 0), absent.matched);
+    const duplicate = try sqlStatement(&store, 205, schema, "UPDATE items SET id=9 WHERE id>=2");
+    try t.expectEqual(.row_exists, duplicate.rejection);
+    const deleted = try sqlStatement(&store, 206, schema, "DELETE FROM items WHERE id>=2");
+    try t.expectEqual(@as(u64, 2), deleted.changed);
+    // Conflict disappeared, but this identity still returns its original error.
+    try t.expectEqualDeep(rejected, try sqlStatement(&store, 201, schema, "INSERT INTO items VALUES (4,'four'),(5,'five'),(2,'duplicate')"));
+    turn = try store.capture();
+    try t.expectEqual(@as(u64, 1), (try Head.load(&turn, 9)).rows);
+    // The old immutable root remains readable with the old schema.
+    var reader: Pages.Reader(*Turn) = .{ .pages = .{ .resource = 7, .object = 9 }, .source = &turn };
+    var old = (try (Data{ .schema = schema, .index = original.index }).get(t.allocator, &reader, .{ .origin = 2, .operation = 200, .ordinal = 1 })).?;
+    defer old.deinit();
+    try t.expectEqualStrings("two", old.row().cells[1].value.atom.bytes);
+    try t.expectError(error.TableWriteIdentityConflict, sqlStatement(&store, 201, schema, "DELETE FROM items"));
+}
+test "unkeyed duplicate rows retain identities across predicate updates and deletes" {
+    var store: Store = .{};
+    defer store.deinit();
+    var unkeyed = schema;
+    unkeyed.primary_key = &.{};
+    _ = try store.tableSchema(unkeyed);
+    const inserted = try sqlStatement(&store, 210, unkeyed, "INSERT INTO items VALUES(1,'same'),(1,'same'),(1,'same')");
+    try t.expectEqual(@as(u64, 3), inserted.changed);
+    const updated = try sqlStatement(&store, 211, unkeyed, "UPDATE items SET id=2");
+    try t.expectEqual(@as(u64, 3), updated.changed);
+    var turn = try store.capture();
+    const head = try Head.load(&turn, 9);
+    const data: Data = .{ .schema = unkeyed, .index = head.index };
+    var reader: Pages.Reader(*Turn) = .{ .pages = .{ .resource = 7, .object = 9 }, .source = &turn };
+    for (0..3) |ordinal| {
+        var found = (try data.get(t.allocator, &reader, .{ .origin = 2, .operation = 210, .ordinal = @intCast(ordinal) })).?;
+        defer found.deinit();
+        try t.expectEqual(@as(i128, 2), found.row().cells[0].value.atom.signed);
+    }
+    const deleted = try sqlStatement(&store, 212, unkeyed, "DELETE FROM items");
+    try t.expectEqual(@as(u64, 3), deleted.changed);
+    turn = try store.capture();
+    try t.expectEqual(@as(u64, 0), (try Head.load(&turn, 9)).rows);
+}
+test "statement reservations fence competing work and cancellation preserves exact identity" {
+    var store: Store = .{};
+    defer store.deinit();
+    const initial = try store.table();
+    var compiled = try f.TableDml.compile(t.allocator, "INSERT INTO items VALUES(1,'one'),(2,'two')", "items", schema, null);
+    defer compiled.deinit();
+    const request: Statement.Request = .{ .resource = 7, .principal = 1, .operation = 220, .plan = compiled.plan };
+    const reference = try request.reference(t.allocator);
+    var turn = try store.capture();
+    const admitted = try Statement.step(t.allocator, &turn, request);
+    try t.expectEqual(.building, admitted.state);
+    try t.expectEqual(@as(usize, 3), writes(turn));
+    try store.commit(turn);
+    turn = try store.capture();
+    var competitor = request;
+    competitor.operation += 1;
+    try t.expectError(error.TableBusy, Statement.step(t.allocator, &turn, competitor));
+    var cells: [2]f.Types.Values.Cell = undefined;
+    try t.expectError(error.TableBusy, Write.step(t.allocator, &turn, insertRequest(222, 3, "point", &cells)));
+    for (0..3) |_| {
+        turn = try store.capture();
+        try t.expectEqual(.building, (try Statement.step(t.allocator, &turn, request)).state);
+        try store.commit(turn);
+    }
+    turn = try store.capture();
+    store.denied = true;
+    try t.expectError(error.AccessDenied, Statement.cancel(&turn, reference));
+    try t.expectError(error.AccessDenied, turn.validate());
+    store.denied = false;
+    turn = try store.capture();
+    const closed = try Statement.cancel(&turn, reference);
+    try t.expectEqual(.cancelled, closed.state);
+    try t.expectEqual(@as(u64, 0), closed.matched);
+    try store.commit(turn);
+    turn = try store.capture();
+    const cancelled = try Head.load(&turn, 9);
+    try t.expectEqualDeep(initial.index, cancelled.index);
+    try t.expectEqual(@as(u64, 0), cancelled.pending);
+    try t.expect(cancelled.next_record > admitted.end_record);
+    try t.expectEqualDeep(closed, try Statement.step(t.allocator, &turn, request));
+    try t.expectEqualDeep(closed, try Statement.cancel(&turn, reference));
+    try t.expectEqual(@as(usize, 0), writes(turn));
+    const later = try runStatement(&store, competitor);
+    try t.expectEqual(.applied, later.state);
+    try t.expectEqual(cancelled.next_record, later.first_record);
+}
+test "multi-level finite candidates retain bounded turns with a large value" {
+    var store: Store = .{};
+    defer store.deinit();
+    _ = try store.table();
+    var large: [6000]u8 = @splat('x');
+    var cells: [40][2]f.Types.Values.Cell = undefined;
+    var input: [40][]const f.Types.Values.Cell = undefined;
+    for (&cells, &input, 0..) |*storage, *value, ordinal| value.* = row(@intCast(ordinal), if (ordinal == 0) &large else "value", storage).cells;
+    const request: Statement.Request = .{ .resource = 7, .principal = 1, .operation = 230, .plan = .{ .schema = schema, .name = "items", .action = .{ .insert = &input } } };
+    const inserted = try runStatement(&store, request);
+    try t.expectEqual(@as(u64, 40), inserted.changed);
+    var turn = try store.capture();
+    const head = try Head.load(&turn, 9);
+    try t.expect(head.index.root.?.level >= 2);
+    const publication: Pub = .{ .resource = 7, .domain = .table, .namespace = 9 };
+    try t.expectEqual(@as(u32, 0), (try publication.budget(&turn)).records);
+    const deleted = try sqlStatement(&store, 231, schema, "DELETE FROM items WHERE id>=20");
+    try t.expectEqual(@as(u64, 20), deleted.changed);
+}
+fn statementAllocation(allocator: std.mem.Allocator) !void {
+    var store: Store = .{};
+    defer store.deinit();
+    _ = try store.table();
+    var compiled = try f.TableDml.compile(t.allocator, "INSERT INTO items VALUES(1,'one'),(2,'two')", "items", schema, null);
+    defer compiled.deinit();
+    const request: Statement.Request = .{ .resource = 7, .principal = 1, .operation = 240, .plan = compiled.plan };
+    var turn = try store.capture();
+    const admitted = Statement.step(allocator, &turn, request) catch |err| {
+        try t.expectEqual(@as(usize, 0), writes(turn));
+        return err;
+    };
+    try t.expectEqual(.building, admitted.state);
+    try store.commit(turn);
+    turn = try store.capture();
+    _ = Statement.step(allocator, &turn, request) catch |err| {
+        try t.expectEqual(@as(usize, 0), writes(turn));
+        return err;
+    };
+}
+test "statement allocation errors restore proposals and malformed progress rejects" {
+    try t.checkAllAllocationFailures(t.allocator, statementAllocation, .{});
+    const progress: Statement.Progress = .{ .digest = @splat(3), .head_revision = 4, .index = .{}, .ordinal = 0 };
+    const bytes = try progress.encode();
+    try t.expectEqualDeep(progress, try Statement.Progress.decode(bytes));
+    for (0..bytes.len) |length| try t.expectError(error.InvalidTableStatementProgress, Statement.Progress.decode(try p.Value.init(bytes.data[0..length])));
+    var foreign = bytes;
+    foreign.data[4] ^= 1;
+    try t.expectError(error.IncompatibleTableStorage, Statement.Progress.decode(foreign));
+    var trailing = bytes;
+    trailing.len += 1;
+    trailing.data[trailing.len - 1] = 0;
+    try t.expectError(error.InvalidTableStatementProgress, Statement.Progress.decode(trailing));
+    var store: Store = .{};
+    defer store.deinit();
+    _ = try store.table();
+    var compiled = try f.TableDml.compile(t.allocator, "DELETE FROM items", "items", schema, null);
+    defer compiled.deinit();
+    var turn = try store.capture();
+    try turn.write(try p.Value.init("one"), .{});
+    try turn.write(try p.Value.init("two"), .{});
+    const before = turn.decision;
+    try t.expectError(error.MutationBudgetExceeded, Statement.step(t.allocator, &turn, .{ .resource = 7, .principal = 1, .operation = 241, .plan = compiled.plan }));
+    try t.expectEqualDeep(before, turn.decision);
+}
 const Store = struct {
     state: std.AutoHashMapUnmanaged(p.Value, p.Value) = .empty,
     revision: u64 = 1,
@@ -372,7 +577,7 @@ fn expectHex(hex: []const u8, bytes: []const u8) !void {
     try t.expectEqualSlices(u8, try std.fmt.hexToBytes(&output, hex), bytes);
 }
 test "typed Table head and page layouts match independent Python bytes" {
-    const Fixture = struct { native_definition: []const u8, manifest_hex: []const u8, inline_hex: []const u8, head_hex: []const u8, head_key_hex: []const u8, page_key_hex: []const u8, write_key_hex: []const u8, write_status_hex: []const u8 };
+    const Fixture = struct { native_definition: []const u8, manifest_hex: []const u8, inline_hex: []const u8, head_hex: []const u8, head_key_hex: []const u8, page_key_hex: []const u8, write_key_hex: []const u8, write_status_hex: []const u8, statement_progress_hex: []const u8, statement_progress_key_hex: []const u8 };
     const fixture = try std.json.parseFromSlice(Fixture, t.allocator, @embedFile("fixtures/table-storage.json"), .{});
     defer fixture.deinit();
     const expected = fixture.value;
@@ -408,6 +613,11 @@ test "typed Table head and page layouts match independent Python bytes" {
     const receipt_bytes = try receipt.encode();
     try expectHex(expected.write_key_hex, receipt.reference.key().slice());
     try expectHex(expected.write_status_hex, receipt_bytes.slice());
+    const progress: Statement.Progress = .{ .digest = receipt.reference.digest, .head_revision = 8, .index = head.index, .cursor = .{ .origin = 2, .operation = 30, .ordinal = 1 }, .matched = 2, .changed = 1 };
+    const progress_bytes = try progress.encode();
+    try expectHex(expected.statement_progress_hex, progress_bytes.slice());
+    try expectHex(expected.statement_progress_key_hex, Statement.Progress.key(receipt.reference).slice());
+    try t.expectEqualDeep(progress, try Statement.Progress.decode(progress_bytes));
     try t.expectEqualDeep(receipt, try Write.Status.decode(receipt_bytes));
     for (0..receipt_bytes.len) |length| try t.expectError(error.InvalidTableWriteStatus, Write.Status.decode(try p.Value.init(receipt_bytes.data[0..length])));
     var wrong = receipt_bytes;

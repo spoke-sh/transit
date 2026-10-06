@@ -6231,7 +6231,7 @@
         "InvalidMutationColumns": 3,
         "InvalidMutationPlan": 1,
         "InvalidSqlSyntax": 1,
-        "MutationBatchTooLarge": 2,
+        "MutationBatchTooLarge": 3,
         "PredicateTooComplex": 1,
         "PredicateTooDeep": 2,
         "UnknownQualifier": 1,
@@ -6239,7 +6239,8 @@
         "UnsupportedComparison": 1,
         "UnsupportedMutationPredicate": 1,
         "UnsupportedNullComparison": 1,
-        "UnsupportedStatement": 1
+        "UnsupportedStatement": 1,
+        "WriteFailed": 1
       },
       "outcomes": {
         "Action": [
@@ -6254,6 +6255,10 @@
         "Expression.conjunction()": "anyerror",
         "Expression.disjunction()": "anyerror",
         "Expression.unary()": "anyerror",
+        "Intent.cell()": "<inferred>",
+        "Intent.number()": "<inferred>",
+        "Intent.part()": "<inferred>",
+        "Plan.fingerprint()": "<inferred>",
         "Plan.matches()": "<inferred>",
         "Plan.primaryKeyEquality()": "<inferred>",
         "Plan.validate()": "<inferred>",
@@ -6267,8 +6272,8 @@
       },
       "open_error_set_uses": 3,
       "propagation": {
-        "try": 81,
-        "catch": 0
+        "try": 110,
+        "catch": 1
       },
       "imports": [
         "Finite.zig",
@@ -15519,6 +15524,62 @@
         "transit_fuze"
       ]
     },
+    "packages/zig/transit-station/src/TableStatement.zig": {
+      "errors": {
+        "EndOfStream": 1,
+        "IncompatibleTableStorage": 1,
+        "InvalidTableStatementProgress": 14,
+        "InvalidTableWrite": 1,
+        "MutationBudgetExceeded": 2,
+        "RowExists": 1,
+        "RowIdentityExists": 1,
+        "TableBusy": 1,
+        "TableCapacity": 2,
+        "TableRetired": 1,
+        "TableSchemaChanged": 1,
+        "TableWriteBasisChanged": 1,
+        "TableWriteNotFound": 1
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "Progress.decode()": "<inferred>",
+        "Progress.encode()": "<inferred>",
+        "Progress.load()": "<inferred>",
+        "Progress.parse()": "<inferred>",
+        "Progress.save()": "<inferred>",
+        "Progress.validate()": "<inferred>",
+        "Request.reference()": "<inferred>",
+        "add()": "<inferred>",
+        "advance()": "<inferred>",
+        "apply()": "<inferred>",
+        "cancel()": "<inferred>",
+        "close()": "<inferred>",
+        "finish()": "<inferred>",
+        "record()": "<inferred>",
+        "rows()": "<inferred>",
+        "stageAll()": "<inferred>",
+        "step()": "<inferred>",
+        "validateCandidate()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 93,
+        "catch": 8
+      },
+      "imports": [
+        "ImmutableIndex.zig",
+        "TableCandidate.zig",
+        "TableData.zig",
+        "TableHead.zig",
+        "TablePages.zig",
+        "TableWrite.zig",
+        "Turn.zig",
+        "std",
+        "transit_client",
+        "transit_fuze"
+      ]
+    },
     "packages/zig/transit-station/src/TableWrite.zig": {
       "errors": {
         "CrossResourceTransaction": 1,
@@ -15739,6 +15800,7 @@
         "TableHead.zig",
         "TableMutation.zig",
         "TablePages.zig",
+        "TableStatement.zig",
         "TableWrite.zig",
         "Turn.zig",
         "Waiting.zig",

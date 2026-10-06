@@ -86,3 +86,13 @@ the original key and assignments, retains unassigned columns and checks the
 resulting row/key constraints under the captured head. Recovery reads its saved
 receipt before any new key lookup. The DML compiler qualifies this path only when
 every predicate condition is part of that exact key equality.
+
+`TableStatement.step` owns finite multi-row publication over a bound DML plan.
+It freezes the original head, processes one row per step and saves a bounded
+candidate root/cursor between turns. Readers continue seeing the original root
+until all rows pass and a single final commit publishes the successor and counts.
+A later duplicate rejects the whole candidate. Predicates read the original rows;
+key changes cannot change selection or cause revisits. No-op and unselected rows
+advance progress without data writes. Current authorization and native fencing
+still belong to the enclosing owner. `cancel` preserves exact terminal evidence,
+the old live root and consumed record IDs; physical cleanup remains separate.

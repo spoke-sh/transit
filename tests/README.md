@@ -10722,6 +10722,24 @@ links across 520 files. Logs are `key-patch-fuze-test.log`,
 These remain compiler and in-memory captured-turn checks, without native SQL,
 disk recovery, whole-statement publication or performance qualification.
 
+The finite statement coordinator passes **189/189 Fuze tests** and **78/78 Station
+tests**. It discards and recomputes every proposed turn while testing later-row
+duplicate rejection, all-or-nothing multi-row publication, predicate key updates,
+same-value/absent counts, unkeyed duplicates, competing-write fencing, cancellation,
+retained roots, exact receipts after conflict removal and allocation cleanup.
+Forty rows grow multiple index levels, including a 6 KiB value. Independent Python
+bytes fix the resumable progress envelope and namespace key. Typed intent tests
+bind assignment values, schema, predicates and the 4 MiB operation limit while
+ignoring SQL whitespace/keyword case. An initial Station run rejects the use of
+the user-key deletion API for a reserved framework progress key; the coordinator
+now uses the existing framework write API without weakening key protections.
+The final Station suite reports 5 s and 23 MiB maximum resident memory, not a
+runtime latency measurement. Logs are `statement-fuze-test.log`,
+`statement-station-final.log` and `statement-docs.log` in the same campaign.
+These are in-memory captured-turn proofs. Native admission, schema rewrites,
+cancelled-page cleanup, disk faults and clean committed-HEAD qualification remain
+separate obligations.
+
 ## Fuze logical type foundation
 
 The local `Types` profile has nine passing focused Zig tests, including 46

@@ -23,6 +23,10 @@ def fixtures():
     status = b'STW1' + contract + struct.pack('<QQQQ', 7, 9, 1, 21) + bytes([51]) * 32
     status += struct.pack('<QQQQQQQBB', 12, 15, 1, 2, 5, 1, 1, 2, 0)
     assert len(status) == 158
+    progress = b'STG1' + contract + bytes([51]) * 32 + struct.pack('<Q', 8) + b'\1'
+    progress += index + bytes([0, len(minimum)]) + minimum + struct.pack('<Q', 3)
+    progress += b'\1' + struct.pack('>QQI', 2, 30, 1) + struct.pack('<IQQ', 0, 2, 1)
+    assert len(progress) == 197
     return {
         'native_definition': definition,
         'manifest_hex': (b'STM1' + contract + struct.pack('<I', 65536)).hex(),
@@ -32,6 +36,8 @@ def fixtures():
         'page_key_hex': (b'\0P' + struct.pack('>IQBQI', 8, 9, ord('i'), 7, 0)).hex(),
         'write_key_hex': (b'\0W' + struct.pack('>QQQ', 9, 1, 21)).hex(),
         'write_status_hex': status.hex(),
+        'statement_progress_hex': progress.hex(),
+        'statement_progress_key_hex': (b'\0G' + struct.pack('>QQQ', 9, 1, 21)).hex(),
     }
 
 
@@ -44,7 +50,7 @@ def main():
         FIXTURE.write_text(encoded)
     elif not FIXTURE.is_file() or FIXTURE.read_text() != encoded:
         raise SystemExit('Typed Table storage fixtures drifted; review the current format before --record.')
-    print('Typed Table storage: independent head, page, manifest, write receipt and namespace bytes passed.')
+    print('Typed Table storage: independent head, page, manifest, receipt, statement progress and namespace bytes passed.')
 
 
 if __name__ == '__main__':

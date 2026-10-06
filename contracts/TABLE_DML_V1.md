@@ -36,6 +36,15 @@ within the existing schema/value limits. These bound one operation, not total
 Table cardinality. Row identities come from durable operation identity and row
 ordinal at execution; this compiler does not invent identities or consume IDs.
 
+`Plan.fingerprint` binds the complete schema, action, ordered typed rows or stable
+assignments, DEFAULT versus explicit values, and every predicate instruction.
+It hashes length-prefixed parts with the `transit.table.dml.v1\0` domain. Whitespace
+and keyword case do not affect the compiled intent. Names resolve before this
+step; schema/object identity prevents later name rebinding. Explicit assignment
+order remains part of intent. The canonical intent has a 4 MiB operation bound;
+encoding uses at most one value envelope or one predicate atom as workspace.
+This additional typed-caller bound does not change SQL's 4096-byte text limit.
+
 ## UPDATE and DELETE
 
 `UPDATE name SET column = value|DEFAULT, ... [WHERE predicate]` binds assignments

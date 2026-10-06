@@ -146,11 +146,11 @@ pub const Status = struct {
     pub fn validate(self: Status) !void {
         try self.reference.validate();
         if (self.admitted_input == 0 or self.admitted_input > p.max_counter or self.completed_input > p.max_counter or self.basis_revision == 0 or
-            self.first_record == 0 or self.end_record < self.first_record or self.changed > self.matched or self.matched > 1) return error.InvalidTableWriteStatus;
+            self.first_record == 0 or self.end_record < self.first_record or self.changed > self.matched) return error.InvalidTableWriteStatus;
         if ((self.state == .building) != (self.completed_input == 0)) return error.InvalidTableWriteStatus;
         if (self.completed_input != 0 and self.completed_input < self.admitted_input) return error.InvalidTableWriteStatus;
         if ((self.state == .rejected) != (self.rejection != .none)) return error.InvalidTableWriteStatus;
-        if (self.state == .building and (self.end_record == self.first_record or self.changed != 1)) return error.InvalidTableWriteStatus;
+        if (self.state == .building and self.end_record == self.first_record) return error.InvalidTableWriteStatus;
         if ((self.state == .rejected or self.state == .cancelled) and (self.matched != 0 or self.changed != 0)) return error.InvalidTableWriteStatus;
     }
     pub fn encode(self: Status) !p.Value {

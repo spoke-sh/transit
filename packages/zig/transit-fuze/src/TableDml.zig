@@ -8,6 +8,7 @@ const t = @import("Types.zig");
 const Predicate = @import("LogicalPredicate.zig");
 const Cell = t.Values.Cell;
 pub const max_rows = 1024;
+pub const max_intent_bytes = 4 * 1024 * 1024;
 pub const Action = union(enum) { insert: []const []const Cell, update: []const s.Assignment, delete };
 pub const Plan = struct {
     name: []const u8,
@@ -32,6 +33,58 @@ pub const Plan = struct {
             var fields: [s.max_columns]t.Field = undefined;
             try program.validate(try self.schema.rowType(&fields));
         }
+    }
+    /// Bind recovery to the complete typed intent, not data read during
+    /// execution. Encoding workspace is bounded by one value or predicate atom.
+    pub fn fingerprint(self: Plan, allocator: std.mem.Allocator) ![32]u8 {
+        try self.validate();
+        var intent: Intent = .{ .allocator = allocator };
+        try intent.part("transit.table.dml.v1\x00");
+        try intent.part(&try self.schema.fingerprint());
+        switch (self.action) {
+            .insert => |rows| {
+                try intent.part(&.{1});
+                try intent.number(u32, @intCast(rows.len));
+                var fields: [s.max_columns]t.Field = undefined;
+                var names: [s.max_columns][16]u8 = undefined;
+                const field: t.Field = .{ .name = "row", .type = try self.schema.storageType(&fields, &names) };
+                for (rows) |row| try intent.cell(field, .{ .value = .{ .structure = row } });
+            },
+            .update => |assignments| {
+                try intent.part(&.{2});
+                try intent.number(u16, @intCast(assignments.len));
+                for (assignments) |assignment| {
+                    try intent.number(u64, assignment.column);
+                    switch (assignment.value) {
+                        .default => try intent.part(&.{0}),
+                        .cell => |cell| {
+                            try intent.part(&.{1});
+                            try intent.cell(self.schema.columns[try self.schema.index(assignment.column)].field(), cell);
+                        },
+                    }
+                }
+            },
+            .delete => try intent.part(&.{3}),
+        }
+        try intent.part(&.{@intFromBool(self.predicate != null)});
+        if (self.predicate) |program| {
+            try intent.number(u16, @intCast(program.instructions.len));
+            var fields: [s.max_columns]t.Field = undefined;
+            const row_type = try self.schema.rowType(&fields);
+            for (program.instructions) |instruction| switch (instruction) {
+                .atom => |atom| {
+                    try intent.part(&.{0});
+                    var buffer: [8192]u8 = undefined;
+                    var writer: std.Io.Writer = .fixed(&buffer);
+                    try atom.write(row_type, &writer);
+                    try intent.part(writer.buffered());
+                },
+                .negate => try intent.part(&.{1}),
+                .conjunction => try intent.part(&.{2}),
+                .disjunction => try intent.part(&.{3}),
+            };
+        }
+        return intent.hash.finalResult();
     }
     /// Evaluate only against rows decoded with this exact bound schema. No
     /// source lookup or later schema/name rebinding is implicit.
@@ -71,6 +124,35 @@ pub const Plan = struct {
         const values = output[0..count];
         try self.schema.validateKey(values);
         return values;
+    }
+};
+const Intent = struct {
+    allocator: std.mem.Allocator,
+    hash: std.crypto.hash.sha2.Sha256 = .init(.{}),
+    bytes: usize = 0,
+    fn part(self: *Intent, bytes: []const u8) !void {
+        if (bytes.len > max_intent_bytes - 4 or self.bytes > max_intent_bytes - 4 - bytes.len) return error.MutationBatchTooLarge;
+        self.bytes += 4 + bytes.len;
+        var length: [4]u8 = undefined;
+        std.mem.writeInt(u32, &length, @intCast(bytes.len), .little);
+        self.hash.update(&length);
+        self.hash.update(bytes);
+    }
+    fn number(self: *Intent, comptime T: type, value: T) !void {
+        var bytes: [@sizeOf(T)]u8 = undefined;
+        std.mem.writeInt(T, &bytes, value, .little);
+        try self.part(&bytes);
+    }
+    fn cell(self: *Intent, field: t.Field, value: Cell) !void {
+        var small: [4096]u8 = undefined;
+        var large: ?[]u8 = null;
+        defer if (large) |bytes| self.allocator.free(bytes);
+        const bytes = t.Codec.encode(value, field, &small) catch |err| blk: {
+            if (err != error.WriteFailed) return err;
+            large = try self.allocator.alloc(u8, t.Codec.max_bytes);
+            break :blk try t.Codec.encode(value, field, large.?);
+        };
+        try self.part(bytes);
     }
 };
 pub const Owned = struct {

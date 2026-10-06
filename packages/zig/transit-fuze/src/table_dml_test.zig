@@ -99,8 +99,10 @@ fn allocationCase(allocator: std.mem.Allocator) !void {
     var owned = try dml.compile(allocator, "UPDATE people SET name='Ada',active=DEFAULT WHERE NOT(id=1 OR name IS NULL)", "people", schema, null);
     defer owned.deinit();
     try owned.plan.validate();
+    _ = try owned.plan.fingerprint(allocator);
     var inserted = try dml.compile(allocator, "INSERT INTO people(id,name) VALUES (1,'one'),(2,'two')", "people", schema, null);
     defer inserted.deinit();
+    _ = try inserted.plan.fingerprint(allocator);
 }
 test "DML compiler frees cloned schemas and literal arenas at every allocation failure" {
     try e.checkAllAllocationFailures(e.allocator, allocationCase, .{});
@@ -147,4 +149,29 @@ test "point-key qualification preserves every predicate and declared composite k
     var incomplete = try dml.compile(e.allocator, "DELETE FROM people WHERE id=1", "people", composite, null);
     defer incomplete.deinit();
     try e.expectEqual(null, try incomplete.plan.primaryKeyEquality(&output));
+}
+
+test "typed intent binds complete rows, predicates and assignment semantics" {
+    var original = try dml.compile(e.allocator, "UPDATE people SET name='Ada' WHERE id=1", "people", schema, null);
+    defer original.deinit();
+    const digest = try original.plan.fingerprint(e.allocator);
+    var same = try dml.compile(e.allocator, "update people set name = 'Ada' where id = 1;", "people", schema, null);
+    defer same.deinit();
+    try e.expectEqual(digest, try same.plan.fingerprint(e.allocator));
+    inline for (.{ "UPDATE people SET name='Grace' WHERE id=1", "UPDATE people SET name='Ada' WHERE id=2", "UPDATE people SET name='Ada'", "DELETE FROM people WHERE id=1" }) |text| {
+        var changed = try dml.compile(e.allocator, text, "people", schema, null);
+        defer changed.deinit();
+        try e.expect(!std.mem.eql(u8, &digest, &try changed.plan.fingerprint(e.allocator)));
+    }
+    var changed_schema = original.plan;
+    changed_schema.schema.revision += 1;
+    try e.expect(!std.mem.eql(u8, &digest, &try changed_schema.fingerprint(e.allocator)));
+
+    const bytes = try e.allocator.alloc(u8, 800 * 1024);
+    defer e.allocator.free(bytes);
+    @memset(bytes, 'a');
+    const cells: [1]Cell = .{.{ .value = .{ .atom = .{ .bytes = bytes } } }};
+    const rows: [6][]const Cell = @splat(&cells);
+    const plan: dml.Plan = .{ .name = "large", .schema = .{ .object = 4, .revision = 1, .next_column = 2, .columns = &.{.{ .id = 1, .name = "payload", .type = .binary }}, .primary_key = &.{} }, .action = .{ .insert = &rows } };
+    try e.expectError(error.MutationBatchTooLarge, plan.fingerprint(e.allocator));
 }
