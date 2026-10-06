@@ -11731,6 +11731,15 @@ passes all 41 cases (`table-c-catalog-values4.log`). Full `just check` passes fo
 this catalog migration (`table-c-catalog-check1.log`), including contract drift,
 native/CLI checks, frontend tests and the documentation production build.
 
+Native typed-preparation admission passes **97/97 catalog tests**
+(`table-typed-budget-test1.log`, 33 MiB test-process peak RSS). A shared neutral
+input describing 512 MiB of decoded binary rows now rejects during conversion
+under the four-MiB intent allowance, with less than 32 MiB of tracked cumulative
+allocation including arena overhead. Repeated borrowed defaults still fail
+complete canonical intent admission. Existing SQL/typed byte-equality and
+exhaustive allocation-failure cleanup checks pass. This is a conversion-memory
+regression proof, not a whole-node or concurrent-workload RSS guarantee.
+
 ## Fuze logical type foundation
 
 The local `Types` profile has nine passing focused Zig tests, including 46

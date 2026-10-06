@@ -180,6 +180,31 @@ test "typed rows accept large nested values without SQL text conversion and reje
     }
 }
 const Cell = f.LogicalJson.Cell;
+test "typed conversion rejects aggregate payloads before allocating the complete input" {
+    const hex = try t.allocator.alloc(u8, 1024 * 1024);
+    defer t.allocator.free(hex);
+    @memset(hex, 'a');
+    const large: typed.Assignment = .{ .column = "1", .value = .{ .cell = .{ .value = .{ .atom = .{ .binary = hex } } } } };
+    const binary_schema: f.TableSchema.Schema = .{ .object = 100, .revision = 1, .next_column = 2, .columns = &.{.{ .id = 1, .name = "data", .type = .binary }} };
+    const rows: [f.TableDml.max_rows][]const typed.Assignment = @splat(&.{large});
+    var tracker: t.FailingAllocator = .init(t.allocator, .{ .resize_fail_index = 0 });
+    var arena: std.heap.ArenaAllocator = .init(tracker.allocator());
+    defer arena.deinit();
+    // The input describes 512 MiB of decoded data. Admission stops near the
+    // four-MiB intent limit, including geometric arena allocation overhead.
+    try t.expectError(error.MutationBatchTooLarge, typed.plan(&arena, binary_schema, "data", .{ .action = .{ .insert = &rows }, .predicate = null }));
+    try t.expect(tracker.allocated_bytes < 32 * 1024 * 1024);
+    _ = arena.reset(.free_all);
+    try t.expectEqual(tracker.allocated_bytes, tracker.freed_bytes);
+    // Shared defaults do not allocate per row, but their repeated canonical
+    // payloads still count toward complete intent admission.
+    const text = try t.allocator.alloc(u8, 32768);
+    defer t.allocator.free(text);
+    @memset(text, 'x');
+    const default_schema: f.TableSchema.Schema = .{ .object = 101, .revision = 1, .next_column = 2, .columns = &.{.{ .id = 1, .name = "data", .type = .utf8, .default = .{ .value = .{ .atom = .{ .bytes = text } } } }} };
+    const omitted: [f.TableDml.max_rows][]const typed.Assignment = @splat(&.{});
+    try t.expectError(error.MutationBatchTooLarge, typed.plan(&arena, default_schema, "data", .{ .action = .{ .insert = &omitted }, .predicate = null }));
+}
 fn allocationSchedule(allocator: std.mem.Allocator) !void {
     var current = try definition(allocator);
     defer current.deinit();

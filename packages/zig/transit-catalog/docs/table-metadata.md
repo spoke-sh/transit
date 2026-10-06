@@ -281,6 +281,14 @@ at most 64 shared postfix Boolean instructions over scalar comparisons and state
 tests. Typed ALTER uses the shared evolution forms and exact conversions. Typed
 requests and SQL produce the same canonical intent; neither grants execution rights.
 
+Typed DML conversion charges each canonical cell payload before converting the
+next cell, sharing the four-MiB intent allowance across rows, assignments and
+predicate literals. Temporary conversion can exceed the remaining allowance by
+at most one individually bounded logical cell. Complete intent admission also
+counts framing, descriptors and repeated defaults. A large typed construction
+cannot allocate its complete decoded batch before the aggregate check. These
+operation bounds do not limit total Table cardinality.
+
 One `TableBridge.Session` retains one immutable intent. `compile` or typed
 `prepare` returns its summary and saved TCI1 bytes as lowercase hex. `load` checks
 those exact saved bytes and connection without a network read, name resolution,

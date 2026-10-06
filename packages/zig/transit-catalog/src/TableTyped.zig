@@ -47,7 +47,27 @@ pub const Request = struct {
         };
     }
 };
-fn assignments(allocator: std.mem.Allocator, schema: s.Schema, values: []const Assignment) ![]const s.Assignment {
+/// Converted payloads are a lower bound on the final canonical intent size.
+/// Charge each cell immediately, before converting the next one. At most one
+/// individually bounded cell can exceed the remaining conversion allowance;
+/// final fingerprint admission still counts descriptors, defaults and framing.
+const Conversion = struct {
+    bytes: usize = 0,
+    fn cell(self: *Conversion, value: f.Types.Values.Cell, field: f.Types.Field) !void {
+        var scratch: [256]u8 = undefined;
+        var count: std.Io.Writer.Discarding = .init(&scratch);
+        try f.Types.Codec.writeBound(value, field, &count.writer);
+        const size = count.fullCount();
+        if (size > f.TableDml.max_intent_bytes - self.bytes) return error.MutationBatchTooLarge;
+        self.bytes += @intCast(size);
+    }
+};
+fn convert(allocator: std.mem.Allocator, cell: Cell, field: f.Types.Field, budget: *Conversion) !f.Types.Values.Cell {
+    const result = try f.LogicalJson.fromForeign(allocator, cell, field);
+    try budget.cell(result, field);
+    return result;
+}
+fn assignments(allocator: std.mem.Allocator, schema: s.Schema, values: []const Assignment, budget: *Conversion) ![]const s.Assignment {
     if (values.len > schema.columns.len) return error.InvalidMutationColumns;
     const result = try allocator.alloc(s.Assignment, values.len);
     for (values, result) |value, *output| {
@@ -55,13 +75,13 @@ fn assignments(allocator: std.mem.Allocator, schema: s.Schema, values: []const A
         const column = schema.columns[try schema.index(id)];
         output.* = .{ .column = id, .value = switch (value.value) {
             .default => .default,
-            .cell => |cell| .{ .cell = try f.LogicalJson.fromForeign(allocator, cell, column.field()) },
+            .cell => |cell| .{ .cell = try convert(allocator, cell, column.field(), budget) },
         } };
     }
     try schema.validateAssignments(result);
     return result;
 }
-fn predicate(allocator: std.mem.Allocator, schema: s.Schema, values: ?[]const Instruction) !?f.LogicalPredicate.Program {
+fn predicate(allocator: std.mem.Allocator, schema: s.Schema, values: ?[]const Instruction, budget: *Conversion) !?f.LogicalPredicate.Program {
     const source = values orelse return null;
     if (source.len > f.LogicalPredicate.Program.max_instructions) return error.PredicateTooLarge;
     const result = try allocator.alloc(f.LogicalPredicate.Program.Instruction, source.len);
@@ -74,7 +94,7 @@ fn predicate(allocator: std.mem.Allocator, schema: s.Schema, values: ?[]const In
             .state => |state| .{ .state = .{ .column = @intCast(try schema.index(try v.unsigned(state.column))), .value = state.value } },
             .compare => |value| blk: {
                 const index = try schema.index(try v.unsigned(value.column));
-                const cell = try f.LogicalJson.fromForeign(allocator, .{ .value = .{ .atom = value.value } }, schema.columns[index].field());
+                const cell = try convert(allocator, .{ .value = .{ .atom = value.value } }, schema.columns[index].field(), budget);
                 break :blk .{ .compare = .{ .column = @intCast(index), .op = value.op, .value = cell.value.atom } };
             },
         } },
@@ -90,6 +110,7 @@ pub fn plan(arena: *std.heap.ArenaAllocator, schema: s.Schema, name: []const u8,
     try schema.validate();
     _ = try c.TableMetadata.Name.init(name);
     const allocator = arena.allocator();
+    var budget: Conversion = .{};
     const action: f.TableDml.Action = switch (mutation.action) {
         .insert => |rows| blk: {
             if (rows.len == 0 or rows.len > f.TableDml.max_rows) return error.MutationBatchTooLarge;
@@ -97,15 +118,15 @@ pub fn plan(arena: *std.heap.ArenaAllocator, schema: s.Schema, name: []const u8,
             const result = try allocator.alloc([]const f.Types.Values.Cell, rows.len);
             for (rows, result) |row, *output| {
                 const cells = try allocator.alloc(f.Types.Values.Cell, schema.columns.len);
-                output.* = try schema.insert(try assignments(allocator, schema, row), cells);
+                output.* = try schema.insert(try assignments(allocator, schema, row, &budget), cells);
             }
             break :blk .{ .insert = result };
         },
-        .update => |values| .{ .update = try assignments(allocator, schema, values) },
+        .update => |values| .{ .update = try assignments(allocator, schema, values, &budget) },
         .delete => .delete,
     };
-    const result: f.TableDml.Plan = .{ .name = name, .schema = schema, .action = action, .predicate = try predicate(allocator, schema, mutation.predicate) };
-    try result.validate();
+    const result: f.TableDml.Plan = .{ .name = name, .schema = schema, .action = action, .predicate = try predicate(allocator, schema, mutation.predicate, &budget) };
+    _ = try result.fingerprint(allocator);
     return result;
 }
 pub fn change(arena: *std.heap.ArenaAllocator, schema: s.Schema, value: Change) !f.TableEvolution.Change {
