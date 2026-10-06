@@ -22,7 +22,11 @@ def fixtures():
     payload = b'typed page'
     status = b'STW1' + contract + struct.pack('<QQQQ', 7, 9, 1, 21) + bytes([51]) * 32
     status += struct.pack('<QQQQQQQBBB', 12, 15, 1, 2, 5, 1, 1, 2, 0, 1)
-    assert len(status) == 159
+    status += bytes(95)  # mandatory empty execution witness
+    assert len(status) == 254
+    rejected = status[:100] + struct.pack('<QQQQQQQBBB', 12, 15, 1, 2, 5, 0, 0, 3, 1, 2)
+    rejected += b'\1' + struct.pack('>QQI', 2, 21, 4) + struct.pack('<QBB', 0, 1, 0) + b'5' + bytes(63)
+    assert len(rejected) == 254
     progress = b'STG1' + contract + bytes([51]) * 32 + struct.pack('<Q', 8) + b'\1'
     progress += index + bytes([0, len(minimum)]) + minimum + struct.pack('<Q', 3)
     progress += b'\1' + struct.pack('>QQI', 2, 30, 1) + struct.pack('<IQQ', 0, 2, 1)
@@ -38,6 +42,7 @@ def fixtures():
         'page_key_hex': (b'\0P' + struct.pack('>IQBQI', 8, 9, ord('i'), 7, 0)).hex(),
         'write_key_hex': (b'\0W' + struct.pack('>QQQ', 9, 1, 21)).hex(),
         'write_status_hex': status.hex(),
+        'write_rejection_hex': rejected.hex(),
         'statement_progress_hex': progress.hex(),
         'statement_progress_key_hex': (b'\0G' + struct.pack('>QQQ', 9, 1, 21)).hex(),
         'cleanup_hex': cleanup.hex(),

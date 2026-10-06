@@ -553,8 +553,16 @@ not a reason to replace unresolved durable work with a new request.
 
 Use `transit --diagnostics=json console ...` for the shared diagnostic envelope
 on stderr, independently of `--format table|json` result output. Terminal Table
-rejections have no resume or cancel action. Their diagnostic marks facts that
-were not recorded explicitly; it never rereads a different Table for a witness. Rejected inputs retain their native input identity separately
+rejections have no resume or cancel action. Duplicate keys identify their columns,
+escaped values and original INSERT row or immutable source row identity. Failed
+ALTER validation identifies the column, value and expected type. Execution value
+previews contain at most 64 bytes with explicit truncation. Current catalog read
+permission gates stored-row identity and value disclosure; denied facts are
+marked `withheld`. Original INSERT input remains inspectable without that read
+permission. Missing evidence is explicitly `unrecorded`; the console never
+rereads a different Table to explain an earlier failure.
+
+Rejected inputs retain their native input identity separately
 from any overall mutation outcome. Unresolved saved writes identify the original
 operation, preserve a validated native error category when available, and support
 exact reconciliation. A 503 remains an uncertain outcome, including a capacity

@@ -525,6 +525,101 @@ fn keyedCreate() !c.TableDdlRequest {
     request.action.create.schema.primary_key = &.{1};
     return request;
 }
+fn diagnosticFact(value: p.Diagnostic, field: p.Diagnostic.Field) !p.Diagnostic.Fact {
+    for (value.facts) |slot| if (slot) |fact| {
+        if (fact.field == field) return fact;
+    };
+    return error.TestUnexpectedResult;
+}
+test "durable constraint witnesses preserve original intent and enforce current disclosure" {
+    var store: TestStore = .{};
+    defer store.deinit();
+    try ready(&store);
+    const creation = try keyedCreate();
+    const created = try ddl(&store, creation);
+    var turn = try store.capture(17);
+    var basis = (try owner.lookup(t.allocator, &turn, 17, creation.name)).?;
+    defer basis.deinit();
+    var insert = try c.fuze.TableDml.compile(t.allocator, "INSERT INTO people VALUES (1, 'Ada'), (2, NULL)", "people", creation.action.create.schema, null);
+    defer insert.deinit();
+    const initial: c.TableDmlRequest = .{ .principal = 17, .operation = 2, .metadata = created.operation.metadata, .plan = insert.plan };
+    _ = try dml(&store, initial);
+    var update = try c.fuze.TableDml.compile(t.allocator, "UPDATE people SET id = 9", "people", creation.action.create.schema, null);
+    defer update.deinit();
+    const request: c.TableDmlRequest = .{ .principal = 17, .operation = 3, .metadata = created.operation.metadata, .plan = update.plan };
+    const rejected = try dml(&store, request);
+    try t.expectEqual(.rejected, rejected.state);
+    try t.expectEqual(.stored, rejected.witness.source);
+    try t.expectEqualStrings("9", rejected.witness.text());
+    try t.expectEqual(@as(u32, 1), rejected.witness.row.ordinal);
+    var original = try c.TableIntent.create(t.allocator, try c.TableCommand.fromDml(owner.configuration.scope, 3, request, basis.metadata), 1000);
+    defer original.deinit();
+    const detail = try c.TableDiagnostic.status(&original, .{ .dml = rejected });
+    try t.expectEqualStrings("id", (try diagnosticFact(detail, .column)).value.?.text.slice());
+    try t.expectEqualStrings("9", (try diagnosticFact(detail, .key)).value.?.text.slice());
+    const stored = store.state.get(rejected.reference.key()).?;
+
+    const duplicate = try dml(&store, .{ .principal = 17, .operation = 4, .metadata = created.operation.metadata, .plan = insert.plan });
+    try t.expectEqual(.input, duplicate.witness.source);
+    var incoming = try c.TableIntent.create(t.allocator, try c.TableCommand.fromDml(owner.configuration.scope, 3, .{ .principal = 17, .operation = 4, .metadata = created.operation.metadata, .plan = insert.plan }, basis.metadata), 1001);
+    defer incoming.deinit();
+    const input_detail = try c.TableDiagnostic.status(&incoming, .{ .dml = duplicate });
+    try t.expectEqualStrings("1", (try diagnosticFact(input_detail, .input_row)).value.?.unsigned.text.slice());
+    var corrupt = duplicate;
+    corrupt.witness.preview[0] = '8';
+    try t.expectError(error.InvalidCatalogReceipt, c.TableDiagnostic.status(&incoming, .{ .dml = corrupt }));
+    corrupt = duplicate;
+    corrupt.witness.row.ordinal = 2;
+    try t.expectError(error.InvalidCatalogReceipt, c.TableDiagnostic.status(&incoming, .{ .dml = corrupt }));
+
+    const alter: c.TableDdlRequest = .{ .principal = 17, .operation = 5, .object = 10, .expected_revision = 1, .name = creation.name, .action = .{ .alter = .{ .schema = creation.action.create.schema, .change = .{ .nullable = .{ .column = 2, .value = false } } } } };
+    const failed = try ddl(&store, alter);
+    try t.expectEqual(.null_not_allowed, failed.table.?.rejection);
+    try t.expectEqual(@as(u64, 2), failed.table.?.witness.column);
+    try t.expectEqualStrings("NULL", failed.table.?.witness.text());
+    var evolution = try c.TableIntent.create(t.allocator, try c.TableCommand.fromDdl(owner.configuration.scope, 3, alter, basis.metadata), 1002);
+    defer evolution.deinit();
+    const alter_detail = try c.TableDiagnostic.status(&evolution, .{ .ddl = failed });
+    try t.expectEqualStrings("name", (try diagnosticFact(alter_detail, .column)).value.?.text.slice());
+    try t.expectEqualStrings("utf8", (try diagnosticFact(alter_detail, .expected_type)).value.?.text.slice());
+
+    var rights = try m.Policy.administrator(owner.configuration.scope, 17);
+    rights.revision = 2;
+    rights.read = false;
+    turn = try store.capture(17);
+    try owner.setPolicy(&turn, 1, rights);
+    try store.commit(turn);
+    turn = try store.capture(17);
+    const hidden = (try owner.mutationReceipt(&turn, 17, rejected.reference)).?;
+    try t.expectEqual(.withheld, hidden.witness.source);
+    try t.expectEqualDeep(hidden, (try owner.mutationStatus(t.allocator, &turn, 17, request)).?);
+    const hidden_detail = try c.TableDiagnostic.status(&original, .{ .dml = hidden });
+    try t.expectEqual(.withheld, (try diagnosticFact(hidden_detail, .key)).availability);
+    try t.expectEqual(.withheld, (try diagnosticFact(hidden_detail, .source_row)).availability);
+    try t.expectEqualDeep(duplicate, (try owner.mutationReceipt(&turn, 17, duplicate.reference)).?);
+    const hidden_alter = (try owner.status(&turn, 17, 5, failed.operation.digest)).?;
+    try t.expectEqual(.withheld, hidden_alter.table.?.witness.source);
+    try t.expectEqual(.withheld, (try diagnosticFact(try c.TableDiagnostic.status(&evolution, .{ .ddl = hidden_alter }), .supplied_value)).availability);
+    try t.expectEqualDeep(stored, store.state.get(rejected.reference.key()).?);
+    try t.expectError(error.InvalidTableWitness, hidden.encode());
+    rights.revision = 3;
+    rights.inspect = false;
+    try owner.setPolicy(&turn, 2, rights);
+    try store.commit(turn);
+    turn = try store.capture(17);
+    try t.expectError(error.CatalogDenied, owner.mutationReceipt(&turn, 17, duplicate.reference));
+    rights.revision = 4;
+    rights.inspect = true;
+    rights.read = true;
+    try owner.setPolicy(&turn, 3, rights);
+    try store.commit(turn);
+    _ = try ddl(&store, .{ .principal = 17, .operation = 6, .object = 10, .expected_revision = 1, .name = creation.name, .action = .{ .drop = .{} } });
+    _ = try ddl(&store, try createRequest(11, 7, "people"));
+    turn = try store.capture(17);
+    try t.expectEqualDeep(rejected, (try owner.mutationReceipt(&turn, 17, rejected.reference)).?);
+    try t.expectEqualDeep(detail, try c.TableDiagnostic.status(&original, .{ .dml = (try owner.mutationReceipt(&turn, 17, rejected.reference)).? }));
+    try t.expectEqualDeep(failed, (try owner.status(&turn, 17, 5, failed.operation.digest)).?);
+}
 test "catalog routes point and finite DML with exact counts and original post-drop receipts" {
     var store: TestStore = .{};
     defer store.deinit();

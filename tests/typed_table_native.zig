@@ -82,10 +82,20 @@ fn currentRead(init: std.process.Init, wire: *s.client.Client, comptime function
         };
     }
 }
+const Witness = struct {
+    source: []const u8,
+    row: c.fuze.TableRow.Identity,
+    column: u64,
+    preview: []const u8,
+    truncated: bool,
+    fn from(value: *const c.fuze.TableWitness) Witness {
+        return .{ .source = @tagName(value.source), .row = value.row, .column = value.column, .preview = value.text(), .truncated = value.truncated };
+    }
+};
 fn outcome(init: std.process.Init, value: c.TableClient.Outcome) !void {
     switch (value) {
-        .ddl => |result| try print(init, .{ .state = if (result.terminal()) "terminal" else "running", .kind = "ddl", .outcome = @tagName(result.operation.state), .table_outcome = if (result.table) |table| @tagName(table.state) else null, .reason = @tagName(result.operation.reason), .object = result.operation.actual_object }),
-        .dml => |result| try print(init, .{ .state = if (result.state != .building) "terminal" else "running", .kind = "dml", .outcome = @tagName(result.state), .reason = @tagName(result.rejection), .matched = result.matched, .changed = result.changed }),
+        .ddl => |*result| try print(init, .{ .state = if (result.terminal()) "terminal" else "running", .kind = "ddl", .outcome = @tagName(result.operation.state), .table_outcome = if (result.table) |table| @tagName(table.state) else null, .reason = @tagName(result.operation.reason), .object = result.operation.actual_object, .witness = if (result.table) |*table| Witness.from(&table.witness) else null }),
+        .dml => |*result| try print(init, .{ .state = if (result.state != .building) "terminal" else "running", .kind = "dml", .outcome = @tagName(result.state), .reason = @tagName(result.rejection), .matched = result.matched, .changed = result.changed, .witness = Witness.from(&result.witness) }),
     }
 }
 fn host(init: std.process.Init, wire: *s.client.Client, directory: []const u8, original: Config, url: []const u8) !void {

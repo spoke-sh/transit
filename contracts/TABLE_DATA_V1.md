@@ -173,10 +173,11 @@ and each column ID:u64le, a default/value tag:u8 (0/1), and for explicit values 
 length:u32le plus complete typed `FVL1` envelope. Assignment order is part of
 intent; DEFAULT remains distinct from a coincidentally equal explicit value.
 
-The `STW1` receipt is exactly 159 bytes: magic, raw shared definition, resource,
+The `STW1` receipt is exactly 254 bytes: magic, raw shared definition, resource,
 object, principal and operation (u64 each), request digest (32 bytes), admitted
 input, completed input, source head revision, first record, exclusive-end record,
-matched count and changed count (u64 each), state:u8, rejection:u8 and route:u8. All value
+matched count and changed count (u64 each), state:u8, rejection:u8, route:u8 and
+the mandatory 95-byte execution witness below. All value
 integers are little-endian. States are building=1, applied=2, rejected=3 and
 cancelled=4. Rejections are none=0, row exists=1, row identity exists=2,
 NULL not allowed=3, missing required field=4, character limit exceeded=5,
@@ -192,6 +193,29 @@ counts. Building requires a nonempty reserved range. The point coordinator recor
 its one-row candidate counts; finite statements keep provisional counts in their
 private progress record and expose terminal counts only at publication. Unknown flags,
 inconsistent counts/identity, truncation and foreign definitions reject.
+
+The execution witness records the actual rejecting row and column before its
+private candidate is discarded. Its encoding is source:u8 (none=0, input=1,
+stored=2), row identity (20 bytes in `FTR1` big-endian order), column ID:u64le,
+preview length:u8, truncated:u8 (0/1), and 64 zero-padded preview bytes. Column
+zero identifies a primary key or row identity; a positive stable column ID
+identifies a failing cell. Input row identity preserves the original INSERT
+ordinal. Stored row identity identifies the original immutable source row, not
+its current position. The escaped value preview uses the shared logical display;
+composite key values follow declared key order. Truncation is explicit. Unknown
+sources/flags, invalid identities, nonzero unused bytes, control characters and
+invalid UTF-8 reject. A `none` witness has zero identity, column and preview;
+non-rejected outcomes require `none`. Missing witness bytes reject.
+
+Current catalog inspection permission gates receipt access. Current catalog read
+permission additionally gates stored-row identity/value disclosure. A denied
+read projects a `withheld` witness with only its stable column ID; this is a
+presentation value and cannot be encoded as a durable receipt. Input values come
+from the caller's original saved INSERT and remain available under inspection
+permission. Structured diagnostics validate that input evidence matches those
+exact saved values and derive column/type names from the original bound schema.
+They never resolve a later Table of the same name. Stored outcomes and their
+witnesses remain unchanged by disclosure, rename, DROP, name reuse or cleanup.
 
 The owner first builds a bounded private candidate against the current head and
 exact schema. It attempts to compose all needed pages, successor head and terminal

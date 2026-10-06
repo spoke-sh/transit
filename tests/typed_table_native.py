@@ -212,13 +212,19 @@ def run(node, proof, host, cli):
             call('select', 'SELECT * FROM people', 1, 128, 100000, fail=True, expected_error='QueryPageBudget')
             call('select', 'SELECT * FROM people', 10000, 1, 100000, fail=True, expected_error='QueryResultBudget')
             call('select', 'SELECT * FROM people', 10000, 128, 1, fail=True, expected_error='QueryResultBudget')
+            rejected_update = execute(13, 'UPDATE people SET id = 9')
+            assert rejected_update['outcome'] == 'rejected' and rejected_update['witness'] == dict(
+                source='stored', row=dict(origin=1235, operation=2, ordinal=1), column=0, preview='9', truncated=False), rejected_update
             denied = hold('SELECT * FROM people')
             call('policy', 'deny')
             call('pump')
             release(denied, 'CatalogDenied')
             call('select', 'SELECT * FROM people LIMIT 0', fail=True, expected_error='CatalogDenied')
+            hidden = call('status')
+            assert hidden['witness'] == dict(source='withheld', row=dict(origin=0, operation=0, ordinal=0), column=0, preview='', truncated=False), hidden
             call('policy', 'allow')
             call('pump')
+            assert call('status') == rejected_update
             frozen = hold('SELECT * FROM people')
             result = execute(3, "UPDATE people SET name = 'Ada Lovelace' WHERE id = 1")
             assert (result['matched'], result['changed']) == (1, 1), result
@@ -226,6 +232,8 @@ def run(node, proof, host, cli):
             assert (result['matched'], result['changed']) == (1, 0), result
             result = execute(5, "INSERT INTO people (id, name) VALUES (3, 'new'), (1, 'duplicate')")
             assert result['outcome'] == 'rejected' and result['reason'] == 'row_exists', result
+            assert result['witness'] == dict(source='input', row=dict(origin=1235, operation=5, ordinal=1), column=0, preview='1', truncated=False), result
+            rejected_insert, rejected_intent = result, (root / 'intent.bin').read_bytes()
             assert call('inspect', 'people')['count'] == 2
             applied(execute(6, 'ALTER TABLE people ADD COLUMN email VARCHAR(320)'))
             applied(execute(7, 'ALTER TABLE people RENAME COLUMN name TO full_name'))
@@ -246,6 +254,8 @@ def run(node, proof, host, cli):
             (root / 'intent.bin').write_bytes(saved)
             result = call('status')
             assert result['outcome'] == 'applied' and result['changed'] == 2, result
+            (root / 'intent.bin').write_bytes(rejected_intent)
+            assert call('status') == rejected_insert
             assert call('inspect', 'people')['object'] == 101
             expired = hold('SELECT * FROM people')
             authority.kill()
@@ -256,6 +266,7 @@ def run(node, proof, host, cli):
             authority = start()
             release(expired, 'QueryExpired')
             assert len(call('select', 'SELECT * FROM people')['rows']) == 2
+            assert call('status') == rejected_insert
             # Exercise the supplied deployment binary, not the fixture's manual
             # GenServer driver. One catalog owner routes every Table; a courier
             # scoped to that single destination delivers staged continuations.
@@ -323,7 +334,13 @@ def run(node, proof, host, cli):
             assert json.loads(inserted.stdout)['table_operation']['counts'] == {'matched': '2', 'changed': '2'}, inserted.stdout
             console("INSERT INTO console_people (id,name) VALUES (1,'duplicate')", fail=True)
             observed = console(script='.status\n')
-            assert json.loads(observed.stdout)['table_operation']['phase'] == 'rejected', observed.stdout
+            rejected = json.loads(observed.stdout)['table_operation']
+            assert rejected['phase'] == 'rejected', observed.stdout
+            facts = {fact['field']: fact for fact in rejected['diagnostic']['facts'] if fact}
+            assert facts['key']['value']['text'] == '1' and facts['column']['value']['text'] == 'id', facts
+            assert facts['input_row']['value']['unsigned'] == '1', facts
+            human_error = console(script=".mode table\nINSERT INTO console_people (id,name) VALUES (1,'duplicate');\n", fail=True)
+            assert 'Duplicate key "id: 1" violates the primary key constraint.' in human_error.stderr, human_error.stderr
             table = console(script='.mode table\nSELECT id,name,salary FROM console_people;\n')
             assert '125000.00' in table.stdout and 'Ada' in table.stdout and '2 rows' in table.stdout, table.stdout
             explanation = json.loads(console('EXPLAIN SELECT name FROM console_people WHERE id=1').stdout)['explanation']
@@ -351,6 +368,11 @@ def run(node, proof, host, cli):
             empty = [json.loads(line) for line in console('SELECT * FROM console_people WHERE id=3').stdout.splitlines()]
             assert not any('row' in line for line in empty) and empty[-1]['complete']['rows'] == '0', empty
             console('ALTER TABLE console_people ADD COLUMN note TEXT')
+            tightened = console('ALTER TABLE console_people ALTER COLUMN note SET NOT NULL', fail=True)
+            failed = json.loads(tightened.stdout)['table_operation']
+            facts = {fact['field']: fact for fact in failed['diagnostic']['facts'] if fact}
+            assert failed['phase'] == 'rejected' and facts['column']['value']['text'] == 'note', failed
+            assert facts['supplied_value']['value']['text'] == 'NULL' and len(facts['source_row']['value']['text']) == 40, facts
             described = json.loads(console('DESCRIBE console_people').stdout)['table']
             assert [column['name'] for column in described['columns']] == ['id', 'name', 'active', 'salary', 'note'], described
             console('DELETE FROM console_people WHERE id >= 1')

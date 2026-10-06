@@ -10,6 +10,22 @@ const before: s.Schema = .{ .object = 1, .revision = 1, .next_column = 3, .colum
 fn number(value: i128) Cell {
     return .{ .value = .{ .atom = .{ .signed = value } } };
 }
+test "failed schema conversion identifies the actual stable column without rebinding names" {
+    var columns: [s.max_columns]s.Column = undefined;
+    var output: [3]Cell = undefined;
+    var failed: ?s.ColumnId = null;
+    const narrower = try evolution.apply(before, .{ .type = .{ .column = 2, .type = .int8 } }, &columns);
+    try e.expectError(error.Overflow, narrower.rowDetailed(&.{ number(1), number(128) }, &output, &failed));
+    try e.expectEqual(@as(?u64, 2), failed);
+    _ = try narrower.rowDetailed(&.{ number(1), number(127) }, &output, &failed);
+    try e.expectEqual(null, failed);
+    const tightened = try evolution.apply(before, .{ .nullable = .{ .column = 2, .value = false } }, &columns);
+    try e.expectError(error.NullNotAllowed, tightened.rowDetailed(&.{ number(1), .null }, &output, &failed));
+    try e.expectEqual(@as(?u64, 2), failed);
+    const added = try evolution.apply(before, .{ .add = .{ .name = "new", .type = .utf8, .nullable = false } }, &columns);
+    try e.expectError(error.MissingRequiredField, added.rowDetailed(&.{ number(1), .null }, &output, &failed));
+    try e.expectEqual(@as(?u64, 3), failed);
+}
 test "metadata defaults affect future inserts and never rewrite an existing value" {
     var columns: [s.max_columns]s.Column = undefined;
     const transition = try evolution.apply(before, .{ .default = .{ .column = 2, .value = number(9) } }, &columns);

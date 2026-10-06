@@ -6,7 +6,7 @@ const Self = @This();
 envelope: q.protocol.Diagnostic,
 heading: []const u8,
 code: []const u8,
-message: [2048]u8 = @splat(0),
+message: [8192]u8 = @splat(0),
 length: usize = 0,
 next: ?[]const u8 = null,
 
@@ -26,7 +26,16 @@ pub fn tableOutcome(allocator: std.mem.Allocator, intent: *const c.TableIntent, 
     if (detail.outcome != .rejected) return null;
     var result: Self = .{ .envelope = detail, .heading = if (detail.category == .constraint) "Constraint Error" else "Table Error", .code = "table_rejected" };
     var out: std.Io.Writer = .fixed(&result.message);
-    try out.writeAll(detail.message.slice());
+    const key = fact(detail, .key);
+    const column = fact(detail, .column);
+    if (key != null and key.?.value != null and key.?.value.? == .text and column != null and column.?.value != null and column.?.value.? == .text) {
+        try out.writeAll("Duplicate key ");
+        var bytes: [512]u8 = undefined;
+        const label = try std.fmt.bufPrint(&bytes, "{s}: {s}", .{ column.?.value.?.text.slice(), key.?.value.?.text.slice() });
+        try quoted(&out, label);
+        if (key.?.availability == .truncated or column.?.availability == .truncated) try out.writeAll(" [truncated]");
+        try out.writeAll(" violates the primary key constraint. The statement published no row changes.");
+    } else try out.writeAll(detail.message.slice());
     // The name comes from the original immutable caller intent, never from a
     // fresh lookup that could bind a replacement Table after DROP/CREATE.
     var original = try intent.command(allocator);
@@ -37,8 +46,33 @@ pub fn tableOutcome(allocator: std.mem.Allocator, intent: *const c.TableIntent, 
     };
     try out.writeAll("\nTable: ");
     try quoted(&out, name);
+    if (key == null) if (column) |entry| if (entry.value) |value| if (value == .text) {
+        try out.writeAll("; column: ");
+        try quoted(&out, value.text.slice());
+    };
+    inline for (.{ .{ q.protocol.Diagnostic.Field.input_row, "Input row" }, .{ q.protocol.Diagnostic.Field.source_row, "Source row identity" }, .{ q.protocol.Diagnostic.Field.supplied_value, "Value" }, .{ q.protocol.Diagnostic.Field.expected_type, "Expected type" }, .{ q.protocol.Diagnostic.Field.limit, "Limit (Unicode scalars)" } }) |entry| {
+        if (fact(detail, entry[0])) |evidence| {
+            if (evidence.value) |value| {
+                try out.print("\n{s}: ", .{entry[1]});
+                switch (value) {
+                    .text => |text| try out.writeAll(text.slice()),
+                    .unsigned => |number| try out.writeAll(number.text.slice()),
+                    else => return error.InvalidConsoleRecovery,
+                }
+                if (evidence.availability == .truncated) try out.writeAll(" [truncated]");
+            } else if (evidence.availability == .withheld) try out.print("\n{s}: withheld by current read policy", .{entry[1]});
+        }
+    }
+    if (key) |entry| if (entry.availability == .withheld) try out.writeAll("\nConflicting key: withheld by current read policy");
     result.length = out.end;
     return result;
+}
+
+fn fact(detail: q.protocol.Diagnostic, field: q.protocol.Diagnostic.Field) ?q.protocol.Diagnostic.Fact {
+    for (detail.facts) |entry| if (entry) |value| {
+        if (value.field == field) return value;
+    };
+    return null;
 }
 
 pub fn mutation(name: q.fuze.model.Name, request: q.TableMutationRequest, status: q.TableMutationRecords.Status) !Self {

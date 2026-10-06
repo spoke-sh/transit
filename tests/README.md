@@ -11104,6 +11104,34 @@ client dereference and optional return coercion; no failed build is counted as
 passing evidence. The bounded catalog search returns at most eight suggestions
 from at most 128 pages and does not claim complete catalog enumeration.
 
+The durable execution-witness checkpoint passes **205/205 Fuze tests**, **86/86
+Station tests** and **75/75 catalog tests** (`table-witness2.log`,
+`table-witness-transit-station5.log`, `table-witness-transit-catalog5.log`). Exact
+key/cell formatting, schema attribution, input ordinal checks, malformed witness
+rejection and current-policy disclosure are executable cases. A real catalog
+transition retains the same stored witness through read revocation/restoration,
+DROP and name reuse; a withheld presentation cannot be encoded over the receipt.
+The independent Python storage oracle now includes the mandatory 95-byte witness
+and a nonempty rejected-key fixture inside the 254-byte receipt.
+
+The expanded disk-backed native/console proof passes in **103.074 seconds**
+(`table-witness-native1.log`), with 318 owner turns, 69 sends, at most four
+mutations per turn and 256 bytes per native value. It checks the original row/key
+for a conflicting finite UPDATE, read-policy redaction/restoration, a rejected
+INSERT after DROP/recreate and disk restart, structured console facts, the human
+duplicate-key message and the failing column/value for SET NOT NULL. Existing
+lost send/turn replies and supplied-host loss checks remain in the same run.
+This total is not a point-latency benchmark or power-loss proof.
+
+Full pinned `just check` passes (`table-witness-check2.log`), including 592 CLI
+diagnostic cases, 2,948 outcome projections, generated contracts, native units,
+frontend validation and the documentation build. Development runs caught an
+obsolete 159-byte oracle, a shadowed local name, an
+incorrect test accessor and diagnostic fact ordering drift. Each failed run is
+retained in the same campaign and is not counted as passing qualification. The
+receipt extension remains part of the pending coordinated current-v1 cutover;
+it does not establish compatibility with prior builds or complete caller migration.
+
 ## Fuze logical type foundation
 
 The local `Types` profile has nine passing focused Zig tests, including 46

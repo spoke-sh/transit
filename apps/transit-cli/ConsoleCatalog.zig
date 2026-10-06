@@ -88,13 +88,13 @@ fn describe(console: *Console, out: *std.Io.Writer, allocator: std.mem.Allocator
     for (schema.columns) |column| {
         try std.json.Stringify.value(column.name, .{ .escape_unicode = true }, out);
         try out.writeAll(": ");
-        try @import("LogicalDisplay.zig").typeName(out, column.type);
+        try c.fuze.LogicalDisplay.typeName(out, column.type);
         try out.writeAll(if (column.nullable) " NULL" else " NOT NULL");
         if (std.mem.indexOfScalar(u64, schema.primary_key, column.id) != null) try out.writeAll(" PRIMARY KEY");
         if (column.max_characters) |limit| try out.print(" (at most {d} Unicode scalars)", .{limit});
         if (column.default) |cell| {
             try out.writeAll(" DEFAULT ");
-            try @import("LogicalDisplay.zig").cell(out, cell, column.type);
+            try c.fuze.LogicalDisplay.cell(out, cell, column.type);
         }
         try out.writeByte('\n');
     }

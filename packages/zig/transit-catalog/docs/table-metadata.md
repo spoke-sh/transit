@@ -166,6 +166,21 @@ running SQL, terminal SQL and cancellation of unadmitted transport. `prepareResu
 explicitly schedules paused original work. Typed controls expose cancellation,
 candidate/body cleanup and conditional policy/dependency changes.
 
+`TableDiagnostic.status` projects original saved intent and durable execution
+evidence. Rejected primary keys include the key columns, bounded escaped values
+and exact input ordinal or immutable source row identity. Failed ALTER validation
+includes the failing column, value, expected type and applicable Unicode limit.
+Previews longer than 64 bytes carry explicit truncation. The renderer never
+rereads a current row to guess the cause of an earlier failure.
+
+Catalog inspection permission gates all outcome access. Stored-row identity and
+value additionally require current read permission; denied fields are explicitly
+withheld while the rejected outcome and schema facts remain inspectable. INSERT
+evidence uses the caller's original input and remains inspectable without read
+permission. A projected withheld witness cannot overwrite the durable witness.
+Restoring permission reveals the original evidence, including after DROP and
+reuse of the name. Native grants remain independently required for every read.
+
 `progress` checks native mailbox processing before reading application and input
 outcomes at one authorized cut. The notification variants retain only an exact
 input scheduling cursor and preserve bounded capacity backoff. They do not cache

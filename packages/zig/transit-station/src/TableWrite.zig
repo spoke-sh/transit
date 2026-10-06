@@ -148,8 +148,18 @@ pub const Status = struct {
     route: Route = .point,
     state: enum(u8) { building = 1, applied = 2, rejected = 3, cancelled = 4 },
     rejection: enum(u8) { none = 0, row_exists = 1, row_identity_exists = 2, null_not_allowed = 3, missing_required_field = 4, character_limit_exceeded = 5, overflow = 6, inexact = 7 } = .none,
+    witness: f.TableWitness = .{},
     pub fn validate(self: Status) !void {
         try self.reference.validate();
+        try self.witness.validate();
+        if (self.state != .rejected and self.witness.source != .none) return error.InvalidTableWriteStatus;
+        if (self.witness.source != .none) {
+            const key_failure = self.rejection == .row_exists or self.rejection == .row_identity_exists;
+            if (key_failure != (self.witness.column == 0)) return error.InvalidTableWriteStatus;
+            if (self.rejection == .row_identity_exists and (self.witness.length != 0 or self.witness.truncated)) return error.InvalidTableWriteStatus;
+            if (self.witness.source != .withheld and self.rejection != .row_identity_exists and self.witness.length == 0) return error.InvalidTableWriteStatus;
+            if (self.witness.source == .input and (!key_failure or self.route == .alter or self.witness.row.origin != self.reference.principal + 1 or self.witness.row.operation != self.reference.operation)) return error.InvalidTableWriteStatus;
+        }
         if (self.admitted_input == 0 or self.admitted_input > p.max_counter or self.completed_input > p.max_counter or self.basis_revision == 0 or
             self.first_record == 0 or self.end_record < self.first_record or self.changed > self.matched) return error.InvalidTableWriteStatus;
         if ((self.state == .building) != (self.completed_input == 0)) return error.InvalidTableWriteStatus;
@@ -162,7 +172,7 @@ pub const Status = struct {
     }
     pub fn encode(self: Status) !p.Value {
         try self.validate();
-        var bytes: [159]u8 = undefined;
+        var bytes: [159 + f.TableWitness.encoded_bytes]u8 = undefined;
         var out: std.Io.Writer = .fixed(&bytes);
         try out.writeAll("STW1");
         try out.writeAll(&definition());
@@ -170,11 +180,12 @@ pub const Status = struct {
         try out.writeAll(&self.reference.digest);
         inline for (.{ "admitted_input", "completed_input", "basis_revision", "first_record", "end_record", "matched", "changed" }) |name| try out.writeInt(u64, @field(self, name), .little);
         try out.writeAll(&.{ @backingInt(self.state), @backingInt(self.rejection), @backingInt(self.route) });
+        try out.writeAll(&try self.witness.encode());
         return p.Value.init(out.buffered());
     }
     pub fn decode(value: p.Value) !Status {
         try value.validate();
-        if (value.len != 159 or !std.mem.eql(u8, value.data[0..4], "STW1")) return error.InvalidTableWriteStatus;
+        if (value.len != 159 + f.TableWitness.encoded_bytes or !std.mem.eql(u8, value.data[0..4], "STW1")) return error.InvalidTableWriteStatus;
         if (!std.mem.eql(u8, value.data[4..36], &definition())) return error.IncompatibleTableStorage;
         var in: std.Io.Reader = .fixed(value.data[36..value.len]);
         var result: Status = undefined;
@@ -184,6 +195,13 @@ pub const Status = struct {
         result.state = std.enums.fromInt(@FieldType(Status, "state"), try in.takeByte()) orelse return error.InvalidTableWriteStatus;
         result.rejection = std.enums.fromInt(@FieldType(Status, "rejection"), try in.takeByte()) orelse return error.InvalidTableWriteStatus;
         result.route = std.enums.fromInt(Status.Route, try in.takeByte()) orelse return error.InvalidTableWriteStatus;
+        result.witness = try f.TableWitness.decode(try in.take(f.TableWitness.encoded_bytes));
+        try result.validate();
+        return result;
+    }
+    pub fn disclose(self: Status, read: bool) !Status {
+        var result = self;
+        result.witness = try self.witness.disclose(read);
         try result.validate();
         return result;
     }
@@ -261,11 +279,13 @@ pub fn step(allocator: std.mem.Allocator, turn: *Turn, request: Request) !Status
         .end_record = first,
         .state = .building,
     };
-    const changed = apply(data, allocator, &overlay, request.change) catch |err| {
+    var witness: f.TableWitness = .{};
+    const changed = apply(data, allocator, &overlay, request.change, &witness) catch |err| {
         if (previous != null or (err != error.RowExists and err != error.RowIdentityExists)) return err;
         result.state = .rejected;
         result.completed_input = turn.delivery.input.position;
         result.rejection = if (err == error.RowExists) .row_exists else .row_identity_exists;
+        result.witness = witness;
         try record(turn, result);
         return result;
     };
@@ -308,10 +328,14 @@ pub fn step(allocator: std.mem.Allocator, turn: *Turn, request: Request) !Status
         return result;
     };
 }
-fn apply(data: Data, allocator: std.mem.Allocator, overlay: anytype, change: Change) !Data.Candidate {
+fn apply(data: Data, allocator: std.mem.Allocator, overlay: anytype, change: Change, witness: *f.TableWitness) anyerror!Data.Candidate {
     return switch (change) {
-        .insert => |row| data.insert(allocator, overlay, row),
-        .update => |row| data.update(allocator, overlay, row),
+        .insert, .update => |row| (if (change == .insert) data.insert(allocator, overlay, row) else data.update(allocator, overlay, row)) catch |err| {
+            const source: f.TableWitness.Source = if (change == .insert) .input else .stored;
+            if (err == error.RowExists) witness.* = try f.TableWitness.key(source, data.schema, row);
+            if (err == error.RowIdentityExists) witness.* = try f.TableWitness.identity(source, row.identity);
+            return err;
+        },
         .delete => |id| data.delete(allocator, overlay, id),
         .delete_key => |key| if (try data.findKey(allocator, overlay, key)) |id| data.delete(allocator, overlay, id) else .{ .data = data, .matched = 0, .changed = 0 },
         .patch => |patch| blk: {
@@ -320,7 +344,7 @@ fn apply(data: Data, allocator: std.mem.Allocator, overlay: anytype, change: Cha
             defer previous.deinit();
             var cells: [f.TableSchema.max_columns]Cell = undefined;
             const row = try data.schema.update(previous.row().cells, patch.assignments, &cells);
-            break :blk data.update(allocator, overlay, .{ .identity = id, .cells = row });
+            break :blk apply(data, allocator, overlay, .{ .update = .{ .identity = id, .cells = row } }, witness);
         },
     };
 }

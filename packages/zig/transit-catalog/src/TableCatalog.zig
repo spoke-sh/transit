@@ -266,10 +266,12 @@ fn outcome(source: anytype, value: m.Operation) !Outcome {
     return .{ .operation = value, .table = table };
 }
 pub fn status(self: Self, source: anytype, who: u64, id: u64, digest: [32]u8) !?Outcome {
-    _ = try self.authorize(source, who, .inspect);
+    const rights = try self.authorize(source, who, .inspect);
     const found = (try self.operation(source, who, id)) orelse return null;
     if (!std.mem.eql(u8, &found.digest, &digest)) return error.CatalogIdentityConflict;
-    return try outcome(source, found);
+    var result = try outcome(source, found);
+    if (result.table) |*table| table.* = try table.disclose(rights.read);
+    return result;
 }
 /// Published bytes alone do not establish an accepted definition. Retained
 /// metadata must be named by its original applied catalog/Table decision.
@@ -652,7 +654,7 @@ pub fn executeUploaded(self: Self, allocator: std.mem.Allocator, turn: *s.Turn, 
     };
 }
 pub fn mutationStatus(self: Self, allocator: std.mem.Allocator, source: anytype, who: u64, request: DmlRequest) !?s.TableWrite.Status {
-    _ = try self.authorize(source, who, .inspect);
+    const rights = try self.authorize(source, who, .inspect);
     if (who != request.principal) return error.CatalogDenied;
     var scratch: [c.fuze.TableSchema.max_columns]c.fuze.Types.Values.Cell = undefined;
     const route = try request.route(allocator, self.configuration.scope, &scratch);
@@ -660,19 +662,19 @@ pub fn mutationStatus(self: Self, allocator: std.mem.Allocator, source: anytype,
     _ = (try self.object(source, ref.object)) orelse return error.TableNotFound;
     const result = try s.TableWrite.status(source, ref);
     if (result) |value| if (value.route != route.receiptRoute()) return error.InvalidTableWriteStatus;
-    return result;
+    return if (result) |value| try value.disclose(rights.read) else null;
 }
 
 /// A saved exact reference can inspect/cancel DML without retransmitting its
 /// original typed rows. Catalog ownership and current disclosure still apply.
 pub fn mutationReceipt(self: Self, source: anytype, who: u64, ref: s.TableWrite.Reference) !?s.TableWrite.Status {
-    _ = try self.authorize(source, who, .inspect);
+    const rights = try self.authorize(source, who, .inspect);
     if (who != ref.principal) return error.CatalogDenied;
     if (ref.resource != self.configuration.scope.resource) return error.CatalogScopeChanged;
     _ = (try self.object(source, ref.object)) orelse return error.TableNotFound;
     const result = (try s.TableWrite.status(source, ref)) orelse return null;
     if (result.route == .alter) return error.CatalogIdentityConflict;
-    return result;
+    return try result.disclose(rights.read);
 }
 pub fn cancelMutationReference(self: Self, turn: *s.Turn, ref: s.TableWrite.Reference) !s.TableWrite.Status {
     const before = turn.decision;

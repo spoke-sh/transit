@@ -1,8 +1,7 @@
 //! Bounded human presentation of logical values. Neutral JSON owns lossless wire
 //! representation; this formatter never changes stored values or type admission.
 const std = @import("std");
-const f = @import("transit_query").fuze;
-const t = f.Types;
+const t = @import("Types.zig");
 pub fn typeName(out: *std.Io.Writer, value: t.Type) anyerror!void {
     switch (value) {
         .decimal => |d| try out.print("decimal({d},{d})", .{ d.precision, d.scale }),

@@ -21,6 +21,10 @@ pub const Transition = struct {
     /// Scratch and returned cells borrow before/after schemas and source values.
     /// Publish only after every source row has passed under a frozen source cut.
     pub fn row(self: Transition, values: []const Cell, output: []Cell) ![]const Cell {
+        return self.rowDetailed(values, output, null);
+    }
+    pub fn rowDetailed(self: Transition, values: []const Cell, output: []Cell, failure: ?*?s.ColumnId) ![]const Cell {
+        if (failure) |column| column.* = null;
         try self.before.validateRow(values);
         try self.after.validate();
         if (self.before.object != self.after.object or self.after.revision != try std.math.add(u64, self.before.revision, 1)) return error.InvalidSchemaTransition;
@@ -33,9 +37,12 @@ pub const Transition = struct {
                 cell.* = column.initial();
                 continue;
             };
-            cell.* = try convert(values[index], self.before.columns[index].type, column.type);
+            cell.* = convert(values[index], self.before.columns[index].type, column.type) catch |err| {
+                if (failure) |selected| selected.* = column.id;
+                return err;
+            };
         }
-        try self.after.validateRow(result);
+        try self.after.validateRowDetailed(result, failure);
         return result;
     }
 };

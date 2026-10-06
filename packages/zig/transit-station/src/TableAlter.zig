@@ -126,8 +126,20 @@ pub fn step(allocator: std.mem.Allocator, turn: *Turn, request: Request) !Write.
     };
     defer row.deinit();
     var cells: [f.TableSchema.max_columns]f.Types.Values.Cell = undefined;
-    const rewritten = transition.row(row.row().cells, &cells) catch |err| {
-        if (constraint(err)) |reason| return Statement.close(turn, head, result, reason);
+    var failed_column: ?f.TableSchema.ColumnId = null;
+    const rewritten = transition.rowDetailed(row.row().cells, &cells, &failed_column) catch |err| {
+        if (constraint(err)) |reason| {
+            const id = failed_column orelse return err;
+            const column = transition.after.columns[try transition.after.index(id)];
+            const previous: ?usize = transition.before.index(id) catch |failure| blk: {
+                if (failure != error.UnknownColumn) return failure;
+                break :blk null;
+            };
+            const value = if (previous) |index| row.row().cells[index] else column.initial();
+            const kind = if (previous) |index| transition.before.columns[index].type else column.type;
+            const witness = try f.TableWitness.cell(.stored, row.identity, id, value, kind);
+            return Statement.closeDetailed(turn, head, result, reason, witness);
+        }
         return err;
     };
     progress.cursor = row.identity;
@@ -140,7 +152,10 @@ pub fn step(allocator: std.mem.Allocator, turn: *Turn, request: Request) !Write.
     defer overlay.deinit();
     const candidate: Data = .{ .schema = transition.after, .index = progress.index };
     const changed = candidate.insert(allocator, &overlay, .{ .identity = row.identity, .cells = rewritten }) catch |err| {
-        if (constraint(err)) |reason| return Statement.close(turn, head, result, reason);
+        if (err == error.RowExists or err == error.RowIdentityExists) {
+            const witness = if (err == error.RowExists) try f.TableWitness.key(.stored, transition.after, .{ .identity = row.identity, .cells = rewritten }) else try f.TableWitness.identity(.stored, row.identity);
+            return Statement.closeDetailed(turn, head, result, constraint(err).?, witness);
+        }
         return err;
     };
     _ = try overlay.finish(changed.data.index);

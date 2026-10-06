@@ -96,6 +96,9 @@ test "schema rewrites preserve identity, old decoders and defaults with atomic p
     try t.expectEqualStrings("full_name", replaced.schema.columns[1].name);
     const null_rejection = try sqlAlter(&store, 407, "ALTER TABLE items ALTER COLUMN full_name SET NOT NULL");
     try t.expectEqual(.null_not_allowed, null_rejection.rejection);
+    try t.expectEqual(.stored, null_rejection.witness.source);
+    try t.expectEqual(@as(u64, 2), null_rejection.witness.column);
+    try t.expectEqualStrings("NULL", null_rejection.witness.text());
     try cleanCandidate(&store, null_rejection);
     _ = try sqlStatement(&store, 408, replaced.schema, "UPDATE items SET full_name='two' WHERE full_name IS NULL");
     try t.expectEqual(.applied, (try sqlAlter(&store, 409, "ALTER TABLE items ALTER COLUMN full_name SET NOT NULL")).state);
@@ -130,6 +133,8 @@ test "late conversion failures retain original schemas and terminal rejection af
     const request: Alter.Request = .{ .resource = 7, .principal = 1, .operation = 421, .schema = schema, .change = .{ .type = .{ .column = 1, .type = .float64 } } };
     const rejected = try runAlter(&store, request);
     try t.expectEqual(.inexact, rejected.rejection);
+    try t.expectEqual(@as(u64, 1), rejected.witness.column);
+    try t.expectEqualStrings("9007199254740993", rejected.witness.text());
     try t.expectEqual(@as(u64, 0), rejected.changed);
     try cleanCandidate(&store, rejected);
     const overflow = try sqlAlter(&store, 422, "ALTER TABLE items ALTER COLUMN id TYPE INT8");
@@ -435,6 +440,9 @@ test "finite statements publish all rows or none, exact counts and original rece
     const rejected = try sqlStatement(&store, 201, schema, "INSERT INTO items VALUES (4,'four'),(5,'five'),(2,'duplicate')");
     try t.expectEqual(.rejected, rejected.state);
     try t.expectEqual(.row_exists, rejected.rejection);
+    try t.expectEqual(.input, rejected.witness.source);
+    try t.expectEqual(@as(u32, 2), rejected.witness.row.ordinal);
+    try t.expectEqualStrings("2", rejected.witness.text());
     try t.expectEqual(@as(u64, 0), rejected.changed);
     turn = try store.capture();
     try t.expectEqualDeep(original.index, (try Head.load(&turn, 9)).index);
@@ -448,6 +456,10 @@ test "finite statements publish all rows or none, exact counts and original rece
     try t.expectEqual(@as(u64, 0), absent.matched);
     const duplicate = try sqlStatement(&store, 205, schema, "UPDATE items SET id=9 WHERE id>=2");
     try t.expectEqual(.row_exists, duplicate.rejection);
+    try t.expectEqual(.stored, duplicate.witness.source);
+    try t.expectEqualStrings("9", duplicate.witness.text());
+    try t.expectEqual(@as(u64, 200), duplicate.witness.row.operation);
+    try t.expectEqual(@as(u32, 2), duplicate.witness.row.ordinal);
     const deleted = try sqlStatement(&store, 206, schema, "DELETE FROM items WHERE id>=2");
     try t.expectEqual(@as(u64, 2), deleted.changed);
     // Conflict disappeared, but this identity still returns its original error.
@@ -957,7 +969,7 @@ fn expectHex(hex: []const u8, bytes: []const u8) !void {
     try t.expectEqualSlices(u8, try std.fmt.hexToBytes(&output, hex), bytes);
 }
 test "typed Table head and page layouts match independent Python bytes" {
-    const Fixture = struct { native_definition: []const u8, manifest_hex: []const u8, inline_hex: []const u8, head_hex: []const u8, head_key_hex: []const u8, page_key_hex: []const u8, write_key_hex: []const u8, write_status_hex: []const u8, statement_progress_hex: []const u8, statement_progress_key_hex: []const u8, cleanup_hex: []const u8, cleanup_key_hex: []const u8 };
+    const Fixture = struct { native_definition: []const u8, manifest_hex: []const u8, inline_hex: []const u8, head_hex: []const u8, head_key_hex: []const u8, page_key_hex: []const u8, write_key_hex: []const u8, write_status_hex: []const u8, write_rejection_hex: []const u8, statement_progress_hex: []const u8, statement_progress_key_hex: []const u8, cleanup_hex: []const u8, cleanup_key_hex: []const u8 };
     const fixture = try std.json.parseFromSlice(Fixture, t.allocator, @embedFile("fixtures/table-storage.json"), .{});
     defer fixture.deinit();
     const expected = fixture.value;
@@ -993,6 +1005,16 @@ test "typed Table head and page layouts match independent Python bytes" {
     const receipt_bytes = try receipt.encode();
     try expectHex(expected.write_key_hex, receipt.reference.key().slice());
     try expectHex(expected.write_status_hex, receipt_bytes.slice());
+    var rejected = receipt;
+    rejected.state = .rejected;
+    rejected.rejection = .row_exists;
+    rejected.route = .statement;
+    rejected.matched = 0;
+    rejected.changed = 0;
+    const evidence_schema: f.TableSchema.Schema = .{ .object = 9, .revision = 1, .next_column = 2, .columns = &.{.{ .id = 1, .name = "id", .type = .int64, .nullable = false }}, .primary_key = &.{1} };
+    rejected.witness = try f.TableWitness.key(.input, evidence_schema, .{ .identity = .{ .origin = 2, .operation = 21, .ordinal = 4 }, .cells = &.{.{ .value = .{ .atom = .{ .signed = 5 } } }} });
+    try expectHex(expected.write_rejection_hex, (try rejected.encode()).slice());
+    try t.expectEqualDeep(rejected, try Write.Status.decode(try rejected.encode()));
     const progress: Statement.Progress = .{ .digest = receipt.reference.digest, .head_revision = 8, .index = head.index, .cursor = .{ .origin = 2, .operation = 30, .ordinal = 1 }, .matched = 2, .changed = 1 };
     const progress_bytes = try progress.encode();
     try expectHex(expected.statement_progress_hex, progress_bytes.slice());

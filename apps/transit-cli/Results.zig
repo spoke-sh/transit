@@ -11,7 +11,7 @@ pub fn logicalTable(allocator: std.mem.Allocator, out: *std.Io.Writer, schema: q
     var types: [128][]const u8 = undefined;
     var alignments: [128]Alignment = @splat(.left);
     const heading: [128]Alignment = @splat(.center);
-    const display = @import("LogicalDisplay.zig");
+    const display = @import("transit_query").fuze.LogicalDisplay;
     for (schema.structure, 0..) |field, i| {
         names[i] = try escaped(allocator, field.name);
         var bytes: [256]u8 = undefined;
@@ -42,7 +42,7 @@ pub fn logicalTable(allocator: std.mem.Allocator, out: *std.Io.Writer, schema: q
     try border(out, widths[0..count], "└", "┴", "┘");
 }
 test {
-    _ = @import("LogicalDisplay.zig");
+    _ = @import("transit_query").fuze.LogicalDisplay;
 }
 pub fn write(allocator: std.mem.Allocator, out: *std.Io.Writer, page: q.UnifiedResult.Page, batch: *const m.Inspect.Batch, ordinal: u64, as_json: bool) !void {
     if (as_json) {

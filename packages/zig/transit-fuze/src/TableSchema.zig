@@ -116,13 +116,22 @@ pub const Schema = struct {
         if (count.fullCount() > max_bytes) return error.TableSchemaTooLarge;
     }
     pub fn validateRow(self: Schema, cells: []const v.Cell) !void {
+        return self.validateRowDetailed(cells, null);
+    }
+    /// Reports the stable column ID at the actual failing cell. A shared
+    /// whole-row budget failure has no invented column attribution.
+    pub fn validateRowDetailed(self: Schema, cells: []const v.Cell, failure: ?*?ColumnId) !void {
+        if (failure) |column| column.* = null;
         try self.validate();
         if (cells.len != self.columns.len) return error.InvalidRowWidth;
+        for (cells, self.columns) |cell, column| column.validateCell(cell) catch |err| {
+            if (failure) |selected| selected.* = column.id;
+            return err;
+        };
         // Validate the entire row under one shared recursive byte/child budget.
         var fields: [max_columns]t.Field = undefined;
         const row: v.Cell = .{ .value = .{ .structure = cells } };
         try row.validate(.{ .name = "row", .type = try self.rowType(&fields) }, .{});
-        for (cells, self.columns) |cell, column| try column.validateCell(cell);
     }
     pub fn validateKey(self: Schema, cells: []const v.Cell) !void {
         try self.validate();

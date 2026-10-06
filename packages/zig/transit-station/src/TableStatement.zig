@@ -187,6 +187,9 @@ pub fn publish(turn: *Turn, head: Head, after: Head, result: Write.Status, match
     return accepted;
 }
 pub fn close(turn: *Turn, head: Head, previous: Write.Status, rejection: @FieldType(Write.Status, "rejection")) !Write.Status {
+    return closeDetailed(turn, head, previous, rejection, .{});
+}
+pub fn closeDetailed(turn: *Turn, head: Head, previous: Write.Status, rejection: @FieldType(Write.Status, "rejection"), witness: f.TableWitness) !Write.Status {
     const before = turn.decision;
     errdefer turn.decision = before;
     var after = head;
@@ -198,6 +201,7 @@ pub fn close(turn: *Turn, head: Head, previous: Write.Status, rejection: @FieldT
     result.matched = 0;
     result.changed = 0;
     result.rejection = rejection;
+    result.witness = witness;
     try head.replace(turn, after);
     try record(turn, result);
     try turn.write(Progress.key(result.reference), null);
@@ -259,10 +263,15 @@ pub fn step(allocator: std.mem.Allocator, turn: *Turn, request: Request) !Write.
     };
     var overlay = try Candidate.Overlay(*@TypeOf(reader)).init(allocator, &reader, result.end_record - Candidate.max_records, result.end_record);
     defer overlay.deinit();
-    const changed = apply(candidate, allocator, &overlay, change) catch |err| switch (err) {
-        error.RowExists => return close(turn, head, result, .row_exists),
-        error.RowIdentityExists => return close(turn, head, result, .row_identity_exists),
-        else => return err,
+    const changed = apply(candidate, allocator, &overlay, change) catch |err| {
+        if (err != error.RowExists and err != error.RowIdentityExists) return err;
+        const row = switch (change) {
+            .insert, .update => |value| value,
+            else => return err,
+        };
+        const source: f.TableWitness.Source = if (change == .insert) .input else .stored;
+        const witness = if (err == error.RowExists) try f.TableWitness.key(source, schema.schema, row) else try f.TableWitness.identity(source, row.identity);
+        return closeDetailed(turn, head, result, if (err == error.RowExists) .row_exists else .row_identity_exists, witness);
     };
     if (changed.matched != 1 or changed.changed > 1) return error.InvalidTableStatementProgress;
     _ = try overlay.finish(changed.data.index);

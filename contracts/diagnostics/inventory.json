@@ -456,7 +456,6 @@
       "imports": [
         "Console.zig",
         "ConsoleTableQuery.zig",
-        "LogicalDisplay.zig",
         "Output.zig",
         "Signals.zig",
         "std",
@@ -1090,30 +1089,6 @@
         "transit_query"
       ]
     },
-    "apps/transit-cli/LogicalDisplay.zig": {
-      "errors": {
-        "WriteFailed": 1
-      },
-      "outcomes": {},
-      "error_sets": {},
-      "error_returns": {
-        "atom()": "<inferred>",
-        "cell()": "anyerror",
-        "date()": "<inferred>",
-        "preview()": "<inferred>",
-        "time()": "<inferred>",
-        "typeName()": "anyerror"
-      },
-      "open_error_set_uses": 2,
-      "propagation": {
-        "try": 85,
-        "catch": 1
-      },
-      "imports": [
-        "std",
-        "transit_query"
-      ]
-    },
     "apps/transit-cli/MutationOptions.zig": {
       "errors": {},
       "outcomes": {
@@ -1371,7 +1346,6 @@
         "catch": 1
       },
       "imports": [
-        "LogicalDisplay.zig",
         "std",
         "transit_query"
       ]
@@ -1776,7 +1750,7 @@
     },
     "apps/transit-cli/WriteDiagnostic.zig": {
       "errors": {
-        "InvalidConsoleRecovery": 8
+        "InvalidConsoleRecovery": 9
       },
       "outcomes": {},
       "error_sets": {},
@@ -1792,7 +1766,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 45,
+        "try": 58,
         "catch": 2
       },
       "imports": [
@@ -3436,7 +3410,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 255,
+        "try": 258,
         "catch": 2
       },
       "imports": [
@@ -3777,18 +3751,21 @@
     "packages/zig/transit-catalog/src/TableDiagnostic.zig": {
       "errors": {
         "CatalogIdentityConflict": 4,
-        "InvalidCatalogReceipt": 2
+        "InvalidCatalogReceipt": 11,
+        "WriteFailed": 2
       },
       "outcomes": {},
       "error_sets": {},
       "error_returns": {
         "input()": "<inferred>",
-        "status()": "<inferred>"
+        "primaryColumns()": "<inferred>",
+        "status()": "<inferred>",
+        "witnessDetails()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 24,
-        "catch": 0
+        "try": 49,
+        "catch": 3
       },
       "imports": [
         "root.zig",
@@ -5972,6 +5949,30 @@
         "std"
       ]
     },
+    "packages/zig/transit-fuze/src/LogicalDisplay.zig": {
+      "errors": {
+        "WriteFailed": 1
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "atom()": "<inferred>",
+        "cell()": "anyerror",
+        "date()": "<inferred>",
+        "preview()": "<inferred>",
+        "time()": "<inferred>",
+        "typeName()": "anyerror"
+      },
+      "open_error_set_uses": 2,
+      "propagation": {
+        "try": 85,
+        "catch": 1
+      },
+      "imports": [
+        "Types.zig",
+        "std"
+      ]
+    },
     "packages/zig/transit-fuze/src/LogicalJson.zig": {
       "errors": {
         "IncompatibleDefinition": 2,
@@ -7249,14 +7250,15 @@
       "error_sets": {},
       "error_returns": {
         "Transition.row()": "<inferred>",
+        "Transition.rowDetailed()": "<inferred>",
         "apply()": "<inferred>",
         "castSupported()": "<inferred>",
         "convert()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 23,
-        "catch": 1
+        "try": 22,
+        "catch": 2
       },
       "imports": [
         "TableSchema.zig",
@@ -7394,6 +7396,7 @@
         "Schema.validateAssignments()": "<inferred>",
         "Schema.validateKey()": "<inferred>",
         "Schema.validateRow()": "<inferred>",
+        "Schema.validateRowDetailed()": "<inferred>",
         "Schema.write()": "<inferred>",
         "boolean()": "<inferred>",
         "decode()": "<inferred>",
@@ -7401,8 +7404,8 @@
       },
       "open_error_set_uses": 1,
       "propagation": {
-        "try": 87,
-        "catch": 1
+        "try": 86,
+        "catch": 2
       },
       "imports": [
         "Types.zig",
@@ -7448,6 +7451,45 @@
         "Sql.zig",
         "SqlLogicalPredicate.zig",
         "SqlTyped.zig",
+        "TableSchema.zig",
+        "Types.zig",
+        "std"
+      ]
+    },
+    "packages/zig/transit-fuze/src/TableWitness.zig": {
+      "errors": {
+        "InvalidTableWitness": 10,
+        "NoPrimaryKey": 1,
+        "WriteFailed": 2
+      },
+      "outcomes": {
+        "Source": [
+          "none",
+          "input",
+          "stored",
+          "withheld"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "cell()": "<inferred>",
+        "decode()": "<inferred>",
+        "disclose()": "<inferred>",
+        "encode()": "<inferred>",
+        "identity()": "<inferred>",
+        "key()": "<inferred>",
+        "keyText()": "<inferred>",
+        "start()": "<inferred>",
+        "validate()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 18,
+        "catch": 2
+      },
+      "imports": [
+        "LogicalDisplay.zig",
+        "TableRow.zig",
         "TableSchema.zig",
         "Types.zig",
         "std"
@@ -8159,6 +8201,7 @@
         "FileSource.zig",
         "LogicalArrow.zig",
         "LogicalCodec.zig",
+        "LogicalDisplay.zig",
         "LogicalJson.zig",
         "LogicalPredicate.zig",
         "LogicalQuery.zig",
@@ -8178,6 +8221,7 @@
         "TableRow.zig",
         "TableSchema.zig",
         "TableSelect.zig",
+        "TableWitness.zig",
         "Types.zig",
         "Unified.zig",
         "execute.zig",
@@ -10175,7 +10219,7 @@
       },
       "open_error_set_uses": 1,
       "propagation": {
-        "try": 57,
+        "try": 58,
         "catch": 10
       },
       "imports": [
@@ -16423,12 +16467,13 @@
         "MutationBudgetExceeded": 2,
         "NullNotAllowed": 1,
         "Overflow": 1,
-        "RowExists": 1,
-        "RowIdentityExists": 1,
+        "RowExists": 3,
+        "RowIdentityExists": 2,
         "TableBusy": 1,
         "TableCapacity": 2,
         "TableRetired": 1,
-        "TableSchemaChanged": 1
+        "TableSchemaChanged": 1,
+        "UnknownColumn": 1
       },
       "outcomes": {},
       "error_sets": {},
@@ -16443,8 +16488,8 @@
       },
       "open_error_set_uses": 1,
       "propagation": {
-        "try": 35,
-        "catch": 7
+        "try": 39,
+        "catch": 8
       },
       "imports": [
         "Publication.zig",
@@ -16696,7 +16741,7 @@
         "InvalidTableWrite": 1,
         "InvalidTableWriteStatus": 2,
         "MutationBudgetExceeded": 2,
-        "RowExists": 1,
+        "RowExists": 3,
         "RowIdentityExists": 1,
         "TableBusy": 1,
         "TableCapacity": 2,
@@ -16722,6 +16767,7 @@
         "cancelAlter()": "<inferred>",
         "cancelRoute()": "<inferred>",
         "close()": "<inferred>",
+        "closeDetailed()": "<inferred>",
         "finish()": "<inferred>",
         "publish()": "<inferred>",
         "record()": "<inferred>",
@@ -16732,7 +16778,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 93,
+        "try": 95,
         "catch": 8
       },
       "imports": [
@@ -16756,10 +16802,10 @@
         "InvalidTableHead": 1,
         "InvalidTableIndex": 1,
         "InvalidTableWrite": 4,
-        "InvalidTableWriteStatus": 14,
+        "InvalidTableWriteStatus": 19,
         "MutationBudgetExceeded": 5,
-        "RowExists": 2,
-        "RowIdentityExists": 1,
+        "RowExists": 3,
+        "RowIdentityExists": 2,
         "TableBusy": 1,
         "TableCapacity": 2,
         "TableRetired": 1,
@@ -16806,9 +16852,10 @@
         "Request.insertIdentity()": "<inferred>",
         "Request.reference()": "<inferred>",
         "Status.decode()": "<inferred>",
+        "Status.disclose()": "<inferred>",
         "Status.encode()": "<inferred>",
         "Status.validate()": "<inferred>",
-        "apply()": "<inferred>",
+        "apply()": "anyerror",
         "cancel()": "<inferred>",
         "checkPending()": "<inferred>",
         "completion()": "<inferred>",
@@ -16819,10 +16866,10 @@
         "status()": "<inferred>",
         "step()": "<inferred>"
       },
-      "open_error_set_uses": 0,
+      "open_error_set_uses": 1,
       "propagation": {
-        "try": 64,
-        "catch": 12
+        "try": 73,
+        "catch": 13
       },
       "imports": [
         "Publication.zig",

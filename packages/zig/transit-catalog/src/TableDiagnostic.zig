@@ -69,12 +69,7 @@ pub fn status(intent: *const c.TableIntent, outcome: c.TableClient.Outcome) !d {
         try result.fact(.native_input, .owner, .{ .unsigned = .init(value.admitted_input) });
         if (complete) try result.fact(.affected_rows, .execution, .{ .unsigned = .init(value.changed) });
         if (rejected) {
-            try result.absent(.column, .execution, .unrecorded);
-            try result.absent(.source_row, .execution, .unrecorded);
-            if (value.rejection == .row_exists) {
-                try result.text(.constraint, .schema, "primary key");
-                try result.absent(.key, .execution, .unrecorded);
-            }
+            try witnessDetails(&result, intent, value);
         }
     }
     try result.action(.inspect_status);
@@ -115,4 +110,86 @@ pub fn input(value: c.TableControl.Disposition) !d {
     try result.action(.inspect_status);
     try result.validate();
     return result;
+}
+
+fn witnessDetails(result: *d, intent: *const c.TableIntent, value: c.station.TableWrite.Status) !void {
+    const witness = value.witness;
+    if (witness.source == .none) {
+        try result.absent(.column, .execution, .unrecorded);
+        try result.absent(.source_row, .execution, .unrecorded);
+        if (value.rejection == .row_exists) {
+            try result.text(.constraint, .schema, "primary key");
+            try result.absent(.key, .execution, .unrecorded);
+        }
+        return;
+    }
+    if (value.rejection == .row_exists) try result.text(.constraint, .schema, "primary key");
+    var original = try intent.command(intent.allocator);
+    defer original.deinit();
+    if (original.body.request == .dml and original.body.request.dml.plan.action == .insert and witness.source != .input) return error.InvalidCatalogReceipt;
+    var fields: [c.fuze.TableSchema.max_columns]c.fuze.TableSchema.Column = undefined;
+    const schema: c.fuze.TableSchema.Schema = switch (original.body.request) {
+        .dml => |request| request.plan.schema,
+        .ddl => |request| if (request.action == .alter) (try c.fuze.TableEvolution.apply(request.action.alter.schema, request.action.alter.change, &fields)).after else return error.InvalidCatalogReceipt,
+    };
+    const name = switch (original.body.request) {
+        .dml => |request| request.plan.name,
+        .ddl => |request| request.name.slice(),
+    };
+    try result.text(.table, .schema, name);
+    if (witness.column != 0) {
+        const column = schema.columns[schema.index(witness.column) catch return error.InvalidCatalogReceipt];
+        try result.text(.column, .schema, column.name);
+        var buffer: [256]u8 = undefined;
+        var out: std.Io.Writer = .fixed(&buffer);
+        var truncated = false;
+        c.fuze.LogicalDisplay.typeName(&out, column.type) catch |err| {
+            if (err != error.WriteFailed) return err;
+            truncated = true;
+        };
+        try result.add(.{ .field = .expected_type, .origin = .schema, .availability = if (truncated) .truncated else .provided, .value = .{ .text = try d.Text.init(out.buffered()) } });
+        if (value.rejection == .character_limit_exceeded) {
+            const limit = column.max_characters orelse return error.InvalidCatalogReceipt;
+            try result.fact(.limit, .schema, .{ .unsigned = .init(limit) });
+            try result.text(.unit, .schema, "Unicode scalars");
+        }
+    } else if (value.rejection == .row_exists) {
+        if (schema.primary_key.len == 0) return error.InvalidCatalogReceipt;
+        var names: [256]u8 = undefined;
+        var out: std.Io.Writer = .fixed(&names);
+        var truncated = false;
+        primaryColumns(&out, schema) catch |err| {
+            if (err != error.WriteFailed) return err;
+            truncated = true;
+        };
+        const text = try d.Text.truncate(out.buffered());
+        try result.add(.{ .field = .column, .origin = .schema, .availability = if (truncated) .truncated else .provided, .value = .{ .text = text } });
+    }
+    const field: d.Field = if (value.rejection == .row_exists) .key else .supplied_value;
+    if (witness.source == .withheld) {
+        try result.absent(.source_row, .execution, .withheld);
+        try result.absent(field, .execution, .withheld);
+        return;
+    }
+    if (witness.source == .input) {
+        if (original.body.request != .dml or original.body.request.dml.plan.action != .insert) return error.InvalidCatalogReceipt;
+        const rows = original.body.request.dml.plan.action.insert;
+        if (witness.row.origin != value.reference.principal + 1 or witness.row.operation != value.reference.operation or witness.row.ordinal >= rows.len) return error.InvalidCatalogReceipt;
+        const expected = if (value.rejection == .row_exists) try c.fuze.TableWitness.key(.input, schema, .{ .identity = witness.row, .cells = rows[witness.row.ordinal] }) else if (value.rejection == .row_identity_exists) try c.fuze.TableWitness.identity(.input, witness.row) else return error.InvalidCatalogReceipt;
+        if (!std.meta.eql(expected, witness)) return error.InvalidCatalogReceipt;
+        try result.fact(.input_row, .execution, .{ .unsigned = .init(@as(u64, witness.row.ordinal) + 1) });
+    } else {
+        const id = std.fmt.bytesToHex(try witness.row.encode(), .lower);
+        try result.text(.source_row, .execution, &id);
+    }
+    if (witness.length != 0 or witness.truncated) try result.add(.{ .field = field, .origin = .execution, .availability = if (witness.truncated) .truncated else .provided, .value = .{ .text = try d.Text.init(witness.text()) } });
+}
+fn primaryColumns(out: *std.Io.Writer, schema: c.fuze.TableSchema.Schema) !void {
+    for (schema.primary_key, 0..) |id, i| {
+        if (i != 0) try out.writeAll(", ");
+        const name = schema.columns[try schema.index(id)].name;
+        // Single columns retain their literal name in the structured fact.
+        // Composite keys use an unambiguous quoted list in declaration order.
+        if (schema.primary_key.len == 1) try out.writeAll(name) else try std.json.Stringify.value(name, .{ .escape_unicode = true }, out);
+    }
 }
