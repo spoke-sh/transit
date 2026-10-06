@@ -125,6 +125,43 @@ not themselves implement native durable admission, retention or publication.
 
 ## Signed native Table reads
 
+`transit-query.TableSource` supplies a bounded adapter for public captured and
+retained state readers. Its declaration contains the realm/resource/catalog,
+owner, stable object, exact immutable metadata reference and complete logical row
+descriptor. The metadata commitment binds the original column identities, keys,
+defaults and schema revision. It does not bind by the Table's current name.
+
+Canonical declaration bytes are `TQS1`, the 32-byte current shared definition,
+uint64 realm/resource/catalog/owner/object, the metadata reference (uint64
+revision, uint32 format and length, 32-byte Publication digest), uint16 descriptor
+length and `FTY1` descriptor. Integers are little-endian. The envelope allows 126
+bytes plus the existing 16-KiB logical descriptor budget. Decode owns all recursive
+descriptor bytes and rejects foreign definitions, incomplete or noncanonical
+input. The declaration fingerprint is SHA-256 of
+`transit.table.query.declaration.v1\0` followed by those canonical bytes.
+
+Capture validates the live object and exact metadata before admitting its source
+cut. The captured binding hashes `transit.table.query.capture.v1\0`, the declaration
+fingerprint, uint64 captured resource revision and canonical complete Table head.
+The host owns native retention and atomic admission. A saved declaration or
+computed binding alone does not prove either operation occurred.
+
+Each adapter page owns at most eight decoded rows, in stable row-identity order,
+with a binding/ordinal/row-count/identity continuation. Complete composite-key
+equality can use the collision-safe typed index. The page still contains complete
+source rows for the original Fuze predicate. Full scans check the head's exact row
+count; source LIMIT completion belongs to the execution owner. Adapter pages are
+independent of execution-vector sizes and durable Table cardinality.
+
+Every page checks current inspect/read permission before and after reading its
+original captured schema/root. Continuations may finish after ALTER or DROP;
+new capture against a stale declaration rejects. The principal comes from an
+authenticated caller or explicit committed requester-policy mapping, never from
+the submitted declaration. Native readers retain resource access/lifetime checks.
+The page's `deinit` releases every row; `engine` borrows those values until release.
+An error provides no page. This adapter does not itself install durable query
+routing, requester-to-principal policy, result publication or foreign SDK support.
+
 `transit-query.TableQuery` composes this compiler and executor with the general
 catalog's signed connection and native leased snapshots. It resolves the supplied
 Table name inside one captured resource cut, validates the catalog's exact owner

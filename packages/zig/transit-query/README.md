@@ -20,6 +20,15 @@ authorization precede disclosure, including completion and empty output. Explici
 request, row and canonical-byte budgets apply. The console's `catalog_v1` profile uses this adapter. Durable-query and
 foreign-language routes retain their separately admitted profiles.
 
+`TableSource` provides canonical schema-bound declarations and bounded owned pages
+over supplied captured/retained readers. It checks a separately authenticated
+principal's current catalog rights before and after each page, preserving the
+original schema/root through ALTER, DROP and name reuse. Complete composite-key
+equality uses the existing collision-safe index. Its
+[source contract](../../../contracts/TABLE_QUERY_V1.md#signed-native-table-reads)
+keeps retention, requester-policy mapping and durable result publication with the
+host; exporting this adapter alone does not enable those routes.
+
 `TableAssistance` reads current catalog metadata, derives continuations from the
 same general Table parsers and checks the metadata/policy revision again before
 returning. It bounds source searches to 128 pages and eight suggestions while

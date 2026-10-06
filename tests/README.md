@@ -11841,6 +11841,28 @@ checks the emitted physical layouts independently. These results qualify the
 local canonical segment decoder; they do not establish general external IPC
 import, neutral ABI import or durable query integration.
 
+The general Table source adapter passes **102/102 query package tests**
+(`table-query-source-test4.log`). Public CREATE/INSERT/ALTER/DROP transitions in
+the private-turn reference store build 19 rows with 13 columns, nested lists,
+int128 boundaries and a composite primary key. A retained source returns the
+original rows in three bounded pages after column rename, DROP and name reuse;
+logical steps and the owned Arrow decoder preserve their exact values. New
+capture rejects the old declaration, including when supplied old retained data.
+Complete composite-key equality returns one or zero rows without an ordinary
+scan. Current read revocation rejects both before paging and after populated or
+empty point-page computation. Exhaustive decoder/page allocation failures clean
+up partial ownership. Python independently supplies recursive declaration bytes
+and their fingerprint (`tests/table_catalog.py`). The first run's three new tests
+used angle-bracket LIST syntax; using the contract's `LIST(type)` spelling fixes
+them. These are component and retained-cut reference simulations, not native
+durable job admission, disk recovery, SDK integration or performance evidence.
+
+Full pinned `just check` passes the logical decoder and general Table source
+checkpoint (`table-query-source-check1.log`), including generated contracts,
+independent fixtures, native/CLI tests, frontend checks and the documentation
+production build. The source fixture is regenerated and checked by the existing
+Table catalog oracle. Committed-HEAD clean CI remains a separate final gate.
+
 ## Fuze logical type foundation
 
 The local `Types` profile has nine passing focused Zig tests, including 46

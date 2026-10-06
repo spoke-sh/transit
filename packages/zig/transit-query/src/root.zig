@@ -6,6 +6,7 @@ pub const wire = station.client;
 pub const document = @import("transit_station_document");
 pub const catalog = @import("transit_catalog");
 pub const TableQuery = @import("TableQuery.zig");
+pub const TableSource = @import("TableSource.zig");
 pub const Bundle = @import("Bundle.zig");
 pub const SqlTemplate = @import("SqlTemplate.zig");
 pub const UnifiedClient = @import("UnifiedClient.zig");
@@ -22,6 +23,7 @@ pub const UnifiedSource = @import("UnifiedSource.zig");
 pub const Decoder = @import("Decoder.zig");
 pub const SourceDefinition = @import("SourceDefinition.zig");
 test {
+    _ = @import("table_source_test.zig");
     _ = @import("source_test.zig");
     _ = @import("sql_template_test.zig");
     _ = @import("sql_compilation_test.zig");

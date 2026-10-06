@@ -8,6 +8,7 @@ import struct
 
 ROOT = Path(__file__).resolve().parents[1]
 FIXTURE = ROOT / 'packages/zig/transit-catalog/src/fixtures/table-metadata.json'
+QUERY_FIXTURE = ROOT / 'packages/zig/transit-query/src/fixtures/table-source.json'
 
 
 def fixture():
@@ -75,12 +76,28 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--record', action='store_true')
     args = parser.parse_args()
-    encoded = json.dumps(fixture(), indent=2) + '\n'
-    if args.record:
-        FIXTURE.write_text(encoded)
-    elif not FIXTURE.is_file() or FIXTURE.read_text() != encoded:
-        raise SystemExit('General Table metadata fixtures drifted; review the current format before --record.')
-    print('Table catalog: independent metadata, manifest, hashed-name and namespace bytes passed.')
+    catalog = fixture()
+    # A query declaration commits the complete accepted metadata record while
+    # carrying only its logical row descriptor for planning. Keep this encoding
+    # independent of both the Zig encoder and the Table schema oracle.
+    contract = bytes.fromhex(catalog['definition'])
+    types = b'transit.fuze.types.v1.2026-09-30'
+    logical = b'FTY1' + bytes([len(types)]) + types
+    logical += b'\x16\x02\x02id\0\x0a\x07payload\x01\x19\x05\x01\x17\x01\x09'
+    metadata = bytes.fromhex(catalog['record_hex'])
+    digest = hashlib.sha256(b'transit.station.publication.v1\0' + struct.pack('<II', 0x54434d01, len(metadata))).digest()
+    digest = hashlib.sha256(b'\1' + digest + struct.pack('<IH', 0, len(metadata)) + metadata).digest()
+    declaration = b'TQS1' + contract + struct.pack('<QQQQQQII', 1, 7, 2**64-1, 3, 2**64-1, 3, 0x54434d01, len(metadata)) + digest
+    declaration += struct.pack('<H', len(logical)) + logical
+    assert len(declaration) == 126 + len(logical)
+    query = {'wire_hex': declaration.hex(), 'fingerprint_hex': hashlib.sha256(b'transit.table.query.declaration.v1\0' + declaration).hexdigest()}
+    for path, value in ((FIXTURE, catalog), (QUERY_FIXTURE, query)):
+        encoded = json.dumps(value, indent=2) + '\n'
+        if args.record:
+            path.write_text(encoded)
+        elif not path.is_file() or path.read_text() != encoded:
+            raise SystemExit(f'General Table fixtures drifted: {path}; review the current format before --record.')
+    print('Table catalog: independent metadata, manifest, hashed-name, namespace and query-source bytes passed.')
 
 
 if __name__ == '__main__':

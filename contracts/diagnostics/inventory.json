@@ -11235,6 +11235,46 @@
         "std"
       ]
     },
+    "packages/zig/transit-query/src/TableSource.zig": {
+      "errors": {
+        "CatalogNotInitialized": 1,
+        "CatalogOwnerChanged": 1,
+        "CatalogScopeChanged": 2,
+        "IncompatibleDefinition": 1,
+        "InvalidQueryCursor": 3,
+        "InvalidQuerySource": 2,
+        "InvalidSourceEncoding": 3,
+        "InvalidTableIndex": 3,
+        "QueryComplete": 1,
+        "SourceChanged": 4,
+        "SourceDefinitionTooLarge": 1,
+        "TableSchemaChanged": 1
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "Basis.fingerprint()": "<inferred>",
+        "Cursor.start()": "<inferred>",
+        "capture()": "<inferred>",
+        "checkCurrent()": "<inferred>",
+        "decode()": "<inferred>",
+        "encode()": "<inferred>",
+        "fingerprint()": "<inferred>",
+        "from()": "<inferred>",
+        "page()": "<inferred>",
+        "resolve()": "<inferred>",
+        "validate()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 68,
+        "catch": 1
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
     "packages/zig/transit-query/src/UnifiedBehavior.zig": {
       "errors": {
         "Conflict": 1,
@@ -11883,6 +11923,7 @@
         "TableMutationWriter.zig",
         "TableQuery.zig",
         "TableQueryWriter.zig",
+        "TableSource.zig",
         "UnifiedBehavior.zig",
         "UnifiedCapture.zig",
         "UnifiedClient.zig",
