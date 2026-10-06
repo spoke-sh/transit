@@ -8,6 +8,14 @@ module Transit
       KINDS = %i[create alter rename drop insert update delete].freeze
       PHASES = %i[preparing delegated building applied unchanged rejected cancelled].freeze
       module Values
+        class WireBudget
+          def initialize(limit) = @remaining = limit
+          def take(value)
+            @remaining -= JSON.generate(value).bytesize
+            raise ArgumentError, 'Table wire budget exceeded' if @remaining.negative?
+            value
+          end
+        end
         module_function
         def typed(value, type) = Logical.typed(value, type)
         def wide(value, min: 1) = Internal.integer(value, min: min, max: U64_MAX)
@@ -115,7 +123,10 @@ module Transit
           super(object: Values.wide(object), revision: Values.wide(revision), next_column: Values.wide(next_column), columns: columns.map { |c| Values.typed(c, Column) }.freeze, primary_key: primary_key.map { |k| Values.wide(k) }.freeze)
           raise ArgumentError, 'Table schema JSON exceeds its bound' if JSON.generate(wire).bytesize > 2 * 1024 * 1024
         end
-        def wire = { 'definition' => DEFINITION, 'object' => object.to_s, 'revision' => revision.to_s, 'next_column' => next_column.to_s, 'columns' => columns.map(&:wire), 'primary_key' => primary_key.map(&:to_s) }
+        def wire
+          budget = Values::WireBudget.new(2 * 1024 * 1024)
+          { 'definition' => DEFINITION, 'object' => object.to_s, 'revision' => revision.to_s, 'next_column' => next_column.to_s, 'columns' => columns.map { |c| budget.take(c.wire) }, 'primary_key' => primary_key.map(&:to_s) }
+        end
       end
       Identity = Data.define(:operation, :namespace) do
         def initialize(operation:, namespace:) = super(operation: Values.wide(operation), namespace: Values.wide(namespace))
@@ -221,13 +232,15 @@ module Transit
             value
           end.freeze
         end
-        def predicate_wire(values)
+        def assignment_wire(values, budget) = values.map { |v| budget.take(v.wire) }
+        def predicate_wire(values, budget)
           values&.map do |value|
-            case value
+            wire = case value
             when :all then { 'atom' => { 'all' => {} } }
             when :negate, :conjunction, :disjunction then { value.to_s => {} }
             else value.wire
             end
+            budget.take(wire)
           end
         end
       end
@@ -237,17 +250,23 @@ module Transit
           super(rows: rows.map { |row| Values.assignments(row) }.freeze)
         end
         def kind = :insert
-        def wire = { 'action' => { 'insert' => rows.map { |row| row.map(&:wire) } }, 'predicate' => nil }
+        def wire
+          budget = Values::WireBudget.new(LIMITS.fetch('catalog_action_bytes'))
+          { 'action' => { 'insert' => rows.map { |row| Values.assignment_wire(row, budget) } }, 'predicate' => nil }
+        end
       end
       Update = Data.define(:assignments, :predicate) do
         def initialize(assignments:, predicate: nil) = super(assignments: Values.assignments(assignments), predicate: Values.predicates(predicate))
         def kind = :update
-        def wire = { 'action' => { 'update' => assignments.map(&:wire) }, 'predicate' => Values.predicate_wire(predicate) }
+        def wire
+          budget = Values::WireBudget.new(LIMITS.fetch('catalog_action_bytes'))
+          { 'action' => { 'update' => Values.assignment_wire(assignments, budget) }, 'predicate' => Values.predicate_wire(predicate, budget) }
+        end
       end
       Delete = Data.define(:predicate) do
         def initialize(predicate: nil) = super(predicate: Values.predicates(predicate))
         def kind = :delete
-        def wire = { 'action' => { 'delete' => {} }, 'predicate' => Values.predicate_wire(predicate) }
+        def wire = { 'action' => { 'delete' => {} }, 'predicate' => Values.predicate_wire(predicate, Values::WireBudget.new(LIMITS.fetch('catalog_action_bytes'))) }
       end
       AddColumn = Data.define(:name, :type, :nullable, :default, :max_characters) do
         def initialize(name:, type:, nullable: true, default: nil, max_characters: nil)

@@ -11750,6 +11750,17 @@ wheels pass isolated catalog value/recovery/lifetime checks
 (`table-python-budget-types1.log`). This extends local preparation evidence;
 the earlier disk-backed lifecycle evidence remains separately recorded.
 
+Rust and Ruby aggregate conversion checks pass from independently installed
+artifacts (`table-sdk-budget-values2.log`). Rust's **8 library tests** include
+an oversized prefix followed by an invalid logical value, verifying that aggregate
+admission stops before that later conversion. Ruby counts conversions over shared
+large cells, then completes the existing strict metadata, receipt-loss and joined
+cancellation cases. The first installed Rust compilation found a test helper
+using the old budgetless signature; the corrected rebuilt artifacts pass.
+`table-sdk-budget-build2.log` records the package builds. The combined installed
+run subsequently stopped at an unrelated Java fixture variable-name collision;
+its later language entries are not passing evidence from that run.
+
 ## Fuze logical type foundation
 
 The local `Types` profile has nine passing focused Zig tests, including 46

@@ -15,6 +15,16 @@ fn invalid() -> Error {
 fn malformed() -> Error {
     Error::new(ErrorKind::IncompatibleNative, "catalog-response")
 }
+// Charge one completed fragment before converting the next logical value.
+// Complete frame admission also counts enclosing punctuation and fields.
+struct WireBudget(usize);
+impl WireBudget {
+    fn take(&mut self, value: Value) -> Result<Value> {
+        let size = serde_json::to_vec(&value).map_err(|_| invalid())?.len();
+        self.0 = self.0.checked_sub(size).ok_or_else(invalid)?;
+        Ok(value)
+    }
+}
 fn positive(value: u64) -> Result<u64> {
     if value == 0 {
         Err(invalid())
@@ -388,10 +398,11 @@ impl Schema {
         if !(1..=128).contains(&self.columns.len()) || self.primary_key.len() > self.columns.len() {
             return Err(invalid());
         }
+        let mut budget = WireBudget(2 * 1024 * 1024);
         let columns = self
             .columns
             .iter()
-            .map(Column::wire)
+            .map(|column| budget.take(column.wire()?))
             .collect::<Result<Vec<_>>>()?;
         let keys = self
             .primary_key
@@ -1078,11 +1089,11 @@ pub struct Assignment {
     pub column: u64,
     pub value: AssignmentValue,
 }
-fn assignments(values: &[Assignment]) -> Result<Value> {
+fn assignments(values: &[Assignment], budget: &mut WireBudget) -> Result<Value> {
     if values.len() > 128 {
         return Err(invalid());
     }
-    let values=values.iter().map(|a|Ok(json!({"column":positive(a.column)?.to_string(),"value":match &a.value{AssignmentValue::Default=>json!({"default":{}}),AssignmentValue::Cell(cell)=>json!({"cell":cell.wire()?})}}))).collect::<Result<Vec<_>>>()?;
+    let values=values.iter().map(|a|budget.take(json!({"column":positive(a.column)?.to_string(),"value":match &a.value{AssignmentValue::Default=>json!({"default":{}}),AssignmentValue::Cell(cell)=>json!({"cell":cell.wire()?})}}))).collect::<Result<Vec<_>>>()?;
     Ok(json!(values))
 }
 #[derive(Clone, Debug, PartialEq)]
@@ -1132,6 +1143,7 @@ pub enum Mutation {
 }
 impl Mutation {
     fn wire(&self) -> Result<(Kind, Value)> {
+        let mut budget = WireBudget(abi::CATALOG_ACTION_BYTES);
         let (kind, action, predicate) = match self {
             Self::Insert { rows } => {
                 if !(1..=1024).contains(&rows.len()) {
@@ -1139,7 +1151,7 @@ impl Mutation {
                 }
                 (
                     Kind::Insert,
-                    json!({"insert":rows.iter().map(|r|assignments(r)).collect::<Result<Vec<_>>>()?}),
+                    json!({"insert":rows.iter().map(|r|assignments(r, &mut budget)).collect::<Result<Vec<_>>>()?}),
                     None,
                 )
             }
@@ -1148,7 +1160,7 @@ impl Mutation {
                 predicate,
             } => (
                 Kind::Update,
-                json!({"update":assignments(values)?}),
+                json!({"update":assignments(values, &mut budget)?}),
                 predicate.as_ref(),
             ),
             Self::Delete { predicate } => (Kind::Delete, json!({"delete":{}}), predicate.as_ref()),
@@ -1158,7 +1170,9 @@ impl Mutation {
                 if v.len() > 64 {
                     return Err(invalid());
                 }
-                v.iter().map(Predicate::wire).collect::<Result<Vec<_>>>()
+                v.iter()
+                    .map(|p| budget.take(p.wire()?))
+                    .collect::<Result<Vec<_>>>()
             })
             .transpose()?;
         Ok((kind, json!({"action":action,"predicate":predicate})))
@@ -1613,6 +1627,36 @@ impl Client {
 mod tests {
     use super::*;
     use crate::logical::{CellValue, Field, ScalarType};
+    #[test]
+    fn aggregate_conversion_rejects_before_later_invalid_values() {
+        let large = Cell::Value(CellValue::Atom(Atom::Binary(vec![0; 1024 * 1024])));
+        let invalid_cell = Cell::Value(CellValue::Atom(Atom::Float64(f64::NAN)));
+        let mut first = Column::new(1, "data".into(), Descriptor::Scalar(ScalarType::Binary));
+        first.default = Some(large.clone());
+        let mut later = Column::new(2, "later".into(), Descriptor::Scalar(ScalarType::Float64));
+        later.default = Some(invalid_cell.clone());
+        let schema = Schema {
+            object: 1,
+            revision: 1,
+            next_column: 3,
+            columns: vec![first, later],
+            primary_key: vec![],
+        };
+        assert_eq!(schema.wire().unwrap_err().phase, "catalog-value");
+        let assignment = Assignment {
+            column: 1,
+            value: AssignmentValue::Cell(large),
+        };
+        let mut rows = vec![vec![assignment]; 9];
+        rows.push(vec![Assignment {
+            column: 1,
+            value: AssignmentValue::Cell(invalid_cell),
+        }]);
+        assert_eq!(
+            Mutation::Insert { rows }.wire().unwrap_err().phase,
+            "catalog-value"
+        );
+    }
     fn scope() -> Scope {
         Scope::new(ResourceRef::new(46, 7).unwrap(), u64::MAX).unwrap()
     }
@@ -1784,9 +1828,11 @@ mod tests {
             ])))),
         };
         assert!(
-            serde_json::to_vec(&assignments(&[large]).unwrap())
-                .unwrap()
-                .len()
+            serde_json::to_vec(
+                &assignments(&[large], &mut WireBudget(abi::CATALOG_ACTION_BYTES)).unwrap()
+            )
+            .unwrap()
+            .len()
                 > transit_client::internal::MAX_BODY
         );
         assert!(Descriptor::Scalar(ScalarType::Boolean).wire().is_ok());

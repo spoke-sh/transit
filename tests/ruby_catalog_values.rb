@@ -61,6 +61,24 @@ check(L.cell_from_wire(L.cell_wire(map)) == map)
 rejects(ArgumentError) { L::MapValue.new(entries: [pair] * 32768) }
 large = L::Present.new(value: L::Sequence.new(kind: :list, cells: [atom(:utf8, 'x' * 600000)] * 2))
 rejects(ArgumentError) { L.cell_wire(large) }
+large_cell = atom(:binary, 'x' * 1024 * 1024)
+large_column = M::Column.new(id: 1, name: 'data', type: L::Scalar.new(kind: :binary), default: large_cell)
+large_insert = M::Insert.new(rows: [[M::Assignment.new(column: 1, value: large_cell)]] * 1024)
+original_cell_wire = L.method(:cell_wire)
+visits = 0
+L.define_singleton_method(:cell_wire) do |value|
+  visits += 1
+  raise 'Converted complete oversized input' if visits >= 16
+  original_cell_wire.call(value)
+end
+begin
+  check(rejects(ArgumentError) { M::Schema.new(object: 1, revision: 1, next_column: 2, columns: [large_column] * 128) }.message == 'Table wire budget exceeded')
+  visits = 0
+  check(rejects(ArgumentError) { large_insert.wire }.message == 'Table wire budget exceeded')
+  check(visits < 16)
+ensure
+  L.define_singleton_method(:cell_wire, &original_cell_wire)
+end
 rejects(ArgumentError) { L.cell_from_wire({'value'=>{'list'=>[{'value'=>{'atom'=>{'utf8'=>'x' * 600000}}}]*2}}) }
 types = L::SCALARS.map { |kind| L::Scalar.new(kind: kind) } + [L::Decimal.new(precision: 38, scale: 2), L::Timestamp.new(zone: :utc)]
 element = L::Element.new(type: L::Decimal.new(precision: 38, scale: 2), nullable: true)

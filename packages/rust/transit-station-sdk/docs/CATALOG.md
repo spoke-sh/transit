@@ -131,6 +131,11 @@ their data and outlive the handle. There is no implicit submission retry or
 principal-sequence coordinator. Native reads/preparation may restart only an
 exact transient stale-resource rejection within the configured deadline.
 
+Serialization charges each converted column, assignment and predicate before
+building the next owned value. Neutral schemas share 2 MiB and actions share
+16 MiB; complete frame admission also counts enclosing fields. An oversized
+batch rejects during conversion rather than after its complete JSON allocation.
+
 The [catalog contract](../../../../contracts/DECLARATIVE_CATALOG_V1.md) owns
 publication and authority. The [proof ledger](../../../../tests/README.md) records
 executed installed-package schedules, compiler rejection and malformed-response
