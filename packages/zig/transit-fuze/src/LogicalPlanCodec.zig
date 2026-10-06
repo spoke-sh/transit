@@ -67,7 +67,7 @@ pub fn encode(plan: q.Plan, output: []u8) ![]const u8 {
     }
     return writer.buffered();
 }
-fn readAtom(arena: *std.heap.ArenaAllocator, reader: *std.Io.Reader, schema: t.Type, tag: u8) !q.Plan.Atom {
+fn readAtom(arena: std.mem.Allocator, reader: *std.Io.Reader, schema: t.Type, tag: u8) !q.Plan.Atom {
     return switch (tag) {
         0 => .all,
         1 => .{ .state = .{ .column = try reader.takeByte(), .value = std.enums.fromInt(t.State, try reader.takeByte()) orelse return error.InvalidPlanEncoding } },
@@ -77,7 +77,7 @@ fn readAtom(arena: *std.heap.ArenaAllocator, reader: *std.Io.Reader, schema: t.T
             const op = std.enums.fromInt(finite.Comparison, try reader.takeByte()) orelse return error.InvalidPlanEncoding;
             const size = try reader.takeInt(u16, .little);
             if (size > t.Query.max_cell_bytes + 32) return error.CellTooLarge;
-            const value = try t.Codec.decodeBound(arena, .{ .name = "literal", .type = schema.structure[column].type }, try reader.take(size));
+            const value = try t.Codec.decodeBoundInto(arena, .{ .name = "literal", .type = schema.structure[column].type }, try reader.take(size));
             if (value != .value or value.value != .atom) return error.InvalidPlanEncoding;
             break :blk .{ .compare = .{ .column = column, .op = op, .value = value.value.atom } };
         },
@@ -87,6 +87,14 @@ fn readAtom(arena: *std.heap.ArenaAllocator, reader: *std.Io.Reader, schema: t.T
 /// Compare the supplied immutable binding before decoding any dependent values.
 /// All successful schema children, names and literals belong to the result.
 pub fn decode(allocator: std.mem.Allocator, schema: t.Type, basis: [32]u8, bytes: []const u8) !Owned {
+    var arena: std.heap.ArenaAllocator = .init(allocator);
+    errdefer arena.deinit();
+    const plan = try decodeInto(arena.allocator(), schema, basis, bytes);
+    return .{ .descriptor = .{ .arena = arena, .type = plan.schema }, .plan = plan };
+}
+/// Compose canonical decoding within one caller-owned request arena. The arena
+/// owns schema, names, literals and all partial allocations on failure.
+pub fn decodeInto(arena: std.mem.Allocator, schema: t.Type, basis: [32]u8, bytes: []const u8) !q.Plan {
     if (bytes.len > max_bytes) return error.PlanTooLarge;
     var reader: std.Io.Reader = .fixed(bytes);
     if (!std.mem.eql(u8, try reader.take(4), "FQP1")) return error.InvalidPlanEncoding;
@@ -95,9 +103,8 @@ pub fn decode(allocator: std.mem.Allocator, schema: t.Type, basis: [32]u8, bytes
     if (!std.mem.eql(u8, try reader.take(32), &basis)) return error.SourceChanged;
     if (!std.mem.eql(u8, try reader.take(32), &try schema.fingerprint())) return error.SourceChanged;
     if (schema != .structure) return error.InvalidQuerySchema;
-    var descriptor = try schema.clone(allocator);
-    errdefer descriptor.deinit();
-    const a = descriptor.arena.allocator();
+    const descriptor = try schema.cloneInto(arena);
+    const a = arena;
     const aggregate = std.enums.fromInt(finite.Aggregate, try reader.takeByte()) orelse return error.InvalidPlanEncoding;
     const count = try reader.takeByte();
     if (count == 0 or count > 128) return error.InvalidProjection;
@@ -110,14 +117,14 @@ pub fn decode(allocator: std.mem.Allocator, schema: t.Type, basis: [32]u8, bytes
     const present = try reader.takeByte();
     const limit = try reader.takeInt(u64, .little);
     if (present > 1 or (present == 0 and limit != 0)) return error.InvalidPlanEncoding;
-    var plan: q.Plan = .{ .schema = descriptor.type, .source_basis = basis, .aggregate = aggregate, .projection = projection, .output_names = names, .limit = if (present == 1) limit else null };
+    var plan: q.Plan = .{ .schema = descriptor, .source_basis = basis, .aggregate = aggregate, .projection = projection, .output_names = names, .limit = if (present == 1) limit else null };
     const tag = try reader.takeByte();
     if (tag == 3) {
         const length = try reader.takeByte();
         if (length == 0 or length > q.Program.max_instructions) return error.InvalidPredicateProgram;
         const instructions = try a.alloc(q.Program.Instruction, length);
         for (instructions) |*instruction| instruction.* = switch (try reader.takeByte()) {
-            0 => .{ .atom = try readAtom(&descriptor.arena, &reader, plan.schema, try reader.takeByte()) },
+            0 => .{ .atom = try readAtom(arena, &reader, plan.schema, try reader.takeByte()) },
             1 => .negate,
             2 => .conjunction,
             3 => .disjunction,
@@ -125,7 +132,7 @@ pub fn decode(allocator: std.mem.Allocator, schema: t.Type, basis: [32]u8, bytes
         };
         plan.predicate = .{ .program = .{ .instructions = instructions } };
     } else {
-        const atom = try readAtom(&descriptor.arena, &reader, plan.schema, tag);
+        const atom = try readAtom(arena, &reader, plan.schema, tag);
         plan.predicate = switch (atom) {
             inline else => |value, kind| @unionInit(@FieldType(q.Plan, "predicate"), @tagName(kind), value),
         };
@@ -133,5 +140,5 @@ pub fn decode(allocator: std.mem.Allocator, schema: t.Type, basis: [32]u8, bytes
     if (reader.bufferedLen() != 0) return error.InvalidPlanEncoding;
     var canonical: [max_bytes]u8 = undefined;
     if (!std.mem.eql(u8, bytes, try encode(plan, &canonical))) return error.InvalidPlanEncoding;
-    return .{ .descriptor = descriptor, .plan = plan };
+    return plan;
 }

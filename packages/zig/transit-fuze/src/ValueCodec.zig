@@ -36,9 +36,13 @@ pub fn writeBound(cell: v.Cell, field: types.Field, writer: *std.Io.Writer) !voi
 /// successful and failed parses retain allocations until that arena is released.
 /// The exact field is supplied by the enclosing verified schema binding.
 pub fn decodeBound(arena: *std.heap.ArenaAllocator, field: types.Field, bytes: []const u8) !v.Cell {
+    return decodeBoundInto(arena.allocator(), field, bytes);
+}
+/// The caller's request arena owns all children and partial-failure allocations.
+pub fn decodeBoundInto(arena: std.mem.Allocator, field: types.Field, bytes: []const u8) !v.Cell {
     if (bytes.len > max_bytes) return error.ValueBudgetExceeded;
     try field.type.validate(.{});
-    var reader: Reader = .{ .reader = .fixed(bytes), .allocator = arena.allocator() };
+    var reader: Reader = .{ .reader = .fixed(bytes), .allocator = arena };
     const cell = try readCell(&reader, field.type, 0);
     if (reader.reader.bufferedLen() != 0) return error.InvalidValueEncoding;
     try cell.validate(field, .{});

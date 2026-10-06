@@ -6383,13 +6383,14 @@
       "error_sets": {},
       "error_returns": {
         "decode()": "<inferred>",
+        "decodeInto()": "<inferred>",
         "encode()": "<inferred>",
         "readAtom()": "<inferred>",
         "writeAtom()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 56,
+        "try": 57,
         "catch": 1
       },
       "imports": [
@@ -8335,6 +8336,7 @@
         "Budget.node()": "<inferred>",
         "Budget.reject()": "anyerror",
         "Type.clone()": "<inferred>",
+        "Type.cloneInto()": "<inferred>",
         "Type.encode()": "<inferred>",
         "Type.eql()": "<inferred>",
         "Type.fingerprint()": "<inferred>",
@@ -8344,6 +8346,7 @@
         "cloneElement()": "<inferred>",
         "cloneType()": "anyerror",
         "decode()": "<inferred>",
+        "decodeInto()": "<inferred>",
         "readElement()": "<inferred>",
         "readType()": "anyerror",
         "validateType()": "anyerror",
@@ -8352,7 +8355,7 @@
       },
       "open_error_set_uses": 6,
       "propagation": {
-        "try": 72,
+        "try": 73,
         "catch": 1
       },
       "imports": [
@@ -8650,6 +8653,7 @@
         "Reader.readCount()": "<inferred>",
         "decode()": "<inferred>",
         "decodeBound()": "<inferred>",
+        "decodeBoundInto()": "<inferred>",
         "encode()": "<inferred>",
         "encodeBound()": "<inferred>",
         "readAtom()": "<inferred>",
@@ -11351,6 +11355,7 @@
         "capture()": "<inferred>",
         "checkCurrent()": "<inferred>",
         "decode()": "<inferred>",
+        "decodeInto()": "<inferred>",
         "encode()": "<inferred>",
         "fingerprint()": "<inferred>",
         "from()": "<inferred>",
@@ -11360,7 +11365,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 68,
+        "try": 69,
         "catch": 1
       },
       "imports": [

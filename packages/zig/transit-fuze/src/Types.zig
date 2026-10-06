@@ -169,15 +169,20 @@ pub const Type = union(Tag) {
     /// Validate and own every descriptor child/name without a wire round trip.
     /// The canonical encoder still checks the independent encoded-byte bound.
     pub fn clone(self: Type, allocator: std.mem.Allocator) !Decoded {
+        var arena: std.heap.ArenaAllocator = .init(allocator);
+        errdefer arena.deinit();
+        const value = try self.cloneInto(arena.allocator());
+        return .{ .arena = arena, .type = value };
+    }
+    /// Compose within an existing request arena. The caller owns every success
+    /// and partial-failure allocation; no independent owner is returned.
+    pub fn cloneInto(self: Type, arena: std.mem.Allocator) !Type {
         try self.validate(.{});
         var buffer: [256]u8 = undefined;
         var encoded: std.Io.Writer.Discarding = .init(&buffer);
         try writeType(self, &encoded.writer);
         if (encoded.fullCount() > max_encoding_bytes - 5 - definition.len) return error.WriteFailed;
-        var arena: std.heap.ArenaAllocator = .init(allocator);
-        errdefer arena.deinit();
-        const value = try cloneType(arena.allocator(), self);
-        return .{ .arena = arena, .type = value };
+        return cloneType(arena, self);
     }
     pub fn fingerprint(self: Type) ![32]u8 {
         var buffer: [max_encoding_bytes]u8 = undefined;
@@ -340,18 +345,25 @@ fn cloneElement(allocator: std.mem.Allocator, element: Element) !Element {
     return .{ .type = child, .nullable = element.nullable };
 }
 pub fn decode(allocator: std.mem.Allocator, bytes: []const u8) !Decoded {
+    var arena: std.heap.ArenaAllocator = .init(allocator);
+    errdefer arena.deinit();
+    const value = try decodeInto(arena.allocator(), bytes);
+    return .{ .arena = arena, .type = value };
+}
+/// Validate the same canonical descriptor into a caller-owned request arena.
+/// The arena owns every returned slice and any allocation preceding a failure.
+pub fn decodeInto(arena: std.mem.Allocator, bytes: []const u8) !Type {
     if (bytes.len > max_encoding_bytes) return error.TypeBudgetExceeded;
     var reader: std.Io.Reader = .fixed(bytes);
     if (!std.mem.eql(u8, try reader.take(4), "FTY1")) return error.InvalidTypeEncoding;
     if (!std.mem.eql(u8, try reader.take(try reader.takeByte()), definition)) return error.IncompatibleDefinition;
-    var arena: std.heap.ArenaAllocator = .init(allocator);
-    errdefer arena.deinit();
     var budget: Budget = .{ .limits = .{} };
-    const value = try readType(arena.allocator(), &reader, 0, &budget);
+    const value = try readType(arena, &reader, 0, &budget);
     if (reader.bufferedLen() != 0) return error.InvalidTypeEncoding;
     try value.validate(.{});
-    return .{ .arena = arena, .type = value };
+    return value;
 }
+
 fn readType(allocator: std.mem.Allocator, reader: *std.Io.Reader, depth: usize, budget: *Budget) anyerror!Type {
     try budget.node(depth);
     const kind = std.enums.fromInt(Tag, try reader.takeByte()) orelse return error.InvalidTypeEncoding;

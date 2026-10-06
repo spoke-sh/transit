@@ -11943,6 +11943,17 @@ local, with no implicit lookup, snapshot or admission. These passes do not claim
 migration of the neutral parameter, SDK, Flight, Board or console routes, nor a
 new named PREPARE/EXECUTE contract. Committed-HEAD clean qualification is pending.
 
+Composed request-arena decoding passes **250/250 Fuze tests** and **105/105
+query tests** (`table-request-arena-{fuze,query}1.log`). One request arena decodes
+the independently encoded recursive Table declaration, clones its descriptor,
+decodes its bound logical plan and decodes an owned UTF-8 operand. Each input
+buffer is overwritten afterwards; complete values and fingerprints remain valid.
+Exhaustive partial-allocation failures release the enclosing arena exactly once.
+Foreign definitions still reject before allocation. Existing separately owned
+decoders delegate to the same implementations and retain their previous failure
+cleanup and canonical-byte checks. These are package/ownership checks, not native
+job integration or a fresh full-root/clean-checkout qualification.
+
 ## Fuze logical type foundation
 
 The local `Types` profile has nine passing focused Zig tests, including 46

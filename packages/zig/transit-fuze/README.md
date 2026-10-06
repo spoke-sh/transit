@@ -14,6 +14,10 @@ boolean, UTF-8/binary, Gregorian date, time, civil/UTC timestamp and UUID atoms.
 Casts and lossless domain promotion have separate admission rules. Recursive
 struct/list/array/map/union cells preserve null, missing, errors and conflicts;
 `Types.Codec` owns decoded descriptor/value bytes in an explicitly released arena.
+Descriptor `decodeInto`/`cloneInto`, bound-value `decodeBoundInto` and logical-plan
+`decodeInto` also compose within a caller-owned request arena. The enclosing owner
+releases both successful values and all partial allocations after a failure;
+returned slices never outlive that arena. The same format and budget checks apply.
 `Types.Kind` preserves observed decoder and Document mismatch kinds independently
 of admissible descriptor tags. `Values.fromQuery` converts every six-scalar cell
 state and conflict alternative without inventing an actual type or selecting a

@@ -62,6 +62,14 @@ pub fn encode(self: Self, output: []u8) ![]const u8 {
     return writer.buffered();
 }
 pub fn decode(allocator: std.mem.Allocator, bytes: []const u8) !Owned {
+    var arena: std.heap.ArenaAllocator = .init(allocator);
+    errdefer arena.deinit();
+    const source = try decodeInto(arena.allocator(), bytes);
+    return .{ .descriptor = .{ .arena = arena, .type = source.row_type }, .source = source };
+}
+/// Embedded declarations share their enclosing request arena. It owns every
+/// decoded name/child and partial allocation, including when decoding fails.
+pub fn decodeInto(arena: std.mem.Allocator, bytes: []const u8) !Self {
     if (bytes.len > max_bytes) return error.SourceDefinitionTooLarge;
     var reader: std.Io.Reader = .fixed(bytes);
     if (!std.mem.eql(u8, try reader.take(4), "TQS1")) return error.InvalidSourceEncoding;
@@ -75,13 +83,11 @@ pub fn decode(allocator: std.mem.Allocator, bytes: []const u8) !Owned {
     };
     const type_bytes = try reader.take(try reader.takeInt(u16, .little));
     if (reader.bufferedLen() != 0) return error.InvalidSourceEncoding;
-    var descriptor = try t.decode(allocator, type_bytes);
-    errdefer descriptor.deinit();
-    source.row_type = descriptor.type;
+    source.row_type = try t.decodeInto(arena, type_bytes);
     try source.validate();
     var canonical: [max_bytes]u8 = undefined;
     if (!std.mem.eql(u8, try source.encode(&canonical), bytes)) return error.InvalidSourceEncoding;
-    return .{ .descriptor = descriptor, .source = source };
+    return source;
 }
 pub fn fingerprint(self: Self) ![32]u8 {
     var buffer: [max_bytes]u8 = undefined;

@@ -137,7 +137,11 @@ revision, uint32 format and length, 32-byte Publication digest), uint16 descript
 length and `FTY1` descriptor. Integers are little-endian. The envelope allows 126
 bytes plus the existing 16-KiB logical descriptor budget. Decode owns all recursive
 descriptor bytes and rejects foreign definitions, incomplete or noncanonical
-input. The declaration fingerprint is SHA-256 of
+input. `TableSource.decodeInto` composes the same decoder within a caller-owned
+request arena, which owns every schema/name and partial-failure allocation.
+`LogicalPlanCodec.decodeInto` does the same for the complete schema-bound plan.
+Neither returns an independent owner; the enclosing request releases its arena.
+The declaration fingerprint is SHA-256 of
 `transit.table.query.declaration.v1\0` followed by those canonical bytes.
 
 Capture validates the live object and exact metadata before admitting its source

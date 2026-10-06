@@ -147,6 +147,12 @@ its schema binding before decoding, with no current-schema or fallback inference
 The same recursive validation and 2 MiB encoded-value bound apply. Decoded cells
 and bytes belong to the supplied request arena, including allocations retained
 by a failed parse; releasing that arena releases all of them.
+`Types.decodeInto`, `Type.cloneInto` and `Types.Codec.decodeBoundInto` expose the
+same checks using a caller-supplied arena allocator for an enclosing request.
+They return no independent owner: the caller releases that arena after either
+success or failure. Their bytes, type/value bounds and definition checks are
+identical to the separately owned entry points. Callers must not retain their
+returned slices beyond that arena's lifetime.
 Cell states are 0 missing, 1 null, 2 type-error plus actual type tag, 3 value,
 4 conflict. Conflict is u8 count and ordered alternatives, each u64 counter,
 u64 replica and state 1/2/3 with its corresponding payload. Scalar integers use

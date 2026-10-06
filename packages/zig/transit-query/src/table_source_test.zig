@@ -299,3 +299,38 @@ test "one committed requester policy delegates multiple Tables and still require
     try e.expectEqualDeep(admitted, unchanged);
     try e.expectError(error.CatalogDenied, places.source.checkCurrent(&current, try unchanged.tablePrincipal(places.source)));
 }
+
+fn embeddedRequest(allocator: std.mem.Allocator, declaration: []const u8) !void {
+    var arena: std.heap.ArenaAllocator = .init(allocator);
+    defer arena.deinit();
+    const a = arena.allocator();
+    var source_bytes: [Source.max_bytes]u8 = undefined;
+    @memcpy(source_bytes[0..declaration.len], declaration);
+    const source = try Source.decodeInto(a, source_bytes[0..declaration.len]);
+    @memset(&source_bytes, 0);
+    const schema = try source.row_type.cloneInto(a);
+    const plan: f.LogicalQuery.Plan = .{ .schema = schema, .source_basis = try source.fingerprint(), .projection = &.{ 0, 1 }, .predicate = .{ .compare = .{ .column = 0, .op = .eq, .value = .{ .signed = std.math.minInt(i128) } } } };
+    var plan_bytes: [f.LogicalPlanCodec.max_bytes]u8 = undefined;
+    const restored = try f.LogicalPlanCodec.decodeInto(a, schema, plan.source_basis, try f.LogicalPlanCodec.encode(plan, &plan_bytes));
+    @memset(&plan_bytes, 0);
+    try e.expectEqualStrings("payload", restored.schema.structure[1].name);
+    try e.expectEqual(std.math.minInt(i128), restored.predicate.compare.value.signed);
+    try e.expectEqualSlices(u8, &try plan.fingerprint(), &try restored.fingerprint());
+    var cell_bytes: [64]u8 = undefined;
+    const field: f.Types.Field = .{ .name = "parameter", .type = .utf8 };
+    const bytes = try f.Types.Codec.encodeBound(.{ .value = .{ .atom = .{ .bytes = "東京" } } }, field, &cell_bytes);
+    const cell = try f.Types.Codec.decodeBoundInto(a, field, bytes);
+    @memset(&cell_bytes, 0);
+    try e.expectEqualStrings("東京", cell.value.atom.bytes);
+}
+test "embedded source plan and literal decoding share one request arena with exact failure cleanup" {
+    const fixture = try std.json.parseFromSlice(struct { wire_hex: []const u8, fingerprint_hex: []const u8 }, e.allocator, @embedFile("fixtures/table-source.json"), .{});
+    defer fixture.deinit();
+    var bytes: [Source.max_bytes]u8 = undefined;
+    const declaration = try std.fmt.hexToBytes(&bytes, fixture.value.wire_hex);
+    try embeddedRequest(e.allocator, declaration);
+    try e.checkAllAllocationFailures(e.allocator, embeddedRequest, .{declaration});
+    var empty: std.heap.FixedBufferAllocator = .init(&.{});
+    bytes[4] ^= 1;
+    try e.expectError(error.IncompatibleDefinition, Source.decodeInto(empty.allocator(), declaration));
+}
