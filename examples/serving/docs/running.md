@@ -16,6 +16,9 @@ The reference command requires the existing Kind/Substrate infrastructure and
 matching runtime image described in the [reference launcher guide](../../../launchers/README.md#run-the-reference-installation).
 It creates a new `transit-serving-*` namespace, a separate worker pool, disk store
 and cold-store fixture. It never adopts or updates the default installation.
+The physical fixtures bind pinned native MinIO to the selected private storage
+bridge, with a fresh port and temporary credentials. Caller/gateway egress probes
+include that exact endpoint; a host-side cold process grants no Transit access.
 Each command runs the demonstration and recovery assertions, then removes only
 its own processes, containers, namespace and temporary credentials.
 

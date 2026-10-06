@@ -65,7 +65,7 @@ ip6tables -w -A OUTPUT -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
 ip6tables -w -A OUTPUT -p tcp -j REJECT --reject-with tcp-reset
 ip6tables -w -A OUTPUT -j REJECT
 '''
-        targets = [self.address('ursula') + ':8080', self.cold_address + ':9000', '1.1.1.1:443']
+        targets = [self.address('ursula') + ':8080', self.cold_address + ':' + str(self.cold_port), '1.1.1.1:443']
         for namespace, service in (('default', 'kubernetes'), ('ate-system', 'api')):
             targets.append(json.loads(self.kube('get', 'service', service, '-n', namespace, '-o', 'json'))['spec']['clusterIP'] + ':443')
         init = [dict(name='egress', image=self.pins['kind_node'], command=['sh', '-ec', rules],

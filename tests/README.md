@@ -16554,3 +16554,24 @@ application progress and reply boundary remains unchanged. The second run passed
 64 retained operations but reached the cold-disabled fixture's 64 MiB hot-store
 ceiling at operation 169. It is failed growth evidence, not a lifetime/growth pass;
 qualification with bounded hot storage and cold spill remains separate.
+
+
+### General Table serving on Compose
+
+`general-serving-compose3.log` passes the real static ReleaseSafe Compose
+placement in 19.70 seconds: two nginx TLS gateways, exact HTTP retry, worker,
+gateway, node and disk-store replacement, fresh ownership activation, immutable
+counter outcome, retirement and current denial. The reactive trace also passes
+WebSocket/SSE replacement fencing and retained session/source meaning; its lease
+did not elapse during this recovery schedule. Authority retains eight resident
+pages and Ursula eight MiB of hot storage. The owned native MinIO fixture holds
+25 cold data objects and 1,255,689 filesystem bytes at the final observation.
+
+The placement now binds pinned native MinIO to its own private storage bridge
+and includes the exact selected port in its caller/gateway denial probes. Cleanup
+owns the native process independently of placement teardown. Signed provisioning
+includes the current explicit collection/history fields. The first attempt failed
+because the runner expected the removed Docker cold-store API; the second failed
+native authentication because those signed fields were missing. Neither attempt
+passed. Reference placement and the combined cold-growth trace remain unqualified
+at this checkpoint.

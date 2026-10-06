@@ -1,7 +1,8 @@
-"""Owned, loopback-only MinIO fixture for Ursula cold-tier qualification."""
+"""Owned MinIO fixture; loopback by default, explicit private bridge for placements."""
 from datetime import datetime, timezone
 import hashlib
 import hmac
+import ipaddress
 import os
 from pathlib import Path
 import secrets
@@ -25,7 +26,11 @@ def minio_binary():
 
 
 class ColdStore:
-    def __init__(self):
+    def __init__(self, *, bind_address='127.0.0.1'):
+        address = ipaddress.IPv4Address(bind_address)
+        if not address.is_private or address.is_unspecified or address.is_multicast:
+            raise ValueError('Cold-store fixture needs a selected private interface')
+        self.bind_address = str(address)
         # Cleanup is explicit so an unjoined child retains its owned disk state.
         self.directory = tempfile.TemporaryDirectory(prefix="transit-cold-proof-", delete=False)
         self.root = Path(self.directory.name) / 'data'
@@ -34,7 +39,7 @@ class ColdStore:
         self.secret = secrets.token_hex(24)
         self.bucket = "transit-proof"
         self.port = free_port()
-        self.url = f"http://127.0.0.1:{self.port}"
+        self.url = f"http://{self.bind_address}:{self.port}"
         self.http = urllib.request.build_opener(urllib.request.ProxyHandler({}))
         self.pid = None
         self.process = None
@@ -48,13 +53,13 @@ class ColdStore:
             with binary.open('rb') as artifact:
                 digest = hashlib.file_digest(artifact, 'sha256').hexdigest()
             self.identity = {'kind': 'native', 'binary': str(binary), 'sha256': digest}
-            # A fresh native process owns only this disk directory and loopback
+            # A fresh native process owns only this disk directory and selected
             # listener. No ambient MinIO/cloud configuration is inherited.
             env = {key: value for key, value in os.environ.items()
                    if not key.startswith(('MINIO_', 'AWS_'))}
             env.update(MINIO_ROOT_USER=self.access, MINIO_ROOT_PASSWORD=self.secret, MINIO_BROWSER='off')
             self.process = subprocess.Popen([
-                binary, 'server', str(self.root), '--address', f'127.0.0.1:{self.port}',
+                binary, 'server', str(self.root), '--address', f'{self.bind_address}:{self.port}',
                 '--console-address', '127.0.0.1:0',
             ], env=env, cwd=self.root, stdout=self.log, stderr=subprocess.STDOUT)
             self.pid = self.process.pid
@@ -83,7 +88,7 @@ class ColdStore:
         now = datetime.now(timezone.utc)
         date, timestamp = now.strftime("%Y%m%d"), now.strftime("%Y%m%dT%H%M%SZ")
         payload = hashlib.sha256(b"").hexdigest()
-        host = f"127.0.0.1:{self.port}"
+        host = f"{self.bind_address}:{self.port}"
         signed_headers = "host;x-amz-content-sha256;x-amz-date"
         canonical = (f"PUT\n/{self.bucket}\n\nhost:{host}\nx-amz-content-sha256:{payload}\n"
                      f"x-amz-date:{timestamp}\n\n{signed_headers}\n{payload}")

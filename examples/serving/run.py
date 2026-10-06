@@ -37,7 +37,7 @@ def run(profile, reactive=False, views=False):
         (work / 'wal').mkdir()
         keys = {p: Key(work, f'key-{p}', seed) for p, seed in ((0, 7), (33, 8), (34, 9), (65536, 10), (65537, 11), (77, 12), (78, 13), (79, 14), (80, 15))}
         sequences = dict.fromkeys(keys, 0)
-        placement, cold, cold_network = None, None, None
+        placement, cold = None, None
         local, logs, proxies = [], [], []
         url = None
 
@@ -86,9 +86,9 @@ def run(profile, reactive=False, views=False):
             return send({'send': dict(pid=pid, value=frame(payload))}, principal)
 
         def provision(principal):
-            pid = send({'spawn': dict(code=1, work_before_ms=None, settle_before_ms=None)})
+            pid = send({'spawn': dict(allow_collection=False, code=1, work_before_ms=None, settle_before_ms=None)})
             grant(principal, 88, pid)
-            resource = send({'create_resource': dict(writer=pid, owned=True, deadline_ms=None)})
+            resource = send({'create_resource': dict(writer=pid, owned=True, deadline_ms=None, history_ms=None)})
             for subject in (0, principal): resource_grant(resource, subject, 7)
             send({'associate': dict(pid=pid, name=b'state'.hex(), expected_revision=0, resource=resource, required=True)})
             return pid, resource
@@ -181,29 +181,27 @@ def run(profile, reactive=False, views=False):
 
         try:
             placement = Reference(work, views) if profile == 'reference' else Compose(work, views)
-            cold = ColdStore().__enter__()
-            if profile == 'reference':
-                cold_network = 'kind'
-                subprocess.run(['docker', 'network', 'connect', cold_network, cold.name], check=True, capture_output=True)
-                record = json.loads(subprocess.check_output(['docker', 'inspect', cold.name]))[0]
-                placement.cold_address = record['NetworkSettings']['Networks'][cold_network]['IPAddress']
-                endpoint = 'http://' + placement.cold_address + ':9000'
-            else: endpoint = 'http://serving-cold:9000'
+            if profile == 'compose':
+                # Compose creates the isolated storage bridge before the native
+                # cold fixture binds its exact host-side private interface.
+                (work / 'ursula.toml').touch()
+                placement.call('create', 'ursula')
+                network = placement.project + '_storage'
+            else:
+                network = 'kind'
+            bridge = json.loads(subprocess.check_output(['docker', 'network', 'inspect', network]))[0]['IPAM']['Config'][0]['Gateway']
+            cold = owned.enter_context(ColdStore(bind_address=bridge))
+            placement.cold_address = bridge
+            placement.cold_port = cold.port
             wal = '/data/wal' if profile == 'reference' else '/wal'
-            (work / 'ursula.toml').write_text('[server]\nlisten = "0.0.0.0:8080"\nadmin_listen = "127.0.0.1:0"\n[runtime]\ncore_count = 2\n[raft]\nnode_id = 1\ngroup_count = 1\n[raft.wal]\nbackend = "disk"\npath = "' + wal + '"\n' + cold.config().replace(cold.url, endpoint))
+            (work / 'ursula.toml').write_text('[server]\nlisten = "0.0.0.0:8080"\nadmin_listen = "127.0.0.1:0"\n[runtime]\ncore_count = 2\n[raft]\nnode_id = 1\ngroup_count = 1\n[raft.wal]\nbackend = "disk"\npath = "' + wal + '"\n' + cold.config())
             (work / 'ursula.toml').chmod(0o600)
             write('operator/node.json', dict(profile='native_v1', genesis=dict(realm=REALM, root_key=keys[0].public, max_clock_error_ms=10000, admission_ceiling=50000, control_reserve=2000),
                 ursula_url='http://ursula:8080', bucket='serving', journal='authority', port=8080, listen='0.0.0.0', resident_pages=8, request_timeout_ms=10000))
-            if profile == 'compose':
-                placement.call('create', 'ursula')
-                cold_network = placement.project + '_storage'
-                subprocess.run(['docker', 'network', 'connect', '--alias', 'serving-cold', cold_network, cold.name], check=True, capture_output=True)
-                record = json.loads(subprocess.check_output(['docker', 'inspect', cold.name]))[0]
-                placement.cold_address = record['NetworkSettings']['Networks'][cold_network]['IPAddress']
             storage = placement.start('ursula'); ready(storage, placement.url('ursula'))
             placement.initialize()
             authority = placement.start('node'); url = placement.url('node'); ready(authority, url)
-            denied = [placement.address('ursula', 'storage') + ':8080', placement.cold_address + ':9000', '1.1.1.1:443']
+            denied = [placement.address('ursula', 'storage') + ':8080', placement.cold_address + ':' + str(placement.cold_port), '1.1.1.1:443']
             assert placement.invoke('caller-probe', 'probe', placement.authority, *denied) == dict(authority='reachable', denied=3)
             ingress, ingress_resource = provision(77)
             application, application_resource = provision(78)
@@ -323,9 +321,7 @@ def run(profile, reactive=False, views=False):
                 if process.poll() is None: process.kill()
                 process.wait(timeout=10)
             for log in logs: log.close()
-            if cold and cold_network: subprocess.run(['docker', 'network', 'disconnect', cold_network, cold.name], capture_output=True, timeout=15)
             if placement: placement.close()
-            if cold: cold.__exit__(None, None, None)
 
 
 if __name__ == '__main__':
