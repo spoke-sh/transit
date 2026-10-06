@@ -57,6 +57,12 @@ UNAVAILABLE and preserves any earlier work. Flight ticket, sequence and protobuf
 validation keep their specific profile diagnostics. These failed attempts do
 not replace a retained domain outcome or an already unknown submission.
 
+Schema and catalog metadata requests validate the configured immutable Table
+definition against the current catalog. ALTER or DROP requires publication of
+an updated definition before those requests can describe the successor. Exact
+query retries and retained tickets keep their original definition and remain
+subject to current authorization.
+
 ## Connect with ADBC
 
 Provision the query hosts, service binding, dedicated caller/requester and

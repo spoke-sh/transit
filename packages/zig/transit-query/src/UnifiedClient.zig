@@ -66,7 +66,12 @@ fn requester(self: *Self) !q.wire.ResourceReader.Reader {
     return reader;
 }
 pub fn describe(self: *Self, definition: q.SourceDefinition) !Description {
-    return self.read(describeOnce, .{definition});
+    return self.read(describeOnce, .{ definition, true });
+}
+/// Current rights for exact upload recovery and retained results. This checks
+/// authority without rebinding their immutable schema to the live catalog.
+pub fn authorize(self: *Self, definition: q.SourceDefinition) !Description {
+    return self.read(describeOnce, .{ definition, false });
 }
 pub fn inspectSql(self: *Self, allocator: std.mem.Allocator, request: q.SqlInspection.Request) !q.SqlInspection.Result {
     return q.SqlInspection.apply(allocator, self, request);
@@ -135,7 +140,7 @@ pub fn prepareSql(self: *Self, allocator: std.mem.Allocator, definition: q.Sourc
 pub fn bindSql(self: *Self, allocator: std.mem.Allocator, template: *const q.SqlTemplate, definition: q.SourceDefinition, values: []const q.fuze.Types.Values.Atom, limits: q.Bundle.Limits) !q.SqlTemplate.Bound {
     return template.bindCurrent(allocator, self, definition, values, limits);
 }
-fn describeOnce(self: *Self, definition: q.SourceDefinition) !Description {
+fn describeOnce(self: *Self, definition: q.SourceDefinition, check_definition: bool) !Description {
     var storage: [3]p.Value = undefined;
     const keys = try self.sourceMetadata(definition, &storage);
     if (self.batch_reads == null) {
@@ -153,6 +158,10 @@ fn describeOnce(self: *Self, definition: q.SourceDefinition) !Description {
     const grant = (try q.UnifiedCapture.policy(&source, self.connection.requester)) orelse return error.QueryDenied;
     if (!grant.allow or grant.requests != self.connection.requests) return error.QueryDenied;
     try q.UnifiedSource.checkCurrent(definition, &source, try grant.principal(definition));
+    if (check_definition and definition.source == .table) {
+        var current: q.wire.ResourceReader.Reader = .{ .client = self.resources(), .view = .{ .resource = source.view.resource, .revision = source.view.revision } };
+        try definition.source.table.checkDefinition(self.wire.http.allocator, &current, try grant.tablePrincipal(definition.source.table));
+    }
     return .{ .definition = definition, .resource_revision = source.view.revision, .policy_revision = grant.revision, .limits = grant.limits, .active = try q.UnifiedUpload.active(&requests) };
 }
 /// Prepare only one command. After any uncertain submit, retain and resubmit
@@ -224,7 +233,7 @@ pub fn prepareNextWithDraft(self: *Self, namespace: u64, bundle: q.Bundle, gener
 }
 fn prepareNextOnce(self: *Self, namespace: u64, bundle: q.Bundle, generation: ?u64) !?Prepared {
     try bundle.validate();
-    const description = try self.describe(bundle.source);
+    const description = try self.authorize(bundle.source);
     if (!description.limits.permits(bundle.limits)) return error.QueryBudgetExceeded;
     const reference = try bundle.reference(self.connection.requests, namespace);
     var reader = try self.requester();

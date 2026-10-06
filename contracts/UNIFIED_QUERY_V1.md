@@ -472,6 +472,12 @@ and semantic validation apply to the library and the port.
 ### SQL capability profile
 
 The v1 SQL compiler reuses the complete-input SQL parser and reference grammar.
+Current Table description and new SQL compilation validate the immutable
+metadata reference and logical row type against the live catalog. Permission
+alone does not establish that a configured schema is current. Exact upload
+recovery and retained result reads check current authorization independently;
+an ALTER or DROP does not rebind accepted work to another schema.
+
 One configured SQL name resolves to an explicit authorized source definition;
 KV decoders and Document paths/list/text projections are declared in that
 definition, never inferred from SQL or application values. This profile supports

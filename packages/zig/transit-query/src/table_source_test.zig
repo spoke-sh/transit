@@ -137,6 +137,8 @@ test "retained general Table pages preserve wide nested rows through ALTER DROP 
     const rename = try ddl(&store, .{ .principal = 17, .operation = 3, .object = 100, .expected_revision = 1, .name = try c.TableMetadata.Name.init("people"), .action = .{ .alter = .{ .schema = old.schema.schema, .change = .{ .rename = .{ .column = 3, .name = "names_now" } } } } });
     try e.expectEqual(.applied, rename.table.?.state);
     var altered = try turn(&store);
+    _ = try source.source.checkCurrent(&altered, 17);
+    try e.expectError(error.CatalogDefinitionChanged, source.source.checkDefinition(e.allocator, &altered, 17));
     var original_cut = try altered.openVersion(retained);
     try e.expectError(error.CatalogDefinitionChanged, source.source.capture(e.allocator, &original_cut, &altered, 17));
     _ = try ddl(&store, .{ .principal = 17, .operation = 4, .object = 100, .expected_revision = 2, .name = try c.TableMetadata.Name.init("people"), .action = .{ .drop = .{} } });
@@ -145,6 +147,8 @@ test "retained general Table pages preserve wide nested rows through ALTER DROP 
     const created = try ddl(&store, .{ .principal = 17, .operation = 5, .object = 101, .expected_revision = 0, .name = try c.TableMetadata.Name.init("people"), .action = .{ .create = .{ .schema = replacement } } });
     try e.expectEqual(.applied, created.operation.state);
     var current = try turn(&store);
+    _ = try source.source.checkCurrent(&current, 17);
+    try e.expectError(error.TableRetired, source.source.checkDefinition(e.allocator, &current, 17));
     try e.expectError(error.TableRetired, source.source.capture(e.allocator, &current, &current, 17));
     var data = try current.openVersion(retained);
     var compiled = try f.TableSelect.compile(e.allocator, "SELECT id, tag, names, j FROM people", "people", source.source.row_type, try basis.fingerprint(), null);

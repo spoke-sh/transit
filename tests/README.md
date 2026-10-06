@@ -15807,3 +15807,13 @@ hostile submit-shaped envelope reports `not_submitted` with local evidence, and
 the same handle remains usable. The CLI diagnostic corpus passes 592 cases and
 console lifecycle tests pass 31/31 (`cli-json-bounds2.log`). These are local parser/codec checks; Board and native
 Flight transport qualification remains part of the wider cutover.
+
+### Current schema inspection and retained authorization
+
+ReleaseSafe query tests pass 114/114 (`query-current-metadata2.log` in the local
+Table-schema campaign), including current definition rejection after ALTER and
+DROP while the authorized original captured pages remain readable. Flight
+package tests pass 14/14 (`flight-current-metadata1.log`). `describe` validates
+current Table metadata; exact upload recovery and retained-result authorization
+use the independent current-rights check. These package checks do not qualify
+the in-progress native transport fixture migration.

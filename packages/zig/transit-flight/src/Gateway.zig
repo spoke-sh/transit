@@ -244,7 +244,7 @@ const Call = struct {
             }).body.read_access;
             if (access.phase != .active) return error.QuerySourceUnavailable;
         }
-        _ = try self.client.describe(self.definition());
+        _ = try self.client.authorize(self.definition());
         try self.response.check();
     }
     fn send(self: *Call, value: anytype) !void {
@@ -261,6 +261,7 @@ const Call = struct {
         defer command.deinit();
         const statement = std.mem.eql(u8, command.value.type_url, root.command_prefix ++ "CommandStatementQuery");
         try self.authorize(statement and !schema_only);
+        if (schema_only or !statement) _ = try self.client.describe(self.definition());
         var schema: []const u8 = undefined;
         var reference: root.Ticket.Reference = undefined;
         var rows: u64 = 0;
@@ -334,7 +335,7 @@ const Call = struct {
     fn upload(self: *Call, sql: []const u8, first: u64) !u64 {
         if (first == 0 or first > p.max_counter) return error.InvalidQueryIdentity;
         const limits: q.Bundle.Limits = .{ .pages = 4096, .segments = 63, .result_bytes = 240 * 1024 };
-        const description = try self.client.describe(self.definition());
+        const description = try self.client.authorize(self.definition());
         if (!description.limits.permits(limits)) {
             self.attempt_diagnostic.* = root.DiagnosticDetail.budget(description.limits, limits) catch null;
             return error.QueryBudgetExceeded;

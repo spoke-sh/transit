@@ -8,6 +8,10 @@ owns authorization, wire encodings, admission, cancellation and limits.
 
 `UnifiedClient` owns signed description, finite upload, frozen submission,
 committed-input observation, status, cancellation and verified result pages.
+`describe` checks current catalog metadata as well as permission: renamed,
+replaced or retired declarations cannot masquerade as the live schema.
+`authorize` checks current rights for exact upload recovery and retained results
+without rebinding their captured schema.
 `UnifiedBehavior.Requester` binds one query principal/source and admits one active
 upload/query; `UnifiedBehavior.Source` captures a declared KV, Table or Document
 source under current policy. Both execute in separately provisioned Station hosts.

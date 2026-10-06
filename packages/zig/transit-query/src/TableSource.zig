@@ -113,6 +113,12 @@ pub fn checkCurrent(self: Self, current: anytype, who: u64) !c.TableCatalog {
 fn resolve(self: Self, allocator: std.mem.Allocator, data: anytype, who: u64) !c.TableCatalog.Definition {
     return self.resolveDiagnostic(allocator, data, who, null);
 }
+/// Current metadata inspection for new work. Retained-page authorization uses
+/// checkCurrent instead, so ALTER does not reinterpret already captured data.
+pub fn checkDefinition(self: Self, allocator: std.mem.Allocator, current: anytype, who: u64) !void {
+    var definition = try self.resolve(allocator, current, who);
+    defer definition.deinit();
+}
 fn resolveDiagnostic(self: Self, allocator: std.mem.Allocator, data: anytype, who: u64, diagnostic: ?*?q.SourceWitness) !c.TableCatalog.Definition {
     const catalog = try self.checkCurrent(data, who);
     var mismatch: ?c.TableCatalog.DefinitionMismatch = null;

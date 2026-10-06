@@ -5373,7 +5373,7 @@
       },
       "open_error_set_uses": 1,
       "propagation": {
-        "try": 92,
+        "try": 93,
         "catch": 18
       },
       "imports": [
@@ -11439,6 +11439,7 @@
         "capture()": "<inferred>",
         "captureDiagnostic()": "<inferred>",
         "checkCurrent()": "<inferred>",
+        "checkDefinition()": "<inferred>",
         "decode()": "<inferred>",
         "decodeInto()": "<inferred>",
         "encode()": "<inferred>",
@@ -11452,7 +11453,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 77,
+        "try": 78,
         "catch": 2
       },
       "imports": [
@@ -11633,6 +11634,7 @@
       },
       "error_sets": {},
       "error_returns": {
+        "authorize()": "<inferred>",
         "bindSql()": "<inferred>",
         "checked()": "<inferred>",
         "compileSql()": "<inferred>",
@@ -11661,7 +11663,7 @@
       },
       "open_error_set_uses": 1,
       "propagation": {
-        "try": 57,
+        "try": 59,
         "catch": 4
       },
       "imports": [
