@@ -748,11 +748,21 @@ pub fn cleanupMutation(self: Self, allocator: std.mem.Allocator, turn: *s.Turn, 
 /// Capture a schema-bound data source under independent current read permission.
 /// A caller must retain the native source cut for subsequent row reads.
 pub fn readDefinition(self: Self, allocator: std.mem.Allocator, source: anytype, who: u64, id: u64, expected: s.TablePages.Reference) !Definition {
+    return self.readDefinitionDiagnostic(allocator, source, who, id, expected, null);
+}
+pub const DefinitionMismatch = struct { expected: s.TablePages.Reference, actual: s.TablePages.Reference };
+/// Copy exact mismatch evidence at the authorized owner check. No later read is
+/// needed to explain a stale declaration, and no current row data is disclosed.
+pub fn readDefinitionDiagnostic(self: Self, allocator: std.mem.Allocator, source: anytype, who: u64, id: u64, expected: s.TablePages.Reference, diagnostic: ?*?DefinitionMismatch) !Definition {
+    if (diagnostic) |detail| detail.* = null;
     _ = try self.authorize(source, who, .inspect);
     _ = try self.authorize(source, who, .read);
     const current = (try self.object(source, id)) orelse return error.TableNotFound;
     if (current.state != .live) return error.TableRetired;
-    if (!std.meta.eql(current.metadata, expected)) return error.CatalogDefinitionChanged;
+    if (!std.meta.eql(current.metadata, expected)) {
+        if (diagnostic) |detail| detail.* = .{ .expected = expected, .actual = current.metadata };
+        return error.CatalogDefinitionChanged;
+    }
     return self.resolve(allocator, source, current, try self.metadata(source, current));
 }
 

@@ -15,6 +15,34 @@ fn ready(store: *TestStore) !void {
     try owner.initialize(&turn);
     try store.commit(turn);
 }
+test "read-definition mismatch evidence is copied only after current inspect and read authorization" {
+    var store: TestStore = .{};
+    defer store.deinit();
+    try ready(&store);
+    try install(&store, 10, try Meta.Name.init("people"));
+    var turn = try store.capture(17);
+    var found = (try owner.lookup(t.allocator, &turn, 17, try Meta.Name.init("people"))).?;
+    defer found.deinit();
+    const actual: s.TablePages.Reference = .{ .id = found.metadata.revision, .spec = try found.metadata.spec() };
+    var expected = actual;
+    expected.id += 1;
+    expected.spec.digest[0] ^= 1;
+    var evidence: ?Cat.DefinitionMismatch = null;
+    try t.expectError(error.CatalogDefinitionChanged, owner.readDefinitionDiagnostic(t.allocator, &turn, 17, 10, expected, &evidence));
+    try t.expectEqualDeep(Cat.DefinitionMismatch{ .expected = expected, .actual = actual }, evidence.?);
+    var current = try owner.readDefinitionDiagnostic(t.allocator, &turn, 17, 10, actual, &evidence);
+    defer current.deinit();
+    try t.expect(evidence == null);
+    var revoked = try m.Policy.administrator(owner.configuration.scope, 17);
+    revoked.revision = 2;
+    revoked.read = false;
+    try owner.setPolicy(&turn, 1, revoked);
+    try store.commit(turn);
+    turn = try store.capture(17);
+    evidence = .{ .expected = expected, .actual = actual };
+    try t.expectError(error.CatalogDenied, owner.readDefinitionDiagnostic(t.allocator, &turn, 17, 10, expected, &evidence));
+    try t.expect(evidence == null);
+}
 // Construct committed object fixtures explicitly. This is not CREATE admission
 // evidence; the namespace reader must validate these independently staged parts.
 fn install(store: *TestStore, object: u64, name: Meta.Name) !void {

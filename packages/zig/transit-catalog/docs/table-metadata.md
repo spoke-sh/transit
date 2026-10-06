@@ -98,6 +98,11 @@ work. `readDefinition` separately requires current read permission and exact
 metadata, returning the original live schema during pending evolution. Its
 caller must retain the native cut for subsequent row reads.
 
+`readDefinitionDiagnostic` performs the same checks and copies the expected and
+observed immutable metadata references when they differ. This evidence comes
+from the failing authorized check; rendering it requires no later lookup.
+Permission failures clear the diagnostic rather than disclose current metadata.
+
 `mutationReceipt`, `cancelMutationReference` and `cleanupMutationReference` use
 the saved exact Table reference without retransmitting original rows. They check
 catalog/object ownership, principal, resource and current inspect permission.

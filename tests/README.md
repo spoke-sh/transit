@@ -11964,6 +11964,13 @@ allocation failures and exact uint128 scalar round-trips. The earlier
 Native query integration is in progress: its package compilation is not yet a
 pass, and neither this check nor the codec alone establishes durable admission.
 
+Catalog definition diagnostics pass **98/98 catalog tests**
+(`catalog-definition-witness1.log` in the same campaign). A stale read returns
+the exact expected and observed metadata references at its authorized check.
+Successful reads clear earlier evidence, and revocation clears it before denial.
+This is reference-store unit evidence; native query caller migration and
+disk-backed qualification remain separate checks.
+
 ## Fuze logical type foundation
 
 The local `Types` profile has nine passing focused Zig tests, including 46
