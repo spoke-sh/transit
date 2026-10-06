@@ -16743,3 +16743,24 @@ principal fields. The new test creates and discovers a typed Table under that
 identity, refuses another initializer, rejects invalid owner/principal bounds,
 and verifies that repeated initialization cannot restore revoked read rights.
 Root has no implicit catalog policy when another administrator was selected.
+
+### Physical work-item placements
+
+`general-work-items-compose2.log` passes in 328.33 seconds, including 126.02
+seconds of image work, with 124,264,730 retained cold bytes.
+`general-work-items-reference2.log` passes in 345.79 seconds, including 6.74
+seconds of image work, with 62,419,677 retained cold bytes. Each uses actual
+physical owners and Chromium, private TLS ingress and role isolation, original
+query recovery across worker/node/store/gateway replacement, application schema
+publication, complete pagination and current denial. Reference placement uses
+fresh registered owners in separate Substrate Actors. These are finite recovery
+proofs, not matched throughput measurements.
+
+The physical runner owns a native cold fixture bound to the private IPv4 Docker
+bridge; it retains the cold fixture independently of role/storage replacement.
+Dual-stack networks select their IPv4 gateway explicitly. The first Compose run
+failed on a transient connection closure opening retained history; the first
+reference run failed because it assumed the first network address had an IPv4
+gateway. Neither counts as a pass. Both passing runs complete their owned
+placement teardown. Local installation and physical placement now have separate
+executed evidence for the migrated work-item application.

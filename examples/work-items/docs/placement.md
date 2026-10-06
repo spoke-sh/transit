@@ -2,8 +2,8 @@
 
 These owned fixtures extend the [native composition](browser.md). They are
 finite qualification tasks, not persistent application launchers or an automatic
-growing runtime controller. Both Compose and reference recovery pass for the
-selected Table/browser profile; measurements and limits belong in the
+growing runtime controller. Executed Compose/reference results are tied to their
+source revisions; measurements and limits belong in the
 [test ledger](../../../tests/README.md#m23-application-declaration-boundary).
 
 ```sh
@@ -16,7 +16,10 @@ just test::work-items-placement reference
 Reference needs the existing pinned reference infrastructure and runtime image.
 The fixture creates a new namespace and checks its UID on cleanup; it does not
 update the default launcher installation. Each profile initializes its own realm,
-owned disk WAL and bounded hot storage backed by the pinned cold-store fixture.
+owned disk WAL and bounded hot storage backed by pinned native MinIO on the
+selected private Docker bridge. Its exact port is included in egress-denial
+probes; the fixture owns and joins the cold process separately from placement
+cleanup.
 
 Compose places data, publication, requester, delivery, gateway, authority and
 storage in separate containers. Only authority joins both the private client and

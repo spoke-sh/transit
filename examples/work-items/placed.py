@@ -1,7 +1,9 @@
 """Run the same generated application/browser through owned physical placements."""
 import argparse
+from contextlib import ExitStack
 import base64
 import hashlib
+import ipaddress
 import json
 import os
 from pathlib import Path
@@ -28,7 +30,7 @@ def run(profile):
     http = urllib.request.build_opener(urllib.request.ProxyHandler({}))
     proof = ROOT/'zig-out/bin/transit-work-items-browser-proof'
     host = ROOT/'zig-out/bin/transit-query-host'
-    with tempfile.TemporaryDirectory(prefix='transit-work-items-') as directory:
+    with tempfile.TemporaryDirectory(prefix='transit-work-items-') as directory, ExitStack() as resources:
         work = Path(directory)
         for role in ('operator','data','requester','publication','courier','gateway-0'):
             (work/role).mkdir(mode=0o700)
@@ -103,27 +105,26 @@ def run(profile):
             owned=Reference(work) if profile=='reference' else Compose(work)
             built=time.monotonic()-started
             web_port=free_port();private_port=free_port();origin=f'https://127.0.0.1:{web_port}'
-            cold=ColdStore().__enter__()
-            if profile=='reference':
+            if profile=='compose':
+                (work/'ursula.toml').touch()
+                owned.call('create','ursula')
+                network=owned.project+'_storage'
+            else:
                 network='kind'
-                subprocess.run(['docker','network','connect',network,cold.name],check=True,capture_output=True)
-                record=json.loads(subprocess.check_output(['docker','inspect',cold.name]))[0]
-                owned.cold_address=record['NetworkSettings']['Networks'][network]['IPAddress']
-                endpoint='http://'+owned.cold_address+':9000'
-            else:endpoint='http://work-items-cold:9000'
-            config='[server]\nlisten = "0.0.0.0:8080"\nadmin_listen = "127.0.0.1:0"\n[runtime]\ncore_count = 2\n[raft]\nnode_id = 1\ngroup_count = 1\n[raft.wal]\nbackend = "disk"\npath = "'+('/data/wal' if profile=='reference' else '/wal')+'"\n'+cold.config().replace(cold.url,endpoint)
+            addresses=json.loads(subprocess.check_output(['docker','network','inspect',network]))[0]['IPAM']['Config']
+            bridge=next((item['Gateway'] for item in addresses if 'Gateway' in item and ipaddress.ip_address(item['Gateway']).version==4),None)
+            if bridge is None: raise RuntimeError('Physical application fixture requires a private IPv4 bridge gateway')
+            cold=resources.enter_context(ColdStore(bind_address=bridge))
+            owned.cold_address=bridge
+            owned.cold_port=cold.port
+            config='[server]\nlisten = "0.0.0.0:8080"\nadmin_listen = "127.0.0.1:0"\n[runtime]\ncore_count = 2\n[raft]\nnode_id = 1\ngroup_count = 1\n[raft.wal]\nbackend = "disk"\npath = "'+('/data/wal' if profile=='reference' else '/wal')+'"\n'+cold.config()
             (work/'ursula.toml').write_text(config);(work/'ursula.toml').chmod(0o600)
             public=json.loads(subprocess.check_output([proof,'public']))
             write('operator/node.json',dict(profile='native_v1',genesis=dict(realm=51,root_key=public,max_clock_error_ms=10000),ursula_url='http://ursula:8080',bucket='work-items',journal='authority',listen='0.0.0.0',port=8080,resident_pages=16,request_timeout_ms=10000))
-            if profile=='compose':
-                owned.call('create','ursula');network=owned.project+'_storage'
-                subprocess.run(['docker','network','connect','--alias','work-items-cold',network,cold.name],check=True,capture_output=True)
-                record=json.loads(subprocess.check_output(['docker','inspect',cold.name]))[0]
-                owned.cold_address=record['NetworkSettings']['Networks'][network]['IPAddress']
             storage=owned.start('ursula');ready(storage,owned.url('ursula')+'/__ursula/ready')
             owned.initialize()
             authority=owned.start('node');url=owned.url('node');ready(authority,url+'/health')
-            denied=[owned.address('ursula','storage')+':8080',owned.cold_address+':9000','1.1.1.1:443']
+            denied=[owned.address('ursula','storage')+':8080',owned.cold_address+':'+str(owned.cold_port),'1.1.1.1:443']
             assert owned.invoke('caller-probe','probe',owned.authority,*denied)==dict(authority='reachable',denied=3)
             invoke('setup')
             workers={role:activate(role) for role in ('requester','data','publication')}
@@ -174,10 +175,8 @@ def run(profile):
                 if child.poll() is None:os.killpg(child.pid,signal.SIGKILL)
                 child.wait(timeout=10)
             for log in logs:log.close()
-            if cold and network:subprocess.run(['docker','network','disconnect',network,cold.name],capture_output=True,timeout=15)
             if tls:tls.__exit__(None,None,None)
             if owned:owned.close()
-            if cold:cold.__exit__(None,None,None)
 
 
 if __name__=='__main__':
