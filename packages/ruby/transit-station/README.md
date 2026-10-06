@@ -37,5 +37,7 @@ plans, persisted admission commands and immutable nested Arrow pages.
 The [Table mutation guide](docs/MUTATIONS.md) covers explicit SQL writes,
 immutable requests, saved-command recovery and durable result observations.
 
-The [catalog guide](docs/CATALOG.md) covers typed initialization, conditional
-policy, named Table creation and immutable saved-command recovery.
+The [catalog guide](docs/CATALOG.md) covers general schemas, typed mutations,
+ALTER/DROP, historical metadata, policy and exact saved-intent recovery.
+The [logical value guide](docs/LOGICAL.md) describes owned recursive types and
+cells, exact numbers and bounded neutral codecs.

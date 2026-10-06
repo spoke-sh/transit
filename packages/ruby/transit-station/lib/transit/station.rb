@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 require 'transit/client'
 require_relative 'station/values'
+require_relative 'station/logical'
 require_relative 'station/bridge'
 require_relative 'station/http'
 require_relative 'station/grpc'

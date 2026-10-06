@@ -165,6 +165,7 @@ def install_ruby(target):
     values = target / 'values.rb'
     shutil.copy2(ROOT / 'tests/ruby_catalog_sdk.rb', script)
     shutil.copy2(ROOT / 'tests/ruby_catalog_values.rb', values)
+    shutil.copy2(ROOT / 'tests/ruby_schema_values.rb', target / 'schema_values.rb')
     subprocess.run(['ruby', str(values)], env=environment, cwd=target, check=True)
     def create(url, connection, state):
         config = target / 'client.json'

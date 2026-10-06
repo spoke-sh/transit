@@ -11460,6 +11460,32 @@ wired into the installed raw-client consumer without adding output to its machin
 protocol. This is focused source-level validator evidence; the general Ruby Table
 API and installed-package schedule remain separate qualification work.
 
+The Ruby general Table caller passes its installed lifecycle in **168.021 seconds**
+(`table-ruby-installed1.log`): recursive typed INSERT, exact decimal/binary/UTF-8
+values, no-op UPDATE counts, ALTER/default, stale-basis rejection, DELETE,
+DROP/name reuse, historical schema reads and exact intent recovery through a
+replacement caller. Across 493 turns and 133 sends, maximums remain four native
+writes, 256-byte values and 1,398-byte progress commands. Lost-send, lost-turn and
+supplied-host receipt-loss schedules pass. The consumer loads isolated installed
+gems without source or native-host overrides.
+
+Installed Ruby value checks cover all logical families, wide integers, signed
+zero, depth-15 conflicts, MAP key accounting, aggregate byte/node/name budgets,
+owned frozen results, malformed metadata/receipts, exact uncertain commands and
+interrupted-wait ownership through joined close. Actual child exchanges accept
+600,000-byte catalog payloads and fragmented replies while rejecting the same
+request at the unchanged raw-client line bound. Generated recursive schemas are
+exercised through the packaged port, including malformed replies and child loss.
+The rebuilt raw-client schedule passes separately (`table-ruby-raw1.log`),
+including saved lost-receipt recovery, seedless restart and revoked retry.
+
+Full pinned `just check` passes (`table-ruby-check1.log`); documentation checks
+cover 5,293 links across 523 files and verification retains 59 invariants, 53
+bounds and 13 SDK scenarios. The original fixed-profile Ruby runner/query APIs
+remain to be removed or migrated with the other query surfaces. This checkpoint
+does not establish the remaining SDK migrations, final definition replacement,
+matched performance/growth or committed-HEAD clean CI.
+
 ## Fuze logical type foundation
 
 The local `Types` profile has nine passing focused Zig tests, including 46
