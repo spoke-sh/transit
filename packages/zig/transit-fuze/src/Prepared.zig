@@ -101,7 +101,7 @@ pub fn bindDiagnostic(self: *const Self, allocator: std.mem.Allocator, source: m
     const actual_schema = try source.schema.fingerprint();
     if (!std.meta.eql(source.name, self.source_name) or !std.mem.eql(u8, &actual_schema, &self.schema_fingerprint)) {
         if (detail) |value| {
-            value.subject = try @import("model.zig").Name.init(self.source_name.slice());
+            value.subject = try sql.Binding.Name.init(self.source_name.slice());
             value.expected_schema = self.schema_fingerprint;
             value.actual_schema = actual_schema;
         }

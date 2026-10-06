@@ -1,7 +1,19 @@
 //! Optional owned compiler failure context. Never a wire value or authority.
 const std = @import("std");
 const sql = @import("Sql.zig");
-const Name = @import("model.zig").Name;
+pub const Name = struct {
+    bytes: [255]u8 = @splat(0),
+    len: u8 = 0,
+    pub fn init(text: []const u8) !Name {
+        if (text.len == 0 or text.len > 255 or !std.unicode.utf8ValidateSlice(text) or std.mem.indexOfScalar(u8, text, 0) != null) return error.InvalidColumnName;
+        var name: Name = .{ .len = @intCast(text.len) };
+        @memcpy(name.bytes[0..text.len], text);
+        return name;
+    }
+    pub fn slice(self: *const Name) []const u8 {
+        return self.bytes[0..self.len];
+    }
+};
 const Self = @This();
 location: ?sql.Location = null,
 subject: ?Name = null,
@@ -18,7 +30,7 @@ actual_count: ?usize = null,
 expected_schema: ?[32]u8 = null,
 actual_schema: ?[32]u8 = null,
 schema_version: ?u8 = null,
-scope: [64]u8 = @splat(0),
+scope: [255]u8 = @splat(0),
 scope_len: usize = 0,
 literal: [192]u8 = @splat(0),
 literal_len: usize = 0,
@@ -46,7 +58,7 @@ pub fn parameterAt(self: ?*Self, sites: sql.ParameterSites, index: u32) void {
 
 pub fn at(self: ?*Self, column: sql.Column, scope: []const u8) void {
     const value = self orelse return;
-    value.subject = column.name;
+    value.subject = Name.init(column.name.slice()) catch null;
     value.location = if (column.offset) |offset| .{ .offset = offset } else null;
     value.scope_len = @min(scope.len, value.scope.len);
     @memcpy(value.scope[0..value.scope_len], scope[0..value.scope_len]);
@@ -55,8 +67,40 @@ pub fn at(self: ?*Self, column: sql.Column, scope: []const u8) void {
 pub fn atError(self: ?*Self, column: sql.Column, scope: []const u8, cause: anyerror) void {
     at(self, column, scope);
     if (self) |value| if (cause == error.UnknownQualifier) {
-        value.subject = column.qualifier;
+        value.subject = if (column.qualifier) |qualifier| Name.init(qualifier.slice()) catch null else null;
     };
+}
+
+/// A logical binder records the failing token offset. Recover only that caller
+/// identifier, without lookup, allocation or guessing from a later parser token.
+pub fn nameFailure(self: ?*Self, text: []const u8, scope: []const u8, cause: anyerror, location: sql.Location) void {
+    const detail = self orelse return;
+    switch (cause) {
+        error.UnknownColumn, error.UnknownQualifier, error.UnknownSource => {},
+        else => return,
+    }
+    if (detail.subject != null or location.offset >= text.len) return;
+    var lexer: sql.Lexer = .{ .text = text, .position = location.offset, .parameters_enabled = true };
+    const token = lexer.next() catch return;
+    if (lexer.start != location.offset or (token.tag != .word and token.tag != .quoted)) return;
+    var bytes: [255]u8 = undefined;
+    var count: usize = 0;
+    const raw = if (token.tag == .quoted) token.text[1 .. token.text.len - 1] else token.text;
+    var index: usize = 0;
+    while (index < raw.len) : (index += 1) {
+        if (count == bytes.len) return;
+        bytes[count] = if (token.tag == .quoted) raw[index] else std.ascii.toLower(raw[index]);
+        count += 1;
+        if (token.tag == .quoted and raw[index] == '"') {
+            if (index + 1 == raw.len or raw[index + 1] != '"') return;
+            index += 1;
+        }
+    }
+    detail.subject = Name.init(bytes[0..count]) catch return;
+    detail.scope_len = @min(scope.len, detail.scope.len);
+    while (!std.unicode.utf8ValidateSlice(scope[0..detail.scope_len])) detail.scope_len -= 1;
+    @memcpy(detail.scope[0..detail.scope_len], scope[0..detail.scope_len]);
+    detail.location = location;
 }
 
 /// Caller-supplied scalar correction context, bounded and inert. No stored row

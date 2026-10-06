@@ -202,7 +202,7 @@ fn projection(value: sql.Projection, qualifier: m.Name, schema: m.Schema, output
                 if (sameName(current_name, previous_name)) {
                     sql.Binding.at(diagnostic, selected.column, qualifier.slice());
                     if (diagnostic) |detail| if (selected.alias) |alias| {
-                        detail.subject = alias;
+                        detail.subject = try sql.Binding.Name.init(alias.slice());
                     };
                     return if (index == output[previous]) error.DuplicateProjection else error.DuplicateColumn;
                 }

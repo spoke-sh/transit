@@ -19,6 +19,12 @@ sites: [max_parameters]?sql.Parameter = @splat(null),
 count: u8 = 0,
 
 pub fn init(allocator: std.mem.Allocator, text: []const u8, name: []const u8, schema: t.Type, basis: [32]u8, diagnostic: ?*sql.Binding) !Self {
+    return initInner(allocator, text, name, schema, basis, diagnostic) catch |err| {
+        if (diagnostic) |detail| if (detail.location) |position| sql.Binding.nameFailure(detail, text, name, err, position);
+        return err;
+    };
+}
+fn initInner(allocator: std.mem.Allocator, text: []const u8, name: []const u8, schema: t.Type, basis: [32]u8, diagnostic: ?*sql.Binding) !Self {
     if (diagnostic) |detail| detail.* = .{};
     try sql.validateText(text);
     if (schema != .structure or schema.structure.len == 0 or schema.structure.len > 128) return error.InvalidQuerySchema;

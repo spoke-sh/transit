@@ -11971,6 +11971,14 @@ Successful reads clear earlier evidence, and revocation clears it before denial.
 This is reference-store unit evidence; native query caller migration and
 disk-backed qualification remain separate checks.
 
+Logical binding diagnostics pass **253/253 Fuze tests**
+(`logical-binding-names3.log`). A 255-byte quoted Unicode identifier with an
+escaped quote survives release of its original SQL buffer and projects into a
+structured diagnostic. Unknown qualifier and source failures retain their
+original token offsets. The first two runs catch pinned-compiler syntax and
+shadowing errors, fixed before this pass. Native query caller tests are still
+being migrated; this package pass does not qualify their integration.
+
 ## Fuze logical type foundation
 
 The local `Types` profile has nine passing focused Zig tests, including 46

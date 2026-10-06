@@ -53,6 +53,10 @@ unsupported comparisons stay unsupported. Input and plan budgets apply before a
 bound result is returned. See the [parameter contract](../../../contracts/SQL_PARAMETERS_V1.md#general-logical-template-compiler)
 for scope, ownership and the separate caller-integration boundary.
 
+Logical binding failures retain the exact caller identifier at the failing token,
+including quoted, escaped and UTF-8 names up to 255 bytes. The owned diagnostic
+survives releasing parser inputs; it does not reread source metadata for context.
+
 `LogicalStream` evaluates bounded logical pages with canonical resumable progress
 and Arrow segments. It shares the pull executor's ordered row operators and
 returns no candidate after an error or cancellation. Its

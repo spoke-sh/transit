@@ -227,3 +227,23 @@ test "logical binding distinguishes the finite plan budget from caller output bu
     try e.expectError(error.WriteFailed, f.LogicalPlanCodec.encode(small.plan, &.{}));
     try e.expectEqualStrings("sql.plan_too_large", (try f.SqlDiagnostic.query("SELECT name FROM people", error.PlanTooLarge, true).?.structured()).code.slice());
 }
+
+test "logical binding owns full UTF8 names at their original failing token" {
+    const identifier = "東京\"" ++ @as([248]u8, @splat('x'));
+    const quoted = "\"東京\"\"" ++ @as([248]u8, @splat('x')) ++ "\"";
+    var statement = ("SELECT " ++ quoted ++ " FROM people").*;
+    var detail: f.Sql.Binding = .{};
+    try e.expectError(error.UnknownColumn, Prepared.init(e.allocator, &statement, "people", schema, basis, &detail));
+    @memset(&statement, 0);
+    try e.expectEqualStrings(identifier, detail.subject.?.slice());
+    try e.expectEqual(@as(usize, 7), detail.location.?.offset);
+    try e.expectEqualStrings("people", detail.scope[0..detail.scope_len]);
+    const rendered = try f.SqlDiagnostic.bound("SELECT missing FROM people", error.UnknownColumn, true, detail).?.structured();
+    try e.expectEqualStrings(identifier, rendered.facts[0].?.value.?.text.slice());
+    try e.expectError(error.UnknownQualifier, Prepared.init(e.allocator, "SELECT other.id FROM people", "people", schema, basis, &detail));
+    try e.expectEqualStrings("other", detail.subject.?.slice());
+    try e.expectEqual(@as(usize, 7), detail.location.?.offset);
+    try e.expectError(error.UnknownSource, Prepared.init(e.allocator, "SELECT id FROM other", "people", schema, basis, &detail));
+    try e.expectEqualStrings("other", detail.subject.?.slice());
+    try e.expectEqual(@as(usize, 15), detail.location.?.offset);
+}

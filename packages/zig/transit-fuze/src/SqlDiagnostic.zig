@@ -71,7 +71,7 @@ pub fn structured(self: Self) !d {
 }
 
 test "SQL structured diagnostics preserve binding evidence without console commands" {
-    var context: sql.Binding = .{ .subject = try @import("model.zig").Name.init("value"), .expected = "int64", .actual = "utf8", .parameter = 1, .parameter_sites = .{ 12, 35, null }, .location = .{ .offset = 12 } };
+    var context: sql.Binding = .{ .subject = try sql.Binding.Name.init("value"), .expected = "int64", .actual = "utf8", .parameter = 1, .parameter_sites = .{ 12, 35, null }, .location = .{ .offset = 12 } };
     sql.Binding.supplied(&context, @import("Unified.zig").Scalar{ .utf8 = "secret-is-caller-input" });
     const diagnostic = bound("SELECT $1 FROM items WHERE value = $1", error.TypeMismatch, false, context).?;
     const result = try diagnostic.structured();
