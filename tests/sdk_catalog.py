@@ -185,11 +185,11 @@ class CatalogCConsumer(Consumer):
         self.child.stdin.write(command + '\n'); self.child.stdin.flush()
 
 
-def install_c(target, language):
+def install_c(target, language, packages=ROOT / '.cache/bindings/c'):
     target.mkdir()
     prefix = target / 'installed'
     artifacts = {}
-    for source in sorted((ROOT / '.cache/bindings/c').glob('*.tar.gz')):
+    for source in sorted(packages.glob('*.tar.gz')):
         if source.name.startswith('transit-sdk-examples-'): continue
         artifact = target / source.name
         shutil.copy2(source, artifact)

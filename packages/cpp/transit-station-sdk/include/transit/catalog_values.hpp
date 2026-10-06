@@ -51,7 +51,8 @@ struct Update { Basis basis; std::vector<Assignment> assignments; std::optional<
 struct Delete { Basis basis; std::optional<Predicate> predicate; };
 using Action = std::variant<Create, Alter, Rename, Drop, Insert, Update, Delete>;
 struct Dependency { Scope scope; uint64_t object, identity; ProcessRef owner; DependencyKind kind; };
-struct Metadata { Scope scope; uint64_t object, revision; std::string name; std::array<uint8_t, 32> schema_fingerprint; uint64_t principal, operation, admitted_input; };
+struct MetadataCommitment { uint32_t bytes; std::array<uint8_t, 32> digest; };
+struct Metadata { Scope scope; uint64_t object, revision; std::string name; std::array<uint8_t, 32> schema_fingerprint; uint64_t principal, operation, admitted_input; MetadataCommitment commitment; };
 inline Basis basis(const Metadata &v) { return {v.object, v.revision, v.schema_fingerprint}; }
 struct Head { uint64_t revision, rows, pending; };
 struct Entry { Metadata metadata; Head head; };
@@ -90,7 +91,7 @@ inline Configuration from(const transit_station_catalog_configuration &v) { retu
 inline Policy from(const transit_station_catalog_policy &v) { const auto &r = v.rights; return {from(v.scope), v.principal, v.revision, {r.inspect, r.create, r.read, r.insert, r.update, r.remove, r.alter, r.drop}}; }
 inline Cursor from(const transit_station_catalog_cursor &v) { return {v.definition, from(v.scope), v.resource_revision, v.after_object}; }
 inline Metadata from(const transit_station_catalog_metadata &v) {
-    Metadata out{from(v.scope), v.object, v.revision, v.name, {}, v.principal, v.operation, v.admitted_input}; std::copy_n(v.schema_fingerprint, 32, out.schema_fingerprint.begin()); return out;
+    Metadata out{from(v.scope), v.object, v.revision, v.name, {}, v.principal, v.operation, v.admitted_input, {v.commitment.bytes, {}}}; std::copy_n(v.schema_fingerprint, 32, out.schema_fingerprint.begin()); std::copy_n(v.commitment.digest, 32, out.commitment.digest.begin()); return out;
 }
 inline Head from(transit_station_catalog_head v) { return {v.revision, v.rows, v.pending}; }
 inline Schema from(const transit_station_catalog_schema &v) {

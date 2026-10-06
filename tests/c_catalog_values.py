@@ -99,7 +99,7 @@ static std::string read(const char *name) { std::ifstream f(name); return {std::
         cases += 1
 
     scope = dict(realm=46, resource=7, catalog=str(2**64-1))
-    metadata = dict(scope=scope, object=str(2**64-1), revision=str(2**64-1), name='items', schema_fingerprint='ab'*32, principal=17, operation=str(2**64-1), admitted_input=9)
+    metadata = dict(scope=scope, object=str(2**64-1), revision=str(2**64-1), name='items', schema_fingerprint='ab'*32, principal=17, operation=str(2**64-1), admitted_input=9, commitment=dict(format=0x54434d01, length=200, digest=[171]*32))
     schema = dict(definition=definition, object=str(2**64-1), revision='1', next_column='2', columns=[dict(id='1', name='id', type={'int128': {}}, nullable=True, default=None, max_characters=None)], primary_key=[])
     entry = dict(metadata=metadata, head=dict(revision='1', rows='0', pending='0'))
     current = dict(entry, schema=schema)
@@ -114,6 +114,11 @@ static std::string read(const char *name) { std::ifstream f(name); return {std::
         check('history', dict(historical=None))
         for change in [lambda v: v['metadata'].update(scope=dict(scope, catalog='1')),
                        lambda v: v['metadata'].update(revision='01'),
+                       lambda v: v['metadata'].pop('commitment'),
+                       lambda v: v['metadata']['commitment'].update(format=0),
+                       lambda v: v['metadata']['commitment'].update(length=0),
+                       lambda v: v['metadata']['commitment'].update(length=437),
+                       lambda v: v['metadata']['commitment'].update(digest=[171]*31),
                        lambda v: v['schema'].update(definition='0'*64),
                        lambda v: v['schema'].pop('definition'),
                        lambda v: v.update(extra=True)]:

@@ -16026,3 +16026,15 @@ recursive bounds, large frames, uncertain receipts and joined waiter loss
 (`beam-query-boundary1.log`). Catalog and query values survive their client
 lifetimes. These local codecs and boundary schedules do not establish native
 query recovery; the common catalog query fixture migration remains required.
+
+
+### C and C++ catalog metadata commitments
+
+The C SDK ReleaseSafe build and C++ ownership/codec check pass after adding
+mandatory metadata commitments (`c-metadata-build1.log` and
+`cpp-metadata-check1.log` in the local Table-schema campaign). Fresh installed
+C/C++ artifacts pass 46 actual native-library boundary cases
+(`c-metadata-installed2.log`): lookup/history identity, retained commitment bytes,
+missing/malformed commitments, bounded requests, uncertain receipts and deferred
+POSIX cancellation with close joining native work. This boundary schedule does
+not establish durable catalog or query recovery.

@@ -31,9 +31,15 @@ Policy policy(const Json &v) {
         {v.at("inspect").boolean(), v.at("create").boolean(), v.at("read").boolean(), v.at("insert").boolean(), v.at("update").boolean(), v.at("delete").boolean(), v.at("alter").boolean(), v.at("drop").boolean()}};
 }
 Metadata metadata(const Json &v) {
-    v.fields({"scope", "object", "revision", "name", "schema_fingerprint", "principal", "operation", "admitted_input"}); Metadata out{};
+    v.fields({"scope", "object", "revision", "name", "schema_fingerprint", "principal", "operation", "admitted_input", "commitment"}); Metadata out{};
     out.scope = scope(v.at("scope")); out.object = full(v.at("object")); out.revision = full(v.at("revision")); string(v.at("name"), out.name);
-    digest(v.at("schema_fingerprint"), out.schema_fingerprint); out.principal = small(v.at("principal"), true); out.operation = full(v.at("operation")); out.admitted_input = small(v.at("admitted_input")); return out;
+    digest(v.at("schema_fingerprint"), out.schema_fingerprint); out.principal = small(v.at("principal"), true); out.operation = full(v.at("operation")); out.admitted_input = small(v.at("admitted_input"));
+    const auto &c = v.at("commitment"); c.fields({"format", "length", "digest"});
+    require(c.at("format").number(UINT32_MAX) == 0x54434d01, "catalog-metadata-format");
+    out.commitment.bytes = static_cast<uint32_t>(c.at("length").number(436, false));
+    const auto &bytes = c.at("digest").array(32); require(bytes.size() == 32, "catalog-metadata-digest");
+    for (size_t i = 0; i < bytes.size(); ++i) out.commitment.digest[i] = static_cast<uint8_t>(bytes[i].number(255));
+    return out;
 }
 Head head(const Json &v) { v.fields({"revision", "rows", "pending"}); return {full(v.at("revision")), full(v.at("rows"), true), full(v.at("pending"), true)}; }
 Schema schema(const Json &v, Arena &a) {

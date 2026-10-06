@@ -45,6 +45,7 @@ int main(int argc, char **argv) {
             result = transit_station_catalog_lookup(client, command == "lookup" ? "items" : "wrong", &out);
             if (result.kind == TRANSIT_SDK_OK && out) {
                 const transit_station_catalog_definition_view *v = nullptr; ok(transit_station_catalog_definition_get(out, &v));
+                assert(v->metadata.commitment.bytes == 200 && v->metadata.commitment.digest[0] == 171 && v->metadata.commitment.digest[31] == 171);
                 assert(v->metadata.object == UINT64_MAX && v->metadata.revision == UINT64_MAX && v->schema.columns[0].type->kind == TRANSIT_LOGICAL_INT128);
             } else assert(!out);
             transit_station_catalog_definition_destroy(out);
@@ -81,7 +82,7 @@ int main(int argc, char **argv) {
             try {
                 auto settings = sdk::ClientConfig::growing("http://127.0.0.1:9"); settings.native_directory(directory);
                 auto cpp = cat::Client::open(settings, sdk::Credential{46, 17, seed}, {sdk::ProcessRef(46, 3), {sdk::ResourceRef(46, 7), UINT64_MAX}});
-                if (command == "cpp_lookup") { auto v = cpp.lookup("items"); cpp.close(); assert(v && v->metadata.object == UINT64_MAX && v->schema.columns[0].name == "id"); }
+                if (command == "cpp_lookup") { auto v = cpp.lookup("items"); cpp.close(); assert(v && v->metadata.commitment.bytes == 200 && v->metadata.commitment.digest.front() == 171 && v->metadata.commitment.digest.back() == 171 && v->metadata.object == UINT64_MAX && v->schema.columns[0].name == "id"); }
                 else { auto p = cat::Prepared::recover(sdk::Bytes(original.begin(), original.end())); assert(cpp.submit(p) == 7); }
             } catch (const sdk::Error &e) { result = e.detail(); }
         } else if (command == "block") {

@@ -58,3 +58,8 @@ it does not establish remote cancellation.
 The [catalog contract](../../../../contracts/DECLARATIVE_CATALOG_V1.md) owns native
 semantics. Installed recovery and boundary evidence is recorded in the
 [proof ledger](../../../../tests/README.md).
+
+Metadata retains the immutable publication commitment: its byte length and
+32-byte digest. Lookup, listing and history reject missing or malformed
+commitments. C metadata copies this evidence inline; C++ metadata retains it
+in `MetadataCommitment` independently of its client lifetime.

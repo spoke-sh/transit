@@ -72,3 +72,8 @@ finishes. Join caller threads before destroying handles or borrowed inputs.
 The [catalog contract](../../../../contracts/DECLARATIVE_CATALOG_V1.md) owns
 publication and authorization. The [proof ledger](../../../../tests/README.md)
 records installed lifecycle, receipt-loss and boundary checks.
+
+Metadata retains the immutable publication commitment: its byte length and
+32-byte digest. Lookup, listing and history reject missing or malformed
+commitments. C metadata copies this evidence inline; C++ metadata retains it
+in `MetadataCommitment` independently of its client lifetime.

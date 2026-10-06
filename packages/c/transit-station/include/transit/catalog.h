@@ -82,9 +82,10 @@ enum { TRANSIT_CATALOG_QUERY_SOURCE, TRANSIT_CATALOG_WRITER, TRANSIT_CATALOG_WAT
 typedef struct transit_station_catalog_dependency {
     transit_station_catalog_scope scope; uint64_t object, identity; transit_sdk_process owner; transit_station_catalog_dependency_kind kind;
 } transit_station_catalog_dependency;
+typedef struct transit_station_catalog_metadata_commitment { uint32_t bytes; uint8_t digest[32]; } transit_station_catalog_metadata_commitment;
 typedef struct transit_station_catalog_metadata {
     transit_station_catalog_scope scope; uint64_t object, revision; char name[256]; uint8_t schema_fingerprint[32];
-    uint64_t principal, operation, admitted_input;
+    uint64_t principal, operation, admitted_input; transit_station_catalog_metadata_commitment commitment;
 } transit_station_catalog_metadata;
 typedef struct transit_station_catalog_head { uint64_t revision, rows, pending; } transit_station_catalog_head;
 typedef struct transit_station_catalog_entry { transit_station_catalog_metadata metadata; transit_station_catalog_head head; } transit_station_catalog_entry;
