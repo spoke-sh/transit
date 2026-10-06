@@ -16384,3 +16384,33 @@ self-delivery schedule hit `RouteBlocked`; the next failed to drain earlier
 Table continuations before capturing a query; later assertions incorrectly
 assumed every small request uses upload and that input rejection replaces the
 operation phase. None of those runs is counted as passed.
+
+### Bounded Table row acquisition
+
+Station's 90 tests and query's 115 tests pass in ReleaseSafe with bounded
+reference gathering and row prefetch (`station-table-row-prefetch1.log`,
+`query-table-row-prefetch1.log`). One page gathers at most eight row references,
+checks every Table manifest/publication header, then prefetches at most 32 chunk
+keys in native batches of eight. Normal reads still check lifecycle, lengths,
+digests, decoded schema and stable row identity. Large rows continue through
+bounded incremental chunk reads. Partial page ownership unwinds on read or
+allocation failure; no advanced cursor escapes. The current authorization check
+still precedes page disclosure. These changes do not enlarge native values,
+query page size, the 64-entry immutable read cache or the eight-node cache.
+
+The real ReleaseSafe interactive Table schedule
+(`interactive-logical-table6.log`) executes correctness, cancellation, prefix
+and current-denial checks, then **fails** its unchanged historical request
+ceilings. The 41-row full scan and COUNT now take 89 requests, down from 149 after
+node caching and 231 before the metadata/chunk batching work. LIMIT 3 takes 28
+instead of 40; LIMIT 0 remains 13, complete-key equality remains 24 and inspection
+remains 11. Non-key ranges use the general Table's finite scan and take 89 in
+this fixture; the earlier ordered-int64 range budget of three does not describe
+this hash-key index.
+
+The two full JSON scans take 0.347 and 0.305 seconds with about 22.1 MB sampled
+caller RSS. These are instrumented observations from one run, not a matched
+baseline latency claim. No durable updates occur. The failed request ceilings
+remain active in the test; no warning threshold or assertion was raised to turn
+this result into a pass. Resolving the current physical-profile budgets, wider
+resident/cold-growth evidence and matched mutation performance remains open.

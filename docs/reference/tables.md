@@ -98,6 +98,11 @@ finite scan; the complete Fuze predicate still runs. Rows are stored as immutabl
 row records and indexes, not columnar Arrow row groups. Arrow is an interchange
 format and does not itself supply scan pruning.
 
+Finite query pages acquire at most eight row references together. Publication
+headers are validated before bounded chunk prefetch, and each decoded row retains
+its schema, digest and identity checks. This storage page size is separate from
+execution-vector design.
+
 Each [interactive query](queries.md) captures an explicit source basis and checks
 current authorization before disclosure. Durable query jobs separately retain
 their source and publish verified result segments. An initial result page is

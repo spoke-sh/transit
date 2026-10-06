@@ -108,6 +108,32 @@ pub fn next(self: Self, allocator: std.mem.Allocator, source: anytype, after: ?R
     const entry = try self.index.next(source, if (after) |id| try rowKey(id) else try Index.Key.init("R")) orelse return null;
     return try self.readRow(allocator, source, try identity(entry.key), try Blob.decode(entry.value));
 }
+/// Gather a bounded page of immutable references before acquiring row bodies.
+/// Decoding still validates every commitment, schema and row identity. On error
+/// no partially owned output escapes; callers retain their original cursor.
+pub fn page(self: Self, allocator: std.mem.Allocator, source: anytype, after: ?Row.Identity, output: []?Row.Owned) !usize {
+    if (output.len == 0 or output.len > Index.fanout) return error.InvalidTablePageSize;
+    try self.validate();
+    @memset(output, null);
+    errdefer for (output) |*slot| {
+        if (slot.*) |*row| row.deinit();
+        slot.* = null;
+    };
+    var blobs: [Index.fanout]Blob = undefined;
+    var identities: [Index.fanout]Row.Identity = undefined;
+    var cursor = if (after) |id| try rowKey(id) else try Index.Key.init("R");
+    var count: usize = 0;
+    while (count < output.len) : (count += 1) {
+        const entry = try self.index.next(source, cursor) orelse break;
+        identities[count] = try identity(entry.key);
+        blobs[count] = try Blob.decode(entry.value);
+        cursor = entry.key;
+    }
+    const Source = @typeInfo(@TypeOf(source)).pointer.child;
+    if (comptime @hasDecl(Source, "prefetchBlobs")) if (count != 0) try source.prefetchBlobs(blobs[0..count]);
+    for (output[0..count], identities[0..count], blobs[0..count]) |*slot, id, blob| slot.* = try self.readRow(allocator, source, id, blob);
+    return count;
+}
 /// Collision-safe point lookup. Row identities break equal-digest index ties;
 /// complete typed values determine equality. Each candidate is released before
 /// continuing, independent of the number of retained rows/collision candidates.

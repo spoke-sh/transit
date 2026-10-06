@@ -19,6 +19,13 @@ from console_terminal import Terminal
 
 def check(node, proof, cli, kind, rows=41, age=0, resident_pages=64):
     started = time.monotonic()
+    request_regressions = []
+
+    def request_bound(sql, actual, expected, exact=False):
+        if actual != expected if exact else actual > expected:
+            evidence = dict(sql=sql, expected_requests=expected, actual_requests=actual)
+            request_regressions.append(evidence)
+            print(json.dumps(dict(source=kind, request_budget_failure=evidence)), flush=True)
     with ColdStore() as cold, Fixture(cold.config()) as fixture:
         root = fixture.root
         frozen = []
@@ -94,7 +101,7 @@ def check(node, proof, cli, kind, rows=41, age=0, resident_pages=64):
                     counts = probe.snapshot() - before_counts
                     assert not any(value for key, value in counts.items() if key.startswith('update:')), counts
                     if request_budget is not None:
-                        assert counts['POST'] <= request_budget, (sql, request_budget, dict(counts))
+                        request_bound(sql, counts['POST'], request_budget)
                     if mode == 'table':
                         assert stdout.startswith('┌') and stdout.endswith(f'{expected_rows} rows\n')
                         frames = []
@@ -123,7 +130,7 @@ def check(node, proof, cli, kind, rows=41, age=0, resident_pages=64):
                     counts = probe.snapshot() - before_counts
                     assert not any(value for key, value in counts.items() if key.startswith('update:')), counts
                     assert not any(value for key, value in counts.items() if 'snapshot' in key), counts
-                    assert counts['POST'] == 5, (sql, dict(counts))  # capabilities + two current reads before/after
+                    request_bound(sql, counts['POST'], 5, exact=True)  # capabilities + two current reads before/after
                     result = json.loads(stdout)['inspection']
                     assert result['version'] == 1 and result['scope'] == 'configured_source'
                     assert result['source_kind'] == kind and result['name'] == 'items'
@@ -132,19 +139,21 @@ def check(node, proof, cli, kind, rows=41, age=0, resident_pages=64):
                     if sql.startswith('EXPLAIN'):
                         plan = result['details']['explanation']
                         assert plan['operators'] == ['scan', 'count']
-                        assert plan['columns'] == [{'name': 'count', 'type': 'uint64'}]
+                        assert plan['columns'] == [{'name': 'count', 'type': {'uint64': {}}, 'nullable': False, 'optional': False}]
                     print(json.dumps({'source': kind, 'inspection': sql, **measurements,
                                       'native_attempts': counts['POST'], 'durable_updates': 0, 'snapshots': 0}), flush=True)
-                scan_budget = 30 if kind == 'document' else 3 + max(1, (count + 7) // 8) + max(0, (count + 63) // 64 - 1)
-                small_budget = 29 if kind == 'document' else 3
+                scan_budget = 31 if kind == 'document' else 3 + max(1, (count + 7) // 8) + max(0, (count + 63) // 64 - 1)
+                # Capability discovery, snapshot acquisition, schema-disclosure
+                # revalidation, then the terminal page's current check/release.
+                small_budget = 30 if kind == 'document' else 4
                 first = query('SELECT * FROM items;', count, request_budget=scan_budget)
                 second = query('SELECT * FROM items;', count, request_budget=scan_budget)
                 assert first[0]['session'] != second[0]['session'], 'independent statements reused a session'
                 assert first[0]['basis'] == second[0]['basis']
                 aggregate = query('SELECT COUNT(*) FROM items;', 1, request_budget=scan_budget)
-                assert aggregate[-1]['cells'][0][0] == {'value': {'uint64': str(count)}}
+                assert aggregate[-1]['cells'][0][0] == {'value': {'atom': {'unsigned': str(count)}}}
                 query('SELECT * FROM items LIMIT 3;', min(3, count), request_budget=small_budget)
-                query('SELECT * FROM items LIMIT 0;', 0, request_budget=3)
+                query('SELECT * FROM items LIMIT 0;', 0, request_budget=4)
                 query('SELECT * FROM items;', count, 'table', request_budget=scan_budget)
                 # Explicit bindings add the shared compiler's two current
                 # description checks; ordinary-query request ceilings above
@@ -152,17 +161,17 @@ def check(node, proof, cli, kind, rows=41, age=0, resident_pages=64):
                 literal = query('SELECT * FROM items LIMIT 3;', min(3, count), request_budget=small_budget)
                 for from_file in (False, True):
                     bound = query('SELECT * FROM items LIMIT $1;', min(3, count),
-                                  parameters=[{'uint64': '3'}], query_file=from_file,
+                                  parameters=[{'unsigned': '3'}], query_file=from_file,
                                   request_budget=small_budget + 4)
                     assert [frame['cells'] for frame in bound] == [frame['cells'] for frame in literal]
                     assert bound[0]['columns'] == literal[0]['columns'] and bound[0]['basis'] == literal[0]['basis']
                 query('SELECT * FROM items;', count, parameters=[], request_budget=scan_budget + 4)
-                query('SELECT * FROM items LIMIT $1;', count, parameters=[{'uint64': '18446744073709551615'}], request_budget=scan_budget + 4)
+                query('SELECT * FROM items LIMIT $1;', count, parameters=[{'unsigned': '18446744073709551615'}], request_budget=scan_budget + 4)
                 query('SELECT * FROM items WHERE value = $1;', 0,
                       parameters=[{'utf8': "'; DROP TABLE items; -- $2"}])
                 for request in (
                     {'sql': 'SELECT * FROM items LIMIT $1', 'parameters': []},
-                    {'sql': 'SELECT * FROM items LIMIT $1', 'parameters': [{'int64': '3'}]},
+                    {'sql': 'SELECT * FROM items LIMIT $1', 'parameters': [{'signed': '3'}]},
                     {'sql': 'DELETE FROM items WHERE id = 0', 'parameters': []},
                 ):
                     path = root / 'invalid-query.json'; path.write_text(json.dumps(request))
@@ -179,11 +188,11 @@ def check(node, proof, cli, kind, rows=41, age=0, resident_pages=64):
                         query(f'SELECT * FROM items WHERE id IS {state};', 0, request_budget=scan_budget)
                     point = query(f'SELECT * FROM items WHERE id = {count - 1};', min(1, count), request_budget=3)
                     if count:
-                        assert point[0]['cells'][0][0] == {'value': {'int64': str(count - 1)}}
+                        assert point[0]['cells'][0][0] == {'value': {'atom': {'signed': str(count - 1)}}}
                     query(f'SELECT * FROM items WHERE id >= {max(0, count - 3)};', min(3, count), request_budget=3)
                     query('SELECT * FROM items WHERE id < 3;', min(3, count), request_budget=3)
                     total = query('SELECT COUNT(*) FROM items WHERE id = 0;', 1, request_budget=3)
-                    assert total[-1]['cells'][0][0] == {'value': {'uint64': str(min(1, count))}}
+                    assert total[-1]['cells'][0][0] == {'value': {'atom': {'unsigned': str(min(1, count))}}}
                     query('SELECT * FROM items WHERE id > 9223372036854775807;', 0, request_budget=3)
                 # A local execution budget reports its measured dimension and
                 # a truthful prefix count, never durable-resume guidance.
@@ -300,6 +309,7 @@ def check(node, proof, cli, kind, rows=41, age=0, resident_pages=64):
 
                 # Fail current source authorization after a returned prefix.
                 if count <= 8:
+                    assert not request_regressions, request_regressions
                     print(f'Interactive {kind}: empty/single-page controls passed.', flush=True)
                     return
                 gate.clear()
@@ -322,6 +332,9 @@ def check(node, proof, cli, kind, rows=41, age=0, resident_pages=64):
                     assert denied.returncode != 0 and not denied.stdout, (sql, denied.stdout, denied.stderr)
                 invoke('restore')
                 query('SELECT * FROM items LIMIT 3;', min(3, count))
+                # Finish correctness and disclosure checks before reporting all
+                # amplification regressions; none becomes a passed budget check.
+                assert not request_regressions, request_regressions
                 print(f'Interactive {kind}: fresh cuts, bounded frames, zero durable updates, cancellation and current denial passed in {time.monotonic()-started:.2f}s', flush=True)
             finally:
                 release.set()

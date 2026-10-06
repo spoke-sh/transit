@@ -281,5 +281,50 @@ pub fn Reader(comptime Source: type) type {
             try ref.validate();
             return self.pages.read(self.source, .{ .id = ref.id, .spec = ref.spec }, output);
         }
+        /// At most eight row headers and 32 chunk keys. Large rows fall back to
+        /// normal incremental reads. No chunks are acquired until every header
+        /// has passed the same manifest, spec and publication-lifecycle checks.
+        pub fn prefetchBlobs(self: *@This(), refs: []const Data.Blob) !void {
+            if (refs.len == 0 or refs.len > p.Growth.page_size) return error.InvalidTablePageSize;
+            var headers: [1 + p.Growth.page_size]p.Value = undefined;
+            headers[0] = key(self.pages.object, 'd', 0);
+            for (refs, 0..) |ref, i| {
+                try ref.validate();
+                headers[i + 1] = key(self.pages.object, if (ref.spec.length <= inline_bytes) 'i' else 'r', ref.id);
+            }
+            var at: usize = 0;
+            while (at < refs.len + 1) {
+                const end = @min(at + p.Growth.page_size, refs.len + 1);
+                try prefetch(self.source, headers[at..end]);
+                at = end;
+            }
+            const limit = try self.pages.check(self.source);
+            for (refs) |ref| {
+                if (ref.spec.length > limit) return error.InvalidTablePage;
+                if (ref.spec.length <= inline_bytes) {
+                    const value = (try self.source.read(key(self.pages.object, 'i', ref.id))) orelse return error.TablePageNotFound;
+                    try validateInline(value, ref.spec);
+                } else {
+                    const cursor = try self.pages.publication().open(self.source, ref.id);
+                    if (!std.meta.eql(cursor.spec, ref.spec)) return error.InvalidTablePage;
+                }
+            }
+            var chunks: [32]p.Value = undefined;
+            var count: usize = 0;
+            outer: for (refs) |ref| {
+                if (ref.spec.length <= inline_bytes) continue;
+                for (0..ref.spec.chunks()) |i| {
+                    if (count == chunks.len) break :outer;
+                    chunks[count] = Pub.key(.table, self.pages.object, 'c', ref.id, @intCast(i));
+                    count += 1;
+                }
+            }
+            at = 0;
+            while (at < count) {
+                const end = @min(at + p.Growth.page_size, count);
+                try prefetch(self.source, chunks[at..end]);
+                at = end;
+            }
+        }
     };
 }

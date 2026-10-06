@@ -12,6 +12,7 @@ const Store = struct {
     denied: bool = false,
     fail_after: ?usize = null,
     max_index_read: usize = 0,
+    remaining_blobs: ?usize = null,
     fn deinit(self: *Store) void {
         for (self.records.items) |record| self.allocator.free(record);
         self.records.deinit(self.allocator);
@@ -30,6 +31,10 @@ const Store = struct {
         return bytes;
     }
     pub fn loadBlob(self: *Store, ref: Data.Blob, output: []u8) ![]const u8 {
+        if (self.remaining_blobs) |left| {
+            if (left == 0) return error.StorageUnavailable;
+            self.remaining_blobs = left - 1;
+        }
         return self.read(ref.id, output);
     }
     pub fn save(self: *Store, spec: Pub.Spec, bytes: []const u8) !u64 {
@@ -174,4 +179,34 @@ fn allocationCase(allocator: std.mem.Allocator) !void {
     defer owned.deinit();
     try e.expectEqualStrings("payload", owned.row().cells[2].value.atom.bytes);
     try e.expectEqual(null, empty.index.root);
+}
+
+fn readPage(allocator: std.mem.Allocator, data: Data, store: *Store) !void {
+    var rows: [8]?Row.Owned = undefined;
+    const count = try data.page(allocator, store, null, &rows);
+    defer for (&rows) |*slot| if (slot.*) |*row| row.deinit();
+    try e.expectEqual(@as(usize, 8), count);
+    for (rows, 0..) |slot, i| try e.expectEqualDeep(identity(@intCast(i)), slot.?.identity);
+}
+test "bounded Table pages retain order and release an incomplete prefix on read or allocation failure" {
+    var store: Store = .{};
+    defer store.deinit();
+    var data: Data = .{ .schema = schema };
+    for (0..11) |i| data = (try data.insert(e.allocator, &store, .{ .identity = identity(@intCast(i)), .cells = &.{ text("tenant"), integer(@intCast(i)), text("payload") } })).data;
+    try e.checkAllAllocationFailures(e.allocator, readPage, .{ data, &store });
+    var rows: [8]?Row.Owned = undefined;
+    try e.expectEqual(@as(usize, 3), try data.page(e.allocator, &store, identity(7), &rows));
+    for (&rows, 0..) |*slot, i| {
+        if (i < 3) {
+            try e.expectEqualDeep(identity(@intCast(i + 8)), slot.*.?.identity);
+            slot.*.?.deinit();
+        } else try e.expect(slot.* == null);
+    }
+    try e.expectEqual(@as(usize, 0), try data.page(e.allocator, &store, identity(10), &rows));
+    store.remaining_blobs = 2;
+    try e.expectError(error.StorageUnavailable, data.page(e.allocator, &store, null, &rows));
+    for (rows) |slot| try e.expect(slot == null);
+    try e.expectError(error.InvalidTablePageSize, data.page(e.allocator, &store, null, rows[0..0]));
+    store.remaining_blobs = null;
+    try readPage(e.allocator, data, &store);
 }

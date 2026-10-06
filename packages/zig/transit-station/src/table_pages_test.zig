@@ -1443,3 +1443,64 @@ test "Table index cache reuses bodies but rechecks basis, manifest, lifecycle an
     source.view.id += 1;
     try t.expectError(error.InvalidPublicationDigest, reader.load(ref, &output));
 }
+
+test "row lookahead batches bounded headers before chunks and preserves digest and lifecycle gates" {
+    var store: Store = .{};
+    defer store.deinit();
+    const pages = try store.create();
+    const payload: [600]u8 = @splat('z');
+    var refs: [8]Data.Blob = undefined;
+    for (&refs, 0..) |*ref, i| {
+        ref.* = .{ .id = 20 + i, .spec = try Pub.Digest.of(Data.row_format, &payload) };
+        for (0..16) |_| {
+            var turn = try store.capture();
+            const step = try pages.stage(&turn, .{ .id = ref.id, .spec = ref.spec }, &payload);
+            try store.commit(turn);
+            if (step == .ready) break;
+        } else return error.UnfinishedTestPage;
+    }
+    var turn = try store.capture();
+    const Source = struct {
+        source: *Turn,
+        view: p.Growth.View,
+        batches: usize = 0,
+        chunks: usize = 0,
+        pub fn prefetch(self: *@This(), keys: []const p.Value) !void {
+            try t.expect(keys.len > 0 and keys.len <= p.Growth.page_size);
+            self.batches += 1;
+            for (keys) |address| {
+                _ = try self.source.read(address);
+                if (address.data[14] == 'c') self.chunks += 1;
+            }
+        }
+        pub fn read(self: *@This(), address: p.Value) !?p.Value {
+            return self.source.read(address);
+        }
+    };
+    var source: Source = .{ .source = &turn, .view = turn.view };
+    var reader: Pages.Reader(*Source) = .{ .pages = pages, .source = &source };
+    try reader.prefetchBlobs(&refs);
+    try t.expectEqual(@as(usize, 5), source.batches); // Nine headers, then 24 chunk keys.
+    try t.expectEqual(@as(usize, 24), source.chunks);
+    var output: [payload.len]u8 = undefined;
+    for (refs) |ref| try t.expectEqualStrings(&payload, try reader.loadBlob(ref, &output));
+    const address = Pages.key(9, 'r', refs[7].id);
+    const original = store.state.get(address).?;
+    var descriptor = try Pub.Descriptor.decode(original);
+    descriptor.state = .retired;
+    try store.state.put(t.allocator, address, try descriptor.encode());
+    source = .{ .source = &turn, .view = turn.view };
+    try t.expectError(error.PublicationNotPublished, reader.prefetchBlobs(&refs));
+    try t.expectEqual(@as(usize, 0), source.chunks);
+    try store.state.put(t.allocator, address, original);
+    const chunk = Pub.key(.table, 9, 'c', refs[0].id, 0);
+    var damaged = store.state.get(chunk).?;
+    damaged.data[0] ^= 1;
+    try store.state.put(t.allocator, chunk, damaged);
+    try reader.prefetchBlobs(&refs);
+    try t.expectError(error.InvalidPublicationDigest, reader.loadBlob(refs[0], &output));
+    store.denied = true;
+    source = .{ .source = &turn, .view = turn.view };
+    try t.expectError(error.AccessDenied, reader.prefetchBlobs(&refs));
+    try t.expectEqual(@as(usize, 0), source.chunks);
+}

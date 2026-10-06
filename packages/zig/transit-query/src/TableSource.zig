@@ -245,18 +245,13 @@ pub fn page(self: Self, allocator: std.mem.Allocator, basis: Basis, cursor: Curs
         }
         result.next.done = true;
     } else {
-        for (&result.owned) |*slot| {
-            slot.* = try table.next(allocator, &pages, result.next.after);
-            if (slot.*) |row| {
-                result.next.scanned = try std.math.add(u64, result.next.scanned, 1);
-                if (result.next.scanned > basis.head.rows) return error.InvalidTableIndex;
-                result.next.after = row.identity;
-                result.count += 1;
-            } else {
-                if (result.next.scanned != basis.head.rows) return error.InvalidTableIndex;
-                result.next.done = true;
-                break;
-            }
+        result.count = @intCast(try table.page(allocator, &pages, result.next.after, &result.owned));
+        result.next.scanned = try std.math.add(u64, result.next.scanned, result.count);
+        if (result.next.scanned > basis.head.rows) return error.InvalidTableIndex;
+        if (result.count != 0) result.next.after = result.owned[result.count - 1].?.identity;
+        if (result.count < result.owned.len) {
+            if (result.next.scanned != basis.head.rows) return error.InvalidTableIndex;
+            result.next.done = true;
         }
     }
     _ = try self.checkCurrent(current, who);
