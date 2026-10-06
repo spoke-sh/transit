@@ -6600,6 +6600,40 @@
         "std"
       ]
     },
+    "packages/zig/transit-fuze/src/TableDmlCodec.zig": {
+      "errors": {
+        "InvalidMutationColumns": 1,
+        "InvalidMutationPlan": 12,
+        "InvalidTableName": 1,
+        "MutationBatchTooLarge": 2,
+        "TableSchemaChanged": 1,
+        "UnknownColumn": 1,
+        "ValueBudgetExceeded": 2
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "atomRead()": "<inferred>",
+        "cellRead()": "<inferred>",
+        "cellWrite()": "<inferred>",
+        "decode()": "<inferred>",
+        "encode()": "<inferred>",
+        "nameCheck()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 66,
+        "catch": 0
+      },
+      "imports": [
+        "Finite.zig",
+        "LogicalPredicate.zig",
+        "TableDml.zig",
+        "TableSchema.zig",
+        "Types.zig",
+        "std"
+      ]
+    },
     "packages/zig/transit-fuze/src/TableEvolution.zig": {
       "errors": {
         "InvalidColumnCount": 1,
@@ -7328,13 +7362,14 @@
         "readCell()": "anyerror",
         "readValue()": "anyerror",
         "writeAtom()": "<inferred>",
+        "writeBound()": "<inferred>",
         "writeBytes()": "<inferred>",
         "writeCell()": "anyerror",
         "writeValue()": "anyerror"
       },
       "open_error_set_uses": 4,
       "propagation": {
-        "try": 115,
+        "try": 117,
         "catch": 0
       },
       "imports": [
@@ -7504,6 +7539,7 @@
         "SqlTypes.zig",
         "TableDdl.zig",
         "TableDml.zig",
+        "TableDmlCodec.zig",
         "TableEvolution.zig",
         "TableMutation.zig",
         "TableRow.zig",

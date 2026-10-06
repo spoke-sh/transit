@@ -10855,6 +10855,18 @@ Policy revocation preserves pending work with zero writes; restoration permits
 the original continuation to finish. This is coordinator input validation, not
 evidence of a wired native self-message scheduler or disk restart.
 
+Compact schema-bound DML payloads pass **194/194 Fuze package tests**
+(`dml-codec-test2.log`). Independent Python bytes fix FDM1 with Unicode/defaulted
+values. Tests preserve complete plan fingerprints and DEFAULT/NULL/predicate
+distinctions, own nested data after source destruction, reject changed schemas
+before value decoding, cover every truncated prefix and reject malformed
+tags/counts/row states/lengths. Allocation-failure schedules include the separately
+owned schema and value arena; the initial compile caught that missing schema
+owner field before the corrected pass. Example int64 INSERT and point UPDATE
+payloads leave room for the planned 141-byte command header within the 243-byte
+Station frame payload. This is a size assertion, not native transport latency
+evidence or proof that the planned command header is implemented.
+
 ## Fuze logical type foundation
 
 The local `Types` profile has nine passing focused Zig tests, including 46

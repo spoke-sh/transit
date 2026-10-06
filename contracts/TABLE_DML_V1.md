@@ -45,6 +45,33 @@ order remains part of intent. The canonical intent has a 4 MiB operation bound;
 encoding uses at most one value envelope or one predicate atom as workspace.
 This additional typed-caller bound does not change SQL's 4096-byte text limit.
 
+## Schema-bound plan payload
+
+`TableDmlCodec` encodes `FDM1`, the 32-byte full schema fingerprint, a u8-length
+UTF-8 Table name, and action tag INSERT=1, UPDATE=2 or DELETE=3. Names contain
+1–255 bytes without NUL. Integers are little-endian. INSERT adds row count:u16
+and each complete structured row as length:u32 plus canonical bound cell bytes.
+UPDATE adds assignment count:u16 and each stable column ID:u64 followed by
+DEFAULT=0 or value=1; a value uses length:u32 and bound bytes under that column.
+DELETE has no action payload.
+
+Every action ends with predicate presence:u8. A present predicate has instruction
+count:u8 and tags atom=0, NOT=1, AND=2, OR=3. Atoms encode all=0; state=1 followed
+by column position:u8 and logical state:u8; or comparison=2 followed by column
+position:u8, comparison:u8 and length-prefixed bound scalar cell. Comparison
+codes are eq=0, ne=1, lt=2, le=3, gt=4, ge=5. State codes match FVL1. Predicate
+shape, selected types, row/default constraints and the complete 4 MiB intent
+budget are validated after decoding. The payload envelope allows at most that
+budget plus 512 bytes; no total Table/cardinality bound is introduced.
+
+The decoder requires the original schema and rejects a fingerprint mismatch
+before allocating or interpreting schema-dependent cells. Its result owns the
+schema, names, values and predicate literals. Truncation, invalid flags/tags and
+trailing data reject. Enclosing native requests supply the current shared
+definition, exact catalog metadata/identity and authorization; FDM1 alone does
+not admit work or authorize rebinding to a newer schema. Schema references let
+small point requests avoid retransmitting a complete descriptor.
+
 ## UPDATE and DELETE
 
 `UPDATE name SET column = value|DEFAULT, ... [WHERE predicate]` binds assignments

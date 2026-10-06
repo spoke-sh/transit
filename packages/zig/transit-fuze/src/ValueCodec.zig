@@ -26,6 +26,12 @@ pub fn encodeBound(cell: v.Cell, field: types.Field, output: []u8) ![]const u8 {
     try writeCell(cell, field.type, &writer);
     return writer.buffered();
 }
+/// Stream the same payload into an enclosing bounded writer. The caller enforces
+/// its encoded byte budget; recursive value validation still applies here.
+pub fn writeBound(cell: v.Cell, field: types.Field, writer: *std.Io.Writer) !void {
+    try cell.validate(field, .{});
+    try writeCell(cell, field.type, writer);
+}
 /// Cells and variable-width bytes belong to the supplied request arena. Both
 /// successful and failed parses retain allocations until that arena is released.
 /// The exact field is supplied by the enclosing verified schema binding.

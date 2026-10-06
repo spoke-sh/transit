@@ -45,6 +45,8 @@ def fixtures():
     row_payload += b'\3' + struct.pack('<I', len(name)) + name + b'\3\1\1'
     row_bytes = b'FTR1' + bytes([len(ROWS)]) + ROWS + layout + struct.pack('>QQI', 7, 12, 0)
     row_bytes += b'FVL1' + struct.pack('<H', len(storage_type)) + storage_type + b'\0' + row_payload
+    dml_bytes = (b'FDM1' + hashlib.sha256(encoded).digest() + b'\x06people\x01' +
+                 struct.pack('<HI', 1, len(row_payload)) + row_payload + b'\0')
     int32 = b'FTY1' + bytes([len(TYPES)]) + TYPES + b'\x09'
     key_bytes = b'FTK1' + bytes([len(ROWS)]) + ROWS + struct.pack('<QHQ', 7, 1, 11)
     key_bytes += b'FVL1' + struct.pack('<H', len(int32)) + int32 + b'\0\3' + struct.pack('<i', 12)
@@ -107,7 +109,7 @@ def fixtures():
         cases.append(dict(name=name, assignments=assignments, expected=expected, error=error))
     return dict(definition=DEFINITION.decode(), oracle='Python values/Unicode scalar length/struct',
                 schema_hex=encoded.hex(), fingerprint=hashlib.sha256(encoded).hexdigest(), cases=cases,
-                row_hex=row_bytes.hex(), layout=layout.hex(), key_hex=key_bytes.hex(),
+                row_hex=row_bytes.hex(), layout=layout.hex(), key_hex=key_bytes.hex(), dml_hex=dml_bytes.hex(),
                 key_digest=hashlib.sha256(key_bytes).hexdigest())
 
 
