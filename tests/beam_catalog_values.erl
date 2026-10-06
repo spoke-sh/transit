@@ -18,7 +18,7 @@ response(A,Root,Value,Action) -> C=open(A,Root,#{status=>0,value=>Value}),try Ac
 invalid({error,#transit_error{kind=Kind}}) -> true=lists:member(Kind,[incompatible_native,read_failed]),ok.
 definition_id() -> maps:get(<<"definition">>,transit_sdk_value:contract(transit_station_sdk)).
 scope_json() -> #{realm=>46,resource=>7,catalog=>integer_to_binary(max())}.
-metadata() -> #{scope=>scope_json(),object=>integer_to_binary(max()),revision=>integer_to_binary(max()),name=><<"items">>,schema_fingerprint=>binary:copy(<<"ab">>,32),principal=>17,operation=>integer_to_binary(max()),admitted_input=>9}.
+metadata() -> #{scope=>scope_json(),object=>integer_to_binary(max()),revision=>integer_to_binary(max()),name=><<"items">>,schema_fingerprint=>binary:copy(<<"ab">>,32),principal=>17,operation=>integer_to_binary(max()),admitted_input=>9,commitment=>#{format=>16#54434d01,length=>200,digest=>lists:duplicate(32,171)}}.
 schema() -> #{definition=>definition_id(),object=>integer_to_binary(max()),revision=><<"1">>,next_column=><<"2">>,columns=>[#{id=><<"1">>,name=><<"id">>,type=>#{int128=>#{}},nullable=>true,default=>null,max_characters=>null}],primary_key=>[]}.
 entry() -> #{metadata=>metadata(),head=>#{revision=><<"1">>,rows=><<"0">>,pending=><<"0">>}}.
 metadata_definition() -> (entry())#{schema=>schema()}.
@@ -26,7 +26,7 @@ metadata_page() -> #{resource_revision=>9,entries=>[entry()|lists:duplicate(7,nu
 metadata_values(A,Root) ->
     Max=max(),
     response(A,Root,#{definition=>metadata_definition()},fun(C)->
-        {ok,#transit_catalog_definition{metadata=#transit_catalog_metadata{object=Max,revision=Max,operation=Max,name= <<"items">>},schema=#transit_catalog_schema{columns=[#transit_catalog_column{id=1,type=int128,name= <<"id">>}]}}}=A:lookup(C,<<"items">>),
+        {ok,#transit_catalog_definition{metadata=#transit_catalog_metadata{object=Max,revision=Max,operation=Max,name= <<"items">>,commitment=#transit_catalog_metadata_commitment{bytes=200,digest=Digest}},schema=#transit_catalog_schema{columns=[#transit_catalog_column{id=1,type=int128,name= <<"id">>}]}}}=A:lookup(C,<<"items">>),true=Digest=:=binary:copy(<<171>>,32),
         invalid(A:lookup(C,<<"wrong">>))
     end),
     response(A,Root,#{historical=>#{metadata=>metadata(),schema=>schema()}},fun(C)->
@@ -48,7 +48,11 @@ metadata_values(A,Root) ->
         {_,_,#transit_catalog_connection{scope=Scope}}=config(Root,undefined),
         {ok,#transit_catalog_page{entries=[],next=#transit_catalog_cursor{after_object=9}}}=A:list(C,#transit_catalog_cursor{definition=definition_id(),scope=Scope,resource_revision=9,after_object=8})
     end),
-    E=entry(),D=metadata(),
+    D=metadata(),Commitment=maps:get(commitment,D),
+    lists:foreach(fun(Bad)->
+        response(A,Root,#{definition=>(metadata_definition())#{metadata=>Bad}},fun(C)->invalid(A:lookup(C,<<"items">>)) end)
+    end,[maps:remove(commitment,D),D#{commitment=>Commitment#{format=>0}},D#{commitment=>Commitment#{length=>0}},D#{commitment=>Commitment#{length=>437}},D#{commitment=>Commitment#{digest=>lists:duplicate(31,171)}}]),
+    E=entry(),
     Invalid=[Page#{entries=>lists:duplicate(7,null)},Page#{entries=>[null,E|lists:duplicate(6,null)]},Page#{entries=>[E,E|lists:duplicate(6,null)]},
         Page#{entries=>[E#{metadata=>D#{scope=>(scope_json())#{catalog=><<"1">>}}}|lists:duplicate(7,null)]},
         Page#{next=>maps:remove(definition,Next)},Page#{next=>Next#{definition=>binary:copy(<<"0">>,64)}},Page#{next=>Next#{after_object=><<"1">>}},Page#{next=>Next#{resource_revision=>10}},

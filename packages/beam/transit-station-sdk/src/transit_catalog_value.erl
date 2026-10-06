@@ -1,7 +1,7 @@
 %% Strict general Table values at the language/native boundary.
 -module(transit_catalog_value).
 -include("transit_catalog.hrl").
--export([action/1,decode/4,connection/2,supported/1,definition/0,limit/1,basis/1,check_request/2,context/0,with_context/2]).
+-export([scope/1,commitment/1,action/1,decode/4,connection/2,supported/1,definition/0,limit/1,basis/1,check_request/2,context/0,with_context/2]).
 positive(V) -> transit_sdk_value:integer(V,1,18446744073709551615).
 u64(V) -> transit_sdk_value:integer(V,0,18446744073709551615).
 small(V) -> transit_sdk_value:integer(V,1,4294967295).
@@ -162,9 +162,14 @@ parse_schema(V) ->
 parse_column(V) ->
     fields(V,[<<"id">>,<<"name">>,<<"type">>,<<"nullable">>,<<"default">>,<<"max_characters">>]),
     #transit_catalog_column{id=wide(maps:get(<<"id">>,V)),name=identifier(maps:get(<<"name">>,V)),type=transit_logical:type_from_wire(maps:get(<<"type">>,V)),nullable=transit_sdk_value:boolean(maps:get(<<"nullable">>,V)),default=parsed(maps:get(<<"default">>,V),fun transit_logical:cell_from_wire/1),max_characters=parsed(maps:get(<<"max_characters">>,V),fun small/1)}.
+commitment(#transit_catalog_metadata_commitment{bytes=Bytes,digest=Digest}) ->
+    #{<<"format">>=>16#54434d01,<<"length">>=>transit_sdk_value:integer(Bytes,1,436),<<"digest">>=>binary_to_list(fixed(Digest,32))}.
+parse_commitment(V) ->
+    fields(V,[<<"format">>,<<"length">>,<<"digest">>]),check(maps:get(<<"format">>,V)=:=16#54434d01),
+    #transit_catalog_metadata_commitment{bytes=transit_sdk_value:integer(maps:get(<<"length">>,V),1,436),digest=transit_station_value:digest(maps:get(<<"digest">>,V))}.
 metadata(V) ->
-    fields(V,[<<"scope">>,<<"object">>,<<"revision">>,<<"name">>,<<"schema_fingerprint">>,<<"principal">>,<<"operation">>,<<"admitted_input">>]),
-    #transit_catalog_metadata{scope=parse_scope(maps:get(<<"scope">>,V)),object=wide(maps:get(<<"object">>,V)),revision=wide(maps:get(<<"revision">>,V)),name=identifier(maps:get(<<"name">>,V)),schema_fingerprint=unhex(maps:get(<<"schema_fingerprint">>,V),32),principal=zero(maps:get(<<"principal">>,V)),operation=wide(maps:get(<<"operation">>,V)),admitted_input=counter(maps:get(<<"admitted_input">>,V))}.
+    fields(V,[<<"scope">>,<<"object">>,<<"revision">>,<<"name">>,<<"schema_fingerprint">>,<<"principal">>,<<"operation">>,<<"admitted_input">>,<<"commitment">>]),
+    #transit_catalog_metadata{scope=parse_scope(maps:get(<<"scope">>,V)),object=wide(maps:get(<<"object">>,V)),revision=wide(maps:get(<<"revision">>,V)),name=identifier(maps:get(<<"name">>,V)),schema_fingerprint=unhex(maps:get(<<"schema_fingerprint">>,V),32),principal=zero(maps:get(<<"principal">>,V)),operation=wide(maps:get(<<"operation">>,V)),admitted_input=counter(maps:get(<<"admitted_input">>,V)),commitment=parse_commitment(maps:get(<<"commitment">>,V))}.
 head(V) -> fields(V,[<<"revision">>,<<"rows">>,<<"pending">>]),#transit_catalog_head{revision=wide(maps:get(<<"revision">>,V)),rows=number(maps:get(<<"rows">>,V)),pending=number(maps:get(<<"pending">>,V))}.
 resolved(null,_,_) -> undefined;
 resolved(V,Scope,Name) ->

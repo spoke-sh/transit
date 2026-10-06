@@ -71,6 +71,12 @@ defmodule Transit.Station.Sdk.Catalog.Basis do
   defstruct [:object, :revision, :schema_fingerprint]
 end
 
+defmodule Transit.Station.Sdk.Catalog.MetadataCommitment do
+  @enforce_keys [:bytes, :digest]
+  @derive {Inspect, only: []}
+  defstruct [:bytes, :digest]
+end
+
 defmodule Transit.Station.Sdk.Catalog.Metadata do
   @enforce_keys [
     :scope,
@@ -80,7 +86,8 @@ defmodule Transit.Station.Sdk.Catalog.Metadata do
     :schema_fingerprint,
     :principal,
     :operation,
-    :admitted_input
+    :admitted_input,
+    :commitment
   ]
   @derive {Inspect, only: []}
   defstruct [
@@ -91,7 +98,8 @@ defmodule Transit.Station.Sdk.Catalog.Metadata do
     :schema_fingerprint,
     :principal,
     :operation,
-    :admitted_input
+    :admitted_input,
+    :commitment
   ]
 end
 
@@ -280,6 +288,7 @@ defmodule Transit.Station.Sdk.Catalog do
     Identity,
     Basis,
     Metadata,
+    MetadataCommitment,
     Head,
     Entry,
     Definition,
@@ -503,6 +512,9 @@ defmodule Transit.Station.Sdk.Catalog do
         left
       )
 
+  defp walk(%MetadataCommitment{} = v, :native, depth, left),
+    do: tagged(:transit_catalog_metadata_commitment, [v.bytes, v.digest], :native, depth, left)
+
   defp walk(%Metadata{} = v, :native, depth, left),
     do:
       tagged(
@@ -515,7 +527,8 @@ defmodule Transit.Station.Sdk.Catalog do
           v.schema_fingerprint,
           v.principal,
           v.operation,
-          v.admitted_input
+          v.admitted_input,
+          v.commitment
         ],
         :native,
         depth,
@@ -739,9 +752,14 @@ defmodule Transit.Station.Sdk.Catalog do
     {%Basis{object: o0, revision: o1, schema_fingerprint: o2}, next}
   end
 
-  defp walk({:transit_catalog_metadata, v0, v1, v2, v3, v4, v5, v6, v7}, :public, depth, left) do
-    {[o0, o1, o2, o3, o4, o5, o6, o7], next} =
-      children([v0, v1, v2, v3, v4, v5, v6, v7], :public, depth, left)
+  defp walk({:transit_catalog_metadata_commitment, bytes, digest}, :public, depth, left) do
+    {[bytes, digest], next} = children([bytes, digest], :public, depth, left)
+    {%MetadataCommitment{bytes: bytes, digest: digest}, next}
+  end
+
+  defp walk({:transit_catalog_metadata, v0, v1, v2, v3, v4, v5, v6, v7, v8}, :public, depth, left) do
+    {[o0, o1, o2, o3, o4, o5, o6, o7, o8], next} =
+      children([v0, v1, v2, v3, v4, v5, v6, v7, v8], :public, depth, left)
 
     {%Metadata{
        scope: o0,
@@ -751,7 +769,8 @@ defmodule Transit.Station.Sdk.Catalog do
        schema_fingerprint: o4,
        principal: o5,
        operation: o6,
-       admitted_input: o7
+       admitted_input: o7,
+       commitment: o8
      }, next}
   end
 

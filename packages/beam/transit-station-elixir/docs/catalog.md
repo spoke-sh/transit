@@ -70,3 +70,7 @@ bytes; prepared commands permit 8192 bytes. Catalog frames and nesting use their
 own declared limits while raw callers retain their smaller bounds. See the shared
 guide for all operation limits and the [proof ledger](../../../../tests/README.md)
 for executed qualification.
+
+Catalog metadata retains the immutable metadata publication commitment: its
+byte length and 32-byte digest. Missing or malformed commitments are rejected;
+query sources use this evidence with the catalog owner and resolved schema.

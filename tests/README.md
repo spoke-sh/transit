@@ -16012,3 +16012,17 @@ cancellation/join (`dotnet-query-boundary1.log`). Query inputs/results reuse the
 logical model, and Table sources carry catalog metadata commitments. These
 checks do not establish admitted-mutation cancellation or native query recovery;
 the latter still requires the common catalog query fixture migration.
+
+
+### Erlang and Elixir logical query callers
+
+Fresh BEAM packages and examples compile with warnings as errors
+(`beam-query-build1.log` in the local Table-schema campaign). Both isolated
+installed callers pass the shared source/predicate/Arrow codec schedule,
+128 Unicode columns, uint128 predicates and nested uint128/null results
+(`beam-query-query1.log`). Both catalog boundary consumers pass retained
+commitment checks, missing/malformed commitment rejection, schema history,
+recursive bounds, large frames, uncertain receipts and joined waiter loss
+(`beam-query-boundary1.log`). Catalog and query values survive their client
+lifetimes. These local codecs and boundary schedules do not establish native
+query recovery; the common catalog query fixture migration remains required.

@@ -155,3 +155,7 @@ The [Table reference](../../../../docs/reference/tables.md) and
 [catalog contract](../../../../contracts/DECLARATIVE_CATALOG_V1.md) own authority,
 publication and retention. The [proof ledger](../../../../tests/README.md) records
 installed-package and recovery evidence and its limits.
+
+Catalog metadata retains the immutable metadata publication commitment: its
+byte length and 32-byte digest. Missing or malformed commitments are rejected;
+query sources use this evidence with the catalog owner and resolved schema.

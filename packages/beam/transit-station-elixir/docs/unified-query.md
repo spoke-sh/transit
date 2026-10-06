@@ -3,8 +3,13 @@
 `Transit.Station.Sdk.UnifiedQuery` supplies structs and tagged results over the
 [public Erlang query API](../../transit-station-sdk/docs/unified-query.md).
 `KvSource`, `TableSource` and `DocumentSource` share `Plan`, `Budgets`, typed
-projections and six tagged scalar types. Source/plan semantics and binary codecs
-remain in shared Zig. Explicit v1 querying does not change the original Table API.
+projections and shared logical descriptors, atoms and cells. `TableSource` takes
+an owner plus catalog metadata and schema; metadata includes its immutable
+publication commitment. Result `Column` values carry nullable/optional flags,
+with up to 128 columns and 255-byte UTF-8 names. KV decoders and Document
+`DecoderColumn` projections retain their six scalar types and the eight-column
+Document projection limit. Source/plan semantics and binary codecs remain in
+shared Zig.
 
 ```elixir
 alias Transit.Station.Sdk.UnifiedQuery, as: Q
@@ -36,11 +41,11 @@ cancel/retire/collect commands with the same persistence rules.
 `compile_sql(client, source, name, sql, budgets, parameters \ nil)` returns
 `{:ok, %Bundle{}}` or a tagged error through the shared Erlang owner. Bindings are
 a list of the existing tagged scalars, such as `{:utf8, "value"}` and
-`{:uint64, 8}`. `nil` selects ordinary SQL; `[]` selects a template without
+`{:unsigned, 8}`. `nil` selects ordinary SQL; `[]` selects a template without
 placeholders. The immutable result survives client close.
 
 The name binds one explicit source. SQL is limited to 4096 bytes and bindings to
-three exact scalar values, with uint64 for LIMIT; no casts, null parameters or
+65 exact logical atoms, with an unsigned uint64-range atom for LIMIT; no casts, null parameters or
 text substitution occur. Compilation checks current source access and budgets
 before and after binding and returns no bundle on failure. It takes no snapshot
 and submits no query. Use the existing upload workflow for the returned bundle;
@@ -60,7 +65,10 @@ the configured source; local tasks do not extend its permission.
 `page` rechecks current source access, lifecycle and complete result coverage.
 It returns immutable IPC and manifest evidence with an optional opaque cursor;
 `nil` continuation means verified complete coverage. `decode_arrow` preserves
-`:missing`, `:null`, type errors, typed values and ordered conflict alternatives.
+`:missing`, `:null`, type errors, nested logical values and ordered
+`Logical.Alternative` values. A scalar cell is `{:value, {:atom, atom}}`;
+integers retain their full 128-bit range. Manifest evidence includes the retained
+source head.
 Local decoding does not establish current permission. Pages and values survive
 close; no optional BEAM Arrow dependency is selected.
 

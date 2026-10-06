@@ -326,12 +326,12 @@ def install_dotnet(root, fixtures, packages=ROOT/'.cache/bindings/dotnet'):
     return open_callers
 
 
-def install_beam(root, fixtures, language):
+def install_beam(root, fixtures, language, packages=ROOT / '.cache/bindings/beam'):
     root.mkdir(); lib = root/'lib'; lib.mkdir(); classes = root/'classes'; classes.mkdir()
     names = ['transit_native_client', 'transit_client', 'transit_native_station', 'transit_station_sdk']
     if language == 'elixir': names += ['transit_client_elixir', 'transit_station_elixir']
     for name in names:
-        with tarfile.open(ROOT/'.cache/bindings/beam'/f'{name}-0.2.0.tar.gz') as archive: archive.extractall(lib, filter='data')
+        with tarfile.open(packages/f'{name}-0.2.0.tar.gz') as archive: archive.extractall(lib, filter='data')
     env = {k: v for k, v in os.environ.items() if k not in ('ERL_LIBS', 'ERL_FLAGS', 'TRANSIT_HOST')}
     env.update(ERL_LIBS=str(lib), ERL_FLAGS='+S 2:2 +SDcpu 1 +SDio 1')
     sources = ['beam_unified_controller.erl'] + (['beam_unified_adapter.erl'] if language == 'erlang' else [])

@@ -13,7 +13,8 @@
 -record(transit_catalog_schema, {object :: pos_integer(), revision :: pos_integer(), next_column :: pos_integer(), columns=[], primary_key=[]}).
 -record(transit_catalog_identity, {operation :: pos_integer(), namespace :: pos_integer()}).
 -record(transit_catalog_basis, {object :: pos_integer(), revision :: pos_integer(), schema_fingerprint :: binary()}).
--record(transit_catalog_metadata, {scope :: #transit_catalog_scope{}, object :: pos_integer(), revision :: pos_integer(), name :: binary(), schema_fingerprint :: binary(), principal :: non_neg_integer(), operation :: pos_integer(), admitted_input :: pos_integer()}).
+-record(transit_catalog_metadata_commitment, {bytes :: pos_integer(), digest :: binary()}).
+-record(transit_catalog_metadata, {scope :: #transit_catalog_scope{}, object :: pos_integer(), revision :: pos_integer(), name :: binary(), schema_fingerprint :: binary(), principal :: non_neg_integer(), operation :: pos_integer(), admitted_input :: pos_integer(), commitment :: #transit_catalog_metadata_commitment{}}).
 -record(transit_catalog_head, {revision :: pos_integer(), rows :: non_neg_integer(), pending :: non_neg_integer()}).
 -record(transit_catalog_entry, {metadata :: #transit_catalog_metadata{}, head :: #transit_catalog_head{}}).
 -record(transit_catalog_definition, {metadata :: #transit_catalog_metadata{}, head :: #transit_catalog_head{}, schema :: #transit_catalog_schema{}}).

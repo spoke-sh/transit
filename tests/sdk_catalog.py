@@ -298,7 +298,7 @@ def install_dotnet(target, packages=ROOT / '.cache/bindings/dotnet'):
     return 'dotnet', create
 
 
-def install_beam(target, language):
+def install_beam(target, language, packages=ROOT / '.cache/bindings/beam'):
     target.mkdir()
     library = target / 'lib'
     library.mkdir()
@@ -310,7 +310,7 @@ def install_beam(target, language):
     for name in names:
         filename = f'{name}-0.2.0.tar.gz'
         path = target / filename
-        shutil.copy2(ROOT / '.cache/bindings/beam' / filename, path)
+        shutil.copy2(packages / filename, path)
         artifacts[filename] = hashlib.sha256(path.read_bytes()).hexdigest()
         with tarfile.open(path) as archive: archive.extractall(library, filter='data')
     (target / 'artifacts.json').write_text(json.dumps(artifacts))
