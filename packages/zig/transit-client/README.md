@@ -73,6 +73,14 @@ cache no grants, resource metadata, values or principal sequence. Every read and
 snapshot operation retains its current signed authorization, definition checks
 and ordinary failure behavior after an authority restart.
 
+`ResourceReader.Batches.cached(batch)` creates operation-local scratch for the
+batch's exact resource revision. It holds at most 64 keys, including absent
+entries, and coalesces up to eight misses per fetch. Eviction triggers another
+signed read. Revision changes and read failures poison the scratch reader;
+cached values cannot clear that failure. This object does not pin history or
+supply fresh authorization: discard it after the observation and check current
+permission again before disclosing a derived result.
+
 Delivered input includes position, opaque value and
 authenticated origin within the current native definition. Match the expected source PID/turn or effect attempt before interpreting
 application correlation; claimed senders inside opaque bytes carry no authority.

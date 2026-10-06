@@ -132,6 +132,9 @@ pub fn batches(self: Self) !Batches {
 }
 pub const Batches = struct {
     client: Self,
+    pub fn cached(self: Batches, seed: Batch) Cached(Batches) {
+        return Cached(Batches).init(self, seed);
+    }
     /// Reuse the checked capability reply for this same caller/connection.
     /// This accepts protocol support only; every read rechecks current rights.
     pub fn init(client: Self, capabilities: g.Capabilities) !Batches {
@@ -146,3 +149,105 @@ pub const Batches = struct {
         return .{ .resource = result.resource, .view = .{ .resource = resource, .revision = result.resource.revision }, .keys = requested, .entries = result.entries };
     }
 };
+
+/// Bounded scratch for one exact observation. Discard it after the operation;
+/// it retains neither a resource version nor permission. Missing entries are
+/// cached too. Callers still need fresh authorization before disclosure.
+pub fn Cached(comptime Backend: type) type {
+    return struct {
+        const Cache = @This();
+        backend: Backend,
+        view: @FieldType(Batch, "view"),
+        resource: g.Resource,
+        slots: [64]?struct { key: p.Value, entry: ?g.Entry } = @splat(null),
+        next: usize = 0,
+        failed: ?anyerror = null,
+
+        pub fn init(backend: Backend, seed: Batch) Cache {
+            var result: Cache = .{ .backend = backend, .view = seed.view, .resource = seed.resource };
+            for (seed.keys, seed.entries) |key, value| if (key) |requested| result.remember(requested, value);
+            return result;
+        }
+        fn remember(self: *Cache, key: p.Value, value: ?g.Entry) void {
+            self.slots[self.next] = .{ .key = key, .entry = value };
+            self.next = (self.next + 1) % self.slots.len;
+        }
+        pub fn read(self: *Cache, key: p.Value) !?p.Value {
+            return if (try self.entry(key)) |value| value.value else null;
+        }
+        pub fn entry(self: *Cache, key: p.Value) !?g.Entry {
+            if (self.failed) |err| return err;
+            for (self.slots) |slot| if (slot) |value| if (value.key.eql(key)) return value.entry;
+            try self.prefetch(&.{key});
+            for (self.slots) |slot| if (slot) |value| if (value.key.eql(key)) return value.entry;
+            return error.InvalidResourceRead;
+        }
+        pub fn prefetch(self: *Cache, keys: []const p.Value) !void {
+            if (self.failed) |err| return err;
+            self.fetch(keys) catch |err| {
+                self.failed = err;
+                return err;
+            };
+        }
+        fn fetch(self: *Cache, keys: []const p.Value) !void {
+            if (keys.len > g.page_size) return error.InvalidResourceRead;
+            var missing: [g.page_size]p.Value = undefined;
+            var count: usize = 0;
+            outer: for (keys) |key| {
+                for (self.slots) |slot| if (slot) |value| if (value.key.eql(key)) continue :outer;
+                for (missing[0..count]) |previous| if (previous.eql(key)) continue :outer;
+                missing[count] = key;
+                count += 1;
+            }
+            if (count == 0) return;
+            const batch = try self.backend.read(self.view.resource, self.view.revision, missing[0..count]);
+            if (!@import("std").meta.eql(batch.resource, self.resource) or !@import("std").meta.eql(batch.view, self.view)) return error.InvalidResourceRead;
+            for (missing[0..count]) |key| self.remember(key, try batch.entry(key));
+        }
+    };
+}
+
+test "one-cut cache bounds memory, coalesces misses and preserves read poison" {
+    const std = @import("std");
+    const t = std.testing;
+    const Backend = struct {
+        calls: *usize,
+        change_cut: *bool,
+        pub fn read(self: @This(), resource: u64, revision: ?u64, keys: []const p.Value) !Batch {
+            self.calls.* += 1;
+            const cut = revision.? + @as(u64, if (self.change_cut.*) 1 else 0);
+            var result: Batch = .{ .resource = .{ .id = resource, .writer = 2, .owner = null, .revision = cut, .deadline_ms = null }, .view = .{ .resource = resource, .revision = cut }, .keys = @splat(null), .entries = @splat(null) };
+            for (keys, 0..) |key, i| {
+                result.keys[i] = key;
+                if (!key.eql(try p.Value.init("absent"))) result.entries[i] = .{ .key = key, .value = key, .revision = cut };
+            }
+            return result;
+        }
+    };
+    var calls: usize = 0;
+    var change_cut = false;
+    const backend: Backend = .{ .calls = &calls, .change_cut = &change_cut };
+    const first = try p.Value.init("seed");
+    const second = try p.Value.init("next");
+    const absent = try p.Value.init("absent");
+    var cache = Cached(Backend).init(backend, try backend.read(7, 9, &.{first}));
+    try t.expect((try cache.read(first)).?.eql(first));
+    try t.expectEqual(@as(usize, 1), calls);
+    try cache.prefetch(&.{ first, second, absent, second });
+    try t.expectEqual(@as(usize, 2), calls);
+    try t.expect((try cache.read(second)).?.eql(second));
+    try t.expect(try cache.read(absent) == null);
+    try t.expectEqual(@as(usize, 2), calls);
+    for (0..65) |i| {
+        const key = p.Value.integer(@intCast(i));
+        try t.expect((try cache.read(key)).?.eql(key));
+    }
+    const before = calls;
+    try t.expect((try cache.read(first)).?.eql(first));
+    try t.expectEqual(before + 1, calls); // Eviction is a miss, never a collection limit.
+    change_cut = true;
+    try t.expectError(error.InvalidResourceRead, cache.read(try p.Value.init("foreign")));
+    const failed = calls;
+    try t.expectError(error.InvalidResourceRead, cache.read(first));
+    try t.expectEqual(failed, calls); // Even cached data cannot clear a failed read.
+}

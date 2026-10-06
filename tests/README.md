@@ -16199,3 +16199,25 @@ offline history proof passes (`console-logical-history1.log`) with a valid KV
 configuration and a network trap. Native Table lifecycle coverage remains in the
 Table schedule above; this console run does not qualify the remaining Table
 interactive, Board/browser or deployed reactive consumers.
+
+
+### Exact-cut Table metadata reader
+
+The public bounded resource reader passes all 19 client ReleaseSafe tests
+(`client-cached-metadata2.log`), including cached absence, eviction/refetch,
+coalesced misses and sticky rejection of a changed resource cut. All 115 query
+ReleaseSafe tests pass (`query-cached-metadata2.log`), including interpretation
+of current authorization against its original requested keys without another
+policy lookup or borrowing a formerly mapped principal's rights. The console
+build passes (`interactive-metadata-build2.log`).
+
+The native interactive KV schedule still passes in 2.69 seconds with unchanged
+request ceilings (`interactive-logical-kv3.log`). The Table schedule now executes
+its complete value, predicate, cancellation, fresh-cut and current-denial
+checks, but **fails** its final request-budget gate
+(`interactive-logical-table3.log`). Exact-cut scratch reduces Table inspection
+from 39 requests to 19. The general immutable row/index representation still
+costs 231 requests for this 41-row scan, 63 for short LIMIT and 39 for a key point
+lookup. Those measurements expose further batching work; they are not a passed
+performance qualification. The prior run failed Table capture with
+`UnrequestedResourceKey` (`interactive-logical-table2.log`).

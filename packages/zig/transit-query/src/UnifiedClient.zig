@@ -84,7 +84,8 @@ fn sourceMetadata(self: *Self, definition: q.SourceDefinition, keys: *[3]p.Value
     switch (definition.source) {
         .kv => return keys[0..1],
         .table => |table| {
-            var reader = try self.checked(definition.resource, self.connection.source);
+            const reader = try (try self.batchSupport()).read(definition.resource, null, keys[0..1]);
+            if (reader.resource.writer != self.connection.source) return error.QuerySourceUnavailable;
             const grant = (try q.UnifiedCapture.policy(&reader, self.connection.requester)) orelse return error.QueryDenied;
             const who = try grant.tablePrincipal(table);
             keys[1] = q.catalog.Records.key(table.scope.catalog, 'c', 0, 0);
@@ -112,8 +113,7 @@ pub fn interactiveMetadata(self: *Self, definition: q.SourceDefinition) ![g.Snap
 pub fn interactiveBatch(request: g.SnapshotRead.Current, value: g.SnapshotRead.CurrentResult) q.wire.ResourceReader.Batch {
     return .{ .resource = value.resource, .view = .{ .resource = value.resource.id, .revision = value.resource.revision }, .keys = request.keys, .entries = value.entries };
 }
-pub fn interactiveDescription(self: *Self, definition: q.SourceDefinition, result: g.SnapshotRead.Result) !Description {
-    const requests = try self.interactiveMetadata(definition);
+pub fn interactiveDescription(self: *Self, definition: q.SourceDefinition, requests: [g.SnapshotRead.current_resources]?g.SnapshotRead.Current, result: g.SnapshotRead.Result) !Description {
     const source = interactiveBatch(requests[0].?, result.current[0] orelse return error.InvalidResourceRead);
     const requester_source = interactiveBatch(requests[1].?, result.current[1] orelse return error.InvalidResourceRead);
     if (source.resource.writer != self.connection.source or requester_source.resource.writer != self.connection.requester) return error.QuerySourceUnavailable;
@@ -140,9 +140,7 @@ pub fn prepareSql(self: *Self, allocator: std.mem.Allocator, definition: q.Sourc
 pub fn bindSql(self: *Self, allocator: std.mem.Allocator, template: *const q.SqlTemplate, definition: q.SourceDefinition, values: []const q.fuze.Types.Values.Atom, limits: q.Bundle.Limits) !q.SqlTemplate.Bound {
     return template.bindCurrent(allocator, self, definition, values, limits);
 }
-fn describeOnce(self: *Self, definition: q.SourceDefinition, check_definition: bool) !Description {
-    var storage: [3]p.Value = undefined;
-    const keys = try self.sourceMetadata(definition, &storage);
+pub fn batchSupport(self: *Self) !q.wire.ResourceReader.Batches {
     if (self.batch_reads == null) {
         const reader = self.resources();
         const capabilities = (try reader.query(.capabilities)).body.capabilities;
@@ -151,15 +149,21 @@ fn describeOnce(self: *Self, definition: q.SourceDefinition, check_definition: b
         // reply. Cache no grants, source metadata, values or principal sequence.
         self.snapshot_support = q.wire.SnapshotReader.Support.init(reader, capabilities) catch null;
     }
-    const source = try self.batch_reads.?.read(self.connection.resource, null, keys);
-    const requests = try self.batch_reads.?.read(self.connection.requests, null, &.{ r.key('w', 0, 0), r.key('a', 0, 0) });
+    return self.batch_reads.?;
+}
+fn describeOnce(self: *Self, definition: q.SourceDefinition, check_definition: bool) !Description {
+    var storage: [3]p.Value = undefined;
+    const keys = try self.sourceMetadata(definition, &storage);
+    const batches = try self.batchSupport();
+    const source = try batches.read(self.connection.resource, null, keys);
+    const requests = try batches.read(self.connection.requests, null, &.{ r.key('w', 0, 0), r.key('a', 0, 0) });
     if (source.resource.writer != self.connection.source or requests.resource.writer != self.connection.requester) return error.QuerySourceUnavailable;
     try (q.UnifiedBehavior.Requester{ .principal = self.connection.principal, .source = self.connection.source }).check(&requests);
     const grant = (try q.UnifiedCapture.policy(&source, self.connection.requester)) orelse return error.QueryDenied;
     if (!grant.allow or grant.requests != self.connection.requests) return error.QueryDenied;
     try q.UnifiedSource.checkCurrent(definition, &source, try grant.principal(definition));
     if (check_definition and definition.source == .table) {
-        var current: q.wire.ResourceReader.Reader = .{ .client = self.resources(), .view = .{ .resource = source.view.resource, .revision = source.view.revision } };
+        var current = batches.cached(source);
         try definition.source.table.checkDefinition(self.wire.http.allocator, &current, try grant.tablePrincipal(definition.source.table));
     }
     return .{ .definition = definition, .resource_revision = source.view.revision, .policy_revision = grant.revision, .limits = grant.limits, .active = try q.UnifiedUpload.active(&requests) };

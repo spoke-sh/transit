@@ -338,3 +338,48 @@ test "embedded source plan and literal decoding share one request arena with exa
     bytes[4] ^= 1;
     try e.expectError(error.IncompatibleDefinition, Source.decodeInto(empty.allocator(), declaration));
 }
+
+test "interactive authorization uses its original key mapping without a second policy read" {
+    var store: Store = .{};
+    defer store.deinit();
+    try create(&store, "CREATE TABLE people (id INTEGER PRIMARY KEY, name TEXT)");
+    var found = try definition(&store);
+    defer found.deinit();
+    var owned = try Source.from(e.allocator, config, found);
+    defer owned.deinit();
+    const source: q.SourceDefinition = .{ .resource = config.scope.resource, .source = .{ .table = owned.source } };
+    var client: q.UnifiedClient = .{ .wire = undefined, .key = undefined, .connection = .{ .realm = 1, .principal = 23, .source = config.owner, .resource = config.scope.resource, .requester = 8, .requests = 10 } };
+    const g = q.protocol.Growth;
+    const p = q.protocol;
+    var requests: [g.SnapshotRead.current_resources]?g.SnapshotRead.Current = .{ .{ .resource = 7, .keys = @splat(null) }, .{ .resource = 10, .keys = @splat(null) } };
+    requests[0].?.keys[0] = q.UnifiedRecords.key('p', 8, 0);
+    requests[0].?.keys[1] = c.Records.key(config.scope.catalog, 'c', 0, 0);
+    requests[0].?.keys[2] = c.Records.key(config.scope.catalog, 'p', 17, 0);
+    requests[1].?.keys[0] = q.UnifiedRecords.key('w', 0, 0);
+    var current = try turn(&store);
+    var grant: q.UnifiedRecords.Policy = .{ .peer = 8, .requests = 10, .revision = 1, .allow = true, .limits = .{ .pages = 8, .segments = 8, .result_bytes = 65536 }, .target = .{ .catalog = .{ .scope = config.scope, .owner = config.owner, .principal = 17 } } };
+    var result: g.SnapshotRead.Result = .{ .snapshot = undefined, .current = .{ .{ .resource = .{ .id = 7, .writer = config.owner, .owner = null, .revision = current.view.revision, .deadline_ms = null }, .entries = @splat(null) }, .{ .resource = .{ .id = 10, .writer = 8, .owner = null, .revision = 1, .deadline_ms = null }, .entries = @splat(null) } } };
+    for (requests[0].?.keys, 0..) |key, i| if (key) |address| {
+        result.current[0].?.entries[i] = .{ .key = address, .value = if (i == 0) try grant.encode() else (try current.read(address)).?, .revision = current.view.revision };
+    };
+    var requester: [20]u8 = undefined;
+    requester[0..4].* = "UQH1".*;
+    std.mem.writeInt(u64, requester[4..12], 23, .little);
+    std.mem.writeInt(u64, requester[12..20], config.owner, .little);
+    result.current[1].?.entries[0] = .{ .key = requests[1].?.keys[0].?, .value = try p.Value.init(&requester), .revision = 1 };
+    const allowed = try client.interactiveDescription(source, requests, result);
+    try e.expectEqual(current.view.revision, allowed.resource_revision);
+    // A new mapping at acquisition cannot borrow the formerly requested
+    // principal's policy. In particular, no later network read repairs it.
+    grant.target.catalog.principal = 42;
+    result.current[0].?.entries[0].?.value = try grant.encode();
+    try e.expectError(error.UnrequestedResourceKey, client.interactiveDescription(source, requests, result));
+    grant.target.catalog.principal = 17;
+    grant.allow = false;
+    result.current[0].?.entries[0].?.value = try grant.encode();
+    try e.expectError(error.QueryDenied, client.interactiveDescription(source, requests, result));
+    grant.allow = true;
+    result.current[0].?.entries[0].?.value = try grant.encode();
+    result.current[0].?.entries[2] = null;
+    try e.expectError(error.CatalogDenied, client.interactiveDescription(source, requests, result));
+}

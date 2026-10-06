@@ -210,6 +210,13 @@ interactive query recovery, not the durability of accepted application state.
 Existing callers explicitly requesting durable captured jobs keep their recovery
 contract. A session does not require a new durable PID or principal.
 
+Table admission resolves catalog metadata and the complete schema at an exact
+resource revision. Repeated metadata lookups share a bounded 64-entry scratch
+cache for that observation; eviction fetches the record again. This cache does
+not retain permissions across operations. Current authorization is interpreted
+using the exact keys requested for that observation, and a fresh check precedes
+schema or result disclosure.
+
 Interactive execution failures identify the first failing scan row, source column
 and operation. Predicate failures include the zero-based postfix instruction;
 eager evaluation reports a later failing atom even when an earlier atom would

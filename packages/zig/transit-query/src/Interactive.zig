@@ -23,13 +23,13 @@ diagnostic: ?q.protocol.Diagnostic = null,
 
 pub fn open(client: *q.UnifiedClient, bundle: q.Bundle, nonce: [16]u8, allocator: std.mem.Allocator) !Self {
     try bundle.validate();
-    if (client.snapshot_support == null) client.snapshot_support = try q.wire.SnapshotReader.support(client.resources());
-    const support = client.snapshot_support.?;
+    if (client.snapshot_support == null) _ = try client.batchSupport();
+    const support = client.snapshot_support orelse return error.InteractiveQueriesUnavailable;
     const request = try opening(client, bundle, nonce);
     var acquired = try support.acquire(request);
     errdefer acquired.reader.close() catch {};
     if (acquired.reader.snapshot.resource.writer != client.connection.source) return error.QuerySourceUnavailable;
-    const description = try client.interactiveDescription(bundle.source, acquired.result);
+    const description = try client.interactiveDescription(bundle.source, request.current, acquired.result);
     if (!description.limits.permits(bundle.limits)) return error.QueryBudgetExceeded;
     var result: Self = .{ .bundle = bundle, .source = acquired.reader, .progress = undefined, .basis = undefined, .range = request.range };
     result.current = q.UnifiedClient.interactiveBatch(request.current[0].?, acquired.result.current[0].?);
@@ -39,10 +39,16 @@ pub fn open(client: *q.UnifiedClient, bundle: q.Bundle, nonce: [16]u8, allocator
     const grant = (try q.UnifiedCapture.policy(&result.current.?, client.connection.requester)) orelse return error.QueryDenied;
     // The opening snapshot is the admission cut. Current policy is checked
     // independently before any schema or row is disclosed.
-    result.basis = try q.UnifiedSource.capture(bundle.source, &data, &result.current.?, try grant.principal(bundle.source), allocator);
+    // Table admission resolves the complete live schema at the authorization
+    // batch's exact revision; that bounded batch alone is not a schema reader.
+    result.basis = if (bundle.source.source == .table) table: {
+        var current = (try client.batchSupport()).cached(result.current.?);
+        break :table try (try bundle.source.source.table.capture(allocator, &data, &current, try grant.tablePrincipal(bundle.source.source.table))).record();
+    } else try q.UnifiedSource.capture(bundle.source, &data, &result.current.?, try grant.principal(bundle.source), allocator);
     result.progress = try f.LogicalStream.Progress.start(try bundle.bind(try result.basis.fingerprint()));
-    const refreshed = try result.source.batch(.{ .snapshot = .{ .existing = result.source.snapshot.id }, .current = try client.interactiveMetadata(bundle.source) });
-    _ = try client.interactiveDescription(bundle.source, refreshed);
+    const metadata = try client.interactiveMetadata(bundle.source);
+    const refreshed = try result.source.batch(.{ .snapshot = .{ .existing = result.source.snapshot.id }, .current = metadata });
+    _ = try client.interactiveDescription(bundle.source, metadata, refreshed);
     return result;
 }
 pub fn close(self: *Self) !void {
@@ -100,7 +106,7 @@ pub fn next(self: *Self, client: *q.UnifiedClient, allocator: std.mem.Allocator,
     const current_policy = policy: {
         const metadata = try client.interactiveMetadata(self.bundle.source);
         const validated = try self.source.batch(.{ .snapshot = .{ .existing = self.source.snapshot.id }, .current = metadata, .finish = candidate.progress.finished != null });
-        const description = try client.interactiveDescription(self.bundle.source, validated);
+        const description = try client.interactiveDescription(self.bundle.source, metadata, validated);
         self.current = q.UnifiedClient.interactiveBatch(metadata[0].?, validated.current[0].?);
         break :policy description;
     };
@@ -115,7 +121,7 @@ pub fn next(self: *Self, client: *q.UnifiedClient, allocator: std.mem.Allocator,
 fn diagnosticAllowed(self: *Self, client: *q.UnifiedClient) bool {
     const metadata = client.interactiveMetadata(self.bundle.source) catch return false;
     const validated = self.source.batch(.{ .snapshot = .{ .existing = self.source.snapshot.id }, .current = metadata }) catch return false;
-    const permitted = client.interactiveDescription(self.bundle.source, validated) catch return false;
+    const permitted = client.interactiveDescription(self.bundle.source, metadata, validated) catch return false;
     return permitted.limits.permits(self.bundle.limits);
 }
 
