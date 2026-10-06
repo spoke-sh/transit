@@ -67,7 +67,12 @@ pub const Request = union(enum) {
     page: struct { namespace: []const u8, cursor: ?[]const u8 = null },
     prepare_control: struct { namespace: []const u8, operation: enum { cancel, collect, retire } },
 };
-pub const Page = struct { evidence: b.Page, cells: []const []const v.Cell };
+pub const Page = struct {
+    pub const json_schema_sequence_bounds = .{ .cells = q.SourceDefinition.max_columns };
+    pub const json_schema_outer_sequence_bounds = .{ .cells = q.fuze.LogicalArrow.max_rows };
+    evidence: b.Page,
+    cells: []const []const v.Cell,
+};
 pub const Response = union(enum) {
     description: Description,
     sql_capabilities: q.SqlCompilation.Capabilities,

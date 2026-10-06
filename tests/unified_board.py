@@ -58,7 +58,7 @@ def check(binary, root, kind, invoke, expected, fixture, start, browser=False):
 
     def api(operation, **kwargs): return request('/api/v1/query', operation, **kwargs)
     caps = request('/api/v1/capabilities')
-    assert caps['read_only'] and caps['query_enabled'] and caps['max_request_bytes'] == 49152
+    assert caps['read_only'] and caps['query_enabled'] and caps['max_request_bytes'] == 65536, caps
     atlas = request('/api/v1/atlas')
     assert atlas['identity']['permissions'] == 16 and atlas['query_version'] == 1
     assert atlas['query_resource'] == caller['connection']['resource']
@@ -74,8 +74,8 @@ def check(binary, root, kind, invoke, expected, fixture, start, browser=False):
     assert unsupported['err'] == 'UnsupportedQuery'
     assert unsupported['diagnostic']['category'] == 'unsupported'
     assert unsupported['diagnostic']['outcome'] == 'not_submitted'
-    literal = api({'inspect': {'sql': "EXPLAIN SELECT * FROM items WHERE id = 'oops'::uint64"}}, status=400)
-    assert literal['err'] == 'UnsupportedQuery' and literal['diagnostic']['code'] == 'sql.invalid_numeric_literal'
+    literal = api({'inspect': {'sql': 'EXPLAIN SELECT * FROM items WHERE value = TRUE'}}, status=400)
+    assert literal['err'] == 'UnsupportedQuery' and literal['diagnostic']['code'] == 'sql.type_mismatch', literal
     unknown = api({'inspect': {'sql': 'EXPLAIN SELECT missing FROM items'}}, status=400)['diagnostic']
     assert unknown['code'] == 'sql.unknown_column' and unknown['location']['offset'] == '15'
     assert any(f and f['field'] == 'column' and f['value'] == {'text': 'missing'} for f in unknown['facts'])
@@ -88,7 +88,7 @@ def check(binary, root, kind, invoke, expected, fixture, start, browser=False):
     api({'assist': {'sql':'SELECT','cursor':7,'generation':8}}, status=400)
     suggestions = api({'suggest': {'search': 'count'}})['suggestions']
     assert suggestions['resource'] == caller['connection']['resource']
-    assert suggestions['items'][0] == {'label': 'Count', 'sql': 'SELECT COUNT(*) FROM items'}
+    assert suggestions['items'][0] == {'label': 'Count', 'sql': 'SELECT COUNT(*) FROM "items"'}, suggestions
     assert len(suggestions['items']) <= 8  # Document column names can also contain 'count'.
     api({'compile': {'sql': suggestions['items'][0]['sql']}})
     assert api({'suggest': {'search': 'hidden_source'}})['suggestions']['items'] == []

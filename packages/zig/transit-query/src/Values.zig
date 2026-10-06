@@ -290,6 +290,8 @@ pub const Action = union(enum) {
     inspect_arrow: struct { columns: []const Column, rows: u8, ipc: []const u8 },
 };
 pub const Result = union(enum) {
+    pub const json_schema_sequence_bounds = .{ .rows = q.SourceDefinition.max_columns };
+    pub const json_schema_outer_sequence_bounds = .{ .rows = f.LogicalArrow.max_rows };
     prepared: struct { bytes: []const u8, spec: q.station.Publication.Spec },
     bundle: Bundle,
     source: struct { bytes: []const u8, digest: [32]u8, declaration: [32]u8, columns: []const Column },

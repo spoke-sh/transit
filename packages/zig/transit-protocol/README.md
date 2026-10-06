@@ -67,8 +67,11 @@ Public scalar types can supply `jsonSchema`; versioned structs can override a
 field with `json_schema_fields` beside their runtime declarations. These helpers
 do not replace the native protocol's canonical digest/signing functions.
 Owners can scope reflected text and sequence bounds to a field with
-`json_schema_text_bounds` and `json_schema_sequence_bounds`. An enclosing host
-can therefore describe a larger catalog message without widening other profiles.
+`json_schema_text_bounds` and `json_schema_sequence_bounds`.
+`json_schema_outer_sequence_bounds` limits only the next slice dimension, so
+an eight-row page can still contain 128 columns and larger nested lists.
+An enclosing host can describe a larger catalog message without widening other
+profiles.
 
 `Diagnostic` defines the shared bounded [diagnostic v1](../../../contracts/DIAGNOSTICS_V1.md)
 value: stable code, stage, outcome/evidence, identity, typed context and recovery

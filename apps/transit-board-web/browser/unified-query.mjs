@@ -112,7 +112,7 @@ try {
         "scan",
         "count",
       ]);
-      await expect(inspection.getByRole("table")).toContainText("uint64");
+      await expect(inspection.getByRole("table")).toContainText("UINT64");
     }
     if (sql.startsWith("SHOW") && kind !== "table")
       await expect(inspection).toContainText("No Table in this configured source.");
@@ -176,9 +176,9 @@ try {
   await page.getByLabel("SQL candidate search").fill("COUNT");
   await page.getByRole("button", { name: "Find SQL candidates", exact: true }).click();
   await page
-    .getByRole("button", { name: "Count: SELECT COUNT(*) FROM items", exact: true })
+    .getByRole("button", { name: 'Count: SELECT COUNT(*) FROM "items"', exact: true })
     .click();
-  await expect(draft).toHaveValue("SELECT COUNT(*) FROM items");
+  await expect(draft).toHaveValue('SELECT COUNT(*) FROM "items"');
   assert.equal(submissions, 0, "completion must only edit SQL");
   await draft.fill("SELECT * FROM items LIMIT 2");
   await page.getByRole("button", { name: "Browse", exact: true }).click();

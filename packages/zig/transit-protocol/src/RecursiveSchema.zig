@@ -29,7 +29,7 @@ const Graph = struct {
                     self.add(F, s.fieldOptions(T, name, options));
                 }
             },
-            .pointer => |info| if (info.size == .one or info.child != u8) self.add(info.child, options),
+            .pointer => |info| if (info.size == .one or info.child != u8) self.add(info.child, if (info.size == .slice) s.sequenceItems(options) else options),
             .optional => |info| self.add(info.child, options),
             .array => |info| self.add(info.child, options),
             else => {},
@@ -133,9 +133,9 @@ fn writeNode(comptime base: []const u8, comptime graph: Graph, comptime T: type,
             if (info.child == u8) return s.write(T, out, options);
             try out.beginObject();
             try s.field(out, "type", "array");
-            try s.field(out, "maxItems", options.sequence_max_length orelse @compileError("Public sequences require an explicit finite profile bound"));
+            try s.field(out, "maxItems", options.sequence_outer_max_length orelse (options.sequence_max_length orelse @compileError("Public sequences require an explicit finite profile bound")));
             try out.objectField("items");
-            try reference(base, graph, info.child, out, options);
+            try reference(base, graph, info.child, out, s.sequenceItems(options));
             try out.endObject();
         },
         .array => |info| {
@@ -154,13 +154,15 @@ fn writeNode(comptime base: []const u8, comptime graph: Graph, comptime T: type,
 test "recursive schemas retain scalar codecs safe integers and per-field sequence bounds" {
     const t = std.testing;
     const Recursive = struct {
-        pub const json_schema_sequence_bounds = .{ .children = 3 };
+        pub const json_schema_sequence_bounds = .{ .children = 3, .matrix = 5 };
+        pub const json_schema_outer_sequence_bounds = .{ .matrix = 2 };
         pub const json_schema_text_bounds = .{ .bounded = 29 };
         pub const json_schema_fields = .{ .label = .{ .type = "string", .maxLength = 17 } };
         value: u64,
         label: []const u8,
         bounded: []const u8,
         children: []const @This(),
+        matrix: []const []const u32,
         parent: ?*const @This(),
         opaque_value: p.Value,
         exact: p.Diagnostic.Unsigned,
@@ -182,12 +184,15 @@ test "recursive schemas retain scalar codecs safe integers and per-field sequenc
         }
     };
     try t.expectEqual(@as(i64, 3), Resolve.get(defs, props.get("children").?).object.get("maxItems").?.integer);
+    const matrix = Resolve.get(defs, props.get("matrix").?).object;
+    try t.expectEqual(@as(i64, 2), matrix.get("maxItems").?.integer);
+    try t.expectEqual(@as(i64, 5), Resolve.get(defs, matrix.get("items").?).object.get("maxItems").?.integer);
     try t.expectEqual(@as(i64, p.max_counter), Resolve.get(defs, props.get("value").?).object.get("maximum").?.integer);
     try t.expectEqualStrings("string", Resolve.get(defs, props.get("opaque_value").?).object.get("type").?.string);
     try t.expectEqualStrings("string", Resolve.get(defs, props.get("exact").?).object.get("type").?.string);
     try t.expectEqual(@as(i64, 17), props.get("label").?.object.get("maxLength").?.integer);
     try t.expectEqual(@as(i64, 29), Resolve.get(defs, props.get("bounded").?).object.get("maxLength").?.integer);
-    try t.expectEqual(@as(usize, 7), root.get("required").?.array.items.len);
+    try t.expectEqual(@as(usize, 8), root.get("required").?.array.items.len);
     try t.expect(root.get("x-transit-defaults").?.object.get("enabled").?.bool);
     try t.expect(defs.count() < 30);
 }

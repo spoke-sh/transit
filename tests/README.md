@@ -16221,3 +16221,27 @@ costs 231 requests for this 41-row scan, 63 for short LIMIT and 39 for a key poi
 lookup. Those measurements expose further batching work; they are not a passed
 performance qualification. The prior run failed Table capture with
 `UnrequestedResourceKey` (`interactive-logical-table2.log`).
+
+
+### Recursive result-page bounds and real Board browser
+
+The reflected query/Board page contract preserves independent bounds of eight
+rows and 128 columns, with recursive logical collections retaining their own
+bounds. All 34 protocol ReleaseSafe checks pass (`protocol-matrix-bounds4.log`),
+and owning query/Board schemas agree. The native KV Board plus Chromium schedule
+passes (`unified-logical-board-kv3.log`, 78.17 seconds), including generated
+validators on actual responses, nine-row/129-column rejection, 128-column and
+nested-list acceptance, competing readers, exact uncertain retry, explicit
+submission, editing/result provenance and current prefix denial. Two Board
+readers used at most 54,890,496 sampled RSS bytes in that run. Query, Board and
+Station schemas and all host binding resources were regenerated from Zig
+(`board-matrix-generate1.log`).
+
+The preceding browser run failed a stale lowercase type-label expectation
+(`unified-logical-board-kv2.log`); the console/browser now render canonical
+`UINT64`. The earlier API run caught the lost outer row bound
+(`unified-logical-board-kv1.log`). Native Table Board draft/generation schedules
+and the remaining consumer migrations still require qualification. A prematurely
+started root test build was stopped after compile failures in the not-yet-migrated
+work-items example and the first schema-bound expression; its partial output in
+`protocol-matrix-bounds1.log` is not a root-check pass.

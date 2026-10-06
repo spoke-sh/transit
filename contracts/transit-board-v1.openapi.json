@@ -18794,7 +18794,7 @@
           },
           "T178": {
             "type": "array",
-            "maxItems": 128,
+            "maxItems": 8,
             "items": {
               "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T179"
             }

@@ -31170,7 +31170,7 @@
         },
         "T82": {
           "type": "array",
-          "maxItems": 128,
+          "maxItems": 8,
           "items": {
             "$ref": "#/$defs/T83"
           }

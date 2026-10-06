@@ -22353,7 +22353,7 @@ return errors === 0;
 }
 validate716.evaluated = {"props":true,"dynamicProps":false,"dynamicItems":false};
 
-const schema221 = {"type":"array","maxItems":128,"items":{"$ref":"#/$defs/Response/$defs/T179"}};
+const schema221 = {"type":"array","maxItems":8,"items":{"$ref":"#/$defs/Response/$defs/T179"}};
 const schema222 = {"type":"array","maxItems":128,"items":{"$ref":"#/$defs/Response/$defs/T180"}};
 const schema223 = {"oneOf":[{"type":"object","additionalProperties":false,"required":["missing"],"properties":{"missing":{"$ref":"#/$defs/Response/$defs/T22"}}},{"type":"object","additionalProperties":false,"required":["null"],"properties":{"null":{"$ref":"#/$defs/Response/$defs/T22"}}},{"type":"object","additionalProperties":false,"required":["type_error"],"properties":{"type_error":{"$ref":"#/$defs/Response/$defs/T181"}}},{"type":"object","additionalProperties":false,"required":["value"],"properties":{"value":{"$ref":"#/$defs/Response/$defs/T182"}}},{"type":"object","additionalProperties":false,"required":["conflict"],"properties":{"conflict":{"$ref":"#/$defs/Response/$defs/T197"}}}]};
 const schema224 = {"type":"string","enum":["unknown","int64","uint64","float64","boolean","utf8","binary","int8","int16","int32","int128","uint8","uint16","uint32","uint128","float32","decimal","date","time","timestamp","interval","uuid","structure","list","array","map","tagged_union","json","null_value","text","character"]};
@@ -25778,8 +25778,8 @@ evaluated0.items = undefined;
 }
 if(errors === 0){
 if(Array.isArray(data)){
-if(data.length > 128){
-validate759.errors = [{instancePath,schemaPath:"#/maxItems",keyword:"maxItems",params:{limit: 128},message:"must NOT have more than 128 items"}];
+if(data.length > 8){
+validate759.errors = [{instancePath,schemaPath:"#/maxItems",keyword:"maxItems",params:{limit: 8},message:"must NOT have more than 8 items"}];
 return false;
 }
 else {

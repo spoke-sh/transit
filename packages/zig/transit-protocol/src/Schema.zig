@@ -17,6 +17,8 @@ pub const Options = struct {
     /// Opt-in host collection bound. Kernel wire contracts keep fixed arrays;
     /// domain validation can impose a stricter per-field limit on host slices.
     sequence_max_length: ?usize = null,
+    /// Override only the next slice dimension, preserving child collection bounds.
+    sequence_outer_max_length: ?usize = null,
 };
 /// A public owner can narrow or extend one sequence field without changing
 /// neighboring collections or the caller's other schema options.
@@ -25,9 +27,17 @@ pub fn fieldOptions(comptime T: type, comptime name: []const u8, comptime option
     if (comptime @hasDecl(T, "json_schema_sequence_bounds") and @hasField(@TypeOf(T.json_schema_sequence_bounds), name)) {
         result.sequence_max_length = @field(T.json_schema_sequence_bounds, name);
     }
+    if (comptime @hasDecl(T, "json_schema_outer_sequence_bounds") and @hasField(@TypeOf(T.json_schema_outer_sequence_bounds), name)) {
+        result.sequence_outer_max_length = @field(T.json_schema_outer_sequence_bounds, name);
+    }
     if (comptime @hasDecl(T, "json_schema_text_bounds") and @hasField(@TypeOf(T.json_schema_text_bounds), name)) {
         result.text_max_length = @field(T.json_schema_text_bounds, name);
     }
+    return result;
+}
+pub fn sequenceItems(comptime options: Options) Options {
+    var result = options;
+    result.sequence_outer_max_length = null;
     return result;
 }
 /// Reflect recursive host values with local references. The selected options
@@ -70,11 +80,11 @@ pub fn write(comptime T: type, out: *std.json.Stringify, comptime options: Optio
                 try field(out, "type", "string");
                 try field(out, "maxLength", options.text_max_length);
             } else {
-                const bound = options.sequence_max_length orelse @compileError("Public sequences require an explicit finite profile bound");
+                const bound = options.sequence_outer_max_length orelse (options.sequence_max_length orelse @compileError("Public sequences require an explicit finite profile bound"));
                 try field(out, "type", "array");
                 try field(out, "maxItems", bound);
                 try out.objectField("items");
-                try write(info.child, out, options);
+                try write(info.child, out, sequenceItems(options));
             }
         },
         .bool => try field(out, "type", "boolean"),
