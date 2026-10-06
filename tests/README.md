@@ -16819,3 +16819,24 @@ validator-generation correction; this run is **not** a passing browser or
 complete native Board proof. A preceding generator build failed on a removed
 Zig array repetition operator; the corrected second generator/API run passed.
 Logs remain in `/var/tmp/transit-table-75-_el6xx0v`.
+
+### General Station ledger: local deployment and courier replacement
+
+The changed ledger and Board metadata passed the actual local launcher schedule
+(`general-station-ledger-local1.log` in `/var/tmp/transit-table-75-_el6xx0v`).
+The selected ReleaseSafe artifacts record `86b11d69` plus the Board migration.
+The proof verifies 12 → 10 → 13 → 14 totals through exact repeated sends, worker
+replacement and a genuine Debug upgrade of all three roles; stable PIDs/resources;
+no-op update; persistent down/up; and current typed-head/request/execution lenses
+with source provenance. Audit scans use one bounded native snapshot, so concurrent
+commits cannot mix revisions. The owned installation `station-9fab12` was stopped
+and reset after success.
+
+During intentional courier readiness failure, 292 reads were refused and one
+replacement completed in **30.241 seconds**, within the original 60-second
+replacement deadline. The submitted query completed **3.933 seconds** after
+recovery, within its separate fixed 60-second completion deadline. The recorded
+reply elapsed time is **32.836 seconds**. All assertions passed before cleanup;
+a cleanup restart cannot turn an incomplete query into a passing result. This
+is a fault schedule, not normal query latency. Compose and reference remain
+separate pending placement checks for this application revision.
