@@ -84,6 +84,13 @@ work. `readDefinition` separately requires current read permission and exact
 metadata, returning the original live schema during pending evolution. Its
 caller must retain the native cut for subsequent row reads.
 
+`continueDdl` and `continueMutation` accept only native process input from the
+configured owner, referring to an already recorded exact operation. They cannot
+admit a first operation or reinterpret process input as an external principal.
+Every continuation rechecks the original principal's current policy. Denial
+leaves the accepted work and reservation intact; scheduling, input dispositions
+and explicit resume/cancel remain responsibilities of the enclosing native host.
+
 A record owns scope, full-width object and metadata revision, exact name,
 immutable Table schema reference and complete schema fingerprint, principal,
 original operation and admission input. The metadata revision is independent of

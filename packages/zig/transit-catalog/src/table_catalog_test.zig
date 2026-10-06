@@ -657,3 +657,78 @@ test "catalog data policy separates inspection execution and receipt cancellatio
     turn = try store.capture(18);
     try t.expectError(error.CatalogDenied, owner.mutate(t.allocator, &turn, request));
 }
+
+fn selfTurn(store: *TestStore, pid: u64) !s.Turn {
+    var turn = try store.capture(17);
+    turn.delivery.input.origin = .{ .process = .{ .pid = pid, .turn = 1, .output = 1 } };
+    return turn;
+}
+test "owner continuation cannot admit work or impersonate its original principal" {
+    var store: TestStore = .{};
+    defer store.deinit();
+    try ready(&store);
+    const creation = try keyedCreate();
+    var turn = try selfTurn(&store, 3);
+    try t.expectError(error.CatalogOperationNotFound, owner.continueDdl(t.allocator, &turn, creation));
+    try t.expectError(error.CatalogDenied, owner.step(t.allocator, &turn, creation));
+    turn = try store.capture(17);
+    try t.expectError(error.CatalogDenied, owner.continueDdl(t.allocator, &turn, creation));
+    _ = try owner.step(t.allocator, &turn, creation);
+    try store.commit(turn);
+    turn = try selfTurn(&store, 4);
+    try t.expectError(error.CatalogDenied, owner.continueDdl(t.allocator, &turn, creation));
+    var changed = creation;
+    changed.principal = 18;
+    turn = try selfTurn(&store, 3);
+    try t.expectError(error.CatalogDenied, owner.continueDdl(t.allocator, &turn, changed));
+    changed = creation;
+    changed.name = try Meta.Name.init("other");
+    try t.expectError(error.CatalogIdentityConflict, owner.continueDdl(t.allocator, &turn, changed));
+    var completed: ?Cat.Outcome = null;
+    for (0..100) |_| {
+        turn = try selfTurn(&store, 3);
+        const result = try owner.continueDdl(t.allocator, &turn, creation);
+        try store.commit(turn);
+        if (result.terminal()) {
+            completed = result;
+            break;
+        }
+    }
+    try t.expect(completed != null);
+    var plan = try c.fuze.TableDml.compile(t.allocator, "INSERT INTO people VALUES (1, 'A'), (2, 'B')", "people", creation.action.create.schema, null);
+    defer plan.deinit();
+    const request: c.TableDmlRequest = .{ .principal = 17, .operation = 2, .metadata = completed.?.operation.metadata, .plan = plan.plan };
+    turn = try selfTurn(&store, 3);
+    try t.expectError(error.TableWriteNotFound, owner.continueMutation(t.allocator, &turn, request));
+    try t.expectError(error.CatalogDenied, owner.mutate(t.allocator, &turn, request));
+    turn = try store.capture(17);
+    _ = try owner.mutate(t.allocator, &turn, request);
+    try store.commit(turn);
+    turn = try selfTurn(&store, 4);
+    try t.expectError(error.CatalogDenied, owner.continueMutation(t.allocator, &turn, request));
+    turn = try store.capture(17);
+    var rights = try m.Policy.administrator(owner.configuration.scope, 17);
+    rights.revision = 2;
+    rights.insert = false;
+    try owner.setPolicy(&turn, 1, rights);
+    try store.commit(turn);
+    turn = try selfTurn(&store, 3);
+    try t.expectError(error.CatalogDenied, owner.continueMutation(t.allocator, &turn, request));
+    try t.expectEqual(@as(usize, 0), countWrites(turn));
+    turn = try store.capture(17);
+    try t.expectEqual(.building, (try owner.mutationStatus(t.allocator, &turn, 17, request)).?.state);
+    rights.revision = 3;
+    rights.insert = true;
+    try owner.setPolicy(&turn, 2, rights);
+    try store.commit(turn);
+    for (0..100) |_| {
+        turn = try selfTurn(&store, 3);
+        const result = try owner.continueMutation(t.allocator, &turn, request);
+        try store.commit(turn);
+        if (result.state == .applied) {
+            try t.expectEqual(@as(u64, 2), result.changed);
+            return;
+        }
+    }
+    return error.TestUnexpectedResult;
+}

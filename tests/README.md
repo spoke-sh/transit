@@ -10846,6 +10846,15 @@ prefix truncation and trailing byte rejects; allocation-failure schedules releas
 the enclosing request arena. This helper does not establish a schema binding or
 enable a new native request format by itself.
 
+Recorded catalog continuations pass **47/47 catalog package tests**
+(`catalog-continuation-test.log`). The native-origin test fixture admits work
+through external input, resumes exact recorded CREATE and finite DML from the
+configured owner, and rejects first admission, foreign process origin, external
+input through the continuation entry point, changed intent and changed principal.
+Policy revocation preserves pending work with zero writes; restoration permits
+the original continuation to finish. This is coordinator input validation, not
+evidence of a wired native self-message scheduler or disk restart.
+
 ## Fuze logical type foundation
 
 The local `Types` profile has nine passing focused Zig tests, including 46

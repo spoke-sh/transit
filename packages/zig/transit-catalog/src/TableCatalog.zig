@@ -489,14 +489,30 @@ fn alterStep(self: Self, allocator: std.mem.Allocator, turn: *s.Turn, request: D
 /// One bounded private proposal. The native owner commits its writes with input
 /// progress, and supplies the exact same request on each continuation.
 pub fn step(self: Self, allocator: std.mem.Allocator, turn: *s.Turn, request: DdlRequest) !Outcome {
+    return self.advanceDdl(allocator, turn, request, false);
+}
+/// A native self-message can continue only an already admitted exact operation.
+/// Origin is never rewritten to impersonate the recorded external principal.
+pub fn continueDdl(self: Self, allocator: std.mem.Allocator, turn: *s.Turn, request: DdlRequest) !Outcome {
+    return self.advanceDdl(allocator, turn, request, true);
+}
+fn actor(self: Self, turn: *s.Turn, who: u64, continuation: bool) !void {
+    try self.owner(turn);
+    if (continuation) {
+        if (turn.delivery.input.origin != .process or turn.delivery.input.origin.process.pid != self.configuration.owner) return error.CatalogDenied;
+    } else if (try principal(turn) != who) return error.CatalogDenied;
+}
+fn advanceDdl(self: Self, allocator: std.mem.Allocator, turn: *s.Turn, request: DdlRequest, continuation: bool) !Outcome {
     const before = turn.decision;
     errdefer turn.decision = before;
-    try self.owner(turn);
-    if (try principal(turn) != request.principal) return error.CatalogDenied;
+    try self.actor(turn, request.principal, continuation);
     _ = try self.authorize(turn, request.principal, .inspect);
     _ = try self.authorize(turn, request.principal, request.right());
     const digest = try request.digest(self.configuration.scope);
-    const pending = (try self.operation(turn, request.principal, request.operation)) orelse return self.admit(turn, request, digest);
+    const pending = (try self.operation(turn, request.principal, request.operation)) orelse {
+        if (continuation) return error.CatalogOperationNotFound;
+        return self.admit(turn, request, digest);
+    };
     if (!std.mem.eql(u8, &pending.digest, &digest)) return error.CatalogIdentityConflict;
     const result = try outcome(turn, pending);
     if (result.terminal()) return result;
@@ -590,17 +606,24 @@ fn dataBinding(self: Self, source: anytype, request: DmlRequest) !void {
 /// Inspect and action policy are current. A terminal exact receipt is returned
 /// before consulting the live name/schema, including after DROP or RENAME.
 pub fn mutate(self: Self, allocator: std.mem.Allocator, turn: *s.Turn, request: DmlRequest) !s.TableWrite.Status {
+    return self.advanceMutation(allocator, turn, request, false);
+}
+pub fn continueMutation(self: Self, allocator: std.mem.Allocator, turn: *s.Turn, request: DmlRequest) !s.TableWrite.Status {
+    return self.advanceMutation(allocator, turn, request, true);
+}
+fn advanceMutation(self: Self, allocator: std.mem.Allocator, turn: *s.Turn, request: DmlRequest, continuation: bool) !s.TableWrite.Status {
     const before = turn.decision;
     errdefer turn.decision = before;
-    try self.owner(turn);
-    if (try principal(turn) != request.principal) return error.CatalogDenied;
+    try self.actor(turn, request.principal, continuation);
     _ = try self.authorize(turn, request.principal, .inspect);
     _ = try self.authorize(turn, request.principal, request.right());
     var scratch: [c.fuze.TableSchema.max_columns]c.fuze.Types.Values.Cell = undefined;
     const route = try request.route(allocator, self.configuration.scope, &scratch);
     const ref = try route.reference(allocator);
     _ = (try self.object(turn, ref.object)) orelse return error.TableNotFound;
-    if (try s.TableWrite.status(turn, ref)) |previous| if (previous.state != .building) return previous;
+    if (try s.TableWrite.status(turn, ref)) |previous| {
+        if (previous.state != .building) return previous;
+    } else if (continuation) return error.TableWriteNotFound;
     try self.dataBinding(turn, request);
     return route.step(allocator, turn);
 }
