@@ -1,21 +1,39 @@
 -ifndef(TRANSIT_CATALOG_HRL).
 -define(TRANSIT_CATALOG_HRL, true).
 -include("transit_station_sdk.hrl").
+-include("transit_logical.hrl").
 -record(transit_catalog_scope, {resource :: #transit_resource{}, catalog :: pos_integer()}).
 -record(transit_catalog_connection, {owner :: #transit_process{}, scope :: #transit_catalog_scope{}}).
--record(transit_catalog_configuration, {scope :: #transit_catalog_scope{}, owner :: #transit_process{}, administrator :: pos_integer()}).
--record(transit_catalog_schema, {names = [] :: [binary()], value_type :: int64 | boolean | utf8 | binary}).
--record(transit_catalog_create_table, {scope :: #transit_catalog_scope{}, operation :: pos_integer(), object :: pos_integer(), table :: pos_integer(), name :: binary(), schema :: #transit_catalog_schema{}}).
--record(transit_catalog_policy, {scope :: #transit_catalog_scope{}, principal :: non_neg_integer(), revision :: pos_integer(), inspect :: boolean(), create :: boolean()}).
+-record(transit_catalog_limits, {record_bytes :: pos_integer(), staging_bytes :: pos_integer(), staging_records :: pos_integer()}).
+-record(transit_catalog_configuration, {scope :: #transit_catalog_scope{}, owner :: #transit_process{}, administrator :: pos_integer(), table_limits :: #transit_catalog_limits{}}).
+-record(transit_catalog_rights, {inspect=false,create=false,read=false,insert=false,update=false,delete=false,alter=false,drop=false}).
+-record(transit_catalog_policy, {scope :: #transit_catalog_scope{}, principal :: non_neg_integer(), revision :: pos_integer(), rights :: #transit_catalog_rights{}}).
 -record(transit_catalog_policy_change, {expected_revision :: non_neg_integer(), policy :: #transit_catalog_policy{}}).
--record(transit_catalog_compiled, {request :: #transit_catalog_create_table{}, canonical :: binary()}).
+-record(transit_catalog_column, {id :: pos_integer(), name :: binary(), type, nullable=true, default=undefined, max_characters=undefined}).
+-record(transit_catalog_schema, {object :: pos_integer(), revision :: pos_integer(), next_column :: pos_integer(), columns=[], primary_key=[]}).
+-record(transit_catalog_identity, {operation :: pos_integer(), namespace :: pos_integer()}).
+-record(transit_catalog_basis, {object :: pos_integer(), revision :: pos_integer(), schema_fingerprint :: binary()}).
+-record(transit_catalog_metadata, {scope :: #transit_catalog_scope{}, object :: pos_integer(), revision :: pos_integer(), name :: binary(), schema_fingerprint :: binary(), principal :: non_neg_integer(), operation :: pos_integer(), admitted_input :: pos_integer()}).
+-record(transit_catalog_head, {revision :: pos_integer(), rows :: non_neg_integer(), pending :: non_neg_integer()}).
+-record(transit_catalog_entry, {metadata :: #transit_catalog_metadata{}, head :: #transit_catalog_head{}}).
+-record(transit_catalog_definition, {metadata :: #transit_catalog_metadata{}, head :: #transit_catalog_head{}, schema :: #transit_catalog_schema{}}).
+-record(transit_catalog_historical_definition, {metadata :: #transit_catalog_metadata{}, schema :: #transit_catalog_schema{}}).
+-record(transit_catalog_cursor, {definition :: binary(), scope :: #transit_catalog_scope{}, resource_revision :: non_neg_integer(), after_object :: pos_integer()}).
+-record(transit_catalog_page, {resource_revision :: non_neg_integer(), entries=[], next=undefined}).
+-record(transit_catalog_reference, {definition :: binary(), digest :: binary()}).
+-record(transit_catalog_saved_intent, {definition :: binary(), bytes :: binary()}).
 -record(transit_catalog_prepared, {bytes :: binary()}).
--record(transit_catalog_capabilities, {version, definition, initialize, create_table, conditional_policy, current_metadata, max_saved_bytes, table_columns}).
+-record(transit_catalog_intent, {reference :: #transit_catalog_reference{}, scope :: #transit_catalog_scope{}, owner :: #transit_process{}, principal :: non_neg_integer(), identity :: #transit_catalog_identity{}, object :: non_neg_integer(), kind :: atom()}).
+-record(transit_catalog_compiled, {intent :: #transit_catalog_intent{}, saved :: #transit_catalog_saved_intent{}}).
+-record(transit_catalog_counts, {matched :: non_neg_integer(), changed :: non_neg_integer()}).
+-record(transit_catalog_outcome, {kind,operation,object,actual_object=undefined,phase,terminal,counts=undefined,admitted_input,completed_input=undefined,diagnostic}).
+-record(transit_catalog_upload, {phase,received,total}).
+-record(transit_catalog_state, {outcome=undefined,upload=undefined}).
+-record(transit_catalog_disposition, {input,outcome,diagnostic}).
+-record(transit_catalog_next, {kind,prepared=undefined,outcome=undefined}).
+-record(transit_catalog_progress, {observation,disposition=undefined,outcome=undefined,upload=undefined}).
+-record(transit_catalog_capabilities, {version,definition,max_columns,max_rows,max_sql_bytes,max_intent_bytes,max_action_bytes,max_prepared_bytes,resident_intents}).
 -record(transit_catalog_description, {configuration :: #transit_catalog_configuration{}, policy :: #transit_catalog_policy{}, resource_revision :: non_neg_integer()}).
--record(transit_catalog_table_source, {table :: pos_integer(), schema :: #transit_catalog_schema{}}).
--record(transit_catalog_definition, {scope :: #transit_catalog_scope{}, object :: pos_integer(), revision :: pos_integer(), name :: binary(), source :: #transit_catalog_table_source{}, principal :: non_neg_integer(), operation :: pos_integer(), input :: pos_integer()}).
--record(transit_catalog_cursor, {definition :: binary(), scope :: #transit_catalog_scope{}, resource_revision :: pos_integer(), after_name :: binary()}).
--record(transit_catalog_page, {resource_revision :: pos_integer(), entries = [] :: [#transit_catalog_definition{}], next :: undefined | #transit_catalog_cursor{}}).
--record(transit_catalog_receipt, {request :: #transit_catalog_create_table{}, principal :: non_neg_integer(), input :: pos_integer(), outcome :: applied | name_conflict | object_conflict | table_conflict, diagnostic :: map()}).
--record(transit_catalog_disposition, {scope :: #transit_catalog_scope{}, origin :: external | process | effect, principal :: non_neg_integer(), input :: pos_integer(), payload :: binary(), outcome :: initialized | policy_applied | invalid_command | denied | identity_conflict | stale_policy, diagnostic :: map()}).
+-record(transit_catalog_assignment, {column :: pos_integer(), value}).
+-record(transit_catalog_dependency, {scope :: #transit_catalog_scope{}, object :: pos_integer(), identity :: pos_integer(), owner :: #transit_process{}, kind :: atom()}).
 -endif.

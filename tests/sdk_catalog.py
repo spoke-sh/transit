@@ -341,7 +341,7 @@ def install_beam(target, language):
     (target / 'artifacts.json').write_text(json.dumps(artifacts))
     environment = {k:v for k,v in os.environ.items() if k not in ('ERL_LIBS', 'ERL_FLAGS', 'TRANSIT_HOST', 'TRANSIT_LIBRARY_DIR')}
     environment.update(ERL_LIBS=str(library), ERL_FLAGS='+S 2:2 +SDcpu 1 +SDio 1')
-    for name in ('beam_catalog_controller.erl', 'beam_catalog_values.erl'):
+    for name in ('beam_catalog_controller.erl', 'beam_catalog_values.erl', 'beam_schema_values.erl', 'beam_logical_values.erl'):
         source = target / name
         shutil.copy2(ROOT / 'tests' / name, source)
         subprocess.run(['erlc', '-Werror', '-o', str(classes), str(source)], cwd=target, env=environment, check=True)

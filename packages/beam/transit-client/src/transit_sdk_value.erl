@@ -4,7 +4,7 @@
 -include("transit_client.hrl").
 -export([fail/2, error/2, native/3, protect/1, counter/1, counter/2, boolean/1,
          bytes/2, text/2, hex/1, unhex/2, integer/3, contract/1, require/2,
-         json/1, encode/1, valid/2, wide/1, signed/1]).
+         json/1, json/2, encode/1, valid/2, wide/1, signed/1]).
 fail(Kind, Phase) -> throw({transit_sdk, error(Kind, Phase)}).
 error(Kind, Phase) ->
     Status = case Kind of unknown_outcome -> 6; read_failed -> 7; busy -> 9; incompatible_native -> 10; _ -> undefined end,
@@ -82,11 +82,12 @@ contract(App) ->
         _ -> fail(incompatible_native, contract)
     end.
 encode(Value) -> iolist_to_binary(json:encode(Value)).
-json(Bytes) ->
+json(Bytes) -> json(Bytes,64).
+json(Bytes,Maximum) when is_integer(Maximum),Maximum>0,Maximum=<128 ->
     %% OTP callbacks bound depth and preserve duplicate-member errors before a
     %% map can overwrite data. Numeric ABI fields are integral, never floats.
-    StartObject = fun({Depth, _}) when Depth < 64 -> {Depth + 1, #{}}; (_) -> erlang:error(depth) end,
-    StartArray = fun({Depth, _}) when Depth < 64 -> {Depth + 1, []}; (_) -> erlang:error(depth) end,
+    StartObject = fun({Depth, _}) when Depth < Maximum -> {Depth + 1, #{}}; (_) -> erlang:error(depth) end,
+    StartArray = fun({Depth, _}) when Depth < Maximum -> {Depth + 1, []}; (_) -> erlang:error(depth) end,
     PushObject = fun(Key, Value, {Depth, Map}) ->
         case maps:is_key(Key, Map) of true -> erlang:error(duplicate); false -> {Depth, Map#{Key => Value}} end
     end,
@@ -98,7 +99,8 @@ json(Bytes) ->
         object_finish => FinishObject, array_start => StartArray, array_push => PushArray,
         array_finish => FinishArray, integer => Integer, float => fun(_) -> erlang:error(fraction) end}) of
         {Value, _, Rest} -> case string:trim(Rest) of <<>> -> Value; _ -> fail(incompatible_native, json) end
-    catch _:_ -> fail(incompatible_native, json) end.
+    catch _:_ -> fail(incompatible_native, json) end;
+json(_,_) -> fail(invalid_argument,json_depth).
 require(Schema, Value) -> case valid(Schema, Value) of true -> Value; false -> fail(incompatible_native, schema) end.
 valid(Schema, Value) ->
     try valid(Schema, Value, maps:get(<<"$defs">>, Schema, #{}), #{}, 0, 0, true)

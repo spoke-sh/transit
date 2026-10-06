@@ -1,66 +1,67 @@
-# Catalog callers
+# General Table callers
 
-`Transit.Station.Sdk.Catalog` provides immutable structs and tagged results over
-the [Erlang catalog API](../../transit-station-sdk/docs/catalog.md). Shared Zig
-owns compilation, signing, current policy and exact saved-command recovery.
+`Transit.Station.Sdk.Catalog` exposes the shared
+[general Table lifecycle](../../transit-station-sdk/docs/catalog.md) through
+Elixir structs and tagged operation tuples. Shared Erlang owns the bounded native
+worker; shared Zig owns signing, authorization, schema validation, execution and
+exact recovery. Provision the catalog host, resource, ownership and grants
+explicitly. A query connection does not enable catalog administration.
 
 ```elixir
 alias Transit.Station.Sdk.Catalog, as: C
-{:ok, client} = C.open(config, credential,
-  %C.Connection{owner: owner, scope: %C.Scope{resource: resource, catalog: catalog}})
-try do
-  {:ok, compiled} = C.compile_sql(client,
-    "CREATE TABLE items (id INT64 NOT NULL, value UTF8 NULL)",
-    operation, object, table)
-  {:ok, prepared} = C.prepare_create(client, compiled.request)
-  save(prepared.bytes)
-  {:ok, admission} = C.submit(client, prepared)
-after
-  C.close(client)
-end
+
+{:ok, client} = C.open(config, credential, connection)
+identity = %C.Identity{operation: operation, namespace: namespace}
+{:ok, compiled} = C.compile_sql(client,
+  "CREATE TABLE people (id INTEGER PRIMARY KEY, name VARCHAR(120), active BOOL)",
+  identity, object)
+save_intent.(compiled.saved.definition, compiled.saved.bytes)
+{:ok, step} = C.next(client, compiled.intent.reference)
+%C.Next{kind: :send, prepared: prepared} = step
+save_prepared.(prepared.bytes)
+{:ok, admitted} = C.submit(client, prepared)
+save_receipt.(admitted.position)
+{:ok, progress} = C.progress(client, compiled.intent.reference, prepared, admitted.position, true)
 ```
 
-Configuration, credentials and realm-qualified owner/resource refs are explicit.
-Catalog, operation/object identities and policy revisions are positive full-width
-uint64 integers; Table IDs are positive uint32 integers. Native counters retain
-their safe-integer bounds. Opening checks the matching native definition and
-capabilities; each server operation checks current authority separately.
+Persistence functions are application-owned durable writes. The example sends one
+step; continue to a terminal outcome before claiming publication. Functions
+return `{:ok, value}` or `{:error, %Transit.Client.Error{}}`. Submission can return
+`{:uncertain, original_prepared, error}`; retain and reconcile the exact original
+bytes with the original connection and credential.
 
-`capabilities` returns a `Capabilities` struct. `describe` returns a `Description`
-with configuration, current policy and resource revision. `prepare_initialize`,
-`prepare_create` and `prepare_policy` take `Configuration`, `CreateTable` and
-`PolicyChange` structs. Save the returned `Prepared.bytes` before submission;
-restore `%C.Prepared{bytes: saved}` to reconcile after caller loss. The command
-is opaque signed UTF-8 text bounded to 8192 bytes. Canonical review bytes in
-`Compiled` are bounded to 256 bytes. There is no implicit retry or re-signing.
+Public structs correspond to the shared guide's records: `Scope`, `Connection`,
+`TableLimits`, `Configuration`, `Rights`, `Policy`, `PolicyChange`, `Column`,
+`Schema`, `Identity`, `Basis`, `Metadata`, `Head`, `Entry`, `Definition`,
+`HistoricalDefinition`, `Cursor`, `Page`, `Reference`, `SavedIntent`, `Prepared`,
+`Intent`, `Compiled`, `Counts`, `Outcome`, `Upload`, `State`, `Disposition`, `Next`,
+`Progress`, `Capabilities`, `Description`, `Assignment` and `Dependency`.
+Missing optional values are `nil`. Rights default false; columns default nullable
+with no default or length bound, and schema primary keys default to an empty list.
+[Logical values](logical.md) retain recursive descriptors and separate cell states.
 
-`submit` returns an admission receipt or `{:uncertain, prepared, error}` retaining
-the identical retry value. Malformed successful replies preserve uncertainty;
-native rejection retains its category, status and code. `observe` returns
-`:pending` or `:processed`. `input_disposition` reports an optional control or
-rejection result; `status(client, original_request)` reports the original creation
-receipt. Optional values use `nil` inside `{:ok, value}`. Only outcome `:applied`
-establishes creation. Current catalog/native policies gate result disclosure.
+`prepare(client, name, identity, operation)` takes the same tuples as the shared
+guide, using Elixir structs inside them and atoms for tags. Obtain a captured
+`Basis` with `C.basis(definition.metadata)`. `compile_sql` accepts an optional
+CREATE object ID. `load`, `forget`, `next`, `status`, `prepare_resume`,
+`prepare_control`, `prepare_initialize`, `prepare_policy`, `prepare_dependency`,
+`submit`, `observe`, `input_disposition` and `progress` preserve explicit staging,
+processing, publication and recovery distinctions. The optional final wait flag
+on `observe` and `progress` defaults false.
 
-`lookup(client, name)` and `definition(client, object, revision)` return an
-immutable `Definition` struct or `nil` inside `{:ok, value}`. Names are exact
-case-sensitive ASCII identifiers of one to sixteen bytes; object/revision IDs
-are positive uint64 integers. Definitions retain original creation attribution
-and a typed `TableSource` with its schema.
+`lookup` returns a definition with metadata, head and schema or nil; `definition`
+returns an accepted historical definition with metadata and schema or nil.
+`list(client, cursor)` defaults to a new listing. Continue through empty pages
+while `page.next` exists. Keep mandatory cursor definition, scope, resource cut
+and after-object ID intact. A changed cut rejects continuation; current native
+and catalog rights are checked again. DROP/name reuse does not retarget original
+saved operations or historical definitions.
 
-`list(client)` starts a bounded page. When `page.next` is a `Cursor`,
-`list(client, page.next)` continues at its original scope and resource revision.
-`Page.entries` contains at most eight ordered definitions; `nil` next ends the
-listing, and an empty final page is possible. Persist every original cursor field,
-including the mandatory matching `definition` and `after_name`. A changed revision
-fails; restart and keep results from different revisions separate. Metadata reads
-submit no command or snapshot, and current catalog/native rights apply to every
-call. The Erlang owner validates response identity, ordering and continuation cuts.
-
-Calls wait on the bounded owned worker. Overlap returns `:busy`. Killing a waiting
-Task does not stop native work or cancel durable work; `close` joins cleanup.
-Creating-owner loss initiates monitored cleanup. Persist recovery values outside
-temporary BEAM processes. Created Tables do not automatically become query
-sources or mutation writers. The [catalog contract](../../../../contracts/DECLARATIVE_CATALOG_V1.md)
-defines supported schemas, policy and atomic publication; the
-[proof ledger](../../../../tests/README.md) records executed coverage and limits.
+One client owns one active native job; overlap returns `:busy`. A Task's death
+abandons only its wait. `close` joins active work and native cleanup. Structs and
+binaries are immutable, and no external text becomes a BEAM atom. Host projection
+is bounded before request validation. Complete saved intents permit 4,327,031
+bytes; prepared commands permit 8192 bytes. Catalog frames and nesting use their
+own declared limits while raw callers retain their smaller bounds. See the shared
+guide for all operation limits and the [proof ledger](../../../../tests/README.md)
+for executed qualification.

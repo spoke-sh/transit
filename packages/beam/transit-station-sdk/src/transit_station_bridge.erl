@@ -43,7 +43,7 @@ create(Config, Override) ->
     case application:load(transit_client) of ok -> ok; {error, {already_loaded, transit_client}} -> ok; _ -> transit_sdk_value:fail(incompatible_native, client_package) end,
     case application:get_key(transit_client, vsn) of {ok, "0.2.0"} -> ok; _ -> transit_sdk_value:fail(incompatible_native, client_package_version) end,
     RawContract = transit_sdk_value:contract(transit_client), StationContract = transit_sdk_value:contract(transit_station_sdk),
-    Contract = StationContract#{<<"limits">> => maps:get(<<"limits">>, RawContract),
+    Contract = StationContract#{<<"limits">> => maps:merge(maps:get(<<"limits">>, RawContract),maps:get(<<"limits">>, StationContract)),
         <<"schemas">> := maps:merge(maps:get(<<"schemas">>, RawContract), maps:get(<<"schemas">>, StationContract))},
     Port = transit_sdk_port:open(transit_native_station, Override, Config, Contract),
     try
@@ -85,7 +85,8 @@ unified_query(#bridge{port=Port},Action,Mutation) ->
 table_mutation(#bridge{port=Port},Action,Mutation) ->
     transit_sdk_port:request(Port,#{<<"table_mutation">>=>Action},table_mutation,Mutation,<<"TableMutationResult">>).
 catalog_call(#bridge{port=Port},Action,Mutation) ->
-    transit_sdk_port:request(Port,#{<<"catalog">>=>Action},catalog,Mutation,<<"CatalogResult">>).
+    transit_sdk_port:request(Port,#{<<"catalog">>=>Action},catalog,Mutation,<<"CatalogResult">>,
+        {transit_sdk_port:limit(Port,<<"catalog_line_bytes">>),96}).
 close(#bridge{port = Port}) -> transit_sdk_port:close(Port).
 prepare(#bridge{port = Port}) -> transit_sdk_port:request(Port, #{<<"growing_prepare">> => erlang:system_time(millisecond) + 30000}, prepare_turn, false, <<"GrowingEvent">>).
 apply(#bridge{port = Port}, Scope, Action) -> transit_sdk_port:request(Port, #{<<"growing_apply">> => #{<<"scope">> => Scope, <<"action">> => Action}}, apply, false, <<"GrowingResult">>).

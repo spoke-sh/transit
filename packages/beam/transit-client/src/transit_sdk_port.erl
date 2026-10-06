@@ -1,7 +1,7 @@
 %% Internal native port owner. Called only by its owned BEAM worker.
 -module(transit_sdk_port).
 -include("transit_client.hrl").
--export([open/4, request/5, close/1, schema/2, limit/2]).
+-export([open/4, request/5, request/6, close/1, schema/2, limit/2]).
 -record(port_state, {port, directory, file, contract, request_schema, max_status}).
 open(App, Override, Config, Contract) ->
     Executable = executable(App, Override),
@@ -32,11 +32,13 @@ executable(_, _) -> transit_sdk_value:fail(invalid_argument, native_path).
 schema(#port_state{contract = Contract}, Name) -> maps:get(Name, maps:get(<<"schemas">>, Contract)).
 limit(#port_state{contract = Contract}, Name) -> maps:get(Name, maps:get(<<"limits">>, Contract)).
 request(State, Request, Phase, Mutation, ResponseSchema) ->
+    request(State, Request, Phase, Mutation, ResponseSchema, {limit(State, <<"host_line_bytes">>),64}).
+request(State, Request, Phase, Mutation, ResponseSchema, Bounds) ->
     case get({transit_broken_port, State#port_state.port}) of
         true -> transit_sdk_value:fail(read_failed, native_closed);
         _ -> ok
     end,
-    try exchange(State, Request, Phase, Mutation, ResponseSchema)
+    try exchange(State, Request, Phase, Mutation, ResponseSchema, Bounds)
     catch
       throw:{transit_native, Error} -> throw({transit_sdk, Error});
       throw:{transit_sdk, #transit_error{kind = Kind} = Error} ->
@@ -46,10 +48,10 @@ request(State, Request, Phase, Mutation, ResponseSchema) ->
         end,
         throw({transit_sdk, Error})
     end.
-exchange(State, Request, Phase, Mutation, ResponseSchema) ->
+exchange(State, Request, Phase, Mutation, ResponseSchema, {LineBytes,JsonDepth}) ->
     transit_sdk_value:require(schema(State, State#port_state.request_schema), Request),
     Bytes = <<(transit_sdk_value:encode(Request))/binary, $\n>>,
-    transit_sdk_value:bytes(Bytes, limit(State, <<"host_line_bytes">>)),
+    case byte_size(Bytes)=<LineBytes of true->ok; false->transit_sdk_value:fail(invalid_argument,bytes) end,
     Port = State#port_state.port,
     Failure = case Mutation of true -> unknown_outcome; false -> read_failed end,
     %% An unexpected line cannot be mistaken for the response to this request.
@@ -61,8 +63,8 @@ exchange(State, Request, Phase, Mutation, ResponseSchema) ->
         true -> ok
     catch error:badarg -> transit_sdk_value:fail(Failure, Phase) end,
     Deadline = erlang:monotonic_time(millisecond) + 65000,
-    Response = read(State, [], 0, Deadline, Failure, Phase),
-    try transit_sdk_value:json(Response) of
+    Response = read(State, [], 0, Deadline, Failure, Phase, LineBytes),
+    try transit_sdk_value:json(Response,JsonDepth) of
         #{<<"status">> := Status, <<"value">> := Value} = Envelope
           when map_size(Envelope) =:= 2, is_integer(Status), Status >= 0, Status =< State#port_state.max_status ->
             case Status of
@@ -75,15 +77,15 @@ exchange(State, Request, Phase, Mutation, ResponseSchema) ->
     catch
         throw:{transit_sdk, #transit_error{kind = incompatible_native}} -> transit_sdk_value:fail(Failure, Phase)
     end.
-read(State, Parts, Size, Deadline, Failure, Phase) ->
+read(State, Parts, Size, Deadline, Failure, Phase, LineBytes) ->
     Port = State#port_state.port,
     Remaining = max(0, Deadline - erlang:monotonic_time(millisecond)),
     receive
         {Port, {data, {Ending, Chunk}}} ->
             NextSize = Size + byte_size(Chunk),
-            case NextSize > limit(State, <<"host_line_bytes">>) of
+            case NextSize > LineBytes of
                 true -> transit_sdk_value:fail(Failure, Phase);
-                false when Ending =:= noeol -> read(State, [Chunk | Parts], NextSize, Deadline, Failure, Phase);
+                false when Ending =:= noeol -> read(State, [Chunk | Parts], NextSize, Deadline, Failure, Phase, LineBytes);
                 false -> iolist_to_binary(lists:reverse([Chunk | Parts]))
             end;
         {Port, {exit_status, _}} -> transit_sdk_value:fail(Failure, Phase);

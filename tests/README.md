@@ -11624,6 +11624,42 @@ These logs use the same campaign directory. This is installed codec evidence;
 general BEAM catalog/query, full repository and final clean/performance checks
 remain separate qualification.
 
+The general Erlang and Elixir Table callers pass the installed disk-backed
+lifecycle in **199.752 seconds** (`table-beam-catalog-installed1.log`): nested
+typed INSERT, exact decimal and binary values, unchanged-value counts,
+ALTER/default and stale-basis rejection, DELETE, DROP/name reuse and recovery of
+the original outcome and accepted historical schema through a fresh client.
+The shared fixture records 547 turns and 149 sends, with maximums of four native
+writes, 256-byte values and 1,398-byte progress commands. Lost-send, lost-turn and
+supplied-host receipt-loss checks pass. Separate compiled OTP artifacts are
+installed outside the checkout, hashed and exercised through each public API;
+consumer Erlang source is removed after compilation with warnings as errors.
+
+Installed boundary cases cover full-width identities, strict metadata and
+continuation cuts, missing/foreign definitions, exact compiled attribution,
+malformed successful receipts and definitive authorization rejection. Actual
+owned ports carry a 600,000-byte request/response and parse fifteen nested MAPs
+through the catalog's 96-level JSON bound; the raw bound remains unchanged.
+Killing the waiting process leaves admitted work busy, and close waits for the
+native child to finish and exit. These tests do not inject allocator exhaustion
+or establish remote cancellation. Immutable generated contract metadata is
+cached per client; current grants, source cuts and outcomes still come from
+native reads. The raw Erlang and Elixir recovery/disposal/revocation schedules
+also pass (`table-beam-catalog-raw1.log`).
+
+The first isolated boundary run passed Erlang, then found Elixir's missing reverse
+admission-receipt conversion in the shared fixture adapter. After correction,
+all eight OTP packages rebuilt with warnings as errors
+(`table-beam-catalog-build3.log`), both isolated boundary schedules passed
+(`table-beam-catalog-values2.log`), and the complete lifecycle passed. Elixir
+formatting passes (`table-beam-catalog-format1.log`). Logs share the existing
+campaign directory. C/C++, other query routes, the coordinated definition
+cutover and final clean/performance qualification remain required.
+
+Full `just check` passes for the BEAM catalog increment
+(`table-beam-catalog-check1.log`), including generated-contract drift, native/CLI
+checks, frontend tests and the documentation production build.
+
 ## Fuze logical type foundation
 
 The local `Types` profile has nine passing focused Zig tests, including 46
