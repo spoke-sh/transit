@@ -59,13 +59,13 @@ segment only after a complete manifest exists.
 the client and SDKs. For example, after `.new 42`, this file binds a uint64 LIMIT:
 
 ```json
-{"sql":"SELECT * FROM items LIMIT $1","parameters":[{"uint64":"3"}]}
+{"sql":"SELECT * FROM items LIMIT $1","parameters":[{"unsigned":"3"}]}
 ```
 
 Omitted/null bindings select ordinary SQL; `[]` selects a template without
 placeholders. Paths resolve against the working directory; quoted paths support
 spaces. Input files are limited to 131072 bytes, statements to 4096 bytes, and
-bindings to three exact scalars. Compilation retains current source/budget checks
+bindings to at most 65 exact scalars. Compilation retains current source/budget checks
 and cannot execute mutation or administrative SQL. The
 [parameter contract](../../../contracts/SQL_PARAMETERS_V1.md) defines types
 and grammar sites. Inputs are owned only for that command; values are never

@@ -47,7 +47,10 @@ fn initInner(allocator: std.mem.Allocator, text: []const u8, name: []const u8, s
         if (instruction != .atom or instruction.atom != .compare) continue;
         const compare = instruction.atom.compare;
         if (compare.value != .parameter) continue;
-        const column = try compare.column.resolve(syntax.qualifier, descriptor.type.structure, &location);
+        const column = compare.column.resolve(syntax.qualifier, descriptor.type.structure, &location) catch |err| {
+            sql.Binding.nameFailure(diagnostic, owned_text, syntax.qualifier, err, location);
+            return err;
+        };
         try result.register(compare.value.parameter, descriptor.type.structure[column].type, diagnostic);
     };
     if (syntax.limit_parameter) |site| try result.register(site, .uint64, diagnostic);
@@ -62,7 +65,10 @@ fn initInner(allocator: std.mem.Allocator, text: []const u8, name: []const u8, s
         if (diagnostic) |detail| detail.expected = @tagName(kind);
         return err;
     };
-    _ = try syntax.bindParameters(alloc, name, descriptor.type, basis, &location, witnesses[0..result.count]);
+    _ = syntax.bindParametersDiagnostic(alloc, name, descriptor.type, basis, &location, witnesses[0..result.count], diagnostic) catch |err| {
+        sql.Binding.nameFailure(diagnostic, owned_text, if (err == error.UnknownSource) name else syntax.qualifier, err, location);
+        return err;
+    };
     // Allocating the validation plan may grow arena after its earlier copy.
     // Transfer only its final state; Syntax retains no diagnostic pointer.
     result.arena = arena;
@@ -157,7 +163,7 @@ pub fn bind(self: *const Self, allocator: std.mem.Allocator, name: []const u8, s
     errdefer if (diagnostic) |detail| {
         if (detail.location == null) detail.location = location;
     };
-    const plan = try self.syntax.bindParameters(arena.allocator(), name, schema, basis, &location, values);
+    const plan = try self.syntax.bindParametersDiagnostic(arena.allocator(), name, schema, basis, &location, values, diagnostic);
     var bytes: [codec.max_bytes]u8 = undefined;
     return codec.decode(allocator, schema, basis, try codec.encode(plan, &bytes));
 }

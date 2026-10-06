@@ -36,7 +36,10 @@ fn fromSqlInner(allocator: std.mem.Allocator, source: q.SourceDefinition, name: 
     var parser = try f.SqlTyped.init(allocator, text, &location);
     const syntax = try f.TableSelect.syntax(&parser, schema);
     try parser.finish();
-    const plan = try syntax.bind(allocator, name, schema, try source.fingerprint(), &location);
+    const plan = syntax.bindParametersDiagnostic(allocator, name, schema, try source.fingerprint(), &location, null, diagnostic) catch |err| {
+        if (diagnostic) |detail| f.Sql.Binding.nameFailure(detail, text, if (err == error.UnknownSource) name else syntax.qualifier, err, location);
+        return err;
+    };
     const result: Self = .{ .source = source, .plan = plan, .limits = limits };
     try result.validate();
     return result;

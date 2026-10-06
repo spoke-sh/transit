@@ -39,7 +39,7 @@ pub fn open(client: *q.UnifiedClient, bundle: q.Bundle, nonce: [16]u8, allocator
     const grant = (try q.UnifiedCapture.policy(&result.current.?, client.connection.requester)) orelse return error.QueryDenied;
     // The opening snapshot is the admission cut. Current policy is checked
     // independently before any schema or row is disclosed.
-    result.basis = try q.UnifiedSource.capture(bundle.source, &data, &data, try grant.principal(bundle.source), allocator);
+    result.basis = try q.UnifiedSource.capture(bundle.source, &data, &result.current.?, try grant.principal(bundle.source), allocator);
     result.progress = try f.LogicalStream.Progress.start(try bundle.bind(try result.basis.fingerprint()));
     const refreshed = try result.source.batch(.{ .snapshot = .{ .existing = result.source.snapshot.id }, .current = try client.interactiveMetadata(bundle.source) });
     _ = try client.interactiveDescription(bundle.source, refreshed);

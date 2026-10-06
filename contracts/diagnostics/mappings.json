@@ -1284,6 +1284,10 @@
         "InvalidQuerySchema": {
           "code": "query.invalid_schema",
           "category": "binding"
+        },
+        "UnknownSource": {
+          "code": "query.unknown_source",
+          "category": "binding"
         }
       },
       "exceptions": [],
@@ -2916,6 +2920,10 @@
         },
         "InvalidQuerySchema": {
           "code": "query.invalid_schema",
+          "category": "binding"
+        },
+        "UnknownSource": {
+          "code": "query.unknown_source",
           "category": "binding"
         }
       },

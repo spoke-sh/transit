@@ -38,19 +38,19 @@ pub fn commandPath(allocator: std.mem.Allocator, line: []const u8) !?[]const u8 
 }
 
 fn validate(parameters: Parameters) !void {
-    if (parameters.len > q.fuze.Prepared.max_parameters) return error.ParameterCountMismatch;
+    if (parameters.len > q.fuze.LogicalPrepared.max_parameters) return error.ParameterCountMismatch;
 }
 
 test "query files own SQL and bindings, preserving omitted and empty inputs" {
     var arena: std.heap.ArenaAllocator = .init(std.testing.allocator);
     defer arena.deinit();
     const allocator = arena.allocator();
-    const bytes = try allocator.dupe(u8, "{\"sql\":\"SELECT value FROM items WHERE value = $1 LIMIT $2\",\"parameters\":[{\"utf8\":\"'; DROP TABLE items; -- $2\"},{\"uint64\":\"18446744073709551615\"}]}");
+    const bytes = try allocator.dupe(u8, "{\"sql\":\"SELECT value FROM items WHERE value = $1 LIMIT $2\",\"parameters\":[{\"utf8\":\"'; DROP TABLE items; -- $2\"},{\"unsigned\":\"18446744073709551615\"}]}");
     const request = try parse(Request, allocator, bytes);
     @memset(bytes, 0);
     try std.testing.expectEqualStrings("SELECT value FROM items WHERE value = $1 LIMIT $2", request.sql);
     try std.testing.expectEqualStrings("'; DROP TABLE items; -- $2", request.parameters.?[0].utf8);
-    try std.testing.expectEqualStrings("18446744073709551615", request.parameters.?[1].uint64);
+    try std.testing.expectEqualStrings("18446744073709551615", request.parameters.?[1].unsigned);
     try std.testing.expect((try parse(Request, allocator, "{\"sql\":\"SELECT * FROM items\"}")).parameters == null);
     try std.testing.expectEqual(@as(usize, 0), (try parse(Request, allocator, "{\"sql\":\"SELECT * FROM items\",\"parameters\":[]}")).parameters.?.len);
     try std.testing.expectEqualStrings("file with spaces.json", (try commandPath(allocator, ".execute \"file with spaces.json\"")).?);
@@ -61,11 +61,12 @@ test "query input rejects malformed, ambiguous and over-bound input before compi
     defer arena.deinit();
     const allocator = arena.allocator();
     for ([_][]const u8{
-        "null",                                               "{}",                                                                "{\"sql\":\"SELECT * FROM items\",\"sql\":\"SELECT 1\"}",
-        "{\"sql\":\"SELECT * FROM items\",\"unknown\":true}", "{\"sql\":\"SELECT * FROM items\",\"parameters\":[{\"uint64\":1}]}", "{\"sql\":\"SELECT * FROM items\",\"parameters\":[{\"uint64\":\"1\",\"int64\":\"1\"}]}",
+        "null",                                               "{}",                                                                  "{\"sql\":\"SELECT * FROM items\",\"sql\":\"SELECT 1\"}",
+        "{\"sql\":\"SELECT * FROM items\",\"unknown\":true}", "{\"sql\":\"SELECT * FROM items\",\"parameters\":[{\"unsigned\":1}]}", "{\"sql\":\"SELECT * FROM items\",\"parameters\":[{\"unsigned\":\"1\",\"signed\":\"1\"}]}",
     }) |bytes| try std.testing.expectError(error.InvalidQueryInput, parse(Request, allocator, bytes));
     try std.testing.expectError(error.InvalidQueryInput, parse(Parameters, allocator, "null"));
-    try std.testing.expectError(error.ParameterCountMismatch, parse(Parameters, allocator, "[{\"boolean\":true},{\"boolean\":true},{\"boolean\":true},{\"boolean\":true}]"));
+    const too_many: [q.fuze.LogicalPrepared.max_parameters + 1]q.Values.Scalar = @splat(.{ .boolean = true });
+    try std.testing.expectError(error.ParameterCountMismatch, parse(Parameters, allocator, try std.json.Stringify.valueAlloc(allocator, too_many, .{})));
     const oversized = try allocator.alloc(u8, max_file_bytes + 1);
     try std.testing.expectError(error.QueryInputTooLarge, parse(Request, allocator, oversized));
     try std.testing.expectError(error.MissingPath, commandPath(allocator, ".execute"));

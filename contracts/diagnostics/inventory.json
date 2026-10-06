@@ -1082,7 +1082,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 33,
+        "try": 28,
         "catch": 6
       },
       "imports": [
@@ -1345,7 +1345,6 @@
       "error_sets": {},
       "error_returns": {
         "border()": "<inferred>",
-        "cellText()": "<inferred>",
         "escaped()": "<inferred>",
         "logicalRow()": "<inferred>",
         "logicalTable()": "<inferred>",
@@ -1355,7 +1354,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 56,
+        "try": 33,
         "catch": 1
       },
       "imports": [
@@ -6447,6 +6446,7 @@
         "ParameterGap": 2,
         "ParameterTypeConflict": 1,
         "SourceChanged": 1,
+        "UnknownSource": 1,
         "UnsupportedComparison": 1
       },
       "outcomes": {},
@@ -6461,8 +6461,8 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 17,
-        "catch": 3
+        "try": 15,
+        "catch": 5
       },
       "imports": [
         "LogicalPlanCodec.zig",
@@ -7344,12 +7344,14 @@
     "packages/zig/transit-fuze/src/SqlLogicalPredicate.zig": {
       "errors": {
         "CellTooLarge": 1,
+        "InvalidLiteral": 1,
         "InvalidParameterIndex": 1,
         "InvalidQuerySchema": 1,
-        "InvalidSqlSyntax": 1,
+        "InvalidSqlSyntax": 2,
         "ParameterCountMismatch": 1,
         "PredicateTooComplex": 2,
         "PredicateTooDeep": 2,
+        "TypeMismatch": 1,
         "UnboundParameters": 1,
         "UnknownColumn": 2,
         "UnsupportedComparison": 1,
@@ -7373,6 +7375,7 @@
         "Expression.unary()": "anyerror",
         "Syntax.bind()": "<inferred>",
         "Syntax.bindParameters()": "<inferred>",
+        "Syntax.bindParametersDiagnostic()": "<inferred>",
         "parameterValue()": "<inferred>",
         "parse()": "<inferred>",
         "syntax()": "<inferred>",
@@ -7381,12 +7384,13 @@
       "open_error_set_uses": 6,
       "propagation": {
         "try": 38,
-        "catch": 1
+        "catch": 2
       },
       "imports": [
         "Finite.zig",
         "LogicalPredicate.zig",
         "PredicateMachine.zig",
+        "Scalar.zig",
         "Sql.zig",
         "SqlReference.zig",
         "SqlTyped.zig",
@@ -8013,13 +8017,15 @@
     },
     "packages/zig/transit-fuze/src/TableSelect.zig": {
       "errors": {
+        "DuplicateColumn": 1,
+        "DuplicateProjection": 1,
         "InvalidParameterSite": 1,
         "InvalidProjection": 1,
         "InvalidQuerySchema": 2,
         "InvalidSqlSyntax": 1,
         "LiteralOutOfRange": 1,
         "UnknownSource": 1,
-        "UnsupportedAggregate": 1,
+        "UnsupportedAggregate": 2,
         "UnsupportedAggregateLimit": 2,
         "UnsupportedConstruct": 6
       },
@@ -8030,6 +8036,7 @@
         "Selection.parse()": "<inferred>",
         "Syntax.bind()": "<inferred>",
         "Syntax.bindParameters()": "<inferred>",
+        "Syntax.bindParametersDiagnostic()": "<inferred>",
         "alias()": "<inferred>",
         "compile()": "<inferred>",
         "compileWithEditor()": "<inferred>",
@@ -10052,7 +10059,8 @@
         "ResourceReadBatchUnavailable": 1,
         "ResultUnavailable": 1,
         "SourceDefinitionTooLarge": 1,
-        "TableNotFound": 1
+        "TableNotFound": 1,
+        "UnknownSource": 1
       },
       "outcomes": {},
       "error_sets": {},
@@ -10246,7 +10254,8 @@
         "InvalidQueryBundle": 3,
         "QueryBundleTooLarge": 2,
         "SourceChanged": 1,
-        "UnexpectedQueryPublisher": 1
+        "UnexpectedQueryPublisher": 1,
+        "UnknownSource": 1
       },
       "outcomes": {},
       "error_sets": {},
@@ -10266,8 +10275,8 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 46,
-        "catch": 1
+        "try": 45,
+        "catch": 2
       },
       "imports": [
         "root.zig",
@@ -11956,7 +11965,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 98,
+        "try": 101,
         "catch": 0
       },
       "imports": [

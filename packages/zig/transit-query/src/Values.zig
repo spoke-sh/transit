@@ -201,7 +201,14 @@ pub const Plan = struct {
             if (in >= q.SourceDefinition.max_columns) return error.UnknownColumn;
             out.* = @intCast(in);
         }
-        const result: f.LogicalQuery.Plan = .{ .schema = schema, .source_basis = binding, .projection = selected, .output_names = self.output_names orelse &.{}, .limit = if (self.limit) |v| try unsigned(v) else null, .aggregate = self.aggregate, .predicate = try self.predicate.native(alloc, schema) };
+        const names = if (self.output_names) |input| owned: {
+            const result = try alloc.dupe(?[]const u8, input);
+            for (result) |*name| if (name.*) |text| {
+                name.* = try alloc.dupe(u8, text);
+            };
+            break :owned result;
+        } else &.{};
+        const result: f.LogicalQuery.Plan = .{ .schema = try schema.cloneInto(alloc), .source_basis = binding, .projection = selected, .output_names = names, .limit = if (self.limit) |v| try unsigned(v) else null, .aggregate = self.aggregate, .predicate = try self.predicate.native(alloc, schema) };
         try result.validate();
         return result;
     }
@@ -323,4 +330,27 @@ test "neutral programs retain owned literals and exact bundle publication identi
     try t.expectError(error.TypeMismatch, apply(alloc, .{ .prepare = restored }));
     restored.plan.predicate = .{ .program = &.{ .{ .atom = .all }, .{ .atom = .{ .state = .{ .column = 2, .value = .null } } }, .disjunction } };
     try t.expectError(error.UnknownColumn, apply(alloc, .{ .prepare = restored }));
+}
+
+test "neutral plans own schema and output names across every allocation failure" {
+    const Run = struct {
+        fn run(allocator: Allocator) !void {
+            var arena: std.heap.ArenaAllocator = .init(allocator);
+            defer arena.deinit();
+            var original_name = "original".*;
+            var output_name = "renamed".*;
+            var fields = [_]types.Field{.{ .name = &original_name, .type = .utf8 }};
+            var names = [_]?[]const u8{&output_name};
+            const plan = try (Plan{ .projection = &.{0}, .output_names = &names }).native(arena.allocator(), .{ .structure = &fields }, @splat(7));
+            @memset(&original_name, 'x');
+            @memset(&output_name, 'x');
+            fields[0].type = .int64;
+            names[0] = null;
+            try std.testing.expectEqualStrings("original", plan.schema.structure[0].name);
+            try std.testing.expectEqualStrings("renamed", plan.output_names[0].?);
+            try std.testing.expect(plan.schema.structure[0].type == .utf8);
+            try plan.validate();
+        }
+    };
+    try std.testing.checkAllAllocationFailures(std.testing.allocator, Run.run, .{});
 }

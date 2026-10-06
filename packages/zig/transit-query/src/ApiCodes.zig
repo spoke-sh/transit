@@ -2,6 +2,7 @@
 const d = @import("root.zig").protocol.Diagnostic;
 pub const Entry = struct { cause: anyerror, code: []const u8, category: d.Category, action: d.ActionKind, message: []const u8 };
 pub const entries = [_]Entry{
+    .{ .cause = error.UnknownSource, .code = "query.unknown_source", .category = .binding, .action = .correct_input, .message = "The SQL source name does not match this query scope. Inspect the selected source and compile new work with its exact name; preserve earlier saved commands." },
     .{ .cause = error.InvalidQuerySchema, .code = "query.invalid_schema", .category = .binding, .action = .correct_input, .message = "A query requires a named row structure. Supply the complete declared column schema before preparing or executing the query." },
     .{ .cause = error.QueryResultBudget, .code = "query.result_budget", .category = .limit, .action = .correct_input, .message = "The Table query exceeds its output row or canonical-byte budget. Its output is incomplete. Reduce the projection or selected rows, or explicitly choose a larger bounded budget for a new query." },
     .{ .cause = error.QueryPageBudget, .code = "query.snapshot_read_budget", .category = .limit, .action = .correct_input, .message = "The Table query exhausted its native snapshot-read budget. Its output is incomplete. Narrow the query or explicitly choose a larger bounded budget for a new query." },

@@ -83,8 +83,8 @@ invoke(['console', '-c', 'SELECT * FROM items', '--parameters', 'one', '--parame
 invoke(['server', '--parameters', 'bindings.json'], contains=('--parameters is not supported',))
 invoke(['console', '--help'], 0, ('--parameters FILE', '.execute FILE'))
 parameter_file = Path(ISOLATED.name) / 'parameters.json'
-for invalid in ('null', '{}', '[{"utf8": "private-must-not-appear", "uint64":"1"}]',
-                '[{"uint64":1}]', '[{"boolean":true},{"boolean":true},{"boolean":true},{"boolean":true}]',
+for invalid in ('null', '{}', '[{"utf8": "private-must-not-appear", "unsigned":"1"}]',
+                '[{"unsigned":1}]', json.dumps([{'boolean': True}] * 66),
                 ' ' * 131073):
     parameter_file.write_text(invalid)
     invoke(['console', '--no-rc', '--config', 'missing-connection', '--parameters', parameter_file,
@@ -331,7 +331,7 @@ with tempfile.TemporaryDirectory(prefix='transit-cli-diagnostics-') as directory
 
     console = {'version': 1, 'profile': 'unified_v1', 'url': 'http://127.0.0.1:19105', 'transport': 'loopback',
                'seed_file': 'missing.seed', 'connection': dict(zip(('realm', 'principal', 'source', 'resource', 'requester', 'requests'), range(1, 7))),
-               'workspace': {'name': 'items', 'source': {'resource': 4, 'source': {'table': {'id': 1, 'names': ['key', 'value'], 'value_type': 'int64'}}},
+               'workspace': {'name': 'items', 'source': {'resource': 4, 'source': {'table': {'scope': {'realm': 1, 'resource': 4, 'catalog': '1'}, 'owner': 3, 'object': '1', 'metadata': {'id': '1', 'spec': {'format': 0x54434d01, 'length': 200, 'digest': [1]*32}}, 'row_type': {'structure': [{'name': 'key', 'type': {'int64': {}}}, {'name': 'value', 'type': {'int64': {}}, 'nullable': True}]}}}},
                              'limits': {'pages': '1', 'segments': '1', 'result_bytes': '65536'}}}
     path = root / 'console.json'
     catalog_console = dict(version=1, profile='catalog_v1', url=console['url'], transport='loopback',
@@ -349,9 +349,9 @@ with tempfile.TemporaryDirectory(prefix='transit-cli-diagnostics-') as directory
         path.write_text(json.dumps(dict(console, **patch)))
         invoke(['console', '--config', path, '--format', 'json'], contains=(field,))
     missing = copy.deepcopy(console)
-    del missing['workspace']['source']['source']['table']['id']
+    del missing['workspace']['source']['source']['table']['object']
     path.write_text(json.dumps(missing))
-    invoke(['console', '--config', path], contains=('missing required field workspace.source.source.table.id',))
+    invoke(['console', '--config', path], contains=('missing required field workspace.source.source.table.object',))
     path.write_text(json.dumps(dict(console, url='https://localhost:19105', transport='tls_ca', ca_file='missing.pem')))
     invoke(['console', '--config', path], contains=('ca_file', 'file not found', 'CA certificates'))
     path.write_text(json.dumps(console))

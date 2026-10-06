@@ -1,6 +1,6 @@
 # Unified query clients and codecs
 
-The additive `station_unified_query_codec(json, length, output)` export and
+The `station_unified_query_codec(json, length, output)` export and
 `unified_query_codec` port action share `QueryCodec`. Generated schemas come from
 the same Zig types. The [v1 contract](../../../../contracts/UNIFIED_QUERY_V1.md)
 owns source identity, typed semantics and the foreign representation.
@@ -17,14 +17,21 @@ infer a KV decoder, adopt an unknown Document format or widen a Table schema.
 Document paths are UTF-8 name arrays; list expansion and text projections retain
 their explicit traversal/byte budgets. `decode` rejects incomplete/trailing bytes.
 
-Keep all non-counter 64-bit quantities as decimal strings. Float values use
+Logical source schemas describe every column, including nested types, nullability
+and optionality. Table declarations bind catalog scope, owner, stable object and
+immutable metadata; they do not identify a two-column positional layout.
+
+Keep all non-counter integers, including 128-bit values, as decimal strings.
+Typed scalar bindings use `signed` or `unsigned`, with the inferred logical
+descriptor selecting the exact width; decimal coefficients, temporal values and
+UUIDs use the shared [logical value encoding](../../../../contracts/FUZE_TYPES_V1.md). Float values use
 `float_bits` hex to preserve negative zero; binary uses hex and UTF-8 uses text.
 Projection indices are numeric arrays. Returned conflicts include their original
 ordered assignment IDs and distinguish null from a typed value or type error.
 
 Plans accept `output_names` as null for all defaults or an array matching the
-projection width. Each position is null or an ASCII identifier of at most 32
-bytes. Named output positions may repeat an input index when resulting names
+projection width. Each position is null or a nonempty UTF-8 name of at most 255
+bytes, without NUL. Named output positions may repeat an input index when resulting names
 are distinct. Decoding preserves owned names and null slots, so preparing a
 decoded bundle retains its exact bytes and immutable Publication identity.
 
@@ -33,7 +40,7 @@ Atoms reuse the `all`, `state` and `compare` values; `negate`, `conjunction` and
 `disjunction` have empty-object payloads. The shared owner validates complete
 stack shape and every typed atom before encoding. Decode copies instruction
 and literal storage into its owned result. The generated array limit is specific
-to programs; column and row limits stay at eight. Native SQL lowers NOT, AND, OR
+to programs; column limits are 128 and row pages contain at most eight rows. Native SQL lowers NOT, AND, OR
 and grouping to these programs. All ten SDKs expose typed program constructors
 and inspected programs. The C/C++ layout extension replaces the shared ABI
 definition; deploy matching headers, SDK libraries and native artifacts.

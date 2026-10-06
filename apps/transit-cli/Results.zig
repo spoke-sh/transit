@@ -78,67 +78,18 @@ test "escaped projected Table rows stream beyond the old fixed render buffer" {
     try std.testing.expectEqual(@as(usize, 8), decoded.row.value.structure.len);
     for (decoded.row.value.structure) |cell| try std.testing.expectEqualStrings(bytes, cell.value.atom.utf8);
 }
-pub fn write(allocator: std.mem.Allocator, out: *std.Io.Writer, page: q.UnifiedResult.Page, batch: *const m.Inspect.Batch, ordinal: u64, as_json: bool) !void {
+pub fn write(allocator: std.mem.Allocator, out: *std.Io.Writer, page: q.UnifiedResult.Page, batch: *const q.fuze.LogicalInspect.Batch, ordinal: u64, as_json: bool) !void {
     if (as_json) {
-        const rows = try allocator.alloc([]q.Values.Cell, batch.count);
-        for (rows, 0..) |*cells, i| {
-            const native = try batch.row(i);
-            cells.* = try allocator.alloc(q.Values.Cell, native.cells.len);
-            for (cells.*, native.cells) |*cell, value| cell.* = try q.Values.Cell.fromNative(allocator, value);
-        }
-        try std.json.Stringify.value(.{ .manifest = try q.Bridge.Manifest.fromNative(allocator, page.manifest), .ordinal = try q.document.JsonValues.decimal(allocator, ordinal), .columns = try q.Values.foreignColumns(allocator, page.schema), .cells = rows, .complete_coverage = page.next == null }, .{ .escape_unicode = true }, out);
+        try std.json.Stringify.value(.{ .manifest = try q.Bridge.Manifest.fromNative(allocator, page.manifest, page.basis), .ordinal = try q.document.JsonValues.decimal(allocator, ordinal), .columns = try q.Values.foreignColumns(allocator, page.schema), .cells = try q.Values.rows(allocator, batch), .complete_coverage = page.next == null }, .{ .escape_unicode = true }, out);
         return out.writeByte('\n');
     }
     try table(allocator, out, page.schema, batch);
 }
-pub fn table(allocator: std.mem.Allocator, out: *std.Io.Writer, schema: m.Schema, batch: *const m.Inspect.Batch) !void {
-    try schema.validate();
-    const count = schema.columns.len;
-    if (batch.columns != count or batch.count > m.max_rows) return error.InvalidArrowResult;
-    var widths: [m.max_columns]usize = @splat(0);
-    var names: [m.max_columns][]const u8 = undefined;
-    var types: [m.max_columns][]const u8 = undefined;
-    var alignments: [m.max_columns]Alignment = undefined;
-    const heading: [m.max_columns]Alignment = @splat(.center);
-    for (schema.columns, 0..) |column, i| {
-        names[i] = try escaped(allocator, column.name.slice());
-        types[i] = @tagName(column.type);
-        widths[i] = @max(names[i].len, types[i].len);
-        alignments[i] = switch (column.type) {
-            .int64, .uint64, .float64 => .right,
-            else => .left,
-        };
-    }
-    const rows = try allocator.alloc([][]const u8, batch.count);
-    for (rows, 0..) |*rendered, index| {
-        rendered.* = try allocator.alloc([]const u8, count);
-        const native = try batch.row(index);
-        for (native.cells, rendered.*, 0..) |cell, *text, i| {
-            text.* = try cellText(allocator, cell);
-            widths[i] = @max(widths[i], text.len);
-        }
-    }
-    try border(out, widths[0..count], "┌", "┬", "┐");
-    try row(out, names[0..count], widths[0..count], heading[0..count]);
-    try row(out, types[0..count], widths[0..count], heading[0..count]);
-    try border(out, widths[0..count], "├", "┼", "┤");
-    for (rows) |cells| try row(out, cells, widths[0..count], alignments[0..count]);
-    try border(out, widths[0..count], "└", "┴", "┘");
-}
-fn cellText(allocator: std.mem.Allocator, cell: m.Cell) ![]const u8 {
-    return switch (cell) {
-        .missing => "MISSING",
-        .null => "NULL",
-        .type_error => |kind| try std.fmt.allocPrint(allocator, "TYPE_ERROR({s})", .{@tagName(kind)}),
-        .conflict => try std.json.Stringify.valueAlloc(allocator, try q.Values.Cell.fromNative(allocator, cell), .{ .escape_unicode = true }),
-        .value => |value| switch (value) {
-            inline .int64, .uint64 => |number| try std.fmt.allocPrint(allocator, "{d}", .{number}),
-            .float64 => |number| try std.fmt.allocPrint(allocator, "{d}", .{number}),
-            .boolean => |boolean| if (boolean) "true" else "false",
-            .utf8 => |bytes| try std.json.Stringify.valueAlloc(allocator, bytes, .{ .escape_unicode = true }),
-            .binary => |bytes| try std.fmt.allocPrint(allocator, "0x{s}", .{try q.document.JsonValues.hex(allocator, bytes)}),
-        },
-    };
+pub fn table(allocator: std.mem.Allocator, out: *std.Io.Writer, schema: q.fuze.Types.Type, batch: *const q.fuze.LogicalInspect.Batch) !void {
+    var rows: [q.fuze.LogicalArrow.max_rows][]const q.fuze.Types.Values.Cell = undefined;
+    if (batch.rows.len > rows.len) return error.InvalidArrowResult;
+    for (batch.rows, rows[0..batch.rows.len]) |cells, *row_| row_.* = cells.cells;
+    return logicalTable(allocator, out, schema, rows[0..batch.rows.len]);
 }
 fn escaped(allocator: std.mem.Allocator, value: []const u8) ![]const u8 {
     const encoded = try std.json.Stringify.valueAlloc(allocator, value, .{ .escape_unicode = true });
@@ -202,9 +153,17 @@ test "native table renders schema, wide numbers and distinct cell states safely"
     batch.cells[1][5] = .{ .conflict = &alternatives };
     var storage: [4096]u8 = undefined;
     var out: std.Io.Writer = .fixed(&storage);
-    try table(allocator, &out, .{ .columns = &columns }, batch);
+    var fields: [columns.len]q.fuze.Types.Field = undefined;
+    var values: [2][columns.len]q.fuze.Types.Values.Cell = undefined;
+    var logical_rows: [2][]const q.fuze.Types.Values.Cell = undefined;
+    for (&columns, &fields) |*column, *field| field.* = .{ .name = column.name.slice(), .type = q.fuze.Types.Type.fromQuery(column.type), .nullable = true, .optional = true };
+    for (&values, &logical_rows, 0..) |*cells, *logical_row, i| {
+        for (cells, batch.cells[i][0..columns.len], columns) |*cell, original, column| cell.* = try q.fuze.Types.Values.fromQuery(allocator, column.type, original);
+        logical_row.* = cells;
+    }
+    try logicalTable(allocator, &out, .{ .structure = &fields }, &logical_rows);
     const text = out.buffered();
-    inline for (.{ "┌", "int64", "uint64", "float64", "utf8", "boolean", "binary", "-9223372036854775808", "18446744073709551615", "1.5", "NULL", "MISSING", "TYPE_ERROR(utf8)", "\"NULL\"", "true", "false", "0x00ff", "\"conflict\"", "\"counter\":\"18446744073709551615\"", "\"binary\":\"1b\"" }) |fragment| try std.testing.expect(std.mem.indexOf(u8, text, fragment) != null);
+    inline for (.{ "┌", "int64", "uint64", "float64", "utf8", "boolean", "binary", "-9223372036854775808", "18446744073709551615", "1.5", "NULL", "MISSING", "TYPE_ERROR(utf8)", "\"NULL\"", "true", "false", "0x00ff", "CONFLICT[", "18446744073709551615@", "0x1b" }) |fragment| try std.testing.expect(std.mem.indexOf(u8, text, fragment) != null);
     try std.testing.expect(std.mem.indexOfScalar(u8, text, 27) == null);
     try std.testing.expect(std.mem.indexOf(u8, text, "│                 NULL │") != null);
 }

@@ -72,7 +72,7 @@ Use `--parameters FILE` with `-c SQL` to bind one finite SELECT. For example,
 save this scalar array as `parameters.json`:
 
 ```json
-[{"uint64":"3"}]
+[{"unsigned":"3"}]
 ```
 
 ```sh
@@ -82,7 +82,7 @@ transit console --parameters parameters.json -c 'SELECT * FROM items LIMIT $1;'
 In a terminal or script, `.execute query.json` runs one query object:
 
 ```json
-{"sql":"SELECT * FROM items LIMIT $1","parameters":[{"uint64":"3"}]}
+{"sql":"SELECT * FROM items LIMIT $1","parameters":[{"unsigned":"3"}]}
 ```
 
 The same file command works in either console execution mode. It executes a
@@ -94,8 +94,7 @@ quoted dot-command paths support spaces. Startup rc files do not execute them.
 Bindings use the [exact scalar codec](../../../contracts/SQL_PARAMETERS_V1.md):
 wide integers are decimal strings, binary bytes and float bits use their existing
 hex encodings, and scalar types are never coerced. The input file is at most
-131072 bytes, SQL is at most 4096 bytes, and at most three values bind the current
-comparison/LIMIT grammar sites. Omitting `parameters` or using null in a query
+131072 bytes, SQL is at most 4096 bytes, and at most 65 exact scalar values bind the Boolean predicate and LIMIT grammar sites. Omitting `parameters` or using null in a query
 object selects ordinary SQL; `[]` selects a template without placeholders.
 The `--parameters` file must always contain an array. Named SQL
 `PREPARE`/`EXECUTE` and parameters for captured file sources remain unsupported.

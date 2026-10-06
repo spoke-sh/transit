@@ -37,8 +37,7 @@ test "SQL output names survive neutral and ABI bundle round trips without changi
     var arena = std.heap.ArenaAllocator.init(t.allocator);
     defer arena.deinit();
     const alloc = arena.allocator();
-    const m = query.fuze.Unified;
-    const source: Source = .{ .resource = 7, .source = .{ .table = .{ .id = 9, .names = .{ "id", "value" }, .value_type = .int64 } } };
+    const source: Source = .{ .resource = 7, .source = .{ .table = .{ .scope = .{ .realm = 1, .resource = 7, .catalog = "9" }, .owner = 3, .object = "9", .metadata = .{ .id = "1", .spec = .{ .format = query.catalog.TableMetadata.format, .length = 200, .digest = @splat(1) } }, .row_type = .{ .structure = &.{ .{ .name = "id", .type = .int64 }, .{ .name = "value", .type = .int64, .nullable = true } } } } } };
     for ([_][]const u8{
         "SELECT value AS amount FROM items",
         "SELECT value AS amount, value AS copy FROM items",
@@ -46,7 +45,7 @@ test "SQL output names survive neutral and ABI bundle round trips without changi
         "SELECT sum(value) AS total FROM items",
         "SELECT id, value FROM items",
     }) |sql| {
-        const bundle = try query.Bundle.fromSql(alloc, try source.native(alloc), try m.Name.init("items"), sql, .{ .pages = 100, .segments = 100, .result_bytes = 1048576 });
+        const bundle = try query.Bundle.fromSql(alloc, try source.native(alloc), "items", sql, .{ .pages = 100, .segments = 100, .result_bytes = 1048576 });
         var bytes: [query.Bundle.max_bytes]u8 = undefined;
         const expected = try bundle.encode(&bytes);
         const expected_hex = try std.fmt.allocPrint(alloc, "{x}", .{expected});
@@ -67,7 +66,7 @@ test "unified foreign bundles preserve every source and full-width scalar throug
     const alloc = arena.allocator();
     const sources = [_]Source{
         .{ .resource = 7, .source = .{ .kv = .{ .prefix = "646174612f", .key = .{ .type = .binary }, .value = .{ .type = .uint64 } } } },
-        .{ .resource = 7, .source = .{ .table = .{ .id = 9, .names = .{ "id", "label" }, .value_type = .utf8 } } },
+        .{ .resource = 7, .source = .{ .table = .{ .scope = .{ .realm = 1, .resource = 7, .catalog = "9" }, .owner = 3, .object = "9", .metadata = .{ .id = "1", .spec = .{ .format = query.catalog.TableMetadata.format, .length = 200, .digest = @splat(1) } }, .row_type = .{ .structure = &.{ .{ .name = "id", .type = .int64 }, .{ .name = "label", .type = .utf8, .nullable = true } } } } } },
         .{ .resource = 7, .source = .{ .document = .{ .reference = .{ .resource = 7, .document = "18446744073709551615", .epoch = "3", .type_revision = 1, .revision = "42" }, .projections = &.{.{ .column = .{ .name = "body", .type = .utf8 }, .path = &.{"東京🙂"}, .mode = .text }} } } },
     };
     for (sources) |source| {
@@ -84,14 +83,15 @@ test "unified foreign bundles preserve every source and full-width scalar throug
         try t.expectEqualStrings(prepared.bytes, output.value.prepared.bytes);
         try t.expectEqualDeep(prepared.spec, output.value.prepared.spec);
     }
-    const scalars = [_]Scalar{ .{ .int64 = "-9223372036854775808" }, .{ .uint64 = "18446744073709551615" }, .{ .float_bits = "0000000000000080" }, .{ .boolean = false }, .{ .utf8 = "é 東京🙂" }, .{ .binary = "00ff80" } };
-    for (scalars) |scalar| {
-        const restored = try Scalar.fromNative(alloc, try scalar.native(alloc));
+    const scalars = [_]Scalar{ .{ .signed = "-9223372036854775808" }, .{ .unsigned = "18446744073709551615" }, .{ .float_bits = "0000000000000080" }, .{ .boolean = false }, .{ .utf8 = "é 東京🙂" }, .{ .binary = "00ff80" } };
+    const types = [_]query.fuze.Types.Type{ .int64, .uint64, .float64, .boolean, .utf8, .binary };
+    for (scalars, types) |scalar, expected| {
+        const restored = try v.foreignScalar(alloc, try v.scalar(alloc, scalar, expected), expected);
         try t.expectEqualStrings(try std.json.Stringify.valueAlloc(alloc, scalar, .{}), try std.json.Stringify.valueAlloc(alloc, restored, .{}));
     }
-    try t.expectError(error.InvalidQueryInteger, (Scalar{ .int64 = "-0" }).native(alloc));
-    try t.expectError(error.InvalidDocumentInteger, (Scalar{ .uint64 = "01" }).native(alloc));
-    try t.expectError(error.NonFiniteValue, (Scalar{ .float_bits = "000000000000f07f" }).native(alloc));
+    try t.expectError(error.InvalidIntegerEncoding, v.scalar(alloc, .{ .signed = "-0" }, .int64));
+    try t.expectError(error.InvalidIntegerEncoding, v.scalar(alloc, .{ .unsigned = "01" }, .uint64));
+    try t.expectError(error.NonFiniteValue, v.scalar(alloc, .{ .float_bits = "000000000000f07f" }, .float64));
     var invalid = sources[0];
     invalid.source.kv.value.version = 2;
     try t.expectError(error.UnsupportedDecoder, invalid.native(alloc));
@@ -101,18 +101,19 @@ test "neutral output names own their bytes and enforce exact output width" {
     var arena = std.heap.ArenaAllocator.init(t.allocator);
     defer arena.deinit();
     const alloc = arena.allocator();
+    const schema: query.fuze.Types.Type = .{ .structure = &.{ .{ .name = "id", .type = .int64 }, .{ .name = "value", .type = .int64, .nullable = true } } };
     var text = "amount".*;
-    var native = try (Plan{ .projection = &.{ 0, 1 }, .output_names = &.{ &text, null } }).native(alloc);
+    var native = try (Plan{ .projection = &.{ 0, 1 }, .output_names = &.{ &text, null } }).native(alloc, schema, @splat(1));
     @memset(&text, 'x');
-    try t.expectEqualStrings("amount", native.output_names[0].?.slice());
+    try t.expectEqualStrings("amount", native.output_names[0].?);
     const neutral = try Plan.fromNative(alloc, native);
-    native.output_names[0] = try query.fuze.Unified.Name.init("changed");
+    native.output_names = &.{ "changed", null };
     try t.expectEqualStrings("amount", neutral.output_names.?[0].?);
     try t.expect(neutral.output_names.?[1] == null);
-    for ([_][]const ?[]const u8{ &.{}, &.{"one"}, &.{ "one", "two", "three" } }) |names| {
-        try t.expectError(error.InvalidOutputNames, (Plan{ .projection = &.{ 0, 1 }, .output_names = names }).native(alloc));
+    for ([_][]const ?[]const u8{ &.{"one"}, &.{ "one", "two", "three" } }) |names| {
+        try t.expectError(error.InvalidOutputNames, (Plan{ .projection = &.{ 0, 1 }, .output_names = names }).native(alloc, schema, @splat(1)));
     }
-    for ([_][]const u8{ "", "not an identifier", "abcdefghijklmnopqrstuvwxyz1234567" }) |name| {
-        try t.expectError(error.InvalidColumnName, (Plan{ .projection = &.{0}, .output_names = &.{name} }).native(alloc));
+    for ([_][]const u8{ "", "nul\x00name", &@as([256]u8, @splat('a')) }) |name| {
+        try t.expectError(error.InvalidFieldName, (Plan{ .projection = &.{0}, .output_names = &.{name} }).native(alloc, schema, @splat(1)));
     }
 }

@@ -247,3 +247,23 @@ test "logical binding owns full UTF8 names at their original failing token" {
     try e.expectEqualStrings("other", detail.subject.?.slice());
     try e.expectEqual(@as(usize, 15), detail.location.?.offset);
 }
+
+test "typed SELECT preserves original grammar and literal mismatch evidence" {
+    const bound_schema: f.Types.Type = .{ .structure = &.{.{ .name = "value", .type = .int64 }} };
+    var detail: f.Sql.Binding = .{};
+    try e.expectError(error.InvalidSqlSyntax, f.LogicalPrepared.init(e.allocator, "SELECT * FROM", "items", bound_schema, @splat(1), &detail));
+    try e.expectEqualStrings("an identifier", detail.location.?.expected.?);
+    try e.expectError(error.UnknownQualifier, f.LogicalPrepared.init(e.allocator, "SELECT wrong.value FROM items AS i", "items", bound_schema, @splat(1), &detail));
+    try e.expectEqualStrings("wrong", detail.subject.?.slice());
+    try e.expectEqualStrings("i", detail.scope[0..detail.scope_len]);
+    var statement_bytes = "SELECT * FROM items AS i WHERE i.value = 'wrong'".*;
+    try e.expectError(error.TypeMismatch, f.LogicalPrepared.init(e.allocator, &statement_bytes, "items", bound_schema, @splat(1), &detail));
+    @memset(&statement_bytes, 0);
+    try e.expectEqualStrings("value", detail.subject.?.slice());
+    try e.expectEqualStrings("i", detail.scope[0..detail.scope_len]);
+    try e.expectEqualStrings("int64", detail.expected.?);
+    try e.expectEqualStrings("utf8", detail.actual.?);
+    try e.expectEqualStrings("\"wrong\"", detail.literal[0..detail.literal_len]);
+    try e.expectError(error.Overflow, f.LogicalPrepared.init(e.allocator, "SELECT * FROM items WHERE value = 9223372036854775808", "items", bound_schema, @splat(1), &detail));
+    try e.expectEqual(@as(usize, 34), detail.location.?.offset);
+}

@@ -128,7 +128,17 @@ pub fn take(self: *Self, tag: sql.Tag) !bool {
     return true;
 }
 pub fn require(self: *Self, tag: sql.Tag) !void {
-    if (!try self.take(tag)) return error.InvalidSqlSyntax;
+    if (!try self.take(tag)) {
+        if (self.location) |location| location.expected = switch (tag) {
+            .left => "(",
+            .right => ")",
+            .comma => ",",
+            .eq => "=",
+            .star => "*",
+            else => @tagName(tag),
+        };
+        return error.InvalidSqlSyntax;
+    }
 }
 pub fn finish(self: *Self) !void {
     _ = try self.take(.semi);
@@ -155,7 +165,10 @@ fn unquote(self: *Self, tag: sql.Tag) ![]const u8 {
 }
 pub fn name(self: *Self) ![]const u8 {
     const result = if (self.token.tag == .quoted) try self.unquote(.quoted) else blk: {
-        if (self.token.tag != .word or sql.isReserved(self.token.text)) return error.InvalidSqlSyntax;
+        if (self.token.tag != .word or sql.isReserved(self.token.text)) {
+            if (self.location) |location| location.expected = "an identifier";
+            return error.InvalidSqlSyntax;
+        }
         self.annotate(.identifier);
         const identifier = try self.allocator.dupe(u8, self.token.text);
         for (identifier) |*byte| byte.* = std.ascii.toLower(byte.*);

@@ -155,7 +155,7 @@ test "general SELECT rejects complete invalid bindings and unsupported construct
         .{ "SELECT x.n FROM people", error.UnknownQualifier },
         .{ "SELECT no FROM people", error.UnknownColumn },
         .{ "SELECT n,n FROM people", error.DuplicateProjection },
-        .{ "SELECT n AS x,n AS x FROM people", error.DuplicateField },
+        .{ "SELECT n AS x,n AS x FROM people", error.DuplicateProjection },
         .{ "SELECT n FROM people WHERE n = NULL", error.UnsupportedNullComparison },
         .{ "SELECT COUNT(*) FROM people LIMIT 1", error.UnsupportedAggregateLimit },
         .{ "SELECT * FROM people LIMIT -1", error.InvalidSqlSyntax },

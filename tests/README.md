@@ -15732,3 +15732,21 @@ qualification. Verification catalog and fixture checks pass. Full root build,
 installed callers, catalog owner disk/restart schedules, resident-memory budgets
 and matched ReleaseSafe measurements remain to be completed for this cutover.
 Historical two-column owner schedules do not qualify the replacement.
+
+### Logical query callers and contextual diagnostics
+
+The CLI renders owned logical Arrow batches in interactive and durable modes;
+neutral results preserve logical descriptors and cells. The native binding codec
+uses the same schema/plan/value conversion. Query tests pass 110/110, including
+allocation-failure coverage proving that converted plans retain their own schema
+and output names (`query-native-cutover-build21.log`). Native binding package
+tests pass 18/18 (`native-cutover-bindings4.log`).
+
+Fuze tests pass 254/254 (`fuze-native-cutover9.log`), including original SQL token
+locations, owned quoted identifiers, active alias context and literal mismatch
+evidence. The real CLI diagnostic corpus passes 592 subprocess cases
+(`native-cutover-cli-diagnostics8.log`); lifecycle tests pass 30/30 and diagnostic
+projections pass 3142 cases across 34 surfaces (`native-cutover-outcomes5.log`).
+Logs are in the local Table-schema campaign. These checks qualify codecs,
+diagnostics and local rendering; installed SDK transports and complete root/clean
+checks remain separate work.

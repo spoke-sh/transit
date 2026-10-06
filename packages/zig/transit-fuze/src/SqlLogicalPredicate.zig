@@ -16,6 +16,9 @@ pub const Syntax = struct {
         return self.bindParameters(allocator, schema, name, location, null);
     }
     pub fn bindParameters(self: Syntax, allocator: std.mem.Allocator, schema: t.Type, name: []const u8, location: ?*sql.Location, parameters: ?[]const t.Values.Atom) !Predicate.Program {
+        return self.bindParametersDiagnostic(allocator, schema, name, location, parameters, null);
+    }
+    pub fn bindParametersDiagnostic(self: Syntax, allocator: std.mem.Allocator, schema: t.Type, name: []const u8, location: ?*sql.Location, parameters: ?[]const t.Values.Atom, diagnostic: ?*sql.Binding) !Predicate.Program {
         if (schema != .structure or schema.structure.len == 0 or schema.structure.len > 128) return error.InvalidQuerySchema;
         if (self.instructions.len > Predicate.Program.max_instructions) return error.PredicateTooComplex;
         const instructions = try allocator.alloc(Predicate.Program.Instruction, self.instructions.len);
@@ -33,7 +36,22 @@ pub const Syntax = struct {
                             .literal => |literal| literal_blk: {
                                 var failure: ?Parser.Literal.Span = null;
                                 const cell = literal.bind(allocator, schema.structure[index].type, &failure) catch |err| {
-                                    if (location) |at| at.* = .{ .offset = (failure orelse literal.span).start };
+                                    const offset = (failure orelse literal.span).start;
+                                    if (location) |at| at.* = .{ .offset = offset };
+                                    if (diagnostic) |detail| {
+                                        detail.subject = sql.Binding.Name.init(schema.structure[index].name) catch null;
+                                        detail.location = .{ .offset = offset };
+                                        detail.scope_len = @min(name.len, detail.scope.len);
+                                        @memcpy(detail.scope[0..detail.scope_len], name[0..detail.scope_len]);
+                                        detail.expected = @tagName(schema.structure[index].type);
+                                        detail.actual = if (literal.value == .string) "utf8" else @tagName(literal.value);
+                                        switch (literal.value) {
+                                            .string => |text| sql.Binding.supplied(detail, @import("Scalar.zig").Scalar{ .utf8 = text }),
+                                            .boolean => |boolean| sql.Binding.supplied(detail, @import("Scalar.zig").Scalar{ .boolean = boolean }),
+                                            else => detail.actual = @tagName(literal.value),
+                                        }
+                                    }
+                                    if ((err == error.InvalidSqlSyntax or err == error.InvalidLiteral) and !literalShape(literal, schema.structure[index].type)) return error.TypeMismatch;
                                     return err;
                                 };
                                 if (location) |at| at.* = .{ .offset = literal.span.start };
@@ -54,6 +72,28 @@ pub const Syntax = struct {
         return result;
     }
 };
+// Only classify a mismatch at the literal root. Range, malformed scalar text
+// and nested-child failures retain their original causes and source spans.
+fn literalShape(literal: Parser.Literal, expected: t.Type) bool {
+    if (literal.value == .null or literal.value == .missing) return true;
+    return switch (expected) {
+        .int8, .int16, .int32, .int64, .int128, .uint8, .uint16, .uint32, .uint64, .uint128, .float32, .float64, .decimal => literal.value == .number,
+        .utf8 => literal.value == .string,
+        .boolean => literal.value == .boolean,
+        .binary => literal.value == .binary,
+        .date => literal.value == .date or literal.value == .string,
+        .time => literal.value == .time or literal.value == .string,
+        .timestamp => literal.value == .timestamp or literal.value == .string,
+        .uuid => literal.value == .uuid or literal.value == .string,
+        .json => literal.value == .json or literal.value == .string,
+        .structure => literal.value == .structure,
+        .list => literal.value == .list,
+        .array => literal.value == .array,
+        .map => literal.value == .map,
+        .tagged_union => literal.value == .tagged_union,
+        .interval => literal.value == .interval,
+    };
+}
 /// The exact expected descriptor controls parameter width and representation.
 /// No literal parse, implicit cast or source error/conflict state is introduced.
 pub fn validateParameter(value: t.Values.Atom, expected: t.Type) !void {

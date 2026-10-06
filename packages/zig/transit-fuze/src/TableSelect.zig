@@ -41,6 +41,7 @@ const Selection = struct {
         } else while (true) {
             if (result.count == max_columns) return error.InvalidProjection;
             const column = try Reference.parse(parser);
+            if (parser.token.tag == .left) return error.UnsupportedAggregate;
             result.items[result.count] = .{ .column = column, .alias = if (try parser.takeWord("AS")) try parser.name() else null };
             result.count += 1;
             if (!try parser.take(.comma)) break;
@@ -56,6 +57,17 @@ const Selection = struct {
             column.* = if (self.star) (if (self.aggregate == .count) 0 else @intCast(i)) else @intCast(try self.items[i].column.resolve(qualifier, schema.structure, location));
             name.* = if (self.star and self.aggregate == .rows) null else self.items[i].alias;
         }
+        if (self.aggregate == .rows) for (columns, names, 0..) |column, name, i| {
+            const output_name = name orelse schema.structure[column].name;
+            for (columns[0..i], names[0..i]) |earlier, earlier_name| {
+                if (std.mem.eql(u8, output_name, earlier_name orelse schema.structure[earlier].name)) {
+                    if (!self.star) {
+                        if (location) |at| at.* = .{ .offset = self.items[i].column.span.start };
+                    }
+                    return if (column == earlier) error.DuplicateProjection else error.DuplicateColumn;
+                }
+            }
+        };
         const plan: logical.Plan = .{ .schema = schema, .source_basis = basis, .projection = columns, .output_names = names, .aggregate = self.aggregate };
         try plan.validateShape();
         return plan;
@@ -121,13 +133,16 @@ pub const Syntax = struct {
         return self.bindParameters(allocator, name, schema, basis, location, null);
     }
     pub fn bindParameters(self: Syntax, allocator: std.mem.Allocator, name: []const u8, schema: t.Type, basis: [32]u8, location: ?*sql.Location, parameters: ?[]const t.Values.Atom) !logical.Plan {
+        return self.bindParametersDiagnostic(allocator, name, schema, basis, location, parameters, null);
+    }
+    pub fn bindParametersDiagnostic(self: Syntax, allocator: std.mem.Allocator, name: []const u8, schema: t.Type, basis: [32]u8, location: ?*sql.Location, parameters: ?[]const t.Values.Atom, diagnostic: ?*sql.Binding) !logical.Plan {
         if (schema != .structure or schema.structure.len == 0 or schema.structure.len > max_columns) return error.InvalidQuerySchema;
         if (!std.mem.eql(u8, self.subject.name, name)) {
             if (location) |at| at.* = .{ .offset = self.subject.span.start };
             return error.UnknownSource;
         }
         var plan = try self.selection.lower(allocator, schema, self.qualifier, basis, location);
-        if (self.predicate) |expression| plan.predicate = .{ .program = try expression.bindParameters(allocator, schema, self.qualifier, location, parameters) };
+        if (self.predicate) |expression| plan.predicate = .{ .program = try expression.bindParametersDiagnostic(allocator, schema, self.qualifier, location, parameters, diagnostic) };
         plan.limit = self.limit;
         if (self.limit_parameter) |site| {
             if (self.limit != null) return error.InvalidParameterSite;

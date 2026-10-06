@@ -129,7 +129,7 @@ pub fn query(text: []const u8, cause: anyerror, inspection: bool) ?Self {
         error.InvalidMutationPlan => "Supply one to three distinct typed INSERT rows, one value UPDATE or one primary-key DELETE.",
         error.UnknownSource => "The source is not the configured source or Table writer name. Use .sources in the console and use the exact configured name; CREATE TABLE does not configure a query source.",
         error.UnknownColumn, error.UnknownQualifier => "Use .schema and .sources in the console to check exact column names and the source qualifier.",
-        error.DuplicateProjection, error.InvalidProjection, error.InvalidOutputNames => "Select one to eight output positions with distinct result names. Use explicit AS names when selecting an input column more than once.",
+        error.DuplicateProjection, error.InvalidProjection, error.InvalidOutputNames => "Select one to 128 output positions with distinct result names. Use explicit AS names when selecting an input column more than once.",
         error.UnsupportedNullComparison => "Use IS NULL to test explicit nulls; use IS MISSING for missing Document fields.",
         error.UnsupportedAggregateLimit => "To limit aggregate input, use an aggregate over a limited derived table; an outer LIMIT is not an input limit. Use .help SQL in the console for an example.",
         error.UnsupportedAggregate => "Use COUNT(*), COUNT(column), or SUM on an int64 column; other aggregate forms are unsupported.",
