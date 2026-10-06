@@ -156,7 +156,7 @@ c-sdk-test: c-build
     python3 -B tests/c_station_sdk.py zig-out/bin/transit-node zig-out/bin/rey-cli zig-out/lib/libtransit_client.so .cache/bindings/c zig-out/bin/transit-station-http-worker
     python3 -B tests/sdk_grpc_runner.py zig-out/bin/transit-node zig-out/bin/rey-cli zig-out/lib/libtransit_client.so zig-out/bin/transit-station-grpc-worker .cache/bindings --language c
     just test::table-mutation --sdk c --sdk cpp
-    just test::catalog --sdk c --sdk cpp
+    just test::typed-tables --sdk c --sdk cpp
     python3 -B tests/c_logical_values.py .cache/bindings/c
 
 # Qualify owned recursive models through installed C11 and C++17 consumers.
@@ -399,7 +399,7 @@ catalog-ruby: ruby-build
 
 # Installed C11/C++17 catalog callers with owned values and saved recovery.
 catalog-c: c-build
-    just test::catalog --sdk c --sdk cpp
+    just test::typed-tables --sdk c --sdk cpp
 
 # Installed Java catalog futures, generated port validation and owned recovery.
 catalog-java: java-build

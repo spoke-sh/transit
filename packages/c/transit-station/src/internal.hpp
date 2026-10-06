@@ -25,8 +25,8 @@ struct Local {
 #undef DECLARE
     Caps caps{};
     explicit Local(const char *directory);
-    Bytes take(station_buffer *buffer) const;
-    Bytes result(uint32_t status, station_buffer *buffer, const char *phase, bool mutation = false) const;
+    Bytes take(station_buffer *buffer, size_t maximum = TRANSIT_CLIENT_MAX_BODY) const;
+    Bytes result(uint32_t status, station_buffer *buffer, const char *phase, bool mutation = false, size_t maximum = TRANSIT_CLIENT_MAX_BODY) const;
 };
 struct Bridge {
     Local local;

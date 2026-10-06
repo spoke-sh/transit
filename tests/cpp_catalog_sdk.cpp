@@ -1,81 +1,77 @@
-/* Installed C++17 consumer through public move-only catalog callers. */
-#include <transit/catalog.hpp>
+/* Installed C++17 general Table lifecycle through the public typed facade. */
 #include "catalog_sdk_io.h"
+#include <transit/catalog.hpp>
 using namespace transit::sdk;
-namespace cat=transit::sdk::station::catalog;
-static cat::Scope cpp_scope(transit_station_catalog_scope v){return {ResourceRef(v.resource.realm,v.resource.resource),v.catalog};}
-static transit_station_catalog_scope c_scope(const cat::Scope &v){return {{v.resource.realm(),v.resource.resource()},v.catalog};}
-static cat::CreateTable cpp_request(const transit_station_catalog_create_table &v){return {cpp_scope(v.scope),v.operation,v.object,v.table,v.name,{{v.schema.names[0],v.schema.names[1]},static_cast<cat::Type>(v.schema.value_type-1)}};}
-static transit_station_catalog_create_table c_request(const cat::CreateTable &v){
-    transit_station_catalog_create_table out{};out.scope=c_scope(v.scope);out.operation=v.operation;out.object=v.object;out.table=v.table;
-    copy_name(out.name,v.name.c_str());copy_name(out.schema.names[0],v.schema.names[0].c_str());copy_name(out.schema.names[1],v.schema.names[1].c_str());out.schema.value_type=static_cast<transit_station_cell_kind>(1+static_cast<int>(v.schema.value_type));return out;
-}
-static transit_station_catalog_definition c_definition(const cat::Definition &v){
-    transit_station_catalog_definition out{};out.found=true;out.scope=c_scope(v.scope);out.object=v.object;out.revision=v.revision;copy_name(out.name,v.name.c_str());
-    out.source.table=v.source.table;for(size_t i=0;i<2;++i)copy_name(out.source.schema.names[i],v.source.schema.names[i].c_str());out.source.schema.value_type=static_cast<transit_station_cell_kind>(1+static_cast<int>(v.source.schema.value_type));
-    out.principal=v.principal;out.operation=v.operation;out.input=v.input;return out;
-}
-static transit_station_catalog_cursor c_cursor(const cat::Cursor &v){
-    transit_station_catalog_cursor out{};assert(v.definition.size()==64);memcpy(out.definition,v.definition.data(),64);out.scope=c_scope(v.scope);out.resource_revision=v.resource_revision;copy_name(out.after,v.after.c_str());return out;
-}
-int main(int argc,char **argv){
-    assert(argc==8);setvbuf(stdout,nullptr,_IOLBF,0);const auto realm=number(argv[3]);
-    bool rejected=false;try{cat::Prepared::recover({});}catch(const Error &e){rejected=e.detail().kind==TRANSIT_SDK_INVALID_ARGUMENT;}assert(rejected);
-    cat::CreateTable value{{ResourceRef(1,7),UINT64_MAX},UINT64_MAX,UINT64_MAX,UINT32_MAX,"items",{{"id","value"},cat::Type::Utf8}};
-    Bytes original{1,2};auto copy=cat::Compiled::recover(value,original);value.name="changed";original[0]=0;assert(copy.request().name=="items" && copy.request().object==UINT64_MAX && copy.canonical()[0]==1);
-    auto moved=std::move(copy);rejected=false;try{copy.canonical();}catch(const Error &e){rejected=e.detail().kind==TRANSIT_SDK_INVALID_ARGUMENT;}assert(rejected && moved.canonical()[0]==1);
-    value.schema.value_type=static_cast<cat::Type>(256);rejected=false;try{cat::Compiled::recover(value,original);}catch(const Error &e){rejected=e.detail().kind==TRANSIT_SDK_INVALID_ARGUMENT;}assert(rejected);
-    auto config=ClientConfig::growing(argv[1]).timeout(10000);
-    Credential credential(realm,number(argv[4]),argv[2]);cat::Connection connection{ProcessRef(realm,number(argv[5])),{ResourceRef(realm,number(argv[6])),number(argv[7])}};
-    auto client=cat::Client::open(config,credential,connection);std::optional<cat::Prepared> retained;Bytes retained_bytes;std::optional<cat::Compiled> compiled;
-    std::optional<cat::Definition> retained_definition;
-    rejected=false;try{client.list(cat::Cursor{"",connection.scope,1,"items"});}catch(const Error &e){rejected=e.detail().kind==TRANSIT_SDK_INVALID_ARGUMENT;}assert(rejected);
-    rejected=false;try{client.list(cat::Cursor{std::string(64,'0'),connection.scope,1,"items"});}catch(const Error &e){rejected=e.detail().kind==TRANSIT_SDK_INVALID_ARGUMENT;}assert(rejected);
-    puts("{\"ready\":true}");
-    while(read_command() && strcmp(args[0],"close")){
-        const char *command=args[0];
-        try{
-            if(!strcmp(command,"capabilities")){
-                auto v=client.capabilities();transit_station_catalog_capabilities out{};out.version=v.version;assert(v.definition.size()==64);memcpy(out.definition,v.definition.data(),64);
-                out.initialize=v.initialize;out.create_table=v.create_table;out.conditional_policy=v.conditional_policy;out.current_metadata=v.current_metadata;out.max_saved_bytes=v.max_saved_bytes;out.table_columns=v.table_columns;emit_capabilities(&out);
-            }else if(!strcmp(command,"describe")){
-                auto v=client.describe();transit_station_catalog_description out{{c_scope(v.configuration.scope),{v.configuration.owner.realm(),v.configuration.owner.pid()},v.configuration.administrator},{c_scope(v.policy.scope),v.policy.principal,v.policy.revision,v.policy.inspect,v.policy.create},v.resource_revision};emit_description(&out);
-            }else if(!strcmp(command,"lookup") || !strcmp(command,"definition")){
-                auto v=!strcmp(command,"lookup")?client.lookup(args[1]):client.definition(number(args[1]),number(args[2]));transit_station_catalog_definition out{};
-                if(v){out=c_definition(*v);retained_definition=*v;v->name="changed";assert(retained_definition->name==out.name);}emit_definition(&out);
-            }else if(!strcmp(command,"list")){
-                std::optional<cat::Cursor> previous;if(args[1]){auto p=cursor();previous=cat::Cursor{p.definition,cpp_scope(p.scope),p.resource_revision,p.after};}
-                auto v=client.list(previous);auto copied=v;v.entries.clear();transit_station_catalog_page out{};out.resource_revision=copied.resource_revision;out.count=static_cast<uint8_t>(copied.entries.size());
-                for(size_t i=0;i<copied.entries.size();++i)out.entries[i]=c_definition(copied.entries[i]);
-                if(copied.next){out.has_next=true;out.next=c_cursor(*copied.next);}emit_page(&out);
-            }else if(!strcmp(command,"compile")){
-                auto sql=unhex(args[1]);std::string statement(reinterpret_cast<const char *>(sql.data),sql.size);free((void *)sql.data);
-                auto v=client.compile_sql(statement,number(args[2]),number(args[3]),static_cast<uint32_t>(number(args[4])));auto r=v.request();auto canonical=v.canonical();auto wire=c_request(r);
-                printf("{\"status\":0,\"value\":{\"compiled\":{\"request\":");emit_request(&wire);printf(",\"canonical\":\"");print_hex({canonical.data(),canonical.size()});puts("\"}}}");
-                compiled=cat::Compiled::recover(r,canonical);r.name="changed";std::fill(canonical.begin(),canonical.end(),0);assert(compiled->request().name==wire.name && compiled->canonical()==v.canonical());
-            }else if(!strcmp(command,"initialize") || !strcmp(command,"create") || !strcmp(command,"policy")){
-                std::optional<cat::Prepared> out;
-                if(!strcmp(command,"initialize"))out=client.prepare_initialize({cpp_scope(scope(1)),ProcessRef(number(args[1]),number(args[4])),number(args[5])});
-                else if(!strcmp(command,"create"))out=client.prepare_create(cpp_request(request()));
-                else out=client.prepare_policy({number(args[8]),{cpp_scope(scope(1)),number(args[4]),number(args[5]),number(args[6])!=0,number(args[7])!=0}});
-                auto bytes=out->data();emit_prepared({bytes.data(),bytes.size()});
-            }else if(!strcmp(command,"status")){
-                auto v=client.status(cpp_request(request()));transit_station_catalog_receipt out{};
-                if(v){out.found=true;out.request=c_request(v->request);out.principal=v->principal;out.input=v->input;out.outcome=static_cast<transit_station_catalog_outcome>(v->outcome);out.diagnostic.size=v->diagnostic.size();std::copy(v->diagnostic.begin(),v->diagnostic.end(),out.diagnostic.json);}emit_status(&out);
-            }else{
-                auto bytes=unhex(args[1]);Bytes saved(bytes.data,bytes.data+bytes.size);free((void *)bytes.data);
-                auto prepared=cat::Prepared::recover(saved);retained_bytes=saved;std::fill(saved.begin(),saved.end(),0);assert(prepared.data()==retained_bytes);retained=std::move(prepared);
-                if(!strcmp(command,"submit"))printf("{\"status\":0,\"value\":{\"receipt\":{\"position\":%llu}}}\n",static_cast<unsigned long long>(client.submit(*retained)));
-                else if(!strcmp(command,"observe"))printf("{\"status\":0,\"value\":{\"observation\":\"%s\"}}\n",client.observe(*retained,number(args[2]))==cat::Observation::Pending?"pending":"processed");
-                else {assert(!strcmp(command,"input_disposition"));auto v=client.input_disposition(*retained,number(args[2]));transit_station_catalog_disposition out{};
-                    if(v){out.found=true;out.scope=c_scope(v->scope);out.origin=static_cast<transit_station_catalog_origin>(v->origin);out.principal=v->principal;out.input=v->input;std::copy(v->payload.begin(),v->payload.end(),out.payload);out.outcome=static_cast<transit_station_catalog_disposition_outcome>(v->outcome);out.diagnostic.size=v->diagnostic.size();std::copy(v->diagnostic.begin(),v->diagnostic.end(),out.diagnostic.json);}emit_disposition(&out);
-                }
-                assert(retained->data()==retained_bytes);
-            }
-        }catch(const Error &error){if(!strcmp(command,"submit"))assert(retained && retained->data()==retained_bytes);emit_error(error.detail());}
+namespace cat = transit::sdk::station::catalog;
+namespace logical = transit::sdk::logical;
+static cat::Identity id(uint64_t base, uint64_t offset) { return {base + offset, base + offset + 100000}; }
+static cat::Outcome finish(cat::Client &client, const cat::Compiled &compiled, const char *root) {
+    const auto intent = compiled.intent(); auto saved = compiled.saved(); persist_saved(root, saved.native()); const double deadline = now() + 120;
+    for (;;) {
+        assert(now() < deadline); auto next = client.next(intent.reference);
+        if (next.kind == cat::NextKind::Terminal) return *next.outcome;
+        if (next.kind == cat::NextKind::Running) continue;
+        assert(next.kind == cat::NextKind::Send && next.prepared); const auto bytes = next.prepared->data(); persist(root, "step.json", bytes_view(bytes));
+        const auto position = client.submit(*next.prepared); persist_receipt(root, position);
+        for (;;) {
+            assert(now() < deadline); auto progress = client.progress(intent.reference, *next.prepared, position, true);
+            if (progress.observation == cat::Observation::Pending) continue;
+            assert(!progress.disposition); if (progress.state.outcome && progress.state.outcome->terminal) return *progress.state.outcome; break;
+        }
     }
-    client.close();bool closed=false;try{client.describe();}catch(const Error &e){closed=e.detail().kind==TRANSIT_SDK_CLOSED;}assert(closed);
-    if(retained)assert(retained->data()==retained_bytes);if(compiled)assert(compiled->request().object && !compiled->canonical().empty());
-    if(retained_definition)assert(retained_definition->object && !retained_definition->name.empty() && !retained_definition->source.schema.names[0].empty());
-    puts("{\"closed\":true}");
+}
+static bool equal(const cat::Outcome &a, const cat::Outcome &b) {
+    return a.kind == b.kind && a.operation == b.operation && a.object == b.object && a.actual_object == b.actual_object && a.phase == b.phase && a.terminal == b.terminal &&
+        a.admitted_input == b.admitted_input && a.completed_input == b.completed_input && a.diagnostic == b.diagnostic && bool(a.counts) == bool(b.counts) &&
+        (!a.counts || (a.counts->matched == b.counts->matched && a.counts->changed == b.counts->changed));
+}
+static void values() {
+    Bytes original{1, 2}; auto prepared = cat::Prepared::recover(original); original[0] = 0; assert(prepared.data()[0] == 1);
+    auto moved = std::move(prepared); bool rejected = false; try { prepared.data(); } catch (const Error &e) { rejected = e.detail().kind == TRANSIT_SDK_INVALID_ARGUMENT; } assert(rejected && moved.data()[0] == 1);
+    Bytes large(300000, 9); auto saved = cat::SavedIntent::recover(TRANSIT_SDK_STATION_DEFINITION, large); large.clear(); assert(saved.data().size() == 300000 && saved.data()[299999] == 9);
+    rejected = false; try { cat::SavedIntent::recover(std::string(64, '0'), {1}); } catch (const Error &e) { rejected = e.detail().kind == TRANSIT_SDK_INVALID_ARGUMENT; } assert(rejected);
+}
+static void scenario(cat::Client &client, const ClientConfig &config, const Credential &credential, const cat::Connection &connection, const char *root, uint64_t index) {
+    const uint64_t base = 1100 + index * 100, object = 12001 + index * 10; const auto name = "sdk_people_" + std::to_string(index);
+    assert(client.capabilities().max_columns == 128); assert(client.describe().configuration.scope.catalog == connection.scope.catalog);
+    auto create = client.compile_sql("CREATE TABLE " + name + " (id INTEGER PRIMARY KEY, payload STRUCT(data BINARY, label UTF8), amount DECIMAL(38,2))", id(base, 0), object);
+    assert(finish(client, create, root).phase == cat::Phase::Applied);
+    auto original = client.lookup(name); assert(original && original->schema.columns.size() == 3 && original->schema.columns[1].type.kind() == TRANSIT_LOGICAL_STRUCTURE);
+    auto source = cat::basis(original->metadata);
+    auto payload = logical::Cell::structure({logical::Cell::atom(logical::Atom::binary({0, 128, 255})), logical::Cell::atom(logical::Atom::utf8("東京"))});
+    auto amount = logical::Cell::atom(logical::Atom::decimal(logical::Int128{UINT64_C(14083847773837265618), INT64_C(6692605942)}));
+    auto key = logical::Cell::atom(logical::Atom::signed_integer(1));
+    auto insert = client.prepare(name, id(base, 1), cat::Insert{source, {{{3, amount}, {1, key}, {2, payload}}}});
+    const auto applied = finish(client, insert, root); assert(applied.counts && applied.counts->matched == 1 && applied.counts->changed == 1);
+    cat::Predicate predicate{cat::Compare{1, cat::CompareOp::Eq, logical::Atom::signed_integer(1)}};
+    auto update = client.prepare(name, id(base, 2), cat::Update{source, {{3, amount}}, predicate}); const auto unchanged = finish(client, update, root);
+    assert(unchanged.counts && unchanged.counts->matched == 1 && unchanged.counts->changed == 0);
+    auto alter = client.prepare(name, id(base, 3), cat::Alter{source, cat::AddColumn{"enabled", logical::Type::scalar(TRANSIT_LOGICAL_BOOLEAN), false, logical::Cell::atom(logical::Atom::boolean(true)), {}}});
+    assert(finish(client, alter, root).phase == cat::Phase::Applied);
+    bool rejected = false; try { client.prepare(name, id(base, 4), cat::Drop{source, false}); } catch (const Error &) { rejected = true; } assert(rejected);
+    source = cat::basis(client.lookup(name)->metadata);
+    auto remove = client.prepare(name, id(base, 5), cat::Delete{source, predicate}); const auto removed = finish(client, remove, root);
+    assert(removed.counts && removed.counts->matched == 1 && removed.counts->changed == 1);
+    auto drop = client.prepare(name, id(base, 6), cat::Drop{source, false}); assert(finish(client, drop, root).phase == cat::Phase::Applied);
+    cat::Schema schema{object + 1, 1, 2, {{1, "replacement", logical::Type::scalar(TRANSIT_LOGICAL_UTF8), true, {}, {}}}, {}};
+    auto replacement = client.prepare(name, id(base, 7), cat::Create{schema, false}); schema.columns.clear(); assert(finish(client, replacement, root).phase == cat::Phase::Applied);
+    auto saved = insert.saved(); const auto intent = insert.intent(); client.close();
+    auto fresh = cat::Client::open(config, credential, connection); const auto loaded = fresh.load(saved); assert(loaded.object == object && loaded.reference.digest == intent.reference.digest);
+    const auto state = fresh.status(loaded.reference); assert(state.outcome && equal(applied, *state.outcome)); assert(fresh.lookup(name)->metadata.object == object + 1);
+    auto history = fresh.definition(object, original->metadata.revision); assert(history && history->metadata.object == object && history->metadata.revision == original->metadata.revision && history->metadata.schema_fingerprint == original->metadata.schema_fingerprint);
+    assert(history->schema.columns.size() == original->schema.columns.size());
+    for (size_t i = 0; i < history->schema.columns.size(); ++i) assert(history->schema.columns[i].type.encode() == original->schema.columns[i].type.encode());
+    assert(!fresh.definition(object, 999)); assert(!fresh.list().entries.empty()); fresh.close();
+    assert(history->schema.columns[1].type.fields().size() == 2 && saved.data().size() > 0);
+    printf("{\"status\":0,\"value\":{\"profile\":\"installed-cpp-general-table\",\"original_object\":\"%llu\",\"replacement_object\":\"%llu\",\"counts\":{\"matched\":\"1\",\"changed\":\"1\"}}}\n", (unsigned long long)object, (unsigned long long)(object + 1));
+}
+int main(int argc, char **argv) {
+    assert(argc == 9); setvbuf(stdout, nullptr, _IOLBF, 0); values();
+    const auto realm = number(argv[3]); auto config = ClientConfig::growing(argv[1]).timeout(10000); Credential credential(realm, number(argv[4]), argv[2]);
+    cat::Connection connection{ProcessRef(realm, number(argv[5])), {ResourceRef(realm, number(argv[6])), number(argv[7])}};
+    try {
+        auto client = cat::Client::open(config, credential, connection); puts("{\"ready\":true}");
+        while (read_command() && strcmp(args[0], "close")) { assert(!strcmp(args[0], "scenario")); scenario(client, config, credential, connection, argv[8], number(args[1])); }
+        client.close(); puts("{\"closed\":true}");
+    } catch (const Error &e) { checked(e.detail()); }
 }

@@ -1,56 +1,74 @@
-# Catalog callers
+# General Table callers
 
-Include `transit/catalog.h` for explicit conditional Table creation and catalog
-controls. Supply a client configuration, credential and realm-qualified catalog
-resource/owner to `transit_station_catalog_open`. Opening checks the exact native
-definition and capabilities. The shared Zig caller owns signing, recovery,
-authorization and framework semantics.
+Include `transit/catalog.h` for catalog-based CREATE, ALTER, RENAME, DROP and
+typed INSERT/UPDATE/DELETE. Opening takes a configuration, credential and explicit
+realm-qualified catalog scope/owner. The native definition and capabilities must
+match. Shared Zig owns authorization, schema validation, signing, publication
+and recovery; C owns bounded values and synchronous worker dispatch.
 
-`compile_sql` returns an owned typed request and canonical review bytes for the
-supported two-column `CREATE TABLE` profile. `prepare_initialize`, `prepare_create`
-and `prepare_policy` return opaque signed commands; save their exact bytes before
-`submit`. Catalog, operation, object and policy revision identities retain the
-full `uint64_t` range; native identities retain their separate safe-integer bound.
-Names occupy inline terminated 17-byte arrays (at most 16 name bytes). The value
-column supports `INT64`, `BOOLEAN`, `UTF8` and `BINARY` with explicit nullability.
+`compile_sql` accepts a statement and operation/namespace identity. Supply a
+new object identity for CREATE. `prepare` accepts a typed request: CREATE carries
+a schema; ALTER/RENAME/DML carry an exact object/revision/fingerprint basis;
+DROP carries that basis or the explicit absent-name `IF EXISTS` case. Neither
+preparation operation submits work. Schemas admit 128 named columns, stable
+column IDs, [logical types and cells](LOGICAL.md), nullability, defaults,
+VARCHAR character limits and an explicit primary-key column list. An empty
+key list preserves duplicate rows using native row identities.
 
-`submit` borrows the prepared command. On `TRANSIT_SDK_UNKNOWN_OUTCOME`, retain
-and retry those identical bytes, including after replacing the client. A returned
-position establishes admission. `observe` reports input progress;
-`input_disposition` reports control/rejection outcomes, and `status_read` matches
-the original creation request and receipt. Only `TRANSIT_CATALOG_APPLIED`
-establishes creation. Current native and catalog policies gate reads and retries.
-Created Tables do not automatically become query sources or mutation writers.
+Construction views borrow their trees for the duration of a call. A NULL
+assignment pointer means DEFAULT; a logical NULL uses a non-NULL cell view.
+INSERT admits 1,024 rows with 128 assignments each. UPDATE/DELETE take an optional
+postfix predicate with at most 64 terms. Logical and complete action bounds
+still apply: the serializer stops at the aggregate bound before dispatch.
+ADD COLUMN uses a column specification; native admission assigns the new stable
+ID. ALTER also represents DROP/RENAME COLUMN, SET/DROP DEFAULT, nullability and
+qualified type changes. Type conversions and key restrictions remain native
+Table semantics, not C casts. `rights.remove` is the SQL DELETE permission.
 
-Imports copy their inputs; byte getters borrow their owner. Compiled and prepared
-handles can outlive the client and require their matching destroy functions.
-Canonical review bytes are bounded to 256 bytes; saved signed commands to 8192.
-Metadata, requests and statuses own their fields inline. Absent results have
-`found == false`; output pointers/structures clear on failure.
+`compiled_get` copies the intent summary and borrows its saved-intent owner.
+Persist the saved definition and exact bytes before requesting progress.
+`saved_import` copies both; missing or foreign definitions reject. `load` binds
+the original intent to a fresh client. `next_read` returns running,
+upload-cancelled, terminal, or a prepared signed command. Persist each prepared
+command before `submit`. On `TRANSIT_SDK_UNKNOWN_OUTCOME`, keep those exact bytes
+for reconciliation. A position establishes admission; `observe` reports input
+progress; `input_disposition` reports controls/rejections; `progress_read` and
+`status_read` carry the original operation result. Only a terminal applied result
+establishes a committed change. DML counts distinguish matched and changed rows.
 
-`transit_station_catalog_lookup` reads an exact name, validating its binding and
-live Table schema. `transit_station_catalog_definition_read` takes positive
-full-width object/revision IDs and reads immutable metadata without requiring
-the current Table to match. Both return an inline `transit_station_catalog_definition`
-with `found`, scope, object/revision/name, Table source/schema and original
-principal/operation/input attribution.
+Initialize, policy, dependency, resume and cancellation/cleanup controls use
+their explicit preparation functions. Closing a client does not dispatch a
+durable cancellation. Current native grants and independent inspect/create/read/
+insert/update/delete/alter/drop rights govern operations and disclosures.
 
-`transit_station_catalog_list` takes a null cursor for a fresh read or the exact
-previous continuation. Its page owns `resource_revision`, `count` dense ordered
-entries (at most eight), `has_next` and inline `next`. An empty final page is
-possible. Every cursor field is required on restoration, including the exact
-64-character current `definition`; never default missing compatibility fields.
-The input cursor may be the output page's `next`: the caller copies continuation
-before clearing outputs. Lookup similarly permits the output's name array as input.
+`lookup` returns an owned live definition or NULL. It includes metadata, head and
+the exact typed schema. `definition_read` returns a separate owned historical
+definition without a live head, using accepted historical evidence. DROP/name
+reuse cannot redirect it to a replacement object. Definition views borrow their
+opaque owner; destroy them with their matching function. Owners survive client
+closure. Outcome diagnostics own a validated, bounded diagnostic envelope.
 
-Metadata checks current catalog inspection policy and native grants. A changed
-scope/revision returns a conflict; discard the old partial result before starting
-a fresh listing. Cursors confer no authority and retain no snapshot. Reads submit
-no command. Returned metadata is independent of the client lifetime.
+`list` returns at most eight ordered entries and an optional continuation. An
+empty page may still have a continuation. Preserve every cursor field, including
+the mandatory current definition, scope, resource revision and last object.
+The cursor may alias the output page's `next`. A changed cut returns a conflict;
+discard the partial listing before starting fresh. Metadata reads submit no
+command and still require current inspection authority. Cursors confer none.
 
+Table/catalog/application identities use the full `uint64_t` range. Native
+realm/resource/process/principal/input identities retain their safe-integer
+bound. Names admit 255 UTF-8 bytes. SQL is bounded to 4,096 bytes, saved intents
+to 4,327,031 bytes, signed progress commands to 8,192 bytes and catalog actions
+to 16,777,216 bytes. Catalog responses admit 16,793,600 bytes. The native caller
+holds one installed intent. Other raw and Station routes keep their own bounds.
+Public definition-bound symbols reject incompatible installed artifacts.
+
+Imports copy inputs; byte getters borrow their owner. Opaque handles require
+their matching destroy function. Output pointers/structures clear on failure.
 One bounded worker owns each client. Calls block; overlap returns `BUSY`; close
-joins active native work. Join caller threads before destroying handles or their
-borrowed inputs. Closing does not cancel accepted work. The
-[catalog contract](../../../../contracts/DECLARATIVE_CATALOG_V1.md) defines the
-four-write boundary, independent policies and terminal conflicts. The
-[proof ledger](../../../../tests/README.md) records installed coverage and limits.
+joins active work. POSIX thread cancellation is deferred until the owned call
+finishes. Join caller threads before destroying handles or borrowed inputs.
+
+The [catalog contract](../../../../contracts/DECLARATIVE_CATALOG_V1.md) owns
+publication and authorization. The [proof ledger](../../../../tests/README.md)
+records installed lifecycle, receipt-loss and boundary checks.

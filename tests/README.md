@@ -11692,6 +11692,45 @@ symbol cannot link. Rebuilt installed C/C++ consumers and all 146 neutral fixtur
 pass (`table-c-logical-definition-installed1.log`); generated ABI/resources pass
 (`table-c-logical-definition-generate1.log`).
 
+
+The C11 and C++17 general Table callers pass the installed disk-backed lifecycle
+in **193.286 seconds** (`table-c-catalog-installed1.log`): SQL and typed CREATE,
+nested typed INSERT with exact decimal/binary data, unchanged-value counts,
+ALTER/default and stale-basis rejection, DELETE, DROP/name reuse, original
+outcome recovery and accepted historical definitions through a fresh client.
+The shared fixture records 547 turns and 149 sends, with maximums of four native
+writes, 256-byte values and 1,398-byte progress commands. Lost-send, lost-turn and
+supplied-host receipt-loss checks pass. All six independent pkg-config artifacts
+are hashed, installed outside the checkout and exercised with consumer sources
+removed. Copying Client, Compiled, Prepared or SavedIntent fails compilation.
+
+**41 installed boundary cases** pass (`table-c-catalog-values3.log`) through a
+forwarding native-library fixture: exact full-width metadata and intent
+attribution, historical identities, strict page cuts/continuations, missing or
+foreign definitions, duplicate JSON fields, 600,000-byte typed requests and
+saved replies, malformed/oversized/uncertain receipts and definitive denial.
+An input containing 1,024 rows of 128 shared one-MiB cells rejects at the aggregate
+action bound without reaching native dispatch; the C serializer materializes one
+bounded cell at a time. Deferred POSIX waiter cancellation keeps the actual SDK
+worker busy; close joins the blocked call, and original prepared bytes survive.
+The shim controls replies and does not establish durable authority or remote
+cancellation. No allocator-exhaustion claim follows from this schedule.
+
+The first boundary-consumer compilation used incorrect public factory names;
+after fixing the fixture, the isolated compile and all cases pass. Both raw C
+and C++ recovery/disposal/revocation schedules also pass
+(`table-c-catalog-raw1.log`). C and C++ package checks and all eight C-family
+artifacts/examples pass (`table-c-catalog-build3.log`); generated resources pass
+(`table-c-catalog-generate1.log`). Logs share the existing campaign directory.
+The remaining query/runner migrations, coordinated definition cutover and final
+clean/performance qualification are separate work.
+
+Freshly packaged C/C++ guides and all eight artifacts pass
+(`table-c-catalog-build4.log`); the rebuilt isolated boundary schedule again
+passes all 41 cases (`table-c-catalog-values4.log`). Full `just check` passes for
+this catalog migration (`table-c-catalog-check1.log`), including contract drift,
+native/CLI checks, frontend tests and the documentation production build.
+
 ## Fuze logical type foundation
 
 The local `Types` profile has nine passing focused Zig tests, including 46

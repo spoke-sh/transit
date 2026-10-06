@@ -28,16 +28,16 @@ Local::Local(const char *directory) : raw(directory), library(directory, "libtra
     for (auto bound : {caps.message, caps.value, caps.key, caps.cell, caps.name, caps.page, caps.segment})
         if (bound > TRANSIT_CLIENT_MAX_BODY) fail(TRANSIT_SDK_INCOMPATIBLE_NATIVE, "native-bound");
 }
-Bytes Local::take(station_buffer *buffer) const {
+Bytes Local::take(station_buffer *buffer, size_t maximum) const {
     std::unique_ptr<station_buffer, decltype(station_buffer_destroy)> owner(buffer, station_buffer_destroy);
     if (!buffer) return {};
     const auto size = station_buffer_size(buffer); const auto *data = station_buffer_data(buffer);
-    if (size > TRANSIT_CLIENT_MAX_BODY || (!data && size)) fail(TRANSIT_SDK_INCOMPATIBLE_NATIVE, "station-buffer");
+    if (size > maximum || (!data && size)) fail(TRANSIT_SDK_INCOMPATIBLE_NATIVE, "station-buffer");
     return size ? Bytes(data, data + size) : Bytes{};
 }
-Bytes Local::result(uint32_t status, station_buffer *buffer, const char *phase, bool mutation) const {
+Bytes Local::result(uint32_t status, station_buffer *buffer, const char *phase, bool mutation, size_t maximum) const {
     Bytes value;
-    try { value = take(buffer); }
+    try { value = take(buffer, maximum); }
     catch (...) { fail(mutation ? TRANSIT_SDK_UNKNOWN_OUTCOME : TRANSIT_SDK_READ_FAILED, phase); }
     try { raw.check(status, value, phase); }
     catch (const Failure &) { throw; }

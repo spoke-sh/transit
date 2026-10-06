@@ -175,40 +175,12 @@ def install_ruby(target):
 
 
 class CatalogCConsumer(Consumer):
-    def read(self):
-        result = super().read()
-        value = result.get('value', {})
-        if 'prepared_hex' in value:
-            encoded = value.pop('prepared_hex')
-            value['prepared'] = bytes.fromhex(encoded).decode() if encoded is not None else None
-        return result
-
     def send(self, action):
         name, value = next(iter(action.items()))
-        def scope(v): return f"{v['realm']} {v['resource']} {v['catalog']}"
-        def request(v):
-            names = [v['name'], *v['schema']['names']]
-            assert all(name.isascii() and name.isidentifier() and len(name) <= 16 for name in names)
-            return f"{scope(v['scope'])} {v['operation']} {v['object']} {v['table']} {' '.join(names)} {v['schema']['value_type']}"
-        if name == 'compile': command = f"compile {value['sql'].encode().hex()} {value['operation']} {value['object']} {value['table']}"
-        elif name == 'prepare_initialize': command = f"initialize {scope(value['scope'])} {value['owner']} {value['administrator']}"
-        elif name == 'prepare_create': command = 'create ' + request(value)
-        elif name == 'prepare_policy':
-            v = value['policy']; command = f"policy {scope(v['scope'])} {v['principal']} {v['revision']} {int(v['inspect'])} {int(v['create'])} {value['expected_revision']}"
-        elif name == 'submit': command = 'submit ' + value.encode().hex()
-        elif name in ('observe', 'input_disposition'): command = f"{name} {value['prepared'].encode().hex()} {value['input']}"
-        elif name == 'status': command = 'status ' + request(value)
-        elif name == 'lookup':
-            assert value.isascii() and value.isidentifier() and len(value) <= 16
-            command = 'lookup ' + value
-        elif name == 'definition': command = f"definition {value['object']} {value['revision']}"
-        elif name == 'list':
-            if value is None: command = 'list'
-            else:
-                assert value['after'].isascii() and value['after'].isidentifier() and len(value['after']) <= 16
-                command = f"list {value['definition']} {scope(value['scope'])} {value['resource_revision']} {value['after']}"
+        if name == 'scenario':
+            command = f"scenario {value['index']}"
         else:
-            assert name in ('capabilities', 'describe', 'close')
+            assert name == 'close'
             command = name
         self.child.stdin.write(command + '\n'); self.child.stdin.flush()
 
@@ -234,14 +206,17 @@ def install_c(target, language):
     executable = target / 'consumer'
     subprocess.run(['zig', 'cc' if language == 'c' else 'c++', '-std=c11' if language == 'c' else '-std=c++17', '-Wall', '-Wextra', '-Werror', str(source), *flags, '-lpthread', '-o', str(executable)], cwd=target, env=environment, check=True)
     if language == 'cpp':
-        for name in ('Client', 'Compiled', 'Prepared'):
+        for name in ('Client', 'Compiled', 'Prepared', 'SavedIntent'):
             source.write_text(f'#include <transit/catalog.hpp>\nvoid copy(transit::sdk::station::catalog::{name} &value) {{ auto other = value; }}')
             rejected = subprocess.run(['zig', 'c++', '-std=c++17', '-fsyntax-only', str(source), f'-I{prefix / "include"}'], cwd=target, env=environment, capture_output=True, text=True)
             assert rejected.returncode and 'deleted' in rejected.stderr
     source.unlink(); (target / 'catalog_sdk_io.h').unlink()
+    if language == 'cpp':
+        from c_catalog_values import run
+        run(target / 'faults', prefix, flags, environment)
     def create(url, connection, state):
         s = connection['scope']
-        arguments = [str(executable), url, str(state / 'caller.seed'), str(s['realm']), str(connection['principal']), str(connection['owner']), str(s['resource']), str(s['catalog'])]
+        arguments = [str(executable), url, str(state / 'caller.seed'), str(s['realm']), str(connection['principal']), str(connection['owner']), str(s['resource']), str(s['catalog']), str(state)]
         return CatalogCConsumer(arguments, environment, target)
     return language, create
 
