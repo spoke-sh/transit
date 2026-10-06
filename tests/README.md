@@ -16277,3 +16277,23 @@ It passed the correctness, cancellation and disclosure schedules before that
 final budget gate. Those old limits describe a different physical layout and
 are not a performance pass for the generalized row/index representation. The
 latest node-cache runtime measurements remain a separate check.
+
+### General Table Board and browser qualification
+
+The Table native/Board/Chromium schedule passes in 739.02 seconds
+(`unified-logical-board-table4.log`) using the frozen executables from the page
+prefetch build. It preserves a 41-row, six-segment, 15,120-byte result through
+lost upload receipts and worker/node/disk-store replacement, with eight authority
+pages, an 8 MiB hot store and released source pins. Separate inspection/query
+rights, current prefix denial, generated recursive validators, competing Board
+instances, identical signed retries and bounded readers pass. Two Board processes
+peak at 53,866,496 sampled RSS bytes in this run.
+
+The Table draft schedule passes atomic start accounting, exhausted finite budget,
+cross-instance exact retries, closed-generation replay and current source denial.
+Chromium passes explicit SQL, editing/result provenance, finite Live drafts,
+saved exact recovery and denial. The previous run reaches the budget boundary
+but fails a stale HTTP 409 expectation (`unified-logical-board-table3.log`). The
+corrected test requires HTTP 400, `query.draft_start_limit`, limit category and
+unchanged draft state, matching the existing semantic response owner; no runtime
+status mapping was changed to satisfy the test.

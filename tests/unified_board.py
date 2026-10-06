@@ -200,7 +200,12 @@ def check(binary, root, kind, invoke, expected, fixture, start, browser=False):
         assert consumed['starts'] == 1 and consumed['namespaces'] == ['20'] + ['0']*7
         settle(api(open_draft)['prepared'])
         assert api({'draft_status': '1'})['draft'] == consumed
-        api({'next_draft': {'namespace': '21', 'generation': '1', 'bundle': draft_bundle['bundle']}}, status=409)
+        exhausted = api({'next_draft': {'namespace': '21', 'generation': '1', 'bundle': draft_bundle['bundle']}}, status=400)
+        assert exhausted['err'] == 'InvalidQuery'
+        assert exhausted['diagnostic']['code'] == 'query.draft_start_limit'
+        assert exhausted['diagnostic']['category'] == 'limit'
+        assert exhausted['diagnostic']['outcome'] == 'not_applicable'
+        assert api({'draft_status': '1'})['draft'] == consumed
         assert api({'next_draft': {'namespace': '20', 'generation': '1', 'bundle': draft_bundle['bundle']}})['prepared'] is None
         settle(api({'draft_close': '1'})['prepared'])
         settle(api(open_draft)['prepared'])
