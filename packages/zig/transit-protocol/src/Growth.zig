@@ -6,7 +6,33 @@ pub const version = 1;
 /// this identifier on an incompatible pre-1.0 cutover, including changed stored
 /// Station/query semantics. Never reuse it to reinterpret accepted history.
 /// SHA-256 of transit.native.v1.compact-pages-8x32.2026-10-04.
-pub const Definition = enum { @"57343ef043d4dc7f9612a7ca3309e9218dd527c0f3826a519ff0d29b761b4a82" };
+pub const Definition = enum {
+    @"57343ef043d4dc7f9612a7ca3309e9218dd527c0f3826a519ff0d29b761b4a82",
+
+    fn spelling(bytes: []const u8) !Definition {
+        if (!std.mem.eql(u8, bytes, @tagName(current_definition))) return error.InvalidEnumTag;
+        return current_definition;
+    }
+    // Generic JSON enums accept numeric strings as ordinal tags. A contract
+    // fingerprint must match its exact spelling, never enum ordinal zero.
+    pub fn jsonParse(allocator: std.mem.Allocator, source: anytype, options: std.json.ParseOptions) !Definition {
+        const token = try source.nextAllocMax(allocator, .alloc_if_needed, options.max_value_len.?);
+        defer switch (token) {
+            .allocated_string, .allocated_number => |bytes| allocator.free(bytes),
+            else => {},
+        };
+        return switch (token) {
+            .string, .allocated_string => |bytes| spelling(bytes),
+            else => error.InvalidEnumTag,
+        };
+    }
+    pub fn jsonParseFromValue(_: std.mem.Allocator, value: std.json.Value, _: std.json.ParseOptions) !Definition {
+        return switch (value) {
+            .string => |bytes| spelling(bytes),
+            else => error.InvalidEnumTag,
+        };
+    }
+};
 pub const current_definition: Definition = @fromBackingInt(0);
 pub const Id = u64;
 pub const request_domain = "transit.request.v1\x00";
@@ -582,6 +608,26 @@ test "leased snapshot signing matches independent canonical JSON fixtures" {
         _ = try std.fmt.hexToBytes(&expected, fixture.digest);
         try std.testing.expectEqualSlices(u8, &expected, &actual);
     }
+}
+
+test "contract definitions reject numeric enum aliases in both JSON decoders" {
+    const t = std.testing;
+    for ([_][]const u8{ "0", "\"0\"", "\"0000000000000000000000000000000000000000000000000000000000000000\"", "\"previous-v1-definition\"", "null", "false", "[]", "{}" }) |bytes| {
+        try t.expectError(error.InvalidEnumTag, std.json.parseFromSlice(Definition, t.allocator, bytes, .{}));
+        const value = try std.json.parseFromSlice(std.json.Value, t.allocator, bytes, .{});
+        defer value.deinit();
+        try t.expectError(error.InvalidEnumTag, std.json.parseFromValue(Definition, t.allocator, value.value, .{}));
+    }
+    const bytes = try std.json.Stringify.valueAlloc(t.allocator, current_definition, .{});
+    defer t.allocator.free(bytes);
+    const typed = try std.json.parseFromSlice(Definition, t.allocator, bytes, .{});
+    defer typed.deinit();
+    try t.expectEqual(current_definition, typed.value);
+    const value = try std.json.parseFromSlice(std.json.Value, t.allocator, bytes, .{});
+    defer value.deinit();
+    const decoded = try std.json.parseFromValue(Definition, t.allocator, value.value, .{});
+    defer decoded.deinit();
+    try t.expectEqual(current_definition, decoded.value);
 }
 
 test "native responses require the current contract definition even with a v1 label" {

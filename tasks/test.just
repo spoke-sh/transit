@@ -207,6 +207,10 @@ growing *args:
 growing-service:
     zig build test-growing-service -Doptimize=ReleaseSafe
 
+# Read-only retained startup through owned provider connection/availability faults.
+node-recovery:
+    zig build test-node-recovery -Doptimize=ReleaseSafe
+
 # Focus service/Station quota refusal and reserved control progress after restart.
 growing-quota:
     zig build test-growing-quota

@@ -16684,3 +16684,23 @@ Standalone package builds pass, as do the independent WI1 cursor/command fixture
 and documentation links. Physical placements and local application installation
 remain separate schedules; these results do not qualify either or the coordinated
 current-definition cutover.
+
+### Retained startup and strict definition spelling
+
+`node-retained-recovery5.log` passes all five build/proof steps over a disk-backed
+Ursula restart. An owned storage peer closes the first connection and returns
+503 on the next; ordinary recovery succeeds on its third attempt. Persistent
+503 exhausts three attempts. Denied/missing history, wrong genesis, corrupt
+JSON, foreign definitions and missing definitions fail immediately. The published
+tail stays at one and the peer observes no storage mutations. Provider-request
+duration is not a whole-startup deadline. The earlier baseline fault schedule
+passed, while expanded runs exposed an all-zero enum alias and fixture issues;
+only the fifth run covers the complete rejection schedule.
+
+The all-zero fingerprint was previously accepted as enum ordinal zero by Zig's
+generic JSON decoder. The shared definition now accepts only the exact current
+identifier string in both streaming and value-based JSON decoding.
+`strict-definition-unit1.log` passes 35/35 ReleaseSafe protocol tests (9 ms,
+5 MiB peak test RSS), including numeric/all-zero/nonstring rejection and exact
+round trips. Documentation and semantic diagnostic mapping checks pass. These
+checks do not substitute for the coordinated identifier replacement or full CI.

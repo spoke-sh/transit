@@ -887,6 +887,13 @@ pub fn build(b: *std.Build) void {
         .imports = &.{.{ .name = "transit_client", .module = client.module("transit_client") }},
     }) });
     const growing_service = b.addSystemCommand(&.{ "python3", "-B" });
+    const node_recovery = b.addSystemCommand(&.{ "python3", "-B" });
+    node_recovery.addFileArg(b.path("tests/node_recovery.py"));
+    node_recovery.addArtifactArg(node_artifact);
+    node_recovery.addArtifactArg(growing_client);
+    node_recovery.has_side_effects = true;
+    node_recovery.stdio = .inherit;
+    b.step("test-node-recovery", "Qualify read-only retained startup through transient storage faults").dependOn(&node_recovery.step);
     growing_service.addFileArg(b.path("tests/growing_service.py"));
     growing_service.addArtifactArg(node_artifact);
     growing_service.addArtifactArg(growing_client);

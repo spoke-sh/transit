@@ -14,6 +14,8 @@ Every request/query carries version 1, the current contract `definition` and its
 realm. The generated schema's `x-transit.definition` owns that identifier.
 Signatures bind it; query responses and persisted authority heads require it.
 Missing or foreign persisted definitions reject before reading their catalogs.
+The definition is the exact identifier string; enum ordinals, numeric strings,
+all-zero fingerprints and JSON numbers are not alternate spellings.
 Principal, process, resource,
 view, receipt, output and effect identities use 64-bit fields, with the public
 numeric address space capped at 2^53−1. They are values, never resident array

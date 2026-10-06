@@ -124,6 +124,7 @@ reference deployment and physical-capacity tests remain explicit commands.
 | `just test::growing-load` | Measures independently offered public v1 requests, queueing, revocation latency, exact retries, state drain and restart |
 | `just test::scale [--repeat N]` | Runs the declared repeated growth/load matrix with disk Ursula and pinned native MinIO; retains each sample |
 | `just test::growing-service` | Qualifies the explicit v1 node/client profile, bounded state access and uncertain reply recovery on one CPU using ReleaseSafe binaries |
+| `just test::node-recovery` | Qualifies read-only retained startup through provider connection loss and unavailability, finite exhaustion, and denied/missing/genesis rejection |
 | `just test::query [--finish-pages N]` | Focuses query capture, sealing, publication and partial-consumption recovery using ReleaseSafe binaries; included in the growing service proof |
 | `just test::growing-station` | Focuses growing Station calls, retained Table sources and recovery; also included in the full growing service proof |
 | `just ci::select BASE [HEAD]` | Previews conservative PR qualification selection |
