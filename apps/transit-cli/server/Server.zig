@@ -145,7 +145,8 @@ fn cycle(self: *Self) !void {
     try self.worker(allocator, .requester);
     const connection = installation.connection();
     const courier_config = try installation.path("courier.json");
-    try Files.json(self.init.io, allocator, courier_config, .{ .url = installation.wire.url, .realm = config.realm, .principal = Installation.courier, .seed_file = try installation.path("courier.seed"), .role = .{ .courier = .{ .destinations = .{ connection.source, connection.requester } } }, .interval_ms = 100, .idle_max_interval_ms = 1000, .request_timeout_ms = 2000 });
+    const destinations = [_]u64{ connection.source, connection.requester };
+    try Files.json(self.init.io, allocator, courier_config, .{ .url = installation.wire.url, .realm = config.realm, .principal = Installation.courier, .seed_file = try installation.path("courier.seed"), .role = .{ .courier = .{ .destinations = if (applications != null) destinations[0..0] else destinations[0..], .all_destinations = applications != null } }, .interval_ms = 100, .idle_max_interval_ms = 1000, .request_timeout_ms = 2000 });
     try self.start(allocator, .courier, &.{ config.executables.query_host, courier_config }, &.{}, false);
     try installation.initializeBehaviors();
     var query: q.UnifiedClient = .{ .wire = installation.wire, .connection = connection, .key = installation.caller_key };
@@ -195,13 +196,25 @@ fn cycle(self: *Self) !void {
     var output = std.Io.File.stdout().writerStreaming(self.init.io, &output_buffer);
     try @import("../Output.zig").write(self.init, &output.interface, try std.fmt.allocPrint(allocator, "{s}\n", .{report}));
     var last = std.Io.Clock.awake.now(self.init.io);
+    var unavailable_probes: u8 = 0;
     while (!Signals.interrupted()) {
         if (!self.allAlive()) return error.ChildExited;
         if (applications) |manager| try manager.tick();
         const now = std.Io.Clock.awake.now(self.init.io);
         if (last.durationTo(now).toMilliseconds() >= 1000) {
             self.active_role = .node;
-            _ = try installation.query(.{ .capabilities = {} });
+            _ = installation.query(.{ .capabilities = {} }) catch |err| {
+                // One unavailable read does not establish process death. Keep
+                // exact pending work and live owners while the next scheduled
+                // observation checks availability. Denial/corruption still
+                // fails immediately; persistent outage remains bounded.
+                if (!q.wire.Client.unavailable(err) or err == error.AuthorityTransportDenied or unavailable_probes == 2) return err;
+                unavailable_probes += 1;
+                last = std.Io.Clock.awake.now(self.init.io);
+                try self.init.io.sleep(.fromMilliseconds(100), .awake);
+                continue;
+            };
+            unavailable_probes = 0;
             if (self.ui) {
                 self.active_role = .board;
                 try Board.check(installation);

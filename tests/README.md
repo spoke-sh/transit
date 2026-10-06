@@ -16704,3 +16704,32 @@ identifier string in both streaming and value-based JSON decoding.
 5 MiB peak test RSS), including numeric/all-zero/nonstring rejection and exact
 round trips. Documentation and semantic diagnostic mapping checks pass. These
 checks do not substitute for the coordinated identifier replacement or full CI.
+
+### Local work-item installation and staged recovery
+
+`general-work-items-install6.log` passes the standalone local installation
+schedule in 242.698 seconds: nineteen typed rows, 41 logical migration steps,
+full target verification, schema activation/release, fresh worker generations and
+retained authority/storage recovery. Its largest application checkpoint is 3,207
+bytes, manager peak RSS is 42,057,728 bytes, and the installation retains 23
+management receipts. Explicit `prepare-table` commands reconcile domain readiness
+separately from the manager's native readiness record.
+
+`general-work-items-install-faults4.log` passes in 68.796 seconds. It loses spawn,
+worker-rotation, migration-send, worker-turn and activation-send replies, checks
+exact recorded retries, and preserves current denials. A deliberately unavailable
+authority liveness read leaves the live owners unchanged; three consecutive
+unavailable observations still enter the bounded restart path. The concurrent
+management denial schedule observes a one-millisecond control response in this
+run; this is a fixture observation, not a latency guarantee. The local courier
+explicitly selects all destinations when applications are enabled and retains
+bounded native pages and independently authorized delivery.
+
+Earlier installation/fault runs are not passes: they exposed missing self-message
+delivery, temporary observation errors, a restart triggered by one unavailable
+probe, and fixture retries that confused unavailable reads with domain denials.
+One installation attempt was invalidated by replacing a referenced executable
+during the run; the installation correctly rejected its changed artifact identity.
+The passing runs keep their referenced binaries fixed. Expected mutation errors
+still reconcile the same saved command through temporary availability failures;
+an unavailable observation never counts as the expected domain rejection.

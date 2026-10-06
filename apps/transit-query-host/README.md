@@ -29,6 +29,7 @@ durable work is noticed; interactive reads do not wait for these workers.
 | Unified requester | `{"unified_requester":{"principal":QUERY_PRINCIPAL,"source":SOURCE_PID}}` | Dedicated requester PID/resource; separate first `UQI1` cast, authenticating the configured principal |
 | Finite service requester | `{"finite_service":{"service":{"service":1,"administrator":ADMIN,"observer":OBSERVER},"query_principal":CALLER,"source":SOURCE_PID,"binding_revision":1}}` | Composition with current service policy/publication and one active finite query |
 | Courier | `{"courier":{"destinations":[CATALOG_PID]}}` | One through sixteen distinct nonzero destination PIDs; dedicated unscoped inspect/delivery/send principal, with no execution/storage credentials |
+| Realm courier | `{"courier":{"all_destinations":true}}` | All pending recorded outputs in the configured realm; the explicit destination list must be empty; the same native grants remain mandatory |
 
 The Table mutation writer uses the [shared mutation contract](../../contracts/TABLE_MUTATION_V1.md#explicit-writer-host)
 and [signed Zig client](../../contracts/TABLE_MUTATION_V1.md#signed-zig-caller).
@@ -73,8 +74,10 @@ Each OS worker owns one activation. Query execution uses a 4 MiB Arrow
 workspace; the source adds a 1 MiB adapter arena. The
 courier walks eight-output public pages and preserves exact pending delivery
 requests. It scans retained output history on restart; startup cost can grow
-with history, while resident memory stays bounded. The destination list is an
-explicit deployment scope, not a global process catalog.
+with history, while resident memory stays bounded. Delivery selects either an
+explicit destination list or `all_destinations: true`; an empty scope or both
+selectors rejects. Realm selection needs no resident process catalog and does
+not grant execution, resource access or permission to invent outputs.
 
 Restart requires an administrator/provider to record fresh ownership and supply
 the resulting generation. The host refuses an existing activation marker, even

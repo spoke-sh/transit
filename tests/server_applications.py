@@ -43,8 +43,19 @@ class Applications(Fixture):
         raise TimeoutError(f'Application neighborhood readiness: {self.root}')
 
     def app(self, mode, *args, expect=None):
-        result = subprocess.run([self.cli, 'app', mode, '--config', str(self.management), *map(str, args)],
-            capture_output=True, text=True, timeout=15, env={'PATH': '/unavailable'})
+        deadline = time.monotonic() + 15
+        while True:
+            result = subprocess.run([self.cli, 'app', mode, '--config', str(self.management), *map(str, args)],
+                capture_output=True, text=True, timeout=max(1, deadline-time.monotonic()), env={'PATH': '/unavailable'})
+            # Status is read-only. During deliberate storage/authority loss the
+            # manager can be reachable before that observation is available.
+            # Mutation retries must instead use their saved operation identity.
+            first = result.stderr.splitlines()[0] if result.stderr else ''
+            if mode != 'status' or expect or result.returncode == 0 or first not in (
+                    'application: AuthorityUnavailable', 'application: AuthorityTimeout',
+                    'application: HttpConnectionClosing', 'application: ConnectionRefused') or time.monotonic() >= deadline:
+                break
+            time.sleep(.05)
         if expect:
             assert result.returncode != 0 and expect in result.stderr, result
             return result
@@ -86,7 +97,7 @@ def run(cli, node, host, worker, operator):
         deadline = time.monotonic() + 40
         while True:
             result = subprocess.run(command, capture_output=True, text=True, timeout=40, env={'PATH': '/unavailable'})
-            if expect or result.returncode == 0 or result.stderr.strip() not in ('error: AuthorityUnavailable', 'error: AuthorityTimeout', 'error: HttpConnectionClosing') or time.monotonic() >= deadline:
+            if result.returncode == 0 or result.stderr.strip() not in ('error: AuthorityUnavailable', 'error: AuthorityTimeout', 'error: HttpConnectionClosing', 'error: ConnectionRefused') or time.monotonic() >= deadline:
                 break
             # Keep the same recovery path and arguments. A saved uncertain send
             # is retried byte-for-byte by the actual public example binary.
@@ -100,6 +111,8 @@ def run(cli, node, host, worker, operator):
     try:
         fixture.start(initialize=True)
         fixture.ready()
+        courier = json.loads((fixture.installation / 'courier.json').read_text())['role']['courier']
+        assert courier == {'destinations': [], 'all_destinations': True}, courier
         from server_faults import gateway_hosts
         gateway_hosts(fixture)
         declaration = json.loads(subprocess.check_output([operator, 'manifest', worker], text=True))
@@ -150,6 +163,7 @@ def run(cli, node, host, worker, operator):
         exported = {key: json.loads(value) for key, value in (line.split(': ', 1) for line in yaml_connection.read_text().splitlines())}
         assert exported == json.loads(connections['inspector'].read_text())
         domain(connections['operator'], 'authorize', 'authorize')
+        domain(connections['operator'], 'prepare-table', 'prepare-initial', 1)
         invalid = domain(connections['writer'], 'put', 'invalid-state', 99, 99, expect='InvalidWorkItemState')
         rejected = json.loads(invalid.stdout)
         detail = rejected['diagnostic']
@@ -161,10 +175,11 @@ def run(cli, node, host, worker, operator):
         for i in range(19):
             domain(connections['writer'], 'put', f'put-{i}', i - 9, i % 2)
         assert domain(connections['inspector'], 'inspect')['rows'] == 19
+        domain(connections['operator'], 'prepare-table', 'prepare-target', 2)
         domain(connections['operator'], 'begin', 'begin')
         domain(connections['operator'], 'step', 'step-1')
         before = domain(connections['operator'], 'inspect')
-        assert before['cursor']['copied'] == 2
+        assert before['cursor']['copied'] == 1
         # A compatible configuration revision uses an explicit expected revision.
         replacement = {'application': 'work-items', 'role': 'data', 'expected_revision': first['roles'][0]['revision'],
             'contract': 'work-items-v1', 'artifact': {'path': worker}, 'configuration': '{ "application": 9 }'}
@@ -183,7 +198,7 @@ def run(cli, node, host, worker, operator):
         assert domain(connections['operator'], 'inspect')['migration'] == before['migration']
         fixture.app('retry', '--operation', 'replace-1')
         assert fixture.status()['roles'][0]['generation'] == second['roles'][0]['generation']
-        domain(connections['operator'], 'step', 'step-1')  # Exact old receipt, no extra page copied.
+        domain(connections['operator'], 'step', 'step-1')  # Exact old receipt, no extra row copied.
         assert domain(connections['operator'], 'inspect')['migration'] == before['migration']
         fixture.kill_role('/applications/work-items/data.bootstrap.json')
         recovered = fixture.active(previous=second['roles'][0]['generation'])
@@ -192,7 +207,7 @@ def run(cli, node, host, worker, operator):
         fixture.ready()
         fixture.active(previous=recovered['roles'][0]['generation'])
         assert domain(connections['operator'], 'inspect')['migration'] == before['migration']
-        for ordinal in range(2, 40):
+        for ordinal in range(2, 2 * 19 + 5):
             state = domain(connections['operator'], 'inspect')
             if state['head']['epoch'] == '2':
                 break
@@ -200,7 +215,7 @@ def run(cli, node, host, worker, operator):
         else:
             raise AssertionError('Migration did not activate')
         complete = domain(connections['inspector'], 'inspect')
-        assert complete['head']['epoch'] == '2' and complete['rows'] == 19 and complete['pages'] >= 3, complete
+        assert complete['head']['epoch'] == '2' and complete['rows'] == 19 and complete['row_steps'] == 19, complete
         domain(connections['writer'], 'put', 'paused-put', 1, 20, expect='WorkItemPublicationPaused')
         domain(connections['operator'], 'release', 'release')
         recovered = domain(connections['writer'], 'put', 'invalid-state', 99, 99, expect='InvalidWorkItemState')
@@ -227,7 +242,7 @@ def run(cli, node, host, worker, operator):
         assert len(receipts) > 8 and len({item['position'] for item in receipts}) == len(receipts)
         checkpoint_bytes = max(path.stat().st_size for path in fixture.installation.glob('applications/*/record.json'))
         assert checkpoint_bytes <= 256 * 1024 and fixture.max_rss < 128 * 1024**2
-        report = {'max_manager_rss': fixture.max_rss, 'max_checkpoint_bytes': checkpoint_bytes, 'profile': 'local_applications_v1', 'rows': 19, 'pages': complete['pages'], 'receipts': len(receipts),
+        report = {'max_manager_rss': fixture.max_rss, 'max_checkpoint_bytes': checkpoint_bytes, 'profile': 'local_applications_v1', 'rows': 19, 'row_steps': complete['row_steps'], 'receipts': len(receipts),
             'generation': final['roles'][0]['generation'], 'elapsed_seconds': round(time.monotonic() - started, 3)}
         print(json.dumps(report), flush=True)
         success = True

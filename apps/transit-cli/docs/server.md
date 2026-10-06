@@ -273,8 +273,10 @@ the manager therefore kills its owned service processes. The next manager
 preflights every listener and never adopts a process by PID number or port.
 
 The manager checks child exits every 100 ms and observes authority every second.
-An exited role or failed authority observation withdraws the gateway and stops
-dependents before restarting the same history. Gateway health is a sampled
+An exited role withdraws the gateway and stops dependents before restarting the
+same history. A temporary authority transport failure requires three consecutive
+failed observations before that restart; a successful observation resets the
+count. A denial, incompatible response or rollback fails immediately. Gateway health is a sampled
 availability observation, not a query completion or ownership guarantee. One invocation permits three
 restarts after the initial attempt, with 250/500/750 ms backoff. Registration has
 a 10-second deadline; provider/authority/gateway readiness has 30 seconds per

@@ -38,6 +38,14 @@ application callers cannot provision principals, change grants or replace worker
 Initialization payloads are complete application-owned Station frames sent by
 an authorized declared caller. Transit does not decode their domain meaning.
 
+The application-enabled local neighborhood's dedicated courier selects all
+pending recorded outputs in its realm, including self-messages and messages to
+newly installed PIDs. It uses bounded public output pages and its existing native
+inspection/delivery/send grants. No role gains delivery or resource authority from
+being installed. The courier retains exact signed pending delivery requests across
+temporary transport failures; it does not synthesize application inputs or domain
+completion from physical readiness.
+
 Names contain 1–64 ASCII letters/digits, underscore or hyphen, beginning with a
 letter/digit. Paths are at most 4096 bytes; configuration is at most 8192 UTF-8
 bytes per role and the complete management value has a finite encoded-byte bound.
@@ -124,6 +132,10 @@ Bound active applications/roles, native operations per reconciliation step,
 registration time, restart attempts, management requests, logs and joined shutdown.
 An application role failure restarts only its required local dependency closure;
 replacing one application never resets storage or regenerates unrelated roles.
+The local manager tolerates at most two consecutive temporary transport failures
+in its periodic authority observation. The third enters its bounded restart
+path; success resets the count. Child exits and current denials do not wait for
+this observation threshold. No unavailable observation grants readiness or rights.
 Missing or rolled-back history, exhausted storage and unavailable dependencies
 fail visibly. They never permit expiry, empty bootstrap or deletion.
 

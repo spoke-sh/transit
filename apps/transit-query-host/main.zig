@@ -25,7 +25,7 @@ const Config = struct {
         table_writer: q.TableMutationWriter.Configuration,
         catalog: catalog.TableCatalogRecords.Configuration,
         unified_requester: q.UnifiedBehavior.Requester,
-        courier: struct { destinations: []const u64 },
+        courier: struct { destinations: []const u64 = &.{}, all_destinations: bool = false },
     },
 };
 pub fn main(init: std.process.Init) !void {
@@ -172,7 +172,8 @@ fn run(init: std.process.Init, diagnostics: *telemetry.Runtime) !void {
 }
 fn courier(init: std.process.Init, wire: *q.wire.Client, config: Config, key: p.Ed25519.KeyPair) !void {
     const destinations = config.role.courier.destinations;
-    if (destinations.len == 0 or destinations.len > 16) return error.InvalidConfiguration;
+    const all = config.role.courier.all_destinations;
+    if ((all and destinations.len != 0) or (!all and destinations.len == 0) or destinations.len > 16) return error.InvalidConfiguration;
     for (destinations, 0..) |destination, index| {
         if (destination == 0 or destination > p.max_counter or std.mem.indexOfScalar(u64, destinations[0..index], destination) != null) return error.InvalidConfiguration;
     }
@@ -206,7 +207,7 @@ fn courier(init: std.process.Init, wire: *q.wire.Client, config: Config, key: p.
             return err;
         };
         for (page.body.outputs.entries) |slot| if (slot) |output| {
-            if (output.phase == .pending and std.mem.indexOfScalar(u64, destinations, output.destination) != null) {
+            if (output.phase == .pending and (all or std.mem.indexOfScalar(u64, destinations, output.destination) != null)) {
                 pending = try g.sign(.{ .realm = config.realm, .principal = config.principal, .sequence = basis.principal_sequence + 1, .command = .{ .deliver = output.id } }, key);
                 break;
             }
