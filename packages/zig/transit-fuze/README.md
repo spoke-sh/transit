@@ -31,6 +31,12 @@ at a time and retains bounded aggregate state and original failure evidence.
 establish their own immutable schema/source binding and current disclosure rights.
 The executor itself acquires no source or permission.
 
+`LogicalPlanCodec` owns canonical `FQP1` serialization of these plans under an
+exact supplied schema and source binding. Decode rejects foreign definitions and
+stale bindings before reading dependent literals, then returns an independently
+owned plan. The [Table query contract](../../../contracts/TABLE_QUERY_V1.md#canonical-logical-plans)
+defines its byte budget, field layout and separation from query admission.
+
 `TableDml` compiles [typed Table statements](../../../contracts/TABLE_DML_V1.md)
 against a supplied name and complete schema. It owns generalized INSERT rows,
 constant/default UPDATE assignments and DELETE predicates using stable column

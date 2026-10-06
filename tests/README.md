@@ -11789,6 +11789,16 @@ on diagnostic inventory drift from the two new early budget checks. Both causes
 already have explicit SQL diagnostic mappings; after reviewing and recording the
 changed propagation owners, the independent mapping gate and full rerun pass.
 
+The general logical-plan codec passes **229/229 Fuze tests**
+(`table-logical-plan-test3.log`). Independent Python bytes bind the row descriptor,
+ordered typed predicate, output names, LIMIT and existing plan fingerprint.
+Checks cover every scalar comparison family, exact 128-bit boundaries, negative
+floating zero, recursive schema ownership, every truncated prefix, wrong
+definitions/source/schema, malformed tags and exhaustive allocation failures.
+The first extended scalar fixture used nonexistent width-specific float atom
+fields; using the shared float atom fixes that compile failure. These tests
+qualify the local `FQP1` codec, not durable query integration.
+
 ## Fuze logical type foundation
 
 The local `Types` profile has nine passing focused Zig tests, including 46

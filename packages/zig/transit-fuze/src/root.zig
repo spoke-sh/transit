@@ -6,6 +6,7 @@ pub const model = @import("model.zig");
 pub const execution = @import("execute.zig");
 pub const FileQuery = @import("FileQuery.zig");
 pub const LogicalQuery = @import("LogicalQuery.zig");
+pub const LogicalPlanCodec = @import("LogicalPlanCodec.zig");
 pub const LogicalPredicate = @import("LogicalPredicate.zig");
 pub const FileSource = @import("FileSource.zig");
 pub const SourceCodec = @import("SourceCodec.zig");
@@ -45,6 +46,7 @@ test {
     _ = TableSchemaJson;
     _ = TableSelect;
     _ = @import("table_dml_codec_test.zig");
+    _ = @import("logical_plan_codec_test.zig");
     _ = SqlInput;
     _ = SqlDiagnostic;
     _ = FileQuery;

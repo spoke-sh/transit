@@ -56,6 +56,40 @@ logical type, cell state, predicate instruction and source/plan fingerprints.
 That evidence does not itself authorize disclosure. Neither the compiler nor
 the generic executor implements source capture, persistence or query resumption.
 
+## Canonical logical plans
+
+`LogicalPlanCodec` encodes the same logical plan used by Table and file queries
+as `FQP1`. An enclosing source contract supplies the complete immutable row
+descriptor and source binding. Decoding checks the codec definition, source
+binding and descriptor fingerprint before allocating or interpreting dependent
+literals, then owns all descriptor children, names, projections and literals.
+Releasing the encoded input or original descriptor does not invalidate the plan.
+
+The codec definition is SHA-256 of the UTF-8 bytes
+`transit.fuze.logical-plan.v1:bound-schema:ordered-predicates:output-names`.
+All multibyte integers below are little-endian:
+
+1. `FQP1`, the 32-byte codec definition, 32-byte source binding and 32-byte logical
+   descriptor fingerprint.
+2. Aggregate tag (rows 0, count 1, sum 2, count-values 3), one-byte projection
+   count and that many one-byte input positions.
+3. One optional output name per position: one-byte UTF-8 length, then bytes;
+   length zero retains the default name.
+4. LIMIT presence byte (0 or 1) and uint64 value; an absent value must be zero.
+5. One predicate atom or program. Atom tags are all 0, state 1 (column byte and
+   state byte), compare 2 (column byte, comparison byte, uint16 payload length
+   and a descriptor-bound canonical logical value payload). Program tag 3 is
+   followed by a one-byte instruction count and ordered instructions: atom 0
+   followed by its atom; negate 1; conjunction 2; disjunction 3.
+
+The existing logical-plan fingerprint and 8-KiB identity allowance remain the
+operator admission boundary. The encoded envelope allows 8 KiB plus 256 bytes
+for its explicit definition, binding and per-output framing. Predicates retain
+their 64-instruction and 4-KiB variable-width literal bounds. Unknown tags,
+noncanonical absent fields, invalid Boolean stacks, trailing bytes, stale bindings
+and oversized plans reject. Re-encoding a decoded plan reproduces its input.
+These local codec operations do not admit a durable job or acquire a snapshot.
+
 ## Signed native Table reads
 
 `transit-query.TableQuery` composes this compiler and executor with the general

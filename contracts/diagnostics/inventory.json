@@ -6335,6 +6335,38 @@
         "std"
       ]
     },
+    "packages/zig/transit-fuze/src/LogicalPlanCodec.zig": {
+      "errors": {
+        "CellTooLarge": 1,
+        "InvalidPlanEncoding": 10,
+        "InvalidPredicateProgram": 1,
+        "InvalidProjection": 1,
+        "InvalidQuerySchema": 1,
+        "PlanTooLarge": 1,
+        "SourceChanged": 2,
+        "UnknownColumn": 1,
+        "UnsupportedPlanDefinition": 2
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "decode()": "<inferred>",
+        "encode()": "<inferred>",
+        "readAtom()": "<inferred>",
+        "writeAtom()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 56,
+        "catch": 1
+      },
+      "imports": [
+        "Finite.zig",
+        "LogicalQuery.zig",
+        "Types.zig",
+        "std"
+      ]
+    },
     "packages/zig/transit-fuze/src/LogicalPredicate.zig": {
       "errors": {
         "CellTooLarge": 1,
@@ -8622,6 +8654,7 @@
         "LogicalCodec.zig",
         "LogicalDisplay.zig",
         "LogicalJson.zig",
+        "LogicalPlanCodec.zig",
         "LogicalPredicate.zig",
         "LogicalQuery.zig",
         "LogicalSchema.zig",
