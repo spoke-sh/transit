@@ -54,7 +54,8 @@ for datatype in (l.ScalarType('int128'), l.DecimalType(38, 2), l.TimestampType('
     l.ListType(l.Element(l.ScalarType('uuid'), True)), l.ArrayType(l.Element(l.ScalarType('date')), 2),
     l.MapType(l.ScalarType('int64'), l.Element(l.ScalarType('binary')))):
     assert codec.type_from_wire(codec.type_wire(datatype)) == datatype
-for value in (l.Missing(), l.Null(), l.SourceTypeError('decimal'), cell,
+for value in (l.Missing(), l.Null(), l.SourceTypeError('decimal'), l.SourceTypeError('unknown'),
+              l.SourceTypeError('null_value'), l.SourceTypeError('text'), l.SourceTypeError('character'), cell,
     l.Present(l.Atom('signed', -(1 << 127))), l.Present(l.Atom('unsigned', (1 << 128) - 1)),
     l.Present(l.Atom('interval', l.Interval(1, -2, 3000))), l.Present(l.Atom('uuid', bytes(range(16)))),
     l.Present(l.MapValue((l.MapEntry(l.Atom('signed', 1), l.Null()),))),

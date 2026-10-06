@@ -11863,6 +11863,31 @@ independent fixtures, native/CLI tests, frontend checks and the documentation
 production build. The source fixture is regenerated and checked by the existing
 Table catalog oracle. Committed-HEAD clean CI remains a separate final gate.
 
+Source mismatch kinds now pass **241/241 Fuze tests**
+(`table-logical-kind-test3.log`). All original KV/Document mismatch kinds map by
+name into logical error evidence without becoming schema types. Unknown kinds,
+Document text/character, full-width conflict identities, owned byte values and
+partial allocation failures retain their meaning through canonical value, JSON
+and Arrow decoding. The first focused run finds an obsolete Zig enum-reflection
+field and one assertion using descriptor tags; both are corrected before passing.
+
+Independent boundary checks pass **126 PyArrow cases** and **111 native ABI/port
+logical fixtures** (`table-logical-kind-boundaries1.log`). The codec success line
+initially prints its previous 91-case total; the executed assertion is 111, and
+the message is corrected. All ten SDK artifacts rebuild. Installed Python and
+Node each pass the 111 fixtures; C/C++ pass 170 owned-model cases, and .NET,
+Erlang and Elixir pass their logical-model and recursive-schema suites
+(`table-logical-kind-installed1.log`). Installed Python/Rust/Ruby/Java value,
+partial-failure and ownership checks pass, including all nine Rust library tests
+(`table-logical-kind-sdk-values1.log`). These model checks do not rerun the
+node-backed catalog lifecycle or qualify durable logical query routing.
+
+Full pinned `just check`, TypeScript's 53 adapter tests/type/lint/format gates,
+and Python strict typing pass (`table-logical-kind-{check,node-check,python-check}1.log`).
+Generated schemas and ABI resources are regenerated and checked. The observed
+kind extension is part of the pending coordinated definition cutover; these
+local passes do not replace final committed-HEAD clean qualification.
+
 ## Fuze logical type foundation
 
 The local `Types` profile has nine passing focused Zig tests, including 46

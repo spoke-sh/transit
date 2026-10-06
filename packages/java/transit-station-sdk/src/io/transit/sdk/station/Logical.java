@@ -24,7 +24,7 @@ public final class Logical {
     public enum Kind {
         INT8, INT16, INT32, INT64, INT128, UINT8, UINT16, UINT32, UINT64, UINT128,
         FLOAT32, FLOAT64, DECIMAL, BOOLEAN, UTF8, BINARY, DATE, TIME, TIMESTAMP,
-        INTERVAL, UUID, STRUCTURE, TAGGED_UNION, LIST, ARRAY, MAP, JSON
+        INTERVAL, UUID, STRUCTURE, TAGGED_UNION, LIST, ARRAY, MAP, JSON, UNKNOWN, NULL_VALUE, TEXT, CHARACTER
     }
     public enum Zone { CIVIL, UTC }
     public record Decimal(int precision, int scale) implements Descriptor {

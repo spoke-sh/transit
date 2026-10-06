@@ -540,6 +540,7 @@
     "T16": {
       "type": "string",
       "enum": [
+        "unknown",
         "int64",
         "uint64",
         "float64",
@@ -566,7 +567,10 @@
         "array",
         "map",
         "tagged_union",
-        "json"
+        "json",
+        "null_value",
+        "text",
+        "character"
       ]
     },
     "T17": {

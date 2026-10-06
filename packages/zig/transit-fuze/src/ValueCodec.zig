@@ -180,7 +180,7 @@ fn readCell(reader: *Reader, expected: types.Type, depth: usize) anyerror!v.Cell
     return switch (try reader.reader.takeByte()) {
         0 => .missing,
         1 => .null,
-        2 => .{ .type_error = std.enums.fromInt(types.Tag, try reader.reader.takeByte()) orelse return error.InvalidValueEncoding },
+        2 => .{ .type_error = std.enums.fromInt(types.Kind, try reader.reader.takeByte()) orelse return error.InvalidValueEncoding },
         3 => .{ .value = try readValue(reader, expected, depth) },
         4 => blk: {
             const count = try reader.reader.takeByte();
@@ -192,7 +192,7 @@ fn readCell(reader: *Reader, expected: types.Type, depth: usize) anyerror!v.Cell
                 alternative.replica = try reader.reader.takeInt(u64, .little);
                 alternative.value = switch (try reader.reader.takeByte()) {
                     1 => .null,
-                    2 => .{ .type_error = std.enums.fromInt(types.Tag, try reader.reader.takeByte()) orelse return error.InvalidValueEncoding },
+                    2 => .{ .type_error = std.enums.fromInt(types.Kind, try reader.reader.takeByte()) orelse return error.InvalidValueEncoding },
                     3 => .{ .value = try readValue(reader, expected, depth) },
                     else => return error.InvalidConflict,
                 };

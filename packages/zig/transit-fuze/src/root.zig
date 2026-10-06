@@ -51,6 +51,7 @@ test {
     _ = @import("logical_plan_codec_test.zig");
     _ = @import("logical_stream_test.zig");
     _ = @import("logical_inspect_test.zig");
+    _ = @import("logical_kind_test.zig");
     _ = SqlInput;
     _ = SqlDiagnostic;
     _ = FileQuery;

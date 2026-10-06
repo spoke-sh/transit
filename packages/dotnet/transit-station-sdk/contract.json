@@ -5062,6 +5062,7 @@
         "T125": {
           "type": "string",
           "enum": [
+            "unknown",
             "int64",
             "uint64",
             "float64",
@@ -5088,7 +5089,10 @@
             "array",
             "map",
             "tagged_union",
-            "json"
+            "json",
+            "null_value",
+            "text",
+            "character"
           ]
         },
         "T126": {
@@ -37509,6 +37513,7 @@
         "T32": {
           "type": "string",
           "enum": [
+            "unknown",
             "int64",
             "uint64",
             "float64",
@@ -37535,7 +37540,10 @@
             "array",
             "map",
             "tagged_union",
-            "json"
+            "json",
+            "null_value",
+            "text",
+            "character"
           ]
         },
         "T33": {
@@ -40104,6 +40112,7 @@
         "T33": {
           "type": "string",
           "enum": [
+            "unknown",
             "int64",
             "uint64",
             "float64",
@@ -40130,7 +40139,10 @@
             "array",
             "map",
             "tagged_union",
-            "json"
+            "json",
+            "null_value",
+            "text",
+            "character"
           ]
         },
         "T34": {

@@ -16,6 +16,9 @@ static void round(const Type &value) { assert(Type::decode(value.encode()).encod
 static void round(const Cell &value) { assert(Cell::decode(value.encode()).encode() == value.encode()); }
 int main() {
     for (int i = TRANSIT_LOGICAL_INT8; i <= TRANSIT_LOGICAL_JSON; ++i) round(Type::scalar(static_cast<Kind>(i)));
+    for (const auto kind : {TRANSIT_LOGICAL_UNKNOWN, TRANSIT_LOGICAL_NULL_VALUE, TRANSIT_LOGICAL_TEXT, TRANSIT_LOGICAL_CHARACTER}) {
+        round(Cell::type_error(kind)); invalid([&] { Type::scalar(kind); });
+    }
     const auto integer = Type::scalar(TRANSIT_LOGICAL_INT128);
     for (const auto &value : {Type::decimal(38, 38), Type::timestamp(TRANSIT_LOGICAL_CIVIL), Type::timestamp(TRANSIT_LOGICAL_UTC),
         Type::structure({{"x", integer, false, true}}), Type::tagged_union({{"x", integer}}),

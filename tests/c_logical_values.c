@@ -14,6 +14,18 @@
 static void ok(transit_sdk_error error) { assert(error.kind == TRANSIT_SDK_OK); }
 static transit_sdk_bytes text(const char *value) { return (transit_sdk_bytes){(const uint8_t *)value, strlen(value)}; }
 static void values(void) {
+    for (transit_logical_kind kind = TRANSIT_LOGICAL_UNKNOWN; kind <= TRANSIT_LOGICAL_CHARACTER; ++kind) {
+        transit_logical_type_view invalid = {.kind = kind};
+        transit_logical_type *type = NULL;
+        assert(transit_logical_type_create(&invalid, &type).kind == TRANSIT_SDK_INVALID_ARGUMENT && type == NULL);
+        transit_logical_cell_view error = {.state = TRANSIT_LOGICAL_TYPE_ERROR, .as.type_error = kind};
+        transit_logical_cell *cell = NULL;
+        ok(transit_logical_cell_create(&error, &cell));
+        const transit_logical_cell_view *owned = NULL;
+        ok(transit_logical_cell_get(cell, &owned));
+        assert(owned->state == TRANSIT_LOGICAL_TYPE_ERROR && owned->as.type_error == kind);
+        transit_logical_cell_destroy(cell);
+    }
     transit_logical_type_view scalar = {.kind = TRANSIT_LOGICAL_INT128};
     char name[] = "amount";
     transit_logical_field field = {text(name), &scalar, true, false};

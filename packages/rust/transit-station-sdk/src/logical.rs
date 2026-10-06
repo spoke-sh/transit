@@ -71,6 +71,10 @@ scalars! {
 }
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum TypeKind {
+    Unknown,
+    NullValue,
+    Text,
+    Character,
     Scalar(ScalarType),
     Decimal,
     Timestamp,
@@ -83,6 +87,10 @@ pub enum TypeKind {
 impl TypeKind {
     fn name(self) -> &'static str {
         match self {
+            Self::Unknown => "unknown",
+            Self::NullValue => "null_value",
+            Self::Text => "text",
+            Self::Character => "character",
             Self::Scalar(value) => value.name(),
             Self::Decimal => "decimal",
             Self::Timestamp => "timestamp",
@@ -98,6 +106,10 @@ impl TypeKind {
             return Ok(Self::Scalar(value));
         }
         Ok(match value {
+            "unknown" => Self::Unknown,
+            "null_value" => Self::NullValue,
+            "text" => Self::Text,
+            "character" => Self::Character,
             "decimal" => Self::Decimal,
             "timestamp" => Self::Timestamp,
             "structure" => Self::Structure,
@@ -634,6 +646,32 @@ impl CellValue {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn source_kinds_are_preserved_without_becoming_descriptors() {
+        for kind in [
+            TypeKind::Unknown,
+            TypeKind::NullValue,
+            TypeKind::Text,
+            TypeKind::Character,
+        ] {
+            let cell = Cell::TypeError(kind);
+            assert_eq!(Cell::parse(&cell.wire().unwrap()).unwrap(), cell);
+            let conflict = Cell::Conflict(vec![
+                Alternative {
+                    counter: 1,
+                    replica: u64::MAX,
+                    value: AlternativeValue::TypeError(kind),
+                },
+                Alternative {
+                    counter: u64::MAX,
+                    replica: 1,
+                    value: AlternativeValue::Null,
+                },
+            ]);
+            assert_eq!(Cell::parse(&conflict.wire().unwrap()).unwrap(), conflict);
+            assert!(Descriptor::parse(&json!({kind.name(): {}})).is_err());
+        }
+    }
     #[test]
     fn owned_exact_atoms_and_recursive_descriptors() {
         let atoms = [

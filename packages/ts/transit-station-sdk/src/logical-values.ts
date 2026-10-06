@@ -77,9 +77,10 @@ export type Value =
     }
   | { readonly kind: "tagged_union"; readonly index: number; readonly value: Cell }
   | { readonly kind: "json"; readonly json: string };
+export type SourceKind = Descriptor["kind"] | "unknown" | "null_value" | "text" | "character";
 export type Cell =
   | { readonly state: "missing" | "null" }
-  | { readonly state: "type_error"; readonly actual: Descriptor["kind"] }
+  | { readonly state: "type_error"; readonly actual: SourceKind }
   | { readonly state: "value"; readonly value: Value }
   | {
       readonly state: "conflict";

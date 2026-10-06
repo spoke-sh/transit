@@ -42,6 +42,55 @@ pub const Tag = enum(u8) {
     tagged_union,
     json,
 };
+/// Observed source kinds are evidence, not admissible logical descriptors.
+/// Logical kinds retain Tag's IDs; the extra cases preserve decoder/Document
+/// distinctions without inventing a scalar type or losing an unknown cause.
+pub const Kind = enum(u8) {
+    unknown = 0,
+    int64 = 1,
+    uint64,
+    float64,
+    boolean,
+    utf8,
+    binary,
+    int8,
+    int16,
+    int32,
+    int128,
+    uint8,
+    uint16,
+    uint32,
+    uint128,
+    float32,
+    decimal,
+    date,
+    time,
+    timestamp,
+    interval,
+    uuid,
+    structure,
+    list,
+    array,
+    map,
+    tagged_union,
+    json,
+    null_value,
+    text,
+    character,
+    pub fn fromTag(tag: Tag) Kind {
+        return @fromBackingInt(@backingInt(tag));
+    }
+    pub fn fromQuery(kind: Query.Kind) Kind {
+        return switch (kind) {
+            inline else => |value| @field(Kind, @tagName(value)),
+        };
+    }
+};
+comptime {
+    for (@typeInfo(Tag).@"enum".field_names, @typeInfo(Tag).@"enum".field_values) |name, value| {
+        if (@backingInt(@field(Kind, name)) != value) @compileError("Logical source kinds must preserve descriptor tag IDs");
+    }
+}
 pub const Decimal = struct { precision: u8, scale: u8 };
 pub const Timestamp = enum(u8) { civil, utc };
 pub const Element = struct { type: *const Type, nullable: bool = false };

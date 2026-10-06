@@ -19,6 +19,7 @@ public final class JavaLogicalValues {
         types.addAll(List.of(new Decimal(38, 2), new Timestamp(Zone.CIVIL), new Timestamp(Zone.UTC), new Structure(List.of(new Field("東京", Scalar.BINARY, true, true))), new Union(List.of(new Field("amount", new Decimal(38, 2)))), new ListType(new Element(Scalar.INT8)), new ArrayType(new Element(Scalar.UUID, true), 2), new MapType(Scalar.UTF8, new Element(new Decimal(38, 2)))));
         for (Descriptor type : types) check(typeFromWire(typeWire(type)).equals(type));
         List<Cell> values = List.of(new Missing(), new Null(), new SourceTypeError(Kind.MAP),
+            new SourceTypeError(Kind.UNKNOWN), new SourceTypeError(Kind.NULL_VALUE), new SourceTypeError(Kind.TEXT), new SourceTypeError(Kind.CHARACTER),
             present(new Signed(BigInteger.ONE.shiftLeft(127).negate())), present(new Unsigned(BigInteger.ONE.shiftLeft(128).subtract(BigInteger.ONE))), present(new DecimalValue(new BigInteger("123456789012345678901234567890"))),
             present(new Float32(-0.0f)), present(new Float64(-0.0)), present(new BooleanValue(false)), present(new Utf8("東京")), present(new Binary(owned)), present(new Uuid(new BinaryData(new byte[16]))),
             present(new DateDays(-100)), present(new TimeNanos(n(123))), present(new TimestampMicros(-1000)), present(new Interval(-1, 2, -3000)), new Present(new Json("{\"n\":123}")),

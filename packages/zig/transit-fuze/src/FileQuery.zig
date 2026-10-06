@@ -93,7 +93,7 @@ fn lowerAtom(allocator: std.mem.Allocator, atom: lowering.Atom, schema: types.Ty
                 }
                 return err;
             };
-            const cell = try values.fromQuery(.{ .value = scalar });
+            const cell = try values.fromQuery(allocator, try schema.structure[comparison.column].type.queryType(), .{ .value = scalar });
             break :blk .{ .compare = .{ .column = comparison.column, .op = comparison.op, .value = cell.value.atom } };
         },
     };

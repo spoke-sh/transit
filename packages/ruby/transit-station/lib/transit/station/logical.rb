@@ -5,6 +5,7 @@ module Transit
     module Logical
       SCALARS = %i[int8 int16 int32 int64 int128 uint8 uint16 uint32 uint64 uint128 float32 float64 boolean utf8 binary date time interval uuid json].freeze
       KINDS = (SCALARS + %i[decimal timestamp structure tagged_union list array map]).freeze
+      SOURCE_KINDS = (KINDS + %i[unknown null_value text character]).freeze
       Scalar = Data.define(:kind) do
         def initialize(kind:)
           raise ArgumentError, 'Unknown logical scalar' unless SCALARS.include?(kind)
@@ -69,7 +70,7 @@ module Transit
       Null = Data.define
       SourceTypeError = Data.define(:actual) do
         def initialize(actual:)
-          raise ArgumentError, 'Unknown logical source type' unless KINDS.include?(actual)
+          raise ArgumentError, 'Unknown logical source type' unless SOURCE_KINDS.include?(actual)
           super
         end
       end
@@ -282,7 +283,7 @@ module Transit
         when 'missing', 'null'
           object(payload, []); return (kind == 'missing' ? Missing : Null).new
         when 'type_error'
-          raise IncompatibleNative, 'Unknown source type' unless KINDS.map(&:to_s).include?(payload)
+          raise IncompatibleNative, 'Unknown source type' unless SOURCE_KINDS.map(&:to_s).include?(payload)
           return SourceTypeError.new(actual: payload.to_sym)
         when 'conflict'
           raise IncompatibleNative, 'Invalid conflict alternatives' unless payload.is_a?(Array) && payload.length.between?(2, 8)

@@ -15,7 +15,7 @@ import sys
 import tempfile
 import time
 import zlib
-from fuze_types import DEFINITION, TAGS
+from fuze_types import DEFINITION, TAGS, KINDS
 
 ROOT = Path(__file__).resolve().parents[1]
 CLI = str(Path(sys.argv[1]).resolve())
@@ -83,7 +83,7 @@ def cell_bytes(cell, typ):
     if state in ('missing', 'null'):
         return bytes([0 if state == 'missing' else 1])
     if state == 'type_error':
-        return bytes([2, TAGS[content]])
+        return bytes([2, KINDS[content]])
     if state == 'conflict':
         return bytes([4, len(content)]) + b''.join(struct.pack('<QQ', int(a['counter']), int(a['replica'])) + cell_bytes(a['value'], typ) for a in content)
     assert state == 'value'

@@ -143,7 +143,7 @@ fn ordinary(expected: t.Type, state: t.State, kind: u8, data: *const a.ArrayData
     return switch (state) {
         .missing => if (kind == 0) .missing else error.InvalidArrowResult,
         .null => if (kind == 0) .null else error.InvalidArrowResult,
-        .type_error => .{ .type_error = std.enums.fromInt(t.Tag, kind) orelse return error.InvalidArrowResult },
+        .type_error => .{ .type_error = std.enums.fromInt(t.Kind, kind) orelse return error.InvalidArrowResult },
         .value => if (kind == @backingInt(std.meta.activeTag(expected))) .{ .value = try value(expected, data, index, depth, budget) } else error.InvalidArrowResult,
         .conflict => error.InvalidArrowResult,
     };

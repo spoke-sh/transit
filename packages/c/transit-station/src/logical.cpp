@@ -3,7 +3,7 @@
 
 namespace transit::sdk::logical_detail {
 namespace {
-constexpr const char *kinds[] = {"int8", "int16", "int32", "int64", "int128", "uint8", "uint16", "uint32", "uint64", "uint128", "float32", "float64", "boolean", "utf8", "binary", "date", "time", "interval", "uuid", "json", "decimal", "timestamp", "structure", "tagged_union", "list", "array", "map"};
+constexpr const char *kinds[] = {"int8", "int16", "int32", "int64", "int128", "uint8", "uint16", "uint32", "uint64", "uint128", "float32", "float64", "boolean", "utf8", "binary", "date", "time", "interval", "uuid", "json", "decimal", "timestamp", "structure", "tagged_union", "list", "array", "map", "unknown", "null_value", "text", "character"};
 using U128 = unsigned __int128;
 std::string unsigned_text(U128 value) {
     char buffer[40]; auto *end = buffer + sizeof(buffer); auto *start = end;
@@ -75,6 +75,7 @@ transit_logical_kind kind_from(const std::string &name) {
     fail(TRANSIT_SDK_INVALID_ARGUMENT, "logical-kind");
 }
 Json type_json(const transit_logical_type_view &v, Budget &b, size_t depth) {
+    require(v.kind <= TRANSIT_LOGICAL_MAP, "logical-descriptor-kind");
     b.enter(depth); const auto *tag = kind_name(v.kind); Json payload = Json::object();
     switch (v.kind) {
         case TRANSIT_LOGICAL_DECIMAL:
@@ -102,6 +103,7 @@ Json type_json(const transit_logical_type_view &v, Budget &b, size_t depth) {
 }
 transit_logical_type_view type_from(const Json &v, Arena &a, Budget &b, size_t depth) {
     b.enter(depth); const auto &entry = v.variant(); const auto &p = entry.second; transit_logical_type_view out{}; out.kind = kind_from(entry.first);
+    require(out.kind <= TRANSIT_LOGICAL_MAP, "logical-descriptor-kind");
     switch (out.kind) {
         case TRANSIT_LOGICAL_DECIMAL:
             p.fields({"precision", "scale"}); out.as.decimal.precision = static_cast<uint8_t>(p.at("precision").number(38, false));

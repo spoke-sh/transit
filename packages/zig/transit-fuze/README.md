@@ -14,6 +14,10 @@ boolean, UTF-8/binary, Gregorian date, time, civil/UTC timestamp and UUID atoms.
 Casts and lossless domain promotion have separate admission rules. Recursive
 struct/list/array/map/union cells preserve null, missing, errors and conflicts;
 `Types.Codec` owns decoded descriptor/value bytes in an explicitly released arena.
+`Types.Kind` preserves observed decoder and Document mismatch kinds independently
+of admissible descriptor tags. `Values.fromQuery` converts every six-scalar cell
+state and conflict alternative without inventing an actual type or selecting a
+winner; its copied values belong to the supplied arena.
 `Types.Json` keeps exact numeric lexemes and rejects duplicate decoded keys.
 The [logical type contract](../../../contracts/FUZE_TYPES_V1.md) specifies codecs,
 budgets and capability limits. These APIs do not extend SQL, persisted Tables,

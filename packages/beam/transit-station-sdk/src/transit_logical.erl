@@ -45,6 +45,7 @@ known(V,Allowed) -> case [A || A<-Allowed,atom_to_binary(A,utf8)=:=V] of [A]->A;
 enum(V,Allowed) -> check(lists:member(V,Allowed)),atom_to_binary(V,utf8).
 scalars() -> [int8,int16,int32,int64,int128,uint8,uint16,uint32,uint64,uint128,float32,float64,boolean,utf8,binary,date,time,interval,uuid,json].
 kinds() -> scalars() ++ [decimal,timestamp,structure,tagged_union,list,array,map].
+source_kinds() -> kinds() ++ [unknown,null_value,text,character].
 budget(Max) -> {0,0,0,Max}.
 enter({Nodes,Data,Names,Max},Depth) -> check(Depth<16 andalso Nodes<Max),{Nodes+1,Data,Names,Max}.
 data({Nodes,Data,Names,Max},Size) -> check(Data+Size=<1048576),{Nodes,Data+Size,Names,Max}.
@@ -139,7 +140,7 @@ cell_wire(V) -> {Out,_}=cell_wire(V,budget(65536),0),Out.
 cell_wire(V,B,D) -> cell_value(V,enter(B,D),D).
 cell_value(missing,B,_) -> {#{<<"missing">>=>#{}},B};
 cell_value(null,B,_) -> {#{<<"null">>=>#{}},B};
-cell_value({type_error,Kind},B,_) -> {#{<<"type_error">>=>enum(Kind,kinds())},B};
+cell_value({type_error,Kind},B,_) -> {#{<<"type_error">>=>enum(Kind,source_kinds())},B};
 cell_value({value,V},B,D) -> {Out,Next}=value_wire(V,B,D),{#{<<"value">>=>Out},Next};
 cell_value({conflict,Alternatives},B,D) ->
     conflict_check(Alternatives),{Out,Next}=lists:mapfoldl(fun(A,B0)->alternative_wire(A,B0,D) end,B,Alternatives),{#{<<"conflict">>=>Out},Next};
@@ -167,7 +168,7 @@ cell_from_wire(V) -> {Out,_}=cell_from(V,budget(65536),0),Out.
 cell_from(V,B,D) -> {Kind,Payload}=variant(V),cell_parse(Kind,Payload,enter(B,D),D).
 cell_parse(<<"missing">>,V,B,_) -> fields(V,[]),{missing,B};
 cell_parse(<<"null">>,V,B,_) -> fields(V,[]),{null,B};
-cell_parse(<<"type_error">>,V,B,_) -> {{type_error,known(V,kinds())},B};
+cell_parse(<<"type_error">>,V,B,_) -> {{type_error,known(V,source_kinds())},B};
 cell_parse(<<"value">>,V,B,D) -> {Out,Next}=value_from(V,B,D),{{value,Out},Next};
 cell_parse(<<"conflict">>,V,B,D) ->
     list(V,8),check(length(V)>=2),{Out,Next}=lists:mapfoldl(fun(A,B0)->alternative_from(A,B0,D) end,B,V),conflict_check(Out),{{conflict,Out},Next};

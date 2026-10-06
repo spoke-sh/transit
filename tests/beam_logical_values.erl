@@ -22,6 +22,7 @@ run() ->
         {value,{structure,[atom({binary,<<0,128,255>>}),null]}}, {value,{list,[missing]}}, {value,{array,[null]}},
         {value,{map,[{{signed,1},null}]}},{value,{tagged_union,1,null}}],
     lists:foreach(fun(V)->round(cell,V) end,Values),
+    lists:foreach(fun(K)->round(cell,{type_error,K}),reject(type,K) end,[unknown,null_value,text,character]),
     {ok,#{<<"float_bits">>:= <<"00000080">>}}=transit_logical:encode(atom,{float32,-0.0}),
     {ok,{float32,Zero}}=transit_logical:decode(atom,#{<<"float_bits">>=> <<"00000080">>}),<<0,0,0,128>>= <<Zero:32/float-little>>,
     lists:foreach(fun(V)->{error,_}=transit_logical:decode(atom,V) end,[#{<<"signed">>=> <<"01">>},#{<<"unsigned">>=> <<"-0">>},#{<<"uuid">>=> <<"00">>},#{<<"float_bits">>=> <<"0000807f">>}]),

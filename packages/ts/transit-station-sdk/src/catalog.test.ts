@@ -34,6 +34,21 @@ import {
   decodeCell,
 } from "./logical-values.ts";
 import type { Descriptor, Cell, Atom } from "./logical-values.ts";
+
+test("logical cells preserve source-only mismatch kinds", () => {
+  for (const actual of ["unknown", "null_value", "text", "character"] as const) {
+    const cell: Cell = { state: "type_error", actual };
+    assert.deepEqual(decodeCell(encodeCell(cell)), cell);
+    const conflict: Cell = {
+      state: "conflict",
+      alternatives: [
+        { counter: 1n, replica: (1n << 64n) - 1n, cell },
+        { counter: (1n << 64n) - 1n, replica: 1n, cell: { state: "null" } },
+      ],
+    };
+    assert.deepEqual(decodeCell(encodeCell(conflict)), conflict);
+  }
+});
 import contract from "./contract.json" with { type: "json" };
 
 const maximum = (1n << 64n) - 1n;

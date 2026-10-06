@@ -15,6 +15,11 @@ for type <- [
     ],
     do: round.(:type, type)
 
+for kind <- [:unknown, :null_value, :text, :character] do
+  round.(:cell, {:type_error, kind})
+  {:error, _} = L.encode(:type, kind)
+end
+
 conflict =
   {:conflict,
    [

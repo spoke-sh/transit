@@ -5893,7 +5893,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 26,
+        "try": 27,
         "catch": 1
       },
       "imports": [
@@ -8174,6 +8174,39 @@
         "WriteFailed": 1
       },
       "outcomes": {
+        "Kind": [
+          "unknown",
+          "int64",
+          "uint64",
+          "float64",
+          "boolean",
+          "utf8",
+          "binary",
+          "int8",
+          "int16",
+          "int32",
+          "int128",
+          "uint8",
+          "uint16",
+          "uint32",
+          "uint128",
+          "float32",
+          "decimal",
+          "date",
+          "time",
+          "timestamp",
+          "interval",
+          "uuid",
+          "structure",
+          "list",
+          "array",
+          "map",
+          "tagged_union",
+          "json",
+          "null_value",
+          "text",
+          "character"
+        ],
         "Tag": [
           "int64",
           "uint64",
@@ -8589,7 +8622,6 @@
         "NullNotAllowed": 2,
         "TypeMismatch": 4,
         "UnorderedType": 1,
-        "UnsupportedQueryConversion": 2,
         "ValueBudgetExceeded": 2
       },
       "outcomes": {
@@ -8623,11 +8655,12 @@
         "atomOrder()": "<inferred>",
         "checkCell()": "anyerror",
         "checkValue()": "anyerror",
-        "fromQuery()": "<inferred>"
+        "fromQuery()": "<inferred>",
+        "queryValue()": "<inferred>"
       },
       "open_error_set_uses": 2,
       "propagation": {
-        "try": 20,
+        "try": 25,
         "catch": 0
       },
       "imports": [

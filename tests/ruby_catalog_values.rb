@@ -41,6 +41,7 @@ values = [atom(:signed, -(1 << 127)), atom(:unsigned, (1 << 128)-1), atom(:decim
   atom(:binary, [0,128,255].pack('C*')), atom(:uuid, 'x' * 16), atom(:float, -0.0, width: 32), atom(:float, 1.5, width: 64),
   atom(:interval, L::Interval.new(months: -1, days: 2, nanos: -3000)), L::Present.new(value: L::Json.new(json: '{"n":123}')),
   L::Missing.new, L::Null.new, L::SourceTypeError.new(actual: :map)]
+values += %i[unknown null_value text character].map { |kind| L::SourceTypeError.new(actual: kind) }
 values.each { |v| check(L.cell_from_wire(L.cell_wire(v)) == v) }
 check(L.cell_wire(values[10])['value']['atom']['float_bits'] == '00000080')
 check(1.0 / L.cell_from_wire(L.cell_wire(values[10])).value.value == -Float::INFINITY)

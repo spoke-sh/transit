@@ -19,7 +19,9 @@ not preserve every logical distinction.
 Each root field is a non-null Arrow struct containing `state:uint8`, `kind:uint8`,
 nullable `value:PAYLOAD`, and non-null `alternatives:list<ALTERNATIVE>`. State IDs
 are missing 0, null 1, type-error 2, value 3, conflict 4. Kind is the logical tag
-for a value or actual type-error tag, and zero otherwise. These kind semantics
+for a value or observed type-error kind, and zero otherwise. Type-error kind zero
+means unknown; observed null/Document text/character use 28/29/30. These are not
+descriptor tags. These kind semantics
 belong to this explicitly identified logical profile. A non-value has a null
 payload; only conflicts have nonempty alternatives. An alternative is a non-null
 struct of `counter:uint64`, `replica:uint64`, `state:uint8`, `kind:uint8` and nullable

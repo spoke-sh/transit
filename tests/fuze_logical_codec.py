@@ -136,7 +136,7 @@ if __name__ == '__main__':
     with tempfile.TemporaryDirectory(prefix='transit-logical-codec-') as directory:
         native = Native(sys.argv[1]); port = Port(sys.argv[2], Path(directory))
         try:
-            assert check(native) == check(port) == 91
+            assert check(native) == check(port) == 111
         finally:
             port.close()
-    print('Logical codecs: 91 independent scalar/recursive/state fixtures through C ABI and port, exact binary/hash/Arrow, generated schemas, rejected definitions and owned buffers passed.')
+    print('Logical codecs: 111 independent scalar/recursive/state fixtures through C ABI and port, exact binary/hash/Arrow, generated schemas, rejected definitions and owned buffers passed.')

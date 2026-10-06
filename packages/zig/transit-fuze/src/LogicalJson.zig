@@ -24,11 +24,11 @@ pub const Atom = union(enum) {
 pub const Cell = union(types.State) {
     missing,
     null,
-    type_error: types.Tag,
+    type_error: types.Kind,
     value: Value,
     conflict: []const Alternative,
 };
-pub const Alternative = struct { counter: []const u8, replica: []const u8, value: union(enum) { null, type_error: types.Tag, value: Value } };
+pub const Alternative = struct { counter: []const u8, replica: []const u8, value: union(enum) { null, type_error: types.Kind, value: Value } };
 pub const Entry = struct { key: Atom, value: Cell };
 pub const Value = union(enum) {
     atom: Atom,

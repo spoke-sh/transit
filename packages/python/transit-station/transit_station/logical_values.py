@@ -137,9 +137,9 @@ class Null:
 
 @dataclass(frozen=True, slots=True)
 class SourceTypeError:
-    actual: ScalarKind | Literal['decimal', 'timestamp', 'structure', 'tagged_union', 'list', 'array', 'map']
+    actual: ScalarKind | Literal['decimal', 'timestamp', 'structure', 'tagged_union', 'list', 'array', 'map', 'unknown', 'null_value', 'text', 'character']
     def __post_init__(self) -> None:
-        if self.actual not in _SCALARS | {'decimal', 'timestamp', 'structure', 'tagged_union', 'list', 'array', 'map'}: raise ValueError('Unknown source type')
+        if self.actual not in _SCALARS | {'decimal', 'timestamp', 'structure', 'tagged_union', 'list', 'array', 'map', 'unknown', 'null_value', 'text', 'character'}: raise ValueError('Unknown source type')
 
 
 @dataclass(frozen=True, slots=True)
