@@ -16470,3 +16470,21 @@ Earlier diagnostic runs exposed unmapped temporal causes and incomplete new
 parser-branch coverage. A proposed unsorted MAP rejection was incorrect because
 SQL construction canonicalizes map order; its reviewed case now requires
 successful compilation. None of those earlier runs is counted as passed.
+
+### Application completion alongside staged Table writes
+
+Station ReleaseSafe tests pass 92/92 (`table-application-completion1.log`).
+`TableWrite.stepWithReserve` leaves one or two additional mutation slots on
+terminal returns so an application can commit its progress and receipt with the
+Table head/outcome. Building turns retain the existing four-write staging bound.
+The reservation is physical scheduling, not part of logical mutation identity.
+
+The new cases exercise small and 600-byte values with both reservation sizes,
+discard every proposed turn before repeating it, and observe old rows and absent
+application progress until one final commit. The final commit publishes the row
+and application records together within four writes. Repeated terminal requests
+retain the original completion identity and prepare no writes. Duplicate keys
+retain room for the application's rejected receipt; invalid reservations and an
+exhausted private turn restore the proposal. This is local transition evidence;
+the serving/work-items example migrations and native restart schedules remain
+separate, unfinished qualification.

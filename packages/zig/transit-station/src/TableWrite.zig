@@ -225,7 +225,10 @@ fn writeCount(turn: *const Turn) usize {
     for (turn.decision.mutations) |slot| count += @intFromBool(slot != null);
     return count;
 }
-fn completion(turn: *Turn, head: Head, result: Status, data: Data.Candidate, request: Request) !Status {
+fn requireCompletionSpace(turn: *Turn, reserved_mutations: u8) !void {
+    if (writeCount(turn) + reserved_mutations > turn.decision.mutations.len) return error.MutationBudgetExceeded;
+}
+fn completion(turn: *Turn, head: Head, result: Status, data: Data.Candidate, request: Request, reserved_mutations: u8) !Status {
     const before = turn.decision;
     errdefer turn.decision = before;
     var after = head;
@@ -243,6 +246,7 @@ fn completion(turn: *Turn, head: Head, result: Status, data: Data.Candidate, req
     accepted.completed_input = turn.delivery.input.position;
     try head.replace(turn, after);
     try record(turn, accepted);
+    try requireCompletionSpace(turn, reserved_mutations);
     return accepted;
 }
 fn checkPending(head: Head, result: Status) !void {
@@ -252,12 +256,24 @@ fn checkPending(head: Head, result: Status) !void {
 /// it as durable. Re-run exact intent after acquiring a new captured turn; a
 /// terminal receipt never re-reads or rebinds the current Table/schema.
 pub fn step(allocator: std.mem.Allocator, turn: *Turn, request: Request) !Status {
+    return stepWithReserve(allocator, turn, request, 0);
+}
+/// Reserve up to two additional KV mutations for the application's terminal
+/// progress/receipt in the same native commit. Building steps may use the full
+/// turn budget; only terminal returns guarantee the reserved free slots. The
+/// caller must persist its original intent before driving staged work and must
+/// not repeat application effects merely because an old receipt is returned.
+pub fn stepWithReserve(allocator: std.mem.Allocator, turn: *Turn, request: Request, reserved_mutations: u8) !Status {
     const before = turn.decision;
     errdefer turn.decision = before;
+    if (reserved_mutations > 2) return error.MutationBudgetExceeded;
     const reference = try request.reference(allocator);
     const previous = try status(turn, reference);
     if (previous) |result| if (result.route != .point) return error.InvalidTableWriteStatus;
-    if (previous) |result| if (result.state != .building) return result;
+    if (previous) |result| if (result.state != .building) {
+        try requireCompletionSpace(turn, reserved_mutations);
+        return result;
+    };
     const head = try Head.load(turn, request.schema.object);
     if (head.retired) return error.TableRetired;
     if (previous) |result| try checkPending(head, result) else if (head.pending != 0) return error.TableBusy;
@@ -287,6 +303,7 @@ pub fn step(allocator: std.mem.Allocator, turn: *Turn, request: Request) !Status
         result.rejection = if (err == error.RowExists) .row_exists else .row_identity_exists;
         result.witness = witness;
         try record(turn, result);
+        try requireCompletionSpace(turn, reserved_mutations);
         return result;
     };
     _ = try overlay.finish(changed.data.index);
@@ -302,7 +319,7 @@ pub fn step(allocator: std.mem.Allocator, turn: *Turn, request: Request) !Status
             break :blk false;
         };
         if (ready) {
-            if (completion(turn, head, result, changed, request)) |accepted| return accepted else |err| if (err != error.MutationBudgetExceeded) return err;
+            if (completion(turn, head, result, changed, request, reserved_mutations)) |accepted| return accepted else |err| if (err != error.MutationBudgetExceeded) return err;
         }
         // No accepted input/head exists yet. Roll back the attempted private
         // fast path before reserving the immutable interval durably.
@@ -323,7 +340,7 @@ pub fn step(allocator: std.mem.Allocator, turn: *Turn, request: Request) !Status
         return result;
     };
     if (!ready) return result;
-    return completion(turn, head, result, changed, request) catch |err| {
+    return completion(turn, head, result, changed, request, reserved_mutations) catch |err| {
         if (err != error.MutationBudgetExceeded or writeCount(turn) == prior_writes) return err;
         return result;
     };

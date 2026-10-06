@@ -86,6 +86,19 @@ four-write direct publication when possible, or reserves IDs and a frozen head
 before resumable staging. The final head and exact matched/changed counts publish
 together. Other writes see `TableBusy` during staging. Repeated terminal intent
 returns its original receipt even after the Table changes or retires.
+`TableWrite.stepWithReserve` additionally reserves one or two native mutation
+slots for application progress and a terminal application receipt. The guarantee
+applies when the returned status is terminal; building steps may use all four
+slots for immutable staging. The helper defers publication when staged records
+and the application completion would not fit together. Existing private writes
+count toward the same limit, and a failed proposal restores them unchanged.
+The reservation changes scheduling, not the immutable Table intent or stored
+receipt identity. The application must persist its original command and reply
+route before driving continuations, check current rights on each step, and commit
+its progress/receipt with the returned Table publication. Re-reading a terminal
+receipt is not permission to repeat application effects. This API does not
+establish atomic publication across several Table heads or resources.
+
 The receipt records the owning coordinator: point DML, finite statement or ALTER.
 The matching cancellation path checks that route before changing a reservation;
 callers cannot select another path from the same raw operation identity.

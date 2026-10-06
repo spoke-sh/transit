@@ -1504,3 +1504,86 @@ test "row lookahead batches bounded headers before chunks and preserves digest a
     try t.expectError(error.AccessDenied, reader.prefetchBlobs(&refs));
     try t.expectEqual(@as(usize, 0), source.chunks);
 }
+
+test "point publication reserves application completion writes across staging and lost proposals" {
+    const progress_key = try p.Value.init("application.progress");
+    const receipt_key = try p.Value.init("application.receipt");
+    const large: [600]u8 = @splat('x');
+    for ([_][]const u8{ "one", &large }) |value| for ([_]u8{ 1, 2 }) |reserved| {
+        var store: Store = .{};
+        defer store.deinit();
+        _ = try store.table();
+        var cells: [2]f.Types.Values.Cell = undefined;
+        const request = insertRequest(80, 1, value, &cells);
+        var building = false;
+        var completed: Write.Status = undefined;
+        for (0..2000) |_| {
+            var lost = try store.capture();
+            const proposal = try Write.stepWithReserve(t.allocator, &lost, request, reserved);
+            if (proposal.state != .building) {
+                try t.expect(writes(lost) + reserved <= 4);
+                try lost.write(progress_key, p.Value.integer(1));
+                if (reserved == 2) try lost.write(receipt_key, p.Value.integer(80));
+            }
+            // Lose the whole private proposal, including application progress.
+            // A new owner turn still sees the old rows and original intent.
+            var turn = try store.capture();
+            try t.expectEqual(@as(u64, 0), (try Head.load(&turn, 9)).rows);
+            try t.expectEqual(null, try turn.read(progress_key));
+            try t.expectEqual(null, try turn.read(receipt_key));
+            const result = try Write.stepWithReserve(t.allocator, &turn, request, reserved);
+            try t.expectEqual(proposal.state, result.state);
+            if (result.state == .building) {
+                building = true;
+                try t.expect(writes(turn) > 0 and writes(turn) <= 4);
+                try store.commit(turn);
+                continue;
+            }
+            try t.expectEqual(.applied, result.state);
+            try t.expect(writes(turn) + reserved <= 4);
+            try turn.write(progress_key, p.Value.integer(1));
+            if (reserved == 2) try turn.write(receipt_key, p.Value.integer(80));
+            try store.commit(turn);
+            completed = result;
+            break;
+        } else return error.UnfinishedReservedWrite;
+        try t.expect(building);
+        var turn = try store.capture();
+        try t.expectEqual(@as(u64, 1), (try Head.load(&turn, 9)).rows);
+        try t.expectEqual(@as(i64, 1), try (try turn.read(progress_key)).?.asInteger());
+        if (reserved == 2) try t.expectEqual(@as(i64, 80), try (try turn.read(receipt_key)).?.asInteger());
+        // An old receipt retains completion identity and makes no new proposal.
+        try t.expectEqualDeep(completed, try Write.stepWithReserve(t.allocator, &turn, request, reserved));
+        try t.expectEqual(@as(usize, 0), writes(turn));
+        var duplicate_cells: [2]f.Types.Values.Cell = undefined;
+        const duplicate = insertRequest(81, 1, value, &duplicate_cells);
+        const rejected = try Write.stepWithReserve(t.allocator, &turn, duplicate, reserved);
+        try t.expectEqual(.rejected, rejected.state);
+        try t.expectEqual(.row_exists, rejected.rejection);
+        try t.expect(writes(turn) + reserved <= 4);
+    };
+}
+
+test "invalid or exhausted application completion reservation restores the private proposal" {
+    var store: Store = .{};
+    defer store.deinit();
+    const initial = try store.table();
+    var cells: [2]f.Types.Values.Cell = undefined;
+    const request = insertRequest(82, 1, "one", &cells);
+    var turn = try store.capture();
+    try turn.write(try p.Value.init("application.pending"), p.Value.integer(82));
+    const before = turn.decision;
+    try t.expectError(error.MutationBudgetExceeded, Write.stepWithReserve(t.allocator, &turn, request, 3));
+    try t.expectEqualDeep(before, turn.decision);
+    try t.expectEqualDeep(initial, try Head.load(&turn, 9));
+    try t.expectEqual(.building, (try Write.stepWithReserve(t.allocator, &turn, request, 2)).state);
+    try store.commit(turn);
+    turn = try store.capture();
+    for (0..4) |i| try turn.write(p.Value.integer(@intCast(i)), p.Value.integer(1));
+    const occupied = turn.decision;
+    // Staging can make progress with a full turn, but cannot leak a partial
+    // publication when even its next immutable page does not fit.
+    try t.expectError(error.MutationBudgetExceeded, Write.stepWithReserve(t.allocator, &turn, request, 2));
+    try t.expectEqualDeep(occupied, turn.decision);
+    try t.expectEqual(@as(u64, 0), (try Head.load(&turn, 9)).rows);
+}
