@@ -130,3 +130,37 @@ pub fn read(self: Self, source: anytype, ref: Reference) !Meta.Record {
     if (!std.meta.eql(record.scope, self.scope) or record.object != self.object or record.revision != ref.id) return error.CatalogDefinitionChanged;
     return record;
 }
+
+/// The caller proves that this exact revision was never accepted and retains
+/// its closed receipt. Collection is bounded; permanent descriptors survive.
+pub fn collect(self: Self, turn: *Turn, ref: Reference) !Step {
+    const before = turn.decision;
+    errdefer turn.decision = before;
+    try self.validate(turn);
+    try checkReference(ref);
+    if (try turn.read(key(self.object, 'd', 0)) == null) {
+        const full = key(self.object, 0, 0);
+        const prefix = try p.Value.init(full.data[0..14]);
+        var committed = turn.committed();
+        const page = try committed.page(prefix);
+        try c.Inspection.validatePage(page, prefix, turn.view.revision);
+        if (page.entries[0]) |entry| if (std.mem.startsWith(u8, entry.key.slice(), prefix.slice())) return error.CatalogAlreadyPopulated;
+        return .ready;
+    }
+    try self.check(turn);
+    if (try turn.read(key(self.object, 'i', ref.id))) |value| {
+        if (!std.meta.eql(try Pub.Digest.of(Meta.format, value.slice()), ref.spec) or try turn.read(key(self.object, 'r', ref.id)) != null) return error.CatalogIdentityConflict;
+        _ = try Meta.Record.decode(value.slice());
+        try turn.write(key(self.object, 'i', ref.id), null);
+        return .ready;
+    }
+    const descriptor = try Pub.Descriptor.decode((try turn.read(key(self.object, 'r', ref.id))) orelse return .ready);
+    if (!std.meta.eql(descriptor.spec, ref.spec)) return error.CatalogIdentityConflict;
+    const pubn = self.publication();
+    switch (descriptor.state) {
+        .staging => _ = try pubn.abandon(turn, ref.id),
+        .published => _ = try pubn.retire(turn, ref.id),
+        .abandoned, .retired => return if (try pubn.collect(turn, ref.id)) .ready else .progress,
+    }
+    return .progress;
+}

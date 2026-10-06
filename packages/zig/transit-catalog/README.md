@@ -103,7 +103,8 @@ authority, disk recovery or installed caller behavior; consult the
 
 [General Table metadata](docs/table-metadata.md) describes immutable schema
 references, owned UTF-8 names, bounded metadata staging and scoped namespace
-resolution/dependencies. These helpers do not
+resolution/dependencies, atomic lifecycle transitions and rejected-candidate
+cleanup. These helpers do not
 by themselves change the signed catalog or console admission profile above.
 
 `Diagnostic.codes` defines finite caller causes separately from catalog receipts.

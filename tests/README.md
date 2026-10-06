@@ -10801,6 +10801,24 @@ evidence is `catalog-namespace-final.log` and `catalog-namespace-docs.log` in th
 same campaign. Fixtures install definitions explicitly; these tests do not prove
 CREATE/ALTER/DROP admission, dynamic native routing or durable recovery.
 
+General captured-turn lifecycle proposals pass **43/43 catalog package tests**.
+CREATE/name/schema publication, RENAME, RESTRICT DROP, same-name replacement,
+absent-DROP binding, current policy revocation and original receipt retries are
+exercised through the actual general catalog coordinator. Every CREATE/ALTER
+staging phase is cloned, cancelled and cleaned; subsequent operations preserve
+nonreused identities/revisions and recover staging quota. An ALTER on existing
+NULL data rejects without changing the live definition; a subsequent defaulted
+column rewrite preserves row identity and values. Final ALTER publication is
+asserted to use exactly four writes. Repeating discarded DDL/cleanup proposals
+reproduces the same result and mutations. Historical lookup rejects published but
+unaccepted metadata. An initial new row fixture used an incorrect scalar union
+shape; the corrected typed atom representation passes. Evidence is
+`catalog-ddl-final.log` in the same campaign. RESTRICT uses a separately maintained
+blocking index; the test asserts one page regardless of preceding history
+references. These remain in-memory proposal
+proofs; signed routing, disk/restart and caller/performance qualification are not
+established by this checkpoint.
+
 ## Fuze logical type foundation
 
 The local `Types` profile has nine passing focused Zig tests, including 46

@@ -14,6 +14,7 @@ pub const TableMetadata = @import("TableMetadata.zig");
 pub const TableMetadataStore = @import("TableMetadataStore.zig");
 pub const TableCatalogRecords = @import("TableCatalogRecords.zig");
 pub const TableCatalog = @import("TableCatalog.zig");
+pub const TableDdlRequest = @import("TableDdlRequest.zig");
 test {
     _ = @import("table_metadata_test.zig");
     _ = @import("table_catalog_test.zig");

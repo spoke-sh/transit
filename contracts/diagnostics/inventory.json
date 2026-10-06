@@ -3186,54 +3186,79 @@
     },
     "packages/zig/transit-catalog/src/TableCatalog.zig": {
       "errors": {
-        "CatalogAlreadyPopulated": 1,
+        "CatalogAlreadyPopulated": 2,
+        "CatalogCapacity": 1,
+        "CatalogCleanupNotClosed": 1,
         "CatalogConfigurationChanged": 1,
         "CatalogCursorChanged": 1,
-        "CatalogDefinitionChanged": 4,
-        "CatalogDefinitionMissing": 2,
-        "CatalogDenied": 4,
+        "CatalogDefinitionChanged": 10,
+        "CatalogDefinitionMissing": 8,
+        "CatalogDenied": 7,
         "CatalogDependencyConflict": 1,
+        "CatalogIdentityConflict": 5,
         "CatalogNotInitialized": 1,
+        "CatalogOperationNotFound": 2,
         "CatalogOwnerChanged": 1,
         "CatalogPolicyConflict": 1,
         "CatalogScopeChanged": 1,
-        "CatalogSourceChanged": 1,
+        "CatalogSourceChanged": 3,
         "CrossResourceTransaction": 1,
         "InvalidCatalogBinding": 3,
-        "InvalidCatalogDependency": 2,
-        "InvalidCatalogIdentity": 1,
+        "InvalidCatalogDependency": 7,
+        "InvalidCatalogIdentity": 2,
         "InvalidCatalogObject": 3,
         "InvalidCatalogPolicy": 5,
+        "InvalidCatalogReceipt": 4,
         "QueryAfterMutation": 1,
-        "TableBusy": 1,
+        "TableBusy": 3,
         "TableNotFound": 2
       },
       "outcomes": {},
       "error_sets": {},
       "error_returns": {
+        "add()": "<inferred>",
         "administrator()": "<inferred>",
+        "admit()": "<inferred>",
+        "alterStep()": "<inferred>",
         "authorize()": "<inferred>",
         "binding()": "<inferred>",
         "blockingDependency()": "<inferred>",
+        "boundStep()": "<inferred>",
+        "cancel()": "<inferred>",
         "check()": "<inferred>",
+        "cleanup()": "<inferred>",
+        "close()": "<inferred>",
+        "createStep()": "<inferred>",
+        "emptyObjectNamespace()": "<inferred>",
+        "historical()": "<inferred>",
         "initialize()": "<inferred>",
         "list()": "<inferred>",
         "lookup()": "<inferred>",
+        "matchingPending()": "<inferred>",
         "metadata()": "<inferred>",
         "object()": "<inferred>",
+        "operation()": "<inferred>",
+        "outcome()": "<inferred>",
         "owner()": "<inferred>",
         "policy()": "<inferred>",
         "principal()": "<inferred>",
+        "publishObject()": "<inferred>",
+        "recordCandidate()": "<inferred>",
         "resolve()": "<inferred>",
         "restrict()": "<inferred>",
+        "saveObject()": "<inferred>",
+        "saveOperation()": "<inferred>",
         "scope()": "<inferred>",
         "setDependency()": "<inferred>",
-        "setPolicy()": "<inferred>"
+        "setPolicy()": "<inferred>",
+        "stagedMetadata()": "<inferred>",
+        "status()": "<inferred>",
+        "step()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 76,
-        "catch": 1
+        "try": 208,
+        "catch": 2
       },
       "imports": [
         "root.zig",
@@ -3318,6 +3343,34 @@
         "std"
       ]
     },
+    "packages/zig/transit-catalog/src/TableDdlRequest.zig": {
+      "errors": {
+        "InvalidCatalogDefinition": 5,
+        "InvalidCatalogIdentity": 1
+      },
+      "outcomes": {
+        "action": [
+          "create",
+          "alter",
+          "rename",
+          "drop"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "digest()": "<inferred>",
+        "tableAlter()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 16,
+        "catch": 0
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
     "packages/zig/transit-catalog/src/TableMetadata.zig": {
       "errors": {
         "CatalogDefinitionChanged": 1,
@@ -3357,10 +3410,10 @@
     },
     "packages/zig/transit-catalog/src/TableMetadataStore.zig": {
       "errors": {
-        "CatalogAlreadyPopulated": 1,
+        "CatalogAlreadyPopulated": 2,
         "CatalogDefinitionChanged": 3,
         "CatalogDefinitionMissing": 1,
-        "CatalogIdentityConflict": 4,
+        "CatalogIdentityConflict": 6,
         "CatalogScopeChanged": 1,
         "CatalogStorageNotFound": 1,
         "CrossResourceTransaction": 1,
@@ -3381,6 +3434,7 @@
       "error_returns": {
         "check()": "<inferred>",
         "checkReference()": "<inferred>",
+        "collect()": "<inferred>",
         "create()": "<inferred>",
         "manifest()": "<inferred>",
         "read()": "<inferred>",
@@ -3389,7 +3443,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 38,
+        "try": 55,
         "catch": 0
       },
       "imports": [
@@ -3419,6 +3473,7 @@
         "Records.zig",
         "TableCatalog.zig",
         "TableCatalogRecords.zig",
+        "TableDdlRequest.zig",
         "TableMetadata.zig",
         "TableMetadataStore.zig",
         "transit_station"

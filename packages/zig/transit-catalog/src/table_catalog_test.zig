@@ -171,7 +171,9 @@ test "durable dependencies block RESTRICT while history references remain distin
         try store.commit(turn);
     }
     var turn = try store.capture(17);
+    const pages_before = store.pages;
     const dependent = (try owner.blockingDependency(&turn, 17, 1)).?;
+    try t.expectEqual(pages_before + 1, store.pages);
     try t.expectEqual(@as(u64, 11), dependent.identity);
     try t.expectEqual(.query_source, dependent.kind);
     var changed = dependent;
@@ -182,4 +184,325 @@ test "durable dependencies block RESTRICT while history references remain distin
     turn = try store.capture(17);
     try t.expectEqual(null, try owner.blockingDependency(&turn, 17, 1));
     try t.expect(store.state.get(owner.key('B', 1, 1)) != null);
+}
+
+fn ddl(store: *TestStore, request: c.TableDdlRequest) !Cat.Outcome {
+    for (0..2000) |_| {
+        var turn = try store.capture(request.principal);
+        const result = try owner.step(t.allocator, &turn, request);
+        var lost = try store.capture(request.principal);
+        const repeat = try owner.step(t.allocator, &lost, request);
+        try t.expectEqualDeep(result, repeat);
+        try t.expectEqualDeep(turn.decision, lost.decision);
+        try store.commit(turn);
+        if (result.terminal()) return result;
+    }
+    return error.TestUnexpectedResult;
+}
+fn createRequest(object: u64, operation: u64, name: []const u8) !c.TableDdlRequest {
+    return .{ .principal = 17, .operation = operation, .object = object, .expected_revision = 0, .name = try Meta.Name.init(name), .action = .{ .create = .{ .schema = .{ .object = object, .revision = 1, .next_column = 3, .columns = &.{ .{ .id = 1, .name = "id", .type = .int32 }, .{ .id = 2, .name = "name", .type = .utf8 } }, .primary_key = &.{} } } } };
+}
+fn countWrites(turn: s.Turn) usize {
+    var count: usize = 0;
+    for (turn.decision.mutations) |slot| count += @intFromBool(slot != null);
+    return count;
+}
+test "general DDL creates atomic names and schemas and retains exact outcomes" {
+    var store: TestStore = .{};
+    defer store.deinit();
+    try ready(&store);
+    const request = try createRequest(100, 1, "people");
+    const applied = try ddl(&store, request);
+    try t.expectEqual(.applied, applied.operation.state);
+    var turn = try store.capture(17);
+    var found = (try owner.lookup(t.allocator, &turn, 17, request.name)).?;
+    defer found.deinit();
+    try t.expectEqual(@as(u64, 100), found.schema.schema.object);
+    try t.expectEqual(@as(u64, 0), found.head.rows);
+    try t.expectEqual(@as(usize, 2), found.schema.schema.columns.len);
+    try t.expectEqualDeep(found.metadata, try owner.historical(&turn, 17, 100, applied.operation.metadata));
+    try t.expectEqualDeep(applied, try owner.step(t.allocator, &turn, request));
+    try t.expectEqual(@as(usize, 0), countWrites(turn));
+    var changed = request;
+    changed.name = try Meta.Name.init("changed");
+    try t.expectError(error.CatalogIdentityConflict, owner.step(t.allocator, &turn, changed));
+    const duplicate = try ddl(&store, try createRequest(101, 2, "people"));
+    try t.expectEqual(.name_conflict, duplicate.operation.reason);
+    try t.expectEqual(@as(u64, 100), duplicate.operation.actual_object);
+    var optional = try createRequest(102, 3, "people");
+    optional.action.create.if_not_exists = true;
+    try t.expectEqual(.unchanged, (try ddl(&store, optional)).operation.state);
+    turn = try store.capture(17);
+    try t.expectEqual(null, try turn.read(s.TableHead.key(101)));
+    try t.expectEqual(null, try turn.read(s.TableHead.key(102)));
+}
+test "general DDL rename drop name reuse and history keep object identity" {
+    var store: TestStore = .{};
+    defer store.deinit();
+    try ready(&store);
+    const creation = try createRequest(10, 1, "people");
+    const first = try ddl(&store, creation);
+    const rename: c.TableDdlRequest = .{ .principal = 17, .operation = 2, .object = 10, .expected_revision = 1, .name = creation.name, .action = .{ .rename = try Meta.Name.init("persons") } };
+    const renamed = try ddl(&store, rename);
+    try t.expectEqual(.applied, renamed.operation.state);
+    try t.expectEqual(@as(u64, 2), renamed.operation.metadata.id);
+    var turn = try store.capture(17);
+    try t.expectEqual(null, try owner.lookup(t.allocator, &turn, 17, creation.name));
+    var pinned = (try owner.lookup(t.allocator, &turn, 17, rename.action.rename)).?;
+    defer pinned.deinit();
+    const dependency: m.Dependency = .{ .scope = owner.configuration.scope, .object = 10, .identity = 1, .owner = 4, .kind = .writer };
+    try owner.setDependency(&turn, dependency, true);
+    try store.commit(turn);
+    var drop: c.TableDdlRequest = .{ .principal = 17, .operation = 3, .object = 10, .expected_revision = 2, .name = rename.action.rename, .action = .{ .drop = .{} } };
+    try t.expectEqual(.dependency, (try ddl(&store, drop)).operation.reason);
+    turn = try store.capture(17);
+    try owner.setDependency(&turn, dependency, false);
+    try store.commit(turn);
+    drop.operation = 4;
+    const dropped = try ddl(&store, drop);
+    try t.expectEqual(.applied, dropped.operation.state);
+    turn = try store.capture(17);
+    try t.expectEqual(null, try owner.lookup(t.allocator, &turn, 17, drop.name));
+    try t.expect((try s.TableHead.load(&turn, 10)).retired);
+    try t.expectEqualDeep(first, try owner.step(t.allocator, &turn, creation));
+    const old = try owner.historical(&turn, 17, 10, first.operation.metadata);
+    try t.expect(old.name.eql(&creation.name));
+    const reused = try ddl(&store, try createRequest(11, 5, "persons"));
+    try t.expectEqual(.applied, reused.operation.state);
+    const stolen = try ddl(&store, try createRequest(10, 6, "another"));
+    try t.expectEqual(.object_conflict, stolen.operation.reason);
+    turn = try store.capture(17);
+    var old_schema = try pinned.head.readSchema(t.allocator, &turn);
+    defer old_schema.deinit();
+    try t.expectEqual(@as(u64, 10), old_schema.schema.object);
+    try t.expectEqualDeep(dropped, try owner.step(t.allocator, &turn, drop));
+}
+test "general catalog ALTER publishes its schema and metadata in the same decision" {
+    var store: TestStore = .{};
+    defer store.deinit();
+    try ready(&store);
+    const creation = try createRequest(10, 1, "people");
+    const initial = try ddl(&store, creation);
+    const request: c.TableDdlRequest = .{ .principal = 17, .operation = 2, .object = 10, .expected_revision = 1, .name = creation.name, .action = .{ .alter = .{ .schema = creation.action.create.schema, .change = .{ .rename = .{ .column = 2, .name = "full_name" } } } } };
+    var terminal: ?Cat.Outcome = null;
+    for (0..100) |_| {
+        var turn = try store.capture(17);
+        var before = (try owner.lookup(t.allocator, &turn, 17, creation.name)).?;
+        defer before.deinit();
+        try t.expectEqual(@as(u64, 1), before.metadata.revision);
+        try t.expectEqualStrings("name", before.schema.schema.columns[1].name);
+        const result = try owner.step(t.allocator, &turn, request);
+        if (result.terminal()) {
+            try t.expectEqual(@as(usize, 4), countWrites(turn));
+            terminal = result;
+        }
+        try store.commit(turn);
+        if (terminal != null) break;
+    }
+    try t.expect(terminal != null);
+    try t.expectEqual(.delegated, terminal.?.operation.state);
+    try t.expectEqual(.applied, terminal.?.table.?.state);
+    var turn = try store.capture(17);
+    var after = (try owner.lookup(t.allocator, &turn, 17, creation.name)).?;
+    defer after.deinit();
+    try t.expectEqual(@as(u64, 2), after.metadata.revision);
+    try t.expectEqualStrings("full_name", after.schema.schema.columns[1].name);
+    try t.expectEqualDeep(terminal.?, try owner.step(t.allocator, &turn, request));
+    try t.expectEqualDeep(after.metadata, try owner.historical(&turn, 17, 10, terminal.?.operation.metadata));
+    _ = try owner.historical(&turn, 17, 10, initial.operation.metadata);
+}
+
+fn cancelAndClean(store: *TestStore, request: c.TableDdlRequest) !void {
+    const digest = try request.digest(owner.configuration.scope);
+    var closed: ?Cat.Outcome = null;
+    for (0..10) |_| {
+        var turn = try store.capture(request.principal);
+        const result = try owner.cancel(&turn, request.principal, request.operation, digest);
+        try store.commit(turn);
+        if (result.terminal()) {
+            closed = result;
+            break;
+        }
+    }
+    try t.expect(closed != null);
+    try t.expect(if (closed.?.table) |value| value.state == .cancelled else closed.?.operation.state == .cancelled);
+    for (0..100) |_| {
+        var turn = try store.capture(request.principal);
+        const finished = try owner.cleanup(&turn, request.principal, request.operation, digest);
+        var lost = try store.capture(request.principal);
+        try t.expectEqual(finished, try owner.cleanup(&lost, request.principal, request.operation, digest));
+        try t.expectEqualDeep(turn.decision, lost.decision);
+        try store.commit(turn);
+        if (finished) {
+            turn = try store.capture(request.principal);
+            try t.expectEqualDeep(closed, try owner.status(&turn, request.principal, request.operation, digest));
+            try t.expect(try owner.cleanup(&turn, request.principal, request.operation, digest));
+            return;
+        }
+    }
+    return error.TestUnexpectedResult;
+}
+test "cancel every CREATE phase reclaims only its candidate and never reuses an object" {
+    var store: TestStore = .{};
+    defer store.deinit();
+    try ready(&store);
+    const request = try createRequest(100, 1, "people_with_a_name_that_requires_chunked_metadata_even_without_a_large_schema");
+    var stages: usize = 0;
+    for (0..100) |_| {
+        var turn = try store.capture(17);
+        const result = try owner.step(t.allocator, &turn, request);
+        try store.commit(turn);
+        if (result.terminal()) break;
+        stages += 1;
+        var cancelled = try store.clone();
+        defer cancelled.deinit();
+        try cancelAndClean(&cancelled, request);
+        var checked = try cancelled.capture(17);
+        try t.expectEqual(null, try owner.lookup(t.allocator, &checked, 17, request.name));
+        const replacement = try ddl(&cancelled, try createRequest(101, 2, request.name.slice()));
+        try t.expectEqual(.applied, replacement.operation.state);
+        const reused = try ddl(&cancelled, try createRequest(100, 3, "another"));
+        try t.expectEqual(.object_conflict, reused.operation.reason);
+    }
+    try t.expect(stages > 6);
+}
+test "cancel every ALTER phase preserves its old schema and permits later evolution" {
+    var store: TestStore = .{};
+    defer store.deinit();
+    try ready(&store);
+    const creation = try createRequest(10, 1, "people_with_a_name_that_requires_chunked_metadata_even_without_a_large_schema");
+    _ = try ddl(&store, creation);
+    const request: c.TableDdlRequest = .{ .principal = 17, .operation = 2, .object = 10, .expected_revision = 1, .name = creation.name, .action = .{ .alter = .{ .schema = creation.action.create.schema, .change = .{ .rename = .{ .column = 2, .name = "full_name" } } } } };
+    var phases: usize = 0;
+    for (0..100) |_| {
+        var turn = try store.capture(17);
+        const result = try owner.step(t.allocator, &turn, request);
+        try store.commit(turn);
+        if (result.terminal()) break;
+        phases += 1;
+        var cancelled = try store.clone();
+        defer cancelled.deinit();
+        try cancelAndClean(&cancelled, request);
+        var checked = try cancelled.capture(17);
+        var original = (try owner.lookup(t.allocator, &checked, 17, creation.name)).?;
+        defer original.deinit();
+        try t.expectEqualStrings("name", original.schema.schema.columns[1].name);
+        var next = request;
+        next.operation = 3;
+        const applied = try ddl(&cancelled, next);
+        try t.expectEqual(.applied, applied.table.?.state);
+        try t.expectEqual(@as(u64, 3), applied.operation.metadata.id);
+    }
+    try t.expect(phases > 6);
+}
+test "DDL conflicts bind original names schemas and absent DROP without retargeting" {
+    var store: TestStore = .{};
+    defer store.deinit();
+    try ready(&store);
+    const absent: c.TableDdlRequest = .{ .principal = 17, .operation = 1, .object = 0, .expected_revision = 0, .name = try Meta.Name.init("later"), .action = .{ .drop = .{ .if_exists = true } } };
+    const no_op = try ddl(&store, absent);
+    try t.expectEqual(.unchanged, no_op.operation.state);
+    _ = try ddl(&store, try createRequest(10, 2, "later"));
+    var turn = try store.capture(17);
+    try t.expectEqualDeep(no_op, try owner.step(t.allocator, &turn, absent));
+    var late = absent;
+    late.operation = 3;
+    try t.expectEqual(.object_conflict, (try ddl(&store, late)).operation.reason);
+    const stale: c.TableDdlRequest = .{ .principal = 17, .operation = 4, .object = 10, .expected_revision = 9, .name = absent.name, .action = .{ .drop = .{} } };
+    try t.expectEqual(.schema_changed, (try ddl(&store, stale)).operation.reason);
+    const request = try createRequest(11, 5, "competing");
+    turn = try store.capture(17);
+    _ = try owner.step(t.allocator, &turn, request);
+    try store.commit(turn);
+    _ = try ddl(&store, try createRequest(12, 6, "competing"));
+    const lost = try ddl(&store, request);
+    try t.expectEqual(.name_conflict, lost.operation.reason);
+    turn = try store.capture(17);
+    try t.expect(try owner.cleanup(&turn, 17, 5, try request.digest(owner.configuration.scope)));
+    try store.commit(turn);
+    turn = try store.capture(17);
+    var winner = (try owner.lookup(t.allocator, &turn, 17, request.name)).?;
+    defer winner.deinit();
+    try t.expectEqual(@as(u64, 12), winner.head.object);
+}
+
+test "DDL rechecks current policy and preserves reservation when disclosure is revoked" {
+    var store: TestStore = .{};
+    defer store.deinit();
+    try ready(&store);
+    const request = try createRequest(100, 1, "people");
+    var turn = try store.capture(17);
+    _ = try owner.step(t.allocator, &turn, request);
+    try store.commit(turn);
+    turn = try store.capture(17);
+    var rights = try m.Policy.administrator(owner.configuration.scope, 17);
+    rights.revision = 2;
+    rights.inspect = false;
+    try owner.setPolicy(&turn, 1, rights);
+    try store.commit(turn);
+    turn = try store.capture(17);
+    const digest = try request.digest(owner.configuration.scope);
+    try t.expectError(error.CatalogDenied, owner.step(t.allocator, &turn, request));
+    try t.expectError(error.CatalogDenied, owner.status(&turn, 17, 1, digest));
+    try t.expectError(error.CatalogDenied, owner.cancel(&turn, 17, 1, digest));
+    try t.expectError(error.CatalogDenied, owner.cleanup(&turn, 17, 1, digest));
+    try t.expectEqual(@as(usize, 0), countWrites(turn));
+    rights.inspect = true;
+    rights.create = false;
+    rights.revision = 3;
+    try owner.setPolicy(&turn, 2, rights);
+    try store.commit(turn);
+    turn = try store.capture(17);
+    try t.expectError(error.CatalogDenied, owner.step(t.allocator, &turn, request));
+    try t.expect(!(try owner.status(&turn, 17, 1, digest)).?.terminal());
+    // Inspect permits closing one's original work even after execution revocation.
+    try cancelAndClean(&store, request);
+    turn = try store.capture(18);
+    try t.expectError(error.CatalogDenied, owner.cancel(&turn, 17, 1, digest));
+}
+test "ALTER validates populated rows atomically and keeps rejected metadata private" {
+    var store: TestStore = .{};
+    defer store.deinit();
+    try ready(&store);
+    const creation = try createRequest(10, 1, "people");
+    _ = try ddl(&store, creation);
+    var turn = try store.capture(17);
+    const insert: s.TableWrite.Request = .{ .resource = 7, .principal = 17, .operation = 2, .schema = creation.action.create.schema, .change = .{ .insert = .{ .identity = .{ .origin = 18, .operation = 2, .ordinal = 0 }, .cells = &.{ .{ .value = .{ .atom = .{ .signed = 1 } } }, .null } } } };
+    for (0..100) |_| {
+        turn = try store.capture(17);
+        const result = try s.TableWrite.step(t.allocator, &turn, insert);
+        try store.commit(turn);
+        if (result.state != .building) break;
+    }
+    const request: c.TableDdlRequest = .{ .principal = 17, .operation = 3, .object = 10, .expected_revision = 1, .name = creation.name, .action = .{ .alter = .{ .schema = creation.action.create.schema, .change = .{ .nullable = .{ .column = 2, .value = false } } } } };
+    const rejected = try ddl(&store, request);
+    try t.expectEqual(.rejected, rejected.table.?.state);
+    try t.expectEqual(.null_not_allowed, rejected.table.?.rejection);
+    turn = try store.capture(17);
+    var old = (try owner.lookup(t.allocator, &turn, 17, creation.name)).?;
+    defer old.deinit();
+    try t.expectEqual(@as(u64, 1), old.head.rows);
+    try t.expectEqual(@as(u64, 1), old.metadata.revision);
+    try t.expectError(error.CatalogDefinitionMissing, owner.historical(&turn, 17, 10, rejected.operation.metadata));
+    for (0..100) |_| {
+        turn = try store.capture(17);
+        const complete = try owner.cleanup(&turn, 17, 3, rejected.operation.digest);
+        try store.commit(turn);
+        if (complete) break;
+    }
+    var next = request;
+    next.operation = 4;
+    next.action.alter.change = .{ .add = .{ .name = "active", .type = .boolean, .nullable = false, .default = .{ .value = .{ .atom = .{ .boolean = true } } } } };
+    const applied = try ddl(&store, next);
+    try t.expectEqual(.applied, applied.table.?.state);
+    turn = try store.capture(17);
+    var found = (try owner.lookup(t.allocator, &turn, 17, creation.name)).?;
+    defer found.deinit();
+    const pages: s.TablePages = .{ .resource = 7, .object = 10 };
+    var reader: s.TablePages.Reader(*s.Turn) = .{ .pages = pages, .source = &turn };
+    const data: s.TableData = .{ .schema = found.schema.schema, .index = found.head.index };
+    var row = (try data.next(t.allocator, &reader, null)).?;
+    defer row.deinit();
+    try t.expect(row.row().cells[2].value.atom.boolean);
+    try t.expectEqualDeep(insert.change.insert.identity, row.identity);
 }

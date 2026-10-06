@@ -25,12 +25,47 @@ and definitions with `deinit`. Resident work does not grow with catalog size.
 
 The explicit administrator dependency registry distinguishes durable query
 sources, writers, watches and maintained relations from historical references.
-`blockingDependency` scans bounded pages and returns an attributed RESTRICT
-blocker. Removing one requires the same original dependency identity and owner.
-Historical references remain stored but do not keep a name live. This registry
+`blockingDependency` reads one page of the blocking index and returns an
+attributed RESTRICT blocker. Removing one requires the same original dependency
+identity and owner. Historical references remain stored but do not keep a name
+live. Blocking index entries change atomically with their dependency records, so
+DROP does not scan the historical-reference collection. The registry
 does not bind runtime applications automatically, dispatch effects or authorize
-physical reclamation. Lifecycle transitions and native routing must integrate
-these helpers before their behavior becomes a caller guarantee.
+physical reclamation. Native routing must integrate these helpers before their
+behavior becomes a signed caller guarantee.
+
+`TableDdlRequest` binds exact scope, principal, operation, object, expected
+metadata revision, name and typed action. `TableCatalog.step` checks both current
+inspect and action rights and the authenticated external principal on every
+proposal. CREATE reserves a never-reused object, stages its schema and publishes
+the head/name/metadata/original receipt atomically. `IF NOT EXISTS` records an
+unchanged outcome without adopting or altering the existing definition. A name
+race records the winning object; changing the saved intent is an identity error.
+
+ALTER reserves a metadata revision and delegates frozen-schema validation or
+rewriting to `TableAlter`. Its final three Table writes and the catalog object
+write share one native decision. The catalog operation refers to the retained
+Table outcome rather than requiring a fifth terminal write. Readers see the
+original metadata and schema until complete publication. Rejected rewrites retain
+that original view and exact Table failure; no candidate row prefix becomes live.
+
+RENAME stages new metadata while retaining the physical schema and stable object.
+It changes both name bindings, the object and receipt together. DROP defaults to
+RESTRICT, removes the live name and retires the head/object in the same decision.
+Dependency installation is fenced during pending DDL. New objects may reuse a
+dropped name; saved operations remain bound to their original object and outcome.
+`IF EXISTS` prepared against absence cannot drop a subsequently created object.
+Retained schema references remain readable under the caller's authorized source.
+
+`status` requires current inspect permission and verifies the original digest.
+`cancel` also requires that permission and the original authenticated principal;
+it can close unfinished work after its execution right is revoked. Cancellation
+during early ALTER admission may require two bounded decisions. `cleanup` removes
+only bytes of rejected/cancelled candidates whose retained receipts prove they
+never became live; it releases staging quota and preserves ID floors and terminal
+receipts. It does not reclaim accepted history or promise physical erasure after
+DROP. `historical` verifies the original applied catalog/Table outcome before
+accepting published metadata as a historical definition.
 
 A record owns scope, full-width object and metadata revision, exact name,
 immutable Table schema reference and complete schema fingerprint, principal,

@@ -192,6 +192,8 @@ pub fn list(self: Self, allocator: std.mem.Allocator, source: anytype, who: u64,
     return result;
 }
 pub fn setDependency(self: Self, turn: *s.Turn, dependency: m.Dependency, present: bool) !void {
+    const before = turn.decision;
+    errdefer turn.decision = before;
     try self.administrator(turn);
     try self.check(turn);
     try dependency.validate();
@@ -199,34 +201,377 @@ pub fn setDependency(self: Self, turn: *s.Turn, dependency: m.Dependency, presen
     const current = (try self.object(turn, dependency.object)) orelse return error.TableNotFound;
     if (present and (current.state != .live or current.pending_operation != 0)) return error.TableBusy;
     const location = self.key('B', dependency.object, dependency.identity);
+    const index_key = self.key('J', dependency.object, dependency.identity);
     const bytes = try r.encode('B', dependency);
+    const indexed = try turn.read(index_key);
     if (try turn.read(location)) |existing| {
         _ = try r.decode(m.Dependency, 'B', existing);
         if (!existing.eql(bytes)) return error.CatalogDependencyConflict;
+        if (dependency.restricts()) {
+            if (indexed == null or !indexed.?.eql(bytes)) return error.InvalidCatalogDependency;
+            if (!present) try turn.write(index_key, null);
+        } else if (indexed != null) return error.InvalidCatalogDependency;
         if (!present) try turn.write(location, null);
-    } else if (present) try turn.write(location, bytes);
+    } else {
+        if (indexed != null) return error.InvalidCatalogDependency;
+        if (present) {
+            try turn.write(location, bytes);
+            if (dependency.restricts()) try turn.write(index_key, bytes);
+        }
+    }
 }
 fn restrict(self: Self, source: anytype, id: u64) !?m.Dependency {
-    const full = self.key('B', id, 0);
+    const full = self.key('J', id, 0);
     const prefix = try p.Value.init(full.data[0..19]);
-    var cursor = prefix;
-    while (true) {
-        const page = try source.page(cursor);
-        try c.Inspection.validatePage(page, cursor, source.view.revision);
-        for (page.entries) |slot| {
-            const entry = slot orelse break;
-            if (!std.mem.startsWith(u8, entry.key.slice(), prefix.slice())) return null;
-            if (entry.key.len != 27) return error.InvalidCatalogDependency;
-            const dependency = try r.decode(m.Dependency, 'B', entry.value);
-            try self.scope(dependency.scope);
-            if (dependency.object != id or dependency.identity != std.mem.readInt(u64, entry.key.data[19..27], .big)) return error.InvalidCatalogDependency;
-            if (dependency.restricts()) return dependency;
-        }
-        cursor = page.next orelse return null;
-    }
+    const page = try source.page(prefix);
+    try c.Inspection.validatePage(page, prefix, source.view.revision);
+    const entry = page.entries[0] orelse return null;
+    if (!std.mem.startsWith(u8, entry.key.slice(), prefix.slice())) return null;
+    if (entry.key.len != 27) return error.InvalidCatalogDependency;
+    const dependency = try r.decode(m.Dependency, 'B', entry.value);
+    try self.scope(dependency.scope);
+    if (!dependency.restricts() or dependency.object != id or dependency.identity != std.mem.readInt(u64, entry.key.data[19..27], .big)) return error.InvalidCatalogDependency;
+    const original = (try source.read(self.key('B', id, dependency.identity))) orelse return error.InvalidCatalogDependency;
+    if (!original.eql(entry.value)) return error.InvalidCatalogDependency;
+    return dependency;
 }
 pub fn blockingDependency(self: Self, source: anytype, who: u64, id: u64) !?m.Dependency {
     _ = try self.authorize(source, who, .inspect);
     _ = (try self.object(source, id)) orelse return error.TableNotFound;
     return self.restrict(source, id);
+}
+
+pub const DdlRequest = c.TableDdlRequest;
+pub const Outcome = struct {
+    operation: m.Operation,
+    table: ?s.TableWrite.Status = null,
+    pub fn terminal(self: Outcome) bool {
+        return switch (self.operation.state) {
+            .preparing => false,
+            .delegated => if (self.table) |value| value.state != .building else false,
+            else => true,
+        };
+    }
+};
+fn operation(self: Self, source: anytype, who: u64, id: u64) !?m.Operation {
+    if (who > p.max_counter or id == 0) return error.InvalidCatalogIdentity;
+    const found = try r.decode(m.Operation, 'R', (try source.read(self.key('o', who, id))) orelse return null);
+    try self.scope(found.scope);
+    if (found.principal != who or found.operation != id) return error.InvalidCatalogReceipt;
+    return found;
+}
+fn outcome(source: anytype, value: m.Operation) !Outcome {
+    return .{ .operation = value, .table = if (value.state == .delegated) (try s.TableWrite.status(source, try value.tableReference())) orelse return error.InvalidCatalogReceipt else null };
+}
+pub fn status(self: Self, source: anytype, who: u64, id: u64, digest: [32]u8) !?Outcome {
+    _ = try self.authorize(source, who, .inspect);
+    const found = (try self.operation(source, who, id)) orelse return null;
+    if (!std.mem.eql(u8, &found.digest, &digest)) return error.CatalogIdentityConflict;
+    return try outcome(source, found);
+}
+/// Published bytes alone do not establish an accepted definition. Retained
+/// metadata must be named by its original applied catalog/Table decision.
+pub fn historical(self: Self, source: anytype, who: u64, id: u64, ref: s.TablePages.Reference) !Meta.Record {
+    _ = try self.authorize(source, who, .inspect);
+    const record = try (Store{ .scope = self.configuration.scope, .object = id }).read(source, ref);
+    const accepted = (try self.operation(source, record.principal, record.operation)) orelse return error.CatalogDefinitionMissing;
+    if (accepted.object != id or accepted.admitted_input != record.admitted_input or !std.meta.eql(accepted.metadata, ref)) return error.CatalogDefinitionChanged;
+    switch (accepted.state) {
+        .applied => {},
+        .delegated => if ((try outcome(source, accepted)).table.?.state != .applied) return error.CatalogDefinitionMissing,
+        else => return error.CatalogDefinitionMissing,
+    }
+    return record;
+}
+fn saveOperation(self: Self, turn: *s.Turn, value: m.Operation) !void {
+    try turn.write(self.key('o', value.principal, value.operation), try r.encode('R', value));
+}
+fn saveObject(self: Self, turn: *s.Turn, value: m.Object) !void {
+    try turn.write(self.key('O', value.object, 0), try r.encode('O', value));
+}
+fn add(left: u64, right: u64) !u64 {
+    return std.math.add(u64, left, right) catch return error.CatalogCapacity;
+}
+fn writes(turn: *s.Turn) usize {
+    var count: usize = 0;
+    for (turn.decision.mutations) |slot| count += @intFromBool(slot != null);
+    return count;
+}
+fn matchingPending(value: m.Object, pending: m.Operation) !void {
+    if (value.object != pending.object or value.pending_principal != pending.principal or value.pending_operation != pending.operation or !std.mem.eql(u8, &value.pending_digest, &pending.digest)) return error.CatalogIdentityConflict;
+}
+fn close(self: Self, turn: *s.Turn, pending: m.Operation, current: ?m.Object, state: @FieldType(m.Operation, "state"), reason: @FieldType(m.Operation, "reason"), actual: u64) !Outcome {
+    var final = pending;
+    final.state = state;
+    final.reason = reason;
+    final.actual_object = actual;
+    final.completed_input = turn.delivery.input.position;
+    if (current) |old| {
+        try matchingPending(old, pending);
+        var next = old;
+        if (next.state == .initializing) next.state = .retired;
+        next.clearPending();
+        try self.saveObject(turn, next);
+    }
+    try self.saveOperation(turn, final);
+    return .{ .operation = final };
+}
+fn emptyObjectNamespace(turn: *s.Turn, id: u64) !void {
+    inline for (.{ s.Publication.Domain.table, s.Publication.Domain.catalog }) |domain| {
+        const full = s.Publication.key(domain, id, 0, 0, 0);
+        const prefix = try p.Value.init(full.data[0..14]);
+        var committed = turn.committed();
+        const page = try committed.page(prefix);
+        try c.Inspection.validatePage(page, prefix, turn.view.revision);
+        if (page.entries[0]) |entry| if (std.mem.startsWith(u8, entry.key.slice(), prefix.slice())) return error.CatalogAlreadyPopulated;
+    }
+}
+fn admit(self: Self, turn: *s.Turn, request: DdlRequest, digest: [32]u8) !Outcome {
+    var pending: m.Operation = .{ .scope = self.configuration.scope, .principal = request.principal, .operation = request.operation, .object = request.object, .digest = digest, .kind = request.action, .state = .preparing, .admitted_input = turn.delivery.input.position };
+    const bound = try self.binding(turn, request.name);
+    switch (request.action) {
+        .create => |creation| {
+            if (bound) |existing| return self.close(turn, pending, null, if (creation.if_not_exists) .unchanged else .rejected, if (creation.if_not_exists) .none else .name_conflict, existing.object.object);
+            if (try self.object(turn, request.object) != null) return self.close(turn, pending, null, .rejected, .object_conflict, request.object);
+            try emptyObjectNamespace(turn, request.object);
+            const fresh: m.Object = .{ .scope = pending.scope, .object = request.object, .state = .initializing, .next_revision = 2, .pending_principal = pending.principal, .pending_operation = pending.operation, .pending_revision = 1, .pending_digest = digest };
+            try self.saveObject(turn, fresh);
+            var bytes: [c.fuze.TableSchema.max_bytes]u8 = undefined;
+            const schema_ref: s.TablePages.Reference = .{ .id = 1, .spec = try s.Publication.Digest.of(s.TablePages.schema_format, try creation.schema.encode(&bytes)) };
+            const record = self.candidate(pending, fresh, request.name, schema_ref, try creation.schema.fingerprint());
+            pending.metadata = .{ .id = 1, .spec = try record.spec() };
+        },
+        else => {
+            const existing = bound orelse {
+                const absent_ok = request.action == .drop and request.action.drop.if_exists and request.object == 0;
+                return self.close(turn, pending, null, if (absent_ok) .unchanged else .rejected, if (absent_ok) .none else .not_found, 0);
+            };
+            // A saved absent DROP is not allowed to bind a subsequently created Table.
+            if (request.object != existing.object.object) return self.close(turn, pending, null, .rejected, .object_conflict, existing.object.object);
+            if (request.expected_revision != existing.metadata.revision) return self.close(turn, pending, null, .rejected, .schema_changed, existing.object.object);
+            const head = try s.TableHead.load(turn, request.object);
+            if (head.retired or !std.meta.eql(head.schema, existing.metadata.schema)) return error.CatalogSourceChanged;
+            if (existing.object.pending_operation != 0 or head.pending != 0) return error.TableBusy;
+            if (request.action == .alter and !std.mem.eql(u8, &try request.action.alter.schema.fingerprint(), &existing.metadata.schema_fingerprint)) return self.close(turn, pending, null, .rejected, .schema_changed, request.object);
+            if (request.action == .rename) {
+                if (request.action.rename.eql(&request.name)) return self.close(turn, pending, null, .unchanged, .none, request.object);
+                if (try self.binding(turn, request.action.rename)) |occupied| return self.close(turn, pending, null, .rejected, .name_conflict, occupied.object.object);
+            }
+            if (request.action == .drop and try self.restrict(turn, request.object) != null) return self.close(turn, pending, null, .rejected, .dependency, request.object);
+            var next = existing.object;
+            next.pending_principal = request.principal;
+            next.pending_operation = request.operation;
+            next.pending_revision = next.next_revision;
+            next.next_revision = try add(next.next_revision, 1);
+            next.pending_digest = digest;
+            try self.saveObject(turn, next);
+        },
+    }
+    if (request.action == .alter) pending.table_digest = (try (try request.tableAlter(pending.scope)).reference()).digest;
+    try self.saveOperation(turn, pending);
+    return .{ .operation = pending };
+}
+fn candidate(self: Self, pending: m.Operation, current: m.Object, name: Meta.Name, schema: s.TablePages.Reference, fingerprint: [32]u8) Meta.Record {
+    return .{ .scope = self.configuration.scope, .object = current.object, .revision = current.pending_revision, .name = name, .schema = schema, .schema_fingerprint = fingerprint, .principal = pending.principal, .operation = pending.operation, .admitted_input = pending.admitted_input };
+}
+fn stagedMetadata(self: Self, turn: *s.Turn, record: Meta.Record) !bool {
+    const store: Store = .{ .scope = self.configuration.scope, .object = record.object };
+    const before = writes(turn);
+    const ready = try store.stage(turn, record);
+    return ready == .ready and writes(turn) == before;
+}
+fn recordCandidate(self: Self, turn: *s.Turn, pending: m.Operation, record: Meta.Record) !bool {
+    const ref: s.TablePages.Reference = .{ .id = record.revision, .spec = try record.spec() };
+    if (pending.metadata.id != 0) {
+        if (!std.meta.eql(pending.metadata, ref)) return error.CatalogIdentityConflict;
+        return true;
+    }
+    var next = pending;
+    next.metadata = ref;
+    try self.saveOperation(turn, next);
+    return false;
+}
+fn publishObject(self: Self, turn: *s.Turn, old: m.Object, record: Meta.Record, pending: m.Operation, retired: bool) !Outcome {
+    var next = old;
+    next.state = if (retired) .retired else .live;
+    next.metadata = .{ .id = record.revision, .spec = try record.spec() };
+    next.clearPending();
+    try self.saveObject(turn, next);
+    var final = pending;
+    final.state = .applied;
+    final.actual_object = old.object;
+    final.metadata = next.metadata;
+    final.completed_input = turn.delivery.input.position;
+    try self.saveOperation(turn, final);
+    return .{ .operation = final };
+}
+fn createStep(self: Self, allocator: std.mem.Allocator, turn: *s.Turn, request: DdlRequest, pending: m.Operation, current: m.Object) !Outcome {
+    if (try self.binding(turn, request.name)) |existing| return self.close(turn, pending, current, if (request.action.create.if_not_exists) .unchanged else .rejected, if (request.action.create.if_not_exists) .none else .name_conflict, existing.object.object);
+    if (current.state != .initializing or try turn.read(s.TableHead.key(current.object)) != null) return error.CatalogDefinitionChanged;
+    const before = writes(turn);
+    const pages = try s.TablePages.create(turn, request.object, self.configuration.table_limits);
+    if (writes(turn) != before) return .{ .operation = pending };
+    const store: Store = .{ .scope = self.configuration.scope, .object = request.object };
+    try store.create(turn);
+    if (writes(turn) != before) return .{ .operation = pending };
+    const schema = request.action.create.schema;
+    var bytes: [c.fuze.TableSchema.max_bytes]u8 = undefined;
+    const encoded = try schema.encode(&bytes);
+    const schema_ref: s.TablePages.Reference = .{ .id = 1, .spec = try s.Publication.Digest.of(s.TablePages.schema_format, encoded) };
+    if (try pages.stage(turn, schema_ref, encoded) == .progress or writes(turn) != before) return .{ .operation = pending };
+    const record = self.candidate(pending, current, request.name, schema_ref, try schema.fingerprint());
+    if (!try self.recordCandidate(turn, pending, record)) return .{ .operation = (try self.operation(turn, pending.principal, pending.operation)).? };
+    if (!try self.stagedMetadata(turn, record)) return .{ .operation = pending };
+    const head: s.TableHead = .{ .resource = self.configuration.scope.resource, .object = request.object, .revision = 1, .schema = schema_ref, .next_record = 2 };
+    try head.create(allocator, turn);
+    try turn.write(try Meta.nameKey(self.configuration.scope.catalog, try request.name.digest(), request.object), try r.encode('N', m.Binding{ .scope = self.configuration.scope, .object = request.object }));
+    return self.publishObject(turn, current, record, pending, false);
+}
+fn boundStep(self: Self, turn: *s.Turn, request: DdlRequest, pending: m.Operation, current: m.Object) !Outcome {
+    const original = try self.metadata(turn, current);
+    if (!original.name.eql(&request.name) or original.revision != request.expected_revision) return error.CatalogDefinitionChanged;
+    const head = try s.TableHead.load(turn, request.object);
+    if (head.retired or !std.meta.eql(head.schema, original.schema)) return error.CatalogSourceChanged;
+    if (head.pending != 0) return error.TableBusy;
+    if (request.action == .rename) {
+        if (try self.binding(turn, request.action.rename)) |occupied| return self.close(turn, pending, current, .rejected, .name_conflict, occupied.object.object);
+    } else if (try self.restrict(turn, request.object) != null) return self.close(turn, pending, current, .rejected, .dependency, request.object);
+    const record = self.candidate(pending, current, if (request.action == .rename) request.action.rename else request.name, head.schema, original.schema_fingerprint);
+    if (!try self.recordCandidate(turn, pending, record)) return .{ .operation = (try self.operation(turn, pending.principal, pending.operation)).? };
+    if (!try self.stagedMetadata(turn, record)) return .{ .operation = pending };
+    try turn.write(try Meta.nameKey(self.configuration.scope.catalog, try request.name.digest(), request.object), null);
+    if (request.action == .rename) {
+        try turn.write(try Meta.nameKey(self.configuration.scope.catalog, try request.action.rename.digest(), request.object), try r.encode('N', m.Binding{ .scope = self.configuration.scope, .object = request.object }));
+    } else {
+        var retired = head;
+        retired.revision = try add(head.revision, 1);
+        retired.retired = true;
+        try head.replace(turn, retired);
+    }
+    return self.publishObject(turn, current, record, pending, request.action == .drop);
+}
+fn alterStep(self: Self, allocator: std.mem.Allocator, turn: *s.Turn, request: DdlRequest, pending: m.Operation, current: m.Object) !Outcome {
+    const original = try self.metadata(turn, current);
+    if (!original.name.eql(&request.name) or original.revision != request.expected_revision or !std.mem.eql(u8, &original.schema_fingerprint, &try request.action.alter.schema.fingerprint())) return error.CatalogDefinitionChanged;
+    const table_request = try request.tableAlter(self.configuration.scope);
+    if (pending.state == .delegated) {
+        const result = try s.TableAlter.step(allocator, turn, table_request);
+        if (result.state != .building) {
+            var next = current;
+            if (result.state == .applied) next.metadata = pending.metadata;
+            next.clearPending();
+            try self.saveObject(turn, next);
+        }
+        return .{ .operation = pending, .table = result };
+    }
+    const table_ref = try table_request.reference();
+    const prior = (try s.TableWrite.status(turn, table_ref)) orelse {
+        _ = try s.TableAlter.step(allocator, turn, table_request);
+        return .{ .operation = pending };
+    };
+    if (prior.state == .cancelled) return self.close(turn, pending, current, .cancelled, .none, pending.object);
+    if (prior.state != .building) return error.InvalidCatalogReceipt;
+    var columns: [c.fuze.TableSchema.max_columns]c.fuze.TableSchema.Column = undefined;
+    const transition = try c.fuze.TableEvolution.apply(table_request.schema, table_request.change, &columns);
+    var bytes: [c.fuze.TableSchema.max_bytes]u8 = undefined;
+    const encoded = try transition.after.encode(&bytes);
+    const schema_ref: s.TablePages.Reference = .{ .id = prior.first_record, .spec = try s.Publication.Digest.of(s.TablePages.schema_format, encoded) };
+    const record = self.candidate(pending, current, request.name, schema_ref, try transition.after.fingerprint());
+    if (!try self.recordCandidate(turn, pending, record)) return .{ .operation = (try self.operation(turn, pending.principal, pending.operation)).? };
+    if (!try self.stagedMetadata(turn, record)) return .{ .operation = pending };
+    var delegated = pending;
+    delegated.state = .delegated;
+    delegated.actual_object = request.object;
+    delegated.metadata = .{ .id = record.revision, .spec = try record.spec() };
+    try self.saveOperation(turn, delegated);
+    return .{ .operation = delegated, .table = prior };
+}
+/// One bounded private proposal. The native owner commits its writes with input
+/// progress, and supplies the exact same request on each continuation.
+pub fn step(self: Self, allocator: std.mem.Allocator, turn: *s.Turn, request: DdlRequest) !Outcome {
+    const before = turn.decision;
+    errdefer turn.decision = before;
+    try self.owner(turn);
+    if (try principal(turn) != request.principal) return error.CatalogDenied;
+    _ = try self.authorize(turn, request.principal, .inspect);
+    _ = try self.authorize(turn, request.principal, request.right());
+    const digest = try request.digest(self.configuration.scope);
+    const pending = (try self.operation(turn, request.principal, request.operation)) orelse return self.admit(turn, request, digest);
+    if (!std.mem.eql(u8, &pending.digest, &digest)) return error.CatalogIdentityConflict;
+    const result = try outcome(turn, pending);
+    if (result.terminal()) return result;
+    const current = (try self.object(turn, request.object)) orelse return error.CatalogDefinitionMissing;
+    try matchingPending(current, pending);
+    return switch (request.action) {
+        .create => self.createStep(allocator, turn, request, pending, current),
+        .alter => self.alterStep(allocator, turn, request, pending, current),
+        .rename, .drop => self.boundStep(turn, request, pending, current),
+    };
+}
+
+pub fn cancel(self: Self, turn: *s.Turn, who: u64, id: u64, digest: [32]u8) !Outcome {
+    const before = turn.decision;
+    errdefer turn.decision = before;
+    try self.owner(turn);
+    if (try principal(turn) != who) return error.CatalogDenied;
+    _ = try self.authorize(turn, who, .inspect);
+    const pending = (try self.operation(turn, who, id)) orelse return error.CatalogOperationNotFound;
+    if (!std.mem.eql(u8, &pending.digest, &digest)) return error.CatalogIdentityConflict;
+    const result = try outcome(turn, pending);
+    if (result.terminal()) return result;
+    const current = (try self.object(turn, pending.object)) orelse return error.CatalogDefinitionMissing;
+    try matchingPending(current, pending);
+    if (pending.kind == .alter) {
+        const ref = try pending.tableReference();
+        if (try s.TableWrite.status(turn, ref)) |table| {
+            if (table.state == .cancelled and pending.state == .preparing) return self.close(turn, pending, current, .cancelled, .none, pending.object);
+            if (table.state != .building) return error.InvalidCatalogReceipt;
+            const cancelled = try s.TableAlter.cancel(turn, ref);
+            if (pending.state == .delegated) {
+                var next = current;
+                next.clearPending();
+                try self.saveObject(turn, next);
+                return .{ .operation = pending, .table = cancelled };
+            }
+            // Preparing work has no delegated catalog result yet. Cancel the
+            // Table first; the next turn closes the catalog's pending record.
+            // Keep its object reservation until that second bounded decision.
+            return .{ .operation = pending };
+        }
+    }
+    return self.close(turn, pending, current, .cancelled, .none, pending.object);
+}
+
+/// Cleanup only candidates whose exact terminal receipt proves they never
+/// became live. Accepted historical revisions and DROP data are not collected.
+pub fn cleanup(self: Self, turn: *s.Turn, who: u64, id: u64, digest: [32]u8) !bool {
+    const before = turn.decision;
+    const before_count = writes(turn);
+    errdefer turn.decision = before;
+    try self.owner(turn);
+    if (try principal(turn) != who) return error.CatalogDenied;
+    const result = (try self.status(turn, who, id, digest)) orelse return error.CatalogOperationNotFound;
+    if (!result.terminal() or result.operation.state == .applied or (result.table != null and result.table.?.state == .applied)) return error.CatalogCleanupNotClosed;
+    const pending = result.operation;
+    if (pending.metadata.id != 0) {
+        const current = (try self.object(turn, pending.object)) orelse return error.CatalogDefinitionMissing;
+        if (current.next_revision <= pending.metadata.id or current.metadata.id == pending.metadata.id or current.pending_revision == pending.metadata.id) return error.CatalogDefinitionChanged;
+        if (try (Store{ .scope = pending.scope, .object = pending.object }).collect(turn, pending.metadata) == .progress) return false;
+        if (writes(turn) != before_count) return false;
+    }
+    if (pending.kind == .alter) {
+        const ref = try pending.tableReference();
+        if (try s.TableWrite.status(turn, ref) != null) return s.TableCleanup.step(turn, ref);
+    } else if (pending.kind == .create and pending.metadata.id != 0) {
+        const current = (try self.object(turn, pending.object)) orelse return true;
+        // A name/object conflict can refer to a different admitted owner; never
+        // collect it. Only this cancelled/rejected initial reservation qualifies.
+        if (current.state != .retired or current.metadata.id != 0) return true;
+        if (try turn.read(s.TableHead.key(pending.object)) != null) return error.CatalogDefinitionChanged;
+        if (try turn.read(s.TablePages.key(pending.object, 'd', 0)) == null) return true;
+        const pages: s.TablePages = .{ .resource = pending.scope.resource, .object = pending.object };
+        if (try turn.read(s.TablePages.key(pending.object, 'r', 1)) != null) return try pages.collect(turn, 1, true) == .ready;
+        if (try turn.read(s.TablePages.key(pending.object, 'i', 1)) != null) return try pages.collect(turn, 1, false) == .ready;
+    }
+    return true;
 }

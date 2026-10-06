@@ -507,6 +507,44 @@ Explicit dependency kinds are query source=1, writer=2, watch=3, maintained
 relation=4 and history=5. The first four restrict removal; historical references
 remain distinct from live-name admission and cleanup. Administrator registration
 and exact-identity removal do not manufacture source grants or configure workers.
-Dependency scans use bounded native pages and expose one attributed blocker under
-current inspect policy. These helper checks are not native lifecycle/DDL admission
+The `J` index uses the same object/dependency IDs and bytes as restricting `B`
+records; both change atomically. History has no `J` entry. One native index page
+and the matching original record expose an attributed blocker under current
+inspect policy, without scanning history. These helper checks are not native lifecycle/DDL admission
 until the enclosing owner wires its final Table/name/outcome publication.
+
+The general `TableDdlRequest` helper fingerprints a length-delimited name and
+exact scope/principal/operation/object/expected-metadata-revision, action tag and
+action payload under `transit.catalog.ddl.v1\0` and the current definition.
+CREATE contributes its schema fingerprint and IF NOT EXISTS flag; ALTER contributes
+both original and successor schema fingerprints; RENAME contributes its exact new
+name; DROP contributes IF EXISTS. Object-bound requests never re-resolve a saved
+object by a reused name. An absent optional DROP remains bound to absence.
+
+General DDL admission requires current inspect plus the action-specific right
+and an authenticated matching external principal. A pending object reserves a
+monotonic metadata revision and prevents new dependency installation. CREATE
+publishes head, object, name binding and original operation in four writes.
+RENAME deletes/installs bindings and publishes object/outcome in four writes.
+DROP first checks explicit RESTRICT dependencies, then retires head/object,
+deletes the name and publishes its outcome in four writes. Accepted historical
+bytes and original operation receipts survive removal of the live name.
+
+ALTER first reserves the object, then the Table head through `TableAlter`. Before
+metadata staging it records the exact candidate reference; before driving the
+rewrite it records a delegated operation with the immutable metadata reference
+and Table request digest. Final publication consists of the three Table writes
+(head, terminal Table receipt and progress deletion) plus the catalog object
+update. Rejection/cancellation clears the object reservation in that same fourth
+write. Catalog status derives a delegated terminal outcome from its retained
+Table receipt; no fifth write or independent success marker is required. Early
+cancellation before delegation first closes an admitted Table operation, then
+closes the catalog reservation in a subsequent bounded decision.
+
+Published metadata is historical evidence only when its original operation
+matches scope/object/reference/admission input and was applied, including an
+applied delegated Table receipt. Cleanup requires a closed unaccepted candidate,
+checks its consumed revision against the current object, and leaves accepted
+history, permanent identities and receipts intact. It uses bounded Publication
+collection to release candidate staging quota. A cleanup call does not authorize
+physical reclamation of accepted data or substitute for native read/commit grants.
