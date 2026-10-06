@@ -192,6 +192,25 @@ pub fn syntax(parser: *Parser, hints: ?t.Type) !Syntax {
     }
     return result;
 }
+/// Compile a non-parameterized statement into the caller's bounded arena.
+/// Schema slices retain their owner; parser and output-name slices use allocator.
+/// Catalog identity and admission remain with the caller.
+pub fn planDiagnostic(allocator: std.mem.Allocator, text: []const u8, name: []const u8, schema: t.Type, basis: [32]u8, diagnostic: ?*sql.Binding) !logical.Plan {
+    if (diagnostic) |detail| detail.* = .{};
+    var location: sql.Location = .{};
+    errdefer if (diagnostic) |detail| {
+        if (detail.location == null) detail.location = location;
+    };
+    try sql.validateText(text);
+    var parser = try Parser.init(allocator, text, &location);
+    const parsed = try syntax(&parser, schema);
+    try parser.finish();
+    return parsed.bindParametersDiagnostic(allocator, name, schema, basis, &location, null, diagnostic) catch |err| {
+        sql.Binding.nameFailure(diagnostic, text, if (err == error.UnknownSource) name else parsed.qualifier, err, location);
+        return err;
+    };
+}
+
 pub fn compile(allocator: std.mem.Allocator, text: []const u8, name: []const u8, schema: t.Type, basis: [32]u8, location: ?*sql.Location) !Owned {
     return compileWithEditor(allocator, text, name, schema, basis, location, null);
 }

@@ -15750,3 +15750,21 @@ projections pass 3142 cases across 34 surfaces (`native-cutover-outcomes5.log`).
 Logs are in the local Table-schema campaign. These checks qualify codecs,
 diagnostics and local rendering; installed SDK transports and complete root/clean
 checks remain separate work.
+
+### Catalog-bound Flight codec migration
+
+Flight package tests pass 14/14 (`flight-logical-build6.log` in the local
+Table-schema campaign). The actual gateway executable compiles into an isolated
+prefix (`flight-logical-app1.log`). Logical result adaptation preserves declared
+nullability and owned names across 128 columns, rejects unsupported output types
+before admission, checks unsigned COUNT narrowing, and binds tickets to the
+current Transit definition and complete immutable Table declaration.
+
+Pinned PyArrow independently reads the native producer's standard metadata and
+128-column schema, quoted Unicode names, typed text filtering and text COUNT
+outputs. Selecting text as a primitive Flight output rejects
+(`flight-logical-metadata2.log`, ReleaseSafe). The shared parser refactor also
+passes 254 Fuze and 110 query tests (`fuze-native-cutover10.log` and
+`query-native-cutover-build22.log`). These are codec/compiler checks; the migrated
+catalog-backed gateway still requires native disk, TLS, ADBC and recovery
+qualification. Earlier two-column provisioning schedules do not qualify it.

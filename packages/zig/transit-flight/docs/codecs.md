@@ -15,14 +15,16 @@ most 16 KiB; all decoded allocations use caller-owned bounded workspace.
 SqlInfo schemas. The latter includes six dense-union children and the required
 list/map field names. At most 64 information IDs may be requested. Unknown IDs
 fail explicitly. Catalog optional presence remains distinct from an empty filter;
-name patterns use bounded ASCII `%`/`_` matching. Table schema derivation invokes
+name patterns use bounded UTF-8 `%`/`_` matching (`_` consumes one Unicode scalar). Table schema derivation invokes
 the current query SQL compiler and the same `TableResult` layout used for
 verified captured rows, without source reads or query admission. `TableResult`
-preserves projection nullability, checks count conversion and rejects missing,
+owns up to 128 output names, preserves declared projection nullability, checks
+count conversion and rejects missing,
 conflicted or mistyped cells. Its workspace is 8 MiB.
 
 `Ticket` signs bounded scope/result references with an explicit deployment key.
-Unit tests prove tamper detection, scope separation and expiry. Successful
+Tickets include the current Transit definition and immutable Table source
+fingerprint. Unit tests exercise tamper detection, scope separation and expiry. Successful
 verification is never authorization; the protocol adapter must check current
 service and source rights at each disclosure. See [FLIGHT_V1](../../../../contracts/FLIGHT_V1.md)
 for the format, lifetime and exact-retry contracts.

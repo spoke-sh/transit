@@ -11,7 +11,29 @@ pub fn main(init: std.process.Init) !void {
     var output: [16384]u8 = undefined;
     const type_url = try std.fmt.allocPrint(init.gpa, "{s}{s}", .{ flight.command_prefix, args[1] });
     defer init.gpa.free(type_url);
-    const bytes = try flight.Metadata.encode(.{ .type_url = type_url, .value = input }, "counter", .{ .names = .{ try .init("id"), try .init("count") }, .value_type = .int64 }, &output, workspace);
-    _ = try flight.Ipc.parts(bytes, workspace);
+    const f = flight.query.fuze;
+    const bytes = bytes: {
+        if (std.mem.eql(u8, args[1], "WideQuerySchema")) {
+            var fields: [128]f.Types.Field = undefined;
+            var names: [128][32]u8 = undefined;
+            for (&fields, &names, 0..) |*field, *name, i| field.* = .{
+                .name = try std.fmt.bufPrint(name, "column_{d}", .{i}),
+                .type = .int64,
+                .nullable = i % 3 == 0,
+            };
+            break :bytes try flight.Metadata.querySchema("people", .{ .structure = &fields }, input, &output, workspace);
+        }
+        if (std.mem.eql(u8, args[1], "MixedQuerySchema")) {
+            const schema: f.Types.Type = .{ .structure = &.{
+                .{ .name = "id", .type = .int64, .nullable = true },
+                .{ .name = "full name", .type = .utf8 },
+                .{ .name = "value", .type = .int64 },
+            } };
+            break :bytes try flight.Metadata.querySchema("東京\"people", schema, input, &output, workspace);
+        }
+        const encoded = try flight.Metadata.encode(.{ .type_url = type_url, .value = input }, "counter", .{ .structure = &.{ .{ .name = "id", .type = .int64 }, .{ .name = "count", .type = .int64, .nullable = true } } }, &output, workspace);
+        _ = try flight.Ipc.parts(encoded, workspace);
+        break :bytes encoded;
+    };
     try std.Io.Dir.cwd().writeFile(init.io, .{ .sub_path = args[3], .data = bytes });
 }

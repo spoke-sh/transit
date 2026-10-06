@@ -2257,7 +2257,7 @@
     "apps/transit-flight-gateway/src/main.zig": {
       "errors": {
         "ExpectedPrivateConfiguration": 1,
-        "InvalidFlightConfiguration": 1
+        "InvalidFlightConfiguration": 2
       },
       "outcomes": {},
       "error_sets": {},
@@ -2267,7 +2267,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 16,
+        "try": 15,
         "catch": 1
       },
       "imports": [
@@ -5360,6 +5360,7 @@
         "Call.tableParts()": "<inferred>",
         "Call.upload()": "<inferred>",
         "Call.uploadStep()": "<inferred>",
+        "Caller.scope()": "<inferred>",
         "Configuration.validate()": "<inferred>",
         "advanceTime()": "<inferred>",
         "authenticate()": "<inferred>",
@@ -5369,7 +5370,7 @@
       },
       "open_error_set_uses": 1,
       "propagation": {
-        "try": 88,
+        "try": 92,
         "catch": 18
       },
       "imports": [
@@ -5402,9 +5403,9 @@
     "packages/zig/transit-flight/src/Metadata.zig": {
       "errors": {
         "InvalidFlightMetadata": 3,
+        "InvalidQuerySchema": 1,
         "UnsupportedFlightCommand": 2,
-        "UnsupportedFlightMetadata": 1,
-        "UnsupportedFlightType": 1
+        "UnsupportedFlightMetadata": 1
       },
       "outcomes": {
         "Info": [
@@ -5427,7 +5428,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 57,
+        "try": 62,
         "catch": 0
       },
       "imports": [
@@ -5449,6 +5450,7 @@
         "FlightTicketScope": 1,
         "FlightUnauthenticated": 1,
         "GrpcBudgetExceeded": 1,
+        "IncompatibleDefinition": 1,
         "InvalidArrowResult": 1,
         "InvalidEnumValue": 1,
         "InvalidFlightCommand": 1,
@@ -5489,8 +5491,8 @@
     "packages/zig/transit-flight/src/TableResult.zig": {
       "errors": {
         "FlightIntegerOutOfRange": 2,
-        "InvalidArrowResult": 5,
-        "UnsupportedFlightType": 3
+        "InvalidArrowResult": 8,
+        "UnsupportedFlightType": 2
       },
       "outcomes": {},
       "error_sets": {},
@@ -5503,7 +5505,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 19,
+        "try": 18,
         "catch": 1
       },
       "imports": [
@@ -5515,7 +5517,8 @@
       "errors": {
         "FlightTicketExpired": 1,
         "FlightTicketScope": 1,
-        "InvalidFlightTicket": 12
+        "IncompatibleDefinition": 1,
+        "InvalidFlightTicket": 11
       },
       "outcomes": {
         "Reference": [
@@ -5531,7 +5534,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 24,
+        "try": 28,
         "catch": 0
       },
       "imports": [
@@ -8024,7 +8027,7 @@
         "InvalidQuerySchema": 2,
         "InvalidSqlSyntax": 1,
         "LiteralOutOfRange": 1,
-        "UnknownSource": 1,
+        "UnknownSource": 2,
         "UnsupportedAggregate": 2,
         "UnsupportedAggregateLimit": 2,
         "UnsupportedConstruct": 6
@@ -8040,6 +8043,7 @@
         "alias()": "<inferred>",
         "compile()": "<inferred>",
         "compileWithEditor()": "<inferred>",
+        "planDiagnostic()": "<inferred>",
         "syntax()": "<inferred>",
         "target()": "<inferred>",
         "targetContext()": "<inferred>",
@@ -8049,8 +8053,8 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 54,
-        "catch": 1
+        "try": 58,
+        "catch": 2
       },
       "imports": [
         "Finite.zig",
@@ -10254,8 +10258,7 @@
         "InvalidQueryBundle": 3,
         "QueryBundleTooLarge": 2,
         "SourceChanged": 1,
-        "UnexpectedQueryPublisher": 1,
-        "UnknownSource": 1
+        "UnexpectedQueryPublisher": 1
       },
       "outcomes": {},
       "error_sets": {},
@@ -10275,8 +10278,8 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 45,
-        "catch": 2
+        "try": 42,
+        "catch": 1
       },
       "imports": [
         "root.zig",

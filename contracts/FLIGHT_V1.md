@@ -12,12 +12,18 @@ it does not replace their authorization, admission or result evidence.
 Use Apache Arrow 23.0.0's Flight/Flight SQL protobuf definitions, pinned with
 hashes beside `transit-flight`. Flight SQL commands are standard protobuf `Any`
 values in CMD descriptors. Start with one explicitly published Table per scoped
-caller mapping, primitive int64 key/value columns and the existing Fuze SQL
-subset. Key is non-null; value can be null. Projection, checked int64 sum, count,
+caller mapping, bound to its catalog scope, owner, object, immutable metadata
+reference and complete logical row descriptor. Up to 128 output columns preserve
+their declared names and nullability; column position does not imply a key.
+Primitive int64 outputs, checked int64 sum, count,
 finite filters/limits and empty results use the current query plan and source
 contracts. Verified nested query cells are adapted to ordinary Arrow int64
 columns. The adapter rejects missing, conflicted and mistyped cells; it never
 coerces them to null. Count is checked before conversion from uint64 to int64.
+Other logical columns may be filtered using their supported operators or counted,
+but projecting them returns UNIMPLEMENTED before upload. GetTables with
+include_schema requires the published Table to fit that same primitive profile.
+Supported storage types do not imply support for Flight output conversion.
 
 The gateway implements GetSchema, GetFlightInfo and server-streaming DoGet, with
 a single endpoint per finite result. Catalog metadata comprises GetCatalogs, GetDbSchemas,
@@ -75,15 +81,19 @@ application admission remains distinct from native input acceptance.
 
 ## Tickets and disclosure
 
-Tickets are private opaque references. The `FTK1` encoding contains nine u64
-scope fields (realm, principal, service, binding revision, ingress, requests,
-source, resource, Table), a u64 expiry in Unix milliseconds, then a tagged
-reference. Integers are little endian. Statement tag 1 contains a u64 native
+Tickets are private opaque references. The `FTK1` encoding contains the current
+32-byte Transit definition, eight u64 scope fields (realm, principal, service,
+binding revision, ingress, requests, source, resource), the 32-byte Table source
+declaration fingerprint, a u64 expiry in Unix milliseconds, then a tagged
+reference. The declaration commits the catalog scope, owner, full-width object
+identity, immutable metadata reference and logical descriptor. Reusing a Table
+name or changing its declaration cannot redirect a ticket. Integers are little endian. Statement tag 1 contains a u64 native
 correlation and SHA-256 of the canonical retained manifest. Metadata tag 2
 contains a u16 command length, at most 1024 original command bytes and a SHA-256
 digest of its finite encoded result. A final 64-byte Ed25519 signature covers
 SHA-256 of `transit.flight.ticket.v1\0` followed by all preceding bytes. Maximum
-ticket size is 1207 bytes. Verification requires the complete configured scope,
+ticket size is 1263 bytes. Incompatible definitions reject; no earlier ticket
+layout is decoded. Verification requires the complete configured scope,
 current time before expiry and the deployment's explicit ticket key.
 
 Ticket keys shared by gateway replicas only preserve reference verification;

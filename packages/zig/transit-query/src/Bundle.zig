@@ -19,27 +19,16 @@ pub fn fromSql(allocator: std.mem.Allocator, source: q.SourceDefinition, name: [
     return fromSqlDiagnostic(allocator, source, name, text, limits, null);
 }
 pub fn fromSqlDiagnostic(allocator: std.mem.Allocator, source: q.SourceDefinition, name: []const u8, text: []const u8, limits: Limits, diagnostic: ?*q.fuze.Sql.Binding) !Self {
+    if (diagnostic) |detail| detail.* = .{};
     return fromSqlInner(allocator, source, name, text, limits, diagnostic) catch |err| {
         if (diagnostic) |detail| if (detail.location) |at| f.Sql.Binding.nameFailure(detail, text, name, err, at);
         return err;
     };
 }
 fn fromSqlInner(allocator: std.mem.Allocator, source: q.SourceDefinition, name: []const u8, text: []const u8, limits: Limits, diagnostic: ?*q.fuze.Sql.Binding) !Self {
-    if (diagnostic) |detail| detail.* = .{};
-    var location: f.Sql.Location = .{};
-    errdefer if (diagnostic) |detail| {
-        if (detail.location == null) detail.location = location;
-    };
-    try f.Sql.validateText(text);
     var fields: [q.SourceDefinition.max_columns]t.Field = undefined;
     const schema = try (try source.schema(&fields)).cloneInto(allocator);
-    var parser = try f.SqlTyped.init(allocator, text, &location);
-    const syntax = try f.TableSelect.syntax(&parser, schema);
-    try parser.finish();
-    const plan = syntax.bindParametersDiagnostic(allocator, name, schema, try source.fingerprint(), &location, null, diagnostic) catch |err| {
-        if (diagnostic) |detail| f.Sql.Binding.nameFailure(detail, text, if (err == error.UnknownSource) name else syntax.qualifier, err, location);
-        return err;
-    };
+    const plan = try f.TableSelect.planDiagnostic(allocator, text, name, schema, try source.fingerprint(), diagnostic);
     const result: Self = .{ .source = source, .plan = plan, .limits = limits };
     try result.validate();
     return result;

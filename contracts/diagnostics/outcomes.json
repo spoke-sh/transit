@@ -9483,12 +9483,13 @@
           "transport_status": 10
         },
         "IncompatibleDefinition": {
-          "code": "query.definition_mismatch",
+          "code": "flight.incompatible_definition",
           "category": "integrity",
           "actions": [
             "contact_operator"
           ],
-          "transport_status": 15
+          "transport_status": 15,
+          "facts": []
         },
         "ValueBudgetExceeded": {
           "code": "query.value_budget",
@@ -13861,6 +13862,15 @@
           "transport_status": 12,
           "actions": [
             "inspect_status"
+          ]
+        },
+        "IncompatibleDefinition": {
+          "code": "flight.incompatible_definition",
+          "category": "integrity",
+          "stage": "read",
+          "transport_status": 15,
+          "actions": [
+            "contact_operator"
           ]
         }
       }

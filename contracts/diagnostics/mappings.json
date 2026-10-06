@@ -3099,9 +3099,28 @@
         "FlightIntegerOutOfRange": {
           "code": "flight.integer_out_of_range",
           "category": "unsupported"
+        },
+        "IncompatibleDefinition": {
+          "code": "flight.incompatible_definition",
+          "category": "integrity"
         }
       },
-      "exceptions": [],
+      "exceptions": [
+        {
+          "source": "packages/zig/transit-flight/src/Metadata.zig",
+          "cause": "InvalidQuerySchema",
+          "disposition": "mapped_boundary",
+          "reason": "Logical schema shape failures retain the shared query diagnostic through the Flight adapter.",
+          "projection": "packages/zig/transit-query/src/ApiCodes.zig",
+          "code": "query.invalid_schema",
+          "tests": [
+            {
+              "source": "packages/zig/transit-flight/src/DiagnosticDetail.zig",
+              "name": "Flight preserves shared caller semantics and separates corrupt results from invalid input"
+            }
+          ]
+        }
+      ],
       "tests": [
         {
           "source": "packages/zig/transit-flight/src/DiagnosticDetail.zig",

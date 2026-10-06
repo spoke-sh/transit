@@ -14,7 +14,7 @@ const Self = @This();
 pub const max_callers = 8;
 pub const request_bytes = 8 * 1024 * 1024;
 pub const arrow_bytes = root.Metadata.working_bytes;
-pub const Connection = struct { realm: u64, principal: u64, source: u64, resource: u64, table: u32, name: []const u8, requester: u64, requests: u64 };
+pub const Connection = struct { realm: u64, principal: u64, source: u64, resource: u64, name: []const u8, requester: u64, requests: u64 };
 pub const Caller = struct {
     /// Hash of a private high-entropy Bearer credential; raw tokens never persist
     /// in gateway state, telemetry or durable query payloads.
@@ -24,10 +24,10 @@ pub const Caller = struct {
     service: u64,
     ingress_resource: u64,
     binding_revision: u64,
-    schema: f.model.Schema,
-    pub fn scope(self: Caller) root.Ticket.Scope {
+    table: q.TableSource,
+    pub fn scope(self: Caller) !root.Ticket.Scope {
         const c = self.connection;
-        return .{ .realm = c.realm, .principal = c.principal, .service = self.service, .binding_revision = self.binding_revision, .ingress = c.requester, .requests = c.requests, .source = c.source, .resource = c.resource, .table = c.table };
+        return .{ .realm = c.realm, .principal = c.principal, .service = self.service, .binding_revision = self.binding_revision, .ingress = c.requester, .requests = c.requests, .source = c.source, .resource = c.resource, .declaration = try self.table.fingerprint() };
     }
 };
 pub const Configuration = struct {
@@ -42,11 +42,10 @@ pub const Configuration = struct {
     pub fn validate(self: Configuration) !void {
         if (self.callers.len == 0 or self.callers.len > max_callers or self.inspector == 0 or self.inspector > p.max_counter or self.ticket_ttl_ms < 1000 or self.ticket_ttl_ms > 300000 or self.clock_error_ms > 5000 or self.native_timeout_ms == 0 or self.native_timeout_ms > 30000) return error.InvalidFlightConfiguration;
         for (self.callers, 0..) |caller, index| {
-            try caller.schema.validate();
-            _ = try f.model.Name.init(caller.connection.name);
-            if (caller.schema.value_type != .int64 or caller.ingress_resource != caller.connection.requests) return error.InvalidFlightConfiguration;
-            const scope = caller.scope();
-            inline for (@typeInfo(root.Ticket.Scope).@"struct".field_names) |name| try s.Model.identity(@field(scope, name));
+            try caller.table.validate();
+            _ = try f.Sql.Binding.Name.init(caller.connection.name);
+            if (caller.table.scope.realm != caller.connection.realm or caller.table.scope.resource != caller.connection.resource or caller.table.owner != caller.connection.source or caller.ingress_resource != caller.connection.requests) return error.InvalidFlightConfiguration;
+            try (try caller.scope()).validate();
             for (self.callers[0..index]) |previous| if (std.mem.eql(u8, &caller.credential, &previous.credential) or caller.connection.principal == previous.connection.principal or caller.connection.requester == previous.connection.requester) return error.InvalidFlightConfiguration;
         }
     }
@@ -194,7 +193,7 @@ const Call = struct {
     attempt_diagnostic: *?p.Diagnostic,
     first_sequence: ?u64 = null,
     workspace: []u8,
-    output: [f.Unified.Arrow.segment_bytes]u8 = undefined,
+    output: [f.LogicalArrow.segment_bytes]u8 = undefined,
     next_sequence: ?u64 = null,
     ticket_buffer: [root.Ticket.max_bytes]u8 = undefined,
     fn run(self: *Call, request: server.Request) !void {
@@ -272,7 +271,7 @@ const Call = struct {
             if (decoded.value.transaction_id != null) return error.UnsupportedFlightCommand;
             if (schema_only) {
                 var detail: f.Sql.Binding = .{};
-                schema = root.Metadata.querySchemaDiagnostic(self.caller.connection.name, self.caller.schema, decoded.value.query, &self.output, self.workspace, &detail) catch |err| {
+                schema = root.Metadata.querySchemaDiagnostic(self.caller.connection.name, self.caller.table.row_type, decoded.value.query, &self.output, self.workspace, &detail) catch |err| {
                     self.sql_diagnostic.* = f.SqlDiagnostic.bound(decoded.value.query, err, false, detail);
                     return err;
                 };
@@ -287,8 +286,9 @@ const Call = struct {
                 // Qualify within the existing finite transport profile before
                 // issuing access; no hidden whole-result buffer or raised bound.
                 if (manifest.checkpoint.progress.segments == 0 or manifest.checkpoint.progress.segments > 63 or manifest.checkpoint.bytes > 240 * 1024) return error.GrpcBudgetExceeded;
-                var decoded_rows: f.Unified.Inspect.Batch = undefined;
+                var decoded_rows: f.LogicalInspect.Batch = undefined;
                 const captured = try self.client.page(correlation, null, self.allocator, self.workspace, &self.output, &decoded_rows);
+                defer decoded_rows.deinit();
                 if (!std.meta.eql(captured.manifest, manifest)) return error.InvalidResultManifest;
                 schema = (try self.tableParts(captured, &decoded_rows)).schema_message;
                 reference = .{ .statement = .{ .correlation = correlation, .manifest = try manifestDigest(manifest) } };
@@ -298,7 +298,7 @@ const Call = struct {
             }
         } else {
             if (descriptor.cmd.len > root.Ticket.max_command_bytes) return error.InvalidFlightCommand;
-            const bytes = try root.Metadata.encode(command.value, self.caller.connection.name, self.caller.schema, &self.output, self.workspace);
+            const bytes = try root.Metadata.encode(command.value, self.caller.connection.name, self.caller.table.row_type, &self.output, self.workspace);
             const ipc = try root.Ipc.parts(bytes, self.workspace);
             schema = ipc.schema_message;
             rows = ipc.rows;
@@ -308,7 +308,7 @@ const Call = struct {
         try self.authorize(false);
         if (schema_only) return self.send(w.SchemaResult{ .schema = schema });
         const expires = try advanceTime(try self.now(), self.gateway.config.ticket_ttl_ms);
-        const bytes = try (root.Ticket{ .scope = self.caller.scope(), .expires_ms = expires, .reference = reference }).issue(self.gateway.config.ticket_key, &self.ticket_buffer);
+        const bytes = try (root.Ticket{ .scope = try self.caller.scope(), .expires_ms = expires, .reference = reference }).issue(self.gateway.config.ticket_key, &self.ticket_buffer);
         // Flight SQL requires TicketStatementQuery in a protobuf Any envelope.
         var statement_buffer: [2048]u8 = undefined;
         var ticket_envelope: [2304]u8 = undefined;
@@ -322,7 +322,7 @@ const Call = struct {
         try self.send(w.FlightInfo{ .app_metadata = metadata, .schema = schema, .flight_descriptor = descriptor, .endpoint = &.{endpoint}, .total_records = @intCast(rows), .total_bytes = @intCast(total_bytes), .ordered = true });
     }
     fn definition(self: *Call) q.SourceDefinition {
-        return .{ .resource = self.caller.connection.resource, .source = .{ .table = .{ .id = self.caller.connection.table, .schema = self.caller.schema } } };
+        return .{ .resource = self.caller.connection.resource, .source = .{ .table = self.caller.table } };
     }
     fn manifestDigest(manifest: q.UnifiedRecords.Manifest) ![32]u8 {
         var bytes: [q.UnifiedRecords.Manifest.max_bytes]u8 = undefined;
@@ -340,10 +340,11 @@ const Call = struct {
             return error.QueryBudgetExceeded;
         }
         var detail: f.Sql.Binding = .{};
-        const bundle = q.Bundle.fromSqlDiagnostic(self.allocator, self.definition(), try .init(self.caller.connection.name), sql, limits, &detail) catch |err| {
+        const bundle = q.Bundle.fromSqlDiagnostic(self.allocator, self.definition(), self.caller.connection.name, sql, limits, &detail) catch |err| {
             self.sql_diagnostic.* = f.SqlDiagnostic.bound(sql, err, false, detail);
             return err;
         };
+        _ = try root.TableResult.init(bundle.plan);
         const reference = try bundle.reference(self.caller.connection.requests, first);
         var encoded: [q.Bundle.max_bytes]u8 = undefined;
         const bytes = try bundle.encode(&encoded);
@@ -430,13 +431,13 @@ const Call = struct {
             statement = try pb.decode(w.TicketStatementQuery, self.allocator, envelope.?.value.value, .{ .max_arena_bytes = 65536 });
             bytes = statement.?.value.statement_handle;
         }
-        const ticket = try root.Ticket.decode(bytes, self.caller.scope(), try self.now(), self.gateway.config.ticket_key.public_key);
+        const ticket = try root.Ticket.decode(bytes, try self.caller.scope(), try self.now(), self.gateway.config.ticket_key.public_key);
         try self.authorize(false);
         switch (ticket.reference) {
             .metadata => |value| {
                 var command = try self.decodeCommand(value.command);
                 defer command.deinit();
-                const ipc_bytes = try root.Metadata.encode(command.value, self.caller.connection.name, self.caller.schema, &self.output, self.workspace);
+                const ipc_bytes = try root.Metadata.encode(command.value, self.caller.connection.name, self.caller.table.row_type, &self.output, self.workspace);
                 if (!std.mem.eql(u8, &digest(ipc_bytes), &value.digest)) return error.InvalidFlightTicket;
                 const ipc = try root.Ipc.parts(ipc_bytes, self.workspace);
                 try self.disclose(ticket, w.FlightData{ .data_header = ipc.schema_header });
@@ -451,8 +452,9 @@ const Call = struct {
                     // lifetime; long results cannot grow the RPC arena.
                     var page_arena = std.heap.ArenaAllocator.init(self.allocator);
                     defer page_arena.deinit();
-                    var decoded_rows: f.Unified.Inspect.Batch = undefined;
+                    var decoded_rows: f.LogicalInspect.Batch = undefined;
                     const captured = try self.client.page(value.correlation, cursor, page_arena.allocator(), self.workspace, &self.output, &decoded_rows);
+                    defer decoded_rows.deinit();
                     if (!std.mem.eql(u8, &try manifestDigest(captured.manifest), &value.manifest)) return error.InvalidFlightTicket;
                     const ipc = try self.tableParts(captured, &decoded_rows);
                     if (cursor == null) try self.disclose(ticket, w.FlightData{ .data_header = ipc.schema_header });
@@ -466,10 +468,10 @@ const Call = struct {
         try self.authorize(false);
         if (try self.now() >= ticket.expires_ms) return error.FlightTicketExpired;
     }
-    fn tableParts(self: *Call, captured: q.UnifiedResult.Page, rows: *const f.Unified.Inspect.Batch) !root.Ipc.Parts {
-        const layout = try root.TableResult.init(self.caller.schema, captured.plan);
+    fn tableParts(self: *Call, captured: q.UnifiedResult.Page, rows: *const f.LogicalInspect.Batch) !root.Ipc.Parts {
+        const layout = try root.TableResult.init(captured.plan);
         try layout.checkSchema(captured.schema);
-        const bytes = try layout.encodeDiagnostic(rows, &self.output, self.workspace, self.attempt_diagnostic);
+        const bytes = try layout.encodeDiagnostic(rows.rows, &self.output, self.workspace, self.attempt_diagnostic);
         return root.Ipc.parts(bytes, self.workspace);
     }
     fn disclose(self: *Call, ticket: root.Ticket, value: w.FlightData) !void {
@@ -504,7 +506,7 @@ test "server ticket time bounds cannot become caller credential failures" {
     }
     try t.expectError(error.ClockUnavailable, advanceTime(p.max_counter + 1, 0));
     const key = try p.Ed25519.KeyPair.generateDeterministic(@splat(37));
-    const scope: root.Ticket.Scope = .{ .realm = 49, .principal = 65536, .service = 1, .binding_revision = 2, .ingress = 7, .requests = 11, .source = 3, .resource = 9, .table = 1 };
+    const scope: root.Ticket.Scope = .{ .realm = 49, .principal = 65536, .service = 1, .binding_revision = 2, .ingress = 7, .requests = 11, .source = 3, .resource = 9, .declaration = @splat(3) };
     const ticket: root.Ticket = .{ .scope = scope, .expires_ms = try advanceTime(p.max_counter - 1000, 1000), .reference = .{ .statement = .{ .correlation = 123, .manifest = @splat(5) } } };
     var buffer: [root.Ticket.max_bytes]u8 = undefined;
     const bytes = try ticket.issue(key, &buffer);

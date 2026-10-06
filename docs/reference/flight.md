@@ -2,7 +2,8 @@
 
 The Flight gateway serves finite, read-only Table queries using Fuze and the
 existing durable query requester. Each gateway serves a single configured
-Table with two int64 columns (nullable value). It uses the current
+Table with an immutable catalog definition. Results support up to 128 int64
+columns, preserving declared nullability, plus checked int64 COUNT outputs. It uses the current
 KV/Table/Document query v1 interface and adapts verified Table cells to ordinary
 Arrow columns. Missing, conflicted and mistyped cells reject.
 
