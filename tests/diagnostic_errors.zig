@@ -18,7 +18,7 @@ pub fn main(init: std.process.Init) !void {
     var stdout = std.Io.File.stdout().writerStreaming(init.io, &buffer);
     try report(&stdout.interface, "query", q.Bridge.applyDiagnostic);
     try report(&stdout.interface, "mutation", q.TableMutationBridge.applyDiagnostic);
-    try report(&stdout.interface, "catalog", c.Bridge.applyDiagnostic);
+    try report(&stdout.interface, "catalog", c.TableBridge.Session.applyDiagnostic);
     try report(&stdout.interface, "application", a.Host.runDiagnostic);
     try report(&stdout.interface, "application-compiler", a.Host.compileDiagnostic);
     try report(&stdout.interface, "sql-select", q.fuze.Sql.parse);
@@ -50,8 +50,11 @@ fn fallbacks(out: *std.Io.Writer) !void {
     try emit(out, "query", "dispatched", try q.ApiDiagnostic.project(.{ .submit = "original" }, cause, .{}, true, identity));
     try emit(out, "mutation", "read", try q.MutationDiagnostic.attempt(.{ .status = "invalid" }, cause, .{}, false, null));
     try emit(out, "mutation", "dispatched", try q.MutationDiagnostic.attempt(.{ .submit = "original" }, cause, .{}, true, identity));
-    try emit(out, "catalog", "read", try c.Diagnostic.attempt(.{ .list = null }, cause, .{}, false, null));
-    try emit(out, "catalog", "dispatched", try c.Diagnostic.attempt(.{ .submit = "original" }, cause, .{}, true, identity));
+    var catalog_session: c.TableBridge.Session = .{ .allocator = std.heap.page_allocator };
+    defer catalog_session.deinit();
+    const connection: c.TableClient.Connection = .{ .scope = .{ .realm = 46, .resource = 7, .catalog = 2 }, .owner = 3, .principal = 17 };
+    try emit(out, "catalog", "read", try c.TableAttempt.attempt(&catalog_session, connection, .{ .list = null }, cause, .{}, false, null, null));
+    try emit(out, "catalog", "dispatched", try c.TableAttempt.attempt(&catalog_session, connection, .{ .submit = "original" }, cause, .{}, true, identity, null));
     const config: a.Host.Config = .{ .scope = .{ .realm = 1, .application = 2, .pid = 3, .resource = 4, .namespace = .{ .value = 5 } } };
     const signed: a.Native.Signed = .{ .prepared = try a.Native.prepare(config.scope, 6, .{ .value = 12 }, .initialize), .signature = @splat(0) };
     try emit(out, "application", "read", try a.HostDiagnostic.attempt(config, .info, cause, false, null));

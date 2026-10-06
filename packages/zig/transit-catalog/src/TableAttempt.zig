@@ -3,18 +3,9 @@ const std = @import("std");
 const c = @import("root.zig");
 const d = c.protocol.Diagnostic;
 const b = c.TableBridge;
-const codes = @import("CallerCodes.zig");
+pub const codes = @import("CallerCodes.zig");
 
 fn info(cause: anyerror) codes.Entry {
-    const entry: ?codes.Entry = switch (cause) {
-        error.TableIntentNotLoaded => .{ .cause = cause, .code = "table.intent_not_loaded", .category = .lifecycle, .message = "This handle does not hold the referenced intent. Load its exact saved bytes before inspecting or continuing it; loading does not submit or cancel work." },
-        error.InvalidTableIntent => .{ .cause = cause, .code = "table.invalid_intent", .category = .binding, .message = "The saved Table intent is malformed or noncanonical. Restore its exact original bytes; do not reconstruct accepted work from SQL." },
-        error.TableNotFound => .{ .cause = cause, .code = "table.not_found", .category = .binding, .message = "The requested Table has no live binding in this authorized catalog. Inspect the catalog and check its name before preparing new work." },
-        error.TableUploadClosed, error.TableUploadNotFound, error.TableUploadNotReady => .{ .cause = cause, .code = "table.upload_state", .category = .lifecycle, .message = "The original command upload cannot take this step in its current state. Inspect the saved intent and upload; upload closure is separate from a Table operation outcome." },
-        error.InvalidCatalogReceipt, error.InvalidTableHead, error.InvalidTableStatus => .{ .cause = cause, .code = "table.invalid_evidence", .category = .integrity, .message = "The retained Table evidence is inconsistent with the original operation. Preserve its exact identity and bytes for inspection; no complete outcome was established." },
-        else => null,
-    };
-    if (entry) |value| return value;
     if (codes.fromError(cause)) |value| return value;
     if (c.fuze.SqlDiagnostic.category(cause)) |category_value| return .{ .cause = cause, .code = "table.invalid_typed_input", .category = category_value, .message = "The typed Table request violates its schema or operation limits. Check stable column identities, logical types, constraints and bounded mutation inputs." };
     return .{ .cause = cause, .code = "catalog.internal_failure", .category = .internal, .message = "The caller could not complete this operation. Preserve saved work and inspect its original status; this failure does not establish its outcome." };
@@ -90,6 +81,8 @@ test "general caller failures retain read and dispatch evidence" {
     const connection: c.TableClient.Connection = .{ .scope = .{ .realm = 46, .resource = 7, .catalog = 2 }, .owner = 3, .principal = 17 };
     for (codes.entries) |entry| {
         const read = try attempt(&session, connection, .{ .lookup = "people" }, entry.cause, .{}, false, null, null);
+        try t.expectEqualStrings(entry.code, read.code.slice());
+        try t.expectEqual(entry.category, read.category);
         try t.expectEqual(.not_applicable, read.outcome);
         try t.expectEqual(.none, read.evidence);
         try t.expect(read.identity == null);
@@ -112,4 +105,30 @@ test "exact historical inconsistencies require integrity inspection without new 
     try t.expectEqual(.not_applicable, result.outcome);
     try t.expectEqual(.none, result.evidence);
     try t.expectEqual(.contact_operator, result.actions[0].?.kind);
+}
+
+pub fn invalidEnvelope(cause: anyerror) !d {
+    var result = if (cause == error.OutOfMemory)
+        try d.init("catalog.memory_unavailable", .unavailable, .input, .not_submitted, .local_before_dispatch, "The caller could not allocate memory to read this request. No command was sent.")
+    else
+        try d.init("catalog.invalid_envelope", .syntax, .input, .not_submitted, .local_before_dispatch, "The action is not a valid bounded request object. No command was sent.");
+    result.cause = try d.Code.init(@errorName(cause));
+    return result;
+}
+
+/// Validation of a local artifact precedes credential loading and dispatch.
+/// The operation name comes from the invoked command, never a dummy send.
+pub fn artifact(operation: []const u8, cause: anyerror) !d {
+    const detail = info(cause);
+    var value = try d.init(detail.code, detail.category, .input, .not_submitted, .local_before_dispatch, detail.message);
+    value.cause = try d.Code.init(@errorName(cause));
+    try value.text(.operation, .caller, operation);
+    try value.action(switch (detail.category) {
+        .internal, .integrity => .contact_operator,
+        .conflict, .lifecycle, .unavailable => .inspect_status,
+        .access => .inspect_scope,
+        else => .correct_input,
+    });
+    try value.validate();
+    return value;
 }

@@ -79,7 +79,7 @@ fn disposition(self: *Self, turn: *s.Turn, outcome: @FieldType(c.TableControl.Di
         },
         .principal = if (turn.delivery.input.origin == .external) turn.delivery.input.origin.external.principal else 0,
         .input = turn.delivery.input.position,
-        .payload = try c.Model.Disposition.fingerprint(turn.delivery.input.value),
+        .payload = try c.Model.fingerprint(turn.delivery.input.value),
         .outcome = outcome,
     };
     const key = c.Records.key(evidence.scope.catalog, 'e', evidence.input, 0);

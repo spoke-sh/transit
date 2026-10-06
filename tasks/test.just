@@ -307,11 +307,11 @@ table-mutation *args:
 [positional-arguments]
 catalog *args:
     python3 -B tests/catalog_fixture.py
-    zig build test-catalog -Doptimize=ReleaseSafe -- "$@"
+    zig build test-typed-tables -Doptimize=ReleaseSafe -- "$@"
 
-# Disk-backed metadata beyond resident pages, current cursors and restart.
+# General typed metadata and rows beyond resident pages, cold reads and restart.
 catalog-growth:
-    just test::catalog --grow 65
+    just test::typed-tables --grow 139 --cold
 
 # General typed Table owner/caller, bounded turns and exact disk recovery.
 [positional-arguments]

@@ -77,16 +77,6 @@ fn mutations(out: *std.Io.Writer) !void {
         try emit(out, "mutation.input", @tagName(reason), try q.MutationDiagnostic.input(.{ .principal = 9, .input = 11, .payload = @splat(3), .reason = reason }));
     }
 }
-fn catalogs(out: *std.Io.Writer) !void {
-    const scope: c.Model.Scope = .{ .realm = 1, .catalog = 2, .resource = 7 };
-    const request = try c.Model.CreateTable.compile(scope, 19, 20, 1, "CREATE TABLE items (id INT64 NOT NULL, value INT64 NULL)");
-    inline for (comptime std.meta.tags(c.Model.Outcome)) |outcome| {
-        try emit(out, "catalog.receipt", @tagName(outcome), try c.Diagnostic.receipt(.{ .request = request, .principal = 9, .input = 11, .outcome = outcome }));
-    }
-    inline for (comptime std.meta.tags(@FieldType(c.Model.Disposition, "outcome"))) |outcome| {
-        try emit(out, "catalog.input", @tagName(outcome), try c.Diagnostic.input(.{ .scope = scope, .origin = .external, .principal = 9, .input = 11, .payload = @splat(3), .outcome = outcome }));
-    }
-}
 fn generalTables(allocator: std.mem.Allocator, out: *std.Io.Writer) !void {
     const scope: c.TableCatalogRecords.Scope = .{ .realm = 1, .catalog = 2, .resource = 7 };
     const schema: q.fuze.TableSchema.Schema = .{ .object = 20, .revision = 1, .next_column = 2, .columns = &.{.{ .id = 1, .name = "id", .type = .int64, .nullable = false }}, .primary_key = &.{1} };
@@ -110,6 +100,21 @@ fn generalTables(allocator: std.mem.Allocator, out: *std.Io.Writer) !void {
         value.completed_input = 12;
         value.rejection = reason;
         try emit(out, "table.reason", @tagName(reason), try c.TableDiagnostic.status(&intent, .{ .dml = value }));
+    }
+    inline for (comptime std.meta.tags(@FieldType(c.TableCatalogRecords.Operation, "state"))) |state| {
+        const delegated = state == .delegated;
+        const request: c.TableDdlRequest = .{ .principal = 9, .operation = 19, .object = 20, .expected_revision = if (delegated) 1 else 0, .name = metadata.name, .action = if (delegated) .{ .alter = .{ .schema = schema, .change = .{ .rename = .{ .column = 1, .name = "identifier" } } } } else .{ .create = .{ .schema = schema } } };
+        var original = try c.TableIntent.create(allocator, try c.TableCommand.fromDdl(scope, 3, request, if (delegated) metadata else null), 19);
+        defer original.deinit();
+        const active = state == .preparing or delegated;
+        const value: c.TableCatalogRecords.Operation = .{ .scope = scope, .principal = 9, .operation = 19, .object = 20, .actual_object = 20, .kind = std.meta.activeTag(request.action), .digest = original.identity.ddl.digest, .state = state, .reason = if (state == .rejected) .name_conflict else .none, .admitted_input = 11, .completed_input = if (active) 0 else 12, .metadata = .{ .id = metadata.revision, .spec = try metadata.spec() }, .table_digest = if (delegated) @splat(7) else @splat(0) };
+        var table: ?q.station.TableWrite.Status = null;
+        if (delegated) {
+            table = base;
+            table.?.reference = try value.tableReference();
+            table.?.route = .alter;
+        }
+        try emit(out, "table.ddl_phase", @tagName(state), try c.TableDiagnostic.status(&original, .{ .ddl = .{ .operation = value, .table = table } }));
     }
     inline for (comptime std.meta.tags(@FieldType(c.TableCatalogRecords.Operation, "reason"))) |reason| {
         const request: c.TableDdlRequest = .{ .principal = 9, .operation = 19, .object = 20, .expected_revision = if (reason == .name_conflict or reason == .object_conflict) 0 else 1, .name = metadata.name, .action = if (reason == .name_conflict or reason == .object_conflict) .{ .create = .{ .schema = schema } } else .{ .drop = .{} } };
@@ -190,7 +195,7 @@ fn closures(out: *std.Io.Writer) !void {
     }
 }
 fn refresh(out: *std.Io.Writer) !void {
-    var view: s.RefreshModel.View = .{ .principal = 9, .session = .{ .session = 19, .generation = 1 }, .generation = 2, .source = .{ .revision = 1, .target = 2, .resource = 7, .table = 1, .progress_key = try p.Value.init("progress"), .schema = @splat(1) }, .template = .{ .value = 20 }, .namespace = .{ .value = 21 }, .dirty = 11, .covered = 10, .limit = 8, .starts = 8 };
+    var view: s.RefreshModel.View = .{ .principal = 9, .session = .{ .session = 19, .generation = 1 }, .generation = 2, .source = .{ .revision = 1, .target = 2, .resource = 7, .realm = 1, .catalog = .{ .value = 9 }, .object = .{ .value = 1 }, .metadata_revision = .{ .value = 1 }, .metadata_length = 187, .metadata_digest = @splat(1) }, .template = .{ .value = 20 }, .namespace = .{ .value = 21 }, .dirty = 11, .covered = 10, .limit = 8, .starts = 8 };
     inline for (comptime std.meta.tags(s.RefreshFailure.Reason)) |reason| {
         view.failure = s.RefreshFailure.record(12, reason, .{});
         try emit(out, "refresh.stop", @tagName(reason), (try s.RefreshFailure.project(1, 7, view)).?);
@@ -250,10 +255,12 @@ fn writeCallers(out: *std.Io.Writer) !void {
         try emitScenario(out, "mutation.caller", @errorName(entry.cause), "read", read.?);
         try emitScenario(out, "mutation.caller", @errorName(entry.cause), "dispatched", try q.MutationDiagnostic.attempt(.{ .submit = "original" }, entry.cause, .{}, true, .{ .domain = .transport, .id = .init(12), .sequence = .init(12) }));
     }
-    const create: c.Bridge.CreateTable = .{ .scope = .{ .realm = 46, .resource = 7, .catalog = "2" }, .operation = "19", .object = "21", .table = 1, .name = "items", .schema = .{ .names = .{ "id", "value" }, .value_type = .int64 } };
-    for (c.Diagnostic.codes.entries) |entry| {
-        try emitScenario(out, "catalog.caller", @errorName(entry.cause), "read", try c.Diagnostic.attempt(.{ .status = create }, entry.cause, .{}, false, null));
-        try emitScenario(out, "catalog.caller", @errorName(entry.cause), "dispatched", try c.Diagnostic.attempt(.{ .submit = "original" }, entry.cause, .{}, true, .{ .domain = .transport, .id = .init(12), .sequence = .init(12) }));
+    var catalog_session: c.TableBridge.Session = .{ .allocator = std.heap.page_allocator };
+    defer catalog_session.deinit();
+    const connection: c.TableClient.Connection = .{ .scope = .{ .realm = 46, .resource = 7, .catalog = 2 }, .owner = 3, .principal = 17 };
+    for (c.TableAttempt.codes.entries) |entry| {
+        try emitScenario(out, "catalog.caller", @errorName(entry.cause), "read", try c.TableAttempt.attempt(&catalog_session, connection, .{ .lookup = "items" }, entry.cause, .{}, false, null, null));
+        try emitScenario(out, "catalog.caller", @errorName(entry.cause), "dispatched", try c.TableAttempt.attempt(&catalog_session, connection, .{ .submit = "original" }, entry.cause, .{}, true, .{ .domain = .transport, .id = .init(12), .sequence = .init(12) }, null));
     }
 }
 
@@ -301,7 +308,6 @@ pub fn main(init: std.process.Init) !void {
     try queries(&stdout.interface);
     try queryPhases(&stdout.interface);
     try mutations(&stdout.interface);
-    try catalogs(&stdout.interface);
     try generalTables(init.gpa, &stdout.interface);
     try serving(&stdout.interface);
     try capture(&stdout.interface);

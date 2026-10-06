@@ -416,7 +416,7 @@ fn dispositionFrom(self: *Self, current: *Source, prepared: Prepared, input: u64
     const owner = try self.catalog(current);
     _ = try owner.authorize(current, self.connection.principal, .inspect);
     const result = try c.Records.decode(Control.Disposition, 'E', (try current.read(target)) orelse return null);
-    if (!std.meta.eql(result.scope, self.connection.scope) or result.origin != .external or result.principal != self.connection.principal or result.input != input or !std.mem.eql(u8, &result.payload, &try c.Model.Disposition.fingerprint(prepared.signed.request.command.send.value))) return error.CatalogIdentityConflict;
+    if (!std.meta.eql(result.scope, self.connection.scope) or result.origin != .external or result.principal != self.connection.principal or result.input != input or !std.mem.eql(u8, &result.payload, &try c.Model.fingerprint(prepared.signed.request.command.send.value))) return error.CatalogIdentityConflict;
     return result;
 }
 /// Mailbox processing and both result domains are acquired separately. The

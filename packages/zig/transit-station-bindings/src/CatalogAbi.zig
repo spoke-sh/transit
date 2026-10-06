@@ -118,7 +118,7 @@ fn apply(client: *Impl, arena: *std.heap.ArenaAllocator, action: bridge.Action, 
     }
 }
 fn invalidEnvelope(err: anyerror, out: *?*base.Buffer) base.Status {
-    const diagnostic = catalog.Diagnostic.invalidEnvelope(err) catch null;
+    const diagnostic = catalog.TableAttempt.invalidEnvelope(err) catch null;
     base.output(.{ .err = @errorName(err), .diagnostic = diagnostic }, out) catch {};
     return if (err == error.OutOfMemory) .out_of_memory else .invalid_argument;
 }

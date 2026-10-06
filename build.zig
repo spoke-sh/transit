@@ -271,11 +271,6 @@ pub fn build(b: *std.Build) void {
     mutation_contract_test.has_side_effects = true;
     mutation_contract_test.stdio = .inherit;
     test_step.dependOn(&mutation_contract_test.step);
-    const catalog_contract_test = b.addSystemCommand(&.{ "python3", "-B" });
-    catalog_contract_test.addFileArg(b.path("tests/catalog_contract.py"));
-    catalog_contract_test.has_side_effects = true;
-    catalog_contract_test.stdio = .inherit;
-    test_step.dependOn(&catalog_contract_test.step);
     const document_contract_test = b.addSystemCommand(&.{ "python3", "-B" });
     document_contract_test.addFileArg(b.path("tests/document_contract.py"));
     document_contract_test.has_side_effects = true;
@@ -1035,25 +1030,6 @@ pub fn build(b: *std.Build) void {
     publication_test.has_side_effects = true;
     publication_test.stdio = .inherit;
     b.step("test-publication", "Prove bounded immutable Station publication and crash recovery").dependOn(&publication_test.step);
-    const catalog_proof = b.addExecutable(.{ .name = "transit-catalog-proof", .root_module = b.createModule(.{
-        .root_source_file = b.path("tests/catalog_native.zig"),
-        .target = target,
-        .optimize = optimize,
-        .imports = &.{ .{ .name = "transit_catalog", .module = catalog.module("transit_catalog") }, .{ .name = "transit_station", .module = station.module("transit_station") } },
-    }) });
-    build_test_step.dependOn(&catalog_proof.step);
-    const catalog_native = b.addSystemCommand(&.{ "python3", "-B" });
-    catalog_native.addFileArg(b.path("tests/catalog_native.py"));
-    catalog_native.addArtifactArg(node_artifact);
-    catalog_native.addArtifactArg(catalog_proof);
-    catalog_native.addArtifactArg(query_host);
-    catalog_native.addArtifactArg(station_host);
-    catalog_native.addArtifactArg(station_bindings.artifact("transit_station"));
-    catalog_native.addArtifactArg(query_shell);
-    catalog_native.addPassthruArgs();
-    catalog_native.has_side_effects = true;
-    catalog_native.stdio = .inherit;
-    b.step("test-catalog", "Prove named Table creation, atomic visibility and signed recovery on disk").dependOn(&catalog_native.step);
     const typed_table_proof = b.addExecutable(.{ .name = "transit-typed-table-proof", .root_module = b.createModule(.{
         .root_source_file = b.path("tests/typed_table_native.zig"),
         .target = target,

@@ -16975,3 +16975,47 @@ owned state, and retaining an unjoined provider privately without deletion. The
 new general native runner invokes that helper after joining its owned authority
 and workers on failure. This successful growth run did not exercise that failure
 branch; the helper's injected lifecycle checks are separate evidence.
+
+### General catalog implementation cutover
+
+The creation-only catalog owner, signed/neutral callers, two-column record codecs
+and their fixtures are removed. General `TableCatalog` / `TableClient` /
+`TableBridge` supply the current catalog contract; `test::catalog` uses the real
+general lifecycle runner, and `test::catalog-growth` selects 139 additional
+Tables with cold storage. The shared scope/fingerprint and native page validators
+remain without a legacy schema decoder. Historical results above describe the
+source revision at which they ran, not an additional supported catalog profile.
+
+`general-catalog-removal-unit2.log` passes **76/76** current ReleaseSafe component
+tests (467 ms, 21 MiB test RSS). It replaces the former 99-test suite after
+removing tests specific to the retired APIs; the general lifecycle, exact-recovery,
+authorization and seeded-oracle tests remain. The first invocation used
+`--build-file` from the root and failed configuration before running tests; the
+successful run uses the owning package directory.
+
+`general-catalog-removal-diagnostics5.log` passes **9/9** steps, **3,216** semantic
+projections over **33** complete declared outcome surfaces, **18** inferred error
+sets and **11** unknown-cause projections, including adversarial drift mutations.
+The catalog registry now covers 67 explicit causes across 47 caller/source error
+pairs, including saved-intent ownership, upload state and typed-operation limits.
+All DDL operation states, delegated ALTER, unchanged CREATE and current catalog
+denial in serving/Follow have explicit reviewed projections. Uncertain sends
+retain their exact transport identity; a name lookup invents no operation ID.
+
+The first diagnostics build exposed the retired bridge entry and an obsolete
+reactive-source fixture. The second compiled and passed inferred-boundary checks,
+but the outcome manifest lacked the already implemented catalog-denial variants.
+The next isolated mapping run exposed the distinct serving catalog-denial code.
+Those failed runs are retained as `general-catalog-removal-diagnostics1.log`,
+`diagnostics2.log` and `outcomes3.log`; `outcomes4.log` passes the pre-DDL-phase
+3,210-case matrix. Only `diagnostics5.log` includes the complete expanded matrix.
+
+`general-catalog-removal-docs2.log`, `mappings2.log`, `fixtures1.log` and
+`invariants2.log` pass local documentation links, semantic cause maps, independent
+metadata/control/query-source bytes, and the 59-invariant/53-bound ownership
+catalog. `general-catalog-removal-sdk-diagnostic2.log` validates the replacement
+synthetic DML diagnostic against the current JSON schema with a full-width
+operation ID; it does not run installed SDK consumers. Its first invocation
+omitted a required CLI argument in the imported fixture module and did not run
+validation. The larger cold native run and final definition/clean qualification
+remain separate checkpoints.

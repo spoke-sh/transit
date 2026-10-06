@@ -142,44 +142,6 @@ pub fn input(value: q.TableMutationWriter.Disposition, active: bool) !Self {
     return self;
 }
 
-pub fn creation(value: c.Model.Receipt) !Self {
-    const request = value.request;
-    const outcome = value.outcome;
-    var self: Self = .{ .envelope = try c.Diagnostic.receipt(value), .heading = "Catalog Error", .code = @tagName(outcome) };
-    var out: std.Io.Writer = .fixed(&self.message);
-    switch (outcome) {
-        .name_conflict => {
-            try out.writeAll("The name ");
-            try quoted(&out, request.name.slice());
-            try out.writeAll(" is already bound in the configured catalog.");
-            self.next = "Use SHOW TABLES to inspect that catalog and choose a different name for a new declaration.";
-        },
-        .object_conflict => try out.print("Object identity {d} is already occupied in the configured catalog.", .{request.object}),
-        .table_conflict => try out.print("Table identity {d} is already occupied in the target resource.", .{request.table}),
-        .applied => return error.InvalidConsoleRecovery,
-    }
-    try out.writeAll("\nThis CREATE TABLE did not create a Table.");
-    self.length = out.end;
-    return self;
-}
-
-pub fn catalogInput(value: c.Model.Disposition) !Self {
-    const outcome = value.outcome;
-    var self: Self = .{ .envelope = try c.Diagnostic.input(value), .heading = "Catalog Input Error", .code = @tagName(outcome) };
-    var out: std.Io.Writer = .fixed(&self.message);
-    try out.writeAll(switch (outcome) {
-        .invalid_command => "The catalog could not decode the creation command.",
-        .denied => "The current principal or catalog policy does not permit this command.",
-        .identity_conflict => "This command conflicts with the recorded catalog operation identity.",
-        .stale_policy => "The command's expected catalog policy revision is stale.",
-        .initialized, .policy_applied => return error.InvalidConsoleRecovery,
-    });
-    try out.writeAll("\nThis input was rejected; it did not create a Table.");
-    self.length = out.end;
-    self.next = "Use .status to inspect the saved input. Preserve its original operation identity; CREATE TABLE cannot be cancelled.";
-    return self;
-}
-
 fn quoted(out: *std.Io.Writer, value: []const u8) !void {
     try out.writeByte('"');
     for (value) |byte| switch (byte) {

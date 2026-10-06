@@ -44,7 +44,7 @@ fn disposition(self: *Self, turn: *s.Turn, outcome: @FieldType(Control.Dispositi
         },
         .principal = if (turn.delivery.input.origin == .external) turn.delivery.input.origin.external.principal else 0,
         .input = turn.delivery.input.position,
-        .payload = try c.Model.Disposition.fingerprint(turn.delivery.input.value),
+        .payload = try c.Model.fingerprint(turn.delivery.input.value),
         .outcome = outcome,
     };
     const key = self.catalog().key('e', value.input, 0);

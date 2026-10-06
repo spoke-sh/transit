@@ -19,11 +19,19 @@ def install(root, languages):
     root.mkdir()
     # Matching, independently generated neutral evidence for decoder ownership
     # tests. The authority schedules below verify live owner projections.
-    diagnostic = json.loads((ROOT / 'packages/zig/transit-catalog/src/fixtures/catalog-neutral-v1.json').read_text())['receipt']['diagnostic']
-    diagnostic['identity']['realm'] = '46'
-    diagnostic['facts'][0]['value']['unsigned'] = '7'
-    diagnostic['facts'][3]['value']['unsigned'] = str((1 << 32) - 1)
-    diagnostic['actions'][0]['target']['realm'] = '46'
+    definition = json.loads((ROOT / 'contracts/transit-v1.schema.json').read_text())['x-transit']['definition']
+    identity = dict(domain='mutation', id=str(2**64-1), realm='46', resource='7', sequence=None)
+    def fact(field, origin, kind, value):
+        return dict(field=field, origin=origin, availability='provided', value={kind: value})
+    diagnostic = dict(version=1, definition=definition, code='table.applied', category='lifecycle',
+        stage='execute', outcome='applied', evidence='domain_status',
+        message='The original Table operation completed. Later inspection or output failures cannot undo its outcome.',
+        cause=None, identity=identity, location=None,
+        facts=[fact('object', 'owner', 'unsigned', str(2**64-1)),
+               fact('operation', 'caller', 'text', 'insert'),
+               fact('native_input', 'owner', 'unsigned', '7'),
+               fact('affected_rows', 'execution', 'unsigned', '1')] + [None]*12,
+        actions=[dict(kind='inspect_status', target=identity)] + [None]*3)
     (root / 'diagnostic.json').write_text(json.dumps(diagnostic))
     factories = []
     for language in languages:

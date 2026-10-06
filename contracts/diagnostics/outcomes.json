@@ -2002,195 +2002,6 @@
         }
       }
     },
-    "catalog.receipt": {
-      "source": "packages/zig/transit-catalog/src/Model.zig",
-      "type": "Outcome",
-      "projection": "packages/zig/transit-catalog/src/Diagnostic.zig",
-      "profile": "Declarative Table catalog",
-      "context": "Original reviewed definition, operation and receipt identity; applied versus name/object/Table collision",
-      "durable_evidence": "Projection uses the retained owner record. This executable checks the mapping; owner commit/replay/restart proofs verify persistence.",
-      "disclosure": "Project only after the owning read has established current authority. Fixture values are synthetic; additional payloads/credentials are not inferred.",
-      "recovery": "Inspect the selected catalog; confirmed conflict permits correcting a new request",
-      "defaults": {
-        "stage": "execute",
-        "evidence": "domain_status",
-        "identity": {
-          "domain": "catalog",
-          "id": "19",
-          "realm": "1",
-          "resource": "7",
-          "sequence": null
-        },
-        "facts": [
-          [
-            "native_input",
-            "owner",
-            "provided"
-          ],
-          [
-            "scope",
-            "owner",
-            "provided"
-          ],
-          [
-            "object",
-            "caller",
-            "provided"
-          ],
-          [
-            "table",
-            "caller",
-            "provided"
-          ],
-          [
-            "name",
-            "caller",
-            "provided"
-          ]
-        ]
-      },
-      "scenarios": {
-        "default": {}
-      },
-      "cases": {
-        "applied": {
-          "code": "catalog.applied",
-          "category": "lifecycle",
-          "outcome": "applied",
-          "actions": [
-            "inspect_status"
-          ]
-        },
-        "name_conflict": {
-          "code": "catalog.name_conflict",
-          "category": "constraint",
-          "outcome": "rejected",
-          "actions": [
-            "inspect_status",
-            "inspect_scope",
-            "correct_input"
-          ]
-        },
-        "object_conflict": {
-          "code": "catalog.object_conflict",
-          "category": "constraint",
-          "outcome": "rejected",
-          "actions": [
-            "inspect_status",
-            "inspect_scope",
-            "correct_input"
-          ]
-        },
-        "table_conflict": {
-          "code": "catalog.table_conflict",
-          "category": "constraint",
-          "outcome": "rejected",
-          "actions": [
-            "inspect_status",
-            "inspect_scope",
-            "correct_input"
-          ]
-        }
-      }
-    },
-    "catalog.input": {
-      "source": "packages/zig/transit-catalog/src/Model.zig",
-      "type": "Disposition.outcome",
-      "projection": "packages/zig/transit-catalog/src/Diagnostic.zig",
-      "profile": "Catalog control input",
-      "context": "Original origin, principal, input and payload commitment; bootstrap/policy success is separate from CREATE receipt",
-      "durable_evidence": "Projection uses the retained owner record. This executable checks the mapping; owner commit/replay/restart proofs verify persistence.",
-      "disclosure": "Project only after the owning read has established current authority. Fixture values are synthetic; additional payloads/credentials are not inferred.",
-      "recovery": "Inspect original control input and current scope; no CREATE cancellation or implicit retry",
-      "defaults": {
-        "stage": "admission",
-        "evidence": "domain_status",
-        "identity": {
-          "domain": "transport",
-          "id": "11",
-          "realm": "1",
-          "resource": "7",
-          "sequence": null
-        },
-        "facts": [
-          [
-            "native_input",
-            "owner",
-            "provided"
-          ],
-          [
-            "scope",
-            "owner",
-            "provided"
-          ],
-          [
-            "source_basis",
-            "owner",
-            "provided"
-          ],
-          [
-            "operation",
-            "owner",
-            "provided"
-          ]
-        ]
-      },
-      "scenarios": {
-        "default": {}
-      },
-      "cases": {
-        "initialized": {
-          "code": "catalog.input.initialized",
-          "category": "lifecycle",
-          "outcome": "applied",
-          "actions": [
-            "inspect_status"
-          ]
-        },
-        "policy_applied": {
-          "code": "catalog.input.policy_applied",
-          "category": "lifecycle",
-          "outcome": "applied",
-          "actions": [
-            "inspect_status"
-          ]
-        },
-        "invalid_command": {
-          "code": "catalog.input.invalid_command",
-          "category": "binding",
-          "outcome": "input_rejected",
-          "actions": [
-            "inspect_status"
-          ]
-        },
-        "denied": {
-          "code": "catalog.input.denied",
-          "category": "access",
-          "outcome": "input_rejected",
-          "actions": [
-            "inspect_status",
-            "inspect_scope"
-          ]
-        },
-        "identity_conflict": {
-          "code": "catalog.input.identity_conflict",
-          "category": "conflict",
-          "outcome": "input_rejected",
-          "actions": [
-            "inspect_status"
-          ]
-        },
-        "stale_policy": {
-          "code": "catalog.input.stale_policy",
-          "category": "conflict",
-          "outcome": "input_rejected",
-          "actions": [
-            "inspect_status",
-            "inspect_scope"
-          ]
-        }
-      }
-    },
     "serving.phase": {
       "source": "packages/zig/transit-serving/src/Model.zig",
       "type": "Phase",
@@ -2940,6 +2751,15 @@
           "stage": "admission",
           "actions": [
             "inspect_status"
+          ]
+        },
+        "CatalogDenied": {
+          "code": "reactive.catalog_denied",
+          "category": "access",
+          "stage": "admission",
+          "actions": [
+            "inspect_status",
+            "inspect_scope"
           ]
         }
       }
@@ -4622,6 +4442,36 @@
           ],
           "actions": [
             "inspect_status"
+          ]
+        },
+        "catalog_denied": {
+          "code": "refresh.catalog_denied",
+          "category": "access",
+          "facts": [
+            [
+              "native_input",
+              "owner",
+              "provided"
+            ],
+            [
+              "generation",
+              "owner",
+              "provided"
+            ],
+            [
+              "proposal",
+              "owner",
+              "provided"
+            ],
+            [
+              "source_kind",
+              "owner",
+              "provided"
+            ]
+          ],
+          "actions": [
+            "inspect_status",
+            "inspect_scope"
           ]
         }
       }
@@ -10088,20 +9938,14 @@
     "catalog.caller": {
       "source": "packages/zig/transit-catalog/src/CallerCodes.zig",
       "registry_kind": "error",
-      "projection": "packages/zig/transit-catalog/src/Diagnostic.zig",
+      "projection": "packages/zig/transit-catalog/src/TableAttempt.zig",
       "profile": "Explicit catalog caller local preparation, current reads and exact signed submission",
-      "context": "Original catalog CREATE request operation and scope",
+      "context": "Exact saved general Table intent and connection; name lookup has no selected operation identity",
       "disclosure": "Caller context and currently authorized records only; credentials and inaccessible stored content are excluded",
       "durable_evidence": "Original saved transport identity is retained after dispatch; caller-selected status identity proves no existence or outcome",
       "recovery": "Failed reads can retry only the read; exact uncertain submission retains resume target; no fresh work or invented cancellation",
       "defaults": {
-        "identity": {
-          "domain": "catalog",
-          "id": "19",
-          "realm": "46",
-          "resource": "7",
-          "sequence": null
-        },
+        "identity": null,
         "outcome": "not_applicable",
         "evidence": "none",
         "facts": [
@@ -10471,23 +10315,7 @@
           "category": "unavailable",
           "actions": [
             "retry_read"
-          ],
-          "scenarios": {
-            "read": {
-              "facts": [
-                [
-                  "source_kind",
-                  "owner",
-                  "unrecorded"
-                ],
-                [
-                  "operation",
-                  "caller",
-                  "provided"
-                ]
-              ]
-            }
-          }
+          ]
         },
         "InvalidResourceRead": {
           "code": "catalog.invalid_resource_read",
@@ -10536,6 +10364,125 @@
           "category": "integrity",
           "actions": [
             "contact_operator"
+          ]
+        },
+        "TableIntentNotLoaded": {
+          "code": "table.intent_not_loaded",
+          "category": "lifecycle",
+          "actions": [
+            "inspect_status"
+          ]
+        },
+        "InvalidTableIntent": {
+          "code": "table.invalid_intent",
+          "category": "binding",
+          "actions": [
+            "correct_input"
+          ]
+        },
+        "TableNotFound": {
+          "code": "table.not_found",
+          "category": "binding",
+          "actions": [
+            "correct_input"
+          ]
+        },
+        "TableUploadClosed": {
+          "code": "table.upload_state",
+          "category": "lifecycle",
+          "actions": [
+            "inspect_status"
+          ]
+        },
+        "TableUploadNotFound": {
+          "code": "table.upload_state",
+          "category": "lifecycle",
+          "actions": [
+            "inspect_status"
+          ]
+        },
+        "TableUploadNotReady": {
+          "code": "table.upload_state",
+          "category": "lifecycle",
+          "actions": [
+            "inspect_status"
+          ]
+        },
+        "InvalidCatalogReceipt": {
+          "code": "table.invalid_evidence",
+          "category": "integrity",
+          "actions": [
+            "contact_operator"
+          ]
+        },
+        "InvalidTableHead": {
+          "code": "table.invalid_evidence",
+          "category": "integrity",
+          "actions": [
+            "contact_operator"
+          ]
+        },
+        "InvalidTableStatus": {
+          "code": "table.invalid_evidence",
+          "category": "integrity",
+          "actions": [
+            "contact_operator"
+          ]
+        },
+        "CatalogOperationNotFound": {
+          "code": "catalog.operation_not_found",
+          "category": "lifecycle",
+          "actions": [
+            "inspect_status"
+          ]
+        },
+        "TableWriteNotFound": {
+          "code": "table.operation_not_found",
+          "category": "lifecycle",
+          "actions": [
+            "inspect_status"
+          ]
+        },
+        "MessageTooLarge": {
+          "code": "table.command_too_large",
+          "category": "limit",
+          "actions": [
+            "correct_input"
+          ]
+        },
+        "UnsupportedStatement": {
+          "code": "table.unsupported_statement",
+          "category": "unsupported",
+          "actions": [
+            "correct_input"
+          ]
+        },
+        "InvalidMutationColumns": {
+          "code": "table.invalid_columns",
+          "category": "binding",
+          "actions": [
+            "correct_input"
+          ]
+        },
+        "InvalidMutationPlan": {
+          "code": "table.invalid_plan",
+          "category": "binding",
+          "actions": [
+            "correct_input"
+          ]
+        },
+        "MutationBatchTooLarge": {
+          "code": "table.batch_too_large",
+          "category": "limit",
+          "actions": [
+            "correct_input"
+          ]
+        },
+        "PredicateTooLarge": {
+          "code": "table.predicate_too_large",
+          "category": "limit",
+          "actions": [
+            "correct_input"
           ]
         }
       }
@@ -15725,6 +15672,24 @@
               ]
             }
           }
+        },
+        "CatalogDenied": {
+          "code": "reactive.catalog_denied",
+          "category": "access",
+          "actions": [
+            "inspect_scope"
+          ],
+          "scenarios": {
+            "input": {
+              "transport_status": 403
+            },
+            "read": {
+              "transport_status": 403,
+              "actions": [
+                "inspect_scope"
+              ]
+            }
+          }
         }
       }
     },
@@ -18275,6 +18240,97 @@
             "correct_input"
           ],
           "transport_status": 8
+        }
+      }
+    },
+    "table.ddl_phase": {
+      "source": "packages/zig/transit-catalog/src/TableCatalogRecords.zig",
+      "type": "Operation.state",
+      "projection": "packages/zig/transit-catalog/src/TableDiagnostic.zig",
+      "profile": "General typed Tables",
+      "context": "All original catalog DDL states, including pending delegated ALTER and unchanged CREATE",
+      "durable_evidence": "Projects retained typed owner outcomes, including the exact original blocking dependency. These synthetic mapping cases do not prove native persistence.",
+      "disclosure": "Current catalog inspection authorization precedes projection. Dependency facts are recorded metadata, not stored-row values; no fresh registry/name lookup or payload read occurs.",
+      "recovery": "Pending original work can resume or cancel; terminal outcomes can only be inspected. Rejected native inputs remain separate from SQL outcomes.",
+      "defaults": {
+        "stage": "execute",
+        "evidence": "domain_status",
+        "identity": {
+          "domain": "catalog",
+          "id": "19",
+          "realm": "1",
+          "resource": "7",
+          "sequence": null
+        },
+        "facts": [
+          [
+            "object",
+            "owner",
+            "provided"
+          ],
+          [
+            "operation",
+            "caller",
+            "provided"
+          ],
+          [
+            "native_input",
+            "owner",
+            "provided"
+          ]
+        ],
+        "actions": [
+          "inspect_status"
+        ]
+      },
+      "scenarios": {
+        "default": {}
+      },
+      "cases": {
+        "preparing": {
+          "code": "table.pending",
+          "category": "lifecycle",
+          "outcome": "pending",
+          "actions": [
+            "inspect_status",
+            "resume_exact",
+            "cancel_mutation"
+          ]
+        },
+        "delegated": {
+          "code": "table.pending",
+          "category": "lifecycle",
+          "outcome": "pending",
+          "actions": [
+            "inspect_status",
+            "resume_exact",
+            "cancel_mutation"
+          ]
+        },
+        "applied": {
+          "code": "table.applied",
+          "category": "lifecycle",
+          "outcome": "applied"
+        },
+        "unchanged": {
+          "code": "table.applied",
+          "category": "lifecycle",
+          "outcome": "applied"
+        },
+        "rejected": {
+          "code": "table.name_conflict",
+          "category": "conflict",
+          "outcome": "rejected",
+          "actions": [
+            "inspect_status",
+            "inspect_scope"
+          ]
+        },
+        "cancelled": {
+          "code": "table.cancelled",
+          "category": "lifecycle",
+          "outcome": "cancelled",
+          "stage": "control"
         }
       }
     }

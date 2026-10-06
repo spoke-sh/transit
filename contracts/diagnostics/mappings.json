@@ -2096,21 +2096,24 @@
     {
       "id": "catalog-caller",
       "owners": [
-        "packages/zig/transit-catalog/src/Bridge.zig",
-        "packages/zig/transit-catalog/src/Client.zig",
-        "packages/zig/transit-catalog/src/Inspection.zig",
+        "packages/zig/transit-catalog/src/TableBridge.zig",
+        "packages/zig/transit-catalog/src/TableClient.zig",
+        "packages/zig/transit-catalog/src/TableIntent.zig",
+        "packages/zig/transit-catalog/src/TableValues.zig",
+        "packages/zig/transit-catalog/src/TableTyped.zig",
         "packages/zig/transit-catalog/src/Model.zig",
-        "packages/zig/transit-catalog/src/Records.zig"
+        "packages/zig/transit-catalog/src/Records.zig",
+        "packages/zig/transit-catalog/src/Inspection.zig"
       ],
       "exclude": [],
       "registry": "packages/zig/transit-catalog/src/CallerCodes.zig",
-      "projection": "packages/zig/transit-catalog/src/Diagnostic.zig",
+      "projection": "packages/zig/transit-catalog/src/TableAttempt.zig",
       "shared_codes": true,
       "profile": "Explicit catalog caller local preparation, current reads and exact signed submission",
       "stage": "Compile/prepare/read/submit at the actual dispatch boundary",
       "outcome": "No-send attempts are not_submitted; failed reads are not_applicable; unconfirmed sends are unknown; native rejection is not a terminal domain outcome",
       "durable_evidence": "Original saved transport identity is retained after dispatch; caller-selected status identity proves no existence or outcome",
-      "context": "Original catalog CREATE request operation and scope",
+      "context": "Exact saved general Table intent and connection; name lookup has no selected operation identity",
       "disclosure": "Caller context and currently authorized records only; credentials and inaccessible stored content are excluded",
       "recovery": "Failed reads can retry only the read; exact uncertain submission retains resume target; no fresh work or invented cancellation",
       "propagation": "Original SQL compiler evidence wins. Native transport, record and frame failures are explicit; remaining unexpected implementation errors preserve outcome uncertainty as internal failures.",
@@ -2314,13 +2317,85 @@
         "AuthorityTransportDenied": {
           "code": "catalog.transport_denied",
           "category": "unavailable"
+        },
+        "TableIntentNotLoaded": {
+          "code": "table.intent_not_loaded",
+          "category": "lifecycle"
+        },
+        "InvalidTableIntent": {
+          "code": "table.invalid_intent",
+          "category": "binding"
+        },
+        "TableNotFound": {
+          "code": "table.not_found",
+          "category": "binding"
+        },
+        "TableUploadClosed": {
+          "code": "table.upload_state",
+          "category": "lifecycle"
+        },
+        "TableUploadNotFound": {
+          "code": "table.upload_state",
+          "category": "lifecycle"
+        },
+        "TableUploadNotReady": {
+          "code": "table.upload_state",
+          "category": "lifecycle"
+        },
+        "InvalidCatalogReceipt": {
+          "code": "table.invalid_evidence",
+          "category": "integrity"
+        },
+        "InvalidTableHead": {
+          "code": "table.invalid_evidence",
+          "category": "integrity"
+        },
+        "InvalidTableStatus": {
+          "code": "table.invalid_evidence",
+          "category": "integrity"
+        },
+        "CatalogOperationNotFound": {
+          "code": "catalog.operation_not_found",
+          "category": "lifecycle"
+        },
+        "TableWriteNotFound": {
+          "code": "table.operation_not_found",
+          "category": "lifecycle"
+        },
+        "MessageTooLarge": {
+          "code": "table.command_too_large",
+          "category": "limit"
+        },
+        "UnsupportedStatement": {
+          "code": "table.unsupported_statement",
+          "category": "unsupported"
+        },
+        "InvalidMutationColumns": {
+          "code": "table.invalid_columns",
+          "category": "binding"
+        },
+        "InvalidMutationPlan": {
+          "code": "table.invalid_plan",
+          "category": "binding"
+        },
+        "MutationBatchTooLarge": {
+          "code": "table.batch_too_large",
+          "category": "limit"
+        },
+        "PredicateTooLarge": {
+          "code": "table.predicate_too_large",
+          "category": "limit"
         }
       },
       "exceptions": [],
       "tests": [
         {
-          "source": "packages/zig/transit-catalog/src/Diagnostic.zig",
-          "name": "every catalog caller cause preserves failed-read and dispatch evidence"
+          "source": "packages/zig/transit-catalog/src/TableAttempt.zig",
+          "name": "general caller failures retain read and dispatch evidence"
+        },
+        {
+          "source": "packages/zig/transit-catalog/src/TableAttempt.zig",
+          "name": "exact historical inconsistencies require integrity inspection without new declaration advice"
         }
       ]
     },

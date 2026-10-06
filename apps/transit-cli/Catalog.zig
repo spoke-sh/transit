@@ -68,7 +68,7 @@ pub fn run(init: std.process.Init, args: []const []const u8, diagnostic: *Diagno
     var client: c.TableClient = .{ .transport = undefined, .connection = connection, .key = undefined };
     // Restore and validate local identity before credentials or network access.
     const action = actionFromInput(init, options, diagnostic, &session, &client) catch |err| {
-        if (diagnostic.presentation == .general) diagnostic.envelope = c.Diagnostic.artifact(@tagName(options.mode), err) catch null;
+        if (diagnostic.presentation == .general) diagnostic.envelope = c.TableAttempt.artifact(@tagName(options.mode), err) catch null;
         return err;
     };
     if (offline(action)) {

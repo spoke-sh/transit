@@ -1,9 +1,8 @@
 # General Table metadata
 
 `TableMetadata` and `TableMetadataStore` encode and stage immutable general Table
-definitions. They are component helpers; staging does not create a live name,
-publish a Table, authorize a caller or widen the signed catalog client's separate
-admission profile. The enclosing catalog owner supplies current policy and
+definitions. Staging alone does not create a live name, publish a Table or
+authorize a caller. The enclosing catalog owner supplies current policy and
 atomically updates its live object/name bindings and original operation outcome.
 
 `TableCatalog` supplies the general namespace's captured-source policy and
@@ -36,8 +35,8 @@ identity and owner. Historical references remain stored but do not keep a name
 live. Blocking index entries change atomically with their dependency records, so
 DROP does not scan the historical-reference collection. The registry
 does not bind runtime applications automatically, dispatch effects or authorize
-physical reclamation. Native routing must integrate these helpers before their
-behavior becomes a signed caller guarantee.
+physical reclamation. The supplied catalog owner checks this registry during
+DROP publication.
 
 `TableDdlRequest` binds exact scope, principal, operation, object, expected
 metadata revision, name and typed action. `TableCatalog.step` checks both current
@@ -149,8 +148,7 @@ Current inspect permission gates recovery; action permission gates execution.
 Cancelling unadmitted transport does not claim an SQL outcome. Once admitted,
 cancellation uses the original coordinator. Collection requires closure and
 never deletes its receipt. Each staging/collection turn stays within four native
-writes. These helpers still require native behavior/client wiring and do not
-change the console's supported syntax by themselves.
+writes. The supplied behavior, signed client and console share these controls.
 
 `TableBehavior` supplies the general owner hooks for a Station GenServer. It
 accepts small typed commands in one cast frame and handles larger uploads through
@@ -167,9 +165,7 @@ routing. Deployments must run the delivery service alongside the Table owner.
 
 Initialization, policy and dependency controls retain separate input outcomes.
 SQL outcomes remain in their original catalog/Table receipts. Cancellation and
-cleanup use those exact references, with no extra fifth receipt write. The module
-is available for deployment composition; the existing configured native client
-and console are not switched by adding the module.
+cleanup use those exact references, with no extra fifth receipt write. The supplied catalog host composes this module with the signed client and console.
 
 `TableIntent` owns exact bytes for offline recovery: the typed command, upload
 identity, accepted metadata and original schema where required. It validates the
@@ -216,8 +212,7 @@ reuse of the name. Native grants remain independently required for every read.
 `progress` checks native mailbox processing before reading application and input
 outcomes at one authorized cut. The notification variants retain only an exact
 input scheduling cursor and preserve bounded capacity backoff. They do not cache
-authorization. This general caller is not yet the console/ABI's configured path;
-those consumers require a coordinated current-definition cutover.
+authorization. The console and ABI use this general caller.
 
 `compile` turns SQL into the same owned intent used by typed callers. CREATE
 requires an explicit fresh object identity and compiles without a metadata read;
@@ -262,14 +257,13 @@ opening a just-published private descriptor. No helper weakens current source
 authorization, captured-turn fencing or the four-mutation limit.
 
 The [catalog contract](../../../../contracts/DECLARATIVE_CATALOG_V1.md#general-table-metadata-records)
-specifies bytes and keys. Native binding/lifecycle integration and disk evidence
-remain separate from these codec and captured-turn storage helpers.
+specifies bytes and keys. The [proof ledger](../../../../tests/README.md) separates
+codec checks from executed native lifecycle and disk-recovery evidence.
 
 ## Neutral general Table callers
 
 `TableValues`, `TableTyped` and `TableBridge` provide general Table values and a
-shared caller session for foreign interfaces. These Zig helpers do not themselves
-change the separately exposed ABI/port or language SDK profiles.
+shared caller session for the native ABI/port and enabled language SDKs.
 
 Schemas use `TableSchemaJson`: mandatory current definition, canonical decimal
 identities, recursive logical descriptors and lossless typed defaults. Metadata,
