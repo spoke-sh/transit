@@ -39,10 +39,14 @@ class StationInstallation(Installation):
         self.command("associate-supervisor", {"associate": {
             "pid": records["ledger"]["pid"], "name": b"supervisor".hex(),
             "resource": records["coordinator"]["resource"], "required": False}})
+        for role, peer in (("ledger", "requester"), ("requester", "ledger")):
+            self.command("associate-query-" + role, {"associate": {
+                "pid": records[role]["pid"], "name": b"query-peer".hex(),
+                "resource": records[peer]["resource"], "required": False}})
         for role, record in records.items():
             # Named provisioning requests must retain identical bytes on restart.
-            # Each initial association fences once; the ledger has two.
-            generation = 2 if role == "ledger" else 1
+            # Each association fences once: data, optional query peer/supervisor.
+            generation = {"ledger": 3, "requester": 2, "coordinator": 1}[role]
             self.command("initialize-" + role, {'initialize': {"pid": record["pid"], "expected_generation": generation}})
         write(self.path / "station.json", records)
         write(self.path / "pid.json", records["ledger"]["pid"])
@@ -57,7 +61,7 @@ class StationInstallation(Installation):
         for role, principal in (("coordinator", 10), ("requester", 10), ("coordinator", 11)):
             self.command(f"observe-state-{role}-{principal}", {'grant_resource': {
                 "resource": records[role]["resource"], "subject": principal, "permissions": 3}})
-        for value in (b"allow-query", b"7", b"5"):
+        for value in (b"prepare-table", b"allow-query", b"7", b"5"):
             self.command("seed-ledger-" + value.decode(), {"send": {"pid": records["ledger"]["pid"], "value": frame(value)}})
         self.command("registry-peer", {"send": {"pid": records["coordinator"]["pid"],
             "value": frame(f'lookup-peer:{records["requester"]["pid"]}'.encode())}})
@@ -79,7 +83,9 @@ class StationInstallation(Installation):
     def worker_config(self, role):
         records = self.records()
         return {"role": role, "association": "data", "observer": 10, "registry": records["coordinator"]["pid"],
-                "destination": records["requester" if role == "ledger" else "ledger"]["pid"]}
+                "destination": records["requester" if role == "ledger" else "ledger"]["pid"],
+                "source_resource": records["ledger"]["resource"] if role == "requester" else None,
+                "peer_resource": records["requester"]["resource"] if role == "ledger" else None}
 
     def process(self, role):
         return self.native_query({"process": self.records()[role]["pid"]})["body"]["process"]["process"]
@@ -97,6 +103,10 @@ class StationInstallation(Installation):
                 self.command("worker-grant-" + identity, {"grant": {"subject": record["principal"],
                     "public_key": self.key(role + "/seed.key"), "permissions": 88, "pid": record["pid"]}})
                 self.command("worker-state-" + identity, {'grant_resource': {"resource": record["resource"], "subject": record["principal"], "permissions": 7}})
+                if role in ('ledger', 'requester'):
+                    peer = self.records()['requester' if role == 'ledger' else 'ledger']
+                    self.command('worker-query-read-' + identity, {'grant_resource': {
+                        'resource': peer['resource'], 'subject': record['principal'], 'permissions': 3}})
                 self.command("worker-own-" + identity, {"own": {"pid": record["pid"], "worker": record["principal"], "expected_generation": process["generation"]}})
                 write(self.path / role / "config.json", {"url": "http://node:8080" if self.profile == "compose" else self.url,
                     "realm": self.load()["realm"], "principal": record["principal"], "pid": record["pid"], "generation": process["generation"] + 1,

@@ -16764,3 +16764,35 @@ reference run failed because it assumed the first network address had an IPv4
 gateway. Neither counts as a pass. Both passing runs complete their owned
 placement teardown. Local installation and physical placement now have separate
 executed evidence for the migrated work-item application.
+
+### Station ledger on general Tables and finite query publications
+
+At `96ec89a4` plus the following Station ledger migration, the ReleaseSafe
+example build passed all four build steps (`general-station-ledger-build4.log`).
+The isolated disk-backed core schedule passed
+(`general-station-ledger-native5.log`): 7 + 5 - 2 = 10; identical retry bytes
+after a lost terminal receipt; worker, node and disk-store replacement; stale
+ownership rejection; independently decoded typed Arrow segments and coverage;
+replacement of both query hosts after capture; policy denial before capture and
+revocation during capture; and inspectable poisoned input with working native
+termination. The terminal mutation is observed to contain exactly four KV writes
+(Table head, exact Table outcome, application audit and pending-work removal)
+and the original call reply in the same turn. Queue admission is not completion.
+
+The service schedule passed (`general-station-ledger-services2.log`): registry
+rebind retains the resolved old PID, a timed-out call still completes its
+accepted application work without reopening the wait, and separately scoped
+supervision reaches every child across multiple pages. The lifetime schedule
+passed (`general-station-ledger-lifetime1.log`): typed state survives suspension
+and recovery, expired dependencies never reactivate, and opted-in reclamation
+survives authority restart. Both use the real courier for staged self-messages.
+
+The first native run against the new application (`native4`) failed when
+PID-scoped readers lacked optional query-peer associations despite having resource
+grants. Provisioning now supplies both. The first service schedule incorrectly
+waited for a reply to a registry-routed cast; it now checks that cast's committed
+audit entry. Neither failed run is completion evidence. These logs are in
+`/var/tmp/transit-table-75-_el6xx0v`, with the full `general-station-ledger-`
+prefix. Local/Compose/reference ledger placements and the final clean checkout
+remain separate qualification work; earlier placement results do not qualify
+this changed application.

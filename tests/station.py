@@ -11,7 +11,7 @@ import time
 
 import pyarrow as pa
 
-from arrow import field, simple_rows
+from station_ledger import AUDIT, audit_total, query_key, query_result
 from inspection import System
 from storage import wait_ready
 
@@ -37,18 +37,21 @@ def run(node, cli, worker, courier):
                 s.command({"grant_resource": {"resource": resource, "subject": subject, "permissions": 7}})
             s.command({"associate": {"pid": pid, "name": b"data".hex(), "resource": resource}})
             s.command({"send": {"pid": pid, "value": frame(b"init")}})
-            s.command({"initialize": {"pid": pid, "expected_generation": 1}})
-            s.command({"own": {"pid": pid, "worker": principal, "expected_generation": 2}})
             config = {"url": s.url, "realm": 72, "principal": principal, "pid": pid,
                       "generation": 3, "seed_file": str(seed), "role": role, "destination": destination}
             return pid, resource, config
         ledger, ledger_resource, ledger_config = create(1, "ledger")
         requester, requester_resource, requester_config = create(2, "requester", ledger)
-        ledger_config["destination"] = requester
+        ledger_config.update(destination=requester, peer_resource=requester_resource)
+        requester_config['source_resource'] = ledger_resource
+        for resource, subject, config in ((ledger_resource, 2, requester_config), (requester_resource, 1, ledger_config)):
+            s.command({'grant_resource': dict(resource=resource, subject=subject, permissions=3)})
+            s.command({'associate': dict(pid=config['pid'], name=b'query-peer'.hex(), resource=resource, required=False)})
+            s.command({'initialize': dict(pid=config['pid'], expected_generation=2)})
+            s.command({'own': dict(pid=config['pid'], worker=subject, expected_generation=3)})
+            config['generation'] = 4
         def total():
-            key = b"\x00r" + (1).to_bytes(4, "little") + ((1 << 63) + 1).to_bytes(8, "big")
-            row = value(ledger_resource, key)
-            return 0 if row is None else int.from_bytes(row[2:], "little", signed=True)
+            return audit_total(s.native_query, ledger_resource)
         serial = 0
         def launch(config, once=True):
             nonlocal serial
@@ -58,10 +61,22 @@ def run(node, cli, worker, courier):
             return s.start(worker, *( ["--once", path] if once else [path]))
         def once(config, success=True):
             child = launch(config)
-            assert (child.wait(timeout=20) == 0) == success
+            assert (child.wait(timeout=30) == 0) == success, Path(s.logs[-1].name).read_text()[-3000:]
+        def pump_until(predicate, configs, seconds=60):
+            deadline = time.monotonic() + seconds
+            while not predicate():
+                assert time.monotonic() < deadline, 'Station domain work did not complete'
+                progressed = False
+                for config in configs:
+                    if s.native_query({'process': config['pid']})['body']['process']['input'] is not None:
+                        once(config)
+                        progressed = True
+                if not progressed: time.sleep(.025)
         once(ledger_config)
         once(requester_config)
         assert total() == 0
+        s.command({'send': {'pid': ledger, 'value': frame(b'prepare-table')}})
+        once(ledger_config)
         assert value(ledger_resource, b"\x00station") == b"station.genserver.v1"
 
         delivery_seed, public = s.key("courier")
@@ -86,7 +101,13 @@ def run(node, cli, worker, courier):
                 body = self.rfile.read(int(self.headers["Content-Length"]))
                 envelope = json.loads(body)
                 command = envelope.get("request", {}).get("command", {})
-                is_turn = ("turn" in command or "turn_with_versions" in command) and envelope["request"]["principal"] == 1
+                turn = command.get('turn', command.get('turn_with_versions', {}).get('turn', {}))
+                is_turn = bool(turn) and envelope['request']['principal'] == 1 and any(
+                    item and bytes.fromhex(item['key']).startswith(AUDIT) for item in turn.get('mutations', []))
+                if is_turn:
+                    writes = [item for item in turn['mutations'] if item]
+                    assert len(writes) == 4 and any(item['value'] is None for item in writes), writes
+                    assert any(item and bytes.fromhex(item['value'])[4] == 3 for item in turn['outputs']), 'Terminal publication lost its call reply'
                 query = envelope.get("query", {})
                 if query.get('kind', {}).get('entries', {}).get('view') and not control['changed_basis']:
                     # Advance authority policy after capture without replacing
@@ -121,117 +142,86 @@ def run(node, cli, worker, courier):
         try:
             s.command({"send": {"pid": requester, "value": frame(b"7")}})
             once(requester_config)
-            await_input(ledger)
-            once(proxied)
-            assert len(control["bodies"]) == 2 and control["bodies"][0] == control["bodies"][1]
-            await_input(requester)
-            once(requester_config)
-            assert total() == 7 and value(requester_resource, b"answer") == b"7"
+            writer = launch(proxied, once=False)
+            pump_until(lambda: value(requester_resource, b'answer') == b'7', [requester_config])
+            writer.terminate(); writer.wait(timeout=10)
+            assert len(control['bodies']) == 2 and control['bodies'][0] == control['bodies'][1]
+            assert total() == 7
 
-            # Crash after the authority accepted a reply-producing turn, before
-            # its worker received a receipt. Then lose the authority and storage.
+            # The held turn publishes the typed Table head, exact outcome, audit
+            # and reply together; queue admission alone cannot satisfy this fault.
             committed.clear()
-            control["mode"] = "hold"
-            s.command({"send": {"pid": requester, "value": frame(b"5")}})
+            control['mode'] = 'hold'
+            s.command({'send': {'pid': requester, 'value': frame(b'5')}})
             once(requester_config)
-            await_input(ledger)
-            old = launch(proxied)
-            assert committed.wait(timeout=15)
-            old.kill()
-            old.wait(timeout=10)
+            old = launch(proxied, once=False)
+            assert committed.wait(timeout=60)
+            old.kill(); old.wait(timeout=10)
             release.set()
-            s.authority.kill()
-            s.authority.wait(timeout=10)
-            s.store.stop()
-            s.store.start()
+            s.authority.kill(); s.authority.wait(timeout=10)
+            s.store.stop(); s.store.start()
             s.authority = s.start(s.node, s.config)
-            wait_ready(s.store.http, s.authority, s.url + "/health")
-            s.command({"own": {"pid": ledger, "worker": 1, "expected_generation": 3}})
-            current = {**ledger_config, "generation": 4}
+            wait_ready(s.store.http, s.authority, s.url + '/health')
+            s.command({'own': {'pid': ledger, 'worker': 1, 'expected_generation': 4}})
+            current = {**ledger_config, 'generation': 5}
             once(ledger_config, success=False)
-            await_input(requester)
-            once(requester_config)
-            assert total() == 12 and value(requester_resource, b"answer") == b"12"
-            s.command({"send": {"pid": requester, "value": frame(b"-2")}})
-            once(requester_config)
-            await_input(ledger)
-            once(current)
-            await_input(requester)
-            once(requester_config)
-            assert total() == 10 and value(requester_resource, b"answer") == b"10"
+            pump_until(lambda: value(requester_resource, b'answer') == b'12', [requester_config])
+            assert total() == 12
+            s.command({'send': {'pid': requester, 'value': frame(b'-2')}})
+            pump_until(lambda: value(requester_resource, b'answer') == b'10', [current, requester_config])
+            assert total() == 10
 
-            # Send permission alone cannot disclose Table data.
-            s.command({"send": {"pid": requester, "value": frame(b"query")}})
-            once(requester_config)
-            await_input(ledger)
+            def upload_query():
+                namespace = s.command({'send': {'pid': requester, 'value': frame(b'query')}})
+                def queued():
+                    incoming = s.native_query({'process': ledger})['body']['process']['input']
+                    return incoming is not None and bytes.fromhex(incoming['value'])[13:17] == b'SPF1'
+                pump_until(queued, [requester_config])
+                return namespace
+            # Drain leftover application self-wakes before sending a query. A
+            # pending query call itself is captured only by the explicit step.
+            def drain_ledger():
+                idle_since = time.monotonic()
+                deadline = idle_since + 60
+                while time.monotonic() - idle_since < .2:
+                    assert time.monotonic() < deadline
+                    if s.native_query({'process': ledger})['body']['process']['input'] is not None:
+                        once(current)
+                        idle_since = time.monotonic()
+                    else: time.sleep(.02)
+            def phase(namespace):
+                state = value(requester_resource, query_key('u', namespace))
+                return state[76] if state else None
+            drain_ledger()
+            denied = upload_query()
             once(current)
-            await_input(requester)
-            once(requester_config)
-            assert value(requester_resource, b"answer") == b"station.query.error.QueryDenied"
-            s.command({"send": {"pid": ledger, "value": frame(b"allow-query")}})
-            once(current)
+            pump_until(lambda: phase(denied) == 6, [current, requester_config])
+            assert value(requester_resource, b'answer') == b'station.query.error.QueryDenied'
+            s.command({'send': {'pid': ledger, 'value': frame(b'allow-query')}})
+            drain_ledger()
 
-            def pump_until(predicate, limit=160):
-                for _ in range(limit):
-                    if predicate(): return
-                    progressed = False
-                    for config in (current, requester_config):
-                        if s.native_query({'process': config['pid']})['body']['process']['input'] is not None:
-                            once(config)
-                            progressed = True
-                    if not progressed: time.sleep(.025)
-                raise AssertionError('Station query did not reach its recorded completion')
-            query_input = s.command({"send": {"pid": requester, "value": frame(b"query")}})
-            once(requester_config)
-            await_input(ledger)
-            # Capture a finite snapshot; no Arrow fragment is sent in this turn.
-            once(current)
-            await_input(ledger)
-            s.command({"own": {"pid": ledger, "worker": 1, "expected_generation": 4}})
-            current["generation"] = 5
-            once(current)  # a new host publishes only previously captured bytes
-            pump_until(lambda: s.native_query({'process': requester})['body']['process']['input'] is not None)
-            once(requester_config)  # consume one fragment, then replace its host
-            s.command({"own": {"pid": requester, "worker": 2, "expected_generation": 3}})
-            requester_config["generation"] = 4
-            pump_until(lambda: value(requester_resource, b'last-query') is not None)
-            def query_key(tag, identity, ordinal=0, fragment=0):
-                return b'\0Q' + tag.encode() + struct.pack('>QQH', identity, ordinal, fragment)
-            manifest = value(requester_resource, query_key('c', query_input))
-            assert len(manifest) == 241 and manifest[:4] == b'GQM1'
-            assert manifest[40] == 2  # Table source kind.
-            assert int.from_bytes(manifest[41:49], 'little') == ledger_resource
-            assert manifest[89:121] == hashlib.sha256(b'transit.fuze.schema.v1\0\2\2\1id\6\1amount').digest()
-            result_id = int.from_bytes(manifest[4:12], 'little')
-            segments, size, rows = struct.unpack_from('<QQQ', manifest, 153)
-            assert segments == 1 and rows == 1
-            data = b''.join(value(requester_resource, query_key('d', query_input, 0, index))
-                            for index in range((size + 220) // 221))
-            assert len(data) == size
-            segment = value(requester_resource, query_key('v', query_input))
-            assert hashlib.sha256(data).digest() == segment[-32:]
-            with pa.ipc.open_stream(data) as reader:
-                table = reader.read_all()
-            assert simple_rows(table) == [{'id': 1, 'amount': 10}]
-            assert table.schema == pa.schema([field('id', pa.int64()), field('amount', pa.int64())])
-            pump_until(lambda: value(ledger_resource, query_key('j', result_id))[57] == 4)
+            namespace = upload_query()
+            once(current)  # retain the actual schema-bound cut, before result staging
+            s.command({'own': {'pid': ledger, 'worker': 1, 'expected_generation': 5}})
+            current['generation'] = 6
+            s.command({'own': {'pid': requester, 'worker': 2, 'expected_generation': 4}})
+            requester_config['generation'] = 5
+            pump_until(lambda: phase(namespace) == 4, [current, requester_config])
+            assert value(requester_resource, b'last-query') == str(namespace).encode()
+            result = query_result(value, requester, requester_resource, ledger, ledger_resource, namespace, [{'id': 1, 'amount': 10}])
+            assert value(ledger_resource, query_key('j', result))[125] == 3
+            drain_ledger()
 
-            # Stop delivery long enough to order revocation ahead of continuation.
-            # Captured bytes remain retained but may no longer be disclosed.
-            s.command({"send": {"pid": requester, "value": frame(b"query")}})
-            once(requester_config)
-            await_input(ledger)
-            delivery_daemon.terminate()
-            delivery_daemon.wait(timeout=10)
+            # Revoke policy between retained capture and the next self-input.
+            namespace = upload_query()
+            delivery_daemon.terminate(); delivery_daemon.wait(timeout=10)
             once(current)
-            s.command({"send": {"pid": ledger, "value": frame(b"deny-query")}})
+            s.command({'send': {'pid': ledger, 'value': frame(b'deny-query')}})
             once(current)
             delivery_daemon = s.start(courier, delivery_config)
-            await_input(ledger)
-            once(current)
-            await_input(requester)
-            once(requester_config)
-            assert value(requester_resource, b"answer") == b"station.query.denied.v1"
+            pump_until(lambda: phase(namespace) == 6, [current, requester_config])
+            assert value(requester_resource, b'answer') == b'station.query.error.QueryDenied'
+            drain_ledger()
 
             bad_input = s.command({"send": {"pid": ledger, "value": frame(b"invalid")}})
             once(current, success=False)
@@ -246,7 +236,7 @@ def run(node, cli, worker, courier):
             s.command({"terminate": ledger})
             assert s.inspect("process", ledger)["processes"][0]["lifecycle"] == "terminated"
             assert control["changed_basis"] == 1, "No captured view crossed the policy change"
-            print("Station: two-table turns, call/reply, exact retries, captured views across policy changes, worker/store recovery, authorized captured Arrow replies, fencing and blocked-handler control passed.")
+            print("Station: typed Table/audit/reply publication, call/reply, exact retries, captured views across policy changes, worker/store recovery, authorized captured Arrow replies, fencing and blocked-handler control passed.")
         finally:
             release.set()
             proxy.shutdown()
@@ -259,4 +249,4 @@ if __name__ == "__main__":
     from station_services import run as services
     services(*sys.argv[1:])
     from station_lifetime import run as lifetime
-    lifetime(*sys.argv[1:4])
+    lifetime(*sys.argv[1:5])

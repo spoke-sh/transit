@@ -1152,7 +1152,7 @@ pub fn build(b: *std.Build) void {
         .root_source_file = b.path("examples/station-ledger/main.zig"),
         .target = target,
         .optimize = optimize,
-        .imports = &.{.{ .name = "transit_station", .module = station.module("transit_station") }},
+        .imports = &.{.{ .name = "transit_query", .module = query.module("transit_query") }},
     }) });
     const install_ledger = b.addInstallArtifact(station_ledger, .{});
     b.step("example-station-ledger", "Install the Station ledger example").dependOn(&install_ledger.step);

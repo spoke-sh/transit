@@ -1,9 +1,17 @@
 //! The application owns its computation; Station owns the behavior protocol.
 const std = @import("std");
-const station = @import("transit_station");
+const query = @import("transit_query");
+const station = query.station;
+const Ledger = @import("Ledger.zig");
+const Query = @import("Query.zig");
 const p = station.protocol;
 
 pub const Application = struct {
+    allocator: std.mem.Allocator,
+    resources: station.client.ResourceReader,
+    source_resource: ?u64 = null,
+    peer_resource: ?u64 = null,
+    capture: ?struct { adapter: []u8, workspace: []u8, cancellation: *const query.fuze.execution.Cancellation } = null,
     role: enum { ledger, requester, coordinator } = .ledger,
     destination: ?u64 = null,
     observer: ?u64 = null,
@@ -20,12 +28,21 @@ pub const Application = struct {
             try turn.cast(turn.delivery.pid, try p.Value.init("initialize-supervisor"));
             return;
         }
-        const schema: station.fuze.model.Schema = .{ .names = .{ try station.fuze.model.Name.init("id"), try station.fuze.model.Name.init("amount") }, .value_type = .int64 };
-        _ = try station.Table.create(turn, 1, schema);
-        _ = try station.Table.create(turn, 2, schema);
+        if (self.role == .ledger) {
+            try Ledger.catalog(turn.delivery.realm, turn.view.resource, turn.delivery.pid).initialize(turn);
+        }
     }
     fn handle(context: ?*anyopaque, turn: *station.Turn, frame: station.Frame) !void {
         const self: *Application = @ptrCast(@alignCast(context.?));
+        return self.dispatch(turn, frame) catch |err| {
+            // Foreign resource reads cannot fabricate a failed application turn
+            // when their authority observation is unavailable or has advanced.
+            const rejection = self.resources.wire.last_rejection;
+            if (station.client.Client.unavailable(err) or ((err == error.Rejected or err == error.Conflict) and (rejection == .StaleStateResource or rejection == .QueryExpired or rejection == .StateViewExpired))) turn.read_error = err;
+            return err;
+        };
+    }
+    fn dispatch(self: *Application, turn: *station.Turn, frame: station.Frame) !void {
         if (frame.kind == .cast and std.mem.eql(u8, frame.payload.slice(), "init")) return;
         switch (self.role) {
             .coordinator => {
@@ -55,39 +72,37 @@ pub const Application = struct {
                 _ = try station.Registry.apply(turn, request);
             },
             .ledger => {
-                if (frame.kind != .call and frame.kind != .cast) return error.UnexpectedLedgerMessage;
-                const table = try station.Table.open(turn, 1);
-                if (std.mem.eql(u8, frame.payload.slice(), "query")) {
-                    _ = station.Query.start(turn, table, .{ .projection = &.{ 0, 1 } }) catch |err| {
-                        var buffer: [128]u8 = undefined;
-                        try turn.reply(try p.Value.init(try std.fmt.bufPrint(&buffer, "station.query.error.{s}", .{@errorName(err)})));
-                    };
-                    return;
-                }
-                // A synthetic owner command demonstrates ordered policy updates.
-                // Only the configured root principal may change this demo policy.
-                if (std.mem.eql(u8, frame.payload.slice(), "allow-query") or std.mem.eql(u8, frame.payload.slice(), "deny-query")) {
+                if (frame.kind == .cast and frame.payload.eql(Ledger.continuation)) return Ledger.drive(self.allocator, turn);
+                if (frame.kind == .cast and frame.payload.eql(Ledger.create_continuation)) return Ledger.create(self.allocator, turn, true);
+                if (frame.kind == .cast and std.mem.eql(u8, frame.payload.slice(), "prepare-table")) return Ledger.create(self.allocator, turn, false);
+                if (frame.kind == .cast and (std.mem.eql(u8, frame.payload.slice(), "allow-query") or std.mem.eql(u8, frame.payload.slice(), "deny-query"))) {
                     switch (turn.delivery.input.origin) {
                         .external => |origin| if (origin.principal != 0) return error.AccessDenied,
                         else => return error.AccessDenied,
                     }
                     const peer = self.destination orelse return error.MissingDestination;
-                    const old = try station.Query.policy(turn, peer);
-                    try station.Query.setPolicy(turn, peer, 1, if (old) |grant| grant.revision else 0, std.mem.eql(u8, frame.payload.slice(), "allow-query"));
+                    const catalog = Ledger.catalog(turn.delivery.realm, turn.view.resource, turn.delivery.pid);
+                    const old = try query.UnifiedCapture.policy(turn, peer);
+                    try query.UnifiedCapture.setPolicy(turn, .{ .peer = peer, .requests = self.peer_resource orelse return error.MissingQueryResource, .revision = if (old) |grant| grant.revision + 1 else 1, .target = .{ .catalog = .{ .scope = catalog.configuration.scope, .owner = turn.delivery.pid, .principal = 0 } }, .allow = std.mem.eql(u8, frame.payload.slice(), "allow-query"), .limits = Query.limits });
                     return;
                 }
-                const previous = if (try table.get(turn, 1)) |row| row.value.int64 else 0;
-                const delta = try frame.payload.asInteger();
-                const total = try std.math.add(i64, previous, delta);
-                const audit = try station.Table.open(turn, 2);
-                try station.Table.atomic(turn, &.{
-                    .{ .table = table, .operation = .{ .upsert = .{ .key = 1, .value = .{ .int64 = total } } } },
-                    .{ .table = audit, .operation = .{ .insert = .{ .key = @intCast(turn.delivery.input.position), .value = .{ .int64 = delta } } } },
-                });
-                if (frame.kind == .call) try turn.reply(p.Value.integer(total));
+                if (frame.kind == .cancel) {
+                    const peer = try station.Frame.source(turn.delivery.input);
+                    // Cancellation of an application delta is advisory. Only a
+                    // recorded query correlation enters query cleanup.
+                    if (try turn.read(query.UnifiedRecords.key('i', peer, frame.correlation)) == null) return;
+                }
+                if (frame.kind == .cancel or (frame.kind == .call and std.mem.startsWith(u8, frame.payload.slice(), "SPF1")) or (frame.kind == .cast and std.mem.startsWith(u8, frame.payload.slice(), "UQN1"))) {
+                    const capture = self.capture orelse return error.MissingQueryPeer;
+                    return query.UnifiedBehavior.dispatchCatalogSource(turn, frame, Ledger.catalog(turn.delivery.realm, turn.view.resource, turn.delivery.pid).configuration, self.resources, capture.adapter, capture.workspace, capture.cancellation);
+                }
+                if (frame.kind != .call and frame.kind != .cast) return error.UnexpectedLedgerMessage;
+                try Ledger.enqueue(turn, frame);
             },
             .requester => switch (frame.kind) {
                 .cast => {
+                    if (frame.payload.eql(Query.continuation)) return Query.drive(self.allocator, turn, self.destination orelse return error.MissingDestination, self.observer);
+                    if (std.mem.eql(u8, frame.payload.slice(), "query")) return Query.enqueue(self.allocator, turn, self.resources, self.source_resource orelse return error.MissingQueryResource, self.destination orelse return error.MissingDestination);
                     if (std.mem.eql(u8, frame.payload.slice(), "lookup")) {
                         _ = try turn.call(self.registry orelse return error.MissingRegistry, try (station.Registry.Request{ .scope = 1, .name = try station.Registry.Name.init("ledger"), .operation = .lookup }).encode(), null);
                     } else if (std.mem.startsWith(u8, frame.payload.slice(), "wait:")) {
@@ -97,15 +112,12 @@ pub const Application = struct {
                     } else _ = try turn.call(self.destination orelse return error.MissingDestination, frame.payload, null);
                 },
                 .reply => {
+                    if (try Query.reply(turn, frame, self.destination orelse return error.MissingDestination)) return;
                     if (std.mem.startsWith(u8, frame.payload.slice(), "RGR1")) {
                         _ = try station.Registry.route(turn, self.registry orelse return error.MissingRegistry, frame, try p.Value.init("0"));
                     } else try turn.put(try p.Value.init("answer"), frame.payload);
                 },
                 .timeout => try turn.put(try p.Value.init("answer"), try p.Value.init("timeout")),
-                .result_complete => {
-                    const result = try station.Query.completed(turn, frame.correlation);
-                    try turn.put(try p.Value.init("last-query"), p.Value.integer(@intCast(result.result)));
-                },
                 else => return error.UnexpectedRequesterMessage,
             },
         }

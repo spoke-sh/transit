@@ -3,8 +3,7 @@
 `example-station-ledger` is a Zig Station application: a ledger, requester and
 coordinator exchange durable calls, use associated Tables, and capture finite
 Arrow replies. The coordinator supplies a scoped registry and bounded supervisor.
-Each role is a separate Transit process and worker. This is the runnable
-[M9](../../docs/roadmap/M9.md) example.
+Each role is a separate Transit process and worker.
 
 For an interactive installation with Board:
 
@@ -29,17 +28,33 @@ Build with `just build::debug`; run the isolated end-to-end example/proof with
 scoped worker identities and an automatic courier against disk-backed Ursula.
 It checks 7 + 5 - 2 = 10, a lost receipt, worker/store restart, stale ownership
 and a poisoned input that remains inspectable after its handler is blocked.
-It also updates an audit Table atomically with the total, independently reads
-the query's Arrow IPC, replaces both query hosts mid-delivery, and orders query
-policy revocation ahead of publication. Root-origin `allow-query`/`deny-query`
+The total is a general typed Table with an explicit INT64 primary key and
+nullable INT64 amount. Immutable application KV entries record each input's delta
+and resulting total. A terminal turn publishes the Table head, exact Table
+outcome, audit entry, pending-work removal and original call reply together using
+four native writes. Earlier staging is private; accepting a call does not claim
+that its Table mutation has completed.
+
+The proof independently reads the query's typed Arrow IPC, replaces both query
+hosts after capture, and orders query policy revocation ahead of publication. Root-origin `allow-query`/`deny-query`
 casts configure the demo's explicit sharing policy for `destination`.
 
 The executable accepts a JSON configuration path, or `--once <path>` to stop
 after one committed turn. Configuration fields are `url`, `realm`, `principal`,
 `pid`, `generation`, `seed_file`, `association` (default `data`), `role`
 (`ledger`, `requester` or `coordinator`), optional `destination`, `registry`
-and trusted `observer` principal.
-Provisioning must establish a required association, resource permissions,
+and trusted `observer` principal. A requester sets `source_resource` to the
+ledger's resource; a query-serving ledger sets `peer_resource` to the requester's
+resource. Each PID has an optional `query-peer` association to that foreign
+resource, and each worker needs a separate current native read grant. The
+association neither grants access nor makes the peer a lifetime dependency.
+The ledger's explicit query policy maps its configured requester to
+catalog principal zero; PID numbers never become principals by inference.
+
+Provisioning sends root-origin `init`, then `prepare-table`, before application
+commands. Creation advances through authenticated self-messages; queued deltas
+wait for its complete publication. A courier must deliver those self-messages as
+well as calls and replies. Provisioning must establish a required association, resource permissions,
 execute/inspect/publish grants, and fresh ownership before starting a worker.
 Never put root credentials in this configuration.
 
@@ -51,8 +66,10 @@ current worker incarnation. No signing key or authority is saved in Substrate's
 durable directory. The host pins one generation; replacement uses a new worker
 and key. Merely cold-booting within the old pod cannot establish that activation.
 
-The host proposes a short state-view deadline and drives the framework; the
-handler receives neither a clock nor a network client. A lost submission retains
+The host proposes a short state-view deadline and drives the framework. It
+supplies bounded workspace and an authenticated public resource reader for
+cross-resource query uploads/results. Table computation uses the committed turn
+reader and performs no raw storage access. A lost submission retains
 the exact proposal before any subsequent handler. The [Station package](../../packages/zig/transit-station/README.md)
 owns the behavior and recovery contract. This executable is an application,
 not a service required to operate Transit.
