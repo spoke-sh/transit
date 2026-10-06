@@ -6247,6 +6247,35 @@
         "std"
       ]
     },
+    "packages/zig/transit-fuze/src/LogicalInspect.zig": {
+      "errors": {
+        "InvalidArrowResult": 31,
+        "ValueBudgetExceeded": 4
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "Budget.child()": "<inferred>",
+        "Budget.copy()": "<inferred>",
+        "Budget.count()": "<inferred>",
+        "atom()": "<inferred>",
+        "cell()": "anyerror",
+        "decode()": "<inferred>",
+        "field()": "<inferred>",
+        "ordinary()": "<inferred>",
+        "primitive()": "<inferred>",
+        "value()": "anyerror"
+      },
+      "open_error_set_uses": 2,
+      "propagation": {
+        "try": 80,
+        "catch": 0
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
     "packages/zig/transit-fuze/src/LogicalJson.zig": {
       "errors": {
         "IncompatibleDefinition": 2,
@@ -8702,6 +8731,7 @@
         "LogicalArrow.zig",
         "LogicalCodec.zig",
         "LogicalDisplay.zig",
+        "LogicalInspect.zig",
         "LogicalJson.zig",
         "LogicalPlanCodec.zig",
         "LogicalPredicate.zig",

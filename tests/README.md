@@ -11825,6 +11825,22 @@ are corrected: the error preserves incomplete output, identifies a schema/row
 integrity mismatch and directs the caller to the operator without inventing a
 saved command. The third full run passes all mapping and outcome assertions.
 
+Canonical logical Arrow decoding passes **239/239 Fuze tests**
+(`table-logical-inspect-test2.log`). All 46 independent scalar fixtures retain
+exact canonical value bytes after input and workspace are overwritten. Recursive
+ownership, all five states, full-width conflict identities and exhaustive partial
+allocation failures pass. Every truncated prefix, foreign schema/definition,
+extra batch/stream, wrong row count and invalid physical state/kind/payload
+relationship rejects. The first run finds a test variable shadowing the shared
+schema; renaming that variable fixes the compile failure.
+
+The independent Arrow schedule passes **106 PyArrow 23.0.0 cases**
+(`table-logical-inspect-arrow1.log`). Its 45 neutral bridge cases also round-trip
+through the new Zig decoder and compare complete logical JSON values. PyArrow
+checks the emitted physical layouts independently. These results qualify the
+local canonical segment decoder; they do not establish general external IPC
+import, neutral ABI import or durable query integration.
+
 ## Fuze logical type foundation
 
 The local `Types` profile has nine passing focused Zig tests, including 46

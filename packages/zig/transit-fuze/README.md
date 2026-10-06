@@ -44,6 +44,14 @@ returns no candidate after an error or cancellation. Its
 keeps current authorization, captured source lifetime and atomic publication with
 the source owner.
 
+`LogicalInspect` decodes one complete canonical `LogicalArrow` segment into owned
+recursive rows and a descriptor. It checks exact schema bytes before interpreting
+IPC metadata, then validates physical arrays and complete logical cell semantics.
+Its [segment contract](../../../contracts/FUZE_ARROW_V1.md#canonical-segment-decoding)
+defines independent input/workspace/row budgets and excludes general external
+Arrow import. The result owns all bytes until `deinit`; source authority and
+publication evidence remain with the consumer.
+
 `TableDml` compiles [typed Table statements](../../../contracts/TABLE_DML_V1.md)
 against a supplied name and complete schema. It owns generalized INSERT rows,
 constant/default UPDATE assignments and DELETE predicates using stable column

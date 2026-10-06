@@ -12,5 +12,12 @@ pub fn main(init: std.process.Init) !void {
     defer init.gpa.free(workspace);
     var output: [f.LogicalArrow.segment_bytes]u8 = undefined;
     const encoded = try f.LogicalArrow.encode(.{ .structure = &.{value.field} }, &.{.{ .cells = &.{value.cell} }}, workspace, &output);
+    var restored = try f.LogicalInspect.decode(init.gpa, .{ .structure = &.{value.field} }, encoded, 1, workspace);
+    defer restored.deinit();
+    const before = try f.LogicalJson.encode(init.gpa, value.cell, value.field);
+    defer init.gpa.free(before);
+    const after = try f.LogicalJson.encode(init.gpa, restored.rows[0].cells[0], restored.descriptor.type.structure[0]);
+    defer init.gpa.free(after);
+    if (!std.mem.eql(u8, before, after)) return error.LogicalArrowRoundTripMismatch;
     try std.Io.File.stdout().writeStreamingAll(init.io, encoded);
 }

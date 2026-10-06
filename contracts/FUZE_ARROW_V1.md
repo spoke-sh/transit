@@ -1,7 +1,8 @@
 # Fuze logical Arrow v1
 
 This contract defines local logical-value IPC export from `transit_fuze.LogicalArrow`
-and `transit file-query --output arrow`. Native durable query results retain the
+and `transit file-query --output arrow`, and canonical segment decoding through
+`transit_fuze.LogicalInspect`. Native durable query results retain the
 six-scalar [unified query contract](UNIFIED_QUERY_V1.md); Flight retains its own
 int64 profile. This export does not broaden their source or type admission.
 
@@ -86,6 +87,28 @@ does not establish a completed query. No JSON records are mixed into this stream
 `--batch-rows` selects 1–8 rows, default 8. If a batch exceeds workspace/segment
 capacity, the host splits that same ordered batch; a single oversized row fails.
 It never changes schema, drops a row or restarts discovery. The caller releases
-all owned rows after export or error. IPC import into logical values, logical C
-data/stream export, Flight and SDK Arrow extensions are separate capabilities;
-this contract currently admits local IPC export only.
+all owned rows after export or error.
+
+## Canonical segment decoding
+
+`LogicalInspect.decode` accepts exactly one complete plain schema/batch/end segment
+from `LogicalArrow.encode`, with a supplied logical schema and expected row count.
+It compares the canonical schema bytes, including both mandatory definitions,
+before the IPC reader interprets input metadata. Different field names, types,
+nullability, metadata or definitions reject. This is not a general third-party
+Arrow importer: file-query streams with discovery metadata, multiple record
+batches, dictionary batches and concatenated streams are outside this admission.
+
+Decode enforces the same eight-row, 64-KiB segment and 4-MiB workspace limits.
+It validates Arrow structure and the logical state/kind/payload relationships,
+ordered conflict identities, map keys and complete row budgets. Recursive cells
+consume one shared logical value budget per row. Inactive union wrappers must be
+canonical missing; they do not consume the selected logical branch's node budget.
+Missing end markers, incomplete input, extra batches and trailing bytes reject.
+
+The returned `Batch` owns its descriptor, rows, names and all variable-width
+values independently of input and workspace. Call `deinit` on success; failure
+releases partial ownership and provides no batch. Workspace must not alias input.
+Decoding establishes no authorization, publication or captured-source evidence.
+The neutral ABI's logical IPC import, logical C data/stream export, Flight and
+SDK Arrow extensions remain separate capabilities.

@@ -8,6 +8,7 @@ pub const FileQuery = @import("FileQuery.zig");
 pub const LogicalQuery = @import("LogicalQuery.zig");
 pub const LogicalPlanCodec = @import("LogicalPlanCodec.zig");
 pub const LogicalStream = @import("LogicalStream.zig");
+pub const LogicalInspect = @import("LogicalInspect.zig");
 pub const LogicalPredicate = @import("LogicalPredicate.zig");
 pub const FileSource = @import("FileSource.zig");
 pub const SourceCodec = @import("SourceCodec.zig");
@@ -49,6 +50,7 @@ test {
     _ = @import("table_dml_codec_test.zig");
     _ = @import("logical_plan_codec_test.zig");
     _ = @import("logical_stream_test.zig");
+    _ = @import("logical_inspect_test.zig");
     _ = SqlInput;
     _ = SqlDiagnostic;
     _ = FileQuery;
