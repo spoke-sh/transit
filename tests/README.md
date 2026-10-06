@@ -10838,6 +10838,14 @@ The first run stopped at stale inventory after removing a duplicate schema
 validation call; regenerated reviewed inventory passes. This is a working-tree
 check, not native general-Table disk qualification or committed clean CI.
 
+Bound logical cell encoding passes **190/190 Fuze package tests**
+(`bound-value-test1.log`). It shares the canonical FVL1 cell implementation and
+validates exact fixed integer-row bytes, full-width integers, floating signed
+zero, decimal, nested list/array/map, JSON and admitted cell states. Every encoded
+prefix truncation and trailing byte rejects; allocation-failure schedules release
+the enclosing request arena. This helper does not establish a schema binding or
+enable a new native request format by itself.
+
 ## Fuze logical type foundation
 
 The local `Types` profile has nine passing focused Zig tests, including 46

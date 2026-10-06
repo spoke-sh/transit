@@ -126,6 +126,14 @@ boolean nullable byte then child type; arrays prepend u32 length. Maps encode
 key type then the value's nullable byte/type. Integers are little-endian.
 
 `FVL1` is magic, u16 `FTY1` length and bytes, root flags, then one typed cell.
+The component's `encodeBound`/`decodeBound` helpers use exactly that final cell
+payload when an enclosing versioned record already binds an exact immutable
+descriptor and flags. Bound payloads contain no standalone type or definition
+claim and are not an alternative FVL1 decoder. The enclosing owner must verify
+its schema binding before decoding, with no current-schema or fallback inference.
+The same recursive validation and 2 MiB encoded-value bound apply. Decoded cells
+and bytes belong to the supplied request arena, including allocations retained
+by a failed parse; releasing that arena releases all of them.
 Cell states are 0 missing, 1 null, 2 type-error plus actual type tag, 3 value,
 4 conflict. Conflict is u8 count and ordered alternatives, each u64 counter,
 u64 replica and state 1/2/3 with its corresponding payload. Scalar integers use

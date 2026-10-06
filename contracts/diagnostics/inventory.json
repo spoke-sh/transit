@@ -7305,9 +7305,9 @@
         "InvalidArrayLength": 1,
         "InvalidConflict": 2,
         "InvalidUnion": 1,
-        "InvalidValueEncoding": 7,
+        "InvalidValueEncoding": 8,
         "UnsupportedAtomType": 1,
-        "ValueBudgetExceeded": 4
+        "ValueBudgetExceeded": 5
       },
       "outcomes": {},
       "error_sets": {},
@@ -7316,7 +7316,9 @@
         "Reader.data()": "<inferred>",
         "Reader.readCount()": "<inferred>",
         "decode()": "<inferred>",
+        "decodeBound()": "<inferred>",
         "encode()": "<inferred>",
+        "encodeBound()": "<inferred>",
         "readAtom()": "<inferred>",
         "readCell()": "anyerror",
         "readValue()": "anyerror",
@@ -7327,7 +7329,7 @@
       },
       "open_error_set_uses": 4,
       "propagation": {
-        "try": 110,
+        "try": 115,
         "catch": 0
       },
       "imports": [

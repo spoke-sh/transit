@@ -17,6 +17,27 @@ pub fn encode(cell: v.Cell, field: types.Field, output: []u8) ![]const u8 {
     try writeCell(cell, field.type, &writer);
     return writer.buffered();
 }
+/// Canonical cell payload for an enclosing versioned schema-bound record. The
+/// enclosing decoder must verify its exact immutable descriptor before calling
+/// decodeBound; these bytes contain no standalone type or compatibility claim.
+pub fn encodeBound(cell: v.Cell, field: types.Field, output: []u8) ![]const u8 {
+    try cell.validate(field, .{});
+    var writer: std.Io.Writer = .fixed(output[0..@min(output.len, max_bytes)]);
+    try writeCell(cell, field.type, &writer);
+    return writer.buffered();
+}
+/// Cells and variable-width bytes belong to the supplied request arena. Both
+/// successful and failed parses retain allocations until that arena is released.
+/// The exact field is supplied by the enclosing verified schema binding.
+pub fn decodeBound(arena: *std.heap.ArenaAllocator, field: types.Field, bytes: []const u8) !v.Cell {
+    if (bytes.len > max_bytes) return error.ValueBudgetExceeded;
+    try field.type.validate(.{});
+    var reader: Reader = .{ .reader = .fixed(bytes), .allocator = arena.allocator() };
+    const cell = try readCell(&reader, field.type, 0);
+    if (reader.reader.bufferedLen() != 0) return error.InvalidValueEncoding;
+    try cell.validate(field, .{});
+    return cell;
+}
 fn writeCell(cell: v.Cell, expected: types.Type, writer: *std.Io.Writer) anyerror!void {
     try writer.writeByte(@backingInt(std.meta.activeTag(cell)));
     switch (cell) {
@@ -263,4 +284,61 @@ test "neutral recursive cells preserve states and owned bytes through allocation
             return error.AcceptedTruncation;
         } else |_| {}
     }
+}
+
+test "schema-bound payload shares canonical FVL cells and owns every decoded value" {
+    const t = std.testing;
+    const cases = [_]struct { field: types.Field, cell: v.Cell }{
+        .{ .field = .{ .name = "i", .type = .int128 }, .cell = .{ .value = .{ .atom = .{ .signed = std.math.minInt(i128) } } } },
+        .{ .field = .{ .name = "u", .type = .uint128 }, .cell = .{ .value = .{ .atom = .{ .unsigned = std.math.maxInt(u128) } } } },
+        .{ .field = .{ .name = "f", .type = .float64 }, .cell = .{ .value = .{ .atom = .{ .float = -0.0 } } } },
+        .{ .field = .{ .name = "d", .type = .{ .decimal = .{ .precision = 38, .scale = 3 } } }, .cell = .{ .value = .{ .atom = .{ .decimal = -123456789 } } } },
+        .{ .field = .{ .name = "list", .nullable = true, .type = .{ .list = .{ .type = &.utf8, .nullable = true } } }, .cell = .{ .value = .{ .list = &.{ .null, .{ .value = .{ .atom = .{ .bytes = "hello🙂" } } } } } } },
+        .{ .field = .{ .name = "array", .type = .{ .array = .{ .element = .{ .type = &.int16 }, .length = 2 } } }, .cell = .{ .value = .{ .array = &.{ .{ .value = .{ .atom = .{ .signed = -32768 } } }, .{ .value = .{ .atom = .{ .signed = 32767 } } } } } } },
+        .{ .field = .{ .name = "map", .type = .{ .map = .{ .key = &.utf8, .value = .{ .type = &.boolean } } } }, .cell = .{ .value = .{ .map = &.{.{ .key = .{ .bytes = "key" }, .value = .{ .value = .{ .atom = .{ .boolean = true } } } }} } } },
+        .{ .field = .{ .name = "json", .type = .json }, .cell = .{ .value = .{ .json = "{\"id\": 123}" } } },
+        .{ .field = .{ .name = "nil", .type = .int64, .nullable = true }, .cell = .null },
+        .{ .field = .{ .name = "absent", .type = .int64, .optional = true }, .cell = .missing },
+        .{ .field = .{ .name = "bad", .type = .int64 }, .cell = .{ .type_error = .utf8 } },
+    };
+    for (cases) |case| {
+        var full: [4096]u8 = undefined;
+        var bound: [4096]u8 = undefined;
+        const payload = try encodeBound(case.cell, case.field, &bound);
+        const envelope = try encode(case.cell, case.field, &full);
+        const descriptor_size = std.mem.readInt(u16, full[4..6], .little);
+        try t.expectEqualSlices(u8, envelope[7 + descriptor_size ..], payload);
+        try t.checkAllAllocationFailures(t.allocator, struct {
+            fn check(allocator: std.mem.Allocator, field: types.Field, bytes: []const u8) !void {
+                var arena: std.heap.ArenaAllocator = .init(allocator);
+                defer arena.deinit();
+                const cell = try decodeBound(&arena, field, bytes);
+                var encoded: [4096]u8 = undefined;
+                try t.expectEqualSlices(u8, bytes, try encodeBound(cell, field, &encoded));
+            }
+        }.check, .{ case.field, payload });
+        for (0..payload.len) |len| {
+            var arena: std.heap.ArenaAllocator = .init(t.allocator);
+            defer arena.deinit();
+            if (decodeBound(&arena, case.field, payload[0..len])) |_| return error.AcceptedTruncation else |_| {}
+        }
+        bound[payload.len] = 0;
+        var arena: std.heap.ArenaAllocator = .init(t.allocator);
+        defer arena.deinit();
+        try t.expectError(error.InvalidValueEncoding, decodeBound(&arena, case.field, bound[0 .. payload.len + 1]));
+    }
+    const field: types.Field = .{ .name = "row", .type = .{ .structure = &.{ .{ .name = "id", .type = .int32 }, .{ .name = "value", .type = .int64, .nullable = true } } } };
+    const cell: v.Cell = .{ .value = .{ .structure = &.{ .{ .value = .{ .atom = .{ .signed = 12 } } }, .{ .value = .{ .atom = .{ .signed = -100 } } } } } };
+    var output: [64]u8 = undefined;
+    // Independent fixed bytes: row state, int32 state/value, int64 state/value.
+    const expected = [_]u8{ 3, 3, 12, 0, 0, 0, 3, 156, 255, 255, 255, 255, 255, 255, 255 };
+    try t.expectEqualSlices(u8, &expected, try encodeBound(cell, field, &output));
+    var arena: std.heap.ArenaAllocator = .init(t.allocator);
+    defer arena.deinit();
+    const decoded = try decodeBound(&arena, field, output[0..expected.len]);
+    @memset(&output, 0);
+    try t.expectEqual(@as(i128, -100), decoded.value.structure[1].value.atom.signed);
+    try t.expectError(error.NullNotAllowed, decodeBound(&arena, .{ .name = "id", .type = .int64 }, &.{1}));
+    try t.expectError(error.MissingRequiredField, decodeBound(&arena, .{ .name = "id", .type = .int64 }, &.{0}));
+    try t.expectError(error.InvalidValueEncoding, decodeBound(&arena, .{ .name = "b", .type = .boolean }, &.{ 3, 2 }));
 }
