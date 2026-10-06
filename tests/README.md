@@ -16840,3 +16840,16 @@ reply elapsed time is **32.836 seconds**. All assertions passed before cleanup;
 a cleanup restart cannot turn an incomplete query into a passing result. This
 is a fault schedule, not normal query latency. Compose and reference remain
 separate pending placement checks for this application revision.
+
+### General Station ledger: Compose and reference deployments
+
+The same application subsequently passed both physical placement schedules:
+`general-station-ledger-compose1.log` and
+`general-station-ledger-reference1.log` in
+`/var/tmp/transit-table-75-_el6xx0v`. Both verify registry/call/typed Arrow
+exchange, same-PID recovery, upgrades across all three workers, current Board
+provenance, and persistent stop/start. Their disposable installations were
+stopped and reset after success. The reference schedule also replaces the
+ledger's actual Kubernetes pod. These runs qualify the API metadata and
+application recovery paths; they do not substitute for Board's separate browser
+asset and startup proof.
