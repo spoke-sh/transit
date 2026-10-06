@@ -6,6 +6,7 @@ pub mod catalog;
 mod document;
 mod grpc;
 mod http;
+pub mod logical;
 pub mod mutations;
 mod query;
 mod runner;

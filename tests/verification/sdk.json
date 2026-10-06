@@ -412,8 +412,8 @@
       "proofs": [
         {
           "task": "bindings::catalog-python",
-          "source": "tests/catalog_native.py",
-          "anchor": "admitted == json.loads(fault['receipt'])"
+          "source": "tests/typed_table_native.py",
+          "anchor": "Exact accepted request changed its receipt"
         },
         {
           "task": "bindings::catalog-python",
@@ -422,8 +422,8 @@
         },
         {
           "task": "bindings::catalog-node",
-          "source": "tests/catalog_native.py",
-          "anchor": "admitted == json.loads(fault['receipt'])"
+          "source": "tests/typed_table_native.py",
+          "anchor": "Exact accepted request changed its receipt"
         },
         {
           "task": "bindings::catalog-node",
@@ -432,13 +432,13 @@
         },
         {
           "task": "bindings::catalog-rust",
-          "source": "tests/catalog_native.py",
-          "anchor": "admitted == json.loads(fault['receipt'])"
+          "source": "tests/typed_table_native.py",
+          "anchor": "Exact accepted request changed its receipt"
         },
         {
           "task": "bindings::catalog-rust",
           "source": "packages/rust/transit-station-sdk/src/catalog.rs",
-          "anchor": "fn malformed_success_keeps_admission_uncertain()"
+          "anchor": "fn malformed_success_and_worker_panic_preserve_admission_uncertainty()"
         },
         {
           "task": "bindings::catalog-rust",
@@ -486,7 +486,7 @@
           "anchor": "error(abandoned_native_work)"
         }
       ],
-      "limits": "Actual disk recovery uses the shared catalog host. Python cancellation/malformed-response checks use injected adapters; TypeScript malformed responses use an owned port with an injected host; Rust malformed receipts exercise parser/panic injection; Ruby uses injected wait/allocation adapters plus actual child loss. C/C++ checks owner copies and saved buffers, without catalog-specific allocator or cancellation injection. Java and BEAM use actual owned ports with post-handshake injected faults and blocked submissions; .NET uses installed decoder checks and actual native HTTP read cancellation, without admitted-mutation cancellation or allocator injection. Table counts and exact selected artifact identities are recorded in tests/README.md; these schedules do not establish native catalog growth or host power-loss recovery."
+      "limits": "Actual disk recovery uses the shared catalog host. Python, Node and Rust run the general Table lifecycle fixture; other language fixtures still cover the fixed profile and do not qualify its replacement. Python cancellation/malformed-response checks use injected adapters; TypeScript malformed responses use an owned port with an injected host; Rust malformed receipts exercise parser/panic injection; Ruby uses injected wait/allocation adapters plus actual child loss. C/C++ checks owner copies and saved buffers, without catalog-specific allocator or cancellation injection. Java and BEAM use actual owned ports with post-handshake injected faults and blocked submissions; .NET uses installed decoder checks and actual native HTTP read cancellation, without admitted-mutation cancellation or allocator injection. Table counts and exact selected artifact identities are recorded in tests/README.md; these schedules do not establish native catalog growth or host power-loss recovery."
     }
   ]
 }

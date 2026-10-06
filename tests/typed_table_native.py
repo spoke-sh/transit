@@ -17,7 +17,7 @@ def run(node, proof, host, cli, station_host, *arguments):
     for index in range(0, len(arguments), 2):
         assert arguments[index] == "--sdk" and index + 1 < len(arguments), arguments
         languages.append(arguments[index + 1])
-    assert all(language in ("node", "python") for language in languages), languages
+    assert all(language in ("node", "python", "rust") for language in languages), languages
     node, proof, host, cli, station_host = (str(Path(binary).resolve()) for binary in (node, proof, host, cli, station_host))
     with Fixture() as fixture:
         root = fixture.root

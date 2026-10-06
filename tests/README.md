@@ -11398,6 +11398,32 @@ independently accepts and round-trips the depth-15 conflict with two alternative
 These checks do not expand the supported Table schema depth or establish a new
 installed-package, full-repository or clean-CI pass.
 
+The Rust general Table caller passes **7 focused library tests** from both the
+source crate and freshly installed source-crate artifacts. Its owned logical
+models preserve exact wide numbers, float bits, recursive states and native
+budgets. Catalog checks reject foreign compiled identities, malformed metadata
+pages, invented affected-row counts and malformed receipts; an injected worker
+panic after dispatch retains uncertainty. The installed fixture also checks
+compiler rejection of overlapping mutable borrows and reuse after consuming close.
+
+The actual native/port plus installed Rust lifecycle passes in **181.875 seconds**
+(`table-rust-installed1.log`), including nested typed INSERT, no-op UPDATE counts,
+ALTER/default, stale-basis rejection, DELETE, DROP/name reuse, accepted historical
+definitions and exact saved-intent recovery through a replacement caller. Across
+478 turns and 125 sends, maximums remain four native writes, 256-byte values and
+1,392-byte progress steps. Lost-send, lost-turn and supplied-host receipt-loss
+schedules pass. Installed crates use their packaged native libraries after source
+vendor directories are removed, with no native-library override.
+
+Source checks are in `table-rust-general2.log`; packaging, documentation and
+verification logs share the `table-rust-` prefix. The first verification check
+found an obsolete test anchor; the updated declaration references the replacement
+malformed-response/worker-panic test and the general fixture actually run by the
+Python, Node and Rust tasks. Documentation checks pass **5,288 local links**;
+verification checks cover **59 invariants, 53 bounds and 13 SDK scenarios**. Other
+SDK migrations, query paths, fixed-profile removal, final definition replacement,
+performance/growth gates and clean CI remain unqualified by this checkpoint.
+
 ## Fuze logical type foundation
 
 The local `Types` profile has nine passing focused Zig tests, including 46
