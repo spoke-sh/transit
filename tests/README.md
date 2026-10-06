@@ -15689,3 +15689,13 @@ detail. Logs: `/var/tmp/transit-diagnostics-reconnect-{check,lifecycle}.log`.
 The failed browser lane remains incomplete at `/var/tmp/transit-ci-kmpsq18h`;
 qualification of the three affected reactive tasks in a fresh checkout remains
 separate from this focused pass.
+
+### Embedded recursive schema references
+
+`transit-protocol`'s package tests pass 34/34 in the pinned development shell
+(`recursive-schema-nested1.log` in the local Table-schema campaign).
+`Schema.writeRecursiveAt` emits references relative to an explicit enclosing
+JSON pointer. The test traverses every generated reference in an embedded
+recursive schema and resolves it against the complete document. Existing scalar
+codecs, safe integer ranges and field-specific bounds remain covered. This is
+schema-generation evidence, not runtime admission or browser validation.

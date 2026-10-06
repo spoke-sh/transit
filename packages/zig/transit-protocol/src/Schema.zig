@@ -35,6 +35,10 @@ pub fn fieldOptions(comptime T: type, comptime name: []const u8, comptime option
 pub fn writeRecursive(comptime T: type, out: *std.json.Stringify, comptime options: Options) std.Io.Writer.Error!void {
     return @import("RecursiveSchema.zig").write(T, out, options);
 }
+/// Embed a recursive schema at a known JSON pointer in a larger contract.
+pub fn writeRecursiveAt(comptime T: type, out: *std.json.Stringify, comptime options: Options, comptime base: []const u8) std.Io.Writer.Error!void {
+    return @import("RecursiveSchema.zig").writeAt(T, out, options, base);
+}
 test {
     _ = @import("RecursiveSchema.zig");
 }

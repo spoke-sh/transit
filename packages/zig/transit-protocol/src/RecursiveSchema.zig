@@ -40,10 +40,14 @@ const Graph = struct {
         @compileError("Missing host schema graph reference");
     }
 };
-fn reference(comptime graph: Graph, comptime T: type, out: *std.json.Stringify, comptime options: Options) std.Io.Writer.Error!void {
-    try out.write(.{ .@"$ref" = std.fmt.comptimePrint("#/$defs/T{d}", .{comptime graph.index(T, options)}) });
+fn reference(comptime base: []const u8, comptime graph: Graph, comptime T: type, out: *std.json.Stringify, comptime options: Options) std.Io.Writer.Error!void {
+    try out.write(.{ .@"$ref" = std.fmt.comptimePrint("#{s}/$defs/T{d}", .{ base, comptime graph.index(T, options) }) });
 }
 pub fn write(comptime T: type, out: *std.json.Stringify, comptime options: Options) std.Io.Writer.Error!void {
+    return writeAt(T, out, options, "");
+}
+/// base is the JSON pointer of this schema within the enclosing document.
+pub fn writeAt(comptime T: type, out: *std.json.Stringify, comptime options: Options, comptime base: []const u8) std.Io.Writer.Error!void {
     @setEvalBranchQuota(5000000);
     const graph = comptime blk: {
         var value: Graph = .{};
@@ -51,17 +55,17 @@ pub fn write(comptime T: type, out: *std.json.Stringify, comptime options: Optio
         break :blk value;
     };
     try out.beginObject();
-    try s.field(out, "$ref", "#/$defs/T0");
+    try s.field(out, "$ref", "#" ++ base ++ "/$defs/T0");
     try out.objectField("$defs");
     try out.beginObject();
     inline for (graph.nodes[0..graph.count], 0..) |node, i| {
         try out.objectField(std.fmt.comptimePrint("T{d}", .{i}));
-        try writeNode(graph, node.T, out, node.options);
+        try writeNode(base, graph, node.T, out, node.options);
     }
     try out.endObject();
     try out.endObject();
 }
-fn writeNode(comptime graph: Graph, comptime T: type, out: *std.json.Stringify, comptime options: Options) std.Io.Writer.Error!void {
+fn writeNode(comptime base: []const u8, comptime graph: Graph, comptime T: type, out: *std.json.Stringify, comptime options: Options) std.Io.Writer.Error!void {
     if (comptime custom(T) or (T == p.Diagnostic and options.diagnostic_reference != null)) return s.write(T, out, options);
     switch (@typeInfo(T)) {
         .@"struct" => |info| {
@@ -75,7 +79,7 @@ fn writeNode(comptime graph: Graph, comptime T: type, out: *std.json.Stringify, 
                 try out.objectField(name);
                 if (comptime @hasDecl(T, "json_schema_fields") and @hasField(@TypeOf(T.json_schema_fields), name)) {
                     try out.write(@field(T.json_schema_fields, name));
-                } else try reference(graph, F, out, s.fieldOptions(T, name, options));
+                } else try reference(base, graph, F, out, s.fieldOptions(T, name, options));
             }
             try out.endObject();
             try out.objectField("required");
@@ -107,7 +111,7 @@ fn writeNode(comptime graph: Graph, comptime T: type, out: *std.json.Stringify, 
                 try out.objectField(name);
                 if (comptime @hasDecl(T, "json_schema_fields") and @hasField(@TypeOf(T.json_schema_fields), name)) {
                     try out.write(@field(T.json_schema_fields, name));
-                } else try reference(graph, F, out, s.fieldOptions(T, name, options));
+                } else try reference(base, graph, F, out, s.fieldOptions(T, name, options));
                 try out.endObject();
                 try out.endObject();
             }
@@ -118,20 +122,20 @@ fn writeNode(comptime graph: Graph, comptime T: type, out: *std.json.Stringify, 
             try out.beginObject();
             try out.objectField("anyOf");
             try out.beginArray();
-            try reference(graph, info.child, out, options);
+            try reference(base, graph, info.child, out, options);
             try out.write(.{ .type = "null" });
             try out.endArray();
             try out.endObject();
         },
         .pointer => |info| {
-            if (info.size == .one) return reference(graph, info.child, out, options);
+            if (info.size == .one) return reference(base, graph, info.child, out, options);
             if (info.size != .slice) @compileError("Public host pointers must be single values or bounded slices");
             if (info.child == u8) return s.write(T, out, options);
             try out.beginObject();
             try s.field(out, "type", "array");
             try s.field(out, "maxItems", options.sequence_max_length orelse @compileError("Public sequences require an explicit finite profile bound"));
             try out.objectField("items");
-            try reference(graph, info.child, out, options);
+            try reference(base, graph, info.child, out, options);
             try out.endObject();
         },
         .array => |info| {
@@ -140,7 +144,7 @@ fn writeNode(comptime graph: Graph, comptime T: type, out: *std.json.Stringify, 
             try s.field(out, "minItems", info.len);
             try s.field(out, "maxItems", info.len);
             try out.objectField("items");
-            try reference(graph, info.child, out, options);
+            try reference(base, graph, info.child, out, options);
             try out.endObject();
         },
         else => try s.write(T, out, options),
@@ -186,4 +190,36 @@ test "recursive schemas retain scalar codecs safe integers and per-field sequenc
     try t.expectEqual(@as(usize, 7), root.get("required").?.array.items.len);
     try t.expect(root.get("x-transit-defaults").?.object.get("enabled").?.bool);
     try t.expect(defs.count() < 30);
+}
+
+test "embedded recursive schema references resolve in their enclosing document" {
+    const t = std.testing;
+    const NodeType = struct { children: []const @This(), value: u8 };
+    var output: std.Io.Writer.Allocating = .init(t.allocator);
+    defer output.deinit();
+    var out: std.json.Stringify = .{ .writer = &output.writer };
+    try out.beginObject();
+    try out.objectField("request");
+    try writeAt(NodeType, &out, .{ .sequence_max_length = 8 }, "/request");
+    try out.endObject();
+    const parsed = try std.json.parseFromSlice(std.json.Value, t.allocator, output.written(), .{});
+    defer parsed.deinit();
+    const Check = struct {
+        fn walk(root: std.json.Value, value: std.json.Value) anyerror!void {
+            switch (value) {
+                .object => |fields| {
+                    if (fields.get("$ref")) |ref| {
+                        try t.expect(std.mem.startsWith(u8, ref.string, "#/request/$defs/"));
+                        var target = root;
+                        var parts = std.mem.splitScalar(u8, ref.string[2..], '/');
+                        while (parts.next()) |part| target = target.object.get(part) orelse return error.MissingSchemaReference;
+                    }
+                    for (fields.values()) |child| try walk(root, child);
+                },
+                .array => |items| for (items.items) |child| try walk(root, child),
+                else => {},
+            }
+        }
+    };
+    try Check.walk(parsed.value, parsed.value);
 }
