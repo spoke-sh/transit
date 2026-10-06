@@ -156,6 +156,7 @@ pub fn stage(self: Self, turn: *Turn, ref: Reference, bytes: []const u8) !Step {
     }
 }
 pub fn read(self: Self, source: anytype, ref: Reference, output: []u8) ![]const u8 {
+    try prefetch(source, &.{ key(self.object, 'd', 0), key(self.object, if (ref.spec.length <= inline_bytes) 'i' else 'r', ref.id) });
     const limit = try self.check(source);
     try validate(ref);
     if (ref.spec.length > limit) return error.InvalidTablePage;
@@ -171,6 +172,12 @@ pub fn read(self: Self, source: anytype, ref: Reference, output: []u8) ![]const 
         if (!std.meta.eql(cursor.spec, ref.spec)) return error.InvalidTablePage;
         var offset: usize = 0;
         while (true) {
+            if (cursor.index % p.Growth.page_size == 0) {
+                var keys: [p.Growth.page_size]p.Value = undefined;
+                const count = @min(keys.len, cursor.spec.chunks() - cursor.index);
+                for (keys[0..count], 0..) |*address, i| address.* = Pub.key(.table, self.object, 'c', ref.id, cursor.index + @as(u32, @intCast(i)));
+                try prefetch(source, keys[0..count]);
+            }
             const part = try pubn.read(source, cursor);
             if (part.bytes.len > ref.spec.length - offset) return error.InvalidTablePage;
             @memcpy(output[offset..][0..part.bytes.len], part.bytes.slice());
@@ -182,6 +189,10 @@ pub fn read(self: Self, source: anytype, ref: Reference, output: []u8) ![]const 
     const bytes = output[0..ref.spec.length];
     if (!std.meta.eql(try Pub.Digest.of(ref.spec.format, bytes), ref.spec)) return error.InvalidTablePage;
     return bytes;
+}
+fn prefetch(source: anytype, keys: []const p.Value) !void {
+    const Source = @typeInfo(@TypeOf(source)).pointer.child;
+    if (comptime @hasDecl(Source, "prefetch")) try source.prefetch(keys);
 }
 /// Locate one allocated record in a closed reservation without walking unused
 /// IDs. This reads one native page and never mixes private writes into the scan.

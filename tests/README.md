@@ -16245,3 +16245,16 @@ and the remaining consumer migrations still require qualification. A prematurely
 started root test build was stopped after compile failures in the not-yet-migrated
 work-items example and the first schema-bound expression; its partial output in
 `protocol-matrix-bounds1.log` is not a root-check pass.
+
+
+### General Table page acquisition batching
+
+All 87 Station and 115 query ReleaseSafe tests pass with bounded metadata/chunk
+prefetch (`station-table-prefetch1.log`, `query-table-prefetch1.log`). A 4,100-byte
+record acquires one header pair and three chunk batches (8+8+1); every read still
+uses the ordinary publication decoder. Corrupt digest, retired descriptor and
+current read denial reject, with no chunk acquisition after retirement. Catalog
+definition reads group four known record addresses only after catalog rights
+are checked. The actual console and Board builds pass
+(`table-prefetch-app-build1.log`). Native request measurements and Table Board
+integration are running separately and are not established by these local tests.

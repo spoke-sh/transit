@@ -757,6 +757,15 @@ pub fn readDefinitionDiagnostic(self: Self, allocator: std.mem.Allocator, source
     if (diagnostic) |detail| detail.* = null;
     _ = try self.authorize(source, who, .inspect);
     _ = try self.authorize(source, who, .read);
+    // These exact identities are already known from the authorized declaration.
+    // Acquiring them together does not replace any lifecycle/commitment check.
+    const Source = @typeInfo(@TypeOf(source)).pointer.child;
+    if (comptime @hasDecl(Source, "prefetch")) try source.prefetch(&.{
+        self.key('O', id, 0),
+        Store.key(id, 'd', 0),
+        Store.key(id, if (expected.spec.length <= p.Value.max_bytes) 'i' else 'r', expected.id),
+        s.TableHead.key(id),
+    });
     const current = (try self.object(source, id)) orelse return error.TableNotFound;
     if (current.state != .live) return error.TableRetired;
     if (!std.meta.eql(current.metadata, expected)) {

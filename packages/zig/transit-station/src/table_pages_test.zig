@@ -1318,3 +1318,59 @@ test "compiled key patches preserve unassigned columns and original receipts aft
     try t.expectEqual(@as(u64, 1), (try Head.load(&turn, 9)).rows);
     try t.expectEqual(@as(usize, 0), writes(turn));
 }
+
+test "Table page prefetch batches chunks without bypassing publication or digest checks" {
+    var store: Store = .{};
+    defer store.deinit();
+    const pages = try store.create();
+    const payload: [4100]u8 = @splat('x');
+    const ref: Pages.Reference = .{ .id = 20, .spec = try Pub.Digest.of(Data.row_format, &payload) };
+    for (0..64) |_| {
+        var turn = try store.capture();
+        const step = try pages.stage(&turn, ref, &payload);
+        try store.commit(turn);
+        if (step == .ready) break;
+    } else return error.UnfinishedTestPage;
+    var turn = try store.capture();
+    const Reader = struct {
+        source: *Turn,
+        view: p.Growth.View,
+        keys: [64]?p.Value = @splat(null),
+        values: [64]?p.Value = @splat(null),
+        count: usize = 0,
+        batches: usize = 0,
+        pub fn prefetch(self: *@This(), keys: []const p.Value) !void {
+            try t.expect(keys.len > 0 and keys.len <= p.Growth.page_size);
+            self.batches += 1;
+            for (keys) |key| {
+                self.keys[self.count] = key;
+                self.values[self.count] = try self.source.read(key);
+                self.count += 1;
+            }
+        }
+        pub fn read(self: *@This(), key: p.Value) !?p.Value {
+            for (self.keys[0..self.count], self.values[0..self.count]) |address, value| if (address.?.eql(key)) return value;
+            return error.UnbatchedTableRead;
+        }
+    };
+    var reader: Reader = .{ .source = &turn, .view = turn.view };
+    var output: [payload.len]u8 = undefined;
+    try t.expectEqualStrings(&payload, try pages.read(&reader, ref, &output));
+    try t.expectEqual(@as(usize, 4), reader.batches); // One header pair, then 8+8+1 chunks.
+    try t.expectEqual(@as(usize, 19), reader.count);
+    const location = Pub.key(.table, 9, 'c', ref.id, 0);
+    var damaged = store.state.get(location).?;
+    damaged.data[0] ^= 1;
+    try store.state.put(t.allocator, location, damaged);
+    reader = .{ .source = &turn, .view = turn.view };
+    try t.expectError(error.InvalidPublicationDigest, pages.read(&reader, ref, &output));
+    var descriptor = try Pub.Descriptor.decode(store.state.get(Pages.key(9, 'r', ref.id)).?);
+    descriptor.state = .retired;
+    try store.state.put(t.allocator, Pages.key(9, 'r', ref.id), try descriptor.encode());
+    reader = .{ .source = &turn, .view = turn.view };
+    try t.expectError(error.PublicationNotPublished, pages.read(&reader, ref, &output));
+    try t.expectEqual(@as(usize, 1), reader.batches); // No chunk acquisition after retirement.
+    store.denied = true;
+    reader = .{ .source = &turn, .view = turn.view };
+    try t.expectError(error.AccessDenied, pages.read(&reader, ref, &output));
+}

@@ -58,6 +58,12 @@ Larger candidates require staging turns before a final head decision. The owner
 must preserve input identity, source root and reservation across those turns.
 These helpers do not perform catalog admission or establish end-to-end latency.
 
+A source with bounded `prefetch` can acquire the namespace manifest and page
+header together, then up to eight immutable chunks per native request. Each
+header, chunk, ordinal and final digest still passes the same validation.
+Retired or unpublished descriptors reject before chunk acquisition; prefetch
+failures propagate without turning partial bytes into a readable record.
+
 `TableHead` binds the resource/object, head revision, exact schema/root, row count,
 record-ID floor, pending work and retirement in one native value. `create`
 requires a staged revision-one schema and an absent head; `replace` compares
