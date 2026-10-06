@@ -15895,3 +15895,39 @@ versus uncertain mutation outcomes. All three port cases and the existing error
 case pass, with strict TypeScript, formatting and lint checks
 (`node-query-fullcheck1.log` in the local Table-schema campaign). These local
 transport tests do not establish catalog authority or native query completion.
+
+### Catalog commitments and TypeScript logical query callers
+
+Neutral catalog metadata includes the immutable publication commitment needed
+to build a query declaration without reproducing catalog hashing in a host SDK.
+Catalog ReleaseSafe tests pass 98/98, including commitment changes on rename and
+agreement between lookup and listing (`catalog-metadata-commitment1.log` in the
+local Table-schema campaign). Recursive Station ABI exports and host declarations
+regenerate, pass drift checks and retain root-local schema references. Native
+binding tests pass 18/18 (`sdk-query-native1.log`). Explicit empty output-name
+arrays reject instead of being reinterpreted as omitted aliases.
+
+The native ABI and local port pass 108 shared cases in `test-unified-codec`
+(`unified-logical-codec3.log`): three source bundles, nine independently encoded
+schema-bound Boolean plans, six scalar Arrow columns, all five states, exact
+values, empty results and malformed rejection. The producer supplies the exact
+canonical schema header required by logical decoding; PyArrow independently
+interprets the generated values and writes the tested record batches. This
+qualifies that header/payload profile, not arbitrary foreign Arrow schemas.
+
+Fresh Node tarballs pass the installed codec schedule, including 128 Unicode
+columns, a uint128 predicate, nested uint128/null results, owned bundle bytes and
+malformed rejection (`node-query-installed2.log`). Strict TypeScript, formatting
+and lint checks pass; 53 existing Station tests and two query boundary tests
+pass. The latter preserve recursive inspection types and freeze catalog metadata
+and binary/full-width SQL parameters before asynchronous transport. Their fake
+host deliberately returns an invalid compilation response and proves no remote
+authority or query completion (`node-query-fullcheck1.log` and
+`node-query-boundary1.log`).
+
+Earlier attempts exposed the empty-alias regression, stale null-kind fixture
+tags and a nested fixture that used a noncanonical root field name; corrected
+runs pass. A TypeScript build also rejected an unavailable target-library string
+method before its replacement. Remaining language query models, native SDK
+recovery schedules and the coordinated definition cutover are separate work;
+regenerated resources alone do not qualify those callers.

@@ -12,7 +12,7 @@ truth and eager errors. EXPLAIN exposes the same bounded structure through
 `InspectedPredicate` without literals; preparation grants no source authority.
 
 Import `unified` from `@transit/station` for v1 KV, Table and accepted Document
-queries. The existing Table v1 APIs remain available. Public source, plan and
+queries. Tables use immutable catalog metadata and general logical schemas. Public source, plan and
 result types are separate from the generated wire schemas; every port request
 and response is runtime-validated. Shared Zig owns protocol and query semantics.
 
@@ -53,13 +53,13 @@ preparation returns undefined, inspect `status(namespace)` for the terminal or
 admitted state.
 
 `client.compileSql(source, name, sql, budgets, parameters?)` returns a
-`Promise<Bundle>`. Pass a readonly array of `Scalar` values to bind placeholders;
+`Promise<Bundle>`. Pass a readonly array of logical `Scalar` atoms to bind placeholders;
 omit it for ordinary SQL, or pass `[]` for a template without placeholders.
 Inputs are converted to owned wire values before the first await; changing the
 original array or binary buffers cannot change the pending compilation.
 
 The name binds one explicit source. SQL is limited to 4096 bytes and bindings to
-three exact scalar values, with uint64 for LIMIT; no casts, null parameters or
+65 exact logical atoms, with an unsigned atom for LIMIT; no casts, null parameters or
 text substitution occur. Compilation checks current source access and budgets
 before and after binding and returns no bundle on failure. It takes no snapshot
 and submits no query. Use the existing upload workflow for the returned bundle;
@@ -96,8 +96,35 @@ ordered conflict IDs, bigint values, binary, Unicode and negative zero. For the
 pinned optional Apache Arrow 21.2.0 integration, `unifiedToArrow(page)` from
 `@transit/station/arrow` returns the nested schema without flattening states into
 nullable values. Byte getters copy owned data; native temporary buffers cannot
-escape. Bundle, column/row, scalar and segment bounds are 16 KiB, eight, 4 KiB
-and 64 KiB respectively.
+escape. Bundles contain at most 25069 bytes. Table results admit 128 columns and
+segments contain at most eight rows and 64 KiB. Comparison literals retain their
+4 KiB byte bound; descriptors and recursive cells retain the shared logical
+budgets. KV has two columns; Document projections admit eight scalar decoders.
+
+Result columns carry logical descriptors, nullability and optionality. Cells use
+the same language-native `logical.Cell` model as Table writes: `value.atom` for
+scalar values and typed structures/lists/arrays/maps/unions for nested values.
+Signed, unsigned, decimal and temporal atoms preserve exact `bigint` values;
+descriptors supply integer width, decimal precision/scale and timestamp zone.
+
+Construct a Table source from an authorized catalog lookup:
+
+```ts
+const definition = await catalogClient.lookup("people");
+if (definition === undefined) throw new Error("Table not found");
+const table: q.Source = {
+  kind: "table",
+  owner: catalogClient.connection.owner,
+  metadata: definition.metadata,
+  schema: definition.schema,
+};
+```
+
+`Metadata.commitment` carries the immutable record commitment returned by the
+shared catalog implementation. Local bundle preparation does not establish
+access or readiness. Current `describe` checks that metadata; retained-result
+reads separately check current rights while preserving the original schema and
+`Manifest.sourceHead`. Renaming or replacing a Table cannot rebind saved work.
 
 `just bindings::unified-node table` installs fresh package tarballs and runs the
 shared codec and signed recovery schedule. `kv` and `document` select the other

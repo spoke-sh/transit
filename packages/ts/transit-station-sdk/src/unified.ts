@@ -12,6 +12,9 @@ import { Bridge, QueryBridge } from "./bridge.ts";
 import { hex, unhex } from "./framing.ts";
 import { wide, nativeWide, ReadVersion } from "./values.ts";
 import { DocumentReference } from "./document.ts";
+import { Metadata, Schema } from "./catalog.ts";
+import { encodeType, decodeType, encodeAtom, decodeCell } from "./logical-values.ts";
+import type { Descriptor, Atom, Cell as LogicalCell, Field } from "./logical-values.ts";
 import type { Aggregate, Comparison } from "./query.ts";
 import type {
   UnifiedQueryCodecAction,
@@ -19,24 +22,22 @@ import type {
   UnifiedQueryResult,
 } from "./wire.ts";
 
-export type Type = "int64" | "uint64" | "float64" | "boolean" | "utf8" | "binary";
-export type State = "missing" | "null" | "type_error" | "value" | "conflict";
-export type Scalar =
-  | { readonly type: "int64" | "uint64"; readonly value: bigint }
-  | { readonly type: "float64"; readonly value: number }
-  | { readonly type: "boolean"; readonly value: boolean }
-  | { readonly type: "utf8"; readonly value: string }
-  | { readonly type: "binary"; readonly value: Uint8Array };
-export interface Column {
+export type Type = Descriptor;
+export type Scalar = Atom;
+export type Cell = LogicalCell;
+export type State = Cell["state"];
+export type Column = Field;
+export type DecoderType = "int64" | "uint64" | "float64" | "boolean" | "utf8" | "binary";
+export interface DecoderColumn {
   readonly name: string;
-  readonly type: Type;
+  readonly type: DecoderType;
 }
 export interface Decoder {
-  readonly type: Type;
+  readonly type: DecoderType;
   readonly version?: number;
 }
 export interface Projection {
-  readonly column: Column;
+  readonly column: DecoderColumn;
   readonly path?: readonly string[];
   readonly relative?: boolean;
   readonly mode?: "scalar" | "text" | "element_counter" | "element_replica";
@@ -53,10 +54,9 @@ export type Source =
     }
   | {
       readonly kind: "table";
-      readonly resource: ResourceRef;
-      readonly table: number;
-      readonly names: readonly [string, string];
-      readonly valueType: "int64" | "boolean" | "utf8" | "binary";
+      readonly owner: ProcessRef;
+      readonly metadata: Metadata;
+      readonly schema: Schema;
     }
   | {
       readonly kind: "document";
@@ -90,89 +90,41 @@ export interface Budgets {
   readonly segments: bigint;
   readonly resultBytes: bigint;
 }
-export interface Alternative {
-  readonly counter: bigint;
-  readonly replica: bigint;
-  readonly state: "null" | "type_error" | "value";
-  readonly value?: Scalar;
-  readonly actualKind?: string;
-}
-export type Cell =
-  | { readonly state: "missing" }
-  | { readonly state: "null" }
-  | { readonly state: "type_error"; readonly actualKind: string }
-  | { readonly state: "value"; readonly value: Scalar }
-  | { readonly state: "conflict"; readonly alternatives: readonly Alternative[] };
 type WireBundle = Extract<UnifiedQueryCodecAction, { prepare: unknown }>["prepare"];
 type WireSource = WireBundle["source"];
-type WireScalar = Extract<
-  NonNullable<WireBundle["plan"]["predicate"]>,
-  { compare: unknown }
->["compare"]["value"];
-type WireCell = Extract<UnifiedQueryCodecResult, { rows: unknown }>["rows"][number][number];
-function scalar(value: Scalar): WireScalar {
-  switch (value?.type) {
-    case "int64":
-      if (typeof value.value !== "bigint" || value.value < -(1n << 63n) || value.value >= 1n << 63n)
-        throw new TypeError("Expected int64");
-      return { int64: value.value.toString() };
-    case "uint64":
-      return { uint64: wide(value.value).toString() };
-    case "float64": {
-      if (typeof value.value !== "number" || !Number.isFinite(value.value))
-        throw new TypeError("Expected finite float64");
-      const bytes = new Uint8Array(8);
-      new DataView(bytes.buffer).setFloat64(0, value.value, true);
-      return { float_bits: hex(bytes, 8) };
-    }
-    case "boolean":
-      if (typeof value.value !== "boolean") throw new TypeError("Expected boolean");
-      return { boolean: value.value };
-    case "utf8":
-      return { utf8: text(value.value, 4096) };
-    case "binary":
-      return { binary: hex(value.value, 4096) };
-    default:
-      throw new TypeError("Expected typed query scalar");
-  }
+type WireColumn = Extract<
+  UnifiedQueryCodecAction,
+  { inspect_arrow: unknown }
+>["inspect_arrow"]["columns"][number];
+function scalar(value: Scalar) {
+  const result = encodeAtom(value);
+  if (
+    ("utf8" in result && Buffer.byteLength(result.utf8) > 4096) ||
+    ("binary" in result && result.binary.length > 8192)
+  )
+    throw new TypeError("Query literal exceeds its 4096-byte bound");
+  return result;
 }
-function fromScalar(value: WireScalar): Scalar {
-  let out: Scalar;
-  if ("int64" in value) out = { type: "int64", value: BigInt(value.int64) };
-  else if ("uint64" in value) out = { type: "uint64", value: nativeWide(value.uint64) };
-  else if ("float_bits" in value) {
-    const bytes = unhex(value.float_bits, 8);
-    if (bytes.length !== 8) throw new IncompatibleNative("Invalid float width");
-    out = {
-      type: "float64",
-      value: new DataView(bytes.buffer, bytes.byteOffset, 8).getFloat64(0, true),
-    };
-  } else if ("boolean" in value) out = { type: "boolean", value: value.boolean };
-  else if ("utf8" in value) out = { type: "utf8", value: value.utf8 };
-  else out = { type: "binary", value: unhex(value.binary, 4096) };
-  scalar(out);
-  return Object.freeze(out);
+function fieldName(value: string): string {
+  text(value, 255);
+  if (!value.length || value.includes("\0") || Buffer.from(value).toString("utf8") !== value)
+    throw new TypeError("Expected a UTF-8 column or source name");
+  return value;
 }
-function fromCell(value: WireCell): Cell {
-  if ("missing" in value) return Object.freeze({ state: "missing" });
-  if ("null" in value) return Object.freeze({ state: "null" });
-  if ("type_error" in value)
-    return Object.freeze({ state: "type_error", actualKind: value.type_error });
-  if ("value" in value) return Object.freeze({ state: "value", value: fromScalar(value.value) });
+function column(value: Column): WireColumn {
+  return {
+    name: fieldName(value.name),
+    type: encodeType(value.type),
+    nullable: value.nullable ?? false,
+    optional: value.optional ?? false,
+  };
+}
+function fromColumn(value: WireColumn): Column {
   return Object.freeze({
-    state: "conflict",
-    alternatives: Object.freeze(
-      value.conflict.map((item): Alternative => {
-        const selected = fromCell(item.value);
-        if (selected.state === "missing" || selected.state === "conflict")
-          throw new IncompatibleNative("Invalid conflict alternative");
-        return Object.freeze({
-          ...selected,
-          counter: nativeWide(item.counter),
-          replica: nativeWide(item.replica),
-        });
-      }),
-    ),
+    name: fieldName(value.name),
+    type: decodeType(value.type),
+    nullable: value.nullable,
+    optional: value.optional,
   });
 }
 function path(value: readonly string[]): string[] {
@@ -180,11 +132,12 @@ function path(value: readonly string[]): string[] {
     throw new TypeError("Expected at most eight path components");
   return value.map((name) => text(name, 64));
 }
-function column(value: Column): Column {
-  return { name: text(value.name, 64), type: value.type };
-}
 function resource(source: Source): ResourceRef {
-  return source.kind === "document" ? source.reference.resource : source.resource;
+  return source.kind === "document"
+    ? source.reference.resource
+    : source.kind === "table"
+      ? source.metadata.scope.resource
+      : source.resource;
 }
 function sourceWire(source: Source): WireSource {
   const id = resource(source);
@@ -202,18 +155,49 @@ function sourceWire(source: Source): WireSource {
           },
         },
       };
-    case "table":
+    case "table": {
+      if (
+        !(source.owner instanceof ProcessRef) ||
+        !(source.metadata instanceof Metadata) ||
+        !(source.schema instanceof Schema) ||
+        source.owner.realm !== id.realm ||
+        source.schema.objectId !== source.metadata.objectId
+      )
+        throw new TypeError("Expected one catalog Table definition and owner");
+      const metadata = source.metadata;
       return {
         version: 1,
         resource: id.resource,
         source: {
           table: {
-            id: integer(source.table, "table", 1, 0xffffffff),
-            names: [...source.names],
-            value_type: source.valueType,
+            scope: {
+              realm: id.realm,
+              resource: id.resource,
+              catalog: metadata.scope.catalog.toString(),
+            },
+            owner: source.owner.pid,
+            object: metadata.objectId.toString(),
+            metadata: {
+              id: metadata.revision.toString(),
+              spec: {
+                format: 0x54434d01,
+                length: metadata.commitment.bytes,
+                digest: [...unhex(metadata.commitment.digest, 32)],
+              },
+            },
+            row_type: encodeType({
+              kind: "structure",
+              fields: source.schema.columns.map((field) => ({
+                name: field.name,
+                type: field.type,
+                nullable: field.nullable ?? true,
+                optional: false,
+              })),
+            }),
           },
         },
       };
+    }
     case "document": {
       const ref = source.reference;
       if (!(ref instanceof DocumentReference))
@@ -233,7 +217,7 @@ function sourceWire(source: Source): WireSource {
             change_format: 1,
             expand: source.expand === undefined ? null : path(source.expand),
             projections: source.projections.map((v) => ({
-              column: column(v.column),
+              column: { name: text(v.column.name, 32), type: v.column.type },
               path: path(v.path ?? []),
               relative: v.relative ?? false,
               mode: v.mode ?? "scalar",
@@ -252,11 +236,11 @@ function atomWire(
 ): Exclude<WirePredicate, { program: unknown }> {
   if (selected === undefined) return { all: {} };
   if (selected?.kind === "state")
-    return { state: { column: integer(selected.column, "column", 0, 7), value: selected.state } };
+    return { state: { column: integer(selected.column, "column", 0, 127), value: selected.state } };
   if (selected?.kind === "compare")
     return {
       compare: {
-        column: integer(selected.column, "column", 0, 7),
+        column: integer(selected.column, "column", 0, 127),
         op: selected.comparison,
         value: scalar(selected.value),
       },
@@ -289,8 +273,8 @@ function predicateWire(selected: Predicate | undefined): WirePredicate {
   };
 }
 function planWire(plan: Plan): WireBundle["plan"] {
-  if (!Array.isArray(plan.projection) || plan.projection.length < 1 || plan.projection.length > 8)
-    throw new TypeError("Expected one to eight projection indices");
+  if (!Array.isArray(plan.projection) || plan.projection.length < 1 || plan.projection.length > 128)
+    throw new TypeError("Expected one to 128 projection indices");
   if (
     plan.outputNames !== undefined &&
     (!Array.isArray(plan.outputNames) || plan.outputNames.length !== plan.projection.length)
@@ -298,11 +282,11 @@ function planWire(plan: Plan): WireBundle["plan"] {
     throw new TypeError("Output names must match the projection width");
   return {
     version: 1,
-    projection: plan.projection.map((v) => integer(v, "column", 0, 7)),
+    projection: plan.projection.map((v) => integer(v, "column", 0, 127)),
     output_names:
       plan.outputNames === undefined
         ? null
-        : plan.outputNames.map((v) => (v === null ? null : text(v, 32))),
+        : plan.outputNames.map((v) => (v === null ? null : fieldName(v))),
     predicate: predicateWire(plan.predicate),
     limit: plan.limit === undefined ? null : wide(plan.limit).toString(),
     aggregate: plan.aggregate ?? "rows",
@@ -327,7 +311,7 @@ async function codec(
 export class Bundle {
   readonly #data: Uint8Array;
   constructor(data: Uint8Array) {
-    this.#data = owned(data, 16384);
+    this.#data = owned(data, 25069);
     Object.freeze(this);
   }
   get data(): Uint8Array {
@@ -354,7 +338,7 @@ export class Bundle {
       nativeHost,
     );
     if (!("prepared" in value)) throw new IncompatibleNative("Expected prepared bundle");
-    return new Bundle(unhex(value.prepared.bytes, 16384));
+    return new Bundle(unhex(value.prepared.bytes, 25069));
   }
 }
 /** Local decoding does not establish current source access or result completeness. */
@@ -375,7 +359,9 @@ export async function decodeArrow(
     nativeHost,
   );
   if (!("rows" in value)) throw new IncompatibleNative("Expected decoded Arrow rows");
-  return Object.freeze(value.rows.map((row) => Object.freeze(row.map(fromCell))));
+  return Object.freeze(
+    value.rows.map((row) => Object.freeze(row.map((cell) => Object.freeze(decodeCell(cell))))),
+  );
 }
 export class Connection {
   readonly source: ProcessRef;
@@ -514,7 +500,7 @@ function inspectedAtom(
     kind: "compare",
     column: predicate.compare.column,
     comparison: predicate.compare.op,
-    type: predicate.compare.type,
+    type: decodeType(predicate.compare.type),
   });
 }
 function inspectedPredicate(predicate: WireInspectedPredicate): InspectedPredicate | undefined {
@@ -584,7 +570,7 @@ function inspection(
   if ("description" in input)
     details = Object.freeze({
       kind: "description",
-      columns: Object.freeze(input.description.columns.map((v) => Object.freeze(column(v)))),
+      columns: Object.freeze(input.description.columns.map((v) => fromColumn(v))),
     });
   else if ("tables" in input)
     details = Object.freeze({ kind: "tables", names: Object.freeze([...input.tables]) });
@@ -600,7 +586,7 @@ function inspection(
       projection: Object.freeze([...plan.projection]),
       limit: plan.limit === null ? undefined : nativeWide(plan.limit),
       aggregate: plan.aggregate,
-      columns: Object.freeze(plan.columns.map((v) => Object.freeze(column(v)))),
+      columns: Object.freeze(plan.columns.map((v) => fromColumn(v))),
       budgets: Object.freeze({
         pages: nativeWide(plan.budgets.pages),
         segments: nativeWide(plan.budgets.segments),
@@ -631,6 +617,7 @@ export interface Manifest {
   readonly revision: number;
   readonly sourceDigest: Uint8Array;
   readonly schemaDigest: Uint8Array;
+  readonly sourceHead: Uint8Array;
   readonly planDigest: Uint8Array;
   readonly pages: bigint;
   readonly scanned: bigint;
@@ -689,11 +676,12 @@ function page(value: WirePage, realm: number): Page {
     correlation: nativeWide(m.correlation),
     policyRevision: nativeWide(m.policy_revision),
     request: unhex(m.request, 72),
-    sourceKind: m.basis.kind,
-    resource: new ResourceRef(realm, m.basis.resource),
-    revision: integer(m.basis.revision, "revision", 0),
+    sourceKind: m.basis.cut.kind,
+    resource: new ResourceRef(realm, m.basis.cut.resource),
+    revision: integer(m.basis.cut.revision, "revision", 0),
     sourceDigest: digest(m.basis.contract),
     schemaDigest: digest(m.basis.schema),
+    sourceHead: digest(m.basis.cut.head),
     planDigest: digest(m.plan),
     pages: nativeWide(m.pages),
     scanned: nativeWide(m.scanned),
@@ -708,7 +696,7 @@ function page(value: WirePage, realm: number): Page {
   });
   return new Page(
     manifest,
-    Object.freeze(value.columns.map((v) => Object.freeze(column(v)))),
+    Object.freeze(value.columns.map((v) => fromColumn(v))),
     nativeWide(value.ordinal),
     integer(value.rows, "rows", 0, 8),
     unhex(value.ipc, 65536),
@@ -793,7 +781,7 @@ export class Client {
     const value = await this.bridge.call({
       inspect: {
         scope: {
-          name: text(name, 32),
+          name: fieldName(name),
           source: sourceWire(source),
           limits: {
             pages: positive(budgets.pages),
@@ -821,12 +809,12 @@ export class Client {
       id.resource !== this.connection.resource.resource
     )
       throw new TypeError("Source differs from the connection");
-    if (parameters !== undefined && (!Array.isArray(parameters) || parameters.length > 3))
-      throw new TypeError("Expected at most three parameter scalars");
+    if (parameters !== undefined && (!Array.isArray(parameters) || parameters.length > 65))
+      throw new TypeError("Expected at most 65 parameter atoms");
     const value = await this.bridge.call({
       compile: {
         scope: {
-          name: text(name, 32),
+          name: fieldName(name),
           source: sourceWire(source),
           limits: {
             pages: positive(budgets.pages),
@@ -839,12 +827,12 @@ export class Client {
       },
     });
     if (!("compiled" in value)) throw new IncompatibleNative("Expected compiled SQL bundle");
-    return new Bundle(unhex(value.compiled.bundle, 16384));
+    return new Bundle(unhex(value.compiled.bundle, 25069));
   }
   async prepareNext(namespace: bigint, bundle: Bundle): Promise<Prepared | undefined> {
     if (!(bundle instanceof Bundle)) throw new TypeError("Expected query bundle");
     const value = await this.bridge.call({
-      next: { namespace: positive(namespace), bundle: hex(bundle.data, 16384) },
+      next: { namespace: positive(namespace), bundle: hex(bundle.data, 25069) },
     });
     if (!("prepared" in value)) throw new IncompatibleNative("Expected prepared command");
     return value.prepared === null ? undefined : new Prepared(value.prepared);

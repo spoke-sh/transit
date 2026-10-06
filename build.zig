@@ -733,6 +733,8 @@ pub fn build(b: *std.Build) void {
         .optimize = optimize,
         .imports = &.{.{ .name = "transit_fuze", .module = fuze.module("transit_fuze") }},
     }) });
+    b.step("logical-arrow-proof", "Install the canonical logical Arrow fixture producer").dependOn(&b.addInstallArtifact(logical_arrow_proof, .{}).step);
+    unified_codec_test.addArtifactArg(logical_arrow_proof);
     const logical_arrow_test = b.addSystemCommand(&.{ "python3", "-B" });
     logical_arrow_test.addFileArg(b.path("tests/fuze_logical_arrow.py"));
     logical_arrow_test.addArtifactArg(query_shell);

@@ -143,7 +143,11 @@ all still require persistence and separate submission.
 
 `lookup(name)` returns current `metadata`, complete `schema` and `head`, or
 `undefined`. Metadata includes a reusable frozen `basis`; schema revision and
-catalog metadata revision remain distinct. UTF-8 names are bounded to 255 bytes.
+catalog metadata revision remain distinct. `metadata.commitment` carries the
+immutable catalog record's encoded byte count and digest. Query sources use
+this returned commitment with the owning process and schema; callers do not
+reconstruct the catalog's physical schema reference or hash. A commitment grants
+no authority. UTF-8 names are bounded to 255 bytes.
 `list(cursor?)` returns up to eight metadata/head entries ordered by object
 identity. Its definition-qualified cursor preserves scope and resource revision.
 Retired objects may produce an empty page with continuation. Restart the listing

@@ -110,7 +110,7 @@ test "neutral output names own their bytes and enforce exact output width" {
     native.output_names = &.{ "changed", null };
     try t.expectEqualStrings("amount", neutral.output_names.?[0].?);
     try t.expect(neutral.output_names.?[1] == null);
-    for ([_][]const ?[]const u8{ &.{"one"}, &.{ "one", "two", "three" } }) |names| {
+    for ([_][]const ?[]const u8{ &.{}, &.{"one"}, &.{ "one", "two", "three" } }) |names| {
         try t.expectError(error.InvalidOutputNames, (Plan{ .projection = &.{ 0, 1 }, .output_names = names }).native(alloc, schema, @splat(1)));
     }
     for ([_][]const u8{ "", "nul\x00name", &@as([256]u8, @splat('a')) }) |name| {

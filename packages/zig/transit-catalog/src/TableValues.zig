@@ -142,9 +142,12 @@ pub const Metadata = struct {
     principal: u64,
     operation: []const u8,
     admitted_input: u64,
+    /// Commitment to the immutable metadata record, including its physical
+    /// schema reference. Foreign query callers must not reconstruct this hash.
+    commitment: c.station.Publication.Spec,
     pub fn foreign(allocator: Allocator, value: c.TableMetadata.Record) !Metadata {
         try value.validate();
-        return .{ .scope = try Scope.foreign(allocator, value.scope), .object = try decimal(allocator, value.object), .revision = try decimal(allocator, value.revision), .name = try allocator.dupe(u8, value.name.slice()), .schema_fingerprint = try hex(allocator, &value.schema_fingerprint), .principal = value.principal, .operation = try decimal(allocator, value.operation), .admitted_input = value.admitted_input };
+        return .{ .scope = try Scope.foreign(allocator, value.scope), .object = try decimal(allocator, value.object), .revision = try decimal(allocator, value.revision), .name = try allocator.dupe(u8, value.name.slice()), .schema_fingerprint = try hex(allocator, &value.schema_fingerprint), .principal = value.principal, .operation = try decimal(allocator, value.operation), .admitted_input = value.admitted_input, .commitment = try value.spec() };
     }
 };
 pub const Head = struct {

@@ -310,7 +310,18 @@ function basis(value: Basis) {
     schema_fingerprint: value.schemaFingerprint,
   };
 }
+/** Immutable catalog record commitment supplied by the shared implementation. */
+export class MetadataCommitment {
+  readonly bytes: number;
+  readonly digest: string;
+  constructor(bytes: number, hash: string) {
+    this.bytes = integer(bytes, "metadata bytes", 1, 436);
+    this.digest = digest(hash);
+    Object.freeze(this);
+  }
+}
 export class Metadata {
+  readonly commitment: MetadataCommitment;
   readonly scope: Scope;
   readonly objectId: bigint;
   readonly revision: bigint;
@@ -320,6 +331,7 @@ export class Metadata {
   readonly operation: bigint;
   readonly admittedInput: number;
   constructor(value: {
+    commitment: MetadataCommitment;
     scope: Scope;
     objectId: bigint;
     revision: bigint;
@@ -330,6 +342,9 @@ export class Metadata {
     admittedInput: number;
   }) {
     if (!(value.scope instanceof Scope)) throw new TypeError("Expected catalog scope");
+    if (!(value.commitment instanceof MetadataCommitment))
+      throw new TypeError("Expected metadata commitment");
+    this.commitment = value.commitment;
     this.scope = value.scope;
     this.objectId = positive(value.objectId);
     this.revision = positive(value.revision);
@@ -345,7 +360,13 @@ export class Metadata {
   }
 }
 function fromMetadata(value: NativeMetadata): Metadata {
+  if (value.commitment.format !== 0x54434d01 || value.commitment.digest.length !== 32)
+    throw new TypeError("Invalid metadata commitment");
   return new Metadata({
+    commitment: new MetadataCommitment(
+      value.commitment.length,
+      hex(new Uint8Array(value.commitment.digest), 32),
+    ),
     scope: fromScope(value.scope),
     objectId: nativeWide(value.object),
     revision: nativeWide(value.revision),

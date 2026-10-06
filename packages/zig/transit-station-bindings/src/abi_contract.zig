@@ -54,7 +54,7 @@ pub fn main(init: std.process.Init) !void {
         // Foreign text includes whole frozen requests and IPC encoded as hex.
         // It is not the kernel's 256-byte opaque Value. Domain helpers impose
         // their narrower field budgets, and the host bounds the complete line.
-        const recursive = T == abi.host.Request or T == abi.catalog_client.bridge.Action or T == abi.catalog_client.bridge.Result;
+        const recursive = T == abi.host.Config or T == abi.host.Request or T == abi.unified_query.Action or T == abi.unified_query.Result or T == abi.query_client.bridge.Action or T == abi.query_client.bridge.Result or T == abi.catalog_client.bridge.Action or T == abi.catalog_client.bridge.Result;
         const catalog_value = T == abi.catalog_client.bridge.Action or T == abi.catalog_client.bridge.Result;
         const options: s.protocol.Schema.Options = .{ .safe_integers = true, .text_max_length = if (catalog_value) abi.catalog_client.bridge.max_input_bytes else s.protocol.max_body * 2, .sequence_max_length = if (catalog_value) 65536 else abi.http.http.Request.maximum_pieces, .output = T == abi.actions.ArrowCell or T == abi.growing.Event or T == abi.growing.actions.Result or T == abi.growing.Capabilities or T == abi.http.Result or T == abi.http.ReadResult or T == abi.grpc.Result or T == abi.grpc.ReadResult or T == abi.document.Result or T == abi.document_bridge.ReadResult or T == abi.unified_query.Result or T == abi.logical_codec.Result or T == abi.query_client.bridge.Result or T == abi.mutation_client.bridge.Result or T == abi.catalog_client.bridge.Result };
         if (recursive) try s.protocol.Schema.writeRecursive(T, &out, options) else try s.protocol.Schema.write(T, &out, options);

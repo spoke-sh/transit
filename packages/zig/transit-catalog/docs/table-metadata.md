@@ -272,7 +272,13 @@ Schemas use `TableSchemaJson`: mandatory current definition, canonical decimal
 identities, recursive logical descriptors and lossless typed defaults. Metadata,
 policy revisions, row counts, operation/upload IDs and staging-byte quotas retain
 full u64 values as decimal strings; native counters retain native numeric bounds.
-Lookup owns its metadata, head summary and schema. Listing owns at most eight
+Lookup owns its metadata, head summary and schema. Neutral metadata includes the
+immutable record's publication commitment, computed by the shared catalog owner.
+Together with its revision, this identifies the record required by a query
+declaration without asking host SDKs to reconstruct physical schema references
+or publication hashes. It conveys no authority.
+
+Listing owns at most eight
 metadata/head summaries, with no row or schema-default acquisition. A continuation
 can scan past retired objects; its last object need not appear in the live page.
 

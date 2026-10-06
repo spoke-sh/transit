@@ -67,6 +67,7 @@ const rights = {
   drop: false,
 };
 const metadata = {
+  commitment: { format: 0x54434d01, length: 200, digest: Array(32).fill(1) },
   scope: nativeScope,
   object: "17",
   revision: "3",

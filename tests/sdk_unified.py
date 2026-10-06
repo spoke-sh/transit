@@ -69,7 +69,9 @@ class Consumer:
 
 def install(root, languages):
     root.mkdir()
-    _, rows, _, ipc = arrow_fixture()
+    # The independent PyArrow fixture retains the production canonical schema.
+    subprocess.run(['zig', 'build', 'logical-arrow-proof', '-Doptimize=ReleaseSafe', '--prefix', str(root/'producer')], cwd=ROOT, check=True)
+    _, rows, _, ipc = arrow_fixture(str(root/'producer/bin/transit-logical-arrow-proof'))
     (root/'arrow.ipc').write_bytes(bytes.fromhex(ipc(rows)))
     (root/'empty.ipc').write_bytes(bytes.fromhex(ipc([])))
     bad = copy.deepcopy(rows); bad[0]['int64']['value'] = 1
@@ -126,9 +128,9 @@ def install(root, languages):
     return factories
 
 
-def install_node(root, fixtures):
+def install_node(root, fixtures, packages=ROOT/'.cache/bindings/node'):
     root.mkdir()
-    dependencies = {f'@transit/{name}': 'file:' + str(ROOT/'.cache/bindings/node'/f'transit-{name}-0.2.0.tgz')
+    dependencies = {f'@transit/{name}': 'file:' + str(packages/f'transit-{name}-0.2.0.tgz')
         for name in ('client', 'native-client', 'station', 'native-station')}
     manifest = dict(private=True, type='module', packageManager=json.loads((ROOT/'package.json').read_text())['packageManager'],
         dependencies={**dependencies, 'apache-arrow': '21.2.0'}, pnpm=dict(overrides=dependencies))

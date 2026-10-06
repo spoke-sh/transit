@@ -46,8 +46,10 @@ and inspected programs. The C/C++ layout extension replaces the shared ABI
 definition; deploy matching headers, SDK libraries and native artifacts.
 
 The complete JSON input is at most 256 KiB. The native implementation additionally
-enforces the 16 KiB bundle, 8-column/8-row page, 4 KiB scalar and 64 KiB Arrow
-segment bounds. Arrow parsing uses a 4 MiB fixed workspace. All returned arrays,
+enforces the 25069-byte bundle, 128-column/eight-row page, 4 KiB comparison
+literal and 64 KiB Arrow segment bounds. Recursive cells retain the logical
+child, nesting and byte budgets; KV and Document keep their narrower decoder
+profiles. Arrow parsing uses a 4 MiB fixed workspace. All returned arrays,
 names, scalars and IPC-derived values are copied into the owned result; they do
 not borrow temporary parsing storage. Release every native `station_buffer`
 once, and join in-flight work before destroying a foreign owner.
@@ -56,11 +58,13 @@ The port can run with `{"local_codec":true}`. It needs no authority URL, key or
 execution handle. Pure decoding does not establish current source availability
 or authorization; signed submission/result qualification is separate.
 
-`tests/unified_codec.py HOST LIBRARY` checks both transports against independently
-encoded bundles and PyArrow-produced streams. It covers all three sources, six
+`tests/unified_codec.py HOST LIBRARY ARROW_PRODUCER` checks both transports
+against independently encoded source/schema-bound bundles. The native producer
+supplies the canonical schema header, which the decoder requires exactly;
+PyArrow independently interprets its data and produces the test record batches. It covers all three sources, six
 primitive types, five cell states, Unicode, binary, full-width integers/IDs,
-negative zero, empty results and malformed inputs. Public SDK qualification
-remains in progress.
+negative zero, empty results and malformed inputs. Installed SDK transport
+checks and their execution limits are recorded in the [proof ledger](../../../../tests/README.md).
 
 ## Signed caller ownership
 

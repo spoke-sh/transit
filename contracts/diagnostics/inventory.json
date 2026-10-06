@@ -4253,7 +4253,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 74,
+        "try": 75,
         "catch": 3
       },
       "imports": [
@@ -11922,6 +11922,7 @@
     "packages/zig/transit-query/src/Values.zig": {
       "errors": {
         "InvalidColumnCount": 1,
+        "InvalidOutputNames": 1,
         "InvalidPredicateProgram": 1,
         "InvalidProjection": 2,
         "InvalidQueryPath": 1,

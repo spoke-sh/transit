@@ -45,6 +45,13 @@ test "neutral general catalog identities rights names and pages preserve full wi
     var page: c.TableCatalog.Page = .{ .resource_revision = 10, .next = .{ .scope = connection.scope, .resource_revision = 10, .after_object = schema.object } };
     page.entries[0] = .{ .metadata = current.metadata, .head = current.head };
     const output = try v.Page.foreign(allocator, page);
+    try t.expectEqualDeep(try current.metadata.spec(), output.entries[0].?.metadata.commitment);
+    const described = try v.Definition.foreign(&arena, current);
+    try t.expectEqualDeep(output.entries[0].?.metadata.commitment, described.metadata.commitment);
+    var renamed = current.metadata;
+    renamed.name = try c.TableMetadata.Name.init("renamed");
+    const changed = try v.Metadata.foreign(allocator, renamed);
+    try t.expect(!std.mem.eql(u8, &changed.commitment.digest, &described.metadata.commitment.digest));
     var corrupt = page;
     corrupt.entries[1] = corrupt.entries[0];
     try t.expectError(error.InvalidCatalogPage, v.Page.foreign(allocator, corrupt));

@@ -28,12 +28,12 @@ test: native python-test node-sdk-test rust-sdk-test ruby-sdk-test c-sdk-test ja
 # Validate the current Node adapters and their asynchronous port transport.
 node-check:
     cd packages/ts/transit-client && vp check
-    vp exec --filter @transit/client node --test src/errors.test.ts
+    vp exec --filter @transit/client node --test src/errors.test.ts src/port.test.ts
     # Station imports the package's emitted declarations and runtime exports.
     vp exec --filter @transit/client tsc
     cd packages/ts/transit-station-sdk && vp check
     vp exec --filter @transit/station tsc --noEmit
-    vp exec --filter @transit/station node --test src/scope.test.ts src/runner.test.ts src/mutations.test.ts src/catalog.test.ts
+    vp exec --filter @transit/station node --test src/scope.test.ts src/runner.test.ts src/mutations.test.ts src/catalog.test.ts src/unified.test.ts
 
 # Build version-matched Python wheels, including separate native dependencies.
 python-build: build
@@ -62,7 +62,7 @@ node-sdk-test: node-build
     vp exec --filter @transit/client tsc --noEmit
     cd packages/ts/transit-station-sdk && vp check
     vp exec --filter @transit/station tsc --noEmit
-    vp exec --filter @transit/station node --test src/scope.test.ts src/runner.test.ts src/mutations.test.ts src/catalog.test.ts
+    vp exec --filter @transit/station node --test src/scope.test.ts src/runner.test.ts src/mutations.test.ts src/catalog.test.ts src/unified.test.ts
     cd examples/station-sdk/typescript && vp check
     vp exec --filter @transit/sdk-examples tsc --noEmit
     zig build transit-node rey-cli transit-station-http-worker

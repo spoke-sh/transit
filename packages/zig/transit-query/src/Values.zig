@@ -220,6 +220,7 @@ pub const Plan = struct {
             out.* = @intCast(in);
         }
         const names = if (self.output_names) |input| owned: {
+            if (input.len != selected.len) return error.InvalidOutputNames;
             const result = try alloc.dupe(?[]const u8, input);
             for (result) |*name| if (name.*) |text| {
                 name.* = try alloc.dupe(u8, text);
