@@ -186,3 +186,9 @@ Borrowed schemas and assignment results retain their original owners. Decode
 and clone return an arena owning names, nested descriptors and defaults, released
 by `deinit`. A failed assignment invalidates scratch output and returns no
 successful row. Validation, encoding and decoding perform no I/O or publication.
+
+Neutral schema conversion checks each default's canonical payload against the
+shared 64-KiB schema allowance before converting the next default. It retains at
+most one individually bounded conversion beyond the remaining allowance.
+Complete schema validation also counts descriptors and framing. A shared input
+tree cannot postpone the aggregate check until every default is materialized.

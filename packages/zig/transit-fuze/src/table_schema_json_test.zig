@@ -77,6 +77,28 @@ test "neutral schema conversions release every partial recursive allocation" {
     var no_resize = e.FailingAllocator.init(e.allocator, .{ .resize_fail_index = 0 });
     try e.checkAllAllocationFailures(no_resize.allocator(), ownership, .{try source.statement.create.bind(1)});
 }
+test "neutral schema conversion rejects large shared defaults before whole schema allocation" {
+    var inputs: std.heap.ArenaAllocator = .init(e.allocator);
+    defer inputs.deinit();
+    const hex = try inputs.allocator().alloc(u8, 1024 * 1024);
+    @memset(hex, 'a');
+    var columns: [s.max_columns]j.Column = undefined;
+    for (&columns, 0..) |*column, i| {
+        const name = try std.fmt.allocPrint(inputs.allocator(), "column_{d}", .{i});
+        const id = try std.fmt.allocPrint(inputs.allocator(), "{d}", .{i + 1});
+        column.* = .{ .id = id, .name = name, .type = .binary, .nullable = true, .default = .{ .value = .{ .atom = .{ .binary = hex } } }, .max_characters = null };
+    }
+    const source: j.Schema = .{ .definition = p.Growth.current_definition, .object = "1", .revision = "1", .next_column = "129", .columns = &columns, .primary_key = &.{} };
+    var tracker: e.FailingAllocator = .init(e.allocator, .{ .resize_fail_index = 0 });
+    var arena: std.heap.ArenaAllocator = .init(tracker.allocator());
+    defer arena.deinit();
+    // The shared input describes 64 MiB of defaults; stop after one bounded
+    // conversion exceeds the 64-KiB schema record allowance.
+    try e.expectError(error.TableSchemaTooLarge, j.native(&arena, source));
+    try e.expect(tracker.allocated_bytes < 4 * 1024 * 1024);
+    _ = arena.reset(.free_all);
+    try e.expectEqual(tracker.allocated_bytes, tracker.freed_bytes);
+}
 test "neutral schemas preserve large legal nested defaults within their separate wire budget" {
     const types = @import("Types.zig");
     const cells = try e.allocator.alloc(types.Values.Cell, 60000);

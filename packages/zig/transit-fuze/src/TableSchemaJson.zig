@@ -60,9 +60,20 @@ pub fn native(arena: *std.heap.ArenaAllocator, value: Schema) !s.Schema {
     if (value.primary_key.len > value.columns.len) return error.InvalidPrimaryKey;
     const allocator = arena.allocator();
     const columns = try allocator.alloc(s.Column, value.columns.len);
+    var default_bytes: u64 = 0;
     for (value.columns, columns) |column, *output| {
         output.* = .{ .id = try unsigned(column.id), .name = column.name, .type = column.type, .nullable = column.nullable, .max_characters = column.max_characters };
-        if (column.default) |cell| output.default = try j.fromForeign(allocator, cell, output.field());
+        if (column.default) |cell| {
+            output.default = try j.fromForeign(allocator, cell, output.field());
+            // Canonical payloads are a lower bound on the complete FTS1 record.
+            // Check before converting another default; schema.clone still
+            // validates descriptor/framing bytes and every schema constraint.
+            var scratch: [256]u8 = undefined;
+            var count: std.Io.Writer.Discarding = .init(&scratch);
+            try t.Codec.writeBound(output.default.?, output.field(), &count.writer);
+            if (count.fullCount() > s.max_bytes - default_bytes) return error.TableSchemaTooLarge;
+            default_bytes += count.fullCount();
+        }
     }
     const primary_key = try allocator.alloc(s.ColumnId, value.primary_key.len);
     for (value.primary_key, primary_key) |id, *output| output.* = try unsigned(id);

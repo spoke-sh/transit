@@ -11761,6 +11761,14 @@ using the old budgetless signature; the corrected rebuilt artifacts pass.
 run subsequently stopped at an unrelated Java fixture variable-name collision;
 its later language entries are not passing evidence from that run.
 
+The corresponding native schema-conversion guard passes **225/225 Fuze tests**
+(`table-schema-budget-test1.log`). A shared neutral schema describing 64 MiB of
+binary defaults rejects after the first bounded default exceeds the 64-KiB
+record allowance, using less than 4 MiB of tracked cumulative allocation. The
+existing legal 60,000-element nullable default and exhaustive partial-allocation
+cleanup schedules still pass. Complete schema validation retains its independent
+descriptor, identity, nullability and framing checks.
+
 ## Fuze logical type foundation
 
 The local `Types` profile has nine passing focused Zig tests, including 46
