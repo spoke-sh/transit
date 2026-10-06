@@ -15827,3 +15827,31 @@ query compiler reports non-SELECT input as unsupported. The real CLI diagnostic
 corpus passes 592 cases, and 3179 diagnostic projections across 34 surfaces pass
 (`query-grammar-outcomes1.log`). The native query/Flight fixture migration is
 still being qualified separately.
+
+### Catalog-backed native query and Flight callers
+
+`zig build test-public-query -Doptimize=ReleaseSafe` passes on native disk-backed
+Ursula with the configured cold tier (`public-query-catalog-native3.log` in the
+local Table-schema campaign). Provisioning uses the production catalog owner,
+CREATE/INSERT lifecycle, immutable source metadata and explicit requester policy.
+The actual console and query hosts return 41 exact int64/null rows and preserve
+lost-response retry, fenced restart, busy admission, current schema rejection,
+incomplete-result refusal, cancellation and read-time revocation.
+
+The pinned Flight shell's `zig build test-flight -Doptimize=ReleaseSafe` also
+passes (`flight-catalog-native3.log`). PyArrow verifies finite schemas, exact
+full-width/null rows, metadata and retry; installed Python and C ADBC consumers
+verify native schema, values, aliases, empty results, counts and supported SUM.
+The separately provisioned overflow source preserves the original diagnostic
+through exact retry and gateway replacement, and denies details after current
+disclosure revocation. The finite PyArrow portion took 55.47 seconds; the complete
+Flight proof took approximately 13 minutes excluding compilation. These elapsed
+times describe this functional schedule, not matched mutation latency.
+
+Earlier migration attempts failed: two provisioning runs exceeded their original
+60-second setup deadline; the next console run exposed the non-SELECT grammar
+classification defect; and the next Flight run passed PyArrow but reached hot-tier
+backpressure during ADBC. The final fixtures use the existing bounded cold-store
+configuration and a 300-second provisioning deadline. No resident quota was
+raised. Compose/Substrate placements, Flight fault/concurrency schedules, wider
+SDK transports and matched performance remain separate qualification work.

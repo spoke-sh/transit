@@ -4,6 +4,7 @@ const std = @import("std");
 const q = @import("transit_query");
 const serving = @import("transit_serving");
 const s = @import("transit_station");
+const catalog = q.catalog;
 const p = s.protocol;
 const Admin = @import("growing_support.zig").Admin(45);
 const Connection = q.UnifiedClient.Connection;
@@ -16,31 +17,31 @@ fn provision(admin: *Admin, principal: u64, key: p.Ed25519.KeyPair) !Admin.Provi
     _ = try admin.submit(.{ .associate = .{ .pid = pid, .name = try p.Value.init("state"), .resource = resource } });
     return .{ .pid = pid, .resource = resource, .generation = 1 };
 }
-fn definition(resource: u64) !q.SourceDefinition {
-    return .{ .resource = resource, .source = .{ .table = .{ .id = 1, .schema = .{ .names = .{ try .init("id"), try .init("value") }, .value_type = .int64 } } } };
+// Run the production catalog handler behind signed ingress. Setup never writes
+// private Table records, invents metadata references or seeds a positional row.
+fn seedStatement(init: std.process.Init, admin: *Admin, server: *s.GenServer, handler: s.GenServer.Handler, caller: *catalog.TableClient, text: []const u8, operation: u64, object: ?u64) !void {
+    var intent = try caller.compile(init.gpa, text, .{ .operation = operation, .namespace = operation, .create_object = object }, null);
+    defer intent.deinit();
+    for (0..4096) |_| {
+        switch (try caller.next(&intent)) {
+            .send => |prepared| _ = try caller.submit(prepared),
+            .running => {
+                const delivery = (try admin.query(.delivery)).body.delivery.next orelse return error.MissingCatalogContinuation;
+                _ = try admin.submit(.{ .deliver = delivery });
+            },
+            .terminal => |result| {
+                switch (result) {
+                    .ddl => |value| if (value.operation.state != .applied) return error.CatalogSeedRejected,
+                    .dml => |value| if (value.state != .applied) return error.CatalogSeedRejected,
+                }
+                return;
+            },
+            .upload_cancelled => return error.CatalogSeedCancelled,
+        }
+        try drive(init, server, handler);
+    }
+    return error.CatalogSeedBudgetExceeded;
 }
-const Seed = struct {
-    peer: u64,
-    requests: u64,
-    initializer: u64,
-    overflow: bool = false,
-    fn initialize(raw: ?*anyopaque, turn: *s.Turn) anyerror!void {
-        const self: *Seed = @ptrCast(@alignCast(raw.?));
-        _ = try s.Table.create(turn, 1, .{ .names = .{ try .init("id"), try .init("value") }, .value_type = .int64 });
-        try q.UnifiedCapture.setPolicy(turn, .{ .peer = self.peer, .requests = self.requests, .revision = 1, .allow = true, .limits = limits, .target = .{ .declaration = try q.Bundle.declaration(try definition(turn.view.resource)) } });
-        var source: q.UnifiedBehavior.Source = .{ .peer = self.peer, .initializer = self.initializer, .resources = undefined, .adapter = undefined, .workspace = undefined, .cancellation = undefined };
-        const handler = source.interface();
-        try handler.initialize.?(handler.context, turn);
-    }
-    fn handle(raw: ?*anyopaque, turn: *s.Turn, frame: s.Frame) anyerror!void {
-        const self: *Seed = @ptrCast(@alignCast(raw.?));
-        const first = try frame.payload.asInteger();
-        if (first < 0) return;
-        const table = try s.Table.open(turn, 1);
-        var i = first;
-        while (i < @min(first + 4, 41)) : (i += 1) try table.insert(turn, .{ .key = i, .value = if (@mod(i, 5) == 0) .null else .{ .int64 = if (self.overflow and i == 1) std.math.maxInt(i64) else 9007199254740993 + i } });
-    }
-};
 fn drive(init: std.process.Init, server: *s.GenServer, handler: s.GenServer.Handler) !void {
     for (0..20) |_| switch (try server.step(handler, @as(u64, @intCast(std.Io.Clock.real.now(init.io).toMilliseconds())) + 30000)) {
         .committed => return,
@@ -105,14 +106,45 @@ pub fn main(init: std.process.Init) !void {
             _ = try admin.submit(.{ .grant_resource = .{ .resource = resource, .subject = principal, .permissions = p.State.permission(.inspect) | p.State.permission(.read) } });
         };
         var server = try s.GenServer.init(.{ .client = &wire, .realm = 45, .principal = writer_principal, .pid = writer.pid, .generation = writer.generation, .key = writer_key }, "state");
-        var seed: Seed = .{ .peer = requester.pid, .requests = requester.resource, .initializer = writer_principal, .overflow = overflow_flight };
-        const handler: s.GenServer.Handler = .{ .context = &seed, .initialize = Seed.initialize, .handle = Seed.handle };
-        try admin.send(writer.pid, -1);
+        const catalog_principal: u64 = if (second_flight) 43 else 42;
+        const catalog_key = try p.Ed25519.KeyPair.generateDeterministic(@splat(14 + seed_offset));
+        _ = try admin.submit(.{ .grant = .{ .subject = catalog_principal, .pid = writer.pid, .public_key = catalog_key.public_key.toBytes(), .permissions = p.permission(.inspect) | p.permission(.send) } });
+        _ = try admin.submit(.{ .grant_resource = .{ .resource = writer.resource, .subject = catalog_principal, .permissions = p.State.permission(.inspect) | p.State.permission(.read) } });
+        const configuration: catalog.TableCatalogRecords.Configuration = .{ .scope = .{ .realm = 45, .resource = writer.resource, .catalog = 1 }, .owner = writer.pid, .administrator = catalog_principal, .table_limits = .{ .record_bytes = q.fuze.TableRow.max_bytes, .staging_bytes = 2 * q.fuze.TableRow.max_bytes, .staging_records = 2 } };
+        const adapter = try init.arena.allocator().alloc(u8, 1024 * 1024);
+        const workspace_bytes = try init.arena.allocator().alloc(u8, q.fuze.LogicalArrow.working_bytes);
+        var cancellation: q.fuze.execution.Cancellation = .init(false);
+        var owner: q.CatalogQueryOwner = .{ .tables = .{ .allocator = init.gpa, .configuration = configuration }, .resources = .{ .wire = &wire, .realm = 45, .principal = writer_principal, .key = writer_key }, .adapter = adapter, .workspace = workspace_bytes, .cancellation = &cancellation };
+        server.input_guard = owner.guard();
+        server.failure_policy = .stop;
+        const handler = owner.interface();
+        var caller: catalog.TableClient = .{ .transport = &wire, .connection = .{ .scope = configuration.scope, .owner = writer.pid, .principal = catalog_principal }, .key = catalog_key };
+        _ = try caller.submit(try caller.prepareControl(.{ .initialize = configuration }));
         try drive(init, &server, handler);
-        for (0..11) |i| {
-            try admin.send(writer.pid, @intCast(i * 4));
+        for ([_]u64{ query_principal, 55 }) |principal| {
+            _ = try caller.submit(try caller.prepareControl(.{ .policy = .{ .expected_revision = 0, .policy = .{ .scope = configuration.scope, .principal = principal, .revision = 1, .inspect = true, .read = true, .create = false, .insert = false, .update = false, .delete = false, .alter = false, .drop = false } } }));
             try drive(init, &server, handler);
         }
+        try seedStatement(init, &admin, &server, handler, &caller, "CREATE TABLE items (id INT64 PRIMARY KEY, value INT64)", 1, 1);
+        var insert: [4096]u8 = undefined;
+        var sql: std.Io.Writer = .fixed(&insert);
+        try sql.writeAll("INSERT INTO items (id, value) VALUES ");
+        for (0..41) |i| {
+            if (i != 0) try sql.writeAll(", ");
+            try sql.print("({d}, ", .{i});
+            if (i % 5 == 0) try sql.writeAll("NULL") else try sql.print("{d}", .{if (overflow_flight and i == 1) std.math.maxInt(i64) else @as(i64, @intCast(9007199254740993 + i))});
+            try sql.writeByte(')');
+        }
+        try seedStatement(init, &admin, &server, handler, &caller, sql.buffered(), 2, null);
+        var found = (try caller.lookup(init.gpa, try catalog.TableMetadata.Name.init("items"))) orelse return error.MissingSeededTable;
+        defer found.deinit();
+        var table_source = try q.TableSource.from(init.gpa, configuration, found);
+        defer table_source.deinit();
+        const definition: q.SourceDefinition = .{ .resource = writer.resource, .source = .{ .table = table_source.source } };
+        const policy = try (q.CatalogQueryOwner.PolicyChange{ .expected_revision = 0, .policy = .{ .peer = requester.pid, .requests = requester.resource, .revision = 1, .allow = true, .limits = limits, .target = .{ .catalog = .{ .scope = configuration.scope, .owner = writer.pid, .principal = query_principal } } } }).encode();
+        const sequence = (try wire.query(.{ .realm = 45, .principal = catalog_principal, .kind = .capabilities }, catalog_key)).principal_sequence;
+        _ = try wire.submit(try p.Growth.sign(.{ .realm = 45, .principal = catalog_principal, .sequence = sequence + 1, .command = .{ .send = .{ .pid = writer.pid, .value = try (s.Frame{ .kind = .cast, .payload = policy }).encode() } } }, catalog_key));
+        try drive(init, &server, handler);
         var requests = try s.GenServer.init(.{ .client = &wire, .realm = 45, .principal = requester_principal, .pid = requester.pid, .generation = requester.generation, .key = requester_key }, "state");
         var behavior: q.UnifiedBehavior.Requester = .{ .principal = query_principal, .source = writer.pid };
         _ = try wire.submit(try p.Growth.sign(.{ .realm = 45, .principal = query_principal, .sequence = 1, .command = .{ .send = .{ .pid = requester.pid, .value = try (s.Frame{ .kind = .cast, .payload = try q.UnifiedRequest.Command.encode(.initialize) }).encode() } } }, caller_key));
@@ -140,19 +172,19 @@ pub fn main(init: std.process.Init) !void {
         const courier_seed = try seedFile(init, args[3], "courier", 11 + seed_offset);
         const inspector_seed = try seedFile(init, args[3], "inspector", 12);
         const connection: Connection = .{ .realm = 45, .principal = query_principal, .source = writer.pid, .resource = writer.resource, .requester = requester.pid, .requests = requester.resource };
-        const workspace: q.Workspace.Config = .{ .name = "items", .source = try q.Values.Source.fromNative(init.arena.allocator(), try definition(writer.resource)), .limits = try q.Values.Limits.fromNative(init.arena.allocator(), limits) };
+        const workspace: q.Workspace.Config = .{ .name = "items", .source = try q.Values.Source.fromNative(init.arena.allocator(), definition), .limits = try q.Values.Limits.fromNative(init.arena.allocator(), limits) };
         try save(init, args[3], "cli.json", .{ .url = args[1], .seed_file = caller_seed, .connection = connection, .workspace = workspace, .request_timeout_ms = 10000 });
         var inspector = connection;
         inspector.principal = 55;
         try save(init, args[3], "inspector.json", .{ .url = args[1], .seed_file = inspector_seed, .connection = inspector, .workspace = workspace });
-        try save(init, args[3], "source.json", .{ .url = args[1], .realm = 45, .principal = writer_principal, .pid = writer.pid, .generation = writer.generation + 1, .seed_file = source_seed, .activation_directory = args[3], .role = .{ .unified_source = .{ .peer = requester.pid, .initializer = writer_principal } } });
+        try save(init, args[3], "source.json", .{ .url = args[1], .realm = 45, .principal = writer_principal, .pid = writer.pid, .generation = writer.generation + 1, .seed_file = source_seed, .activation_directory = args[3], .role = .{ .catalog = configuration } });
         if (flight) try save(init, args[3], "requester.json", .{ .url = args[1], .realm = 45, .principal = requester_principal, .pid = requester.pid, .generation = requester.generation + 1, .seed_file = request_seed, .activation_directory = args[3], .role = .{ .finite_service = finite.configuration } }) else try save(init, args[3], "requester.json", .{ .url = args[1], .realm = 45, .principal = requester_principal, .pid = requester.pid, .generation = requester.generation + 1, .seed_file = request_seed, .activation_directory = args[3], .role = .{ .unified_requester = behavior } });
         try save(init, args[3], "courier.json", .{ .url = args[1], .realm = 45, .principal = courier_principal, .seed_file = courier_seed, .role = .{ .courier = .{ .destinations = .{ writer.pid, requester.pid } } } });
         return;
     }
     const config = try std.Io.Dir.cwd().readFileAlloc(init.io, args[3], init.gpa, .limited(8192));
     defer init.gpa.free(config);
-    const parsed = try std.json.parseFromSlice(struct { connection: Connection }, init.gpa, config, .{ .ignore_unknown_fields = true });
+    const parsed = try std.json.parseFromSlice(struct { connection: Connection, workspace: q.Workspace.Config }, init.gpa, config, .{ .ignore_unknown_fields = true });
     defer parsed.deinit();
     const c = parsed.value.connection;
     if (std.mem.eql(u8, args[2], "next-sequence")) {
@@ -191,7 +223,7 @@ pub fn main(init: std.process.Init) !void {
     }
     if (std.mem.startsWith(u8, args[2], "retry-sequence:")) {
         const first = try std.fmt.parseInt(u64, args[2][15..], 10);
-        const bundle = try q.Bundle.fromSql(init.arena.allocator(), try definition(c.resource), try .init("items"), "SELECT id, value FROM items", limits);
+        const bundle = try q.Bundle.fromSql(init.arena.allocator(), try parsed.value.workspace.source.native(init.arena.allocator()), "items", "SELECT id, value FROM items", limits);
         const command: q.UnifiedRequest.Command = .{ .begin = try bundle.reference(c.requests, first) };
         const signed = try p.Growth.sign(.{ .realm = c.realm, .principal = c.principal, .sequence = first, .command = .{ .send = .{ .pid = c.requester, .value = try (s.Frame{ .kind = .cast, .payload = try command.encode() }).encode() } } }, try p.Ed25519.KeyPair.generateDeterministic(@splat(10)));
         const receipt = try wire.submit(signed);
@@ -201,9 +233,9 @@ pub fn main(init: std.process.Init) !void {
     if (std.mem.startsWith(u8, args[2], "capture:")) {
         var caller: q.UnifiedClient = .{ .wire = &wire, .connection = c, .key = try p.Ed25519.KeyPair.generateDeterministic(@splat(10)) };
         const namespace = try std.fmt.parseInt(u64, args[2][8..], 10);
-        const workspace = try init.gpa.alloc(u8, q.fuze.Unified.Arrow.working_bytes);
+        const workspace = try init.gpa.alloc(u8, q.fuze.LogicalArrow.working_bytes);
         defer init.gpa.free(workspace);
-        var bytes: [q.fuze.Unified.Arrow.segment_bytes]u8 = undefined;
+        var bytes: [q.fuze.LogicalArrow.segment_bytes]u8 = undefined;
         var cursor: ?q.UnifiedResult.Cursor = null;
         var rows: u64 = 0;
         var length: u64 = 0;
@@ -211,9 +243,10 @@ pub fn main(init: std.process.Init) !void {
         while (true) {
             var arena = std.heap.ArenaAllocator.init(init.gpa);
             defer arena.deinit();
-            var decoded: q.fuze.Unified.Inspect.Batch = undefined;
+            var decoded: q.fuze.LogicalInspect.Batch = undefined;
             const page = try caller.page(namespace, cursor, arena.allocator(), workspace, &bytes, &decoded);
-            rows += decoded.count;
+            defer decoded.deinit();
+            rows += decoded.rows.len;
             length += page.arrow.len;
             segments += 1;
             cursor = page.next;

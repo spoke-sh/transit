@@ -13,12 +13,13 @@ from google.protobuf.any_pb2 import Any
 from serving_tls import TLSProxy
 from flight_faults import NativeBoundary
 from storage import Fixture, free_port, wait_ready
+from cold_storage import ColdStore
 
 
 def run(node, host, gateway, proof, mode=None, board=None):
     faults = mode == 'faults'
     node, host, gateway, proof = [str(Path(p).resolve()) for p in (node, host, gateway, proof)]
-    with Fixture() as fixture, ExitStack() as owned:
+    with ColdStore() as cold, Fixture(cold.config()) as fixture, ExitStack() as owned:
         proto = Path(__file__).resolve().parents[1] / 'packages/zig/transit-flight/proto'
         subprocess.run(['protoc', '-I', str(proto), '--python_out=' + str(fixture.root), str(proto / 'FlightSql.proto'), str(proto / 'Flight.proto')], check=True)
         sys.path.insert(0, str(fixture.root))
@@ -47,25 +48,24 @@ def run(node, host, gateway, proof, mode=None, board=None):
             subprocess.run([node, str(config), '--initialize'], check=True, capture_output=True, timeout=30)
             authority = start('node', [node, str(config)])
             wait_ready(fixture.http, authority, url + '/health')
-            subprocess.run([proof, url, 'provision-flight-overflow' if mode == 'diagnostics' else 'provision-flight', str(fixture.root)], check=True, capture_output=True, timeout=60)
+            subprocess.run([proof, url, 'provision-flight-overflow' if mode == 'diagnostics' else 'provision-flight', str(fixture.root)], check=True, capture_output=True, timeout=300)
             start_workers(fixture.root)
             caller = json.loads((fixture.root / 'cli.json').read_text())
             def connection(caller):
-                return dict(caller['connection'], name=caller['workspace']['name'],
-                            table=caller['workspace']['source']['source']['table']['id'])
+                return dict(caller['connection'], name=caller['workspace']['name'])
             token = 'a' * 64
             (fixture.root / 'credential').write_text(token)
             (fixture.root / 'ticket.seed').write_text('2a' * 32)
             boundary = owned.enter_context(NativeBoundary(url)) if faults else None
             options = dict(url=boundary.url if boundary else url, inspector=55, inspector_seed_file=str(fixture.root / 'inspector.seed'), ticket_seed_file=str(fixture.root / 'ticket.seed'), port=flight_port, ticket_ttl_ms=120000,
-                callers=[dict(credential_file=str(fixture.root / 'credential'), seed_file=str(fixture.root / 'caller.seed'), connection=connection(caller), service=1, binding_revision=1, columns=['id','value'])])
+                callers=[dict(credential_file=str(fixture.root / 'credential'), seed_file=str(fixture.root / 'caller.seed'), connection=connection(caller), service=1, binding_revision=1, definition=caller['workspace']['source'])])
             if faults:
                 options['native_timeout_ms'] = 15000
                 second = fixture.root / 'second'; second.mkdir(mode=0o700)
-                subprocess.run([proof, url, 'provision-flight-second', str(second)], check=True, capture_output=True, timeout=60)
+                subprocess.run([proof, url, 'provision-flight-second', str(second)], check=True, capture_output=True, timeout=300)
                 (second / 'credential').write_text('b' * 64)
                 other = json.loads((second / 'cli.json').read_text())
-                options['callers'].append(dict(credential_file=str(second / 'credential'), seed_file=str(second / 'caller.seed'), connection=connection(other), service=1, binding_revision=1, columns=['id', 'value']))
+                options['callers'].append(dict(credential_file=str(second / 'credential'), seed_file=str(second / 'caller.seed'), connection=connection(other), service=1, binding_revision=1, definition=other['workspace']['source']))
                 start_workers(second, 'second-')
             gateway_config = fixture.root / 'gateway.json'
             gateway_config.write_text(json.dumps(options))
@@ -115,7 +115,7 @@ def run(node, host, gateway, proof, mode=None, board=None):
             before_errors = subprocess.check_output([proof, url, 'next-sequence', str(fixture.root / 'cli.json')], timeout=30)
             for text, category, fragments in (
                 ('SELECT;', pa.ArrowInvalid, ('SQL parse error', 'line 1, column 7', '/reference/sql/')),
-                ('INSERT INTO items VALUES (1, 100);', pa.ArrowInvalid, ('explicit INSERT columns', '.help INSERT')),
+                ('INSERT INTO items VALUES (1, 100);', pa.ArrowNotImplementedError, ('read-only', 'authorized writer')),
                 ('INSERT INTO items (id, value) VALUES (1, 100);', pa.ArrowNotImplementedError, ('read-only', 'authorized writer')),
                 ('CREATE CONNECTION unfinished', pa.ArrowNotImplementedError, ('reference grammar only', 'no SQL execution')),
                 ('SELECT absent FROM items;', pa.ArrowInvalid, ('UnknownColumn', 'Subject: "absent"', 'scope: "items"', 'column 8')),

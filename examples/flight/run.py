@@ -108,7 +108,7 @@ def run(profile, node, host, gateway, proof):
             storage = placement.start('ursula'); wait_ready(http, storage, placement.url('ursula') + '/__ursula/ready')
             placement.initialize()
             authority = placement.start('node'); url = placement.url('node'); wait_ready(http, authority, url + '/health')
-            subprocess.run([proof, url, 'provision-flight', str(work)], check=True, capture_output=True, timeout=180)
+            subprocess.run([proof, url, 'provision-flight', str(work)], check=True, capture_output=True, timeout=300)
             activate('source'); activate('requester'); delivery = courier()
             token = 'a' * 64
             (work / 'credential').write_text(token)
@@ -116,9 +116,10 @@ def run(profile, node, host, gateway, proof):
             for name in ('inspector.seed', 'caller.seed', 'credential'):
                 shutil.copyfile(work / name, work / 'gateway-0' / name)
             (work / 'gateway-0/ticket.seed').write_text('2a' * 32)
-            connection = json.loads((work / 'cli.json').read_text())['connection']
+            caller = json.loads((work / 'cli.json').read_text())
+            connection = dict(caller['connection'], name=caller['workspace']['name'])
             write(work / 'gateway-0/config.json', dict(url=placement.authority, inspector=55, inspector_seed_file=mount+'/inspector.seed', ticket_seed_file=mount+'/ticket.seed', listen='0.0.0.0', port=8080, ticket_ttl_ms=120000, native_timeout_ms=10000,
-                callers=[dict(credential_file=mount+'/credential', seed_file=mount+'/caller.seed', connection=connection, service=1, binding_revision=1, columns=['id','value'])]))
+                callers=[dict(credential_file=mount+'/credential', seed_file=mount+'/caller.seed', connection=connection, service=1, binding_revision=1, definition=caller['workspace']['source'])]))
             serving = start_gateway()
             target = urlsplit(placement.url('gateway-0'))
             edge = owned.enter_context(TLSProxy(work / 'tls', target.port, target.hostname, grpc=True, read_timeout=185))
