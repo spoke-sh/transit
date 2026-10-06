@@ -11600,6 +11600,30 @@ owned I/O/disposal and revoked retry after rebuilding all eight OTP artifacts
 with warnings as errors (`table-beam-schema-{build,raw}1.log`). This qualifies the
 shared validator and raw callers, not the pending general BEAM Table API.
 
+
+Erlang and Elixir logical models pass `just bindings::logical-beam` from six
+independent installed OTP artifacts (`table-beam-logical-installed1.log`). The
+fixture records SHA-256 identities, compiles external Erlang consumers with
+warnings as errors, removes consumer Erlang source, and runs both language APIs
+without native/source overrides. Coverage includes all scalar/recursive families,
+128-bit extremes, exact decimals, float widths/signed zero, nonfinite/width
+rejection, five distinct cell states, ordered conflict alternatives, aggregate
+name/node/data bounds, depth-15 conflicts and MAP key accounting. A 300,000-byte
+binary exceeds raw-body size; a sub-binary ownership check proves that extracted
+UTF-8 does not pin a megabyte of unrelated caller data. Elixir nested field,
+element and alternative structs round-trip through the same codecs, with a
+separate finite projection bound before logical validation.
+
+The first strict build rejected an unused internal type declaration; it was
+removed and all eight OTP artifacts rebuilt successfully. The independent model
+fixture passed first (`table-beam-logical-values1.log`), then the registered task
+rebuilt packages including their guides and passed again. Elixir formatting passes
+(`table-beam-logical-format1.log`). Documentation checks cover 5,309 links across
+527 files; verification retains 59 invariants, 53 bounds and 13 SDK scenarios.
+These logs use the same campaign directory. This is installed codec evidence;
+general BEAM catalog/query, full repository and final clean/performance checks
+remain separate qualification.
+
 ## Fuze logical type foundation
 
 The local `Types` profile has nine passing focused Zig tests, including 46

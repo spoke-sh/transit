@@ -35,3 +35,6 @@ SQL mutation staging and exact saved recovery through an owned native worker.
 
 [Catalog callers](docs/catalog.md) provide immutable declarations and controls,
 named Table creation and exact saved-command recovery through the shared owner.
+
+[Logical values](docs/logical.md) provide owned recursive descriptors, exact wide
+numbers, distinct cell states and bounded neutral codecs.
