@@ -310,6 +310,12 @@ rejection responses distinguish conflict, denial, invalid proposals and uncertai
 service/clock failures. Transport loss, malformed success and response allocation
 failure after acceptance cannot authorize a new mutation sequence.
 
+Both signed envelopes require the body's explicit current `definition` field.
+Decoding rejects a missing or foreign definition before authentication or
+execution; it never fills one from the current build. This also applies to
+signed envelopes nested in saved caller artifacts. The construction defaults
+on unsigned authoring types apply only before signing a new request.
+
 The growing listener uses the bounded [HTTP serving profile](HTTP_SERVING_V1.md)
 with sequential connection reuse. A client can send `X-Transit-Control: snapshot`
 for `close_snapshot` or `snapshot_read` with `finish: true` to use reserved control

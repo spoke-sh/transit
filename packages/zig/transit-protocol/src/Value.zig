@@ -43,7 +43,15 @@ pub fn jsonStringify(self: Value, out: anytype) !void {
     try out.write(hex[0 .. self.len * 2]);
 }
 pub fn jsonParse(allocator: std.mem.Allocator, source: anytype, options: std.json.ParseOptions) !Value {
-    const text = try std.json.innerParse([]const u8, allocator, source, options);
+    return fromText(try std.json.innerParse([]const u8, allocator, source, options));
+}
+pub fn jsonParseFromValue(_: std.mem.Allocator, value: std.json.Value, _: std.json.ParseOptions) !Value {
+    return switch (value) {
+        .string => |text| fromText(text),
+        else => error.UnexpectedToken,
+    };
+}
+fn fromText(text: []const u8) !Value {
     if (text.len > max_bytes * 2 or text.len % 2 != 0) return error.InvalidCharacter;
     for (text) |c| if (!(c >= '0' and c <= '9') and !(c >= 'a' and c <= 'f')) return error.InvalidCharacter;
     var result: Value = .{};
@@ -62,6 +70,13 @@ test "opaque bytes own parser data and enforce canonical bounded encoding" {
     const owned = parsed.value;
     parsed.deinit();
     try t.expect(value.eql(owned));
+    const tree = try std.json.parseFromSlice(std.json.Value, t.allocator, encoded, .{});
+    defer tree.deinit();
+    const from_value = try std.json.parseFromValue(Value, t.allocator, tree.value, .{});
+    defer from_value.deinit();
+    try t.expect(value.eql(from_value.value));
+    try t.expectError(error.InvalidCharacter, std.json.parseFromValue(Value, t.allocator, .{ .string = "FF" }, .{}));
+    try t.expectError(error.UnexpectedToken, std.json.parseFromValue(Value, t.allocator, .{ .integer = 1 }, .{}));
     try t.expectError(error.InvalidCharacter, std.json.parseFromSlice(Value, t.allocator, "\"FF\"", .{}));
     try t.expectError(error.InvalidCharacter, std.json.parseFromSlice(Value, t.allocator, "\"0\"", .{}));
     try t.expectError(error.ValueTooLarge, Value.init(&(@as([max_bytes + 1]u8, @splat(1)))));

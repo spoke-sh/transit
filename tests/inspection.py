@@ -150,6 +150,22 @@ def run(node, cli):
             old_query = s.query("process", pids[0])
             old_query["query"]["version"] = version
             s.post("/v1/query", old_query, 400)
+        # Removing a defaulted definition used to reconstruct a valid signed
+        # body. Reject it during decoding, before any authority transition.
+        for definition in (None, "previous-v1-definition", "0", "0" * 64, 0):
+            for route, field, envelope in (
+                    ("/v1/command", "request", s.signed({"spawn": {}}, s.sequence + 1)),
+                    ("/v1/query", "query", s.query("process", pids[0]))):
+                if definition is None:
+                    del envelope[field]["definition"]
+                else:
+                    envelope[field]["definition"] = definition
+                s.post(route, envelope, 400)
+        for route, envelope in (
+                ("/v1/command", s.signed({"spawn": {}}, s.sequence + 1)),
+                ("/v1/query", s.query("process", pids[0]))):
+            envelope["signature"] = "i" * 64
+            s.post(route, envelope, 400)
         for route in ("/v2/command", "/v2/view", "/v2/inspect", "/v3/command", "/v3/query"):
             s.post(route, {}, 404)
         assert s.native_query({"capabilities": {}})["position"] == before

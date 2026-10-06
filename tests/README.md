@@ -16884,3 +16884,28 @@ startup check and the complete second native run verify the correction. An
 intermediate build invoked from the repository root failed to find an entry;
 the subsequent build ran in the owning app directory. Failed attempts are not
 counted as qualification. Logs remain in `/var/tmp/transit-table-75-_el6xx0v`.
+
+### Signed bodies require explicit contract definitions
+
+The signed-envelope decoder derives a required-definition wire body from the
+unsigned authoring type. Both JSON entry points reject missing/foreign definitions,
+quoted enum ordinals, string signatures and string snapshot nonces; saved wrappers
+cannot restore the omitted field. Ordinary unsigned construction still supplies
+the current definition before signing. Shared opaque values retain their owned
+lowercase-hex codec when decoded from a JSON tree.
+
+`general-signed-definition-unit3.log` passes **37/37** ReleaseSafe protocol tests
+(9 ms, 5 MiB), including unchanged independent signing fixtures and ordinary/
+recursive schema parity. `general-signed-definition-native1.log` passes the real
+disk-backed inspection schedule, including command/query missing and foreign
+definitions, invalid signature shape, no authority-position advance on rejection,
+scoped pagination, revocation and node/store recovery. Native, installation,
+ABI/binding and browser resources were regenerated and their drift checks pass
+(`general-signed-definition-contract1.log`); documentation links also pass.
+
+The first unit compile rejected an overly broad custom-parser error set. The
+second run exposed that opaque `Value` had only a token decoder; its matching
+JSON-tree decoder fixes the signed body round-trip. Those attempts failed and
+are retained as `general-signed-definition-unit1.log`, `unit2.log` and the focused
+debug logs in `/var/tmp/transit-table-75-_el6xx0v`. The shared definition replacement
+for the complete Table cutover remains a separate pending step.

@@ -92,6 +92,10 @@ fn parseWithOptions(comptime T: type, allocator: std.mem.Allocator, bytes: []con
     try shape(T, tree.value);
     return std.json.parseFromSlice(T, allocator, bytes, options);
 }
+/// For custom decoders that delegate to an ordinary reflected wire type.
+pub fn validateShape(comptime T: type, value: std.json.Value) anyerror!void {
+    return shape(T, value);
+}
 fn shape(comptime T: type, value: std.json.Value) anyerror!void {
     switch (@typeInfo(T)) {
         .int => switch (value) {

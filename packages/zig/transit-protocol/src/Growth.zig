@@ -140,7 +140,17 @@ pub const Command = union(enum) {
 };
 pub const Collection = struct { pid: Id, id: Id, kind: enum { output, effect, payload, resource, process } };
 pub const Request = struct { version: u32 = version, definition: Definition = current_definition, realm: Id, principal: Id, sequence: u64, command: Command };
-pub const SignedRequest = struct { request: Request, signature: [64]u8 };
+pub const SignedRequest = struct {
+    request: Request,
+    signature: [64]u8,
+    pub const json_schema_type = @import("SignedEnvelope.zig").Wire(@This(), "request");
+    pub fn jsonParse(allocator: std.mem.Allocator, source: anytype, options: std.json.ParseOptions) !@This() {
+        return @import("SignedEnvelope.zig").parse(@This(), "request", allocator, source, options);
+    }
+    pub fn jsonParseFromValue(allocator: std.mem.Allocator, value: std.json.Value, options: std.json.ParseOptions) !@This() {
+        return @import("SignedEnvelope.zig").fromValue(@This(), "request", allocator, value, options);
+    }
+};
 pub const Origin = union(enum) {
     external: struct { principal: Id, policy_revision: u64 },
     process: struct { pid: Id, turn: Id, output: Id },
@@ -274,7 +284,17 @@ pub const Query = struct {
     },
 };
 pub const Identity = struct { principal: Id, permissions: u16, pid: ?Id, policy_revision: u64 };
-pub const SignedQuery = struct { query: Query, signature: [64]u8 };
+pub const SignedQuery = struct {
+    query: Query,
+    signature: [64]u8,
+    pub const json_schema_type = @import("SignedEnvelope.zig").Wire(@This(), "query");
+    pub fn jsonParse(allocator: std.mem.Allocator, source: anytype, options: std.json.ParseOptions) !@This() {
+        return @import("SignedEnvelope.zig").parse(@This(), "query", allocator, source, options);
+    }
+    pub fn jsonParseFromValue(allocator: std.mem.Allocator, value: std.json.Value, options: std.json.ParseOptions) !@This() {
+        return @import("SignedEnvelope.zig").fromValue(@This(), "query", allocator, value, options);
+    }
+};
 pub fn Batch(comptime T: type, comptime Cursor: type) type {
     return struct { entries: [page_size]?T = @splat(null), next: ?Cursor = null };
 }
@@ -628,6 +648,78 @@ test "contract definitions reject numeric enum aliases in both JSON decoders" {
     const decoded = try std.json.parseFromValue(Definition, t.allocator, value.value, .{});
     defer decoded.deinit();
     try t.expectEqual(current_definition, decoded.value);
+}
+
+test "signed wire envelopes require definitions and preserve strict JSON shapes" {
+    const t = std.testing;
+    inline for (.{
+        .{ SignedRequest, "request", SignedRequest{ .request = .{ .realm = 42, .principal = 0, .sequence = 1, .command = .{ .send = .{ .pid = 3, .value = try .init("x") } } }, .signature = @splat(0) } },
+        .{ SignedQuery, "query", SignedQuery{ .query = .{ .realm = 42, .principal = 0, .kind = .{ .open_snapshot = .{ .resource = 7, .nonce = @splat(105) } } }, .signature = @splat(0) } },
+    }) |case| {
+        const T = case[0];
+        const bytes = try p.Json.valueAlloc(t.allocator, case[2]);
+        defer t.allocator.free(bytes);
+        const parsed = try std.json.parseFromSlice(T, t.allocator, bytes, .{});
+        defer parsed.deinit();
+        try t.expectEqualDeep(case[2], parsed.value);
+        var tree = try std.json.parseFromSlice(std.json.Value, t.allocator, bytes, .{});
+        defer tree.deinit();
+        const arena = tree.arena.allocator();
+        const body = tree.value.object.getPtr(case[1]).?;
+        const definition = body.object.get("definition").?;
+        try t.expect(body.object.swapRemove("definition"));
+        try t.expectError(error.MissingField, std.json.parseFromValue(T, t.allocator, tree.value, .{}));
+        const missing = try std.json.Stringify.valueAlloc(t.allocator, tree.value, .{});
+        defer t.allocator.free(missing);
+        try t.expectError(error.MissingField, std.json.parseFromSlice(T, t.allocator, missing, .{}));
+        try t.expectError(error.MissingField, p.Json.parseFromSlice(T, t.allocator, missing));
+        const saved = try std.fmt.allocPrint(t.allocator, "{{\"signed\":{s}}}", .{missing});
+        defer t.allocator.free(saved);
+        try t.expectError(error.MissingField, std.json.parseFromSlice(struct { signed: T }, t.allocator, saved, .{}));
+        for ([_][]const u8{ "0", "previous-v1-definition" }) |foreign| {
+            try body.object.put(arena, "definition", .{ .string = foreign });
+            try t.expectError(error.UnexpectedToken, std.json.parseFromValue(T, t.allocator, tree.value, .{}));
+        }
+        try body.object.put(arena, "definition", definition);
+        const signature = tree.value.object.get("signature").?;
+        try body.object.put(arena, "unknown", .{ .bool = true });
+        try t.expectError(error.UnknownField, std.json.parseFromValue(T, t.allocator, tree.value, .{}));
+        try t.expect(body.object.swapRemove("unknown"));
+        try tree.value.object.put(arena, "signature", .{ .string = &@as([64]u8, @splat(105)) });
+        try t.expectError(error.UnexpectedToken, std.json.parseFromValue(T, t.allocator, tree.value, .{}));
+        if (T == SignedQuery) {
+            try tree.value.object.put(arena, "signature", signature);
+            const snapshot = body.object.getPtr("kind").?.object.getPtr("open_snapshot").?;
+            try snapshot.object.put(arena, "nonce", .{ .string = "iiiiiiiiiiiiiiii" });
+            try t.expectError(error.UnexpectedToken, std.json.parseFromValue(T, t.allocator, tree.value, .{}));
+        }
+    }
+    // This is unsigned authoring input, not a saved or received signed request.
+    const authored = try std.json.parseFromSlice(Query, t.allocator, "{\"realm\":42,\"principal\":0,\"kind\":{\"identity\":{}}}", .{});
+    defer authored.deinit();
+    try t.expectEqual(current_definition, authored.value.definition);
+}
+
+test "signed schema reflection requires the same explicit definition as decoding" {
+    const t = std.testing;
+    inline for (.{ .{ SignedRequest, "request" }, .{ SignedQuery, "query" } }) |case| {
+        inline for (.{ false, true }) |recursive| {
+            var output: std.Io.Writer.Allocating = .init(t.allocator);
+            defer output.deinit();
+            var out: std.json.Stringify = .{ .writer = &output.writer };
+            if (recursive) try p.Schema.writeRecursive(case[0], &out, .{ .safe_integers = true }) else try p.Schema.write(case[0], &out, .{ .safe_integers = true });
+            const schema = try std.json.parseFromSlice(std.json.Value, t.allocator, output.written(), .{});
+            defer schema.deinit();
+            const root = if (recursive) schema.value.object.get("$defs").?.object.get("T0").? else schema.value;
+            const body = root.object.get("properties").?.object.get(case[1]).?.object;
+            var found = false;
+            for (body.get("required").?.array.items) |name| {
+                if (std.mem.eql(u8, "definition", name.string)) found = true;
+            }
+            try t.expect(found);
+            try t.expect(body.get("x-transit-defaults").?.object.get("definition") == null);
+        }
+    }
 }
 
 test "native responses require the current contract definition even with a v1 label" {

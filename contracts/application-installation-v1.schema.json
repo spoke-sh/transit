@@ -2881,13 +2881,13 @@
                 }
               },
               "required": [
+                "definition",
                 "realm",
                 "principal",
                 "kind"
               ],
               "x-transit-defaults": {
-                "version": 1,
-                "definition": "57343ef043d4dc7f9612a7ca3309e9218dd527c0f3826a519ff0d29b761b4a82"
+                "version": 1
               }
             },
             "signature": {

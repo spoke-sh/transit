@@ -29,6 +29,12 @@ and [inspection vectors](src/fixtures/inspection-v1.json) pin independent bytes,
 hashes and Ed25519 signatures. The shared Zig client owns those semantics across
 language SDKs; generated declarations alone do not constitute a correct SDK.
 
+Signed command/query envelopes require an explicit current `definition` in their
+body. Missing or foreign definitions fail decoding before signature verification
+or execution, including when a signed envelope is nested in saved caller work.
+Unsigned request authoring can use the current-definition construction default;
+that default is never applied while decoding a signed wire body.
+
 Capabilities describe supported operations, not cached authorization. Each read
 rechecks current keys, PID scope, resource grants and lifetime, then verifies the
 authority-tail fence before disclosure. Metadata inspection alone cannot
@@ -66,6 +72,9 @@ text slices remain strings and owning `jsonStringify` codecs remain authoritativ
 Public scalar types can supply `jsonSchema`; versioned structs can override a
 field with `json_schema_fields` beside their runtime declarations. These helpers
 do not replace the native protocol's canonical digest/signing functions.
+Custom decoders can declare `json_schema_type` to reflect the ordinary wire type
+they actually decode. Signed envelopes derive that type from their public fields,
+making the definition mandatory without duplicating command/query declarations.
 Owners can scope reflected text and sequence bounds to a field with
 `json_schema_text_bounds` and `json_schema_sequence_bounds`.
 `json_schema_outer_sequence_bounds` limits only the next slice dimension, so

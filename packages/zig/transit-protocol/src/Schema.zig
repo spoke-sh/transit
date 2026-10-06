@@ -58,6 +58,7 @@ pub fn write(comptime T: type, out: *std.json.Stringify, comptime options: Optio
         if (options.diagnostic_reference) |name| return out.write(.{ .@"$ref" = name });
     }
     if (comptime @typeInfo(T) == .@"struct") {
+        if (comptime @hasDecl(T, "json_schema_type")) return write(T.json_schema_type, out, options);
         if (comptime @hasDecl(T, "jsonSchema")) return T.jsonSchema(out);
     }
     try out.beginObject();

@@ -8,7 +8,7 @@ const Node = struct { T: type, options: Options };
 fn custom(comptime T: type) bool {
     if (T == p.Value) return true;
     return switch (@typeInfo(T)) {
-        .@"struct" => @hasDecl(T, "jsonSchema"),
+        .@"struct" => @hasDecl(T, "jsonSchema") or @hasDecl(T, "json_schema_type"),
         else => false,
     };
 }
