@@ -16796,3 +16796,26 @@ audit entry. Neither failed run is completion evidence. These logs are in
 prefix. Local/Compose/reference ledger placements and the final clean checkout
 remain separate qualification work; earlier placement results do not qualify
 this changed application.
+
+### Board metadata follows general Table and query records
+
+At `86b11d69` plus the metadata projection change, standalone ReleaseSafe Station
+tests passed **93/93** (`general-board-metadata-station1.log`, 2 seconds, 13 MiB
+maximum resident memory), and Board API tests passed **13/13**
+(`general-board-metadata-api2.log`, 5 ms, 4 MiB). They verify exact typed-head
+keys/resource identity, incompatible definitions, full-width object/revision and
+publication namespace identities, and rejection of superseded metadata layouts.
+Generated Board OpenAPI/types/validators match their Zig owner
+(`general-board-metadata-contract1.log`). Frontend formatting, lint, strict types
+and **77 tests** passed (`general-board-metadata-web1.log`); the embedded
+ReleaseSafe Board and ledger build passed (`general-board-metadata-build1.log`).
+
+The first browser schedule (`general-board-metadata-native1.log`) passed actual
+API metadata validation but failed two browser assertions: the fixture still
+expected the removed Table key, and a query JavaScript chunk had grown to
+1,070,791 bytes, exceeding the existing 900,000-byte bound. The key expectation
+is migrated with the head fixture. The asset regression requires a separate
+validator-generation correction; this run is **not** a passing browser or
+complete native Board proof. A preceding generator build failed on a removed
+Zig array repetition operator; the corrected second generator/API run passed.
+Logs remain in `/var/tmp/transit-table-75-_el6xx0v`.

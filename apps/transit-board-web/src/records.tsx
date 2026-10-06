@@ -9,8 +9,8 @@ import { retryInspectionRead } from "./inspection-read";
 
 type QueryDeclaration = NonNullable<RecordsResponse["queries"][number]>["declaration"];
 function QueryEvidence({ detail }: { detail: QueryDeclaration }) {
-  if ("capture" in detail || "execution" in detail) {
-    const capture = "capture" in detail ? detail.capture : detail.execution;
+  if ("execution" in detail) {
+    const capture = detail.execution;
     return (
       <>
         <h3>Query capture {capture.result}</h3>
@@ -39,18 +39,7 @@ function QueryEvidence({ detail }: { detail: QueryDeclaration }) {
       </>
     );
   }
-  const manifest = detail.manifest;
-  return (
-    <>
-      <h3>Query manifest {manifest.result}</h3>
-      <p>
-        Source resource {manifest.basis.resource} · revision {manifest.basis.revision}
-      </p>
-      <p>
-        {manifest.rows} recorded rows · {manifest.segments} segments
-      </p>
-    </>
-  );
+  return null;
 }
 
 type Declaration = NonNullable<RecordsResponse["exchanges"][number]>["declaration"];

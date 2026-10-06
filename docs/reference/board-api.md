@@ -23,6 +23,16 @@ It returns current metadata within the configured source scope, separate from
 compiled query bundles or submitted results. It creates no query or snapshot.
 The worksheet's Run action retains its explicit SELECT submission interface.
 
+Resource-entry inspection interprets a typed Table head only when its current
+format, object key and resource identity agree. It reports the recorded head
+revision, row count, pending operation, retirement state and immutable schema
+publication reference. It does not infer column names or decode application rows
+from that head. Use authorized catalog inspection for column definitions. Query
+record inspection reports the current request and execution records, including
+their result references and attributed failures. Every lens retains its source
+PID, resource, key and observed revisions; current read revocation removes access
+to that evidence as well as to ordinary entries.
+
 The query API's `compile` request also accepts an explicit neutral `parameters`
 array and delegates to the shared [parameter compiler](../../contracts/SQL_PARAMETERS_V1.md).
 It returns an ordinary owned bundle after current source and budget checks;
