@@ -109,7 +109,9 @@ pub fn run(init: std.process.Init, args: []const []const u8, diagnostic: *Diagno
         identity = .{ .domain = .transport, .id = .init(prepared.signed.request.sequence), .sequence = .init(prepared.signed.request.sequence), .realm = .init(prepared.signed.request.realm) };
     }
     var location: c.fuze.Sql.Location = .{};
-    const result = session.applyDiagnostic(init.arena, &client, action, &location) catch |err| {
+    var response_arena: std.heap.ArenaAllocator = .init(init.gpa);
+    defer response_arena.deinit();
+    const result = apply(init.io, &response_arena, &session, &client, action, &location) catch |err| {
         const failure = if (submitting and err != error.AccessDenied and err != error.Rejected and err != error.Conflict) uncertain(diagnostic, err) else err;
         diagnostic.envelope = c.TableAttempt.attempt(&session, connection, action, err, location, submitting, identity, transport.last_rejection) catch null;
         if (action == .compile and diagnostic.envelope != null) if (diagnostic.envelope.?.location) |*where| (p.Diagnostic.SourcePath.init(options.flags.file.?) catch return failure).apply(where);
@@ -130,6 +132,22 @@ pub fn run(init: std.process.Init, args: []const []const u8, diagnostic: *Diagno
         }
         return err;
     };
+}
+fn apply(io: std.Io, arena: *std.heap.ArenaAllocator, session: *B.Session, client: *c.TableClient, action: B.Action, location: *c.fuze.Sql.Location) !B.Result {
+    const deadline = std.Io.Clock.boot.now(io).toMilliseconds() + client.transport.timeout_ms;
+    var attempts: u8 = 0;
+    while (true) {
+        client.transport.last_rejection = null;
+        return session.applyDiagnostic(arena, client, action, location) catch |err| {
+            // Restart only locally unsubmitted reads whose dependent metadata
+            // cut expired. Never retry sends, denial or an incompatible cursor,
+            // and never change the saved intent while the owner advances it.
+            if (action == .submit or attempts == 8 or (err != error.Rejected and err != error.Conflict) or client.transport.last_rejection != .StaleStateResource or std.Io.Clock.boot.now(io).toMilliseconds() >= deadline) return err;
+            attempts += 1;
+            _ = arena.reset(.free_all);
+            continue;
+        };
+    }
 }
 fn uncertain(diagnostic: *Diagnostic, cause: anyerror) anyerror {
     diagnostic.setFailure(cause, "the catalog command's outcome is unknown", "Keep the original prepared file and retry it with the same configuration:\n  transit catalog submit --config PATH --file PREPARED\nDo not prepare a replacement command or infer application from a missing response.");

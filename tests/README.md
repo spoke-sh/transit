@@ -16317,3 +16317,30 @@ interface directly (`catalog-cli-general-diagnostics1.log` through `3.log`). A
 first native invocation names an uninstalled proof executable and does not run;
 the subsequent owning `test-typed-tables` task builds its actual artifacts before
 qualification (`catalog-cli-general-native1.log`, `2.log`).
+
+### General catalog CLI lifecycle and metadata retry
+
+`zig build test-typed-tables -Doptimize=ReleaseSafe --summary all` passes all
+nine build/run steps (`catalog-cli-general-native4.log` in the local Table-schema
+campaign). The native schedule takes 162.930 seconds and includes 525 observed
+turns, 141 sends, accepted-but-lost caller and supplied-host replies, exact
+reconciliation and original versus replacement object identities. Each observed
+turn stays within four native mutations and every inline value within 256 bytes.
+These recovery timings are not a matched mutation-latency benchmark.
+
+The CLI adapter uses original private compiled/prepared output files. It verifies
+multi-column CREATE/INSERT, separate no-op matched/changed counts, late duplicate
+atomic rejection, a lost send followed by a new caller instance, ALTER and
+historical schema lookup, DELETE and DROP/recreate identity safety. A 142,101-byte
+typed intent exceeds the former 64 KiB artifact limit; this framing case remains
+locally saved and undispatched, and does not claim a 70 KiB row was executed by
+this particular CLI schedule. The shared native/port schedule independently
+qualifies typed large-value storage.
+
+The first attempted CLI proof referenced an uninstalled executable and did not
+run. The next found a real `StaleStateResource` race while preparing ALTER's next
+step. The initial fix failed to compile; neither run passed. The corrected CLI
+uses a separate response arena and at most eight retries within its request
+deadline for locally unsubmitted reads with that exact native rejection. It does
+not retry submit, permission denial or changed cursors, or replace saved intent.
+The successful schedule above includes the corrected path.

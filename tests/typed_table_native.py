@@ -425,6 +425,11 @@ def run(node, proof, host, cli, station_host, *arguments):
             console('DROP TABLE console_output')
             from typed_table_bridge import run as bridge_proof
             bridge_result = bridge_proof(station_host, url, root, readers, lambda sql: call('select', sql))
+            from catalog_cli import qualify as cli_proof
+            def lose_cli_send():
+                nonlocal armed
+                armed = 'send'
+            cli_result = cli_proof(cli, root, url, lambda sql: call('select', sql), lose_cli_send)
             installed = []
             if languages:
                 from sdk_catalog import install
@@ -439,7 +444,7 @@ def run(node, proof, host, cli, station_host, *arguments):
 
             assert not failures, failures
             assert measurements['max_mutations'] <= 4 and measurements['max_value_bytes'] <= 256, measurements
-            print(json.dumps(dict(profile='typed-table-native', seconds=round(time.monotonic() - started, 3), lost_reply_replays=sorted(replays), supplied_host_lost_receipt='host_turn' in faults, measurements=measurements, bridge=bridge_result, installed=installed)))
+            print(json.dumps(dict(profile='typed-table-native', seconds=round(time.monotonic() - started, 3), lost_reply_replays=sorted(replays), supplied_host_lost_receipt='host_turn' in faults, measurements=measurements, bridge=bridge_result, catalog_cli=cli_result, installed=installed)))
         finally:
             release_host_reply.set()
             for worker in workers:
