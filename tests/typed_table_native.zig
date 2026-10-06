@@ -271,7 +271,6 @@ pub fn main(init: std.process.Init) !void {
     const config = try load(Config, init, directory, "catalog.json");
     const owner = configuration(config);
     var caller: c.TableClient = .{ .transport = &wire, .connection = .{ .scope = owner.scope, .owner = owner.owner, .principal = 1234 }, .key = try key(10) };
-    if (std.mem.eql(u8, mode, "bridge")) return bridge(init, &caller);
     if (std.mem.eql(u8, mode, "host")) return host(init, &wire, directory, config, args[1]);
     if (std.mem.eql(u8, mode, "initialize")) return submit(init, directory, &caller, try caller.prepareControl(.{ .initialize = owner }));
     if (std.mem.eql(u8, mode, "pump")) return pump(init, &wire, directory, config, if (args.len > 4) try std.fmt.parseInt(usize, args[4], 10) else 10000);
@@ -318,33 +317,4 @@ pub fn main(init: std.process.Init) !void {
         return submit(init, directory, &caller, try caller.prepareControl(control));
     }
     return error.Usage;
-}
-
-fn bridge(init: std.process.Init, caller: *c.TableClient) !void {
-    var session: c.TableBridge.Session = .{ .allocator = init.gpa };
-    defer session.deinit();
-    const buffer = try init.gpa.alloc(u8, c.TableBridge.max_input_bytes + 1);
-    defer init.gpa.free(buffer);
-    var input = std.Io.File.stdin().reader(init.io, buffer);
-    var output_buffer: [16384]u8 = undefined;
-    var output = std.Io.File.stdout().writerStreaming(init.io, &output_buffer);
-    while (try input.interface.takeDelimiter('\n')) |line| {
-        var arena: std.heap.ArenaAllocator = .init(init.gpa);
-        defer arena.deinit();
-        const parsed = c.TableBridge.parse(arena.allocator(), line) catch |err| {
-            try print(init, .{ .err = @errorName(err) });
-            continue;
-        };
-        const result = (if (parsed.value == .submit)
-            session.apply(&arena, caller, parsed.value)
-        else
-            currentRead(init, caller.transport, c.TableBridge.Session.apply, .{ &session, &arena, caller, parsed.value })) catch |err| {
-            try print(init, .{ .err = @errorName(err) });
-            continue;
-        };
-        var json: std.json.Stringify = .{ .writer = &output.interface };
-        try p.Json.write(result, &json);
-        try output.interface.writeByte('\n');
-        try output.interface.flush();
-    }
 }

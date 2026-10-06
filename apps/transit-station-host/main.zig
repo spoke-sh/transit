@@ -84,14 +84,18 @@ fn run(init: std.process.Init, diagnostics: *telemetry.Runtime) !void {
         if (raw.Api.transit_client_create(1, url.ptr, url.len, config.timeout_ms, &client) != .ok) return error.InvalidHostConfiguration;
         raw.observe(client.?, diagnostics);
     }
-    const input_buffer = try init.gpa.alloc(u8, raw.host.max_line_bytes);
-    defer init.gpa.free(input_buffer);
-    var input = std.Io.File.stdin().reader(init.io, input_buffer);
+    var input_buffer: [16384]u8 = undefined;
+    var input = std.Io.File.stdin().reader(init.io, &input_buffer);
     var output_buffer: [8192]u8 = undefined;
     var output = std.Io.File.stdout().writerStreaming(init.io, &output_buffer);
-    while (try input.interface.takeDelimiter('\n')) |line| {
+    while (try host.readLine(init.gpa, &input.interface, host.lineBytes(catalog_client != null))) |line| {
+        defer init.gpa.free(line);
         var arena = std.heap.ArenaAllocator.init(init.gpa);
         defer arena.deinit();
+        if (catalog_client != null) s.fuze.Types.Json.preflight(line, .{ .bytes = host.catalog_line_bytes, .depth = 97, .tokens = 1024 * 1024, .fields = 256 }) catch |err| {
+            try respond(&output.interface, 1, try std.json.Stringify.valueAlloc(arena.allocator(), .{ .err = @errorName(err) }, .{}));
+            continue;
+        };
         const request = (if (catalog_client != null) s.protocol.Json.parseFromSlice(host.Request, arena.allocator(), line) else std.json.parseFromSlice(host.Request, arena.allocator(), line, .{})) catch |err| {
             try respond(&output.interface, 1, try std.json.Stringify.valueAlloc(arena.allocator(), .{ .err = @errorName(err) }, .{}));
             continue;

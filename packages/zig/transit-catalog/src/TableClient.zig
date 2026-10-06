@@ -60,6 +60,7 @@ pub const Prepared = struct {
     pub const max_saved_bytes = 8192;
     pub fn command(self: Prepared) !Payload {
         if (self.version != 1) return error.InvalidCatalogPrepared;
+        if (self.definition != g.current_definition) return error.IncompatibleDefinition;
         try self.connection.validate();
         try g.validate(self.signed.request);
         const envelope = self.signed.request;

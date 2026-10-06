@@ -26,7 +26,9 @@ pub const TableDiagnostic = @import("TableDiagnostic.zig");
 pub const TableValues = @import("TableValues.zig");
 pub const TableTyped = @import("TableTyped.zig");
 pub const TableBridge = @import("TableBridge.zig");
+pub const TableAttempt = @import("TableAttempt.zig");
 test {
+    _ = TableAttempt;
     _ = @import("table_bridge_test.zig");
     _ = @import("table_values_test.zig");
     _ = @import("table_client_test.zig");

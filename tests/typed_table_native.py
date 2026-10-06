@@ -12,8 +12,8 @@ import time
 from storage import Fixture, free_port, wait_ready
 
 
-def run(node, proof, host, cli):
-    node, proof, host, cli = (str(Path(binary).resolve()) for binary in (node, proof, host, cli))
+def run(node, proof, host, cli, station_host):
+    node, proof, host, cli, station_host = (str(Path(binary).resolve()) for binary in (node, proof, host, cli, station_host))
     with Fixture() as fixture:
         root = fixture.root
         public = json.loads(subprocess.check_output([proof, 'public'], timeout=10))
@@ -413,7 +413,7 @@ def run(node, proof, host, cli):
             assert len(cells) == 64 and all(cell['value']['atom']['utf8'] == payload for cell in cells)
             console('DROP TABLE console_output')
             from typed_table_bridge import run as bridge_proof
-            bridge_result = bridge_proof(proof, url, root, readers, lambda sql: call('select', sql))
+            bridge_result = bridge_proof(station_host, url, root, readers, lambda sql: call('select', sql))
             assert not failures, failures
             assert measurements['max_mutations'] <= 4 and measurements['max_value_bytes'] <= 256, measurements
             print(json.dumps(dict(profile='typed-table-native', seconds=round(time.monotonic() - started, 3), lost_reply_replays=sorted(replays), supplied_host_lost_receipt='host_turn' in faults, measurements=measurements, bridge=bridge_result)))

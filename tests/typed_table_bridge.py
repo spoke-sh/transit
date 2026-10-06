@@ -1,6 +1,6 @@
 """Exercise the shared general Table boundary over an actual native owner.
 
-This fixture invokes the Zig bridge directly. ABI/installed SDK qualification
+This fixture uses the public Station port and C ABI. Installed SDK qualification
 has its own boundary; no Python implementation of Table semantics is used.
 """
 import json
@@ -10,9 +10,15 @@ import subprocess
 import time
 
 
-def run(proof, url, root, readers, query):
+def run(host, url, root, readers, query):
+    source_config = json.loads((root / "console.json").read_text())
+    connection = source_config["catalog"]
+    connection["scope"]["catalog"] = str(connection["scope"]["catalog"])
+    config = root / "bridge-host.json"
+    config.write_text(json.dumps(dict(url=url, seed_file=str(root / "caller.seed"),
+                                     catalog_client=dict(connection=connection, timeout_ms=5000))))
     def open_bridge():
-        child = subprocess.Popen([proof, url, 'bridge', str(root)], stdin=subprocess.PIPE,
+        child = subprocess.Popen([host, str(config)], stdin=subprocess.PIPE,
                                  stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
         readers.append(child)
         return child
@@ -22,7 +28,7 @@ def run(proof, url, root, readers, query):
 
     def call(action, error=None):
         nonlocal max_step_bytes
-        wire = json.dumps(action, separators=(',', ':'))
+        wire = json.dumps({'catalog': action}, separators=(',', ':'))
         if next(iter(action)) in ('next', 'status', 'progress', 'wait_progress'):
             max_step_bytes = max(max_step_bytes, len(wire.encode()))
         process.stdin.write(wire + '\n')
@@ -30,11 +36,13 @@ def run(proof, url, root, readers, query):
         assert select.select([process.stdout], [], [], 30)[0], 'Neutral Table call exceeded its budget'
         line = process.stdout.readline()
         assert line, (process.poll(), process.stderr.read() if process.poll() is not None else '')
-        result = json.loads(line)
+        envelope = json.loads(line)
+        result = envelope['value']
         if error:
-            assert result == {'err': error}, result
+            assert envelope['status'] != 0 and result['err'] == error, envelope
+            assert result['diagnostic']['outcome'] in ('not_submitted', 'not_applicable'), result
         else:
-            assert 'err' not in result, result
+            assert envelope['status'] == 0 and 'err' not in result, envelope
         return result
 
     definition = call({'capabilities': {}})['capabilities']['definition']
@@ -99,6 +107,14 @@ def run(proof, url, root, readers, query):
            dict(column='4', value=cell({'decimal': '123456789012345678901234567890'})),
            dict(column='2', value=cell({'signed': '1'}))]
     mutation = dict(basis=basis(source), mutation=dict(action={'insert': [row]}, predicate=None))
+    # Exercise both directions above the old raw-client framing bound without
+    # dispatching thousands of unrelated upload parts in this framing proof.
+    large_row = json.loads(json.dumps(row))
+    large_row[0]['value']['cell']['value']['structure'][0]['value']['atom']['binary'] = 'ab' * (300 * 1024)
+    large = prepare(899, {'mutate': dict(basis=basis(source), mutation=dict(action={'insert': [large_row]}, predicate=None))})
+    assert len(json.dumps(large)) > 540672
+    assert call({'load': large['saved']})['loaded'] == large['intent']
+
     inserted = prepare(901, {'mutate': mutation})
     applied = finish(inserted)
     assert applied['counts'] == {'matched': '1', 'changed': '1'}, applied

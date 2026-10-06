@@ -151,9 +151,11 @@ test "recursive schemas retain scalar codecs safe integers and per-field sequenc
     const t = std.testing;
     const Recursive = struct {
         pub const json_schema_sequence_bounds = .{ .children = 3 };
+        pub const json_schema_text_bounds = .{ .bounded = 29 };
         pub const json_schema_fields = .{ .label = .{ .type = "string", .maxLength = 17 } };
         value: u64,
         label: []const u8,
+        bounded: []const u8,
         children: []const @This(),
         parent: ?*const @This(),
         opaque_value: p.Value,
@@ -180,7 +182,8 @@ test "recursive schemas retain scalar codecs safe integers and per-field sequenc
     try t.expectEqualStrings("string", Resolve.get(defs, props.get("opaque_value").?).object.get("type").?.string);
     try t.expectEqualStrings("string", Resolve.get(defs, props.get("exact").?).object.get("type").?.string);
     try t.expectEqual(@as(i64, 17), props.get("label").?.object.get("maxLength").?.integer);
-    try t.expectEqual(@as(usize, 6), root.get("required").?.array.items.len);
+    try t.expectEqual(@as(i64, 29), Resolve.get(defs, props.get("bounded").?).object.get("maxLength").?.integer);
+    try t.expectEqual(@as(usize, 7), root.get("required").?.array.items.len);
     try t.expect(root.get("x-transit-defaults").?.object.get("enabled").?.bool);
     try t.expect(defs.count() < 30);
 }

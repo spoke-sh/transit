@@ -11282,6 +11282,33 @@ codecs (`table-schema-graph1.log`, `table-schema-graph-catalog1.log`,
 `table-schema-graph-bindings1.log`). This qualifies generation; enabling the general
 catalog ABI and installed language callers remains a separate migration.
 
+The general catalog C ABI/port checkpoint passes **18/18 binding tests** and
+**92/92 catalog tests** (`table-general-abi6.log`, `table-general-catalog1.log`).
+ABI checks cover owned results, local compile locations, preserved loaded intent
+after failed compile, busy exclusion, signature rejection before dispatch and
+uncertain transport with the original signed sequence. Framing checks reject
+oversized and unterminated work and leave non-catalog profile bounds unchanged.
+All **33 generated Station schema roots** compile with the pinned TypeScript Ajv
+validator (`table-general-schema-ajv1.log`). Recursive host bounds apply to the
+catalog field; unrelated actions keep their existing generation bounds.
+
+The disk-backed scenario now invokes the actual Station port/C ABI instead of a
+test-only bridge. It passes in **135.663 seconds** (`table-general-abi-native2.log`),
+with 424 turns, 109 sends, at most four native mutations and 256-byte values.
+It prepares and reloads a nested 300 KiB binary input above the old raw-client
+framing bound, without dispatching that large upload. The smaller typed write,
+ALTER, rename, DROP and name-reuse/restart scenario executes; exact lost-send,
+lost-turn and supplied-host recovery controls also pass. Maximum progress request
+size is **1,392 bytes**, including the port envelope.
+
+The first port run encountered `StaleStateResource` between dependent reads
+during ALTER progress. The ABI now restarts only that exact native rejection for
+reads/local preparation, at most eight times within its configured deadline,
+freeing failed workspace each time. It never retries a submit, cursor conflict
+or denial. The successful second run includes this correction. These are focused
+public ABI proofs; all-language migration, complete end-to-end type coverage,
+global current-v1 replacement and committed-HEAD clean CI remain open.
+
 ## Fuze logical type foundation
 
 The local `Types` profile has nine passing focused Zig tests, including 46

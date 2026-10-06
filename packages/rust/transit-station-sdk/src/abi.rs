@@ -3,6 +3,10 @@
 pub const ABI_VERSION: u32 = 1;
 pub const ABI_DEFINITION: &str = "57343ef043d4dc7f9612a7ca3309e9218dd527c0f3826a519ff0d29b761b4a82";
 pub const MINIMUM_STACK_BYTES: usize = 8388608;
+pub const CATALOG_LINE_BYTES: usize = 16793600;
+pub const CATALOG_ACTION_BYTES: usize = 16777216;
+pub const CATALOG_INTENT_BYTES: usize = 4327031;
+pub const CATALOG_PREPARED_BYTES: usize = 8192;
 #[repr(C)] pub struct station_growing_server { _private: [u8; 0] }
 #[repr(C)] pub struct station_query_client { _private: [u8; 0] }
 #[repr(C)] pub struct station_mutation_client { _private: [u8; 0] }

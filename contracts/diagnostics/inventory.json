@@ -2363,8 +2363,8 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 37,
-        "catch": 3
+        "try": 38,
+        "catch": 4
       },
       "imports": [
         "client_abi",
@@ -3258,6 +3258,37 @@
         "std"
       ]
     },
+    "packages/zig/transit-catalog/src/TableAttempt.zig": {
+      "errors": {
+        "AccessDenied": 2,
+        "Conflict": 1,
+        "InvalidCatalogReceipt": 1,
+        "InvalidTableHead": 1,
+        "InvalidTableIntent": 1,
+        "InvalidTableStatus": 1,
+        "Rejected": 1,
+        "TableIntentNotLoaded": 1,
+        "TableNotFound": 1,
+        "TableUploadClosed": 1,
+        "TableUploadNotFound": 1,
+        "TableUploadNotReady": 1
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "attempt()": "<inferred>"
+      },
+      "open_error_set_uses": 3,
+      "propagation": {
+        "try": 15,
+        "catch": 2
+      },
+      "imports": [
+        "CallerCodes.zig",
+        "root.zig",
+        "std"
+      ]
+    },
     "packages/zig/transit-catalog/src/TableBehavior.zig": {
       "errors": {
         "CatalogAlreadyPopulated": 2,
@@ -3600,6 +3631,7 @@
         "CatalogOwnerChanged": 1,
         "CatalogOwnerUnavailable": 1,
         "CatalogScopeChanged": 1,
+        "IncompatibleDefinition": 1,
         "InvalidAuthorityResponse": 1,
         "InvalidCatalogIdentity": 5,
         "InvalidCatalogPage": 1,
@@ -4227,6 +4259,7 @@
         "Inspection.zig",
         "Model.zig",
         "Records.zig",
+        "TableAttempt.zig",
         "TableBehavior.zig",
         "TableBridge.zig",
         "TableCatalog.zig",
@@ -14029,19 +14062,22 @@
         "CatalogPolicyConflict": 1,
         "CatalogScopeChanged": 1,
         "CatalogSourceChanged": 1,
-        "Conflict": 1,
+        "Conflict": 2,
         "InvalidCatalogPrepared": 1,
         "OutOfMemory": 2,
-        "Rejected": 1,
-        "ResourceUnavailable": 1
+        "Rejected": 2,
+        "ResourceUnavailable": 1,
+        "TableIntentNotLoaded": 1
       },
       "outcomes": {},
       "error_sets": {},
-      "error_returns": {},
+      "error_returns": {
+        "apply()": "<inferred>"
+      },
       "open_error_set_uses": 2,
       "propagation": {
         "try": 0,
-        "catch": 17
+        "catch": 18
       },
       "imports": [
         "Abi.zig",
@@ -14406,7 +14442,9 @@
     "packages/zig/transit-station-bindings/src/HostProtocol.zig": {
       "errors": {
         "ConflictingHostProfiles": 2,
-        "MissingAuthorityEndpoint": 1
+        "EndOfStream": 1,
+        "MissingAuthorityEndpoint": 1,
+        "TruncatedHostLine": 1
       },
       "outcomes": {
         "Request": [
@@ -14442,16 +14480,18 @@
       },
       "error_sets": {},
       "error_returns": {
-        "Config.validateProfiles()": "<inferred>"
+        "Config.validateProfiles()": "<inferred>",
+        "readLine()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 0,
-        "catch": 0
+        "try": 2,
+        "catch": 1
       },
       "imports": [
         "Abi.zig",
         "client_abi",
+        "std",
         "transit_station"
       ]
     },
@@ -14628,7 +14668,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 27,
+        "try": 29,
         "catch": 0
       },
       "imports": [

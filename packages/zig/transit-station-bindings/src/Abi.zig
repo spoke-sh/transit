@@ -146,6 +146,7 @@ pub const Api = struct {
 };
 
 test {
+    _ = host;
     _ = growing;
     _ = http;
     _ = grpc;

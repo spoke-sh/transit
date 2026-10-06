@@ -56,8 +56,8 @@ preparation, frozen recovery and separate durable result/input-rejection reads
 through its own native handle and port profile. It delegates to the shared
 query package; read-query handles do not acquire mutation capability.
 
-The [catalog caller](docs/catalog.md) exposes initialization, compatible Table
-creation, conditional policy controls and separate operation/input outcomes.
+The [catalog caller](docs/catalog.md) exposes general typed schemas, Table DDL/DML,
+conditional policy controls and separate operation/input outcomes.
 Its C ABI and native port use `transit-catalog`'s shared neutral values and signed
 client. Catalog identities retain their full width; preparation, admission and
 application remain distinct. Generated resources do not imply idiomatic SDK

@@ -25,6 +25,9 @@ pub fn fieldOptions(comptime T: type, comptime name: []const u8, comptime option
     if (comptime @hasDecl(T, "json_schema_sequence_bounds") and @hasField(@TypeOf(T.json_schema_sequence_bounds), name)) {
         result.sequence_max_length = @field(T.json_schema_sequence_bounds, name);
     }
+    if (comptime @hasDecl(T, "json_schema_text_bounds") and @hasField(@TypeOf(T.json_schema_text_bounds), name)) {
+        result.text_max_length = @field(T.json_schema_text_bounds, name);
+    }
     return result;
 }
 /// Reflect recursive host values with local references. The selected options

@@ -1,8 +1,25 @@
 //! Line-framed transport for runtimes using an isolated native host process.
+const std = @import("std");
 const abi = @import("Abi.zig");
 const p = @import("transit_station").protocol;
 const raw = @import("client_abi").host;
 pub const version = 1;
+pub const catalog_line_bytes = abi.catalog_client.bridge.max_input_bytes + 16384;
+pub fn lineBytes(catalog: bool) usize {
+    return if (catalog) catalog_line_bytes else raw.max_line_bytes;
+}
+/// Grow only for the current request. An idle host retains the small Reader
+/// buffer, not the catalog profile's maximum complete-message allocation.
+pub fn readLine(allocator: std.mem.Allocator, reader: *std.Io.Reader, maximum: usize) !?[]u8 {
+    var output: std.Io.Writer.Allocating = .init(allocator);
+    defer output.deinit();
+    _ = try reader.streamDelimiterLimit(&output.writer, '\n', .limited(maximum));
+    _ = reader.takeByte() catch |err| switch (err) {
+        error.EndOfStream => if (output.written().len == 0) return null else return error.TruncatedHostLine,
+        else => return err,
+    };
+    return try output.toOwnedSlice();
+}
 pub const Config = struct {
     url: ?[]const u8 = null,
     local_codec: bool = false,
@@ -24,6 +41,8 @@ pub const Config = struct {
     }
 };
 pub const Request = union(enum) {
+    pub const json_schema_text_bounds = .{ .catalog = abi.catalog_client.bridge.max_input_bytes };
+    pub const json_schema_sequence_bounds = .{ .catalog = 65536 };
     hello: void,
     shutdown: void,
     growing_capabilities: void,
@@ -53,3 +72,21 @@ pub const Request = union(enum) {
     metadata: []const u8,
     client_capabilities: void,
 };
+
+test "host framing grows per request and rejects unterminated or oversized work" {
+    const t = std.testing;
+    var reader: std.Io.Reader = .fixed("123\n\n4567\n");
+    const first = (try readLine(t.allocator, &reader, 4)).?;
+    defer t.allocator.free(first);
+    try t.expectEqualStrings("123", first);
+    const empty = (try readLine(t.allocator, &reader, 4)).?;
+    defer t.allocator.free(empty);
+    try t.expectEqual(@as(usize, 0), empty.len);
+    try t.expectError(error.StreamTooLong, readLine(t.allocator, &reader, 4));
+    var partial: std.Io.Reader = .fixed("partial");
+    try t.expectError(error.TruncatedHostLine, readLine(t.allocator, &partial, 100));
+    var ended: std.Io.Reader = .fixed("");
+    try t.expect((try readLine(t.allocator, &ended, 100)) == null);
+    try t.expectEqual(raw.max_line_bytes, lineBytes(false));
+    try t.expect(lineBytes(true) > raw.max_line_bytes);
+}
