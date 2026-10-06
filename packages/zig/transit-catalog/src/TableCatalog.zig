@@ -491,12 +491,12 @@ fn alterStep(self: Self, allocator: std.mem.Allocator, turn: *s.Turn, request: D
 /// One bounded private proposal. The native owner commits its writes with input
 /// progress, and supplies the exact same request on each continuation.
 pub fn step(self: Self, allocator: std.mem.Allocator, turn: *s.Turn, request: DdlRequest) !Outcome {
-    return self.advanceDdl(allocator, turn, request, false);
+    return self.advanceDdl(allocator, turn, request, .external);
 }
 /// A native self-message can continue only an already admitted exact operation.
 /// Origin is never rewritten to impersonate the recorded external principal.
 pub fn continueDdl(self: Self, allocator: std.mem.Allocator, turn: *s.Turn, request: DdlRequest) !Outcome {
-    return self.advanceDdl(allocator, turn, request, true);
+    return self.advanceDdl(allocator, turn, request, .continuation);
 }
 fn actor(self: Self, turn: *s.Turn, who: u64, continuation: bool) !void {
     try self.owner(turn);
@@ -504,15 +504,16 @@ fn actor(self: Self, turn: *s.Turn, who: u64, continuation: bool) !void {
         if (turn.delivery.input.origin != .process or turn.delivery.input.origin.process.pid != self.configuration.owner) return error.CatalogDenied;
     } else if (try principal(turn) != who) return error.CatalogDenied;
 }
-fn advanceDdl(self: Self, allocator: std.mem.Allocator, turn: *s.Turn, request: DdlRequest, continuation: bool) !Outcome {
+const Admission = enum { external, continuation, uploaded };
+fn advanceDdl(self: Self, allocator: std.mem.Allocator, turn: *s.Turn, request: DdlRequest, admission: Admission) !Outcome {
     const before = turn.decision;
     errdefer turn.decision = before;
-    try self.actor(turn, request.principal, continuation);
+    try self.actor(turn, request.principal, admission != .external);
     _ = try self.authorize(turn, request.principal, .inspect);
     _ = try self.authorize(turn, request.principal, request.right());
     const digest = try request.digest(self.configuration.scope);
     const pending = (try self.operation(turn, request.principal, request.operation)) orelse {
-        if (continuation) return error.CatalogOperationNotFound;
+        if (admission == .continuation) return error.CatalogOperationNotFound;
         return self.admit(turn, request, digest);
     };
     if (!std.mem.eql(u8, &pending.digest, &digest)) return error.CatalogIdentityConflict;
@@ -608,15 +609,15 @@ fn dataBinding(self: Self, source: anytype, request: DmlRequest) !void {
 /// Inspect and action policy are current. A terminal exact receipt is returned
 /// before consulting the live name/schema, including after DROP or RENAME.
 pub fn mutate(self: Self, allocator: std.mem.Allocator, turn: *s.Turn, request: DmlRequest) !s.TableWrite.Status {
-    return self.advanceMutation(allocator, turn, request, false);
+    return self.advanceMutation(allocator, turn, request, .external);
 }
 pub fn continueMutation(self: Self, allocator: std.mem.Allocator, turn: *s.Turn, request: DmlRequest) !s.TableWrite.Status {
-    return self.advanceMutation(allocator, turn, request, true);
+    return self.advanceMutation(allocator, turn, request, .continuation);
 }
-fn advanceMutation(self: Self, allocator: std.mem.Allocator, turn: *s.Turn, request: DmlRequest, continuation: bool) !s.TableWrite.Status {
+fn advanceMutation(self: Self, allocator: std.mem.Allocator, turn: *s.Turn, request: DmlRequest, admission: Admission) !s.TableWrite.Status {
     const before = turn.decision;
     errdefer turn.decision = before;
-    try self.actor(turn, request.principal, continuation);
+    try self.actor(turn, request.principal, admission != .external);
     _ = try self.authorize(turn, request.principal, .inspect);
     _ = try self.authorize(turn, request.principal, request.right());
     var scratch: [c.fuze.TableSchema.max_columns]c.fuze.Types.Values.Cell = undefined;
@@ -626,9 +627,29 @@ fn advanceMutation(self: Self, allocator: std.mem.Allocator, turn: *s.Turn, requ
     if (try s.TableWrite.status(turn, ref)) |previous| {
         if (previous.route != route.receiptRoute()) return error.InvalidTableWriteStatus;
         if (previous.state != .building) return previous;
-    } else if (continuation) return error.TableWriteNotFound;
+    } else if (admission == .continuation) return error.TableWriteNotFound;
     try self.dataBinding(turn, request);
     return route.step(allocator, turn);
+}
+
+/// An owner self-message can admit an uploaded command only through the exact
+/// committed transport record created by its original external principal.
+/// Check terminal receipts before reading a body that may have been collected.
+pub fn executeUploaded(self: Self, allocator: std.mem.Allocator, turn: *s.Turn, namespace: u64) !bool {
+    const before = turn.decision;
+    errdefer turn.decision = before;
+    const uploads: c.TableUpload = .{ .catalog = self };
+    const upload = try uploads.executionStatus(turn, namespace);
+    if (upload.phase == .cancelled) return true;
+    if (upload.phase != .ready) return error.TableUploadNotReady;
+    if (try uploads.application(turn, upload) == .terminal) return true;
+    var command = try uploads.resolve(allocator, turn, namespace);
+    defer command.deinit();
+    const admission: Admission = if (turn.delivery.input.origin == .external) .external else .uploaded;
+    return switch (command.body.request) {
+        .ddl => |request| (try self.advanceDdl(allocator, turn, request, admission)).terminal(),
+        .dml => |request| (try self.advanceMutation(allocator, turn, request, admission)).state != .building,
+    };
 }
 pub fn mutationStatus(self: Self, allocator: std.mem.Allocator, source: anytype, who: u64, request: DmlRequest) !?s.TableWrite.Status {
     _ = try self.authorize(source, who, .inspect);
@@ -697,4 +718,20 @@ pub fn readDefinition(self: Self, allocator: std.mem.Allocator, source: anytype,
     if (current.state != .live) return error.TableRetired;
     if (!std.meta.eql(current.metadata, expected)) return error.CatalogDefinitionChanged;
     return self.resolve(allocator, source, current, try self.metadata(source, current));
+}
+
+/// Resolve the command's accepted immutable metadata under current policy.
+/// The enclosing native caller supplies authenticated `who`; this read helper
+/// does not grant execution merely because a header names an allowed principal.
+pub fn commandBasis(self: Self, allocator: std.mem.Allocator, source: anytype, who: u64, header: c.TableCommand.Header, purpose: enum { inspect, execute }) !?c.TableCommand.ResolvedBasis {
+    _ = try self.authorize(source, who, .inspect);
+    if (who != header.principal) return error.CatalogDenied;
+    try header.validate();
+    try self.scope(header.scope);
+    if (header.owner != self.configuration.owner) return error.CatalogOwnerChanged;
+    if (purpose == .execute) _ = try self.authorize(source, who, header.right());
+    if (header.metadata.id == 0) return null;
+    const record = try self.historical(source, who, header.object, header.metadata);
+    const needs_schema = header.kind == .alter or header.kind == .insert or header.kind == .update or header.kind == .delete;
+    return .{ .record = record, .schema = if (needs_schema) try record.readSchema(allocator, source) else null };
 }

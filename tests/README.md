@@ -10894,6 +10894,21 @@ reject ALTER, while catalog cancellation clears its Table and object together.
 The old 158-byte helper record is rejected; the coordinated native/current-v1
 cutover and regeneration remain required before enabling the general profile.
 
+Authorized command-basis resolution and staged delivery pass **59/59 catalog
+tests** (`table-upload-final2.log`). Historical command resolution retains the
+original accepted schema after DROP/name reuse and checks current permissions.
+The independent Python fixture fixes the 239-byte upload status. Tests cover
+part boundaries and exact duplicate checks, four-write chunk completion,
+namespace/principal collisions, foreign origins, every unadmitted cancellation
+phase, recorded self-origin admission, finite DML counts, denial/restoration
+boundaries and terminal retries after body collection. Every injected native
+read failure during binding/admission poisons the proposal and leaves it empty.
+Private seal/bind results cannot supply committed publication/admission evidence.
+The first extended run preceded fixture regeneration and failed two missing-field
+checks (`table-upload-final.log`); the regenerated independent fixture passes in
+the cited rerun. These are captured-turn tests; native behavior scheduling,
+signed client transport, disk restart and performance remain unqualified here.
+
 ## Fuze logical type foundation
 
 The local `Types` profile has nine passing focused Zig tests, including 46

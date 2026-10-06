@@ -585,3 +585,43 @@ kind must agree with its action. Decoding verifies metadata scope/object/revisio
 commitment, original name and full schema fingerprint before interpreting typed
 values. All decoded data is owned and released explicitly. Invalid lengths,
 states, tags, values, trailing bytes and changed bindings reject before execution.
+
+`commandBasis` resolves accepted historical metadata and its original schema
+under current inspect and, for execution, action permission. A DROP followed by
+name reuse cannot redirect a saved body to the replacement object.
+
+## General command staging
+
+`TableUpload` stages TCQ1 in Publication domain 4 with a caller-chosen nonzero
+resource-global namespace and record ID 1. A namespace is never adopted from
+orphan bytes or another principal/catalog. Its fixed quota admits one body of at
+most the TCQ1 envelope limit; native resource quotas remain separately enforced.
+This helper does not install the native behavior or caller transport by itself.
+
+The retained `TCU1` status is 239 bytes: magic, complete TCQ1 header, namespace:u64,
+body spec (format:u32, length:u32, digest:32), phase:u8, received:u32,
+admission input:u64, application digest:32 and application route:u8. Integers are
+little-endian. Phase codes are uploading=1, sealed=2, ready=3, cancelled=4.
+Routes are unbound=0, catalog DDL=1, point DML=2, finite DML=3. Unbound digests
+are exactly zero. Ready requires the entire body and its recomputed application
+binding. The status key uses catalog tag `U`, namespace and zero revision; tag
+`u` stores at most one 128-byte half-chunk.
+
+Parts have contiguous offsets divisible by 128 and exactly the smaller of 128
+or the remaining body length. Exact duplicates compare the retained half or
+completed chunk; changed duplicates reject. Two parts compose each ordinary
+256-byte Publication chunk. Completing a chunk uses at most four writes;
+begin and seal use three. Seal publishes bytes without applying SQL. A later
+committed read checks full body commitment, header and authorized schema, then
+persists the recomputed application binding in a separate one-write decision.
+This leaves all four native mutation slots available to subsequent SQL work.
+
+`executeUploaded` admits or continues only the exact ready body retained from an
+authenticated external upload. Process-origin admission requires the configured
+owner PID and the committed upload binding; it never rewrites the original
+principal. Current rights are rechecked. Terminal application receipts are read
+before loading body bytes, so late continuations remain resolvable after body
+collection. Cancellation of an unadmitted upload closes only transport; admitted
+work uses its original catalog/Table coordinator. Collection requires cancelled
+unadmitted transport or a terminal application receipt and preserves permanent
+upload identity, body commitment, application reference and SQL receipts.

@@ -114,6 +114,22 @@ with `deinit`. Small point commands fit ordinary Station frames; larger bodies
 require the enclosing host's bounded Publication transport. Encoding does not
 send a command, schedule a continuation or add native caller support by itself.
 
+`commandBasis` resolves the accepted original metadata/schema under current
+permission, including after DROP and name reuse. `TableUpload` supplies bounded
+Publication staging for larger bodies. It accepts contiguous 128-byte parts,
+verifies exact duplicates, and refuses namespace adoption. Publication and
+application binding occupy separate committed turns before SQL execution.
+`executeUploaded` verifies the retained external intent before admitting an owner
+self-message; ordinary continuations still cannot manufacture a first operation.
+
+Upload identity and the exact application reference survive body collection.
+Current inspect permission gates recovery; action permission gates execution.
+Cancelling unadmitted transport does not claim an SQL outcome. Once admitted,
+cancellation uses the original coordinator. Collection requires closure and
+never deletes its receipt. Each staging/collection turn stays within four native
+writes. These helpers still require native behavior/client wiring and do not
+change the console's supported syntax by themselves.
+
 A record owns scope, full-width object and metadata revision, exact name,
 immutable Table schema reference and complete schema fingerprint, principal,
 original operation and admission input. The metadata revision is independent of

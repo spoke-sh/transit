@@ -17,6 +17,16 @@ pub const Header = struct {
     object: u64,
     metadata: s.TablePages.Reference,
     kind: Kind,
+    pub fn right(self: Header) m.Right {
+        return switch (self.kind) {
+            .create => .create,
+            .alter, .rename => .alter,
+            .drop => .drop,
+            .insert => .insert,
+            .update => .update,
+            .delete => .delete,
+        };
+    }
     pub fn validate(self: Header) !void {
         try self.scope.validate();
         try c.Model.nativeId(self.owner);
@@ -65,6 +75,17 @@ pub fn inspect(bytes: []const u8) !Header {
 
 pub const Request = union(enum) { ddl: c.TableDdlRequest, dml: c.TableDmlRequest };
 pub const Basis = struct { record: Meta.Record, schema: ?c.fuze.TableSchema.Schema = null };
+pub const ResolvedBasis = struct {
+    record: Meta.Record,
+    schema: ?c.fuze.TableSchema.Owned = null,
+    pub fn borrow(self: *const ResolvedBasis) Basis {
+        return .{ .record = self.record, .schema = if (self.schema) |value| value.schema else null };
+    }
+    pub fn deinit(self: *ResolvedBasis) void {
+        if (self.schema) |*value| value.deinit();
+        self.* = undefined;
+    }
+};
 pub const Body = struct {
     header: Header,
     request: Request,

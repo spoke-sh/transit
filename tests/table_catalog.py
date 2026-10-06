@@ -41,6 +41,13 @@ def fixture():
     assert len(command_header) == 141
     renamed = '人々'.encode()
     rename_command = command_header + bytes([len(renamed)]) + renamed
+    upload_digest = hashlib.sha256(b'transit.station.publication.v1\0' + struct.pack('<II', 0x54435101, len(rename_command))).digest()
+    for index, offset in enumerate(range(0, len(rename_command), 256)):
+        chunk = rename_command[offset:offset + 256]
+        upload_digest = hashlib.sha256(b'\1' + upload_digest + struct.pack('<IH', index, len(chunk)) + chunk).digest()
+    upload = b'TCU1' + command_header + struct.pack('<QII', maximum, 0x54435101, len(rename_command)) + upload_digest
+    upload += struct.pack('<BIQ', 2, len(rename_command), 5) + bytes(32) + b'\0'
+    assert len(upload) == 239
     assert len(bytes.fromhex(configuration)) == 93
     assert len(bytes.fromhex(policy)) == 85
     assert len(bytes.fromhex(obj)) == 182
@@ -53,6 +60,7 @@ def fixture():
         'manifest_hex': manifest.hex(),
         'command_header_hex': command_header.hex(),
         'rename_command_hex': rename_command.hex(),
+        'upload_status_hex': upload.hex(),
         'inline_key_hex': (b'\0P' + struct.pack('>IQBQI', 9, maximum, ord('i'), 3, 0)).hex(),
         'controls': {'configuration': configuration, 'policy': policy, 'object': obj, 'operation': operation, 'dependency': dependency},
     }

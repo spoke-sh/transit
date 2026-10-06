@@ -781,3 +781,49 @@ test "saved DML references retain their route and cannot cancel catalog ALTER" {
     try t.expectError(error.CatalogScopeChanged, owner.mutationReceipt(&turn, 17, other));
     try t.expectError(error.CatalogDenied, owner.mutationReceipt(&turn, 18, admitted.reference));
 }
+
+test "command basis resolves accepted historical schema after DROP with current rights" {
+    var store: TestStore = .{};
+    defer store.deinit();
+    try ready(&store);
+    const creation = try keyedCreate();
+    _ = try ddl(&store, creation);
+    var turn = try store.capture(17);
+    var definition = (try owner.lookup(t.allocator, &turn, 17, creation.name)).?;
+    defer definition.deinit();
+    var plan = try c.fuze.TableDml.compile(t.allocator, "INSERT INTO people VALUES (1, 'A')", "people", definition.schema.schema, null);
+    defer plan.deinit();
+    const request: c.TableDmlRequest = .{ .principal = 17, .operation = 2, .metadata = .{ .id = definition.metadata.revision, .spec = try definition.metadata.spec() }, .plan = plan.plan };
+    const body = try c.TableCommand.fromDml(owner.configuration.scope, owner.configuration.owner, request, definition.metadata);
+    var bytes: [512]u8 = undefined;
+    const encoded = try c.TableCommand.encode(t.allocator, body, &bytes);
+    _ = try dml(&store, request);
+    _ = try ddl(&store, .{ .principal = 17, .operation = 3, .object = 10, .expected_revision = 1, .name = creation.name, .action = .{ .drop = .{} } });
+    _ = try ddl(&store, try createRequest(11, 4, "people"));
+    turn = try store.capture(17);
+    var original = (try owner.commandBasis(t.allocator, &turn, 17, body.header, .execute)).?;
+    defer original.deinit();
+    try t.expectEqual(@as(u64, 10), original.record.object);
+    var decoded = try c.TableCommand.decode(t.allocator, encoded, original.borrow());
+    defer decoded.deinit();
+    try t.expectEqual(.applied, (try owner.mutate(t.allocator, &turn, decoded.body.request.dml)).state);
+    var changed = body.header;
+    changed.owner += 1;
+    try t.expectError(error.CatalogOwnerChanged, owner.commandBasis(t.allocator, &turn, 17, changed, .inspect));
+    try t.expectError(error.CatalogDenied, owner.commandBasis(t.allocator, &turn, 18, body.header, .inspect));
+    var rights = try m.Policy.administrator(owner.configuration.scope, 17);
+    rights.revision = 2;
+    rights.insert = false;
+    try owner.setPolicy(&turn, 1, rights);
+    try store.commit(turn);
+    turn = try store.capture(17);
+    try t.expectError(error.CatalogDenied, owner.commandBasis(t.allocator, &turn, 17, body.header, .execute));
+    var disclosed = (try owner.commandBasis(t.allocator, &turn, 17, body.header, .inspect)).?;
+    defer disclosed.deinit();
+    rights.revision = 3;
+    rights.inspect = false;
+    try owner.setPolicy(&turn, 2, rights);
+    try store.commit(turn);
+    turn = try store.capture(17);
+    try t.expectError(error.CatalogDenied, owner.commandBasis(t.allocator, &turn, 17, body.header, .inspect));
+}

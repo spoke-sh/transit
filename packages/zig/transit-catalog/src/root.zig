@@ -17,7 +17,9 @@ pub const TableCatalog = @import("TableCatalog.zig");
 pub const TableDdlRequest = @import("TableDdlRequest.zig");
 pub const TableDmlRequest = @import("TableDmlRequest.zig");
 pub const TableCommand = @import("TableCommand.zig");
+pub const TableUpload = @import("TableUpload.zig");
 test {
+    _ = @import("table_upload_test.zig");
     _ = @import("table_command_test.zig");
     _ = @import("table_metadata_test.zig");
     _ = @import("table_catalog_test.zig");

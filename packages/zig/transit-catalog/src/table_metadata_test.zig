@@ -53,7 +53,7 @@ test "general metadata owns UTF-8 names and complete immutable schema references
     try t.expectEqualSlices(u8, first.data[0..24], second.data[0..24]);
 }
 test "general catalog metadata matches independent Python layouts" {
-    const Fixture = struct { definition: []const u8, record_hex: []const u8, name_digest_hex: []const u8, name_key_hex: []const u8, manifest_hex: []const u8, command_header_hex: []const u8, rename_command_hex: []const u8, inline_key_hex: []const u8, controls: struct { configuration: []const u8, policy: []const u8, object: []const u8, operation: []const u8, dependency: []const u8 } };
+    const Fixture = struct { definition: []const u8, record_hex: []const u8, name_digest_hex: []const u8, name_key_hex: []const u8, manifest_hex: []const u8, command_header_hex: []const u8, rename_command_hex: []const u8, upload_status_hex: []const u8, inline_key_hex: []const u8, controls: struct { configuration: []const u8, policy: []const u8, object: []const u8, operation: []const u8, dependency: []const u8 } };
     const parsed = try std.json.parseFromSlice(Fixture, t.allocator, @embedFile("fixtures/table-metadata.json"), .{});
     defer parsed.deinit();
     const expected = parsed.value;
