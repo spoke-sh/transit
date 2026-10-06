@@ -19,9 +19,13 @@ fn info(cause: anyerror) codes.Entry {
     if (c.fuze.SqlDiagnostic.category(cause)) |category_value| return .{ .cause = cause, .code = "table.invalid_typed_input", .category = category_value, .message = "The typed Table request violates its schema or operation limits. Check stable column identities, logical types, constraints and bounded mutation inputs." };
     return .{ .cause = cause, .code = "catalog.internal_failure", .category = .internal, .message = "The caller could not complete this operation. Preserve saved work and inspect its original status; this failure does not establish its outcome." };
 }
+fn detailFor(action: b.Action, cause: anyerror) codes.Entry {
+    if (action == .definition and cause == error.CatalogDefinitionChanged) return .{ .cause = cause, .code = "catalog.invalid_record", .category = .integrity, .message = "The retained definition does not match its exact object, revision or original acceptance evidence. Preserve those identities for operator inspection; a current schema change cannot explain inconsistent immutable history." };
+    return info(cause);
+}
 pub fn category(action: b.Action, cause: anyerror) d.Category {
     if (action == .compile) if (c.fuze.SqlDiagnostic.category(cause)) |value| return value;
-    return info(cause).category;
+    return detailFor(action, cause).category;
 }
 fn selected(session: *b.Session, connection: c.TableClient.Connection, action: b.Action) ?d.Identity {
     const reference = switch (action) {
@@ -51,7 +55,7 @@ pub fn attempt(session: *b.Session, connection: c.TableClient.Connection, action
         .submit => if (dispatched) .submit else .prepare,
         else => .read,
     };
-    const detail = info(cause);
+    const detail = detailFor(action, cause);
     const sending = dispatched and action == .submit;
     const rejected = cause == error.AccessDenied or cause == error.Rejected or cause == error.Conflict;
     var result = if (sending and !rejected)
@@ -94,4 +98,18 @@ test "general caller failures retain read and dispatch evidence" {
         try t.expectEqual(if (rejected) d.Outcome.not_applicable else .unknown, sent.outcome);
         try t.expectEqual(if (rejected) d.ActionKind.inspect_scope else .resume_exact, sent.actions[1].?.kind);
     }
+}
+
+test "exact historical inconsistencies require integrity inspection without new declaration advice" {
+    const t = std.testing;
+    var session: b.Session = .{ .allocator = t.allocator };
+    defer session.deinit();
+    const connection: c.TableClient.Connection = .{ .scope = .{ .realm = 46, .resource = 7, .catalog = 2 }, .owner = 3, .principal = 17 };
+    const action: b.Action = .{ .definition = .{ .object = "10", .revision = "1" } };
+    try t.expectEqual(.integrity, category(action, error.CatalogDefinitionChanged));
+    const result = try attempt(&session, connection, action, error.CatalogDefinitionChanged, .{}, false, null, null);
+    try t.expectEqualStrings("catalog.invalid_record", result.code.slice());
+    try t.expectEqual(.not_applicable, result.outcome);
+    try t.expectEqual(.none, result.evidence);
+    try t.expectEqual(.contact_operator, result.actions[0].?.kind);
 }

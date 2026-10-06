@@ -254,6 +254,12 @@ class Definition(Entry):
 
 
 @dataclass(frozen=True, slots=True)
+class HistoricalDefinition:
+    metadata: Metadata
+    schema: Schema
+
+
+@dataclass(frozen=True, slots=True)
 class Cursor:
     definition: str
     scope: Scope
@@ -673,6 +679,15 @@ def _resolved(value: object, scope: Scope, name: str) -> Definition | None:
     v = _object(value, 'metadata head schema')
     result = Definition(_metadata(v['metadata']), _head(v['head']), _schema(v['schema']))
     if result.metadata.scope != scope or result.metadata.name != name or result.metadata.object_id != result.schema.object_id: raise ValueError('Foreign Table definition')
+    return result
+
+
+def _historical(value: object, scope: Scope, object_id: int, revision: int) -> HistoricalDefinition | None:
+    if value is None: return None
+    v = _object(value, 'metadata schema')
+    result = HistoricalDefinition(_metadata(v['metadata']), _schema(v['schema']))
+    if result.metadata.scope != scope or result.metadata.object_id != object_id or result.metadata.revision != revision or result.schema.object_id != object_id:
+        raise ValueError('Foreign historical definition')
     return result
 
 

@@ -286,6 +286,38 @@ test("metadata owns general schema and validates the requested identity", async 
     assert.equal(await client.lookup("absent"), undefined),
   );
 });
+test("historical definitions bind exact identities without inventing a live head", async () => {
+  await withHost({ historical: { metadata, schema: wireSchema } }, async (client) => {
+    const value = await client.definition(17n, 3n);
+    assert.ok(value);
+    assert.equal(value.metadata.revision, 3n);
+    assert.equal(value.schema.revision, 2n);
+    assert.equal("head" in value, false);
+    await assert.rejects(client.definition(18n, 3n), IncompatibleNative);
+    await assert.rejects(client.definition(17n, 4n), IncompatibleNative);
+  });
+  await withHost({ historical: null }, async (client) =>
+    assert.equal(await client.definition(17n, 99n), undefined),
+  );
+});
+test("historical definitions reject foreign scope and schema attribution", async () => {
+  await withHost(
+    {
+      historical: {
+        metadata: { ...metadata, scope: { ...nativeScope, catalog: "1" } },
+        schema: wireSchema,
+      },
+    },
+    async (client) => assert.rejects(client.definition(17n, 3n), IncompatibleNative),
+  );
+  await withHost(
+    { historical: { metadata, schema: { ...wireSchema, object: "18" } } },
+    async (client) => assert.rejects(client.definition(17n, 3n), IncompatibleNative),
+  );
+  await withHost({ historical: { metadata, schema: wireSchema, head } }, async (client) =>
+    assert.rejects(client.definition(17n, 3n), ReadFailed),
+  );
+});
 test("metadata pagination allows retired objects and empty continuing pages", async () => {
   await withHost({ page }, async (client) => {
     const value = await client.list();

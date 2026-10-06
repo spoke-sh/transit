@@ -131,6 +131,13 @@ when a page has no visible entries because it scanned retired objects. A cursor
 requires definition, scope, resource revision and `after_object`. Changed cuts
 fail; discard the incomplete listing and begin again. Cursors confer no authority.
 
+`definition(object_id, revision)` returns a `HistoricalDefinition` containing
+owned metadata and schema, with no live head. Exact accepted definitions survive
+DROP and name reuse under current grants and inspection rights. Absent revisions
+and known unaccepted candidates return `None`; missing original acceptance
+evidence and incompatible/corrupt records fail. Publishing private metadata alone
+does not make it an accepted definition.
+
 `Configuration` requires explicit `TableLimits(record_bytes, staging_bytes,
 staging_records)`. `prepare_initialize`, `prepare_policy` and `prepare_dependency`
 produce exact administrator commands. `Rights` explicitly separates inspect,

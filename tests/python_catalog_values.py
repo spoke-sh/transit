@@ -144,6 +144,18 @@ try:
     owner._api.response = dict(definition=dict(**copy.deepcopy(entry), schema=schema._wire()))
     assert owner.lookup('items').schema == schema
     rejects(IncompatibleNative, lambda: owner.lookup('other'))
+    historical = dict(metadata=copy.deepcopy(metadata), schema=schema._wire())
+    owner._api.response = dict(historical=copy.deepcopy(historical))
+    exact = owner.definition(schema.object_id, 1)
+    assert exact.schema == schema and not hasattr(exact, 'head')
+    rejects(IncompatibleNative, lambda: owner.definition(1, 1))
+    rejects(IncompatibleNative, lambda: owner.definition(schema.object_id, 2))
+    owner._api.response['historical']['metadata']['scope']['catalog'] = '1'
+    rejects(IncompatibleNative, lambda: owner.definition(schema.object_id, 1))
+    owner._api.response = dict(historical=dict(historical, head=entry['head']))
+    rejects(IncompatibleNative, lambda: owner.definition(schema.object_id, 1))
+    owner._api.response = dict(historical=None)
+    assert owner.definition(schema.object_id, 99) is None
     for malformed in ('hole', 'order', 'scope', 'cut', 'next_object', 'missing_definition', 'foreign_definition', 'numeric_object', 'unknown_head'):
         bad = copy.deepcopy(page)
         if malformed == 'hole': bad['entries'][1], bad['entries'][0] = bad['entries'][0], None

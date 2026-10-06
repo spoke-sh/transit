@@ -3261,6 +3261,7 @@
     "packages/zig/transit-catalog/src/TableAttempt.zig": {
       "errors": {
         "AccessDenied": 2,
+        "CatalogDefinitionChanged": 1,
         "Conflict": 1,
         "InvalidCatalogReceipt": 1,
         "InvalidTableHead": 1,
@@ -3278,7 +3279,7 @@
       "error_returns": {
         "attempt()": "<inferred>"
       },
-      "open_error_set_uses": 3,
+      "open_error_set_uses": 4,
       "propagation": {
         "try": 15,
         "catch": 2
@@ -3359,6 +3360,7 @@
           "capabilities",
           "describe",
           "lookup",
+          "definition",
           "list",
           "compile",
           "prepare",
@@ -3398,6 +3400,7 @@
           "capabilities",
           "description",
           "definition",
+          "historical",
           "page",
           "compiled",
           "loaded",
@@ -3423,7 +3426,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 71,
+        "try": 75,
         "catch": 1
       },
       "imports": [
@@ -3439,7 +3442,7 @@
         "CatalogConfigurationChanged": 1,
         "CatalogCursorChanged": 1,
         "CatalogDefinitionChanged": 13,
-        "CatalogDefinitionMissing": 8,
+        "CatalogDefinitionMissing": 7,
         "CatalogDenied": 13,
         "CatalogDependencyConflict": 1,
         "CatalogIdentityConflict": 6,
@@ -3452,7 +3455,7 @@
         "CrossResourceTransaction": 1,
         "InvalidCatalogBinding": 3,
         "InvalidCatalogDependency": 7,
-        "InvalidCatalogIdentity": 2,
+        "InvalidCatalogIdentity": 3,
         "InvalidCatalogObject": 3,
         "InvalidCatalogPolicy": 5,
         "InvalidCatalogReceipt": 5,
@@ -3477,6 +3480,7 @@
       },
       "error_sets": {},
       "error_returns": {
+        "acceptedDefinition()": "<inferred>",
         "actor()": "<inferred>",
         "add()": "<inferred>",
         "administrator()": "<inferred>",
@@ -3501,6 +3505,7 @@
         "continueMutation()": "<inferred>",
         "createStep()": "<inferred>",
         "dataBinding()": "<inferred>",
+        "definition()": "<inferred>",
         "emptyObjectNamespace()": "<inferred>",
         "executeUploaded()": "<inferred>",
         "historical()": "<inferred>",
@@ -3535,7 +3540,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 259,
+        "try": 266,
         "catch": 2
       },
       "imports": [
@@ -3633,7 +3638,7 @@
         "CatalogScopeChanged": 1,
         "IncompatibleDefinition": 1,
         "InvalidAuthorityResponse": 1,
-        "InvalidCatalogIdentity": 5,
+        "InvalidCatalogIdentity": 6,
         "InvalidCatalogPage": 1,
         "InvalidCatalogPrepared": 8,
         "MessageTooLarge": 1,
@@ -3682,6 +3687,7 @@
         "batch()": "<inferred>",
         "catalog()": "<inferred>",
         "compile()": "<inferred>",
+        "definition()": "<inferred>",
         "describe()": "<inferred>",
         "dispositionFrom()": "<inferred>",
         "inputDisposition()": "<inferred>",
@@ -3710,7 +3716,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 120,
+        "try": 122,
         "catch": 5
       },
       "imports": [
@@ -4006,8 +4012,8 @@
         "CatalogStorageNotFound": 1,
         "CrossResourceTransaction": 1,
         "IncompatibleDefinition": 1,
-        "InvalidCatalogDefinition": 2,
-        "InvalidCatalogIdentity": 1,
+        "InvalidCatalogDefinition": 4,
+        "InvalidCatalogIdentity": 2,
         "PublicationClosed": 1,
         "PublicationLimitsChanged": 1,
         "QueryAfterMutation": 1
@@ -4026,12 +4032,13 @@
         "create()": "<inferred>",
         "manifest()": "<inferred>",
         "read()": "<inferred>",
+        "referenceAt()": "<inferred>",
         "stage()": "<inferred>",
         "validate()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 55,
+        "try": 62,
         "catch": 0
       },
       "imports": [
@@ -4180,7 +4187,7 @@
     },
     "packages/zig/transit-catalog/src/TableValues.zig": {
       "errors": {
-        "CatalogDefinitionChanged": 2,
+        "CatalogDefinitionChanged": 3,
         "CatalogIdentityConflict": 3,
         "CatalogSourceChanged": 2,
         "IncompatibleDefinition": 1,
@@ -4213,6 +4220,7 @@
         "DependencyChange.native()": "<inferred>",
         "Disposition.foreign()": "<inferred>",
         "Head.foreign()": "<inferred>",
+        "HistoricalDefinition.foreign()": "<inferred>",
         "Identity.native()": "<inferred>",
         "Metadata.foreign()": "<inferred>",
         "Outcome.foreign()": "<inferred>",
@@ -4232,7 +4240,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 70,
+        "try": 74,
         "catch": 3
       },
       "imports": [
@@ -14053,7 +14061,6 @@
         "AccessDenied": 1,
         "CatalogConfigurationChanged": 1,
         "CatalogCursorChanged": 1,
-        "CatalogDefinitionChanged": 1,
         "CatalogDenied": 1,
         "CatalogIdentityConflict": 1,
         "CatalogNotInitialized": 1,

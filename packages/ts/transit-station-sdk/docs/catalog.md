@@ -149,6 +149,13 @@ identity. Its definition-qualified cursor preserves scope and resource revision.
 Retired objects may produce an empty page with continuation. Restart the listing
 on revision conflict rather than combining different cuts.
 
+`definition(objectId, revision)` returns accepted historical metadata and schema,
+or `undefined` for absent revisions and known unaccepted candidates. The owned
+`HistoricalDefinition` has no live head. Reads survive DROP and name reuse but
+still require current native grants and catalog inspection rights. Missing
+original acceptance evidence or incompatible/corrupt retained records fails;
+private publication alone does not establish an accepted definition.
+
 `Configuration` requires explicit record/staging byte and staging-record limits.
 `Policy` requires every independent boolean right: inspect, create, read, insert,
 update, delete, alter and drop. `PolicyChange` requires the exact expected and

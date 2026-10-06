@@ -103,6 +103,25 @@ pub fn stage(self: Self, turn: *Turn, record: Meta.Record) !Step {
         },
     }
 }
+/// Find retained bytes by revision without treating their private publication as
+/// catalog acceptance. The caller must still verify the original durable decision.
+pub fn referenceAt(self: Self, source: anytype, revision: u64) !?Reference {
+    try self.check(source);
+    if (revision == 0) return error.InvalidCatalogIdentity;
+    const small = try source.read(key(self.object, 'i', revision));
+    const large = try source.read(key(self.object, 'r', revision));
+    if (small != null and large != null) return error.InvalidCatalogDefinition;
+    const spec = if (small) |value| try Pub.Digest.of(Meta.format, value.slice()) else if (large) |value| blk: {
+        const descriptor = try Pub.Descriptor.decode(value);
+        try checkReference(.{ .id = revision, .spec = descriptor.spec });
+        if (descriptor.spec.length <= p.Value.max_bytes) return error.InvalidCatalogDefinition;
+        if (descriptor.state != .published) return null;
+        break :blk descriptor.spec;
+    } else return null;
+    const ref: Reference = .{ .id = revision, .spec = spec };
+    try checkReference(ref);
+    return ref;
+}
 pub fn read(self: Self, source: anytype, ref: Reference) !Meta.Record {
     try self.check(source);
     try checkReference(ref);

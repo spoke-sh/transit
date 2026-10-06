@@ -26,6 +26,7 @@ from .catalog_values import (
     Head as Head,
     Entry as Entry,
     Definition as Definition,
+    HistoricalDefinition as HistoricalDefinition,
     Cursor as Cursor,
     Page as Page,
     Reference as Reference,
@@ -115,6 +116,10 @@ class _Queries:
 
     def lookup(self, name: str) -> _Request[Definition | None]:
         return _request({'lookup': v._name(name)}, 'definition', lambda value: v._resolved(value, self.connection.scope, name))
+
+    def definition(self, object_id: int, revision: int) -> _Request[HistoricalDefinition | None]:
+        return _request({'definition': dict(object=str(v._wide(object_id)), revision=str(v._wide(revision)))}, 'historical',
+                        lambda value: v._historical(value, self.connection.scope, object_id, revision))
 
     def list(self, cursor: Cursor | None = None) -> _Request[Page]:
         if cursor is not None and (not isinstance(cursor, Cursor) or cursor.scope != self.connection.scope): raise ValueError('Foreign catalog cursor')
@@ -237,6 +242,9 @@ class Client:
     def lookup(self, name: str) -> Definition | None:
         return self._call(self._queries.lookup(name))
 
+    def definition(self, object_id: int, revision: int) -> HistoricalDefinition | None:
+        return self._call(self._queries.definition(object_id, revision))
+
     def list(self, cursor: Cursor | None=None) -> Page:
         return self._call(self._queries.list(cursor))
 
@@ -311,6 +319,9 @@ class AsyncClient:
 
     async def lookup(self, name: str) -> Definition | None:
         return await self._call(self._owner._queries.lookup(name))
+
+    async def definition(self, object_id: int, revision: int) -> HistoricalDefinition | None:
+        return await self._call(self._owner._queries.definition(object_id, revision))
 
     async def list(self, cursor: Cursor | None=None) -> Page:
         return await self._call(self._owner._queries.list(cursor))

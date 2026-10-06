@@ -178,6 +178,16 @@ pub fn list(self: *Self, cursor: ?c.TableCatalog.Cursor) !c.TableCatalog.Page {
     var current = try self.source(&.{});
     return (try self.catalog(&current)).list(&current, self.connection.principal, cursor);
 }
+pub fn definition(self: *Self, allocator: std.mem.Allocator, object: u64, revision: u64) !?c.TableCatalog.HistoricalDefinition {
+    if (object == 0 or revision == 0) return error.InvalidCatalogIdentity;
+    var current = try self.source(&.{
+        self.address('O', object, 0),
+        c.TableMetadataStore.key(object, 'd', 0),
+        c.TableMetadataStore.key(object, 'i', revision),
+        c.TableMetadataStore.key(object, 'r', revision),
+    });
+    return (try self.catalog(&current)).definition(allocator, &current, self.connection.principal, object, revision);
+}
 pub const CompileIdentity = struct { operation: u64, namespace: u64, create_object: ?u64 = null };
 /// SQL and typed callers lower to the same immutable intent. Names resolve at
 /// this preparation boundary only; saved recovery never invokes this method.
@@ -200,16 +210,16 @@ pub fn compile(self: *Self, allocator: std.mem.Allocator, text: []const u8, iden
             return Intent.create(allocator, try c.TableCommand.fromDdl(self.connection.scope, self.connection.owner, request, null), identity.namespace);
         }
         if (identity.create_object != null) return error.InvalidCatalogIdentity;
-        var definition = try self.lookup(allocator, try c.TableMetadata.Name.init(target.name));
-        defer if (definition) |*value| value.deinit();
-        var statement = try c.fuze.TableDdl.compile(allocator, text, if (definition) |value| value.schema.schema else null, location);
+        var resolved = try self.lookup(allocator, try c.TableMetadata.Name.init(target.name));
+        defer if (resolved) |*value| value.deinit();
+        var statement = try c.fuze.TableDdl.compile(allocator, text, if (resolved) |value| value.schema.schema else null, location);
         defer statement.deinit();
-        const record = if (definition) |value| value.metadata else null;
+        const record = if (resolved) |value| value.metadata else null;
         var request: c.TableDdlRequest = .{ .principal = self.connection.principal, .operation = identity.operation, .object = if (record) |value| value.object else 0, .expected_revision = if (record) |value| value.revision else 0, .name = try c.TableMetadata.Name.init(target.name), .action = undefined };
         request.action = switch (statement.statement) {
             .create => unreachable,
             .alter => |alter| switch (alter.action) {
-                .columns => |change| .{ .alter = .{ .schema = definition.?.schema.schema, .change = change } },
+                .columns => |change| .{ .alter = .{ .schema = resolved.?.schema.schema, .change = change } },
                 .rename_table => |name| .{ .rename = try c.TableMetadata.Name.init(name) },
             },
             .drop => |drop| .{ .drop = .{ .if_exists = drop.if_exists } },
@@ -218,12 +228,12 @@ pub fn compile(self: *Self, allocator: std.mem.Allocator, text: []const u8, iden
     }
     if (identity.create_object != null) return error.InvalidCatalogIdentity;
     const target = try c.fuze.TableDml.targetDiagnostic(names.allocator(), text, location);
-    var definition = (try self.lookup(allocator, try c.TableMetadata.Name.init(target.name))) orelse return error.TableNotFound;
-    defer definition.deinit();
-    var statement = try c.fuze.TableDml.compile(allocator, text, definition.metadata.name.slice(), definition.schema.schema, location);
+    var resolved = (try self.lookup(allocator, try c.TableMetadata.Name.init(target.name))) orelse return error.TableNotFound;
+    defer resolved.deinit();
+    var statement = try c.fuze.TableDml.compile(allocator, text, resolved.metadata.name.slice(), resolved.schema.schema, location);
     defer statement.deinit();
-    const request: c.TableDmlRequest = .{ .principal = self.connection.principal, .operation = identity.operation, .metadata = .{ .id = definition.metadata.revision, .spec = try definition.metadata.spec() }, .plan = statement.plan };
-    return Intent.create(allocator, try c.TableCommand.fromDml(self.connection.scope, self.connection.owner, request, definition.metadata), identity.namespace);
+    const request: c.TableDmlRequest = .{ .principal = self.connection.principal, .operation = identity.operation, .metadata = .{ .id = resolved.metadata.revision, .spec = try resolved.metadata.spec() }, .plan = statement.plan };
+    return Intent.create(allocator, try c.TableCommand.fromDml(self.connection.scope, self.connection.owner, request, resolved.metadata), identity.namespace);
 }
 fn outcome(self: *Self, current: *Source, identity: Intent.Identity) !?Outcome {
     const owner = try self.catalog(current);

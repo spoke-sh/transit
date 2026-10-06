@@ -11362,6 +11362,32 @@ Documentation links, verification declarations and CI task ownership pass
 complete logical-family path coverage, the coordinated definition replacement
 and committed-HEAD clean CI remain open.
 
+
+Exact general historical-definition inspection passes **95/95 catalog tests**
+(`table-historical-catalog5.log`). Tests cover inline and chunked metadata through
+ALTER, DROP and name reuse; current inspection revocation/restoration; absent
+revisions; published-but-unaccepted ALTER candidates; missing original receipts;
+incompatible bytes; conflicting representations; and allocation-failure cleanup
+for owned schemas and neutral results. Corrupt immutable-history attribution is
+an integrity diagnostic without advice to prepare a replacement declaration.
+
+The matching general ABI, generated schemas, TypeScript and Python callers pass
+full `just check` (`table-historical-check2.log`), **50 Station boundary tests**,
+Python's strict **25-file** type check and focused value checks. Initial checks
+stopped on compiler name shadowing and the diagnostic-inventory review gate;
+those failed logs remain in the campaign. The reviewed inventory and semantic
+mapping gates pass with the correction.
+
+The rebuilt installed Node/Python sync/Python async proof passes in **212.738
+seconds** (`table-historical-installed1.log`). Besides the preceding lifecycle,
+exact-recovery and fault schedule, the native port reads original, altered and
+renamed definitions after DROP/recreate. Installed callers inspect the original
+metadata and schema after replacing their handles, verify absent revisions and
+confirm that historical results carry no live head. Bounds remain four mutations
+and 256-byte native values across 586 turns and 157 sends. This checkpoint does
+not qualify unmigrated languages or the remaining cutover, query paths and
+performance/growth gates.
+
 ## Fuze logical type foundation
 
 The local `Types` profile has nine passing focused Zig tests, including 46

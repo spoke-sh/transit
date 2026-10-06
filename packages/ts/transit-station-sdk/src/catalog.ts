@@ -359,6 +359,10 @@ export interface Entry {
 export interface Definition extends Entry {
   readonly schema: Schema;
 }
+export interface HistoricalDefinition {
+  readonly metadata: Metadata;
+  readonly schema: Schema;
+}
 export class Cursor {
   readonly definition: string;
   readonly afterObject: bigint;
@@ -866,6 +870,30 @@ export class Client {
       )
         throw new TypeError("Definition does not match its request");
       return Object.freeze({ metadata, schema, head: fromHead(v.head) });
+    });
+  }
+  async definition(objectId: bigint, revision: bigint): Promise<HistoricalDefinition | undefined> {
+    const value = field(
+      await this.#bridge.call({
+        definition: {
+          object: positive(objectId).toString(),
+          revision: positive(revision).toString(),
+        },
+      }),
+      "historical",
+    );
+    if (value === null) return undefined;
+    return decoded(() => {
+      const metadata = fromMetadata(value.metadata),
+        schema = fromSchema(value.schema);
+      if (
+        !sameScope(metadata.scope, this.connection.scope) ||
+        metadata.objectId !== objectId ||
+        metadata.revision !== revision ||
+        schema.objectId !== objectId
+      )
+        throw new TypeError("Historical definition does not match its request");
+      return Object.freeze({ metadata, schema });
     });
   }
   async list(previous?: Cursor): Promise<Page> {

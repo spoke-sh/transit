@@ -77,6 +77,11 @@ async function scenario(index) {
   assert.equal(loaded.objectId,object);
   assert.deepEqual((await client.status(loaded.reference)).outcome,applied);
   assert.equal((await client.lookup(name)).metadata.objectId,(object + 1n));
+  const historical = await client.definition(object, original.metadata.revision);
+  assert.deepEqual(historical.metadata, original.metadata);
+  assert.deepEqual(historical.schema.columns, original.schema.columns);
+  assert.equal('head' in historical, false);
+  assert.equal(await client.definition(object, 999n), undefined);
   const page = await client.list(); assert.ok(page.entries.length > 0);
   return {profile:'installed-node-general-table',original_object:loaded.objectId.toString(),replacement_object:(object + 1n).toString(),counts:{matched:applied.counts.matched.toString(),changed:applied.counts.changed.toString()}};
 }

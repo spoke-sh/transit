@@ -51,7 +51,7 @@ pub const entries = [_]Entry{
     .{ .cause = error.InvalidCatalogCommand, .code = "catalog.invalid_command", .category = .binding, .message = "The catalog command encoding or Table identity is invalid. Use its canonical request fields and a positive Table identity within the native bound; preserve earlier saved commands." },
     .{ .cause = error.InvalidTableId, .code = "catalog.invalid_command", .category = .binding, .message = "The catalog command encoding or Table identity is invalid. Use its canonical request fields and a positive Table identity within the native bound; preserve earlier saved commands." },
     .{ .cause = error.InvalidCatalogRecord, .code = "catalog.invalid_record", .category = .integrity, .message = "The retained catalog record does not match the current encoding. Preserve the original scope and record for inspection; do not treat undecodable evidence as an absent definition." },
-    .{ .cause = error.CatalogDefinitionMissing, .code = "catalog.definition_missing", .category = .integrity, .message = "A retained catalog name binding refers to a missing definition. This is inconsistent catalog evidence, not an unknown name. Preserve the selected scope and binding for operator inspection." },
+    .{ .cause = error.CatalogDefinitionMissing, .code = "catalog.definition_missing", .category = .integrity, .message = "Retained catalog evidence lacks an accepted definition or its original receipt. Preserve the exact object, revision and scope for operator inspection; no trustworthy definition was established." },
 };
 pub fn fromError(cause: anyerror) ?Entry {
     for (entries) |entry| if (entry.cause == cause) return entry;

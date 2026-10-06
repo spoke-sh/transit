@@ -168,6 +168,15 @@ pub const Definition = struct {
     }
 };
 pub const Entry = struct { metadata: Metadata, head: Head };
+pub const HistoricalDefinition = struct {
+    metadata: Metadata,
+    schema: Schema,
+    pub fn foreign(arena: *std.heap.ArenaAllocator, value: c.TableCatalog.HistoricalDefinition) !HistoricalDefinition {
+        try value.metadata.validate();
+        if (value.schema.schema.object != value.metadata.object or !std.mem.eql(u8, &try value.schema.schema.fingerprint(), &value.metadata.schema_fingerprint)) return error.CatalogDefinitionChanged;
+        return .{ .metadata = try Metadata.foreign(arena.allocator(), value.metadata), .schema = try f.TableSchemaJson.foreign(arena, value.schema.schema) };
+    }
+};
 fn entryValid(value: c.TableCatalog.Entry) !void {
     try value.metadata.validate();
     try value.head.validate();

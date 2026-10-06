@@ -69,6 +69,18 @@ receipts. It does not reclaim accepted history or promise physical erasure after
 DROP. `historical` verifies the original applied catalog/Table outcome before
 accepting published metadata as a historical definition.
 
+`TableClient.definition(object, revision)` and `TableCatalog.definition` return
+owned `HistoricalDefinition` metadata and schema for an exact accepted revision.
+They do not attach the current head or assert that the object remains live.
+Current native grants and catalog inspection policy gate each acquisition, even
+after DROP or name reuse. An absent object/revision or a known unfinished,
+rejected or cancelled candidate returns null. Private Publication completion is
+insufficient: the original catalog receipt, or applied delegated Table receipt,
+must name the exact metadata commitment and admitted input. Missing original
+acceptance evidence, conflicting inline/chunked records and incompatible/corrupt
+retained definitions return errors. Schema and metadata revisions remain distinct
+across rename and DROP. Call `deinit` on the owned historical result.
+
 `TableDmlRequest` binds the complete typed plan to its original catalog scope,
 name and immutable metadata reference. Routing uses `TableWrite` for one inserted
 row or an exact conjunction containing every primary-key equality and no extra

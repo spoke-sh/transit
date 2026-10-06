@@ -148,6 +148,14 @@ def run(host, url, root, readers, query):
     assert loaded == inserted['intent']
     original = call({'status': loaded['reference']})['state']['outcome']
     assert original == applied and original['object'] == '9001', original
+    retained = call({'definition': dict(object='9001', revision='1')})['historical']
+    assert set(retained) == {'metadata', 'schema'} and retained['metadata']['name'] == 'bridge_people'
+    assert len(retained['schema']['columns']) == 4 and retained['schema']['primary_key'] == ['1', '2']
+    altered = call({'definition': dict(object='9001', revision='2')})['historical']
+    assert altered['schema']['columns'][-1]['name'] == 'enabled'
+    renamed = call({'definition': dict(object='9001', revision='3')})['historical']
+    assert renamed['metadata']['name'] == 'bridge_renamed'
+    assert call({'definition': dict(object='9001', revision='999')}) == {'historical': None}
     assert max_step_bytes < 8192, max_step_bytes
     process.stdin.close()
     process.stdin = None

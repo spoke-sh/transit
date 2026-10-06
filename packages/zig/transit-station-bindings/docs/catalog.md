@@ -75,6 +75,13 @@ resource revision and the last scanned object. A cursor may pass retired objects
 including an empty page with continuation. A changed resource revision requires
 restarting the listing without combining different cuts.
 
+`definition` takes exact object and metadata-revision decimal strings and returns
+an optional `historical` value containing owned metadata and schema. It has no
+live head. Applied historical definitions remain inspectable after rename, DROP
+and name reuse under current grants and inspection policy. Absent revisions and
+known unaccepted candidates return null; corrupt or missing original acceptance
+evidence returns an error. Private metadata publication alone grants no visibility.
+
 Metadata reads validate retained publication evidence and current grants. A
 missing or inconsistent retained definition is not an absent live name. Preparing
 against a typed basis freezes object identity, metadata revision and full schema

@@ -83,6 +83,10 @@ async def scenario(client, connect, path, index, principal):
         assert loaded.object_id == original_object
         assert (await resolve(client.status(loaded.reference))).outcome == applied
         assert (await resolve(client.lookup(name))).metadata.object_id == original_object + 1
+        historical = await resolve(client.definition(original_object, original.metadata.revision))
+        assert historical.metadata == original.metadata and historical.schema == original.schema
+        assert not hasattr(historical, 'head')
+        assert await resolve(client.definition(original_object, 999)) is None
         assert (await resolve(client.list())).entries
     finally:
         await resolve(client.close())

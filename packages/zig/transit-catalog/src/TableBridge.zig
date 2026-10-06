@@ -40,6 +40,7 @@ pub const Action = union(enum) {
     capabilities,
     describe,
     lookup: []const u8,
+    definition: struct { object: []const u8, revision: []const u8 },
     list: ?v.Cursor,
     compile: struct { identity: v.Identity, create_object: ?[]const u8, sql: []const u8 },
     prepare: c.TableTyped.Request,
@@ -65,6 +66,7 @@ pub const Result = union(enum) {
     capabilities: Capabilities,
     description: v.Description,
     definition: ?v.Definition,
+    historical: ?v.HistoricalDefinition,
     page: v.Page,
     compiled: Compiled,
     loaded: Summary,
@@ -138,6 +140,11 @@ pub const Session = struct {
                 var value = (try client.lookup(allocator, try c.TableMetadata.Name.init(name))) orelse break :blk .{ .definition = null };
                 defer value.deinit();
                 break :blk .{ .definition = try v.Definition.foreign(arena, value) };
+            },
+            .definition => |identity| blk: {
+                var value = (try client.definition(allocator, try v.unsigned(identity.object), try v.unsigned(identity.revision))) orelse break :blk .{ .historical = null };
+                defer value.deinit();
+                break :blk .{ .historical = try v.HistoricalDefinition.foreign(arena, value) };
             },
             .list => |cursor| .{ .page = try v.Page.foreign(allocator, try client.list(if (cursor) |value| try value.native() else null)) },
             .compile => |value| blk: {

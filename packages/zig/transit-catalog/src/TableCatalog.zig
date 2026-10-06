@@ -20,6 +20,15 @@ pub const Definition = struct {
     }
 };
 pub const Entry = struct { metadata: Meta.Record, head: s.TableHead };
+/// An accepted immutable definition, with no claim about today's Table head.
+pub const HistoricalDefinition = struct {
+    metadata: Meta.Record,
+    schema: c.fuze.TableSchema.Owned,
+    pub fn deinit(self: *HistoricalDefinition) void {
+        self.schema.deinit();
+        self.* = undefined;
+    }
+};
 pub const Cursor = struct { scope: m.Scope, resource_revision: u64, after_object: u64 };
 pub const Page = struct {
     entries: [p.Growth.page_size]?Entry = @splat(null),
@@ -278,17 +287,32 @@ pub fn status(self: Self, source: anytype, who: u64, id: u64, digest: [32]u8) !?
 }
 /// Published bytes alone do not establish an accepted definition. Retained
 /// metadata must be named by its original applied catalog/Table decision.
+fn acceptedDefinition(self: Self, source: anytype, id: u64, ref: s.TablePages.Reference, record: Meta.Record) !bool {
+    const accepted = (try self.operation(source, record.principal, record.operation)) orelse return error.CatalogDefinitionMissing;
+    if (accepted.object != id or accepted.admitted_input != record.admitted_input or !std.meta.eql(accepted.metadata, ref)) return error.CatalogDefinitionChanged;
+    return switch (accepted.state) {
+        .applied => true,
+        .delegated => (try outcome(source, accepted)).table.?.state == .applied,
+        else => false,
+    };
+}
 pub fn historical(self: Self, source: anytype, who: u64, id: u64, ref: s.TablePages.Reference) !Meta.Record {
     _ = try self.authorize(source, who, .inspect);
     const record = try (Store{ .scope = self.configuration.scope, .object = id }).read(source, ref);
-    const accepted = (try self.operation(source, record.principal, record.operation)) orelse return error.CatalogDefinitionMissing;
-    if (accepted.object != id or accepted.admitted_input != record.admitted_input or !std.meta.eql(accepted.metadata, ref)) return error.CatalogDefinitionChanged;
-    switch (accepted.state) {
-        .applied => {},
-        .delegated => if ((try outcome(source, accepted)).table.?.state != .applied) return error.CatalogDefinitionMissing,
-        else => return error.CatalogDefinitionMissing,
-    }
+    if (!try self.acceptedDefinition(source, id, ref, record)) return error.CatalogDefinitionMissing;
     return record;
+}
+/// Exact metadata/schema inspection survives rename and DROP. Missing or never
+/// accepted revisions return null; incompatible/corrupt retained evidence fails.
+pub fn definition(self: Self, allocator: std.mem.Allocator, source: anytype, who: u64, id: u64, revision: u64) !?HistoricalDefinition {
+    _ = try self.authorize(source, who, .inspect);
+    if (revision == 0) return error.InvalidCatalogIdentity;
+    const current = (try self.object(source, id)) orelse return null;
+    if (current.metadata.id == 0) return null;
+    const ref = (try (Store{ .scope = self.configuration.scope, .object = id }).referenceAt(source, revision)) orelse return null;
+    const record = try (Store{ .scope = self.configuration.scope, .object = id }).read(source, ref);
+    if (!try self.acceptedDefinition(source, id, ref, record)) return null;
+    return .{ .metadata = record, .schema = try record.readSchema(allocator, source) };
 }
 fn saveOperation(self: Self, turn: *s.Turn, value: m.Operation) !void {
     try turn.write(self.key('o', value.principal, value.operation), try r.encode('R', value));

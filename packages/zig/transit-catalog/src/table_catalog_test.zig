@@ -323,6 +323,7 @@ test "general catalog ALTER publishes its schema and metadata in the same decisi
         defer before.deinit();
         try t.expectEqual(@as(u64, 1), before.metadata.revision);
         try t.expectEqualStrings("name", before.schema.schema.columns[1].name);
+        try t.expectEqual(null, try owner.definition(t.allocator, &turn, 17, 10, 2));
         const result = try owner.step(t.allocator, &turn, request);
         if (result.terminal()) {
             try t.expectEqual(@as(usize, 4), countWrites(turn));
@@ -516,6 +517,7 @@ test "ALTER validates populated rows atomically and keeps rejected metadata priv
     try t.expectEqual(@as(u64, 1), old.head.rows);
     try t.expectEqual(@as(u64, 1), old.metadata.revision);
     try t.expectError(error.CatalogDefinitionMissing, owner.historical(&turn, 17, 10, rejected.operation.metadata));
+    try t.expectEqual(null, try owner.definition(t.allocator, &turn, 17, 10, rejected.operation.metadata.id));
     for (0..100) |_| {
         turn = try store.capture(17);
         const complete = try owner.cleanup(&turn, 17, 3, rejected.operation.digest);
@@ -953,4 +955,95 @@ test "command basis resolves accepted historical schema after DROP with current 
     try store.commit(turn);
     turn = try store.capture(17);
     try t.expectError(error.CatalogDenied, owner.commandBasis(t.allocator, &turn, 17, body.header, .inspect));
+}
+
+test "exact general definitions survive evolution retirement and name reuse with current inspection rights" {
+    inline for (.{ "people", "people_with_a_name_long_enough_to_require_chunked_immutable_metadata_storage" }) |name| {
+        var store: TestStore = .{};
+        defer store.deinit();
+        try ready(&store);
+        const creation = try createRequest(10, 1, name);
+        _ = try ddl(&store, creation);
+        const alteration: c.TableDdlRequest = .{ .principal = 17, .operation = 2, .object = 10, .expected_revision = 1, .name = creation.name, .action = .{ .alter = .{ .schema = creation.action.create.schema, .change = .{ .rename = .{ .column = 2, .name = "full_name" } } } } };
+        _ = try ddl(&store, alteration);
+        _ = try ddl(&store, .{ .principal = 17, .operation = 3, .object = 10, .expected_revision = 2, .name = creation.name, .action = .{ .drop = .{} } });
+        _ = try ddl(&store, try createRequest(11, 4, name));
+        var turn = try store.capture(17);
+        var current = (try owner.lookup(t.allocator, &turn, 17, creation.name)).?;
+        defer current.deinit();
+        try t.expectEqual(@as(u64, 11), current.metadata.object);
+        for (1..4) |revision| {
+            var old = (try owner.definition(t.allocator, &turn, 17, 10, revision)).?;
+            defer old.deinit();
+            try t.expectEqual(@as(u64, 10), old.metadata.object);
+            try t.expectEqual(revision, old.metadata.revision);
+            try t.expectEqualStrings(name, old.metadata.name.slice());
+            try t.expectEqualStrings(if (revision == 1) "name" else "full_name", old.schema.schema.columns[1].name);
+            try t.expectEqual(@as(usize, 0), countWrites(turn));
+        }
+        try t.expectEqual(null, try owner.definition(t.allocator, &turn, 17, 10, 99));
+        try t.expectEqual(null, try owner.definition(t.allocator, &turn, 17, 99, 1));
+        try t.expectError(error.InvalidCatalogIdentity, owner.definition(t.allocator, &turn, 17, 10, 0));
+        var rights = try m.Policy.administrator(owner.configuration.scope, 17);
+        rights.revision = 2;
+        rights.inspect = false;
+        try owner.setPolicy(&turn, 1, rights);
+        try store.commit(turn);
+        turn = try store.capture(17);
+        try t.expectError(error.CatalogDenied, owner.definition(t.allocator, &turn, 17, 10, 1));
+        try t.expectError(error.CatalogDenied, owner.definition(t.allocator, &turn, 17, 99, 1));
+        rights.revision = 3;
+        rights.inspect = true;
+        rights.read = false;
+        try owner.setPolicy(&turn, 2, rights);
+        try store.commit(turn);
+        turn = try store.capture(17);
+        var restored = (try owner.definition(t.allocator, &turn, 17, 10, 1)).?;
+        defer restored.deinit();
+        try t.expectEqualStrings("name", restored.schema.schema.columns[1].name);
+        // Losing a retained acceptance record is an error, not an absent revision.
+        const receipt_key = owner.key('o', 17, 1);
+        const receipt = store.state.get(receipt_key).?;
+        try t.expect(store.state.remove(receipt_key));
+        try t.expectError(error.CatalogDefinitionMissing, owner.definition(t.allocator, &turn, 17, 10, 1));
+        try store.state.put(t.allocator, receipt_key, receipt);
+        if (comptime name.len < 16) {
+            const inline_key = Records.key(10, 'i', 1);
+            const bytes = store.state.get(inline_key).?;
+            var changed = bytes;
+            changed.data[4] ^= 1;
+            try store.state.put(t.allocator, inline_key, changed);
+            try t.expectError(error.IncompatibleDefinition, owner.definition(t.allocator, &turn, 17, 10, 1));
+            try store.state.put(t.allocator, inline_key, bytes);
+            try store.state.put(t.allocator, Records.key(10, 'r', 1), try p.Value.init("conflicting publication"));
+            try t.expectError(error.InvalidCatalogDefinition, owner.definition(t.allocator, &turn, 17, 10, 1));
+        }
+    }
+}
+
+fn retainedDefinitionAllocation(allocator: std.mem.Allocator, store: *TestStore) !void {
+    var turn = try store.capture(17);
+    var old = (try owner.definition(allocator, &turn, 17, 10, 1)).?;
+    defer old.deinit();
+    var arena: std.heap.ArenaAllocator = .init(allocator);
+    defer arena.deinit();
+    const value = try c.TableValues.HistoricalDefinition.foreign(&arena, old);
+    try t.expectEqualStrings("10", value.metadata.object);
+    try t.expectEqualStrings("id", value.schema.columns[0].name);
+}
+test "retained definition allocation failures free owned schema and neutral results" {
+    var store: TestStore = .{};
+    defer store.deinit();
+    try ready(&store);
+    _ = try ddl(&store, try createRequest(10, 1, "people"));
+    for (0..128) |index| {
+        var failing = t.FailingAllocator.init(t.allocator, .{ .fail_index = index, .resize_fail_index = 0 });
+        retainedDefinitionAllocation(failing.allocator(), &store) catch |err| {
+            if (err != error.OutOfMemory) return err;
+            try t.expect(failing.has_induced_failure);
+            continue;
+        };
+        return;
+    }
+    return error.TestUnexpectedResult;
 }
