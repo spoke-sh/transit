@@ -1687,6 +1687,30 @@
       "model": null
     },
     {
+      "id": "TABLE-75",
+      "claim": "General typed Table commands retain atomic publication and exact native recovery across schema lifecycle changes",
+      "owner": "packages/zig/transit-catalog/docs/table-metadata.md",
+      "implementation": [
+        "packages/zig/transit-catalog/src/TableBehavior.zig",
+        "packages/zig/transit-catalog/src/TableClient.zig",
+        "packages/zig/transit-catalog/src/TableIntent.zig",
+        "tests/typed_table_native.zig",
+        "tests/typed_table_native.py"
+      ],
+      "profile": "general typed Table coordinator/native-v1",
+      "tasks": ["test::typed-tables"],
+      "scenarios": [
+        "Five-column CREATE, aliases, defaults, nullable cells and decimal values",
+        "Exact matched/changed counts and atomic rejection of a multi-row insert",
+        "ADD, RENAME and DROP COLUMN, finite DELETE, DROP/name reuse and unkeyed duplicate rows",
+        "Lost accepted send and turn replies recover their original receipts after node/store replacement",
+        "Authorized courier delivers recorded continuations with at most four native mutations per turn"
+      ],
+      "limits": "One signed Zig fixture and disk-backed store, eight resident authority pages; typed row inspection, not SQL SELECT. Deployed hosts, console, SDKs, all families/ALTER operations, memory growth, latency and host power loss require separate qualification.",
+      "model": null,
+      "qualification": "See tests/README.md#general-table-schema-foundation for passing and failed runs."
+    },
+    {
       "id": "HOST-03",
       "claim": "Native stateless courier replacement after failed readiness probes reconstructs pending work from current authority with the same delivery identity",
       "owner": "launchers/README.md",

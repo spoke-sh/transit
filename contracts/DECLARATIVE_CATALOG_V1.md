@@ -652,6 +652,11 @@ publication adds neither an extra catalog receipt nor a fifth native write.
 The first initializer, including the GenServer descriptor, uses four writes.
 No per-Table process, resource or grant is created.
 
+Self-messages are recorded outputs and require the standard authorized native
+delivery courier to become process inputs. GenServer does not deliver its own
+outputs or manufacture a courier grant. Deployments run that existing delivery
+service; pauses/outages preserve the pending output and original Table work.
+
 The owner records bounded input dispositions for malformed, denied, conflicting,
 stale-policy and blocked inputs. Disposition tag `E` contains scope, origin:u8,
 external principal:u64 (zero otherwise), input:u64, payload fingerprint:32 and

@@ -138,6 +138,11 @@ on every continuation. Denied work gets an input disposition and pauses without
 losing its reservation. Explicit exact resume can continue after rights are
 restored. Native evidence failures reject the entire private proposal.
 
+Self-messages require Transit's existing authorized delivery courier, just like
+other process outputs. A courier outage preserves the pending output and Table
+reservation; GenServer does not grant itself delivery authority or bypass native
+routing. Deployments must run the delivery service alongside the Table owner.
+
 Initialization, policy and dependency controls retain separate input outcomes.
 SQL outcomes remain in their original catalog/Table receipts. Cancellation and
 cleanup use those exact references, with no extra fifth receipt write. The module
@@ -166,6 +171,14 @@ outcomes at one authorized cut. The notification variants retain only an exact
 input scheduling cursor and preserve bounded capacity backoff. They do not cache
 authorization. This general caller is not yet the console/ABI's configured path;
 those consumers require a coordinated current-definition cutover.
+
+`compile` turns SQL into the same owned intent used by typed callers. CREATE
+requires an explicit fresh object identity and compiles without a metadata read;
+the owner still checks authorization, conflicts and readiness at execution.
+DML and bound ALTER/DROP resolve the original schema through current catalog
+inspection. Optional absent DROP stays bound to absence. Operation and upload
+identities remain caller-owned; recovery uses the saved intent instead of calling
+`compile` again.
 
 A record owns scope, full-width object and metadata revision, exact name,
 immutable Table schema reference and complete schema fingerprint, principal,

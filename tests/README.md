@@ -10952,6 +10952,27 @@ source. The initial compile rejected the Zig-reserved name `resume`; the API is
 batches and bounded notification waits. These tests do not yet qualify successful
 HTTP submission, wait scheduling or disk-backed general-owner recovery.
 
+The shared SQL preparation path passes **74/74 catalog tests**
+(`table-client-compile.log`). `just test::typed-tables` then passes through the
+signed client, actual GenServer hooks and authorized delivery courier against
+disk-backed Ursula with eight resident authority pages. The schedule covers
+five-column CREATE, aliases/defaults/nulls/decimal cells, typed INSERT/UPDATE,
+same-value matched/changed counts, atomic multi-row conflict rejection, ADD/
+RENAME/DROP COLUMN, finite DELETE, DROP/name reuse, unkeyed duplicates and an
+original retained receipt after replacement. Accepted send and owner-commit
+replies are lost; exact saved native requests recover identical receipts after
+node/store replacement. The passing run takes **35.891 seconds** and observes
+140 turns, at most four mutations and 256-byte native values
+(`typed-table-native4.log`). This is scenario duration, not a mutation benchmark.
+
+Three earlier runs failed: the fixture first used a path-only directory handle
+for fsync, then omitted the native courier needed to deliver recorded self-output.
+The final fixture uses a readable directory descriptor and signs/persists exact
+courier delivery requests; no authority or publication gate was relaxed.
+Inspection uses the shared typed row reader, not SQL SELECT. This proof does not
+qualify the deployed query host, console, language SDKs, every logical family,
+every ALTER case, memory growth, host power loss or the final current-v1 cutover.
+
 ## Fuze logical type foundation
 
 The local `Types` profile has nine passing focused Zig tests, including 46

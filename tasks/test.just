@@ -301,6 +301,10 @@ catalog *args:
 catalog-growth:
     just test::catalog --grow 65
 
+# General typed Table owner/caller, bounded turns and exact disk recovery.
+typed-tables:
+    zig build test-typed-tables -Doptimize=ReleaseSafe
+
 # Combined Table initialization, retained reads and independently authorized writes.
 [positional-arguments]
 table-query-writer *args:

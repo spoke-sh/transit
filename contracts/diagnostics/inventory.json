@@ -3432,6 +3432,101 @@
         "std"
       ]
     },
+    "packages/zig/transit-catalog/src/TableClient.zig": {
+      "errors": {
+        "CatalogConfigurationChanged": 2,
+        "CatalogDenied": 1,
+        "CatalogIdentityConflict": 13,
+        "CatalogNotInitialized": 1,
+        "CatalogOperationNotFound": 1,
+        "CatalogOwnerChanged": 1,
+        "CatalogOwnerUnavailable": 1,
+        "CatalogScopeChanged": 1,
+        "InvalidAuthorityResponse": 1,
+        "InvalidCatalogIdentity": 5,
+        "InvalidCatalogPage": 1,
+        "InvalidCatalogPrepared": 8,
+        "MessageTooLarge": 1,
+        "OutOfMemory": 1,
+        "TableNotFound": 1,
+        "TableUploadClosed": 1,
+        "TableUploadNotFound": 2,
+        "TableUploadNotReady": 1,
+        "TableWriteNotFound": 1,
+        "UnsupportedStatement": 1
+      },
+      "outcomes": {
+        "Next": [
+          "send",
+          "running",
+          "terminal",
+          "upload_cancelled"
+        ],
+        "Observation": [
+          "pending",
+          "processed"
+        ],
+        "Outcome": [
+          "ddl",
+          "dml"
+        ],
+        "Payload": [
+          "inline_command",
+          "control"
+        ],
+        "Progress": [
+          "pending",
+          "processed"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "Connection.header()": "<inferred>",
+        "Connection.validate()": "<inferred>",
+        "Prepared.command()": "<inferred>",
+        "Prepared.matches()": "<inferred>",
+        "Prepared.restore()": "<inferred>",
+        "Prepared.save()": "<inferred>",
+        "Source.page()": "<inferred>",
+        "Source.read()": "<inferred>",
+        "batch()": "<inferred>",
+        "catalog()": "<inferred>",
+        "compile()": "<inferred>",
+        "describe()": "<inferred>",
+        "dispositionFrom()": "<inferred>",
+        "inputDisposition()": "<inferred>",
+        "intentSource()": "<inferred>",
+        "list()": "<inferred>",
+        "lookup()": "<inferred>",
+        "next()": "<inferred>",
+        "observe()": "<inferred>",
+        "observeBounded()": "<inferred>",
+        "outcome()": "<inferred>",
+        "payload()": "<inferred>",
+        "prepareAt()": "<inferred>",
+        "prepareControl()": "<inferred>",
+        "prepareResume()": "<inferred>",
+        "processed()": "<inferred>",
+        "progress()": "<inferred>",
+        "sign()": "<inferred>",
+        "source()": "<inferred>",
+        "status()": "<inferred>",
+        "submit()": "<inferred>",
+        "uploadStatus()": "<inferred>",
+        "validate()": "<inferred>",
+        "waitObserve()": "<inferred>",
+        "waitProgress()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 117,
+        "catch": 5
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
     "packages/zig/transit-catalog/src/TableCommand.zig": {
       "errors": {
         "CatalogDefinitionChanged": 3,
@@ -3616,6 +3711,39 @@
         "std"
       ]
     },
+    "packages/zig/transit-catalog/src/TableIntent.zig": {
+      "errors": {
+        "CatalogDefinitionChanged": 1,
+        "IncompatibleDefinition": 1,
+        "InvalidTableIntent": 8,
+        "WriteFailed": 1
+      },
+      "outcomes": {
+        "Identity": [
+          "ddl",
+          "dml"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "command()": "<inferred>",
+        "create()": "<inferred>",
+        "decode()": "<inferred>",
+        "identify()": "<inferred>",
+        "matches()": "<inferred>",
+        "restore()": "<inferred>",
+        "schemaCommitment()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 39,
+        "catch": 1
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
     "packages/zig/transit-catalog/src/TableMetadata.zig": {
       "errors": {
         "CatalogDefinitionChanged": 1,
@@ -3792,10 +3920,12 @@
         "TableBehavior.zig",
         "TableCatalog.zig",
         "TableCatalogRecords.zig",
+        "TableClient.zig",
         "TableCommand.zig",
         "TableControl.zig",
         "TableDdlRequest.zig",
         "TableDmlRequest.zig",
+        "TableIntent.zig",
         "TableMetadata.zig",
         "TableMetadataStore.zig",
         "TableUpload.zig",

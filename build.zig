@@ -1022,6 +1022,20 @@ pub fn build(b: *std.Build) void {
     catalog_native.has_side_effects = true;
     catalog_native.stdio = .inherit;
     b.step("test-catalog", "Prove named Table creation, atomic visibility and signed recovery on disk").dependOn(&catalog_native.step);
+    const typed_table_proof = b.addExecutable(.{ .name = "transit-typed-table-proof", .root_module = b.createModule(.{
+        .root_source_file = b.path("tests/typed_table_native.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{ .{ .name = "transit_catalog", .module = catalog.module("transit_catalog") }, .{ .name = "transit_station", .module = station.module("transit_station") } },
+    }) });
+    build_test_step.dependOn(&typed_table_proof.step);
+    const typed_table_native = b.addSystemCommand(&.{ "python3", "-B" });
+    typed_table_native.addFileArg(b.path("tests/typed_table_native.py"));
+    typed_table_native.addArtifactArg(node_artifact);
+    typed_table_native.addArtifactArg(typed_table_proof);
+    typed_table_native.has_side_effects = true;
+    typed_table_native.stdio = .inherit;
+    b.step("test-typed-tables", "Prove general typed Table lifecycle and exact recovery on disk").dependOn(&typed_table_native.step);
     const mutation_proof = b.addExecutable(.{ .name = "transit-table-mutation-proof", .root_module = b.createModule(.{
         .root_source_file = b.path("tests/table_mutation_native.zig"),
         .target = target,

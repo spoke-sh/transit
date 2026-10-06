@@ -170,6 +170,53 @@ pub fn list(self: *Self, allocator: std.mem.Allocator, cursor: ?c.TableCatalog.C
     var current = try self.source(&.{});
     return (try self.catalog(&current)).list(allocator, &current, self.connection.principal, cursor);
 }
+pub const CompileIdentity = struct { operation: u64, namespace: u64, create_object: ?u64 = null };
+/// SQL and typed callers lower to the same immutable intent. Names resolve at
+/// this preparation boundary only; saved recovery never invokes this method.
+pub fn compile(self: *Self, allocator: std.mem.Allocator, text: []const u8, identity: CompileIdentity, location: ?*c.fuze.Sql.Location) !Intent {
+    try self.connection.validate();
+    if (identity.operation == 0 or identity.namespace == 0 or identity.create_object == 0) return error.InvalidCatalogIdentity;
+    var names: std.heap.ArenaAllocator = .init(allocator);
+    defer names.deinit();
+    const ddl_target = c.fuze.TableDdl.target(names.allocator(), text) catch |err| switch (err) {
+        error.UnsupportedStatement => null,
+        else => return err,
+    };
+    if (ddl_target) |target| {
+        if (target.kind == .create) {
+            const object = identity.create_object orelse return error.InvalidCatalogIdentity;
+            var statement = try c.fuze.TableDdl.compile(allocator, text, null, location);
+            defer statement.deinit();
+            const value = statement.statement.create;
+            const request: c.TableDdlRequest = .{ .principal = self.connection.principal, .operation = identity.operation, .object = object, .expected_revision = 0, .name = try c.TableMetadata.Name.init(value.name), .action = .{ .create = .{ .schema = try value.bind(object), .if_not_exists = value.if_not_exists } } };
+            return Intent.create(allocator, try c.TableCommand.fromDdl(self.connection.scope, self.connection.owner, request, null), identity.namespace);
+        }
+        if (identity.create_object != null) return error.InvalidCatalogIdentity;
+        var definition = try self.lookup(allocator, try c.TableMetadata.Name.init(target.name));
+        defer if (definition) |*value| value.deinit();
+        var statement = try c.fuze.TableDdl.compile(allocator, text, if (definition) |value| value.schema.schema else null, location);
+        defer statement.deinit();
+        const record = if (definition) |value| value.metadata else null;
+        var request: c.TableDdlRequest = .{ .principal = self.connection.principal, .operation = identity.operation, .object = if (record) |value| value.object else 0, .expected_revision = if (record) |value| value.revision else 0, .name = try c.TableMetadata.Name.init(target.name), .action = undefined };
+        request.action = switch (statement.statement) {
+            .create => unreachable,
+            .alter => |alter| switch (alter.action) {
+                .columns => |change| .{ .alter = .{ .schema = definition.?.schema.schema, .change = change } },
+                .rename_table => |name| .{ .rename = try c.TableMetadata.Name.init(name) },
+            },
+            .drop => |drop| .{ .drop = .{ .if_exists = drop.if_exists } },
+        };
+        return Intent.create(allocator, try c.TableCommand.fromDdl(self.connection.scope, self.connection.owner, request, record), identity.namespace);
+    }
+    if (identity.create_object != null) return error.InvalidCatalogIdentity;
+    const target = try c.fuze.TableDml.target(names.allocator(), text);
+    var definition = (try self.lookup(allocator, try c.TableMetadata.Name.init(target.name))) orelse return error.TableNotFound;
+    defer definition.deinit();
+    var statement = try c.fuze.TableDml.compile(allocator, text, definition.metadata.name.slice(), definition.schema.schema, location);
+    defer statement.deinit();
+    const request: c.TableDmlRequest = .{ .principal = self.connection.principal, .operation = identity.operation, .metadata = .{ .id = definition.metadata.revision, .spec = try definition.metadata.spec() }, .plan = statement.plan };
+    return Intent.create(allocator, try c.TableCommand.fromDml(self.connection.scope, self.connection.owner, request, definition.metadata), identity.namespace);
+}
 fn outcome(self: *Self, current: *Source, identity: Intent.Identity) !?Outcome {
     const owner = try self.catalog(current);
     return switch (identity) {

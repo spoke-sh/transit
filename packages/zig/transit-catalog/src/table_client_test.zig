@@ -95,3 +95,19 @@ test "typed catalog metadata caller validates connection before opening any sour
     try t.expectError(error.InvalidCatalogIdentity, client.lookup(t.allocator, try c.TableMetadata.Name.init("people")));
     try t.expectError(error.InvalidCatalogIdentity, client.list(t.allocator, null));
 }
+
+test "general SQL creation compiles offline into the same typed intent" {
+    var client: Client = .{ .transport = undefined, .connection = connection, .key = try p.Ed25519.KeyPair.generateDeterministic(@splat(10)) };
+    var original = try client.compile(t.allocator, "CREATE TABLE people (id INTEGER PRIMARY KEY, name VARCHAR(200) NOT NULL, active BOOLEAN DEFAULT TRUE)", .{ .operation = 1, .namespace = 1000, .create_object = 100 }, null);
+    defer original.deinit();
+    var command = try original.command(t.allocator);
+    defer command.deinit();
+    const schema = command.body.request.ddl.action.create.schema;
+    try t.expectEqual(@as(usize, 3), schema.columns.len);
+    try t.expectEqual(.int32, schema.columns[0].type);
+    try t.expectEqualSlices(u64, &.{1}, schema.primary_key);
+    try t.expectEqual(@as(?u32, 200), schema.columns[1].max_characters);
+    try t.expect(schema.columns[2].default.?.value.atom.boolean);
+    try t.expectError(error.InvalidCatalogIdentity, client.compile(t.allocator, "CREATE TABLE people (id INTEGER)", .{ .operation = 1, .namespace = 1000 }, null));
+    try t.expectError(error.InvalidCatalogIdentity, client.compile(t.allocator, "DELETE FROM people", .{ .operation = 1, .namespace = 1000, .create_object = 100 }, null));
+}
