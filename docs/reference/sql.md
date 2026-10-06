@@ -1,10 +1,10 @@
 # SQL reference
 
 Transit executes finite `SELECT` queries through Fuze and bounded Table writes
-through configured console writer/catalog routes. The automatic local connection
-supplies the writer for `items`; other connections configure their own routes. SQL compiles
-to the same typed plan used by native callers. It does not grant access, create
-a source or change its declaration. The console uses a fresh authorized snapshot
+through configured console catalog routes. The automatic local connection
+supplies a catalog owner; other connections configure their own routes. Table
+DDL creates, changes and drops named typed schemas through that owner. SQL
+compiles to shared typed plans and never grants access. The console uses a fresh authorized snapshot
 session for each query; explicit durable queries capture a source basis and
 publish bounded Arrow result segments. See [query execution](queries.md).
 
@@ -95,7 +95,7 @@ incomplete. `LIMIT` does not bypass required source validation.
 
 State definitions have an offline Zig compiler. Shared Zig/C ABI/native-port
 catalog callers and the [console](../../apps/transit-cli/docs/console.md#writing-tables-and-catalogs)
-also create and publish named two-column Tables. General SQL administrative
+also publish general typed Tables, selected ALTER actions and DROP. Other SQL administrative
 routes, grants and connector catalog listings remain unavailable;
 their examples describe syntax and do not execute in the query console. Unsupported command entries
 explain the current alternatives without defining new syntax.
@@ -107,8 +107,8 @@ Arrow int64 columns.
 | Capability | Query v1 |
 | --- | --- |
 | Sources | One declared KV, Table or accepted Document projection |
-| `SELECT *` | All one to eight declared columns |
-| Explicit projection | One to eight output positions in the requested order; result names must be distinct |
+| `SELECT *` | All one to 128 declared columns |
+| Explicit projection | One to 128 output positions in the requested order; result names must be distinct |
 | Output aliases | Explicit `AS name` on columns, `COUNT(*)`, `COUNT(column)` and `SUM(column)`; distinct names permit repeated inputs |
 | Predicate | Boolean composition of typed comparisons and exact cell-state tests |
 | Ordering | Defined source order |
@@ -128,12 +128,13 @@ Start with [syntax, names and literals](sql/syntax.md) for notation and shared r
 | ---------------------------------------------------------- | --------------------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
 | `SELECT`                                                   | Executable finite read in the profiles above                                            | [Projection, filtering, limits and aggregates](sql/select.md)             |
 | `INSERT`                                                   | Console with explicit writer, Zig/native ABI/port and typed SDK callers; Flight rejects | [Row insertion and current application APIs](sql/insert.md)               |
-| `UPDATE`                                                   | Primary-key equality through the explicit mutation writer                               | [State changes and commit boundaries](sql/update.md)                      |
-| `DELETE`                                                   | Primary-key equality through the explicit mutation writer                               | [Row removal and retained history](sql/delete.md)                         |
+| `UPDATE`                                                   | Typed predicates through the configured catalog owner                               | [State changes and commit boundaries](sql/update.md)                      |
+| `DELETE`                                                   | Typed predicates through the configured catalog owner                               | [Row removal and retained history](sql/delete.md)                         |
 | `CREATE CONNECTION`                                        | Grammar only                                                                            | [Connector configuration and secret references](sql/create-connection.md) |
 | `CREATE SOURCE`                                            | Grammar only                                                                            | [Captured connector observations as a source](sql/create-source.md)       |
 | `CREATE SINK`                                              | Grammar only                                                                            | [Connector effect target](sql/create-sink.md)                             |
 | `CREATE TABLE`                                             | Console with explicit catalog, offline compiler and shared callers; Flight rejects      | [Columns, types and nullability](sql/create-table.md)                     |
+| `ALTER TABLE`, `DROP TABLE` | Configured catalog owner and shared typed callers | [Schema evolution](sql/alter-table.md), [removing live names](sql/drop-table.md) |
 | `CREATE DOCUMENT`                                          | Offline compiler; no publication                                                        | [Document declaration](sql/create-document.md)                            |
 | `CREATE KV`                                                | Offline compiler; no publication                                                        | [Typed KV declaration](sql/create-kv.md)                                  |
 | `GRANT`                                                    | Grammar only                                                                            | [Privilege declaration](sql/grant.md)                                     |
@@ -149,7 +150,7 @@ Start with [syntax, names and literals](sql/syntax.md) for notation and shared r
 | Operation | Current boundary |
 | --- | --- |
 | `DESCRIBE SELECT` | Use `EXPLAIN SELECT` for output column inspection |
-| `ALTER`, `DROP`, `TRUNCATE` | No SQL object replacement, retirement or bulk deletion |
+| `TRUNCATE`, non-Table `ALTER`/`DROP` | No execution contract; selected Table ALTER/DROP are described above |
 | `BEGIN`, `COMMIT`, `ROLLBACK` | No SQL transaction session; application turns retain their own atomic boundary |
 | `COPY`, `MERGE`, upsert forms | No SQL import/export or mutation contract |
 | `CREATE VIEW`, `CREATE MATERIALIZED VIEW` | No named SQL view or maintained-query definition |
@@ -163,7 +164,8 @@ metadata and console dot commands do not establish equivalent SQL support.
 
 Configure an authorized [query source](../../apps/transit-cli/docs/unified-query.md)
 before submitting SQL. The examples use `items`, with int64 `id` and nullable
-int64 `value` columns. SQL does not create this source:
+int64 `value` columns. Configure a declared query source or create the Table in
+the authorized console catalog:
 
 ```sql
 SELECT * FROM items;
@@ -194,8 +196,9 @@ The [syntax reference](sql/syntax.md) describes lexical rules and option lists;
 Unquoted ASCII names fold to lowercase. Double-quoted names preserve case but
 must satisfy Fuze's identifier rules. A column qualifier must match the declared
 source, its explicit `AS` alias, or the restricted derived-table alias in its own
-scope. The compiler does no catalog or
-schema-name lookup. Keywords are case-insensitive.
+scope. The read compiler binds an explicitly supplied source; the console catalog
+route resolves the current Table before binding. Schema-qualified names remain
+unsupported. Keywords are case-insensitive.
 
 Literals include signed decimal int64, `TRUE`, `FALSE`, `NULL`, UTF-8 strings
 with doubled single quotes and binary hex such as `'\x00ff'::bytea`. Backslashes

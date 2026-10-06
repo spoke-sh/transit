@@ -1,37 +1,35 @@
 # DELETE
 
-Deletion by primary-key equality is available through the explicit mutation
-writer, shared Zig/native ABI/port callers and
-[typed SDK mutation clients](../sdks.md#table-mutation-callers), and the
-[console](../../../apps/transit-cli/docs/console.md#writing-tables-and-catalogs)
-with `writes.table` configured. Use `.help DELETE` for syntax and recovery. The
-[caller guide](../../../packages/zig/transit-station-bindings/docs/table-mutations.md)
-defines signed preparation, exact recovery and durable result observation.
-Applications can also compose `station.TableMutation.applySql` in a private turn. Board query workspace,
-Flight SQL and language SDK query clients do not admit SQL mutations.
+DELETE removes selected current rows through the console's configured catalog
+owner and shared typed Table callers. The caller needs current inspect and
+delete rights plus native access. Query access does not authorize deletion;
+Flight and Board query routes remain read-only.
 
 ```sql
-DELETE FROM items WHERE id = 7;
+DELETE FROM people WHERE id = 7;
+DELETE FROM people WHERE active = FALSE OR name IS NULL;
+DELETE FROM people;
 ```
 
-The predicate must compare the supplied Table's int64 primary key with an int64
-literal. An optional qualifier must match the Table name. General predicates,
-`USING`, `RETURNING` and unqualified whole-Table deletion are unsupported.
-`TRUNCATE` is also unsupported.
+WHERE uses the same typed scalar comparisons, exact state tests and bounded
+NOT/AND/OR predicate program as [UPDATE](update.md). Omitting WHERE selects all
+rows at the frozen source basis. Exact complete primary-key equality can use
+the key index; other predicates use a finite scan. USING, RETURNING, joins and
+TRUNCATE are unsupported.
 
-The helper returns one affected row when the key exists and zero when absent.
-It changes only the private Station proposal. The result becomes durable when
-the enclosing turn commits its input progress, row removal and outputs together.
-Any error restores the complete prior proposal; underlying read failure still
-prevents commit. The application must authorize the caller and route the command
-to its current fenced writer. Query access does not confer write permission.
+The owner freezes selection and stages one complete successor. Row removal,
+index changes and the terminal matched/changed counts publish together. Every
+matched row is changed; an empty match records zero for both counts. Readers
+observe the old or fully published successor Table, never partial deletion.
 
-The [mutation contract](../../../contracts/TABLE_MUTATION_V1.md) defines exact
-semantics and bounds. Preserve the original admitted identity when recovering an
-uncertain response under the [caller contract](../callers.md).
+After an uncertain response, inspect and resume the original saved operation.
+Repeating SQL creates new work. Cancellation cannot undo an already published
+result; dropping and recreating a name cannot redirect the saved deletion to
+the replacement object. See the [console recovery guide](../../../apps/transit-cli/docs/console.md#writing-tables-and-catalogs)
+and [DML contract](../../../contracts/TABLE_DML_V1.md).
 
-Removing a current row does not retire the resource or erase retained history,
-accepted input or receipts. Retention defaults to unlimited and requires
-application opt-in; quota pressure does not authorize expiry. Deletion cannot
-retract a completed external effect. See [retention](../retention.md),
-[streaming and effects](streaming.md), [INSERT](insert.md) and [UPDATE](update.md).
+Removing current rows does not remove the Table definition or erase retained
+snapshots, accepted inputs or receipts. Retention defaults to unlimited and
+requires application opt-in; quota pressure does not authorize expiry. Use
+[DROP TABLE](drop-table.md) for the selected schema-lifecycle operation, and see
+[retention](../retention.md) for the separate history and cleanup boundary.
