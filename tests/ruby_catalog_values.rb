@@ -136,7 +136,7 @@ begin
     rejects(Transit::IncompatibleNative) { client.status(reference) }
   end
   metadata = {'scope'=>scope.wire,'object'=>((1 << 64)-1).to_s,'revision'=>((1 << 64)-1).to_s,'name'=>'items',
-    'schema_fingerprint'=>'ab' * 32,'principal'=>17,'operation'=>((1 << 64)-1).to_s,'admitted_input'=>2}
+    'schema_fingerprint'=>'ab' * 32,'principal'=>17,'operation'=>((1 << 64)-1).to_s,'admitted_input'=>2,'commitment'=>{'format'=>0x54434d01,'length'=>200,'digest'=>[1]*32}}
   head = {'revision'=>'1','rows'=>'0','pending'=>'0'}
   entry = {'metadata'=>metadata,'head'=>head}
   token = {'definition'=>M::DEFINITION,'scope'=>scope.wire,'resource_revision'=>3,'after_object'=>((1 << 64)-1).to_s}
@@ -146,6 +146,7 @@ begin
   check(retained.entries.first.metadata.object == (1 << 64)-1 && retained.entries.first.metadata.revision == (1 << 64)-1)
   reply.response['page']['entries'][0]['metadata']['name'].clear
   check(retained.entries.first.metadata.name == 'items' && retained.entries.frozen?)
+  check(retained.entries.first.metadata.commitment == M::MetadataCommitment.new(bytes: 200, digest: "\x01".b*32))
   entries = retained.entries.dup
   public_page = M::Page.new(resource_revision: 3, entries: entries, next: retained.next); entries.clear
   check(public_page.entries == retained.entries)
@@ -159,7 +160,7 @@ begin
   historical = client.definition((1 << 64)-1, (1 << 64)-1)
   check(historical.metadata == resolved.metadata && historical.schema == schema && !historical.respond_to?(:head))
   rejects(Transit::IncompatibleNative) { client.definition(1, 1) }
-  %i[hole order scope cut next_object missing_definition foreign_definition numeric_object unknown_head].each do |defect|
+  %i[hole order scope cut next_object missing_definition foreign_definition numeric_object unknown_head missing_commitment foreign_commitment long_commitment bad_digest].each do |defect|
     bad = clone_json(page)
     case defect
     when :hole then bad['entries'][1], bad['entries'][0] = bad['entries'][0], nil
@@ -171,6 +172,10 @@ begin
     when :foreign_definition then bad['next']['definition'] = '0' * 64
     when :numeric_object then bad['entries'][0]['metadata']['object'] = (1 << 64)-1
     when :unknown_head then bad['entries'][0]['head']['other'] = true
+    when :missing_commitment then bad['entries'][0]['metadata'].delete('commitment')
+    when :foreign_commitment then bad['entries'][0]['metadata']['commitment']['format'] = 0
+    when :long_commitment then bad['entries'][0]['metadata']['commitment']['length'] = 437
+    when :bad_digest then bad['entries'][0]['metadata']['commitment']['digest'][0] = 256
     end
     reply.response = {'page'=>bad}
     rejects(Transit::IncompatibleNative) { client.list }

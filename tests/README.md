@@ -15990,3 +15990,11 @@ large frames, uncertain receipts and joined cancellation
 (`java-query-boundary1.log`). Its injected port outcomes prove ownership and
 classification, not durable query admission. Native query recovery remains
 pending the common catalog fixture migration.
+
+Python and Ruby's installed catalog boundary schedules also pass after migrating
+their metadata fixtures to mandatory commitments
+(`python-ruby-query-boundary1.log`). They verify retained commitment ownership,
+reject missing/foreign/oversized/malformed commitments and preserve their existing
+uncertain-receipt and joined-cancellation checks. These use the fresh query
+wheels/gems recorded above, with injected boundary responses; live catalog
+recovery remains separately qualified by its native schedule.

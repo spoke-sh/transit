@@ -176,7 +176,7 @@ try:
     rejects(IncompatibleNative, owner.describe)
     owner._api.response = {'observation': 'cancelled'}
     rejects(IncompatibleNative, lambda: owner.observe(prepared, 1))
-    metadata = dict(scope=s, object=str((1 << 64) - 1), revision='1', name='items', schema_fingerprint='1' * 64, principal=17, operation='1', admitted_input=2)
+    metadata = dict(scope=s, object=str((1 << 64) - 1), revision='1', name='items', schema_fingerprint='1' * 64, principal=17, operation='1', admitted_input=2, commitment=dict(format=0x54434d01, length=200, digest=[1]*32))
     entry = dict(metadata=metadata, head=dict(revision='2', rows='3', pending='0'))
     token = dict(definition=definition, scope=s, resource_revision=3, after_object=metadata['object'])
     page = dict(resource_revision=3, entries=[entry] + [None] * 7, next=token)
@@ -185,6 +185,7 @@ try:
     assert retained.entries[0].metadata.object_id == (1 << 64) - 1 and retained.entries[0].head.rows == 3
     owner._api.response['page']['entries'][0]['metadata']['name'] = 'changed'
     assert retained.entries[0].metadata.name == 'items'
+    assert retained.entries[0].metadata.commitment == m.MetadataCommitment(200, '01'*32)
     rejects(FrozenInstanceError, lambda: setattr(retained.next, 'after_object', 1))
     values = list(retained.entries); public_page = m.Page(3, values, retained.next); values.clear()
     assert public_page.entries == retained.entries
@@ -203,7 +204,7 @@ try:
     rejects(IncompatibleNative, lambda: owner.definition(schema.object_id, 1))
     owner._api.response = dict(historical=None)
     assert owner.definition(schema.object_id, 99) is None
-    for malformed in ('hole', 'order', 'scope', 'cut', 'next_object', 'missing_definition', 'foreign_definition', 'numeric_object', 'unknown_head'):
+    for malformed in ('hole', 'order', 'scope', 'cut', 'next_object', 'missing_definition', 'foreign_definition', 'numeric_object', 'unknown_head', 'missing_commitment', 'foreign_commitment', 'long_commitment', 'bad_digest'):
         bad = copy.deepcopy(page)
         if malformed == 'hole': bad['entries'][1], bad['entries'][0] = bad['entries'][0], None
         elif malformed == 'order': bad['entries'][1] = copy.deepcopy(bad['entries'][0])
@@ -213,7 +214,11 @@ try:
         elif malformed == 'missing_definition': del bad['next']['definition']
         elif malformed == 'foreign_definition': bad['next']['definition'] = '0' * 64
         elif malformed == 'numeric_object': bad['entries'][0]['metadata']['object'] = (1 << 64) - 1
-        else: bad['entries'][0]['head']['unknown'] = 1
+        elif malformed == 'unknown_head': bad['entries'][0]['head']['unknown'] = 1
+        elif malformed == 'missing_commitment': del bad['entries'][0]['metadata']['commitment']
+        elif malformed == 'foreign_commitment': bad['entries'][0]['metadata']['commitment']['format'] = 0
+        elif malformed == 'long_commitment': bad['entries'][0]['metadata']['commitment']['length'] = 437
+        else: bad['entries'][0]['metadata']['commitment']['digest'][0] = 256
         owner._api.response = dict(page=bad)
         rejects(IncompatibleNative, owner.list)
     owner._api.response = dict(page=copy.deepcopy(page))
