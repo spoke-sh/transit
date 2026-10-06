@@ -123,3 +123,28 @@ test "typed DML diagnostics preserve compile rejection without narrow-profile or
     try e.expectEqual(null, diagnostic.tableDml("DELETE FROM people", error.OutOfMemory, .{}));
     try e.expectEqual(null, diagnostic.tableDml("DELETE FROM people", error.UnknownWriterFailure, .{}));
 }
+
+test "point-key qualification preserves every predicate and declared composite key order" {
+    var output: [s.max_columns]Cell = undefined;
+    var point = try dml.compile(e.allocator, "UPDATE people SET name='Ada' WHERE id=1", "people", schema, null);
+    defer point.deinit();
+    try e.expectEqualDeep(integer(1), (try point.plan.primaryKeyEquality(&output)).?[0]);
+    inline for (.{ "id=1 AND active=TRUE", "id=1 OR id=2", "NOT id=1", "id=1 AND id=1", "id>0", "name IS NULL" }) |predicate| {
+        var scan = try dml.compile(e.allocator, "DELETE FROM people WHERE " ++ predicate, "people", schema, null);
+        defer scan.deinit();
+        try e.expectEqual(null, try scan.plan.primaryKeyEquality(&output));
+    }
+    var columns = schema.columns[0..3].*;
+    columns[1].nullable = false;
+    var composite = schema;
+    composite.columns = &columns;
+    composite.primary_key = &.{ 6, 3 };
+    var both = try dml.compile(e.allocator, "DELETE FROM people WHERE id=1 AND name='Ada'", "people", composite, null);
+    defer both.deinit();
+    const key = (try both.plan.primaryKeyEquality(&output)).?;
+    try e.expectEqualStrings("Ada", key[0].value.atom.bytes);
+    try e.expectEqualDeep(integer(1), key[1]);
+    var incomplete = try dml.compile(e.allocator, "DELETE FROM people WHERE id=1", "people", composite, null);
+    defer incomplete.deinit();
+    try e.expectEqual(null, try incomplete.plan.primaryKeyEquality(&output));
+}

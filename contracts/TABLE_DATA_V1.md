@@ -124,6 +124,10 @@ complete expected head bytes, requires the next revision and a nondecreasing
 record floor, and prepares one private write. The owner validates all successor
 records before replacement and publishes outcome/input progress atomically.
 These helpers do not manufacture current permissions or operation admission.
+Large schema Publication cursors require a committed source: finish their
+immutable publication before the head-validation turn. An inline schema can be
+read through private point writes. These rules preserve the existing prohibition
+on opening a Publication cursor after private mutations.
 
 A retired head is permanent and cannot have pending work. Neither creation nor
 replacement can reset it. Its schema and immutable data remain available to
@@ -147,12 +151,26 @@ predicate/multi-row selection require their separate statement owner. This
 single-row helper does not admit a loop of independently accepted rows as one
 atomic multi-row SQL statement.
 
+Key-addressed patches and deletes accept complete typed primary-key values.
+Patches carry stable column IDs and typed constant/default assignments; omitted
+columns retain their existing values. Request identity includes these inputs,
+without reading a current row. On first execution the owner resolves the key and
+applies assignments under the frozen head; terminal repetition returns its
+original result without resolving the key again. A later change to an unassigned
+column cannot change the original request digest, and a deleted/recreated key
+cannot make an old deletion remove the replacement row.
+
 Request identity hashes the domain `transit.table.write.v1` followed by NUL,
 the raw 32-byte shared definition, resource/principal/operation:u64le, complete
 schema fingerprint, action:u8 (insert=1, update=2, delete=3), and exact `FTR1` row
 or 20-byte row identity. It recomputes the digest from typed input. Receipt keys
 are `00 57`, object:u64be, principal:u64be, operation:u64be, exactly 26 bytes.
 Different input at the same key rejects rather than overwriting the operation.
+Additional actions are patch=4 and key deletion=5. Both encode their complete
+canonical `FTK1` key preceded by length:u32le. Patch appends assignment count:u16le
+and each column ID:u64le, a default/value tag:u8 (0/1), and for explicit values a
+length:u32le plus complete typed `FVL1` envelope. Assignment order is part of
+intent; DEFAULT remains distinct from a coincidentally equal explicit value.
 
 The `STW1` receipt is exactly 158 bytes: magic, raw shared definition, resource,
 object, principal and operation (u64 each), request digest (32 bytes), admitted

@@ -61,13 +61,26 @@ const Store = struct {
         return pages;
     }
     fn table(self: *Store) !Head {
+        return self.tableSchema(schema);
+    }
+    fn tableSchema(self: *Store, definition: f.TableSchema.Schema) !Head {
         const pages = try self.create();
         var buffer: [f.TableSchema.max_bytes]u8 = undefined;
-        const bytes = try schema.encode(&buffer);
+        const bytes = try definition.encode(&buffer);
         const ref: Pages.Reference = .{ .id = 1, .spec = try Pub.Digest.of(Pages.schema_format, bytes) };
         var turn = try self.capture();
-        try t.expectEqual(.ready, try pages.stage(&turn, ref, bytes));
+        while (try pages.stage(&turn, ref, bytes) == .progress) {
+            try self.commit(turn);
+            turn = try self.capture();
+        }
         const head: Head = .{ .resource = 7, .object = 9, .revision = 1, .schema = ref, .next_record = 2 };
+        if (bytes.len > Pages.inline_bytes) {
+            // Publication cursors read a committed cut, never the private
+            // descriptor just published in this turn. Preserve that gate.
+            try t.expectError(error.PublicationReadAfterMutation, head.create(t.allocator, &turn));
+            try self.commit(turn);
+            turn = try self.capture();
+        }
         try head.create(t.allocator, &turn);
         try self.commit(turn);
         return head;
@@ -612,4 +625,74 @@ test "point write allocation and turn-budget failures leave no private accepted 
     var invalid = request;
     invalid.change.insert.identity.operation += 1;
     try t.expectError(error.InvalidTableWrite, invalid.reference(t.allocator));
+}
+
+test "compiled key patches preserve unassigned columns and original receipts after later changes" {
+    const columns = schema.columns[0..2].* ++ [_]f.TableSchema.Column{.{ .id = 3, .name = "active", .type = .boolean }};
+    var wide = schema;
+    wide.columns = &columns;
+    wide.next_column = 4;
+    var store: Store = .{};
+    defer store.deinit();
+    _ = try store.tableSchema(wide);
+    var cells: [3]f.Types.Values.Cell = .{
+        .{ .value = .{ .atom = .{ .signed = 1 } } },
+        .{ .value = .{ .atom = .{ .bytes = "first" } } },
+        .{ .value = .{ .atom = .{ .boolean = true } } },
+    };
+    var request: Write.Request = .{ .resource = 7, .principal = 1, .operation = 61, .schema = wide, .change = .{ .insert = .{ .identity = .{ .origin = 2, .operation = 61, .ordinal = 0 }, .cells = &cells } } };
+    var turn = try store.capture();
+    try t.expectEqual(.applied, (try Write.step(t.allocator, &turn, request)).state);
+    try store.commit(turn);
+    var compiled = try f.TableDml.compile(t.allocator, "UPDATE items SET value='patched' WHERE id=1", "items", wide, null);
+    defer compiled.deinit();
+    var output: [f.TableSchema.max_columns]f.Types.Values.Cell = undefined;
+    const key = (try compiled.plan.primaryKeyEquality(&output)).?;
+    const patch: Write.Request = .{ .resource = 7, .principal = 1, .operation = 62, .schema = compiled.plan.schema, .change = .{ .patch = .{ .key = key, .assignments = compiled.plan.action.update } } };
+    const original_reference = try patch.reference(t.allocator);
+    turn = try store.capture();
+    const accepted = try Write.step(t.allocator, &turn, patch);
+    try t.expectEqual(.applied, accepted.state);
+    try t.expectEqual(@as(usize, 4), writes(turn));
+    try store.commit(turn);
+    var other = patch;
+    other.operation = 63;
+    other.change.patch.assignments = &.{.{ .column = 3, .value = .{ .cell = .{ .value = .{ .atom = .{ .boolean = false } } } } }};
+    turn = try store.capture();
+    try t.expectEqual(.applied, (try Write.step(t.allocator, &turn, other)).state);
+    try store.commit(turn);
+    turn = try store.capture();
+    try t.expectEqualDeep(original_reference, try patch.reference(t.allocator));
+    try t.expectEqualDeep(accepted, try Write.step(t.allocator, &turn, patch));
+    try t.expectEqual(@as(usize, 0), writes(turn));
+    var changed_intent = patch;
+    changed_intent.change.patch.assignments = &.{.{ .column = 2, .value = .{ .cell = .{ .value = .{ .atom = .{ .bytes = "changed" } } } } }};
+    try t.expectError(error.TableWriteIdentityConflict, Write.step(t.allocator, &turn, changed_intent));
+    changed_intent = patch;
+    changed_intent.change.patch.key = &.{.{ .value = .{ .atom = .{ .signed = 2 } } }};
+    try t.expectError(error.TableWriteIdentityConflict, Write.step(t.allocator, &turn, changed_intent));
+    try t.expectEqual(@as(usize, 0), writes(turn));
+    const head = try Head.load(&turn, 9);
+    var reader: Pages.Reader(*Turn) = .{ .pages = .{ .resource = 7, .object = 9 }, .source = &turn };
+    var saved = (try (Data{ .schema = wide, .index = head.index }).get(t.allocator, &reader, request.change.insert.identity)).?;
+    defer saved.deinit();
+    try t.expectEqualStrings("patched", saved.row().cells[1].value.atom.bytes);
+    try t.expect(!saved.row().cells[2].value.atom.boolean);
+
+    var remove = patch;
+    remove.operation = 64;
+    remove.change = .{ .delete_key = key };
+    const removed = try Write.step(t.allocator, &turn, remove);
+    try t.expectEqual(@as(u64, 1), removed.changed);
+    try store.commit(turn);
+    request.operation = 65;
+    request.change.insert.identity.operation = 65;
+    cells[1] = .{ .value = .{ .atom = .{ .bytes = "replacement" } } };
+    turn = try store.capture();
+    try t.expectEqual(.applied, (try Write.step(t.allocator, &turn, request)).state);
+    try store.commit(turn);
+    turn = try store.capture();
+    try t.expectEqualDeep(removed, try Write.step(t.allocator, &turn, remove));
+    try t.expectEqual(@as(u64, 1), (try Head.load(&turn, 9)).rows);
+    try t.expectEqual(@as(usize, 0), writes(turn));
 }

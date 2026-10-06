@@ -79,3 +79,10 @@ erasing receipts. Candidate pages and unfinished storage quota await separate
 cleanup. Every returned result still belongs to the private turn until native
 commit succeeds. This coordinator requires an admission owner and does not
 compile SQL assignments, select predicates or grant access to receipts.
+
+Key-addressed `patch` and `delete_key` inputs let an admitted compiler use complete
+primary-key equality without inventing a current-row request body. A patch hashes
+the original key and assignments, retains unassigned columns and checks the
+resulting row/key constraints under the captured head. Recovery reads its saved
+receipt before any new key lookup. The DML compiler qualifies this path only when
+every predicate condition is part of that exact key equality.

@@ -6255,6 +6255,7 @@
         "Expression.disjunction()": "anyerror",
         "Expression.unary()": "anyerror",
         "Plan.matches()": "<inferred>",
+        "Plan.primaryKeyEquality()": "<inferred>",
         "Plan.validate()": "<inferred>",
         "columnIndex()": "<inferred>",
         "compile()": "<inferred>",
@@ -6266,7 +6267,7 @@
       },
       "open_error_set_uses": 3,
       "propagation": {
-        "try": 79,
+        "try": 81,
         "catch": 0
       },
       "imports": [
@@ -15522,7 +15523,9 @@
       "errors": {
         "CrossResourceTransaction": 1,
         "IncompatibleTableStorage": 1,
+        "InvalidMutationColumns": 1,
         "InvalidTableHead": 1,
+        "InvalidTableIndex": 1,
         "InvalidTableWrite": 4,
         "InvalidTableWriteStatus": 9,
         "MutationBudgetExceeded": 5,
@@ -15535,13 +15538,15 @@
         "TableWriteBasisChanged": 2,
         "TableWriteIdentityConflict": 1,
         "TableWriteNotFound": 1,
-        "WriteFailed": 1
+        "WriteFailed": 3
       },
       "outcomes": {
         "Change": [
           "insert",
           "update",
-          "delete"
+          "delete",
+          "patch",
+          "delete_key"
         ],
         "Status.rejection": [
           "none",
@@ -15558,6 +15563,7 @@
       "error_sets": {},
       "error_returns": {
         "Reference.validate()": "<inferred>",
+        "Request.hashKey()": "<inferred>",
         "Request.insertIdentity()": "<inferred>",
         "Request.reference()": "<inferred>",
         "Status.decode()": "<inferred>",
@@ -15567,6 +15573,7 @@
         "cancel()": "<inferred>",
         "checkPending()": "<inferred>",
         "completion()": "<inferred>",
+        "hashCell()": "<inferred>",
         "increment()": "<inferred>",
         "record()": "<inferred>",
         "stageAll()": "<inferred>",
@@ -15575,8 +15582,8 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 50,
-        "catch": 10
+        "try": 63,
+        "catch": 12
       },
       "imports": [
         "Publication.zig",

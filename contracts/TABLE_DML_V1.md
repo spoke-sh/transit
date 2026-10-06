@@ -61,6 +61,12 @@ identities. Programs have at most 64 instructions and fewer than 16 levels of
 parenthesis/NOT nesting. Literal byte limits and scalar comparison admission
 remain the shared logical predicate limits; storage support does not expand them.
 
+`primaryKeyEquality` qualifies a point lookup only when the complete predicate
+is a conjunction of exactly one equality per declared primary-key column. It
+returns values in declared key order. Partial keys, repeated atoms, extra
+conditions, inequalities, OR and NOT retain scan semantics; no predicate is
+dropped to obtain a faster path. This classification performs no source reads.
+
 ## Binding, diagnostics and execution boundary
 
 Header-only `target` inspection provides a kind/name for authorized resolution;

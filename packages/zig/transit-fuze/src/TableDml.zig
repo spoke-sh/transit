@@ -41,6 +41,37 @@ pub const Plan = struct {
         var fields: [s.max_columns]t.Field = undefined;
         return (try program.truth(try self.schema.rowType(&fields), row)).selects();
     }
+    /// Qualify only a conjunction of exactly one equality per declared key
+    /// column. Extra conditions, duplicate atoms, OR and NOT keep scan semantics.
+    pub fn primaryKeyEquality(self: Plan, output: *[s.max_columns]Cell) !?[]const Cell {
+        try self.validate();
+        if (self.schema.primary_key.len == 0 or self.action == .insert) return null;
+        const program = self.predicate orelse return null;
+        var seen: [s.max_columns]bool = @splat(false);
+        var count: usize = 0;
+        for (program.instructions) |instruction| switch (instruction) {
+            .conjunction => {},
+            .negate, .disjunction => return null,
+            .atom => |atom| {
+                if (atom != .compare or atom.compare.op != .eq) return null;
+                const id = self.schema.columns[atom.compare.column].id;
+                var key: ?usize = null;
+                for (self.schema.primary_key, 0..) |column, i| if (column == id) {
+                    key = i;
+                    break;
+                };
+                const i = key orelse return null;
+                if (seen[i]) return null;
+                seen[i] = true;
+                count += 1;
+                output[i] = .{ .value = .{ .atom = atom.compare.value } };
+            },
+        };
+        if (count != self.schema.primary_key.len) return null;
+        const values = output[0..count];
+        try self.schema.validateKey(values);
+        return values;
+    }
 };
 pub const Owned = struct {
     arena: std.heap.ArenaAllocator,

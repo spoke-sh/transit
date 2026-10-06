@@ -1,5 +1,5 @@
 //! Recoverable single-row publication over the general Table representation.
-//! The caller authenticates/admit each step. Native turns own commit/fencing.
+//! The caller authenticates and authorizes each step. Native turns own commit/fencing.
 const std = @import("std");
 const p = @import("transit_client").protocol;
 const f = @import("transit_fuze");
@@ -10,7 +10,15 @@ const Head = @import("TableHead.zig");
 const Pages = @import("TablePages.zig");
 const Candidate = @import("TableCandidate.zig");
 
-pub const Change = union(enum(u8)) { insert: f.TableRow.Row = 1, update: f.TableRow.Row = 2, delete: f.TableRow.Identity = 3 };
+const Cell = f.Types.Values.Cell;
+pub const Patch = struct { key: []const Cell, assignments: []const f.TableSchema.Assignment };
+pub const Change = union(enum(u8)) {
+    insert: f.TableRow.Row = 1,
+    update: f.TableRow.Row = 2,
+    delete: f.TableRow.Identity = 3,
+    patch: Patch = 4,
+    delete_key: []const Cell = 5,
+};
 pub const Request = struct {
     resource: u64,
     principal: u64,
@@ -33,6 +41,27 @@ pub const Request = struct {
         hash.update(&.{@backingInt(std.meta.activeTag(self.change))});
         switch (self.change) {
             .delete => |id| hash.update(&try id.encode()),
+            .delete_key => |key| try self.hashKey(allocator, &hash, key),
+            .patch => |patch| {
+                if (patch.assignments.len == 0) return error.InvalidMutationColumns;
+                try self.schema.validateAssignments(patch.assignments);
+                try self.hashKey(allocator, &hash, patch.key);
+                var count: [2]u8 = undefined;
+                std.mem.writeInt(u16, &count, @intCast(patch.assignments.len), .little);
+                hash.update(&count);
+                for (patch.assignments) |assignment| {
+                    var column: [8]u8 = undefined;
+                    std.mem.writeInt(u64, &column, assignment.column, .little);
+                    hash.update(&column);
+                    switch (assignment.value) {
+                        .default => hash.update(&.{0}),
+                        .cell => |cell| {
+                            hash.update(&.{1});
+                            try hashCell(allocator, &hash, self.schema.columns[try self.schema.index(assignment.column)].field(), cell);
+                        },
+                    }
+                }
+            },
             .insert, .update => |row| {
                 var small: [4096]u8 = undefined;
                 var large: ?[]u8 = null;
@@ -51,7 +80,35 @@ pub const Request = struct {
         if (self.principal > p.max_counter or self.operation == 0) return error.InvalidTableWrite;
         return .{ .origin = self.principal + 1, .operation = self.operation, .ordinal = 0 };
     }
+    fn hashKey(self: Request, allocator: std.mem.Allocator, hash: *std.crypto.hash.sha2.Sha256, values: []const Cell) !void {
+        var small: [4096]u8 = undefined;
+        var large: ?[]u8 = null;
+        defer if (large) |bytes| allocator.free(bytes);
+        const bytes = f.TableRow.encodeKeyValues(self.schema, values, &small) catch |err| blk: {
+            if (err != error.WriteFailed) return err;
+            large = try allocator.alloc(u8, f.TableRow.max_key_bytes);
+            break :blk try f.TableRow.encodeKeyValues(self.schema, values, large.?);
+        };
+        hashPart(hash, bytes);
+    }
 };
+fn hashPart(hash: *std.crypto.hash.sha2.Sha256, bytes: []const u8) void {
+    var length: [4]u8 = undefined;
+    std.mem.writeInt(u32, &length, @intCast(bytes.len), .little);
+    hash.update(&length);
+    hash.update(bytes);
+}
+fn hashCell(allocator: std.mem.Allocator, hash: *std.crypto.hash.sha2.Sha256, field: f.Types.Field, cell: Cell) !void {
+    var small: [4096]u8 = undefined;
+    var large: ?[]u8 = null;
+    defer if (large) |bytes| allocator.free(bytes);
+    const bytes = f.Types.Codec.encode(cell, field, &small) catch |err| blk: {
+        if (err != error.WriteFailed) return err;
+        large = try allocator.alloc(u8, f.Types.Codec.max_bytes);
+        break :blk try f.Types.Codec.encode(cell, field, large.?);
+    };
+    hashPart(hash, bytes);
+}
 fn definition() [32]u8 {
     var bytes: [32]u8 = undefined;
     _ = std.fmt.hexToBytes(&bytes, @tagName(p.Growth.current_definition)) catch unreachable;
@@ -152,8 +209,8 @@ fn completion(turn: *Turn, head: Head, result: Status, data: Data.Candidate, req
     after.next_record = result.end_record;
     after.rows = switch (request.change) {
         .insert => try increment(head.rows),
-        .update => head.rows,
-        .delete => std.math.sub(u64, head.rows, data.changed) catch return error.InvalidTableHead,
+        .update, .patch => head.rows,
+        .delete, .delete_key => std.math.sub(u64, head.rows, data.changed) catch return error.InvalidTableHead,
     };
     var accepted = result;
     accepted.state = .applied;
@@ -247,6 +304,15 @@ fn apply(data: Data, allocator: std.mem.Allocator, overlay: anytype, change: Cha
         .insert => |row| data.insert(allocator, overlay, row),
         .update => |row| data.update(allocator, overlay, row),
         .delete => |id| data.delete(allocator, overlay, id),
+        .delete_key => |key| if (try data.findKey(allocator, overlay, key)) |id| data.delete(allocator, overlay, id) else .{ .data = data, .matched = 0, .changed = 0 },
+        .patch => |patch| blk: {
+            const id = try data.findKey(allocator, overlay, patch.key) orelse break :blk .{ .data = data, .matched = 0, .changed = 0 };
+            var previous = (try data.get(allocator, overlay, id)) orelse return error.InvalidTableIndex;
+            defer previous.deinit();
+            var cells: [f.TableSchema.max_columns]Cell = undefined;
+            const row = try data.schema.update(previous.row().cells, patch.assignments, &cells);
+            break :blk data.update(allocator, overlay, .{ .identity = id, .cells = row });
+        },
     };
 }
 fn stageAll(turn: *Turn, pages: Pages, overlay: anytype) !bool {

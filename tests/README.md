@@ -10707,6 +10707,21 @@ source owner and the separate typed-DML projection. Documentation validation
 passes 5,285 local links across 520 files. These are compiler/captured-turn proofs,
 not native multi-row admission, ANTLR qualification or durable SQL execution.
 
+Key-addressed SQL patches pass **188/188 Fuze tests** and **73/73 Station tests**.
+Only a complete conjunction of primary-key equalities qualifies for the point
+path; extra predicates, repeated keys, OR and NOT retain finite-scan semantics.
+Retry identity binds the supplied key and assignments, independently of current
+unassigned cells. Tests replay updates after intervening changes and deletes
+after key recreation, and reject changed keys/assignments under the same identity.
+The wider-schema fixture initially tries to open a Publication cursor after
+private publication and correctly receives `PublicationReadAfterMutation`;
+it now commits publication before validating the head in a fresh captured turn.
+The test explicitly preserves that gate. Documentation validation passes 5,285
+links across 520 files. Logs are `key-patch-fuze-test.log`,
+`key-patch-station-final.log` and `key-patch-docs.log` in the same campaign.
+These remain compiler and in-memory captured-turn checks, without native SQL,
+disk recovery, whole-statement publication or performance qualification.
+
 ## Fuze logical type foundation
 
 The local `Types` profile has nine passing focused Zig tests, including 46
