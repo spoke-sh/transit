@@ -91,6 +91,21 @@ Every continuation rechecks the original principal's current policy. Denial
 leaves the accepted work and reservation intact; scheduling, input dispositions
 and explicit resume/cancel remain responsibilities of the enclosing native host.
 
+`TableCommand` supplies a typed DDL/DML body for that host. Its 141-byte header
+checks the current shared definition and exact scope, owner, principal, operation,
+object and immutable metadata reference before schema-dependent decoding. Header
+inspection is allocation-free and does not admit work. The host checks current
+native/catalog authority and resolves accepted metadata before supplying a basis.
+CREATE carries its schema; ALTER carries an explicit change against its original
+schema; DML uses FDM1 against that same immutable basis. RENAME and DROP need only
+metadata. Typed callers and SQL compilation use the same request models.
+
+Decoded commands own their variable-width values and descriptors. DML retains
+its separate schema/value owners; DDL uses one parent arena. Release the command
+with `deinit`. Small point commands fit ordinary Station frames; larger bodies
+require the enclosing host's bounded Publication transport. Encoding does not
+send a command, schedule a continuation or add native caller support by itself.
+
 A record owns scope, full-width object and metadata revision, exact name,
 immutable Table schema reference and complete schema fingerprint, principal,
 original operation and admission input. The metadata revision is independent of

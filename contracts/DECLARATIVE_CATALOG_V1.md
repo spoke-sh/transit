@@ -548,3 +548,40 @@ checks its consumed revision against the current object, and leaves accepted
 history, permanent identities and receipts intact. It uses bounded Publication
 collection to release candidate staging quota. A cleanup call does not authorize
 physical reclamation of accepted data or substitute for native read/commit grants.
+
+## General typed command body
+
+`TableCommand` supplies a pure command codec; the native enclosing owner still
+performs authentication, current authorization, accepted-metadata resolution,
+staging and fenced commit. Header inspection alone never admits work.
+
+`TCQ1` uses a fixed 141-byte header: magic, raw shared definition (32 bytes),
+realm/resource/catalog (u64 each), owner/principal/operation/object (u64 each),
+metadata reference (id:u64, format:u32, length:u32, digest:32 bytes), and kind:u8.
+Integers are little-endian. Kind codes are CREATE=1, ALTER=2, RENAME=3, DROP=4,
+INSERT=5, UPDATE=6, DELETE=7. Only CREATE or DROP bound to absence uses an exactly
+zero metadata reference; only the latter has object=0. Other commands bind an
+accepted immutable metadata record. Missing/foreign definitions reject before
+metadata or schema-dependent decoding. The envelope limit is the 141-byte header
+plus the FDM1 envelope limit, 65,536 schema bytes and 512 bytes of bounded framing.
+
+CREATE adds a u8-length UTF-8 name, IF NOT EXISTS:u8, then length:u32 and FTS1.
+RENAME adds its new u8-length name. DROP adds IF EXISTS:u8; absent DROP also adds
+the original u8-length name. Booleans are exactly 0 or 1. Bound RENAME/DROP names
+come from the referenced metadata; a replacement live name is not consulted.
+
+ALTER adds one explicit change tag: ADD=1, DROP=2, RENAME COLUMN=3, DEFAULT=4,
+NULLABILITY=5, TYPE=6. ADD contains a u8-length name, u16-length FTY1 descriptor,
+nullable:u8, character limit:u32 (zero means absent), default presence:u8 and,
+when present, length:u32 plus bound cell bytes. DROP contains column ID:u64.
+RENAME COLUMN contains column ID:u64 and the new u8-length name. DEFAULT contains
+column ID:u64, presence:u8 and an optional length-prefixed bound cell under the
+original column type. NULLABILITY contains column ID:u64 and nullable:u8. TYPE
+contains column ID:u64, a u16-length descriptor and character limit:u32. The owner
+rederives the pure transition; the caller cannot assert that no rewrite is needed.
+
+DML uses the complete FDM1 payload under the exact original schema. The header's
+kind must agree with its action. Decoding verifies metadata scope/object/revision/
+commitment, original name and full schema fingerprint before interpreting typed
+values. All decoded data is owned and released explicitly. Invalid lengths,
+states, tags, values, trailing bytes and changed bindings reject before execution.

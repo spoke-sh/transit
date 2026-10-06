@@ -10867,6 +10867,18 @@ payloads leave room for the planned 141-byte command header within the 243-byte
 Station frame payload. This is a size assertion, not native transport latency
 evidence or proof that the planned command header is implemented.
 
+Typed Table command bodies pass **50/50 catalog package tests**
+(`table-command-final.log`). Independent Python bytes fix the 141-byte header,
+full-width identities, immutable metadata commitment and Unicode rename payload.
+CREATE, every selected ALTER action, RENAME, bound/absent DROP and typed DML
+round-trip exactly. Tests reject all DDL truncations/trailing bytes, foreign
+definitions, changed metadata/schemas and foreign scopes. Actual encoded int64
+point INSERT/UPDATE/DELETE fit the 243-byte Station payload. Allocation-failure
+testing exposed nondeterministic allocation counts with a DML owner nested inside
+another arena; retaining DML's explicit independent owners removes that layer and
+passes the full failure schedule. These are codec and size proofs; native
+submission, continuation scheduling and transport latency remain separate.
+
 ## Fuze logical type foundation
 
 The local `Types` profile has nine passing focused Zig tests, including 46

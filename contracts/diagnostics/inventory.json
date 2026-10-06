@@ -3356,6 +3356,66 @@
         "std"
       ]
     },
+    "packages/zig/transit-catalog/src/TableCommand.zig": {
+      "errors": {
+        "CatalogDefinitionChanged": 3,
+        "CatalogDefinitionMissing": 3,
+        "IncompatibleDefinition": 1,
+        "InvalidCatalogDefinition": 1,
+        "InvalidCatalogIdentity": 2,
+        "InvalidTableCommand": 10,
+        "TableSchemaChanged": 3,
+        "TableSchemaRequired": 1,
+        "TableSchemaTooLarge": 1,
+        "ValueBudgetExceeded": 2,
+        "WriteFailed": 1
+      },
+      "outcomes": {
+        "Kind": [
+          "create",
+          "alter",
+          "rename",
+          "drop",
+          "insert",
+          "update",
+          "delete"
+        ],
+        "Request": [
+          "ddl",
+          "dml"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "Body.validate()": "<inferred>",
+        "Header.encode()": "<inferred>",
+        "Header.validate()": "<inferred>",
+        "boolean()": "<inferred>",
+        "cellRead()": "<inferred>",
+        "cellWrite()": "<inferred>",
+        "changeRead()": "<inferred>",
+        "changeWrite()": "<inferred>",
+        "checkBasis()": "<inferred>",
+        "decode()": "<inferred>",
+        "encode()": "<inferred>",
+        "fromDdl()": "<inferred>",
+        "fromDml()": "<inferred>",
+        "inspect()": "<inferred>",
+        "nameRead()": "<inferred>",
+        "nameWrite()": "<inferred>",
+        "typeRead()": "<inferred>",
+        "typeWrite()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 129,
+        "catch": 0
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
     "packages/zig/transit-catalog/src/TableDdlRequest.zig": {
       "errors": {
         "InvalidCatalogDefinition": 5,
@@ -3514,6 +3574,7 @@
         "Records.zig",
         "TableCatalog.zig",
         "TableCatalogRecords.zig",
+        "TableCommand.zig",
         "TableDdlRequest.zig",
         "TableDmlRequest.zig",
         "TableMetadata.zig",
