@@ -35,6 +35,12 @@ and typed preparation can read currently authorized metadata; they never dispatc
 an operation. `compile_sql` takes `Some(object)` for CREATE and `None` for other
 statements.
 
+Resolved `Metadata` includes an owned `MetadataCommitment { bytes, digest }`
+for its immutable publication. The length is one to 436 bytes; the digest is
+`[u8; 32]`. Query sources consume it with the metadata revision and schema.
+It identifies the definition and does not grant access or establish current
+name resolution.
+
 ## Typed schemas and mutations
 
 `Schema` owns up to 128 `Column` values, a stable `next_column` and explicit

@@ -15958,3 +15958,20 @@ retains the source-head digest and takes Table source identity from catalog
 metadata and its mandatory immutable commitment. Syntax checks pass
 (`ruby-query-syntax1.log`). Native recovery and authorization schedules remain
 unqualified until the common catalog query fixture is migrated.
+
+### Rust logical query caller
+
+Rust's nine Station unit tests pass with locked offline dependencies, including
+missing/foreign/oversized catalog metadata commitments and retained metadata
+identity (`rust-query-test3.log` in the local Table-schema campaign). A fresh
+crate installation passes the shared codec schedule, 128 Unicode columns, a
+uint128 predicate, nested uint128/null decoding and malformed Arrow rejection;
+the independent compile-failure check still rejects overlapping mutable client
+borrows (`rust-query-installed1.log`). Registry dependency identities match the
+packaged lockfile. Query descriptors/atoms/cells reuse the logical API and
+manifests retain the source-head digest.
+
+The first source test invocation lacked the required native library location;
+the next exposed a catalog fixture without the newly mandatory commitment.
+Both were corrected before the passing run. These local checks do not qualify
+signed native query recovery; its shared fixture migration remains outstanding.

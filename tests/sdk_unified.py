@@ -169,11 +169,11 @@ def install_ruby(root, fixtures, packages=ROOT/'.cache/bindings/ruby'):
     return open_callers
 
 
-def install_rust(root, fixtures):
+def install_rust(root, fixtures, packages=ROOT/'.cache/bindings/rust'):
     root.mkdir()
     names = ('transit-client', 'transit-native-client', 'transit-station-sdk', 'transit-native-station')
     for name in names:
-        with tarfile.open(ROOT/'.cache/bindings/rust'/f'{name}-0.2.0.crate') as archive:
+        with tarfile.open(packages/f'{name}-0.2.0.crate') as archive:
             archive.extractall(root/'vendor', filter='data')
     (root/'src').mkdir()
     shutil.copyfile(ROOT/'tests/rust_unified_sdk.rs', root/'src/main.rs')

@@ -1,5 +1,10 @@
 //! Typed v1 callers. Shared Zig owns source validation, admission and verified pages.
 use crate::bridge::{QueryNative, counter, digest, field, signed, unified_codec, wide};
+use crate::catalog::{Metadata, Schema};
+use crate::logical::Field;
+pub use crate::logical::{
+    Alternative, AlternativeValue, Atom as Scalar, Cell, CellValue, Descriptor as Type,
+};
 use crate::turn::read_version;
 use crate::{Aggregate, Comparison, DocumentReference, ReadVersion, abi};
 use serde_json::{Value, json};
@@ -28,7 +33,7 @@ fn array(value: &Value) -> Result<&Vec<Value>> {
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum Type {
+pub enum DecoderType {
     Int64,
     Uint64,
     Float64,
@@ -36,7 +41,7 @@ pub enum Type {
     Utf8,
     Binary,
 }
-impl Type {
+impl DecoderType {
     fn wire(self) -> &'static str {
         match self {
             Self::Int64 => "int64",
@@ -46,57 +51,6 @@ impl Type {
             Self::Utf8 => "utf8",
             Self::Binary => "binary",
         }
-    }
-    fn parse(value: &Value) -> Result<Self> {
-        Ok(match string(value, "query-type")? {
-            "int64" => Self::Int64,
-            "uint64" => Self::Uint64,
-            "float64" => Self::Float64,
-            "boolean" => Self::Boolean,
-            "utf8" => Self::Utf8,
-            "binary" => Self::Binary,
-            _ => return Err(malformed()),
-        })
-    }
-}
-#[derive(Clone, PartialEq)]
-pub enum Scalar {
-    Int64(i64),
-    Uint64(u64),
-    Float64(f64),
-    Boolean(bool),
-    Utf8(String),
-    Binary(Vec<u8>),
-}
-impl Scalar {
-    fn wire(&self) -> Result<Value> {
-        Ok(match self {
-            Self::Int64(v) => json!({"int64":v.to_string()}),
-            Self::Uint64(v) => json!({"uint64":v.to_string()}),
-            Self::Float64(v) if v.is_finite() => json!({"float_bits":hex(&v.to_le_bytes(),8)?}),
-            Self::Boolean(v) => json!({"boolean":v}),
-            Self::Utf8(v) if v.len() <= 4096 => json!({"utf8":v}),
-            Self::Binary(v) => json!({"binary":hex(v,4096)?}),
-            _ => return Err(invalid()),
-        })
-    }
-    fn parse(value: &Value) -> Result<Self> {
-        let (name, v) = tag(value)?;
-        let out = match name {
-            "int64" => Self::Int64(signed(v)?),
-            "uint64" => Self::Uint64(wide(v)?),
-            "float_bits" => Self::Float64(f64::from_le_bytes(
-                unhex(string(v, "query-float")?, 8)?
-                    .try_into()
-                    .map_err(|_| malformed())?,
-            )),
-            "boolean" => Self::Boolean(boolean(v, "query-bool")?),
-            "utf8" => Self::Utf8(string(v, "query-text")?.to_owned()),
-            "binary" => Self::Binary(unhex(string(v, "query-binary")?, 4096)?),
-            _ => return Err(malformed()),
-        };
-        out.wire()?;
-        Ok(out)
     }
 }
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -118,89 +72,66 @@ impl State {
         }
     }
 }
-#[derive(Clone)]
-pub enum AlternativeValue {
-    Null,
-    TypeError(String),
-    Value(Scalar),
-}
-#[derive(Clone)]
-pub struct Alternative {
-    pub counter: u64,
-    pub replica: u64,
-    pub value: AlternativeValue,
-}
-#[derive(Clone)]
-pub enum Cell {
-    Missing,
-    Null,
-    TypeError(String),
-    Value(Scalar),
-    Conflict(Vec<Alternative>),
-}
-impl Cell {
-    fn parse(value: &Value) -> Result<Self> {
-        let (name, v) = tag(value)?;
-        Ok(match name {
-            "missing" => Self::Missing,
-            "null" => Self::Null,
-            "type_error" => Self::TypeError(string(v, "query-kind")?.to_owned()),
-            "value" => Self::Value(Scalar::parse(v)?),
-            "conflict" => Self::Conflict(
-                array(v)?
-                    .iter()
-                    .map(|item| {
-                        let value = match Self::parse(field(item, "value")?)? {
-                            Self::Null => AlternativeValue::Null,
-                            Self::TypeError(v) => AlternativeValue::TypeError(v),
-                            Self::Value(v) => AlternativeValue::Value(v),
-                            _ => return Err(malformed()),
-                        };
-                        let counter = wide(field(item, "counter")?)?;
-                        let replica = wide(field(item, "replica")?)?;
-                        if counter == 0 || replica == 0 {
-                            return Err(malformed());
-                        }
-                        Ok(Alternative {
-                            counter,
-                            replica,
-                            value,
-                        })
-                    })
-                    .collect::<Result<_>>()?,
-            ),
-            _ => return Err(malformed()),
-        })
+fn scalar_wire(value: &Scalar) -> Result<Value> {
+    if match value {
+        Scalar::Utf8(v) => v.len() > 4096,
+        Scalar::Binary(v) => v.len() > 4096,
+        _ => false,
+    } {
+        return Err(invalid());
     }
+    value.wire()
+}
+fn name(value: &str) -> Result<&str> {
+    if value.is_empty() || value.len() > 255 || value.contains('\0') {
+        return Err(invalid());
+    }
+    Ok(value)
 }
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Column {
     pub name: String,
     pub value_type: Type,
+    pub nullable: bool,
+    pub optional: bool,
 }
 impl Column {
     fn wire(&self) -> Result<Value> {
-        if self.name.len() > 64 {
-            return Err(invalid());
-        }
-        Ok(json!({"name":self.name,"type":self.value_type.wire()}))
+        Ok(
+            json!({"name":name(&self.name)?,"type":self.value_type.wire()?,"nullable":self.nullable,"optional":self.optional}),
+        )
     }
     fn parse(v: &Value) -> Result<Self> {
         let out = Self {
             name: string(field(v, "name")?, "query-column")?.to_owned(),
             value_type: Type::parse(field(v, "type")?)?,
+            nullable: boolean(field(v, "nullable")?, "query-nullable")?,
+            optional: boolean(field(v, "optional")?, "query-optional")?,
         };
         out.wire()?;
         Ok(out)
     }
 }
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct DecoderColumn {
+    pub name: String,
+    pub value_type: DecoderType,
+}
+impl DecoderColumn {
+    fn wire(&self) -> Result<Value> {
+        if self.name.len() > 32 {
+            return Err(invalid());
+        }
+        Ok(json!({"name":self.name,"type":self.value_type.wire()}))
+    }
+}
 #[derive(Clone, Copy, Debug)]
 pub struct Decoder {
     pub version: u8,
-    pub value_type: Type,
+    pub value_type: DecoderType,
 }
 impl Decoder {
-    pub fn v1(value_type: Type) -> Self {
+    pub fn v1(value_type: DecoderType) -> Self {
         Self {
             version: 1,
             value_type,
@@ -220,7 +151,7 @@ pub enum ProjectionMode {
 }
 #[derive(Clone)]
 pub struct Projection {
-    pub column: Column,
+    pub column: DecoderColumn,
     pub path: Vec<String>,
     pub relative: bool,
     pub mode: ProjectionMode,
@@ -242,10 +173,9 @@ pub enum Source {
         value: Decoder,
     },
     Table {
-        resource: ResourceRef,
-        table: u32,
-        names: [String; 2],
-        value_type: Type,
+        owner: ProcessRef,
+        metadata: Metadata,
+        schema: Schema,
     },
     Document {
         reference: DocumentReference,
@@ -256,7 +186,8 @@ pub enum Source {
 impl Source {
     pub fn resource(&self) -> ResourceRef {
         match self {
-            Self::KV { resource, .. } | Self::Table { resource, .. } => *resource,
+            Self::KV { resource, .. } => *resource,
+            Self::Table { metadata, .. } => metadata.scope.resource(),
             Self::Document { reference, .. } => reference.resource(),
         }
     }
@@ -266,11 +197,33 @@ impl Source {
                 prefix, key, value, ..
             } => json!({"kv":{"prefix":hex(prefix,32)?,"key":key.wire(),"value":value.wire()}}),
             Self::Table {
-                table,
-                names,
-                value_type,
-                ..
-            } => json!({"table":{"id":table,"names":names,"value_type":value_type.wire()}}),
+                owner,
+                metadata,
+                schema,
+            } => {
+                if owner.realm() != metadata.scope.resource().realm()
+                    || metadata.object == 0
+                    || metadata.revision == 0
+                    || metadata.object != schema.object
+                    || !(1..=128).contains(&schema.columns.len())
+                {
+                    return Err(invalid());
+                }
+                let row_type = Type::Structure(
+                    schema
+                        .columns
+                        .iter()
+                        .map(|c| Field {
+                            name: c.name.clone(),
+                            datatype: c.datatype.clone(),
+                            nullable: c.nullable,
+                            optional: false,
+                        })
+                        .collect(),
+                );
+                json!({"table":{"scope":metadata.scope.wire(),"owner":owner.pid(),"object":metadata.object.to_string(),
+                    "metadata":{"id":metadata.revision.to_string(),"spec":metadata.commitment.wire()?},"row_type":row_type.wire()?}})
+            }
             Self::Document {
                 reference: r,
                 expand,
@@ -327,7 +280,7 @@ impl PredicateAtom {
 }
 fn compare_wire(column: u8, comparison: Comparison, value: &Scalar) -> Result<Value> {
     Ok(
-        json!({"compare":{"column":column,"op":match comparison {Comparison::Eq=>"eq",Comparison::Ne=>"ne",Comparison::Lt=>"lt",Comparison::Le=>"le",Comparison::Gt=>"gt",Comparison::Ge=>"ge"},"value":value.wire()?}}),
+        json!({"compare":{"column":column,"op":match comparison {Comparison::Eq=>"eq",Comparison::Ne=>"ne",Comparison::Lt=>"lt",Comparison::Le=>"le",Comparison::Gt=>"gt",Comparison::Ge=>"ge"},"value":scalar_wire(value)?}}),
     )
 }
 #[derive(Clone, Default)]
@@ -355,6 +308,14 @@ pub struct Plan {
 }
 impl Plan {
     fn wire(&self) -> Result<Value> {
+        if !(1..=128).contains(&self.projection.len()) || self.projection.iter().any(|v| *v > 127) {
+            return Err(invalid());
+        }
+        if let Some(names) = &self.output_names {
+            for value in names.iter().flatten() {
+                name(value)?;
+            }
+        }
         if self
             .output_names
             .as_ref()
@@ -424,7 +385,7 @@ impl Budgets {
 pub struct Bundle(Vec<u8>);
 impl Bundle {
     pub fn from_bytes(data: Vec<u8>) -> Result<Self> {
-        if data.len() > 16384 {
+        if data.len() > 25069 {
             return Err(invalid());
         }
         Ok(Self(data))
@@ -444,7 +405,7 @@ impl Bundle {
         )?;
         Self::from_bytes(unhex(
             string(field(field(&v, "prepared")?, "bytes")?, "query-bundle")?,
-            16384,
+            25069,
         )?)
     }
 }
@@ -454,6 +415,9 @@ pub fn decode_arrow(
     rows: u8,
     native_directory: Option<&Path>,
 ) -> Result<Vec<Vec<Cell>>> {
+    if !(1..=128).contains(&columns.len()) || rows > 8 {
+        return Err(invalid());
+    }
     let v = unified_codec(
         json!({"inspect_arrow":{"columns":columns.iter().map(Column::wire).collect::<Result<Vec<_>>>()?,"ipc":hex(ipc,65536)?,"rows":rows}}),
         native_directory,
@@ -864,6 +828,7 @@ pub struct Manifest {
     pub source_kind: SourceKind,
     pub resource: ResourceRef,
     pub revision: u64,
+    pub source_head: [u8; 32],
     pub source_digest: [u8; 32],
     pub schema_digest: [u8; 32],
     pub plan_digest: [u8; 32],
@@ -911,6 +876,7 @@ impl Page {
     fn parse(v: &Value, realm: u64) -> Result<Self> {
         let m = field(v, "manifest")?;
         let basis = field(m, "basis")?;
+        let cut = field(basis, "cut")?;
         let manifest = Manifest {
             job: number(field(m, "job")?, "job", false)?,
             source: read_version(field(m, "source")?)?,
@@ -918,12 +884,10 @@ impl Page {
             correlation: wide(field(m, "correlation")?)?,
             policy_revision: wide(field(m, "policy_revision")?)?,
             request: unhex(string(field(m, "request")?, "request")?, 72)?,
-            source_kind: SourceKind::parse(field(basis, "kind")?)?,
-            resource: ResourceRef::new(
-                realm,
-                number(field(basis, "resource")?, "resource", false)?,
-            )?,
-            revision: number(field(basis, "revision")?, "revision", true)?,
+            source_kind: SourceKind::parse(field(cut, "kind")?)?,
+            resource: ResourceRef::new(realm, number(field(cut, "resource")?, "resource", false)?)?,
+            revision: number(field(cut, "revision")?, "revision", true)?,
+            source_head: digest(field(cut, "head")?)?,
             source_digest: digest(field(basis, "contract")?)?,
             schema_digest: digest(field(basis, "schema")?)?,
             plan_digest: digest(field(m, "plan")?)?,
@@ -1024,7 +988,12 @@ impl Client {
         sql: &str,
         budgets: Budgets,
     ) -> Result<Inspection> {
-        if source.resource() != self.connection.resource || name.len() > 32 || sql.len() > 4096 {
+        if source.resource() != self.connection.resource
+            || name.len() > 255
+            || name.is_empty()
+            || name.contains('\0')
+            || sql.len() > 4096
+        {
             return Err(invalid());
         }
         let response = self.call(json!({"inspect":{"scope":{"source":source.wire()?,"name":name,"limits":budgets.wire()?},"sql":sql}}))?;
@@ -1040,16 +1009,18 @@ impl Client {
         budgets: Budgets,
         parameters: Option<&[Scalar]>,
     ) -> Result<Bundle> {
-        if source.resource() != self.connection.resource || name.len() > 32 || sql.len() > 4096 {
+        if source.resource() != self.connection.resource
+            || name.len() > 255
+            || name.is_empty()
+            || name.contains('\0')
+            || sql.len() > 4096
+        {
             return Err(invalid());
         }
         let values = match parameters {
-            Some(values) if values.len() <= 3 => Some(
-                values
-                    .iter()
-                    .map(Scalar::wire)
-                    .collect::<Result<Vec<_>>>()?,
-            ),
+            Some(values) if values.len() <= 65 => {
+                Some(values.iter().map(scalar_wire).collect::<Result<Vec<_>>>()?)
+            }
             Some(_) => return Err(invalid()),
             None => None,
         };
@@ -1059,7 +1030,7 @@ impl Client {
                 field(field(&response, "compiled")?, "bundle")?,
                 "query-bundle",
             )?,
-            16384,
+            25069,
         )?)
     }
     pub fn prepare_next(&mut self, namespace: u64, bundle: &Bundle) -> Result<Option<Prepared>> {
@@ -1067,7 +1038,7 @@ impl Client {
             return Err(invalid());
         }
         let v = self.call(
-            json!({"next":{"namespace":namespace.to_string(),"bundle":hex(bundle.data(),16384)?}}),
+            json!({"next":{"namespace":namespace.to_string(),"bundle":hex(bundle.data(),25069)?}}),
         )?;
         let prepared = field(&v, "prepared")?;
         if prepared.is_null() {

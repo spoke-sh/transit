@@ -157,7 +157,7 @@ impl Scope {
     pub fn catalog(&self) -> u64 {
         self.catalog
     }
-    fn wire(&self) -> Value {
+    pub(crate) fn wire(&self) -> Value {
         json!({"realm":self.resource.realm(),"resource":self.resource.resource(),"catalog":self.catalog.to_string()})
     }
     fn parse(v: &Value) -> Result<Self> {
@@ -489,6 +489,39 @@ impl Basis {
     }
 }
 #[derive(Clone, Debug, Eq, PartialEq)]
+pub struct MetadataCommitment {
+    pub bytes: u32,
+    pub digest: [u8; 32],
+}
+impl MetadataCommitment {
+    pub(crate) fn wire(&self) -> Result<Value> {
+        if !(1..=436).contains(&self.bytes) {
+            return Err(invalid());
+        }
+        Ok(json!({"format":0x54434d01u32,"length":self.bytes,"digest":self.digest}))
+    }
+    fn parse(v: &Value) -> Result<Self> {
+        object(v, &["format", "length", "digest"])?;
+        if v["format"] != 0x54434d01u32 {
+            return Err(malformed());
+        }
+        let data = v["digest"]
+            .as_array()
+            .filter(|v| v.len() == 32)
+            .ok_or_else(malformed)?;
+        let mut digest = [0u8; 32];
+        for (target, byte) in digest.iter_mut().zip(data) {
+            *target = n(byte, true)?.try_into().map_err(|_| malformed())?;
+        }
+        let out = Self {
+            bytes: u32n(&v["length"], false)?,
+            digest,
+        };
+        out.wire()?;
+        Ok(out)
+    }
+}
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Metadata {
     pub scope: Scope,
     pub object: u64,
@@ -498,6 +531,7 @@ pub struct Metadata {
     pub principal: u64,
     pub operation: u64,
     pub admitted_input: u64,
+    pub commitment: MetadataCommitment,
 }
 impl Metadata {
     pub fn basis(&self) -> Basis {
@@ -519,6 +553,7 @@ impl Metadata {
                 "principal",
                 "operation",
                 "admitted_input",
+                "commitment",
             ],
         )?;
         Ok(Self {
@@ -530,6 +565,7 @@ impl Metadata {
             principal: n(&v["principal"], true)?,
             operation: w(&v["operation"], false)?,
             admitted_input: n(&v["admitted_input"], false)?,
+            commitment: MetadataCommitment::parse(&v["commitment"])?,
         })
     }
 }
@@ -1661,7 +1697,7 @@ mod tests {
         Scope::new(ResourceRef::new(46, 7).unwrap(), u64::MAX).unwrap()
     }
     fn metadata() -> Value {
-        json!({"scope":scope().wire(),"object":u64::MAX.to_string(),"revision":"2","name":"東京","schema_fingerprint":"ab".repeat(32),"principal":17,"operation":"9","admitted_input":3})
+        json!({"scope":scope().wire(),"object":u64::MAX.to_string(),"revision":"2","name":"東京","schema_fingerprint":"ab".repeat(32),"principal":17,"operation":"9","admitted_input":3,"commitment":{"format":0x54434d01u32,"length":200,"digest":vec![1;32]}})
     }
     fn schema() -> Schema {
         Schema {
@@ -1695,7 +1731,14 @@ mod tests {
         let original = page();
         let parsed = Page::parse(&original, scope(), None).unwrap();
         assert_eq!(parsed.entries[0].metadata.object, u64::MAX);
-        for defect in 0..10 {
+        assert_eq!(
+            parsed.entries[0].metadata.commitment,
+            MetadataCommitment {
+                bytes: 200,
+                digest: [1; 32]
+            }
+        );
+        for defect in 0..14 {
             let mut bad = original.clone();
             match defect {
                 0 => {
@@ -1725,8 +1768,23 @@ mod tests {
                 8 => {
                     bad["entries"][0]["metadata"]["revision"] = json!("01");
                 }
-                _ => {
+                9 => {
                     bad["entries"].as_array_mut().unwrap().push(Value::Null);
+                }
+                10 => {
+                    bad["entries"][0]["metadata"]
+                        .as_object_mut()
+                        .unwrap()
+                        .remove("commitment");
+                }
+                11 => {
+                    bad["entries"][0]["metadata"]["commitment"]["format"] = json!(0);
+                }
+                12 => {
+                    bad["entries"][0]["metadata"]["commitment"]["length"] = json!(437);
+                }
+                _ => {
+                    bad["entries"][0]["metadata"]["commitment"]["digest"][0] = json!(256);
                 }
             }
             assert!(Page::parse(&bad, scope(), None).is_err(), "defect {defect}");
