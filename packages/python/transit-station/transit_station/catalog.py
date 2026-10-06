@@ -23,6 +23,7 @@ from .catalog_values import (
     Identity as Identity,
     Basis as Basis,
     Metadata as Metadata,
+    MetadataCommitment as MetadataCommitment,
     Head as Head,
     Entry as Entry,
     Definition as Definition,

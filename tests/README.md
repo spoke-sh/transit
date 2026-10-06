@@ -15931,3 +15931,17 @@ runs pass. A TypeScript build also rejected an unavailable target-library string
 method before its replacement. Remaining language query models, native SDK
 recovery schedules and the coordinated definition cutover are separate work;
 regenerated resources alone do not qualify those callers.
+
+### Python logical query caller
+
+Strict mypy passes all 25 client, Station and example source files
+(`python-query-build1.log` in the local Table-schema campaign). Fresh wheels
+installed outside the checkout pass the shared three-source/nine-Boolean-plan
+codec schedule, six scalar Arrow columns and five states, plus 128 Unicode
+columns, uint128 comparison and nested uint128/null decoding
+(`python-query-installed1.log`). The public query API reuses immutable logical
+descriptors/cells, constructs Table declarations from catalog metadata and
+preserves the retained manifest head. The initial type-check caught an accidental
+conversion of a KV decoder as a predicate atom; it was corrected before the
+passing build. Native synchronous/asynchronous query recovery schedules remain
+unqualified until their shared catalog fixture migration is complete.

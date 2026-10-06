@@ -228,6 +228,15 @@ class Basis:
 
 
 @dataclass(frozen=True, slots=True)
+class MetadataCommitment:
+    bytes: int
+    digest: str
+    def __post_init__(self) -> None:
+        integer(self.bytes, 'metadata bytes', maximum=436)
+        _digest(self.digest)
+
+
+@dataclass(frozen=True, slots=True)
 class Metadata:
     scope: Scope
     object_id: int
@@ -237,8 +246,10 @@ class Metadata:
     principal: int
     operation: int
     admitted_input: int
+    commitment: MetadataCommitment
     def __post_init__(self) -> None:
         if not isinstance(self.scope, Scope): raise TypeError('Expected scope')
+        if not isinstance(self.commitment, MetadataCommitment): raise TypeError('Expected metadata commitment')
         _wide(self.object_id); _wide(self.revision); _name(self.name); _digest(self.schema_fingerprint)
         integer(self.principal, 'principal', minimum=0); _wide(self.operation); integer(self.admitted_input, 'admitted input')
     @property
@@ -676,8 +687,10 @@ def _schema(value: object) -> Schema:
 
 
 def _metadata(value: object) -> Metadata:
-    v = _object(value, 'scope object revision name schema_fingerprint principal operation admitted_input')
-    return Metadata(_scope(v['scope']), _decimal(v['object']), _decimal(v['revision']), _name(v['name']), _digest(v['schema_fingerprint']), v['principal'], _decimal(v['operation']), v['admitted_input'])
+    v = _object(value, 'scope object revision name schema_fingerprint principal operation admitted_input commitment')
+    spec = _object(v['commitment'], 'format length digest')
+    if spec['format'] != 0x54434d01 or not isinstance(spec['digest'], list) or len(spec['digest']) != 32: raise ValueError('Invalid metadata commitment')
+    return Metadata(_scope(v['scope']), _decimal(v['object']), _decimal(v['revision']), _name(v['name']), _digest(v['schema_fingerprint']), v['principal'], _decimal(v['operation']), v['admitted_input'], MetadataCommitment(spec['length'], bytes(spec['digest']).hex()))
 
 
 def _head(value: object) -> Head:

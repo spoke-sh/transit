@@ -126,7 +126,10 @@ files and closing a client do not cancel accepted work.
 `describe()` returns the current configuration, caller policy and resource
 revision. `lookup(name)` returns a `Definition` with committed metadata, live head
 and owned schema, or `None`. `list()` returns at most eight entries containing
-metadata and heads, ordered by object ID. Continue only with `page.next`, including
+metadata and heads, ordered by object ID. `Metadata.commitment` owns the immutable
+catalog record's byte count and digest as `MetadataCommitment`. Query sources
+use the returned commitment without reproducing catalog hashing; it grants no
+authority. Continue only with `page.next`, including
 when a page has no visible entries because it scanned retired objects. A cursor
 requires definition, scope, resource revision and `after_object`. Changed cuts
 fail; discard the incomplete listing and begin again. Cursors confer no authority.
