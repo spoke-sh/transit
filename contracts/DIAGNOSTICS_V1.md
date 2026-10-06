@@ -53,6 +53,13 @@ generic resume or cancellation. `correct_input` and `recompile` cannot recommend
 fresh work while an operation is unresolved or has rejected input still requiring
 reconciliation. Read/inspection actions do not grant access.
 
+`cancel_mutation` targets mutation identities or a catalog identity with a
+recorded `pending`/`domain_status` outcome. General Table DDL uses the latter:
+its owner can cancel accepted work before publication. A saved command, native
+receipt, unknown send or rejected control input alone does not establish that
+a catalog operation can be cancelled. Cancellation guidance never changes its
+identity to a row mutation or promises to undo a terminal result.
+
 ## Evidence and disclosure
 
 `not_submitted` requires local before-dispatch evidence; `prepared` requires saved

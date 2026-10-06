@@ -23,7 +23,12 @@ pub const TableBehavior = @import("TableBehavior.zig");
 pub const TableIntent = @import("TableIntent.zig");
 pub const TableClient = @import("TableClient.zig");
 pub const TableDiagnostic = @import("TableDiagnostic.zig");
+pub const TableValues = @import("TableValues.zig");
+pub const TableTyped = @import("TableTyped.zig");
+pub const TableBridge = @import("TableBridge.zig");
 test {
+    _ = @import("table_bridge_test.zig");
+    _ = @import("table_values_test.zig");
     _ = @import("table_client_test.zig");
     _ = @import("table_intent_test.zig");
     _ = @import("table_behavior_test.zig");

@@ -3,6 +3,24 @@
 const std = @import("std");
 const c = @import("root.zig");
 const d = c.protocol.Diagnostic;
+
+test "recorded pending CREATE retains catalog identity and valid exact cancellation guidance" {
+    const t = std.testing;
+    const schema: c.fuze.TableSchema.Schema = .{ .object = 100, .revision = 1, .next_column = 2, .columns = &.{.{ .id = 1, .name = "id", .type = .int64 }} };
+    const scope: c.TableCatalogRecords.Scope = .{ .realm = 1, .resource = 7, .catalog = 9 };
+    const request: c.TableDdlRequest = .{ .principal = 17, .operation = 2, .object = 100, .expected_revision = 0, .name = try c.TableMetadata.Name.init("people"), .action = .{ .create = .{ .schema = schema } } };
+    var intent = try c.TableIntent.create(t.allocator, try c.TableCommand.fromDdl(scope, 3, request, null), 1000);
+    defer intent.deinit();
+    const outcome: c.TableClient.Outcome = .{ .ddl = .{ .operation = .{ .scope = scope, .principal = 17, .operation = 2, .object = 100, .digest = intent.identity.ddl.digest, .kind = .create, .state = .preparing, .admitted_input = 12 } } };
+    const value = try status(&intent, outcome);
+    try value.validate();
+    try t.expectEqual(.pending, value.outcome);
+    try t.expectEqual(.catalog, value.identity.?.domain);
+    try t.expectEqual(.resume_exact, value.actions[1].?.kind);
+    try t.expectEqual(.cancel_mutation, value.actions[2].?.kind);
+    try t.expectEqualDeep(value.identity, value.actions[2].?.target);
+}
+
 pub fn status(intent: *const c.TableIntent, outcome: c.TableClient.Outcome) !d {
     const table: ?c.station.TableWrite.Status = switch (outcome) {
         .dml => |value| blk: {

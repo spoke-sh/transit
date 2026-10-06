@@ -234,3 +234,61 @@ authorization, captured-turn fencing or the four-mutation limit.
 The [catalog contract](../../../../contracts/DECLARATIVE_CATALOG_V1.md#general-table-metadata-records)
 specifies bytes and keys. Native binding/lifecycle integration and disk evidence
 remain separate from these codec and captured-turn storage helpers.
+
+## Neutral general Table callers
+
+`TableValues`, `TableTyped` and `TableBridge` provide general Table values and a
+shared caller session for foreign interfaces. These Zig helpers do not themselves
+change the separately exposed ABI/port or language SDK profiles.
+
+Schemas use `TableSchemaJson`: mandatory current definition, canonical decimal
+identities, recursive logical descriptors and lossless typed defaults. Metadata,
+policy revisions, row counts, operation/upload IDs and staging-byte quotas retain
+full u64 values as decimal strings; native counters retain native numeric bounds.
+Lookup owns its metadata, head summary and schema. Listing owns at most eight
+metadata/head summaries, with no row or schema-default acquisition. A continuation
+can scan past retired objects; its last object need not appear in the live page.
+
+Typed requests explicitly supply the current definition, operation/upload identity,
+Table name and action. CREATE includes a complete schema; other actions bind the
+selected object, metadata revision and schema fingerprint. A stale basis rejects
+before producing a new intent. Column references are stable IDs. INSERT supplies
+one assignment list per row; omitted fields, DEFAULT and explicit NULL use the
+shared schema rules. UPDATE uses the same assignments, and UPDATE/DELETE accept
+at most 64 shared postfix Boolean instructions over scalar comparisons and state
+tests. Typed ALTER uses the shared evolution forms and exact conversions. Typed
+requests and SQL produce the same canonical intent; neither grants execution rights.
+
+One `TableBridge.Session` retains one immutable intent. `compile` or typed
+`prepare` returns its summary and saved TCI1 bytes as lowercase hex. `load` checks
+those exact saved bytes and connection without a network read, name resolution,
+SQL compilation or signature change. The summary's reference commits the complete
+TCI1 record, including upload namespace. References require the current definition
+and a 64-character lowercase digest. Results belong to the supplied result arena;
+the intent belongs to the session allocator. Failed preparation, validation or
+result allocation leaves the previous intent loaded. Replacing, forgetting or
+destroying a handle has no remote cancellation effect.
+
+Persist the saved intent before any submission. `next` returns a prepared signed
+step, running state, the original terminal outcome or a cancelled-upload state.
+Persist each prepared step before `submit`; an uncertain step is reconciled by
+submitting those same bytes, never by requesting another step. `status` is a
+current-authorized observation and cannot settle an unknown send. `progress` and
+`wait_progress` retain the distinction between native input processing, input
+disposition, SQL outcome and upload status. Recovery calls carry the small intent
+reference rather than retransmitting the full immutable command. After handle
+replacement, explicitly load the persisted intent again. A missing or different
+loaded intent rejects; it never resolves a new Table by name.
+
+Initialization, conditional policy and dependency controls remain explicit signed
+preparation operations. Resume, operation cancellation, unaccepted-candidate
+cleanup, upload cancellation and upload collection refer to the loaded original
+intent and use the native owner's current gates. Cleanup is not DROP or physical
+erasure. Terminal DML counts and diagnostics come from the retained outcome;
+control dispositions have separate diagnostics and cannot impersonate SQL success.
+
+Complete neutral actions have a 16 MiB encoded-byte bound, depth 96, at most
+1,048,576 JSON tokens and 256 fields per object. The binary schema, row, intent,
+1024-row statement and 8192-byte prepared-step limits still apply independently.
+Large binary/nested values use logical cells, not SQL string construction. One
+loaded intent bounds resident recovery state independently of Table cardinality.

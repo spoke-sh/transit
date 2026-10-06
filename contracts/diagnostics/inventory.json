@@ -451,7 +451,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 45,
+        "try": 53,
         "catch": 1
       },
       "imports": [
@@ -3317,6 +3317,89 @@
         "std"
       ]
     },
+    "packages/zig/transit-catalog/src/TableBridge.zig": {
+      "errors": {
+        "CatalogIdentityConflict": 1,
+        "IncompatibleDefinition": 3,
+        "TableIntentNotLoaded": 1
+      },
+      "outcomes": {
+        "Action": [
+          "capabilities",
+          "describe",
+          "lookup",
+          "list",
+          "compile",
+          "prepare",
+          "load",
+          "forget",
+          "next",
+          "status",
+          "prepare_resume",
+          "prepare_control",
+          "prepare_initialize",
+          "prepare_policy",
+          "prepare_dependency",
+          "submit",
+          "observe",
+          "wait_observe",
+          "input_disposition",
+          "progress",
+          "wait_progress"
+        ],
+        "Control": [
+          "cancel_operation",
+          "cleanup_operation",
+          "cancel_upload",
+          "collect_upload"
+        ],
+        "Next": [
+          "send",
+          "running",
+          "terminal",
+          "upload_cancelled"
+        ],
+        "Progress": [
+          "pending",
+          "processed"
+        ],
+        "Result": [
+          "capabilities",
+          "description",
+          "definition",
+          "page",
+          "compiled",
+          "loaded",
+          "forgotten",
+          "next",
+          "state",
+          "prepared",
+          "receipt",
+          "observation",
+          "disposition",
+          "progress"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "Session.apply()": "<inferred>",
+        "Session.applyDiagnostic()": "<inferred>",
+        "Session.get()": "<inferred>",
+        "Session.install()": "<inferred>",
+        "parse()": "<inferred>",
+        "prepared()": "<inferred>",
+        "summary()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 71,
+        "catch": 1
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
     "packages/zig/transit-catalog/src/TableCatalog.zig": {
       "errors": {
         "CatalogAlreadyPopulated": 2,
@@ -3408,6 +3491,7 @@
         "readDefinition()": "<inferred>",
         "recordCandidate()": "<inferred>",
         "resolve()": "<inferred>",
+        "resolveHead()": "<inferred>",
         "restrict()": "<inferred>",
         "saveObject()": "<inferred>",
         "saveOperation()": "<inferred>",
@@ -3420,7 +3504,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 258,
+        "try": 259,
         "catch": 2
       },
       "imports": [
@@ -3924,6 +4008,71 @@
         "std"
       ]
     },
+    "packages/zig/transit-catalog/src/TableTyped.zig": {
+      "errors": {
+        "CatalogDefinitionChanged": 2,
+        "IncompatibleDefinition": 1,
+        "InvalidMutationColumns": 1,
+        "InvalidMutationPlan": 1,
+        "MutationBatchTooLarge": 1,
+        "PredicateTooLarge": 1,
+        "TableNotFound": 1
+      },
+      "outcomes": {
+        "Assignment.value": [
+          "default",
+          "cell"
+        ],
+        "Change": [
+          "add",
+          "drop",
+          "rename",
+          "default",
+          "nullable",
+          "type"
+        ],
+        "Instruction": [
+          "atom",
+          "negate",
+          "conjunction",
+          "disjunction"
+        ],
+        "Instruction.atom": [
+          "all",
+          "state",
+          "compare"
+        ],
+        "Mutation.action": [
+          "insert",
+          "update",
+          "delete"
+        ],
+        "Request.action": [
+          "create",
+          "alter",
+          "rename",
+          "drop",
+          "mutate"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "assignments()": "<inferred>",
+        "change()": "<inferred>",
+        "intent()": "<inferred>",
+        "plan()": "<inferred>",
+        "predicate()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 43,
+        "catch": 0
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
     "packages/zig/transit-catalog/src/TableUpload.zig": {
       "errors": {
         "CatalogAlreadyPopulated": 2,
@@ -3997,6 +4146,68 @@
         "std"
       ]
     },
+    "packages/zig/transit-catalog/src/TableValues.zig": {
+      "errors": {
+        "CatalogDefinitionChanged": 2,
+        "CatalogIdentityConflict": 3,
+        "CatalogSourceChanged": 2,
+        "IncompatibleDefinition": 1,
+        "InvalidCatalogIdentity": 1,
+        "InvalidCatalogInteger": 3,
+        "InvalidCatalogPage": 7,
+        "InvalidTableIntent": 3
+      },
+      "outcomes": {
+        "Outcome.phase": [
+          "preparing",
+          "delegated",
+          "building",
+          "applied",
+          "unchanged",
+          "rejected",
+          "cancelled"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "Basis.check()": "<inferred>",
+        "Configuration.Limits.native()": "<inferred>",
+        "Configuration.foreign()": "<inferred>",
+        "Configuration.native()": "<inferred>",
+        "Connection.native()": "<inferred>",
+        "Cursor.foreign()": "<inferred>",
+        "Cursor.native()": "<inferred>",
+        "Definition.foreign()": "<inferred>",
+        "DependencyChange.native()": "<inferred>",
+        "Disposition.foreign()": "<inferred>",
+        "Head.foreign()": "<inferred>",
+        "Identity.native()": "<inferred>",
+        "Metadata.foreign()": "<inferred>",
+        "Outcome.foreign()": "<inferred>",
+        "Page.foreign()": "<inferred>",
+        "Policy.foreign()": "<inferred>",
+        "Policy.native()": "<inferred>",
+        "PolicyChange.native()": "<inferred>",
+        "Scope.foreign()": "<inferred>",
+        "Scope.native()": "<inferred>",
+        "Upload.foreign()": "<inferred>",
+        "decimal()": "<inferred>",
+        "digest()": "<inferred>",
+        "entryValid()": "<inferred>",
+        "hex()": "<inferred>",
+        "unhex()": "<inferred>",
+        "unsigned()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 70,
+        "catch": 3
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
     "packages/zig/transit-catalog/src/root.zig": {
       "errors": {},
       "outcomes": {},
@@ -4017,6 +4228,7 @@
         "Model.zig",
         "Records.zig",
         "TableBehavior.zig",
+        "TableBridge.zig",
         "TableCatalog.zig",
         "TableCatalogRecords.zig",
         "TableClient.zig",
@@ -4028,7 +4240,9 @@
         "TableIntent.zig",
         "TableMetadata.zig",
         "TableMetadataStore.zig",
+        "TableTyped.zig",
         "TableUpload.zig",
+        "TableValues.zig",
         "transit_station"
       ]
     },

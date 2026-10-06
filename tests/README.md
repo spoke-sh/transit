@@ -11240,6 +11240,37 @@ page and the existing lost-reply/restart checks. It retains 350 turns, 83 sends,
 four mutations per turn and 256-byte native values. This qualifies listing and
 rendering behavior, not the remaining neutral caller migration or clean CI.
 
+The shared general neutral caller checkpoint passes **90/90 catalog tests**
+(`table-neutral-values4.log`). Typed CREATE/INSERT/UPDATE/DELETE produce the same
+saved bytes as SQL, including reordered/omitted fields, DEFAULT versus NULL and
+point versus finite predicates. All selected evolution forms, stale object/name/
+schema rejection, recursive binary input, full-width identities/quotas, metadata
+ownership, malformed pages and allocation-failure cleanup have direct checks.
+One session retains one original intent; failed compilation/export leaves it
+loaded, and stale references reject without reading or dispatching.
+
+The expanded disk-backed bridge/console proof passes in **137.612 seconds**
+(`table-neutral-native2.log`), with 424 turns, 109 sends, at most four mutations
+per turn and 256-byte native values. It covers typed nested binary/UTF-8/exact
+decimal input, composite-key conflict, typed ALTER/rename/DROP, a stale typed basis
+and original outcome recovery after handle restart and same-name recreation.
+Progress calls are at most **1,380 encoded bytes** in this scenario; they carry a
+small reference and signed step rather than the full saved intent. This is an
+observed framing bound for this workload, not a point-latency benchmark or installed
+SDK qualification. The fixture invokes the shared Zig bridge directly.
+
+The first native attempt failed with `InvalidDiagnostic` while projecting a
+pending ALTER. The existing diagnostic validator allowed cancellation only for
+row-mutation identities, despite the general Table owner using catalog identities
+for pending DDL. Zig and TypeScript now permit the exact catalog identity only
+with recorded pending domain evidence. Unknown, merely saved, input-rejected or
+terminal catalog work still rejects that action. **31/31 protocol tests** and
+**7/7 TypeScript diagnostic tests** pass, including the new evidence/identity
+guards (`table-pending-diagnostic-protocol1.log`,
+`table-pending-diagnostic-ts1.log`). Failed native/compiler logs remain in the
+campaign. These helpers do not complete ABI/port/SDK migration or the coordinated
+current-v1 definition replacement.
+
 ## Fuze logical type foundation
 
 The local `Types` profile has nine passing focused Zig tests, including 46

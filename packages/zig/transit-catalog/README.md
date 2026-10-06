@@ -109,6 +109,14 @@ using explicit configuration, a scoped courier and fresh fenced ownership.
 `transit-query.TableQuery` reads schema-bound SQL snapshots. The console and
 neutral caller migration remains separate from these general Zig interfaces.
 
+`TableTyped` lowers neutral typed schemas, assignments, predicates and lifecycle
+requests to those same immutable intents. `TableBridge` retains one intent per
+caller session and uses small content references for progress/recovery calls.
+Results own their complete metadata/logical values through the supplied arena;
+reloading saved intent performs no remote mutation or name rebinding. The
+[neutral session contract](docs/table-metadata.md#neutral-general-table-callers)
+defines framing, ownership and recovery separately from ABI/SDK exposure.
+
 `Diagnostic.codes` defines finite caller causes separately from catalog receipts.
 Failed CREATE status reads retain the original request's operation and scope,
 even when the current connection differs. Native authority conflict is distinct

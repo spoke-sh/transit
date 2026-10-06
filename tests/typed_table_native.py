@@ -412,9 +412,11 @@ def run(node, proof, host, cli):
             cells = frames[1]['row']['value']['structure']
             assert len(cells) == 64 and all(cell['value']['atom']['utf8'] == payload for cell in cells)
             console('DROP TABLE console_output')
+            from typed_table_bridge import run as bridge_proof
+            bridge_result = bridge_proof(proof, url, root, readers, lambda sql: call('select', sql))
             assert not failures, failures
             assert measurements['max_mutations'] <= 4 and measurements['max_value_bytes'] <= 256, measurements
-            print(json.dumps(dict(profile='typed-table-native', seconds=round(time.monotonic() - started, 3), lost_reply_replays=sorted(replays), supplied_host_lost_receipt='host_turn' in faults, measurements=measurements)))
+            print(json.dumps(dict(profile='typed-table-native', seconds=round(time.monotonic() - started, 3), lost_reply_replays=sorted(replays), supplied_host_lost_receipt='host_turn' in faults, measurements=measurements, bridge=bridge_result)))
         finally:
             release_host_reply.set()
             for worker in workers:

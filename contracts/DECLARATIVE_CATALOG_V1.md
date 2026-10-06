@@ -718,3 +718,36 @@ use bounded change notification, and fall back to a fresh read after bounded
 capacity backoff. They cache no permission or completion claim. Metadata lookup
 returns an owned schema requiring explicit release. Object-ordered listing
 returns an inline page of metadata/head entries without acquiring schema or rows.
+
+## General neutral session values
+
+`TableBridge.Action/Result` and `TableValues` define the general caller boundary
+as typed Zig values. Its [component contract](../packages/zig/transit-catalog/docs/table-metadata.md#neutral-general-table-callers)
+owns action semantics, allocation, framing budgets and exact recovery. The
+separately exposed ABI/port profiles must explicitly select these values; their
+existence alone does not change a language caller's admission profile.
+
+`compile` lowers SQL and `prepare` lowers a `TableTyped.Request` to the same TCI1
+intent. Typed requests require the current definition, canonical decimal-string
+operation and namespace, exact Table name and one action. CREATE carries the
+[neutral schema](TABLE_SCHEMA_V1.md); ALTER/rename/DML carry an object, metadata
+revision and schema fingerprint. DROP additionally permits an explicitly absent
+basis with IF EXISTS. Column assignments and predicate atoms refer to stable
+decimal-string column IDs and use shared logical cells/atoms. No neutral action
+changes the storage, scalar comparison or schema conversion admission rules.
+
+A saved intent is `{definition, bytes}` with mandatory current definition and
+canonical lowercase hex TCI1. Its small reference is `{definition, digest}`,
+where `digest` is lowercase SHA-256 of the domain bytes
+`transit.catalog.saved-intent.v1\0` followed by the complete TCI1 bytes. This
+commitment identifies local loaded content; it is neither authority nor a native
+operation signature. The session retains at most one intent. Loading/replacing
+it performs no remote mutation and cannot settle an uncertain prepared send.
+
+`next`, `status`, explicit resume/control preparation and progress use that
+reference. `submit` takes the original saved signed step independently of the
+active intent. Returned native receipts, input observations/dispositions, upload
+state and terminal SQL outcomes remain separate. Rejected/cancelled DML has no
+successful row counts; applied DML returns exact matched/changed decimal strings.
+Outcome diagnostics validate against the original loaded intent, preserving
+original identities across ALTER, DROP and name reuse.
