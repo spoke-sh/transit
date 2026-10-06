@@ -52,7 +52,7 @@ BOOLEAN/BOOL, TEXT/UTF8 and unbounded VARCHAR/CHARACTER VARYING are aliases.
 NUMERIC and DECIMAL declare exact decimal values. The complete alias and
 parameter rules live in the [Table type resolver](../../../contracts/TABLE_SCHEMA_V1.md#scalar-sql-type-name-resolver).
 
-DECIMAL defaults to precision 18 and scale 0, with precision 1–38 and scale
+DECIMAL defaults to precision 38 and scale 0, with precision 1–38 and scale
 0–precision. VARCHAR(n) counts Unicode scalars and rejects excess length;
 nested VARCHAR(n), CHAR padding, BINARY(n)/VARBINARY and FLOAT(p) reject because
 they have no selected semantics. TIME defaults to nanosecond precision and

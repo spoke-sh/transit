@@ -207,7 +207,7 @@ commands are unsupported. Completion never submits.
 
 | Command | Meaning |
 | --- | --- |
-| `.help [SQL\|INSERT\|UPDATE\|DELETE\|CREATE TABLE]` | Show SQL, commands and configured write routes |
+| `.help [SQL\|INSERT\|UPDATE\|DELETE\|CREATE TABLE\|ALTER TABLE\|DROP TABLE]` | Show SQL, commands and configured write routes |
 | `.sources`, `.schema` | Inspect the authorized query source and schema |
 | `.tables` | List the configured catalog, or the query source when no catalog is configured |
 | `.mode table\|json` | Select result presentation |
@@ -216,20 +216,30 @@ commands are unsupported. Completion never submits.
 | `.show` | Effective settings and their origins as aligned text, including in JSON result mode |
 | `.status`, `.info` | Saved write/query status, or query evidence |
 | `.resume [ID]` | Recover the saved write or durable query; an ID selects a durable query |
-| `.cancel` | Request cancellation of the saved mutation or durable query; CREATE TABLE has no cancellation |
+| `.cancel` | Request cancellation of saved Table work or a durable query; publication cannot be undone |
 | `.quit`, EOF | Disconnect; durable accepted work persists |
 
 SELECT uses a fresh leased snapshot by default and executes locally without durable
 query state. In `execution: durable` mode, SELECT chooses a fresh identity, records
-exact intent, advances its upload and prints verified results. Recovery commands
-also handle saved writes in either mode. The automatic local connection supplies
-`writes.table` for `items`; separate connection files must configure that route
-explicitly. CREATE TABLE requires `writes.catalog`. All writes require current
-authority. See [console writes](../../apps/transit-cli/docs/console.md#writing-tables-and-catalogs)
+exact intent, advances its upload and prints verified results. Recovery commands also handle saved Table operations. The automatic local
+connection supplies a general catalog; separate connections configure their
+explicit catalog owner. CREATE/ALTER/DROP and DML share that route and private
+recovery file. Each operation still requires current native and catalog rights. See [console writes](../../apps/transit-cli/docs/console.md#writing-tables-and-catalogs)
 for exact saved commands, Ctrl-C behavior and terminal outcomes. `.new`, `.retry`, `.advance`, `.next` and
 manual recovery exports are not console commands. `query` remains a callable
 shell with its explicit protocol and dot commands;
 root help advertises `console` as the query interface.
+
+## Catalog commands
+
+`transit catalog` saves general Table SQL or typed intent, prepares one signed
+step at a time and explicitly submits original saved bytes. CREATE compilation
+is offline; other statements resolve an authorized object and exact schema.
+`next`, `observe`, `progress` and `status` keep input admission, processing,
+upload state and terminal domain outcomes distinct. Lifecycle cancellation and
+candidate cleanup have explicit saved controls; neither undoes publication.
+The [catalog guide](../../apps/transit-cli/docs/catalog.md) defines flags,
+private artifacts, metadata pages and recovery after uncertainty.
 
 ## Table mutation commands
 

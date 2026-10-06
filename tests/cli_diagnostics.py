@@ -137,9 +137,9 @@ invoke(['mutate', 'prepare', '--control', 'private-must-not-appear'], contains=(
 invoke(['catalog'], 0, ('Only submit sends a command',))
 invoke(['catalog', '--help'], 0, ('transit catalog COMMAND',))
 capabilities = json.loads(invoke(['catalog', 'capabilities'], 0).stdout)['capabilities']
-assert capabilities['create_table'] and capabilities['conditional_policy'] and capabilities['max_saved_bytes'] == 8192
+assert capabilities['max_columns'] == 128 and capabilities['max_rows'] == 1024 and capabilities['max_prepared_bytes'] == 8192
 invoke(['catalog', 'private-must-not-appear'], contains=('unknown catalog subcommand', 'argument 2'))
-for mode in ('describe', 'lookup', 'definition', 'list', 'compile', 'prepare-initialize', 'prepare-create', 'prepare-policy', 'submit', 'observe', 'disposition', 'status'):
+for mode in ('describe', 'lookup', 'definition', 'list', 'compile', 'prepare', 'next', 'prepare-initialize', 'prepare-policy', 'prepare-dependency', 'prepare-resume', 'cancel', 'cleanup', 'cancel-upload', 'collect-upload', 'submit', 'observe', 'disposition', 'progress', 'status'):
     invoke(['catalog', mode], contains=(f'Usage: transit catalog {mode}', '--config is required'))
     invoke(['catalog', mode, '--help'], 0, (f'Usage: transit catalog {mode}', 'Only submit sends a command'))
     invoke(['catalog', mode, '--config', 'private-must-not-appear', '--help'], 0)
@@ -149,19 +149,20 @@ for mode in ('describe', 'lookup', 'definition', 'list', 'compile', 'prepare-ini
     invoke(['catalog', mode, '--help', '--help'], stderr='error: --help can only be specified once\n')
 for mode, flag in [('capabilities', '--config'), ('submit', '--output'), ('describe', '--file'), ('status', '--operation'), ('lookup', '--file'), ('definition', '--name'), ('list', '--revision')]:
     invoke(['catalog', mode, flag, 'private-must-not-appear'], contains=(flag + ' is not supported',))
-for flag in ('--operation', '--object'):
+for flag in ('--operation', '--object', '--namespace'):
     for value in ('0', '00', '+1', '-1', '01', '18446744073709551616'):
         invoke(['catalog', 'compile', flag, value], contains=('canonical positive uint64',))
-for value in ('0', '01', '4294967296'):
-    invoke(['catalog', 'compile', '--table', value], contains=('canonical integer from 1 through 4294967295',))
-for mode in ('observe', 'disposition'):
+invoke(['catalog', 'compile', '--table', '1'], contains=('unexpected input at argument 3',))
+for mode in ('observe', 'disposition', 'progress'):
     for value in ('0', '01', '9007199254740992'):
         invoke(['catalog', mode, '--input', value], contains=('canonical positive native position',))
 invoke(['catalog', 'lookup', '--config', 'missing'], contains=('--name is required',))
 invoke(['catalog', 'definition', '--config', 'missing'], contains=('--object is required',))
 invoke(['catalog', 'definition', '--config', 'missing', '--object', '1'], contains=('--revision is required',))
-for value in ('1name', 'with space', 'name.with.dot', 'abcdefghijklmnopq', 'caf\u00e9'):
-    invoke(['catalog', 'lookup', '--name', value], contains=('1 through 16 ASCII',))
+for value in ('x'*256, 'é'*128):
+    invoke(['catalog', 'lookup', '--name', value], contains=('1 through 255 UTF-8',))
+for value in ('1name', 'with space', 'name.with.dot', 'caf\u00e9'):
+    invoke(['catalog', 'lookup', '--name', value, '--help'], 0)
 for flag in ('--object', '--revision'):
     for value in ('0', '00', '+1', '-1', '01', '18446744073709551616'):
         invoke(['catalog', 'definition', flag, value], contains=('canonical positive uint64',))
@@ -183,12 +184,12 @@ with tempfile.TemporaryDirectory(prefix='transit-cli-diagnostics-') as directory
     sql = root / 'create.sql'
     sql.write_text('CREATE TABLE items (id INT64 NOT NULL, value UTF8 NULL)')
     compiled_path = root / 'compiled.json'
-    compile_args = ['catalog', 'compile', '--config', catalog_config, '--operation', '18446744073709551615', '--object', '18446744073709551615', '--table', '4294967295', '--file', sql, '--output', compiled_path]
+    compile_args = ['catalog', 'compile', '--config', catalog_config, '--operation', '18446744073709551615', '--object', '18446744073709551615', '--namespace', '18446744073709551615', '--file', sql, '--output', compiled_path]
     catalog_config.write_text(json.dumps(catalog_values))
     compiled = json.loads(invoke(compile_args, 0).stdout)
     assert json.loads(compiled_path.read_bytes()) == compiled
     assert compiled_path.stat().st_mode & 0o777 == 0o600
-    assert compiled['compiled']['request']['operation'] == '18446744073709551615'
+    assert compiled['compiled']['intent']['operation'] == '18446744073709551615'
     original = compiled_path.read_bytes()
     invoke(compile_args, 1, ('PathAlreadyExists',))
     assert compiled_path.read_bytes() == original
@@ -212,20 +213,20 @@ with tempfile.TemporaryDirectory(prefix='transit-cli-diagnostics-') as directory
     catalog_config.write_text(json.dumps(dict(catalog_values, url='http://127.0.0.1:1', seed_file='missing.seed')))
     bad_compiled = root / 'bad-compiled.json'
     invalid_compiled = copy.deepcopy(compiled)
-    invalid_compiled['compiled']['request']['name'] = 'other'
+    invalid_compiled['compiled']['intent']['object'] = '12'
     bad_compiled.write_text(json.dumps(invalid_compiled))
-    for mode in ('prepare-create', 'status'):
+    for mode in ('next', 'status'):
         args = ['catalog', mode, '--config', catalog_config, '--file', bad_compiled]
-        if mode == 'prepare-create': args += ['--output', root / 'must-not-exist.json']
+        if mode == 'next': args += ['--output', root / 'must-not-exist.json']
         invoke(args, 1, ('CatalogArtifactMismatch',))
     invalid_compiled = copy.deepcopy(compiled)
-    canonical = bytearray.fromhex(invalid_compiled['compiled']['canonical'])
+    canonical = bytearray.fromhex(invalid_compiled['compiled']['saved']['bytes'])
     canonical[5] ^= 1  # Foreign current-definition bytes must never be adopted.
-    invalid_compiled['compiled']['canonical'] = canonical.hex()
+    invalid_compiled['compiled']['saved']['bytes'] = canonical.hex()
     bad_compiled.write_text(json.dumps(invalid_compiled))
     invoke(['catalog', 'status', '--config', catalog_config, '--file', bad_compiled], 1, ('IncompatibleDefinition',))
     invalid_compiled = copy.deepcopy(compiled)
-    invalid_compiled['compiled']['request']['table'] = '1'
+    del invalid_compiled['compiled']['saved']['definition']
     bad_compiled.write_text(json.dumps(invalid_compiled))
     invoke(['catalog', 'status', '--config', catalog_config, '--file', bad_compiled], contains=('artifact', 'invalid or missing field'))
     bad_prepared = root / 'bad-catalog-prepared.json'
@@ -235,8 +236,15 @@ with tempfile.TemporaryDirectory(prefix='transit-cli-diagnostics-') as directory
     invoke(['catalog', 'submit', '--config', catalog_config, '--file', bad_prepared], 1, ('InvalidCatalogPrepared',))
     # Entire saved pages, including mandatory definition and continuation
     # consistency, validate before reading the missing signing credential.
-    fixture = Path(__file__).resolve().parents[1] / 'packages/zig/transit-catalog/src/fixtures/catalog-neutral-v1.json'
-    page = json.loads(fixture.read_text())['page']
+    # A complete current-format neutral page, with independently selected IDs.
+    page_scope = dict(realm=46, resource=2, catalog='42')
+    page = dict(resource_revision=20, entries=[dict(
+        metadata=dict(scope=page_scope, object='81', revision='1', name='東京 people',
+            schema_fingerprint='11'*32, principal=1234, operation='71', admitted_input=17,
+            commitment=dict(format=0x54434d01, length=200, digest=[2]*32)),
+        head=dict(revision='1', rows='0', pending='0'))] + [None]*7,
+        next=dict(definition=compiled['compiled']['saved']['definition'], scope=page_scope,
+            resource_revision=20, after_object='81'))
     page_path = root / 'catalog-page.json'
     page_args = ['catalog', 'list', '--config', catalog_config, '--file', page_path]
     for foreign in (None, '0' * 64):
@@ -249,16 +257,16 @@ with tempfile.TemporaryDirectory(prefix='transit-cli-diagnostics-') as directory
     invalid_page['next'] = None
     page_path.write_text(json.dumps(dict(page=invalid_page)))
     invoke(page_args, contains=('page.next', 'saved page has no continuation'))
-    for malformed in ('hole', 'scope', 'revision', 'name'):
+    for malformed in ('hole', 'scope', 'revision', 'object'):
         invalid_page = copy.deepcopy(page)
         if malformed == 'hole': invalid_page['entries'][1], invalid_page['entries'][0] = invalid_page['entries'][0], None
-        elif malformed == 'scope': invalid_page['next']['scope']['catalog'] = '1'
+        elif malformed == 'scope': invalid_page['next']['scope'] = dict(invalid_page['next']['scope'], catalog='1')
         elif malformed == 'revision': invalid_page['next']['resource_revision'] += 1
-        else: invalid_page['next']['after'] = 'other'
+        else: invalid_page['next']['after_object'] = '80'
         page_path.write_text(json.dumps(dict(page=invalid_page)))
         invoke(page_args, 1, ('InvalidCatalogPage',))
     invalid_page = copy.deepcopy(page)
-    invalid_page['entries'][0]['object'] = '01'
+    invalid_page['entries'][0]['metadata']['object'] = '01'
     page_path.write_text(json.dumps(dict(page=invalid_page)))
     invoke(page_args, 1, ('InvalidCatalogInteger',))
     page_path.write_text(json.dumps(dict(page=page)))
@@ -789,12 +797,12 @@ with tempfile.TemporaryDirectory(prefix='transit-cli-json-') as directory:
     _,detail,records = machine(args,data=b'.timer on\nSELECT typo FROM items;\n')
     assert len(records) == 2 and records[1]['timing']['unit'] == 'ms', records
     assert detail['code'] == 'sql.unknown_column'
-    for ddl,code,offset in [('CREATE TABLE items (id UTF8 NOT NULL,value UTF8 NULL)','sql.unsupported_table_key',20),
-                            ('CREATE TABLE items (id INT64 NOT NULL,id UTF8 NULL)','sql.duplicate_column',38)]:
+    for ddl,code,offset in [('CREATE TABLE items (id JSON PRIMARY KEY,value UTF8)','sql.unsupported_primary_key_type',51),
+                            ('CREATE TABLE items (id INT64 NOT NULL,id UTF8 NULL)','sql.duplicate_column',51)]:
         sql = root/'create.sql'; sql.write_text(ddl)
         catalog = root/'catalog.json'; catalog.write_text(json.dumps(catalog_values))
         output = root/'must-not-exist.json'
-        _,detail,_ = machine(['catalog','compile','--config',catalog,'--operation','1','--object','1','--table','1','--file',sql,'--output',output])
+        _,detail,_ = machine(['catalog','compile','--config',catalog,'--operation','1','--object','1','--namespace','1','--file',sql,'--output',output])
         assert detail['code'] == code and detail['location']['offset'] == str(offset), detail
         assert detail['location']['source'] == str(sql) and not output.exists()
     csv = root/'late.csv'; csv.write_text('id,value\n1,100\n2,bad\n')

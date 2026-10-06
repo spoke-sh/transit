@@ -1,126 +1,98 @@
 # transit-catalog
 
-Named state definitions and conditional creation above Station, exported as
-`transit_catalog`. The library depends directly on `transit-station`; it uses
-Fuze's shared declaration compiler and the existing Table schema and turn APIs.
-The catalog helper performs no I/O. Its signed caller uses the public native
-client; neither component discovers credentials or dispatches connector effects.
+Named typed Tables and schema lifecycle above Station, exported as
+`transit_catalog`. Fuze owns pure schemas, values and SQL/typed compilation;
+Station owns bounded immutable row/index publication; Catalog owns names,
+metadata, current policy and attributed operation outcomes. The deterministic
+catalog helper performs no I/O. The signed caller uses the public native client.
 
-`Model.CreateTable.compile` checks SQL and produces an owned typed request.
-`Catalog.createTable` atomically proposes an empty Table, immutable definition,
-name binding and exact operation receipt in four mutations. Separate current
-create/inspect policies gate publication and metadata. `lookup`, `definition`,
-`receipt` and `list` expose bounded metadata; list cursors bind resource revisions.
-Catalog cardinality is independent of resident page size.
+## Schema, lifecycle and policies
 
-`Inspection` shares deterministic definition, binding, live-schema and page
-validation between those in-turn helpers and the signed `Client`. It reads one
-authorized resource cut and rechecks catalog inspection policy before resolving
-names or consuming continuation. Its values confer no native read authority.
+`TableCatalog` resolves live names and immutable historical definitions in an
+explicit resource/catalog scope. Object and column identities survive rename;
+name reuse allocates another object. Definitions bind complete shared logical
+schemas, defaults, primary keys and immutable physical references. Catalog and
+Table cardinality remain independent of resident page size.
 
-`Client` supplies current metadata, `prepareInitialize`, `prepareCreate`,
-`preparePolicy`, explicit signed submission,
-input observation and original-request status. Its owned `Prepared` values save
-and restore exact canonical bytes with mandatory definition checks. Submission
-does not re-sign uncertain work. Current create and inspect policies remain
-independent; admission, processing and application are separate outcomes.
-`Client.lookup`, `definition` and `list` expose current metadata without acquiring
-a view or submitting work. Lists contain at most eight ordered definitions and
-bind continuation to the exact resource revision. A changed revision requires a
-fresh listing; current native or catalog denial rejects old cursors too. These
-metadata methods also use the shared neutral native ABI/port and explicit CLI;
-all ten language SDKs expose owned typed metadata values through that boundary.
-Signed pages fetch definitions and Table descriptors in two bounded batches at
-the same revision, rechecking current native grants on each. The dependent batch
-is replaced after each layer; it is not retained across calls.
-`inputDisposition` separately reads a supplied behavior's control or rejected-input
-outcome under current inspection rights, bound to the original send and input
-position. Conditional policy control requires the configured administrator,
-independently of create/inspect policy. Self-revocation still denies result
-inspection; it does not prevent policy restoration under current native grants.
+`TableCatalogRecords.Configuration` fixes the owner, administrator, scope and
+explicit publication quotas. Separate inspect, create, read, insert, update,
+delete, alter and drop permissions apply under current policy, independently of
+native grants. Current authority is checked during work and disclosure. Names,
+retained roots, cached schemas and prepared artifacts grant no permission.
 
-`Bridge.Action` and `Bridge.Result` provide shared neutral caller values. Catalog,
-operation/object IDs and policy revisions use canonical decimal strings; native
-identities retain their safe-integer bounds. Offline compilation returns both
-typed fields and canonical request bytes. Prepared commands stay opaque and all
-remote operations delegate to `Client`. Native conversions own their fields;
-result strings belong to the supplied allocator.
-`Bridge.Definition`, `Cursor` and `Page` provide owned neutral metadata
-conversions. Cursors require the current definition, scope, resource revision and
-last normalized name. Page conversion checks order, dense entries, shared scope
-and continuation consistency. `lookup`, `definition` and `list` actions expose
-these values through the native ABI/port and CLI without changing existing
-creation/control actions or saved bytes.
-The [catalog ABI/port](../transit-station-bindings/docs/catalog.md) composes these
-values with explicit native handle ownership and transport uncertainty.
+`TableBehavior` accepts initialization and administrator controls, staged Table
+commands, continuation and qualified cancellation/cleanup. It records control or
+rejected-input dispositions independently of the original operation outcome.
+The [catalog role](../../../apps/transit-query-host/README.md) runs it with explicit
+configuration, scoped courier and fresh fenced ownership. Initialization and
+resource provisioning remain separate operations.
 
-`Diagnostic.receipt` projects every creation outcome using the original request,
-scope, name, object and Table identities. `Diagnostic.input` separately projects
-control and rejected-input dispositions. Both require the caller's current read
-authorization before disclosure. They perform no reads, preserve historical
-outcomes after catalog changes, and never offer cancellation of CREATE TABLE.
+CREATE publishes the name, immutable schema/metadata, empty head and outcome.
+ALTER separates metadata-only changes from complete validation/rewrites.
+DROP uses explicit dependency records, RESTRICT, tombstones and identity-safe
+name reuse. DML freezes selection and publishes one complete successor with
+committed matched/changed counts. Staging never exposes a successful prefix.
+The owner preserves the four-mutation native turn boundary; larger work advances
+through durable bounded stages rather than widening that boundary.
 
-The neutral bridge's receipts and input dispositions include these projections
-as mandatory `diagnostic` fields. The CLI and all SDK status models retain the
-owned envelope alongside the original request or input commitment.
+[General Table metadata and caller operations](docs/table-metadata.md) define
+physical records, schema references, atomic transitions, policy, dependencies,
+cleanup, ownership and exact limits. The [Table reference](../../../docs/reference/tables.md)
+and [SQL reference](../../../docs/reference/sql.md) describe user-facing behavior.
 
-The [catalog CLI](../../../apps/transit-cli/docs/catalog.md) uses this same owner
-for offline compilation, private saved preparation, exact submission, outcomes
-and bounded metadata. Its saved pages retain the exact continuation and reject
-missing/foreign definitions before loading credentials.
+## Signed and neutral callers
 
-An application supplies an already authorized Station turn, explicit catalog
-configuration and native commit/recovery handling. Initialize in a separate turn.
-Initialization needs a page reader and permits unrelated private framework setup;
-private writes in the catalog namespace reject. Creation still needs a page reader
-and no preceding private mutations to refuse orphan Table rows at the captured cut.
-`Behavior` supplies a GenServer handler/guard, with atomic initialization,
-conditional administrator controls and durable input dispositions. Explicit catalog methods
-are available in the CLI and Python, TypeScript, Rust, Ruby, C, C++, Java, .NET,
-Erlang and Elixir SDKs through the
-shared caller. The query console uses its configured catalog for CREATE and
-catalog inspection, with private saved-command recovery.
-KV/Document creation, connector declarations,
-dependency-bearing objects, replacement and removal are not implemented here.
-The [catalog v1 contract](../../../contracts/DECLARATIVE_CATALOG_V1.md) owns exact policies,
-identities, records, limits and failure behavior. The
-[SQL Table reference](../../../docs/reference/sql/create-table.md) distinguishes
-offline review, private-turn integration and public execution surfaces.
+`TableClient` prepares general Table SQL and typed intent, signs individual
+steps, submits exact saved commands and inspects original outcomes. Current
+metadata lookup binds the source before preparation. Loading saved work never
+resolves its name again or recompiles against a replacement schema.
 
-Run in the pinned development shell:
+`TableTyped` lowers complete neutral schemas, assignments, predicates and
+lifecycle requests into the same immutable intent. `TableBridge.Session` owns
+one intent at a time; small content references identify it for progress calls.
+`Compiled` exports its full summary and mandatory-definition saved bytes.
+`load` verifies those bytes and connection without admitting work. Replacing or
+destroying a handle does not cancel a prior send or operation.
+
+`next` distinguishes a signed step, running work, terminal outcome and closed
+upload. `submit`, `observe`, `input_disposition`, `progress` and `status` preserve
+admission, processing, upload state and domain completion separately. An uncertain
+send must use the original signed bytes. Cancellation cannot undo publication;
+cleanup cannot erase accepted history, receipts or identity floors.
+
+`TableValues` supplies owned neutral metadata, schemas, cells, policies, counts,
+results and cursors. Full-width application IDs use canonical decimal strings;
+native IDs remain bounded JSON numbers. Every output belongs to the supplied
+arena. Destruction must release that ownership, including partial allocations.
+
+The [native ABI/port](../transit-station-bindings/docs/catalog.md), all enabled
+language SDKs, [explicit catalog CLI](../../../apps/transit-cli/docs/catalog.md)
+and [console](../../../apps/transit-cli/docs/console.md#writing-tables-and-catalogs)
+compose this shared owner. `transit-query.TableQuery` supplies catalog-routed
+finite typed snapshots; durable query delegation has its own current policy.
+Neither query routing nor CREATE grants subsequent DML authority.
+
+Metadata lists contain at most eight live entries ordered by stable object ID.
+Their cursor binds scope, current definition, exact resource revision and last
+examined identity. A changed cut requires a fresh listing; denial rejects old
+cursors too. Historical definition reads preserve their original metadata and
+schema without inventing a live Table head.
+
+`TableDiagnostic` projects original domain outcomes and input dispositions;
+`TableAttempt` separately projects a failed caller attempt. Missing, rejected,
+cancelled and applied evidence cannot collapse into an uncertain transport
+failure. Disclosure uses current permissions, and diagnostics do not authorize
+replacement work or cancellation of already published changes.
+
+## Checks
+
+From the pinned development shell:
 
 ```sh
 (cd packages/zig/transit-catalog && zig build test)
 ```
 
-The component tests use an independent dynamic-map store. They exercise bounded
-atomic proposals, exact application identity, conflicts, policy changes, read
-failure and catalogs larger than one resident page. They do not emulate native
-authority, disk recovery or installed caller behavior; consult the
-[proof ledger](../../../tests/README.md) for executed evidence.
-
-[General Table metadata](docs/table-metadata.md) describes immutable schema
-references, owned UTF-8 names, bounded metadata staging and scoped namespace
-resolution/dependencies, atomic lifecycle transitions and rejected-candidate
-cleanup. `TableBehavior` runs these general transitions in the supplied
-[`transit-query-host` catalog role](../../../apps/transit-query-host/README.md),
-using explicit configuration, a scoped courier and fresh fenced ownership.
-`TableClient` supplies signed general Table SQL preparation and exact recovery;
-`transit-query.TableQuery` reads schema-bound SQL snapshots. The console and
-neutral caller migration remains separate from these general Zig interfaces.
-
-`TableTyped` lowers neutral typed schemas, assignments, predicates and lifecycle
-requests to those same immutable intents. `TableBridge` retains one intent per
-caller session and uses small content references for progress/recovery calls.
-Results own their complete metadata/logical values through the supplied arena;
-reloading saved intent performs no remote mutation or name rebinding. The
-[neutral session contract](docs/table-metadata.md#neutral-general-table-callers)
-defines framing, ownership and recovery separately from ABI/SDK exposure.
-
-`Diagnostic.codes` defines finite caller causes separately from catalog receipts.
-Failed CREATE status reads retain the original request's operation and scope,
-even when the current connection differs. Native authority conflict is distinct
-from catalog operation identity conflict; ABI and CLI details retain its native
-cause. A binding whose definition is missing is inconsistent retained evidence,
-not an unknown name. Failed reads cannot settle earlier work or authorize a fresh
-submission, and CREATE has no cancellation action.
+Component tests use an independent dynamic-map store for atomic proposals,
+identity conflicts, policies, dependency/lifecycle rules, failures and bounded
+catalog traversal. Native authority, physical-disk recovery, installed callers
+and performance require their own [executed proofs](../../../tests/README.md).

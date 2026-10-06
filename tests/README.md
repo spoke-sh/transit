@@ -16297,3 +16297,23 @@ but fails a stale HTTP 409 expectation (`unified-logical-board-table3.log`). The
 corrected test requires HTTP 400, `query.draft_start_limit`, limit category and
 unchanged draft state, matching the existing semantic response owner; no runtime
 status mapping was changed to satisfy the test.
+
+### General Table explicit catalog CLI
+
+The explicit `transit catalog` command builds against `TableClient` and the same
+`TableBridge` intent/session contract used by the enabled SDKs
+(`catalog-cli-general-build1.log`). Its real CLI diagnostic schedule passes
+**656 cases** (`catalog-cli-general-diagnostics4.log`), including local CREATE,
+full-width identities, mandatory saved definitions and summary/byte agreement,
+private non-replacing files, UTF-8 lookup names, saved-page consistency, malformed
+artifacts before credential loading, offline help and output privacy. The native
+lifecycle/large-artifact/exact-recovery schedule remains a separate running check.
+
+Three earlier diagnostic runs fail test expectations: the removed `--table`
+option now reports an unknown argument; a shallowly shared fixture scope changed
+both sides of an intended mismatch; and general DDL reports its own precise code
+and end-of-statement validation coordinate. Those cases now assert the selected
+interface directly (`catalog-cli-general-diagnostics1.log` through `3.log`). A
+first native invocation names an uninstalled proof executable and does not run;
+the subsequent owning `test-typed-tables` task builds its actual artifacts before
+qualification (`catalog-cli-general-native1.log`, `2.log`).

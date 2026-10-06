@@ -54,9 +54,10 @@ It uses local OS access and creates no durable Transit job.
 
 ## Explicit catalog operations
 
-`transit catalog` compiles `CREATE TABLE` offline, saves signed initialization,
-creation and conditional policy commands, and explicitly submits and observes
-them. The [catalog guide](docs/catalog.md) defines typed inputs, private artifacts,
+`transit catalog` compiles general Table SQL or typed requests into saved intent.
+CREATE is offline; other operations bind authorized current metadata. It saves
+individual signed steps and explicitly submits and observes them, with separate
+lifecycle, policy and dependency controls. The [catalog guide](docs/catalog.md) defines typed inputs, private artifacts,
 current authority and exact saved recovery through the shared catalog caller.
 
 ## Explicit Table mutations
