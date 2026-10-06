@@ -100,6 +100,15 @@ The logical stream profile uses at most eight rows per input page, 128 columns,
 a 64 KiB Arrow segment and 4 MiB of caller-owned Arrow workspace. Segment overflow
 rejects the complete candidate. Nested/value budgets remain those of
 [logical types](FUZE_TYPES_V1.md), independently of transport workspace budgets.
+Native source hosts also bound source/plan decoding to a 1 MiB adapter buffer.
+Exhausting that explicit buffer records `adapter_memory_budget`; exhausting the
+Arrow encoder workspace records `arrow_workspace_budget`. Both discard the
+candidate, retain the original query identity, close its failed execution and
+release its source pin. Neither asserts a measured required allocation size.
+External publication/storage errors and failures of a caller-supplied general
+allocator remain infrastructure failures; they do not become budget outcomes.
+A storable row may exceed a query transport working set. These bounds are
+independent of Table row/value limits and do not change stored data.
 Total source and result cardinality are governed by durable work limits.
 
 ## Canonical plans and output names
@@ -401,6 +410,8 @@ This inventory does not claim to cover compiler, transport or other domain error
 | 68 | `unsupported_comparison` | failed | The logical type has no supported comparison. |
 | 69 | `source_definition_too_large` | failed | The complete source declaration exceeds its source-profile bound. |
 | 70 | `catalog_scope_changed` | denied | The Table source and authorized catalog scopes differ. |
+| 71 | `adapter_memory_budget` | failed | The explicit source/plan decoding buffer is exhausted. |
+| 72 | `arrow_workspace_budget` | failed | The fixed logical Arrow encoding workspace is exhausted. |
 
 Native/port and SDK query status include required `failure`, either null or an
 object with `code`, `stage`, `dimension`, `limit` and `observed`. The two counters

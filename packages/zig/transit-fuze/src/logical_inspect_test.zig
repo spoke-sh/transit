@@ -65,7 +65,7 @@ test "logical IPC rejects incomplete extra and foreign-schema segments before di
     defer e.allocator.free(workspace);
     var output: [ipc.segment_bytes]u8 = undefined;
     const bytes = try ipc.encode(schema, rows, workspace, &output);
-    try e.expectError(error.OutOfMemory, inspect.decode(e.allocator, schema, bytes, rows.len, workspace[0..1]));
+    try e.expectError(error.ArrowWorkspaceExceeded, inspect.decode(e.allocator, schema, bytes, rows.len, workspace[0..1]));
     try e.expectError(error.InvalidArrowResult, inspect.decode(e.allocator, schema, bytes, rows.len - 1, workspace));
     try e.expectError(error.InvalidArrowResult, inspect.decode(e.allocator, schema, bytes, 9, workspace));
     for (0..bytes.len) |length| {

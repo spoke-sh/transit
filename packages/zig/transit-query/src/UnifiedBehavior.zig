@@ -143,13 +143,12 @@ pub fn dispatchCatalogSource(turn: *Turn, frame: s.Frame, catalog: q.catalog.Tab
     return dispatch(turn, frame, null, resources, adapter, workspace, cancellation);
 }
 fn dispatch(turn: *Turn, frame: s.Frame, peer: ?u64, resources: anytype, adapter: []u8, workspace: []u8, cancellation: *const q.fuze.execution.Cancellation) !void {
-    var fixed = std.heap.FixedBufferAllocator.init(adapter);
     const origin = s.Frame.source(turn.delivery.input) catch 0;
     if (frame.kind == .call) {
         if (origin == 0 or (peer != null and origin != peer.?)) return turn.reply(try q.QueryFailure.fromError(error.UnexpectedQueryPeer, .admission).?.encode());
         const ref = s.PublicationReference.decode(frame.payload) catch return turn.reply(try q.QueryFailure.fromError(error.InvalidPublicationReference, .admission).?.encode());
         var diagnostic: ?q.QueryFailure = null;
-        _ = q.UnifiedCapture.startDiagnostic(turn, ref, resources, fixed.allocator(), &diagnostic) catch |err| {
+        _ = q.UnifiedCapture.startBoundedDiagnostic(turn, ref, resources, adapter, &diagnostic) catch |err| {
             if (turn.read_error != null) return err;
             const failure = diagnostic orelse q.QueryFailure.fromError(err, .admission) orelse return err;
             return turn.reply(try failure.encode());
@@ -165,7 +164,7 @@ fn dispatch(turn: *Turn, frame: s.Frame, peer: ?u64, resources: anytype, adapter
     if (frame.kind != .cast or origin != turn.delivery.pid) return rejected(turn, "UnexpectedQueryContinuation");
     const continuation = try r.Continuation.decode(frame.payload);
     var diagnostic: ?q.QueryFailure = null;
-    _ = q.UnifiedCapture.advanceDiagnostic(turn, continuation, resources, fixed.allocator(), workspace, cancellation, &diagnostic) catch |err| {
+    _ = q.UnifiedCapture.advanceBoundedDiagnostic(turn, continuation, resources, adapter, workspace, cancellation, &diagnostic) catch |err| {
         if (turn.read_error != null) return err;
         const failure = diagnostic orelse q.QueryFailure.fromError(err, .execution) orelse return err;
         return q.UnifiedCapture.closeFailure(turn, continuation.job, failure);

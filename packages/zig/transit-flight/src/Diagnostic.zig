@@ -32,6 +32,8 @@ pub fn status(self: Self) u8 {
         .request_resource_expired,
         .request_resource_missing,
         => 9,
+        .adapter_memory_budget,
+        .arrow_workspace_budget,
         .value_budget,
         .source_definition_too_large,
         .budget_exceeded,

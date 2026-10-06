@@ -28,8 +28,11 @@ defines physical layouts, mandatory schema evidence, five states, ownership and
 the independent eight-row/4 MiB workspace/64 KiB segment limits. This capability
 includes local `LogicalInspect` decoding of one canonical complete segment against
 an exact supplied schema. Decoded rows and descriptors own their bytes. General
-external Arrow import, neutral ABI import, C data export and richer Flight/native
-SDK query admission have separate contracts and are not enabled by this decoder.
+external Arrow import, neutral ABI import, C data export and richer Flight
+output admission have separate contracts and are not enabled by this decoder.
+Native durable query jobs use these logical segments under their own source and
+working-set bounds. Fixed encoding-workspace exhaustion is distinct from a host
+allocator failure.
 
 ## Ownership and complete results
 

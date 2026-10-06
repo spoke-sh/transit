@@ -15768,3 +15768,29 @@ passes 254 Fuze and 110 query tests (`fuze-native-cutover10.log` and
 `query-native-cutover-build22.log`). These are codec/compiler checks; the migrated
 catalog-backed gateway still requires native disk, TLS, ADBC and recovery
 qualification. Earlier two-column provisioning schedules do not qualify it.
+
+### Bounded query memory failure isolation
+
+Query tests pass 112/112 (`query-memory-budgets5.log` in the local Table-schema
+campaign). Private catalog turns exercise explicit admission-buffer exhaustion,
+execution-buffer exhaustion, Arrow workspace exhaustion, exact repeated
+continuations and a later successful query. Failed candidates publish no result
+segment and release their original captured pin. Separate injected ordinary
+allocator, request-publication and poisoned Table-read failures preserve their
+original infrastructure errors and untouched proposals.
+
+The same owner reads a committed 600 KiB UTF-8 Table value using its normal 1 MiB
+adapter buffer, records `adapter_memory_budget` and retains the unchanged stored
+row. The five standalone catalog cases took approximately three minutes in
+Debug with reported peak RSS 27 MiB; this is reference-store execution, not a
+disk throughput or ReleaseSafe latency result. A redundant rerun was stopped
+after the completed pass (`query-memory-budgets6.log`) and adds no evidence.
+
+Fuze tests pass 254/254 (`fuze-memory-budgets2.log`). The real file-query corpus
+passes 190 cases, including bounded Arrow output, exact codecs, cleanup and
+192 MiB input under a 96 MiB address-space limit (`query-memory-file1.log`). Its
+ordered batch splitting handles the new explicit workspace error. Diagnostic
+mappings pass and 3179 projections across 34 surfaces pass
+(`query-memory-mappings2.log`, `query-memory-outcomes2.log`). General allocator
+failures are not relabeled as observed workspace exhaustion, and no required-byte
+measurement is invented.

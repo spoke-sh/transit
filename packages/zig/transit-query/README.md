@@ -320,3 +320,10 @@ reference's namespace and resource, qualified by the connection realm. A failed
 read does not prove absence, rejection or cancellation. Native authority conflict
 is distinct from mutation identity conflict; ABI and CLI details retain its native
 cause. Unknown sends still require reconciliation of the original signed command.
+
+Native source hosts use separate 1 MiB source/plan decoding and 4 MiB logical
+Arrow workspaces. Exhausting either explicit buffer closes that query with
+`adapter_memory_budget` or `arrow_workspace_budget`, retaining its identity and
+releasing its captured source pin. Host/storage allocation failures keep their
+original infrastructure meaning. No required-byte measurement is invented.
+Table persistence limits and query transport working sets are independent.

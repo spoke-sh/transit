@@ -613,6 +613,22 @@
             "inspect_status",
             "correct_input"
           ]
+        },
+        "adapter_memory_budget": {
+          "code": "query.adapter_memory_budget",
+          "category": "limit",
+          "actions": [
+            "inspect_status",
+            "correct_input"
+          ]
+        },
+        "arrow_workspace_budget": {
+          "code": "query.arrow_workspace_budget",
+          "category": "limit",
+          "actions": [
+            "inspect_status",
+            "correct_input"
+          ]
         }
       }
     },
@@ -6401,6 +6417,20 @@
           "actions": [
             "correct_input"
           ]
+        },
+        "QueryAdapterBudgetExceeded": {
+          "code": "query.adapter_memory_budget",
+          "category": "limit",
+          "actions": [
+            "inspect_status"
+          ]
+        },
+        "ArrowWorkspaceExceeded": {
+          "code": "query.arrow_workspace_budget",
+          "category": "limit",
+          "actions": [
+            "inspect_status"
+          ]
         }
       }
     },
@@ -8395,6 +8425,22 @@
             "correct_input"
           ],
           "transport_status": 400
+        },
+        "QueryAdapterBudgetExceeded": {
+          "code": "query.adapter_memory_budget",
+          "category": "limit",
+          "actions": [
+            "inspect_status"
+          ],
+          "transport_status": 400
+        },
+        "ArrowWorkspaceExceeded": {
+          "code": "query.arrow_workspace_budget",
+          "category": "limit",
+          "actions": [
+            "inspect_status"
+          ],
+          "transport_status": 400
         }
       }
     },
@@ -9530,6 +9576,22 @@
             "correct_input"
           ],
           "transport_status": 3
+        },
+        "QueryAdapterBudgetExceeded": {
+          "code": "query.adapter_memory_budget",
+          "category": "limit",
+          "actions": [
+            "inspect_status"
+          ],
+          "transport_status": 8
+        },
+        "ArrowWorkspaceExceeded": {
+          "code": "query.arrow_workspace_budget",
+          "category": "limit",
+          "actions": [
+            "inspect_status"
+          ],
+          "transport_status": 8
         }
       }
     },
@@ -12716,6 +12778,20 @@
           "category": "binding",
           "actions": [
             "correct_input"
+          ]
+        },
+        "QueryAdapterBudgetExceeded": {
+          "code": "query.adapter_memory_budget",
+          "category": "limit",
+          "actions": [
+            "inspect_status"
+          ]
+        },
+        "ArrowWorkspaceExceeded": {
+          "code": "query.arrow_workspace_budget",
+          "category": "limit",
+          "actions": [
+            "inspect_status"
           ]
         }
       }
@@ -18181,6 +18257,24 @@
             "correct_input"
           ],
           "transport_status": 9
+        },
+        "adapter_memory_budget": {
+          "code": "query.adapter_memory_budget",
+          "category": "limit",
+          "actions": [
+            "inspect_status",
+            "correct_input"
+          ],
+          "transport_status": 8
+        },
+        "arrow_workspace_budget": {
+          "code": "query.arrow_workspace_budget",
+          "category": "limit",
+          "actions": [
+            "inspect_status",
+            "correct_input"
+          ],
+          "transport_status": 8
         }
       }
     }

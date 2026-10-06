@@ -167,7 +167,7 @@ test "logical step errors leave exact progress recoverable with canonical checkp
     const page: s.Page = .{ .binding = basis, .ordinal = 0, .end = false, .rows = &.{.{ .cells = &.{integer(7)} }} };
     const initial = try s.Progress.start(plan);
     const saved = try initial.encode(plan);
-    try e.expectError(error.OutOfMemory, s.step(plan, initial, page, workspace[0..1], &output, &cancelled, null));
+    try e.expectError(error.ArrowWorkspaceExceeded, s.step(plan, initial, page, workspace[0..1], &output, &cancelled, null));
     try e.expectError(error.WriteFailed, s.step(plan, initial, page, workspace, output[0..1], &cancelled, null));
     cancelled.store(true, .release);
     try e.expectError(error.Cancelled, s.step(plan, initial, page, workspace, &output, &cancelled, null));

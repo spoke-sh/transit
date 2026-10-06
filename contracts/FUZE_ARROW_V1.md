@@ -1,10 +1,10 @@
 # Fuze logical Arrow v1
 
-This contract defines local logical-value IPC export from `transit_fuze.LogicalArrow`
+This contract defines logical-value IPC export from `transit_fuze.LogicalArrow`
 and `transit file-query --output arrow`, and canonical segment decoding through
-`transit_fuze.LogicalInspect`. Native durable query results retain the
-six-scalar [unified query contract](UNIFIED_QUERY_V1.md); Flight retains its own
-int64 profile. This export does not broaden their source or type admission.
+`transit_fuze.LogicalInspect`. Native durable query results use this encoding
+through the [unified query contract](UNIFIED_QUERY_V1.md); Flight retains its own
+int64 output profile. Each source and transport owns its admission bounds.
 
 ## Schema and physical representations
 
@@ -72,7 +72,9 @@ are not raised to fit a value. Nested wrappers and conflict payloads consume
 metadata even when the corresponding value array is empty.
 
 `encode` returns a complete schema/batch/end stream borrowed from caller output;
-all internal Arrow ownership ends before return. Discard output on error.
+all internal Arrow ownership ends before return. Discard output on error. Exhausting the fixed encoding workspace reports
+`ArrowWorkspaceExceeded`, separately from any host allocator failure. The codec
+performs no external I/O or allocation through a host allocator.
 `messages` can select schema, batch and end messages. A host may concatenate them
 only for the same frozen schema, and may emit end only after verified completion.
 There are no dictionary batches or hidden cross-call metadata/value caches.

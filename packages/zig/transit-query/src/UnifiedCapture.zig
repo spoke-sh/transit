@@ -84,9 +84,18 @@ pub fn start(turn: *Turn, reference: Ref, source: anytype, allocator: std.mem.Al
     return startDiagnostic(turn, reference, source, allocator, null);
 }
 pub fn startDiagnostic(turn: *Turn, reference: Ref, source: anytype, allocator: std.mem.Allocator, diagnostic: ?*?q.QueryFailure) !r.Job {
+    return startAllocated(turn, reference, source, allocator, false, diagnostic);
+}
+/// Only local allocation sites use this buffer. External publication reads and
+/// poisoned current/retained reads preserve their original failure.
+pub fn startBoundedDiagnostic(turn: *Turn, reference: Ref, source: anytype, buffer: []u8, diagnostic: ?*?q.QueryFailure) !r.Job {
+    var fixed: std.heap.FixedBufferAllocator = .init(buffer);
+    return startAllocated(turn, reference, source, fixed.allocator(), true, diagnostic);
+}
+fn startAllocated(turn: *Turn, reference: Ref, source: anytype, allocator: std.mem.Allocator, comptime bounded: bool, diagnostic: ?*?q.QueryFailure) !r.Job {
     if (diagnostic) |detail| detail.* = null;
     var source_witness: ?q.SourceWitness = null;
-    return startWitness(turn, reference, source, allocator, &source_witness) catch |err| {
+    return startWitness(turn, reference, source, allocator, bounded, &source_witness) catch |err| {
         if (diagnostic) |detail| if (source_witness) |value| {
             if (q.QueryFailure.fromError(err, .admission)) |failure| {
                 detail.* = failure;
@@ -99,7 +108,12 @@ pub fn startDiagnostic(turn: *Turn, reference: Ref, source: anytype, allocator: 
         return err;
     };
 }
-fn startWitness(turn: *Turn, reference: Ref, source: anytype, allocator: std.mem.Allocator, witness: *?q.SourceWitness) !r.Job {
+/// Call only around pure decode/allocation or source operations whose external
+/// reads poison this turn. Never wrap request-publication/network operations.
+fn allocationFailure(err: anyerror, comptime bounded: bool, turn: *const Turn) anyerror {
+    return if (bounded and err == error.OutOfMemory and turn.read_error == null) error.QueryAdapterBudgetExceeded else err;
+}
+fn startWitness(turn: *Turn, reference: Ref, source: anytype, allocator: std.mem.Allocator, comptime bounded: bool, witness: *?q.SourceWitness) !r.Job {
     const before = turn.decision;
     errdefer turn.decision = before;
     for (before.mutations) |mutation| if (mutation != null) return error.QueryAfterMutation;
@@ -117,11 +131,12 @@ fn startWitness(turn: *Turn, reference: Ref, source: anytype, allocator: std.mem
     }
     if (try turn.read(r.key('i', peer, frame.correlation)) != null) return error.CorrelationAlreadyUsed;
     var buffer: [q.Bundle.max_bytes]u8 = undefined;
-    const bundle = try q.Bundle.decode(allocator, try reference.read(source, &buffer));
+    const request_bytes = try reference.read(source, &buffer);
+    const bundle = q.Bundle.decode(allocator, request_bytes) catch |err| return allocationFailure(err, bounded, turn);
     try q.Bundle.checkPublisher(reference, source, peer);
     const principal = try matches(bundle, grant, turn.view.resource, witness);
     try q.UnifiedSource.checkCurrentDiagnostic(bundle.source, turn, principal, witness);
-    const captured = try q.UnifiedSource.captureDiagnostic(bundle.source, turn, turn, principal, allocator, witness);
+    const captured = q.UnifiedSource.captureDiagnostic(bundle.source, turn, turn, principal, allocator, witness) catch |err| return allocationFailure(err, bounded, turn);
     const bound = try bundle.bind(try captured.fingerprint());
     var stored: r.Job = .{ .id = turn.delivery.input.position, .destination = peer, .correlation = frame.correlation, .policy_revision = grant.revision, .source = try turn.retain(), .request = reference, .continuation = turn.delivery.input.position };
     const publication = stored.publication(turn.view.resource);
@@ -140,9 +155,16 @@ pub fn advance(turn: *Turn, continuation: r.Continuation, source: anytype, alloc
     return advanceDiagnostic(turn, continuation, source, allocator, workspace, cancellation, null);
 }
 pub fn advanceDiagnostic(turn: *Turn, continuation: r.Continuation, source: anytype, allocator: std.mem.Allocator, workspace: []u8, cancellation: *const q.fuze.execution.Cancellation, diagnostic: ?*?q.QueryFailure) !Advance {
+    return advanceAllocated(turn, continuation, source, allocator, false, workspace, cancellation, diagnostic);
+}
+pub fn advanceBoundedDiagnostic(turn: *Turn, continuation: r.Continuation, source: anytype, buffer: []u8, workspace: []u8, cancellation: *const q.fuze.execution.Cancellation, diagnostic: ?*?q.QueryFailure) !Advance {
+    var fixed: std.heap.FixedBufferAllocator = .init(buffer);
+    return advanceAllocated(turn, continuation, source, fixed.allocator(), true, workspace, cancellation, diagnostic);
+}
+fn advanceAllocated(turn: *Turn, continuation: r.Continuation, source: anytype, allocator: std.mem.Allocator, comptime bounded: bool, workspace: []u8, cancellation: *const q.fuze.execution.Cancellation, diagnostic: ?*?q.QueryFailure) !Advance {
     if (diagnostic) |detail| detail.* = null;
     var source_witness: ?q.SourceWitness = null;
-    return advanceWitness(turn, continuation, source, allocator, workspace, cancellation, &source_witness, diagnostic) catch |err| {
+    return advanceWitness(turn, continuation, source, allocator, bounded, workspace, cancellation, &source_witness, diagnostic) catch |err| {
         if (diagnostic) |detail| if (source_witness) |value| {
             if (q.QueryFailure.fromError(err, .execution)) |failure| {
                 detail.* = failure;
@@ -155,7 +177,7 @@ pub fn advanceDiagnostic(turn: *Turn, continuation: r.Continuation, source: anyt
         return err;
     };
 }
-fn advanceWitness(turn: *Turn, continuation: r.Continuation, source: anytype, allocator: std.mem.Allocator, workspace: []u8, cancellation: *const q.fuze.execution.Cancellation, witness: *?q.SourceWitness, diagnostic: ?*?q.QueryFailure) !Advance {
+fn advanceWitness(turn: *Turn, continuation: r.Continuation, source: anytype, allocator: std.mem.Allocator, comptime bounded: bool, workspace: []u8, cancellation: *const q.fuze.execution.Cancellation, witness: *?q.SourceWitness, diagnostic: ?*?q.QueryFailure) !Advance {
     const before = turn.decision;
     errdefer turn.decision = before;
     if (try s.Frame.source(turn.delivery.input) != turn.delivery.pid) return error.UnexpectedQueryContinuation;
@@ -181,7 +203,8 @@ fn advanceWitness(turn: *Turn, continuation: r.Continuation, source: anytype, al
     };
     if (cancellation.load(.acquire)) return error.Cancelled;
     var buffer: [q.Bundle.max_bytes]u8 = undefined;
-    const bundle = try q.Bundle.decode(allocator, try stored.request.read(source, &buffer));
+    const request_bytes = try stored.request.read(source, &buffer);
+    const bundle = q.Bundle.decode(allocator, request_bytes) catch |err| return allocationFailure(err, bounded, turn);
     try q.Bundle.checkPublisher(stored.request, source, stored.destination);
     const principal = try matches(bundle, grant, turn.view.resource, witness);
     try q.UnifiedSource.checkCurrentDiagnostic(bundle.source, turn, principal, witness);
@@ -201,7 +224,7 @@ fn advanceWitness(turn: *Turn, continuation: r.Continuation, source: anytype, al
         page = .{ .basis = captured, .binding = bound.source_basis, .ordinal = previous.cursor.ordinal, .next = .{ .ordinal = try std.math.add(u64, previous.cursor.ordinal, 1), .done = true } };
     } else {
         var retained = try turn.openVersion(stored.source);
-        try q.UnifiedSource.page(bundle.source, bound, captured, previous.cursor, &retained, turn, principal, allocator, &page);
+        q.UnifiedSource.page(bundle.source, bound, captured, previous.cursor, &retained, turn, principal, allocator, &page) catch |err| return allocationFailure(err, bounded, turn);
     }
     defer page.deinit();
     var bytes: [f.LogicalArrow.segment_bytes]u8 = undefined;

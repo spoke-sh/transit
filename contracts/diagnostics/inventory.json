@@ -966,7 +966,7 @@
         "ArrowWorkspaceExceeded": 1,
         "IncompleteSource": 2,
         "InvalidExplicitSchema": 1,
-        "OutOfMemory": 3,
+        "OutOfMemory": 1,
         "OutputRecordTooLarge": 1,
         "OutputWriteFailed": 3,
         "StreamTooLong": 1,
@@ -6150,7 +6150,9 @@
     },
     "packages/zig/transit-fuze/src/LogicalArrow.zig": {
       "errors": {
-        "ArrowShapeTooLarge": 4
+        "ArrowShapeTooLarge": 4,
+        "ArrowWorkspaceExceeded": 1,
+        "OutOfMemory": 1
       },
       "outcomes": {},
       "error_sets": {},
@@ -6161,6 +6163,7 @@
         "encode()": "<inferred>",
         "integers()": "<inferred>",
         "messages()": "<inferred>",
+        "messagesInner()": "<inferred>",
         "nested()": "<inferred>",
         "payload()": "anyerror",
         "primitive()": "<inferred>",
@@ -6169,7 +6172,7 @@
       "open_error_set_uses": 3,
       "propagation": {
         "try": 82,
-        "catch": 1
+        "catch": 2
       },
       "imports": [
         "root.zig",
@@ -10565,6 +10568,7 @@
     "packages/zig/transit-query/src/QueryFailure.zig": {
       "errors": {
         "AccessDenied": 1,
+        "ArrowWorkspaceExceeded": 1,
         "CatalogConfigurationChanged": 1,
         "CatalogDefinitionChanged": 1,
         "CatalogDenied": 1,
@@ -10601,6 +10605,7 @@
         "Overflow": 1,
         "PlanTooLarge": 1,
         "PublicationNotPublished": 1,
+        "QueryAdapterBudgetExceeded": 1,
         "QueryAfterMutation": 1,
         "QueryBudgetExceeded": 1,
         "QueryBundleTooLarge": 1,
@@ -10708,7 +10713,9 @@
           "value_budget",
           "unsupported_comparison",
           "source_definition_too_large",
-          "catalog_scope_changed"
+          "catalog_scope_changed",
+          "adapter_memory_budget",
+          "arrow_workspace_budget"
         ],
         "Dimension": [
           "none",
@@ -11520,7 +11527,9 @@
         "InvalidQueryJob": 3,
         "InvalidQueryPolicy": 2,
         "MissingQueryProgress": 1,
+        "OutOfMemory": 1,
         "PublicationNotFound": 2,
+        "QueryAdapterBudgetExceeded": 1,
         "QueryAfterMutation": 1,
         "QueryBudgetExceeded": 3,
         "QueryDenied": 6,
@@ -11554,8 +11563,11 @@
       "error_sets": {},
       "error_returns": {
         "advance()": "<inferred>",
+        "advanceAllocated()": "<inferred>",
+        "advanceBoundedDiagnostic()": "<inferred>",
         "advanceDiagnostic()": "<inferred>",
         "advanceWitness()": "<inferred>",
+        "allocationFailure()": "anyerror",
         "checkpoint()": "<inferred>",
         "cleanup()": "<inferred>",
         "close()": "<inferred>",
@@ -11571,13 +11583,15 @@
         "schedule()": "<inferred>",
         "setPolicy()": "<inferred>",
         "start()": "<inferred>",
+        "startAllocated()": "<inferred>",
+        "startBoundedDiagnostic()": "<inferred>",
         "startDiagnostic()": "<inferred>",
         "startWitness()": "<inferred>"
       },
-      "open_error_set_uses": 0,
+      "open_error_set_uses": 2,
       "propagation": {
-        "try": 106,
-        "catch": 10
+        "try": 102,
+        "catch": 14
       },
       "imports": [
         "root.zig",

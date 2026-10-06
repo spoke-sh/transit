@@ -296,3 +296,156 @@ test "neutral and prepared native bundles preserve exact scalar descriptors and 
         try e.expectEqual(.eq, try f.Types.Values.atomOrder(case.atom, scalar, case.type));
     }
 }
+
+test "bounded query memory exhaustion closes exact work without masking external allocation failure" {
+    var store: Store = .{};
+    defer store.deinit();
+    var requests: Store = .{ .resource = 8, .pid = 9 };
+    defer requests.deinit();
+    var initial = try turn(&store);
+    try catalog.initialize(&initial);
+    try store.commit(initial);
+    var table = try create(&store, 100, 1, "CREATE TABLE items (id INT64, value UTF8)");
+    defer table.deinit();
+    try mutate(&store, table.source, 2, "INSERT INTO items VALUES (1, 'original')");
+    var policy_turn = try turn(&store);
+    try q.UnifiedCapture.setPolicy(&policy_turn, .{ .peer = requests.pid, .requests = requests.resource, .revision = 1, .allow = true, .limits = limits, .target = .{ .catalog = .{ .scope = config.scope, .owner = config.owner, .principal = 17 } } });
+    try store.commit(policy_turn);
+    var arena: std.heap.ArenaAllocator = .init(e.allocator);
+    defer arena.deinit();
+    const bundle = try q.Bundle.fromSql(arena.allocator(), .{ .resource = 7, .source = .{ .table = table.source } }, "items", "SELECT * FROM items", limits);
+    const reference = try upload(&requests, bundle, 1);
+    const call: s.Frame = .{ .kind = .call, .correlation = 1, .payload = try reference.encode() };
+    const access: Access = .{ .data = &store, .requests = &requests };
+    const cancellation = f.execution.Cancellation.init(false);
+    var first = try message(&store, requests.pid, call);
+    try q.UnifiedBehavior.dispatchCatalogSource(&first, call, config, access, &.{}, &.{}, &cancellation);
+    const rejected = try q.QueryFailure.decode((try s.Frame.decode(first.decision.outputs[0].?.value)).payload);
+    try e.expectEqual(.adapter_memory_budget, rejected.code);
+    try e.expectEqual(.admission, rejected.stage);
+    try e.expectEqual(.none, rejected.dimension);
+    try e.expectEqual(@as(u64, 0), rejected.observed);
+    for (first.decision.retain) |pin| try e.expect(pin == null);
+    for (first.decision.mutations) |entry| try e.expect(entry == null);
+    try store.commit(first);
+
+    // An ordinary allocator's failure is not a deployment budget observation.
+    var ordinary = try message(&store, requests.pid, call);
+    const untouched = ordinary.decision;
+    try e.expectError(error.OutOfMemory, q.UnifiedCapture.start(&ordinary, reference, access, std.testing.failing_allocator));
+    try e.expectEqualDeep(untouched, ordinary.decision);
+
+    const ExternalFailure = struct {
+        access: Access,
+        opens: *usize,
+        pub fn open(self: @This(), resource: u64) !s.Turn {
+            self.opens.* += 1;
+            // The publication has been decoded locally before this publisher
+            // check fails. A broad catch around the whole operation is unsafe.
+            if (self.opens.* == 2) return error.OutOfMemory;
+            return self.access.open(resource);
+        }
+    };
+    const adapter = try arena.allocator().alloc(u8, q.UnifiedBehavior.adapter_bytes);
+    var opens: usize = 0;
+    try e.expectError(error.OutOfMemory, q.UnifiedCapture.startBoundedDiagnostic(&ordinary, reference, ExternalFailure{ .access = access, .opens = &opens }, adapter, null));
+    try e.expectEqual(@as(usize, 2), opens);
+    try e.expectEqualDeep(untouched, ordinary.decision);
+
+    const Poison = struct {
+        original: s.Turn.Reader,
+        pub fn read(raw: *anyopaque, view: q.protocol.Growth.View, key: q.protocol.Value) anyerror!?q.protocol.Value {
+            const self: *@This() = @ptrCast(@alignCast(raw));
+            if (key.eql(s.TableHead.key(100))) return error.OutOfMemory;
+            return self.original.read(self.original.context, view, key);
+        }
+    };
+    var poisoned = try message(&store, requests.pid, call);
+    var poison: Poison = .{ .original = poisoned.reader };
+    poisoned.reader = .{ .context = &poison, .read = Poison.read };
+    try e.expectError(error.OutOfMemory, q.UnifiedCapture.startBoundedDiagnostic(&poisoned, reference, access, adapter, null));
+    try e.expectEqual(error.OutOfMemory, poisoned.read_error.?);
+    try e.expectEqualDeep(untouched, poisoned.decision);
+
+    inline for (.{ q.QueryFailure.Code.adapter_memory_budget, q.QueryFailure.Code.arrow_workspace_budget }, 0..) |expected, index| {
+        const job = try admit(&store, &requests, bundle, index + 2);
+        var reader = try store.capture();
+        const continuation: r.Continuation = .{ .job = job.id, .input = (try q.UnifiedCapture.job(&reader, job.id)).continuation };
+        const frame: s.Frame = .{ .kind = .cast, .payload = try continuation.encode() };
+        var next = try message(&store, store.pid, frame);
+        try q.UnifiedBehavior.dispatchCatalogSource(&next, frame, config, access, if (expected == .adapter_memory_budget) &.{} else adapter, &.{}, &cancellation);
+        const failed = try q.UnifiedCapture.job(&next, job.id);
+        try e.expectEqual(expected, failed.failure.?.code);
+        try e.expectEqual(.execution, failed.failure.?.stage);
+        try e.expectEqual(.none, failed.failure.?.dimension);
+        try e.expectEqual(@as(u64, 0), (try q.UnifiedCapture.checkpoint(&next, job.id)).progress.segments);
+        try store.commit(next);
+        try e.expect(store.versions.get(job.source).?.view.released_at != null);
+        var replay = try message(&store, store.pid, frame);
+        try q.UnifiedBehavior.dispatchCatalogSource(&replay, frame, config, access, adapter, &.{}, &cancellation);
+        try e.expectEqualDeep(failed.failure, (try q.UnifiedCapture.job(&replay, job.id)).failure);
+        try store.commit(replay);
+    }
+    // The owner can still admit and complete a later, independently requested
+    // query with its normal bounded workspaces after recording those failures.
+    const workspace = try arena.allocator().alloc(u8, f.LogicalArrow.working_bytes);
+    try finish(&store, &requests, try admit(&store, &requests, bundle, 4), workspace);
+}
+
+test "a persisted large Table row exceeds the normal query adapter without stopping the owner" {
+    var store: Store = .{};
+    defer store.deinit();
+    var requests: Store = .{ .resource = 8, .pid = 9 };
+    defer requests.deinit();
+    var next = try turn(&store);
+    try catalog.initialize(&next);
+    try store.commit(next);
+    var table = try create(&store, 100, 1, "CREATE TABLE items (id INT64 PRIMARY KEY, value UTF8)");
+    defer table.deinit();
+    const text = try e.allocator.alloc(u8, 600 * 1024);
+    defer e.allocator.free(text);
+    @memset(text, 'x');
+    var reader = try turn(&store);
+    var found = try catalog.readDefinition(e.allocator, &reader, 17, table.source.object, table.source.metadata);
+    defer found.deinit();
+    const cells = [_]f.Types.Values.Cell{ .{ .value = .{ .atom = .{ .signed = 1 } } }, .{ .value = .{ .atom = .{ .bytes = text } } } };
+    const mutation: c.TableDmlRequest = .{ .principal = 17, .operation = 2, .metadata = table.source.metadata, .plan = .{ .name = "items", .schema = found.schema.schema, .action = .{ .insert = &.{&cells} } } };
+    for (0..10000) |_| {
+        next = try turn(&store);
+        const status = try catalog.mutate(e.allocator, &next, mutation);
+        try store.commit(next);
+        if (status.state != .building) {
+            try e.expectEqual(.applied, status.state);
+            break;
+        }
+    } else return error.UnfinishedTestDml;
+    next = try turn(&store);
+    try q.UnifiedCapture.setPolicy(&next, .{ .peer = requests.pid, .requests = requests.resource, .revision = 1, .allow = true, .limits = limits, .target = .{ .catalog = .{ .scope = config.scope, .owner = config.owner, .principal = 17 } } });
+    try store.commit(next);
+    var arena: std.heap.ArenaAllocator = .init(e.allocator);
+    defer arena.deinit();
+    const bundle = try q.Bundle.fromSql(arena.allocator(), .{ .resource = 7, .source = .{ .table = table.source } }, "items", "SELECT * FROM items", limits);
+    const job = try admit(&store, &requests, bundle, 1);
+    const continuation: r.Continuation = .{ .job = job.id, .input = job.continuation };
+    const frame: s.Frame = .{ .kind = .cast, .payload = try continuation.encode() };
+    next = try message(&store, store.pid, frame);
+    const adapter = try arena.allocator().alloc(u8, q.UnifiedBehavior.adapter_bytes);
+    const workspace = try arena.allocator().alloc(u8, f.LogicalArrow.working_bytes);
+    const cancellation = f.execution.Cancellation.init(false);
+    try q.UnifiedBehavior.dispatchCatalogSource(&next, frame, config, Access{ .data = &store, .requests = &requests }, adapter, workspace, &cancellation);
+    const failed = try q.UnifiedCapture.job(&next, job.id);
+    try e.expectEqual(.adapter_memory_budget, failed.failure.?.code);
+    try e.expect(next.read_error == null);
+    try store.commit(next);
+    try e.expect(store.versions.get(job.source).?.view.released_at != null);
+    // The original committed row and exact mutation receipt remain readable.
+    reader = try turn(&store);
+    var current = try catalog.readDefinition(e.allocator, &reader, 17, table.source.object, table.source.metadata);
+    defer current.deinit();
+    const head = try s.TableHead.load(&reader, table.source.object);
+    const data: s.TableData = .{ .schema = current.schema.schema, .index = head.index };
+    var pages: s.TablePages.Reader(*s.Turn) = .{ .pages = .{ .resource = store.resource, .object = table.source.object }, .source = &reader };
+    var row = (try data.next(e.allocator, &pages, null)).?;
+    defer row.deinit();
+    try e.expectEqualSlices(u8, text, row.row().cells[1].value.atom.bytes);
+}

@@ -124,6 +124,13 @@ Digests, ordered segment coverage and the complete manifest establish a result.
 A decoded page, transport success or initial status alone cannot establish the
 whole answer. See [stream flow control](streams.md#flow-control).
 
+Native query hosts bound source decoding to 1 MiB and logical Arrow encoding to
+4 MiB per active step. Exhaustion records a specific query memory-budget failure,
+discards the candidate and releases its source pin. It does not stop the source
+owner or remove stored rows. Storage and general allocator failures remain
+infrastructure errors. These working-set limits are independent of Table value
+and encoded-result limits.
+
 ## Finite draft evaluation
 
 A Table workspace can explicitly open a draft generation with one to eight

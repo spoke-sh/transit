@@ -1288,6 +1288,14 @@
         "UnknownSource": {
           "code": "query.unknown_source",
           "category": "binding"
+        },
+        "QueryAdapterBudgetExceeded": {
+          "code": "query.adapter_memory_budget",
+          "category": "limit"
+        },
+        "ArrowWorkspaceExceeded": {
+          "code": "query.arrow_workspace_budget",
+          "category": "limit"
         }
       },
       "exceptions": [],
@@ -2925,6 +2933,14 @@
         "UnknownSource": {
           "code": "query.unknown_source",
           "category": "binding"
+        },
+        "QueryAdapterBudgetExceeded": {
+          "code": "query.adapter_memory_budget",
+          "category": "limit"
+        },
+        "ArrowWorkspaceExceeded": {
+          "code": "query.arrow_workspace_budget",
+          "category": "limit"
         }
       },
       "exceptions": [],
