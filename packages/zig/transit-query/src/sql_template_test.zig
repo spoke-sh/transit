@@ -79,7 +79,7 @@ fn owned(allocator: std.mem.Allocator) !void {
     projection[0].column.name = try .init("changed");
     try t.expectEqualStrings("body", bound.bundle.source.source.document.projections[0].path[0].slice());
     try t.expectEqualStrings("value", bound.bundle.source.source.document.projections[0].column.name.slice());
-    try t.expectEqualStrings("it's owned", bound.bundle.plan.predicate.program.instructions[0].atom.compare.value.bytes);
+    try t.expectEqualStrings("it's owned", bound.bundle.plan.predicate.compare.value.bytes);
     var bytes: [q.Bundle.max_bytes]u8 = undefined;
     _ = try bound.bundle.encode(&bytes);
 }

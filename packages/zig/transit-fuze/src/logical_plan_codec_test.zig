@@ -31,7 +31,10 @@ test "logical plans preserve typed predicates projections output names and aggre
         defer compiled.deinit();
         var bytes: [c.max_bytes + 1]u8 = undefined;
         const encoded = try c.encode(compiled.plan, &bytes);
-        try t.checkAllAllocationFailures(t.allocator, roundtrip, .{ schema, encoded, try compiled.plan.fingerprint() });
+        // Arena growth must take the same allocation path in every failure
+        // iteration, independently of the backing allocator's resize placement.
+        var no_resize = t.FailingAllocator.init(t.allocator, .{ .resize_fail_index = 0 });
+        try t.checkAllAllocationFailures(no_resize.allocator(), roundtrip, .{ schema, encoded, try compiled.plan.fingerprint() });
         for (0..encoded.len) |length| {
             if (c.decode(t.allocator, schema, basis, encoded[0..length])) |value| {
                 var owner = value;

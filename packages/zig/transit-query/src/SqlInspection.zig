@@ -246,7 +246,7 @@ test "inspection fixtures share typed lowering and final authority without an ex
     const empty = try apply(allocator, &client, .{ .scope = kv_scope, .sql = "SHOW TABLES" });
     try t.expectEqual(0, empty.details.tables.len);
     const value = try apply(allocator, &client, .{ .scope = kv_scope, .sql = "EXPLAIN SELECT value FROM items WHERE value = 18446744073709551615" });
-    try t.expectEqual(q.fuze.Types.Tag.uint64, std.meta.activeTag(value.details.explanation.predicate.program[0].atom.compare.type));
+    try t.expectEqual(q.fuze.Types.Tag.uint64, std.meta.activeTag(value.details.explanation.predicate.compare.type));
     const compound_sql = "EXPLAIN SELECT value FROM items WHERE NOT (value = 123456789 OR value IS NULL)";
     const compound = try apply(allocator, &client, .{ .scope = kv_scope, .sql = compound_sql });
     const program = compound.details.explanation.predicate.program;

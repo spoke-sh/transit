@@ -142,7 +142,14 @@ pub const Syntax = struct {
             return error.UnknownSource;
         }
         var plan = try self.selection.lower(allocator, schema, self.qualifier, basis, location);
-        if (self.predicate) |expression| plan.predicate = .{ .program = try expression.bindParametersDiagnostic(allocator, schema, self.qualifier, location, parameters, diagnostic) };
+        if (self.predicate) |expression| {
+            const program = try expression.bindParametersDiagnostic(allocator, schema, self.qualifier, location, parameters, diagnostic);
+            // Parentheses around one atom do not introduce a distinct plan or
+            // signed request identity. Preserve every real Boolean instruction.
+            plan.predicate = if (program.instructions.len == 1) switch (program.instructions[0].atom) {
+                inline else => |value, tag| @unionInit(@FieldType(logical.Plan, "predicate"), @tagName(tag), value),
+            } else .{ .program = program };
+        }
         plan.limit = self.limit;
         if (self.limit_parameter) |site| {
             if (self.limit != null) return error.InvalidParameterSite;

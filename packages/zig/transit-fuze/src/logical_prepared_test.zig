@@ -13,6 +13,26 @@ const schema: t.Type = .{ .structure = &.{
 } };
 const text = "SELECT detail, id, name FROM people WHERE id >= $1 AND NOT (name = $2 OR name IS NULL) LIMIT $3";
 const values = [_]t.Values.Atom{ .{ .signed = std.math.minInt(i128) }, .{ .bytes = "it's 東京'; DROP TABLE people; -- $4" }, .{ .unsigned = std.math.maxInt(u64) } };
+test "SQL single atoms preserve typed plan bytes with grouping and parameters" {
+    const input: t.Type = .{ .structure = &.{.{ .name = "id", .type = .int128, .nullable = true }} };
+    for ([_]struct { sql: []const u8, atom: f.LogicalQuery.Plan.Atom, parameters: []const t.Values.Atom }{
+        .{ .sql = "SELECT id FROM people WHERE ((id = -1))", .atom = .{ .compare = .{ .column = 0, .op = .eq, .value = .{ .signed = -1 } } }, .parameters = &.{} },
+        .{ .sql = "SELECT id FROM people WHERE ((id = $1))", .atom = .{ .compare = .{ .column = 0, .op = .eq, .value = .{ .signed = -1 } } }, .parameters = &.{.{ .signed = -1 }} },
+        .{ .sql = "SELECT id FROM people WHERE ((id IS NULL))", .atom = .{ .state = .{ .column = 0, .value = .null } }, .parameters = &.{} },
+    }) |case| {
+        var template = try Prepared.init(e.allocator, case.sql, "people", input, basis, null);
+        defer template.deinit();
+        var bound = try template.bind(e.allocator, "people", input, basis, case.parameters, null);
+        defer bound.deinit();
+        const typed: f.LogicalQuery.Plan = .{ .schema = input, .source_basis = basis, .projection = &.{0}, .predicate = switch (case.atom) {
+            inline else => |value, tag| @unionInit(@FieldType(f.LogicalQuery.Plan, "predicate"), @tagName(tag), value),
+        } };
+        var actual: [f.LogicalPlanCodec.max_bytes]u8 = undefined;
+        var expected: [f.LogicalPlanCodec.max_bytes]u8 = undefined;
+        try e.expectEqualSlices(u8, try f.LogicalPlanCodec.encode(typed, &expected), try f.LogicalPlanCodec.encode(bound.plan, &actual));
+        try e.expectEqual(try typed.fingerprint(), try bound.plan.fingerprint());
+    }
+}
 fn owned(allocator: std.mem.Allocator) !void {
     var input = text.*;
     var value_bytes = "it's 東京'; DROP TABLE people; -- $4".*;
@@ -198,7 +218,7 @@ test "logical templates bound repeated parameter work by the predicate machine a
     var selected = try select.bind(e.allocator, "people", input, basis, &.{.{ .signed = std.math.maxInt(i128) }}, null);
     defer selected.deinit();
     try e.expectEqual(@as(usize, 13), selected.plan.projection.len);
-    try e.expectEqual(@as(u8, 12), selected.plan.predicate.program.instructions[0].atom.compare.column);
+    try e.expectEqual(@as(u8, 12), selected.plan.predicate.compare.column);
 }
 test "logical templates retain literal dollar bytes and allow parameter-free plans" {
     for ([_][]const u8{

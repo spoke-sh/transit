@@ -87,10 +87,10 @@ fn owned(allocator: std.mem.Allocator) !void {
     request_arena.deinit();
     request_alive = false;
     try t.expectEqualStrings("body", result.source.source.document.projections[0].path[0]);
-    try t.expectEqualStrings("owned", result.plan.predicate.program[0].atom.compare.value.utf8);
+    try t.expectEqualStrings("owned", result.plan.predicate.compare.value.utf8);
     const restored = try q.Bundle.decode(alloc, try v.unhex(alloc, result.bundle, q.Bundle.max_bytes));
     try t.expectEqualStrings("body", restored.source.source.document.projections[0].path[0].slice());
-    try t.expectEqualStrings("owned", restored.plan.predicate.program.instructions[0].atom.compare.value.bytes);
+    try t.expectEqualStrings("owned", restored.plan.predicate.compare.value.bytes);
     const foreign = try std.json.Stringify.valueAlloc(alloc, q.Bridge.Result{ .compiled = result }, .{});
     _ = try std.json.parseFromSlice(q.Bridge.Result, alloc, foreign, .{});
 }

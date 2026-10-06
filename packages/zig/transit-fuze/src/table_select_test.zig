@@ -25,7 +25,8 @@ test "Table SELECT and DML share all canonical five-state predicates" {
             for (values) |value| {
                 const selected = if (std.mem.eql(u8, state, "VALUE")) value == .value else if (std.mem.eql(u8, state, "NULL")) value == .null else false;
                 try e.expectEqual(selected != negate, try mutation.plan.matches(&.{value}));
-                try e.expectEqual(selected != negate, (try query.plan.predicate.program.truth(row_type, &.{value})).selects());
+                var failure: ?logical.Plan.PredicateFailure = null;
+                try e.expectEqual(selected != negate, try query.plan.matches(&.{value}, &failure));
             }
         }
     }

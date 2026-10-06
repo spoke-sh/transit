@@ -129,16 +129,10 @@
             "project"
           ],
           "predicate": {
-            "program": [
-              {
-                "atom": {
-                  "state": {
-                    "column": "value",
-                    "value": "null"
-                  }
-                }
-              }
-            ]
+            "state": {
+              "column": "value",
+              "value": "null"
+            }
           },
           "projection": [
             "value",
@@ -217,19 +211,13 @@
             "sum"
           ],
           "predicate": {
-            "program": [
-              {
-                "atom": {
-                  "compare": {
-                    "column": "id",
-                    "op": "gt",
-                    "type": {
-                      "int64": {}
-                    }
-                  }
-                }
+            "compare": {
+              "column": "id",
+              "op": "gt",
+              "type": {
+                "int64": {}
               }
-            ]
+            }
           },
           "projection": [
             "value"
@@ -265,16 +253,10 @@
             "project"
           ],
           "predicate": {
-            "program": [
-              {
-                "atom": {
-                  "state": {
-                    "column": "value",
-                    "value": "null"
-                  }
-                }
-              }
-            ]
+            "state": {
+              "column": "value",
+              "value": "null"
+            }
           },
           "projection": [
             "value",
@@ -353,19 +335,13 @@
             "sum"
           ],
           "predicate": {
-            "program": [
-              {
-                "atom": {
-                  "compare": {
-                    "column": "id",
-                    "op": "gt",
-                    "type": {
-                      "int64": {}
-                    }
-                  }
-                }
+            "compare": {
+              "column": "id",
+              "op": "gt",
+              "type": {
+                "int64": {}
               }
-            ]
+            }
           },
           "projection": [
             "value"

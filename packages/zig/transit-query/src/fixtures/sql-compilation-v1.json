@@ -45,19 +45,13 @@
         ],
         "limit": "18446744073709551615",
         "predicate": {
-          "program": [
-            {
-              "atom": {
-                "compare": {
-                  "column": 1,
-                  "op": "eq",
-                  "value": {
-                    "signed": "-9223372036854775808"
-                  }
-                }
-              }
+          "compare": {
+            "column": 1,
+            "op": "eq",
+            "value": {
+              "signed": "-9223372036854775808"
             }
-          ]
+          }
         }
       },
       "literal_sql": "SELECT value AS chosen FROM items WHERE value = -9223372036854775808 LIMIT 18446744073709551615"
@@ -106,19 +100,13 @@
         ],
         "limit": "18446744073709551615",
         "predicate": {
-          "program": [
-            {
-              "atom": {
-                "compare": {
-                  "column": 1,
-                  "op": "eq",
-                  "value": {
-                    "unsigned": "18446744073709551615"
-                  }
-                }
-              }
+          "compare": {
+            "column": 1,
+            "op": "eq",
+            "value": {
+              "unsigned": "18446744073709551615"
             }
-          ]
+          }
         }
       },
       "literal_sql": "SELECT value AS chosen FROM items WHERE value = 18446744073709551615 LIMIT 18446744073709551615"
@@ -167,19 +155,13 @@
         ],
         "limit": "18446744073709551615",
         "predicate": {
-          "program": [
-            {
-              "atom": {
-                "compare": {
-                  "column": 1,
-                  "op": "eq",
-                  "value": {
-                    "float_bits": "0000000000000080"
-                  }
-                }
-              }
+          "compare": {
+            "column": 1,
+            "op": "eq",
+            "value": {
+              "float_bits": "0000000000000080"
             }
-          ]
+          }
         }
       },
       "literal_sql": "SELECT value AS chosen FROM items WHERE value = -0.0 LIMIT 18446744073709551615"
@@ -228,19 +210,13 @@
         ],
         "limit": "18446744073709551615",
         "predicate": {
-          "program": [
-            {
-              "atom": {
-                "compare": {
-                  "column": 1,
-                  "op": "eq",
-                  "value": {
-                    "boolean": true
-                  }
-                }
-              }
+          "compare": {
+            "column": 1,
+            "op": "eq",
+            "value": {
+              "boolean": true
             }
-          ]
+          }
         }
       },
       "literal_sql": "SELECT value AS chosen FROM items WHERE value = TRUE LIMIT 18446744073709551615"
@@ -289,19 +265,13 @@
         ],
         "limit": "18446744073709551615",
         "predicate": {
-          "program": [
-            {
-              "atom": {
-                "compare": {
-                  "column": 1,
-                  "op": "eq",
-                  "value": {
-                    "utf8": "'; DROP TABLE items; -- $2"
-                  }
-                }
-              }
+          "compare": {
+            "column": 1,
+            "op": "eq",
+            "value": {
+              "utf8": "'; DROP TABLE items; -- $2"
             }
-          ]
+          }
         }
       },
       "literal_sql": "SELECT value AS chosen FROM items WHERE value = '''; DROP TABLE items; -- $2' LIMIT 18446744073709551615"
@@ -350,19 +320,13 @@
         ],
         "limit": "18446744073709551615",
         "predicate": {
-          "program": [
-            {
-              "atom": {
-                "compare": {
-                  "column": 1,
-                  "op": "eq",
-                  "value": {
-                    "binary": "0001275cff"
-                  }
-                }
-              }
+          "compare": {
+            "column": 1,
+            "op": "eq",
+            "value": {
+              "binary": "0001275cff"
             }
-          ]
+          }
         }
       },
       "literal_sql": "SELECT value AS chosen FROM items WHERE value = X'0001275cff' LIMIT 18446744073709551615"
@@ -661,19 +625,13 @@
         "limit": "2",
         "aggregate": "count_values",
         "predicate": {
-          "program": [
-            {
-              "atom": {
-                "compare": {
-                  "column": 0,
-                  "op": "gt",
-                  "value": {
-                    "signed": "9007199254740993"
-                  }
-                }
-              }
+          "compare": {
+            "column": 0,
+            "op": "gt",
+            "value": {
+              "signed": "9007199254740993"
             }
-          ]
+          }
         }
       },
       "literal_sql": "SELECT count(chosen.amount) AS present FROM (SELECT value AS amount FROM items WHERE id > 9007199254740993 LIMIT 2) AS chosen"
@@ -726,19 +684,13 @@
           0
         ],
         "predicate": {
-          "program": [
-            {
-              "atom": {
-                "compare": {
-                  "column": 0,
-                  "op": "eq",
-                  "value": {
-                    "utf8": "owned"
-                  }
-                }
-              }
+          "compare": {
+            "column": 0,
+            "op": "eq",
+            "value": {
+              "utf8": "owned"
             }
-          ]
+          }
         }
       },
       "literal_sql": "SELECT value FROM items WHERE value = 'owned'"

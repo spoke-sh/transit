@@ -16053,3 +16053,23 @@ nested uint128/null results and malformed Arrow rejection
 checks do not establish current-source authorization, retained inspection/page
 lifetimes or durable query recovery; those require the common catalog query
 fixture migration.
+
+### SQL and typed single-predicate identity
+
+Literal SQL, parameter binding and typed plans preserve identical canonical
+bytes for one comparison or state atom, including redundant parentheses. Real
+Boolean programs retain every instruction. ReleaseSafe Fuze checks pass 255
+tests (`fuze-atom-canonical2.log` in the local Table-schema campaign); the query
+package passes 109 tests with its five native catalog tests cached from the
+preceding successful native run (`query-atom-canonical3.log`). The allocation
+failure schedule disables backing-allocator resizing so each injected failure
+uses the same arena-growth allocation path; it still verifies release at every
+allocation failure.
+
+The initial migrated disk-backed KV and Table schedules stopped at inspection
+because SQL had encoded single atoms as one-instruction programs. Table seed
+provisioning and the original lost-receipt retry completed in that failed run
+(`unified-catalog-native1.log`); this is not a passed recovery schedule. The next
+KV run exposed the separate predicate nesting limit regression. Its companion
+Table run was interrupted before qualification. Full native query recovery
+remains pending those corrections.
