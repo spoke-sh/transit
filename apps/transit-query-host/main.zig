@@ -24,9 +24,9 @@ const Config = struct {
         unified_source: struct { peer: u64, initializer: u64 },
         table_writer: q.TableMutationWriter.Configuration,
         table_query_writer: q.TableQueryWriter.Configuration,
-        catalog: catalog.Model.Configuration,
+        catalog: catalog.TableCatalogRecords.Configuration,
         unified_requester: q.UnifiedBehavior.Requester,
-        courier: struct { destinations: [2]u64 },
+        courier: struct { destinations: []const u64 },
     },
 };
 pub fn main(init: std.process.Init) !void {
@@ -112,7 +112,7 @@ fn run(init: std.process.Init, diagnostics: *telemetry.Runtime) !void {
     };
     var table_writer: q.TableMutationWriter = .{ .configuration = if (config.role == .table_writer) config.role.table_writer else undefined };
     var combined: q.TableQueryWriter = .{ .configuration = if (config.role == .table_query_writer) config.role.table_query_writer else undefined, .source = &unified_source };
-    var declarations: catalog.Behavior = .{ .configuration = if (config.role == .catalog) config.role.catalog else undefined };
+    var declarations: catalog.TableBehavior = .{ .allocator = init.gpa, .configuration = if (config.role == .catalog) config.role.catalog else undefined };
     var finite: serving.FiniteService = .{ .configuration = if (config.role == .finite_service) config.role.finite_service else undefined };
     const handler = switch (config.role) {
         .catalog => blk: {
@@ -181,7 +181,10 @@ fn run(init: std.process.Init, diagnostics: *telemetry.Runtime) !void {
 }
 fn courier(init: std.process.Init, wire: *q.wire.Client, config: Config, key: p.Ed25519.KeyPair) !void {
     const destinations = config.role.courier.destinations;
-    if (destinations[0] == 0 or destinations[1] == 0 or destinations[0] == destinations[1]) return error.InvalidConfiguration;
+    if (destinations.len == 0 or destinations.len > 16) return error.InvalidConfiguration;
+    for (destinations, 0..) |destination, index| {
+        if (destination == 0 or destination > p.max_counter or std.mem.indexOfScalar(u64, destinations[0..index], destination) != null) return error.InvalidConfiguration;
+    }
     wire.observer.?.event(.{ .name = "service.ready", .operation = "courier", .realm = config.realm });
     var after: ?u64 = null;
     var pending: ?g.SignedRequest = null;
@@ -212,7 +215,7 @@ fn courier(init: std.process.Init, wire: *q.wire.Client, config: Config, key: p.
             return err;
         };
         for (page.body.outputs.entries) |slot| if (slot) |output| {
-            if (output.phase == .pending and (output.destination == destinations[0] or output.destination == destinations[1])) {
+            if (output.phase == .pending and std.mem.indexOfScalar(u64, destinations, output.destination) != null) {
                 pending = try g.sign(.{ .realm = config.realm, .principal = config.principal, .sequence = basis.principal_sequence + 1, .command = .{ .deliver = output.id } }, key);
                 break;
             }

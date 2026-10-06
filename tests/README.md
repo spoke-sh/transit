@@ -11017,6 +11017,27 @@ CLI checks, semantic outcome cases, frontend checks/tests and the documentation
 build. Existing frontend lint warnings remain nonfatal. This does not replace
 committed-HEAD clean qualification or the remaining deployment migration.
 
+The supplied `transit-query-host` catalog role now passes the same disk proof
+with a courier scoped to its single PID (`typed-table-host4.log`). The expanded
+run takes **64.017 seconds** and observes 219 owner turns, at most four native
+mutations per turn and 256 bytes per value. A second wide Table receives CREATE,
+typed INSERT, a defaulted-column rewrite, finite UPDATE and DROP without another
+worker. Restarting with the same activation marker rejects; fresh ownership
+preserves the original outcome. The test also withholds an accepted native turn's
+receipt, kills that host and finishes the original saved operation under a newly
+fenced activation. The duration is a fault scenario total, not a latency benchmark.
+
+The first deployed run exposed `StaleStateResource` during concurrent current
+metadata reads. The fixture now retries only bounded read/preparation calls;
+it never retries a captured scan on a newer cut or replaces an uncertain send.
+The next run passes in 61.996 seconds before the explicit host fault was added.
+The fault run initially failed because the proxy counted killed hosts' closed
+notification waits as forwarding failures. The final proxy separately counts
+those downstream disconnects and still fails actual upstream errors. Earlier
+failed logs are `typed-table-host1.log` and `typed-table-host3.log`; all logs remain
+in the campaign above. This qualifies the supplied catalog/courier binaries,
+not the still-separate local server, console or SDK migration, nor power loss.
+
 ## Fuze logical type foundation
 
 The local `Types` profile has nine passing focused Zig tests, including 46

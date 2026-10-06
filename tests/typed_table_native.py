@@ -12,8 +12,8 @@ import time
 from storage import Fixture, free_port, wait_ready
 
 
-def run(node, proof):
-    node, proof = str(Path(node).resolve()), str(Path(proof).resolve())
+def run(node, proof, host):
+    node, proof, host = (str(Path(binary).resolve()) for binary in (node, proof, host))
     with Fixture() as fixture:
         root = fixture.root
         public = json.loads(subprocess.check_output([proof, 'public'], timeout=10))
@@ -26,7 +26,9 @@ def run(node, proof):
             port=port, resident_pages=8, request_timeout_ms=10000)))
         faults, replays, failures = {}, set(), []
         armed = None
-        measurements = dict(turns=0, max_mutations=0, max_value_bytes=0, dispositions=[])
+        host_committed = threading.Event()
+        release_host_reply = threading.Event()
+        measurements = dict(turns=0, max_mutations=0, max_value_bytes=0, dispositions=[], client_disconnects=0)
 
         class Proxy(BaseHTTPRequestHandler):
             def log_message(self, *_):
@@ -36,6 +38,7 @@ def run(node, proof):
                 nonlocal armed
                 body = self.rfile.read(int(self.headers['Content-Length']))
                 connection = HTTPConnection('127.0.0.1', port, timeout=15)
+                abandoned_host = False
                 try:
                     connection.request('POST', self.path, body, {'Content-Type': 'application/json'})
                     response = connection.getresponse()
@@ -58,15 +61,27 @@ def run(node, proof):
                                 assert data == receipt, 'Exact accepted request changed its receipt'
                                 replays.add(name)
                         selected = 'turn' if turn else 'send' if 'send' in command else None
-                        if armed == selected and selected is not None:
-                            faults[selected] = body, data
+                        if (armed == selected and selected is not None) or (armed == 'host_turn' and turn):
+                            abandoned_host = armed == 'host_turn'
+                            faults[armed] = body, data
                             armed = None
+                            if abandoned_host:
+                                # The native commit exists; its receipt cannot
+                                # reach the worker before this process is killed.
+                                host_committed.set()
+                                assert release_host_reply.wait(30), 'Host fault was not released'
                             data = b'{"position":0}'
-                    self.send_response(response.status)
-                    self.send_header('Content-Type', 'application/json')
-                    self.send_header('Content-Length', str(len(data)))
-                    self.end_headers()
-                    self.wfile.write(data)
+                    try:
+                        self.send_response(response.status)
+                        self.send_header('Content-Type', 'application/json')
+                        self.send_header('Content-Length', str(len(data)))
+                        self.end_headers()
+                        self.wfile.write(data)
+                    except (BrokenPipeError, ConnectionResetError):
+                        # Killing an owned host also closes its outstanding
+                        # notification wait. Upstream forwarding failures still
+                        # reach the outer failure collector.
+                        measurements['client_disconnects'] += 1
                 except BaseException as error:
                     failures.append(repr(error))
                     raise
@@ -80,6 +95,9 @@ def run(node, proof):
         log = (root / 'node.log').open('w+')
         authority = None
         readers = []
+        workers = []
+        worker_logs = []
+        hosted = False
         started = time.monotonic()
         try:
             subprocess.run([node, str(config), '--initialize'], stdout=log, stderr=subprocess.STDOUT, check=True, timeout=30)
@@ -101,16 +119,29 @@ def run(node, proof):
                 return json.loads(result.stdout)
 
             def finish():
+                deadline = time.monotonic() + 300
                 for _ in range(1000):
+                    assert time.monotonic() < deadline, 'Typed operation exceeded its time budget'
+                    if hosted:
+                        assert all(worker.poll() is None for worker in workers), 'Supplied host stopped'
                     result = call('next')
                     if result['state'] == 'terminal':
                         return result
                     assert result['state'] in ('sent', 'running'), result
-                    pumped = call('pump')
-                    if result['state'] == 'running' and pumped['state'] == 'idle' and pumped['committed'] == 0:
-                        raise AssertionError(f'Owner stopped before terminal SQL: {measurements}')
+                    if hosted:
+                        if result['state'] == 'running':
+                            time.sleep(.02)
+                    else:
+                        pumped = call('pump')
+                        if result['state'] == 'running' and pumped['state'] == 'idle' and pumped['committed'] == 0:
+                            raise AssertionError(f'Owner stopped before terminal SQL: {measurements}')
                     if result['state'] == 'sent':
-                        processed = call('progress')
+                        while True:
+                            processed = call('progress')
+                            if processed['state'] != 'pending' or not hosted:
+                                break
+                            assert time.monotonic() < deadline, 'Supplied host failed to process input'
+                            assert all(worker.poll() is None for worker in workers), 'Supplied host stopped'
                         assert processed['state'] != 'disposed', processed
                 raise AssertionError('Typed operation failed to finish within its finite proof budget')
 
@@ -224,9 +255,69 @@ def run(node, proof):
             authority = start()
             release(expired, 'QueryExpired')
             assert len(call('select', 'SELECT * FROM people')['rows']) == 2
+            # Exercise the supplied deployment binary, not the fixture's manual
+            # GenServer driver. One catalog owner routes every Table; a courier
+            # scoped to that single destination delivers staged continuations.
+            def launch(configuration):
+                output = (root / f'host-{len(worker_logs)}.log').open('w+')
+                worker_logs.append(output)
+                process = subprocess.Popen([host, str(root / configuration)], stdout=output, stderr=subprocess.STDOUT)
+                workers.append(process)
+                return process
+
+            call('host')
+            deployed = launch('host.json')
+            launch('courier-config.json')
+            hosted = True
+            applied(execute(13, 'CREATE TABLE departments (id INTEGER PRIMARY KEY, label TEXT NOT NULL, active BOOL DEFAULT TRUE)', 102))
+            result = execute(14, "INSERT INTO departments (id, label) VALUES (10, 'Engineering'), (20, 'Research')")
+            assert (result['matched'], result['changed']) == (2, 2), result
+            assert len(call('select', 'SELECT * FROM departments')['rows']) == 2
+            applied(execute(15, 'ALTER TABLE departments ADD COLUMN budget DECIMAL(18, 2) DEFAULT 1000.00'))
+            assert call('select', 'SELECT budget FROM departments WHERE id=10')['rows'][0][0]['cell']['value']['atom']['decimal'] == '100000'
+            original = call('status')
+            deployed.kill()
+            deployed.wait(timeout=10)
+            workers.remove(deployed)
+            reused = subprocess.run([host, str(root / 'host.json')], capture_output=True, text=True, timeout=30)
+            assert reused.returncode != 0 and 'FreshOwnershipRequired' in reused.stderr, reused.stderr
+            call('host')
+            deployed = launch('host.json')
+            assert call('status') == original, 'Fresh ownership changed the retained outcome'
+            result = execute(16, 'UPDATE departments SET active=FALSE WHERE id >= 10')
+            assert (result['matched'], result['changed']) == (2, 2), result
+            applied(execute(17, 'DROP TABLE departments'))
+            assert call('inspect', 'departments') == {'found': False}
+            assert len(call('select', 'SELECT * FROM people')['rows']) == 2
+            call('compile', 18, '-', "UPDATE people SET name='after restart'")
+            armed = 'host_turn'
+            assert call('next')['state'] == 'sent'
+            assert host_committed.wait(30), 'Supplied catalog host did not commit at fault boundary'
+            deployed.kill()
+            deployed.wait(timeout=10)
+            workers.remove(deployed)
+            release_host_reply.set()
+            call('host')
+            launch('host.json')
+            result = finish()
+            assert (result['matched'], result['changed']) == (2, 2), result
+            rows = call('select', 'SELECT name FROM people')['rows']
+            assert len(rows) == 2 and all(row[0]['cell']['value']['atom']['utf8'] == 'after restart' for row in rows), rows
+            assert not failures, failures
             assert measurements['max_mutations'] <= 4 and measurements['max_value_bytes'] <= 256, measurements
-            print(json.dumps(dict(profile='typed-table-native', seconds=round(time.monotonic() - started, 3), lost_reply_replays=sorted(replays), measurements=measurements)))
+            print(json.dumps(dict(profile='typed-table-native', seconds=round(time.monotonic() - started, 3), lost_reply_replays=sorted(replays), supplied_host_lost_receipt='host_turn' in faults, measurements=measurements)))
         finally:
+            release_host_reply.set()
+            for worker in workers:
+                if worker.poll() is None:
+                    worker.kill()
+                worker.wait(timeout=10)
+            for output in worker_logs:
+                if sys.exc_info()[0]:
+                    output.flush()
+                    output.seek(0)
+                    sys.stderr.write(output.read()[-12000:])
+                output.close()
             for reader in readers:
                 if reader.poll() is None:
                     reader.kill()

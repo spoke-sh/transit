@@ -75,9 +75,7 @@ Initialization needs a page reader and permits unrelated private framework setup
 private writes in the catalog namespace reject. Creation still needs a page reader
 and no preceding private mutations to refuse orphan Table rows at the captured cut.
 `Behavior` supplies a GenServer handler/guard, with atomic initialization,
-conditional administrator controls and durable input dispositions. The
-[`transit-query-host` catalog role](../../../apps/transit-query-host/README.md)
-hosts it with explicit configuration and fresh fenced ownership. Explicit catalog methods
+conditional administrator controls and durable input dispositions. Explicit catalog methods
 are available in the CLI and Python, TypeScript, Rust, Ruby, C, C++, Java, .NET,
 Erlang and Elixir SDKs through the
 shared caller. The query console uses its configured catalog for CREATE and
@@ -104,8 +102,12 @@ authority, disk recovery or installed caller behavior; consult the
 [General Table metadata](docs/table-metadata.md) describes immutable schema
 references, owned UTF-8 names, bounded metadata staging and scoped namespace
 resolution/dependencies, atomic lifecycle transitions and rejected-candidate
-cleanup. These helpers do not
-by themselves change the signed catalog or console admission profile above.
+cleanup. `TableBehavior` runs these general transitions in the supplied
+[`transit-query-host` catalog role](../../../apps/transit-query-host/README.md),
+using explicit configuration, a scoped courier and fresh fenced ownership.
+`TableClient` supplies signed general Table SQL preparation and exact recovery;
+`transit-query.TableQuery` reads schema-bound SQL snapshots. The console and
+neutral caller migration remains separate from these general Zig interfaces.
 
 `Diagnostic.codes` defines finite caller causes separately from catalog receipts.
 Failed CREATE status reads retain the original request's operation and scope,

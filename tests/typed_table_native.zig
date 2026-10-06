@@ -69,11 +69,38 @@ fn submit(init: std.process.Init, directory: []const u8, caller: *c.TableClient,
     try save(init, directory, "input.json", receipt.position);
     try print(init, .{ .state = "sent", .input = receipt.position });
 }
+// A deployed host can advance the resource between bounded metadata reads.
+// Retry only fresh read/preparation operations, never submit or captured scans.
+fn currentRead(init: std.process.Init, wire: *s.client.Client, comptime function: anytype, arguments: std.meta.ArgsTuple(@TypeOf(function))) !@typeInfo(@typeInfo(@TypeOf(function)).@"fn".return_type.?).error_union.payload {
+    var attempts: u8 = 0;
+    while (true) {
+        return @call(.auto, function, arguments) catch |err| {
+            if (attempts == 64 or (err != error.Rejected and err != error.Conflict) or wire.last_rejection != .StaleStateResource) return err;
+            attempts += 1;
+            try init.io.sleep(.fromMilliseconds(1), .awake);
+            continue;
+        };
+    }
+}
 fn outcome(init: std.process.Init, value: c.TableClient.Outcome) !void {
     switch (value) {
         .ddl => |result| try print(init, .{ .state = if (result.terminal()) "terminal" else "running", .kind = "ddl", .outcome = @tagName(result.operation.state), .table_outcome = if (result.table) |table| @tagName(table.state) else null, .reason = @tagName(result.operation.reason), .object = result.operation.actual_object }),
         .dml => |result| try print(init, .{ .state = if (result.state != .building) "terminal" else "running", .kind = "dml", .outcome = @tagName(result.state), .reason = @tagName(result.rejection), .matched = result.matched, .changed = result.changed }),
     }
+}
+fn host(init: std.process.Init, wire: *s.client.Client, directory: []const u8, original: Config, url: []const u8) !void {
+    var admin: Admin = .{ .wire = wire, .key = try key(7) };
+    admin.sequence = (try admin.query(.capabilities)).principal_sequence;
+    var config = original;
+    _ = try admin.submit(.{ .own = .{ .pid = config.writer.pid, .expected_generation = config.writer.generation, .worker = 65536 } });
+    config.writer.generation += 1;
+    try save(init, directory, "catalog.json", config);
+    _ = try admin.submit(.{ .grant = .{ .subject = 65537, .public_key = (try key(9)).public_key.toBytes(), .permissions = p.permission(.inspect) | p.permission(.delivery) | p.permission(.send) } });
+    try saveBytes(init, directory, "host.seed", &std.fmt.bytesToHex(@as([32]u8, @splat(8)), .lower));
+    try saveBytes(init, directory, "courier.seed", &std.fmt.bytesToHex(@as([32]u8, @splat(9)), .lower));
+    try save(init, directory, "host.json", .{ .url = url, .realm = @as(u64, 46), .principal = @as(u64, 65536), .pid = config.writer.pid, .generation = config.writer.generation, .seed_file = try path(init, directory, "host.seed"), .activation_directory = directory, .interval_ms = @as(u32, 2), .idle_max_interval_ms = @as(u32, 50), .request_timeout_ms = @as(u32, 10000), .role = .{ .catalog = configuration(config) } });
+    try save(init, directory, "courier-config.json", .{ .url = url, .realm = @as(u64, 46), .principal = @as(u64, 65537), .seed_file = try path(init, directory, "courier.seed"), .interval_ms = @as(u32, 2), .idle_max_interval_ms = @as(u32, 50), .request_timeout_ms = @as(u32, 10000), .role = .{ .courier = .{ .destinations = [_]u64{config.writer.pid} } } });
+    try print(init, .{ .generation = config.writer.generation });
 }
 fn deliver(init: std.process.Init, wire: *s.client.Client, directory: []const u8) !bool {
     const previous = load(Pending, init, directory, "courier.json") catch |err| switch (err) {
@@ -232,6 +259,7 @@ pub fn main(init: std.process.Init) !void {
     const config = try load(Config, init, directory, "catalog.json");
     const owner = configuration(config);
     var caller: c.TableClient = .{ .transport = &wire, .connection = .{ .scope = owner.scope, .owner = owner.owner, .principal = 1234 }, .key = try key(10) };
+    if (std.mem.eql(u8, mode, "host")) return host(init, &wire, directory, config, args[1]);
     if (std.mem.eql(u8, mode, "initialize")) return submit(init, directory, &caller, try caller.prepareControl(.{ .initialize = owner }));
     if (std.mem.eql(u8, mode, "pump")) return pump(init, &wire, directory, config, if (args.len > 4) try std.fmt.parseInt(usize, args[4], 10) else 10000);
     if (std.mem.eql(u8, mode, "inspect")) return inspect(init, &wire, &caller, config, args[4]);
@@ -246,22 +274,22 @@ pub fn main(init: std.process.Init) !void {
     if (std.mem.eql(u8, mode, "retry-send")) return submit(init, directory, &caller, try prepared(init, directory));
     if (std.mem.eql(u8, mode, "compile")) {
         const operation = try std.fmt.parseInt(u64, args[4], 10);
-        var work = try caller.compile(init.gpa, args[6], .{ .operation = operation, .namespace = 1000 + operation, .create_object = if (std.mem.eql(u8, args[5], "-")) null else try std.fmt.parseInt(u64, args[5], 10) }, null);
+        var work = try currentRead(init, &wire, c.TableClient.compile, .{ &caller, init.gpa, args[6], .{ .operation = operation, .namespace = 1000 + operation, .create_object = if (std.mem.eql(u8, args[5], "-")) null else try std.fmt.parseInt(u64, args[5], 10) }, null });
         defer work.deinit();
         try saveBytes(init, directory, "intent.bin", work.bytes);
         return print(init, .{ .kind = @tagName(work.header.kind), .bytes = work.body.len, .namespace = work.namespace });
     }
     var work = try intent(init, directory);
     defer work.deinit();
-    if (std.mem.eql(u8, mode, "next")) return switch (try caller.next(&work)) {
+    if (std.mem.eql(u8, mode, "next")) return switch (try currentRead(init, &wire, c.TableClient.next, .{ &caller, &work })) {
         .send => |value| submit(init, directory, &caller, value),
         .running => print(init, .{ .state = "running" }),
         .terminal => |value| outcome(init, value),
         .upload_cancelled => print(init, .{ .state = "upload_cancelled" }),
     };
-    if (std.mem.eql(u8, mode, "status")) return if (try caller.status(&work)) |value| outcome(init, value) else print(init, .{ .state = "absent" });
+    if (std.mem.eql(u8, mode, "status")) return if (try currentRead(init, &wire, c.TableClient.status, .{ &caller, &work })) |value| outcome(init, value) else print(init, .{ .state = "absent" });
     if (std.mem.eql(u8, mode, "progress")) {
-        const result = try caller.waitProgress(&work, try prepared(init, directory), try load(u64, init, directory, "input.json"));
+        const result = try currentRead(init, &wire, c.TableClient.waitProgress, .{ &caller, &work, try prepared(init, directory), try load(u64, init, directory, "input.json") });
         return switch (result) {
             .pending => print(init, .{ .state = "pending" }),
             .processed => |value| if (value.disposition) |entry| print(init, .{ .state = "disposed", .reason = @tagName(entry.outcome) }) else if (value.outcome) |entry| outcome(init, entry) else print(init, .{ .state = "processed" }),
