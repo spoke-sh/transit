@@ -48,6 +48,11 @@ test "file registry projects every known cause without fabricating completion or
 }
 
 test "file unknown callbacks and storage context preserve original failure and incomplete output" {
+    const shape = try base.structured(error.InvalidColumnCount);
+    try std.testing.expectEqualStrings("file.invalid_row_shape", shape.code.slice());
+    try std.testing.expectEqual(.integrity, shape.category);
+    try std.testing.expectEqual(false, shape.facts[0].?.value.?.boolean);
+    try std.testing.expectEqual(.contact_operator, shape.actions[0].?.kind);
     const unknown = try base.structured(error.UnregisteredCallbackFailure);
     try std.testing.expectEqualStrings("file.internal_failure", unknown.code.slice());
     try std.testing.expectEqual(.internal, unknown.category);

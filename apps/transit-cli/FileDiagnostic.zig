@@ -261,7 +261,7 @@ pub fn structured(self: Self, err: anyerror) !@import("transit_query").protocol.
     if (self.limited and self.stage == .execute) try value.text(.operation, .owner, "LIMIT does not skip validation of remaining file records.");
     if (category == .binding or category == .syntax or category == .unsupported) try value.action(.correct_input);
     if (self.schema_read_failure) try value.action(.retry_read);
-    if (category == .internal) try value.action(.contact_operator);
+    if (category == .internal or err == error.InvalidColumnCount) try value.action(.contact_operator);
     if (category == .access) try value.action(.inspect_scope);
     try value.validate();
     return value;

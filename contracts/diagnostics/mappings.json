@@ -3963,6 +3963,10 @@
         "UnsupportedAtomType": {
           "code": "file.unsupported_atom_type",
           "category": "unsupported"
+        },
+        "InvalidColumnCount": {
+          "code": "file.invalid_row_shape",
+          "category": "integrity"
         }
       }
     }

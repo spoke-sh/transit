@@ -17017,6 +17017,19 @@
               "stage": "decode"
             }
           }
+        },
+        "InvalidColumnCount": {
+          "code": "file.invalid_row_shape",
+          "category": "integrity",
+          "stage": "execute",
+          "actions": [
+            "contact_operator"
+          ],
+          "scenarios": {
+            "schema_file": {
+              "stage": "decode"
+            }
+          }
         }
       }
     },

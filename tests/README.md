@@ -11816,6 +11816,15 @@ gzip, quotas, cancellation/cleanup, immutable capture and the 192-MiB input unde
 a 96-MiB address-space limit. The operator refactor retains existing file-plan
 fingerprints and full-source verification after LIMIT.
 
+Full pinned `just check` passes the logical-plan/step checkpoint
+(`table-logical-query-check3.log`), including native/CLI tests, generated
+contracts, frontend checks and the documentation build. Its first run catches
+the new decoded-row width check's missing file diagnostic mapping. The second
+catches the corresponding missing independently reviewed outcome entry. Both
+are corrected: the error preserves incomplete output, identifies a schema/row
+integrity mismatch and directs the caller to the operator without inventing a
+saved command. The third full run passes all mapping and outcome assertions.
+
 ## Fuze logical type foundation
 
 The local `Types` profile has nine passing focused Zig tests, including 46
