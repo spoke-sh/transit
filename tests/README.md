@@ -10752,6 +10752,21 @@ and 24 MiB maximum resident memory. Logs are `cleanup-station-test.log`,
 captured-turn unit checks and existing root tests, not new disk cleanup, native
 admission or physical-erasure evidence.
 
+The schema publication coordinator passes **86/86 Station tests**. Captured-turn
+cases cover add/drop/rename columns, stable/nonreused identities, future-only
+defaults, required-field validation, exact numeric/key conversions, character
+limits, empty Tables, stale schema rejection, competing writes and cancellation.
+Late NULL, missing-field, character-length, overflow and inexact-conversion
+failures retain the old schema/root and original rejection after data changes.
+Every proposed ALTER turn is discarded once before recomputation; retained rows
+decode through the original schema. A 6 KiB source cell and 5 KiB typed default
+exercise large schema and rewritten-row Publications without reading private
+descriptors. Allocation failure, current denial and changed progress revisions
+reject without publishing a successor. Final evidence is
+`alter-station-final.log` and `alter-docs.log` in the same campaign. These checks
+cover schema publication helpers; catalog rename/DROP/dependencies, native caller
+admission, disk recovery and performance qualification remain unproved here.
+
 ## Fuze logical type foundation
 
 The local `Types` profile has nine passing focused Zig tests, including 46

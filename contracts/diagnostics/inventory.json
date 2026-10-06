@@ -15336,6 +15336,53 @@
         "transit_fuze"
       ]
     },
+    "packages/zig/transit-station/src/TableAlter.zig": {
+      "errors": {
+        "CharacterLimitExceeded": 1,
+        "Inexact": 1,
+        "InvalidTableStatementProgress": 7,
+        "InvalidTableWrite": 1,
+        "MissingRequiredField": 1,
+        "MutationBudgetExceeded": 2,
+        "NullNotAllowed": 1,
+        "Overflow": 1,
+        "RowExists": 1,
+        "RowIdentityExists": 1,
+        "TableBusy": 1,
+        "TableCapacity": 2,
+        "TableRetired": 1,
+        "TableSchemaChanged": 1
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "Request.reference()": "<inferred>",
+        "add()": "<inferred>",
+        "advance()": "<inferred>",
+        "finish()": "<inferred>",
+        "schemaReference()": "<inferred>",
+        "stageAll()": "<inferred>",
+        "step()": "<inferred>"
+      },
+      "open_error_set_uses": 1,
+      "propagation": {
+        "try": 35,
+        "catch": 7
+      },
+      "imports": [
+        "Publication.zig",
+        "TableCandidate.zig",
+        "TableData.zig",
+        "TableHead.zig",
+        "TablePages.zig",
+        "TableStatement.zig",
+        "TableWrite.zig",
+        "Turn.zig",
+        "std",
+        "transit_client",
+        "transit_fuze"
+      ]
+    },
     "packages/zig/transit-station/src/TableCandidate.zig": {
       "errors": {
         "InvalidTableCandidate": 12,
@@ -15567,6 +15614,7 @@
       "errors": {
         "EndOfStream": 1,
         "IncompatibleTableStorage": 1,
+        "InvalidTableHead": 1,
         "InvalidTableStatementProgress": 14,
         "InvalidTableWrite": 1,
         "MutationBudgetExceeded": 2,
@@ -15595,6 +15643,7 @@
         "cancel()": "<inferred>",
         "close()": "<inferred>",
         "finish()": "<inferred>",
+        "publish()": "<inferred>",
         "record()": "<inferred>",
         "rows()": "<inferred>",
         "stageAll()": "<inferred>",
@@ -15651,7 +15700,12 @@
         "Status.rejection": [
           "none",
           "row_exists",
-          "row_identity_exists"
+          "row_identity_exists",
+          "null_not_allowed",
+          "missing_required_field",
+          "character_limit_exceeded",
+          "overflow",
+          "inexact"
         ],
         "Status.state": [
           "building",
@@ -15834,6 +15888,7 @@
         "Registry.zig",
         "Supervisor.zig",
         "Table.zig",
+        "TableAlter.zig",
         "TableCandidate.zig",
         "TableCleanup.zig",
         "TableData.zig",

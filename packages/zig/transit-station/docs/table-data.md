@@ -106,3 +106,13 @@ bounded chunk collection. Quota is released through Publication's existing owner
 The separate cursor survives interruption and cannot change ranges or intent.
 Accepted roots, schema records, Table heads and permanent descriptors are retained.
 Current cleanup authority remains the enclosing owner's responsibility.
+
+`TableAlter.step` derives a schema transition from the exact original schema and
+one selected change. Metadata changes share the old root; validation-only changes
+check every frozen row; physical changes build a complete successor with the same
+row identities and rebuilt keys. Schema staging finishes before source row reads.
+The final turn swaps schema/root and saves the outcome together. A later-row
+constraint or exact-conversion failure preserves the original head and records
+its specific rejection. Interrupted work uses the shared progress/cancellation
+and closed-candidate cleanup owners. Catalog name changes and dependencies still
+belong to catalog admission, not this schema publication helper.

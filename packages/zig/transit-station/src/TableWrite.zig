@@ -142,7 +142,7 @@ pub const Status = struct {
     matched: u64 = 0,
     changed: u64 = 0,
     state: enum(u8) { building = 1, applied = 2, rejected = 3, cancelled = 4 },
-    rejection: enum(u8) { none = 0, row_exists = 1, row_identity_exists = 2 } = .none,
+    rejection: enum(u8) { none = 0, row_exists = 1, row_identity_exists = 2, null_not_allowed = 3, missing_required_field = 4, character_limit_exceeded = 5, overflow = 6, inexact = 7 } = .none,
     pub fn validate(self: Status) !void {
         try self.reference.validate();
         if (self.admitted_input == 0 or self.admitted_input > p.max_counter or self.completed_input > p.max_counter or self.basis_revision == 0 or

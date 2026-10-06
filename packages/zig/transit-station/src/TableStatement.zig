@@ -132,10 +132,10 @@ pub const Progress = struct {
             else => err,
         };
     }
-    fn save(self: Progress, turn: *Turn, reference: Write.Reference) !void {
+    pub fn save(self: Progress, turn: *Turn, reference: Write.Reference) !void {
         try turn.write(key(reference), try self.encode());
     }
-    fn load(turn: *Turn, result: Write.Status, head: Head) !Progress {
+    pub fn load(turn: *Turn, result: Write.Status, head: Head) !Progress {
         const progress = try decode((try turn.read(key(result.reference))) orelse return error.InvalidTableStatementProgress);
         if (!std.mem.eql(u8, &progress.digest, &result.reference.digest) or head.retired or head.pending != result.first_record or
             head.revision != progress.head_revision or head.next_record != result.end_record or result.end_record - result.first_record < Candidate.max_records) return error.TableWriteBasisChanged;
@@ -160,24 +160,30 @@ fn validateCandidate(head: Head, progress: Progress, plan: f.TableDml.Plan) !voi
     }
 }
 fn finish(turn: *Turn, head: Head, result: Write.Status, progress: Progress, action: f.TableDml.Action) !Write.Status {
-    const before = turn.decision;
-    errdefer turn.decision = before;
     var after = head;
     after.revision = try add(head.revision, 1);
     after.pending = 0;
     after.index = progress.index;
     after.rows = try rows(head, progress, action);
+    return publish(turn, head, after, result, progress.matched, progress.changed);
+}
+/// Shared final decision for a fully staged finite statement or schema rewrite.
+/// Its owner validates the complete successor before calling this composition.
+pub fn publish(turn: *Turn, head: Head, after: Head, result: Write.Status, matched: u64, changed: u64) !Write.Status {
+    const before = turn.decision;
+    errdefer turn.decision = before;
+    if (after.pending != 0) return error.InvalidTableHead;
     var accepted = result;
     accepted.state = .applied;
     accepted.completed_input = turn.delivery.input.position;
-    accepted.matched = progress.matched;
-    accepted.changed = progress.changed;
+    accepted.matched = matched;
+    accepted.changed = changed;
     try head.replace(turn, after);
     try record(turn, accepted);
     try turn.write(Progress.key(result.reference), null);
     return accepted;
 }
-fn close(turn: *Turn, head: Head, previous: Write.Status, rejection: @FieldType(Write.Status, "rejection")) !Write.Status {
+pub fn close(turn: *Turn, head: Head, previous: Write.Status, rejection: @FieldType(Write.Status, "rejection")) !Write.Status {
     const before = turn.decision;
     errdefer turn.decision = before;
     var after = head;

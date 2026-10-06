@@ -12,6 +12,175 @@ const Head = @import("TableHead.zig");
 const Write = @import("TableWrite.zig");
 const Statement = @import("TableStatement.zig");
 const Cleanup = @import("TableCleanup.zig");
+const Alter = @import("TableAlter.zig");
+fn runAlter(store: *Store, request: Alter.Request) !Write.Status {
+    var turn = try store.capture();
+    const original = try Head.load(&turn, 9);
+    for (0..20000) |_| {
+        var discarded = try store.capture();
+        _ = try Alter.step(t.allocator, &discarded, request);
+        turn = try store.capture();
+        const head = try Head.load(&turn, 9);
+        try t.expectEqualDeep(original.schema, head.schema);
+        try t.expectEqualDeep(original.index, head.index);
+        try t.expectEqual(original.rows, head.rows);
+        const result = try Alter.step(t.allocator, &turn, request);
+        try t.expect(writes(turn) <= 4);
+        try store.commit(turn);
+        if (result.state != .building) {
+            turn = try store.capture();
+            try t.expectEqualDeep(result, try Alter.step(t.allocator, &turn, request));
+            try t.expectEqual(@as(usize, 0), writes(turn));
+            try t.expectEqual(null, try turn.read(Statement.Progress.key(result.reference)));
+            return result;
+        }
+        try t.expect(writes(turn) > 0);
+    }
+    return error.AlterDidNotComplete;
+}
+fn currentSchema(store: *Store) !f.TableSchema.Owned {
+    var turn = try store.capture();
+    return (try Head.load(&turn, 9)).readSchema(t.allocator, &turn);
+}
+fn sqlAlter(store: *Store, operation: u64, sql: []const u8) !Write.Status {
+    var current = try currentSchema(store);
+    defer current.deinit();
+    var compiled = try f.TableDdl.compile(t.allocator, sql, current.schema, null);
+    defer compiled.deinit();
+    return runAlter(store, .{ .resource = 7, .principal = 1, .operation = operation, .schema = current.schema, .change = compiled.statement.alter.action.columns });
+}
+test "schema rewrites preserve identity, old decoders and defaults with atomic publication" {
+    var store: Store = .{};
+    defer store.deinit();
+    _ = try store.table();
+    _ = try sqlStatement(&store, 400, schema, "INSERT INTO items VALUES(1,'one'),(2,NULL),(3,'three')");
+    var turn = try store.capture();
+    const original = try Head.load(&turn, 9);
+    try t.expectEqual(.applied, (try sqlAlter(&store, 401, "ALTER TABLE items ADD COLUMN email VARCHAR(100)")).state);
+    turn = try store.capture();
+    const added = try Head.load(&turn, 9);
+    var added_schema = try added.readSchema(t.allocator, &turn);
+    defer added_schema.deinit();
+    try t.expectEqual(@as(usize, 3), added_schema.schema.columns.len);
+    try t.expectEqual(@as(u64, 3), added_schema.schema.columns[2].id);
+    var reader: Pages.Reader(*Turn) = .{ .pages = .{ .resource = 7, .object = 9 }, .source = &turn };
+    const identity: f.TableRow.Identity = .{ .origin = 2, .operation = 400, .ordinal = 0 };
+    var rewritten = (try (Data{ .schema = added_schema.schema, .index = added.index }).get(t.allocator, &reader, identity)).?;
+    defer rewritten.deinit();
+    try t.expect(rewritten.row().cells[2] == .null);
+    var old = (try (Data{ .schema = schema, .index = original.index }).get(t.allocator, &reader, identity)).?;
+    defer old.deinit();
+    try t.expectEqual(@as(usize, 2), old.row().cells.len);
+    try t.expectEqualStrings("one", old.row().cells[1].value.atom.bytes);
+    try t.expectEqual(.applied, (try sqlAlter(&store, 402, "ALTER TABLE items ALTER COLUMN email SET DEFAULT 'unknown'")).state);
+    turn = try store.capture();
+    const defaulted = try Head.load(&turn, 9);
+    try t.expectEqualDeep(added.index, defaulted.index);
+    var with_default = try currentSchema(&store);
+    defer with_default.deinit();
+    _ = try sqlStatement(&store, 403, with_default.schema, "INSERT INTO items(id,value) VALUES(4,'four')");
+    turn = try store.capture();
+    const inserted = try Head.load(&turn, 9);
+    var future = (try (Data{ .schema = with_default.schema, .index = inserted.index }).get(t.allocator, &reader, .{ .origin = 2, .operation = 403, .ordinal = 0 })).?;
+    defer future.deinit();
+    try t.expectEqualStrings("unknown", future.row().cells[2].value.atom.bytes);
+    try t.expectEqual(.applied, (try sqlAlter(&store, 404, "ALTER TABLE items RENAME COLUMN value TO full_name")).state);
+    turn = try store.capture();
+    try t.expectEqualDeep(inserted.index, (try Head.load(&turn, 9)).index);
+    try t.expectEqual(.applied, (try sqlAlter(&store, 405, "ALTER TABLE items DROP COLUMN email")).state);
+    try t.expectEqual(.applied, (try sqlAlter(&store, 406, "ALTER TABLE items ADD COLUMN email TEXT DEFAULT 'new'")).state);
+    var replaced = try currentSchema(&store);
+    defer replaced.deinit();
+    try t.expectEqual(@as(u64, 4), replaced.schema.columns[2].id);
+    try t.expectEqual(@as(u64, 2), replaced.schema.columns[1].id);
+    try t.expectEqualStrings("full_name", replaced.schema.columns[1].name);
+    const null_rejection = try sqlAlter(&store, 407, "ALTER TABLE items ALTER COLUMN full_name SET NOT NULL");
+    try t.expectEqual(.null_not_allowed, null_rejection.rejection);
+    try cleanCandidate(&store, null_rejection);
+    _ = try sqlStatement(&store, 408, replaced.schema, "UPDATE items SET full_name='two' WHERE full_name IS NULL");
+    try t.expectEqual(.applied, (try sqlAlter(&store, 409, "ALTER TABLE items ALTER COLUMN full_name SET NOT NULL")).state);
+    var required = try currentSchema(&store);
+    defer required.deinit();
+    try t.expect(!required.schema.columns[1].nullable);
+    const length_rejection = try sqlAlter(&store, 410, "ALTER TABLE items ALTER COLUMN full_name TYPE VARCHAR(3)");
+    try t.expectEqual(.character_limit_exceeded, length_rejection.rejection);
+    try cleanCandidate(&store, length_rejection);
+    turn = try store.capture();
+    const before_bound = try Head.load(&turn, 9);
+    try t.expectEqual(.applied, (try sqlAlter(&store, 411, "ALTER TABLE items ALTER COLUMN full_name TYPE VARCHAR(30)")).state);
+    turn = try store.capture();
+    try t.expectEqualDeep(before_bound.index, (try Head.load(&turn, 9)).index);
+    try t.expectEqual(.applied, (try sqlAlter(&store, 412, "ALTER TABLE items ALTER COLUMN id TYPE INTEGER")).state);
+    turn = try store.capture();
+    const converted = try Head.load(&turn, 9);
+    var converted_schema = try converted.readSchema(t.allocator, &turn);
+    defer converted_schema.deinit();
+    try t.expect(converted_schema.schema.columns[0].type == .int32);
+    const converted_data: Data = .{ .schema = converted_schema.schema, .index = converted.index };
+    try t.expectEqual(identity, (try converted_data.findKey(t.allocator, &reader, &.{.{ .value = .{ .atom = .{ .signed = 1 } } }})).?);
+    // Saved old work cannot be rebound to the new physical layout.
+    var stale_cells: [2]f.Types.Values.Cell = undefined;
+    try t.expectError(error.TableSchemaChanged, Write.step(t.allocator, &turn, insertRequest(413, 5, "stale", &stale_cells)));
+}
+test "late conversion failures retain original schemas and terminal rejection after conflict removal" {
+    var store: Store = .{};
+    defer store.deinit();
+    _ = try store.table();
+    _ = try sqlStatement(&store, 420, schema, "INSERT INTO items VALUES(1,'small'),(9007199254740993,'large')");
+    const request: Alter.Request = .{ .resource = 7, .principal = 1, .operation = 421, .schema = schema, .change = .{ .type = .{ .column = 1, .type = .float64 } } };
+    const rejected = try runAlter(&store, request);
+    try t.expectEqual(.inexact, rejected.rejection);
+    try t.expectEqual(@as(u64, 0), rejected.changed);
+    try cleanCandidate(&store, rejected);
+    const overflow = try sqlAlter(&store, 422, "ALTER TABLE items ALTER COLUMN id TYPE INT8");
+    try t.expectEqual(.overflow, overflow.rejection);
+    try cleanCandidate(&store, overflow);
+    _ = try sqlStatement(&store, 423, schema, "DELETE FROM items WHERE id>1");
+    try t.expectEqualDeep(rejected, try runAlter(&store, request));
+    var retry = request;
+    retry.operation = 424;
+    try t.expectEqual(.applied, (try runAlter(&store, retry)).state);
+    var current = try currentSchema(&store);
+    defer current.deinit();
+    try t.expect(current.schema.columns[0].type == .float64);
+    try t.expectEqualDeep(rejected, try runAlter(&store, request));
+}
+test "required columns, empty Tables and cancellation retain schema fences" {
+    var store: Store = .{};
+    defer store.deinit();
+    _ = try store.table();
+    _ = try sqlStatement(&store, 430, schema, "INSERT INTO items VALUES(1,'one')");
+    const missing = try sqlAlter(&store, 431, "ALTER TABLE items ADD COLUMN required BOOL NOT NULL");
+    try t.expectEqual(.missing_required_field, missing.rejection);
+    try cleanCandidate(&store, missing);
+    const request: Alter.Request = .{ .resource = 7, .principal = 1, .operation = 432, .schema = schema, .change = .{ .add = .{ .name = "extra", .type = .int64 } } };
+    var turn = try store.capture();
+    const admitted = try Alter.step(t.allocator, &turn, request);
+    try store.commit(turn);
+    for (0..3) |_| {
+        turn = try store.capture();
+        try t.expectEqual(.building, (try Alter.step(t.allocator, &turn, request)).state);
+        try store.commit(turn);
+    }
+    turn = try store.capture();
+    var other = request;
+    other.operation = 433;
+    try t.expectError(error.TableBusy, Alter.step(t.allocator, &turn, other));
+    var cells: [2]f.Types.Values.Cell = undefined;
+    try t.expectError(error.TableBusy, Write.step(t.allocator, &turn, insertRequest(434, 2, "blocked", &cells)));
+    const cancelled = try Alter.cancel(&turn, admitted.reference);
+    try store.commit(turn);
+    try cleanCandidate(&store, cancelled);
+    try t.expectEqualDeep(cancelled, try runAlter(&store, request));
+    _ = try sqlStatement(&store, 435, schema, "DELETE FROM items");
+    try t.expectEqual(.applied, (try sqlAlter(&store, 436, "ALTER TABLE items ADD COLUMN required BOOL NOT NULL")).state);
+    var current = try currentSchema(&store);
+    defer current.deinit();
+    try t.expectEqual(@as(usize, 3), current.schema.columns.len);
+    try t.expect(!current.schema.columns[2].nullable);
+    turn = try store.capture();
+    try t.expectEqual(@as(u64, 0), (try Head.load(&turn, 9)).rows);
+}
 fn cleanCandidate(store: *Store, result: Write.Status) !void {
     var turn = try store.capture();
     const head = try Head.load(&turn, 9);
@@ -33,6 +202,92 @@ fn cleanCandidate(store: *Store, result: Write.Status) !void {
         try t.expect(writes(turn) > 0);
     }
     return error.CleanupDidNotComplete;
+}
+test "large ALTER schema and rows resume without reading private Publications" {
+    var store: Store = .{};
+    defer store.deinit();
+    _ = try store.table();
+    var source_value: [6000]u8 = @splat('s');
+    var cells: [2]f.Types.Values.Cell = undefined;
+    const inserted = insertRequest(440, 1, &source_value, &cells);
+    for (0..100) |_| {
+        var turn = try store.capture();
+        const result = try Write.step(t.allocator, &turn, inserted);
+        try store.commit(turn);
+        if (result.state == .applied) break;
+    }
+    var default_value: [5000]u8 = @splat('d');
+    const request: Alter.Request = .{ .resource = 7, .principal = 1, .operation = 441, .schema = schema, .change = .{ .add = .{ .name = "payload", .type = .binary, .nullable = false, .default = .{ .value = .{ .atom = .{ .bytes = &default_value } } } } } };
+    try t.expectEqual(.applied, (try runAlter(&store, request)).state);
+    var turn = try store.capture();
+    const head = try Head.load(&turn, 9);
+    var current = try head.readSchema(t.allocator, &turn);
+    defer current.deinit();
+    var reader: Pages.Reader(*Turn) = .{ .pages = .{ .resource = 7, .object = 9 }, .source = &turn };
+    var found = (try (Data{ .schema = current.schema, .index = head.index }).get(t.allocator, &reader, inserted.change.insert.identity)).?;
+    defer found.deinit();
+    try t.expectEqualStrings(&source_value, found.row().cells[1].value.atom.bytes);
+    try t.expectEqualStrings(&default_value, found.row().cells[2].value.atom.bytes);
+    const publication: Pub = .{ .resource = 7, .domain = .table, .namespace = 9 };
+    try t.expectEqual(@as(u32, 0), (try publication.budget(&turn)).records);
+}
+fn alterAllocation(allocator: std.mem.Allocator) !void {
+    var store: Store = .{};
+    defer store.deinit();
+    _ = try store.table();
+    var cells: [2]f.Types.Values.Cell = undefined;
+    var turn = try store.capture();
+    _ = try Write.step(t.allocator, &turn, insertRequest(450, 1, "one", &cells));
+    try store.commit(turn);
+    const request: Alter.Request = .{ .resource = 7, .principal = 1, .operation = 451, .schema = schema, .change = .{ .add = .{ .name = "extra", .type = .int64 } } };
+    turn = try store.capture();
+    _ = Alter.step(allocator, &turn, request) catch |err| {
+        try t.expectEqual(@as(usize, 0), writes(turn));
+        return err;
+    };
+    try store.commit(turn);
+    // Finish the schema Publication so the injected allocation covers both old
+    // row decoding and the rewritten candidate, not just schema staging.
+    for (0..10) |_| {
+        turn = try store.capture();
+        _ = try Alter.step(t.allocator, &turn, request);
+        try store.commit(turn);
+        const ref = try request.reference();
+        const first = (try Write.status(&turn, ref)).?.first_record;
+        if (try turn.read(Pages.key(9, 'i', first)) != null) break;
+        if (try turn.read(Pages.key(9, 'r', first))) |value| {
+            if ((try Pub.Descriptor.decode(value)).state == .published) break;
+        }
+    }
+    turn = try store.capture();
+    _ = Alter.step(allocator, &turn, request) catch |err| {
+        try t.expectEqual(@as(usize, 0), writes(turn));
+        return err;
+    };
+}
+test "ALTER allocation failure and changed progress never publish a successor" {
+    try t.checkAllAllocationFailures(t.allocator, alterAllocation, .{});
+    var store: Store = .{};
+    defer store.deinit();
+    _ = try store.table();
+    const request: Alter.Request = .{ .resource = 7, .principal = 1, .operation = 452, .schema = schema, .change = .{ .add = .{ .name = "extra", .type = .int64 } } };
+    var turn = try store.capture();
+    const admitted = try Alter.step(t.allocator, &turn, request);
+    try store.commit(turn);
+    turn = try store.capture();
+    store.denied = true;
+    try t.expectError(error.AccessDenied, Alter.step(t.allocator, &turn, request));
+    try t.expectError(error.AccessDenied, turn.validate());
+    store.denied = false;
+    turn = try store.capture();
+    const location = Statement.Progress.key(admitted.reference);
+    var progress = try Statement.Progress.decode((try turn.read(location)).?);
+    progress.head_revision += 1;
+    try turn.write(location, try progress.encode());
+    try store.commit(turn);
+    turn = try store.capture();
+    try t.expectError(error.TableWriteBasisChanged, Alter.step(t.allocator, &turn, request));
+    try t.expectEqual(@as(usize, 0), writes(turn));
 }
 test "closed candidate cleanup releases quota without changing receipts or accepted roots" {
     var store: Store = .{};

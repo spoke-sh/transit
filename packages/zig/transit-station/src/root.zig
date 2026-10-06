@@ -12,6 +12,7 @@ pub const TableHead = @import("TableHead.zig");
 pub const TableWrite = @import("TableWrite.zig");
 pub const TableStatement = @import("TableStatement.zig");
 pub const TableCleanup = @import("TableCleanup.zig");
+pub const TableAlter = @import("TableAlter.zig");
 pub const TableMutation = @import("TableMutation.zig");
 pub const Publication = @import("Publication.zig");
 pub const PublicationReference = @import("PublicationReference.zig");

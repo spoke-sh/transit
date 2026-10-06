@@ -177,7 +177,9 @@ object, principal and operation (u64 each), request digest (32 bytes), admitted
 input, completed input, source head revision, first record, exclusive-end record,
 matched count and changed count (u64 each), state:u8 and rejection:u8. All value
 integers are little-endian. States are building=1, applied=2, rejected=3 and
-cancelled=4. Rejections are none=0, row exists=1 and row identity exists=2.
+cancelled=4. Rejections are none=0, row exists=1, row identity exists=2,
+NULL not allowed=3, missing required field=4, character limit exceeded=5,
+numeric overflow=6 and inexact conversion=7.
 Building has zero completion input; terminal input is nonzero and no earlier
 than admission. Counts are full-width, with changed no greater than matched;
 single-row publication returns at most one. Rejection/cancellation have zero
@@ -289,3 +291,40 @@ heads and ID floors never change. Completion is repeatable and performs no new
 writes. This removes current candidate storage; protected older provider roots
 retain their own bytes. It makes no physical-erasure promise and is not a collector
 for accepted historical versions or dropped Tables.
+
+## Schema evolution publication
+
+`TableAlter` accepts an exact original schema and one selected
+`TableEvolution.Change`. It derives the successor and its work classification
+itself; callers cannot assert that an arbitrary successor needs no validation.
+The request digest hashes `transit.table.alter.v1\0`, the raw shared definition,
+resource/principal/operation:u64le, and the full before/after schema fingerprints.
+It uses the same exact outcome identity and current-policy boundary as other
+Table work. Catalog rename/dependency decisions remain outside this helper.
+
+Admission freezes the live head and reserves the successor schema ID followed
+by one complete row-overlay interval. Schema bytes finish Publication staging
+before any later row read; private publication never bypasses committed cursor
+rules. Metadata changes retain the original data root. Validation-only changes
+read every original row and keep that root only if all pass. Physical changes
+build a new row/key index from the empty root, one stable row identity at a time.
+Defaults apply only to new columns; renamed/defaulted existing cells retain their
+values. Key type changes rebuild the key index with exact converted values.
+
+The shared `STG1` cursor records processed/rewritten rows, candidate root and
+expected head revision. Completed staging advances the cursor and nonreuse floor
+atomically. Concurrent DML/DDL sees the busy head. A successful final decision
+replaces schema and data references together, preserves total row count, clears
+pending work, saves the terminal receipt and removes progress. DDL terminal
+matched/changed counts are zero; its internal validation counts are not DML
+affected-row counts. No intermediate schema or rewritten prefix becomes live.
+
+Late NOT NULL, missing required values, character-length violations, overflow,
+inexact conversion or key conflicts save a precise rejection with the old live
+schema/data unchanged. Cancellation closes the same reservation. Both can use
+closed-candidate cleanup, including the unpublished schema. Allocation, source
+read and unexpected failures restore the private proposal without inventing a
+terminal result. Exact terminal reconciliation precedes current-head reads and
+retains the original failure even after its conflicting data changes. Old heads
+continue to decode against their own immutable schema and root under current
+read authority. New work bound to a superseded schema rejects instead of rebinding.
