@@ -5,6 +5,10 @@ through C11 construction views and immutable owned handles. These local codecs
 perform no I/O. Shared Zig owns type/domain validation, Table admission and
 execution semantics.
 
+Every exported C symbol is tied to the shared contract definition. Headers and
+libraries from different definitions fail at link/load time before reading public
+structures. Use matching artifacts for the C client, Station SDK and native ABI.
+
 Construct a `transit_logical_type_view` or `transit_logical_cell_view` and call
 `transit_logical_type_create` or `transit_logical_cell_create`. The call validates
 the complete tree and copies all pointed-to data. Its result is independent of

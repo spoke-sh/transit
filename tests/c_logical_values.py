@@ -96,6 +96,12 @@ def run(artifacts):
             source.unlink()
             subprocess.run([binary], cwd=target, env=environment, check=True, timeout=90)
             binaries[language] = binary
+        foreign = target / 'foreign.c'
+        symbol = 'transit_logical_type_create_' + '0' * 64
+        foreign.write_text(f'extern void {symbol}(void);\nint main(void) {{ {symbol}(); return 0; }}\n')
+        rejected = subprocess.run(['zig', 'cc', str(foreign), *flags, '-o', str(target / 'foreign')], env=environment, cwd=target, capture_output=True)
+        assert rejected.returncode != 0 and symbol.encode() in rejected.stderr, rejected.stderr
+        foreign.unlink()
         count = oracle(binaries['c'], target, environment)
         print(json.dumps(dict(profile='installed-c-cpp-logical-values', fixtures=count, artifacts=identities)))
 

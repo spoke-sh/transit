@@ -4,6 +4,12 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#ifndef transit_logical_type_create
+#error "Logical C symbols must be bound to the shared definition"
+#endif
+#ifndef transit_logical_cell_create
+#error "Logical C symbols must be bound to the shared definition"
+#endif
 
 static void ok(transit_sdk_error error) { assert(error.kind == TRANSIT_SDK_OK); }
 static transit_sdk_bytes text(const char *value) { return (transit_sdk_bytes){(const uint8_t *)value, strlen(value)}; }

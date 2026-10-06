@@ -11684,6 +11684,14 @@ task with freshly packaged guides. The affected Arrow fixture still passes all
 codec/package checks, not C/C++ general catalog, query, allocator-fault or final
 clean/performance qualification.
 
+The logical C exports also pass the generated definition-binding gate. The
+generator now discovers all public `transit_*` function prefixes, and the logical
+header includes Station's generated symbol mappings. The installed fixture
+requires those mappings at compilation and proves a foreign-definition logical
+symbol cannot link. Rebuilt installed C/C++ consumers and all 146 neutral fixtures
+pass (`table-c-logical-definition-installed1.log`); generated ABI/resources pass
+(`table-c-logical-definition-generate1.log`).
+
 ## Fuze logical type foundation
 
 The local `Types` profile has nine passing focused Zig tests, including 46
