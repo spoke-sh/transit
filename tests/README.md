@@ -16157,3 +16157,18 @@ flag. Invalid values require no allocation or source reads to format. The actual
 CLI compiles with its 65-binding limit reflected in failure guidance
 (`typed-table-point-preview1.log`); that run's separate native lifecycle schedule
 failed a new residual-predicate scan-count assertion and is not a passed proof.
+
+
+### Canonical comparison point routing
+
+The general Table SELECT adapter recognizes a canonical single comparison as
+well as a conjunction of qualified primary-key terms. The full native typed
+Table schedule passes (`typed-table-point-preview2.log`): a matching equality
+scans one row, an absent key scans zero, and a residual non-key predicate retains
+the declared finite scan while evaluating the complete expression. Console
+EXPLAIN reports the actual primary-key route. The schedule also executes the
+existing catalog lifecycle, owner-loss recovery, typed console diagnostics,
+exact lost-receipt resume/cancellation, metadata evolution and native bridge
+cases with the four-write and 256-byte native value bounds. The first run's new
+residual assertion incorrectly required key routing for an unqualified predicate;
+that failed assertion is retained in `typed-table-point-preview1.log`.

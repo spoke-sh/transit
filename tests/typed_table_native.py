@@ -212,6 +212,12 @@ def run(node, proof, host, cli, station_host, *arguments):
             assert selected['complete'] and selected['rows'] == data['rows'], selected
             point = call('select', 'SELECT name, salary FROM people WHERE id=2')
             assert point['scanned'] == 1 and point['rows'][0][0]['cell']['value']['atom']['utf8'] == 'Grace', point
+            missing = call('select', 'SELECT * FROM people WHERE id=999')
+            assert missing['scanned'] == 0 and missing['rows'] == [], missing
+            filtered_point = call('select', "SELECT * FROM people WHERE id=2 AND name='Ada'")
+            # Residual predicates retain the declared scan profile. Finding a
+            # key term does not discard another eagerly evaluated atom.
+            assert filtered_point['scanned'] == 2 and filtered_point['rows'] == [], filtered_point
             assert call('select', 'SELECT COUNT(salary) FROM people')['rows'][0][0]['cell']['value']['atom']['unsigned'] == '2'
             assert call('select', 'SELECT * FROM people LIMIT 0')['rows'] == []
             call('select', 'SELECT * FROM people', 1, 128, 100000, fail=True, expected_error='QueryPageBudget')

@@ -42,8 +42,17 @@ pub fn open(allocator: std.mem.Allocator, client: *c.TableClient, text: []const 
     var fields: [f.TableSchema.max_columns]f.Types.Field = undefined;
     var compiled = try f.TableSelect.compile(allocator, text, definition.metadata.name.slice(), try definition.schema.schema.rowType(&fields), try scan.fingerprint(), location);
     errdefer compiled.deinit();
-    if (compiled.plan.predicate == .program) {
-        const qualification: f.TableDml.Plan = .{ .name = compiled.name, .schema = definition.schema.schema, .action = .delete, .predicate = compiled.plan.predicate.program };
+    var single: [1]f.LogicalPredicate.Program.Instruction = undefined;
+    const program: ?f.LogicalPredicate.Program = switch (compiled.plan.predicate) {
+        .program => |value| value,
+        .compare => |value| blk: {
+            single[0] = .{ .atom = .{ .compare = value } };
+            break :blk .{ .instructions = &single };
+        },
+        else => null,
+    };
+    if (program) |predicate| {
+        const qualification: f.TableDml.Plan = .{ .name = compiled.name, .schema = definition.schema.schema, .action = .delete, .predicate = predicate };
         var keys: [f.TableSchema.max_columns]f.Types.Values.Cell = undefined;
         if (try qualification.primaryKeyEquality(&keys)) |key| scan.point = try compiled.arena.allocator().dupe(f.Types.Values.Cell, key);
     }
