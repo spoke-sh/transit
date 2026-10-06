@@ -16183,3 +16183,19 @@ and valid intervals remain typed; malformed intervals name the original failing
 component. Preview scratch is bounded to 64 bytes and reads no additional source
 state. The preceding console run exposed the quoted-number difference
 (`console-logical-kv2.log`) and was not a passed console qualification.
+
+
+### Console logical-value recovery qualification
+
+The native KV console schedule passes with the generalized logical cells and
+parameter atoms (`console-logical-kv3.log`, 480.18 seconds, ReleaseSafe CLI).
+It exercises saved exact upload/resume after changed or deleted parameter files,
+no-send binding diagnostics, command/file/stdin stopping, terminal completion and
+history, uncertain-send and streamed-prefix Ctrl-C races, prompt reuse, batch
+exit 130, and explicit private-CA TLS with trust/hostname rejection. Terminal
+cold/warm measurements were 53.69/16.01 ms with a 19,980,288-byte RSS high-water;
+these are fixture observations, not matched performance controls. The separate
+offline history proof passes (`console-logical-history1.log`) with a valid KV
+configuration and a network trap. Native Table lifecycle coverage remains in the
+Table schedule above; this console run does not qualify the remaining Table
+interactive, Board/browser or deployed reactive consumers.

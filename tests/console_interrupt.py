@@ -58,7 +58,7 @@ def check(binary, path, root, kind, invoke, fault):
         terminal.send('SELECT COUNT(*) FROM items;\r')
         page = terminal.read(timeout=420)
         assert page['complete_coverage']
-        assert page['cells'][0][0]['value']['uint64'] in ('12', '41')
+        assert page['cells'][0][0]['value']['atom']['unsigned'] in ('12', '41')
         # Result output precedes the final recovery checkpoint. Prompt redraws
         # while typing can also satisfy expect() before execution has finished.
         # A subsequent local command acknowledges completion without native I/O.

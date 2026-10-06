@@ -68,8 +68,8 @@ def check(binary, root, kind, invoke, expected, fault, config, tls=False):
         assert fault['console_sends'] == before
         for statement, fragments in (
             ('SELECT;', (b'[syntax]', b'line 1, column 7', b'^--- error here')),
-            ('INSERT INTO items VALUES (1, 100);', (b'[syntax]', b'explicit column names')),
-            ('INSERT INTO items (id, value) VALUES (1, 100);', (b'no writer is configured', b'.help INSERT')),
+            ('INSERT INTO items VALUES (1, 100);', (b'no Table catalog is configured', b'.help INSERT')),
+            ('INSERT INTO items (id, value) VALUES (1, 100);', (b'no Table catalog is configured', b'.help INSERT')),
             ('SHOW SOURCES;', (b'[grammar_only]', b'SHOW TABLES')),
         ):
             invalid = run(args=('-c', statement), expected_code=1)
@@ -101,9 +101,9 @@ def check(binary, root, kind, invoke, expected, fault, config, tls=False):
         assert fault['retry'], 'resume did not retry the original signed request'
         pages = [json.loads(line) for line in result.stdout.splitlines()]
         assert pages and pages[-1]['complete_coverage']
-        assert all(page['manifest']['basis']['kind'] == kind for page in pages)
+        assert all(page['manifest']['basis']['cut']['kind'] == kind for page in pages)
         rows = [row for page in pages for row in page['cells']]
-        assert [row[0]['value']['utf8'] for row in rows] == [row['value']['value'] for row in expected[:33]]
+        assert [row[0]['value']['atom']['utf8'] for row in rows] == [row['value']['value'] for row in expected[:33]]
         assert json.loads(recovery.read_text())['namespace'] == query_id
         assert json.loads(recovery.read_text())['complete']
 
@@ -126,8 +126,8 @@ def check(binary, root, kind, invoke, expected, fault, config, tls=False):
             diagnostic_config.write_text(json.dumps(dict(config, execution=mode)))
             for template, bindings, fragments in (
                 ('SELECT * FROM items LIMIT $1', [], (b'Expected bindings: 1; supplied: 0',)),
-                ('SELECT * FROM items LIMIT $1', [{'int64': '2'}], (b'Parameter: $1', b'Expected uint64; supplied int64', b'Value: 2')),
-                ('SELECT * FROM items LIMIT $2', [{'uint64': '1'}, {'uint64': '2'}], (b'Missing parameter: $1', b'Parameter: $2')),
+                ('SELECT * FROM items LIMIT $1', [{'signed': '2'}], (b'Parameter: $1', b'Expected uint64; supplied signed', b'Value: 2')),
+                ('SELECT * FROM items LIMIT $2', [{'unsigned': '1'}, {'unsigned': '2'}], (b'Missing parameter: $1', b'Parameter: $2')),
             ):
                 parameter_file.write_text(json.dumps(bindings))
                 invalid = run(args=('-c', template, '--parameters', str(parameter_file)), selected=diagnostic_config, expected_code=1)
@@ -140,7 +140,7 @@ def check(binary, root, kind, invoke, expected, fault, config, tls=False):
         for query_file in (False, True):
             parameter_file = root / 'console query input.json'
             template = sql + ' FROM items LIMIT $1'
-            bindings = [{'uint64': '33'}]
+            bindings = [{'unsigned': '33'}]
             parameter_file.write_text(json.dumps({'sql': template, 'parameters': bindings} if query_file else bindings))
             data = ('.execute ' + json.dumps(str(parameter_file)) + '\n').encode() if query_file else b''
             arguments = ('--format', 'json') if query_file else ('--format', 'json', '-c', template, '--parameters', str(parameter_file))
@@ -150,7 +150,7 @@ def check(binary, root, kind, invoke, expected, fault, config, tls=False):
             frozen = recovery.read_bytes()
             retained = json.loads(frozen)
             assert retained['pending']['signed'] == json.loads(fault['lost'][0])
-            parameter_file.write_text(json.dumps({'sql': template, 'parameters': [{'uint64': '1'}]} if query_file else [{'uint64': '1'}]))
+            parameter_file.write_text(json.dumps({'sql': template, 'parameters': [{'unsigned': '1'}]} if query_file else [{'unsigned': '1'}]))
             before = fault['console_sends']
             run(data, args=arguments, expected_code=1)
             assert fault['console_sends'] == before and recovery.read_bytes() == frozen
@@ -159,12 +159,12 @@ def check(binary, root, kind, invoke, expected, fault, config, tls=False):
             pages = [json.loads(line) for line in resumed.stdout.splitlines()]
             assert pages[-1]['complete_coverage'] and fault['retry']
             rows = [row for page in pages for row in page['cells']]
-            assert [row[0]['value']['utf8'] for row in rows] == [row['value']['value'] for row in expected[:33]]
+            assert [row[0]['value']['atom']['utf8'] for row in rows] == [row['value']['value'] for row in expected[:33]]
             assert json.loads(recovery.read_text())['namespace'] == retained['namespace']
         print(f'Transit console {kind}: flag/file bindings preserve saved query identity after changed/deleted inputs and uncertain upload.', flush=True)
         count_sql = 'SELECT COUNT(*) FROM items'
         result = run(args=('-c', count_sql, '--format', 'json'))
-        assert json.loads(result.stdout)['cells'][0][0]['value']['uint64'] in ('12', '41')
+        assert json.loads(result.stdout)['cells'][0][0]['value']['atom']['unsigned'] in ('12', '41')
         next_id = json.loads(recovery.read_text())['namespace']
         assert next_id != query_id
         script = root/'queries.sql'
