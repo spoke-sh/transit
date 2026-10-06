@@ -26,6 +26,7 @@ pub const TableEvolution = @import("TableEvolution.zig");
 pub const SqlTypes = @import("SqlTypes.zig");
 pub const TableDdl = @import("TableDdl.zig");
 pub const TableDml = @import("TableDml.zig");
+pub const TableSelect = @import("TableSelect.zig");
 pub const TableDmlCodec = @import("TableDmlCodec.zig");
 pub const Declaration = @import("Declaration.zig");
 test {
@@ -35,6 +36,7 @@ test {
     _ = SqlTypes;
     _ = TableDdl;
     _ = TableDml;
+    _ = TableSelect;
     _ = @import("table_dml_codec_test.zig");
     _ = SqlInput;
     _ = SqlDiagnostic;

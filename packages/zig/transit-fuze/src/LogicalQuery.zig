@@ -182,7 +182,8 @@ pub const Failure = struct {
         return self.expected[0..self.expected_len];
     }
 };
-pub fn Execution(comptime Scan: type) type {
+pub const Verification = enum { full_source, selected_prefix };
+pub fn Execution(comptime Scan: type, comptime verification: Verification) type {
     return struct {
         const Self = @This();
         scan: Scan,
@@ -210,7 +211,7 @@ pub fn Execution(comptime Scan: type) type {
             if (self.complete) return null;
             errdefer self.failed = true;
             if (!std.mem.eql(u8, &try self.plan.fingerprint(), &self.fingerprint)) return error.SourceChanged;
-            while (try self.scan.next()) |owned| {
+            while (if (verification == .selected_prefix and self.atLimit()) null else try self.scan.next()) |owned| {
                 var row = owned;
                 errdefer row.deinit();
                 self.scanned = try std.math.add(u64, self.scanned, 1);
@@ -247,7 +248,7 @@ pub fn Execution(comptime Scan: type) type {
                 }
                 row.deinit();
             }
-            if (!self.scan.complete) return error.IncompleteSource;
+            if (!self.scan.complete and !(verification == .selected_prefix and self.atLimit())) return error.IncompleteSource;
             if (self.plan.aggregate != .rows) {
                 var arena: std.heap.ArenaAllocator = .init(self.scan.allocator);
                 errdefer arena.deinit();
@@ -264,6 +265,9 @@ pub fn Execution(comptime Scan: type) type {
             }
             self.complete = true;
             return null;
+        }
+        fn atLimit(self: *const Self) bool {
+            return if (self.plan.limit) |limit| self.selected == limit else false;
         }
         fn capture(self: *Self, operation: @FieldType(Failure, "operation"), cells: []const values.Cell, column: u8, instruction: ?u8) void {
             if (self.failure != null or column >= self.plan.schema.structure.len or column >= cells.len) return;

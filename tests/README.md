@@ -10981,6 +10981,18 @@ remain unchanged. This checkpoint enables reuse of the same operators by typed
 Tables; it does not yet establish a native Table SELECT adapter.
 Logs: `logical-query-extract.log` and `logical-query-file-proof.log`.
 
+The general Table SELECT compiler passes **201/201 Fuze tests** and the semantic
+mapping gate (`table-select-final.log`, `table-select-mappings2.log`). Cases cover
+all 128 explicit/wildcard column positions, 255-byte names, exact decimal/date
+predicates shared with DML, nested projection, aliases, finite aggregates over
+limited inputs, complete-input rejection and allocation-failure ownership.
+Selected-prefix execution stops at LIMIT without claiming tail exhaustion;
+complete-source execution still propagates a tail read failure. Development runs
+caught obsolete Zig repetition syntax, an extra semicolon, a predicate-module
+name collision and an unmapped LIMIT cause; the final tree preserves the existing
+syntax/range diagnostic causes. This remains compiler/operator evidence, not
+native Table SQL reads, installed callers or relational join qualification.
+
 ## Fuze logical type foundation
 
 The local `Types` profile has nine passing focused Zig tests, including 46

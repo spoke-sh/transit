@@ -104,7 +104,7 @@ fn namesView(names: lowering.OutputNames, output: *[@import("Unified.zig").max_c
     return output[0..width];
 }
 pub const Failure = logical.Failure;
-pub const Execution = logical.Execution(source.Scan);
+pub const Execution = logical.Execution(source.Scan, .full_source);
 pub fn execute(allocator: std.mem.Allocator, binding: *const source.Binding, sources: []const source.Source, plan: Plan) !Execution {
     try plan.validate();
     if (!std.mem.eql(u8, &plan.source_basis, &binding.digest) or !try plan.schema.eql(binding.schema.type)) return error.SourceChanged;

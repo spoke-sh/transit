@@ -11,7 +11,8 @@
         "packages/zig/transit-fuze/src/TableDdl.zig",
         "packages/zig/transit-fuze/src/TableSchema.zig",
         "packages/zig/transit-fuze/src/TableEvolution.zig",
-        "packages/zig/transit-fuze/src/TableDml.zig"
+        "packages/zig/transit-fuze/src/TableDml.zig",
+        "packages/zig/transit-fuze/src/TableSelect.zig"
       ],
       "exclude": [
         "packages/zig/transit-fuze/src/SqlCodes.zig",

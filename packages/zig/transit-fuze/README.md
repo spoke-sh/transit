@@ -37,6 +37,12 @@ constant/default UPDATE assignments and DELETE predicates using stable column
 IDs. It performs no source resolution or publication; statement owners retain
 authorization, frozen selection, atomic completion and recovery obligations.
 
+`TableSelect` compiles [general Table SELECT](../../../contracts/TABLE_QUERY_V1.md)
+over up to 128 logical columns, with typed predicates, aliases, limits and finite
+COUNT/checked int64 SUM. It shares typed literals and predicate lowering with
+Table DML and row execution with file queries. The supplied schema and source
+binding remain the caller's responsibility; compilation does not acquire access.
+
 `Type.validateDiagnostic(limits, &failure)` retains the first recursive descriptor
 rejection in an owned `Types.Diagnostic`. `LogicalJson.decodeTypeContext` carries
 that record through JSON descriptor decoding alongside the separate lexical
