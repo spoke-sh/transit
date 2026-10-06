@@ -1,496 +1,285 @@
-//! Console composition of the existing signed write clients. Persist before
-//! sending; admission, processed input and terminal outcome remain distinct.
+//! General catalog writes with immutable saved intent and exact native recovery.
 const std = @import("std");
 const Timing = @import("Timing.zig");
 const q = @import("transit_query");
 const c = @import("transit_catalog");
 const Console = @import("Console.zig").Console;
 const Signals = @import("Signals.zig");
-const WriteDiagnostic = @import("WriteDiagnostic.zig");
-const g = q.protocol.Growth;
+const Recovery = @import("TableRecovery.zig");
 const Self = @This();
-pub const Config = struct {
-    recovery_file: []const u8,
-    table: ?struct { name: []const u8, connection: q.TableMutationClient.Connection } = null,
-    catalog: ?c.Client.Connection = null,
-};
-const Mutation = struct {
-    namespace: u64,
-    request: q.TableMutationRequest,
-    pending: ?q.TableMutationClient.Prepared,
-    input: ?u64,
-};
-const Creation = struct { request: c.Model.CreateTable, pending: c.Client.Prepared, input: ?u64 };
-const Operation = union(enum) { mutation: Mutation, creation: Creation };
-const Record = struct {
-    version: u8,
-    definition: g.Definition,
-    key: [32]u8,
-    table: ?q.TableMutationClient.Connection,
-    name: ?q.fuze.model.Name,
-    catalog: ?c.Client.Connection,
-    operation: ?Operation,
-    complete: bool,
-    cancelling: bool,
-};
+pub const Config = struct { recovery_file: []const u8, catalog: c.TableClient.Connection };
 io: std.Io,
 allocator: std.mem.Allocator,
-path: []const u8,
-lock: std.Io.File,
-record: Record,
-mutation: ?q.TableMutationClient,
-catalog: ?c.Client,
-failed: bool = false,
+catalog: c.TableClient,
+storage: Recovery,
 read_deadline: ?i64 = null,
 
 pub fn validateConfig(config: Config, connection: q.UnifiedClient.Connection) !void {
-    if (config.recovery_file.len == 0 or (config.table == null and config.catalog == null)) return error.InvalidWriteConfiguration;
-    if (config.table) |table| {
-        _ = try q.fuze.model.Name.init(table.name);
-        try table.connection.validate();
-        if (table.connection.realm != connection.realm or table.connection.principal != connection.principal) return error.InvalidWriteConfiguration;
-    }
-    if (config.catalog) |catalog| {
-        try catalog.validate();
-        if (catalog.scope.realm != connection.realm or catalog.principal != connection.principal) return error.InvalidWriteConfiguration;
-    }
+    if (config.recovery_file.len == 0) return error.InvalidWriteConfiguration;
+    try config.catalog.validate();
+    if (config.catalog.scope.realm != connection.realm or config.catalog.principal != connection.principal) return error.InvalidWriteConfiguration;
 }
 pub fn open(init: std.process.Init, path: []const u8, config: Config, client: *q.UnifiedClient) !Self {
-    const lock_path = try std.fmt.allocPrint(init.gpa, "{s}.lock", .{path});
-    defer init.gpa.free(lock_path);
-    const lock = try std.Io.Dir.cwd().createFile(init.io, lock_path, .{ .truncate = false, .permissions = .fromMode(0o600) });
-    errdefer lock.close(init.io);
-    if (!try lock.tryLock(init.io, .exclusive)) return error.ConsoleRecoveryInUse;
-    var self: Self = .{
-        .io = init.io,
-        .allocator = init.gpa,
-        .path = path,
-        .lock = lock,
-        .mutation = if (config.table) |table| .{ .wire = client.wire, .connection = table.connection, .key = client.key } else null,
-        .catalog = if (config.catalog) |catalog| .{ .transport = client.wire, .connection = catalog, .key = client.key } else null,
-        .record = .{ .version = 1, .definition = g.current_definition, .key = client.key.public_key.toBytes(), .table = if (config.table) |table| table.connection else null, .name = if (config.table) |table| try q.fuze.model.Name.init(table.name) else null, .catalog = config.catalog, .operation = null, .complete = false, .cancelling = false },
-    };
-    const bytes = std.Io.Dir.cwd().readFileAlloc(init.io, path, init.gpa, .limited(32768)) catch |err| {
-        if (err == error.FileNotFound) return self;
-        return err;
-    };
-    defer {
-        std.crypto.secureZero(u8, bytes);
-        init.gpa.free(bytes);
-    }
-    const parsed = try std.json.parseFromSlice(Record, init.gpa, bytes, .{});
-    defer parsed.deinit();
-    const record = parsed.value;
-    if (record.version != 1 or !std.meta.eql(record.definition, g.current_definition) or !std.meta.eql(record.key, self.record.key) or !std.meta.eql(record.table, self.record.table) or !std.meta.eql(record.name, self.record.name) or !std.meta.eql(record.catalog, self.record.catalog)) return error.ConsoleRecoveryIdentityMismatch;
-    if (record.operation) |operation| switch (operation) {
-        .mutation => |value| {
-            const writer = if (self.mutation) |*writer| writer else return error.InvalidConsoleRecovery;
-            try value.request.validate();
-            const target = writer.connection;
-            if (value.request.realm != target.realm or value.request.writer != target.writer or value.request.resource != target.resource or value.request.table != target.table) return error.InvalidConsoleRecovery;
-            const reference = try value.request.reference(value.namespace);
-            if (value.input == 0 or (value.input != null and value.pending == null)) return error.InvalidConsoleRecovery;
-            if (value.pending) |pending| {
-                if (!std.meta.eql(pending.definition, g.current_definition)) return error.InvalidConsoleRecovery;
-                try writer.validate(pending);
-                const frame = try q.station.Frame.decode(pending.signed.request.command.send.value);
-                const command = try q.TableMutationRecords.Command.decode(&frame.payload);
-                const saved_reference = switch (command) {
-                    .execute => |v| try v.request.reference(v.namespace),
-                    .begin => |v| v.reference,
-                    .part => |v| v.reference,
-                    .seal, .apply, .cancel => |v| v,
-                };
-                if (!std.meta.eql(reference, saved_reference)) return error.InvalidConsoleRecovery;
-            }
-        },
-        .creation => |value| {
-            const catalog = if (self.catalog) |*catalog| catalog else return error.InvalidConsoleRecovery;
-            if (value.input == 0 or record.cancelling or !std.meta.eql(value.pending.definition, g.current_definition)) return error.InvalidConsoleRecovery;
-            try catalog.validate(value.pending);
-            if (!std.meta.eql(try value.pending.request(), value.request)) return error.InvalidConsoleRecovery;
-        },
-    } else if (record.complete or record.cancelling) return error.InvalidConsoleRecovery;
-    // Native types have convenience defaults. Saved recovery cannot use them:
-    // require every nested compatibility field and the exact canonical shape.
-    const canonical = try std.json.Stringify.valueAlloc(init.gpa, record, .{});
-    defer {
-        std.crypto.secureZero(u8, canonical);
-        init.gpa.free(canonical);
-    }
-    if (!std.mem.eql(u8, bytes, canonical)) return error.InvalidConsoleRecovery;
-    self.record = record;
-    return self;
+    var catalog: c.TableClient = .{ .transport = client.wire, .connection = config.catalog, .key = client.key };
+    return .{ .io = init.io, .allocator = init.gpa, .catalog = catalog, .storage = try Recovery.open(init.io, init.gpa, path, &catalog) };
 }
 pub fn close(self: *Self) void {
-    self.lock.close(self.io);
-    if (self.mutation) |*client| std.crypto.secureZero(u8, std.mem.asBytes(&client.key));
-    if (self.catalog) |*client| std.crypto.secureZero(u8, std.mem.asBytes(&client.key));
-    std.crypto.secureZero(u8, std.mem.asBytes(&self.record));
+    self.storage.close();
+    std.crypto.secureZero(u8, std.mem.asBytes(&self.catalog.key));
 }
 pub fn unresolved(self: *const Self) bool {
-    return self.record.operation != null and !self.record.complete;
+    return self.storage.unresolved();
 }
-fn save(self: *Self) !void {
-    if (self.failed) return error.ConsoleRecoveryWriteFailed;
-    errdefer self.failed = true;
-    const bytes = try std.json.Stringify.valueAlloc(self.allocator, self.record, .{});
-    defer {
-        std.crypto.secureZero(u8, bytes);
-        self.allocator.free(bytes);
-    }
-    if (bytes.len > 32768) return error.ConsoleRecoveryTooLarge;
-    const parent = try std.Io.Dir.cwd().openDir(self.io, std.fs.path.dirname(self.path) orelse ".", .{ .iterate = true });
-    defer parent.close(self.io);
-    var file = try parent.createFileAtomic(self.io, std.fs.path.basename(self.path), .{ .replace = true, .permissions = .fromMode(0o600) });
-    defer file.deinit(self.io);
-    try file.file.writeStreamingAll(self.io, bytes);
-    try file.file.sync(self.io);
-    try file.replace(self.io);
-    if (std.c.fsync(parent.handle) != 0) return error.ConsoleRecoverySyncFailed;
-}
-fn saveTimed(self: *Self, timing: *Timing) !void {
-    const previous = timing.phase;
-    timing.enter(.persist);
-    defer timing.enter(previous);
-    try self.save();
+fn save(self: *Self, timing: ?*Timing) !void {
+    const previous = if (timing) |clock| clock.phase else null;
+    if (timing) |clock| clock.enter(.persist);
+    defer if (timing) |clock| clock.enter(previous.?);
+    try self.storage.save(&self.catalog);
 }
 fn identity(io: std.Io) !u64 {
     var bytes: [8]u8 = undefined;
     try io.randomSecure(&bytes);
     return @max(1, std.mem.readInt(u64, &bytes, .little));
 }
-/// Observe this writer's authorized schema without preparing or replacing work.
 pub fn describe(self: *Self, console: *Console) !void {
-    const writer = if (self.mutation) |*client| client else return error.ConsoleWriterRequired;
-    self.read_deadline = std.Io.Clock.boot.now(self.io).toMilliseconds() + 300000;
-    defer self.read_deadline = null;
-    const description = try self.readOnly(q.TableMutationClient.describe, .{writer});
-    const schema = description.table.schema;
-    if (console.session.format == .json) return console.json(.{ .writer_schema = .{
-        .name = self.record.name.?.slice(),
-        .connection = writer.connection,
-        .resource_revision = description.resource_revision,
-        .schema = schema,
-    } });
-    try console.out.print("Configured Table writer: {s}\nTable: {d}; resource: {d}; metadata revision: {d}\n{s}: int64 NOT NULL (primary key)\n{s}: {s} NULL\n", .{
-        self.record.name.?.slice(), writer.connection.table, writer.connection.resource,  description.resource_revision,
-        schema.names[0].slice(),    schema.names[1].slice(), @tagName(schema.value_type),
-    });
+    return @import("ConsoleCatalog.zig").inspect(console, &self.catalog, null);
 }
 pub fn start(self: *Self, console: *Console, text: []const u8, route: q.fuze.SqlDiagnostic.Route) !void {
     if (self.unresolved() or console.session.pending != null or console.session.input != null or (console.session.namespace != null and !console.session.complete)) return error.UnresolvedSubmission;
     console.write_preparing = true;
-    var timing = @import("Timing.zig").start(console.init, console.preferences.timing);
+    var timing = Timing.start(console.init, console.preferences.timing);
     defer console.finishTiming(&timing);
     self.read_deadline = std.Io.Clock.boot.now(self.io).toMilliseconds() + 300000;
     defer self.read_deadline = null;
-    timing.enter(.prepare);
-    const operation: Operation = switch (route) {
-        .mutation => mutation: {
-            const writer = if (self.mutation) |*client| client else return error.ConsoleWriterRequired;
-            const description = try self.readOnly(q.TableMutationClient.describe, .{writer});
-            timing.enter(.compile);
-            var binding: q.fuze.Sql.Binding = .{};
-            const request = q.TableMutationRequest.fromSqlDiagnostic(writer.connection.realm, writer.connection.writer, description.table, self.record.name.?, text, &binding) catch |err| {
-                console.diagnostic.sql = q.fuze.SqlDiagnostic.bound(text, err, true, binding);
-                if (console.diagnostic.sql) |*detail| {
-                    detail.route = .mutation;
-                    if (err == error.UnknownColumn or err == error.UnknownQualifier or err == error.UnknownSource) detail.hint = "Use .schema writer to inspect the configured Table writer's authorized name, columns and types.";
-                }
-                return err;
-            };
-            if (!description.policy.permits(request.plan.operation)) return error.MutationDenied;
-            timing.enter(.prepare);
-            const namespace = try identity(self.io);
-            const pending = try self.readOnly(q.TableMutationClient.prepareNew, .{ writer, namespace, request });
-            break :mutation .{ .mutation = .{ .namespace = namespace, .request = request, .pending = pending, .input = null } };
-        },
-        .declaration => creation: {
-            const catalog = if (self.catalog) |*client| client else return error.ConsoleCatalogRequired;
-            timing.enter(.compile);
-            const request = c.Model.CreateTable.compile(catalog.connection.scope, try identity(self.io), try identity(self.io), @intCast((try identity(self.io) % std.math.maxInt(u32)) + 1), text) catch |err| return console.sqlFailure(text, err);
-            timing.enter(.prepare);
-            const pending = try self.readOnly(c.Client.prepareCreate, .{ catalog, request });
-            break :creation .{ .creation = .{ .request = request, .pending = pending, .input = null } };
-        },
-        else => unreachable,
+    timing.enter(.compile);
+    var arena: std.heap.ArenaAllocator = .init(self.allocator);
+    defer arena.deinit();
+    var location: q.fuze.Sql.Location = .{};
+    const ddl = if (route == .declaration) q.fuze.TableDdl.target(arena.allocator(), text) catch |err| {
+        console.diagnostic.sql = q.fuze.SqlDiagnostic.tableDdl(text, err, location);
+        return err;
+    } else null;
+    const ids: c.TableClient.CompileIdentity = .{ .operation = try identity(self.io), .namespace = try identity(self.io), .create_object = if (ddl != null and ddl.?.kind == .create) try identity(self.io) else null };
+    var intent = self.readOnly(c.TableClient.compile, .{ &self.catalog, self.allocator, text, ids, &location }) catch |err| {
+        console.diagnostic.sql = if (route == .declaration) q.fuze.SqlDiagnostic.tableDdl(text, err, location) else q.fuze.SqlDiagnostic.tableDml(text, err, location);
+        return err;
     };
+    defer intent.deinit();
     if (Signals.interrupted()) return error.ConsoleInterrupted;
-    self.record.operation = operation;
-    self.record.complete = false;
-    self.record.cancelling = false;
-    try self.saveTimed(&timing);
+    timing.enter(.prepare);
+    // A preparation denial has no transport uncertainty and must not install
+    // active recovery work. Persist the first exact command before dispatch.
+    const first = try self.readOnly(c.TableClient.next, .{ &self.catalog, &intent });
+    timing.enter(.persist);
+    try self.storage.install(&self.catalog, &intent);
+    if (first == .send) {
+        self.storage.record.pending = first.send;
+        try self.save(&timing);
+    }
     console.write_preparing = false;
-    try self.advance(console, &timing);
+    try self.advance(console, &timing, false);
 }
 fn check(self: *Self, deadline: i64) !void {
-    if (self.failed) return error.ConsoleRecoveryWriteFailed;
+    if (self.storage.failed) return error.ConsoleRecoveryWriteFailed;
     if (Signals.interrupted()) return error.ConsoleInterrupted;
     if (std.Io.Clock.boot.now(self.io).toMilliseconds() >= deadline) return error.WriteWaitTimedOut;
 }
-// Only current reads/local preparation belong here, never submit, persistence
-// or rendering. An acknowledged input can be observed again without replaying it.
+// Only current reads/local preparation belong here. Captured query scans,
+// native sends, persistence and rendering must never enter this retry loop.
 fn readOnly(self: *Self, comptime read: anytype, args: std.meta.ArgsTuple(@TypeOf(read))) anyerror!@typeInfo(@typeInfo(@TypeOf(read)).@"fn".return_type.?).error_union.payload {
     while (true) {
         if (self.read_deadline) |deadline| try self.check(deadline);
         return @call(.auto, read, args) catch |err| {
-            if (self.read_deadline == null or !q.wire.Client.unavailable(err)) return err;
-            try self.io.sleep(.fromMilliseconds(50), .awake);
+            const stale = (err == error.Rejected or err == error.Conflict) and self.catalog.transport.last_rejection == .StaleStateResource;
+            if (self.read_deadline == null or (!q.wire.Client.unavailable(err) and !stale)) return err;
+            try self.io.sleep(.fromMilliseconds(if (stale) 1 else 50), .awake);
             continue;
         };
     }
 }
-test "write observation retries only unavailable reads within its original deadline" {
-    const Probe = struct {
-        calls: usize = 0,
-        failure: anyerror = error.AuthorityUnavailable,
-        fn read(self: *@This()) anyerror!u8 {
-            self.calls += 1;
-            if (self.calls == 1) return self.failure;
-            return 42;
-        }
-    };
-    var self: Self = .{
-        .io = std.testing.io,
-        .allocator = std.testing.allocator,
-        .path = "",
-        .lock = undefined,
-        .record = undefined,
-        .mutation = null,
-        .catalog = null,
-        .read_deadline = std.math.maxInt(i64),
-    };
-    var probe: Probe = .{};
-    try std.testing.expectEqual(@as(u8, 42), try self.readOnly(Probe.read, .{&probe}));
-    try std.testing.expectEqual(@as(usize, 2), probe.calls);
-    for ([_]anyerror{ error.AccessDenied, error.InvalidAuthorityResponse, error.Conflict }) |failure| {
-        probe = .{ .failure = failure };
-        try std.testing.expectError(failure, self.readOnly(Probe.read, .{&probe}));
-        try std.testing.expectEqual(@as(usize, 1), probe.calls);
-    }
-    self.read_deadline = 0;
-    probe = .{};
-    try std.testing.expectError(error.WriteWaitTimedOut, self.readOnly(Probe.read, .{&probe}));
-    try std.testing.expectEqual(@as(usize, 0), probe.calls);
-    self.read_deadline = null;
-    try std.testing.expectError(error.AuthorityUnavailable, self.readOnly(Probe.read, .{&probe}));
-    try std.testing.expectEqual(@as(usize, 1), probe.calls);
-}
 pub fn recover(self: *Self, console: *Console) !void {
-    var timing = @import("Timing.zig").start(console.init, console.preferences.timing);
+    var timing = Timing.start(console.init, console.preferences.timing);
     defer console.finishTiming(&timing);
-    try self.advance(console, &timing);
+    if (self.storage.record.complete) {
+        _ = try self.statusTimed(console, &timing);
+        return;
+    }
+    try self.advance(console, &timing, true);
 }
-fn advance(self: *Self, console: *Console, timing: *Timing) !void {
+fn advance(self: *Self, console: *Console, timing: *Timing, resuming: bool) !void {
+    const work = if (self.storage.intent) |*value| value else return error.NoSavedWrite;
+    const record = &self.storage.record;
     const deadline = self.read_deadline orelse std.Io.Clock.boot.now(self.io).toMilliseconds() + 300000;
-    if (self.record.operation == null) return error.NoSavedWrite;
     self.read_deadline = deadline;
     defer self.read_deadline = null;
+    var resume_once = resuming;
     while (true) {
         try self.check(deadline);
-        switch (self.record.operation.?) {
-            .mutation => |*value| {
-                const writer = &self.mutation.?;
-                if (value.pending) |pending| {
-                    if (value.input == null) {
-                        timing.enter(.submit);
-                        value.input = (try writer.submit(pending)).position;
-                        try self.saveTimed(timing);
-                    }
-                    timing.enter(.wait);
-                    const progress = try self.readOnly(q.TableMutationClient.waitProgress, .{ writer, pending, value.input.? });
-                    if (progress == .pending) continue;
-                    timing.enter(.fetch);
-                    const current = progress.processed.status;
-                    if (progress.processed.disposition) |reason| {
-                        // Preserve exact input evidence for .status and cancellation.
-                        if (current == null or current.?.terminal() or !self.record.cancelling) {
-                            self.record.complete = current == null or current.?.terminal();
-                            try self.saveTimed(timing);
-                            console.diagnostic.write = try WriteDiagnostic.input(reason, !self.record.complete);
-                            if (console.session.format == .json) try self.emitMutation(console, value.*, current, reason);
-                            return error.MutationInputRejected;
-                        }
-                    }
-                    if (current) |outcome| if (outcome.terminal()) {
-                        return self.finishMutation(console, timing, value, outcome);
-                    };
-                }
-                const reference = try value.request.reference(value.namespace);
-                timing.enter(.prepare);
-                const next: q.TableMutationClient.Next = if (self.record.cancelling) cancel: {
-                    timing.enter(.fetch);
-                    const outcome = try self.readOnly(q.TableMutationClient.status, .{ writer, reference });
-                    timing.enter(.prepare);
-                    if (outcome) |terminal| if (terminal.terminal()) break :cancel .{ .complete = terminal };
-                    break :cancel .{ .prepared = try self.readOnly(q.TableMutationClient.prepare, .{ writer, .{ .cancel = reference } }) };
-                } else try self.readOnly(q.TableMutationClient.prepareNextResult, .{ writer, value.namespace, value.request });
-                switch (next) {
-                    .complete => |outcome| return self.finishMutation(console, timing, value, outcome),
-                    .prepared => |pending| {
-                        // Until this atomic replacement, the previous saved input
-                        // remains sufficient to repeat observation after a crash.
-                        value.pending = pending;
-                        value.input = null;
-                    },
-                }
-                try self.saveTimed(timing);
-            },
-            .creation => |*value| {
-                const catalog = &self.catalog.?;
-                if (value.input == null) {
-                    timing.enter(.submit);
-                    value.input = (try catalog.submit(value.pending)).position;
-                    try self.saveTimed(timing);
-                }
-                timing.enter(.wait);
-                if (try self.readOnly(c.Client.observe, .{ catalog, value.pending, value.input.? }) == .pending) {
-                    try self.io.sleep(.fromMilliseconds(50), .awake);
-                    continue;
-                }
-                timing.enter(.fetch);
-                const disposition = try self.readOnly(c.Client.inputDisposition, .{ catalog, value.pending, value.input.? });
-                const receipt = if (disposition == null) try self.readOnly(c.Client.status, .{ catalog, value.request }) else null;
-                if (receipt == null and disposition == null) return error.CatalogOutcomeMissing;
-                self.record.complete = true;
-                try self.saveTimed(timing);
-                if (disposition) |result| {
-                    console.diagnostic.write = try WriteDiagnostic.catalogInput(result);
-                    if (console.session.format == .json) _ = try self.statusTimed(console, timing);
-                    return error.CatalogCreateRejected;
-                }
-                if (receipt) |result| if (result.outcome != .applied) {
-                    console.diagnostic.write = try WriteDiagnostic.creation(result);
-                    if (console.session.format == .json) _ = try self.statusTimed(console, timing);
-                    return error.CatalogCreateRejected;
-                };
+        if (record.pending) |pending| {
+            if (record.input == null) {
+                timing.enter(.submit);
+                record.input = (try self.catalog.submit(pending)).position;
+                try self.save(timing);
+            }
+            timing.enter(.wait);
+            const progress = try self.readOnly(c.TableClient.waitProgress, .{ &self.catalog, work, pending, record.input.? });
+            if (progress == .pending) continue;
+            const current = progress.processed;
+            if (current.outcome) |result| if (result.terminal()) return self.finish(console, timing, result, current.disposition);
+            if (current.upload) |upload| if (upload.phase == .cancelled and current.outcome == null) {
+                record.complete = true;
+                try self.save(timing);
                 _ = try self.statusTimed(console, timing);
-                if (disposition != null or receipt.?.outcome != .applied) return error.CatalogCreateRejected;
+                return;
+            };
+            if (current.disposition) |disposition| {
+                // Rejecting one continuation never closes an accepted operation.
+                record.complete = current.outcome == null and current.upload == null;
+                try self.save(timing);
+                if (!resume_once or record.complete) {
+                    console.diagnostic.write = try @import("WriteDiagnostic.zig").tableInput(disposition, !record.complete);
+                    if (console.session.format == .json) _ = try self.statusTimed(console, timing);
+                    return error.MutationInputRejected;
+                }
+            }
+            record.pending = null;
+            record.input = null;
+            try self.save(timing);
+        }
+        timing.enter(.prepare);
+        if (record.cancelling) {
+            const current = try self.readOnly(c.TableClient.inspectIntent, .{ &self.catalog, work });
+            if (current.outcome) |result| if (result.terminal()) return self.finish(console, timing, result, null);
+            if (current.outcome == null and current.upload == null) {
+                // All saved sends were reconciled above. This current cut has
+                // no admitted SQL/upload, so only private intent is withdrawn.
+                record.complete = true;
+                try self.save(timing);
+                try self.emit(console, current, null);
+                return;
+            }
+            if (current.upload) |upload| if (upload.phase == .cancelled and current.outcome == null) {
+                record.complete = true;
+                try self.save(timing);
+                _ = try self.statusTimed(console, timing);
+                return;
+            };
+            const control: c.TableControl.Command = if (current.upload != null) .{ .cancel_upload = work.upload() } else switch (work.identity) {
+                .ddl => |ref| .{ .cancel_ddl = ref },
+                .dml => |ref| .{ .cancel_dml = .{ .scope = work.header.scope, .reference = ref.reference } },
+            };
+            record.pending = try self.readOnly(c.TableClient.prepareControl, .{ &self.catalog, control });
+        } else switch (try self.readOnly(c.TableClient.next, .{ &self.catalog, work })) {
+            .send => |pending| record.pending = pending,
+            .terminal => |result| return self.finish(console, timing, result, null),
+            .upload_cancelled => {
+                record.complete = true;
+                try self.save(timing);
+                _ = try self.statusTimed(console, timing);
                 return;
             },
+            .running => {
+                if (resume_once) {
+                    record.pending = try self.readOnly(c.TableClient.prepareResume, .{ &self.catalog, work });
+                    resume_once = false;
+                } else {
+                    timing.enter(.wait);
+                    try self.io.sleep(.fromMilliseconds(10), .awake);
+                    continue;
+                }
+            },
         }
+        record.input = null;
+        try self.save(timing);
     }
 }
-fn finishMutation(self: *Self, console: *Console, timing: *Timing, value: *Mutation, outcome: q.TableMutationRecords.Status) !void {
+fn finish(self: *Self, console: *Console, timing: *Timing, outcome: c.TableClient.Outcome, disposition: ?c.TableControl.Disposition) !void {
     if (!outcome.terminal()) return error.InvalidConsoleRecovery;
-    value.pending = null;
-    value.input = null;
-    self.record.complete = true;
-    try self.saveTimed(timing);
+    self.storage.record.complete = true;
+    try self.save(timing);
     timing.enter(.render);
-    if (outcome.phase == .rejected) {
-        console.diagnostic.write = try WriteDiagnostic.mutation(self.record.name.?, value.request, outcome);
-        if (console.session.format == .json) try self.emitMutation(console, value.*, outcome, null);
-        return error.MutationRejected;
-    }
-    try self.emitMutation(console, value.*, outcome, null);
+    const detail = try @import("WriteDiagnostic.zig").tableOutcome(self.allocator, &self.storage.intent.?, outcome);
+    if (disposition) |value| {
+        console.diagnostic.write = try @import("WriteDiagnostic.zig").tableInput(value, false);
+    } else console.diagnostic.write = detail;
+    if (console.session.format == .json or console.diagnostic.write == null) try self.emit(console, .{ .outcome = outcome, .upload = null }, disposition);
+    if (disposition != null) return error.MutationInputRejected;
+    if (detail != null) return error.MutationRejected;
 }
 pub fn cancel(self: *Self, console: *Console) !void {
-    const operation = self.record.operation orelse return error.NoSavedWrite;
-    if (operation == .creation) return error.CatalogCancellationUnsupported;
-    self.record.cancelling = true;
-    try self.save();
+    if (self.storage.intent == null) return error.NoSavedWrite;
+    if (self.storage.record.complete) {
+        _ = try self.status(console);
+        return;
+    }
+    self.storage.record.cancelling = true;
+    try self.save(null);
     try self.recover(console);
 }
-/// Observation only. Opening a console and .status never retry signed work.
+pub fn clearComplete(self: *Self) !void {
+    try self.storage.clearComplete(&self.catalog);
+}
 pub fn status(self: *Self, console: *Console) !bool {
     return self.statusTimed(console, null);
 }
 fn statusTimed(self: *Self, console: *Console, timing: ?*Timing) !bool {
+    const intent = if (self.storage.intent) |*value| value else return false;
     if (timing) |clock| clock.enter(.fetch);
-    var buffer: [4096]u8 = undefined;
-    var out: std.Io.Writer = .fixed(&buffer);
-    const destination = console.out;
-    console.out = &out;
-    defer console.out = destination;
-    const found = try self.statusInto(console);
+    // No preparation or submission. Status alone cannot settle an uncertain
+    // transport step, even when an original terminal SQL outcome is visible.
+    const current = try self.readOnly(c.TableClient.inspectIntent, .{ &self.catalog, intent });
+    const disposition = if (self.storage.record.input) |input| try self.readOnly(c.TableClient.inputDisposition, .{ &self.catalog, self.storage.record.pending.?, input }) else null;
     if (timing) |clock| clock.enter(.render);
-    try @import("Output.zig").write(console.init, destination, out.buffered());
-    return found;
-}
-pub fn clearComplete(self: *Self) !void {
-    if (self.unresolved()) return error.UnresolvedSubmission;
-    self.record.operation = null;
-    self.record.complete = false;
-    self.record.cancelling = false;
-    try self.save();
-}
-fn statusInto(self: *Self, console: *Console) !bool {
-    const operation = self.record.operation orelse return false;
-    switch (operation) {
-        .mutation => |value| {
-            const writer = &self.mutation.?;
-            const status_value = try self.readOnly(q.TableMutationClient.status, .{ writer, try value.request.reference(value.namespace) });
-            const rejection = if (value.input != null and value.pending != null) try self.readOnly(q.TableMutationClient.inputDisposition, .{ writer, value.pending.?, value.input.? }) else null;
-            try self.mutationStatus(console, value, status_value, rejection);
-        },
-        .creation => |value| {
-            const catalog = &self.catalog.?;
-            const disposition = if (value.input) |input| try self.readOnly(c.Client.inputDisposition, .{ catalog, value.pending, input }) else null;
-            const receipt = if (disposition == null) try self.readOnly(c.Client.status, .{ catalog, value.request }) else null;
-            const phase = if (disposition) |d| @tagName(d.outcome) else if (receipt) |r| @tagName(r.outcome) else "unconfirmed";
-            if (console.session.format == .json) {
-                var id: [20]u8 = undefined;
-                try console.json(.{ .creation = .{ .id = try std.fmt.bufPrint(&id, "{d}", .{value.request.operation}), .name = value.request.name.slice(), .phase = phase, .uncertain = value.input == null } });
-            } else if (disposition) |result| {
-                try (try WriteDiagnostic.catalogInput(result)).render(console.out, console.diagnostic.style);
-            } else if (receipt != null and receipt.?.outcome != .applied) {
-                try (try WriteDiagnostic.creation(receipt.?)).render(console.out, console.diagnostic.style);
-            } else try console.out.print("CREATE TABLE {s}: {s}\n", .{ value.request.name.slice(), phase });
-        },
-    }
+    try self.emit(console, current, disposition);
     return true;
 }
-
-fn mutationStatus(self: *Self, console: *Console, value: Mutation, status_value: ?q.TableMutationRecords.Status, rejection: ?q.TableMutationWriter.Disposition) !void {
-    const phase = if (rejection != null) "input_rejected" else if (status_value) |status_value_| @tagName(status_value_.phase) else "unconfirmed";
-    const reason = if (rejection) |reason| @tagName(reason.reason) else if (status_value) |s| @tagName(s.reason) else "none";
-    const affected = if (rejection != null) null else if (status_value) |s| if (s.phase == .applied) @as(?u8, s.affected_rows) else null else null;
-    const uncertain = (status_value == null or !status_value.?.terminal()) and value.pending != null and value.input == null;
+fn emit(self: *Self, console: *Console, current: c.TableClient.State, disposition: ?c.TableControl.Disposition) !void {
+    const intent = &self.storage.intent.?;
+    const uncertain = self.storage.record.pending != null and self.storage.record.input == null;
+    const current_phase = if (current.outcome == null and current.upload == null and self.storage.record.complete and self.storage.record.cancelling and self.storage.record.pending == null) "withdrawn_before_admission" else phase(current);
+    var buffer: [32768]u8 = undefined;
+    var out: std.Io.Writer = .fixed(&buffer);
     if (console.session.format == .json) {
         var id: [20]u8 = undefined;
-        var key: [20]u8 = undefined;
-        const conflict = if (status_value) |status_| if (status_.conflict) |detail| .{ .key = try std.fmt.bufPrint(&key, "{d}", .{detail.key}), .row = detail.row } else null else null;
-        try console.json(.{ .mutation = .{ .id = try std.fmt.bufPrint(&id, "{d}", .{value.namespace}), .phase = phase, .reason = reason, .affected_rows = affected, .uncertain = uncertain, .conflict = conflict } });
-    } else if (rejection) |reason_| {
-        try (try WriteDiagnostic.input(reason_, status_value != null and !status_value.?.terminal())).render(console.out, console.diagnostic.style);
-        if (status_value) |status_| if (status_.terminal()) try console.out.print("Recorded mutation outcome: {s}; affected rows: {d}.\n", .{ @tagName(status_.phase), status_.affected_rows });
-    } else if (status_value != null and status_value.?.phase == .rejected) {
-        try (try WriteDiagnostic.mutation(self.record.name.?, value.request, status_value.?)).render(console.out, console.diagnostic.style);
-    } else if (affected) |count| try console.out.print("{d} {s} affected\n", .{ count, if (count == 1) "row" else "rows" }) else try console.out.print("Mutation: {s} ({s}); uncertain send: {s}\n", .{ phase, reason, if (uncertain) "yes" else "no" });
+        var object: [20]u8 = undefined;
+        var matched: [20]u8 = undefined;
+        var changed: [20]u8 = undefined;
+        const counts = if (current.outcome) |value| if (value == .dml and value.dml.state == .applied) .{ .matched = try std.fmt.bufPrint(&matched, "{d}", .{value.dml.matched}), .changed = try std.fmt.bufPrint(&changed, "{d}", .{value.dml.changed}) } else null else null;
+        try std.json.Stringify.value(.{ .table_operation = .{ .id = try std.fmt.bufPrint(&id, "{d}", .{intent.header.operation}), .object = try std.fmt.bufPrint(&object, "{d}", .{intent.header.object}), .kind = @tagName(intent.header.kind), .phase = current_phase, .counts = counts, .diagnostic = if (current.outcome) |value| try c.TableDiagnostic.status(intent, value) else null, .input_disposition = if (disposition) |value| @tagName(value.outcome) else null, .input_diagnostic = if (disposition) |value| try c.TableDiagnostic.input(value) else null, .uncertain = uncertain } }, .{}, &out);
+        try out.writeByte('\n');
+    } else {
+        if (disposition) |value| try (try @import("WriteDiagnostic.zig").tableInput(value, current.outcome != null and !current.outcome.?.terminal())).render(&out, console.diagnostic.style);
+        if (current.outcome) |value| {
+            if (try @import("WriteDiagnostic.zig").tableOutcome(self.allocator, intent, value)) |detail| {
+                try detail.render(&out, console.diagnostic.style);
+            } else if (value == .dml and value.dml.state == .applied) {
+                try out.print("{d} {s} affected", .{ value.dml.changed, if (value.dml.changed == 1) "row" else "rows" });
+                if (value.dml.matched != value.dml.changed) try out.print(" ({d} matched)", .{value.dml.matched});
+                try out.writeByte('\n');
+            } else try out.print("{s}: {s}\n", .{ @tagName(intent.header.kind), phase(current) });
+        } else try out.print("{s}: {s}; uncertain send: {s}\n", .{ @tagName(intent.header.kind), current_phase, if (uncertain) "yes" else "no" });
+        if (uncertain and current.outcome != null) try out.writeAll("The saved transport command still needs exact reconciliation. Use .resume.\n");
+    }
+    try @import("Output.zig").write(console.init, console.out, out.buffered());
 }
-
-fn emitMutation(self: *Self, console: *Console, value: Mutation, status_value: ?q.TableMutationRecords.Status, rejection: ?q.TableMutationWriter.Disposition) !void {
-    var buffer: [4096]u8 = undefined;
-    var out: std.Io.Writer = .fixed(&buffer);
-    const destination = console.out;
-    console.out = &out;
-    defer console.out = destination;
-    try self.mutationStatus(console, value, status_value, rejection);
-    try @import("Output.zig").write(console.init, destination, out.buffered());
+fn phase(current: c.TableClient.State) []const u8 {
+    if (current.outcome) |value| return switch (value) {
+        .ddl => |ddl| if (ddl.table) |table| @tagName(table.state) else @tagName(ddl.operation.state),
+        .dml => |dml| @tagName(dml.state),
+    };
+    return if (current.upload) |upload| @tagName(upload.phase) else "unconfirmed";
 }
-
-/// Local recovery evidence does not decide the writer's domain outcome.
 pub fn unresolvedDiagnostic(self: Self, cause: anyerror) !q.protocol.Diagnostic {
     if (!self.unresolved()) return error.NoSavedWrite;
+    const intent = &self.storage.intent.?;
     const d = q.protocol.Diagnostic;
-    var value = try d.init("write.saved_work_unresolved", .lifecycle, .reconcile, .unknown, .saved_intent, "The saved write needs reconciliation. Preserve its original recovery file; do not repeat the SQL or replace its operation identity.");
+    var value = try d.init("write.saved_work_unresolved", .lifecycle, .reconcile, .unknown, .saved_intent, "The saved Table operation needs reconciliation. Preserve its recovery files; do not repeat the SQL or replace its operation identity.");
     value.cause = try d.Code.init(@errorName(cause));
-    // Preserve the validated native category as evidence, while a 503 still
-    // leaves the exact saved mutation unresolved. Do not infer nonacceptance.
-    if (self.record.operation.? == .mutation) {
-        if (self.mutation) |client| if (client.wire.last_rejection) |native|
-            try value.text(.native_cause, .authority, @tagName(native));
-    } else if (self.catalog) |client| if (client.transport.last_rejection) |native|
-        try value.text(.native_cause, .authority, @tagName(native));
-    switch (self.record.operation.?) {
-        .mutation => |operation| value.identity = .{ .domain = .mutation, .id = .init(operation.namespace), .realm = .init(operation.request.realm), .resource = .init(operation.request.resource) },
-        .creation => |operation| value.identity = .{ .domain = .catalog, .id = .init(operation.request.operation), .realm = .init(operation.request.scope.realm), .resource = .init(operation.request.scope.resource) },
-    }
+    value.identity = .{ .domain = if (intent.identity == .ddl) .catalog else .mutation, .id = .init(intent.header.operation), .realm = .init(intent.header.scope.realm), .resource = .init(intent.header.scope.resource) };
+    if (self.catalog.transport.last_rejection) |native| try value.text(.native_cause, .authority, @tagName(native));
     try value.action(.inspect_status);
     try value.action(.resume_exact);
-    if (self.record.operation.? == .mutation) try value.action(.cancel_mutation);
+    try value.action(.cancel_mutation);
     try value.validate();
     return value;
 }

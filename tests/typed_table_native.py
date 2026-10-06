@@ -12,8 +12,8 @@ import time
 from storage import Fixture, free_port, wait_ready
 
 
-def run(node, proof, host):
-    node, proof, host = (str(Path(binary).resolve()) for binary in (node, proof, host))
+def run(node, proof, host, cli):
+    node, proof, host, cli = (str(Path(binary).resolve()) for binary in (node, proof, host, cli))
     with Fixture() as fixture:
         root = fixture.root
         public = json.loads(subprocess.check_output([proof, 'public'], timeout=10))
@@ -28,7 +28,7 @@ def run(node, proof, host):
         armed = None
         host_committed = threading.Event()
         release_host_reply = threading.Event()
-        measurements = dict(turns=0, max_mutations=0, max_value_bytes=0, dispositions=[], client_disconnects=0)
+        measurements = dict(turns=0, sends=0, max_mutations=0, max_value_bytes=0, dispositions=[], client_disconnects=0)
 
         class Proxy(BaseHTTPRequestHandler):
             def log_message(self, *_):
@@ -45,6 +45,7 @@ def run(node, proof, host):
                     data = response.read()
                     if self.path == '/v1/command' and response.status == 200:
                         command = json.loads(body)['request']['command']
+                        measurements['sends'] += int('send' in command)
                         turn = command.get('turn', command.get('turn_with_versions', {}).get('turn'))
                         if turn:
                             mutations = [entry for entry in turn.get('mutations', []) if entry]
@@ -303,6 +304,53 @@ def run(node, proof, host):
             assert (result['matched'], result['changed']) == (2, 2), result
             rows = call('select', 'SELECT name FROM people')['rows']
             assert len(rows) == 2 and all(row[0]['cell']['value']['atom']['utf8'] == 'after restart' for row in rows), rows
+            def console(sql=None, script=None, fail=False):
+                args = [cli, 'console', '--config', str(root / 'console.json')]
+                if sql is not None:
+                    args += ['-c', sql]
+                result = subprocess.run(args, input=script, capture_output=True, text=True, timeout=300)
+                assert (result.returncode != 0) == fail, (args, result.stdout, result.stderr)
+                return result
+
+            console('CREATE TABLE console_people (id INTEGER PRIMARY KEY, name VARCHAR(200) NOT NULL, active BOOLEAN DEFAULT TRUE, salary DECIMAL(18,2))')
+            inserted = console("INSERT INTO console_people (id,name,salary) VALUES (1,'Ada',125000.00), (2,'Grace',140000.00)")
+            assert json.loads(inserted.stdout)['table_operation']['counts'] == {'matched': '2', 'changed': '2'}, inserted.stdout
+            console("INSERT INTO console_people (id,name) VALUES (1,'duplicate')", fail=True)
+            observed = console(script='.status\n')
+            assert json.loads(observed.stdout)['table_operation']['phase'] == 'rejected', observed.stdout
+            table = console(script='.mode table\nSELECT id,name,salary FROM console_people;\n')
+            assert '125000.00' in table.stdout and 'Ada' in table.stdout and '2 rows' in table.stdout, table.stdout
+            explanation = json.loads(console('EXPLAIN SELECT name FROM console_people WHERE id=1').stdout)['explanation']
+            assert explanation['scan'] == 'primary_key' and not explanation['executed'], explanation
+            replays.discard('send')
+            armed = 'send'
+            console("UPDATE console_people SET name='Ada Lovelace' WHERE id=1", fail=True)
+            saved = json.loads((root / 'console-writes.json').read_text())
+            assert saved['pending'] is not None and saved['input'] is None and not saved['complete'], saved
+            resumed = console(script='.resume\n')
+            assert json.loads(resumed.stdout)['table_operation']['counts'] == {'matched': '1', 'changed': '1'}, resumed.stdout
+            after = json.loads((root / 'console-writes.json').read_text())
+            assert after['operation'] == saved['operation'] and after['complete'], after
+            assert 'send' in replays and json.loads(faults['send'][0]) == saved['pending']['signed'], 'Console did not reconcile the exact original upload command'
+            armed = 'send'
+            console("INSERT INTO console_people (id,name) VALUES (3,'cancelled')", fail=True)
+            private = (root / 'console-writes.json').read_bytes()
+            sends = measurements['sends']
+            status = json.loads(console(script='.status\n').stdout)['table_operation']
+            assert status['uncertain'] and measurements['sends'] == sends, status
+            assert (root / 'console-writes.json').read_bytes() == private
+            cancelled = json.loads(console(script='.cancel\n').stdout)['table_operation']
+            assert cancelled['phase'] == 'cancelled' and not cancelled['uncertain'] and cancelled['counts'] is None, cancelled
+            assert json.loads((root / 'console-writes.json').read_text())['operation'] == json.loads(private)['operation']
+            empty = [json.loads(line) for line in console('SELECT * FROM console_people WHERE id=3').stdout.splitlines()]
+            assert not any('row' in line for line in empty) and empty[-1]['complete']['rows'] == '0', empty
+            console('ALTER TABLE console_people ADD COLUMN note TEXT')
+            described = json.loads(console('DESCRIBE console_people').stdout)['table']
+            assert [column['name'] for column in described['columns']] == ['id', 'name', 'active', 'salary', 'note'], described
+            console('DELETE FROM console_people WHERE id >= 1')
+            console('DROP TABLE console_people')
+            names = [name for line in console('SHOW TABLES').stdout.splitlines() for name in json.loads(line)['tables']]
+            assert 'people' in names and 'console_people' not in names, names
             assert not failures, failures
             assert measurements['max_mutations'] <= 4 and measurements['max_value_bytes'] <= 256, measurements
             print(json.dumps(dict(profile='typed-table-native', seconds=round(time.monotonic() - started, 3), lost_reply_replays=sorted(replays), supplied_host_lost_receipt='host_turn' in faults, measurements=measurements)))

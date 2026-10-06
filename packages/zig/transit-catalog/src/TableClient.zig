@@ -106,6 +106,13 @@ pub const Progress = union(enum) {
     pending,
     processed: struct { disposition: ?Control.Disposition, outcome: ?Outcome, upload: ?c.TableUpload.Status },
 };
+pub const State = struct { outcome: ?Outcome, upload: ?c.TableUpload.Status };
+/// Current authorized observation only. Never prepares a successor send or
+/// treats a closed command upload as a Table operation outcome.
+pub fn inspectIntent(self: *Self, intent: *const Intent) !State {
+    var current = try self.intentSource(intent, null);
+    return .{ .outcome = try self.outcome(&current, intent.identity), .upload = try self.uploadStatus(&current, intent) };
+}
 fn resources(self: *Self) wire.ResourceReader {
     return .{ .wire = self.transport, .realm = self.connection.scope.realm, .principal = self.connection.principal, .key = self.key };
 }

@@ -36,8 +36,9 @@ file containing dot commands.
 The console runs `-c 'SELECT COUNT(*) FROM items'`, `-f queries.sql` or interactive
 SQL with automatic query progress and verified results. The local connection
 also executes INSERT/UPDATE/DELETE against `items` without extra configuration.
-Separate connections require writer routes; compatible CREATE TABLE requires
-an explicitly configured catalog;
+CREATE/ALTER/DROP and typed DML share the configured general catalog; new
+Tables are discoverable and queryable through that catalog. Separate connections
+require their provisioned catalog route;
 `.help INSERT` and `.help CREATE TABLE` explain syntax, configuration and
 recovery inside the shell. Its `.transitrc` hierarchy
 configures `.connect`, `.mode` and `.timer`; server `transit.yaml` settings overlay the

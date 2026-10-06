@@ -2,6 +2,48 @@
 const std = @import("std");
 const q = @import("transit_query");
 const m = q.fuze.Unified;
+pub fn logicalTable(allocator: std.mem.Allocator, out: *std.Io.Writer, schema: q.fuze.Types.Type, values: []const []const q.fuze.Types.Values.Cell) !void {
+    try schema.validate(.{});
+    if (schema != .structure or schema.structure.len > q.fuze.TableSchema.max_columns or values.len > 8) return error.InvalidArrowResult;
+    const count = schema.structure.len;
+    var widths: [128]usize = @splat(0);
+    var names: [128][]const u8 = undefined;
+    var types: [128][]const u8 = undefined;
+    var alignments: [128]Alignment = @splat(.left);
+    const heading: [128]Alignment = @splat(.center);
+    const display = @import("LogicalDisplay.zig");
+    for (schema.structure, 0..) |field, i| {
+        names[i] = try escaped(allocator, field.name);
+        var bytes: [256]u8 = undefined;
+        var label: std.Io.Writer = .fixed(&bytes);
+        var truncated = false;
+        display.typeName(&label, field.type) catch |err| {
+            if (err != error.WriteFailed) return err;
+            truncated = true;
+        };
+        types[i] = if (truncated) try std.fmt.allocPrint(allocator, "{s}...", .{label.buffered()}) else try allocator.dupe(u8, label.buffered());
+        widths[i] = @max(names[i].len, types[i].len);
+        if (q.fuze.Types.Semantics.integer(field.type) != null or field.type == .decimal or field.type == .float32 or field.type == .float64) alignments[i] = .right;
+    }
+    const rows = try allocator.alloc([][]const u8, values.len);
+    for (values, rows) |cells, *rendered| {
+        if (cells.len != count) return error.InvalidArrowResult;
+        rendered.* = try allocator.alloc([]const u8, count);
+        for (cells, schema.structure, rendered.*, 0..) |cell, field, *text, i| {
+            text.* = try display.preview(allocator, cell, field.type);
+            widths[i] = @max(widths[i], text.len);
+        }
+    }
+    try border(out, widths[0..count], "┌", "┬", "┐");
+    try row(out, names[0..count], widths[0..count], heading[0..count]);
+    try row(out, types[0..count], widths[0..count], heading[0..count]);
+    try border(out, widths[0..count], "├", "┼", "┤");
+    for (rows) |cells| try row(out, cells, widths[0..count], alignments[0..count]);
+    try border(out, widths[0..count], "└", "┴", "┘");
+}
+test {
+    _ = @import("LogicalDisplay.zig");
+}
 pub fn write(allocator: std.mem.Allocator, out: *std.Io.Writer, page: q.UnifiedResult.Page, batch: *const m.Inspect.Batch, ordinal: u64, as_json: bool) !void {
     if (as_json) {
         const rows = try allocator.alloc([]q.Values.Cell, batch.count);

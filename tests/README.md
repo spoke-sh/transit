@@ -11050,6 +11050,38 @@ because Zig's immutable atomic publication requires `link`, while `replace`
 requires a replace-enabled temporary file; the corrected owner passes. These
 tests do not simulate filesystem power loss or establish native SQL outcomes.
 
+The console and local server now execute general catalog Table SQL through the
+same signed caller and frozen typed query reader. The expanded native disk proof
+passes in **91.741 seconds**, with 297 owner turns, 66 sends, at most four native
+mutations and 256 bytes per value (`typed-table-console5.log`). It runs the actual
+console through wide CREATE, typed INSERT, duplicate rejection, exact counts,
+EXPLAIN, SELECT, ALTER, DELETE and DROP. Lost upload replies reconcile the exact
+signed request; read-only `.status` does not send or change saved progress;
+cancellation of the original upload leaves no inserted row. The supplied host's
+lost accepted turn and fresh activation checks remain in the same run.
+
+The full local server suite passes in **34.74 seconds** (`typed-server3.log`).
+It covers current permission revocation, bounded observation pressure, capacity
+fallback versus denial, retained exact recovery through process/store restart,
+and DROP/recreate across restart without recreating the default Table. An earlier
+run exposed installation of private recovery before preparation authorization;
+preparation now succeeds before a new intent replaces saved work. A denied
+statement preserves the prior recovery bytes and does not block later reads.
+Separate startup evidence also confirms that dropping the default Table survives
+restart (`typed-local-startup1.log`).
+
+Full pinned `just check` passes (`typed-console-check3.log`), including 586 real
+CLI diagnostic cases, **2,948 outcome projections across 34 surfaces**, generated
+contract/binding checks, native units, frontend checks and documentation build.
+CLI lifecycle checks pass **29/29**, including exact logical formatting. Earlier
+development runs caught the wrong CLI artifact in the proof, obsolete fixture
+shapes and narrow SQL expectations, and an invalid test assumption that a fully
+reconciled upload must retain its first pending request. Those runs remain in the
+campaign; the passing tests assert actual replay bytes and original operation
+identity instead. These durations are scenario totals, not latency benchmarks.
+This checkpoint does not establish power-loss durability, all-family caller
+qualification, the final compatibility cutover or committed-HEAD clean CI.
+
 ## Fuze logical type foundation
 
 The local `Types` profile has nine passing focused Zig tests, including 46

@@ -166,12 +166,11 @@ the server does not generate a console configuration file:
 transit console
 ```
 
-The initial authorized source is `items(id int64, value int64)`, with no example
-rows. `.schema` describes it. `SELECT COUNT(*) FROM items;` prints the verified
-count automatically. The server provisions the combined Table query/writer owner
-and explicitly grants the local caller INSERT, UPDATE and DELETE policy. Bare
-`transit console` derives both routes and its private `console-writes.json`
-recovery path from the installation. For example:
+The server initializes an authorized general Table catalog and creates the empty
+`items(id INT64 PRIMARY KEY, value INT64)` Table through a saved catalog operation.
+`.schema items` describes it. `SELECT COUNT(*) FROM items;` prints the verified
+count automatically. Bare `transit console` derives the catalog route and private
+`console-writes.json` recovery path from the installation. For example:
 
 ```sql
 INSERT INTO items (id, value) VALUES (1, 100);
@@ -182,9 +181,11 @@ DELETE FROM items WHERE id = 1;
 
 These writes retain the [bounded Table mutation syntax](console.md#writing-tables-and-catalogs).
 SELECT opens a fresh snapshot; `.status` and `.resume` observe and recover a saved
-write after interruption. CREATE TABLE requires a separate catalog connection.
+write after interruption. CREATE, ALTER and DROP use the same catalog route.
 The caller retains native inspect/send and resource read grants; only the fenced
-Table owner commits row changes under its separate current mutation policy.
+catalog owner commits changes under separate current inspect/create/read/insert/
+update/delete/alter/drop policies. The default-table completion marker prevents
+startup from recreating a deliberately dropped Table or altering its replacement.
 
 ## Local names and SSH tunnels
 
@@ -259,11 +260,12 @@ exact ownership generation. Foreign resource access is granted separately from
 the source's optional requester association. Activation markers are never removed.
 
 The server starts MinIO, disk Ursula, authority, maintenance, source, requester,
-courier, then gateway. The combined Table owner initializes in two durable turns;
-the courier delivers its recorded self continuation. The server checks the exact
-ready configuration and authorized source/requester inspection before gateway
-readiness. Recorded initialization is not repeated on restart, and revoked
-mutation rights are not restored. SIGINT/SIGTERM stop in reverse order and join
+courier, then gateway. Catalog initialization and default Table creation use
+public recorded inputs; the courier delivers the catalog's recorded continuations.
+The server checks the exact catalog configuration and completion of the original
+default CREATE before gateway readiness. Its immutable intent and each signed
+progress step survive interruption. Recorded initialization is not repeated on
+restart, and revoked rights are not restored. SIGINT/SIGTERM stop in reverse order and join
 children. Each
 child starts in a distinct process group through a Linux parent-death trampoline;
 the trampoline arms SIGKILL and checks the expected parent before exec. Killing
@@ -303,12 +305,12 @@ ownership and live disaster recovery are outside this profile.
 | Ursula | Disk WAL and local cold credential | One Raft group, two cores, 8 MiB hot data and 8 MiB cold read cache; 8 MiB uncommitted Raft payload cap, 64 live-read waiters per core, 512 MiB RSS admission threshold |
 | Authority | Genesis public root key, raw storage location | Eight decoded authority pages plus 16 immutable control records; 16 sockets, four data/two control/four wait requests, serialized engine work; 256 KiB native body/reply, two-second HTTP deadline |
 | Maintenance | Separate admin/effect/delivery grant and raw storage location | One bounded scan/transition at a time, one-second idle interval, two-second operation deadline |
-| Source / Table writer | Fresh PID-scoped inspect/execute/publish grant; own resource and separate requester-resource read grant | Four MiB query workspace, one MiB adapter, four mutations per committed turn |
+| Catalog owner | Fresh PID-scoped inspect/execute/publish grant and own resource | Bounded typed intent/row/page work; four mutations per committed turn; no whole-catalog or whole-Table workspace |
 | Requester | Fresh PID-scoped inspect/execute/publish grant and own resource | Four MiB workspace, one active finite query/upload; retained history remains durable |
 | Courier | Separate inspect/send/delivery grant | One bounded output page and one frozen delivery; recorded destinations remain authoritative |
 | Gateway | No signing key or raw provider access | 16 sockets, four data/two control/four wait requests, six ordinary and four wait upstream clients; 8 KiB headers, 256 KiB body/reply; one-second header and four-second whole-request deadlines |
 | Board | Separate retained realm inspection-only key and explicit resource grants; no query/operator credential | Existing [Board limits](../../transit-board/README.md#bounds-and-observations); one child, bounded 256 KiB startup response |
-| Console | Realm-scoped inspect/send caller key, two specific resource read grants and separate Table INSERT/UPDATE/DELETE policy | Its separate [console bounds](console.md), private write recovery file and credential lock |
+| Console | Realm-scoped inspect/send caller key, specific resource read grants and separate catalog action policies | Its separate [console bounds](console.md), immutable intent files, bounded progress record and credential lock |
 
 Each child has two independent 64 KiB in-memory log prefixes. After each prefix
 fills, the drain continues and discards additional diagnostics; there is no

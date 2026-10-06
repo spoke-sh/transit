@@ -6,9 +6,40 @@ const Self = @This();
 envelope: q.protocol.Diagnostic,
 heading: []const u8,
 code: []const u8,
-message: [512]u8 = @splat(0),
+message: [2048]u8 = @splat(0),
 length: usize = 0,
 next: ?[]const u8 = null,
+
+pub fn tableInput(value: c.TableControl.Disposition, active: bool) !Self {
+    const detail = try c.TableDiagnostic.input(value);
+    if (detail.outcome != .input_rejected) return error.InvalidConsoleRecovery;
+    var result: Self = .{ .envelope = detail, .heading = if (detail.category == .access) "Authorization Error" else "Table Input Error", .code = @tagName(value.outcome) };
+    var out: std.Io.Writer = .fixed(&result.message);
+    try out.writeAll(detail.message.slice());
+    if (active) try out.writeAll("\nThe original operation is still active.");
+    result.length = out.end;
+    result.next = "Use .status to inspect the original outcome and .resume to reconcile exact saved work. Repeating SQL creates another operation.";
+    return result;
+}
+pub fn tableOutcome(allocator: std.mem.Allocator, intent: *const c.TableIntent, outcome: c.TableClient.Outcome) !?Self {
+    const detail = try c.TableDiagnostic.status(intent, outcome);
+    if (detail.outcome != .rejected) return null;
+    var result: Self = .{ .envelope = detail, .heading = if (detail.category == .constraint) "Constraint Error" else "Table Error", .code = "table_rejected" };
+    var out: std.Io.Writer = .fixed(&result.message);
+    try out.writeAll(detail.message.slice());
+    // The name comes from the original immutable caller intent, never from a
+    // fresh lookup that could bind a replacement Table after DROP/CREATE.
+    var original = try intent.command(allocator);
+    defer original.deinit();
+    const name = switch (original.body.request) {
+        .ddl => |value| value.name.slice(),
+        .dml => |value| value.plan.name,
+    };
+    try out.writeAll("\nTable: ");
+    try quoted(&out, name);
+    result.length = out.end;
+    return result;
+}
 
 pub fn mutation(name: q.fuze.model.Name, request: q.TableMutationRequest, status: q.TableMutationRecords.Status) !Self {
     try status.validate();

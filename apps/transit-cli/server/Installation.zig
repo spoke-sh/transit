@@ -24,6 +24,7 @@ pub const Record = struct {
     genesis_observed: bool = false,
     provision: [14]?u64 = @splat(null),
     initialized: [2]bool = .{ false, false },
+    default_table_complete: bool,
     complete: bool = false,
     registration: ?q.wire.bootstrap.GrowingRegistration = null,
     pending: ?Pending = null,
@@ -99,6 +100,9 @@ pub fn tableFor(c: q.UnifiedClient.Connection) q.TableQueryWriter.Configuration 
 pub fn writerFor(c: q.UnifiedClient.Connection) q.TableMutationClient.Connection {
     return .{ .realm = c.realm, .principal = c.principal, .writer = c.source, .resource = c.resource, .table = tableFor(c).writer.table };
 }
+pub fn catalogFor(c: q.UnifiedClient.Connection) q.catalog.TableCatalogRecords.Configuration {
+    return .{ .scope = .{ .realm = c.realm, .resource = c.resource, .catalog = 1 }, .owner = c.source, .administrator = caller, .table_limits = .{ .record_bytes = q.fuze.TableRow.max_bytes, .staging_bytes = 2 * q.fuze.TableRow.max_bytes, .staging_records = 2 } };
+}
 pub fn provision(self: *Self) !void {
     try self.flush();
     for (0..self.record.provision.len) |i| {
@@ -161,9 +165,53 @@ pub fn activate(self: *Self, registration: q.wire.bootstrap.GrowingRegistration)
 pub fn initializeBehaviors(self: *Self) !void {
     const c = self.connection();
     for ([_]u64{ c.source, c.requester }, 0..) |pid, i| if (!self.record.initialized[i]) {
-        const payload = if (i == 0) try self.table().initializeCommand() else try q.UnifiedRequest.Command.encode(.initialize);
+        const payload = if (i == 0) try (q.catalog.TableControl.Command{ .initialize = catalogFor(c) }).encode() else try q.UnifiedRequest.Command.encode(.initialize);
         try self.submit(caller, .{ .send = .{ .pid = pid, .value = try (q.station.Frame{ .kind = .cast, .payload = payload }).encode() } }, .initialize, @intCast(i));
     };
+}
+/// Default data is an explicit recoverable catalog operation, not a host side
+/// effect. The completion marker prevents recreating items after an explicit DROP.
+pub fn ensureDefaultTable(self: *Self, catalog: *q.catalog.TableClient) !void {
+    if (self.record.default_table_complete) return;
+    var saved = try @import("../TableRecovery.zig").open(self.init.io, self.init.gpa, try self.path("default-table.json"), catalog);
+    defer saved.close();
+    errdefer {
+        if (saved.failed) self.failed = true;
+    }
+    var original = try catalog.compile(self.init.gpa, "CREATE TABLE items (id INT64 PRIMARY KEY, value INT64)", .{ .operation = 1, .namespace = 1, .create_object = 1 }, null);
+    defer original.deinit();
+    if (saved.intent == null) try saved.install(catalog, &original);
+    if (!std.mem.eql(u8, original.bytes, saved.intent.?.bytes)) return error.InstallationIdentityMismatch;
+    if (saved.record.pending) |pending| {
+        if (saved.record.input == null) {
+            saved.record.input = (try catalog.submit(pending)).position;
+            try saved.save(catalog);
+        }
+        const progress = try catalog.waitProgress(&saved.intent.?, pending, saved.record.input.?);
+        if (progress == .pending) return error.TableWriterNotReady;
+        if (progress.processed.disposition != null) return error.InstallationDefaultTableRejected;
+        saved.record.pending = null;
+        saved.record.input = null;
+    }
+    switch (try catalog.next(&saved.intent.?)) {
+        .send => |pending| {
+            saved.record.pending = pending;
+            saved.record.input = null;
+            try saved.save(catalog);
+            saved.record.input = (try catalog.submit(pending)).position;
+            try saved.save(catalog);
+            return error.TableWriterNotReady;
+        },
+        .running => return error.TableWriterNotReady,
+        .upload_cancelled => return error.InstallationDefaultTableRejected,
+        .terminal => |outcome| {
+            if (outcome != .ddl or outcome.ddl.operation.state != .applied or outcome.ddl.operation.actual_object != 1) return error.InstallationDefaultTableRejected;
+            saved.record.complete = true;
+            try saved.save(catalog);
+            self.record.default_table_complete = true;
+            try self.save();
+        },
+    }
 }
 pub fn create(init: std.process.Init, config: Config, identity: Config.Identity) !void {
     const allocator = init.arena.allocator();
@@ -190,7 +238,7 @@ pub fn create(init: std.process.Init, config: Config, identity: Config.Identity)
         const bytes = std.fmt.bytesToHex(seed, .lower);
         try Files.write(init.io, try std.fmt.allocPrint(allocator, "{s}/{s}.seed", .{ temporary, name }), &bytes);
     }
-    try Files.json(init.io, init.gpa, try std.fs.path.join(allocator, &.{ temporary, "installation.json" }), Record{ .definition = g.current_definition, .identity = identity, .installation = random, .root_public = root_public });
+    try Files.json(init.io, init.gpa, try std.fs.path.join(allocator, &.{ temporary, "installation.json" }), Record{ .definition = g.current_definition, .identity = identity, .installation = random, .root_public = root_public, .default_table_complete = false });
     if (std.c.fsync(directory.handle) != 0) return error.InstallationSyncFailed;
     try std.Io.Dir.cwd().renamePreserve(temporary, std.Io.Dir.cwd(), config.installation, init.io);
     const parent = try std.Io.Dir.cwd().openDir(init.io, std.fs.path.dirname(config.installation).?, .{ .iterate = true });

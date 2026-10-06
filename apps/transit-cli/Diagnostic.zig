@@ -198,7 +198,13 @@ fn renderFailure(self: Self, out: *std.Io.Writer, err: anyerror) !void {
         };
         try self.style.text(out, .failure, "error:");
         try out.writeByte(' ');
-        return diagnostic.renderStyled(out, self.style);
+        try diagnostic.renderStyled(out, self.style);
+        if (std.mem.indexOf(u8, diagnostic.hint, ".help") == null) switch (diagnostic.route) {
+            .declaration => try self.style.hint(out, "Use .help CREATE TABLE, .help ALTER TABLE or .help DROP TABLE for syntax.\n"),
+            .mutation => try self.style.hint(out, "Use .help INSERT, .help UPDATE or .help DELETE for syntax.\n"),
+            else => {},
+        };
+        return;
     }
     if (err == error.InvalidTimingCommand) return self.style.hint(out, "Usage: .timer on|off\n");
     const Advice = struct { []const u8, ?[]const u8 };

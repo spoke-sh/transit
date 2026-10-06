@@ -33,7 +33,11 @@ pub fn open(allocator: std.mem.Allocator, client: *c.TableClient, text: []const 
     defer names.deinit();
     const name = try c.TableMetadata.Name.init(try f.TableSelect.target(names.allocator(), text));
     var scan = try Scan.open(allocator, client, name, nonce, limits.requests, cancellation);
-    errdefer scan.deinit();
+    errdefer {
+        const native = scan.rejection;
+        scan.deinit();
+        client.transport.last_rejection = native;
+    }
     const definition = &scan.definition.?;
     var fields: [f.TableSchema.max_columns]f.Types.Field = undefined;
     var compiled = try f.TableSelect.compile(allocator, text, definition.metadata.name.slice(), try definition.schema.schema.rowType(&fields), try scan.fingerprint(), location);
@@ -144,7 +148,11 @@ const Scan = struct {
         const support = try q.wire.SnapshotReader.support(resources);
         const requested = metadata(client.connection);
         var acquired = try support.acquire(.{ .snapshot = .{ .open = .{ .resource = client.connection.scope.resource, .nonce = nonce } }, .current = requested, .points = requested[0].?.keys });
-        errdefer acquired.reader.close() catch {};
+        errdefer {
+            const native = client.transport.last_rejection;
+            acquired.reader.close() catch {};
+            client.transport.last_rejection = native;
+        }
         if (acquired.reader.snapshot.resource.writer != client.connection.owner or acquired.reader.snapshot.resource.phase != .active) return error.CatalogOwnerChanged;
         var batch = try current(client.connection, acquired.result);
         var self: Scan = .{ .allocator = allocator, .connection = client.connection, .configuration = try configurationAt(client.connection, &batch), .source = acquired.reader, .view = acquired.reader.view, .request_limit = request_limit };

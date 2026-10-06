@@ -360,15 +360,15 @@ with tempfile.TemporaryDirectory(prefix='transit-cli-diagnostics-') as directory
         for statement, fragments in (
             ('SELECT;', ('SQL parse error', 'line 1, column 7', '  SELECT;\n        ^--- error here')),
             ('SELECT *\nFROM', ('SQL parse error', 'line 2, column 5', 'expected an identifier')),
-            ('INSERT INTO items VALUES (1, 100);', ('[syntax]', 'column 19', 'explicit column names', '.help INSERT')),
-            ('INSERT INTO items (id, value) VALUES (1, 100);', ('no writer is configured', '.help INSERT')),
+            ('INSERT INTO items VALUES (1, 100);', ('no Table catalog is configured', '.help INSERT')),
+            ('INSERT INTO items (id, value) VALUES (1, 100);', ('no Table catalog is configured', '.help INSERT')),
             ('SELECT * FROM items WHERE value = \'private-must-not-appear', ('SQL parse error', '^--- error here')),
             ('SELECT * /* private-must-not-appear', ('SQL parse error', '^--- error here')),
             ('CREATE KV items (UTF8);', ('[interface]', 'SQL publication of KV and Document definitions is unavailable', '.help SQL')),
-            ('CREATE TABLE items (id INT64 NOT NULL, value INT64 NULL);', ('no catalog is configured', '.help CREATE TABLE')),
-            ('CREATE TABLE items (id INT64, value INT64);', ('[binding]', 'INT64 NOT NULL', '.help CREATE TABLE')),
-            ('CREATE TABLE items (id BOOLEAN);', ('[syntax]', 'INT64, BOOL, UTF8 or BINARY')),
-            ('INSERT INTO items (id,value) VALUES (1,1),(2,2),(3,3),(4,4);', ('[limit]', 'MutationBatchTooLarge')),
+            ('CREATE TABLE items (id INT64 NOT NULL, value INT64 NULL);', ('no Table catalog is configured', '.help CREATE TABLE')),
+            ('CREATE TABLE items (id INT64, value INT64);', ('no Table catalog is configured', '.help CREATE TABLE')),
+            ('CREATE TABLE items (id BOOLEAN);', ('no Table catalog is configured', '.help CREATE TABLE')),
+            ('INSERT INTO items (id,value) VALUES (1,1),(2,2),(3,3),(4,4);', ('no Table catalog is configured', '.help INSERT')),
             ('CREATE CONNECTION unfinished', ('[grammar_only]', 'syntax has not been validated')),
             ('SELEC * FROM items;', ('[unsupported]', 'supported syntax')),
             ('SELECT absent FROM items;', ('[binding]', 'Subject: \"absent\"', 'scope: \"items\"', 'column 8')),
@@ -384,7 +384,7 @@ with tempfile.TemporaryDirectory(prefix='transit-cli-diagnostics-') as directory
             ('SELECT * FROM items WHERE value = NULL;', ('[binding]', 'IS NULL', 'IS MISSING')),
         ):
             invoke(['console', '--no-rc', '--config', path, '--format', 'json', '-c', statement], 1, fragments)
-        invoke(['console', '--no-rc', '--config', path], 1, ('no writer is configured', '.help INSERT'), data=b'.schema writer\n')
+        invoke(['console', '--no-rc', '--config', path], 1, ('no Table catalog is configured', '.help INSERT'), data=b'.schema writer\n')
         script = root/'bad.sql'
         script.write_text('SELECT *\nFROM;')
         invoke(['console', '--no-rc', '--config', path, '-f', script], 1, ('line 2, column 5', '^--- error here'))
@@ -596,8 +596,8 @@ with tempfile.TemporaryDirectory(prefix='transit-cli-diagnostics-') as directory
                 assert (b'\x1b[36mtimer'+reset in echo) == colored, echo
                 for statement, hint, category, cause in (
                     ('.unknown', '.help', None, 'UnknownConsoleCommand'),
-                    ('CREATE TABLE people (id INT64, name BINARY);', '.help CREATE TABLE', 'binding', 'UnspecifiedNullability'),
-                    ('CREATE TABLE people (id INTEGER, name TEXT);', '.help CREATE TABLE', 'syntax', 'UnsupportedDeclarationType'),
+                    ('CREATE TABLE people (id INT64, id BINARY);', '.help CREATE TABLE', 'binding', 'DuplicateColumn'),
+                    ('CREATE TABLE people (id , name TEXT);', '.help CREATE TABLE', 'syntax', 'InvalidSqlSyntax'),
                     ("SELECT /* private-comment */\n'private-literal', 12;", '.help SQL', 'syntax', 'InvalidSqlSyntax'),
                 ):
                     terminal.send('\x1b[200~'+statement+'\x1b[201~\r')
@@ -706,7 +706,7 @@ with tempfile.TemporaryDirectory(prefix='transit-cli-diagnostics-') as directory
     identity = dict.fromkeys(('config', 'cli', 'minio', 'ursula', 'node', 'query_host'), [0]*32)
     definition = json.loads((Path(__file__).resolve().parents[1] / 'contracts/transit-v1.schema.json').read_text())['x-transit']['definition']
     record = dict(definition=definition, identity=identity, installation=[0]*16, root_public=[0]*32,
-                  complete=True, genesis_observed=True, provision=list(range(1, 15)))
+                  complete=True, genesis_observed=True, default_table_complete=True, provision=list(range(1, 15)))
     (local/'installation.json').write_text(json.dumps(record))
     shown = invoke(['console'], 0, env=environment, cwd=project, data=b'.show\n')
     settings = parse_show(shown.stdout)
