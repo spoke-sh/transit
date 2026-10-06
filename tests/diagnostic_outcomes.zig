@@ -86,6 +86,41 @@ fn catalogs(out: *std.Io.Writer) !void {
         try emit(out, "catalog.input", @tagName(outcome), try c.Diagnostic.input(.{ .scope = scope, .origin = .external, .principal = 9, .input = 11, .payload = @splat(3), .outcome = outcome }));
     }
 }
+fn generalTables(allocator: std.mem.Allocator, out: *std.Io.Writer) !void {
+    const scope: c.TableCatalogRecords.Scope = .{ .realm = 1, .catalog = 2, .resource = 7 };
+    const schema: q.fuze.TableSchema.Schema = .{ .object = 20, .revision = 1, .next_column = 2, .columns = &.{.{ .id = 1, .name = "id", .type = .int64, .nullable = false }}, .primary_key = &.{1} };
+    var buffer: [q.fuze.TableSchema.max_bytes]u8 = undefined;
+    const metadata: c.TableMetadata.Record = .{ .scope = scope, .object = 20, .revision = 1, .name = try .init("items"), .schema = .{ .id = 1, .spec = try c.station.Publication.Digest.of(c.station.TablePages.schema_format, try schema.encode(&buffer)) }, .schema_fingerprint = try schema.fingerprint(), .principal = 9, .operation = 1, .admitted_input = 1 };
+    var compiled = try q.fuze.TableDml.compile(allocator, "INSERT INTO items VALUES (1)", "items", schema, null);
+    defer compiled.deinit();
+    var intent = try c.TableIntent.create(allocator, try c.TableCommand.fromDml(scope, 3, .{ .principal = 9, .operation = 19, .metadata = .{ .id = 1, .spec = try metadata.spec() }, .plan = compiled.plan }, metadata), 19);
+    defer intent.deinit();
+    const base: q.station.TableWrite.Status = .{ .reference = intent.identity.dml.reference, .route = intent.identity.dml.route, .admitted_input = 11, .basis_revision = 1, .first_record = 1, .end_record = 2, .state = .building };
+    inline for (comptime std.meta.tags(@FieldType(q.station.TableWrite.Status, "state"))) |state| {
+        var value = base;
+        value.state = state;
+        value.completed_input = if (state == .building) 0 else 12;
+        if (state == .rejected) value.rejection = .row_exists;
+        try emit(out, "table.phase", @tagName(state), try c.TableDiagnostic.status(&intent, .{ .dml = value }));
+    }
+    inline for (comptime std.meta.tags(@FieldType(q.station.TableWrite.Status, "rejection"))) |reason| {
+        var value = base;
+        value.state = if (reason == .none) .applied else .rejected;
+        value.completed_input = 12;
+        value.rejection = reason;
+        try emit(out, "table.reason", @tagName(reason), try c.TableDiagnostic.status(&intent, .{ .dml = value }));
+    }
+    inline for (comptime std.meta.tags(@FieldType(c.TableCatalogRecords.Operation, "reason"))) |reason| {
+        const request: c.TableDdlRequest = .{ .principal = 9, .operation = 19, .object = 20, .expected_revision = if (reason == .name_conflict or reason == .object_conflict) 0 else 1, .name = metadata.name, .action = if (reason == .name_conflict or reason == .object_conflict) .{ .create = .{ .schema = schema } } else .{ .drop = .{} } };
+        var original = try c.TableIntent.create(allocator, try c.TableCommand.fromDdl(scope, 3, request, if (request.action == .create) null else metadata), 19);
+        defer original.deinit();
+        const value: c.TableCatalogRecords.Operation = .{ .scope = scope, .principal = 9, .operation = 19, .object = 20, .kind = std.meta.activeTag(request.action), .digest = original.identity.ddl.digest, .state = if (reason == .none) .cancelled else .rejected, .reason = reason, .admitted_input = 11, .completed_input = 12 };
+        try emit(out, "table.ddl_reason", @tagName(reason), try c.TableDiagnostic.status(&original, .{ .ddl = .{ .operation = value, .table = null } }));
+    }
+    inline for (comptime std.meta.tags(@FieldType(c.TableControl.Disposition, "outcome"))) |outcome| {
+        try emit(out, "table.input", @tagName(outcome), try c.TableDiagnostic.input(.{ .scope = scope, .origin = .external, .principal = 9, .input = 11, .payload = @splat(3), .outcome = outcome }));
+    }
+}
 fn serving(out: *std.Io.Writer) !void {
     inline for (comptime std.meta.tags(s.Model.Phase)) |phase| {
         const record: s.Model.Operation = .{ .principal = 9, .operation = 19, .binding = 1, .codec = 1, .deadline_ms = 1000, .digest = @splat(1), .target = 2, .correlation = 11, .policy_revision = 1, .phase = phase, .resolution_input = if (phase == .admitted) 0 else 12, .result = if (phase == .completed) try p.Value.init("reply") else .{}, .reply_bytes = if (phase == .completed) 5 else if (phase == .failed) s.station.Frame.max_payload else 0 };
@@ -262,6 +297,7 @@ pub fn main(init: std.process.Init) !void {
     try queryPhases(&stdout.interface);
     try mutations(&stdout.interface);
     try catalogs(&stdout.interface);
+    try generalTables(init.gpa, &stdout.interface);
     try serving(&stdout.interface);
     try capture(&stdout.interface);
     try effects(&stdout.interface);

@@ -227,6 +227,672 @@
         "stale_policy": {"code": "mutation.input.stale_policy","category": "conflict","actions": ["inspect_status","inspect_scope"]}
       }
     },
+    "table.phase": {
+      "source": "packages/zig/transit-station/src/TableWrite.zig",
+      "type": "Status.state",
+      "projection": "packages/zig/transit-catalog/src/TableDiagnostic.zig",
+      "profile": "General typed Tables",
+      "context": "Original schema-bound point DML phases",
+      "durable_evidence": "Projects retained typed owner outcomes; these synthetic mapping cases do not prove native persistence.",
+      "disclosure": "Current catalog inspection authorization precedes projection. Unrecorded constraint witnesses are explicitly absent; no fresh name lookup or payload read occurs.",
+      "recovery": "Pending original work can resume or cancel; terminal outcomes can only be inspected. Rejected native inputs remain separate from SQL outcomes.",
+      "defaults": {
+        "stage": "execute",
+        "evidence": "domain_status",
+        "identity": {
+          "domain": "mutation",
+          "id": "19",
+          "realm": "1",
+          "resource": "7",
+          "sequence": null
+        },
+        "facts": [
+          [
+            "object",
+            "owner",
+            "provided"
+          ],
+          [
+            "operation",
+            "caller",
+            "provided"
+          ],
+          [
+            "native_input",
+            "owner",
+            "provided"
+          ],
+          [
+            "affected_rows",
+            "execution",
+            "provided"
+          ]
+        ],
+        "actions": [
+          "inspect_status"
+        ]
+      },
+      "scenarios": {
+        "default": {}
+      },
+      "cases": {
+        "building": {
+          "code": "table.pending",
+          "category": "lifecycle",
+          "outcome": "pending",
+          "facts": [
+            [
+              "object",
+              "owner",
+              "provided"
+            ],
+            [
+              "operation",
+              "caller",
+              "provided"
+            ],
+            [
+              "native_input",
+              "owner",
+              "provided"
+            ]
+          ],
+          "actions": [
+            "inspect_status",
+            "resume_exact",
+            "cancel_mutation"
+          ]
+        },
+        "applied": {
+          "code": "table.applied",
+          "category": "lifecycle",
+          "outcome": "applied"
+        },
+        "rejected": {
+          "code": "table.primary_key_conflict",
+          "category": "constraint",
+          "outcome": "rejected",
+          "facts": [
+            [
+              "object",
+              "owner",
+              "provided"
+            ],
+            [
+              "operation",
+              "caller",
+              "provided"
+            ],
+            [
+              "native_input",
+              "owner",
+              "provided"
+            ],
+            [
+              "affected_rows",
+              "execution",
+              "provided"
+            ],
+            [
+              "column",
+              "execution",
+              "unrecorded"
+            ],
+            [
+              "source_row",
+              "execution",
+              "unrecorded"
+            ],
+            [
+              "constraint",
+              "schema",
+              "provided"
+            ],
+            [
+              "key",
+              "execution",
+              "unrecorded"
+            ]
+          ],
+          "actions": [
+            "inspect_status",
+            "correct_input"
+          ]
+        },
+        "cancelled": {
+          "code": "table.cancelled",
+          "category": "lifecycle",
+          "outcome": "cancelled",
+          "stage": "control"
+        }
+      }
+    },
+    "table.reason": {
+      "source": "packages/zig/transit-station/src/TableWrite.zig",
+      "type": "Status.rejection",
+      "projection": "packages/zig/transit-catalog/src/TableDiagnostic.zig",
+      "profile": "General typed Tables",
+      "context": "Every terminal general Table rejection reason",
+      "durable_evidence": "Projects retained typed owner outcomes; these synthetic mapping cases do not prove native persistence.",
+      "disclosure": "Current catalog inspection authorization precedes projection. Unrecorded constraint witnesses are explicitly absent; no fresh name lookup or payload read occurs.",
+      "recovery": "Pending original work can resume or cancel; terminal outcomes can only be inspected. Rejected native inputs remain separate from SQL outcomes.",
+      "defaults": {
+        "stage": "execute",
+        "evidence": "domain_status",
+        "identity": {
+          "domain": "mutation",
+          "id": "19",
+          "realm": "1",
+          "resource": "7",
+          "sequence": null
+        },
+        "facts": [
+          [
+            "object",
+            "owner",
+            "provided"
+          ],
+          [
+            "operation",
+            "caller",
+            "provided"
+          ],
+          [
+            "native_input",
+            "owner",
+            "provided"
+          ],
+          [
+            "affected_rows",
+            "execution",
+            "provided"
+          ]
+        ],
+        "actions": [
+          "inspect_status"
+        ]
+      },
+      "scenarios": {
+        "default": {}
+      },
+      "cases": {
+        "none": {
+          "code": "table.applied",
+          "category": "lifecycle",
+          "outcome": "applied"
+        },
+        "row_exists": {
+          "code": "table.primary_key_conflict",
+          "category": "constraint",
+          "outcome": "rejected",
+          "facts": [
+            [
+              "object",
+              "owner",
+              "provided"
+            ],
+            [
+              "operation",
+              "caller",
+              "provided"
+            ],
+            [
+              "native_input",
+              "owner",
+              "provided"
+            ],
+            [
+              "affected_rows",
+              "execution",
+              "provided"
+            ],
+            [
+              "column",
+              "execution",
+              "unrecorded"
+            ],
+            [
+              "source_row",
+              "execution",
+              "unrecorded"
+            ],
+            [
+              "constraint",
+              "schema",
+              "provided"
+            ],
+            [
+              "key",
+              "execution",
+              "unrecorded"
+            ]
+          ],
+          "actions": [
+            "inspect_status",
+            "correct_input"
+          ]
+        },
+        "row_identity_exists": {
+          "code": "table.row_identity_conflict",
+          "category": "conflict",
+          "outcome": "rejected",
+          "facts": [
+            [
+              "object",
+              "owner",
+              "provided"
+            ],
+            [
+              "operation",
+              "caller",
+              "provided"
+            ],
+            [
+              "native_input",
+              "owner",
+              "provided"
+            ],
+            [
+              "affected_rows",
+              "execution",
+              "provided"
+            ],
+            [
+              "column",
+              "execution",
+              "unrecorded"
+            ],
+            [
+              "source_row",
+              "execution",
+              "unrecorded"
+            ]
+          ],
+          "actions": [
+            "inspect_status",
+            "inspect_scope"
+          ]
+        },
+        "null_not_allowed": {
+          "code": "table.not_null_violation",
+          "category": "constraint",
+          "outcome": "rejected",
+          "facts": [
+            [
+              "object",
+              "owner",
+              "provided"
+            ],
+            [
+              "operation",
+              "caller",
+              "provided"
+            ],
+            [
+              "native_input",
+              "owner",
+              "provided"
+            ],
+            [
+              "affected_rows",
+              "execution",
+              "provided"
+            ],
+            [
+              "column",
+              "execution",
+              "unrecorded"
+            ],
+            [
+              "source_row",
+              "execution",
+              "unrecorded"
+            ]
+          ],
+          "actions": [
+            "inspect_status",
+            "correct_input"
+          ]
+        },
+        "missing_required_field": {
+          "code": "table.required_value_missing",
+          "category": "constraint",
+          "outcome": "rejected",
+          "facts": [
+            [
+              "object",
+              "owner",
+              "provided"
+            ],
+            [
+              "operation",
+              "caller",
+              "provided"
+            ],
+            [
+              "native_input",
+              "owner",
+              "provided"
+            ],
+            [
+              "affected_rows",
+              "execution",
+              "provided"
+            ],
+            [
+              "column",
+              "execution",
+              "unrecorded"
+            ],
+            [
+              "source_row",
+              "execution",
+              "unrecorded"
+            ]
+          ],
+          "actions": [
+            "inspect_status",
+            "correct_input"
+          ]
+        },
+        "character_limit_exceeded": {
+          "code": "table.character_limit",
+          "category": "constraint",
+          "outcome": "rejected",
+          "facts": [
+            [
+              "object",
+              "owner",
+              "provided"
+            ],
+            [
+              "operation",
+              "caller",
+              "provided"
+            ],
+            [
+              "native_input",
+              "owner",
+              "provided"
+            ],
+            [
+              "affected_rows",
+              "execution",
+              "provided"
+            ],
+            [
+              "column",
+              "execution",
+              "unrecorded"
+            ],
+            [
+              "source_row",
+              "execution",
+              "unrecorded"
+            ]
+          ],
+          "actions": [
+            "inspect_status",
+            "correct_input"
+          ]
+        },
+        "overflow": {
+          "code": "table.conversion_overflow",
+          "category": "constraint",
+          "outcome": "rejected",
+          "facts": [
+            [
+              "object",
+              "owner",
+              "provided"
+            ],
+            [
+              "operation",
+              "caller",
+              "provided"
+            ],
+            [
+              "native_input",
+              "owner",
+              "provided"
+            ],
+            [
+              "affected_rows",
+              "execution",
+              "provided"
+            ],
+            [
+              "column",
+              "execution",
+              "unrecorded"
+            ],
+            [
+              "source_row",
+              "execution",
+              "unrecorded"
+            ]
+          ],
+          "actions": [
+            "inspect_status",
+            "correct_input"
+          ]
+        },
+        "inexact": {
+          "code": "table.inexact_conversion",
+          "category": "constraint",
+          "outcome": "rejected",
+          "facts": [
+            [
+              "object",
+              "owner",
+              "provided"
+            ],
+            [
+              "operation",
+              "caller",
+              "provided"
+            ],
+            [
+              "native_input",
+              "owner",
+              "provided"
+            ],
+            [
+              "affected_rows",
+              "execution",
+              "provided"
+            ],
+            [
+              "column",
+              "execution",
+              "unrecorded"
+            ],
+            [
+              "source_row",
+              "execution",
+              "unrecorded"
+            ]
+          ],
+          "actions": [
+            "inspect_status",
+            "correct_input"
+          ]
+        }
+      }
+    },
+    "table.ddl_reason": {
+      "source": "packages/zig/transit-catalog/src/TableCatalogRecords.zig",
+      "type": "Operation.reason",
+      "projection": "packages/zig/transit-catalog/src/TableDiagnostic.zig",
+      "profile": "General typed Tables",
+      "context": "Original catalog-bound DDL rejection/cancellation reasons",
+      "durable_evidence": "Projects retained typed owner outcomes; these synthetic mapping cases do not prove native persistence.",
+      "disclosure": "Current catalog inspection authorization precedes projection. Unrecorded constraint witnesses are explicitly absent; no fresh name lookup or payload read occurs.",
+      "recovery": "Pending original work can resume or cancel; terminal outcomes can only be inspected. Rejected native inputs remain separate from SQL outcomes.",
+      "defaults": {
+        "stage": "execute",
+        "evidence": "domain_status",
+        "identity": {
+          "domain": "catalog",
+          "id": "19",
+          "realm": "1",
+          "resource": "7",
+          "sequence": null
+        },
+        "facts": [
+          [
+            "object",
+            "owner",
+            "provided"
+          ],
+          [
+            "operation",
+            "caller",
+            "provided"
+          ]
+        ],
+        "actions": [
+          "inspect_status"
+        ]
+      },
+      "scenarios": {
+        "default": {}
+      },
+      "cases": {
+        "none": {
+          "code": "table.cancelled",
+          "category": "lifecycle",
+          "outcome": "cancelled",
+          "stage": "control"
+        },
+        "name_conflict": {
+          "code": "table.name_conflict",
+          "category": "conflict",
+          "outcome": "rejected",
+          "actions": [
+            "inspect_status",
+            "inspect_scope"
+          ]
+        },
+        "object_conflict": {
+          "code": "table.object_conflict",
+          "category": "conflict",
+          "outcome": "rejected",
+          "actions": [
+            "inspect_status",
+            "inspect_scope"
+          ]
+        },
+        "not_found": {
+          "code": "table.not_found",
+          "category": "conflict",
+          "outcome": "rejected",
+          "actions": [
+            "inspect_status",
+            "inspect_scope"
+          ]
+        },
+        "dependency": {
+          "code": "table.drop_restricted",
+          "category": "conflict",
+          "outcome": "rejected",
+          "actions": [
+            "inspect_status",
+            "inspect_scope"
+          ]
+        },
+        "schema_changed": {
+          "code": "table.schema_changed",
+          "category": "conflict",
+          "outcome": "rejected",
+          "actions": [
+            "inspect_status",
+            "inspect_scope"
+          ]
+        }
+      }
+    },
+    "table.input": {
+      "source": "packages/zig/transit-catalog/src/TableControl.zig",
+      "type": "Disposition.outcome",
+      "projection": "packages/zig/transit-catalog/src/TableDiagnostic.zig",
+      "profile": "General typed Tables",
+      "context": "Native control disposition never replaces accepted SQL outcome",
+      "durable_evidence": "Projects retained typed owner outcomes; these synthetic mapping cases do not prove native persistence.",
+      "disclosure": "Current catalog inspection authorization precedes projection. Unrecorded constraint witnesses are explicitly absent; no fresh name lookup or payload read occurs.",
+      "recovery": "Pending original work can resume or cancel; terminal outcomes can only be inspected. Rejected native inputs remain separate from SQL outcomes.",
+      "defaults": {
+        "stage": "admission",
+        "evidence": "domain_status",
+        "identity": {
+          "domain": "transport",
+          "id": "11",
+          "realm": "1",
+          "resource": "7",
+          "sequence": null
+        },
+        "facts": [
+          [
+            "native_input",
+            "owner",
+            "provided"
+          ],
+          [
+            "source_basis",
+            "owner",
+            "provided"
+          ]
+        ],
+        "actions": [
+          "inspect_status"
+        ]
+      },
+      "scenarios": {
+        "default": {}
+      },
+      "cases": {
+        "initialized": {
+          "code": "table.input.initialized",
+          "category": "lifecycle",
+          "outcome": "applied"
+        },
+        "policy_applied": {
+          "code": "table.input.policy_applied",
+          "category": "lifecycle",
+          "outcome": "applied"
+        },
+        "dependency_applied": {
+          "code": "table.input.dependency_applied",
+          "category": "lifecycle",
+          "outcome": "applied"
+        },
+        "invalid_command": {
+          "code": "table.input.invalid_command",
+          "category": "binding",
+          "outcome": "input_rejected"
+        },
+        "denied": {
+          "code": "table.input.denied",
+          "category": "access",
+          "outcome": "input_rejected"
+        },
+        "identity_conflict": {
+          "code": "table.input.identity_conflict",
+          "category": "conflict",
+          "outcome": "input_rejected"
+        },
+        "stale_policy": {
+          "code": "table.input.stale_policy",
+          "category": "conflict",
+          "outcome": "input_rejected"
+        },
+        "blocked": {
+          "code": "table.input.blocked",
+          "category": "conflict",
+          "outcome": "input_rejected"
+        }
+      }
+    },
     "catalog.receipt": {
       "source": "packages/zig/transit-catalog/src/Model.zig",
       "type": "Outcome",
