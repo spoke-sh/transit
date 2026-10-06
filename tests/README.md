@@ -16964,7 +16964,7 @@ The growth phase takes 397.798 seconds. Its median CREATE/INSERT wall times are
 small cold-store working set. These measurements are not a matched console
 latency comparison: the lifecycle includes separate saved-step invocations,
 other local processes were active, and compilation overlapped part of growth.
-The 139-additional-Table schedule remains to be executed. The first build attempt
+The first build attempt
 was deliberately interrupted before runtime after correcting an expected neutral
 integer atom; `general-table-growth-native1.log` is not a passed schedule.
 
@@ -17031,3 +17031,20 @@ before; an author above the native bound rejects as `InvalidCatalogPage`.
 `general-catalog-root-page-negative1.log` runs the same regression against the
 prior built binary and fails on zero with `InvalidCatalogIdentity`. Neither test
 confers catalog rights or dispatches a request after local validation.
+
+### General Table catalog growth beyond the former fixed capacity
+
+`general-catalog-removal-growth139-1.log` in the local Table-schema campaign
+passes **9/9** ReleaseSafe build/run steps and the complete native schedule in
+**1,064.616 seconds**. The growth portion adds **139** three-column Tables,
+enumerates **19** metadata pages, replaces the authority, disk store and workers,
+and verifies the same metadata, original saved outcome and typed sampled rows.
+The cold provider retains **1,010** data objects and **265,188,208** bytes under
+the unchanged **8 MiB** hot-store limit and eight authority resident pages.
+Resident high-water bytes are authority **34,967,552**, store **141,467,648**,
+and workers **15,695,872 / 24,059,904**, within the existing 512 MiB aggregate
+ceiling. Across the schedule, **2,888** turns and **1,114** sends never exceed
+four mutations or a 256-byte native value. The growth portion takes 898.938
+seconds. Compilation and other owned experiments overlapped this run; these
+are growth/recovery results, not a controlled latency comparison. Installed SDK
+consumers were not selected.
