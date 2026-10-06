@@ -89,6 +89,9 @@ pub const Field = enum {
     resolution_policy,
     protocol_status,
     native_effect,
+    dependency,
+    dependency_kind,
+    dependency_owner,
 };
 pub const Text = BoundedText(256);
 pub const Code = BoundedText(96);

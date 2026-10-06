@@ -218,6 +218,85 @@ test "durable dependencies block RESTRICT while history references remain distin
     try t.expect(store.state.get(owner.key('B', 1, 1)) != null);
 }
 
+test "DROP retains the exact blocking dependency after removal replacement and name reuse" {
+    inline for (.{ .query_source, .writer, .watch, .maintained_relation }) |kind| {
+        var store: TestStore = .{};
+        defer store.deinit();
+        try ready(&store);
+        const creation = try createRequest(10, 1, "people");
+        _ = try ddl(&store, creation);
+        const request: c.TableDdlRequest = .{ .principal = 17, .operation = 2, .object = 10, .expected_revision = 1, .name = creation.name, .action = .{ .drop = .{} } };
+        var turn = try store.capture(17);
+        const dependency: m.Dependency = .{ .scope = owner.configuration.scope, .object = 10, .identity = std.math.maxInt(u64), .owner = 4, .kind = kind };
+        try owner.setDependency(&turn, dependency, true);
+        try store.commit(turn);
+        const rejected = try ddl(&store, request);
+        try t.expectEqual(.rejected, rejected.operation.state);
+        try t.expectEqual(.dependency, rejected.operation.reason);
+        const blocker = rejected.operation.blocker.dependency;
+        try t.expectEqual(dependency.identity, blocker.identity);
+        try t.expectEqual(dependency.owner, blocker.owner);
+        try t.expectEqual(dependency.kind, blocker.kind);
+        const encoded = try r.encode('R', rejected.operation);
+        try t.expectEqual(@as(usize, 242), encoded.len);
+        try t.expectEqualDeep(rejected.operation, try r.decode(m.Operation, 'R', encoded));
+        var invalid = rejected.operation;
+        invalid.blocker = .none;
+        try t.expectError(error.InvalidCatalogReceipt, invalid.validate());
+        invalid = rejected.operation;
+        invalid.blocker.dependency.kind = .history;
+        try t.expectError(error.InvalidCatalogReceipt, invalid.validate());
+        invalid = rejected.operation;
+        invalid.reason = .schema_changed;
+        try t.expectError(error.InvalidCatalogReceipt, invalid.validate());
+        turn = try store.capture(17);
+        var resolved = (try owner.lookup(t.allocator, &turn, 17, request.name)).?;
+        defer resolved.deinit();
+        var intent = try c.TableIntent.create(t.allocator, try c.TableCommand.fromDdl(owner.configuration.scope, owner.configuration.owner, request, resolved.metadata), 1000);
+        defer intent.deinit();
+        const detail = try c.TableDiagnostic.status(&intent, .{ .ddl = rejected });
+        try t.expectEqual(dependency.identity, try (try diagnosticFact(detail, .dependency)).value.?.unsigned.value());
+        try t.expectEqualStrings(@tagName(kind), (try diagnosticFact(detail, .dependency_kind)).value.?.text.slice());
+        try t.expectEqual(dependency.owner, try (try diagnosticFact(detail, .dependency_owner)).value.?.unsigned.value());
+        turn = try store.capture(17);
+        try owner.setDependency(&turn, dependency, false);
+        try store.commit(turn);
+        var replacement = dependency;
+        replacement.owner = 5;
+        replacement.kind = .watch;
+        turn = try store.capture(17);
+        try owner.setDependency(&turn, replacement, true);
+        try store.commit(turn);
+        turn = try store.capture(17);
+        try t.expectEqualDeep(rejected, (try owner.status(&turn, 17, 2, rejected.operation.digest)).?);
+        try owner.setDependency(&turn, replacement, false);
+        try store.commit(turn);
+        var next = request;
+        next.operation = 3;
+        try t.expectEqual(.applied, (try ddl(&store, next)).operation.state);
+        _ = try ddl(&store, try createRequest(11, 4, "people"));
+        turn = try store.capture(17);
+        const retained = (try owner.status(&turn, 17, 2, rejected.operation.digest)).?;
+        try t.expectEqualDeep(rejected, retained);
+        try t.expectEqualDeep(detail, try c.TableDiagnostic.status(&intent, .{ .ddl = retained }));
+        try t.expectEqualDeep(rejected, try owner.step(t.allocator, &turn, request));
+        try t.expectEqual(@as(usize, 0), countWrites(turn));
+        var rights = try m.Policy.administrator(owner.configuration.scope, 17);
+        rights.inspect = false;
+        rights.revision = 2;
+        try owner.setPolicy(&turn, 1, rights);
+        try store.commit(turn);
+        turn = try store.capture(17);
+        try t.expectError(error.CatalogDenied, owner.status(&turn, 17, 2, rejected.operation.digest));
+        rights.inspect = true;
+        rights.revision = 3;
+        try owner.setPolicy(&turn, 2, rights);
+        try store.commit(turn);
+        turn = try store.capture(17);
+        try t.expectEqualDeep(rejected, (try owner.status(&turn, 17, 2, rejected.operation.digest)).?);
+    }
+}
+
 fn ddl(store: *TestStore, request: c.TableDdlRequest) !Cat.Outcome {
     for (0..2000) |_| {
         var turn = try store.capture(request.principal);

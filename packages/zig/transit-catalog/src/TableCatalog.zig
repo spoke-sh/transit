@@ -347,6 +347,13 @@ fn close(self: Self, turn: *s.Turn, pending: m.Operation, current: ?m.Object, st
     try self.saveOperation(turn, final);
     return .{ .operation = final };
 }
+fn closeRestricted(self: Self, turn: *s.Turn, pending: m.Operation, current: ?m.Object, dependency: m.Dependency) !Outcome {
+    try dependency.validate();
+    if (!std.meta.eql(dependency.scope, pending.scope) or dependency.object != pending.object or !dependency.restricts()) return error.InvalidCatalogDependency;
+    var rejected = pending;
+    rejected.blocker = .{ .dependency = .{ .identity = dependency.identity, .owner = dependency.owner, .kind = dependency.kind } };
+    return self.close(turn, rejected, current, .rejected, .dependency, pending.object);
+}
 fn emptyObjectNamespace(turn: *s.Turn, id: u64) !void {
     inline for (.{ s.Publication.Domain.table, s.Publication.Domain.catalog }) |domain| {
         const full = s.Publication.key(domain, id, 0, 0, 0);
@@ -388,7 +395,7 @@ fn admit(self: Self, turn: *s.Turn, request: DdlRequest, digest: [32]u8) !Outcom
                 if (request.action.rename.eql(&request.name)) return self.close(turn, pending, null, .unchanged, .none, request.object);
                 if (try self.binding(turn, request.action.rename)) |occupied| return self.close(turn, pending, null, .rejected, .name_conflict, occupied.object.object);
             }
-            if (request.action == .drop and try self.restrict(turn, request.object) != null) return self.close(turn, pending, null, .rejected, .dependency, request.object);
+            if (request.action == .drop) if (try self.restrict(turn, request.object)) |dependency| return self.closeRestricted(turn, pending, null, dependency);
             var next = existing.object;
             next.pending_principal = request.principal;
             next.pending_operation = request.operation;
@@ -466,7 +473,7 @@ fn boundStep(self: Self, turn: *s.Turn, request: DdlRequest, pending: m.Operatio
     if (head.pending != 0) return error.TableBusy;
     if (request.action == .rename) {
         if (try self.binding(turn, request.action.rename)) |occupied| return self.close(turn, pending, current, .rejected, .name_conflict, occupied.object.object);
-    } else if (try self.restrict(turn, request.object) != null) return self.close(turn, pending, current, .rejected, .dependency, request.object);
+    } else if (try self.restrict(turn, request.object)) |dependency| return self.closeRestricted(turn, pending, current, dependency);
     const record = self.candidate(pending, current, if (request.action == .rename) request.action.rename else request.name, head.schema, original.schema_fingerprint);
     if (!try self.recordCandidate(turn, pending, record)) return .{ .operation = (try self.operation(turn, pending.principal, pending.operation)).? };
     if (!try self.stagedMetadata(turn, record)) return .{ .operation = pending };

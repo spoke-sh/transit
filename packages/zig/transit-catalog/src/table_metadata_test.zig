@@ -53,7 +53,7 @@ test "general metadata owns UTF-8 names and complete immutable schema references
     try t.expectEqualSlices(u8, first.data[0..24], second.data[0..24]);
 }
 test "general catalog metadata matches independent Python layouts" {
-    const Fixture = struct { definition: []const u8, record_hex: []const u8, name_digest_hex: []const u8, name_key_hex: []const u8, manifest_hex: []const u8, command_header_hex: []const u8, rename_command_hex: []const u8, upload_status_hex: []const u8, rename_intent_hex: []const u8, inline_key_hex: []const u8, controls: struct { configuration: []const u8, policy: []const u8, object: []const u8, operation: []const u8, dependency: []const u8 } };
+    const Fixture = struct { definition: []const u8, record_hex: []const u8, name_digest_hex: []const u8, name_key_hex: []const u8, manifest_hex: []const u8, command_header_hex: []const u8, rename_command_hex: []const u8, upload_status_hex: []const u8, rename_intent_hex: []const u8, inline_key_hex: []const u8, controls: struct { configuration: []const u8, policy: []const u8, object: []const u8, operation: []const u8, restricted: []const u8, dependency: []const u8 } };
     const parsed = try std.json.parseFromSlice(Fixture, t.allocator, @embedFile("fixtures/table-metadata.json"), .{});
     defer parsed.deinit();
     const expected = parsed.value;
@@ -80,8 +80,14 @@ test "general catalog metadata matches independent Python layouts" {
     const policy: m.Policy = .{ .scope = scope, .principal = 17, .revision = 9, .inspect = true, .create = false, .read = true, .insert = true, .update = false, .delete = false, .alter = true, .drop = false };
     const object: m.Object = .{ .scope = scope, .object = record.object, .state = .live, .metadata = reference, .next_revision = 4 };
     const operation: m.Operation = .{ .scope = scope, .principal = 17, .operation = std.math.maxInt(u64), .object = record.object, .actual_object = record.object, .digest = @splat(68), .kind = .rename, .state = .applied, .metadata = reference, .admitted_input = 5, .completed_input = 7 };
+    var restricted = operation;
+    restricted.kind = .drop;
+    restricted.state = .rejected;
+    restricted.reason = .dependency;
+    restricted.metadata = m.empty_reference;
+    restricted.blocker = .{ .dependency = .{ .identity = std.math.maxInt(u64), .owner = 4, .kind = .writer } };
     const dependency: m.Dependency = .{ .scope = scope, .object = record.object, .identity = 15, .owner = 4, .kind = .query_source };
-    inline for (.{ "configuration", "policy", "object", "operation", "dependency" }, .{ 'C', 'P', 'O', 'R', 'B' }, .{ configuration, policy, object, operation, dependency }) |name, tag, value| {
+    inline for (.{ "configuration", "policy", "object", "operation", "restricted", "dependency" }, .{ 'C', 'P', 'O', 'R', 'R', 'B' }, .{ configuration, policy, object, operation, restricted, dependency }) |name, tag, value| {
         const encoded = try c.Records.encode(tag, value);
         try expectHex(@field(expected.controls, name), encoded.slice());
         try t.expectEqualDeep(value, try c.Records.decode(@TypeOf(value), tag, encoded));

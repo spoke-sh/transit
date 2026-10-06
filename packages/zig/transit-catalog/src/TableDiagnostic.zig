@@ -75,7 +75,7 @@ pub fn status(intent: *const c.TableIntent, outcome: c.TableClient.Outcome) !d {
         .name_conflict => "The requested Table name is already bound. This statement did not replace that Table.",
         .object_conflict => "The requested object identity is already occupied. This statement created no Table.",
         .not_found => "The originally selected Table does not exist. This statement did not affect a replacement object.",
-        .dependency => "A registered dependency restricts dropping this Table. The live Table remains available.",
+        .dependency => "A registered dependency blocked this DROP. This statement did not retire the Table. Inspect the recorded dependency before preparing a new DROP.",
         .schema_changed => "The original Table definition changed before this statement could publish. Recompile only after reconciling this outcome.",
         .none => unreachable,
     } else if (cancelled) "The original Table operation was cancelled before publication. It published no changes." else if (complete) "The original Table operation completed. Later inspection or output failures cannot undo its outcome." else "The original Table operation is still pending. Preserve its saved intent and reconcile exact work.";
@@ -88,6 +88,15 @@ pub fn status(intent: *const c.TableIntent, outcome: c.TableClient.Outcome) !d {
         if (complete) try result.fact(.affected_rows, .execution, .{ .unsigned = .init(value.changed) });
         if (rejected) {
             try witnessDetails(&result, intent, value);
+        }
+    } else {
+        const original = outcome.ddl.operation;
+        try result.fact(.native_input, .owner, .{ .unsigned = .init(original.admitted_input) });
+        if (original.blocker == .dependency) {
+            const blocker = original.blocker.dependency;
+            try result.fact(.dependency, .owner, .{ .unsigned = .init(blocker.identity) });
+            try result.text(.dependency_kind, .owner, @tagName(blocker.kind));
+            try result.fact(.dependency_owner, .owner, .{ .unsigned = .init(blocker.owner) });
         }
     }
     try result.action(.inspect_status);

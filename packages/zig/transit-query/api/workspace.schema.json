@@ -3971,7 +3971,10 @@
                                           "authorization_policy",
                                           "resolution_policy",
                                           "protocol_status",
-                                          "native_effect"
+                                          "native_effect",
+                                          "dependency",
+                                          "dependency_kind",
+                                          "dependency_owner"
                                         ]
                                       },
                                       "origin": {
@@ -5687,7 +5690,10 @@
                       "authorization_policy",
                       "resolution_policy",
                       "protocol_status",
-                      "native_effect"
+                      "native_effect",
+                      "dependency",
+                      "dependency_kind",
+                      "dependency_owner"
                     ]
                   },
                   "origin": {

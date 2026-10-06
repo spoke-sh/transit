@@ -114,7 +114,11 @@ fn generalTables(allocator: std.mem.Allocator, out: *std.Io.Writer) !void {
         const request: c.TableDdlRequest = .{ .principal = 9, .operation = 19, .object = 20, .expected_revision = if (reason == .name_conflict or reason == .object_conflict) 0 else 1, .name = metadata.name, .action = if (reason == .name_conflict or reason == .object_conflict) .{ .create = .{ .schema = schema } } else .{ .drop = .{} } };
         var original = try c.TableIntent.create(allocator, try c.TableCommand.fromDdl(scope, 3, request, if (request.action == .create) null else metadata), 19);
         defer original.deinit();
-        const value: c.TableCatalogRecords.Operation = .{ .scope = scope, .principal = 9, .operation = 19, .object = 20, .kind = std.meta.activeTag(request.action), .digest = original.identity.ddl.digest, .state = if (reason == .none) .cancelled else .rejected, .reason = reason, .admitted_input = 11, .completed_input = 12 };
+        var value: c.TableCatalogRecords.Operation = .{ .scope = scope, .principal = 9, .operation = 19, .object = 20, .kind = std.meta.activeTag(request.action), .digest = original.identity.ddl.digest, .state = if (reason == .none) .cancelled else .rejected, .reason = reason, .admitted_input = 11, .completed_input = 12 };
+        if (reason == .dependency) {
+            value.actual_object = value.object;
+            value.blocker = .{ .dependency = .{ .identity = 7, .owner = 3, .kind = .writer } };
+        }
         try emit(out, "table.ddl_reason", @tagName(reason), try c.TableDiagnostic.status(&original, .{ .ddl = .{ .operation = value, .table = null } }));
     }
     inline for (comptime std.meta.tags(@FieldType(c.TableControl.Disposition, "outcome"))) |outcome| {

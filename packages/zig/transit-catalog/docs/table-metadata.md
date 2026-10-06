@@ -187,6 +187,16 @@ includes the failing column, value, expected type and applicable Unicode limit.
 Previews longer than 64 bytes carry explicit truncation. The renderer never
 rereads a current row to guess the cause of an earlier failure.
 
+Rejected DROP RESTRICT receipts retain the original blocking dependency's
+identity, kind and owner PID. The Table object and scope come from the same
+receipt. Diagnostics report that recorded blocker after registry removal or
+replacement, Table retirement and name reuse; they do not claim it still exists.
+Current catalog inspection rights gate this evidence. It is metadata, not a
+stored row value, and does not require Table read permission. A blocked receipt
+uses 242 bytes; the rejection adds no separate evidence write. Other catalog
+receipts encode an explicit empty blocker and use 225 bytes. Readers reject
+missing tags, truncated evidence and contradictory reason/kind combinations.
+
 Catalog inspection permission gates all outcome access. Stored-row identity and
 value additionally require current read permission; denied fields are explicitly
 withheld while the rejected outcome and schema facts remain inspectable. INSERT

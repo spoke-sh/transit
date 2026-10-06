@@ -11424,6 +11424,34 @@ verification checks cover **59 invariants, 53 bounds and 13 SDK scenarios**. Oth
 SDK migrations, query paths, fixed-profile removal, final definition replacement,
 performance/growth gates and clean CI remain unqualified by this checkpoint.
 
+The retained DROP RESTRICT witness passes **96/96 catalog tests** and the
+independent Python record oracle (`table-drop-witness-catalog4.log`). The rejected
+operation stores its exact dependency identity, kind and owner in **242 bytes**;
+other operation records encode an explicit empty blocker in **225 bytes**.
+Tests reject truncation, foreign definitions, absent blocker evidence and
+contradictory reason/kind pairs. All four blocking dependency kinds retain their
+original attribution after registry replacement/removal, DROP/name reuse and
+inspection revocation/restoration. Exact terminal retry writes nothing.
+
+The native/port/console proof passes in **147.866 seconds**
+(`table-drop-witness-native1.log`). It registers an actual blocking writer,
+observes a rejected DROP with all three original diagnostic facts, removes the
+dependency, retires/recreates the name and reloads the original rejected intent
+through a replacement native-port handle. The original evidence is unchanged.
+Across 439 turns and 117 sends, maximums remain four writes, 256-byte values and
+1,398-byte progress steps; lost-send, lost-turn and supplied-host receipt-loss
+schedules still pass. This run does not include installed SDK consumers.
+
+Regenerated shared diagnostics, ABI/port contracts and frontend validators pass
+full `just check` (`table-drop-witness-check2.log`), including **2,948 semantic
+projections across 34 outcome surfaces** and **592 real CLI diagnostic cases**.
+Initial checks caught missing void-tag serialization, an outdated byte fixture,
+a test attempting dependency registration while DDL is fenced, and a synthetic
+diagnostic receipt missing its now-required blocker. Failed logs remain in the
+campaign and are not qualification; the corrected tests preserve the pending-DDL
+fence and include explicit blocker provenance in the reviewed outcome manifest.
+The final coordinated shared-definition cutover and clean CI remain outstanding.
+
 ## Fuze logical type foundation
 
 The local `Types` profile has nine passing focused Zig tests, including 46

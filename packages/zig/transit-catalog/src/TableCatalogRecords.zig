@@ -99,12 +99,22 @@ pub const Operation = struct {
     table_digest: [32]u8 = @splat(0),
     admitted_input: u64,
     completed_input: u64 = 0,
+    blocker: union(enum(u8)) {
+        none = 0,
+        dependency: struct { identity: u64, owner: u64, kind: @FieldType(Dependency, "kind") } = 1,
+    } = .none,
     pub fn validate(self: Operation) !void {
         try self.scope.validate();
         if (self.principal > p.max_counter or self.operation == 0 or self.admitted_input == 0 or self.admitted_input > p.max_counter or self.completed_input > p.max_counter) return error.InvalidCatalogReceipt;
         const active = self.state == .preparing or self.state == .delegated;
         if (active != (self.completed_input == 0) or (self.completed_input != 0 and self.completed_input < self.admitted_input)) return error.InvalidCatalogReceipt;
         if ((self.state == .rejected) != (self.reason != .none)) return error.InvalidCatalogReceipt;
+        if ((self.reason == .dependency) != (self.blocker == .dependency)) return error.InvalidCatalogReceipt;
+        if (self.blocker == .dependency) {
+            const evidence = self.blocker.dependency;
+            if (self.kind != .drop or self.object == 0 or self.actual_object != self.object or evidence.identity == 0 or evidence.kind == .history) return error.InvalidCatalogReceipt;
+            try c.Model.nativeId(evidence.owner);
+        }
         if (self.state == .delegated and self.kind != .alter) return error.InvalidCatalogReceipt;
         if ((active or self.state == .applied) and self.object == 0) return error.InvalidCatalogReceipt;
         if (self.metadata.id != 0) try metadataReference(self.metadata) else if (!std.meta.eql(self.metadata, empty_reference)) return error.InvalidCatalogReceipt;

@@ -96,6 +96,19 @@ def run(host, url, root, readers, query):
     def prepare(operation, action, name='bridge_people'):
         return call({'prepare': dict(definition=definition, identity=identity(operation), name=name, action=action)})['compiled']
 
+    def dependency_control(dependency, present):
+        prepared = call({'prepare_dependency': dict(**dependency, present=present)})['prepared']
+        persist('bridge-control.json', prepared)
+        receipt = call({'submit': prepared})['receipt']
+        selected = dict(prepared=prepared, input=receipt['position'])
+        deadline = time.monotonic() + 30
+        while time.monotonic() < deadline:
+            if call({'wait_observe': selected})['observation'] == 'processed':
+                disposition = call({'input_disposition': selected})['disposition']
+                assert disposition['outcome'] == 'dependency_applied', disposition
+                return
+        raise AssertionError('Dependency control did not process')
+
     _, created = sql(900, 'CREATE TABLE bridge_people (tenant INTEGER, id INTEGER, payload STRUCT(data BINARY, label UTF8), amount DECIMAL(38,2), PRIMARY KEY(tenant,id))', '9001')
     assert created['phase'] == 'applied' and created['object'] == '9001', created
     source = lookup()
@@ -134,9 +147,21 @@ def run(host, url, root, readers, query):
     assert renamed['phase'] == 'applied' and lookup() is None, renamed
     assert query('SELECT enabled FROM bridge_renamed')['rows'][0][0]['cell']['value']['atom']['boolean'] is True
     source = lookup('bridge_renamed')
+    blocker = dict(scope=connection['scope'], object='9001', identity=str((1 << 64) - 1), owner=connection['owner'], kind='writer')
+    dependency_control(blocker, True)
+    blocked = prepare(908, {'drop': dict(basis=basis(source), if_exists=False)}, name='bridge_renamed')
+    rejected = finish(blocked)
+    assert rejected['phase'] == 'rejected' and rejected['diagnostic']['code'] == 'table.drop_restricted', rejected
+    facts = {fact['field']: fact for fact in rejected['diagnostic']['facts'] if fact is not None}
+    assert facts['dependency']['value'] == {'unsigned': blocker['identity']}, facts
+    assert facts['dependency_kind']['value'] == {'text': 'writer'}, facts
+    assert facts['dependency_owner']['value'] == {'unsigned': str(blocker['owner'])}, facts
+    assert all(facts[key]['origin'] == 'owner' and facts[key]['availability'] == 'provided' for key in ('dependency', 'dependency_kind', 'dependency_owner'))
+    dependency_control(blocker, False)
     dropped = finish(prepare(906, {'drop': dict(basis=basis(source), if_exists=False)}, name='bridge_renamed'))
     assert dropped['phase'] == 'applied' and lookup('bridge_renamed') is None, dropped
     sql(907, 'CREATE TABLE bridge_people (replacement TEXT)', '9002')
+    sql(909, 'CREATE TABLE bridge_renamed (replacement BOOLEAN)', '9003')
     assert lookup()['metadata']['object'] == '9002'
     # Restarting the local handle does not imply cancellation or recompile.
     process.stdin.close()
@@ -156,6 +181,10 @@ def run(host, url, root, readers, query):
     renamed = call({'definition': dict(object='9001', revision='3')})['historical']
     assert renamed['metadata']['name'] == 'bridge_renamed'
     assert call({'definition': dict(object='9001', revision='999')}) == {'historical': None}
+    call({'load': blocked['saved']})
+    retained_rejection = call({'status': blocked['intent']['reference']})['state']['outcome']
+    assert retained_rejection == rejected, retained_rejection
+    assert lookup('bridge_renamed')['metadata']['object'] == '9003'
     assert max_step_bytes < 8192, max_step_bytes
     process.stdin.close()
     process.stdin = None

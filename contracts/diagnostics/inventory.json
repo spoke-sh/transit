@@ -3454,7 +3454,7 @@
         "CatalogSourceChanged": 4,
         "CrossResourceTransaction": 1,
         "InvalidCatalogBinding": 3,
-        "InvalidCatalogDependency": 7,
+        "InvalidCatalogDependency": 8,
         "InvalidCatalogIdentity": 3,
         "InvalidCatalogObject": 3,
         "InvalidCatalogPolicy": 5,
@@ -3500,6 +3500,7 @@
         "cleanupMutation()": "<inferred>",
         "cleanupMutationReference()": "<inferred>",
         "close()": "<inferred>",
+        "closeRestricted()": "<inferred>",
         "commandBasis()": "<inferred>",
         "continueDdl()": "<inferred>",
         "continueMutation()": "<inferred>",
@@ -3540,7 +3541,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 266,
+        "try": 267,
         "catch": 2
       },
       "imports": [
@@ -3556,7 +3557,7 @@
         "InvalidCatalogLimits": 1,
         "InvalidCatalogObject": 6,
         "InvalidCatalogPolicy": 1,
-        "InvalidCatalogReceipt": 10
+        "InvalidCatalogReceipt": 12
       },
       "outcomes": {
         "Dependency.kind": [
@@ -3576,6 +3577,10 @@
           "initializing",
           "live",
           "retired"
+        ],
+        "Operation.blocker": [
+          "none",
+          "dependency"
         ],
         "Operation.reason": [
           "none",
@@ -3618,7 +3623,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 14,
+        "try": 15,
         "catch": 0
       },
       "imports": [
@@ -3896,7 +3901,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 49,
+        "try": 53,
         "catch": 3
       },
       "imports": [
@@ -9045,7 +9050,10 @@
           "authorization_policy",
           "resolution_policy",
           "protocol_status",
-          "native_effect"
+          "native_effect",
+          "dependency",
+          "dependency_kind",
+          "dependency_owner"
         ],
         "Location.source_encoding": [
           "utf8",

@@ -63,6 +63,7 @@ fn write(out: *std.Io.Writer, value: anytype) anyerror!void {
         return out.writeAll(schema.slice());
     }
     switch (@typeInfo(T)) {
+        .void => {},
         .int => try out.writeInt(T, value, .little),
         .bool => try out.writeByte(@intFromBool(value)),
         .@"enum" => try out.writeByte(@backingInt(value)),
@@ -81,6 +82,7 @@ fn read(input: *std.Io.Reader, comptime T: type) anyerror!T {
     if (T == m.Name) return m.Name.init(try input.take(try input.takeByte()));
     if (T == m.Schema) return c.station.Table.decodeSchema(try p.Value.init(try input.take(try input.takeByte())));
     return switch (@typeInfo(T)) {
+        .void => {},
         .int => try input.takeInt(T, .little),
         .bool => switch (try input.takeByte()) {
             0 => false,
