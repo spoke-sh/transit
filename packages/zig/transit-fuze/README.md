@@ -140,6 +140,13 @@ ALTER/DROP retain the captured object/schema identity. The
 [compiler contract](../../../contracts/TABLE_DDL_V1.md) separates these pure
 definitions from catalog/native/console admission.
 
+`SqlTyped.literal` captures unbound constructor syntax and source spans before
+`SqlLiteral.bind` admits it against a logical descriptor. The bound value owns
+its allocations in the caller's arena. Nested binding failures identify the
+original child or union alternative after parsing has advanced. Direct syntax
+callers are bounded to the SQL depth, node and text budgets before cell allocation;
+row width, nullability and constraints remain schema responsibilities.
+
 `SqlTyped.Editor` captures bounded cursor expectations from the same Table DDL,
 DML and SELECT parsers. Their `compileWithEditor` and `targetWithEditor` entry
 points report syntax/name/type context without dispatching work. Catalog callers

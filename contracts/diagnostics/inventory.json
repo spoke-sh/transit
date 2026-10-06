@@ -6862,6 +6862,55 @@
         "std"
       ]
     },
+    "packages/zig/transit-fuze/src/SqlLiteral.zig": {
+      "errors": {
+        "DuplicateMapKey": 1,
+        "InvalidBinaryLiteral": 3,
+        "InvalidLiteral": 1,
+        "InvalidMapKey": 1,
+        "InvalidRowWidth": 1,
+        "InvalidSqlSyntax": 16,
+        "UnknownUnionAlternative": 1,
+        "ValueBudgetExceeded": 5
+      },
+      "outcomes": {
+        "value": [
+          "null",
+          "missing",
+          "boolean",
+          "number",
+          "string",
+          "binary",
+          "date",
+          "time",
+          "timestamp",
+          "uuid",
+          "json",
+          "structure",
+          "list",
+          "array",
+          "map",
+          "interval",
+          "tagged_union"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "bind()": "anyerror",
+        "bindInner()": "anyerror",
+        "check()": "anyerror"
+      },
+      "open_error_set_uses": 3,
+      "propagation": {
+        "try": 19,
+        "catch": 1
+      },
+      "imports": [
+        "Sql.zig",
+        "Types.zig",
+        "std"
+      ]
+    },
     "packages/zig/transit-fuze/src/SqlLogicalPredicate.zig": {
       "errors": {
         "InvalidQuerySchema": 1,
@@ -7003,20 +7052,16 @@
     },
     "packages/zig/transit-fuze/src/SqlTyped.zig": {
       "errors": {
-        "DuplicateMapKey": 1,
-        "InvalidBinaryLiteral": 3,
+        "InvalidBinaryLiteral": 1,
         "InvalidColumnName": 1,
         "InvalidLiteral": 3,
-        "InvalidMapKey": 1,
-        "InvalidRowWidth": 1,
-        "InvalidSqlSyntax": 7,
+        "InvalidSqlSyntax": 8,
         "InvalidTypeParameters": 3,
         "NullableMapKey": 1,
         "TypeBudgetExceeded": 2,
-        "UnknownUnionAlternative": 1,
         "UnsupportedConstruct": 1,
         "UnsupportedNestedCharacterLimit": 1,
-        "ValueBudgetExceeded": 3
+        "ValueBudgetExceeded": 2
       },
       "outcomes": {
         "NameRole": [
@@ -7031,6 +7076,8 @@
         "dataType()": "anyerror",
         "finish()": "<inferred>",
         "init()": "<inferred>",
+        "literal()": "anyerror",
+        "literalValue()": "anyerror",
         "name()": "<inferred>",
         "named()": "<inferred>",
         "nested()": "anyerror",
@@ -7044,13 +7091,14 @@
         "unsigned()": "<inferred>",
         "value()": "anyerror"
       },
-      "open_error_set_uses": 3,
+      "open_error_set_uses": 5,
       "propagation": {
-        "try": 108,
+        "try": 82,
         "catch": 3
       },
       "imports": [
         "Sql.zig",
+        "SqlLiteral.zig",
         "SqlTypes.zig",
         "Types.zig",
         "std"

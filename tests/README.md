@@ -11163,6 +11163,15 @@ failure after schema acquisition. All 350 turns, 83 sends, four-mutation bounds,
 large-output checks and recovery cases remain in that run. These checks do not
 qualify complete contextual highlighting or all compiler binding witnesses.
 
+The unbound literal checkpoint passes **211/211 Fuze tests** and **98/98 query
+tests** (`sql-literal2.log`, `sql-literal-query1.log`). It retains exact nested
+syntax and source spans, binds the full signed int128 boundary and canonical map
+order, attributes nested overflow/duplicate keys/unknown union alternatives,
+rejects recursive or oversized direct syntax before allocation, and exhausts
+partial-allocation failures. Existing typed editor continuations still pass.
+Semantic mapping and source-inventory gates pass; this is parser/binder evidence,
+not completed contextual classification or runtime/transport qualification.
+
 ## Fuze logical type foundation
 
 The local `Types` profile has nine passing focused Zig tests, including 46

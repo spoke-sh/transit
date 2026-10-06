@@ -6,11 +6,13 @@ const t = @import("Types.zig");
 const names = @import("SqlTypes.zig");
 const Cell = t.Values.Cell;
 const Self = @This();
+pub const Literal = @import("SqlLiteral.zig");
 allocator: std.mem.Allocator,
 lexer: sql.Lexer,
 token: sql.Token = .{ .tag = .eof, .text = "" },
 location: ?*sql.Location = null,
 depth: usize = 0,
+previous_end: usize = 0,
 editor: ?*Editor = null,
 pub const NameRole = enum { source, column, proposed };
 pub const Identifier = struct {
@@ -71,6 +73,7 @@ pub fn init(allocator: std.mem.Allocator, text: []const u8, location: ?*sql.Loca
     return self;
 }
 pub fn advance(self: *Self) !void {
+    self.previous_end = self.lexer.position;
     self.token = self.lexer.next() catch |err| {
         if (self.location) |location| location.* = .{ .offset = self.lexer.start };
         return err;
@@ -251,118 +254,115 @@ pub fn dataType(self: *Self) anyerror!names.Resolved {
     return names.resolve(name_text, parameters[0..count], zone);
 }
 pub fn value(self: *Self, expected: t.Type) anyerror!Cell {
-    if (self.boundary()) |editor| editor.value_type = std.meta.activeTag(expected);
+    const syntax = try self.literal(expected);
+    var failure: ?Literal.Span = null;
+    return syntax.bind(self.allocator, expected, &failure) catch |err| {
+        if (self.location) |at| if (failure) |span| {
+            at.* = .{ .offset = span.start };
+        };
+        return err;
+    };
+}
+/// Parse literal grammar independently of a source schema. The optional type
+/// supplies editor continuations only; bind performs actual type admission.
+pub fn literal(self: *Self, expected: ?t.Type) anyerror!Literal {
+    if (self.boundary()) |editor| {
+        editor.word("NULL");
+        editor.word("MISSING");
+        if (expected) |kind| {
+            editor.value_type = std.meta.activeTag(kind);
+            switch (kind) {
+                .boolean => {
+                    editor.word("TRUE");
+                    editor.word("FALSE");
+                },
+                .structure => editor.word("STRUCT"),
+                .list => editor.word("LIST"),
+                .array => editor.word("ARRAY"),
+                .map => editor.word("MAP"),
+                .tagged_union => editor.word("UNION"),
+                .interval => editor.word("INTERVAL"),
+                .date => editor.word("DATE"),
+                .time => editor.word("TIME"),
+                .timestamp => editor.word("TIMESTAMP"),
+                .uuid => editor.word("UUID"),
+                .binary => editor.word("X"),
+                .json => editor.word("JSON"),
+                else => {},
+            }
+        }
+    }
     if (self.depth == 16) return error.ValueBudgetExceeded;
     self.depth += 1;
     defer self.depth -= 1;
-    if (try self.takeWord("NULL")) return .null;
-    if (try self.takeWord("MISSING")) return .missing;
-    switch (expected) {
-        .structure, .list, .array => {
-            try self.requireWord(switch (expected) {
-                .structure => "STRUCT",
-                .list => "LIST",
-                else => "ARRAY",
-            });
+    const start = self.lexer.start;
+    const result = try self.literalValue(expected);
+    return .{ .span = .{ .start = start, .end = self.previous_end }, .value = result };
+}
+fn literalValue(self: *Self, expected: ?t.Type) anyerror!@FieldType(Literal, "value") {
+    if (self.token.tag == .string) return .{ .string = try self.unquote(.string) };
+    if (self.token.tag == .integer or self.token.tag == .minus or self.token.tag == .plus) return .{ .number = try self.number() };
+    if (self.token.tag == .word) {
+        if (try self.takeWord("NULL")) return .null;
+        if (try self.takeWord("MISSING")) return .missing;
+        if (try self.takeWord("TRUE")) return .{ .boolean = true };
+        if (try self.takeWord("FALSE")) return .{ .boolean = false };
+        inline for (.{ .{ "X", "binary" }, .{ "DATE", "date" }, .{ "TIME", "time" }, .{ "TIMESTAMP", "timestamp" }, .{ "UUID", "uuid" }, .{ "JSON", "json" } }) |prefix| {
+            if (try self.takeWord(prefix[0])) return @unionInit(@FieldType(Literal, "value"), prefix[1], try self.unquote(.string));
+        }
+        if (try self.takeWord("UNION")) {
             try self.require(.left);
-            var cells: std.ArrayList(Cell) = .empty;
-            if (self.token.tag != .right) while (true) {
-                if (cells.items.len == 65536) return error.ValueBudgetExceeded;
-                const child = switch (expected) {
-                    .structure => |fields| if (cells.items.len < fields.len) fields[cells.items.len].type else return error.InvalidRowWidth,
-                    .list => |element| element.type.*,
-                    .array => |array| array.element.type.*,
-                    else => unreachable,
-                };
-                try cells.append(self.allocator, try self.value(child));
-                if (!try self.take(.comma)) break;
-            };
-            try self.require(.right);
-            const owned = try cells.toOwnedSlice(self.allocator);
-            return .{ .value = switch (expected) {
-                .structure => .{ .structure = owned },
-                .list => .{ .list = owned },
-                else => .{ .array = owned },
-            } };
-        },
-        .map => |map| {
-            try self.requireWord("MAP");
-            try self.require(.left);
-            var entries: std.ArrayList(t.Values.Entry) = .empty;
-            if (self.token.tag != .right) while (true) {
-                if (entries.items.len == 65536) return error.ValueBudgetExceeded;
-                const key = try self.value(map.key.*);
-                if (key != .value or key.value != .atom) return error.InvalidMapKey;
-                try self.require(.comma);
-                const cell = try self.value(map.value.type.*);
-                var position = entries.items.len;
-                for (entries.items, 0..) |entry, i| switch (try t.Values.atomOrder(key.value.atom, entry.key, map.key.*)) {
-                    .eq => return error.DuplicateMapKey,
-                    .lt => {
-                        position = i;
-                        break;
-                    },
-                    .gt => {},
-                };
-                try entries.insert(self.allocator, position, .{ .key = key.value.atom, .value = cell });
-                if (!try self.take(.comma)) break;
-            };
-            try self.require(.right);
-            // SQL constructor order is immaterial; persist canonical unique keys.
-            return .{ .value = .{ .map = try entries.toOwnedSlice(self.allocator) } };
-        },
-        .tagged_union => |fields| {
-            try self.requireWord("UNION");
-            try self.require(.left);
+            const start = self.lexer.start;
             const selected = try self.name();
-            var index: ?usize = null;
-            for (fields, 0..) |field, i| if (std.mem.eql(u8, selected, field.name)) {
-                index = i;
-                break;
+            const selected_span: Literal.Span = .{ .start = start, .end = self.previous_end };
+            var child_type: ?t.Type = null;
+            if (expected) |kind| if (kind == .tagged_union) {
+                for (kind.tagged_union) |field| if (std.mem.eql(u8, field.name, selected)) {
+                    child_type = field.type;
+                    break;
+                };
             };
-            const i = index orelse return error.UnknownUnionAlternative;
             try self.require(.comma);
-            const cell = try self.allocator.create(Cell);
-            cell.* = try self.value(fields[i].type);
+            const child = try self.allocator.create(Literal);
+            child.* = try self.literal(child_type);
             try self.require(.right);
-            return .{ .value = .{ .tagged_union = .{ .index = @intCast(i), .value = cell } } };
-        },
-        .interval => {
-            try self.requireWord("INTERVAL");
-            try self.require(.left);
-            const months = try t.Semantics.bind(try self.number(), .int32);
-            try self.require(.comma);
-            const days = try t.Semantics.bind(try self.number(), .int32);
-            try self.require(.comma);
-            const nanos = try t.Semantics.bind(try self.number(), .int64);
-            try self.require(.right);
-            return .{ .value = .{ .atom = .{ .interval = .{ .months = @intCast(months.signed), .days = @intCast(days.signed), .nanos = @intCast(nanos.signed) } } } };
-        },
-        .json => {
-            _ = try self.takeWord("JSON");
-            return .{ .value = .{ .json = try self.unquote(.string) } };
-        },
-        .binary => {
-            if (!try self.takeWord("X")) return error.InvalidBinaryLiteral;
-            const encoded = try self.unquote(.string);
-            if (encoded.len % 2 != 0) return error.InvalidBinaryLiteral;
-            const bytes = try self.allocator.alloc(u8, encoded.len / 2);
-            return .{ .value = .{ .atom = .{ .bytes = std.fmt.hexToBytes(bytes, encoded) catch return error.InvalidBinaryLiteral } } };
-        },
-        .utf8 => return .{ .value = .{ .atom = .{ .bytes = try self.unquote(.string) } } },
-        .boolean => {
-            const boolean = if (try self.takeWord("TRUE")) true else if (try self.takeWord("FALSE")) false else return error.InvalidLiteral;
-            return .{ .value = .{ .atom = .{ .boolean = boolean } } };
-        },
-        .date, .time, .timestamp, .uuid => {
-            _ = try self.takeWord(switch (expected) {
-                .date => "DATE",
-                .time => "TIME",
-                .timestamp => "TIMESTAMP",
-                else => "UUID",
-            });
-            return .{ .value = .{ .atom = try t.Semantics.bind(try self.unquote(.string), expected) } };
-        },
-        else => return .{ .value = .{ .atom = try t.Semantics.bind(try self.number(), expected) } },
+            return .{ .tagged_union = .{ .name = selected, .selected = selected_span, .value = child } };
+        }
+        inline for (.{ .{ "STRUCT", "structure" }, .{ "LIST", "list" }, .{ "ARRAY", "array" }, .{ "MAP", "map" }, .{ "INTERVAL", "interval" } }) |constructor| {
+            if (try self.takeWord(constructor[0])) {
+                try self.require(.left);
+                var children: std.ArrayList(Literal) = .empty;
+                if (self.token.tag != .right) while (true) {
+                    if (children.items.len == 65536) return error.ValueBudgetExceeded;
+                    const child_type = childType(expected, constructor[1], children.items.len);
+                    try children.append(self.allocator, try self.literal(child_type));
+                    if (!try self.take(.comma)) break;
+                };
+                try self.require(.right);
+                return @unionInit(@FieldType(Literal, "value"), constructor[1], try children.toOwnedSlice(self.allocator));
+            }
+        }
     }
+    if (expected) |kind| switch (kind) {
+        .binary => return error.InvalidBinaryLiteral,
+        .boolean => return error.InvalidLiteral,
+        else => {},
+    };
+    return error.InvalidSqlSyntax;
+}
+fn childType(expected: ?t.Type, comptime constructor: []const u8, index: usize) ?t.Type {
+    const kind = expected orelse return null;
+    if (!std.mem.eql(u8, @tagName(kind), constructor)) return null;
+    return switch (kind) {
+        .structure => |fields| if (index < fields.len) fields[index].type else null,
+        .list => |element| element.type.*,
+        .array => |array| array.element.type.*,
+        .map => |map| if (index % 2 == 0) map.key.* else map.value.type.*,
+        .interval => if (index < 2) .int32 else if (index == 2) .int64 else null,
+        else => null,
+    };
+}
+
+test {
+    _ = @import("sql_typed_test.zig");
 }
