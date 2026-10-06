@@ -81,6 +81,15 @@ public final class JavaCatalogValues {
         empty.add("next", new Cursor(DEFINITION, SCOPE, 9, n(9)).wire()); check(CatalogValues.page(empty, SCOPE, Optional.of(new Cursor(DEFINITION, SCOPE, 9, n(8)))).next().orElseThrow().afterObject().equals(n(9)));
     }
     public static void main(String[] args) throws Exception {
+        Logical.Cell largeCell = new Logical.Present(new Logical.Binary(new Logical.BinaryData(new byte[1024 * 1024])));
+        Logical.Cell laterInvalid = new Logical.Present(new Logical.Sequence(Logical.SequenceKind.LIST, List.of(largeCell, largeCell)));
+        Schema oversizedSchema = new Schema(n(1), n(1), n(3), List.of(
+            new Column(n(1), "data", Logical.Scalar.BINARY, true, Optional.of(largeCell), Optional.empty()),
+            new Column(n(2), "later", Logical.Scalar.BINARY, true, Optional.of(laterInvalid), Optional.empty())));
+        check(rejects(IllegalArgumentException.class, oversizedSchema::wire).getMessage().equals("Table wire budget exceeded"));
+        List<List<Assignment>> oversizedRows = new ArrayList<>(Collections.nCopies(9, List.of(new Assignment(n(1), largeCell))));
+        oversizedRows.add(List.of(new Assignment(n(1), laterInvalid)));
+        check(rejects(IllegalArgumentException.class, () -> new Insert(oversizedRows).wire()).getMessage().equals("Table wire budget exceeded"));
         JavaLogicalValues.run(); metadataValues();
         Path root = Path.of(args[0]); Files.writeString(root.resolve("seed"), "11".repeat(32));
         rejects(IllegalArgumentException.class, () -> new Scope(SCOPE.resource(), MAX.add(n(1)))); rejects(IllegalArgumentException.class, () -> new Connection(new ProcessRef(47, 3), SCOPE));

@@ -58,6 +58,20 @@ large_values(A,Root) ->
     Definition=definition_id(),Identity=#transit_catalog_identity{operation=10,namespace=100},
     Summary=#{reference=>#{definition=>Definition,digest=>binary:copy(<<"00">>,32)},scope=>scope_json(),owner=>3,principal=>17,operation=><<"10">>,namespace=><<"100">>,object=><<"1">>,kind=><<"insert">>},
     Compiled=#{intent=>Summary,saved=>#{definition=>Definition,bytes=>binary:copy(<<"ab">>,300000)}},
+    Big={value,{atom,{binary,binary:copy(<<0>>,1048576)}}},Bad={value,{list,[Big,Big]}},
+    BigColumn=#transit_catalog_column{id=1,name= <<"data">>,type=binary,default=Big},
+    BadColumn=BigColumn#transit_catalog_column{id=2,name= <<"later">>,default=Bad},
+    BigSchema=#transit_catalog_schema{object=1,revision=1,next_column=3,columns=[BigColumn,BadColumn],primary_key=[]},
+    BigRows=lists:duplicate(9,[#transit_catalog_assignment{column=1,value=Big}])++[[#transit_catalog_assignment{column=1,value=Bad}]],
+    Oversized=[{create,BigSchema,false},{mutate,#transit_catalog_basis{object=1,revision=1,schema_fingerprint= <<0:256>>},{insert,BigRows}}],
+    lists:foreach(fun(Op)->
+        {error,#transit_error{kind=invalid_argument,phase=catalog_wire_budget}}=transit_sdk_value:protect(fun()->transit_catalog_value:action({prepare,<<"items">>,Identity,Op}) end)
+    end,Oversized),
+    response(A,Root,#{},fun(C)->
+        lists:foreach(fun(Op)->
+            {error,#transit_error{kind=invalid_argument,phase=catalog_request}}=A:prepare(C,<<"items">>,Identity,Op)
+        end,Oversized)
+    end),
     Operation={mutate,#transit_catalog_basis{object=1,revision=1,schema_fingerprint= <<0:256>>},{insert,[[#transit_catalog_assignment{column=1,value={value,{atom,{binary,binary:copy(<<0>>,300000)}}}}]]}},
     response(A,Root,#{compiled=>Compiled},fun(C)->
         {ok,#transit_catalog_compiled{saved=#transit_catalog_saved_intent{bytes=Bytes},intent=#transit_catalog_intent{identity=Identity,object=1,kind=insert}}}=A:prepare(C,<<"items">>,Identity,Operation),300000=byte_size(Bytes)

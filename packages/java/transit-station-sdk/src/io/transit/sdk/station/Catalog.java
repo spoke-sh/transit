@@ -60,6 +60,15 @@ public final class Catalog {
         public PolicyChange { u64(expectedRevision); Objects.requireNonNull(policy); if (!policy.revision().equals(expectedRevision.add(BigInteger.ONE))) throw new IllegalArgumentException("Expected successor policy revision"); }
         JsonObject wire() { return obj("expected_revision", expectedRevision.toString(), "policy", policy.wire()); }
     }
+    private static final class WireBudget {
+        private int remaining;
+        WireBudget(int limit) { remaining = limit; }
+        JsonObject take(JsonObject value) {
+            remaining -= value.toString().getBytes(StandardCharsets.UTF_8).length;
+            if (remaining < 0) throw new IllegalArgumentException("Table wire budget exceeded");
+            return value;
+        }
+    }
     public record Column(BigInteger id, String name, Logical.Descriptor type, boolean nullable, Optional<Logical.Cell> defaultValue, Optional<Long> maxCharacters) {
         public Column { positive(id); Catalog.name(name); Objects.requireNonNull(type); Objects.requireNonNull(defaultValue); maxCharacters.ifPresent(Catalog::u32); }
         public Column(BigInteger id, String name, Logical.Descriptor type) { this(id, name, type, true, Optional.empty(), Optional.empty()); }
@@ -75,7 +84,8 @@ public final class Catalog {
         }
         public Schema(BigInteger object, BigInteger revision, BigInteger nextColumn, List<Column> columns) { this(object, revision, nextColumn, columns, List.of()); }
         JsonObject wire() {
-            JsonArray cols = new JsonArray(), keys = new JsonArray(); columns.forEach(c -> cols.add(c.wire())); primaryKey.forEach(k -> keys.add(k.toString()));
+            WireBudget budget = new WireBudget(2 * 1024 * 1024);
+            JsonArray cols = new JsonArray(), keys = new JsonArray(); columns.forEach(c -> cols.add(budget.take(c.wire()))); primaryKey.forEach(k -> keys.add(k.toString()));
             JsonObject result = obj("definition", DEFINITION, "object", object.toString(), "revision", revision.toString(), "next_column", nextColumn.toString(), "columns", cols, "primary_key", keys);
             text(result.toString(), 2 * 1024 * 1024); return result;
         }
@@ -175,25 +185,25 @@ public final class Catalog {
         public JsonObject wire() { return obj("atom", obj("compare", obj("column", column.toString(), "op", Logical.tag(op), "value", Logical.atomWire(value)))); }
     }
     static Optional<List<Predicate>> predicates(Optional<List<Predicate>> values) { return values.map(list -> Logical.owned(list, 64)); }
-    static JsonElement predicateWire(Optional<List<Predicate>> values) { if (values.isEmpty()) return JsonNull.INSTANCE; JsonArray array = new JsonArray(); values.get().forEach(v -> array.add(v.wire())); return array; }
-    static JsonArray assignmentsWire(List<Assignment> values) { JsonArray result = new JsonArray(); values.forEach(v -> result.add(v.wire())); return result; }
+    private static JsonElement predicateWire(Optional<List<Predicate>> values, WireBudget budget) { if (values.isEmpty()) return JsonNull.INSTANCE; JsonArray array = new JsonArray(); values.get().forEach(v -> array.add(budget.take(v.wire()))); return array; }
+    private static JsonArray assignmentsWire(List<Assignment> values, WireBudget budget) { JsonArray result = new JsonArray(); values.forEach(v -> result.add(budget.take(v.wire()))); return result; }
     public sealed interface Mutation permits Insert, Update, Delete { Kind kind(); JsonObject wire(); }
     public record Insert(List<List<Assignment>> rows) implements Mutation {
         public Insert { rows = Logical.owned(rows, 1024).stream().map(row -> Logical.owned(row, 128)).toList(); if (rows.isEmpty()) throw new IllegalArgumentException("Empty INSERT"); }
         public Kind kind() { return Kind.INSERT; }
-        public JsonObject wire() { JsonArray values = new JsonArray(); rows.forEach(r -> values.add(assignmentsWire(r))); return obj("action", obj("insert", values), "predicate", null); }
+        public JsonObject wire() { WireBudget budget = new WireBudget(limit("catalog_action_bytes")); JsonArray values = new JsonArray(); rows.forEach(r -> values.add(assignmentsWire(r, budget))); return obj("action", obj("insert", values), "predicate", null); }
     }
     public record Update(List<Assignment> assignments, Optional<List<Predicate>> predicate) implements Mutation {
         public Update { assignments = Logical.owned(assignments, 128); predicate = predicates(predicate); }
         public Update(List<Assignment> assignments) { this(assignments, Optional.empty()); }
         public Kind kind() { return Kind.UPDATE; }
-        public JsonObject wire() { return obj("action", obj("update", assignmentsWire(assignments)), "predicate", predicateWire(predicate)); }
+        public JsonObject wire() { WireBudget budget = new WireBudget(limit("catalog_action_bytes")); return obj("action", obj("update", assignmentsWire(assignments, budget)), "predicate", predicateWire(predicate, budget)); }
     }
     public record Delete(Optional<List<Predicate>> predicate) implements Mutation {
         public Delete { predicate = predicates(predicate); }
         public Delete() { this(Optional.empty()); }
         public Kind kind() { return Kind.DELETE; }
-        public JsonObject wire() { return obj("action", obj("delete", obj()), "predicate", predicateWire(predicate)); }
+        public JsonObject wire() { return obj("action", obj("delete", obj()), "predicate", predicateWire(predicate, new WireBudget(limit("catalog_action_bytes")))); }
     }
     public sealed interface Change permits AddColumn, DropColumn, RenameColumn, SetDefault, SetNullable, SetType { JsonObject wire(); }
     public record AddColumn(String name, Logical.Descriptor type, boolean nullable, Optional<Logical.Cell> defaultValue, Optional<Long> maxCharacters) implements Change {

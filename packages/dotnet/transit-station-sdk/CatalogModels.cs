@@ -82,6 +82,14 @@ public static partial class Catalog
         }
         internal JsonObject Wire() { var value = ColumnWire(Name, Type, Nullable, DefaultValue, MaxCharacters); value.Add("id", Turn.Decimal(Id)); return value; }
     }
+    private sealed class WireBudget(int limit) {
+        private int remaining = limit;
+        internal JsonObject Take(JsonObject value) {
+            remaining -= V.Utf8.GetByteCount(value.ToJsonString(CatalogJson));
+            if (remaining < 0) throw new ArgumentException("Table wire budget exceeded");
+            return value;
+        }
+    }
     private static JsonObject ColumnWire(string name, Logical.Descriptor type, bool nullable, Logical.Cell? defaultValue, uint? maxCharacters) => V.Obj(("name", name), ("type", Logical.TypeWire(type)), ("nullable", nullable), ("default", defaultValue is null ? null : Logical.CellWire(defaultValue)), ("max_characters", maxCharacters.HasValue ? (ulong?)maxCharacters.Value : null));
     public sealed record Schema {
         public ulong ObjectId { get; }
@@ -94,8 +102,9 @@ public static partial class Catalog
             if (Columns.Count == 0 || PrimaryKey.Any(k => k == 0)) throw new ArgumentException("Invalid Table columns/keys");
         }
         internal JsonObject Wire() {
+            var budget = new WireBudget(2 * 1024 * 1024);
             var value = V.Obj(("definition", ContractDefinition), ("object", Turn.Decimal(ObjectId)), ("revision", Turn.Decimal(Revision)), ("next_column", Turn.Decimal(NextColumn)),
-                ("columns", new JsonArray(Columns.Select(c => (JsonNode?)c.Wire()).ToArray())), ("primary_key", new JsonArray(PrimaryKey.Select(k => (JsonNode?)JsonValue.Create(Turn.Decimal(k))).ToArray())));
+                ("columns", new JsonArray(Columns.Select(c => (JsonNode?)budget.Take(c.Wire())).ToArray())), ("primary_key", new JsonArray(PrimaryKey.Select(k => (JsonNode?)JsonValue.Create(Turn.Decimal(k))).ToArray())));
             V.Text(value.ToJsonString(CatalogJson), 2 * 1024 * 1024); return value;
         }
     }
@@ -236,27 +245,27 @@ public static partial class Catalog
         internal override JsonObject Wire() => V.Obj(("atom", V.Obj(("compare", V.Obj(("column", Turn.Decimal(Column)), ("op", Logical.EnumName(Operator)), ("value", Logical.AtomWire(Value)))))));
     }
     private static IReadOnlyList<Predicate>? Predicates(IReadOnlyList<Predicate>? values) => values is null ? null : Logical.Own(values, 64);
-    private static JsonArray? PredicateWire(IReadOnlyList<Predicate>? values) => values is null ? null : new(values.Select(v => (JsonNode?)v.Wire()).ToArray());
-    private static JsonArray AssignmentsWire(IReadOnlyList<Assignment> values) => new(values.Select(v => (JsonNode?)v.Wire()).ToArray());
+    private static JsonArray? PredicateWire(IReadOnlyList<Predicate>? values, WireBudget budget) => values is null ? null : new(values.Select(v => (JsonNode?)budget.Take(v.Wire())).ToArray());
+    private static JsonArray AssignmentsWire(IReadOnlyList<Assignment> values, WireBudget budget) => new(values.Select(v => (JsonNode?)budget.Take(v.Wire())).ToArray());
     public abstract record Mutation { public abstract Kind Kind { get; } internal abstract JsonObject Wire(); }
     public sealed record Insert : Mutation {
         public IReadOnlyList<IReadOnlyList<Assignment>> Rows { get; }
         public Insert(IReadOnlyList<IReadOnlyList<Assignment>> rows) { Rows = Logical.Own(Logical.Own(rows, 1024).Select(r => Logical.Own(r, 128)).ToArray(), 1024); if (Rows.Count == 0) throw new ArgumentException("Empty INSERT"); }
         public override Kind Kind => Kind.Insert;
-        internal override JsonObject Wire() => V.Obj(("action", V.Obj(("insert", new JsonArray(Rows.Select(r => (JsonNode?)AssignmentsWire(r)).ToArray())))), ("predicate", null));
+        internal override JsonObject Wire() { var budget = new WireBudget(Limit("catalog_action_bytes")); return V.Obj(("action", V.Obj(("insert", new JsonArray(Rows.Select(r => (JsonNode?)AssignmentsWire(r, budget)).ToArray())))), ("predicate", null)); }
     }
     public sealed record Update : Mutation {
         public IReadOnlyList<Assignment> Assignments { get; }
         public IReadOnlyList<Predicate>? Predicate { get; }
         public Update(IReadOnlyList<Assignment> assignments, IReadOnlyList<Predicate>? predicate = null) { Assignments = Logical.Own(assignments, 128); Predicate = Predicates(predicate); }
         public override Kind Kind => Kind.Update;
-        internal override JsonObject Wire() => V.Obj(("action", V.Obj(("update", AssignmentsWire(Assignments)))), ("predicate", PredicateWire(Predicate)));
+        internal override JsonObject Wire() { var budget = new WireBudget(Limit("catalog_action_bytes")); return V.Obj(("action", V.Obj(("update", AssignmentsWire(Assignments, budget)))), ("predicate", PredicateWire(Predicate, budget))); }
     }
     public sealed record Delete : Mutation {
         public IReadOnlyList<Predicate>? Predicate { get; }
         public Delete(IReadOnlyList<Predicate>? predicate = null) { Predicate = Predicates(predicate); }
         public override Kind Kind => Kind.Delete;
-        internal override JsonObject Wire() => V.Obj(("action", V.Obj(("delete", V.Obj()))), ("predicate", PredicateWire(Predicate)));
+        internal override JsonObject Wire() => V.Obj(("action", V.Obj(("delete", V.Obj()))), ("predicate", PredicateWire(Predicate, new WireBudget(Limit("catalog_action_bytes")))));
     }
     public abstract record Change { internal abstract JsonObject Wire(); }
     public sealed record AddColumn : Change {

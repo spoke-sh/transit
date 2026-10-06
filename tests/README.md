@@ -11769,6 +11769,19 @@ existing legal 60,000-element nullable default and exhaustive partial-allocation
 cleanup schedules still pass. Complete schema validation retains its independent
 descriptor, identity, nullability and framing checks.
 
+Java and .NET aggregate conversion checks pass from independently installed
+packages (`table-sdk-budget-values3.log`), after renaming the colliding Java
+fixture variable. Erlang and Elixir pass the corresponding installed checks
+(`table-sdk-budget-values4.log`). Each schema/INSERT fixture places an invalid
+logical value after an oversized valid prefix and verifies rejection before that
+later conversion. BEAM checks both the serializer's exact budget error and the
+public API's normalized preparation error. The first BEAM fixture expected the
+internal phase at the public boundary and failed; correcting that expectation
+does not change the API's existing error normalization. Strict values, large
+frames, uncertain receipts and joined worker-lifetime schedules also pass.
+These are local preparation and boundary checks, not another disk-backed
+lifecycle or whole-runtime memory measurement.
+
 ## Fuze logical type foundation
 
 The local `Types` profile has nine passing focused Zig tests, including 46

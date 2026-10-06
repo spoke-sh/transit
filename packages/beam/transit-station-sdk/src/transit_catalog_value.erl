@@ -55,9 +55,15 @@ column_fields(Name,Type,Nullable,Default,Max) ->
     #{<<"name">>=>identifier(Name),<<"type">>=>transit_logical:type_wire(Type),<<"nullable">>=>transit_sdk_value:boolean(Nullable),<<"default">>=>optional(Default,fun transit_logical:cell_wire/1),<<"max_characters">>=>optional(Max,fun small/1)}.
 column(#transit_catalog_column{id=Id,name=Name,type=Type,nullable=Nullable,default=Default,max_characters=Max}) ->
     (column_fields(Name,Type,Nullable,Default,Max))#{<<"id">>=>decimal(Id)}.
+%% Retain only a bounded prefix plus one individually bounded conversion.
+wire_map(F,Values,Remaining) -> lists:mapfoldl(fun(V,Left)->
+    Wire=F(V),Next=Left-byte_size(transit_sdk_value:encode(Wire)),
+    case Next>=0 of true->{Wire,Next}; false->transit_sdk_value:fail(invalid_argument,catalog_wire_budget) end
+end,Remaining,Values).
 schema(#transit_catalog_schema{object=Object,revision=Revision,next_column=Next,columns=Columns,primary_key=Keys}) ->
     list(Columns,128),check(Columns=/=[]),list(Keys,length(Columns)),
-    V=#{<<"definition">>=>definition(),<<"object">>=>decimal(Object),<<"revision">>=>decimal(Revision),<<"next_column">>=>decimal(Next),<<"columns">>=>[column(C)||C<-Columns],<<"primary_key">>=>[decimal(K)||K<-Keys]},
+    {Encoded,_}=wire_map(fun column/1,Columns,2097152),
+    V=#{<<"definition">>=>definition(),<<"object">>=>decimal(Object),<<"revision">>=>decimal(Revision),<<"next_column">>=>decimal(Next),<<"columns">>=>Encoded,<<"primary_key">>=>[decimal(K)||K<-Keys]},
     check(byte_size(transit_sdk_value:encode(V))=<2097152),V.
 identity(#transit_catalog_identity{operation=Operation,namespace=Namespace}) -> #{<<"operation">>=>decimal(Operation),<<"namespace">>=>decimal(Namespace)}.
 basis(#transit_catalog_metadata{object=O,revision=R,schema_fingerprint=F}) -> #transit_catalog_basis{object=O,revision=R,schema_fingerprint=F}.
@@ -71,18 +77,23 @@ saved_intent(#transit_catalog_saved_intent{definition=Definition,bytes=Bytes}) -
 saved(#transit_catalog_prepared{bytes=Bytes}) -> B=transit_sdk_value:text(Bytes,limit(<<"catalog_prepared_bytes">>)),check(byte_size(B)>0),B.
 dependency(#transit_catalog_dependency{scope=#transit_catalog_scope{resource=#transit_resource{realm=Realm}}=Scope,object=O,identity=I,owner=#transit_process{realm=Realm,pid=Owner},kind=Kind},Present) ->
     #{<<"scope">>=>scope(Scope),<<"object">>=>decimal(O),<<"identity">>=>decimal(I),<<"owner">>=>counter(Owner),<<"kind">>=>enum(Kind,[query_source,writer,watch,maintained_relation,history]),<<"present">>=>transit_sdk_value:boolean(Present)}.
-assignments(Values) -> [assignment(V)||V<-list(Values,128)].
+assignments(Values,Budget) -> wire_map(fun assignment/1,list(Values,128),Budget).
 assignment(#transit_catalog_assignment{column=Column,value=Value}) ->
     V=case Value of default->#{<<"default">>=>#{}}; _->#{<<"cell">>=>transit_logical:cell_wire(Value)} end,#{<<"column">>=>decimal(Column),<<"value">>=>V}.
-predicates(undefined) -> null;
-predicates(Values) -> [predicate(V)||V<-list(Values,64)].
+predicates(undefined,Budget) -> {null,Budget};
+predicates(Values,Budget) -> wire_map(fun predicate/1,list(Values,64),Budget).
 predicate(all) -> #{<<"atom">>=>#{<<"all">>=>#{}}};
 predicate({state,Column,State}) -> #{<<"atom">>=>#{<<"state">>=>#{<<"column">>=>decimal(Column),<<"value">>=>enum(State,[missing,null,type_error,value,conflict])}}};
 predicate({compare,Column,Op,Value}) -> #{<<"atom">>=>#{<<"compare">>=>#{<<"column">>=>decimal(Column),<<"op">>=>enum(Op,[eq,ne,lt,le,gt,ge]),<<"value">>=>transit_logical:atom_wire(Value)}}};
 predicate(Op) -> #{enum(Op,[negate,conjunction,disjunction])=>#{}}.
-mutation({insert,Rows}) -> list(Rows,1024),check(Rows=/=[]),{#{<<"action">>=>#{<<"insert">>=>[assignments(R)||R<-Rows]},<<"predicate">>=>null},insert};
-mutation({update,Assignments,Predicate}) -> {#{<<"action">>=>#{<<"update">>=>assignments(Assignments)},<<"predicate">>=>predicates(Predicate)},update};
-mutation({delete,Predicate}) -> {#{<<"action">>=>#{<<"delete">>=>#{}},<<"predicate">>=>predicates(Predicate)},delete}.
+mutation({insert,Rows}) -> list(Rows,1024),check(Rows=/=[]),
+    {Encoded,_}=lists:mapfoldl(fun assignments/2,limit(<<"catalog_action_bytes">>),Rows),
+    {#{<<"action">>=>#{<<"insert">>=>Encoded},<<"predicate">>=>null},insert};
+mutation({update,Assignments,Predicate}) ->
+    {Encoded,Left}=assignments(Assignments,limit(<<"catalog_action_bytes">>)),{P,_}=predicates(Predicate,Left),
+    {#{<<"action">>=>#{<<"update">>=>Encoded},<<"predicate">>=>P},update};
+mutation({delete,Predicate}) -> {P,_}=predicates(Predicate,limit(<<"catalog_action_bytes">>)),
+    {#{<<"action">>=>#{<<"delete">>=>#{}},<<"predicate">>=>P},delete}.
 change({add,Name,Type,Nullable,Default,Max}) -> #{<<"add">>=>column_fields(Name,Type,Nullable,Default,Max)};
 change({drop,Column}) -> #{<<"drop">>=>decimal(Column)};
 change({rename,Column,Name}) -> #{<<"rename">>=>#{<<"column">>=>decimal(Column),<<"name">>=>identifier(Name)}};

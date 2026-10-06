@@ -27,7 +27,8 @@ internal static class CatalogValues
     }
     static JsonObject Wire(object value) {
         var method = value.GetType().GetMethod("Wire", BindingFlags.NonPublic | BindingFlags.Instance)!;
-        return JsonNode.Parse(((JsonObject)method.Invoke(value,null)!).ToJsonString())!.AsObject();
+        try { return JsonNode.Parse(((JsonObject)method.Invoke(value,null)!).ToJsonString())!.AsObject(); }
+        catch (TargetInvocationException error) { ExceptionDispatchInfo.Capture(error.InnerException!).Throw(); throw; }
     }
     static async Task Expect(ErrorKind kind, Func<Task> action) {
         try { await action(); } catch (TransitException error) { Check(error.Kind == kind); return; }
@@ -86,6 +87,13 @@ internal static class CatalogValues
         Check(((C.Page)Decode("ParsePage",empty,scope,new C.Cursor(C.ContractDefinition,scope,9,8))!).Next!.AfterObject == 9);
     }
     internal static async Task Run(string root) {
+        L.Cell large = new L.Present(new L.Binary(new L.BinaryData(new byte[1024 * 1024])));
+        L.Cell laterInvalid = new L.Present(new L.Sequence(L.SequenceKind.List, [large, large]));
+        C.Schema oversizedSchema = new(1, 1, 3, [new C.Column(1, "data", new L.Scalar(L.ScalarKind.Binary), defaultValue: large), new C.Column(2, "later", new L.Scalar(L.ScalarKind.Binary), defaultValue: laterInvalid)]);
+        Check(Reject<ArgumentException>(() => Wire(oversizedSchema)).Message == "Table wire budget exceeded");
+        List<IReadOnlyList<C.Assignment>> oversizedRows = Enumerable.Repeat<IReadOnlyList<C.Assignment>>([new C.Assignment(1, large)], 9).ToList();
+        oversizedRows.Add([new C.Assignment(1, laterInvalid)]);
+        Check(Reject<ArgumentException>(() => Wire(new C.Insert(oversizedRows))).Message == "Table wire budget exceeded");
         C.Scope scope = new(new ResourceRef(46,7),ulong.MaxValue); MetadataValues(scope);
         Reject<ArgumentException>(() => new C.Scope(scope.Resource,0)); Reject<ArgumentException>(() => new C.Connection(new ProcessRef(47,3),scope));
         foreach (byte[] bytes in new[] { Array.Empty<byte>(),new byte[8193],new byte[]{255} }) Reject<ArgumentException>(() => new C.Prepared(new Bytes(bytes)));

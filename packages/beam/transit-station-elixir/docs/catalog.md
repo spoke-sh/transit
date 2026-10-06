@@ -1,5 +1,10 @@
 # General Table callers
 
+Serialization charges each converted column, assignment and predicate before
+building the next owned value. Neutral schemas share 2 MiB and actions share
+16 MiB; complete frame admission also counts enclosing fields. Oversized input
+rejects before constructing the complete JSON batch or dispatching native work.
+
 `Transit.Station.Sdk.Catalog` exposes the shared
 [general Table lifecycle](../../transit-station-sdk/docs/catalog.md) through
 Elixir structs and tagged operation tuples. Shared Erlang owns the bounded native

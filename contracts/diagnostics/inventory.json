@@ -4058,7 +4058,7 @@
         "IncompatibleDefinition": 1,
         "InvalidMutationColumns": 1,
         "InvalidMutationPlan": 1,
-        "MutationBatchTooLarge": 1,
+        "MutationBatchTooLarge": 2,
         "PredicateTooLarge": 1,
         "TableNotFound": 1
       },
@@ -4101,15 +4101,17 @@
       },
       "error_sets": {},
       "error_returns": {
+        "Conversion.cell()": "<inferred>",
         "assignments()": "<inferred>",
         "change()": "<inferred>",
+        "convert()": "<inferred>",
         "intent()": "<inferred>",
         "plan()": "<inferred>",
         "predicate()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 43,
+        "try": 46,
         "catch": 0
       },
       "imports": [
@@ -7803,6 +7805,7 @@
         "InvalidPrimaryKey": 1,
         "JsonByteBudgetExceeded": 1,
         "OutOfMemory": 1,
+        "TableSchemaTooLarge": 1,
         "WriteFailed": 1
       },
       "outcomes": {},
@@ -7817,7 +7820,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 22,
+        "try": 23,
         "catch": 2
       },
       "imports": [
