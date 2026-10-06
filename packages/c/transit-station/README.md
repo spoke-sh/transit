@@ -55,3 +55,6 @@ owned requests and saved commands, exact retry and separate input/result observa
 
 The [catalog caller](docs/CATALOG.md) provides typed conditional Table creation,
 initialization and policy controls with exact saved-command recovery.
+
+[Logical values](docs/LOGICAL.md) provide owned recursive descriptors and cells,
+exact wide numbers and bounded neutral codecs through explicit C ownership.

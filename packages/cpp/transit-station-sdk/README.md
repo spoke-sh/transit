@@ -43,3 +43,6 @@ move-only request/command owners and exact recovery through the public C SDK.
 
 The [catalog caller](docs/CATALOG.md) provides owned typed declarations and
 move-only creation/control commands through the same shared native worker.
+
+[Logical values](docs/LOGICAL.md) provide immutable owned descriptors and cells,
+exact wide numbers and bounded codecs with C++ value semantics.

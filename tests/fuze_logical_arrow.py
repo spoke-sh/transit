@@ -14,8 +14,8 @@ import pyarrow as pa
 from fuze_file_query import descriptor, cell_bytes
 from fuze_types import DEFINITION, TAGS
 
-CLI = str(Path(sys.argv[1]).resolve())
-BRIDGE = str(Path(sys.argv[2]).resolve())
+CLI = None
+BRIDGE = None
 ROOT = Path(__file__).resolve().parents[1]
 CASES = 0
 
@@ -141,7 +141,9 @@ def recursive_cases():
 
 
 def main():
-    global CASES
+    global CASES, CLI, BRIDGE
+    CLI = str(Path(sys.argv[1]).resolve())
+    BRIDGE = str(Path(sys.argv[2]).resolve())
     with tempfile.TemporaryDirectory(prefix='transit-logical-arrow-', dir='/var/tmp') as directory:
         work = Path(directory)
         for case in json.loads((ROOT / 'packages/zig/transit-fuze/src/fixtures/types.json').read_text())['cases']:

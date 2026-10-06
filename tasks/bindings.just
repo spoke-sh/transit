@@ -157,6 +157,11 @@ c-sdk-test: c-build
     python3 -B tests/sdk_grpc_runner.py zig-out/bin/transit-node zig-out/bin/rey-cli zig-out/lib/libtransit_client.so zig-out/bin/transit-station-grpc-worker .cache/bindings --language c
     just test::table-mutation --sdk c --sdk cpp
     just test::catalog --sdk c --sdk cpp
+    python3 -B tests/c_logical_values.py .cache/bindings/c
+
+# Qualify owned recursive models through installed C11 and C++17 consumers.
+logical-c: c-build
+    python3 -B tests/c_logical_values.py .cache/bindings/c
 
 # Build independent Java JARs and POM manifests with the pinned JDK/Gson.
 java-build: build

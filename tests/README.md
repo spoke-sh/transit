@@ -11660,6 +11660,30 @@ Full `just check` passes for the BEAM catalog increment
 (`table-beam-catalog-check1.log`), including generated-contract drift, native/CLI
 checks, frontend tests and the documentation production build.
 
+The C11/C++17 logical models pass `just bindings::logical-c` from six independently
+installed, hashed pkg-config artifacts (`table-c-logical-installed1.log`). The
+fixture compiles external consumers with warnings as errors, removes their source
+and runs without source-library overrides. **146 independent neutral fixtures**
+round-trip scalar boundaries and recursive values from the existing Python
+integer/decimal/temporal/UUID/bit oracle. Separate public model checks cover every
+family, signed/unsigned 128-bit extremes, float widths and signed zero, all five
+states, owned input/child lifetimes, 300,000-byte binary copies, aggregate
+name/data/node limits, depth-15 conflicts and MAPs, cyclic construction views,
+unknown tags, malformed UTF-8/hex/numbers, surrogate escapes, duplicate decoded
+JSON keys and every truncated prefix of a valid nested value.
+
+The first compiler pass found an ambiguous internal numeric helper; the first
+consumer attempt found a shared fixture's import-time command-line assumption.
+The next run exposed undefined foreign-enum loading for an unknown C tag. Public
+tags now use uint32 carriers and reject unknown values normally. The corrected
+isolated consumers pass (`table-c-logical-values3.log`), followed by the registered
+task with freshly packaged guides. The affected Arrow fixture still passes all
+**106 PyArrow cases** (`table-c-logical-arrow1.log`). Documentation checks cover
+5,318 links across 529 files; verification retains 59 invariants, 53 bounds and
+13 SDK scenarios. Logs share the existing campaign directory. These are owned
+codec/package checks, not C/C++ general catalog, query, allocator-fault or final
+clean/performance qualification.
+
 ## Fuze logical type foundation
 
 The local `Types` profile has nine passing focused Zig tests, including 46
