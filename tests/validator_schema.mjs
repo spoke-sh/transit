@@ -134,9 +134,95 @@ test("pointers into repeated type interiors keep their original target", () => {
     },
     field: { $ref: "https://example.test/container#/$defs/payload/properties/name" },
   };
-  compare(schemas, [
+  const shared = compare(schemas, [
     ["field", "valid", true],
     ["field", "", false],
     ["field", 1, false],
   ]);
+  assert.ok(shared.container.$defs.payload.properties.name.$ref);
+  assert.ok(!shared.container.$defs.payload.$ref, "pointer ancestors stay in place");
+});
+
+test("reflected nested definitions share closed siblings without breaking recursive references", () => {
+  const field = { type: "string", minLength: 1, maxLength: 8 };
+  const root = {
+    $id: "https://example.test/reflected",
+    $defs: {
+      Response: {
+        $defs: {
+          Node: {
+            type: "object",
+            additionalProperties: false,
+            required: ["name", "child"],
+            properties: {
+              name: field,
+              child: { anyOf: [{ type: "null" }, { $ref: "#/$defs/Response/$defs/Node" }] },
+            },
+          },
+        },
+        $ref: "#/$defs/Response/$defs/Node",
+      },
+    },
+    type: "object",
+    additionalProperties: false,
+    required: ["response", "label"],
+    properties: { response: { $ref: "#/$defs/Response" }, label: field },
+  };
+  const shared = compare({ root }, [
+    [
+      "root",
+      { response: { name: "root", child: { name: "😀é", child: null } }, label: "valid" },
+      true,
+    ],
+    ["root", { response: { name: "root", child: {} }, label: "valid" }, false],
+    ["root", { response: { name: "root", child: null }, label: "" }, false],
+    ["root", { response: { name: "root", child: null, extra: true }, label: "valid" }, false],
+  ]);
+  assert.ok(shared.root.properties.label.$ref, "nested references must not disable sharing");
+  assert.ok(shared.root.$defs.Response.$defs.Node.properties.name.$ref);
+});
+
+test("escaped and percent-encoded cross-document pointers preserve their ancestors", () => {
+  const payload = {
+    type: "object",
+    properties: { "a/b~c d": { type: "integer", minimum: 1, maximum: 8 } },
+  };
+  const schemas = {
+    container: {
+      $id: "https://example.test/escaped",
+      $defs: { payload },
+      type: "object",
+      properties: { left: structuredClone(payload), right: structuredClone(payload) },
+    },
+    field: { $ref: "https://example.test/escaped#/$defs/payload/properties/a~1b~0c%20d" },
+  };
+  const shared = compare(schemas, [
+    ["field", 1, true],
+    ["field", 8, true],
+    ["field", 0, false],
+    ["field", 9, false],
+    ["field", "1", false],
+  ]);
+  assert.ok(shared.container.$defs.payload.properties["a/b~c d"].$ref);
+  assert.ok(!shared.container.$defs.payload.$ref);
+  assert.equal(shared.container.properties.left.$ref, shared.container.properties.right.$ref);
+  assert.ok(shared.container.properties.left.$ref);
+});
+
+test("nested resource scopes remain unchanged", () => {
+  const schemas = {
+    root: {
+      $id: "https://example.test/root",
+      $defs: {
+        nested: { $id: "https://example.test/nested", type: "integer", minimum: 1 },
+      },
+      $ref: "https://example.test/nested",
+    },
+  };
+  const shared = compare(schemas, [
+    ["root", 1, true],
+    ["root", 0, false],
+    ["root", "1", false],
+  ]);
+  assert.equal(shared, schemas);
 });

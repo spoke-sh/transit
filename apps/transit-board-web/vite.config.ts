@@ -19,9 +19,16 @@ export default defineConfig({
             { name: "inspection", test: /packages\/ts\/transit-board-client\// },
             {
               name: "query",
-              test: /packages\/ts\/transit-(query-client|reactive-client|diagnostics)\/|ajv\/dist\/runtime\//,
+              test: /packages\/ts\/transit-(query-client|diagnostics)\/|packages\/ts\/transit-reactive-client\/src\/(caller-gate|error)\.ts$|ajv\/dist\/runtime\//,
             },
-            { name: "application", test: /packages\/ts\/transit-application\// },
+            // Application and live-view contracts share a bounded asset group;
+            // keep richer finite-query validators in their own chunk. The caller
+            // gate is also used by finite queries: keep it with that dependency
+            // to avoid a cycle through the generated AJV runtime initializers.
+            {
+              name: "application",
+              test: /packages\/ts\/transit-application\/|packages\/ts\/transit-reactive-client\/(?!src\/(caller-gate|error)\.ts$)/,
+            },
           ],
         },
       },

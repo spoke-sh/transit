@@ -16,6 +16,9 @@ Validator generation shares identical schema fragments that contain no reference
 or schema-scope declarations. AJV compiles them as reusable functions to reduce
 duplicated browser code. The public schemas remain unchanged; contract checks
 cover generation drift and accepted/rejected values before and after sharing.
+References into nested definitions retain every ancestor along their original
+JSON Pointer path; their closed targets and siblings can still share validators.
+Nested schema resources with their own identifiers remain unchanged.
 
 The small transport wrapper exposes `capabilities` and
 `read(resource, pid?, continuation?, signal?)`. Inspection fetches are GET-only and manage

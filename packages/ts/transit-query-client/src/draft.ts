@@ -1,5 +1,5 @@
 import { boundedQueryJson } from "./logical";
-import { acquireCaller, type AcquireCaller } from "@rey/transit-reactive-client";
+import { acquireCaller, type AcquireCaller } from "@rey/transit-reactive-client/caller-gate";
 import type { Diagnostic, Draft, Request, Response } from "./types";
 import { QueryError, type Transport } from "./transport";
 import { verifiedPage, type ResultPage } from "./result";

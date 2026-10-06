@@ -16853,3 +16853,34 @@ stopped and reset after success. The reference schedule also replaces the
 ledger's actual Kubernetes pod. These runs qualify the API metadata and
 application recovery paths; they do not substitute for Board's separate browser
 asset and startup proof.
+
+### General Table validators and bounded Board assets
+
+The recursive-schema sharing correction preserves JSON-pointer ancestors and
+reference scopes while extracting repeated closed types. Six differential AJV
+tests and all five generated-validator drift checks pass
+(`general-validator-contract1.log`). Board's standalone validator decreases
+from 2,298,933 to 1,372,590 source bytes. The generated public schemas are unchanged.
+The five embedded JavaScript chunks are approximately 0.58, 405.54, 611.95,
+768.06 and 851.36 kB; the original five-file/900,000-byte browser bounds remain.
+
+`general-validator-board-native2.log` passes **8/8** ReleaseSafe build/proof
+steps, including all **5** real embedded browser tests in 17.9 seconds. It also
+checks actual API responses, current typed-head metadata, private access,
+revocation, gaps/effects, outages and load; maximum measured control latency is
+16 ms. Board and query formatting/lint and **77/35** unit tests pass
+(`general-validator-web-final0.log`, `general-validator-web-final1.log`), as do
+their strict TypeScript checks (`general-validator-board-types1.log`,
+`general-validator-query-types1.log`). Reactive source checks passed with its
+existing exception-assignment lint warning; that package has no standalone test
+files, so the attempted package test command was not a passing test run. Its
+consumer tests run in the Board suite.
+
+The preceding embedded run (`general-validator-board-native1.log`) failed all
+five browser cases on a module-initialization cycle after splitting query and
+reactive validators. The caller gate now has a small public entry and shares its
+error class without importing the reactive transport entry. A static browser
+startup check and the complete second native run verify the correction. An
+intermediate build invoked from the repository root failed to find an entry;
+the subsequent build ran in the owning app directory. Failed attempts are not
+counted as qualification. Logs remain in `/var/tmp/transit-table-75-_el6xx0v`.
