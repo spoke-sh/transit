@@ -16575,3 +16575,28 @@ because the runner expected the removed Docker cold-store API; the second failed
 native authentication because those signed fields were missing. Neither attempt
 passed. Reference placement and the combined cold-growth trace remain unqualified
 at this checkpoint.
+
+
+### Staged application migration steps
+
+`application-staged-migration3.log` passes 41/41 ReleaseSafe Station application
+tests (28 ms execution, 8 MiB peak test RSS). Independent Python fixtures pin the
+new 191-byte-maximum pending-step envelope alongside existing plan, progress,
+receipt and diagnostic layouts. The pending envelope and terminal receipt share
+one key; completion replaces it without an additional deletion mutation.
+
+The new schedules freeze admission before domain work, discard and reconstruct
+staging/completion turns, reject changed arguments, check current revocation and
+original plan ownership, preserve prior proposals after read/domain/budget
+failures, and retain pending evidence after abandonment. Three building rounds
+use all four domain writes without advancing ledger progress. Normal completion
+uses two domain plus two ledger writes; activation uses one plus three. Completed
+receipts retain first admission separately from the final progress input and
+replay without invoking the domain. Only an owner self-message can continue an
+already admitted step; it cannot admit work or bypass revoked operator policy.
+
+The first package run failed a new discarded-turn assertion because the test
+reset the mandatory captured view as well as its proposal. The corrected
+40-test run passed before the owner-continuation cases were added. These are
+local ledger proofs; they do not qualify a migrated work-item application or
+native placement. The coordinated current-definition cutover remains pending.

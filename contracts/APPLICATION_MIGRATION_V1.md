@@ -12,9 +12,11 @@ changes Transit's one-mutated-resource, four-mutation turn boundary.
 One application data owner holds a ledger in its own KV resource. Configuration
 binds its application identity and an independently provisioned administrator.
 Migration permission is a current per-operator policy, separate from interface
-publication permission and from native send/read grants. Every accepted control
-checks both the external caller origin and current migration policy. Data-owner
-handlers remain responsible for their normal application authorization.
+publication permission and from native send/read grants. Every external control
+checks both its caller origin and current migration policy. `continueStage` admits
+only this native owner's self-message for an already admitted exact step and
+rechecks the original operator's current policy; it never rewrites the origin.
+Data-owner handlers remain responsible for their normal application authorization.
 
 The ledger records an active data epoch and at most one active plan. Historical
 plans and step receipts are addressed by durable keys; their cardinality is not
@@ -45,6 +47,15 @@ Accepted-but-lost replies retain the original native request and step identity.
 
 The shared ledger reserves two mutations for a normal step: progress and its
 receipt. At most two additional domain mutations can commit with that step.
+For domain work requiring multiple turns, `Migration.stage` first commits a
+pending record containing the original step, digest and admission input without
+calling the transform. Later exact continuations recheck current operator policy,
+plan ownership, active epoch and ordinal. A building callback can use all four
+mutations for private staging and leaves ledger progress unchanged. Its terminal
+callback reserves the same two ledger mutations (three for activation), committing
+the completed data head and ledger outcome together. A pending record is neither
+a completed receipt nor permission to activate a partial target.
+
 Preparation and reads do not authorize an effect. Domain changes, step receipt
 and progress commit together through the ordinary private turn. Infrastructure
 or allocation failure must not be recorded as a terminal caller rejection.
@@ -146,21 +157,36 @@ strings. Unknown enums, trailing bytes and oversized values reject.
 | `H` | 0, 0 | epoch u64, contract [32], active plan u64 (zero means none) |
 | `A` | plan, 0 | proposal, plan digest [32], principal u64, admission input u64 |
 | `G` | plan, 0 | next ordinal u64, phase u8, cursor value, last committing input u64 |
-| `S` | plan, ordinal | plan u64, ordinal u64, step digest [32], admission input u64, progress |
+| `S` | plan, ordinal | `AP1S`: plan u64, ordinal u64, step digest [32], admission input u64, progress |
+| `S` | plan, ordinal | `AP1T`: pending step (plan/ordinal u64, operation u16, argument value), step digest [32], original admission input u64 |
 
 A proposal encodes plan/expected/next u64, transform u16 and source/target [32]
 commitments. Plan digests are SHA-256 over
 `transit.application.migration.plan.v1\0`, `AP1D`, application u64 and proposal.
 Step digests use `transit.application.migration.step.v1\0`, `AP1D`, application
 u64, plan digest, then plan/ordinal u64, operation u16 and argument value.
+The pending and completed forms share one key. Completion replaces `AP1T` with
+`AP1S`, so no extra deletion mutation is needed. The pending form occupies at most
+191 bytes and is current-format staging evidence, not a compatibility decoder.
+Its frozen arguments must match the canonical step digest. Receipt `input`
+retains the first step admission; `progress.input` records the completing native
+input. Abandonment retains pending evidence without invoking further domain work;
+cleanup of unpublished domain staging is the domain owner's separate operation.
+
 Phases are active=1, applied=2, abandoned=3. Independent Python fixtures cover
 full-width IDs, canonical key/record bytes and both domain commitments.
 
 `Migration.apply` checks current policy and exact receipts before invoking the
 domain callback. It restores the caller's original turn decision on any failure,
 including tentative domain writes. A normal step uses two ledger mutations;
-activation uses three, leaving at most one domain mutation in that turn. This
-protects the commit boundary, not the honesty of arbitrary domain computation.
+activation uses three, leaving at most one domain mutation in that turn.
+`Migration.stage` uses the same checks and rollback boundary, returning no receipt
+until the transform completes. `pending` exposes the original admitted step for
+exact recovery; `receipt` returns no completed result for it. A current authorized
+one-turn `apply` may also finish that same frozen step if its domain callback can
+complete atomically. Domain owners must keep staging and publication semantics
+consistent across their commands. This protects the commit boundary, not the
+honesty of arbitrary domain computation.
 The work-item owner enforces its write pause and verifies the complete target
 before activation. Other application owners must enforce the same boundary for
 their own transforms.
