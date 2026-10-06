@@ -5,7 +5,7 @@ import subprocess
 import sys
 import tempfile
 
-from catalog_native import retain_recovery_fixture
+from recovery_fixture import retain_recovery_fixture
 from cold_storage import ColdStore
 from storage import Fixture
 

@@ -1,6 +1,8 @@
 """General typed commands through signed callers, real GenServer and disk Ursula."""
 from http.client import HTTPConnection
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+import argparse
+from contextlib import nullcontext
 import json
 import select
 from pathlib import Path
@@ -10,16 +12,20 @@ import threading
 import time
 
 from storage import Fixture, free_port, wait_ready
+from cold_storage import ColdStore
 
 
 def run(node, proof, host, cli, station_host, *arguments):
-    languages = []
-    for index in range(0, len(arguments), 2):
-        assert arguments[index] == "--sdk" and index + 1 < len(arguments), arguments
-        languages.append(arguments[index + 1])
-    assert all(language in ("node", "python", "rust", "ruby", "java", "dotnet", "erlang", "elixir", "c", "cpp") for language in languages), languages
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--sdk', action='append', default=[], choices=('node', 'python', 'rust', 'ruby', 'java', 'dotnet', 'erlang', 'elixir', 'c', 'cpp'))
+    parser.add_argument('--grow', type=int, default=0)
+    parser.add_argument('--cold', action='store_true')
+    options = parser.parse_args(arguments)
+    if not 0 <= options.grow <= 10000:
+        parser.error('growth schedule requires 0..10000 additional Tables')
+    languages = options.sdk
     node, proof, host, cli, station_host = (str(Path(binary).resolve()) for binary in (node, proof, host, cli, station_host))
-    with Fixture() as fixture:
+    with ColdStore() if options.cold else nullcontext() as cold_store, Fixture(cold_store.config() if cold_store else None) as fixture:
         root = fixture.root
         public = json.loads(subprocess.check_output([proof, 'public'], timeout=10))
         port = free_port()
@@ -442,9 +448,39 @@ def run(node, proof, host, cli, station_host, *arguments):
                     finally:
                         consumer.close()
 
+            growth = None
+            if options.grow:
+                def restart_growth():
+                    nonlocal authority
+                    for worker in workers:
+                        if worker.poll() is None:
+                            worker.kill()
+                        worker.wait(timeout=10)
+                    workers.clear()
+                    authority.kill()
+                    authority.wait(timeout=10)
+                    authority = None
+                    fixture.stop()
+                    fixture.start()
+                    authority = start()
+                    call('host')
+                    launch('host.json')
+                    launch('courier-config.json')
+
+                def actors():
+                    return {'authority': authority, 'store': fixture.server,
+                            **{f'worker_{index}': worker for index, worker in enumerate(workers)}}
+
+                from table_growth import qualify as growth_proof
+                growth = growth_proof(options.grow, cli, root, url, call, execute, applied, restart_growth, actors)
+                if cold_store:
+                    assert cold_store.data_objects() > 0, 'Growth did not exercise cold data'
+                    growth['cold_objects'] = cold_store.data_objects()
+                    growth['cold_bytes'] = cold_store.file_bytes()
+
             assert not failures, failures
             assert measurements['max_mutations'] <= 4 and measurements['max_value_bytes'] <= 256, measurements
-            print(json.dumps(dict(profile='typed-table-native', seconds=round(time.monotonic() - started, 3), lost_reply_replays=sorted(replays), supplied_host_lost_receipt='host_turn' in faults, measurements=measurements, bridge=bridge_result, catalog_cli=cli_result, installed=installed)))
+            print(json.dumps(dict(profile='typed-table-native', seconds=round(time.monotonic() - started, 3), lost_reply_replays=sorted(replays), supplied_host_lost_receipt='host_turn' in faults, measurements=measurements, bridge=bridge_result, catalog_cli=cli_result, installed=installed, growth=growth)))
         finally:
             release_host_reply.set()
             for worker in workers:
@@ -472,6 +508,11 @@ def run(node, proof, host, cli, station_host, *arguments):
                 log.seek(0)
                 sys.stderr.write(log.read()[-12000:])
             log.close()
+            if sys.exc_info()[0]:
+                from recovery_fixture import retain_recovery_fixture
+                retained = {}
+                retain_recovery_fixture(fixture, cold_store, root.parent / 'typed-table-proof.json', retained)
+                print(json.dumps({'failed_typed_table_fixture': retained}), file=sys.stderr, flush=True)
 
 
 if __name__ == '__main__':

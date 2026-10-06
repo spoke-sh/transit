@@ -16939,3 +16939,39 @@ retain revision and per-defect status/timing. Full baseline, failure traces and
 minimized reports remain in `.cache/verification/domain-simulation-mutations`;
 the command log is `general-catalog-simulation-mutants1.log` in the same campaign.
 Compile errors and stale source anchors were not counted as detected defects.
+
+### General Table cold catalog growth
+
+`general-table-growth-native2.log` in the local Table-schema campaign passes all
+**9/9** ReleaseSafe build/run steps with `--grow 65 --cold` (564.604 seconds for
+the complete native lifecycle, console, bridge, CLI and growth schedule). The
+new schedule adds **65** three-column Tables with INTEGER primary keys, bounded
+VARCHAR values and BOOL defaults, enumerates **10** metadata pages, replaces the
+authority, disk store and application workers, and verifies identical metadata,
+the first original saved mutation outcome and typed first/middle/last rows.
+Optional installed SDK consumers were not selected in this run.
+
+The actual cold provider holds **532** data objects and **139,708,974** bytes with
+an **8 MiB** hot-store limit and eight authority resident pages. Sampled per-role
+resident high-water marks are authority **35,393,536**, store **134,701,056**, and
+workers **15,663,104 / 22,556,672** bytes, within the unchanged 512 MiB aggregate
+proof ceiling. The complete schedule records 1,630 committed turns and 596 sends;
+no turn exceeds four mutations or a 256-byte native value. This is process/store
+replacement evidence, not a host power-loss proof.
+
+The growth phase takes 397.798 seconds. Its median CREATE/INSERT wall times are
+5.560/0.545 seconds through the subprocess-driven staged proof and deliberately
+small cold-store working set. These measurements are not a matched console
+latency comparison: the lifecycle includes separate saved-step invocations,
+other local processes were active, and compilation overlapped part of growth.
+The 139-additional-Table schedule remains to be executed. The first build attempt
+was deliberately interrupted before runtime after correcting an expected neutral
+integer atom; `general-table-growth-native1.log` is not a passed schedule.
+
+Failure retention now has a shared fixture helper, independent of the retired
+creation-only runner. `general-table-growth-retention1.log` passes the fixture
+checks for cold chunk/pack accounting, joining a native child before moving its
+owned state, and retaining an unjoined provider privately without deletion. The
+new general native runner invokes that helper after joining its owned authority
+and workers on failure. This successful growth run did not exercise that failure
+branch; the helper's injected lifecycle checks are separate evidence.
