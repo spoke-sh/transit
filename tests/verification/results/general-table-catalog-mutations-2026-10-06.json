@@ -1,0 +1,52 @@
+{
+  "version": 1,
+  "revision": "9953b670bf495af19a244c0245f65e0baa143697",
+  "status": "passed",
+  "mutants": [
+    {
+      "name": "document_conflicts",
+      "status": "detected",
+      "seconds": 1.628
+    },
+    {
+      "name": "checkpoint_floor",
+      "status": "detected",
+      "seconds": 1.642
+    },
+    {
+      "name": "exchange_hold",
+      "status": "detected",
+      "seconds": 1.675
+    },
+    {
+      "name": "refresh_generation",
+      "status": "detected",
+      "seconds": 1.862
+    },
+    {
+      "name": "provider_ready",
+      "status": "detected",
+      "seconds": 2.072
+    },
+    {
+      "name": "catalog_policy",
+      "status": "detected",
+      "seconds": 3.088
+    },
+    {
+      "name": "catalog_receipt",
+      "status": "detected",
+      "seconds": 2.92
+    },
+    {
+      "name": "catalog_inspection",
+      "status": "detected",
+      "seconds": 2.903
+    },
+    {
+      "name": "catalog_cursor",
+      "status": "detected",
+      "seconds": 3.263
+    }
+  ]
+}

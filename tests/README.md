@@ -16929,3 +16929,13 @@ durability. The four catalog mutation guards now target the general owner; the
 refresh generation guard is aligned with its retained diagnostic implementation.
 All nine guard anchors match once. Their committed-source mutation run remains
 separate pending qualification. Logs are in `/var/tmp/transit-table-75-_el6xx0v`.
+
+The subsequent committed-HEAD run at `9953b670` passed its unmodified baseline
+and detected **all nine** independently compiled domain defects, including the
+four general catalog defects (create permission, inspection permission, changed
+original completion position, and mixed-revision pagination). The
+[recorded mutation results](verification/results/general-table-catalog-mutations-2026-10-06.json)
+retain revision and per-defect status/timing. Full baseline, failure traces and
+minimized reports remain in `.cache/verification/domain-simulation-mutations`;
+the command log is `general-catalog-simulation-mutants1.log` in the same campaign.
+Compile errors and stale source anchors were not counted as detected defects.
