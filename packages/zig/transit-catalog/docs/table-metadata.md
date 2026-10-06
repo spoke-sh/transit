@@ -144,6 +144,15 @@ cleanup use those exact references, with no extra fifth receipt write. The modul
 is available for deployment composition; the existing configured native client
 and console are not switched by adding the module.
 
+`TableIntent` owns exact bytes for offline recovery: the typed command, upload
+identity, accepted metadata and original schema where required. It validates the
+complete canonical record and derives the original operation reference without
+looking up a live name. Small commands use a small encoding workspace; larger
+ones use a bounded temporary buffer and retain only their actual saved length.
+Release each restored intent with `deinit`. `matches` ties a saved native send to
+the same command or exact upload/control step. Signed-send persistence and native
+authority remain distinct from this offline intent record.
+
 A record owns scope, full-width object and metadata revision, exact name,
 immutable Table schema reference and complete schema fingerprint, principal,
 original operation and admission input. The metadata revision is independent of

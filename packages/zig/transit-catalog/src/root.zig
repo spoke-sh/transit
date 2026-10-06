@@ -20,7 +20,9 @@ pub const TableCommand = @import("TableCommand.zig");
 pub const TableUpload = @import("TableUpload.zig");
 pub const TableControl = @import("TableControl.zig");
 pub const TableBehavior = @import("TableBehavior.zig");
+pub const TableIntent = @import("TableIntent.zig");
 test {
+    _ = @import("table_intent_test.zig");
     _ = @import("table_behavior_test.zig");
     _ = @import("table_upload_test.zig");
     _ = @import("table_command_test.zig");

@@ -10929,6 +10929,18 @@ frontend checks/tests and the documentation production build. Existing frontend
 lint warnings remain warnings. Committed-HEAD clean and disk qualification are
 still separate required gates.
 
+Offline typed intent persistence passes **70/70 catalog tests**
+(`table-intent-final2.log`). Independent Python bytes fix TCI1 for a full-width
+Unicode rename. CREATE and finite DML restore original command/schema/reference
+without source access; destruction of input buffers cannot change restored work.
+Tests reject every truncated prefix, missing/foreign definitions, changed schema
+commitments and substitution of upload parts, namespaces, digests or coordinator
+controls. A 20,000-byte typed value exercises the large-workspace path, and the
+restore/decode allocation-failure schedule leaves no leaked owners. An initial
+extended test used an incorrect UTF-8 atom field name and failed compilation;
+the corrected test uses the shared typed byte atom. Signed submission, durable
+console persistence and cross-language recovery integration remain separate.
+
 ## Fuze logical type foundation
 
 The local `Types` profile has nine passing focused Zig tests, including 46

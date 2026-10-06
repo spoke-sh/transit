@@ -662,3 +662,27 @@ continuations and preserves admitted work for explicit exact resume/cancel.
 Native read failures and corrupted published evidence reject the private proposal;
 they are not acknowledged as malformed user inputs. This behavior module still
 requires deployment/caller integration before replacing the configured runtime.
+
+## Saved typed intent
+
+`TableIntent` owns an exact offline recovery record, separate from each signed
+native send. `TCI1` contains magic, mandatory raw current definition (32 bytes),
+upload namespace:u64, metadata length:u16, original schema length:u32 and command
+length:u32, followed by those three byte sequences. Integers are little-endian.
+The 54-byte prefix is followed by at most 436 metadata bytes, 65,536 schema bytes
+and the bounded TCQ1 body. A nonzero namespace is retained even for an inline
+command so its identity does not depend on a later transport choice.
+
+Bound commands save the exact TCM1 metadata. ALTER and DML also save the original
+FTS1 schema; CREATE already carries its schema and RENAME/DROP require no redundant
+schema. Restoration verifies lengths, current definitions, exact metadata and
+schema commitments, full typed intent, and canonical re-encoding. It derives the
+original application digest and point/finite route without network access, SQL
+recompilation or name lookup. Saved schemas never confer authority or replace the
+owner's accepted-metadata check.
+
+`matches` checks that a saved native payload belongs to the intent: the exact
+inline body, matching upload header/spec/namespace, exact part offset/bytes, or
+the original DDL/DML cancellation/cleanup reference. Signature authentication and
+native send sequence recovery remain the signed client's responsibility. Neither
+restoration nor a matching transport step establishes application admission.

@@ -48,6 +48,8 @@ def fixture():
     upload = b'TCU1' + command_header + struct.pack('<QII', maximum, 0x54435101, len(rename_command)) + upload_digest
     upload += struct.pack('<BIQ', 2, len(rename_command), 5) + bytes(32) + b'\0'
     assert len(upload) == 239
+    intent = b'TCI1' + contract + struct.pack('<QHII', maximum, len(record), 0, len(rename_command)) + record + rename_command
+    assert len(intent) == 54 + len(record) + len(rename_command)
     assert len(bytes.fromhex(configuration)) == 93
     assert len(bytes.fromhex(policy)) == 85
     assert len(bytes.fromhex(obj)) == 182
@@ -61,6 +63,7 @@ def fixture():
         'command_header_hex': command_header.hex(),
         'rename_command_hex': rename_command.hex(),
         'upload_status_hex': upload.hex(),
+        'rename_intent_hex': intent.hex(),
         'inline_key_hex': (b'\0P' + struct.pack('>IQBQI', 9, maximum, ord('i'), 3, 0)).hex(),
         'controls': {'configuration': configuration, 'policy': policy, 'object': obj, 'operation': operation, 'dependency': dependency},
     }
