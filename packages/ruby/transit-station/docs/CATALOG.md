@@ -74,7 +74,7 @@ its immutable binary `bytes` before sending any step. Restore with
 `SavedIntent.new(definition:, bytes:)`, then `load(saved)`. Missing or foreign
 definitions reject; there is no inferred compatibility. `forget(reference)`
 releases only local intent ownership. It neither cancels nor discards accepted
-work. Intents are bounded to the generated 4 MiB limit; catalog action JSON is
+work. Intents are bounded to the generated 4,327,031-byte limit; catalog action JSON is
 bounded to 16 MiB. Larger catalog port frames do not enlarge raw-client limits.
 
 `next(reference)` returns `:send` with a `Prepared`, `:running`, `:terminal` with

@@ -11534,6 +11534,27 @@ installed raw recovery/cancellation/disposal/revoked-retry schedule pass with ze
 compiler warnings (`table-dotnet-schema-{build,raw}1.log`). This qualifies the
 shared validator and raw client; the general .NET Table API remains separate work.
 
+The .NET owned logical models pass the isolated NuGet fixture
+`tests/dotnet_logical_values.py` with zero compiler warnings. It restores four
+exact local artifacts into a clean consumer, records SHA-256 identities, removes
+consumer source/package caches, then tests all descriptor/atom/cell families,
+Int128/UInt128 extremes, exact decimal coefficients, signed-zero bit equality,
+owned binary/collections and structural hashes. Depth-15 conflicts, MAP key
+accounting and aggregate child/name/data limits are exercised in both codec
+directions; large binary values exceed the old raw-body size. Recursive schema
+checks run in the same consumer. The real `bindings::logical-dotnet` task and
+full .NET SDK task include this fixture.
+
+Logs are `table-dotnet-logical-{build2,values1,installed1,docs1,verification1}.log`
+in the same campaign. The original build and round-trip review found that owned
+JSON numeric nodes must use the decoder's exact unsigned representation; numeric
+descriptor fields now round-trip directly without serialization or coercion.
+Documentation checks cover 5,301 links across 525 files; verification retains
+59 invariants, 53 bounds and 13 SDK scenarios. The Ruby/Java guides also correct
+the complete saved-intent bound to the generated **4,327,031 bytes**, distinct
+from the 4 MiB mutation body. These are local/installed codec results, not general
+.NET Table runtime, full-repository, performance or clean-CI qualification.
+
 ## Fuze logical type foundation
 
 The local `Types` profile has nine passing focused Zig tests, including 46

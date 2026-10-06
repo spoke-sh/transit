@@ -175,8 +175,13 @@ java-sdk-test: java-build
 dotnet-build: build
     python3 -B bindings/build_dotnet.py .cache/bindings/dotnet
 
+# Qualify owned recursive .NET logical models in an isolated package consumer.
+logical-dotnet: dotnet-build
+    python3 -B tests/dotnet_logical_values.py .cache/bindings/dotnet
+
 # Restore public raw/Station/example NuGet artifacts into clean consumers.
 dotnet-sdk-test: dotnet-build
+    python3 -B tests/dotnet_logical_values.py .cache/bindings/dotnet
     zig build transit-node rey-cli transit-station-http-worker transit-station-grpc-worker
     python3 -B tests/dotnet_client_sdk.py zig-out/bin/transit-node zig-out/bin/rey-cli zig-out/lib/libtransit_client.so .cache/bindings/dotnet
     python3 -B tests/dotnet_station_sdk.py zig-out/bin/transit-node zig-out/bin/rey-cli zig-out/lib/libtransit_client.so .cache/bindings/dotnet zig-out/bin/transit-station-http-worker

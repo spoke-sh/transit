@@ -75,7 +75,7 @@ A client owns at most one resident intent. Persist `SavedIntent.definition()` an
 its owned binary bytes before any send. Restore both through the constructor,
 then `load(saved)`. Missing/foreign definitions reject. `forget(reference)` drops
 only local intent ownership; it does not cancel accepted work. Saved intents are
-bounded to the generated 4 MiB limit, action JSON to 16 MiB and prepared commands
+bounded to the generated 4,327,031-byte limit, action JSON to 16 MiB and prepared commands
 to 8192 bytes. Catalog frames use their own generated limit and 96-level JSON
 nesting limit; raw callers retain their smaller frame and nesting limits.
 

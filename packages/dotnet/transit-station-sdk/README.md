@@ -52,3 +52,6 @@ owned asynchronous client.
 [Catalog callers](docs/CATALOG.md) expose typed initialization, conditional
 policy changes, named Table creation and exact saved-command recovery through
 the shared native ABI and an owned asynchronous worker.
+
+The [logical value guide](docs/LOGICAL.md) covers owned recursive descriptors,
+exact wide numbers, distinct cell states and bounded neutral codecs.
