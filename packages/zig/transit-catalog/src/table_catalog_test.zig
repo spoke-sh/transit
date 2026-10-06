@@ -15,6 +15,57 @@ fn ready(store: *TestStore) !void {
     try owner.initialize(&turn);
     try store.commit(turn);
 }
+test "root can be an explicit Table administrator but has no implicit catalog rights" {
+    var ordinary: TestStore = .{};
+    defer ordinary.deinit();
+    try ready(&ordinary);
+    var turn = try ordinary.capture(0);
+    try t.expectError(error.CatalogDenied, owner.authorize(&turn, 0, .inspect));
+
+    var root = owner;
+    root.configuration.administrator = 0;
+    try root.configuration.validate();
+    var invalid = root.configuration;
+    invalid.owner = 0;
+    try t.expectError(error.InvalidCatalogIdentity, invalid.validate());
+    invalid = root.configuration;
+    invalid.administrator = p.max_counter + 1;
+    try t.expectError(error.InvalidCatalogIdentity, invalid.validate());
+    var store: TestStore = .{};
+    defer store.deinit();
+    turn = try store.capture(17);
+    try t.expectError(error.CatalogDenied, root.initialize(&turn));
+    turn = try store.capture(0);
+    try root.initialize(&turn);
+    try store.commit(turn);
+    var request = try createRequest(10, 1, "root_table");
+    request.principal = 0;
+    var applied = false;
+    for (0..100) |_| {
+        turn = try store.capture(0);
+        const result = try root.step(t.allocator, &turn, request);
+        try store.commit(turn);
+        if (result.terminal()) {
+            try t.expectEqual(.applied, result.operation.state);
+            applied = true;
+            break;
+        }
+    }
+    try t.expect(applied);
+    turn = try store.capture(0);
+    var found = (try root.lookup(t.allocator, &turn, 0, request.name)).?;
+    defer found.deinit();
+    try t.expectEqual(@as(u64, 0), found.metadata.principal);
+    var revoked = try m.Policy.administrator(root.configuration.scope, 0);
+    revoked.revision = 2;
+    revoked.read = false;
+    try root.setPolicy(&turn, 1, revoked);
+    try store.commit(turn);
+    turn = try store.capture(0);
+    try root.initialize(&turn);
+    try t.expectEqual(@as(usize, 0), countWrites(turn));
+    try t.expectError(error.CatalogDenied, root.authorize(&turn, 0, .read));
+}
 test "read-definition mismatch evidence is copied only after current inspect and read authorization" {
     var store: TestStore = .{};
     defer store.deinit();

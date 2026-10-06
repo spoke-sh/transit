@@ -16733,3 +16733,13 @@ during the run; the installation correctly rejected its changed artifact identit
 The passing runs keep their referenced binaries fixed. Expected mutation errors
 still reconcile the same saved command through temporary availability failures;
 an unavailable observation never counts as the expected domain rejection.
+
+### Explicit root catalog administration
+
+`catalog-root-administrator1.log` passes 99/99 ReleaseSafe catalog tests (265 ms,
+22 MiB peak test RSS). General catalog configuration accepts native principal zero
+as an explicitly chosen administrator, consistently with policy and operation
+principal fields. The new test creates and discovers a typed Table under that
+identity, refuses another initializer, rejects invalid owner/principal bounds,
+and verifies that repeated initialization cannot restore revoked read rights.
+Root has no implicit catalog policy when another administrator was selected.

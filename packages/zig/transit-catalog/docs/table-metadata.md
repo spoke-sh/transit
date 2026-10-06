@@ -8,7 +8,10 @@ atomically updates its live object/name bindings and original operation outcome.
 
 `TableCatalog` supplies the general namespace's captured-source policy and
 resolution helpers. Configuration binds realm/resource/catalog, owner,
-administrator and explicit Table Publication limits. Initialization refuses orphan
+administrator and explicit Table Publication limits. The administrator may be
+native root principal zero; root has no implicit catalog rights when another
+administrator is configured, and current policy still governs its operations.
+Initialization refuses orphan
 state; repeating it cannot restore revoked rights. Inspect, create, data read,
 insert, update, delete, alter and drop are independent policy fields. Conditional
 administrator changes remain possible after revoking the administrator's own

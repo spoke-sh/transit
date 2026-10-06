@@ -15,7 +15,9 @@ pub const Configuration = struct {
     pub fn validate(self: Configuration) !void {
         try self.scope.validate();
         try c.Model.nativeId(self.owner);
-        try c.Model.nativeId(self.administrator);
+        // Principals include native root zero. Ownership/resource identities
+        // remain nonzero; selecting root here grants no implicit catalog bypass.
+        if (self.administrator > p.max_counter) return error.InvalidCatalogIdentity;
         try self.table_limits.validate();
         if (self.table_limits.record_bytes > c.fuze.TableRow.max_bytes) return error.InvalidCatalogLimits;
     }
