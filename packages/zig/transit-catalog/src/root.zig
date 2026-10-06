@@ -10,7 +10,10 @@ pub const Inspection = @import("Inspection.zig");
 pub const Client = @import("Client.zig");
 pub const Behavior = @import("Behavior.zig");
 pub const Bridge = @import("Bridge.zig");
+pub const TableMetadata = @import("TableMetadata.zig");
+pub const TableMetadataStore = @import("TableMetadataStore.zig");
 test {
+    _ = @import("table_metadata_test.zig");
     _ = @import("catalog_test.zig");
     _ = @import("client_test.zig");
     _ = @import("behavior_test.zig");

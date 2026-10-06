@@ -576,6 +576,7 @@ fuze-types:
 table-schema:
     python3 -B tests/table_schema.py
     python3 -B tests/table_storage.py
+    python3 -B tests/table_catalog.py
     zig test packages/zig/transit-fuze/src/TableRow.zig
     zig test packages/zig/transit-fuze/src/TableEvolution.zig
     zig test packages/zig/transit-fuze/src/SqlTypes.zig

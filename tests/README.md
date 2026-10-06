@@ -10776,6 +10776,19 @@ and has a reviewed control-flow mapping plus tested 4 MiB guidance. The passing
 run includes that correction. This remains a working-tree check, not committed
 clean CI or qualification of subsequent catalog/runtime integration.
 
+General catalog metadata passes **31/31 catalog package tests**. New cases cover
+owned UTF-8 names through 255 bytes, full-width IDs, immutable schema references,
+hashed-name collision-bucket keys, inline/chunked staging, discarded proposals,
+retained revisions, same-revision content changes, foreign/missing manifests,
+orphan adoption rejection, poisoned reads and allocation-failure cleanup.
+Independent Python bytes fix metadata, manifest, name digest and namespace keys.
+An initial compile used removed Zig array-repeat syntax; the fixture now constructs
+the name with a comptime loop. The next test found an incorrect hand-calculated
+maximum; the independently fixed envelope is 436 bytes. Final evidence is
+`metadata-catalog-final.log` and `metadata-docs.log` in the same campaign.
+These are codec and in-memory storage checks. Live catalog routing, name
+publication, DDL lifecycle, native clients and disk evidence remain separate.
+
 ## Fuze logical type foundation
 
 The local `Types` profile has nine passing focused Zig tests, including 46

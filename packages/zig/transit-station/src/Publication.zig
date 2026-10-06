@@ -10,7 +10,7 @@ resource: u64,
 domain: Domain,
 namespace: u64,
 /// Registry of publication owners, not an authorization or dispatch policy.
-pub const Domain = enum(u32) { application = 1, query_request = 2, query_result = 3, table_mutation = 4, document = 5, exchange = 6, application_definition = 7, table = 8, _ };
+pub const Domain = enum(u32) { application = 1, query_request = 2, query_result = 3, table_mutation = 4, document = 5, exchange = 6, application_definition = 7, table = 8, catalog = 9, _ };
 pub const chunk_bytes = 256;
 pub const cleanup_chunks = 2;
 pub const State = enum(u8) { staging = 1, published = 2, abandoned = 3, retired = 4 };

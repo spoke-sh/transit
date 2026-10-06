@@ -420,3 +420,54 @@ There is no creation cancellation or implicit query/mutation policy. SHOW TABLES
 and DESCRIBE use the bounded current-authorized inspection client. Console
 configuration and private recovery are defined in the
 [console guide](../apps/transit-cli/docs/console.md#writing-tables-and-catalogs).
+
+## General Table metadata records
+
+`TableMetadata` and `TableMetadataStore` provide immutable metadata for the
+general Table schema representation. These are codec/storage helpers, not live
+catalog name publication or a second signed-client compatibility profile.
+The enclosing owner must stage the exact definition before publishing its
+binding/outcome. The signed catalog methods above retain their separate admission
+contracts until their coordinated current-definition cutover.
+
+`TCM1` records contain the magic, mandatory raw shared definition (32 bytes),
+scope (realm/resource/catalog:u64le), object:u64le, metadata revision:u64le,
+name length:u8 and exact UTF-8 bytes, schema reference (record ID:u64le,
+format:u32le, length:u32le, digest:32 bytes), full schema fingerprint:32 bytes,
+principal:u64le, operation:u64le and admission input:u64le. Names have 1–255 bytes,
+valid UTF-8 and no NUL. The maximum record size is 436 bytes. Trailing/truncated
+data, foreign definitions, invalid names/IDs and invalid schema formats reject.
+The schema record is an immutable `FTS1` within that object's Table namespace.
+Loading it verifies its exact object and complete schema fingerprint; no newer
+live schema substitutes for the recorded reference.
+
+Metadata revisions, schema revisions and native resource revisions are distinct.
+A name-only revision can share the schema reference. Principal/operation/admission
+input identify the originating work and remain fixed while staging. They do not
+assert that this metadata is live or that its admission input published a name.
+The operation outcome separately records final publication. Returned names own
+their bytes; loaded schemas have explicit allocator ownership.
+
+Hashed name-index keys contain `00 43`, catalog:u64be, tag `N`, name digest:32 bytes
+and object:u64be. The digest is SHA-256 of `transit.catalog.name.v1\0` and exact
+normalized name bytes. Equal digests retain distinct object-suffixed entries.
+Resolution must compare stored names after checking scope and definition; hashes
+are never equality proof. This key does not impose name-order listing semantics.
+
+Metadata storage uses Publication domain 9 and namespace object. A 68-byte
+manifest at tag `d`, ID/index zero contains `TCB1`, raw shared definition, scope
+and object:u64le. Initialization verifies an existing exact manifest/quota or
+proves the namespace empty before creating them. Orphans and scope drift reject.
+The budget permits one staged record of at most 436 bytes; no total historical
+record limit is imposed. Both initialization writes share the ordinary native
+turn limit and roll back together on failure.
+
+Records of at most 256 encoded bytes live directly under tag `i`, ID metadata
+revision, index zero. Larger records use Publication's `r`/`c` records with format
+`0x54434d01`. An exact reference commits format, length and Publication digest;
+its length selects the representation. Changes at the same immutable revision
+reject even when the new bytes would use a different representation. Published
+large records obey the existing committed-cursor rule and staging quota release.
+No storage helper publishes names, grants rights or performs physical historical
+cleanup. The [component guide](../packages/zig/transit-catalog/docs/table-metadata.md)
+defines ownership and the current integration boundary.

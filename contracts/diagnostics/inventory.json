@@ -3184,6 +3184,86 @@
         "std"
       ]
     },
+    "packages/zig/transit-catalog/src/TableMetadata.zig": {
+      "errors": {
+        "CatalogDefinitionChanged": 1,
+        "EndOfStream": 1,
+        "IncompatibleDefinition": 1,
+        "InvalidCatalogDefinition": 5,
+        "InvalidCatalogIdentity": 1,
+        "InvalidCatalogName": 1
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "Name.digest()": "<inferred>",
+        "Name.init()": "<inferred>",
+        "Name.validate()": "<inferred>",
+        "Record.decode()": "<inferred>",
+        "Record.encode()": "<inferred>",
+        "Record.parse()": "<inferred>",
+        "Record.readSchema()": "<inferred>",
+        "Record.spec()": "<inferred>",
+        "Record.validate()": "<inferred>",
+        "nameKey()": "<inferred>",
+        "referenceRead()": "<inferred>",
+        "referenceWrite()": "<inferred>",
+        "scopeRead()": "<inferred>",
+        "scopeWrite()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 53,
+        "catch": 2
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
+    "packages/zig/transit-catalog/src/TableMetadataStore.zig": {
+      "errors": {
+        "CatalogAlreadyPopulated": 1,
+        "CatalogDefinitionChanged": 3,
+        "CatalogDefinitionMissing": 1,
+        "CatalogIdentityConflict": 4,
+        "CatalogScopeChanged": 1,
+        "CatalogStorageNotFound": 1,
+        "CrossResourceTransaction": 1,
+        "IncompatibleDefinition": 1,
+        "InvalidCatalogDefinition": 2,
+        "InvalidCatalogIdentity": 1,
+        "PublicationClosed": 1,
+        "PublicationLimitsChanged": 1,
+        "QueryAfterMutation": 1
+      },
+      "outcomes": {
+        "Step": [
+          "ready",
+          "progress"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "check()": "<inferred>",
+        "checkReference()": "<inferred>",
+        "create()": "<inferred>",
+        "manifest()": "<inferred>",
+        "read()": "<inferred>",
+        "stage()": "<inferred>",
+        "validate()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 38,
+        "catch": 0
+      },
+      "imports": [
+        "TableMetadata.zig",
+        "root.zig",
+        "std"
+      ]
+    },
     "packages/zig/transit-catalog/src/root.zig": {
       "errors": {},
       "outcomes": {},
@@ -3203,6 +3283,8 @@
         "Inspection.zig",
         "Model.zig",
         "Records.zig",
+        "TableMetadata.zig",
+        "TableMetadataStore.zig",
         "transit_station"
       ]
     },
@@ -14826,6 +14908,7 @@
           "exchange",
           "application_definition",
           "table",
+          "catalog",
           "_"
         ],
         "Outcome": [

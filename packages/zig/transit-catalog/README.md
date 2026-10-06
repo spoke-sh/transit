@@ -100,6 +100,10 @@ failure and catalogs larger than one resident page. They do not emulate native
 authority, disk recovery or installed caller behavior; consult the
 [proof ledger](../../../tests/README.md) for executed evidence.
 
+[General Table metadata](docs/table-metadata.md) describes immutable schema
+references, owned UTF-8 names and bounded metadata staging. These helpers do not
+by themselves change the signed catalog or console admission profile above.
+
 `Diagnostic.codes` defines finite caller causes separately from catalog receipts.
 Failed CREATE status reads retain the original request's operation and scope,
 even when the current connection differs. Native authority conflict is distinct

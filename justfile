@@ -68,6 +68,7 @@ check-core:
     python3 -B tests/fuze_types.py
     python3 -B tests/table_schema.py
     python3 -B tests/table_storage.py
+    python3 -B tests/table_catalog.py
     python3 -B tests/ci_runner.py
     python3 -B tests/reference_launcher_state.py
     python3 -B tests/verification/check.py
