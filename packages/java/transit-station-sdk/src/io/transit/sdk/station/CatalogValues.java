@@ -52,9 +52,14 @@ final class CatalogValues {
         Schema result = new Schema(wide(v.get("object")), wide(v.get("revision")), wide(v.get("next_column")), columns, keys.asList().stream().map(CatalogValues::wide).toList());
         result.wire(); return result;
     }
+    static MetadataCommitment commitment(JsonElement value) {
+        JsonObject v=fields(value,"format","length","digest");
+        if(number(v.get("format"),1)!=0x54434d01)throw incompatible("catalog-metadata-format");
+        return new MetadataCommitment(Math.toIntExact(number(v.get("length"),1)),NativeValues.digest(v.get("digest")));
+    }
     static Metadata metadata(JsonElement value) {
-        JsonObject v = fields(value, "scope", "object", "revision", "name", "schema_fingerprint", "principal", "operation", "admitted_input");
-        return new Metadata(scope(v.get("scope")), wide(v.get("object")), wide(v.get("revision")), string(v.get("name")), new Bytes(unhex(v.get("schema_fingerprint"), 32)), number(v.get("principal"), 0), wide(v.get("operation")), number(v.get("admitted_input"), 1));
+        JsonObject v = fields(value, "scope", "object", "revision", "name", "schema_fingerprint", "principal", "operation", "admitted_input", "commitment");
+        return new Metadata(scope(v.get("scope")), wide(v.get("object")), wide(v.get("revision")), string(v.get("name")), new Bytes(unhex(v.get("schema_fingerprint"), 32)), number(v.get("principal"), 0), wide(v.get("operation")), number(v.get("admitted_input"), 1),commitment(v.get("commitment")));
     }
     static Head head(JsonElement value) { JsonObject v = fields(value, "revision", "rows", "pending"); return new Head(wide(v.get("revision")), zero(v.get("rows")), zero(v.get("pending"))); }
     static Optional<Definition> resolved(JsonElement value, Scope scope, String name) {

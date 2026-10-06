@@ -37,6 +37,11 @@ and optional trusted executable. The separate native Station JAR is selected by
 default. Opening owns a port, worker and completion publisher and checks the exact
 shared definition and capabilities.
 
+Resolved `Metadata` carries a `MetadataCommitment(bytes, digest)` identifying its
+immutable publication. The length is one to 436 bytes and the digest is an
+immutable 32-byte `Bytes` value. Query declarations use it with the metadata
+revision and schema. It does not grant access or prove current name resolution.
+
 ## Types and operations
 
 `Schema(object, revision, nextColumn, columns, primaryKey)` owns one to 128

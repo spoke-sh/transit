@@ -98,8 +98,12 @@ public final class Catalog {
         public Basis { positive(object); positive(revision); digest(schemaFingerprint); }
         JsonObject wire() { return obj("object", object.toString(), "revision", revision.toString(), "schema_fingerprint", hex(schemaFingerprint)); }
     }
-    public record Metadata(Scope scope, BigInteger object, BigInteger revision, String name, Bytes schemaFingerprint, long principal, BigInteger operation, long admittedInput) {
-        public Metadata { Objects.requireNonNull(scope); positive(object); positive(revision); Catalog.name(name); digest(schemaFingerprint); counter(principal, 0); positive(operation); counter(admittedInput, 1); }
+    public record MetadataCommitment(int bytes,Bytes digest) {
+        public MetadataCommitment { if(bytes<1 || bytes>436)throw new IllegalArgumentException("Invalid Table metadata length"); Catalog.digest(digest); }
+        JsonObject wire() { JsonArray data=new JsonArray(); for(byte b:digest.copy())data.add(Byte.toUnsignedInt(b)); return obj("format",0x54434d01,"length",bytes,"digest",data); }
+    }
+    public record Metadata(Scope scope, BigInteger object, BigInteger revision, String name, Bytes schemaFingerprint, long principal, BigInteger operation, long admittedInput, MetadataCommitment commitment) {
+        public Metadata { Objects.requireNonNull(scope); positive(object); positive(revision); Catalog.name(name); digest(schemaFingerprint); counter(principal, 0); positive(operation); counter(admittedInput, 1); Objects.requireNonNull(commitment); }
         public Basis basis() { return new Basis(object, revision, schemaFingerprint); }
     }
     public record Head(BigInteger revision, BigInteger rows, BigInteger pending) { public Head { positive(revision); u64(rows); u64(pending); } }

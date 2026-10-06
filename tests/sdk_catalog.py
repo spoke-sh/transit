@@ -221,7 +221,7 @@ def install_c(target, language):
     return language, create
 
 
-def install_java(target):
+def install_java(target, packages=ROOT / '.cache/bindings/java'):
     target.mkdir()
     library = target / 'lib'
     library.mkdir()
@@ -229,7 +229,7 @@ def install_java(target):
     for name in ('transit-client', 'transit-native-client', 'transit-station-sdk', 'transit-native-station', 'gson'):
         filename = f'{name}-{"2.12.1" if name == "gson" else "0.2.0"}.jar'
         destination = library / filename
-        shutil.copy2(ROOT / '.cache/bindings/java' / filename, destination)
+        shutil.copy2(packages / filename, destination)
         artifacts[filename] = hashlib.sha256(destination.read_bytes()).hexdigest()
     (target / 'artifacts.json').write_text(json.dumps(artifacts))
     environment = {k:v for k,v in os.environ.items() if k not in ('CLASSPATH', 'JAVA_TOOL_OPTIONS', '_JAVA_OPTIONS', 'JDK_JAVA_OPTIONS', 'TRANSIT_HOST', 'TRANSIT_LIBRARY_DIR')}

@@ -33,7 +33,7 @@ public final class JavaCatalogValues {
         long pid = Long.parseLong(Files.readString(root.resolve("host-pid"))); check(ProcessHandle.of(pid).map(p -> !p.isAlive()).orElse(true));
         check(Thread.getAllStackTraces().keySet().stream().noneMatch(t -> t.isAlive() && (t.getName().equals("transit-owned-port") || t.getName().equals("transit-completions"))));
     }
-    private static JsonObject metadata() { return obj("scope", SCOPE.wire(), "object", MAX.toString(), "revision", MAX.toString(), "name", "items", "schema_fingerprint", "ab".repeat(32), "principal", 17, "operation", MAX.toString(), "admitted_input", 9); }
+    private static JsonObject metadata() { return obj("scope", SCOPE.wire(), "object", MAX.toString(), "revision", MAX.toString(), "name", "items", "schema_fingerprint", "ab".repeat(32), "principal", 17, "operation", MAX.toString(), "admitted_input", 9,"commitment",new MetadataCommitment(200,new Bytes(new byte[32])).wire()); }
     private static Schema schema() { return new Schema(MAX, n(1), n(2), List.of(new Column(n(1), "id", Logical.Scalar.INT128))); }
     private static JsonObject entry() { return obj("metadata", metadata(), "head", obj("revision", "1", "rows", "0", "pending", "0")); }
     private static JsonObject definition() { JsonObject out = entry(); out.add("schema", schema().wire()); return out; }
@@ -43,6 +43,7 @@ public final class JavaCatalogValues {
     }
     private static void metadataValues() {
         JsonObject wire = definition(); Definition original = CatalogValues.decode(() -> CatalogValues.resolved(wire, SCOPE, "items")).orElseThrow();
+        check(original.metadata().commitment().bytes()==200 && original.metadata().commitment().digest().equals(new Bytes(new byte[32])));
         check(original.metadata().object().equals(MAX) && original.metadata().revision().equals(MAX) && original.schema().equals(schema()));
         wire.getAsJsonObject("metadata").addProperty("name", "changed"); wire.getAsJsonObject("schema").getAsJsonArray("columns").get(0).getAsJsonObject().addProperty("name", "changed");
         check(original.metadata().name().equals("items") && original.schema().columns().getFirst().name().equals("id"));
@@ -57,7 +58,7 @@ public final class JavaCatalogValues {
         JsonObject source = page(); Page page = CatalogValues.page(source, SCOPE, Optional.empty()); source.getAsJsonArray("entries").set(0, JsonNull.INSTANCE);
         check(page.entries().size() == 1 && page.entries().getFirst().metadata().equals(original.metadata())); rejects(UnsupportedOperationException.class, () -> page.entries().clear());
         List<Entry> input = new ArrayList<>(page.entries()); Page copy = new Page(9, input, page.next()); input.clear(); check(copy.equals(page));
-        for (int index = 0; index < 11; index++) {
+        for (int index = 0; index < 15; index++) {
             JsonObject bad = page(); JsonArray entries = bad.getAsJsonArray("entries"); JsonObject next = bad.getAsJsonObject("next"), first = entries.get(0).getAsJsonObject().getAsJsonObject("metadata");
             switch (index) {
                 case 0 -> entries.remove(7);
@@ -71,6 +72,10 @@ public final class JavaCatalogValues {
                 case 8 -> first.addProperty("object", MAX);
                 case 9 -> first.addProperty("revision", "01");
                 case 10 -> bad.addProperty("extra", true);
+                case 11 -> first.remove("commitment");
+                case 12 -> first.getAsJsonObject("commitment").addProperty("format",0);
+                case 13 -> first.getAsJsonObject("commitment").addProperty("length",437);
+                case 14 -> first.getAsJsonObject("commitment").getAsJsonArray("digest").set(0,new JsonPrimitive(256));
                 default -> throw new AssertionError();
             }
             check(rejects(TransitException.class, () -> CatalogValues.decode(() -> CatalogValues.page(bad, SCOPE, Optional.empty()))).kind() == TransitException.Kind.INCOMPATIBLE_NATIVE);

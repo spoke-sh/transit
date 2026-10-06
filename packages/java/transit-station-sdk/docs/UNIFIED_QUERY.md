@@ -3,11 +3,14 @@
 `io.transit.sdk.station.UnifiedQuery` exposes the explicit v1 KV/Table/accepted-
 Document profile. It delegates source/plan validation, encoding, signed requests,
 recovery and result verification to shared Zig through the generated port schemas.
-The original Table API remains available in `Query`.
 
 `Source` is a sealed hierarchy of `KvSource`, `TableSource` and `DocumentSource`.
-KV declares versioned decoders, Table binds an exact ID/schema, and Document
-binds an accepted reference and bounded path/list/text projections. `Plan` selects
+KV declares versioned `DecoderType` decoders. Table sources own a catalog
+`Metadata`, `Schema` and owner `ProcessRef`; the native query owner verifies the
+immutable metadata commitment and current rights. Document binds an accepted
+reference and bounded path/list/text projections with `DecoderColumn` values.
+Result `Column` values have shared `Logical.Descriptor` types and explicit
+nullable/optional flags. `Plan` selects
 ordered columns, an `All`, `IsState`, typed `Compare` or `PredicateProgram` predicate, aggregate and
 optional limit. `Bundle.prepare` requires explicit positive `Budgets`.
 Full-width unsigned values, namespaces, conflict IDs and progress use `BigInteger`;
@@ -30,13 +33,13 @@ callbacks must not call blocking close on the publisher thread; close from the
 owning application thread after observing the future.
 
 `compileSql(source, name, sql, budgets, parameters)` returns a
-`CompletableFuture<Bundle>`. The optional `List<Scalar>` is copied into the native
+`CompletableFuture<Bundle>`. The optional `List<Logical.Atom>` is copied into the native
 request before worker submission. The four-argument overload or `null` selects
 ordinary SQL; an empty list selects a template without placeholders.
 The immutable bundle survives the input list and client.
 
 The name binds one explicit source. SQL is limited to 4096 bytes and bindings to
-three exact scalar values, with uint64 for LIMIT; no casts, null parameters or
+65 exact logical atoms, with an unsigned uint64-range atom for LIMIT; no casts, null parameters or
 text substitution occur. Compilation checks current source access and budgets
 before and after binding and returns no bundle on failure. It takes no snapshot
 and submits no query. Use the existing upload workflow for the returned bundle;
@@ -69,12 +72,18 @@ complete result, and every read rechecks current source policy and lifecycle.
 `Page.next` is an opaque continuation, never a grant. An empty continuation means
 verified complete coverage.
 
-Pages own immutable `Bytes` IPC and typed manifest evidence. `decode` returns
-immutable lists with `Missing`, `Null`, `TypeError`, `Value` and ordered `Conflict`
-cells. Scalars preserve signed/unsigned integers, finite doubles (including
-negative zero), booleans, UTF-8 and binary. Copies survive client close. Standalone
-`decodeArrow` checks shape; it does not establish current access or result
-completion. No optional Java Arrow dependency is selected.
+Pages own immutable `Bytes` IPC and typed manifest evidence including the retained
+source-head digest. `decode` returns immutable lists of shared `Logical.Missing`,
+`Null`, `SourceTypeError`, `Present` and ordered `Conflict` cells. Nested values,
+full-width signed/unsigned integers, decimals and temporal values retain their
+logical representation. Copies survive client close. Standalone `decodeArrow`
+checks shape; it does not establish current access or result completion. No
+optional Java Arrow dependency is selected.
+
+Bundles contain at most 25,069 bytes, batches at most eight rows and 128 result
+columns, and IPC segments at most 64 KiB. KV sources have two columns; Document
+projections remain bounded to eight. Predicate byte literals are limited to
+4 KiB. Source/output names are nonempty UTF-8 of at most 255 bytes without NUL.
 
 Build/install using `nix develop .#bindings` and `just bindings::java-build`.
 `just bindings::unified-java` tests installed artifacts against the signed Table

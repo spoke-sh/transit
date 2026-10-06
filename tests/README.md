@@ -15975,3 +15975,18 @@ The first source test invocation lacked the required native library location;
 the next exposed a catalog fixture without the newly mandatory commitment.
 Both were corrected before the passing run. These local checks do not qualify
 signed native query recovery; its shared fixture migration remains outstanding.
+
+### Java logical query caller
+
+Fresh Java JARs and examples compile with Java 21, all lint warnings enabled and
+warnings treated as errors (`java-query-build1.log` in the local Table-schema
+campaign). Their installed public query consumer passes the shared codec cases,
+128 Unicode columns, a uint128 predicate and nested uint128/null results
+(`java-query-installed1.log`). Query results and bindings use shared immutable
+logical models; Table declarations own catalog metadata and its commitment.
+The installed catalog boundary schedule passes generated recursive-schema checks,
+owned full-width/nested values, missing/foreign/oversized commitment rejection,
+large frames, uncertain receipts and joined cancellation
+(`java-query-boundary1.log`). Its injected port outcomes prove ownership and
+classification, not durable query admission. Native query recovery remains
+pending the common catalog fixture migration.

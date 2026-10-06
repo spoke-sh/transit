@@ -279,11 +279,11 @@ def install_c(root, fixtures, language):
     return open_callers
 
 
-def install_java(root, fixtures):
+def install_java(root, fixtures, packages=ROOT/'.cache/bindings/java'):
     root.mkdir(); lib = root/'lib'; lib.mkdir()
     names = ('transit-client', 'transit-native-client', 'transit-station-sdk', 'transit-native-station')
     for name in (*[f'{name}-0.2.0.jar' for name in names], 'gson-2.12.1.jar'):
-        shutil.copy2(ROOT/'.cache/bindings/java'/name, lib/name)
+        shutil.copy2(packages/name, lib/name)
     env = {k: v for k, v in os.environ.items() if k not in ('CLASSPATH', 'JAVA_TOOL_OPTIONS', '_JAVA_OPTIONS', 'JDK_JAVA_OPTIONS', 'TRANSIT_HOST')}
     source = root/'JavaUnifiedSdk.java'; shutil.copyfile(ROOT/'tests'/source.name, source)
     classes = root/'classes'; classes.mkdir()
