@@ -7182,6 +7182,7 @@
         "NonFiniteValue": 2,
         "NotTableDeclaration": 2,
         "NullPrimaryKey": 2,
+        "OutOfMemory": 2,
         "ParameterCountMismatch": 2,
         "ParameterGap": 2,
         "ParameterTypeConflict": 2,
@@ -7244,17 +7245,21 @@
         "render()": "<inferred>",
         "renderRemote()": "<inferred>",
         "renderStyled()": "<inferred>",
-        "structured()": "<inferred>"
+        "structured()": "<inferred>",
+        "validateTableSyntax()": "<inferred>"
       },
       "open_error_set_uses": 8,
       "propagation": {
-        "try": 55,
-        "catch": 29
+        "try": 59,
+        "catch": 30
       },
       "imports": [
         "Sql.zig",
         "SqlCodes.zig",
         "SqlInput.zig",
+        "SqlTyped.zig",
+        "TableDdl.zig",
+        "TableDml.zig",
         "std",
         "transit_protocol"
       ]
@@ -8036,7 +8041,8 @@
         "UnknownSource": 2,
         "UnsupportedAggregate": 2,
         "UnsupportedAggregateLimit": 2,
-        "UnsupportedConstruct": 6
+        "UnsupportedConstruct": 6,
+        "UnsupportedStatement": 1
       },
       "outcomes": {},
       "error_sets": {},

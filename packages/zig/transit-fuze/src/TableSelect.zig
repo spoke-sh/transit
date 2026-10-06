@@ -164,6 +164,7 @@ pub const Syntax = struct {
     }
 };
 pub fn syntax(parser: *Parser, hints: ?t.Type) !Syntax {
+    if (!parser.word("SELECT")) return error.UnsupportedStatement;
     const outer = try Selection.parse(parser);
     const derived = try parser.take(.left);
     if (derived and outer.aggregate == .rows) return error.UnsupportedConstruct;

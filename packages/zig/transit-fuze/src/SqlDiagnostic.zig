@@ -26,7 +26,7 @@ caret: usize = 0,
 detail: [1024]u8 = @splat(0),
 detail_len: usize = 0,
 
-const mutation_hint = "Use explicit column names for INSERT, for example INSERT INTO items (id, value) VALUES (1, 100). Use .help INSERT in the console to configure an authorized Table writer and discover execution and recovery. A query connection does not grant writes.";
+const mutation_hint = "Use .help INSERT, .help UPDATE or .help DELETE in the console with an authorized Table catalog. A query connection does not grant writes.";
 const read_hint = "Use .help SQL in the console for supported syntax; .schema and .sources show the configured columns and source.";
 const grammar_hint = "This statement family has no executable SQL route; its submitted syntax has not been validated. Use .help SQL in the console for supported statements.";
 
@@ -210,9 +210,19 @@ pub fn query(text: []const u8, cause: anyerror, inspection: bool) ?Self {
     var location: sql.Location = .{};
     var result: Self = undefined;
     if (word(text, first, "INSERT") or word(text, first, "UPDATE") or word(text, first, "DELETE")) {
-        _ = sql.parseMutationLocated(text, &location) catch |err| return parseFailure(text, err, location, mutation_hint, .mutation);
-        result = .{ .kind = .interface, .route = .mutation, .cause = cause, .summary = "Table mutation syntax is supported, but this query interface is read-only", .hint = mutation_hint };
-    } else if (word(text, first, "CREATE") and (word(text, second, "TABLE") or word(text, second, "KV") or word(text, second, "DOCUMENT"))) {
+        validateTableSyntax(text, .mutation, &location) catch |err| {
+            if (err != error.OutOfMemory) return parseFailure(text, err, location, mutation_hint, .mutation);
+            // Exhausting presentation scratch cannot establish malformed SQL.
+            // The route remains unavailable without claiming syntax validation.
+        };
+        result = .{ .kind = .interface, .route = .mutation, .cause = cause, .summary = "This query interface is read-only; Table mutations require an authorized catalog", .hint = mutation_hint };
+    } else if (word(text, second, "TABLE") and (word(text, first, "CREATE") or word(text, first, "ALTER") or word(text, first, "DROP"))) {
+        const hint = "Use .help CREATE TABLE, .help ALTER TABLE or .help DROP TABLE in the console with an authorized Table catalog.";
+        validateTableSyntax(text, .declaration, &location) catch |err| {
+            if (err != error.OutOfMemory) return parseFailure(text, err, location, hint, .declaration);
+        };
+        result = .{ .kind = .interface, .route = .declaration, .cause = cause, .summary = "Query interfaces do not publish Table schema changes", .hint = hint };
+    } else if (word(text, first, "CREATE") and (word(text, second, "KV") or word(text, second, "DOCUMENT"))) {
         const hint = if (word(text, second, "TABLE")) "Use .help CREATE TABLE in the console for supported types, nullability, catalog configuration and recovery." else "SQL publication of KV and Document definitions is unavailable. Use .help SQL in the console for supported statements.";
         _ = sql.parseDeclarationLocated(text, &location) catch |err| return parseFailure(text, err, location, hint, .declaration);
         result = .{ .kind = .interface, .route = .declaration, .cause = cause, .summary = "State declaration syntax is supported, but query interfaces do not publish definitions", .hint = hint };
@@ -370,6 +380,20 @@ fn word(text: []const u8, token: ?input.Token, expected: []const u8) bool {
     return value.kind == .word and std.ascii.eqlIgnoreCase(text[value.start..value.end], expected);
 }
 
+/// Reuse the production grammar without inventing a schema or binding values.
+/// Presentation has bounded scratch and performs no catalog reads or dispatch.
+fn validateTableSyntax(text: []const u8, route: Route, location: *sql.Location) !void {
+    var scratch: [256 * 1024]u8 = undefined;
+    var fixed: std.heap.FixedBufferAllocator = .init(&scratch);
+    var parser = try @import("SqlTyped.zig").init(fixed.allocator(), text, location);
+    if (route == .mutation) {
+        _ = try @import("TableDml.zig").syntax(&parser, null);
+    } else {
+        _ = try @import("TableDdl.zig").syntax(&parser, null);
+    }
+    try parser.finish();
+}
+
 fn parseFailure(text: []const u8, cause: anyerror, location: sql.Location, hint: []const u8, route: Route) Self {
     const kind: Kind = switch (cause) {
         error.InvalidSqlSyntax, error.InvalidSqlEncoding, error.InvalidNumericLiteral, error.InvalidBinaryLiteral => .syntax,
@@ -456,7 +480,7 @@ pub fn renderRemote(self: *const Self, out: *std.Io.Writer) !void {
             try out.writeAll(if (self.kind == .syntax) "SQL parse error" else "SQL construct unsupported");
             if (self.location != null) try out.print(" at line {d}, column {d}", .{ self.line, self.column });
             try out.writeAll(if (self.route == .mutation)
-                "; use explicit INSERT columns and an authorized writer: console .help INSERT"
+                "; check Table mutation syntax and an authorized writer: console .help INSERT"
             else
                 "; check supported syntax in /reference/sql/.");
         },
@@ -546,7 +570,11 @@ test "query boundaries distinguish parser evidence, grammar families and binding
     const cases = .{
         .{ "SELECT;", error.InvalidSqlSyntax, Kind.syntax, @as(usize, 7) },
         .{ "SELECT *\nFROM", error.InvalidSqlSyntax, Kind.syntax, @as(usize, 5) },
-        .{ "INSERT INTO items VALUES (1, 100);", error.UnsupportedStatement, Kind.syntax, @as(usize, 19) },
+        .{ "INSERT INTO items VALUES (1, 100);", error.UnsupportedStatement, Kind.interface, @as(usize, 1) },
+        .{ "INSERT INTO items DEFAULT VALUES;", error.UnsupportedStatement, Kind.interface, @as(usize, 1) },
+        .{ "CREATE TABLE people (id INTEGER, name VARCHAR(200));", error.UnsupportedStatement, Kind.interface, @as(usize, 1) },
+        .{ "ALTER TABLE people ADD COLUMN tags LIST(UTF8);", error.UnsupportedStatement, Kind.interface, @as(usize, 1) },
+        .{ "DROP TABLE people;", error.UnsupportedStatement, Kind.interface, @as(usize, 1) },
         .{ "/* context */ INSERT INTO items (id, value) VALUES (1, 100);", error.UnsupportedStatement, Kind.interface, @as(usize, 15) },
         .{ "CREATE KV items (UTF8);", error.UnsupportedStatement, Kind.interface, @as(usize, 1) },
         .{ "CREATE CONNECTION unfinished", error.UnsupportedStatement, Kind.grammar_only, @as(usize, 1) },

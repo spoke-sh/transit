@@ -15817,3 +15817,13 @@ package tests pass 14/14 (`flight-current-metadata1.log`). `describe` validates
 current Table metadata; exact upload recovery and retained-result authorization
 use the independent current-rights check. These package checks do not qualify
 the in-progress native transport fixture migration.
+
+### General grammar at read-only query boundaries
+
+Fuze tests pass 254/254 (`fuze-query-grammar1.log` in the local Table-schema
+campaign). Valid implicit-column INSERT, DEFAULT VALUES, general CREATE, ALTER
+and DROP receive interface guidance from the shared production grammar; the
+query compiler reports non-SELECT input as unsupported. The real CLI diagnostic
+corpus passes 592 cases, and 3179 diagnostic projections across 34 surfaces pass
+(`query-grammar-outcomes1.log`). The native query/Flight fixture migration is
+still being qualified separately.

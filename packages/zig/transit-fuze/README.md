@@ -83,6 +83,11 @@ over up to 128 logical columns, with typed predicates, aliases, limits and finit
 COUNT/checked int64 SUM. It shares typed literals and predicate lowering with
 Table DML and row execution with file queries. The supplied schema and source
 binding remain the caller's responsibility; compilation does not acquire access.
+Non-SELECT input returns `UnsupportedStatement`. Query-side diagnostics validate
+Table DDL/DML with the production general grammar before explaining the required
+catalog interface; valid implicit INSERT columns and schema lifecycle syntax are
+not reported as malformed legacy statements. This presentation check has a
+256 KiB scratch bound and never invents a schema or performs catalog reads.
 
 `Type.validateDiagnostic(limits, &failure)` retains the first recursive descriptor
 rejection in an owned `Types.Diagnostic`. `LogicalJson.decodeTypeContext` carries
