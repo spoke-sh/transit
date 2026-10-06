@@ -9,11 +9,12 @@ import threading
 import time
 
 from storage import Fixture, free_port, wait_ready
+from cold_storage import ColdStore
 
 
-def run(node, worker_binary, caller):
-    node, worker_binary, caller = [str(Path(path).resolve()) for path in (node, worker_binary, caller)]
-    with Fixture() as fixture:
+def run(node, worker_binary, caller, query_host):
+    node, worker_binary, caller, query_host = [str(Path(path).resolve()) for path in (node, worker_binary, caller, query_host)]
+    with ColdStore() as cold, Fixture(cold.config()) as fixture:
         started = time.monotonic()
         public = json.loads(subprocess.check_output([caller, 'public'], timeout=10))
         port = free_port()
@@ -24,7 +25,7 @@ def run(node, worker_binary, caller):
             ursula_url=fixture.url, bucket='work-items', journal='authority', port=port,
             resident_pages=16, request_timeout_ms=10000)))
         faults, retries, failures = {}, set(), []
-        observed = dict(turns=0, max_mutations=0, max_value_bytes=0, pages=0)
+        observed = dict(turns=0, max_mutations=0, max_value_bytes=0, pages=0, transport_disconnects=0)
 
         class Proxy(BaseHTTPRequestHandler):
             def log_message(self, *_): pass
@@ -54,7 +55,7 @@ def run(node, worker_binary, caller):
                             for change in changes:
                                 if change['value']:
                                     observed['max_value_bytes'] = max(observed['max_value_bytes'], len(bytes.fromhex(change['value'])))
-                                if bytes.fromhex(change['key']).startswith(b'\0r\x02\0\0\0'):
+                                if change['value'] and bytes.fromhex(change['value']).startswith(b'STH1') and int.from_bytes(bytes.fromhex(change['value'])[44:52], 'little') == 2 and int.from_bytes(bytes.fromhex(change['value'])[52:60], 'little') > 1:
                                     selected = 'worker-copy'
                         for name, (request, receipt) in faults.items():
                             if body == request:
@@ -68,8 +69,12 @@ def run(node, worker_binary, caller):
                     self.send_header('Content-Length', str(len(data)))
                     self.end_headers()
                     self.wfile.write(data)
-                except (BrokenPipeError, ConnectionResetError):
-                    pass  # The test deliberately kills clients at completed boundaries.
+                except (BrokenPipeError, ConnectionResetError, ConnectionRefusedError):
+                    # Owned callers/authority are deliberately stopped. Close
+                    # the connection; clients must reconcile the exact request
+                    # within their bounded recovery deadline.
+                    observed['transport_disconnects'] += 1
+                    self.close_connection = True
                 except BaseException as error:
                     failures.append(repr(error))
                     raise
@@ -99,6 +104,7 @@ def run(node, worker_binary, caller):
             current_node = authority()
             invoke('setup')
             current_worker = worker('worker-first')
+            courier = spawn('courier', [query_host, str(fixture.root/'courier.json')])
             invoke('seed')
             invoke('step')
             until = time.monotonic()+10
@@ -121,7 +127,7 @@ def run(node, worker_binary, caller):
             finally: stale.close()
             current_worker = worker('worker-copy-recovered')
             invoke('deny')
-            for _ in range(9): invoke('step')
+            for _ in range(19): invoke('step')
             # The copy is complete, but activation must still wait for verification.
             current_worker.kill(); current_worker.wait(timeout=10)
             # Rejected-input witnesses must survive a cold store reconstruction

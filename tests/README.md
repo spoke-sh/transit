@@ -16641,3 +16641,46 @@ gate, including the explicit invariant exception tied to that executable test.
 Its preceding run correctly failed because the newly surfaced stored-record error
 had no reviewed disposition. Native application and browser runs are separate
 qualification; these package results do not establish their completion.
+
+
+### Work-item typed Tables and staged application migration
+
+`general-work-items-unit4.log` passes 9/9 ReleaseSafe tests (280 ms execution,
+13 MiB peak test RSS). The application uses general catalog Tables, stable hidden
+row cursors and actual published source metadata. Thirty-three rows require 69
+logical migration steps: one-row copies, a phase transition, one-row verification,
+a second transition and activation. Each step freezes its original input before
+Table staging. Completion publishes the Table head, Table outcome, migration
+progress and exact step receipt in four native writes. Tests include empty and
+abandoned targets, changed cursors, corrupt stored values, current policy denial,
+explicit write release and separately authorized catalog/read policy. Accepted
+queued puts prevent a new migration until their Table publication completes.
+
+`general-work-items-native3.log` passes all eight build/proof steps in 142.71
+seconds of native execution: nineteen rows, two fresh-key worker replacements,
+authority/disk restarts, exact operator and worker retries, retained rejection
+witnesses, complete verification and old-epoch rejection. The transport observes
+583 accepted turn submissions, 287 bounded page reads, at most four mutations and
+256-byte native values. Its 39 transport disconnects occur during owned caller or
+authority replacement; exact recovery still must finish within the fixture's
+finite deadlines. The first run failed because completion observation used a
+stale resource revision; whole-read retries now preserve the signed command.
+The second completed its domain schedule but failed the fixture's disconnect
+classification. Only the third run counts as a native pass.
+
+`general-work-items-browser2.log` passes all twelve build/proof steps in 185.65
+seconds, including 51.47 seconds provisioning. Actual Chromium covers all nineteen
+rows, three result pages, application schema/interface publication, gateway
+replacement, original upload recovery/cancellation, the new schema and current
+denial. Peak RSS bytes are 49,737,728 for authority, 18,898,944 for the data owner,
+11,583,488 for publication, 15,314,944 for the requester, 12,333,056 for delivery,
+and 28,372,992/33,071,104 for the two gateway incarnations. The first browser run
+failed after the publication worker's initial ownership read encountered temporary
+native capacity pressure. Startup now retries availability within its configured
+request deadline before writing the activation marker; it still refuses denied
+or stale ownership. The fixture uses bounded hot storage with cold spill.
+
+Standalone package builds pass, as do the independent WI1 cursor/command fixtures
+and documentation links. Physical placements and local application installation
+remain separate schedules; these results do not qualify either or the coordinated
+current-definition cutover.

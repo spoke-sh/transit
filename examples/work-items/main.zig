@@ -38,11 +38,11 @@ fn run(init: std.process.Init, diagnostics: *telemetry.Runtime) !void {
         try supplied.validate();
         if (!std.mem.eql(u8, supplied.role, "data") or !std.mem.eql(u8, supplied.contract, "work-items-v1")) return error.UnsupportedApplicationContract;
         const domain = (try p.Json.parseFromSlice(struct { application: u64 }, init.arena.allocator(), supplied.configuration)).value;
-        break :value Configuration{ .url = supplied.url, .principal = supplied.principal, .pid = supplied.pid, .generation = supplied.generation, .activation_directory = supplied.activation_directory, .application = .{ .application = domain.application, .realm = supplied.realm, .administrator = try A.binding(supplied.callers, "operator"), .writer = try A.binding(supplied.callers, "writer"), .resource = try A.binding(supplied.resources, "data") } };
+        break :value Configuration{ .url = supplied.url, .principal = supplied.principal, .pid = supplied.pid, .generation = supplied.generation, .activation_directory = supplied.activation_directory, .application = .{ .owner = supplied.pid, .application = domain.application, .realm = supplied.realm, .administrator = try A.binding(supplied.callers, "operator"), .writer = try A.binding(supplied.callers, "writer"), .resource = try A.binding(supplied.resources, "data") } };
     } else (try p.Json.parseFromSlice(Configuration, init.arena.allocator(), bytes)).value;
     if (config.query_peer != null and config.publication != null) return error.ConflictingWorkerRoles;
     if (config.publication) |publication| if (publication.realm != config.application.realm or publication.application != config.application.application) return error.InvalidConfiguration;
-    if (config.pid == 0 or config.generation == 0 or config.principal == 0 or config.request_timeout_ms == 0 or config.request_timeout_ms > 60000) return error.InvalidConfiguration;
+    if (config.application.owner != config.pid or config.pid == 0 or config.generation == 0 or config.principal == 0 or config.request_timeout_ms == 0 or config.request_timeout_ms > 60000) return error.InvalidConfiguration;
     var key = if (bootstrap) value: {
         if (config.seed_file != null) return error.InvalidBootstrap;
         var seed: [32]u8 = undefined;
@@ -57,14 +57,22 @@ fn run(init: std.process.Init, diagnostics: *telemetry.Runtime) !void {
     wire.observer = diagnostics;
     if (bootstrap) try s.client.bootstrap.awaitGrowingOwnership(&wire, .{ .realm = config.application.realm, .principal = config.principal, .pid = config.pid, .generation = config.generation, .public_key = key.public_key.toBytes() }, key, 120000);
     var host = try s.GenServer.init(.{ .client = &wire, .realm = config.application.realm, .principal = config.principal, .pid = config.pid, .generation = config.generation, .key = key }, "state");
-    _ = try host.session.receive();
+    const starting = std.Io.Clock.awake.now(init.io);
+    while (true) {
+        _ = host.session.receive() catch |err| {
+            if (!s.client.Client.unavailable(err) or starting.durationTo(std.Io.Clock.awake.now(init.io)).toMilliseconds() >= config.request_timeout_ms) return err;
+            try init.io.sleep(.fromMilliseconds(25), .awake);
+            continue;
+        };
+        break;
+    }
     const marker = try std.fmt.allocPrint(init.arena.allocator(), "{s}/{d}-{d}-{d}.activation", .{ config.activation_directory, config.application.realm, config.pid, config.generation });
     const file = std.Io.Dir.cwd().createFile(init.io, marker, .{ .exclusive = true }) catch |err| {
         if (err == error.PathAlreadyExists) return error.FreshOwnershipRequired;
         return err;
     };
     file.close(init.io);
-    var behavior: W.Behavior = .{ .owner = .{ .configuration = config.application } };
+    var behavior: W.Behavior = .{ .owner = .{ .allocator = init.gpa, .configuration = config.application } };
     const adapter: []u8 = if (config.query_peer != null) try init.gpa.alloc(u8, W.query.UnifiedBehavior.adapter_bytes) else &.{};
     defer if (adapter.len != 0) init.gpa.free(adapter);
     const workspace: []u8 = if (config.query_peer != null) try init.gpa.alloc(u8, W.query.fuze.Unified.Arrow.working_bytes) else &.{};

@@ -19,9 +19,12 @@ fn publication() app.Publication {
     return .{ .configuration = .{ .application = 9, .realm = 51, .namespace = .{ .value = 19 }, .administrator = 65537, .name_digest = app.Publication.nameDigest("work_items") } };
 }
 fn policy(caller: *proof.Caller, init: std.process.Init, saved: Saved, revision: u64) !void {
-    _ = try caller.sendPayload(init.io, try (q.UnifiedRecords.Policy{ .peer = saved.requests.pid, .requests = saved.requests.resource, .revision = revision, .target = .{ .declaration = try q.Bundle.declaration(try proof.owner(saved.data).source(@intCast(revision))) }, .allow = true, .limits = limits }).encode(), null);
+    _ = try caller.sendPayload(init.io, try (q.UnifiedRecords.Policy{ .peer = saved.requests.pid, .requests = saved.requests.resource, .revision = revision, .target = .{ .catalog = .{ .scope = .{ .realm = 51, .resource = saved.data.resource, .catalog = 1 }, .owner = saved.data.pid, .principal = 65537 } }, .allow = true, .limits = limits }).encode(), null);
 }
 fn publish(caller: *proof.Caller, init: std.process.Init, saved: Saved, revision: u64) !void {
+    var data_reader = try caller.read();
+    var table_source = try proof.owner(init.gpa, saved.data).source(&data_reader, 65537, @intCast(revision));
+    defer table_source.deinit();
     caller.saved = saved.publication;
     defer caller.saved = saved.data;
     var reader = try caller.read();
@@ -34,7 +37,7 @@ fn publish(caller: *proof.Caller, init: std.process.Init, saved: Saved, revision
     parsed.definition.bindings = bindings;
     for (bindings) |*binding| if (binding.source == .query) {
         binding.source.query.resource = saved.data.resource;
-        binding.source.query.schema = try (try proof.owner(saved.data).source(@intCast(revision))).fingerprint();
+        binding.source.query.schema = try table_source.definition.fingerprint();
     };
     var buffer: [app.Model.max_program_bytes]u8 = undefined;
     const body = try app.Api.canonical(parsed.definition, &buffer);
@@ -70,8 +73,8 @@ fn workerFiles(init: std.process.Init, url: []const u8, directory: []const u8, s
     const data = saved.data;
     const requests = saved.requests;
     const pub_owner = saved.publication;
-    try proof.write(init, try path(init, directory, "data.json"), .{ .url = url, .principal = @as(u64, 65536), .pid = data.pid, .generation = data.generation, .seed_file = try seedFile(init, directory, "data.seed", data.activation), .activation_directory = directory, .application = proof.owner(data).configuration, .query_peer = requests.pid });
-    try proof.write(init, try path(init, directory, "publication.json"), .{ .url = url, .principal = @as(u64, 65540), .pid = pub_owner.pid, .generation = pub_owner.generation, .seed_file = try seedFile(init, directory, "publication.seed", pub_owner.activation), .activation_directory = directory, .application = proof.owner(pub_owner).configuration, .publication = publication().configuration });
+    try proof.write(init, try path(init, directory, "data.json"), .{ .url = url, .principal = @as(u64, 65536), .pid = data.pid, .generation = data.generation, .seed_file = try seedFile(init, directory, "data.seed", data.activation), .activation_directory = directory, .application = proof.owner(init.gpa, data).configuration, .query_peer = requests.pid });
+    try proof.write(init, try path(init, directory, "publication.json"), .{ .url = url, .principal = @as(u64, 65540), .pid = pub_owner.pid, .generation = pub_owner.generation, .seed_file = try seedFile(init, directory, "publication.seed", pub_owner.activation), .activation_directory = directory, .application = proof.owner(init.gpa, pub_owner).configuration, .publication = publication().configuration });
     try proof.write(init, try path(init, directory, "requester.json"), .{ .url = url, .realm = @as(u64, 51), .principal = @as(u64, 65539), .pid = requests.pid, .generation = requests.generation, .seed_file = try seedFile(init, directory, "requester.seed", requests.activation), .activation_directory = directory, .interval_ms = @as(u32, 100), .idle_max_interval_ms = @as(u32, 1000), .role = .{ .unified_requester = .{ .principal = @as(u64, 1234), .source = data.pid } } });
 }
 fn print(init: std.process.Init, value: anytype) !void {
@@ -116,7 +119,7 @@ pub fn main(init: std.process.Init) !void {
         try proof.write(init, saved_path, saved);
         try workerFiles(init, args[1], directory, saved);
         try proof.write(init, try path(init, directory, "courier.json"), .{ .url = args[1], .realm = @as(u64, 51), .principal = @as(u64, 65538), .seed_file = try seedFile(init, directory, "courier.seed", 11), .interval_ms = @as(u32, 100), .idle_max_interval_ms = @as(u32, 1000), .role = .{ .courier = .{ .destinations = [2]u64{ data.pid, requests.pid } } } });
-        return proof.write(init, try path(init, directory, "gateway-base.json"), .{ .url = args[1], .inspection = .{ .principal = @as(u64, 65541), .seed_file = try seedFile(init, directory, "inspection.seed", 14) }, .application = app.Host.Config{ .scope = .{ .realm = 51, .application = 9, .pid = pub_owner.pid, .resource = pub_owner.resource, .namespace = .{ .value = 19 } }, .operators = .{65537} ++ @as([15]?u64, @splat(null)) }, .data = proof.owner(data).configuration, .query = .{ .connection = connection(saved), .seed_file = try seedFile(init, directory, "query.seed", 10), .limits = try q.Values.Limits.fromNative(init.arena.allocator(), limits) } });
+        return proof.write(init, try path(init, directory, "gateway-base.json"), .{ .url = args[1], .inspection = .{ .principal = @as(u64, 65541), .seed_file = try seedFile(init, directory, "inspection.seed", 14) }, .application = app.Host.Config{ .scope = .{ .realm = 51, .application = 9, .pid = pub_owner.pid, .resource = pub_owner.resource, .namespace = .{ .value = 19 } }, .operators = .{65537} ++ @as([15]?u64, @splat(null)) }, .data = proof.owner(init.gpa, data).configuration, .query = .{ .connection = connection(saved), .seed_file = try seedFile(init, directory, "query.seed", 10), .limits = try q.Values.Limits.fromNative(init.arena.allocator(), limits) } });
     }
     const bytes = try std.Io.Dir.cwd().readFileAlloc(init.io, saved_path, init.arena.allocator(), .limited(4096));
     var saved = (try std.json.parseFromSlice(Saved, init.arena.allocator(), bytes, .{})).value;
@@ -154,6 +157,9 @@ pub fn main(init: std.process.Init) !void {
     caller.sequence = (try caller.query(.{ .capabilities = {} })).principal_sequence;
     if (std.mem.eql(u8, phase, "seed")) {
         _ = try caller.send(init.io, .initialize, null);
+        _ = try caller.send(init.io, .catalog_initialize, null);
+        for ([_]u32{ 1, 2 }) |table| _ = try caller.send(init.io, .{ .prepare_table = table }, null);
+        _ = try caller.send(init.io, .{ .read_policy = .{ .principal = 1234, .expected = 0, .revision = 1, .allow = true } }, null);
         _ = try caller.send(init.io, .{ .policy = .{ .principal = 65537, .expected = .{}, .next = .{ .revision = .{ .value = 1 }, .migrate = true } } }, null);
         for (0..19) |i| _ = try caller.send(init.io, .{ .put = .{ .epoch = .{ .value = 1 }, .id = @as(i64, @intCast(i)) - 10, .state = @intCast(i % 2) } }, null);
         try policy(&caller, init, saved, 1);
@@ -170,8 +176,8 @@ pub fn main(init: std.process.Init) !void {
         caller.saved = saved.data;
         try publish(&caller, init, saved, 1);
     } else if (std.mem.eql(u8, phase, "migrate")) {
-        _ = try caller.send(init.io, .{ .begin = try proof.owner(saved.data).proposal(2) }, null);
-        const ledger = try proof.owner(saved.data).ledger();
+        _ = try caller.send(init.io, .{ .begin = try proof.owner(init.gpa, saved.data).proposal(2) }, null);
+        const ledger = try proof.owner(init.gpa, saved.data).ledger();
         for (0..64) |_| {
             var reader = try caller.read();
             const progress = try ledger.progress(&reader, .{ .value = 2 });
@@ -183,7 +189,7 @@ pub fn main(init: std.process.Init) !void {
         try policy(&caller, init, saved, 2);
         try publish(&caller, init, saved, 2);
         _ = try caller.send(init.io, .{ .put = .{ .epoch = .{ .value = 1 }, .id = 99, .state = 1 } }, "WorkItemEpochChanged");
-        _ = try caller.send(init.io, .{ .release_writes = .{ .epoch = .{ .value = 2 }, .contract = try (try proof.owner(saved.data).source(2)).fingerprint() } }, null);
+        _ = try caller.send(init.io, .{ .release_writes = .{ .epoch = .{ .value = 2 }, .contract = try proof.owner(init.gpa, saved.data).contract(2) } }, null);
     } else if (std.mem.eql(u8, phase, "deny")) {
         _ = try admin.submit(.{ .grant_resource = .{ .resource = saved.data.resource, .subject = 1234, .permissions = p.State.permission(.inspect) } });
     } else return error.UnknownPhase;

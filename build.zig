@@ -982,6 +982,7 @@ pub fn build(b: *std.Build) void {
     work_items_native.addArtifactArg(node_artifact);
     work_items_native.addArtifactArg(work_items);
     work_items_native.addArtifactArg(work_items_proof);
+    work_items_native.addArtifactArg(query_host);
     work_items_native.has_side_effects = true;
     work_items_native.stdio = .inherit;
     b.step("test-work-items", "Qualify the actual Table migration worker through disk recovery").dependOn(&work_items_native.step);

@@ -40,7 +40,7 @@ pub fn main(init: std.process.Init) void {
 fn run(init: std.process.Init) !void {
     const args = try init.minimal.args.toSlice(init.arena.allocator());
     if (args.len == 3 and std.mem.eql(u8, args[1], "manifest")) {
-        const declaration: A.Declaration = .{ .application = "work-items", .roles = &.{.{ .name = "data", .contract = "work-items-v1", .artifact = .{ .path = args[2] }, .configuration = "{\"application\":9}", .accesses = &.{.{ .name = "state", .resource = "data", .permissions = 7 }} }}, .resources = &.{.{ .name = "data", .writer = "data" }}, .callers = &.{ .{ .name = "operator", .send_to = "data", .reads = &.{.{ .resource = "data" }} }, .{ .name = "writer", .send_to = "data", .reads = &.{.{ .resource = "data" }} }, .{ .name = "inspector", .reads = &.{.{ .resource = "data" }} } }, .initialize = &.{.{ .role = "data", .caller = "operator", .value = try (s.Frame{ .kind = .cast, .payload = try (W.Command{ .initialize = {} }).encode() }).encode() }} };
+        const declaration: A.Declaration = .{ .application = "work-items", .roles = &.{.{ .name = "data", .contract = "work-items-v1", .artifact = .{ .path = args[2] }, .configuration = "{\"application\":9}", .accesses = &.{.{ .name = "state", .resource = "data", .permissions = 7 }} }}, .resources = &.{.{ .name = "data", .writer = "data" }}, .callers = &.{ .{ .name = "operator", .send_to = "data", .reads = &.{.{ .resource = "data" }} }, .{ .name = "writer", .send_to = "data", .reads = &.{.{ .resource = "data" }} }, .{ .name = "inspector", .reads = &.{.{ .resource = "data" }} } }, .initialize = &.{ .{ .role = "data", .caller = "operator", .value = try (s.Frame{ .kind = .cast, .payload = try W.Command.encode(.initialize) }).encode() }, .{ .role = "data", .caller = "operator", .value = try (s.Frame{ .kind = .cast, .payload = try W.Command.encode(.catalog_initialize) }).encode() }, .{ .role = "data", .caller = "operator", .value = try (s.Frame{ .kind = .cast, .payload = try (W.Command{ .prepare_table = 1 }).encode() }).encode() } } };
         return print(init, declaration);
     }
     if (args.len < 3) return error.ExpectedConnectionAndCommand;
@@ -48,7 +48,7 @@ fn run(init: std.process.Init) !void {
     try config.validate();
     const pid = try A.binding(config.roles, "data");
     const resource = try A.binding(config.resources, "data");
-    const owner: W = .{ .configuration = .{ .application = 9, .realm = config.realm, .administrator = try A.binding(config.callers, "operator"), .writer = try A.binding(config.callers, "writer"), .resource = resource } };
+    const owner: W = .{ .allocator = init.gpa, .configuration = .{ .owner = pid, .application = 9, .realm = config.realm, .administrator = try A.binding(config.callers, "operator"), .writer = try A.binding(config.callers, "writer"), .resource = resource } };
     const ledger = try owner.ledger();
     var key = try s.client.readKey(init.gpa, init.io, config.seed_file);
     defer std.crypto.secureZero(u8, std.mem.asBytes(&key));
@@ -63,26 +63,22 @@ fn run(init: std.process.Init) !void {
         const head = try ledger.head(&reader);
         const plan = try ledger.plan(&reader, .{ .value = 2 });
         const progress = if (plan != null) try ledger.progress(&reader, .{ .value = 2 }) else null;
-        const table = try s.Table.open(&reader, try owner.selected(&reader));
-        var cursor: ?s.Table.Cursor = null;
+        const table = try owner.selected(&reader);
+        var cursor: ?W.Table.Identity = null;
         var count: u64 = 0;
-        var pages: u64 = 0;
+        var row_steps: u64 = 0;
         while (true) {
-            if (pages == 1000) return error.InspectionPageBudget;
-            const page = try table.page(&reader, cursor);
-            for (page.rows[0..page.len]) |row| {
-                if (row.value != .int64) return error.InvalidWorkItemState;
-                if (head.epoch.value == 2) {
-                    const before = (try (try s.Table.open(&reader, 1)).get(&reader, row.key)) orelse return error.MissingSourceRow;
-                    if (row.value.int64 != (if (before.value.int64 == 0) @as(i64, 10) else 20)) return error.IncorrectMigration;
-                }
+            if (row_steps == 1000) return error.InspectionPageBudget;
+            const row = try W.Table.next(init.gpa, &reader, table, cursor) orelse break;
+            if (head.epoch.value == 2) {
+                const before = (try W.Table.get(init.gpa, &reader, 1, row.key)) orelse return error.MissingSourceRow;
+                if (row.state != (if (before.state == 0) @as(i64, 10) else 20)) return error.IncorrectMigration;
             }
-            count += page.len;
-            pages += 1;
-            cursor = page.next;
-            if (cursor == null) break;
+            count += 1;
+            row_steps += 1;
+            cursor = row.identity;
         }
-        return print(init, .{ .head = head, .migration = progress, .migration_diagnostic = if (progress) |value| try W.app.MigrationDiagnostic.progress(9, config.realm, resource, plan.?, value) else null, .cursor = if (progress) |value| try W.Cursor.decode(value.cursor) else null, .rows = count, .pages = pages });
+        return print(init, .{ .head = head, .migration = progress, .migration_diagnostic = if (progress) |value| try W.app.MigrationDiagnostic.progress(9, config.realm, resource, plan.?, value) else null, .cursor = if (progress) |value| try W.Cursor.decode(value.cursor) else null, .rows = count, .row_steps = row_steps });
     }
     if (args.len < 4) return error.ExpectedRecoveryFile;
     const path = args[3];
@@ -93,7 +89,9 @@ fn run(init: std.process.Init) !void {
     var saved = read(Saved, init, path) catch |err| value: {
         if (err != error.FileNotFound) return err;
         var command: W.Command = undefined;
-        if (std.mem.eql(u8, mode, "authorize") and args.len == 4) {
+        if (std.mem.eql(u8, mode, "prepare-table") and args.len == 5) {
+            command = .{ .prepare_table = try std.fmt.parseInt(u32, args[4], 10) };
+        } else if (std.mem.eql(u8, mode, "authorize") and args.len == 4) {
             command = .{ .policy = .{ .principal = config.principal, .expected = .{}, .next = .{ .revision = .{ .value = 1 }, .migrate = true } } };
         } else if (std.mem.eql(u8, mode, "put") and args.len == 6) {
             var reader = try resources.open(resource);
@@ -128,11 +126,27 @@ fn run(init: std.process.Init) !void {
         if (started.durationTo(std.Io.Clock.awake.now(init.io)).toMilliseconds() >= 30000) return error.CompletionUnobserved;
         try init.io.sleep(.fromMilliseconds(50), .awake);
     }
-    var reader = try resources.open(resource);
-    if (try W.Failure.read(owner.configuration, &reader, config.principal, receipt.position)) |failure| {
-        std.debug.print("work-items: {s} [{s}] ({s})\n", .{ failure.diagnostic.message.slice(), failure.diagnostic.code.slice(), failure.record.cause.slice() });
-        try print(init, .{ .accepted = receipt.position, .committed = false, .err = failure.record.cause.slice(), .diagnostic = failure.diagnostic });
-        return error.DomainRejected;
+    const command = try W.Command.decode((try s.Frame.decode(saved.signed.request.command.send.value)).payload);
+    while (true) {
+        if (started.durationTo(std.Io.Clock.awake.now(init.io)).toMilliseconds() >= 30000) return error.CompletionUnobserved;
+        if (observe(init, resources, owner, command, receipt.position)) |done| {
+            if (done) break;
+        } else |err| {
+            if (!s.client.Client.unavailable(err) and !((err == error.Rejected or err == error.Conflict) and
+                (wire.last_rejection == .StaleStateResource or wire.last_rejection == .QueryExpired))) return err;
+        }
+        const process = (try resources.query(.{ .process = pid })).body.process;
+        if (process.process.failure != null or process.process.lifecycle != .running) return error.WorkerUnavailable;
+        try init.io.sleep(.fromMilliseconds(50), .awake);
     }
     try print(init, .{ .accepted = receipt.position, .committed = true });
+}
+fn observe(init: std.process.Init, resources: s.client.ResourceReader, owner: W, command: W.Command, input: u64) !bool {
+    var reader = try resources.open(owner.configuration.resource);
+    if (try W.Failure.read(owner.configuration, &reader, resources.principal, input)) |failure| {
+        std.debug.print("work-items: {s} [{s}] ({s})\n", .{ failure.diagnostic.message.slice(), failure.diagnostic.code.slice(), failure.record.cause.slice() });
+        try print(init, .{ .accepted = input, .committed = false, .err = failure.record.cause.slice(), .diagnostic = failure.diagnostic });
+        return error.DomainRejected;
+    }
+    return owner.completed(&reader, command, input);
 }

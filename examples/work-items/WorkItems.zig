@@ -6,16 +6,19 @@ const s = app.station;
 const p = app.protocol;
 const M = app.Migration;
 const Wide = app.Model.Wide;
+const c = query.catalog;
+pub const Table = @import("WorkTable.zig");
 const Self = @This();
-pub const Configuration = struct { application: u64, realm: u64, administrator: u64, writer: u64, resource: u64 };
+pub const Configuration = struct { application: u64, realm: u64, administrator: u64, writer: u64, resource: u64, owner: u64 };
 pub const Failure = @import("WorkItemFailure.zig");
+allocator: std.mem.Allocator,
 configuration: Configuration,
 failure: ?*Failure.Context = null,
 fn remember(self: Self, witness: Failure.Witness) void {
     if (self.failure) |failure| failure.domain = witness;
 }
-fn rememberEpoch(self: Self, expected: Wide, head: M.Head, contract: ?[32]u8) void {
-    self.remember(.{ .epoch = .{ .expected = expected, .actual = head.epoch, .active = head.active, .actual_contract = head.contract, .expected_contract = contract orelse @splat(0), .contract_known = contract != null } });
+fn rememberEpoch(self: Self, expected: Wide, head: M.Head, expected_contract: ?[32]u8) void {
+    self.remember(.{ .epoch = .{ .expected = expected, .actual = head.epoch, .active = head.active, .actual_contract = head.contract, .expected_contract = expected_contract orelse @splat(0), .contract_known = expected_contract != null } });
 }
 pub const Command = union(enum(u8)) {
     initialize: void = 0,
@@ -25,6 +28,9 @@ pub const Command = union(enum(u8)) {
     step: M.Step = 4,
     abandon: Wide = 5,
     release_writes: struct { epoch: Wide, contract: [32]u8 } = 6,
+    catalog_initialize: void = 7,
+    prepare_table: u32 = 8,
+    read_policy: struct { principal: u64, expected: u64, revision: u64, allow: bool } = 9,
     pub fn encode(self: Command) !p.Value {
         var value = try app.Records.encode('i', self);
         value.data[0..3].* = "WI1".*;
@@ -42,7 +48,7 @@ pub const Command = union(enum(u8)) {
 pub const Cursor = struct {
     phase: enum(u8) { copy = 0, verify = 1, ready = 2 } = .copy,
     has_after: bool = false,
-    after: i64 = 0,
+    after: Table.Identity = .{ .origin = 0, .operation = 0, .ordinal = 0 },
     copied: u64 = 0,
     verified: u64 = 0,
     pub fn encode(self: Cursor) !p.Value {
@@ -54,23 +60,65 @@ pub const Cursor = struct {
 };
 const Active = struct { table: u32, writes: bool };
 const active_table = p.Value.init("work-items.active-table") catch unreachable;
-pub fn source(self: Self, table: u32) !query.SourceDefinition {
-    return .{ .resource = self.configuration.resource, .source = .{ .table = .{ .id = table, .schema = .{ .names = .{ try .init("id"), try .init(if (table == 1) "status" else "state") }, .value_type = .int64 } } } };
+pub fn catalog(self: Self) c.TableCatalog {
+    return .{ .configuration = .{ .scope = .{ .realm = self.configuration.realm, .resource = self.configuration.resource, .catalog = 1 }, .owner = self.configuration.owner, .administrator = self.configuration.administrator, .table_limits = Table.limits } };
+}
+pub const Source = struct {
+    owned: query.TableSource.Owned,
+    definition: query.SourceDefinition,
+    pub fn deinit(self: *@This()) void {
+        self.owned.deinit();
+        self.* = undefined;
+    }
+};
+pub fn source(self: Self, reader: anytype, principal: u64, table: u32) !Source {
+    var definition = (try self.catalog().lookup(self.allocator, reader, principal, try Table.name(table))) orelse return error.WorkItemInitializationRequired;
+    defer definition.deinit();
+    if (!std.mem.eql(u8, &try definition.schema.schema.fingerprint(), &try Table.schema(table).fingerprint())) return error.WorkItemEpochChanged;
+    const owned = try query.TableSource.from(self.allocator, self.catalog().configuration, definition);
+    return .{ .owned = owned, .definition = .{ .resource = self.configuration.resource, .source = .{ .table = owned.source } } };
+}
+/// The application contract binds its owner, resource, layout and state encoding.
+/// Query declarations separately bind actually published catalog metadata.
+pub fn contract(self: Self, table: u32) ![32]u8 {
+    var hash = std.crypto.hash.sha2.Sha256.init(.{});
+    hash.update("transit.work_items.contract.v1\x00");
+    var ids: [32]u8 = undefined;
+    std.mem.writeInt(u64, ids[0..8], self.configuration.application, .little);
+    std.mem.writeInt(u64, ids[8..16], self.configuration.realm, .little);
+    std.mem.writeInt(u64, ids[16..24], self.configuration.resource, .little);
+    std.mem.writeInt(u64, ids[24..32], self.configuration.owner, .little);
+    hash.update(&ids);
+    hash.update(&try Table.schema(table).fingerprint());
+    hash.update(&.{if (table == 1) 1 else 2});
+    return hash.finalResult();
 }
 pub fn ledger(self: Self) !M {
-    return .{ .configuration = .{ .application = self.configuration.application, .realm = self.configuration.realm, .administrator = self.configuration.administrator, .initial_epoch = .{ .value = 1 }, .initial_contract = try (try self.source(1)).fingerprint() }, .failure = if (self.failure) |failure| &failure.ledger else null };
+    return .{ .configuration = .{ .application = self.configuration.application, .realm = self.configuration.realm, .administrator = self.configuration.administrator, .initial_epoch = .{ .value = 1 }, .initial_contract = try self.contract(1) }, .failure = if (self.failure) |failure| &failure.ledger else null };
 }
 pub fn proposal(self: Self, id: u32) !M.Proposal {
     if (id < 2) return error.InvalidWorkItemPlan;
-    return .{ .plan = .{ .value = id }, .expected = .{ .value = 1 }, .next = .{ .value = 2 }, .transform = 1, .source = try (try self.source(1)).fingerprint(), .target = try (try self.source(id)).fingerprint() };
+    return .{ .plan = .{ .value = id }, .expected = .{ .value = 1 }, .next = .{ .value = 2 }, .transform = 1, .source = try self.contract(1), .target = try self.contract(id) };
 }
 pub fn initialize(self: Self, turn: *s.Turn) !void {
-    const before = turn.decision;
-    errdefer turn.decision = before;
-    if (turn.view.resource != self.configuration.resource) return error.WorkItemScopeChanged;
+    try self.scope(turn);
     try (try self.ledger()).initialize(turn);
-    const definition = try self.source(1);
-    if (try turn.read(s.Table.descriptorKey(1)) == null) _ = try s.Table.create(turn, 1, definition.source.table.schema);
+}
+fn scope(self: Self, turn: *s.Turn) !void {
+    if (turn.view.resource != self.configuration.resource or turn.delivery.pid != self.configuration.owner or turn.delivery.realm != self.configuration.realm) return error.WorkItemScopeChanged;
+}
+fn create(self: Self, turn: *s.Turn, table: u32, continuing: bool) !void {
+    if (table == 0) return error.InvalidWorkItemPlan;
+    const request: c.TableDdlRequest = .{ .principal = self.configuration.administrator, .operation = table, .object = table, .expected_revision = 0, .name = try Table.name(table), .action = .{ .create = .{ .schema = Table.schema(table) } } };
+    const outcome = if (continuing) try self.catalog().continueDdl(self.allocator, turn, request) else try self.catalog().step(self.allocator, turn, request);
+    if (outcome.terminal()) {
+        if (outcome.operation.state != .applied) return error.WorkItemInitializationRequired;
+    } else {
+        var bytes: [8]u8 = undefined;
+        bytes[0..4].* = "WI1t".*;
+        std.mem.writeInt(u32, bytes[4..8], table, .little);
+        try turn.cast(turn.delivery.pid, try p.Value.init(&bytes));
+    }
 }
 pub fn selected(self: Self, turn: anytype) !u32 {
     const head = try (try self.ledger()).head(turn);
@@ -80,12 +128,23 @@ pub fn selected(self: Self, turn: anytype) !u32 {
     return state.table;
 }
 pub fn execute(self: Self, turn: *s.Turn, command: Command) !void {
-    if (turn.view.resource != self.configuration.resource or turn.delivery.input.origin != .external) return error.WorkItemDenied;
+    try self.scope(turn);
+    if (turn.delivery.input.origin != .external) return error.WorkItemDenied;
+    switch (command) {
+        .initialize, .catalog_initialize, .prepare_table, .read_policy => if (turn.delivery.input.origin.external.principal != self.configuration.administrator) return error.WorkItemDenied,
+        else => {},
+    }
     const owner = try self.ledger();
     const before = turn.decision;
     errdefer turn.decision = before;
     switch (command) {
         .initialize => try self.initialize(turn),
+        .catalog_initialize => {
+            _ = try owner.head(turn);
+            try self.catalog().initialize(turn);
+        },
+        .prepare_table => |table| try self.create(turn, table, false),
+        .read_policy => |policy| try self.catalog().setPolicy(turn, policy.expected, .{ .scope = self.catalog().configuration.scope, .principal = policy.principal, .revision = policy.revision, .inspect = policy.allow, .read = policy.allow, .create = false, .insert = false, .update = false, .delete = false, .alter = false, .drop = false }),
         .policy => |value| try owner.setPolicy(turn, value.principal, value.expected, value.next),
         .put => |value| {
             if (turn.delivery.input.origin.external.principal != self.configuration.writer) return error.WorkItemDenied;
@@ -106,21 +165,30 @@ pub fn execute(self: Self, turn: *s.Turn, command: Command) !void {
                 self.remember(.{ .state = .{ .epoch = head.epoch, .key = value.id, .value = value.state } });
                 return error.InvalidWorkItemState;
             }
-            const table = try s.Table.open(turn, try self.selected(turn));
-            try table.upsert(turn, .{ .key = value.id, .value = .{ .int64 = value.state } });
+            const table = try self.selected(turn);
+            _ = s.TableHead.load(turn, table) catch |err| return if (err == error.TableNotFound) error.WorkItemInitializationRequired else err;
+            const pending: Put = .{ .input = turn.delivery.input.position, .principal = turn.delivery.input.origin.external.principal, .table = table, .key = value.id, .state = value.state };
+            try turn.write(Put.keyFor(pending.input), try app.Records.encode('w', pending));
+            try turn.cast(turn.delivery.pid, put_continue);
         },
         .begin => |value| {
             if (value.plan.value < 2 or value.plan.value > std.math.maxInt(u32) or !std.meta.eql(value, try self.proposal(@intCast(value.plan.value)))) return error.InvalidWorkItemPlan;
+            _ = try owner.authorize(turn);
             const exists = try owner.plan(turn, value.plan) != null;
-            _ = try owner.begin(turn, value);
             if (!exists) {
-                _ = s.Table.create(turn, @intCast(value.plan.value), (try self.source(@intCast(value.plan.value))).source.table.schema) catch |err| {
-                    if (err == error.TableExists) self.remember(.{ .target = @intCast(value.plan.value) });
-                    return err;
-                };
+                if (try firstPut(turn) != null) return error.WorkItemWritesPending;
+                const target = s.TableHead.load(turn, value.plan.value) catch |err| return if (err == error.TableNotFound) error.WorkItemInitializationRequired else err;
+                if (target.rows != 0 or target.pending != 0 or target.retired) {
+                    self.remember(.{ .target = @intCast(value.plan.value) });
+                    return error.TableExists;
+                }
+                var stored = try target.readSchema(self.allocator, turn);
+                defer stored.deinit();
+                if (!std.mem.eql(u8, &try stored.schema.fingerprint(), &try Table.schema(@intCast(value.plan.value)).fingerprint())) return error.InvalidWorkItemPlan;
             }
+            _ = try owner.begin(turn, value);
         },
-        .step => |value| _ = try owner.apply(turn, value, self),
+        .step => |value| try self.migrate(turn, value, false),
         .abandon => |value| _ = try owner.abandon(turn, value),
         .release_writes => |value| {
             if (turn.delivery.input.origin.external.principal != self.configuration.administrator) return error.WorkItemDenied;
@@ -136,61 +204,154 @@ pub fn execute(self: Self, turn: *s.Turn, command: Command) !void {
         },
     }
 }
-fn pageAfter(table: s.Table, turn: *s.Turn, cursor: Cursor) !s.Table.Page {
-    // The domain write pause, not a reused snapshot token, stabilizes contents.
-    return table.page(turn, if (cursor.has_after) .{ .source = .{ .view = turn.view.id }, .resource = table.resource, .revision = turn.view.revision, .table = table.id, .schema = try table.schema.fingerprint(), .after = cursor.after } else null);
-}
-pub fn apply(self: Self, turn: *s.Turn, plan: M.Plan, progress: M.Progress, step: M.Step) !M.Transition {
+fn validateStep(self: Self, progress: M.Progress, step: M.Step) !Cursor {
     if (!step.arguments.eql(progress.cursor)) {
         self.remember(Failure.cursor(progress.cursor, step.arguments));
         return error.WorkItemCursorChanged;
     }
-    var cursor = try Cursor.decode(progress.cursor);
-    const target: u32 = @intCast(plan.proposal.plan.value);
+    const cursor = try Cursor.decode(progress.cursor);
     if (step.operation == 2) {
         if (cursor.phase != .ready or cursor.copied != cursor.verified) {
             self.remember(.{ .verification = .{ .phase = cursor.phase, .copied = cursor.copied, .verified = cursor.verified } });
             return error.WorkItemVerificationIncomplete;
         }
-        try turn.write(active_table, try app.Records.encode('a', Active{ .table = target, .writes = false }));
-        return .{ .activate = {} };
-    }
-    if (step.operation != 1 or cursor.phase == .ready) {
+    } else if (step.operation != 1 or cursor.phase == .ready) {
         self.remember(.{ .verification = .{ .phase = cursor.phase, .copied = cursor.copied, .verified = cursor.verified } });
         return error.InvalidWorkItemStep;
     }
-    const from = try s.Table.open(turn, 1);
-    const to = try s.Table.open(turn, target);
-    const page = try pageAfter(if (cursor.phase == .copy) from else to, turn, cursor);
-    const count = @min(2, page.len);
-    for (page.rows[0..count]) |row| {
+    return cursor;
+}
+fn migrate(self: Self, turn: *s.Turn, step: M.Step, continuing: bool) !void {
+    const owner = try self.ledger();
+    if (!continuing) {
+        // Reject application syntax/cursors before freezing a valid new step.
+        // The shared ledger owns every authority, ordinal and digest rejection.
+        const principal = turn.delivery.input.origin.external.principal;
+        if (try owner.policy(turn, principal)) |policy| if (policy.migrate) {
+            if (try owner.plan(turn, step.plan)) |plan| if (plan.principal == principal) {
+                const progress = try owner.progress(turn, step.plan);
+                const head = try owner.head(turn);
+                if (head.active.value == step.plan.value and progress.phase == .active and progress.next.value == step.ordinal.value and try owner.pending(turn, step) == null and try owner.receipt(turn, step) == null) _ = try self.validateStep(progress, step);
+            };
+        };
+    }
+    const result = if (continuing) try owner.continueStage(turn, step, self) else try owner.stage(turn, step, self);
+    if (result == null) try turn.cast(turn.delivery.pid, try (Command{ .step = step }).encode());
+}
+pub fn stage(self: Self, turn: *s.Turn, plan: M.Plan, progress: M.Progress, pending: M.Pending) !?M.Transition {
+    var cursor = try self.validateStep(progress, pending.step);
+    const target: u32 = @intCast(plan.proposal.plan.value);
+    if (pending.step.operation == 2) {
+        try turn.write(active_table, try app.Records.encode('a', Active{ .table = target, .writes = false }));
+        return .{ .activate = {} };
+    }
+    const next_row = try Table.next(self.allocator, turn, if (cursor.phase == .copy) 1 else target, if (cursor.has_after) cursor.after else null);
+    if (next_row) |row| {
         if (cursor.phase == .copy) {
-            const translated = try translate(row.value);
-            try to.insert(turn, .{ .key = row.key, .value = .{ .int64 = translated } });
+            const value: Table.Row = .{ .identity = .{ .origin = plan.principal + 1, .operation = pending.input, .ordinal = 0 }, .key = row.key, .state = try translate(row.state) };
+            const result = try Table.write(self.allocator, turn, target, plan.principal, pending.input, value, true, pending.digest, 2);
+            if (result.state == .building) return null;
+            if (result.state != .applied or result.matched != 1) return error.WorkItemVerificationFailed;
             cursor.copied = try std.math.add(u64, cursor.copied, 1);
         } else {
-            const original = (try from.get(turn, row.key)) orelse return error.WorkItemVerificationFailed;
-            if (row.value != .int64 or row.value.int64 != try translate(original.value)) return error.WorkItemVerificationFailed;
+            const original = (try Table.get(self.allocator, turn, 1, row.key)) orelse return error.WorkItemVerificationFailed;
+            if (row.state != try translate(original.state)) return error.WorkItemVerificationFailed;
             cursor.verified = try std.math.add(u64, cursor.verified, 1);
         }
         cursor.has_after = true;
-        cursor.after = row.key;
-    }
-    if (page.len <= 2 and page.next == null) {
+        cursor.after = row.identity;
+    } else {
         cursor.phase = if (cursor.phase == .copy) .verify else .ready;
         cursor.has_after = false;
-        cursor.after = 0;
+        cursor.after = .{ .origin = 0, .operation = 0, .ordinal = 0 };
         if (cursor.phase == .ready and cursor.copied != cursor.verified) return error.WorkItemVerificationFailed;
     }
     return .{ .advance = try cursor.encode() };
 }
-fn translate(value: query.fuze.model.Cell) !i64 {
-    if (value != .int64) return error.WorkItemSourceInvalid;
-    return switch (value.int64) {
+fn translate(value: i64) !i64 {
+    return switch (value) {
         0 => 10,
         1 => 20,
         else => error.WorkItemSourceInvalid,
     };
+}
+const put_continue = p.Value.init("WI1p") catch unreachable;
+const put_prefix = "\x00work-items.put/";
+const Put = struct {
+    input: u64,
+    principal: u64,
+    table: u32,
+    key: i64,
+    state: i64,
+    prepared: bool = false,
+    insert: bool = false,
+    identity: Table.Identity = .{ .origin = 0, .operation = 0, .ordinal = 0 },
+    fn keyFor(input: u64) p.Value {
+        var bytes: [put_prefix.len + 8]u8 = undefined;
+        @memcpy(bytes[0..put_prefix.len], put_prefix);
+        std.mem.writeInt(u64, bytes[put_prefix.len..], input, .big);
+        return p.Value.init(&bytes) catch unreachable;
+    }
+};
+fn firstPut(turn: *s.Turn) !?Put {
+    var reader = turn.committed();
+    const page = try reader.page(try p.Value.init(put_prefix));
+    const entry = page.entries[0] orelse return null;
+    if (!std.mem.startsWith(u8, entry.key.slice(), put_prefix)) return null;
+    const pending = try app.Records.decode(Put, 'w', entry.value);
+    if (!entry.key.eql(Put.keyFor(pending.input))) return error.InvalidWorkItemWork;
+    return pending;
+}
+fn put(self: Self, turn: *s.Turn) !void {
+    var pending = (try firstPut(turn)) orelse return;
+    if (pending.principal != self.configuration.writer) return error.WorkItemDenied;
+    if (!pending.prepared) {
+        const previous = try Table.get(self.allocator, turn, pending.table, pending.key);
+        pending.identity = if (previous) |value| value.identity else .{ .origin = pending.principal + 1, .operation = pending.input, .ordinal = 0 };
+        pending.insert = previous == null;
+        pending.prepared = true;
+        try turn.write(Put.keyFor(pending.input), try app.Records.encode('w', pending));
+    } else {
+        const result = try Table.write(self.allocator, turn, pending.table, pending.principal, pending.input, .{ .identity = pending.identity, .key = pending.key, .state = pending.state }, pending.insert, try self.contract(pending.table), 1);
+        if (result.state != .building) {
+            if (result.state != .applied or result.matched != 1) return error.WorkItemVerificationFailed;
+            try turn.write(Put.keyFor(pending.input), null);
+        }
+    }
+    try turn.cast(turn.delivery.pid, put_continue);
+}
+/// Inspect domain completion only after observing that the original native input
+/// was consumed and checking its separate rejected-input disposition.
+pub fn completed(self: Self, reader: anytype, command: Command, input: u64) !bool {
+    return switch (command) {
+        .put => !try putPending(reader, input),
+        .prepare_table => |table| value: {
+            const head = s.TableHead.load(reader, table) catch |err| {
+                if (err == error.TableNotFound) break :value false;
+                return err;
+            };
+            if (head.retired) return error.WorkItemInitializationRequired;
+            var definition = self.source(reader, self.configuration.administrator, table) catch |err| {
+                if (err == error.WorkItemInitializationRequired) break :value false;
+                return err;
+            };
+            defer definition.deinit();
+            break :value true;
+        },
+        .step => |step| value: {
+            const owner = try self.ledger();
+            if (try owner.receipt(reader, step) != null) break :value true;
+            if ((try owner.progress(reader, step.plan)).phase != .active) return error.MigrationNotActive;
+            const plan = (try owner.plan(reader, step.plan)) orelse return error.MigrationPlanAbsent;
+            const policy = (try owner.policy(reader, plan.principal)) orelse return error.MigrationDenied;
+            if (!policy.migrate) return error.MigrationDenied;
+            break :value false;
+        },
+        else => true,
+    };
+}
+pub fn putPending(reader: anytype, input: u64) !bool {
+    return try reader.read(Put.keyFor(input)) != null;
 }
 pub fn dispositionKey(application: u64, principal: u64, input: u64) p.Value {
     var key = app.Records.key(application, 'e', principal, input);
@@ -241,6 +402,8 @@ pub const Behavior = struct {
             try self.disposition(turn, "InvalidWorkItemFrame");
             return true;
         };
+        if (frame.kind == .cast and turn.delivery.input.origin == .process and turn.delivery.input.origin.process.pid == turn.delivery.pid and
+            (frame.payload.eql(put_continue) or (frame.payload.len == 8 and std.mem.eql(u8, frame.payload.data[0..4], "WI1t")) or (std.mem.startsWith(u8, frame.payload.slice(), "WI1i") and (Command.decode(frame.payload) catch return error.InvalidWorkItemCommand) == .step))) return false;
         if (self.capture != null and !std.mem.startsWith(u8, frame.payload.slice(), "WI1i")) {
             // Public send permission does not authorize arbitrary query control
             // on this data owner. Internal calls still use the shared peer and
@@ -269,6 +432,24 @@ pub const Behavior = struct {
     }
     fn handle(raw: ?*anyopaque, turn: *s.Turn, frame: s.Frame) anyerror!void {
         const self = get(raw);
+        if (frame.kind == .cast and turn.delivery.input.origin == .process and turn.delivery.input.origin.process.pid == turn.delivery.pid) {
+            const before = turn.decision;
+            errdefer turn.decision = before;
+            try self.owner.scope(turn);
+            if (frame.payload.eql(put_continue)) return self.owner.put(turn);
+            if (frame.payload.len == 8 and std.mem.eql(u8, frame.payload.data[0..4], "WI1t")) return self.owner.create(turn, std.mem.readInt(u32, frame.payload.data[4..8], .little), true);
+            if (std.mem.startsWith(u8, frame.payload.slice(), "WI1i")) {
+                const command = try Command.decode(frame.payload);
+                if (command != .step) return error.WorkItemDenied;
+                self.owner.migrate(turn, command.step, true) catch |err| {
+                    if (turn.read_error != null or (err != error.MigrationDenied and err != error.MigrationNotActive)) return err;
+                    // The retained step remains pending/abandoned. A later exact
+                    // external step can resume after current policy restoration.
+                    turn.decision = before;
+                };
+                return;
+            }
+        }
         if (self.capture) |*capture| {
             if (!std.mem.startsWith(u8, frame.payload.slice(), "WI1i")) {
                 const handler = capture.interface();
@@ -276,8 +457,10 @@ pub const Behavior = struct {
                     if (turn.delivery.input.origin != .external or turn.delivery.input.origin.external.principal != self.owner.configuration.administrator) return self.disposition(turn, "WorkItemDenied");
                     const policy = query.UnifiedRecords.Policy.decode(frame.payload) catch return self.disposition(turn, "InvalidWorkItemQueryPolicy");
                     if (policy.peer != capture.peer) return self.disposition(turn, "InvalidWorkItemQueryPolicy");
-                    const definition = try self.owner.source(try self.owner.selected(turn));
-                    if (!policy.target.declarationMatches(try query.Bundle.declaration(definition))) return self.disposition(turn, "WorkItemEpochChanged");
+                    var table_source = try self.owner.source(turn, self.owner.configuration.administrator, try self.owner.selected(turn));
+                    defer table_source.deinit();
+                    const expected = table_source.definition.source.table;
+                    if (policy.target != .catalog or !std.meta.eql(policy.target.catalog.scope, expected.scope) or policy.target.catalog.owner != expected.owner or policy.target.catalog.principal != self.owner.configuration.administrator) return self.disposition(turn, "WorkItemEpochChanged");
                     if (try turn.read(query.UnifiedRecords.key('v', 0, 0)) == null) {
                         try handler.initialize.?(handler.context, turn);
                     } else {

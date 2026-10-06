@@ -10,8 +10,8 @@ const Operator = 65537;
 const Worker = 65536;
 const Admin = @import("growing_support.zig").Admin(Realm);
 pub const Saved = struct { pid: u64, resource: u64, generation: u64, activation: u8 = 8, denied_input: u64 = 0, cursor_input: u64 = 0, ordinal_input: u64 = 0 };
-pub fn owner(saved: Saved) W {
-    return .{ .configuration = .{ .application = 9, .realm = Realm, .administrator = Operator, .writer = Operator, .resource = saved.resource } };
+pub fn owner(allocator: std.mem.Allocator, saved: Saved) W {
+    return .{ .allocator = allocator, .configuration = .{ .owner = saved.pid, .application = 9, .realm = Realm, .administrator = Operator, .writer = Operator, .resource = saved.resource } };
 }
 pub fn write(init: std.process.Init, path: []const u8, value: anytype) !void {
     var atomic = try std.Io.Dir.cwd().createFileAtomic(init.io, path, .{ .replace = true, .permissions = .fromMode(0o600) });
@@ -51,8 +51,39 @@ pub const Caller = struct {
             continue;
         };
     }
+    fn observationChanged(self: *@This(), err: anyerror) bool {
+        return s.client.Client.unavailable(err) or ((err == error.Rejected or err == error.Conflict) and
+            (self.wire.last_rejection == .StaleStateResource or self.wire.last_rejection == .QueryExpired));
+    }
+    fn failure(self: *@This(), io: std.Io, input: u64) !?W.Failure.Disposition {
+        const started = std.Io.Clock.awake.now(io);
+        while (true) {
+            var reader = try self.read();
+            return W.Failure.read(owner(self.wire.http.allocator, self.saved).configuration, &reader, Operator, input) catch |err| {
+                if (!self.observationChanged(err) or started.durationTo(std.Io.Clock.awake.now(io)).toMilliseconds() >= 10000) return err;
+                try io.sleep(.fromMilliseconds(25), .awake);
+                continue;
+            };
+        }
+    }
     pub fn send(self: *@This(), io: std.Io, command: W.Command, reason: ?[]const u8) !u64 {
-        return self.sendPayload(io, try command.encode(), reason);
+        const input = try self.sendPayload(io, try command.encode(), reason);
+        if (reason == null) {
+            const started = std.Io.Clock.awake.now(io);
+            while (true) {
+                var reader = try self.read();
+                const done = owner(self.wire.http.allocator, self.saved).completed(&reader, command, input) catch |err| value: {
+                    if (!self.observationChanged(err)) return err;
+                    break :value false;
+                };
+                if (done) break;
+                const process = (try self.query(.{ .process = self.saved.pid })).body.process;
+                if (process.process.failure != null or process.process.lifecycle != .running) return error.WorkerUnavailable;
+                if (started.durationTo(std.Io.Clock.awake.now(io)).toMilliseconds() >= 60000) return error.WorkerTimeout;
+                try io.sleep(.fromMilliseconds(25), .awake);
+            }
+        }
+        return input;
     }
     pub fn sendPayload(self: *@This(), io: std.Io, payload: p.Value, reason: ?[]const u8) !u64 {
         const frozen = try g.sign(.{ .realm = Realm, .principal = Operator, .sequence = self.sequence + 1, .command = .{ .send = .{ .pid = self.saved.pid, .value = try (s.Frame{ .kind = .cast, .payload = payload }).encode() } } }, self.key);
@@ -67,10 +98,9 @@ pub const Caller = struct {
             if (std.Io.Clock.boot.now(io).toMilliseconds() > deadline) return error.WorkerTimeout;
             try io.sleep(.fromMilliseconds(25), .awake);
         }
-        var reader = try self.read();
-        const failure = try W.Failure.read(owner(self.saved).configuration, &reader, Operator, receipt.position);
+        const disposition = try self.failure(io, receipt.position);
         if (reason) |expected| {
-            const value = failure orelse return error.MissingDisposition;
+            const value = disposition orelse return error.MissingDisposition;
             try t.expectEqualStrings(expected, value.record.cause.slice());
             try t.expectEqual(p.Diagnostic.Outcome.input_rejected, value.diagnostic.outcome);
             const frame = try (s.Frame{ .kind = .cast, .payload = payload }).encode();
@@ -79,7 +109,7 @@ pub const Caller = struct {
             digest.update(frame.slice());
             try t.expectEqualSlices(u8, &digest.finalResult(), &value.record.payload);
             for (value.diagnostic.actions) |slot| if (slot) |action| try t.expect(action.kind == .inspect_status or action.kind == .inspect_scope);
-        } else try t.expect(failure == null);
+        } else try t.expect(disposition == null);
         return receipt.position;
     }
 };
@@ -110,6 +140,13 @@ pub fn main(init: std.process.Init) !void {
         saved = .{ .pid = created.pid, .resource = created.resource, .generation = created.generation };
         _ = try admin.submit(.{ .grant = .{ .subject = Operator, .public_key = operator_key.public_key.toBytes(), .permissions = p.permission(.send) | p.permission(.inspect), .pid = saved.pid } });
         _ = try admin.submit(.{ .grant_resource = .{ .resource = saved.resource, .subject = Operator, .permissions = p.State.permission(.inspect) | p.State.permission(.read) } });
+        const courier_seed: [32]u8 = @splat(10);
+        const courier_key = try p.Ed25519.KeyPair.generateDeterministic(courier_seed);
+        _ = try admin.submit(.{ .grant = .{ .subject = 65538, .public_key = courier_key.public_key.toBytes(), .permissions = p.permission(.inspect) | p.permission(.send) | p.permission(.delivery) } });
+        const courier_path = try std.fmt.allocPrint(init.arena.allocator(), "{s}/courier.seed", .{directory});
+        const courier_hex = std.fmt.bytesToHex(courier_seed, .lower);
+        try std.Io.Dir.cwd().writeFile(init.io, .{ .sub_path = courier_path, .data = &courier_hex });
+        try write(init, try std.fmt.allocPrint(init.arena.allocator(), "{s}/courier.json", .{directory}), .{ .url = args[1], .realm = Realm, .principal = @as(u64, 65538), .seed_file = courier_path, .role = .{ .courier = .{ .destinations = [1]u64{saved.pid} } } });
     } else {
         const bytes = try std.Io.Dir.cwd().readFileAlloc(init.io, saved_path, init.arena.allocator(), .limited(4096));
         saved = (try std.json.parseFromSlice(Saved, init.arena.allocator(), bytes, .{})).value;
@@ -129,16 +166,18 @@ pub fn main(init: std.process.Init) !void {
         const hex = std.fmt.bytesToHex(seed, .lower);
         try std.Io.Dir.cwd().writeFile(init.io, .{ .sub_path = key_path, .data = &hex });
         try write(init, saved_path, saved);
-        return write(init, config_path, .{ .url = args[1], .principal = Worker, .pid = saved.pid, .generation = saved.generation, .seed_file = key_path, .activation_directory = directory, .application = owner(saved).configuration, .request_timeout_ms = @as(u32, 5000) });
+        return write(init, config_path, .{ .url = args[1], .principal = Worker, .pid = saved.pid, .generation = saved.generation, .seed_file = key_path, .activation_directory = directory, .application = owner(init.gpa, saved).configuration, .request_timeout_ms = @as(u32, 5000) });
     }
     var caller: Caller = .{ .wire = &wire, .key = operator_key, .saved = saved, .sequence = 0 };
     caller.sequence = (try caller.query(.{ .capabilities = {} })).principal_sequence;
-    const ledger = try owner(saved).ledger();
+    const ledger = try owner(init.gpa, saved).ledger();
     if (std.mem.eql(u8, phase, "seed")) {
         _ = try caller.send(init.io, .initialize, null);
+        _ = try caller.send(init.io, .catalog_initialize, null);
+        for ([_]u32{ 1, 2 }) |table| _ = try caller.send(init.io, .{ .prepare_table = table }, null);
         _ = try caller.send(init.io, .{ .policy = .{ .principal = Operator, .expected = .{}, .next = .{ .revision = .{ .value = 1 }, .migrate = true } } }, null);
         for (0..19) |i| _ = try caller.send(init.io, .{ .put = .{ .epoch = .{ .value = 1 }, .id = @as(i64, @intCast(i)) - 10, .state = @intCast(i % 2) } }, null);
-        _ = try caller.send(init.io, .{ .begin = try owner(saved).proposal(2) }, null);
+        _ = try caller.send(init.io, .{ .begin = try owner(init.gpa, saved).proposal(2) }, null);
         _ = try caller.send(init.io, .{ .put = .{ .epoch = .{ .value = 1 }, .id = 99, .state = 0 } }, "WorkItemMigrationPaused");
     } else if (std.mem.eql(u8, phase, "deny")) {
         var reader = try caller.read();
@@ -171,11 +210,10 @@ pub fn main(init: std.process.Init) !void {
         var reader = try caller.read();
         const head = try ledger.head(&reader);
         try t.expectEqual(2, head.epoch.value);
-        try t.expectEqualSlices(u8, &head.contract, &try (try owner(saved).source(2)).fingerprint());
+        try t.expectEqualSlices(u8, &head.contract, &try owner(init.gpa, saved).contract(2));
         for (0..19) |i| {
             const key = @as(i64, @intCast(i)) - 10;
-            const table = try s.Table.open(&reader, 2);
-            try t.expectEqual(@as(i64, if (i % 2 == 0) 10 else 20), (try table.get(&reader, key)).?.value.int64);
+            try t.expectEqual(@as(i64, if (i % 2 == 0) 10 else 20), (try W.Table.get(init.gpa, &reader, 2, key)).?.state);
         }
         _ = try caller.send(init.io, .{ .put = .{ .epoch = .{ .value = 1 }, .id = 99, .state = 1 } }, "WorkItemEpochChanged");
         _ = try caller.send(init.io, .{ .put = .{ .epoch = .{ .value = 2 }, .id = 99, .state = 20 } }, "WorkItemPublicationPaused");
@@ -183,19 +221,19 @@ pub fn main(init: std.process.Init) !void {
         _ = try caller.send(init.io, .{ .put = .{ .epoch = .{ .value = 2 }, .id = 99, .state = 20 } }, null);
         _ = try caller.send(init.io, .{ .abandon = .{ .value = 2 } }, "MigrationAlreadyApplied");
         reader = try caller.read();
-        const denial = (try W.Failure.read(owner(saved).configuration, &reader, Operator, saved.denied_input)).?;
+        const denial = (try W.Failure.read(owner(init.gpa, saved).configuration, &reader, Operator, saved.denied_input)).?;
         try t.expectEqual(@as(u64, 2), denial.witness.ledger.policy.actual.value);
         try t.expect(!denial.witness.ledger.policy.migrate);
-        const cursor_failure = (try W.Failure.read(owner(saved).configuration, &reader, Operator, saved.cursor_input)).?;
+        const cursor_failure = (try W.Failure.read(owner(init.gpa, saved).configuration, &reader, Operator, saved.cursor_input)).?;
         try t.expectEqualStrings("work_items.cursor_changed", cursor_failure.diagnostic.code.slice());
         try t.expect(!std.mem.eql(u8, &cursor_failure.witness.cursor.expected, &cursor_failure.witness.cursor.actual));
-        const ordinal_failure = (try W.Failure.read(owner(saved).configuration, &reader, Operator, saved.ordinal_input)).?;
+        const ordinal_failure = (try W.Failure.read(owner(init.gpa, saved).configuration, &reader, Operator, saved.ordinal_input)).?;
         try t.expectEqual(ordinal_failure.witness.ledger.progress.next.value + 2, ordinal_failure.witness.ledger.progress.supplied.value);
         try t.expectEqual(W.app.Migration.Phase.active, ordinal_failure.witness.ledger.progress.phase);
         // Historical rejection is unchanged after activation and later policy restoration.
         try t.expectEqual(W.app.Migration.Phase.applied, (try ledger.progress(&reader, .{ .value = 2 })).phase);
         _ = try admin.submit(.{ .grant_resource = .{ .resource = saved.resource, .subject = Operator, .permissions = p.State.permission(.inspect) } });
         var denied_reader = try caller.read();
-        try t.expectError(error.AccessDenied, W.Failure.read(owner(saved).configuration, &denied_reader, Operator, saved.denied_input));
+        try t.expectError(error.AccessDenied, W.Failure.read(owner(init.gpa, saved).configuration, &denied_reader, Operator, saved.denied_input));
     } else return error.UnknownPhase;
 }

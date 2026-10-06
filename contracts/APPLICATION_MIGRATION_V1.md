@@ -62,7 +62,7 @@ or allocation failure must not be recorded as a terminal caller rejection.
 
 The first transformation is a work-item Table encoding change. Source and target
 Tables have different permanent identities in the same KV resource. Beginning
-the plan pauses application writes. Each backfill step copies at most two rows
+the plan pauses application writes. Each backfill step stages one transformed row
 using an exact retained cursor and the selected pure encoding transform. A
 separate bounded verification pass checks the entire target against the source
 before the ledger permits consumer activation. Neither a partial backfill nor a
