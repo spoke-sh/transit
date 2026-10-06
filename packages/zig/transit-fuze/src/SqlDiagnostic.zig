@@ -238,10 +238,7 @@ pub fn query(text: []const u8, cause: anyerror, inspection: bool) ?Self {
 /// later catalog read or a guess at similarly spelled source text.
 pub fn tableDdl(text: []const u8, cause: anyerror, location: sql.Location) ?Self {
     const kind = category(cause) orelse return null;
-    var result = query(text, cause, false) orelse Self{ .kind = .binding, .cause = cause, .summary = "Table declaration cannot be compiled", .hint = "Check the declared types, columns and selected schema lifecycle syntax." };
-    // The existing native declaration parser has a narrower profile. Never
-    // replace a captured general-DDL failure with the result of reparsing it.
-    if (result.cause != cause) result = .{
+    var result: Self = .{
         .kind = switch (kind) {
             .syntax => .syntax,
             .unsupported => .unsupported,
@@ -250,10 +247,39 @@ pub fn tableDdl(text: []const u8, cause: anyerror, location: sql.Location) ?Self
         },
         .cause = cause,
         .summary = "Table declaration cannot be compiled",
-        .hint = "Check the declared types, columns and selected schema lifecycle syntax.",
+        .hint = "Check the declared types, columns and selected schema lifecycle syntax. Use .help CREATE TABLE, .help ALTER TABLE or .help DROP TABLE in the console.",
     };
+    for (@import("SqlCodes.zig").entries) |entry| if (entry.cause == cause) {
+        if (entry.summary) |summary| {
+            result.summary = summary;
+            result.hint = entry.hint.?;
+        }
+        break;
+    };
+    if (cause == error.DuplicateColumn) {
+        result.summary = "Duplicate column name";
+        result.hint = "Use distinct column names in the Table schema. Use .help CREATE TABLE or .help ALTER TABLE in the console.";
+    }
     result.route = .declaration;
     result.source(text, location);
+    return result;
+}
+
+/// General Table compilation uses its own captured location and logical types.
+/// A narrower source grammar must not replace its cause or accepted type rules.
+pub fn tableSelect(text: []const u8, cause: anyerror, location: sql.Location) ?Self {
+    var result = tableDml(text, cause, location) orelse return null;
+    result.route = .query;
+    result.summary = "Table SELECT cannot be compiled";
+    result.hint = "Use .schema NAME for the current columns and .help SQL for finite SELECT, typed predicates, COUNT and int64 SUM. Joins and grouped aggregation have no execution route.";
+    for (@import("SqlCodes.zig").entries) |entry| if (entry.cause == cause) {
+        if (entry.summary) |summary| {
+            result.summary = summary;
+            result.hint = entry.hint.?;
+        }
+        break;
+    };
+    if (cause == error.UnsupportedNullComparison) result.hint = "Use IS NULL or IS NOT NULL instead of comparing a value to NULL.";
     return result;
 }
 

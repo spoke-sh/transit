@@ -133,7 +133,10 @@ pub fn dataType(self: *Self) anyerror!names.Resolved {
     if (self.depth == 16) return error.TypeBudgetExceeded;
     self.depth += 1;
     defer self.depth -= 1;
-    if (self.token.tag != .word) return error.UnknownSqlType;
+    if (self.token.tag != .word) {
+        if (self.location) |location| location.expected = "a logical type name";
+        return error.InvalidSqlSyntax;
+    }
     var name_text = self.token.text;
     try self.advance();
     if (std.ascii.eqlIgnoreCase(name_text, "STRUCT") or std.ascii.eqlIgnoreCase(name_text, "UNION")) {

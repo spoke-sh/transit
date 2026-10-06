@@ -42,6 +42,8 @@ test "SQL defaults cover precise numeric temporal binary interval and JSON value
 }
 test "DDL rejects unsupported semantics and conflicting constraints before mutation" {
     const cases = .{
+        .{ "CREATE TABLE t (id , name TEXT)", error.InvalidSqlSyntax },
+        .{ "CREATE TABLE t (id NO_SUCH_TYPE)", error.UnknownSqlType },
         .{ "CREATE TABLE t (id INT PRIMARY KEY NULL)", error.NullablePrimaryKey },
         .{ "CREATE TABLE t (id INT NULL, PRIMARY KEY(id))", error.NullablePrimaryKey },
         .{ "CREATE TABLE t (id INT PRIMARY KEY, v INT PRIMARY KEY)", error.MultiplePrimaryKeys },
