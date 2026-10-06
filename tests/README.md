@@ -11132,6 +11132,22 @@ retained in the same campaign and is not counted as passing qualification. The
 receipt extension remains part of the pending coordinated current-v1 cutover;
 it does not establish compatibility with prior builds or complete caller migration.
 
+General Table rendering now passes **30/30 CLI lifecycle tests**
+(`table-output4.log`). A valid 256 KiB source cell projected eight times produces
+more than 8 MiB of escaped JSON; the test independently decodes every output
+cell through a 16 KiB stream and confirms it remains an incomplete row prefix.
+Vector/splat writes and failures before/after draining the buffer preserve bytes
+and sticky failure state. The focused build also compiles the real console.
+
+The expanded native/console proof passes in **110.906 seconds**
+(`table-output-native1.log`), with 350 turns, 83 sends and unchanged four-mutation/
+256-byte native bounds. Its additional 64-column projection crosses multiple
+output-buffer drains and verifies all escaped values plus the final marker.
+Inventory and semantic mapping checks pass (`table-output-mappings1.log`).
+Initial development builds caught Zig's nested-name shadowing rule and the
+mutable vector required by `writeSplatAll`; those failed builds are retained.
+These checks do not replace the final full-type/caller and clean-CI gates.
+
 ## Fuze logical type foundation
 
 The local `Types` profile has nine passing focused Zig tests, including 46

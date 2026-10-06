@@ -2,6 +2,7 @@
 const std = @import("std");
 const c = @import("transit_catalog");
 const Console = @import("Console.zig").Console;
+const Output = @import("Output.zig");
 pub fn command(console: *Console, catalog: *c.TableClient, text: []const u8) !bool {
     if (std.mem.eql(u8, text, ".tables") or std.mem.eql(u8, text, ".schema") or std.mem.eql(u8, text, ".sources") or std.mem.eql(u8, text, ".schema writer")) {
         try inspect(console, catalog, null);
@@ -31,6 +32,11 @@ pub fn command(console: *Console, catalog: *c.TableClient, text: []const u8) !bo
     return false;
 }
 pub fn inspect(console: *Console, catalog: *c.TableClient, name: ?c.TableMetadata.Name) !void {
+    var bytes: [16384]u8 = undefined;
+    var stream = Output.Stream.init(console.init.io, console.out, &bytes);
+    inspectTo(console, catalog, name, &stream) catch |err| return stream.failure orelse err;
+}
+fn inspectTo(console: *Console, catalog: *c.TableClient, name: ?c.TableMetadata.Name, stream: *Output.Stream) !void {
     var cursor: ?c.TableCatalog.Cursor = null;
     const deadline = std.Io.Clock.boot.now(console.init.io).toMilliseconds() + 300000;
     while (true) {
@@ -38,13 +44,11 @@ pub fn inspect(console: *Console, catalog: *c.TableClient, name: ?c.TableMetadat
         if (std.Io.Clock.boot.now(console.init.io).toMilliseconds() >= deadline) return error.CatalogInspectionTimedOut;
         var arena: std.heap.ArenaAllocator = .init(console.init.gpa);
         defer arena.deinit();
-        // Type/default descriptors remain bounded by the actual schema budget.
-        const buffer = try arena.allocator().alloc(u8, 1048576);
-        var out: std.Io.Writer = .fixed(buffer);
+        const out = &stream.interface;
         if (name) |selected| {
             var definition = (try catalog.lookup(arena.allocator(), selected)) orelse return error.CatalogNameNotFound;
             defer definition.deinit();
-            try describe(console, &out, arena.allocator(), definition);
+            try describe(console, out, arena.allocator(), definition);
         } else {
             var page = try catalog.list(arena.allocator(), cursor);
             defer page.deinit();
@@ -53,18 +57,18 @@ pub fn inspect(console: *Console, catalog: *c.TableClient, name: ?c.TableMetadat
                     var names: std.array_list.Managed([]const u8) = .init(arena.allocator());
                     for (page.entries) |entry| if (entry) |value| try names.append(value.metadata.name.slice());
                     break :blk names.items;
-                }, .complete = page.next == null }, .{}, &out);
+                }, .complete = page.next == null }, .{}, out);
                 try out.writeByte('\n');
             } else {
                 if (cursor == null) try out.print("Catalog tables (revision {d}):\n", .{page.resource_revision});
                 for (page.entries) |entry| if (entry) |definition| {
-                    try std.json.Stringify.value(definition.metadata.name.slice(), .{ .escape_unicode = true }, &out);
+                    try std.json.Stringify.value(definition.metadata.name.slice(), .{ .escape_unicode = true }, out);
                     try out.writeByte('\n');
                 };
             }
             cursor = page.next;
         }
-        try @import("Output.zig").write(console.init, console.out, out.buffered());
+        try stream.flush();
         if (cursor == null) return;
     }
 }

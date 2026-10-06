@@ -2,6 +2,12 @@
 const std = @import("std");
 const q = @import("transit_query");
 const m = q.fuze.Unified;
+/// One verified logical output row. Projection can repeat source cells; escaped
+/// JSON size is not the storage row size or an implicit result byte budget.
+pub fn logicalRow(allocator: std.mem.Allocator, out: *std.Io.Writer, schema: q.fuze.Types.Type, cells: []const q.fuze.Types.Values.Cell) !void {
+    try std.json.Stringify.value(.{ .row = try q.fuze.LogicalJson.foreignCell(allocator, .{ .value = .{ .structure = cells } }, schema), .complete_coverage = false }, .{ .escape_unicode = true }, out);
+    try out.writeByte('\n');
+}
 pub fn logicalTable(allocator: std.mem.Allocator, out: *std.Io.Writer, schema: q.fuze.Types.Type, values: []const []const q.fuze.Types.Values.Cell) !void {
     try schema.validate(.{});
     if (schema != .structure or schema.structure.len > q.fuze.TableSchema.max_columns or values.len > 8) return error.InvalidArrowResult;
@@ -43,6 +49,34 @@ pub fn logicalTable(allocator: std.mem.Allocator, out: *std.Io.Writer, schema: q
 }
 test {
     _ = @import("transit_query").fuze.LogicalDisplay;
+}
+test "escaped projected Table rows stream beyond the old fixed render buffer" {
+    const f = q.fuze;
+    var arena: std.heap.ArenaAllocator = .init(std.testing.allocator);
+    defer arena.deinit();
+    const allocator = arena.allocator();
+    const bytes = try allocator.alloc(u8, 256 * 1024);
+    @memset(bytes, 27);
+    const stored: f.Types.Values.Cell = .{ .value = .{ .atom = .{ .bytes = bytes } } };
+    const source: f.TableSchema.Schema = .{ .object = 1, .revision = 1, .next_column = 2, .columns = &.{.{ .id = 1, .name = "value", .type = .utf8 }} };
+    try source.validateRow(&.{stored});
+    var fields: [f.TableSchema.max_columns]f.Types.Field = undefined;
+    var plan = try f.TableSelect.compile(allocator, "SELECT value AS a, value AS b, value AS c, value AS d, value AS e, value AS f, value AS g, value AS h FROM items", "items", try source.rowType(&fields), @splat(1), null);
+    defer plan.deinit();
+    const output = try plan.plan.outputSchema(&fields);
+    const cells: [8]f.Types.Values.Cell = @splat(stored);
+    var result: std.Io.Writer.Allocating = .init(allocator);
+    defer result.deinit();
+    var buffer: [16384]u8 = undefined;
+    var stream = @import("Output.zig").Stream.init(std.testing.io, &result.writer, &buffer);
+    try logicalRow(allocator, &stream.interface, output, &cells);
+    try stream.flush();
+    try std.testing.expect(result.written().len > 8 * 1024 * 1024);
+    try std.testing.expect(std.mem.indexOfScalar(u8, result.written(), 27) == null);
+    const decoded = try std.json.parseFromSliceLeaky(struct { row: f.LogicalJson.Cell, complete_coverage: bool }, allocator, result.written(), .{});
+    try std.testing.expect(!decoded.complete_coverage);
+    try std.testing.expectEqual(@as(usize, 8), decoded.row.value.structure.len);
+    for (decoded.row.value.structure) |cell| try std.testing.expectEqualStrings(bytes, cell.value.atom.utf8);
 }
 pub fn write(allocator: std.mem.Allocator, out: *std.Io.Writer, page: q.UnifiedResult.Page, batch: *const m.Inspect.Batch, ordinal: u64, as_json: bool) !void {
     if (as_json) {

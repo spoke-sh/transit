@@ -6,6 +6,7 @@ test {
     _ = @import("Settings.zig");
     _ = @import("Show.zig");
     _ = @import("Results.zig");
+    _ = @import("Output.zig");
     _ = @import("Style.zig");
     _ = @import("ConsoleWrites.zig");
     _ = @import("TableRecovery.zig");

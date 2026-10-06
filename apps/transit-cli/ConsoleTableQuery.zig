@@ -6,7 +6,13 @@ const c = @import("transit_catalog");
 const Console = @import("Console.zig").Console;
 const Signals = @import("Signals.zig");
 const Timing = @import("Timing.zig");
+const Output = @import("Output.zig");
 pub fn explain(console: *Console, catalog: *c.TableClient, statement: []const u8) !void {
+    var bytes: [16384]u8 = undefined;
+    var stream = Output.Stream.init(console.init.io, console.out, &bytes);
+    explainTo(console, catalog, statement, &stream) catch |err| return stream.failure orelse err;
+}
+fn explainTo(console: *Console, catalog: *c.TableClient, statement: []const u8, stream: *Output.Stream) !void {
     Signals.cancellation.store(false, .release);
     if (Signals.interrupted()) return error.ConsoleInterrupted;
     var nonce: [16]u8 = undefined;
@@ -23,8 +29,7 @@ pub fn explain(console: *Console, catalog: *c.TableClient, statement: []const u8
     try query.close();
     var arena: std.heap.ArenaAllocator = .init(console.init.gpa);
     defer arena.deinit();
-    const buffer = try arena.allocator().alloc(u8, 1048576);
-    var out: std.Io.Writer = .fixed(buffer);
+    const out = &stream.interface;
     if (console.session.format == .json) {
         try std.json.Stringify.value(.{ .explanation = .{
             .object = try std.fmt.allocPrint(arena.allocator(), "{d}", .{object}),
@@ -36,19 +41,24 @@ pub fn explain(console: *Console, catalog: *c.TableClient, statement: []const u8
             .limit = if (plan.limit) |limit| try std.fmt.allocPrint(arena.allocator(), "{d}", .{limit}) else null,
             .schema = q.fuze.LogicalJson.TypeEnvelope{ .definition = q.fuze.Types.definition, .type = schema },
             .executed = false,
-        } }, .{}, &out);
+        } }, .{}, out);
         try out.writeByte('\n');
     } else {
         try out.print("Proposed Table plan; object: {d}\n{s} scan", .{ object, if (query.execution.scan.point != null) "Primary key" else "Finite" });
         if (plan.predicate != .all) try out.writeAll(" -> filter");
         if (plan.limit) |limit| try out.print(" -> limit {d}", .{limit});
         try out.print(" -> {s}\n", .{if (plan.aggregate == .rows) "projection" else @tagName(plan.aggregate)});
-        try @import("Results.zig").logicalTable(arena.allocator(), &out, schema, &.{});
+        try @import("Results.zig").logicalTable(arena.allocator(), out, schema, &.{});
         try out.writeAll("No rows executed. A later SELECT captures its own source basis.\n");
     }
-    try @import("Output.zig").write(console.init, console.out, out.buffered());
+    try stream.flush();
 }
 pub fn sql(console: *Console, catalog: *c.TableClient, request: @import("SqlInput.zig").Request) !void {
+    var bytes: [16384]u8 = undefined;
+    var stream = Output.Stream.init(console.init.io, console.out, &bytes);
+    sqlTo(console, catalog, request, &stream) catch |err| return stream.failure orelse err;
+}
+fn sqlTo(console: *Console, catalog: *c.TableClient, request: @import("SqlInput.zig").Request, stream: *Output.Stream) !void {
     if (request.parameters != null or !console.interactive) {
         console.diagnostic.sql = q.fuze.SqlDiagnostic.query(request.sql, error.UnsupportedConstruct, true);
         if (console.diagnostic.sql) |*detail| detail.hint = "General Table SELECT uses interactive execution and typed SQL constants. Select execution: interactive; parameterized and durable Table query paths require their own admission profile.";
@@ -75,14 +85,11 @@ pub fn sql(console: *Console, catalog: *c.TableClient, request: @import("SqlInpu
     const schema = try query.schema(&fields);
     const source_basis = std.fmt.bytesToHex(query.compiled.plan.source_basis, .lower);
     const plan = std.fmt.bytesToHex(query.execution.fingerprint, .lower);
-    const buffer = try console.init.gpa.alloc(u8, if (console.session.format == .json) 8 * 1024 * 1024 else 1048576);
-    defer console.init.gpa.free(buffer);
-    var out: std.Io.Writer = .fixed(buffer);
+    const out = &stream.interface;
     if (console.session.format == .json) {
-        try std.json.Stringify.value(.{ .profile = "table_snapshot_v1", .schema = q.fuze.LogicalJson.TypeEnvelope{ .definition = q.fuze.Types.definition, .type = schema }, .basis = &source_basis, .plan = &plan, .complete_coverage = false }, .{}, &out);
+        try std.json.Stringify.value(.{ .profile = "table_snapshot_v1", .schema = q.fuze.LogicalJson.TypeEnvelope{ .definition = q.fuze.Types.definition, .type = schema }, .basis = &source_basis, .plan = &plan, .complete_coverage = false }, .{}, out);
         try out.writeByte('\n');
-        try @import("Output.zig").write(console.init, console.out, out.buffered());
-        out.end = 0;
+        try stream.flush();
     }
     var emitted: u64 = 0;
     var batch: [8]q.fuze.LogicalQuery.Row = undefined;
@@ -108,12 +115,10 @@ pub fn sql(console: *Console, catalog: *c.TableClient, request: @import("SqlInpu
         timing.enter(.render);
         var arena: std.heap.ArenaAllocator = .init(console.init.gpa);
         defer arena.deinit();
-        out.end = 0;
         if (console.session.format == .table) {
-            if (count != 0 or emitted == 0) try @import("Results.zig").logicalTable(arena.allocator(), &out, schema, cells[0..count]);
+            if (count != 0 or emitted == 0) try @import("Results.zig").logicalTable(arena.allocator(), out, schema, cells[0..count]);
         } else for (cells[0..count]) |row| {
-            try std.json.Stringify.value(.{ .row = try q.fuze.LogicalJson.foreignCell(arena.allocator(), .{ .value = .{ .structure = row } }, schema), .complete_coverage = false }, .{ .escape_unicode = true }, &out);
-            try out.writeByte('\n');
+            try @import("Results.zig").logicalRow(arena.allocator(), out, schema, row);
         }
         if (next == null) {
             if (!query.complete) return error.IncompleteSource;
@@ -125,12 +130,12 @@ pub fn sql(console: *Console, catalog: *c.TableClient, request: @import("SqlInpu
             } else {
                 var rows: [20]u8 = undefined;
                 var scanned: [20]u8 = undefined;
-                try std.json.Stringify.value(.{ .complete = .{ .basis = &source_basis, .plan = &plan, .rows = try std.fmt.bufPrint(&rows, "{d}", .{query.execution.emitted}), .scanned = try std.fmt.bufPrint(&scanned, "{d}", .{query.execution.scanned}) }, .complete_coverage = true }, .{}, &out);
+                try std.json.Stringify.value(.{ .complete = .{ .basis = &source_basis, .plan = &plan, .rows = try std.fmt.bufPrint(&rows, "{d}", .{query.execution.emitted}), .scanned = try std.fmt.bufPrint(&scanned, "{d}", .{query.execution.scanned}) }, .complete_coverage = true }, .{}, out);
                 try out.writeByte('\n');
             }
         }
         if (Signals.interrupted()) return error.ConsoleInterrupted;
-        try @import("Output.zig").write(console.init, console.out, out.buffered());
+        try stream.flush();
         emitted += count;
         for (batch[0..count]) |*row| row.deinit();
         count = 0;

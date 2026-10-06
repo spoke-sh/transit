@@ -446,12 +446,13 @@
       "error_returns": {
         "command()": "<inferred>",
         "describe()": "<inferred>",
-        "inspect()": "<inferred>"
+        "inspect()": "<inferred>",
+        "inspectTo()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 46,
-        "catch": 0
+        "try": 45,
+        "catch": 1
       },
       "imports": [
         "Console.zig",
@@ -491,12 +492,14 @@
       "error_sets": {},
       "error_returns": {
         "explain()": "<inferred>",
-        "sql()": "<inferred>"
+        "explainTo()": "<inferred>",
+        "sql()": "<inferred>",
+        "sqlTo()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 39,
-        "catch": 2
+        "try": 35,
+        "catch": 4
       },
       "imports": [
         "Console.zig",
@@ -1198,24 +1201,29 @@
     "apps/transit-cli/Output.zig": {
       "errors": {
         "ConsoleInterrupted": 1,
-        "ConsoleOutputTimeout": 1
+        "ConsoleOutputTimeout": 1,
+        "WriteFailed": 2
       },
       "outcomes": {
-        "write().Result": [
+        "writeIo().Result": [
           "written",
           "stopped"
         ]
       },
       "error_sets": {},
       "error_returns": {
+        "Stream.drain()": "std . Io . Writer . Error",
+        "Stream.emit()": "std . Io . Writer . Error",
+        "Stream.flush()": "<inferred>",
         "write()": "<inferred>",
-        "write().Task.emit()": "<inferred>",
-        "write().Task.stop()": "<inferred>"
+        "writeIo()": "<inferred>",
+        "writeIo().Task.emit()": "<inferred>",
+        "writeIo().Task.stop()": "<inferred>"
       },
-      "open_error_set_uses": 2,
+      "open_error_set_uses": 3,
       "propagation": {
-        "try": 8,
-        "catch": 0
+        "try": 11,
+        "catch": 2
       },
       "imports": [
         "Signals.zig",
@@ -1335,6 +1343,7 @@
         "border()": "<inferred>",
         "cellText()": "<inferred>",
         "escaped()": "<inferred>",
+        "logicalRow()": "<inferred>",
         "logicalTable()": "<inferred>",
         "row()": "<inferred>",
         "table()": "<inferred>",
@@ -1342,7 +1351,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 53,
+        "try": 56,
         "catch": 1
       },
       "imports": [

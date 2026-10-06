@@ -379,6 +379,17 @@ def run(node, proof, host, cli):
             console('DROP TABLE console_people')
             names = [name for line in console('SHOW TABLES').stdout.splitlines() for name in json.loads(line)['tables']]
             assert 'people' in names and 'console_people' not in names, names
+            console('CREATE TABLE console_output (payload TEXT)')
+            payload = '\x1b' * 512
+            console(f"INSERT INTO console_output VALUES ('{payload}')")
+            projection = ', '.join(f'payload AS c{i}' for i in range(64))
+            expanded = console(f'SELECT {projection} FROM console_output')
+            frames = [json.loads(line) for line in expanded.stdout.splitlines()]
+            assert len(expanded.stdout) > 16384 and '\x1b' not in expanded.stdout, len(expanded.stdout)
+            assert len(frames) == 3 and frames[-1]['complete']['rows'] == '1', frames[-1]
+            cells = frames[1]['row']['value']['structure']
+            assert len(cells) == 64 and all(cell['value']['atom']['utf8'] == payload for cell in cells)
+            console('DROP TABLE console_output')
             assert not failures, failures
             assert measurements['max_mutations'] <= 4 and measurements['max_value_bytes'] <= 256, measurements
             print(json.dumps(dict(profile='typed-table-native', seconds=round(time.monotonic() - started, 3), lost_reply_replays=sorted(replays), supplied_host_lost_receipt='host_turn' in faults, measurements=measurements)))

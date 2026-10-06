@@ -349,7 +349,11 @@ even when its SQL results use JSON envelopes.
 
 Table mode is the default. General Table cells use logical types with an explicit
 `... [truncated]` marker after the 256-byte preview budget; JSON retains their
-complete typed representation. The separate query-source profile renders its
+complete typed representation. General Table output streams through a 16 KiB
+buffer; escaping and repeated projections do not impose another fixed row-size
+limit. The query's explicit result budget still applies to canonical typed bytes.
+An interrupted or failed write can leave an incomplete JSON line; only the
+verified final marker establishes completion. The separate query-source profile renders its
 verified Arrow batch directly, with
 box borders, column names and native types, right-aligned numbers and a row total.
 Strings are quoted and escaped so literal `"NULL"`, null, missing, type errors and
