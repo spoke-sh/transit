@@ -15370,6 +15370,42 @@
         "transit_fuze"
       ]
     },
+    "packages/zig/transit-station/src/TableCleanup.zig": {
+      "errors": {
+        "IncompatibleTableStorage": 1,
+        "InvalidTableCleanup": 6,
+        "MutationBudgetExceeded": 1,
+        "TableCleanupNotClosed": 1,
+        "TableWriteNotFound": 1
+      },
+      "outcomes": {
+        "Cursor.phase": [
+          "inline_pages",
+          "publications",
+          "complete"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "Cursor.decode()": "<inferred>",
+        "Cursor.encode()": "<inferred>",
+        "Cursor.validate()": "<inferred>",
+        "step()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 19,
+        "catch": 2
+      },
+      "imports": [
+        "TableHead.zig",
+        "TablePages.zig",
+        "TableWrite.zig",
+        "Turn.zig",
+        "std",
+        "transit_client"
+      ]
+    },
     "packages/zig/transit-station/src/TableData.zig": {
       "errors": {
         "InvalidTableBlob": 3,
@@ -15479,14 +15515,15 @@
       "errors": {
         "CrossResourceTransaction": 1,
         "IncompatibleTableStorage": 3,
-        "InvalidTablePage": 11,
-        "InvalidTableStorage": 7,
+        "InvalidTablePage": 16,
+        "InvalidTableReservation": 1,
+        "InvalidTableStorage": 9,
         "PublicationLimitsChanged": 1,
         "PublicationTooLarge": 1,
         "TablePageBufferTooSmall": 1,
         "TablePageClosed": 1,
-        "TablePageIdentityConflict": 4,
-        "TablePageNotFound": 1,
+        "TablePageIdentityConflict": 7,
+        "TablePageNotFound": 2,
         "TableStorageNotFound": 1
       },
       "outcomes": {
@@ -15501,9 +15538,11 @@
         "Reader().<return>.loadBlob()": "<inferred>",
         "check()": "<inferred>",
         "checkManifest()": "<inferred>",
+        "collect()": "<inferred>",
         "create()": "<inferred>",
         "emptyNamespace()": "<inferred>",
         "encode()": "<inferred>",
+        "nextRecord()": "<inferred>",
         "read()": "<inferred>",
         "stage()": "<inferred>",
         "validate()": "<inferred>",
@@ -15511,7 +15550,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 35,
+        "try": 51,
         "catch": 2
       },
       "imports": [
@@ -15796,6 +15835,7 @@
         "Supervisor.zig",
         "Table.zig",
         "TableCandidate.zig",
+        "TableCleanup.zig",
         "TableData.zig",
         "TableHead.zig",
         "TableMutation.zig",

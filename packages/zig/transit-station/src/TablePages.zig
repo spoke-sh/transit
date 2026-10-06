@@ -183,6 +183,73 @@ pub fn read(self: Self, source: anytype, ref: Reference, output: []u8) ![]const 
     if (!std.meta.eql(try Pub.Digest.of(ref.spec.format, bytes), ref.spec)) return error.InvalidTablePage;
     return bytes;
 }
+/// Locate one allocated record in a closed reservation without walking unused
+/// IDs. This reads one native page and never mixes private writes into the scan.
+pub fn nextRecord(self: Self, turn: *Turn, large: bool, at: u64, end: u64) !?u64 {
+    _ = try self.check(turn);
+    if (at == 0 or end < at) return error.InvalidTableReservation;
+    if (at == end) return null;
+    const after = key(self.object, if (large) 'r' else 'i', at - 1);
+    var committed = turn.committed();
+    const page = try committed.page(after);
+    var previous = after;
+    var ended = false;
+    var result: ?u64 = null;
+    for (page.entries) |slot| {
+        if (slot) |entry| {
+            try p.State.key(entry.key);
+            try entry.value.validate();
+            if (ended or entry.revision > turn.view.revision or std.mem.order(u8, previous.slice(), entry.key.slice()) != .lt) return error.InvalidTableStorage;
+            previous = entry.key;
+            if (std.mem.startsWith(u8, entry.key.slice(), after.data[0..15])) {
+                if (entry.key.len != 27 or std.mem.readInt(u32, entry.key.data[23..27], .big) != 0) return error.InvalidTablePage;
+                const id = std.mem.readInt(u64, entry.key.data[15..23], .big);
+                if (id < at) return error.InvalidTablePage;
+                if (result == null and id < end) result = id;
+            }
+        } else ended = true;
+    }
+    if (page.next) |next| if (previous.eql(after) or !previous.eql(next)) return error.InvalidTableStorage;
+    return result;
+}
+/// The owner must prove this ID belongs exclusively to closed unpublished work.
+/// Accepted/retained data must never be sent here. Descriptors and quota release
+/// follow Publication's existing bounded retirement/collection rules.
+pub fn collect(self: Self, turn: *Turn, id: u64, large: bool) !Step {
+    const before = turn.decision;
+    errdefer turn.decision = before;
+    _ = try self.check(turn);
+    if (id == 0) return error.InvalidTablePage;
+    const small = try turn.read(key(self.object, 'i', id));
+    const descriptor = try turn.read(key(self.object, 'r', id));
+    if (small != null and descriptor != null) return error.TablePageIdentityConflict;
+    if (!large) {
+        if (descriptor != null) return error.TablePageIdentityConflict;
+        const value = small orelse return .ready;
+        if (value.len < 10) return error.InvalidTablePage;
+        const spec = try Pub.Digest.of(std.mem.readInt(u32, value.data[4..8], .little), value.data[10..value.len]);
+        try validate(.{ .id = id, .spec = spec });
+        try validateInline(value, spec);
+        try turn.write(key(self.object, 'i', id), null);
+        return .ready;
+    }
+    if (small != null) return error.TablePageIdentityConflict;
+    const record = try Pub.Descriptor.decode(descriptor orelse return error.TablePageNotFound);
+    try validate(.{ .id = id, .spec = record.spec });
+    if (record.spec.length <= inline_bytes) return error.InvalidTablePage;
+    const pubn = self.publication();
+    switch (record.state) {
+        .staging => {
+            _ = try pubn.abandon(turn, id);
+            return .progress;
+        },
+        .published => {
+            _ = try pubn.retire(turn, id);
+            return .progress;
+        },
+        .abandoned, .retired => return if (try pubn.collect(turn, id)) .ready else .progress,
+    }
+}
 pub fn Reader(comptime Source: type) type {
     return struct {
         pages: Self,

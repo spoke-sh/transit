@@ -11,6 +11,131 @@ const Pages = @import("TablePages.zig");
 const Head = @import("TableHead.zig");
 const Write = @import("TableWrite.zig");
 const Statement = @import("TableStatement.zig");
+const Cleanup = @import("TableCleanup.zig");
+fn cleanCandidate(store: *Store, result: Write.Status) !void {
+    var turn = try store.capture();
+    const head = try Head.load(&turn, 9);
+    for (0..256) |_| {
+        var lost = try store.capture();
+        _ = try Cleanup.step(&lost, result.reference);
+        turn = try store.capture();
+        const complete = try Cleanup.step(&turn, result.reference);
+        try t.expect(writes(turn) <= 4);
+        try t.expectEqualDeep(head, try Head.load(&turn, 9));
+        try t.expectEqualDeep(result, (try Write.status(&turn, result.reference)).?);
+        try store.commit(turn);
+        if (complete) {
+            turn = try store.capture();
+            try t.expect(try Cleanup.step(&turn, result.reference));
+            try t.expectEqual(@as(usize, 0), writes(turn));
+            return;
+        }
+        try t.expect(writes(turn) > 0);
+    }
+    return error.CleanupDidNotComplete;
+}
+test "closed candidate cleanup releases quota without changing receipts or accepted roots" {
+    var store: Store = .{};
+    defer store.deinit();
+    _ = try store.table();
+    var small_cells: [2]f.Types.Values.Cell = undefined;
+    const first = insertRequest(300, 1, "accepted", &small_cells);
+    var turn = try store.capture();
+    const accepted = try Write.step(t.allocator, &turn, first);
+    try store.commit(turn);
+    turn = try store.capture();
+    try t.expectError(error.TableCleanupNotClosed, Cleanup.step(&turn, accepted.reference));
+    var large: [6000]u8 = @splat('x');
+    var large_cells: [2]f.Types.Values.Cell = undefined;
+    const request = insertRequest(301, 2, &large, &large_cells);
+    const reference = try request.reference(t.allocator);
+    for (0..5) |_| {
+        turn = try store.capture();
+        try t.expectEqual(.building, (try Write.step(t.allocator, &turn, request)).state);
+        try store.commit(turn);
+    }
+    turn = try store.capture();
+    try t.expectError(error.TableCleanupNotClosed, Cleanup.step(&turn, reference));
+    const cancelled = try Write.cancel(&turn, reference);
+    try store.commit(turn);
+    turn = try store.capture();
+    const publication: Pub = .{ .resource = 7, .domain = .table, .namespace = 9 };
+    try t.expectEqual(@as(u32, 1), (try publication.budget(&turn)).records);
+    store.denied = true;
+    try t.expectError(error.AccessDenied, Cleanup.step(&turn, reference));
+    try t.expectError(error.AccessDenied, turn.validate());
+    store.denied = false;
+    try cleanCandidate(&store, cancelled);
+    turn = try store.capture();
+    try t.expectEqual(@as(u32, 0), (try publication.budget(&turn)).records);
+    const head = try Head.load(&turn, 9);
+    try t.expect(head.next_record >= cancelled.end_record);
+    var reader: Pages.Reader(*Turn) = .{ .pages = .{ .resource = 7, .object = 9 }, .source = &turn };
+    var kept = (try (Data{ .schema = schema, .index = head.index }).get(t.allocator, &reader, first.change.insert.identity)).?;
+    defer kept.deinit();
+    try t.expectEqualStrings("accepted", kept.row().cells[1].value.atom.bytes);
+    try t.expectEqualDeep(cancelled, try Write.step(t.allocator, &turn, request));
+    var replacement = request;
+    replacement.operation = 302;
+    replacement.change.insert.identity.operation = 302;
+    try t.expectEqual(.building, (try Write.step(t.allocator, &turn, replacement)).state);
+}
+test "rejected statement cleanup skips unused IDs and retires only unpublished candidates" {
+    var store: Store = .{};
+    defer store.deinit();
+    _ = try store.table();
+    _ = try sqlStatement(&store, 310, schema, "INSERT INTO items VALUES(1,'one'),(2,'two'),(3,'three')");
+    const rejected = try sqlStatement(&store, 311, schema, "INSERT INTO items VALUES(4,'four'),(5,'five'),(6,'six'),(2,'duplicate')");
+    try t.expectEqual(.rejected, rejected.state);
+    try t.expect(rejected.end_record - rejected.first_record > 500);
+    try cleanCandidate(&store, rejected);
+    var turn = try store.capture();
+    const head = try Head.load(&turn, 9);
+    try t.expectEqual(@as(u64, 3), head.rows);
+    var reader: Pages.Reader(*Turn) = .{ .pages = .{ .resource = 7, .object = 9 }, .source = &turn };
+    var found = (try (Data{ .schema = schema, .index = head.index }).get(t.allocator, &reader, .{ .origin = 2, .operation = 310, .ordinal = 2 })).?;
+    defer found.deinit();
+    try t.expectEqualStrings("three", found.row().cells[1].value.atom.bytes);
+    var records = store.state.iterator();
+    while (records.next()) |entry| {
+        const key = entry.key_ptr.*;
+        const prefix = Pages.key(9, 'i', 0);
+        if (key.len != 27 or !std.mem.eql(u8, key.data[0..14], prefix.data[0..14])) continue;
+        const id = std.mem.readInt(u64, key.data[15..23], .big);
+        if (id < rejected.first_record or id >= rejected.end_record) continue;
+        try t.expect(key.data[14] != 'i' and key.data[14] != 'c');
+        if (key.data[14] == 'r') {
+            const descriptor = try Pub.Descriptor.decode(entry.value_ptr.*);
+            try t.expectEqual(.retired, descriptor.state);
+            try t.expectEqual(descriptor.written, descriptor.collected);
+        }
+    }
+}
+test "cleanup cursor rejects changed ranges, definitions and malformed records" {
+    const cursor: Cleanup.Cursor = .{ .digest = @splat(3), .first = 2, .end = 9, .next = 4, .phase = .publications };
+    const bytes = try cursor.encode();
+    try t.expectEqualDeep(cursor, try Cleanup.Cursor.decode(bytes));
+    for (0..bytes.len) |length| try t.expectError(error.InvalidTableCleanup, Cleanup.Cursor.decode(try p.Value.init(bytes.data[0..length])));
+    var foreign = bytes;
+    foreign.data[4] ^= 1;
+    try t.expectError(error.IncompatibleTableStorage, Cleanup.Cursor.decode(foreign));
+    var invalid = cursor;
+    invalid.next = 10;
+    try t.expectError(error.InvalidTableCleanup, invalid.encode());
+    invalid = cursor;
+    invalid.phase = .complete;
+    try t.expectError(error.InvalidTableCleanup, invalid.encode());
+    var store: Store = .{};
+    defer store.deinit();
+    _ = try store.table();
+    const closed = try sqlStatement(&store, 320, schema, "INSERT INTO items VALUES(1,'one'),(1,'duplicate')");
+    var turn = try store.capture();
+    try turn.write(Cleanup.Cursor.key(closed.reference), bytes);
+    try store.commit(turn);
+    turn = try store.capture();
+    try t.expectError(error.InvalidTableCleanup, Cleanup.step(&turn, closed.reference));
+    try t.expectEqual(@as(usize, 0), writes(turn));
+}
 fn runStatement(store: *Store, request: Statement.Request) !Write.Status {
     var initial_turn = try store.capture();
     const initial = try Head.load(&initial_turn, 9);
@@ -577,7 +702,7 @@ fn expectHex(hex: []const u8, bytes: []const u8) !void {
     try t.expectEqualSlices(u8, try std.fmt.hexToBytes(&output, hex), bytes);
 }
 test "typed Table head and page layouts match independent Python bytes" {
-    const Fixture = struct { native_definition: []const u8, manifest_hex: []const u8, inline_hex: []const u8, head_hex: []const u8, head_key_hex: []const u8, page_key_hex: []const u8, write_key_hex: []const u8, write_status_hex: []const u8, statement_progress_hex: []const u8, statement_progress_key_hex: []const u8 };
+    const Fixture = struct { native_definition: []const u8, manifest_hex: []const u8, inline_hex: []const u8, head_hex: []const u8, head_key_hex: []const u8, page_key_hex: []const u8, write_key_hex: []const u8, write_status_hex: []const u8, statement_progress_hex: []const u8, statement_progress_key_hex: []const u8, cleanup_hex: []const u8, cleanup_key_hex: []const u8 };
     const fixture = try std.json.parseFromSlice(Fixture, t.allocator, @embedFile("fixtures/table-storage.json"), .{});
     defer fixture.deinit();
     const expected = fixture.value;
@@ -618,6 +743,11 @@ test "typed Table head and page layouts match independent Python bytes" {
     try expectHex(expected.statement_progress_hex, progress_bytes.slice());
     try expectHex(expected.statement_progress_key_hex, Statement.Progress.key(receipt.reference).slice());
     try t.expectEqualDeep(progress, try Statement.Progress.decode(progress_bytes));
+    const cleanup: Cleanup.Cursor = .{ .digest = receipt.reference.digest, .first = 2, .end = 600, .next = 199, .phase = .publications };
+    const cleanup_bytes = try cleanup.encode();
+    try expectHex(expected.cleanup_hex, cleanup_bytes.slice());
+    try expectHex(expected.cleanup_key_hex, Cleanup.Cursor.key(receipt.reference).slice());
+    try t.expectEqualDeep(cleanup, try Cleanup.Cursor.decode(cleanup_bytes));
     try t.expectEqualDeep(receipt, try Write.Status.decode(receipt_bytes));
     for (0..receipt_bytes.len) |length| try t.expectError(error.InvalidTableWriteStatus, Write.Status.decode(try p.Value.init(receipt_bytes.data[0..length])));
     var wrong = receipt_bytes;

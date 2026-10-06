@@ -262,3 +262,30 @@ shape, source range and intent are checked before continuation. Progress is owne
 state, never caller-supplied proof that a prefix committed. The original live head
 is the frozen source until final publication. Retained roots keep their schema;
 terminal reconciliation does not reopen or rebind a later head.
+
+## Closed candidate cleanup
+
+`TableCleanup.step` admits only an exact rejected/cancelled `STW1` receipt. Its
+exclusive `[first_record,end_record)` interval never entered an accepted head;
+the reservation fence, terminal closure and nonreused ID floor establish that
+fact. Active/applied receipts reject. The current head must remain beyond the
+closed range, with no schema, root or pending identifier inside it. Cleanup does
+not traverse accepted graphs to guess liveness and cannot collect arbitrary IDs.
+Current owner authorization and native captured-turn fencing still apply.
+
+A bounded native page locates the next allocated inline record or Publication
+descriptor in the interval, skipping gaps. Cleanup validates representation before
+removal. It deletes inline candidate records, abandons staging Publications or
+retires published candidate Publications, then uses their existing bounded chunk
+collector. A full four-write collection commits before saving the cursor in a
+later turn. Permanent descriptors make that repeat exact; quota release occurs
+once through the Publication budget. Progress loss never skips incomplete cleanup.
+
+The separate cursor key is `00 58`, object/principal/operation:u64be. Its 93-byte
+`STX1` value holds magic, raw native definition, exact request digest, first/end/
+next record IDs:u64le and phase:u8 (inline=1, Publications=2, complete=3). Range,
+digest, phase and cursor bounds are checked on every continuation. Receipts,
+heads and ID floors never change. Completion is repeatable and performs no new
+writes. This removes current candidate storage; protected older provider roots
+retain their own bytes. It makes no physical-erasure promise and is not a collector
+for accepted historical versions or dropped Tables.

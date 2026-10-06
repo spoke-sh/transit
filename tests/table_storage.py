@@ -27,6 +27,8 @@ def fixtures():
     progress += index + bytes([0, len(minimum)]) + minimum + struct.pack('<Q', 3)
     progress += b'\1' + struct.pack('>QQI', 2, 30, 1) + struct.pack('<IQQ', 0, 2, 1)
     assert len(progress) == 197
+    cleanup = b'STX1' + contract + bytes([51]) * 32 + struct.pack('<QQQB', 2, 600, 199, 2)
+    assert len(cleanup) == 93
     return {
         'native_definition': definition,
         'manifest_hex': (b'STM1' + contract + struct.pack('<I', 65536)).hex(),
@@ -38,6 +40,8 @@ def fixtures():
         'write_status_hex': status.hex(),
         'statement_progress_hex': progress.hex(),
         'statement_progress_key_hex': (b'\0G' + struct.pack('>QQQ', 9, 1, 21)).hex(),
+        'cleanup_hex': cleanup.hex(),
+        'cleanup_key_hex': (b'\0X' + struct.pack('>QQQ', 9, 1, 21)).hex(),
     }
 
 

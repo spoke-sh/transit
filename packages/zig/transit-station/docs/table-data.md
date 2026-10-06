@@ -96,3 +96,13 @@ key changes cannot change selection or cause revisits. No-op and unselected rows
 advance progress without data writes. Current authorization and native fencing
 still belong to the enclosing owner. `cancel` preserves exact terminal evidence,
 the old live root and consumed record IDs; physical cleanup remains separate.
+
+`TableCleanup.step` collects only the exclusive interval of a rejected or
+cancelled receipt. It rejects active/applied work, checks the head's record floor
+and retains the exact receipt. One bounded native page finds the next allocated
+inline record or Publication descriptor, skipping unused IDs. Inline records are
+removed; unfinished Publications are abandoned and completed ones retired before
+bounded chunk collection. Quota is released through Publication's existing owner.
+The separate cursor survives interruption and cannot change ranges or intent.
+Accepted roots, schema records, Table heads and permanent descriptors are retained.
+Current cleanup authority remains the enclosing owner's responsibility.

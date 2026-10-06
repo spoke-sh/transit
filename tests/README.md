@@ -10740,6 +10740,18 @@ These are in-memory captured-turn proofs. Native admission, schema rewrites,
 cancelled-page cleanup, disk faults and clean committed-HEAD qualification remain
 separate obligations.
 
+Closed-candidate cleanup passes the root `zig build test` (**660/660 tests**,
+with other cached suites) and the final **81/81 Station tests**. Tests discard
+each cleanup proposal, recover unfinished Publication quota, skip hundreds of
+unused reserved IDs and preserve accepted roots, receipts and nonreuse floors.
+They reject cleanup of active/applied work, changed cursor identity/ranges,
+malformed/foreign cursor bytes and current access denial. Independent Python
+bytes fix the 93-byte cleanup cursor and key. The final Station run reports 5 s
+and 24 MiB maximum resident memory. Logs are `cleanup-station-test.log`,
+`cleanup-oracle-test.log` and `cleanup-docs.log` in the same campaign. These are
+captured-turn unit checks and existing root tests, not new disk cleanup, native
+admission or physical-erasure evidence.
+
 ## Fuze logical type foundation
 
 The local `Types` profile has nine passing focused Zig tests, including 46
