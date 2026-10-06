@@ -34,12 +34,12 @@ internal static class CatalogValues
         try { await action(); } catch (TransitException error) { Check(error.Kind == kind); return; }
         throw new Exception("Expected catalog task failure");
     }
-    static JsonObject Metadata() => JsonNode.Parse("""
+    static JsonObject Metadata() { var value=JsonNode.Parse("""
         {"scope":{"realm":46,"resource":7,"catalog":"18446744073709551615"},
          "object":"18446744073709551615","revision":"18446744073709551615","name":"items",
          "schema_fingerprint":"abababababababababababababababababababababababababababababababab",
          "principal":17,"operation":"18446744073709551615","admitted_input":9}
-        """)!.AsObject();
+        """)!.AsObject(); value["commitment"]=Wire(new C.MetadataCommitment(200,new Bytes(new byte[32])));return value; }
     static C.Schema Schema() => new(ulong.MaxValue,1,2,[new C.Column(1,"id",new L.Scalar(L.ScalarKind.Int128))]);
     static JsonObject Entry() => Program.Obj(("metadata",Metadata()),("head",JsonNode.Parse("{\"revision\":\"1\",\"rows\":\"0\",\"pending\":\"0\"}")));
     static JsonObject Definition() { var value = Entry(); value.Add("schema",Wire(Schema())); return value; }
@@ -49,6 +49,7 @@ internal static class CatalogValues
     }
     static void MetadataValues(C.Scope scope) {
         var wire = Definition(); var original = (C.Definition)Decode("Resolved",wire,scope,"items")!;
+        Check(original.Metadata.Commitment==new C.MetadataCommitment(200,new Bytes(new byte[32])));
         Check(original.Metadata.ObjectId == ulong.MaxValue && original.Metadata.Revision == ulong.MaxValue && original.Schema == Schema());
         wire["metadata"]!["name"] = "changed"; wire["schema"]!["columns"]![0]!["name"] = "changed";
         Check(original.Metadata.Name == "items" && original.Schema.Columns[0].Name == "id");
@@ -63,7 +64,7 @@ internal static class CatalogValues
         Check(page.Entries.Count == 1 && page.Entries[0].Metadata == original.Metadata);
         Check(page.Entries is not IList<C.Entry>);
         List<C.Entry> input = [page.Entries[0]]; C.Page copy = new(9,input,page.Next); input.Clear(); Check(copy == page && copy.GetHashCode() == page.GetHashCode());
-        for (int index = 0; index < 11; index++) {
+        for (int index = 0; index < 15; index++) {
             var malformed = MetadataPage(); var entries = malformed["entries"]!.AsArray(); var next = malformed["next"]!; var first = entries[0]!["metadata"]!;
             switch (index) {
                 case 0: entries.RemoveAt(7); break;
@@ -77,6 +78,10 @@ internal static class CatalogValues
                 case 8: first["object"] = ulong.MaxValue; break;
                 case 9: first["revision"] = "01"; break;
                 case 10: malformed["extra"] = true; break;
+                case 11: first.AsObject().Remove("commitment"); break;
+                case 12: first["commitment"]!["format"]=0; break;
+                case 13: first["commitment"]!["length"]=437; break;
+                case 14: first["commitment"]!["digest"]![0]=256; break;
             }
             Check(Reject<TransitException>(() => Decode("ParsePage",malformed,scope,null)).Kind == ErrorKind.IncompatibleNative);
         }

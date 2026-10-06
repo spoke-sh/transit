@@ -36,6 +36,11 @@ native directory. The separate native Station NuGet package is selected by
 default. Opening owns a native worker and checks the exact shared definition
 and capabilities.
 
+Resolved `Metadata` owns a `MetadataCommitment(bytes, digest)` identifying its
+immutable publication. The length is one to 436 bytes and the digest is an
+immutable 32-byte `Bytes` value. Query sources consume it with the metadata
+revision and schema; it grants no access and does not establish live resolution.
+
 ## Types and operations
 
 `Schema(objectId, revision, nextColumn, columns, primaryKey)` owns one to 128

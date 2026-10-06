@@ -257,7 +257,7 @@ def install_java(target, packages=ROOT / '.cache/bindings/java'):
     return 'java', create
 
 
-def install_dotnet(target):
+def install_dotnet(target, packages=ROOT / '.cache/bindings/dotnet'):
     import xml.etree.ElementTree as ET
     target.mkdir()
     source = target / 'source'
@@ -268,7 +268,7 @@ def install_dotnet(target):
     for package in ('Transit.Client', 'Transit.Native.Client', 'Transit.Station.Sdk', 'Transit.Native.Station'):
         name = f'{package}.0.2.0.nupkg'
         destination = feed / name
-        shutil.copy2(ROOT / '.cache/bindings/dotnet' / name, destination)
+        shutil.copy2(packages / name, destination)
         artifacts[name] = hashlib.sha256(destination.read_bytes()).hexdigest()
     (target / 'artifacts.json').write_text(json.dumps(artifacts))
     environment = {k:v for k,v in os.environ.items() if k not in ('TRANSIT_LIBRARY_DIR', 'LD_LIBRARY_PATH', 'LIBRARY_PATH')}

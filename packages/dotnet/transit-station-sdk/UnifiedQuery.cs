@@ -1,4 +1,3 @@
-using System.Buffers.Binary;
 using System.Text.Json.Nodes;
 using Transit.Client;
 using Transit.Client.Internal;
@@ -34,40 +33,34 @@ public static class UnifiedQuery
         try { return await worker.Invoke(b => b.UnifiedCodec(action)).ConfigureAwait(false); }
         finally { worker.CloseSnapshot(); }
     }
-    public enum Type { Int64,UInt64,Float64,Boolean,Utf8,Binary }
+    public enum DecoderType { Int64,UInt64,Float64,Boolean,Utf8,Binary }
     public enum State { Missing,Null,TypeError,Value,Conflict }
-    public abstract record Scalar { private protected Scalar() {} }
-    public sealed record Signed(long Value) : Scalar;
-    public sealed record Unsigned(ulong Value) : Scalar;
-    public sealed record BooleanValue(bool Value) : Scalar;
-    public sealed record Floating : Scalar {
-        public double Value { get; }
-        public Floating(double value) { if(!double.IsFinite(value)) throw new ArgumentException("Non-finite query scalar"); Value=value; }
+    private static string ColumnName(string value) {
+        V.Text(value,255); if(value.Length==0 || value.Contains('\0')) throw new ArgumentException("Expected nonempty query name without NUL"); return value;
     }
-    public sealed record Text : Scalar { public string Value { get; } public Text(string value) { Value=V.Text(value,4096); } }
-    public sealed record Binary : Scalar { public Bytes Value { get; } public Binary(Bytes value) { ArgumentNullException.ThrowIfNull(value); if(value.Length>4096) throw new ArgumentException("Query scalar exceeds 4096 bytes"); Value=value; } }
-    private static string FloatHex(double value) { byte[] bytes=new byte[8]; BinaryPrimitives.WriteDoubleLittleEndian(bytes,value); return V.Hex(bytes); }
-    private static JsonObject Wire(Scalar value) => value switch {
-        Signed v => V.Obj(("int64",Turn.Decimal(v.Value))), Unsigned v => V.Obj(("uint64",Turn.Decimal(v.Value))), Floating v => V.Obj(("float_bits",FloatHex(v.Value))),
-        BooleanValue v => V.Obj(("boolean",v.Value)), Text v => V.Obj(("utf8",v.Value)), Binary v => V.Obj(("binary",Hex(v.Value))), _ => throw new ArgumentException("Invalid query scalar")
-    };
-    private static Floating ParseFloat(JsonNode? value) { byte[] b=V.Unhex(value,8); if(b.Length!=8) throw V.Incompatible("query-float"); return new(BinaryPrimitives.ReadDoubleLittleEndian(b)); }
-    private static Scalar ParseScalar(JsonNode? value) {
-        var v=V.Object(value); if(v.Count!=1) throw V.Incompatible("query-scalar"); var a=v.Single();
-        return a.Key switch { "int64"=>new Signed(NativeValues.Signed(a.Value)), "uint64"=>new Unsigned(NativeValues.Wide(a.Value)), "float_bits"=>ParseFloat(a.Value),
-            "boolean"=>new BooleanValue(V.Boolean(a.Value)), "utf8"=>new Text(V.String(a.Value)), "binary"=>new Binary(Encoded(a.Value,4096)), _=>throw V.Incompatible("query-scalar") };
+    private static JsonObject Wire(Logical.Atom value) {
+        if(value is Logical.Utf8 text) V.Text(text.Text,4096);
+        if(value is Logical.Binary bytes && bytes.Bytes.Length>4096) throw new ArgumentException("Query literal exceeds 4096 bytes");
+        return Logical.AtomWire(value);
     }
     public sealed record Column {
-        public string Name { get; } public Type Type { get; }
-        public Column(string name,Type type) { Name=V.Text(name,64); _=UnifiedQuery.Name(type); Type=type; }
-        internal JsonObject Wire() => V.Obj(("name",Name),("type",UnifiedQuery.Name(Type)));
-        internal static Column Parse(JsonNode? v) { var a=V.Object(v); return new(V.String(a["name"]),Variant<Type>(a["type"])); }
+        public string Name { get; } public Logical.Descriptor Type { get; } public bool Nullable { get; } public bool Optional { get; }
+        public Column(string name,Logical.Descriptor type,bool nullable=false,bool optional=false) {
+            Name=ColumnName(name); ArgumentNullException.ThrowIfNull(type); Type=type; Nullable=nullable; Optional=optional;
+        }
+        internal JsonObject Wire() => V.Obj(("name",Name),("type",Logical.TypeWire(Type)),("nullable",Nullable),("optional",Optional));
+        internal static Column Parse(JsonNode? v) { var a=V.Object(v); return new(V.String(a["name"]),Logical.TypeFromWire(a["type"]),V.Boolean(a["nullable"]),V.Boolean(a["optional"])); }
     }
-    public sealed record Decoder(Type Type,byte Version=1) { internal JsonObject Wire() => V.Obj(("version",(uint)Version),("type",Name(Type))); }
+    public sealed record DecoderColumn {
+        public string Name { get; } public DecoderType Type { get; }
+        public DecoderColumn(string name,DecoderType type) { Name=V.Text(name,32); _=UnifiedQuery.Name(type); Type=type; }
+        internal JsonObject Wire() => V.Obj(("name",Name),("type",UnifiedQuery.Name(Type)));
+    }
+    public sealed record Decoder(DecoderType Type,byte Version=1) { internal JsonObject Wire() => V.Obj(("version",(uint)Version),("type",Name(Type))); }
     public enum ProjectionMode { Scalar,Text,ElementCounter,ElementReplica }
     public sealed record Projection {
-        public Column Column { get; } public IReadOnlyList<string> Path { get; } public bool Relative { get; } public ProjectionMode Mode { get; } public ushort TextBytes { get; } public ushort TextSteps { get; }
-        public Projection(Column column,IReadOnlyList<string>? path=null,bool relative=false,ProjectionMode mode=ProjectionMode.Scalar,ushort textBytes=4096,ushort textSteps=4096) {
+        public DecoderColumn Column { get; } public IReadOnlyList<string> Path { get; } public bool Relative { get; } public ProjectionMode Mode { get; } public ushort TextBytes { get; } public ushort TextSteps { get; }
+        public Projection(DecoderColumn column,IReadOnlyList<string>? path=null,bool relative=false,ProjectionMode mode=ProjectionMode.Scalar,ushort textBytes=4096,ushort textSteps=4096) {
             ArgumentNullException.ThrowIfNull(column); Column=column; Path=Copy(path??[],8); UnifiedQuery.Path(Path); Relative=relative; _=Name(mode); Mode=mode; TextBytes=textBytes; TextSteps=textSteps;
         }
         internal JsonObject Wire() => V.Obj(("column",Column.Wire()),("path",UnifiedQuery.Path(Path)),("relative",Relative),("mode",Name(Mode)),("text_bytes",(uint)TextBytes),("text_steps",(uint)TextSteps));
@@ -81,9 +74,18 @@ public static class UnifiedQuery
         internal override JsonObject Definition() => V.Obj(("kv",V.Obj(("prefix",Hex(Prefix)),("key",Key.Wire()),("value",Value.Wire()))));
     }
     public sealed record TableSource : Source {
-        public override ResourceRef Resource { get; } public uint Id { get; } public IReadOnlyList<string> Names { get; } public Type ValueType { get; }
-        public TableSource(ResourceRef resource,uint id,IReadOnlyList<string> names,Type valueType) { Resource=resource; Id=id; Names=Copy(names,2); if(id==0 || Names.Count!=2) throw new ArgumentException("Invalid query Table declaration"); foreach(var n in Names) V.Text(n,64); _=Name(valueType); ValueType=valueType; }
-        internal override JsonObject Definition() { JsonArray names=new(); foreach(var n in Names) names.Add(n); return V.Obj(("table",V.Obj(("id",Id),("names",names),("value_type",Name(ValueType))))); }
+        public ProcessRef Owner { get; } public Catalog.Metadata Metadata { get; } public Catalog.Schema Schema { get; }
+        public override ResourceRef Resource => Metadata.Scope.Resource;
+        public TableSource(ProcessRef owner,Catalog.Metadata metadata,Catalog.Schema schema) {
+            ArgumentNullException.ThrowIfNull(owner); ArgumentNullException.ThrowIfNull(metadata); ArgumentNullException.ThrowIfNull(schema);
+            if(owner.Realm!=metadata.Scope.Resource.Realm || metadata.ObjectId!=schema.ObjectId) throw new ArgumentException("Table query requires one catalog identity and realm");
+            Owner=owner; Metadata=metadata; Schema=schema;
+        }
+        internal override JsonObject Definition() {
+            var rowType=new Logical.Structure(Schema.Columns.Select(c=>new Logical.Field(c.Name,c.Type,c.Nullable,false)).ToArray());
+            return V.Obj(("table",V.Obj(("scope",Metadata.Scope.Wire()),("owner",Owner.Pid),("object",Turn.Decimal(Metadata.ObjectId)),
+                ("metadata",V.Obj(("id",Turn.Decimal(Metadata.Revision)),("spec",Metadata.Commitment.Wire()))),("row_type",Logical.TypeWire(rowType)))));
+        }
     }
     public sealed record DocumentSource : Source {
         public Document.Reference Reference { get; } public override ResourceRef Resource => Reference.Resource; public IReadOnlyList<Projection> Projections { get; } public IReadOnlyList<string>? Expand { get; }
@@ -99,7 +101,7 @@ public static class UnifiedQuery
     public abstract record PredicateAtom : Predicate { private protected PredicateAtom() {} }
     public sealed record All : PredicateAtom { internal override JsonObject Wire() => V.Obj(("all",V.Obj())); }
     public sealed record IsState(byte Column,State State) : PredicateAtom { internal override JsonObject Wire() => V.Obj(("state",V.Obj(("column",Index(Column)),("value",Name(State))))); }
-    public sealed record Compare(byte Column,QueryComparison Comparison,Scalar Value) : PredicateAtom { internal override JsonObject Wire() => V.Obj(("compare",V.Obj(("column",Index(Column)),("op",Name(Comparison)),("value",UnifiedQuery.Wire(Value))))); }
+    public sealed record Compare(byte Column,QueryComparison Comparison,Logical.Atom Value) : PredicateAtom { internal override JsonObject Wire() => V.Obj(("compare",V.Obj(("column",Index(Column)),("op",Name(Comparison)),("value",UnifiedQuery.Wire(Value))))); }
     public enum PredicateOperator { Negate,Conjunction,Disjunction }
     public abstract record PredicateInstruction { private protected PredicateInstruction() {} internal abstract JsonObject Wire(); }
     public sealed record PredicateAtomInstruction(PredicateAtom Atom) : PredicateInstruction { internal override JsonObject Wire() => V.Obj(("atom",Atom.Wire())); }
@@ -111,22 +113,22 @@ public static class UnifiedQuery
         }
         internal override JsonObject Wire() { JsonArray program=new(); foreach(var instruction in Instructions)program.Add(instruction.Wire()); return V.Obj(("program",program)); }
     }
-    private static uint Index(byte n) => n<8?n:throw new ArgumentException("Query column outside 0..7");
+    private static uint Index(byte n) => n<128?n:throw new ArgumentException("Query column outside 0..127");
     public sealed record Plan {
         public IReadOnlyList<byte> Projection { get; } public Predicate Predicate { get; } public QueryAggregate Aggregate { get; } public ulong? Limit { get; }
         public IReadOnlyList<string?>? OutputNames { get; }
         public Plan(IReadOnlyList<byte> projection,Predicate? predicate=null,QueryAggregate aggregate=QueryAggregate.Rows,ulong? limit=null,IReadOnlyList<string?>? outputNames=null) {
-            Projection=Copy(projection,8); if(Projection.Count==0) throw new ArgumentException("Expected query projection"); foreach(byte n in Projection) Index(n); Predicate=predicate??new All(); _=Name(aggregate); Aggregate=aggregate; Limit=limit;
-            if(outputNames is not null){if(outputNames.Count!=Projection.Count)throw new ArgumentException("Output names must match the projection width");OutputNames=System.Array.AsReadOnly(outputNames.Select(n => n is null?null:V.Text(n,32)).ToArray());}
+            Projection=Copy(projection,128); if(Projection.Count==0) throw new ArgumentException("Expected query projection"); foreach(byte n in Projection) Index(n); Predicate=predicate??new All(); _=Name(aggregate); Aggregate=aggregate; Limit=limit;
+            if(outputNames is not null){if(outputNames.Count!=Projection.Count)throw new ArgumentException("Output names must match the projection width");OutputNames=System.Array.AsReadOnly(outputNames.Select(n => n is null?null:ColumnName(n)).ToArray());}
         }
         internal JsonObject Wire() { JsonArray p=new(); foreach(byte n in Projection) p.Add((uint)n); JsonArray? names=null;if(OutputNames is not null){names=new();foreach(var n in OutputNames)names.Add(n);} return V.Obj(("version",1),("projection",p),("output_names",names),("predicate",Predicate.Wire()),("aggregate",Name(Aggregate)),("limit",Limit is {} limit?Turn.Decimal(limit):null)); }
     }
     public sealed record Budgets(ulong Pages,ulong Segments,ulong ResultBytes) { internal JsonObject Wire() => V.Obj(("pages",Turn.Decimal(Positive(Pages))),("segments",Turn.Decimal(Positive(Segments))),("result_bytes",Turn.Decimal(Positive(ResultBytes)))); }
     public sealed record Bundle {
         public Bytes Bytes { get; }
-        public Bundle(Bytes bytes) { ArgumentNullException.ThrowIfNull(bytes); if(bytes.Length==0 || bytes.Length>16384) throw new ArgumentException("Expected finite query bundle"); Bytes=bytes; }
+        public Bundle(Bytes bytes) { ArgumentNullException.ThrowIfNull(bytes); if(bytes.Length==0 || bytes.Length>25069) throw new ArgumentException("Expected finite query bundle"); Bytes=bytes; }
         public static async Task<Bundle> PrepareAsync(Source source,Plan plan,Budgets budgets,string? nativeDirectory=null) {
-            var v=await LocalAsync(V.Obj(("prepare",V.Obj(("source",source.Wire()),("plan",plan.Wire()),("limits",budgets.Wire())))),nativeDirectory).ConfigureAwait(false); return new(Encoded(V.Object(v["prepared"])["bytes"],16384));
+            var v=await LocalAsync(V.Obj(("prepare",V.Obj(("source",source.Wire()),("plan",plan.Wire()),("limits",budgets.Wire())))),nativeDirectory).ConfigureAwait(false); return new(Encoded(V.Object(v["prepared"])["bytes"],25069));
         }
     }
     public sealed record Prepared {
@@ -134,25 +136,10 @@ public static class UnifiedQuery
         public Prepared(Bytes bytes) { ArgumentNullException.ThrowIfNull(bytes); if(bytes.Length==0 || bytes.Length>8192) throw new ArgumentException("Expected bounded prepared query command"); _=V.Utf8.GetString(bytes.Copy()); Bytes=bytes; }
     }
     public sealed record Cursor { public string Opaque { get; } public Cursor(string opaque) { Opaque=V.Text(opaque,4096); if(opaque.Length==0) throw new ArgumentException("Empty query cursor"); } }
-    public abstract record Cell { private protected Cell() {} }
-    public sealed record Missing : Cell;
-    public sealed record Null : Cell;
-    public sealed record TypeError(string ActualKind) : Cell;
-    public sealed record CellValue(Scalar Value) : Cell;
-    public sealed record Alternative(ulong Counter,ulong Replica,Cell Value);
-    public sealed record Conflict : Cell {
-        public IReadOnlyList<Alternative> Alternatives { get; }
-        public Conflict(IReadOnlyList<Alternative> alternatives) { Alternatives=Copy(alternatives,8); if(Alternatives.Count<2) throw new ArgumentException("Expected 2..8 alternatives"); foreach(var a in Alternatives) { Positive(a.Counter); Positive(a.Replica); if(a.Value is not (Null or TypeError or CellValue)) throw new ArgumentException("Invalid conflict alternative"); } }
-    }
-    private static Cell ParseCell(JsonNode? value) {
-        var v=V.Object(value); if(v.Count!=1) throw V.Incompatible("query-cell"); var e=v.Single();
-        return e.Key switch { "missing"=>new Missing(), "null"=>new Null(), "type_error"=>new TypeError(V.Text(V.String(e.Value),16)), "value"=>new CellValue(ParseScalar(e.Value)),
-            "conflict"=>new Conflict(Array(e.Value,8).Select(item => { var a=V.Object(item); return new Alternative(NativeValues.Wide(a["counter"]),NativeValues.Wide(a["replica"]),ParseCell(a["value"])); }).ToArray()), _=>throw V.Incompatible("query-cell") };
-    }
-    public static async Task<IReadOnlyList<IReadOnlyList<Cell>>> DecodeArrowAsync(IReadOnlyList<Column> columns,Bytes ipc,byte rows,string? nativeDirectory=null) {
-        columns=Copy(columns,8); if(columns.Count==0 || rows>8 || ipc.Length>65536) throw new ArgumentException("Query Arrow bounds exceeded"); JsonArray schema=new(); foreach(var c in columns) schema.Add(c.Wire());
+    public static async Task<IReadOnlyList<IReadOnlyList<Logical.Cell>>> DecodeArrowAsync(IReadOnlyList<Column> columns,Bytes ipc,byte rows,string? nativeDirectory=null) {
+        columns=Copy(columns,128); if(columns.Count==0 || rows>8 || ipc.Length>65536) throw new ArgumentException("Query Arrow bounds exceeded"); JsonArray schema=new(); foreach(var c in columns) schema.Add(c.Wire());
         var v=await LocalAsync(V.Obj(("inspect_arrow",V.Obj(("columns",schema),("ipc",Hex(ipc)),("rows",(uint)rows)))),nativeDirectory).ConfigureAwait(false);
-        IReadOnlyList<IReadOnlyList<Cell>> output=Copy(Array(v["rows"],8).Select(row => Copy(Array(row,8).Select(ParseCell).ToArray(),8)).ToArray(),8);
+        IReadOnlyList<IReadOnlyList<Logical.Cell>> output=Copy(Array(v["rows"],8).Select(row => Copy(Array(row,128).Select(Logical.CellFromWire).ToArray(),128)).ToArray(),8);
         if(output.Count!=rows || output.Any(row => row.Count!=columns.Count)) throw V.Incompatible("query-shape"); return output;
     }
     public sealed record Connection {
@@ -170,7 +157,7 @@ public static class UnifiedQuery
     public abstract record InspectedAtom : InspectedPredicate { private protected InspectedAtom() {} }
     public sealed record InspectedAll : InspectedAtom;
     public sealed record InspectedState(string Column,State State) : InspectedAtom;
-    public sealed record InspectedComparison(string Column,QueryComparison Comparison,Type Type) : InspectedAtom;
+    public sealed record InspectedComparison(string Column,QueryComparison Comparison,Logical.Descriptor Type) : InspectedAtom;
     public abstract record InspectedInstruction { private protected InspectedInstruction() {} }
     public sealed record InspectedAtomInstruction(InspectedAtom Atom) : InspectedInstruction;
     public sealed record InspectedOperation(PredicateOperator Operator) : InspectedInstruction;
@@ -185,8 +172,8 @@ public static class UnifiedQuery
         var selected=atom.Single(); var data=V.Object(selected.Value);
         return selected.Key switch {
             "all" when data.Count==0=>new InspectedAll(),
-            "state"=>new InspectedState(V.Text(V.String(data["column"]),32),Variant<State>(data["value"])),
-            "compare"=>new InspectedComparison(V.Text(V.String(data["column"]),32),Variant<QueryComparison>(data["op"]),Variant<Type>(data["type"])),
+            "state"=>new InspectedState(ColumnName(V.String(data["column"])),Variant<State>(data["value"])),
+            "compare"=>new InspectedComparison(ColumnName(V.String(data["column"])),Variant<QueryComparison>(data["op"]),Logical.TypeFromWire(data["type"])),
             _=>throw V.Incompatible("inspection-atom")
         };
     }
@@ -211,7 +198,7 @@ public static class UnifiedQuery
     public abstract record InspectionDetails { private protected InspectionDetails() {} }
     public sealed record SourceDescription : InspectionDetails {
         public IReadOnlyList<Column> Columns { get; }
-        public SourceDescription(IReadOnlyList<Column> columns) { Columns=Copy(columns,8); }
+        public SourceDescription(IReadOnlyList<Column> columns) { Columns=Copy(columns,128); }
     }
     public sealed record TableListing : InspectionDetails {
         public IReadOnlyList<string> Names { get; }
@@ -223,7 +210,7 @@ public static class UnifiedQuery
         public IReadOnlyList<Column> Columns { get; } public Budgets Budgets { get; }
         public Explanation(IReadOnlyList<InspectionOperator> operators,InspectedPredicate predicate,IReadOnlyList<string> projection,ulong? limit,QueryAggregate aggregate,IReadOnlyList<Column> columns,Budgets budgets) {
             Operators=Copy(operators,4); if(Operators.Count<2) throw V.Incompatible("inspection-operators");
-            Predicate=predicate; Projection=Copy(projection,8); Limit=limit; Aggregate=aggregate; Columns=Copy(columns,8); Budgets=budgets;
+            Predicate=predicate; Projection=Copy(projection,128); Limit=limit; Aggregate=aggregate; Columns=Copy(columns,128); Budgets=budgets;
         }
     }
     public sealed record Inspection(string Name,ResourceRef Resource,SourceKind SourceKind,Bytes SourceDigest,Bytes SchemaDigest,ulong ResourceRevision,ulong PolicyRevision,InspectionDetails Details);
@@ -231,8 +218,8 @@ public static class UnifiedQuery
         var v=V.Object(value);
         if(V.Number(v["version"])!=1 || V.String(v["scope"])!="configured_source" || V.Number(v["resource"])!=resource.Resource) throw V.Incompatible("inspection-scope");
         var details=V.Object(v["details"]); if(details.Count!=1) throw V.Incompatible("inspection-details");
-        IReadOnlyList<Column> Columns(JsonNode? data) => Array(data,8).Select(Column.Parse).ToArray();
-        IReadOnlyList<string> Names(JsonNode? data,int max) => Array(data,max).Select(n=>V.Text(V.String(n),32)).ToArray();
+        IReadOnlyList<Column> Columns(JsonNode? data) => Array(data,128).Select(Column.Parse).ToArray();
+        IReadOnlyList<string> Names(JsonNode? data,int max) => Array(data,max).Select(n=>ColumnName(V.String(n))).ToArray();
         InspectionDetails parsed;
         if(details.ContainsKey("description")) parsed=new SourceDescription(Columns(V.Object(details["description"])["columns"]));
         else if(details.ContainsKey("tables")) parsed=new TableListing(Names(details["tables"],1));
@@ -240,10 +227,10 @@ public static class UnifiedQuery
             var plan=V.Object(details["explanation"]);
             var p=ParseInspectedPredicate(plan["predicate"]);
             var limits=V.Object(plan["budgets"]);
-            parsed=new Explanation(Array(plan["operators"],4).Select(Variant<InspectionOperator>).ToArray(),p,Names(plan["projection"],8),plan["limit"] is null?null:NativeValues.Wide(plan["limit"]),
+            parsed=new Explanation(Array(plan["operators"],4).Select(Variant<InspectionOperator>).ToArray(),p,Names(plan["projection"],128),plan["limit"] is null?null:NativeValues.Wide(plan["limit"]),
                 Variant<QueryAggregate>(plan["aggregate"]),Columns(plan["columns"]),new(Positive(NativeValues.Wide(limits["pages"])),Positive(NativeValues.Wide(limits["segments"])),Positive(NativeValues.Wide(limits["result_bytes"]))));
         } else throw V.Incompatible("inspection-details");
-        return new(V.Text(V.String(v["name"]),32),resource,Variant<SourceKind>(v["source_kind"]),NativeValues.Digest(v["contract"]),NativeValues.Digest(v["schema"]),V.Number(v["resource_revision"]),Positive(NativeValues.Wide(v["policy_revision"])),parsed);
+        return new(ColumnName(V.String(v["name"])),resource,Variant<SourceKind>(v["source_kind"]),NativeValues.Digest(v["contract"]),NativeValues.Digest(v["schema"]),V.Number(v["resource_revision"]),Positive(NativeValues.Wide(v["policy_revision"])),parsed);
     }
     public enum Phase { Uploading,Sealed,Admitted,Complete,Cancelled,Denied,Rejected,Retired }
     public sealed record Failure(string Code,string Stage,string Dimension,ulong Limit,ulong Observed);
@@ -255,17 +242,17 @@ public static class UnifiedQuery
     public enum SourceKind { Kv,Table,Document }
     public enum Finished { SourceEnd,Limit }
     public sealed record Manifest(ulong Job,ReadVersion Source,ProcessRef Requester,ulong Correlation,ulong PolicyRevision,Bytes Request,
-        SourceKind Kind,ResourceRef Resource,ulong Revision,Bytes SourceDigest,Bytes SchemaDigest,Bytes PlanDigest,
+        SourceKind Kind,ResourceRef Resource,ulong Revision,Bytes SourceHead,Bytes SourceDigest,Bytes SchemaDigest,Bytes PlanDigest,
         ulong Pages,ulong Scanned,ulong Selected,ulong ValueCount,ulong Segments,ulong Rows,ulong ByteCount,long? Sum,Finished Finished,Bytes Chain);
     public sealed record Page {
         public Manifest Manifest { get; } public IReadOnlyList<Column> Columns { get; } public ulong Ordinal { get; } public byte Rows { get; } public Bytes Ipc { get; } public Cursor? Next { get; }
-        internal Page(Manifest manifest,IReadOnlyList<Column> columns,ulong ordinal,byte rows,Bytes ipc,Cursor? next) { Manifest=manifest; Columns=Copy(columns,8); Ordinal=ordinal; Rows=rows; Ipc=ipc; Next=next; if(rows>8 || columns.Count==0 || ipc.Length>65536) throw V.Incompatible("query-page-bound"); }
-        public Task<IReadOnlyList<IReadOnlyList<Cell>>> DecodeAsync(string? nativeDirectory=null) => DecodeArrowAsync(Columns,Ipc,Rows,nativeDirectory);
+        internal Page(Manifest manifest,IReadOnlyList<Column> columns,ulong ordinal,byte rows,Bytes ipc,Cursor? next) { Manifest=manifest; Columns=Copy(columns,128); Ordinal=ordinal; Rows=rows; Ipc=ipc; Next=next; if(rows>8 || columns.Count==0 || ipc.Length>65536) throw V.Incompatible("query-page-bound"); }
+        public Task<IReadOnlyList<IReadOnlyList<Logical.Cell>>> DecodeAsync(string? nativeDirectory=null) => DecodeArrowAsync(Columns,Ipc,Rows,nativeDirectory);
     }
     private static Manifest ParseManifest(JsonNode? value,ulong realm) {
-        var v=V.Object(value); var b=V.Object(v["basis"]);
+        var v=V.Object(value); var b=V.Object(v["basis"]); var cut=V.Object(b["cut"]);
         return new(V.Number(v["job"],1),NativeValues.ReadVersion(v["source"]),new(realm,V.Number(v["requester"],1)),NativeValues.Wide(v["correlation"]),NativeValues.Wide(v["policy_revision"]),Fixed(v["request"],72),
-            Variant<SourceKind>(b["kind"]),new(realm,V.Number(b["resource"],1)),V.Number(b["revision"]),NativeValues.Digest(b["contract"]),NativeValues.Digest(b["schema"]),NativeValues.Digest(v["plan"]),
+            Variant<SourceKind>(cut["kind"]),new(realm,V.Number(cut["resource"],1)),V.Number(cut["revision"]),NativeValues.Digest(cut["head"]),NativeValues.Digest(b["contract"]),NativeValues.Digest(b["schema"]),NativeValues.Digest(v["plan"]),
             NativeValues.Wide(v["pages"]),NativeValues.Wide(v["scanned"]),NativeValues.Wide(v["selected"]),NativeValues.Wide(v["value_count"]),NativeValues.Wide(v["segments"]),NativeValues.Wide(v["rows"]),NativeValues.Wide(v["bytes"]),v["sum"] is null?null:NativeValues.Signed(v["sum"]),Variant<Finished>(v["finished"]),NativeValues.Digest(v["chain"]));
     }
     /// <summary>One admitted native operation; dispose joins after local cancellation.</summary>
@@ -281,19 +268,19 @@ public static class UnifiedQuery
         }
         public Task<Inspection> InspectSqlAsync(Source source,string name,string sql,Budgets budgets,CancellationToken cancellation=default) {
             if(source.Resource!=connection.Resource) throw new ArgumentException("Different query resource");
-            var action=V.Obj(("inspect",V.Obj(("scope",V.Obj(("source",source.Wire()),("name",V.Text(name,32)),("limits",budgets.Wire()))),("sql",V.Text(sql,4096)))));
+            var action=V.Obj(("inspect",V.Obj(("scope",V.Obj(("source",source.Wire()),("name",ColumnName(name)),("limits",budgets.Wire()))),("sql",V.Text(sql,4096)))));
             return worker.Invoke(b=>ParseInspection(b.UnifiedQuery(action)["inspection"],connection.Resource),cancellation);
         }
         /// <summary>New owned finite bundle; no upload or admission. Await cancellation retains native ownership.</summary>
-        public Task<Bundle> CompileSqlAsync(Source source,string name,string sql,Budgets budgets,IReadOnlyList<Scalar>? parameters=null,CancellationToken cancellation=default) {
+        public Task<Bundle> CompileSqlAsync(Source source,string name,string sql,Budgets budgets,IReadOnlyList<Logical.Atom>? parameters=null,CancellationToken cancellation=default) {
             if(source.Resource!=connection.Resource) throw new ArgumentException("Different query resource");
             JsonArray? values=null;
             if(parameters is not null) {
-                if(parameters.Count>3) throw new ArgumentException("Expected at most three parameter scalars");
+                if(parameters.Count>65) throw new ArgumentException("Expected at most 65 parameter atoms");
                 values=new();foreach(var scalar in parameters)values.Add(Wire(scalar));
             }
-            var action=V.Obj(("compile",V.Obj(("scope",V.Obj(("source",source.Wire()),("name",V.Text(name,32)),("limits",budgets.Wire()))),("sql",V.Text(sql,4096)),("parameters",values))));
-            return worker.Invoke(b=>new Bundle(Encoded(V.Object(b.UnifiedQuery(action)["compiled"])["bundle"],16384)),cancellation);
+            var action=V.Obj(("compile",V.Obj(("scope",V.Obj(("source",source.Wire()),("name",ColumnName(name)),("limits",budgets.Wire()))),("sql",V.Text(sql,4096)),("parameters",values))));
+            return worker.Invoke(b=>new Bundle(Encoded(V.Object(b.UnifiedQuery(action)["compiled"])["bundle"],25069)),cancellation);
         }
         public Task<Prepared?> PrepareNextAsync(ulong ns,Bundle bundle,CancellationToken cancellation=default) {
             var action=V.Obj(("next",V.Obj(("namespace",Turn.Decimal(Positive(ns))),("bundle",Hex(bundle.Bytes)))));
@@ -317,7 +304,7 @@ public static class UnifiedQuery
         }
         public Task<Page> PageAsync(ulong ns,Cursor? cursor=null,CancellationToken cancellation=default) {
             var action=V.Obj(("page",V.Obj(("namespace",Turn.Decimal(Positive(ns))),("cursor",cursor?.Opaque))));
-            return worker.Invoke(b => { var v=V.Object(b.UnifiedQuery(action)["page"]); return new Page(ParseManifest(v["manifest"],connection.Source.Realm),Array(v["columns"],8).Select(Column.Parse).ToArray(),NativeValues.Wide(v["ordinal"]),checked((byte)V.Number(v["rows"])),Encoded(v["ipc"],65536),v["next"] is null?null:new Cursor(V.String(v["next"]))); },cancellation);
+            return worker.Invoke(b => { var v=V.Object(b.UnifiedQuery(action)["page"]); return new Page(ParseManifest(v["manifest"],connection.Source.Realm),Array(v["columns"],128).Select(Column.Parse).ToArray(),NativeValues.Wide(v["ordinal"]),checked((byte)V.Number(v["rows"])),Encoded(v["ipc"],65536),v["next"] is null?null:new Cursor(V.String(v["next"]))); },cancellation);
         }
         public async ValueTask DisposeAsync() { try { await worker.CloseAsync().ConfigureAwait(false); }finally { worker.CloseSnapshot(); } }
     }

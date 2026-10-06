@@ -44,9 +44,14 @@ public static partial class Catalog
         }
         Schema result = new(Wide(v["object"]), Wide(v["revision"]), Wide(v["next_column"]), columns, keys.Select(Wide).ToArray()); result.Wire(); return result;
     }
+    private static MetadataCommitment ParseCommitment(JsonNode? value) {
+        var v=Fields(value,"format","length","digest");
+        if(V.Number(v["format"],1)!=0x54434d01) throw V.Incompatible("catalog-metadata-format");
+        return new(checked((int)V.Number(v["length"],1)),NativeValues.Digest(v["digest"]));
+    }
     private static Metadata ParseMetadata(JsonNode? value) {
-        var v = Fields(value, "scope", "object", "revision", "name", "schema_fingerprint", "principal", "operation", "admitted_input");
-        return new(ParseScope(v["scope"]), Wide(v["object"]), Wide(v["revision"]), V.String(v["name"]), new Bytes(V.Unhex(v["schema_fingerprint"], 32)), V.Number(v["principal"]), Wide(v["operation"]), V.Number(v["admitted_input"], 1));
+        var v = Fields(value, "scope", "object", "revision", "name", "schema_fingerprint", "principal", "operation", "admitted_input", "commitment");
+        return new(ParseScope(v["scope"]), Wide(v["object"]), Wide(v["revision"]), V.String(v["name"]), new Bytes(V.Unhex(v["schema_fingerprint"], 32)), V.Number(v["principal"]), Wide(v["operation"]), V.Number(v["admitted_input"], 1),ParseCommitment(v["commitment"]));
     }
     private static Head ParseHead(JsonNode? value) { var v = Fields(value, "revision", "rows", "pending"); return new(Wide(v["revision"]), Zero(v["rows"]), Zero(v["pending"])); }
     internal static Definition? Resolved(JsonNode? value, Scope scope, string name) {

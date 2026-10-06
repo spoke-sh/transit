@@ -15998,3 +15998,17 @@ reject missing/foreign/oversized/malformed commitments and preserve their existi
 uncertain-receipt and joined-cancellation checks. These use the fresh query
 wheels/gems recorded above, with injected boundary responses; live catalog
 recovery remains separately qualified by its native schedule.
+
+### .NET logical query caller
+
+Fresh NuGet packages and examples build from the local feed
+(`dotnet-query-build1.log` in the local Table-schema campaign). Their isolated
+query consumer compiles with warnings as errors and passes the shared codec
+schedule, 128 Unicode columns, uint128 predicates and nested uint128/null results
+(`dotnet-query-installed1.log`). The isolated catalog boundary consumer passes
+retained immutable commitment checks, malformed commitment rejection, schema
+history, recursive budgets, uncertain receipts and actual native read
+cancellation/join (`dotnet-query-boundary1.log`). Query inputs/results reuse the
+logical model, and Table sources carry catalog metadata commitments. These
+checks do not establish admitted-mutation cancellation or native query recovery;
+the latter still requires the common catalog query fixture migration.

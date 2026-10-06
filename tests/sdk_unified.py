@@ -298,11 +298,11 @@ def install_java(root, fixtures, packages=ROOT/'.cache/bindings/java'):
     return open_callers
 
 
-def install_dotnet(root, fixtures):
+def install_dotnet(root, fixtures, packages=ROOT/'.cache/bindings/dotnet'):
     import xml.etree.ElementTree as ET
     root.mkdir(); source = root/'source'; source.mkdir(); feed = root/'feed'; feed.mkdir()
     for package in ('Transit.Client', 'Transit.Native.Client', 'Transit.Station.Sdk', 'Transit.Native.Station'):
-        name = f'{package}.0.2.0.nupkg'; shutil.copy2(ROOT/'.cache/bindings/dotnet'/name, feed/name)
+        name = f'{package}.0.2.0.nupkg'; shutil.copy2(packages/name, feed/name)
     env = {k: v for k, v in os.environ.items() if k not in ('TRANSIT_LIBRARY_DIR', 'LD_LIBRARY_PATH', 'LIBRARY_PATH')}
     env.update(NUGET_PACKAGES=str(root/'packages'), DOTNET_CLI_TELEMETRY_OPTOUT='1', DOTNET_NOLOGO='1')
     project = source/'Consumer.csproj'

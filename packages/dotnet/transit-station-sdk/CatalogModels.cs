@@ -121,6 +121,11 @@ public static partial class Catalog
         public Basis(ulong objectId, ulong revision, Bytes schemaFingerprint) { ObjectId = Positive(objectId); Revision = Positive(revision); SchemaFingerprint = Digest(schemaFingerprint); }
         internal JsonObject Wire() => V.Obj(("object", Turn.Decimal(ObjectId)), ("revision", Turn.Decimal(Revision)), ("schema_fingerprint", V.Hex(SchemaFingerprint.Copy())));
     }
+    public sealed record MetadataCommitment {
+        public int Bytes { get; } public Bytes Digest { get; }
+        public MetadataCommitment(int bytes,Bytes digest) { if(bytes<1 || bytes>436) throw new ArgumentException("Invalid Table metadata length"); Bytes=bytes; Digest=Catalog.Digest(digest); }
+        internal JsonObject Wire() => V.Obj(("format",0x54434d01),("length",Bytes),("digest",new JsonArray(Digest.Copy().Select(b=>(JsonNode?)JsonValue.Create((uint)b)).ToArray())));
+    }
     public sealed record Metadata {
         public Scope Scope { get; }
         public ulong ObjectId { get; }
@@ -130,7 +135,8 @@ public static partial class Catalog
         public ulong Principal { get; }
         public ulong Operation { get; }
         public ulong AdmittedInput { get; }
-        public Metadata(Scope scope, ulong objectId, ulong revision, string name, Bytes schemaFingerprint, ulong principal, ulong operation, ulong admittedInput) { ArgumentNullException.ThrowIfNull(scope); Scope = scope; ObjectId = Positive(objectId); Revision = Positive(revision); Name = Identifier(name); SchemaFingerprint = Digest(schemaFingerprint); Principal = V.Counter(principal, 0); Operation = Positive(operation); AdmittedInput = V.Counter(admittedInput); }
+        public MetadataCommitment Commitment { get; }
+        public Metadata(Scope scope, ulong objectId, ulong revision, string name, Bytes schemaFingerprint, ulong principal, ulong operation, ulong admittedInput, MetadataCommitment commitment) { ArgumentNullException.ThrowIfNull(scope); Scope = scope; ObjectId = Positive(objectId); Revision = Positive(revision); Name = Identifier(name); SchemaFingerprint = Digest(schemaFingerprint); Principal = V.Counter(principal, 0); Operation = Positive(operation); AdmittedInput = V.Counter(admittedInput); ArgumentNullException.ThrowIfNull(commitment); Commitment=commitment; }
         public Basis Basis => new(ObjectId, Revision, SchemaFingerprint);
     }
     public sealed record Head {
