@@ -457,8 +457,12 @@ All ten language SDKs expose typed program constructors and inspected programs.
 C/C++ plan and explanation layouts require the current shared ABI definition and
 matching headers/libraries; this cutover replaces the old fixed Table/source/plan layout.
 
-Input JSON is bounded at 256 KiB; source, plan, bundle, scalar, page and Arrow
-limits still apply independently. Native outputs are owned buffers that callers
+Input JSON is bounded at 256 KiB and 96 JSON container levels. The shared
+caller parser checks byte size, UTF-8 and container depth before allocating or
+recursively decoding typed values, including unknown fields. The JSON wrapper
+budget admits all 16 logical descriptor levels; source, plan, bundle, scalar,
+page and Arrow limits still apply independently. Malformed caller envelopes
+reject before dispatch and do not produce an uncertain-send result. Native outputs are owned buffers that callers
 release explicitly; port responses copy them before native release. Pure local
 codecs need no endpoint, signing credential or execution handle. The same schema
 and semantic validation apply to the library and the port.

@@ -8,6 +8,7 @@ pub const max_file_bytes = 131072;
 
 pub fn parse(comptime T: type, allocator: std.mem.Allocator, bytes: []const u8) !T {
     if (bytes.len > max_file_bytes) return error.QueryInputTooLarge;
+    q.Values.preflight(bytes) catch return error.InvalidQueryInput;
     const value = std.json.parseFromSliceLeaky(T, allocator, bytes, .{ .allocate = .alloc_always }) catch return error.InvalidQueryInput;
     if (T == Request) {
         if (value.sql.len > q.fuze.Sql.max_statement_bytes) return error.StatementTooLarge;

@@ -3,6 +3,8 @@ const std = @import("std");
 const Diagnostic = @import("Diagnostic.zig");
 pub const Value = std.json.Value;
 pub const max_bytes = 65536;
+pub const max_depth = @import("transit_query").Values.json_limits.depth;
+pub const max_nodes = max_bytes;
 
 pub fn readTyped(comptime T: type, init: std.process.Init, name: []const u8, diagnostic: *Diagnostic) !T {
     if (std.mem.endsWith(u8, name, ".json")) return diagnostic.readJson(T, init, name, max_bytes);
@@ -166,7 +168,7 @@ pub const Yaml = struct {
         return result;
     }
     fn block(self: *Yaml, indent: usize, depth: usize) anyerror!Value {
-        if (depth > 16) return error.ConfigurationTooDeep;
+        if (depth > max_depth) return error.ConfigurationTooDeep;
         var result = object(self.allocator);
         var started = false;
         while (try self.next()) |line| {
@@ -176,7 +178,7 @@ pub const Yaml = struct {
             }
             if (line.indent != indent) return error.YamlIndentation;
             self.nodes += 1;
-            if (self.nodes > 2048) return error.ConfigurationTooLarge;
+            if (self.nodes > max_nodes) return error.ConfigurationTooLarge;
             const sequence = std.mem.startsWith(u8, line.text, "- ") or std.mem.eql(u8, line.text, "-");
             if (!started and sequence) result = .{ .array = std.array_list.Managed(Value).init(self.allocator) };
             started = true;
@@ -315,6 +317,20 @@ test "bounded YAML merges partial maps and refuses duplicate and active syntax" 
     }
 }
 
+test "configuration accepts nested schema wrappers and rejects excessive recursion" {
+    var arena: std.heap.ArenaAllocator = .init(std.testing.allocator);
+    defer arena.deinit();
+    var bytes: [512]u8 = undefined;
+    for ([_]usize{ 48, max_depth + 1 }) |depth| {
+        var out: std.Io.Writer = .fixed(&bytes);
+        for (0..depth) |_| try out.writeByte('[');
+        for (0..depth) |_| try out.writeByte(']');
+        if (depth <= max_depth) {
+            _ = try jsonValue(arena.allocator(), out.buffered());
+        } else try std.testing.expectError(error.ConfigurationTooDeep, jsonValue(arena.allocator(), out.buffered()));
+    }
+}
+
 fn boundJson(allocator: std.mem.Allocator, bytes: []const u8) !void {
     var scanner = std.json.Scanner.initCompleteInput(allocator, bytes);
     defer scanner.deinit();
@@ -326,7 +342,7 @@ fn boundJson(allocator: std.mem.Allocator, bytes: []const u8) !void {
             .end_of_document => return,
             .object_begin, .array_begin => {
                 depth += 1;
-                if (depth > 16) return error.ConfigurationTooDeep;
+                if (depth > max_depth) return error.ConfigurationTooDeep;
             },
             .object_end, .array_end => {
                 if (depth > 0) depth -= 1;
@@ -334,7 +350,7 @@ fn boundJson(allocator: std.mem.Allocator, bytes: []const u8) !void {
             else => {},
         }
         nodes += 1;
-        if (nodes > 2048) return error.ConfigurationTooLarge;
+        if (nodes > max_nodes) return error.ConfigurationTooLarge;
     }
 }
 fn jsonValue(allocator: std.mem.Allocator, bytes: []const u8) !Value {
@@ -372,9 +388,9 @@ pub fn environmentOrigin(init: std.process.Init, diagnostic: *Diagnostic) void {
 }
 
 fn boundedValue(value: Value, depth: usize, nodes: *usize) anyerror!void {
-    if (depth > 16) return error.ConfigurationTooDeep;
+    if (depth > max_depth) return error.ConfigurationTooDeep;
     nodes.* += 1;
-    if (nodes.* > 2048) return error.ConfigurationTooLarge;
+    if (nodes.* > max_nodes) return error.ConfigurationTooLarge;
     switch (value) {
         .object => |map| {
             for (map.values()) |child| try boundedValue(child, depth + 1, nodes);

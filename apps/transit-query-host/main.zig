@@ -45,7 +45,7 @@ fn run(init: std.process.Init, diagnostics: *telemetry.Runtime) !void {
     if (args.len != 2 and !bootstrap) return error.ExpectedConfiguration;
     const bytes = if (bootstrap) args[2] else try std.Io.Dir.cwd().readFileAlloc(init.io, args[1], init.arena.allocator(), .limited(8192));
     if (bytes.len > 8192) return error.ConfigurationTooLarge;
-    const parsed = try std.json.parseFromSlice(Config, init.gpa, bytes, .{});
+    const parsed = try q.Values.parse(Config, init.gpa, bytes);
     defer parsed.deinit();
     var config = parsed.value;
     if (config.principal == 0 or config.principal > p.max_counter or config.realm == 0 or config.interval_ms == 0 or config.interval_ms > 60000 or config.idle_max_interval_ms > 60000 or config.request_timeout_ms == 0 or config.request_timeout_ms > 60000) return error.InvalidConfiguration;

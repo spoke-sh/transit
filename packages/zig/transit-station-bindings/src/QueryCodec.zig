@@ -27,7 +27,7 @@ pub fn codec(json: [*]const u8, len: usize, out: *?*base.Buffer) callconv(.c) ba
     var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
     defer arena.deinit();
     const alloc = arena.allocator();
-    const parsed = std.json.parseFromSlice(Action, alloc, json[0..len], .{}) catch |err| return base.failure(err, out);
+    const parsed = v.parse(Action, alloc, json[0..len]) catch |err| return base.failure(err, out);
     const result = apply(alloc, parsed.value) catch |err| return base.failure(err, out);
     base.output(result, out) catch |err| return base.status(err);
     return .ok;

@@ -108,6 +108,13 @@ pub fn readJson(self: *Self, comptime T: type, init: std.process.Init, path: []c
         std.crypto.secureZero(u8, bytes);
         allocator.free(bytes);
     }
+    const query = @import("transit_query");
+    query.fuze.Types.Json.preflight(bytes, .{ .bytes = limit, .depth = query.Values.json_limits.depth, .tokens = limit + 1 }) catch |err| switch (err) {
+        // Preserve the normal scanner's exact syntax coordinates. Its recursion
+        // is reached only after the independent depth/size guard has passed.
+        error.InvalidJson => {},
+        else => return self.invalidFieldCause(err, "configuration", "does not satisfy the JSON decoding bounds or UTF-8 encoding", null),
+    };
     var scanner = std.json.Scanner.initCompleteInput(allocator, bytes);
     defer scanner.deinit();
     var location: std.json.Scanner.Diagnostics = .{};

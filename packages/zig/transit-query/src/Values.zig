@@ -12,6 +12,17 @@ const d = q.document.JsonValues;
 const a = d;
 const Allocator = std.mem.Allocator;
 pub const maximum_json_bytes = q.protocol.max_body;
+/// A logical type level uses several JSON containers (field, descriptor and
+/// child collection). The wrapper budget admits all 16 logical levels while
+/// bounding recursive typed decoding before its first allocation.
+pub const json_limits: types.Json.Limits = .{ .bytes = maximum_json_bytes, .depth = 96, .tokens = maximum_json_bytes + 1 };
+pub fn preflight(bytes: []const u8) !void {
+    try types.Json.preflight(bytes, json_limits);
+}
+pub fn parse(comptime T: type, allocator: Allocator, bytes: []const u8) !std.json.Parsed(T) {
+    try preflight(bytes);
+    return std.json.parseFromSlice(T, allocator, bytes, .{});
+}
 pub const unsigned = d.unsigned;
 pub const unhex = d.unhex;
 pub const Column = struct {
@@ -330,6 +341,46 @@ test "neutral programs retain owned literals and exact bundle publication identi
     try t.expectError(error.TypeMismatch, apply(alloc, .{ .prepare = restored }));
     restored.plan.predicate = .{ .program = &.{ .{ .atom = .all }, .{ .atom = .{ .state = .{ .column = 2, .value = .null } } }, .disjunction } };
     try t.expectError(error.UnknownColumn, apply(alloc, .{ .prepare = restored }));
+}
+
+test "neutral JSON rejects recursive input before allocating and retains typed validation" {
+    const t = std.testing;
+    var no_memory = t.FailingAllocator.init(t.allocator, .{ .fail_index = 0 });
+    var bytes: [512]u8 = undefined;
+    var out: std.Io.Writer = .fixed(&bytes);
+    try out.writeAll("{\"unknown\":");
+    for (0..json_limits.depth) |_| try out.writeByte('[');
+    for (0..json_limits.depth) |_| try out.writeByte(']');
+    try out.writeByte('}');
+    try t.expectError(error.JsonDepthExceeded, parse(q.Workspace.Request, no_memory.allocator(), out.buffered()));
+    try t.expectError(error.InvalidUtf8, parse(q.Workspace.Request, no_memory.allocator(), "{\"compile\":{\"sql\":\"\xff\"}}"));
+    try t.expectError(error.OutOfMemory, parse(q.Workspace.Request, no_memory.allocator(), "{\"compile\":{\"sql\":\"SELECT * FROM items\"}}"));
+    try t.expectError(error.UnknownField, parse(q.Workspace.Request, t.allocator, "{\"compile\":{\"sql\":\"SELECT * FROM items\",\"extra\":[]}}"));
+    try t.expectError(error.DuplicateField, parse(q.Workspace.Request, t.allocator, "{\"compile\":{\"sql\":\"SELECT * FROM items\",\"sql\":\"SELECT 1\"}}"));
+    const oversized = try t.allocator.alloc(u8, maximum_json_bytes + 1);
+    defer t.allocator.free(oversized);
+    try t.expectError(error.JsonByteBudgetExceeded, parse(q.Workspace.Request, no_memory.allocator(), oversized));
+}
+
+test "neutral JSON admits full logical descriptor depth and owns recursive parse storage" {
+    const Run = struct {
+        fn run(allocator: Allocator) !void {
+            // Sixteen logical levels: row structure, fourteen array descriptors
+            // and the leaf. Each array has three JSON object wrappers.
+            var descriptors: [15]types.Type = undefined;
+            descriptors[0] = .int128;
+            for (1..descriptors.len) |i| descriptors[i] = .{ .array = .{ .element = .{ .type = &descriptors[i - 1] }, .length = 1 } };
+            const schema: types.Type = .{ .structure = &.{.{ .name = "nested", .type = descriptors[14] }} };
+            try schema.validate(.{});
+            const original = [_]Column{.{ .name = "record", .type = schema }};
+            const encoded = try std.json.Stringify.valueAlloc(allocator, original, .{});
+            defer allocator.free(encoded);
+            const decoded = try parse([]const Column, allocator, encoded);
+            defer decoded.deinit();
+            try std.testing.expect(try schema.eql(decoded.value[0].type));
+        }
+    };
+    try std.testing.checkAllAllocationFailures(std.testing.allocator, Run.run, .{});
 }
 
 test "neutral plans own schema and output names across every allocation failure" {

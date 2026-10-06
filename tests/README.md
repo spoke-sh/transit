@@ -15794,3 +15794,16 @@ mappings pass and 3179 projections across 34 surfaces pass
 (`query-memory-mappings2.log`, `query-memory-outcomes2.log`). General allocator
 failures are not relabeled as observed workspace exhaustion, and no required-byte
 measurement is invented.
+
+### Recursive query JSON admission
+
+Shared query JSON preflight admits all 16 logical descriptor levels inside the
+96-level JSON wrapper budget and rejects excessive nesting, invalid UTF-8 and
+over-bound input before allocating. Query package tests pass 114/114, including
+allocation-failure coverage for the deepest admitted descriptor and unchanged
+private catalog schedules (`query-json-bounds1.log` in the local Table-schema
+campaign). Native binding tests pass 18/18 (`bindings-json-bounds2.log`); a
+hostile submit-shaped envelope reports `not_submitted` with local evidence, and
+the same handle remains usable. The CLI diagnostic corpus passes 592 cases and
+console lifecycle tests pass 31/31 (`cli-json-bounds2.log`). These are local parser/codec checks; Board and native
+Flight transport qualification remains part of the wider cutover.

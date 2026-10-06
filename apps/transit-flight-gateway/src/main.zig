@@ -37,7 +37,7 @@ fn run(init: std.process.Init, diagnostics: *telemetry.Runtime) !void {
     if (args.len != 2) return error.ExpectedPrivateConfiguration;
     const bytes = try std.Io.Dir.cwd().readFileAlloc(init.io, args[1], init.gpa, .limited(16384));
     defer init.gpa.free(bytes);
-    const parsed = try std.json.parseFromSlice(Config, init.gpa, bytes, .{});
+    const parsed = try q.Values.parse(Config, init.gpa, bytes);
     defer parsed.deinit();
     const config = parsed.value;
     try config.options.validate();

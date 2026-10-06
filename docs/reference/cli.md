@@ -40,7 +40,9 @@ The installed server starts from defaults and overlays the first existing
 `./transit.yaml`, `~/transit.yaml` or `/etc/transit/transit.yaml`; `--config`
 selects exactly one file instead. `TRANSIT_` variables override typed properties,
 using `__` for nesting. No matching file means defaults; a bad selected file
-fails without fallback. Initialization remains explicit.
+fails without fallback. Configuration files are bounded to 64 KiB, 96 nested
+containers and 65,536 syntax nodes; logical schemas retain their own depth,
+node and name budgets. Initialization remains explicit.
 
 The console derives its connection from the local server topology and retained
 installation; no generated console configuration file is needed. Defaults use

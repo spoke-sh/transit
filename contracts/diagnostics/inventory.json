@@ -146,6 +146,7 @@
         "transit_board_api",
         "transit_client",
         "transit_http_server",
+        "transit_query",
         "transit_serving_http",
         "transit_station_app"
       ]
@@ -591,6 +592,7 @@
         "InvalidConfigurationPath": 1,
         "InvalidCredentialFile": 1,
         "InvalidInvocation": 6,
+        "InvalidJson": 1,
         "InvalidTimingCommand": 1,
         "IsDir": 1,
         "ManagementClientInUse": 1,
@@ -639,7 +641,7 @@
       "open_error_set_uses": 16,
       "propagation": {
         "try": 60,
-        "catch": 6
+        "catch": 7
       },
       "imports": [
         "EnvelopeDiagnostic.zig",
@@ -1408,7 +1410,8 @@
       "imports": [
         "Diagnostic.zig",
         "server/Files.zig",
-        "std"
+        "std",
+        "transit_query"
       ]
     },
     "apps/transit-cli/Show.zig": {
@@ -1462,7 +1465,7 @@
     },
     "apps/transit-cli/SqlInput.zig": {
       "errors": {
-        "InvalidQueryInput": 1,
+        "InvalidQueryInput": 2,
         "MissingPath": 1,
         "ParameterCountMismatch": 1,
         "QueryInputTooLarge": 2,
@@ -1480,7 +1483,7 @@
       "open_error_set_uses": 0,
       "propagation": {
         "try": 3,
-        "catch": 2
+        "catch": 3
       },
       "imports": [
         "Preferences.zig",
@@ -11977,12 +11980,14 @@
         "columns()": "<inferred>",
         "foreignColumns()": "<inferred>",
         "foreignPath()": "<inferred>",
+        "parse()": "<inferred>",
         "path()": "<inferred>",
+        "preflight()": "<inferred>",
         "rows()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 101,
+        "try": 103,
         "catch": 0
       },
       "imports": [

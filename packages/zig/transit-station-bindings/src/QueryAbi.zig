@@ -22,7 +22,7 @@ pub fn create(version: u32, url: [*]const u8, url_len: usize, seed: *const [32]u
     if (url_len == 0 or url_len > 2048 or config_len == 0 or config_len > 8192) return .invalid_argument;
     const uri = std.Uri.parse(url[0..url_len]) catch return .invalid_argument;
     if (!(std.mem.eql(u8, uri.scheme, "http") or std.mem.eql(u8, uri.scheme, "https")) or uri.host == null or uri.user != null or uri.password != null or uri.query != null or uri.fragment != null) return .invalid_argument;
-    const parsed = std.json.parseFromSlice(Config, allocator, config[0..config_len], .{}) catch |err| return base.status(err);
+    const parsed = q.Values.parse(Config, allocator, config[0..config_len]) catch |err| return base.status(err);
     defer parsed.deinit();
     const c = parsed.value;
     inline for (.{ "realm", "principal", "source", "resource", "requester", "requests" }) |field| q.UnifiedRecords.identity(@field(c.connection, field)) catch return .invalid_argument;
@@ -60,7 +60,7 @@ pub fn call(pointer: *Client, json: [*]const u8, len: usize, out: *?*base.Buffer
     var arena = std.heap.ArenaAllocator.init(allocator);
     defer arena.deinit();
     const alloc = arena.allocator();
-    const action = std.json.parseFromSlice(bridge.Action, alloc, json[0..len], .{}) catch |err| return invalidEnvelope(err, out);
+    const action = q.Values.parse(bridge.Action, alloc, json[0..len]) catch |err| return invalidEnvelope(err, out);
     // Local envelope validation happens before the dispatch boundary. Any
     // later unconfirmed transport/result failure retains the exact token.
     var identity: ?q.protocol.Diagnostic.Identity = null;
@@ -117,6 +117,22 @@ test "query caller handle needs no activation and preserves uncertainty after ex
     try t.expect(pointer == null);
     try t.expectEqual(.ok, create(1, endpoint.ptr, endpoint.len, &seed, config.ptr, config.len, &pointer));
     defer destroy(pointer);
+    // A hostile submit-shaped envelope is rejected before transport, with no
+    // uncertain-send classification. The same handle remains usable afterward.
+    var nested: [512]u8 = undefined;
+    var encoded: std.Io.Writer = .fixed(&nested);
+    try encoded.writeAll("{\"submit\":");
+    for (0..q.Values.json_limits.depth) |_| try encoded.writeByte('[');
+    for (0..q.Values.json_limits.depth) |_| try encoded.writeByte(']');
+    try encoded.writeByte('}');
+    var rejected: ?*base.Buffer = null;
+    try t.expectEqual(.invalid_argument, call(pointer.?, nested[0..].ptr, encoded.buffered().len, &rejected));
+    defer base.Api.station_buffer_destroy(rejected);
+    const envelope = try std.json.parseFromSlice(struct { err: []const u8, diagnostic: q.protocol.Diagnostic }, t.allocator, base.Api.station_buffer_data(rejected.?)[0..base.Api.station_buffer_size(rejected.?)], .{});
+    defer envelope.deinit();
+    try t.expectEqualStrings("JsonDepthExceeded", envelope.value.err);
+    try t.expectEqual(.not_submitted, envelope.value.diagnostic.outcome);
+    try t.expectEqual(.local_before_dispatch, envelope.value.diagnostic.evidence);
     const caps = "{\"capabilities\":{}}";
     var buffer: ?*base.Buffer = null;
     try t.expectEqual(.ok, call(pointer.?, caps.ptr, caps.len, &buffer));

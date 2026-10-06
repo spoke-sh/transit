@@ -126,13 +126,13 @@ pub const Result = union(enum) {
 };
 pub fn prepared(alloc: Allocator, bytes: []const u8) !q.UnifiedClient.Prepared {
     if (bytes.len == 0 or bytes.len > 8192) return error.InvalidQueryRequest;
-    const parsed = std.json.parseFromSlice(q.UnifiedClient.Prepared, alloc, bytes, .{}) catch |err| return if (err == error.OutOfMemory) err else error.InvalidQueryRequest;
+    const parsed = c.parse(q.UnifiedClient.Prepared, alloc, bytes) catch |err| return if (err == error.OutOfMemory) err else error.InvalidQueryRequest;
     if (!std.mem.eql(u8, bytes, try std.json.Stringify.valueAlloc(alloc, parsed.value, .{}))) return error.InvalidQueryRequest;
     return parsed.value;
 }
 fn cursor(alloc: Allocator, bytes: []const u8) !q.UnifiedResult.Cursor {
     if (bytes.len == 0 or bytes.len > 4096) return error.InvalidQueryCursor;
-    const parsed = std.json.parseFromSlice(q.UnifiedResult.Cursor, alloc, bytes, .{}) catch |err| return if (err == error.OutOfMemory) err else error.InvalidQueryCursor;
+    const parsed = c.parse(q.UnifiedResult.Cursor, alloc, bytes) catch |err| return if (err == error.OutOfMemory) err else error.InvalidQueryCursor;
     if (!std.mem.eql(u8, bytes, try std.json.Stringify.valueAlloc(alloc, parsed.value, .{}))) return error.InvalidQueryCursor;
     return parsed.value;
 }
