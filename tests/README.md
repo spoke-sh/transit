@@ -16488,3 +16488,52 @@ retain room for the application's rejected receipt; invalid reservations and an
 exhausted private turn restore the proposal. This is local transition evidence;
 the serving/work-items example migrations and native restart schedules remain
 separate, unfinished qualification.
+
+### Typed serving counter and reactive consumers
+
+The serving example uses the general catalog Table representation. Native
+bootstrap waits for authorized discovery of the published `counter` metadata;
+watch callers receive separate inspect/read policies, and finite query policy
+maps the authenticated requester to its configured catalog principal.
+Independent Python peers encode that discovered metadata, logical descriptors
+and FQP1 plans. They do not synthesize a metadata commitment or turn a source
+digest into authority.
+
+ReleaseSafe evidence on 2026-10-06:
+
+- `general-counter-unit2.log`: 3/3 local tests. Nineteen accepted calls exceed a
+  native page; discarded turns reproduce the same frozen deltas and original
+  replies. Overflow leaves row/progress unchanged, zero deltas retain exact
+  results, foreign origins reject, and an exhausted output budget restores all
+  tentative row/index/application writes. Peak test RSS is 13 MiB.
+- `general-serving-native4.log`: native signed service, original delivery/commit
+  retries, two-gateway retry, worker/node/disk recovery and current revocation
+  pass in 7.19 seconds. Fault delivery IDs are selected from the actual service
+  call/reply outbox entries, excluding bootstrap and counter self continuations.
+- `general-reactive-native1.log`: real nginx TLS, WebSocket/SSE, attachment
+  fencing, current denial and full native restart pass (8.72-second trace).
+- `general-reactive-limits1.log`: four sessions/held streams, reserved health and
+  renewal, malformed frames, signed cursors, twelve reconnects and an actually
+  published finite Table's expiry pass. Gateway RSS is 57,311,232 bytes under the
+  existing 256 MiB ceiling; health takes 4 ms. The full trace takes 51.76 seconds.
+- `general-reactive-client2.log`: private Zig caller preparation, exact lost
+  receipt recovery, committed controls, source-cut coverage and denial pass
+  (2.92-second trace).
+- `general-reactive-refresh3.log`: two views under one principal, one admitted
+  query, fair successor, lost follow receipt, worker replacement, full-width
+  identities, and current entry-read denial pass (46.04-second trace).
+- `general-reactive-views2.log`: actual Chromium Board/counter lifecycle,
+  shared-principal tabs, transport resume, pagehide/expiry, explicit resnapshot
+  after watch reset and retained source basis after retirement pass in 49.60
+  seconds.
+
+Earlier attempts caught an excessive fixture row quota, an incorrect CLI build
+artifact, old neutral-type/source-cut expectations and a digest-only query policy
+that correctly denied the new Table source. Those runs failed; the first browser
+build was cancelled before its corrected policy run. Physical placement runners
+are migrated but have not run at this checkpoint. Full clean-source CI and the
+coordinated contract definition replacement remain pending.
+
+The complete SQL suite also passes after the diagnostic additions and Table
+completion reservation (`general-table-sql-full3.log`, seven build steps). This
+retains the separately recorded independent grammar/AST/schema/plan counts.

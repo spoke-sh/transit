@@ -190,6 +190,16 @@ pub fn build(b: *std.Build) void {
     const adapter = b.dependency("transit_backend_ursula", .{ .target = target, .optimize = optimize });
     const tests = b.addTest(.{ .root_module = adapter.module("transit_backend_ursula") });
     const test_step = b.step("test", "Run Zig unit and protocol tests");
+    const counter_tests = b.addTest(.{ .root_module = b.createModule(.{
+        .root_source_file = b.path("examples/serving/counter_test.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{.{ .name = "transit_serving", .module = serving.module("transit_serving") }},
+    }) });
+    const counter_test = b.addRunArtifact(counter_tests);
+    test_step.dependOn(&counter_test.step);
+    b.step("test-serving-counter", "Check staged typed counter writes and original replies").dependOn(&counter_test.step);
+
     test_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = file_diagnostic_module })).step);
     const work_items_module = b.createModule(.{ .root_source_file = b.path("examples/work-items/WorkItems.zig"), .target = target, .optimize = optimize, .imports = &.{ .{ .name = "transit_station_app", .module = application.module("transit_station_app") }, .{ .name = "transit_query", .module = query.module("transit_query") } } });
     const work_items_test = b.addRunArtifact(b.addTest(.{ .root_module = work_items_module }));
@@ -764,7 +774,7 @@ pub fn build(b: *std.Build) void {
     b.step("test-server", "Qualify local server bootstrap, gateway and owned process recovery").dependOn(&server_test.step);
     const serving_test = b.addSystemCommand(&.{ "python3", "-B" });
     serving_test.addFileArg(b.path("tests/serving.py"));
-    for ([_]*std.Build.Step.Compile{ node_artifact, serving_example, query_host }) |artifact| serving_test.addArtifactArg(artifact);
+    for ([_]*std.Build.Step.Compile{ node_artifact, serving_example, query_host, query_shell }) |artifact| serving_test.addArtifactArg(artifact);
     if (b.option(bool, "serving-tls", "Qualify the real private nginx TLS termination template") orelse false) serving_test.addArg("--tls");
     if (b.option(bool, "serving-capacity", "Measure gateway RSS and control reserve with delayed authorized reads") orelse false) serving_test.addArg("--capacity");
     if (b.option(bool, "serving-lifetimes", "Qualify service cancellation, timer races and hard expiry") orelse false) serving_test.addArg("--lifetimes");

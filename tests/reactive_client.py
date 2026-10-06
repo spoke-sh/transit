@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 import struct
 import time
+from serving_table import watch as table_watch
 from reactive import reactive, SSE
 from serving import post, policy, submit
 
@@ -20,8 +21,7 @@ def run(env, tls):
         if expected == 200:
             trace.extend([dict(type='HostRequest', value=operation), dict(type='HostResponse', value=value)])
         return value
-    schema = hashlib.sha256(b'\1\1\2id\5count').digest()
-    cast(ingress, reactive(0, struct.pack('<QQQQIB', 0, 1, application, env['application_resource'], 1, 13) + b'data-progress' + schema + b'\1'))
+    cast(ingress, reactive(0, table_watch(env['counter_definition'], application)))
     now = int(time.time() * 1000)
     cast(ingress, reactive(1, struct.pack('<Q', now)), 34)
     drained(ingress)
@@ -65,9 +65,9 @@ def run(env, tls):
         request['cursor'] = first['cursor']
         result = client({'inspect': request})['inspection']
         assert result['response']['snapshot'] is None
-        assert result['observation']['basis']['resource'] == env['application_resource']
+        assert result['observation']['basis']['cut']['resource'] == env['application_resource']
         assert client({'covered': dict(observation=result['observation'], captured=result['observation']['basis'])}) == {'covered': True}
-        foreign = result['observation']['basis'] | dict(resource=1)
+        foreign = result['observation']['basis'] | dict(cut=result['observation']['basis']['cut'] | dict(resource=1))
         assert client({'covered': dict(observation=result['observation'], captured=foreign)}) == {'covered': False}
         client({'sign_read': request | dict(kind='snapshot', cursor=None)}, 403)
         client({'sign_read': request | dict(scope=scope | dict(principal=65537))}, 403)

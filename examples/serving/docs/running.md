@@ -21,8 +21,11 @@ its own processes, containers, namespace and temporary credentials.
 
 The examples provision an administrator, authenticated timer observer, two Station
 owners, a separately read-authorized gateway and an explicit service caller.
-They initialize the ingress privately, publish the Table application binding,
-then grant caller admission. The Table is a non-trading integer counter; there
+They initialize the ingress and application privately, create the counter Table,
+and wait for authorized catalog discovery before publishing its service binding
+and granting caller admission. Reactive callers receive separate catalog
+inspect/read policies. Bootstrap delivery runs before this readiness check; the
+physical recovery schedule stops delivery again before accepting its test call. The Table is a non-trading integer counter; there
 are no external effects or callback destinations.
 
 The fixtures configure a native admission ceiling of 50,000 positions with 2,000

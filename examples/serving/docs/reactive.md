@@ -1,15 +1,18 @@
-# Reactive serving v1 (M20)
+# Reactive serving v1
 
 Set `role.gateway.reactive` to `true` and set
 `role.gateway.options.request_timeout_ms` to `30000` for the finite streaming
 profile. `clock_error_ms` defaults to 1000 (maximum 10000); the host clock must
 actually satisfy that bound. A gateway conservatively stops disclosure at local
 wall time plus this error reaching the lease deadline. Transport restart does not
-renew a lease. Default M19 installations keep this capability disabled.
+renew a lease. The gateway keeps this capability disabled by default.
 
 Provision the gateway reader with inspect scope covering ingress and source plus
 explicit read/inspect grants on both resources. A watch publication identifies the
-exact target, Table resource/schema and data-progress key. The administrator
+exact target, realm/resource/catalog/object and immutable metadata commitment.
+Each caller also needs current catalog inspect/read rights. The observation
+tracks the Table head at an authorized native resource cut; a reservation can
+notify possible change before the successor rows are published. The administrator
 publishes it through `Model.Command.reactive.publish`; the configured observer
 records time; the caller opens a finite session and subscribes. Each is an ordinary
 signed native command with a separately observable commit/disposition. Four live
@@ -18,7 +21,7 @@ sessions/service, two/caller and one subscription/session bound aggregate work.
 `POST /reactive/v1/read` accepts a signed session, snapshot or event observation.
 Snapshot row keys and values are decimal strings. Its first eight rows and `more`
 flag are an initial page, with exact finite-query source basis and a signed watch
-cursor. Use M18's finite query reader for larger results. An invalidation is
+cursor. Use the finite query reader for larger results. An invalidation is
 coalesced through its named data watermark; it is not a continuous query answer.
 
 For fetch SSE, obtain a single-use challenge with a signed session read at

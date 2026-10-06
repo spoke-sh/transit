@@ -1,7 +1,7 @@
 # Counter live view
 
 Strict TypeScript/Vite+ application example using `@rey/transit-reactive-client`.
-It displays the M20 int64 Table snapshot with its actual resource/data basis;
+It displays the int64 Table snapshot with its actual resource/data basis;
 values remain decimal strings. The bounded first page explicitly reports when
 more rows exist. This application owns counter presentation; Board has no
 counter decoder.

@@ -130,6 +130,7 @@ reference deployment and physical-capacity tests remain explicit commands.
 | `just ci::complete`, `just ci-clean --complete` | Includes installed Chromium in ordinary local or clean-checkout qualification |
 | `nix develop .#bindings -c just bindings::sdk-interop` | Builds public SDK/example artifacts, installs external consumers and qualifies ten different-language counter/query pairs; writes a local timing record |
 | `just test::packages` | Runs each library’s standalone test suite for focused package work |
+| `just test::serving-counter` | Typed counter queue, frozen deltas, lost turns, overflow and output-budget rollback |
 | `just test::serving`, `just test::serving-tls`, `just test::serving-capacity` | Signed application admission/recovery, actual nginx termination and bounded concurrent gateway reads; focused M19 proofs |
 | `just test::packages-build` | Compiles those test suites through each package’s own manifest; CI executes shared tests once through root unit checks |
 | `just test::fuze-types`, `just test::fuze-sources` | Independent logical type and CSV/JSONL fixtures, exact codecs, frozen discovery, budgets, allocation and denial/cancellation checks |

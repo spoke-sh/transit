@@ -8,6 +8,7 @@ from pathlib import Path
 import socket
 import struct
 import time
+from serving_table import watch as table_watch
 
 import serving
 from serving import compact, frame, native_command, native_query, post, submit
@@ -163,9 +164,7 @@ def run_trace(env, tls):
     host = env['public_host']
     principal = 65536
     key = keys[principal]
-    schema = hashlib.sha256(b'\1\1\2id\5count').digest()
-    source = struct.pack('<QQQQIB', 0, 1, application, env['application_resource'], 1, 13) + b'data-progress' + schema + b'\1'
-    cast(ingress, reactive(0, source))
+    cast(ingress, reactive(0, table_watch(env['counter_definition'], application)))
     now = int(time.time() * 1000)
     cast(ingress, reactive(1, struct.pack('<Q', now)), 34)
     generation = cast(ingress, reactive(2, struct.pack('<QQQ', 7, 1, now + 28000)), principal)
@@ -323,7 +322,7 @@ def adversarial(env, tls, scope, bootstrap, attachment, cursor, command, origina
         config['generation'] = 3
     env['start']('reactive-ingress-recovered', env['example'], env['ingress_config'])
     env['start']('reactive-application-recovered', env['example'], env['application_config'])
-    env['start']('reactive-courier-recovered', env['courier'], env['courier_config'])
+    env['courier_worker'] = env['start']('reactive-courier-recovered', env['courier'], env['courier_config'])
     for index, gateway_port in enumerate(env['gateway_ports']):
         env['gateway_config']['role']['gateway']['port'] = gateway_port
         env['gateways'][index] = env['start'](f'reactive-gateway-recovered-{index}', env['example'], env['gateway_config'])

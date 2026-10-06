@@ -6,6 +6,7 @@ from pathlib import Path
 import struct
 import subprocess
 import time
+from serving_table import watch as table_watch, query_policy, source_value
 from reactive import reactive
 from serving import policy, post, signed_read, submit
 
@@ -17,12 +18,8 @@ def run(env, tls):
     ingress, application = env['ingress'], env['application']
     requests, resource = env['ingress_resource'], env['application_resource']
     keys = env['keys']
-    schema = hashlib.sha256(b'\1\1\2id\5count').digest()
-    cast(ingress, reactive(0, struct.pack('<QQQQIB', 0, 1, application, resource, 1, 13) + b'data-progress' + schema + b'\1'))
-    table = b'TBL1\1\2id\5count'
-    source = b'UQS1' + struct.pack('<QBI', resource, 2, 1) + bytes([len(table)]) + table
-    declaration = hashlib.sha256(b'transit.query.source.v1\0' + source).digest()
-    cast(application, b'UQA1' + bytes.fromhex(json.loads((Path(__file__).resolve().parents[1] / 'contracts/transit-v1.schema.json').read_text())['x-transit']['definition']) + struct.pack('<QQQ', ingress, requests, 1) + b'\1' + declaration + b'\1' + struct.pack('<QQQ', 64, 64, 1048576))
+    cast(ingress, reactive(0, table_watch(env['counter_definition'], application)))
+    cast(application, query_policy(env['counter_definition'], application, ingress, requests, 65536, struct.pack('<QQQ', 64, 64, 1048576)))
     cast(ingress, policy(33))
     drained(application); drained(ingress)
     env['grant'](33, 20, ingress)
@@ -83,7 +80,7 @@ def run(env, tls):
         viewer=dict(principal=65536, seed_file=str(keys[65536].seed), refresh=True))
     board_config = dict(upstream=env['worker_url'], realm=49, principal=79, seed_file=str(keys[79].seed), profile='native_v1', public_origin=gateway['public_origin'], port=gateway['port'], request_timeout_ms=5000, upstream_timeout_ms=3500,
         query=dict(seed_file=str(keys[65536].seed), connection=dict(realm=49, principal=65536, source=application, resource=resource, requester=ingress, requests=requests),
-            workspace=dict(name='counter', source=dict(resource=resource, source={'table': dict(id=1, names=['id', 'count'], value_type='int64')}), limits=dict(pages='64', segments='64', result_bytes='1048576'))),
+            workspace=dict(name='counter', source=source_value(env['counter_definition'], application), limits=dict(pages='64', segments='64', result_bytes='1048576'))),
         reactive=dict(principal=79, seed_file=str(keys[79].seed), gateway=gateway))
     board = env['start']('board-live', env['board'], board_config)
     pins = []
@@ -130,7 +127,7 @@ def run(env, tls):
                         assert time.monotonic() < until_closed, 'closed tab retained a live session'
                         time.sleep(.25)
                 elif stage == 'reset':
-                    cast(ingress, reactive(0, struct.pack('<QQQQIB', 1, 2, application, resource, 1, 13) + b'data-progress' + schema + b'\1'))
+                    cast(ingress, reactive(0, table_watch(env['counter_definition'], application, expected=1, revision=2)))
                 elif stage == 'retire':
                     env['send']({'terminate': application})
                     env['send']({'retire_resource': resource})

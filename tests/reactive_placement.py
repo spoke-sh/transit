@@ -2,6 +2,7 @@
 import hashlib
 import struct
 import time
+from serving_table import watch as table_watch
 
 import serving
 from serving import frame, native_command, post
@@ -47,8 +48,7 @@ class PhysicalReactive:
 
     def begin(self):
         self.endpoints()
-        schema = hashlib.sha256(b'\1\1\2id\5count').digest()
-        source = struct.pack('<QQQQIB', 0, 1, self.env['application'], self.env['application_resource'], 1, 13) + b'data-progress' + schema + b'\1'
+        source = table_watch(self.env['counter_definition'], self.env['application'])
         self.command(reactive(0, source), 33)
         self.open(7)
         self.peer = WebSocket(self.port, self.host, self.tls)

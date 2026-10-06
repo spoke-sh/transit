@@ -1,6 +1,6 @@
 # Live consumer placement
 
-The M21 composition uses the real embedded Board and counter application,
+The live composition uses the real embedded Board and counter application,
 `transit-serving-http`, one durable live requester, and a separate Table source.
 Browser code is identical in native, Compose and reference placements. The
 [reactive guide](reactive.md) owns the underlying transport/lease contract.
@@ -19,7 +19,10 @@ the already prepared pinned infrastructure/runtime image and creates a separate
 namespace. It does not update the default launcher installation. The browser
 trusts only its fixture TLS certificates. Board uses an inspection principal
 separate from the query/watch caller; the counter gets a separate scoped caller
-permitted to render its bounded application snapshot. Root credentials remain
+permitted to render its bounded application snapshot. Both receive explicit
+catalog inspect/read policies, independently of native resource grants. The
+configured source carries the discovered immutable metadata and logical row
+descriptor. Root credentials remain
 with the fixture operator and are never mounted in the gateways or workers.
 
 Compose runs static Zig binaries in the existing private client/storage networks.

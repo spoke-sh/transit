@@ -4,7 +4,7 @@ An actual signed HTTP gateway, Station ingress and separate
 non-trading Table counter application. The [serving contract](../../contracts/SERVING_V1.md)
 owns admission, provenance and recovery. The gateway exposes command admission,
 current bounded discovery/status/result reads and a health route through the
-shared HTTP listener. The opt-in M20 reactive profile adds SSE/WebSocket;
+shared HTTP listener. The optional reactive profile adds SSE/WebSocket;
 [reactive usage](docs/reactive.md) records its current qualification.
 
 The executable takes a bounded JSON configuration with authority `url`, `realm`,
@@ -12,7 +12,8 @@ non-root `principal`, a private `seed_file` and a `role`. Ingress/application
 workers additionally require exact `pid`, `generation` and a preserved
 `activation_directory`. Restart requires fresh fenced ownership. The ingress
 role contains service/administrator/observer identities; the application role
-contains its trusted ingress PID and initializer principal. The gateway role
+contains its trusted ingress PID, initializer principal and explicit `table_limits`
+(`record_bytes`, `staging_bytes`, `staging_records`). The gateway role
 contains service/ingress/resource identities, port, exact public host/HTTPS origin,
 and up to 32 explicitly provisioned caller public keys. Private seeds are files,
 never command arguments. Public registration bootstrap is available only for
@@ -29,16 +30,35 @@ four data handlers, two per caller and two reserved health handlers are separate
 service quota. The owning resource retains terminal operations with no implicit
 expiry. Read diagnostics contain finite error categories, not request data.
 
-The application stores one typed Table of `(id, count)` and records data progress
-in the same turn as each update. It accepts only the configured ingress's process
-origin. Payload codec 1 is an i64 row ID followed by an i64 delta, little-endian;
-the exact result is the resulting i64. Socket retries never invoke the application
-directly. Query/read bookkeeping cannot alter its data progress marker.
+The application owns a catalog Table named `counter` with an `INT64` primary
+key `id` and nullable `INT64 count`. The initializer first sends an empty cast,
+then `create-counter`; the owner completes schema publication through authenticated
+self continuations. Authorized catalog lookup returning the definition is the
+readiness gate before publishing the service binding. The supplied runners admit
+4 KiB records and at most eight staged records totaling 32 KiB. These staging
+quotas do not cap durable row or operation cardinality.
 
-M21's optional `live_ingress` role adds `query_principal` and `source` alongside
+Each accepted call is saved in paged state with its original ingress and reply
+correlation. The owner freezes the selected row identity and computed increment,
+then stages the typed row without exposing a partial update. The final turn
+publishes the Table head, exact mutation receipt, application progress and reply
+together within the native four-write budget. Lost turns reuse the frozen delta.
+Only the configured ingress's process origin can enqueue a counter call; only
+the owner's process origin can drive its pending queue.
+
+Payload codec 1 is an i64 row ID followed by an i64 delta, little-endian; the exact
+result is the resulting i64. Overflow replies `CounterOverflow` without changing
+the row or progress. Socket retries never invoke the application directly.
+Query/read bookkeeping cannot alter data progress. Reactive watches observe the
+Table head; a head reservation can notify possible change before row publication.
+
+The optional `live_ingress` role adds `query_principal` and `source` alongside
 the nested `service` configuration. It composes sessions and the v1 requester
 in one resource. Application `queries: true` enables existing v1 capture and
-initializer-only `UQA1` policy publication. Cross-resource read grants must be
+initializer-only `UQA1` query policy publication. Initializer-only catalog policy
+controls grant explicit inspect/read rights to each query or watch caller; the
+gateway identity does not substitute for those rights. The application retains
+ownership of its schema and counter writes. Cross-resource read grants must be
 provisioned for both workers and the query caller. PID-scoped workers also need
 optional foreign-resource associations established
 before first activation; associations never replace those grants. The
@@ -47,7 +67,8 @@ before first activation; associations never replace those grants. The
 remains disabled by default.
 
 Build with `nix develop --command zig build serving-example -Doptimize=ReleaseSafe`.
-Run `nix develop --command just test::serving` for the independent Python/OpenSSL
+Run `nix develop --command just test::serving-counter` for queue, overflow and
+lost-turn checks. Run `nix develop --command just test::serving` for the independent Python/OpenSSL
 caller proof with owned disk Ursula, real workers and two gateway instances. It
 provisions its own keys/rights and leaves existing launcher deployments alone.
 `just test::serving-lifetimes` adds real cancel/timeout ordering and finite
@@ -55,7 +76,8 @@ process/resource expiry. Clock uncertainty returns temporary unavailability unti
 the authority can establish expiry; it is not a fabricated terminal outcome.
 `just test::serving-growth` retains 128 additional operations beyond the resident
 page budget. The [compatibility matrix](../../packages/zig/transit-serving/docs/compatibility.md)
-records qualification per consumer and placement. M20 adds independent TLS/Chromium and physical reactive recovery rows.
+records qualification per consumer and placement, including independent
+TLS/Chromium and physical reactive recovery rows.
 
 Run `just test::reactive-browser` for the minimal Chromium protocol harness,
 `just test::reactive-limits` for bounded controls and expiry, or

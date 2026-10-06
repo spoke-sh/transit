@@ -346,7 +346,11 @@ unified-counts *args="-Doptimize=ReleaseSafe":
 serving-http:
     zig build test-serving-http -Doptimize=ReleaseSafe
 
-# Signed HTTP gateway/Station admission, isolated disk restart and current reads.
+# Typed counter queue, frozen deltas, overflow and private-turn rollback.
+serving-counter:
+    zig build test-serving-counter -Doptimize=ReleaseSafe
+
+# Signed HTTP admission and application recovery over disk authority.
 serving:
     zig build test-serving -Doptimize=ReleaseSafe
 

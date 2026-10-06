@@ -15,6 +15,7 @@ import threading
 import time
 
 from storage import Fixture, free_port, wait_ready
+from serving_table import TABLE_LIMITS, bootstrap as bootstrap_counter
 
 REALM = 49
 TLS = {}
@@ -92,12 +93,12 @@ def post(port, path, value, host=None, status=200, headers=None):
         connection.close()
 
 
-def run(node, example, courier, tls=False, capacity=False, lifetimes=False, growth=False, reactive=False, reactive_browser=False, reactive_limits=False, reactive_client=False, reactive_refresh=False, reactive_views=False, reactive_views_lifecycle=False, board=None):
+def run(node, example, courier, cli, tls=False, capacity=False, lifetimes=False, growth=False, reactive=False, reactive_browser=False, reactive_limits=False, reactive_client=False, reactive_refresh=False, reactive_views=False, reactive_views_lifecycle=False, board=None):
     reactive_views = reactive_views or reactive_views_lifecycle
     if (reactive_browser or reactive_limits or reactive_client or reactive_refresh or reactive_views) and not (reactive and tls):
         raise ValueError("reactive browser/limits proofs require --reactive --tls")
     live_profile = reactive_refresh or reactive_views
-    node, example, courier = [str(Path(path).resolve()) for path in (node, example, courier)]
+    node, example, courier, cli = [str(Path(path).resolve()) for path in (node, example, courier, cli)]
     started = time.monotonic()
     with Fixture() as store, ExitStack() as owned:
         keys = {p: Key(store.root, f'key-{p}', seed) for p, seed in ((0, 7), (33, 8), (34, 9), (65536, 10), (65537, 11), (77, 12), (78, 13), (79, 14), (80, 15))}
@@ -165,7 +166,7 @@ def run(node, example, courier, tls=False, capacity=False, lifetimes=False, grow
 
         fault = {'armed': False, 'lost': None, 'retried': False, 'stall_reads': False, 'blocked': 0,
                  'ingress_commit': None, 'application_commit': None, 'destination_delivery': None,
-                 'reply_delivery': None, 'commit_retries': set()}
+                 'reply_delivery': None, 'deliveries_armed': False, 'delivery_ids': {}, 'commit_retries': set()}
         fault_lock = threading.Lock()
         release_reads = threading.Event()
 
@@ -185,15 +186,23 @@ def run(node, example, courier, tls=False, capacity=False, lifetimes=False, grow
                     response = connection.getresponse()
                     result = response.read()
                     message = json.loads(body)
+                    if fault['deliveries_armed'] and self.path == '/v1/query' and response.status == 200 and message['query']['principal'] == 80 and 'outputs' in message['query']['kind']:
+                        for entry in json.loads(result)['body']['outputs']['entries']:
+                            if entry is None: continue
+                            value = bytes.fromhex(entry['value'])
+                            candidate = ('destination_delivery' if entry['destination'] == application and value[:5] == b'STN1\x02' and value[13:17] == b'SV1i'
+                                         else 'reply_delivery' if entry['source'] == application and entry['destination'] == ingress and value[:5] == b'STN1\x03' else None)
+                            if candidate and candidate not in fault['delivery_ids']:
+                                fault['delivery_ids'][candidate] = entry['id']
                     if self.path == '/v1/command' and response.status == 200:
                         request = message['request']
                         turn = request['command'].get('turn', request['command'].get('turn_with_versions', {}).get('turn', {}))
                         admission = request['principal'] == 77 and any(mutation and bytes.fromhex(mutation['key']).startswith(b'\x00sv1o') for mutation in turn.get('mutations', []))
                         application_reply = request['principal'] == 78 and any(output and bytes.fromhex(output['value'])[:5] == b'STN1\x03' for output in turn.get('outputs', []))
                         stage = 'ingress_commit' if admission else 'application_commit' if application_reply else None
-                        if request['principal'] == 80 and 'deliver' in request['command']:
+                        if fault['deliveries_armed'] and request['principal'] == 80 and 'deliver' in request['command']:
                             for candidate in ('destination_delivery', 'reply_delivery'):
-                                if fault[candidate] is None or body == fault[candidate][0]:
+                                if request['command']['deliver'] == fault['delivery_ids'].get(candidate):
                                     stage = candidate
                                     break
                         if stage:
@@ -240,10 +249,11 @@ def run(node, example, courier, tls=False, capacity=False, lifetimes=False, grow
             grant(79, 16, None if reactive else ingress)
             resource_grant(ingress_resource, 79, 3)
             if reactive: resource_grant(application_resource, 79, 3)
+            resource_grant(application_resource, 33, 3)
             grant(80, 148)
             worker_url = f'http://127.0.0.1:{proxy.server_port}'
             ingress_config = dict(url=worker_url, realm=REALM, principal=77, seed_file=str(keys[77].seed), pid=ingress, generation=2, activation_directory=str(store.root), role={'ingress': dict(service=1, administrator=33, observer=34)})
-            application_config = dict(url=worker_url, realm=REALM, principal=78, seed_file=str(keys[78].seed), pid=application, generation=2, activation_directory=str(store.root), role={'application': dict(ingress=ingress, initializer=33)})
+            application_config = dict(url=worker_url, realm=REALM, principal=78, seed_file=str(keys[78].seed), pid=application, generation=2, activation_directory=str(store.root), role={'application': dict(ingress=ingress, initializer=33, table_limits=TABLE_LIMITS)})
             if live_profile:
                 ingress_config['generation'] = application_config['generation'] = 3
                 ingress_config['role'] = {'live_ingress': dict(service=dict(service=1, administrator=33, observer=34), query_principal=65536, source=application)}
@@ -256,6 +266,10 @@ def run(node, example, courier, tls=False, capacity=False, lifetimes=False, grow
             cast(application, b'')
             drained(ingress)
             drained(application)
+            courier_config = dict(url=worker_url, realm=REALM, principal=80, seed_file=str(keys[80].seed), role={'courier': dict(destinations=[ingress, application])})
+            courier_worker = start('courier', courier, courier_config)
+            counter_definition = bootstrap_counter(cli, store.root, url, REALM, application, application_resource, keys[33], cast, drained, query, sequences, readers=(65536, 65537) if reactive else ())
+            fault['deliveries_armed'] = True
             deadline_ms = int(time.time() * 1000) + (1800000 if growth else 600000)
             cast(ingress, publication(1, application, deadline_ms))
             for principal in (65536, 65537): cast(ingress, policy(principal))
@@ -265,8 +279,6 @@ def run(node, example, courier, tls=False, capacity=False, lifetimes=False, grow
             if live_profile:
                 resource_grant(application_resource, 65536, 3)
                 resource_grant(ingress_resource, 65536, 3)
-            courier_config = dict(url=worker_url, realm=REALM, principal=80, seed_file=str(keys[80].seed), role={'courier': dict(destinations=[ingress, application])})
-            courier_worker = start('courier', courier, courier_config)
             gateway_ports = [free_port(), free_port()]
             public_host = 'serving.example.test'
             tls_proxies = []
@@ -627,7 +639,7 @@ def run(node, example, courier, tls=False, capacity=False, lifetimes=False, grow
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    for name in ('node', 'example', 'courier'):
+    for name in ('node', 'example', 'courier', 'cli'):
         parser.add_argument(name)
     parser.add_argument('--tls', action='store_true')
     parser.add_argument('--capacity', action='store_true')
