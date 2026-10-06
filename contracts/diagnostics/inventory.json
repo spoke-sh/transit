@@ -6053,6 +6053,7 @@
         "foreignAtom()": "<inferred>",
         "foreignCell()": "anyerror",
         "foreignValue()": "anyerror",
+        "fromForeign()": "<inferred>",
         "hex()": "<inferred>",
         "nativeAtom()": "<inferred>",
         "nativeCell()": "anyerror",
@@ -6063,7 +6064,7 @@
       },
       "open_error_set_uses": 4,
       "propagation": {
-        "try": 87,
+        "try": 88,
         "catch": 3
       },
       "imports": [
@@ -7534,6 +7535,39 @@
         "std"
       ]
     },
+    "packages/zig/transit-fuze/src/TableSchemaJson.zig": {
+      "errors": {
+        "IncompatibleDefinition": 1,
+        "InvalidColumnCount": 1,
+        "InvalidIntegerEncoding": 3,
+        "InvalidPrimaryKey": 1,
+        "JsonByteBudgetExceeded": 1,
+        "OutOfMemory": 1,
+        "WriteFailed": 1
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "decimal()": "<inferred>",
+        "decode()": "<inferred>",
+        "encode()": "<inferred>",
+        "foreign()": "<inferred>",
+        "native()": "<inferred>",
+        "unsigned()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 22,
+        "catch": 2
+      },
+      "imports": [
+        "LogicalJson.zig",
+        "TableSchema.zig",
+        "Types.zig",
+        "std",
+        "transit_protocol"
+      ]
+    },
     "packages/zig/transit-fuze/src/TableSelect.zig": {
       "errors": {
         "InvalidProjection": 1,
@@ -8253,7 +8287,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 8,
+        "try": 10,
         "catch": 0
       },
       "imports": [
@@ -8342,6 +8376,7 @@
         "TableMutation.zig",
         "TableRow.zig",
         "TableSchema.zig",
+        "TableSchemaJson.zig",
         "TableSelect.zig",
         "TableWitness.zig",
         "Types.zig",

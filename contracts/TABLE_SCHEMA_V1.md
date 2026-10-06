@@ -46,6 +46,31 @@ truncation, trailing bytes, invalid identities/types/defaults/keys and exceeded
 budgets. No fallback interpretation or default definition is permitted.
 SHA-256 over the complete envelope is the schema fingerprint.
 
+## Neutral schema value
+
+`TableSchemaJson.Schema` is the language-neutral schema projection. Its reflected
+[JSON Schema](../packages/zig/transit-fuze/api/logical-table-schema.schema.json)
+requires the current shared Transit `definition`, decimal-string `object`,
+`revision` and `next_column`, an ordered `columns` array and an ordered
+`primary_key` array of decimal-string column IDs. Integer identity strings are
+canonical unsigned u64 values: no signs, leading zeroes or precision loss.
+
+Each column has `id`, `name`, a shared logical `type`, `nullable`, `default` and
+`max_characters`. All fields are present. JSON null for `default` means no default;
+a logical cell containing SQL NULL remains an explicit default. Logical defaults
+use the shared neutral cell representation: exact integer/decimal strings,
+floating-point bits, binary hex and recursive typed constructors. A schema never
+turns rich values into an untyped string.
+
+The standalone JSON decoder accepts at most 2 MiB of input before applying the
+same 128-column, 64 KiB encoded-schema and complete descriptor/default constraints.
+Structural schema validation is separate from those semantic checks. Missing or
+foreign definitions, wrong JSON shapes, invalid canonical identities and invalid
+keys/defaults reject. `native` and `foreign` take an enclosing arena and copy all
+borrowed descriptor/default/name storage; their results survive destruction of
+the input owner. `decode` returns an independently owned native schema.
+These conversions perform no catalog lookup or execution and confer no rights.
+
 ## Physical rows and keys
 
 `TableRow` defines pure row/value envelopes, independently of publication and

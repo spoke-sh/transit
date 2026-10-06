@@ -29,6 +29,7 @@ pub const SqlTypes = @import("SqlTypes.zig");
 pub const SqlTyped = @import("SqlTyped.zig");
 pub const TableDdl = @import("TableDdl.zig");
 pub const TableDml = @import("TableDml.zig");
+pub const TableSchemaJson = @import("TableSchemaJson.zig");
 pub const TableSelect = @import("TableSelect.zig");
 pub const TableDmlCodec = @import("TableDmlCodec.zig");
 pub const Declaration = @import("Declaration.zig");
@@ -41,6 +42,7 @@ test {
     _ = SqlTypes;
     _ = TableDdl;
     _ = TableDml;
+    _ = TableSchemaJson;
     _ = TableSelect;
     _ = @import("table_dml_codec_test.zig");
     _ = SqlInput;

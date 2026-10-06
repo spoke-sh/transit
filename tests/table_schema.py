@@ -107,8 +107,17 @@ def fixtures():
     for name, assignments in samples:
         expected, error = evaluate(assignments)
         cases.append(dict(name=name, assignments=assignments, expected=expected, error=error))
+    native_definition = json.loads((ROOT / 'contracts/transit-v1.schema.json').read_text())['x-transit']['definition']
+    neutral = dict(definition=native_definition, object='7', revision='2', next_column='50', columns=[
+        dict(id='11', name='id', type={'int32': {}}, nullable=False, default=None, max_characters=None),
+        dict(id='27', name='name', type={'utf8': {}}, nullable=True, default=None, max_characters=3),
+        dict(id='39', name='active', type={'boolean': {}}, nullable=False,
+             default={'value': {'atom': {'boolean': True}}}, max_characters=None),
+        dict(id='40', name='amount', type={'decimal': {'precision': 18, 'scale': 2}}, nullable=True,
+             default=None, max_characters=None),
+    ], primary_key=['11'])
     return dict(definition=DEFINITION.decode(), oracle='Python values/Unicode scalar length/struct',
-                schema_hex=encoded.hex(), fingerprint=hashlib.sha256(encoded).hexdigest(), cases=cases,
+                schema_hex=encoded.hex(), schema_json=json.dumps(neutral, separators=(',', ':')), fingerprint=hashlib.sha256(encoded).hexdigest(), cases=cases,
                 row_hex=row_bytes.hex(), layout=layout.hex(), key_hex=key_bytes.hex(), dml_hex=dml_bytes.hex(),
                 key_digest=hashlib.sha256(key_bytes).hexdigest())
 
@@ -123,6 +132,20 @@ def main():
         FIXTURE.write_text(text)
     elif FIXTURE.read_text() != text:
         raise SystemExit('Table schema oracle drift; deliberately regenerate with --write')
+    if not args.write:
+        from jsonschema import Draft202012Validator
+        schema = json.loads((ROOT / 'packages/zig/transit-fuze/api/logical-table-schema.schema.json').read_text())
+        Draft202012Validator.check_schema(schema)
+        validator = Draft202012Validator(schema)
+        neutral = json.loads(result['schema_json'])
+        validator.validate(neutral)
+        for key, replacement in [('definition', 'foreign'), ('object', 7), ('columns', {}), ('primary_key', [11])]:
+            changed = dict(neutral, **{key: replacement})
+            assert list(validator.iter_errors(changed)), (key, replacement)
+        for key in neutral:
+            changed = dict(neutral)
+            del changed[key]
+            assert list(validator.iter_errors(changed)), key
     print(f'Table schema: independent bytes and {len(result["cases"])} row cases checked')
 
 

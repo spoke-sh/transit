@@ -6,7 +6,7 @@ import sys
 root = Path(__file__).resolve().parent / 'api'
 schemas = json.load(sys.stdin)
 for name, schema in schemas.items():
-    assert name in ('type', 'value')
+    assert name in ('type', 'value', 'table-schema')
     schema = {'$schema': 'https://json-schema.org/draft/2020-12/schema', **schema}
     data = json.dumps(schema, indent=2) + '\n'
     path = root / f'logical-{name}.schema.json'

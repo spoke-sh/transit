@@ -11206,6 +11206,30 @@ for missing values, source errors or conflicts. This corrects the new Table
 parser's missing VALUE case and its inconsistent ERROR spelling; it does not add
 an error-state storage profile.
 
+The neutral Table schema checkpoint passes **224/224 Fuze tests**
+(`table-schema-json3.log`). The independent Python fixture fixes both neutral JSON
+and FTS1 for the same schema; the reflected JSON Schema validates it and rejects
+foreign/missing definitions and wrong identity/container shapes
+(`table-schema-json-oracle1.log`). Full-width identities, UINT128, exact decimal,
+floating signed zero, recursive descriptors/defaults and ownership after source
+destruction round-trip unchanged. The allocator schedule releases every partial
+conversion. A legal 60,000-element nullable array default exceeds the ordinary
+logical JSON envelope size but fits this schema's 2 MiB wire bound; its canonical
+schema remains below 64 KiB. Oversized input rejects before allocation. The
+focused suite reports 78 MiB maximum RSS including that large JSON case; this is
+process-level test evidence, not an isolated transport memory measurement.
+
+Initial development runs caught the neutral parser's `InvalidJsonShape` rejection
+rather than a raw enum error, allocation failure escaping as `WriteFailed`, and
+an uninstantiated optional/array reflection branch. The corrected encoder reports
+OutOfMemory for its allocating writer; reflection separates those Zig metadata
+variants. Generated resources and failed logs remain in the same campaign. The
+codec does not by itself enable the general Table ABI, port or SDK callers.
+Full pinned `just check` passes on this checkpoint (`table-schema-json-check1.log`),
+including generated logical resources, the independent schema oracle, native and
+CLI cases, frontend validation and the documentation build. This is not the
+pending committed-HEAD clean-CI gate.
+
 ## Fuze logical type foundation
 
 The local `Types` profile has nine passing focused Zig tests, including 46

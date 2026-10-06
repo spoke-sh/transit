@@ -15,7 +15,8 @@ const Graph = struct {
             .@"struct" => |info| for (info.field_types) |F| self.add(F),
             .@"union" => |info| for (info.field_types) |F| self.add(F),
             .pointer => |info| if (info.size == .one or info.child != u8) self.add(info.child),
-            .optional, .array => |info| self.add(info.child),
+            .optional => |info| self.add(info.child),
+            .array => |info| self.add(info.child),
             else => {},
         }
     }

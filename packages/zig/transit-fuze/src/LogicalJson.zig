@@ -55,11 +55,18 @@ pub fn decode(allocator: std.mem.Allocator, bytes: []const u8) !Decoded {
     errdefer arena.deinit();
     const wire = try std.json.parseFromSliceLeaky(Envelope, arena.allocator(), bytes, .{ .allocate = .alloc_always, .max_value_len = max_input_bytes });
     if (!std.mem.eql(u8, wire.definition, types.definition)) return error.IncompatibleDefinition;
-    try wire.field.type.validate(.{});
-    var budget: Budget = .{};
-    const cell = try nativeCell(arena.allocator(), wire.cell, wire.field.type, 0, &budget);
-    try cell.validate(wire.field, .{});
+    const cell = try fromForeign(arena.allocator(), wire.cell, wire.field);
     return .{ .arena = arena, .field = wire.field, .cell = cell };
+}
+/// Shared admission for neutral values embedded in a larger typed contract.
+/// Allocate through the caller's arena; text/JSON borrow the neutral input.
+/// Transport byte limits remain separate from logical depth/child/value bounds.
+pub fn fromForeign(allocator: std.mem.Allocator, cell: Cell, field: types.Field) !values.Cell {
+    try field.type.validate(.{});
+    var budget: Budget = .{};
+    const result = try nativeCell(allocator, cell, field.type, 0, &budget);
+    try result.validate(field, .{});
+    return result;
 }
 pub fn decodeType(allocator: std.mem.Allocator, bytes: []const u8) !types.Decoded {
     return decodeTypeDiagnostic(allocator, bytes, null);
@@ -107,7 +114,7 @@ fn hex(allocator: std.mem.Allocator, bytes: []const u8) ![]const u8 {
     return result;
 }
 fn unsigned(text: []const u8) !u128 {
-    if (text.len == 0 or (text.len > 1 and text[0] == '0')) return error.InvalidIntegerEncoding;
+    if (text.len == 0 or text.len > 39 or (text.len > 1 and text[0] == '0')) return error.InvalidIntegerEncoding;
     for (text) |byte| if (!std.ascii.isDigit(byte)) return error.InvalidIntegerEncoding;
     return std.fmt.parseInt(u128, text, 10) catch error.InvalidIntegerEncoding;
 }
@@ -133,8 +140,8 @@ const Budget = struct {
 };
 fn unhex(allocator: std.mem.Allocator, text: []const u8, budget: *Budget) ![]const u8 {
     if (text.len % 2 != 0) return error.InvalidHexEncoding;
-    for (text) |byte| if (!(std.ascii.isDigit(byte) or (byte >= 'a' and byte <= 'f'))) return error.InvalidHexEncoding;
     try budget.data(text.len / 2);
+    for (text) |byte| if (!(std.ascii.isDigit(byte) or (byte >= 'a' and byte <= 'f'))) return error.InvalidHexEncoding;
     const bytes = try allocator.alloc(u8, text.len / 2);
     return std.fmt.hexToBytes(bytes, text);
 }

@@ -37,6 +37,14 @@ truncation, trailing bytes, noncanonical boolean flags and a missing or foreign
 definition. A SHA-256 fingerprint covers the complete schema, including identities,
 revision, column order, defaults and key order.
 
+`TableSchemaJson` projects the same schema into neutral JSON with mandatory
+current-definition binding, full-width decimal-string identities, shared logical
+descriptors and lossless defaults. `encode`/`decode` own their outputs; `foreign`
+and `native` copy complete values into an explicit enclosing arena. The JSON
+input limit is 2 MiB and the canonical schema still has a 64 KiB bound. The
+[reflected schema](../api/logical-table-schema.schema.json) describes structural
+shape; shared semantic validators enforce identities, keys, types and defaults.
+
 The [Table schema contract](../../../../contracts/TABLE_SCHEMA_V1.md) owns the
 exact envelope, identity and validation rules.
 
