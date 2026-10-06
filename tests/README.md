@@ -17048,3 +17048,28 @@ four mutations or a 256-byte native value. The growth portion takes 898.938
 seconds. Compilation and other owned experiments overlapped this run; these
 are growth/recovery results, not a controlled latency comparison. Installed SDK
 consumers were not selected.
+
+### Mutation latency harness on general Tables
+
+The persistent public-client control uses `TableClient` intents and checkpoints
+the exact intent, signed command and admission before observing each input and
+its separate Table outcome. The console reader assembles typed snapshot frames
+and requires matching final basis/plan evidence. The seven existing mutation
+cases check matched/changed counts, including unchanged and absent rows, and
+verify values through the general query path. The baseline uses its own revision's
+harness; no obsolete result decoder is retained in the current harness.
+
+`general-mutation-latency-reader1.log` passes **4/4** reader/timeline tests,
+including fragmented frames, timing arriving first and rejection of a changed
+completion plan. `general-mutation-latency-build1.log` builds the ReleaseSafe
+CLI, node, query host, Board and persistent client into a private campaign prefix.
+`general-mutation-latency-console-smoke1.json` and
+`general-mutation-latency-client-smoke1.json` each complete one repetition of all
+seven cases with **zero errors, unknown outcomes or supervisor restarts**. Both
+use eight resident pages; only the client run enables native/provider probes.
+Cold catalog growth overlaps these functional checks. Single samples and
+instrumentation differences do not support a matched performance conclusion.
+The console's single-row INSERT/UPDATE take 705/980 ms and its three-row INSERT
+takes 5,112 ms; the instrumented client takes 1,544/1,994/11,356 ms respectively.
+This exposes work to investigate, not a passed latency target. Controlled
+baseline/current runs and staging/request-count analysis remain outstanding.

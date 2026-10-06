@@ -2,7 +2,8 @@
 //! Exact requests are checkpointed before submission. Only unavailable reads retry.
 const std = @import("std");
 const q = @import("transit_query");
-const Config = struct { url: []const u8, seed_file: []const u8, connection: q.TableMutationClient.Connection };
+const c = q.catalog;
+const Config = struct { url: []const u8, seed_file: []const u8, connection: c.TableClient.Connection };
 
 fn checkpoint(init: std.process.Init, value: anytype) !void {
     const bytes = try std.json.Stringify.valueAlloc(init.gpa, value, .{});
@@ -42,7 +43,7 @@ pub fn main(init: std.process.Init) !void {
     _ = try std.fmt.hexToBytes(&seed, std.mem.trim(u8, seed_text, "\r\n "));
     var wire = q.wire.Client.init(init.gpa, init.io, config.url);
     defer wire.deinit();
-    var client: q.TableMutationClient = .{ .wire = &wire, .connection = config.connection, .key = try q.protocol.Ed25519.KeyPair.generateDeterministic(seed) };
+    var client: c.TableClient = .{ .transport = &wire, .connection = config.connection, .key = try q.protocol.Ed25519.KeyPair.generateDeterministic(seed) };
     std.crypto.secureZero(u8, &seed);
     var input_buffer: [8192]u8 = undefined;
     var input = std.Io.File.stdin().readerStreaming(init.io, &input_buffer);
@@ -56,35 +57,44 @@ pub fn main(init: std.process.Init) !void {
             std.debug.print("Time: {d} ms (client {d} ms)\n", .{ elapsed, elapsed });
         }
         const reads: Reads = .{ .io = init.io, .deadline = std.Io.Clock.boot.now(init.io).toMilliseconds() + 300000 };
-        const request = try reads.call(q.TableMutationClient.compileSql, .{ &client, try q.fuze.model.Name.init("items"), sql });
         var random: [8]u8 = undefined;
         try init.io.randomSecure(&random);
         const namespace = std.mem.readInt(u64, &random, .little) | 1;
+        var intent = try reads.call(c.TableClient.compile, .{ &client, init.gpa, sql, c.TableClient.CompileIdentity{ .operation = namespace, .namespace = namespace }, null });
+        defer intent.deinit();
+        if (intent.identity != .dml) return error.ExpectedMutation;
+        const saved: c.TableBridge.Saved = .{ .definition = q.protocol.Growth.current_definition, .bytes = try c.TableValues.hex(init.gpa, intent.bytes) };
+        defer init.gpa.free(saved.bytes);
         var commands: u32 = 0;
-        var next: q.TableMutationClient.Next = .{ .prepared = try reads.call(q.TableMutationClient.prepareNew, .{ &client, namespace, request }) };
         const status = mutation: while (true) {
-            const pending = switch (next) {
-                .prepared => |value| value,
-                .complete => |value| break :mutation value,
+            const pending = switch (try reads.call(c.TableClient.next, .{ &client, &intent })) {
+                .send => |value| value,
+                .terminal => |value| break :mutation value,
+                .upload_cancelled => return error.MutationUploadCancelled,
+                .running => {
+                    try init.io.sleep(.fromMilliseconds(10), .awake);
+                    continue;
+                },
             };
             commands += 1;
             if (commands > 32) return error.CommandBudgetExceeded;
-            try checkpoint(init, .{ .request = request, .namespace = namespace, .pending = pending, .input = @as(?u64, null), .complete = false });
+            try checkpoint(init, .{ .intent = saved, .pending = pending, .input = @as(?u64, null), .complete = false });
             const receipt = try client.submit(pending);
-            try checkpoint(init, .{ .request = request, .namespace = namespace, .pending = pending, .input = receipt.position, .complete = false });
+            try checkpoint(init, .{ .intent = saved, .pending = pending, .input = receipt.position, .complete = false });
             const outcome = observation: while (true) {
-                const progress = try reads.call(q.TableMutationClient.waitProgress, .{ &client, pending, receipt.position });
+                const progress = try reads.call(c.TableClient.waitProgress, .{ &client, &intent, pending, receipt.position });
                 switch (progress) {
                     .processed => |value| break :observation value,
                     .pending => {},
                 }
             };
             if (outcome.disposition != null) return error.MutationInputRejected;
-            if (outcome.status) |value| if (value.terminal()) break :mutation value;
-            next = try reads.call(q.TableMutationClient.prepareNextResult, .{ &client, namespace, request });
+            if (outcome.outcome) |value| if (value.terminal()) break :mutation value;
         };
-        try checkpoint(init, .{ .request = request, .namespace = namespace, .outcome = status, .complete = true });
-        try std.json.Stringify.value(.{ .mutation = .{ .phase = @tagName(status.phase), .affected_rows = status.affected_rows } }, .{}, &output.interface);
+        try checkpoint(init, .{ .intent = saved, .outcome = status, .complete = true });
+        var arena: std.heap.ArenaAllocator = .init(init.gpa);
+        defer arena.deinit();
+        try std.json.Stringify.value(.{ .table_operation = try c.TableValues.Outcome.foreign(arena.allocator(), &intent, status) }, .{}, &output.interface);
         try output.interface.writeByte('\n');
         try output.interface.flush();
         std.debug.print("Time: {d} ms (client {d} ms)\n", .{ started.durationTo(std.Io.Clock.awake.now(init.io)).toMilliseconds(), started.durationTo(std.Io.Clock.awake.now(init.io)).toMilliseconds() });

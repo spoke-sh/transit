@@ -17,6 +17,7 @@ import time
 from console_latency import digest, override
 from latency_probe import Probe
 from server import Fixture
+from table_console import results as table_results, atom
 from storage import free_port
 
 
@@ -41,6 +42,7 @@ class Console:
         self.process.stdin.flush()
         output = timing = failure = None
         phases = None
+        query_frames = []
         with selectors.DefaultSelector() as selector:
             for index, pipe in enumerate((self.process.stdout, self.process.stderr)):
                 selector.register(pipe, selectors.EVENT_READ, index)
@@ -65,7 +67,17 @@ class Console:
                         if index == 0:
                             if output is not None:
                                 raise ValueError('unexpected multiple result pages')
-                            output = json.loads(line)
+                            value = json.loads(line)
+                            if query_frames or value.get('profile') == 'table_snapshot_v1':
+                                query_frames.append(value)
+                                if len(query_frames) > 130:
+                                    raise ValueError('benchmark query row budget exceeded')
+                                if value.get('complete_coverage'):
+                                    decoded = table_results(query_frames)
+                                    assert len(decoded) == 1, decoded
+                                    output = decoded[0]
+                            else:
+                                output = value
                         elif line.startswith(b'{'):
                             diagnostic = json.loads(line)
                             if 'timing' in diagnostic:
@@ -258,10 +270,9 @@ def main():
         shells.append(verifier)
         writer_config = None
         if args.client:
-            done = fixture.record()['provision']
             writer_config = fixture.root / 'client.json'
             writer_config.write_text(json.dumps({'url': fixture.url, 'seed_file': str(fixture.installation / 'caller.seed'),
-                'connection': {'realm': fixture.config['realm'], 'principal': 10, 'writer': done[4], 'resource': done[5], 'table': 1}}))
+                'connection': fixture.console_config()['catalog']}))
         writer = Console(fixture, writer_config, args.client)
         shells.append(writer)
 
@@ -278,8 +289,11 @@ def main():
                 report['failed_sample'] = {'case': case, **writer.last_measurement, 'attempts': {name: dict(probe.snapshot() - before[name]) for name, probe in probes.items()}}
                 raise
             completed = time.monotonic_ns() - native.started_ns if native else None
-            assert result['mutation']['phase'] == 'applied', result
-            assert result['mutation']['affected_rows'] == affected, result
+            outcome = result['table_operation']
+            assert outcome['phase'] == 'applied' and outcome['diagnostic']['outcome'] == 'applied', result
+            if not args.client: assert not outcome['uncertain'], result
+            changed = 0 if case == 'update_same' else affected
+            assert outcome['counts'] == dict(matched=str(affected), changed=str(changed)), result
             if case:
                 if native:
                     measurement['completion_timeline'] = completion_timeline(native.trace()['retained'], started, completed)
@@ -306,8 +320,7 @@ def main():
                 shell = Console(fixture, path)
                 while not stop.is_set():
                     value, _ = shell.call('SELECT COUNT(*) FROM items;')
-                    assert value['complete_coverage']
-                    count = int(value['cells'][0][0]['value']['uint64'])
+                    count = int(atom(value, 'unsigned'))
                     assert args.rows + 1 <= count <= args.rows + 4, count
                     reader_counts[index] += 1
             except Exception as error:
@@ -336,13 +349,12 @@ def main():
                 mutate(sql, count, case)
                 # Public independent read of the selected row, outside timing.
                 value, _ = verifier.call('SELECT * FROM items WHERE id=-1;')
-                assert value['complete_coverage']
                 expected = [] if case.startswith('delete') else [1 if case == 'insert_3' else 100 if case == 'insert_1' else 200]
-                assert [int(row[1]['value']['int64']) for row in value['cells']] == expected, value
+                assert [int(row[1]['value']['atom']['signed']) for row in value['rows']] == expected, value
             for key in (-1, -2, -3):
                 mutate(f'DELETE FROM items WHERE id={key}', 1)
         value, _ = verifier.call('SELECT COUNT(*) FROM items;')
-        assert value['complete_coverage'] and int(value['cells'][0][0]['value']['uint64']) == args.rows + 1, value
+        assert int(atom(value, 'unsigned')) == args.rows + 1, value
         stop.set()
         for thread in threads:
             thread.join(timeout=340)
