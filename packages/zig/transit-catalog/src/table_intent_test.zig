@@ -95,7 +95,11 @@ fn failureSchedule(allocator: std.mem.Allocator, bytes: []const u8) !void {
 test "saved typed intent owns allocation failure cleanup" {
     var original = try mutation(t.allocator);
     defer original.deinit();
-    try t.checkAllAllocationFailures(t.allocator, failureSchedule, .{original.bytes});
+    // In-place arena growth depends on the backing allocator's current page
+    // layout. Force fresh allocations so every failure index is reproducible;
+    // the ordinary restore tests above still exercise normal resize behavior.
+    var no_resize = t.FailingAllocator.init(t.allocator, .{ .resize_fail_index = 0 });
+    try t.checkAllAllocationFailures(no_resize.allocator(), failureSchedule, .{original.bytes});
 }
 
 test "saved rename intent matches independent bytes without a redundant schema" {

@@ -11172,6 +11172,14 @@ partial-allocation failures. Existing typed editor continuations still pass.
 Semantic mapping and source-inventory gates pass; this is parser/binder evidence,
 not completed contextual classification or runtime/transport qualification.
 
+During the general SQL syntax checkpoint, the full check and a focused catalog
+run both stop at `NondeterministicMemoryUsage` in the saved-intent allocation
+schedule (`sql-syntax-check1.log`, `sql-syntax-catalog1.log`). The schedule now
+refuses in-place resize/remap so arena growth allocates reproducibly; normal
+restore tests retain the ordinary allocator. The complete catalog suite passes
+**76/76 tests** (`sql-syntax-catalog2.log`). This repairs fault scheduling without
+changing the recovery implementation or counting either failed run as passed.
+
 ## Fuze logical type foundation
 
 The local `Types` profile has nine passing focused Zig tests, including 46
