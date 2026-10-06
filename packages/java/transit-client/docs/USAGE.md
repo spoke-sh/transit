@@ -77,3 +77,9 @@ Keep persisted bytes for recovery after abrupt JVM/host loss.
 
 The M9 `io.transit.station.NativeHost` remains the explicit low-level conformance
 adapter. Its JSON pump is not this API, and its cancellation policy is different.
+
+Generated request/response validation resolves only local `$defs`/`$ref` names
+within the selected schema root. Recursive child values are bounded; foreign or
+missing references, unsupported keywords and non-consuming cycles reject before
+results are exposed. A schema accepted for one operation does not define types
+for another operation.

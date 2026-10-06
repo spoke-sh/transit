@@ -22,6 +22,11 @@ def run(node, cli, library, artifacts):
         classes.mkdir()
         subprocess.run(['javac', '--release', '21', '-Xlint:all', '-Werror', '-cp', str(lib / '*'), '-d', str(classes), str(source)], env=environment, cwd=target, check=True)
         source.unlink()
+        schema_source = target / 'JavaSchemaValues.java'
+        shutil.copy2(root / 'tests' / schema_source.name, schema_source)
+        subprocess.run(['javac', '--release', '21', '-Xlint:all', '-Werror', '-cp', str(lib / '*'), '-d', str(classes), str(schema_source)], env=environment, cwd=target, check=True)
+        schema_source.unlink()
+        subprocess.run(['java', f'-Djava.io.tmpdir={target}', '-cp', os.pathsep.join((str(classes), str(lib / '*'))), 'JavaSchemaValues'], env=environment, cwd=target, check=True)
         # Missing and mismatched native artifacts must fail without starting I/O.
         smoke = target / 'ArtifactCheck.java'
         smoke.write_text('''import io.transit.client.*;

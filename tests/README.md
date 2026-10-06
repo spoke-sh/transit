@@ -11486,6 +11486,15 @@ remain to be removed or migrated with the other query surfaces. This checkpoint
 does not establish the remaining SDK migrations, final definition replacement,
 matched performance/growth or committed-HEAD clean CI.
 
+Java's generated-schema validator now resolves bounded local recursive references
+with independent roots and fails closed on missing/external references, unknown
+keywords, reference cycles and cyclic host values. The independent Java 21/Gson
+fixture passes with `-Xlint:all -Werror` (`table-java-schema2.log`) and is wired into
+the installed raw-client schedule. The first focused compilation exposed Gson's
+optional annotation dependency through a fixture-only parser call; using the
+existing Gson parsing API avoids adding a runtime dependency. This is source-level
+validator evidence, not an installed Java general Table qualification.
+
 ## Fuze logical type foundation
 
 The local `Types` profile has nine passing focused Zig tests, including 46
