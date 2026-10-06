@@ -11,18 +11,19 @@ const ajv = new Ajv2020({
   code: { source: true, esm: true, lines: true },
   strict: true,
 });
-for (const [name, schema] of Object.entries(shareValidatorSchemas(ajv, schemas)))
-  ajv.addSchema(schema, name);
+ajv.addSchema(shareValidatorSchemas(ajv, { root: schemas }).root);
 const generated = standalone(
   ajv,
-  Object.fromEntries(Object.keys(schemas).map((name) => [name, name])),
+  Object.fromEntries(
+    Object.keys(schemas.$defs).map((name) => [name, `${schemas.$id}#/$defs/${name}`]),
+  ),
 );
 const text =
   '// Generated; no runtime code generation or eval.\nimport lengthModule from "ajv/dist/runtime/ucs2length.js";\nconst ucs2length = lengthModule.default ?? lengthModule;\n' +
   generated.replaceAll('require("ajv/dist/runtime/ucs2length").default', "ucs2length");
 const path = new URL("./src/validators.js", import.meta.url);
 const declarations =
-  Object.keys(schemas)
+  Object.keys(schemas.$defs)
     .map((name) => `export function ${name}(value: unknown): boolean;`)
     .join("\n") + "\n";
 for (const [target, content] of [

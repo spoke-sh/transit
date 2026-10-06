@@ -1,3 +1,4 @@
+import { logicalTypeText } from "@rey/transit-query-client";
 import type { UnifiedQueryResponse } from "@rey/transit-board-client";
 
 export type Inspection = Extract<UnifiedQueryResponse, { inspection: unknown }>["inspection"];
@@ -40,8 +41,8 @@ export function QueryInspection({ value, changed }: { value: Inspection; changed
           )}
           {predicate && "compare" in predicate && (
             <p>
-              Filter: {predicate.compare.column} · {predicate.compare.op} · {predicate.compare.type}{" "}
-              literal omitted.
+              Filter: {predicate.compare.column} · {predicate.compare.op} ·{" "}
+              {logicalTypeText(predicate.compare.type)} literal omitted.
             </p>
           )}
           <p>
@@ -66,7 +67,7 @@ export function QueryInspection({ value, changed }: { value: Inspection; changed
             {columns.map((column) => (
               <tr key={column.name}>
                 <td>{column.name}</td>
-                <td>{column.type}</td>
+                <td>{logicalTypeText(column.type)}</td>
               </tr>
             ))}
           </tbody>

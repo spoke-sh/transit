@@ -31,6 +31,14 @@ return a bad-request response. The separate `sql_capabilities` request reports
 local parameter support and grammar bounds. The worksheet has no parameter-entry
 form; existing SQL drafts continue to use ordinary compilation.
 
+The query route accepts at most 64 KiB of JSON per request, including a complete
+hexadecimal query bundle. Replies are bounded to 1 MiB. A result page contains
+at most eight rows and 128 columns with complete logical descriptors, nullability
+and optionality. The browser checks recursive shape and value limits before
+presentation, displays exact numeric values and typed nested cells, and preserves
+the immutable source cut separately from its contract and schema. JSON values
+remain text with exact numeric lexemes; they do not become JavaScript numbers.
+
 ## Query diagnostics
 
 Error responses carry the finite `err` identifier and a nullable

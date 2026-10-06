@@ -64,8 +64,8 @@ repeating initialization never restores revoked rights.
 original input dispositions and reads retained outcomes. Staged work emits
 recorded self continuations; configure a courier for this catalog PID. Each
 publication uses at most four native mutations. `TableQuery` performs authorized
-SQL reads on leased snapshots independently of this worker. The host allocates
-no query workspace or source adapter for the catalog role. Fresh activations
+SQL reads on leased snapshots independently of this worker. The catalog role also allocates the bounded query workspace and source adapter
+for durable finite requests. Fresh activations
 preserve the immutable configuration and accepted work. The catalog metadata
 guide lists the exact [general Table contracts](../../packages/zig/transit-catalog/docs/table-metadata.md).
 

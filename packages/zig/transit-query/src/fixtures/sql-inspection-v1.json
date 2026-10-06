@@ -62,14 +62,16 @@
                 "type": {
                   "int64": {}
                 },
-                "nullable": false
+                "nullable": false,
+                "optional": false
               },
               {
                 "name": "value",
                 "type": {
                   "int64": {}
                 },
-                "nullable": true
+                "nullable": true,
+                "optional": false
               }
             ]
           }
@@ -93,14 +95,16 @@
               "type": {
                 "int64": {}
               },
-              "nullable": false
+              "nullable": false,
+              "optional": false
             },
             {
               "name": "value",
               "type": {
                 "int64": {}
               },
-              "nullable": true
+              "nullable": true,
+              "optional": false
             }
           ]
         }
@@ -148,14 +152,16 @@
               "type": {
                 "int64": {}
               },
-              "nullable": true
+              "nullable": true,
+              "optional": false
             },
             {
               "name": "id",
               "type": {
                 "int64": {}
               },
-              "nullable": false
+              "nullable": false,
+              "optional": false
             }
           ],
           "budgets": {
@@ -188,7 +194,8 @@
               "type": {
                 "uint64": {}
               },
-              "nullable": false
+              "nullable": false,
+              "optional": false
             }
           ],
           "budgets": {
@@ -235,7 +242,8 @@
               "type": {
                 "int64": {}
               },
-              "nullable": true
+              "nullable": true,
+              "optional": false
             }
           ],
           "budgets": {
@@ -280,14 +288,16 @@
               "type": {
                 "int64": {}
               },
-              "nullable": true
+              "nullable": true,
+              "optional": false
             },
             {
               "name": "copy",
               "type": {
                 "int64": {}
               },
-              "nullable": true
+              "nullable": true,
+              "optional": false
             }
           ],
           "budgets": {
@@ -320,7 +330,8 @@
               "type": {
                 "uint64": {}
               },
-              "nullable": false
+              "nullable": false,
+              "optional": false
             }
           ],
           "budgets": {
@@ -367,7 +378,8 @@
               "type": {
                 "int64": {}
               },
-              "nullable": true
+              "nullable": true,
+              "optional": false
             }
           ],
           "budgets": {

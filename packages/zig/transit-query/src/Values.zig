@@ -69,6 +69,7 @@ pub const DecoderColumn = struct {
     }
 };
 pub const Projection = struct {
+    pub const json_schema_sequence_bounds = .{ .path = 8 };
     column: DecoderColumn,
     path: []const []const u8,
     relative: bool = false,
@@ -99,7 +100,13 @@ pub const Source = struct {
             metadata: struct { id: []const u8, spec: q.station.Publication.Spec },
             row_type: types.Type,
         },
-        document: struct { reference: d.Reference, change_format: u32 = 1, expand: ?[]const []const u8 = null, projections: []const Projection },
+        document: struct {
+            pub const json_schema_sequence_bounds = .{ .expand = 8, .projections = m.max_columns };
+            reference: d.Reference,
+            change_format: u32 = 1,
+            expand: ?[]const []const u8 = null,
+            projections: []const Projection,
+        },
     },
     pub fn native(self: Source, alloc: Allocator) !q.SourceDefinition {
         const source: @FieldType(q.SourceDefinition, "source") = switch (self.source) {

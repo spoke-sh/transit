@@ -101,9 +101,11 @@ requests without JavaScript parsing their full-width literals. The query route
 exposes only the [public query profile](../../../contracts/UNIFIED_QUERY_V1.md),
 not arbitrary Transit commands.
 
-The `/api/v1/query` route has its own generated schemas. Dynamic
-row/column/path/conflict arrays are bounded to eight, and full-width counts,
-identities and scalars remain strings. Atlas identifies the configured query
+The `/api/v1/query` route has its own generated schemas. Rows, decoder paths and conflict alternatives remain bounded to eight; general
+Table results admit 128 columns with complete recursive logical descriptors.
+Full-width counts, identities, exact numbers and float bits retain their neutral
+encodings. Embedded recursive schema references resolve against the complete
+OpenAPI document; browser generation preserves that scope. Atlas identifies the configured query
 version only when its resource appears in the authorized inspection page.
 Query configuration and grants remain separate from the inspection identity.
 

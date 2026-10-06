@@ -8,7 +8,7 @@ import tempfile
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'bindings'))
-from schema_types import declarations
+from schema_types import declarations, declarations_at
 
 
 def run():
@@ -35,10 +35,26 @@ def run():
             pass
         else:
             raise AssertionError(f'Accepted invalid reference or identifier: {invalid}')
-    source = declarations('Tree', schema) + '\n' + declarations('Other', second) + '''
+    embedded = json.loads(json.dumps(schema).replace('#/$defs/', '#/components/schemas/Tree/$defs/'))
+    embedded_second = json.loads(json.dumps(second).replace('#/$defs/', '#/components/schemas/Other/$defs/'))
+    embedded_types = declarations_at({'#/components/schemas/Tree': ('EmbeddedTree', embedded),
+                                      '#/components/schemas/Other': ('EmbeddedOther', embedded_second)})
+    for invalid in [{'$ref': '#/$defs/T0'}, {'$ref': '#/components/schemas/Other/$defs/T0'}]:
+        try:
+            declarations_at({'#/components/schemas/Tree': ('EmbeddedTree', invalid)})
+        except ValueError:
+            pass
+        else:
+            raise AssertionError('Accepted a reference outside the selected enclosing document')
+    source = embedded_types + declarations('Tree', schema) + '\n' + declarations('Other', second) + '''
 const leaf: Tree = {value: {integer: "18446744073709551615"}, children: []};
 const root: Tree = {value: {flag: true}, children: [leaf], parent: null};
 const other: Other = "yes";
+const embedded: EmbeddedTree = root;
+const embeddedOther: EmbeddedOther = other;
+// @ts-expect-error Embedded reference graphs must retain distinct root types.
+const invalidEmbedded: EmbeddedOther = embedded;
+void [embeddedOther, invalidEmbedded];
 // @ts-expect-error Wide integers retain their string wire representation.
 const invalidInteger: Tree = {value: {integer: 2}, children: []};
 // @ts-expect-error A child must satisfy the same recursive shape.

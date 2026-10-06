@@ -108,8 +108,8 @@ The unified `/api/v1/query` route has a separate 1 MiB decoded JSON response
 bound: one at-most-64-KiB Arrow segment appears as hex alongside owned decoded
 cells, whose control characters may expand sixfold in JSON. Schema, conflict and
 provenance overhead stays bounded. The streaming limit applies before parsing,
-and generated plus semantic validators still enforce eight rows/columns and
-individual scalar bounds. Other routes retain their 256 KiB transport budget.
+and generated plus semantic validators still enforce eight rows, 128 columns and
+recursive logical value bounds. Other routes retain their 256 KiB transport budget.
 
 `participation(resource, cursor?, signal?)` reads the bounded shared-resource
 projection. Preserve `position` with `after` for process continuation, or the

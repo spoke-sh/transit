@@ -121,7 +121,8 @@ metadata is explicit. No request/response body or raw header member is read.
 Queries are disabled unless `query` is configured. The object contains
 `seed_file`, `connection` (realm, principal, source, resource, requester, requests),
 and the `workspace` source/name/limits object from the
-[SQL shell guide](../../transit-cli/docs/unified-query.md). For example:
+[SQL shell guide](../../transit-cli/docs/unified-query.md). This example selects
+an explicitly configured KV decoder:
 
 ```json
 {
@@ -135,13 +136,19 @@ and the `workspace` source/name/limits object from the
       "name": "items",
       "source": {
         "version": 1, "resource": 3,
-        "source": {"table": {"id": 1, "names": ["id", "value"], "value_type": "int64"}}
+        "source": {"kv": {"prefix": "646174612f", "key": {"version": 1, "type": "binary"}, "value": {"version": 1, "type": "utf8"}}}
       },
       "limits": {"pages": "1000", "segments": "100", "result_bytes": "1048576"}
     }
   }
 }
 ```
+
+For a Table, copy the complete `workspace` from the provisioned query
+configuration. Its source includes the catalog scope, owner, stable object,
+immutable metadata reference and recursive `row_type`; names alone cannot
+reconstruct that declaration. Current metadata inspection rejects a changed or
+retired Table before new query work is prepared.
 
 Use recorded IDs from your installation. The query principal differs from the
 inspection principal and uses this realm/upstream. Provision its inspect/send
@@ -156,7 +163,7 @@ restores inspection-only configuration; captured work can continue independently
 of the browser and Board configuration.
 
 `POST /api/v1/query` exposes the shared `transit-query.Workspace` operations.
-Its body limit is 49152 bytes. `Origin` must equal `public_origin` and
+Its body limit is 65536 bytes. `Origin` must equal `public_origin` and
 `Content-Type` must be `application/json`. Deadlines and rate limits apply.
 Retain an uncertain submission's frozen token for exact retry. A read conflict
 permits a read retry; it does not authorize a new query.
@@ -169,9 +176,9 @@ Signed submission, denial and other failures do not enter this retry. An
 exhausted capacity refusal remains `503 Unavailable`.
 
 The generated OpenAPI describes one v1 request/response model. Atlas advertises
-the configured visible query resource. Schemas bound result rows, columns and
-conflict alternatives to eight; the client validates full-width numbers and
-nested cell types. Arbitrary upstream URLs and native commands are not accepted.
+the configured visible query resource. Schemas and semantic validation bound result rows and conflict alternatives
+to eight and general Table columns to 128. The client validates full-width
+numbers, recursive logical descriptors and nested cell states. Arbitrary upstream URLs and native commands are not accepted.
 
 **Inspect SQL** executes `DESCRIBE`, `SHOW TABLES` and `EXPLAIN SELECT` against
 the configured source without admission or snapshots. Its separate metadata

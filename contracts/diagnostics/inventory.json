@@ -2720,7 +2720,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 75,
+        "try": 76,
         "catch": 0
       },
       "imports": [

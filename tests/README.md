@@ -15855,3 +15855,32 @@ backpressure during ADBC. The final fixtures use the existing bounded cold-store
 configuration and a 300-second provisioning deadline. No resident quota was
 raised. Compose/Substrate placements, Flight fault/concurrency schedules, wider
 SDK transports and matched performance remain separate qualification work.
+
+### Logical query browser contracts and rendering
+
+The query browser suite passes 35 tests and the Board browser suite passes 77
+tests, with strict TypeScript, formatting and lint checks. Work-items browser
+type and lint checks also pass (`browser-contract-final1.log` and
+`board-browser-lint1.log` in the local Table-schema campaign). Cases cover all
+integer widths, exact decimals, finite floats including signed zero, temporal
+and UUID values, nested containers, canonical map keys, bounded JSON, all five
+cell states, Unicode names, 128 columns and hostile recursive inputs. A maximal
+retained-query bundle fits the shared 64 KiB request envelope; oversized requests
+reject before transport. The existing live-view coverage projection is tested,
+but this does not qualify the native reactive owner migration.
+
+Query and Board contract exports regenerate with resolvable embedded recursive
+references. Browser declarations and validators pass drift checks, the schema
+correspondence check passes, and shared declaration generation rejects foreign
+references (`browser-schema-types1.log`). Native ReleaseSafe query tests pass
+114/114 and Board API tests pass 13/13 (`query-browser-native1.log` and
+`board-api-logical1.log`). Subsequent sequence-bound schema annotations compile
+through the exporters and pass the browser schema checks; the native test runs
+precede those annotation-only changes.
+
+The locked frontend install and Vite+ build pass (`board-browser-build1.log`).
+Reported chunks include index 406.36 kB, query 1060.71 kB and inspection
+1576.71 kB before gzip; the build still warns about large generated-validator
+chunks. This browser build does not qualify the embedded Board binary or the
+still-pending native reactive/work-items migration. Earlier browser migration
+attempts failed on stale basis and cell fixtures before the recorded passes.

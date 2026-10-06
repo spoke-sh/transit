@@ -28,7 +28,9 @@ corruption or authorize submitting the SQL again.
 ## Source declarations
 
 A query selects one explicit KV decoder, Table schema or accepted Document
-projection, with one to eight declared columns and finite execution budgets.
+projection with finite execution budgets. General Table declarations bind an
+immutable catalog definition and admit up to 128 columns. KV has two explicit
+decoders; Document projections retain their independent eight-column bound.
 Durable callers upload the finite plan bundle through bounded commands.
 Flight exposes a Table subset with primitive int64 output; the adapter verifies
 captured query cells before conversion.

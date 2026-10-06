@@ -65,7 +65,7 @@ accepted work's recovery path.
 
 The gateway has four data request slots and two control slots, a five-second
 HTTP deadline and a 3.5-second upstream deadline. Request bodies are bounded to
-48 KiB for queries or 512 KiB for operator publication; JSON output is bounded
+64 KiB for queries or 512 KiB for operator publication; JSON output is bounded
 to 1 MiB. Query signing is serialized; pre-dispatch contention returns 429.
 Credentials and payloads are excluded from telemetry. Native placement is not
 an OS sandbox.

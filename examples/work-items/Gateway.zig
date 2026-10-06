@@ -163,7 +163,7 @@ fn publicRequest(self: *Self, alloc: std.mem.Allocator, wire: *client.Client, io
     if (!std.mem.eql(u8, (try http.header(request, "origin")) orelse return error.InvalidOrigin, self.config.public_origin)) return error.InvalidOrigin;
     if (!std.mem.eql(u8, (try http.header(request, "content-type")) orelse "", "application/json")) return error.InvalidRequest;
     const application = std.mem.eql(u8, target, "/api/v1/application");
-    const body = request.readerExpectNone(&.{}).allocRemaining(alloc, .limited(if (application) app.Host.max_body_bytes else 49152)) catch return error.InvalidRequest;
+    const body = request.readerExpectNone(&.{}).allocRemaining(alloc, .limited(if (application) app.Host.max_body_bytes else q.Workspace.max_request_bytes)) catch return error.InvalidRequest;
     if (application) {
         const input = app.protocol.Json.parseFromSlice(app.Host.Request, alloc, body) catch |err| {
             diagnostic.* = app.HostDiagnostic.input(err) catch null;

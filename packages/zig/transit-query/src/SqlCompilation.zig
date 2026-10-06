@@ -12,6 +12,7 @@ pub const Capabilities = struct {
     statement_bytes: u32 = q.fuze.Sql.max_statement_bytes,
 };
 pub const Request = struct {
+    pub const json_schema_sequence_bounds = .{ .parameters = q.fuze.LogicalPrepared.max_parameters };
     scope: q.SqlInspection.Scope,
     sql: []const u8,
     parameters: ?[]const v.Scalar = null,

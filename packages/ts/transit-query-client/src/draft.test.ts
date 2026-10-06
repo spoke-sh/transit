@@ -10,7 +10,20 @@ const limits = { pages: "8", segments: "8", result_bytes: "65536" };
 const source = {
   version: 1,
   resource: 4,
-  source: { table: { id: 1, names: ["id", "value"], value_type: "int64" as const } },
+  source: {
+    table: {
+      scope: { realm: 1, resource: 4, catalog: "1" },
+      owner: 3,
+      object: "1",
+      metadata: { id: "1", spec: { format: 0x54434d01, length: 200, digest: Array(32).fill(1) } },
+      row_type: {
+        structure: [
+          { name: "id", type: { int64: {} }, nullable: false, optional: false },
+          { name: "value", type: { int64: {} }, nullable: true, optional: false },
+        ],
+      },
+    },
+  },
 };
 const compiled: Extract<Response, { compiled: unknown }>["compiled"] = {
   bundle: "00",
@@ -28,9 +41,9 @@ const compiled: Extract<Response, { compiled: unknown }>["compiled"] = {
   },
 };
 const page: ResultPage = {
-  cells: [[{ value: { int64: "7" } }]],
+  cells: [[{ value: { atom: { signed: "7" } } }]],
   evidence: {
-    columns: [{ name: "value", type: "int64" }],
+    columns: [{ name: "value", type: { int64: {} }, nullable: true, optional: false }],
     ordinal: "0",
     rows: 1,
     ipc: "00",
@@ -42,7 +55,11 @@ const page: ResultPage = {
       correlation: "10",
       policy_revision: "1",
       request: "00",
-      basis: { resource: 4, revision: 7, kind: "table", contract, schema: compiled.schema },
+      basis: {
+        cut: { resource: 4, revision: 7, kind: "table", head: Array(32).fill(1) },
+        contract,
+        schema: compiled.schema,
+      },
       plan: Array(32).fill(3),
       pages: "1",
       scanned: "1",
@@ -95,11 +112,11 @@ function fixture() {
               source: 1,
               plan: 1,
               result: 1,
-              bundle_bytes: 16384,
+              bundle_bytes: 25069,
               part_bytes: 128,
               segment_bytes: 65536,
               batch_rows: 8,
-              columns: 8,
+              columns: 128,
               kv: true,
               table: true,
               document: true,
@@ -108,8 +125,8 @@ function fixture() {
           sql: {
             version: 1,
             statement_bytes: 4096,
-            named_columns: 2,
-            star_columns: 8,
+            named_columns: 128,
+            star_columns: 128,
             uint64_limits: true,
             uint64_literals: false,
             float64_literals: false,
@@ -119,8 +136,8 @@ function fixture() {
             continuous: false,
           },
           columns: [
-            { name: "id", type: "int64" },
-            { name: "value", type: "int64" },
+            { name: "id", type: { int64: {} }, nullable: true, optional: false },
+            { name: "value", type: { int64: {} }, nullable: true, optional: false },
           ],
         },
       };

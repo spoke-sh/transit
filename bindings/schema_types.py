@@ -37,3 +37,23 @@ def declarations(name, schema):
     lines = [f'type {name}_{key} = {ts(value, references)};' for key, value in definitions.items()]
     lines.append(f'export type {name} = {ts(schema, references)};')
     return '\n'.join(lines)
+
+
+def declarations_at(roots):
+    """Render roots embedded at exact JSON pointers in one enclosing document."""
+    definitions = {}
+    names = set()
+
+    def add(pointer, name, schema):
+        if not re.fullmatch(r'[A-Za-z_][A-Za-z_0-9]*', name) or name in names:
+            raise ValueError(f'Invalid or repeated reflected type name {name}')
+        names.add(name)
+        definitions[pointer] = (name, schema)
+        for child, value in schema.get('$defs', {}).items():
+            add(f'{pointer}/$defs/{child}', f'{name}_{child}', value)
+
+    for pointer, (name, schema) in roots.items():
+        add(pointer, name, schema)
+    references = {pointer: name for pointer, (name, _) in definitions.items()}
+    return '\n'.join(f'export type {name} = {ts(schema, references)};'
+                     for name, schema in definitions.values()) + '\n'

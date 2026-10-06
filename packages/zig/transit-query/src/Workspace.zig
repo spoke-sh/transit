@@ -8,6 +8,11 @@ const a = q.document.JsonValues;
 const m = q.fuze.Unified;
 pub const schema_options: q.protocol.Schema.Options = .{ .output = true, .safe_integers = true, .sequence_max_length = q.SourceDefinition.max_columns, .text_max_length = 131072 };
 pub const request_schema_options: q.protocol.Schema.Options = .{ .safe_integers = true, .sequence_max_length = q.SourceDefinition.max_columns, .text_max_length = 131072 };
+/// JSON envelope for one complete hexadecimal bundle plus namespace/control fields.
+pub const max_request_bytes = 65536;
+comptime {
+    if (2 * q.Bundle.max_bytes + 1024 > max_request_bytes) @compileError("Workspace request cannot carry its admitted bundle");
+}
 pub const Config = struct { name: []const u8, source: v.Source, limits: v.Limits };
 pub const SqlCapabilities = struct {
     version: u8 = 1,
@@ -45,7 +50,11 @@ pub const Request = union(enum) {
     sql_capabilities,
     suggest: struct { search: []const u8 },
     assist: q.Assistance.Request,
-    compile: struct { sql: []const u8, parameters: ?[]const v.Scalar = null },
+    compile: struct {
+        pub const json_schema_sequence_bounds = .{ .parameters = q.fuze.LogicalPrepared.max_parameters };
+        sql: []const u8,
+        parameters: ?[]const v.Scalar = null,
+    },
     inspect: struct { sql: []const u8 },
     next: struct { namespace: []const u8, bundle: []const u8 },
     next_draft: struct { namespace: []const u8, bundle: []const u8, generation: []const u8 },

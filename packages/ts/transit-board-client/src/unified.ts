@@ -1,1 +1,6 @@
-export { validateUnifiedQuery, unifiedCellText, type UnifiedCell } from "@rey/transit-query-client";
+export {
+  validateUnifiedQuery,
+  unifiedCellText,
+  logicalTypeText,
+  type UnifiedCell,
+} from "@rey/transit-query-client";

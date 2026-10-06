@@ -207,7 +207,7 @@ const Server = struct {
         defer std.crypto.secureZero(u8, std.mem.asBytes(&key));
         if (capabilities) {
             const reader = growing.identity(&upstream, self.config.realm, self.config.principal, key) catch |err| return self.queryFailure(req, &upstream, err);
-            return self.json(req, .ok, api.Capabilities{ .profile = .native_v1, .query_enabled = self.config.query != null, .realm = self.config.realm, .scope_pid = reader.body.identity.pid, .page_size = client.protocol.Growth.page_size, .max_request_bytes = 49152, .http_connector = true, .grpc_connector = true, .documents = true, .reactive_table = self.config.reactive != null });
+            return self.json(req, .ok, api.Capabilities{ .profile = .native_v1, .query_enabled = self.config.query != null, .realm = self.config.realm, .scope_pid = reader.body.identity.pid, .page_size = client.protocol.Growth.page_size, .max_request_bytes = q.Workspace.max_request_bytes, .http_connector = true, .grpc_connector = true, .documents = true, .reactive_table = self.config.reactive != null });
         }
         if (participation) |selection| {
             const result = growing.participation(&upstream, self.config.realm, self.config.principal, key, selection) catch |err| return self.queryFailure(req, &upstream, err);
@@ -267,7 +267,7 @@ const Server = struct {
             if (!std.mem.eql(u8, origin, self.config.public_origin)) return self.failure(&req, .forbidden, .InvalidOrigin);
             if (!std.mem.eql(u8, (try header(&req, "content-type")) orelse "", "application/json")) return self.failure(&req, .bad_request, .InvalidQuery);
         }
-        const body = req.readerExpectNone(&.{}).allocRemaining(self.allocator, .limited(if (application_route) application.Host.max_body_bytes else if (query_route) 49152 else 4096)) catch return self.failure(&req, .bad_request, .InvalidQuery);
+        const body = req.readerExpectNone(&.{}).allocRemaining(self.allocator, .limited(if (application_route) application.Host.max_body_bytes else if (query_route) q.Workspace.max_request_bytes else 4096)) catch return self.failure(&req, .bad_request, .InvalidQuery);
         defer self.allocator.free(body);
         if (application_route) return self.applicationRequest(&req, body);
         if (query_route) return self.unifiedQueryRequest(&req, body);

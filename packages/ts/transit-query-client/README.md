@@ -6,7 +6,7 @@ CSP-compatible generated validators. Board's OpenAPI reflection is checked again
 the same owning definitions. This package does not compile SQL or confer authority.
 
 `httpTransport(path, timeoutMs)` calls one configured same-origin host. It bounds
-requests to 48 KiB and decoded replies to 1 MiB before parsing, validates response
+requests to 64 KiB and decoded replies to 1 MiB before parsing, validates response
 structure and semantic cell/budget bounds. At most three retries
 use the identical request for pre-dispatch 429s or explicit 409 read conflicts
 (`QueryReadConflict` / Board's `QueryExpired`) or classified 503 authority failures
@@ -77,3 +77,22 @@ changes fail visibly; denial also invokes the embedding owner's clearing path.
 complete token suffix without submitting. The UI owns one-step undo and rendering;
 this package contains no SQL keywords, parser or catalog replica. Its fixtures
 cover late replies, edit coalescing, denial, changed contracts and Unicode ranges.
+
+Query columns carry the complete logical descriptor, nullability and optionality.
+Results admit at most eight rows and 128 columns per page; recursive descriptors
+retain the shared 16-level, 256-node and 4096-name-byte limits. Names contain up to
+255 UTF-8 bytes. Generated validators resolve recursive references within their
+own document, and a finite JSON shape check precedes their traversal. Semantic
+checks preserve each scalar width, finite floats, decimal coefficients/scale,
+temporal units, nested states, exact array lengths, ordered map keys and distinct
+union alternatives. JSON cells retain their numeric lexemes and reject duplicate
+decoded field names. The 1 MiB transport response limit remains independent of
+logical value and Arrow segment bounds.
+
+`unifiedCellText(cell, type)` uses the column descriptor to format decimal scale
+and nested names, quotes text, and preserves signed zero and full-width integers.
+Without a decimal descriptor it labels the stored coefficient explicitly.
+`logicalTypeText` renders the descriptor for labels. Query manifests retain
+`basis.cut` (kind, resource, revision, immutable head commitment), the source
+contract and the logical schema separately. These fields never extend current
+read access or retained coverage.
