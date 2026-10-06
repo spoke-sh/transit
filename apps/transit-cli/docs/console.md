@@ -102,8 +102,10 @@ The `--parameters` file must always contain an array. Named SQL
 Template errors identify the parameter index and its original SQL use sites.
 Conflicting repeated uses report both required types; a binding count mismatch
 reports expected and supplied counts. Type and scalar-encoding failures include
-the expected type and at most 32 bytes of the supplied value, escaped for terminal
-safety. These details come from the failing compilation and do not read stored
+the expected type and the exact supplied scalar. Integer widths remain exact;
+decimal previews identify the coefficient and temporal previews name their
+physical units. Text/binary previews show at most 32 bytes, escaped for terminal
+safety with explicit truncation. These details come from the failing compilation and do not read stored
 values. SQL locations use one-based lines and byte columns.
 
 Values are owned for the current execution and are never SQL text substitution

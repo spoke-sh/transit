@@ -121,7 +121,7 @@ fn connection(init: std.process.Init, options: Options.Options, preferences: Pre
     const Input = @import("SqlInput.zig");
     const parameters: ?Input.Parameters = if (options.parameters) |file| Input.read(Input.Parameters, init, allocator, file) catch |err| {
         diagnostic.atFile(file);
-        diagnostic.setFailure(err, "cannot read SQL parameter input", "Use a JSON array of at most three exact query scalar values. --parameters requires -c SQL.");
+        diagnostic.setFailure(err, "cannot read SQL parameter input", "Use a JSON array of at most 65 exact query scalar values. --parameters requires -c SQL.");
         return error.InvalidQueryInput;
     } else null;
     var base: []const u8 = undefined;
@@ -458,7 +458,7 @@ pub const Console = struct {
         };
         switch (err) {
             error.InvalidQueryInput => return self.diagnostic.fail(err, "invalid SQL query input", "Use .execute FILE with a JSON object containing sql and optional parameters, or --parameters FILE with an array of exact scalar values."),
-            error.QueryInputTooLarge => return self.diagnostic.fail(err, "SQL query input exceeds 131072 bytes", "Use one finite statement and at most three scalar bindings per input file."),
+            error.QueryInputTooLarge => return self.diagnostic.fail(err, "SQL query input exceeds 131072 bytes", "Use one finite statement and at most 65 scalar bindings per input file."),
             error.ConsoleWriterRequired => return self.diagnostic.fail(err, if (self.catalog != null) "Table writes are not configured for this console" else "no Table catalog is configured for this console", "Use .help INSERT for syntax, catalog settings and writes.recovery_file. A query connection does not grant writes."),
             error.ConsoleCatalogRequired => return self.diagnostic.fail(err, if (self.catalog != null) "Table writes are not configured for this console" else "no Table catalog is configured for this console", "Use .help CREATE TABLE for the supported schema, catalog settings and writes.recovery_file."),
             error.CatalogNameNotFound => return self.diagnostic.fail(err, "the configured catalog has no Table with that name", "Use SHOW TABLES or .tables to list catalog definitions. .schema describes the configured query source."),

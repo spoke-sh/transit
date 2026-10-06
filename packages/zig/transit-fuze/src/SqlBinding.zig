@@ -113,22 +113,45 @@ pub fn supplied(self: ?*Self, value: anytype) void {
         inline .int64, .uint64 => |number| out.print("{d}", .{number}) catch unreachable,
         .float64 => |number| out.print("{e}", .{number}) catch unreachable,
         .boolean => |boolean| out.writeAll(if (boolean) "TRUE" else "FALSE") catch unreachable,
-        .utf8, .binary => |bytes| {
-            out.writeByte('"') catch unreachable;
-            for (bytes[0..@min(bytes.len, 32)]) |byte| switch (byte) {
-                '"', '\\' => {
-                    out.writeByte('\\') catch unreachable;
-                    out.writeByte(byte) catch unreachable;
-                },
-                0x20...0x21, 0x23...0x5b, 0x5d...0x7e => out.writeByte(byte) catch unreachable,
-                else => out.print("\\x{x:0>2}", .{byte}) catch unreachable,
-            };
-            out.writeByte('"') catch unreachable;
-            detail.literal_truncated = bytes.len > 32;
-            if (detail.literal_truncated) out.writeAll(" [truncated after 32 bytes]") catch unreachable;
-        },
+        .utf8, .binary => |bytes| suppliedBytes(detail, &out, bytes),
     }
     detail.literal_len = out.end;
+}
+
+/// Descriptor-independent atom evidence preserves exact widths. Temporal values
+/// name their physical units; decimal values expose the supplied coefficient.
+/// Invalid inputs are printable without first admitting them as typed values.
+pub fn suppliedLogical(self: ?*Self, value: @import("Types.zig").Values.Atom) void {
+    const detail = self orelse return;
+    detail.literal_truncated = false;
+    var out: std.Io.Writer = .fixed(&detail.literal);
+    switch (value) {
+        inline .signed, .unsigned => |number| out.print("{d}", .{number}) catch unreachable,
+        .float => |number| out.print("{e}", .{number}) catch unreachable,
+        .decimal => |number| out.print("coefficient {d}", .{number}) catch unreachable,
+        .boolean => |boolean| out.writeAll(if (boolean) "TRUE" else "FALSE") catch unreachable,
+        .bytes => |bytes| suppliedBytes(detail, &out, bytes),
+        .date => |number| out.print("{d} days since epoch", .{number}) catch unreachable,
+        .time => |number| out.print("{d} ns since midnight", .{number}) catch unreachable,
+        .timestamp => |number| out.print("{d} microseconds since epoch", .{number}) catch unreachable,
+        .interval => |parts| out.print("{d} months, {d} days, {d} ns", .{ parts.months, parts.days, parts.nanos }) catch unreachable,
+        .uuid => |bytes| out.print("{x}", .{bytes}) catch unreachable,
+    }
+    detail.literal_len = out.end;
+}
+fn suppliedBytes(detail: *Self, out: *std.Io.Writer, bytes: []const u8) void {
+    out.writeByte('"') catch unreachable;
+    for (bytes[0..@min(bytes.len, 32)]) |byte| switch (byte) {
+        '"', '\\' => {
+            out.writeByte('\\') catch unreachable;
+            out.writeByte(byte) catch unreachable;
+        },
+        0x20...0x21, 0x23...0x5b, 0x5d...0x7e => out.writeByte(byte) catch unreachable,
+        else => out.print("\\x{x:0>2}", .{byte}) catch unreachable,
+    };
+    out.writeByte('"') catch unreachable;
+    detail.literal_truncated = bytes.len > 32;
+    if (detail.literal_truncated) out.writeAll(" [truncated after 32 bytes]") catch unreachable;
 }
 
 /// Scalar evidence for INSERT/UPDATE/DELETE uses the same bound as parameters.

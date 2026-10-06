@@ -153,6 +153,7 @@ pub fn bind(self: *const Self, allocator: std.mem.Allocator, name: []const u8, s
             if (diagnostic) |detail| {
                 detail.expected = @tagName(kind);
                 detail.actual = @tagName(value);
+                sql.Binding.suppliedLogical(detail, value);
             }
             return err;
         };

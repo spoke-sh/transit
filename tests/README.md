@@ -16144,3 +16144,16 @@ catalog-authorization addition is covered by serving package compilation and
 local checks; the deployed native SSE/WebSocket/Follow examples still require
 migration and qualification. These checks do not qualify that remaining work or
 the coordinated shared-definition cutover.
+
+
+### Logical parameter correction evidence
+
+All 257 Fuze ReleaseSafe tests pass (`fuze-logical-preview1.log` in the local
+Table-schema campaign). Binding errors retain the original parameter site,
+expected descriptor and exact supplied atom: int128/uint128, decimal coefficient,
+float, boolean, temporal units, interval and UUID. Text/binary previews own at
+most 32 escaped bytes with explicit truncation; subsequent bindings reset that
+flag. Invalid values require no allocation or source reads to format. The actual
+CLI compiles with its 65-binding limit reflected in failure guidance
+(`typed-table-point-preview1.log`); that run's separate native lifecycle schedule
+failed a new residual-predicate scan-count assertion and is not a passed proof.

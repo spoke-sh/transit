@@ -155,6 +155,7 @@ test "logical parameters preserve exact source binding widths limits and owned d
     wrong[0] = .{ .unsigned = 1 };
     try e.expectError(error.TypeMismatch, template.bind(e.allocator, "people", schema, basis, &wrong, &diagnostic));
     try e.expectEqual(@as(u32, 1), diagnostic.parameter.?);
+    try e.expectEqualStrings("1", diagnostic.literal[0..diagnostic.literal_len]);
     try e.expectEqual(std.mem.indexOf(u8, text, "$1").?, diagnostic.location.?.offset);
     var empty: std.heap.FixedBufferAllocator = .init(&.{});
     try e.expectError(error.SourceChanged, template.bind(empty.allocator(), "other", schema, basis, &values, null));
@@ -286,4 +287,47 @@ test "typed SELECT preserves original grammar and literal mismatch evidence" {
     try e.expectEqualStrings("\"wrong\"", detail.literal[0..detail.literal_len]);
     try e.expectError(error.Overflow, f.LogicalPrepared.init(e.allocator, "SELECT * FROM items WHERE value = 9223372036854775808", "items", bound_schema, @splat(1), &detail));
     try e.expectEqual(@as(usize, 34), detail.location.?.offset);
+}
+
+test "invalid logical parameters retain exact bounded inert previews for every atom family" {
+    const input: t.Type = .{ .structure = &.{.{ .name = "n", .type = .int64 }} };
+    var template = try Prepared.init(e.allocator, "SELECT n FROM people WHERE n=$1", "people", input, basis, null);
+    defer template.deinit();
+    const cases = [_]struct { value: t.Values.Atom, preview: []const u8 }{
+        .{ .value = .{ .signed = std.math.minInt(i128) }, .preview = "-170141183460469231731687303715884105728" },
+        .{ .value = .{ .unsigned = std.math.maxInt(u128) }, .preview = "340282366920938463463374607431768211455" },
+        .{ .value = .{ .float = 1.5 }, .preview = "1.5e0" },
+        .{ .value = .{ .decimal = std.math.maxInt(i128) }, .preview = "coefficient 170141183460469231731687303715884105727" },
+        .{ .value = .{ .boolean = true }, .preview = "TRUE" },
+        .{ .value = .{ .bytes = "\x00\x1b\n\"\\" }, .preview = "\"\\x00\\x1b\\x0a\\\"\\\\\"" },
+        .{ .value = .{ .date = -1 }, .preview = "-1 days since epoch" },
+        .{ .value = .{ .time = std.math.maxInt(u64) }, .preview = "18446744073709551615 ns since midnight" },
+        .{ .value = .{ .timestamp = std.math.minInt(i64) }, .preview = "-9223372036854775808 microseconds since epoch" },
+        .{ .value = .{ .interval = .{ .months = std.math.minInt(i32), .days = std.math.maxInt(i32), .nanos = std.math.minInt(i64) } }, .preview = "-2147483648 months, 2147483647 days, -9223372036854775808 ns" },
+        .{ .value = .{ .uuid = @splat(255) }, .preview = "ffffffffffffffffffffffffffffffff" },
+    };
+    var detail: f.Sql.Binding = .{};
+    for (cases) |case| {
+        if (template.bind(e.allocator, "people", input, basis, &.{case.value}, &detail)) |result| {
+            var unexpected = result;
+            unexpected.deinit();
+            return error.AcceptedWrongParameter;
+        } else |_| {}
+        try e.expectEqual(@as(?u32, 1), detail.parameter);
+        try e.expectEqualStrings("int64", detail.expected.?);
+        try e.expectEqualStrings(@tagName(case.value), detail.actual.?);
+        try e.expectEqualStrings(case.preview, detail.literal[0..detail.literal_len]);
+        try e.expect(!detail.literal_truncated);
+    }
+    var bytes: [33]u8 = @splat(0xff);
+    try e.expectError(error.TypeMismatch, template.bind(e.allocator, "people", input, basis, &.{.{ .bytes = &bytes }}, &detail));
+    @memset(&bytes, 0);
+    try e.expect(detail.literal_truncated);
+    try e.expectEqual(@as(usize, 157), detail.literal_len);
+    try e.expect(std.mem.startsWith(u8, detail.literal[0..detail.literal_len], "\"\\xff\\xff"));
+    try e.expect(std.mem.endsWith(u8, detail.literal[0..detail.literal_len], "\" [truncated after 32 bytes]"));
+    var zero: std.heap.FixedBufferAllocator = .init(&.{});
+    try e.expectError(error.TypeMismatch, template.bind(zero.allocator(), "people", input, basis, &.{.{ .unsigned = 2 }}, &detail));
+    try e.expectEqualStrings("2", detail.literal[0..detail.literal_len]);
+    try e.expect(!detail.literal_truncated);
 }
