@@ -11555,6 +11555,39 @@ the complete saved-intent bound to the generated **4,327,031 bytes**, distinct
 from the 4 MiB mutation body. These are local/installed codec results, not general
 .NET Table runtime, full-repository, performance or clean-CI qualification.
 
+
+The .NET general Table client passes the installed lifecycle in **167.021 seconds**
+(`table-dotnet-catalog-installed2.log`): nested typed INSERT, exact wide decimal,
+unchanged-value counts, ALTER/default and stale-basis rejection, DELETE,
+DROP/name reuse, accepted original schema and exact original outcome through a
+replacement client. The shared fixture records 493 turns and 133 sends with
+maximums of four native writes, 256-byte values and 1,398-byte progress commands.
+Lost-send, lost-turn and supplied-host receipt-loss checks pass. The consumer
+restores four independently packaged NuGet artifacts, records their hashes,
+removes source/package caches and runs with no source-library overrides.
+
+Installed value checks cover full-width identities, owned schemas/collections,
+immutable diagnostic copies, missing/foreign definitions, exact compiled identity,
+strict original metadata and resource-cut continuations, malformed successful
+receipts and 300,000-byte saved-intent copies. Fifteen nested MAPs exercise the
+catalog's 96-level JSON limit while the unchanged raw limit rejects the same
+wrapped value. Real native HTTP cancellation retains busy ownership until joined
+disposal; this does not claim admitted-mutation cancellation or allocator injection.
+The separate installed raw-client recovery, seedless retry, cancellation/disposal
+and revoked-retry schedule passes (`table-dotnet-catalog-raw1.log`).
+
+The first installed attempt failed to compile its test consumer because a
+STRUCT was passed through the fixture's scalar helper. The corrected consumer
+first passed isolated installed value checks (`table-dotnet-catalog-values2.log`)
+then the complete lifecycle; the package build itself had passed with zero
+warnings (`table-dotnet-catalog-build1.log`). These logs share the existing
+campaign directory. Full `just check` passes (`table-dotnet-catalog-check1.log`),
+including generated contracts, unit/CLI checks, frontend tests and the documentation
+production build. Documentation checks cover 5,303 links across 525 files;
+verification retains 59 invariants, 53 bounds and 13 SDK scenarios. C/C++ and BEAM
+catalog migrations, other enabled query routes, the coordinated definition cutover
+and final clean/performance qualification remain required before issue completion.
+
 ## Fuze logical type foundation
 
 The local `Types` profile has nine passing focused Zig tests, including 46

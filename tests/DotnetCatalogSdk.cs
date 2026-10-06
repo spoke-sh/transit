@@ -4,83 +4,94 @@ using System.Text.Json.Nodes;
 using Transit.Client;
 using Transit.Station.Sdk;
 using C = Transit.Station.Sdk.Catalog;
+using L = Transit.Station.Sdk.Logical;
 
 static class Program
 {
-    internal static void Check(bool value) { if (!value) throw new Exception("Catalog caller assertion failed"); }
+    internal static void Check(bool value) { if (!value) throw new Exception("Installed Table assertion failed"); }
     static string Text(JsonNode value, string key) => value[key]!.GetValue<string>();
     static ulong Number(JsonNode value, string key) => value[key]!.GetValue<ulong>();
     static ulong Wide(JsonNode value, string key) => ulong.Parse(Text(value, key), CultureInfo.InvariantCulture);
-    static string Decimal(ulong value) => value.ToString(CultureInfo.InvariantCulture);
-    static string Hex(Bytes value) => Convert.ToHexString(value.Copy()).ToLowerInvariant();
-    static C.Prepared Prepared(string value) => new(new Bytes(Encoding.UTF8.GetBytes(value)));
-    static string Saved(C.Prepared value) => Encoding.UTF8.GetString(value.Bytes.Copy());
-    static string Name(Enum value) => string.Concat(value.ToString().Select((c, i) => (i > 0 && char.IsUpper(c) ? "_" : "") + char.ToLowerInvariant(c)));
     internal static JsonObject Obj(params (string Key, object? Value)[] fields) {
         JsonObject result = new();
         foreach (var (key, value) in fields) result[key] = value switch {
             null => null, JsonNode v => v, string v => JsonValue.Create(v), bool v => JsonValue.Create(v),
             ulong v => JsonValue.Create(v), uint v => JsonValue.Create(v), int v => JsonValue.Create(v),
-            byte v => JsonValue.Create(v), ushort v => JsonValue.Create(v),
             _ => throw new Exception("Invalid test JSON")
-        };
-        return result;
+        }; return result;
     }
-    static C.Scope Scope(JsonNode v) => new(new ResourceRef(Number(v, "realm"), Number(v, "resource")), Wide(v, "catalog"));
-    static JsonObject Json(C.Scope v) => Obj(("realm", v.Resource.Realm), ("resource", v.Resource.Resource), ("catalog", Decimal(v.CatalogId)));
-    static C.Configuration Configuration(JsonNode v) { var s = Scope(v["scope"]!); return new(s, new ProcessRef(s.Resource.Realm, Number(v, "owner")), Number(v, "administrator")); }
-    static JsonObject Json(C.Configuration v) => Obj(("scope", Json(v.Scope)), ("owner", v.Owner.Pid), ("administrator", v.Administrator));
-    static C.Policy Policy(JsonNode v) => new(Scope(v["scope"]!), Number(v, "principal"), Wide(v, "revision"), v["inspect"]!.GetValue<bool>(), v["create"]!.GetValue<bool>());
-    static JsonObject Json(C.Policy v) => Obj(("scope", Json(v.Scope)), ("principal", v.Principal), ("revision", Decimal(v.Revision)), ("inspect", v.Inspect), ("create", v.Create));
-    static C.CreateTable Request(JsonNode v) {
-        var schema = v["schema"]!;
-        return new(Scope(v["scope"]!), Wide(v, "operation"), Wide(v, "object"), checked((uint)Number(v, "table")), Text(v, "name"),
-            new C.Schema(schema["names"]!.AsArray().Select(n => n!.GetValue<string>()).ToArray(), Enum.Parse<C.Type>(Text(schema, "value_type"), true)));
+    static Task<C.Client> Connect(JsonNode config) {
+        var c = config["connection"]!; var s = c["scope"]!; ulong realm = Number(s,"realm");
+        C.Connection connection = new(new ProcessRef(realm, Number(c,"owner")), new C.Scope(new ResourceRef(realm, Number(s,"resource")), Wide(s,"catalog")));
+        return C.Client.OpenAsync(new ClientConfig(new Uri(Text(config,"url")), Profile.NativeV1, timeoutMillis: 10000), new Credential(realm, Number(c,"principal"), Text(config,"seed_file")), connection);
     }
-    internal static JsonObject Json(C.CreateTable v) => Obj(("scope", Json(v.Scope)), ("operation", Decimal(v.Operation)), ("object", Decimal(v.ObjectId)), ("table", v.Table), ("name", v.Name),
-        ("schema", Obj(("names", new JsonArray(v.Schema.Names.Select(n => (JsonNode?)JsonValue.Create(n)).ToArray())), ("value_type", Name(v.Schema.ValueType)))));
-    static C.Cursor Cursor(JsonNode v) => new(Text(v, "definition"), Scope(v["scope"]!), Number(v, "resource_revision"), Text(v, "after"));
-    static JsonObject Json(C.Cursor v) => Obj(("definition", v.Definition), ("scope", Json(v.Scope)), ("resource_revision", v.ResourceRevision), ("after", v.After));
-    static JsonObject Json(C.Definition v) => Obj(("scope", Json(v.Scope)), ("object", Decimal(v.ObjectId)), ("revision", Decimal(v.Revision)), ("name", v.Name),
-        ("source", Obj(("table", Obj(("id", v.Source.Table), ("schema", Obj(("names", new JsonArray(v.Source.Schema.Names.Select(n => (JsonNode?)JsonValue.Create(n)).ToArray())), ("value_type", Name(v.Source.Schema.ValueType)))))))),
-        ("principal", v.Principal), ("operation", Decimal(v.Operation)), ("input", v.Input));
-    static JsonObject Json(C.Page v) {
-        JsonArray entries = new(v.Entries.Select(d => (JsonNode?)Json(d)).ToArray()); while (entries.Count < 8) entries.Add((JsonNode?)null);
-        return Obj(("resource_revision", v.ResourceRevision), ("entries", entries), ("next", v.Next is null ? null : Json(v.Next)));
+    static void Persist(string path, byte[] bytes) {
+        FileStreamOptions options = new() { Mode = FileMode.Create, Access = FileAccess.Write, Share = FileShare.None };
+        if (!OperatingSystem.IsWindows()) options.UnixCreateMode = UnixFileMode.UserRead | UnixFileMode.UserWrite;
+        using FileStream file = new(path, options); file.Write(bytes); file.Flush(true);
     }
-    static async Task<JsonObject> Call(C.Client client, JsonObject action) {
-        var entry = action.Single(); var value = entry.Value!;
-        switch (entry.Key) {
-            case "capabilities": { var v = await client.CapabilitiesAsync(); return Obj(("capabilities", Obj(("version", v.Version), ("definition", v.Definition), ("initialize", v.Initialize), ("create_table", v.CreateTable), ("conditional_policy", v.ConditionalPolicy), ("current_metadata", v.CurrentMetadata), ("max_saved_bytes", v.MaxSavedBytes), ("table_columns", v.TableColumns)))); }
-            case "describe": { var v = await client.DescribeAsync(); return Obj(("description", Obj(("configuration", Json(v.Configuration)), ("policy", Json(v.Policy)), ("resource_revision", v.ResourceRevision)))); }
-            case "lookup": { var v = await client.LookupAsync(value.GetValue<string>()); return Obj(("definition", v is null ? null : Json(v))); }
-            case "definition": { var v = await client.DefinitionAsync(Wide(value, "object"), Wide(value, "revision")); return Obj(("definition", v is null ? null : Json(v))); }
-            case "list": return Obj(("page", Json(await client.ListAsync(value is null ? null : Cursor(value)))));
-            case "compile": { var v = await client.CompileSqlAsync(Text(value, "sql"), Wide(value, "operation"), Wide(value, "object"), checked((uint)Number(value, "table"))); return Obj(("compiled", Obj(("request", Json(v.Request)), ("canonical", Hex(v.Canonical))))); }
-            case "prepare_initialize": return Obj(("prepared", Saved(await client.PrepareInitializeAsync(Configuration(value)))));
-            case "prepare_create": return Obj(("prepared", Saved(await client.PrepareCreateAsync(Request(value)))));
-            case "prepare_policy": return Obj(("prepared", Saved(await client.PreparePolicyAsync(new C.PolicyChange(Wide(value, "expected_revision"), Policy(value["policy"]!))))));
-            case "submit": {
-                string original = value.GetValue<string>(); var prepared = Prepared(original);
-                try { return Obj(("receipt", Obj(("position", (await client.SubmitAsync(prepared)).Position)))); }
-                finally { Check(Saved(prepared) == original); }
+    static async Task<C.Outcome> Finish(C.Client client, C.Compiled compiled, string root) {
+        var saved = Obj(("definition", compiled.Saved.Definition), ("bytes", Convert.ToHexString(compiled.Saved.Copy()).ToLowerInvariant()));
+        Persist(Path.Combine(root,"intent.json"), Encoding.UTF8.GetBytes(saved.ToJsonString()));
+        var reference = compiled.Intent.Reference; long deadline = Environment.TickCount64 + 120000;
+        for (;;) {
+            Check(Environment.TickCount64 < deadline); var next = await client.NextAsync(reference);
+            if (next.Kind == C.NextKind.Terminal) return next.Outcome!;
+            if (next.Kind == C.NextKind.Running) continue;
+            Check(next.Kind == C.NextKind.Send); var prepared = next.Prepared!;
+            Persist(Path.Combine(root,"step.json"), prepared.Bytes.Copy()); ulong position = (await client.SubmitAsync(prepared)).Position;
+            Persist(Path.Combine(root,"receipt.json"), Encoding.UTF8.GetBytes(position.ToString(CultureInfo.InvariantCulture)));
+            for (;;) {
+                Check(Environment.TickCount64 < deadline); var progress = await client.ProgressAsync(reference, prepared, position, wait: true);
+                if (progress.Observation == C.Observation.Pending) continue;
+                Check(progress.Disposition is null);
+                if (progress.Outcome is { Terminal: true } outcome) return outcome;
+                break;
             }
-            case "observe": return Obj(("observation", Name(await client.ObserveAsync(Prepared(Text(value, "prepared")), Number(value, "input")))));
-            case "input_disposition": { var v = await client.InputDispositionAsync(Prepared(Text(value, "prepared")), Number(value, "input")); return Obj(("disposition", v is null ? null : Obj(("scope", Json(v.Scope)), ("origin", Name(v.Origin)), ("principal", v.Principal), ("input", v.Input), ("payload", Hex(v.Payload)), ("outcome", Name(v.Outcome)), ("diagnostic",v.Diagnostic)))); }
-            case "status": { var v = await client.StatusAsync(Request(value)); return Obj(("status", v is null ? null : Obj(("request", Json(v.Request)), ("principal", v.Principal), ("input", v.Input), ("outcome", Name(v.Outcome)), ("diagnostic",v.Diagnostic)))); }
-            default: throw new Exception("Unknown catalog action");
         }
     }
+    static L.Present Atom(L.Atom value) => new(value);
+    static async Task<JsonObject> Scenario(C.Client client, JsonNode config, string root, ulong index) {
+        ulong start = 1100 + index * 100, objectId = 12001 + index * 10; string name = $"sdk_people_{index}";
+        C.Identity Id(ulong offset) => new(start + offset, start + offset + 100000);
+        var description = await client.DescribeAsync(); Check(description.Configuration.Scope == client.Connection.Scope && description.Policy.Principal == Number(config["connection"]!, "principal"));
+        var create = await client.CompileSqlAsync($"CREATE TABLE {name} (id INTEGER PRIMARY KEY, payload STRUCT(data BINARY, label UTF8), amount DECIMAL(38,2))", Id(0), objectId);
+        Check((await Finish(client, create, root)).Phase == C.Phase.Applied);
+        var original = (await client.LookupAsync(name))!; Check(original.Schema.Columns.Count == 3 && original.Schema.Columns[1].Type is L.Structure);
+        var payload = new L.Present(new L.Sequence(L.SequenceKind.Structure, [Atom(new L.Binary(new L.BinaryData([0,128,255]))), Atom(new L.Utf8("東京"))]));
+        var amount = Atom(new L.DecimalValue(Int128.Parse("123456789012345678901234567890", CultureInfo.InvariantCulture)));
+        var insert = await client.PrepareAsync(name, Id(1), new C.Mutate(original.Metadata.Basis, new C.Insert([[new C.Assignment(3,amount),new C.Assignment(1,Atom(new L.Signed(1))),new C.Assignment(2,payload)]])));
+        var applied = await Finish(client, insert, root); Check(applied.Counts == new C.Counts(1,1));
+        C.Predicate[] predicate = [new C.Comparison(1,C.CompareOperator.Eq,new L.Signed(1))];
+        var update = await client.PrepareAsync(name, Id(2), new C.Mutate(original.Metadata.Basis, new C.Update([new C.Assignment(3,amount)],predicate)));
+        Check((await Finish(client, update, root)).Counts == new C.Counts(1,0));
+        var alter = await client.PrepareAsync(name, Id(3), new C.Alter(original.Metadata.Basis, new C.AddColumn("enabled",new L.Scalar(L.ScalarKind.Boolean),false,Atom(new L.BooleanValue(true)))));
+        Check((await Finish(client, alter, root)).Phase == C.Phase.Applied);
+        try { await client.PrepareAsync(name,Id(4),new C.Drop(original.Metadata.Basis)); throw new Exception("Stale basis retargeted work"); } catch (TransitException) { }
+        var current = (await client.LookupAsync(name))!;
+        var delete = await client.PrepareAsync(name,Id(5),new C.Mutate(current.Metadata.Basis,new C.Delete(predicate)));
+        Check((await Finish(client,delete,root)).Counts == new C.Counts(1,1));
+        Check((await Finish(client,await client.PrepareAsync(name,Id(6),new C.Drop(current.Metadata.Basis)),root)).Phase == C.Phase.Applied);
+        Check((await Finish(client,await client.CompileSqlAsync($"CREATE TABLE {name} (replacement TEXT)",Id(7),objectId+1),root)).Phase == C.Phase.Applied);
+        await client.DisposeAsync();
+        await using (var replacement = await Connect(config)) {
+            var loaded = await replacement.LoadAsync(new C.SavedIntent(insert.Saved.Definition,insert.Saved.Copy())); Check(loaded.ObjectId == objectId);
+            Check((await replacement.StatusAsync(loaded.Reference)).Outcome == applied);
+            Check((await replacement.LookupAsync(name))!.Metadata.ObjectId == objectId + 1);
+            var historical = (await replacement.DefinitionAsync(objectId,original.Metadata.Revision))!;
+            Check(historical.Metadata == original.Metadata && historical.Schema == original.Schema);
+            Check(await replacement.DefinitionAsync(objectId,999) is null); Check((await replacement.ListAsync()).Entries.Count > 0);
+        }
+        return Obj(("profile","installed-dotnet-general-table"),("original_object",objectId.ToString(CultureInfo.InvariantCulture)),("replacement_object",(objectId+1).ToString(CultureInfo.InvariantCulture)),("counts",Obj(("matched","1"),("changed","1"))));
+    }
     static async Task Main(string[] args) {
-        if (args[0] == "values") { await CatalogValues.Run(args[1]); return; }
-        var config = JsonNode.Parse(File.ReadAllText(args[0]))!; var c = config["connection"]!; var s = Scope(c["scope"]!);
-        C.Connection connection = new(new ProcessRef(s.Resource.Realm, Number(c, "owner")), s);
-        await using (var client = await C.Client.OpenAsync(new ClientConfig(new Uri(Text(config, "url")), Profile.NativeV1, timeoutMillis: 10000), new Credential(s.Resource.Realm, Number(c, "principal"), Text(config, "seed_file")), connection)) {
+        if (args[0] == "values") { LogicalValues.Run(); SchemaValues.Run(); await CatalogValues.Run(args[1]); return; }
+        string path = args[0]; var config = JsonNode.Parse(File.ReadAllText(path))!;
+        await using (var client = await Connect(config)) {
             Console.WriteLine("{\"ready\":true}");
             while (Console.ReadLine() is {} line) {
                 var action = JsonNode.Parse(line)!.AsObject(); if (action.ContainsKey("close")) break;
-                try { Console.WriteLine(Obj(("status", 0), ("value", await Call(client, action))).ToJsonString()); }
-                catch (TransitException error) { Console.WriteLine(Obj(("status", error.Status ?? (error.Kind == ErrorKind.UnknownOutcome ? 6u : 1u)), ("value", Obj(("err", error.Code),("diagnostic",error.Diagnostic),("diagnostic_invalid",error.DiagnosticInvalid)))).ToJsonString()); }
+                Console.WriteLine(Obj(("status",0),("value",await Scenario(client,config,Path.GetDirectoryName(path)!,Number(action["scenario"]!,"index")))).ToJsonString());
             }
         }
         Console.WriteLine("{\"closed\":true}");

@@ -49,9 +49,9 @@ Arrow values, current source checks and explicit signed retry tokens.
 immutable recovery values, explicit admission and current status through an
 owned asynchronous client.
 
-[Catalog callers](docs/CATALOG.md) expose typed initialization, conditional
-policy changes, named Table creation and exact saved-command recovery through
-the shared native ABI and an owned asynchronous worker.
+[General Table callers](docs/CATALOG.md) expose arbitrary typed schemas, finite
+mutations, ALTER/DROP, accepted schema history and exact saved-intent recovery
+through the shared native ABI and an owned asynchronous worker.
 
 The [logical value guide](docs/LOGICAL.md) covers owned recursive descriptors,
 exact wide numbers, distinct cell states and bounded neutral codecs.

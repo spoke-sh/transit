@@ -308,7 +308,7 @@ def install_dotnet(target):
     ET.SubElement(sources, 'clear')
     ET.SubElement(sources, 'add', key='local-built', value=str(feed))
     ET.ElementTree(config).write(source / 'NuGet.Config', encoding='utf-8', xml_declaration=True)
-    for name in ('DotnetCatalogSdk.cs', 'DotnetCatalogValues.cs'):
+    for name in ('DotnetCatalogSdk.cs', 'DotnetCatalogValues.cs', 'DotnetLogicalValues.cs', 'DotnetSchemaValues.cs'):
         shutil.copy2(ROOT / 'tests' / name, source / name)
     subprocess.run(['dotnet', 'restore', project.name, '--configfile', 'NuGet.Config'], cwd=source, env=environment, check=True)
     app = target / 'app'

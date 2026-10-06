@@ -130,17 +130,18 @@ internal sealed class Bridge : IWorkerState<object?>
                 if (bridge.catalogClient == IntPtr.Zero) throw Value.Incompatible("catalog-create");
             } finally { CryptographicOperations.ZeroMemory(seed); }
             var caps = Sdk.Catalog.ParseCapabilities(bridge.Catalog(Value.Obj(("capabilities", Value.Obj())))["capabilities"]);
-            if (!caps.Initialize || !caps.CreateTable || !caps.ConditionalPolicy || !caps.CurrentMetadata) throw new TransitException(ErrorKind.UnsupportedCapability, "catalog-capabilities");
+            if (!Sdk.Catalog.Supported(caps)) throw new TransitException(ErrorKind.UnsupportedCapability, "catalog-capabilities");
             return bridge;
         } catch (Exception) { bridge.Dispose(); throw; }
     }
-    internal JsonObject Catalog(JsonObject action)
+    internal JsonObject Catalog(JsonObject action) => Catalog(Sdk.Catalog.ActionBytes(action));
+    internal JsonObject Catalog(byte[] bytes)
     {
+        if (bytes.Length > Sdk.Catalog.Limit("catalog_action_bytes")) throw new ArgumentException("Catalog action exceeds its bound");
+        var action = Value.Object(Value.Parse(bytes, 96));
         Schema.Require(Value.Object(Schemas["CatalogAction"]), action);
-        byte[] bytes = Value.Json(action);
-        if (bytes.Length > Value.MaxBody) throw new ArgumentException("Catalog action exceeds its bound");
         uint status = Api.station_catalog_call(catalogClient, bytes, (nuint)bytes.Length, out var buffer);
-        return Result(status, buffer, "catalog", action.ContainsKey("submit") && (status is 0 or 6), "CatalogResult");
+        return Result(status, buffer, "catalog", action.ContainsKey("submit") && (status is 0 or 6), "CatalogResult", Sdk.Catalog.Limit("catalog_action_bytes"), 96);
     }
     internal JsonObject UnifiedQuery(JsonObject action, bool mutation = false)
     {
@@ -200,12 +201,12 @@ internal sealed class Bridge : IWorkerState<object?>
         uint status = Api.station_growing_document_read(server, bytes, (nuint)bytes.Length, out var buffer);
         return Result(status, buffer, "document-read", schema: "DocumentReadResult");
     }
-    internal byte[] Buffer(uint status, IntPtr pointer, string phase)
+    internal byte[] Buffer(uint status, IntPtr pointer, string phase, int? maximum = null)
     {
         byte[] bytes;
         try {
             nuint size = pointer == IntPtr.Zero ? 0 : Api.station_buffer_size(pointer);
-            if (size > (nuint)Value.MaxLine) throw Value.Incompatible("native-buffer-bound");
+            if (size > (nuint)(maximum ?? Value.MaxLine)) throw Value.Incompatible("native-buffer-bound");
             bytes = new byte[(int)size];
             if (size > 0) Marshal.Copy(Api.station_buffer_data(pointer), bytes, 0, bytes.Length);
         } finally { Api.station_buffer_destroy(pointer); }
@@ -216,10 +217,10 @@ internal sealed class Bridge : IWorkerState<object?>
         }
         return bytes;
     }
-    private JsonObject Result(uint status, IntPtr pointer, string phase, bool mutation = false, string? schema = null)
+    private JsonObject Result(uint status, IntPtr pointer, string phase, bool mutation = false, string? schema = null, int? maximum = null, int maxDepth = 64)
     {
         try {
-            JsonObject value = Value.Object(Value.Parse(Buffer(status, pointer, phase)));
+            JsonObject value = Value.Object(Value.Parse(Buffer(status, pointer, phase, maximum), maxDepth));
             if (schema is not null) Schema.Require(Value.Object(Schemas[schema]), value);
             return value;
         }
