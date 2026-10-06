@@ -17,6 +17,36 @@ import contract from "./contract.json" with { type: "json" };
 
 export const maximumLine = contract.limits.host_line_bytes;
 const utf8 = new TextDecoder("utf-8", { fatal: true });
+// Generated schemas may contain recursive logical values. Bound traversal
+// before invoking them; the complete encoded frame keeps its separate limit.
+function boundedJson(value: unknown, maximum: number): boolean {
+  let nodes = 0;
+  let bytes = 0;
+  function string(value: string): boolean {
+    bytes += Buffer.byteLength(value);
+    return bytes <= maximum && Buffer.from(value).toString("utf8") === value;
+  }
+  function visit(value: unknown, depth: number): boolean {
+    if (depth > 96 || ++nodes > 1048576) return false;
+    if (value === null || value === undefined || typeof value === "boolean") return true;
+    if (typeof value === "number") return Number.isFinite(value);
+    if (typeof value === "string") return string(value);
+    if (typeof value !== "object") return false;
+    if (Array.isArray(value))
+      return value.length <= 1048576 && value.every((item) => visit(item, depth + 1));
+    if (Object.getPrototypeOf(value) !== Object.prototype && Object.getPrototypeOf(value) !== null)
+      return false;
+    for (const key in value) {
+      if (
+        Object.hasOwn(value, key) &&
+        (!string(key) || !visit((value as Record<string, unknown>)[key], depth + 1))
+      )
+        return false;
+    }
+    return true;
+  }
+  return visit(value, 0);
+}
 export function validators(schemas: Record<string, unknown>): Record<string, ValidateFunction> {
   const ajv = new Ajv({ strict: true });
   return Object.fromEntries(
@@ -140,6 +170,7 @@ export class Port {
     let status: number, value: unknown;
     try {
       const result: unknown = JSON.parse(utf8.decode(this.#incoming.subarray(0, end)));
+      if (!boundedJson(result, this.#maximumLine)) throw new TypeError();
       if (
         result === null ||
         typeof result !== "object" ||
@@ -174,7 +205,7 @@ export class Port {
   ): Promise<unknown> {
     if (this.#closed || this.#closing) return Promise.reject(new Closed("Native host is closed"));
     if (this.#pending) return Promise.reject(new Busy("One native request per host"));
-    if (!this.#requestValidator(input))
+    if (!boundedJson(input, this.#maximumLine) || !this.#requestValidator(input))
       return Promise.reject(new TypeError("Invalid native request"));
     const line = JSON.stringify(input) + "\n";
     if (Buffer.byteLength(line) > this.#maximumLine)

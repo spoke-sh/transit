@@ -15884,3 +15884,14 @@ Reported chunks include index 406.36 kB, query 1060.71 kB and inspection
 chunks. This browser build does not qualify the embedded Board binary or the
 still-pending native reactive/work-items migration. Earlier browser migration
 attempts failed on stale basis and cell fixtures before the recorded passes.
+
+### Recursive Node port admission
+
+The native Node port bounds JSON depth, nodes and text before invoking recursive
+generated validators. Tests reject cyclic/deep requests, invalid Unicode and
+nonfinite numbers without calling the validator, then successfully reuse the
+same port with shared object references. Deep responses preserve read failure
+versus uncertain mutation outcomes. All three port cases and the existing error
+case pass, with strict TypeScript, formatting and lint checks
+(`node-query-fullcheck1.log` in the local Table-schema campaign). These local
+transport tests do not establish catalog authority or native query completion.
