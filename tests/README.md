@@ -16442,3 +16442,31 @@ publication; those have separate native schedules above.
 using the same implementations and oracles as `just test::sql`. Earlier runs
 failed to unwrap the schema-evolution transition and then found a stale scalar
 parameter fixture API in the full suite; neither is counted as passed.
+
+### General Table diagnostic grammar and logical values
+
+The migrated public diagnostic fixture passes 311 compiler cases and all 411
+reference parser rule/alternative/optional/repetition obligations
+(`general-table-diagnostic-grammar5.log`). It now executes general Table DDL and
+DML compilers, while retaining scalar SELECT/template and offline KV/Document
+profiles. New cases cover recursive descriptors/constructors, aliases, defaults,
+primary keys, every selected ALTER form, DROP, omitted INSERT lists, multiple
+assignments and precise malformed-value failures. Duplicate input primary keys
+compile into an immutable intent; runtime uniqueness/publication proofs above
+own their atomic rejection. SQL MAP constructors normalize key order; duplicate
+keys remain errors.
+
+ReleaseSafe Fuze tests pass 258/258 (`general-table-logical-diagnostics-unit1.log`).
+Malformed date/time/timestamp/UUID/JSON values retain their original typed cause;
+temporal and JSON failures retain the original literal location even with a
+later column in the declaration. The structured result is locally not-submitted
+and offers no resume/cancel action. JSON validation occurs during literal binding
+rather than first reporting an error at a later schema validation boundary.
+The independent mapping gate passes (`general-table-diagnostic-mappings3.log`),
+including the already implemented reactive catalog denial and caught metadata
+invalidation translations. No native serving schedule ran in this checkpoint.
+
+Earlier diagnostic runs exposed unmapped temporal causes and incomplete new
+parser-branch coverage. A proposed unsorted MAP rejection was incorrect because
+SQL construction canonicalizes map order; its reviewed case now requires
+successful compilation. None of those earlier runs is counted as passed.

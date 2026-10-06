@@ -199,3 +199,11 @@ failures preserve their cause under an explicit read boundary even when the OS
 error set is open. The actual CLI checks absent input/schema paths. Unqualified
 `EndOfStream` is truncated input; only recorded gzip-decompression context
 classifies it as invalid gzip. These distinctions do not change result stdout.
+
+General Table grammar cases use `TableDdl` and `TableDml` with explicit captured
+schemas. The offline declaration profile covers KV and Document separately.
+DDL defaults and DML values preserve typed temporal, UUID, JSON and recursive
+value failures through SQL diagnostics; malformed JSON is validated while its
+original literal span is available. Repeated keys in a compiled multi-row intent
+remain a runtime uniqueness obligation, with atomic rejection in the Table
+publication proofs. Grammar acceptance never establishes publication.

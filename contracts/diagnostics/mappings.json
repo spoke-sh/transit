@@ -36,6 +36,10 @@
         {
           "source": "packages/zig/transit-query/src/ApiDiagnostic.zig",
           "name": "caller diagnostics distinguish local rejection, unknown send and failed status inspection"
+        },
+        {
+          "source": "packages/zig/transit-fuze/src/SqlDiagnostic.zig",
+          "name": "general Table literal failures keep typed causes and original locations"
         }
       ],
       "exceptions": [
@@ -566,6 +570,74 @@
         "InvalidIntegerEncoding": {
           "code": "sql.invalid_integer_encoding",
           "category": "binding"
+        },
+        "InvalidDate": {
+          "code": "sql.invalid_date",
+          "category": "binding"
+        },
+        "InvalidTime": {
+          "code": "sql.invalid_time",
+          "category": "binding"
+        },
+        "InvalidTimestamp": {
+          "code": "sql.invalid_timestamp",
+          "category": "binding"
+        },
+        "InvalidUuid": {
+          "code": "sql.invalid_uuid",
+          "category": "binding"
+        },
+        "MapKeyOrder": {
+          "code": "sql.map_key_order",
+          "category": "constraint"
+        },
+        "InvalidJson": {
+          "code": "sql.invalid_json",
+          "category": "binding"
+        },
+        "SyntaxError": {
+          "code": "sql.invalid_json_syntax",
+          "category": "binding"
+        },
+        "UnexpectedEndOfInput": {
+          "code": "sql.incomplete_json",
+          "category": "binding"
+        },
+        "DuplicateField": {
+          "code": "sql.duplicate_field",
+          "category": "constraint"
+        },
+        "InvalidFieldCount": {
+          "code": "sql.invalid_field_count",
+          "category": "binding"
+        },
+        "InvalidFieldName": {
+          "code": "sql.invalid_field_name",
+          "category": "binding"
+        },
+        "InvalidUnion": {
+          "code": "sql.invalid_union",
+          "category": "binding"
+        },
+        "JsonByteBudgetExceeded": {
+          "code": "sql.json_byte_budget",
+          "category": "limit"
+        },
+        "JsonDepthExceeded": {
+          "code": "sql.json_depth",
+          "category": "limit"
+        },
+        "JsonFieldBudgetExceeded": {
+          "code": "sql.json_fields",
+          "category": "limit"
+        },
+        "JsonTokenBudgetExceeded": {
+          "code": "sql.json_tokens",
+          "category": "limit"
+        },
+        "UnorderedType": {
+          "code": "sql.unordered_type",
+          "category": "unsupported"
         }
       }
     },
@@ -3535,9 +3607,50 @@
         "AuthorityTransportDenied": {
           "code": "serving.transport_denied",
           "category": "unavailable"
+        },
+        "CatalogDenied": {
+          "code": "reactive.catalog_denied",
+          "category": "access"
         }
       },
-      "exceptions": [],
+      "exceptions": [
+        {
+          "source": "packages/zig/transit-serving/src/TableWatch.zig",
+          "cause": "CatalogDefinitionChanged",
+          "disposition": "control_flow",
+          "reason": "The captured catalog source no longer names the same live definition. TableWatch catches this cause and returns mapped ReactiveResetRequired; it never follows the replacement metadata or discloses through a stale grant.",
+          "tests": [
+            {
+              "source": "packages/zig/transit-serving/src/watch_test.zig",
+              "name": "staged mutation notifications retain old rows until publication and current catalog denial wins over metadata drift"
+            }
+          ]
+        },
+        {
+          "source": "packages/zig/transit-serving/src/TableWatch.zig",
+          "cause": "CatalogSourceChanged",
+          "disposition": "control_flow",
+          "reason": "The captured catalog source no longer names the same live definition. TableWatch catches this cause and returns mapped ReactiveResetRequired; it never follows the replacement metadata or discloses through a stale grant.",
+          "tests": [
+            {
+              "source": "packages/zig/transit-serving/src/watch_test.zig",
+              "name": "staged mutation notifications retain old rows until publication and current catalog denial wins over metadata drift"
+            }
+          ]
+        },
+        {
+          "source": "packages/zig/transit-serving/src/TableWatch.zig",
+          "cause": "TableRetired",
+          "disposition": "control_flow",
+          "reason": "The captured catalog source no longer names the same live definition. TableWatch catches this cause and returns mapped ReactiveResetRequired; it never follows the replacement metadata or discloses through a stale grant.",
+          "tests": [
+            {
+              "source": "packages/zig/transit-serving/src/watch_test.zig",
+              "name": "staged mutation notifications retain old rows until publication and current catalog denial wins over metadata drift"
+            }
+          ]
+        }
+      ],
       "tests": [
         {
           "source": "packages/zig/transit-serving/src/ServingDiagnostic.zig",

@@ -7,11 +7,12 @@ const f = q.fuze;
 const Case = struct {
     id: []const u8,
     sql: []const u8,
-    profile: enum { query, template, declaration, mutation, application } = .query,
+    profile: enum { query, template, declaration, table_ddl, mutation, application } = .query,
     value_type: f.Unified.Type = .int64,
     source: []const u8 = "items",
+    basis: []const u8 = "CREATE TABLE items (id INT64 PRIMARY KEY, value INT64)",
 };
-fn compile(allocator: std.mem.Allocator, case: Case, binding: *f.Sql.Binding) !void {
+fn compile(allocator: std.mem.Allocator, case: Case, binding: *f.Sql.Binding, location: *f.Sql.Location) !void {
     const columns = [_]f.Unified.Column{
         .{ .name = try f.Unified.Name.init("id"), .type = .int64 },
         .{ .name = try f.Unified.Name.init("value"), .type = case.value_type },
@@ -24,7 +25,18 @@ fn compile(allocator: std.mem.Allocator, case: Case, binding: *f.Sql.Binding) !v
             defer value.deinit();
         },
         .declaration => _ = try f.Declaration.compileDiagnostic(case.sql, binding),
-        .mutation => _ = try f.TableMutation.compileDiagnostic(case.sql, .{ .name = try f.model.Name.init(case.source), .schema = .{ .names = .{ try f.model.Name.init("id"), try f.model.Name.init("value") }, .value_type = std.meta.stringToEnum(f.model.Type, @tagName(case.value_type)) orelse return error.InvalidFixtureType } }, binding),
+        .table_ddl, .mutation => {
+            var basis = try f.TableDdl.compile(allocator, case.basis, null, null);
+            defer basis.deinit();
+            const schema = try basis.statement.create.bind(7);
+            if (case.profile == .table_ddl) {
+                var value = try f.TableDdl.compile(allocator, case.sql, schema, location);
+                defer value.deinit();
+            } else {
+                var value = try f.TableDml.compile(allocator, case.sql, case.source, schema, location);
+                defer value.deinit();
+            }
+        },
         .application => unreachable,
     }
 }
@@ -49,12 +61,17 @@ pub fn main(init: std.process.Init) !void {
             } else |err| diagnostic = try detail.structured(err);
         } else {
             var binding: f.Sql.Binding = .{};
-            compile(arena.allocator(), case, &binding) catch |err| {
+            var location: f.Sql.Location = .{};
+            compile(arena.allocator(), case, &binding, &location) catch |err| {
                 const detail = (switch (case.profile) {
-                    .mutation => f.SqlDiagnostic.writeCompiler(case.sql, err, .mutation, binding),
+                    .mutation => f.SqlDiagnostic.tableDml(case.sql, err, location),
+                    .table_ddl => f.SqlDiagnostic.tableDdl(case.sql, err, location),
                     .declaration => f.SqlDiagnostic.writeCompiler(case.sql, err, .declaration, binding),
                     else => f.SqlDiagnostic.bound(case.sql, err, false, binding),
-                }) orelse return error.UnmappedGrammarDiagnostic;
+                }) orelse {
+                    std.debug.print("Unmapped grammar case {s}: {s}\n", .{ case.id, @errorName(err) });
+                    return error.UnmappedGrammarDiagnostic;
+                };
                 kind = detail.kind;
                 diagnostic = try detail.structured();
             };

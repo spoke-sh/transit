@@ -153,7 +153,14 @@ fn bindInner(self: Self, allocator: std.mem.Allocator, expected: t.Type, failure
             };
             return .{ .value = .{ .atom = .{ .interval = .{ .months = @intCast(months.value.atom.signed), .days = @intCast(days.value.atom.signed), .nanos = @intCast(nanos.value.atom.signed) } } } };
         },
-        .json => return .{ .value = .{ .json = if (self.value == .json) self.value.json else if (self.value == .string) self.value.string else return error.InvalidSqlSyntax } },
+        .json => {
+            const bytes = if (self.value == .json) self.value.json else if (self.value == .string) self.value.string else return error.InvalidSqlSyntax;
+            // Validate while this literal still owns the failure span. A later
+            // schema/value check must not attribute malformed JSON to the end
+            // of the enclosing statement or a neighboring column.
+            try t.Json.validate(bytes);
+            return .{ .value = .{ .json = bytes } };
+        },
         .binary => {
             if (self.value != .binary) return error.InvalidBinaryLiteral;
             const encoded = self.value.binary;

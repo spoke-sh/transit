@@ -636,3 +636,33 @@ test "SQL categories and scalar truncation are machine facts" {
     sql.Binding.supplied(&binding, @import("Unified.zig").Scalar{ .int64 = 1 });
     try std.testing.expect(!binding.literal_truncated);
 }
+
+test "general Table literal failures keep typed causes and original locations" {
+    const t = std.testing;
+    const Ddl = @import("TableDdl.zig");
+    const cases = .{
+        .{ "DATE", "DATE '2025-02-29'", error.InvalidDate, "sql.invalid_date" },
+        .{ "TIME", "TIME '24:00:00'", error.InvalidTime, "sql.invalid_time" },
+        .{ "TIMESTAMP", "TIMESTAMP '2026-10-06 12:00:00'", error.InvalidTimestamp, "sql.invalid_timestamp" },
+        .{ "UUID", "UUID 'not-a-uuid'", error.InvalidUuid, "sql.invalid_uuid" },
+        .{ "JSON", "JSON '{\"a\":truX}'", error.SyntaxError, "sql.invalid_json_syntax" },
+        .{ "JSON", "JSON '{\"a\":1,\"a\":2}'", error.DuplicateField, "sql.duplicate_field" },
+    };
+    inline for (cases) |case| {
+        const text = "CREATE TABLE items (value " ++ case[0] ++ " DEFAULT " ++ case[1] ++ ", later INT64)";
+        var location: sql.Location = .{};
+        try t.expectError(case[2], Ddl.compile(t.allocator, text, null, &location));
+        const expected = std.mem.indexOf(u8, text, "DEFAULT ").? + "DEFAULT ".len;
+        try t.expectEqual(expected, location.offset);
+        const detail = tableDdl(text, case[2], location).?;
+        const envelope = try detail.structured();
+        try t.expectEqualStrings(case[3], envelope.code.slice());
+        try t.expectEqual(d.Outcome.not_submitted, envelope.outcome);
+        try t.expectEqual(d.Evidence.local_before_dispatch, envelope.evidence);
+        try t.expectEqual(@as(u64, expected), try envelope.location.?.offset.value());
+        try t.expectEqual(null, envelope.identity);
+        for (envelope.actions) |slot| if (slot) |action| {
+            try t.expect(action.kind != .resume_exact and action.kind != .cancel_mutation);
+        };
+    }
+}
