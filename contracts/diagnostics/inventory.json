@@ -3184,6 +3184,140 @@
         "std"
       ]
     },
+    "packages/zig/transit-catalog/src/TableCatalog.zig": {
+      "errors": {
+        "CatalogAlreadyPopulated": 1,
+        "CatalogConfigurationChanged": 1,
+        "CatalogCursorChanged": 1,
+        "CatalogDefinitionChanged": 4,
+        "CatalogDefinitionMissing": 2,
+        "CatalogDenied": 4,
+        "CatalogDependencyConflict": 1,
+        "CatalogNotInitialized": 1,
+        "CatalogOwnerChanged": 1,
+        "CatalogPolicyConflict": 1,
+        "CatalogScopeChanged": 1,
+        "CatalogSourceChanged": 1,
+        "CrossResourceTransaction": 1,
+        "InvalidCatalogBinding": 3,
+        "InvalidCatalogDependency": 2,
+        "InvalidCatalogIdentity": 1,
+        "InvalidCatalogObject": 3,
+        "InvalidCatalogPolicy": 5,
+        "QueryAfterMutation": 1,
+        "TableBusy": 1,
+        "TableNotFound": 2
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "administrator()": "<inferred>",
+        "authorize()": "<inferred>",
+        "binding()": "<inferred>",
+        "blockingDependency()": "<inferred>",
+        "check()": "<inferred>",
+        "initialize()": "<inferred>",
+        "list()": "<inferred>",
+        "lookup()": "<inferred>",
+        "metadata()": "<inferred>",
+        "object()": "<inferred>",
+        "owner()": "<inferred>",
+        "policy()": "<inferred>",
+        "principal()": "<inferred>",
+        "resolve()": "<inferred>",
+        "restrict()": "<inferred>",
+        "scope()": "<inferred>",
+        "setDependency()": "<inferred>",
+        "setPolicy()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 76,
+        "catch": 1
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
+    "packages/zig/transit-catalog/src/TableCatalogRecords.zig": {
+      "errors": {
+        "InvalidCatalogBinding": 1,
+        "InvalidCatalogDefinition": 1,
+        "InvalidCatalogDependency": 1,
+        "InvalidCatalogLimits": 1,
+        "InvalidCatalogObject": 6,
+        "InvalidCatalogPolicy": 1,
+        "InvalidCatalogReceipt": 10
+      },
+      "outcomes": {
+        "Dependency.kind": [
+          "query_source",
+          "writer",
+          "watch",
+          "maintained_relation",
+          "history"
+        ],
+        "Kind": [
+          "create",
+          "alter",
+          "rename",
+          "drop"
+        ],
+        "Object.state": [
+          "initializing",
+          "live",
+          "retired"
+        ],
+        "Operation.reason": [
+          "none",
+          "name_conflict",
+          "object_conflict",
+          "not_found",
+          "dependency",
+          "schema_changed"
+        ],
+        "Operation.state": [
+          "preparing",
+          "delegated",
+          "applied",
+          "unchanged",
+          "rejected",
+          "cancelled"
+        ],
+        "Right": [
+          "inspect",
+          "create",
+          "read",
+          "insert",
+          "update",
+          "delete",
+          "alter",
+          "drop"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "Binding.validate()": "<inferred>",
+        "Configuration.validate()": "<inferred>",
+        "Dependency.validate()": "<inferred>",
+        "Object.validate()": "<inferred>",
+        "Operation.tableReference()": "<inferred>",
+        "Operation.validate()": "<inferred>",
+        "Policy.administrator()": "<inferred>",
+        "Policy.validate()": "<inferred>",
+        "metadataReference()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 14,
+        "catch": 0
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
     "packages/zig/transit-catalog/src/TableMetadata.zig": {
       "errors": {
         "CatalogDefinitionChanged": 1,
@@ -3213,7 +3347,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 53,
+        "try": 55,
         "catch": 2
       },
       "imports": [
@@ -3283,6 +3417,8 @@
         "Inspection.zig",
         "Model.zig",
         "Records.zig",
+        "TableCatalog.zig",
+        "TableCatalogRecords.zig",
         "TableMetadata.zig",
         "TableMetadataStore.zig",
         "transit_station"

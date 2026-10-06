@@ -6,6 +6,32 @@ publish a Table, authorize a caller or widen the signed catalog client's separat
 admission profile. The enclosing catalog owner supplies current policy and
 atomically updates its live object/name bindings and original operation outcome.
 
+`TableCatalog` supplies the general namespace's captured-source policy and
+resolution helpers. Configuration binds realm/resource/catalog, owner,
+administrator and explicit Table Publication limits. Initialization refuses orphan
+state; repeating it cannot restore revoked rights. Inspect, create, data read,
+insert, update, delete, alter and drop are independent policy fields. Conditional
+administrator changes remain possible after revoking the administrator's own
+inspection right, provided native authority still permits the control.
+
+Read helpers receive the authenticated principal from their enclosing caller;
+neither a supplied number nor a stored policy grants native source access.
+`lookup` checks current inspect policy, resolves complete names and verifies the
+live head against immutable metadata and schema. `list` returns at most eight
+owned definitions in object-ID order. Its cursor binds scope and exact native
+revision; current denial takes precedence over cursor use. Initializing/retired
+objects advance the scan without appearing as live Tables. Release owned pages
+and definitions with `deinit`. Resident work does not grow with catalog size.
+
+The explicit administrator dependency registry distinguishes durable query
+sources, writers, watches and maintained relations from historical references.
+`blockingDependency` scans bounded pages and returns an attributed RESTRICT
+blocker. Removing one requires the same original dependency identity and owner.
+Historical references remain stored but do not keep a name live. This registry
+does not bind runtime applications automatically, dispatch effects or authorize
+physical reclamation. Lifecycle transitions and native routing must integrate
+these helpers before their behavior becomes a caller guarantee.
+
 A record owns scope, full-width object and metadata revision, exact name,
 immutable Table schema reference and complete schema fingerprint, principal,
 original operation and admission input. The metadata revision is independent of
@@ -15,9 +41,9 @@ later native input that commits the live binding.
 
 Names contain 1–255 UTF-8 bytes without NUL. The type owns those bytes and compares
 them exactly. SQL normalizes unquoted names before construction; this codec does
-not case-fold typed names or invent Unicode normalization. A 51-byte binding key
-contains catalog identity, a SHA-256 name digest and the full object identity.
-Hash equality is only a lookup bucket. Resolution must read the corresponding
+not case-fold typed names or invent Unicode normalization. A 32-byte binding key
+contains catalog identity, a 13-byte SHA-256 prefix and the full object identity.
+Prefix equality is only a lookup bucket. Resolution must read the corresponding
 immutable metadata and compare actual names, retaining every colliding object.
 
 Records are at most 436 bytes because they refer to the complete schema rather

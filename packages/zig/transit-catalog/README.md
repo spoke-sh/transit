@@ -80,7 +80,8 @@ conditional administrator controls and durable input dispositions. The
 hosts it with explicit configuration and fresh fenced ownership. Explicit catalog methods
 are available in the CLI and Python, TypeScript, Rust, Ruby, C, C++, Java, .NET,
 Erlang and Elixir SDKs through the
-shared caller. The query console continues to reject CREATE.
+shared caller. The query console uses its configured catalog for CREATE and
+catalog inspection, with private saved-command recovery.
 KV/Document creation, connector declarations,
 dependency-bearing objects, replacement and removal are not implemented here.
 The [catalog v1 contract](../../../contracts/DECLARATIVE_CATALOG_V1.md) owns exact policies,
@@ -101,7 +102,8 @@ authority, disk recovery or installed caller behavior; consult the
 [proof ledger](../../../tests/README.md) for executed evidence.
 
 [General Table metadata](docs/table-metadata.md) describes immutable schema
-references, owned UTF-8 names and bounded metadata staging. These helpers do not
+references, owned UTF-8 names, bounded metadata staging and scoped namespace
+resolution/dependencies. These helpers do not
 by themselves change the signed catalog or console admission profile above.
 
 `Diagnostic.codes` defines finite caller causes separately from catalog receipts.

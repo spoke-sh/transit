@@ -8,6 +8,7 @@ const Pub = c.station.Publication;
 pub const Scope = c.Model.Scope;
 pub const max_bytes = 436;
 pub const format: u32 = 0x54434d01;
+pub const name_digest_bytes = 13;
 pub const Name = struct {
     len: u8,
     data: [255]u8 = @splat(0),
@@ -140,9 +141,11 @@ pub fn referenceRead(reader: *std.Io.Reader) !Pages.Reference {
 /// equality alone never establishes a binding. Object suffixes retain all ties.
 pub fn nameKey(catalog: u64, digest: [32]u8, object: u64) !p.Value {
     if (catalog == 0 or object == 0) return error.InvalidCatalogIdentity;
-    var bytes: [51]u8 = undefined;
+    var bytes: [32]u8 = undefined;
     bytes[0..11].* = c.Records.prefix(catalog, 'N').data[0..11].*;
-    bytes[11..43].* = digest;
-    std.mem.writeInt(u64, bytes[43..51], object, .big);
-    return p.Value.init(&bytes);
+    bytes[11..24].* = digest[0..name_digest_bytes].*;
+    std.mem.writeInt(u64, bytes[24..32], object, .big);
+    const result = try p.Value.init(&bytes);
+    try p.State.key(result);
+    return result;
 }

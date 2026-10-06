@@ -46,12 +46,14 @@ test "general metadata owns UTF-8 names and complete immutable schema references
     const collision: [32]u8 = @splat(3);
     const first = try Meta.nameKey(scope.catalog, collision, 1);
     const second = try Meta.nameKey(scope.catalog, collision, std.math.maxInt(u64));
-    try t.expectEqual(@as(usize, 51), first.len);
+    try t.expectEqual(@as(usize, 32), first.len);
+    try c.protocol.State.key(first);
+    try c.protocol.State.key(second);
     try t.expectEqual(.lt, std.mem.order(u8, first.slice(), second.slice()));
-    try t.expectEqualSlices(u8, first.data[0..43], second.data[0..43]);
+    try t.expectEqualSlices(u8, first.data[0..24], second.data[0..24]);
 }
 test "general catalog metadata matches independent Python layouts" {
-    const Fixture = struct { definition: []const u8, record_hex: []const u8, name_digest_hex: []const u8, name_key_hex: []const u8, manifest_hex: []const u8, inline_key_hex: []const u8 };
+    const Fixture = struct { definition: []const u8, record_hex: []const u8, name_digest_hex: []const u8, name_key_hex: []const u8, manifest_hex: []const u8, inline_key_hex: []const u8, controls: struct { configuration: []const u8, policy: []const u8, object: []const u8, operation: []const u8, dependency: []const u8 } };
     const parsed = try std.json.parseFromSlice(Fixture, t.allocator, @embedFile("fixtures/table-metadata.json"), .{});
     defer parsed.deinit();
     const expected = parsed.value;
@@ -72,6 +74,24 @@ test "general catalog metadata matches independent Python layouts" {
     const records: Records = .{ .scope = scope, .object = record.object };
     try records.create(&turn);
     try expectHex(expected.manifest_hex, (try turn.read(Records.key(record.object, 'd', 0))).?.slice());
+    const m = c.TableCatalogRecords;
+    const reference: Records.Reference = .{ .id = 3, .spec = .{ .format = Meta.format, .length = 187, .digest = @splat(51) } };
+    const configuration: m.Configuration = .{ .scope = scope, .owner = 3, .administrator = 17, .table_limits = .{ .record_bytes = 4096, .staging_bytes = 8192, .staging_records = 2 } };
+    const policy: m.Policy = .{ .scope = scope, .principal = 17, .revision = 9, .inspect = true, .create = false, .read = true, .insert = true, .update = false, .delete = false, .alter = true, .drop = false };
+    const object: m.Object = .{ .scope = scope, .object = record.object, .state = .live, .metadata = reference, .next_revision = 4 };
+    const operation: m.Operation = .{ .scope = scope, .principal = 17, .operation = std.math.maxInt(u64), .object = record.object, .actual_object = record.object, .digest = @splat(68), .kind = .rename, .state = .applied, .metadata = reference, .admitted_input = 5, .completed_input = 7 };
+    const dependency: m.Dependency = .{ .scope = scope, .object = record.object, .identity = 15, .owner = 4, .kind = .query_source };
+    inline for (.{ "configuration", "policy", "object", "operation", "dependency" }, .{ 'C', 'P', 'O', 'R', 'B' }, .{ configuration, policy, object, operation, dependency }) |name, tag, value| {
+        const encoded = try c.Records.encode(tag, value);
+        try expectHex(@field(expected.controls, name), encoded.slice());
+        try t.expectEqualDeep(value, try c.Records.decode(@TypeOf(value), tag, encoded));
+        for (0..encoded.len) |length| {
+            if (c.Records.decode(@TypeOf(value), tag, try c.protocol.Value.init(encoded.data[0..length]))) |_| return error.AcceptedTruncation else |_| {}
+        }
+        var foreign = encoded;
+        foreign.data[5] ^= 1;
+        try t.expectError(error.IncompatibleDefinition, c.Records.decode(@TypeOf(value), tag, foreign));
+    }
 }
 fn expectHex(text: []const u8, bytes: []const u8) !void {
     var buffer: [Meta.max_bytes]u8 = undefined;

@@ -10789,6 +10789,18 @@ maximum; the independently fixed envelope is 436 bytes. Final evidence is
 These are codec and in-memory storage checks. Live catalog routing, name
 publication, DDL lifecycle, native clients and disk evidence remain separate.
 
+General namespace resolution passes **35/35 catalog package tests**. The new
+cases exercise independent metadata/data/schema permissions, administrator
+restoration, twenty-object pagination, stale cursors, exact names, mismatched
+bindings and heads, malformed pages, poisoned reads and paged DROP dependencies.
+History references remain distinct from dependencies that restrict DROP. Control
+records also have independent Python byte fixtures. Testing exposed a proposed
+name key beyond native KV's 32-byte bound: keys now use a 13-byte digest bucket
+and a complete object ID, with full stored-name comparison for equality. Final
+evidence is `catalog-namespace-final.log` and `catalog-namespace-docs.log` in the
+same campaign. Fixtures install definitions explicitly; these tests do not prove
+CREATE/ALTER/DROP admission, dynamic native routing or durable recovery.
+
 ## Fuze logical type foundation
 
 The local `Types` profile has nine passing focused Zig tests, including 46

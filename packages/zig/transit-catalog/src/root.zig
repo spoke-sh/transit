@@ -12,8 +12,11 @@ pub const Behavior = @import("Behavior.zig");
 pub const Bridge = @import("Bridge.zig");
 pub const TableMetadata = @import("TableMetadata.zig");
 pub const TableMetadataStore = @import("TableMetadataStore.zig");
+pub const TableCatalogRecords = @import("TableCatalogRecords.zig");
+pub const TableCatalog = @import("TableCatalog.zig");
 test {
     _ = @import("table_metadata_test.zig");
+    _ = @import("table_catalog_test.zig");
     _ = @import("catalog_test.zig");
     _ = @import("client_test.zig");
     _ = @import("behavior_test.zig");

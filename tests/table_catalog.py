@@ -21,9 +21,21 @@ def fixture():
     record += schema + bytes([34]) * 32 + struct.pack('<QQQ', 17, maximum, 5)
     assert len(record) == 187
     digest = hashlib.sha256(b'transit.catalog.name.v1\0' + name).digest()
-    binding = b'\0C' + struct.pack('>Q', maximum) + b'N' + digest + struct.pack('>Q', maximum)
+    binding = b'\0C' + struct.pack('>Q', maximum) + b'N' + digest[:13] + struct.pack('>Q', maximum)
     manifest = b'TCB1' + contract + scope + struct.pack('<Q', maximum)
-    assert len(binding) == 51 and len(manifest) == 68
+    assert len(binding) == 32 and len(manifest) == 68
+    def control(tag, body):
+        return (b'TCA1' + tag + contract + body).hex()
+    reference = struct.pack('<QII', 3, 0x54434d01, len(record)) + bytes([51]) * 32
+    configuration = control(b'C', scope + struct.pack('<QQIQI', 3, 17, 4096, 8192, 2))
+    policy = control(b'P', scope + struct.pack('<QQ', 17, 9) + bytes([1, 0, 1, 1, 0, 0, 1, 0]))
+    obj = control(b'O', scope + struct.pack('<QB', maximum, 2) + reference + struct.pack('<QQQQ', 4, 0, 0, 0) + bytes(32))
+    operation = control(b'R', scope + struct.pack('<QQQQ', 17, maximum, maximum, maximum) + bytes([68]) * 32 + bytes([3, 3, 0]) + reference + bytes(32) + struct.pack('<QQ', 5, 7))
+    dependency = control(b'B', scope + struct.pack('<QQQB', maximum, 15, 4, 1))
+    assert len(bytes.fromhex(configuration)) == 93
+    assert len(bytes.fromhex(policy)) == 85
+    assert len(bytes.fromhex(obj)) == 182
+    assert len(bytes.fromhex(operation)) == 224
     return {
         'definition': definition,
         'record_hex': record.hex(),
@@ -31,6 +43,7 @@ def fixture():
         'name_key_hex': binding.hex(),
         'manifest_hex': manifest.hex(),
         'inline_key_hex': (b'\0P' + struct.pack('>IQBQI', 9, maximum, ord('i'), 3, 0)).hex(),
+        'controls': {'configuration': configuration, 'policy': policy, 'object': obj, 'operation': operation, 'dependency': dependency},
     }
 
 

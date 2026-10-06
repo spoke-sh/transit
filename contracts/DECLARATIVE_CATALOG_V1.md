@@ -448,9 +448,10 @@ assert that this metadata is live or that its admission input published a name.
 The operation outcome separately records final publication. Returned names own
 their bytes; loaded schemas have explicit allocator ownership.
 
-Hashed name-index keys contain `00 43`, catalog:u64be, tag `N`, name digest:32 bytes
+Hashed name-index keys contain `00 43`, catalog:u64be, tag `N`, name digest prefix:13 bytes
 and object:u64be. The digest is SHA-256 of `transit.catalog.name.v1\0` and exact
-normalized name bytes. Equal digests retain distinct object-suffixed entries.
+normalized name bytes. Its first 13 bytes select a bucket within the native
+32-byte key limit. Equal prefixes retain distinct object-suffixed entries.
 Resolution must compare stored names after checking scope and definition; hashes
 are never equality proof. This key does not impose name-order listing semantics.
 
@@ -471,3 +472,41 @@ large records obey the existing committed-cursor rule and staging quota release.
 No storage helper publishes names, grants rights or performs physical historical
 cleanup. The [component guide](../packages/zig/transit-catalog/docs/table-metadata.md)
 defines ownership and the current integration boundary.
+
+The general namespace's fixed control records use the same mandatory-definition
+`TCA1` envelope and little-endian reflected field order. They have these tags:
+`C` configuration (scope, owner, administrator, Table Publication limits);
+`P` policy (scope, principal, revision, eight booleans in inspect/create/read/
+insert/update/delete/alter/drop order); `O` current object; `R` DDL operation;
+`N` name binding (scope, object); and `B` dependency (scope, object, dependency ID,
+owner PID, kind). Fixed records remain within native 256-byte values: configuration
+93 bytes, policy 85, object 182, operation 224 and dependency 86.
+
+Object state distinguishes initializing, live and retired. It retains the current
+metadata reference, monotonic next revision and exact pending principal/operation/
+revision/digest. A cancelled initialization may leave a retired identity without
+a live definition. Pending metadata revisions cannot be reused or assigned to
+retired objects. DDL operation state separately distinguishes preparing,
+delegated schema work, applied, unchanged, rejected and cancelled, retaining
+scope, identities, request digest, metadata reference, delegated Table digest and
+original admission/completion inputs. These records supply bounded composition;
+their codecs alone do not authorize a lifecycle transition or establish that a
+metadata candidate was accepted.
+
+`TableCatalog` checks current configuration and applicable scoped policy for each
+namespace call. Mutation controls additionally check authenticated external
+origin, realm, configured PID/resource and administrator where required. Metadata
+inspection is independent of data read/write and schema rights. Native authority
+remains separately required. `lookup` resolves hash buckets by exact names and
+validates the live head/schema. `list` scans at most one native object-record page,
+returning at most eight owned definitions in object-ID order; its cursor binds
+scope, native revision and last scanned object. A caller releases owned schemas
+and pages explicitly. Partial native pages with continuations are not EOF.
+
+Explicit dependency kinds are query source=1, writer=2, watch=3, maintained
+relation=4 and history=5. The first four restrict removal; historical references
+remain distinct from live-name admission and cleanup. Administrator registration
+and exact-identity removal do not manufacture source grants or configure workers.
+Dependency scans use bounded native pages and expose one attributed blocker under
+current inspect policy. These helper checks are not native lifecycle/DDL admission
+until the enclosing owner wires its final Table/name/outcome publication.
