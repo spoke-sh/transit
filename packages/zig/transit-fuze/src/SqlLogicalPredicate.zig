@@ -93,7 +93,7 @@ const Expression = struct {
         const column = try Reference.parse(self.parser);
         if (try self.parser.takeWord("IS")) {
             const negate = try self.parser.takeWord("NOT");
-            const state: t.State = if (try self.parser.takeWord("NULL")) .null else if (try self.parser.takeWord("MISSING")) .missing else if (try self.parser.takeWord("ERROR")) .type_error else if (try self.parser.takeWord("CONFLICT")) .conflict else return error.InvalidSqlSyntax;
+            const state: t.State = if (try self.parser.takeWord("NULL")) .null else if (try self.parser.takeWord("MISSING")) .missing else if (try self.parser.takeWord("TYPE_ERROR")) .type_error else if (try self.parser.takeWord("VALUE")) .value else if (try self.parser.takeWord("CONFLICT")) .conflict else return error.InvalidSqlSyntax;
             try self.append(.{ .atom = .{ .state = .{ .column = column, .value = state } } });
             if (negate) try self.append(.negate);
             return;

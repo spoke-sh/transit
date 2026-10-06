@@ -11198,6 +11198,14 @@ failing source token after binding; the lost-reply/turn, restart, witness and
 large-output assertions remain. This scenario total is not a latency benchmark,
 a completed transport migration or committed-HEAD clean CI.
 
+Canonical Table state predicates pass **218/218 Fuze tests** and **98/98 query
+tests** (`sql-state-fuze1.log`, `sql-state-query1.log`). SELECT, DELETE and
+completion use the shared grammar's NULL/MISSING/VALUE/TYPE_ERROR/CONFLICT names,
+including NOT. Matching ordinary value/null rows does not relax storage admission
+for missing values, source errors or conflicts. This corrects the new Table
+parser's missing VALUE case and its inconsistent ERROR spelling; it does not add
+an error-state storage profile.
+
 ## Fuze logical type foundation
 
 The local `Types` profile has nine passing focused Zig tests, including 46

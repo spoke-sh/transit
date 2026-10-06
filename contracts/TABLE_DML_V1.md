@@ -84,7 +84,10 @@ subqueries and RETURNING are not admitted here.
 `DELETE FROM name [WHERE predicate]` and UPDATE without WHERE select all rows at
 the owner's frozen source. Predicates admit qualified/unqualified column versus
 typed scalar literal comparisons (`=`, `<>`, `!=`, `<`, `<=`, `>`, `>=`), state
-tests (`IS [NOT] NULL|MISSING|ERROR|CONFLICT`), parentheses, NOT, AND and OR.
+tests (`IS [NOT] NULL|MISSING|VALUE|TYPE_ERROR|CONFLICT`), parentheses, NOT, AND and OR.
+These state names match the shared SQL grammar. Ordinary Table rows persist only
+values and SQL NULL; the other state predicates do not authorize storing missing,
+source type errors or conflicts.
 Precedence is NOT, then AND, then OR. Ordinary persisted Table rows still obey
 their separate state constraints; state-test syntax does not admit stored errors.
 Comparing to NULL rejects with IS NULL guidance. Unsupported scalar/operator or

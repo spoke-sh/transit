@@ -8,6 +8,33 @@ const dml = @import("TableDml.zig");
 const Cell = types.Values.Cell;
 const basis: [32]u8 = @splat(17);
 
+test "Table SELECT and DML share all canonical five-state predicates" {
+    const schema: @import("TableSchema.zig").Schema = .{ .object = 1, .revision = 1, .next_column = 2, .columns = &.{.{ .id = 1, .name = "n", .type = .int64 }}, .primary_key = &.{} };
+    var fields: [128]types.Field = undefined;
+    const row_type = try schema.rowType(&fields);
+    const values = [_]Cell{ .{ .value = .{ .atom = .{ .signed = 1 } } }, .null };
+    for ([_][]const u8{ "NULL", "MISSING", "VALUE", "TYPE_ERROR", "CONFLICT" }) |state| {
+        for ([_]bool{ false, true }) |negate| {
+            var sql: [128]u8 = undefined;
+            const read = try std.fmt.bufPrint(&sql, "SELECT n FROM people WHERE n IS {s}{s}", .{ if (negate) "NOT " else "", state });
+            var query = try select.compile(e.allocator, read, "people", row_type, basis, null);
+            defer query.deinit();
+            const write = try std.fmt.bufPrint(&sql, "DELETE FROM people WHERE n IS {s}{s}", .{ if (negate) "NOT " else "", state });
+            var mutation = try dml.compile(e.allocator, write, "people", schema, null);
+            defer mutation.deinit();
+            for (values) |value| {
+                const selected = if (std.mem.eql(u8, state, "VALUE")) value == .value else if (std.mem.eql(u8, state, "NULL")) value == .null else false;
+                try e.expectEqual(selected != negate, try mutation.plan.matches(&.{value}));
+                try e.expectEqual(selected != negate, (try query.plan.predicate.program.truth(row_type, &.{value})).selects());
+            }
+        }
+    }
+    try e.expectError(error.InvalidSqlSyntax, select.compile(e.allocator, "SELECT n FROM people WHERE n IS ERROR", "people", row_type, basis, null));
+    try e.expectError(error.InvalidSqlSyntax, dml.compile(e.allocator, "DELETE FROM people WHERE n IS ERROR", "people", schema, null));
+    try e.expectError(error.MissingRequiredField, schema.validateRow(&.{.missing}));
+    try e.expectError(error.TableTypeError, schema.validateRow(&.{.{ .type_error = .int64 }}));
+}
+
 test "SELECT binding retains original projection and predicate coordinates" {
     const schema: types.Type = .{ .structure = &.{.{ .name = "n", .type = .int8 }} };
     const cases = .{

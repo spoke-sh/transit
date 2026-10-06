@@ -314,8 +314,8 @@ test "general Table highlighting follows aliases nested type and literal positio
     try expectRoles("INSERT INTO people (map, union) VALUES (MAP(2,'two',1,NULL), UNION(chosen,ARRAY(-1,2)));", &.{
         .{ "INSERT", .keyword }, .{ "INTO", .keyword }, .{ "people", .identifier }, .{ "map", .identifier }, .{ "union", .identifier }, .{ "VALUES", .keyword }, .{ "MAP", .function }, .{ "2", .number }, .{ "'two'", .literal }, .{ "1", .number }, .{ "NULL", .literal }, .{ "UNION", .function }, .{ "chosen", .identifier }, .{ "ARRAY", .function }, .{ "-1", .number }, .{ "2", .number },
     });
-    try expectRoles("UPDATE people SET amount=- /* note */ 1.25e-3, created=DATE '2000-02-29', bytes=X'00ff', duration=INTERVAL(1,2,3) WHERE amount IS NOT ERROR;", &.{
-        .{ "UPDATE", .keyword }, .{ "people", .identifier }, .{ "SET", .keyword }, .{ "amount", .identifier }, .{ "-", .number }, .{ "/* note */", .comment }, .{ "1.25e-3", .number }, .{ "created", .identifier }, .{ "DATE", .type_name }, .{ "'2000-02-29'", .literal }, .{ "bytes", .identifier }, .{ "X", .type_name }, .{ "'00ff'", .literal }, .{ "duration", .identifier }, .{ "INTERVAL", .function }, .{ "1", .number }, .{ "2", .number }, .{ "3", .number }, .{ "WHERE", .keyword }, .{ "amount", .identifier }, .{ "IS", .keyword }, .{ "NOT", .keyword }, .{ "ERROR", .keyword },
+    try expectRoles("UPDATE people SET amount=- /* note */ 1.25e-3, created=DATE '2000-02-29', bytes=X'00ff', duration=INTERVAL(1,2,3) WHERE amount IS NOT TYPE_ERROR;", &.{
+        .{ "UPDATE", .keyword }, .{ "people", .identifier }, .{ "SET", .keyword }, .{ "amount", .identifier }, .{ "-", .number }, .{ "/* note */", .comment }, .{ "1.25e-3", .number }, .{ "created", .identifier }, .{ "DATE", .type_name }, .{ "'2000-02-29'", .literal }, .{ "bytes", .identifier }, .{ "X", .type_name }, .{ "'00ff'", .literal }, .{ "duration", .identifier }, .{ "INTERVAL", .function }, .{ "1", .number }, .{ "2", .number }, .{ "3", .number }, .{ "WHERE", .keyword }, .{ "amount", .identifier }, .{ "IS", .keyword }, .{ "NOT", .keyword }, .{ "TYPE_ERROR", .keyword },
     });
 }
 

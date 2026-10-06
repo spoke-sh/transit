@@ -271,6 +271,7 @@ test "general Table continuations come from selected production grammar and actu
     try fixture(allocator, "SELECT SUM(", &.{"\"score\""}, &.{ "\"identifier\"", "\"display_name\"", "*" });
     try fixture(allocator, "DELETE FROM people WHERE display_name ", &.{ "IS", "=", "<>" }, &.{"JOIN"});
     try fixture(allocator, "SELECT score FROM people WHERE active = ", &.{ "TRUE", "FALSE" }, &.{ "MISSING", "0" });
+    try fixture(allocator, "SELECT score FROM people WHERE active IS ", &.{ "NULL", "MISSING", "VALUE", "TYPE_ERROR", "CONFLICT" }, &.{"ERROR"});
     try fixture(allocator, "SELECT wrong.", &.{}, &.{ "\"identifier\"", "\"display_name\"" });
     try fixture(allocator, "UPDATE absent SET ", &.{}, &.{ "\"identifier\"", "\"display_name\"" });
     try fixture(allocator, "ALTER TABLE absent ALTER COLUMN ", &.{}, &.{ "\"identifier\"", "\"display_name\"" });

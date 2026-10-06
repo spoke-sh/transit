@@ -6943,7 +6943,7 @@
       },
       "open_error_set_uses": 6,
       "propagation": {
-        "try": 32,
+        "try": 33,
         "catch": 1
       },
       "imports": [
