@@ -11334,6 +11334,34 @@ tarballs pass. Raw failed logs remain in the campaign. Documentation checks pass
 This is installed TypeScript evidence, not qualification of the other language
 callers, all logical-family value paths, the final definition cutover or clean CI.
 
+
+The repository `just check` passes after the ABI and TypeScript checkpoint
+(`table-public-callers-check1.log`). The Python general Table migration passes
+strict mypy for **25 source files**, including the installed example API owners
+(`table-general-python-types3.log`). Focused value checks exercise immutable nested
+descriptors/cells, full-width integers, exact decimals, signed zero, invalid float
+widths, malformed pages and intent attribution, 300 KiB binary preparation,
+uncertain submission and joined cleanup after async cancellation. They run again
+from installed wheels outside the checkout.
+
+The combined native/port and installed Node/Python sync/Python async proof passes
+in **211.345 seconds** (`table-general-python-native2.log`): 586 turns, 157 sends,
+at most four native mutations and 256-byte values, with original lost-send,
+lost-turn and supplied-host receipt-loss recovery. Each language executes CREATE,
+typed nested INSERT, no-op UPDATE (matched=1, changed=0), ALTER/default, stale-basis
+rejection, DELETE and DROP/recreate. A replacement caller reloads the original
+intent and reads its original applied outcome, independent of the reused name.
+Python sync retains object 12011 after replacement 12012; async retains 12021
+after replacement 12022. Node retains 12001 after replacement 12002.
+
+The first installed Python run stopped on a fixture's hard-coded principal; the
+corrected fixture checks its configured identity. That failed run remains in
+`table-general-python-native1.log` and does not qualify the Python scenario.
+Documentation links, verification declarations and CI task ownership pass
+(`table-general-python-{docs,verification,ci}1.log`). Other language migrations,
+complete logical-family path coverage, the coordinated definition replacement
+and committed-HEAD clean CI remain open.
+
 ## Fuze logical type foundation
 
 The local `Types` profile has nine passing focused Zig tests, including 46

@@ -71,6 +71,6 @@ The [Table mutation guide](docs/mutations.md) covers explicit signed SQL writes,
 owned compiled references, exact prepared-command recovery and separate durable
 result/input-rejection observations through synchronous and asynchronous callers.
 
-The [catalog guide](docs/catalog.md) covers typed sync/async initialization,
-conditional policy, named Table creation, exact saved-command recovery and current
-authorized outcomes through the shared native caller.
+The [catalog guide](docs/catalog.md) covers general typed schemas, sync/async
+CREATE/ALTER/DROP and INSERT/UPDATE/DELETE, conditional policy, exact saved-intent
+recovery and currently authorized outcomes through the shared native caller.
