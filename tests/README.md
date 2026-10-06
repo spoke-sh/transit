@@ -16086,3 +16086,39 @@ passes all 114 tests, including five native catalog cases
 (`query-boolean-stack1.log`). The first Fuze run retained an obsolete 16-level
 rejection assertion; that failed run is not qualification. The native recovery
 schedules and installed-SDK reruns are separate evidence.
+
+### Catalog-backed unified query recovery
+
+The common disk-backed query fixture now provisions Tables through the production
+CatalogQueryOwner and public CREATE/INSERT operations, persists the actual
+metadata-bound source, and delegates the authenticated catalog principal. It no
+longer fabricates a positional Table declaration. The native Table schedule
+passes recovery, current prefix denial, release and COUNT continuation checks
+(`unified-catalog-native3.log` in the local Table-schema campaign): 41 rows,
+six segments, 15,120 result bytes, eight resident authority pages and an 8 MiB
+hot store. COUNT preserves partial 8/10 progress through exact upload retry and
+worker/node/store replacement, and rejects partial results after cancellation.
+
+The compound Table schedule passes with all ten freshly installed SDKs
+(`unified-catalog-all-sdk1.log`): Python, TypeScript/Node, Ruby, Rust, C, C++,
+Java, .NET, Erlang and Elixir. Thirteen enabled native/port/SDK consumers agree
+on inspection, 64-instruction predicates, literal/typed/frozen compound bundles,
+parameter errors, 39 selected rows, five segments and 13,328 result bytes.
+The schedule loses seed/upload replies, preserves the original signed retry and
+receipt, replaces source/requester/node/disk store after segment staging, denies
+reads after revocation and releases the original source pin. All packages are
+installed into fresh isolated consumers; local codec checks alone are not the
+basis of this recovery claim.
+
+The native KV and Document schedules also pass recovery and lifecycle
+(`unified-logical-native3.log`): 41 and 12 rows respectively. Original budget,
+policy and KV cell-decoder witnesses survive lost replies, live repair,
+worker/node/store replacement and retirement. These two schedules do not include
+installed SDKs. Provisioning and elapsed recovery durations in these logs are
+not matched mutation-latency measurements.
+
+The shared shell/Board/count/example oracles now read logical descriptors and
+cells. COUNT and the native lifecycle paths above have executed; shell, Board,
+browser, expiry and the combined writer schedule require their separate runs.
+The combined fixture's Zig provisioning uses the new catalog owner, while its
+Python interleaving/fault schedule is still being migrated and is not qualified.

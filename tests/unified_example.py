@@ -38,7 +38,7 @@ def check(binary, root, client, fault, kind):
     assert result.returncode == 0, result.stderr
     pages = [json.loads(line) for line in result.stdout.splitlines()]
     assert sum(len(page['cells']) for page in pages) == (12 if kind == 'document' else 33)
-    assert all(page['manifest']['basis']['kind'] == kind for page in pages)
+    assert all(page['manifest']['basis']['cut']['kind'] == kind for page in pages)
     assert all(page['complete_coverage'] == (i+1 == len(pages)) for i, page in enumerate(pages))
     assert [page['ordinal'] for page in pages] == [str(i) for i in range(len(pages))]
     print(f'Unified {kind} example: private frozen intent, changed-plan rejection, exact process retry and complete bounded pages passed.', flush=True)

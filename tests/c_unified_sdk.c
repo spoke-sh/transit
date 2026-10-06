@@ -188,7 +188,7 @@ static void serve(char **args) {
                 if(!strcmp(type,"signed")){int64_t n=strtoll(payload,NULL,10);values[i].kind=TRANSIT_ATOM_SIGNED;values[i].as.signed_value=(transit_logical_i128){(uint64_t)n,n<0?-1:0};}
                 else if(!strcmp(type,"unsigned")){values[i].kind=TRANSIT_ATOM_UNSIGNED;values[i].as.unsigned_value=(transit_logical_u128){strtoull(payload,NULL,10),0};}
                 else if(!strcmp(type,"boolean")){values[i].kind=TRANSIT_ATOM_BOOLEAN;values[i].as.boolean=!strcmp(payload,"true");}
-                else if(!strcmp(type,"float64_bits")){transit_sdk_bytes bits=unhex(payload);assert(bits.size==8);uint64_t raw=0;for(size_t j=0;j<8;++j)raw|=(uint64_t)bits.data[j]<<(8*j);values[i].kind=TRANSIT_ATOM_FLOAT64;memcpy(&values[i].as.float64,&raw,8);free((void*)bits.data);}
+                else if(!strcmp(type,"float_bits")){transit_sdk_bytes bits=unhex(payload);assert(bits.size==8);uint64_t raw=0;for(size_t j=0;j<8;++j)raw|=(uint64_t)bits.data[j]<<(8*j);values[i].kind=TRANSIT_ATOM_FLOAT64;memcpy(&values[i].as.float64,&raw,8);free((void*)bits.data);}
                 else{assert(!strcmp(type,"utf8")||!strcmp(type,"binary"));values[i].kind=!strcmp(type,"utf8")?TRANSIT_ATOM_UTF8:TRANSIT_ATOM_BINARY;values[i].as.bytes=unhex(payload);}
             }
             transit_station_unified_bindings parameters={values,count<0?0:(size_t)count};transit_station_unified_bundle *compiled=NULL;

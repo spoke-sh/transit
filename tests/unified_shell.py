@@ -46,7 +46,7 @@ def check(binary, root, kind, invoke, expected, fault, *, compound=False, counts
         assert shell.call('.resume 1')['status']['phase'] == 'complete'
         first = shell.call('.next')
         assert first['cells'] and not first['complete_coverage']
-        assert first['manifest']['basis']['kind'] == kind
+        assert first['manifest']['basis']['cut']['kind'] == kind
         invoke('revoke', direct=True)
         assert shell.call('.next')['err'] == 'AccessDenied'
         assert shell.call('.next')['err'] == 'AccessDenied'
@@ -58,9 +58,9 @@ def check(binary, root, kind, invoke, expected, fault, *, compound=False, counts
             assert shell.call('.status')['status'] is None
             assert shell.call('SELECT items.value FROM items AS chosen')['err'] == 'UnknownQualifier'
             assert shell.call('.status')['status'] is None
-            columns = [{'name': 'Result', 'type': 'utf8'}]
+            columns = [{'name': 'Result', 'type': {'utf8': {}}, 'nullable': True, 'optional': kind != 'table'}]
             if kind == 'document':
-                columns += [{'name': name, 'type': 'uint64' if name != 'optional' else 'utf8'} for name in ('counter', 'replica', 'optional')]
+                columns += [{'name': name, 'type': {'uint64' if name != 'optional' else 'utf8': {}}, 'nullable': True, 'optional': True} for name in ('counter', 'replica', 'optional')]
             assert first['columns'] == columns
             sql = ('SELECT chosen.value AS "Result", counter, replica, optional FROM items AS chosen LIMIT 33'
                    if kind == 'document' else 'SELECT chosen.value AS "Result" FROM items AS chosen LIMIT 33')
@@ -73,11 +73,11 @@ def check(binary, root, kind, invoke, expected, fault, *, compound=False, counts
             if counts:
                 column = 'optional' if kind == 'document' else 'value'
                 sql = f'SELECT COUNT(chosen.amount) AS present FROM (SELECT {column} AS amount FROM items LIMIT 10) AS chosen'
-                columns = [{'name': 'present', 'type': 'uint64'}]
+                columns = [{'name': 'present', 'type': {'uint64': {}}, 'nullable': False, 'optional': False}]
             if parameterized:
                 input_file = root / 'query input.json'
                 request = {'sql': sql.replace('LIMIT ' + ('10' if counts else '33'), 'LIMIT $1'),
-                           'parameters': [{'uint64': '10' if counts else '33'}]}
+                           'parameters': [{'unsigned': '10' if counts else '33'}]}
                 input_file.write_text(json.dumps(request))
                 command = '.execute ' + json.dumps(str(input_file))
             else:
@@ -124,7 +124,7 @@ def check(binary, root, kind, invoke, expected, fault, *, compound=False, counts
             rows = []
             while True:
                 page = shell.call('.next')
-                assert page['manifest']['basis']['kind'] == kind
+                assert page['manifest']['basis']['cut']['kind'] == kind
                 assert page['columns'] == columns
                 if counts:
                     assert page['manifest']['selected'] == '10'
@@ -132,10 +132,10 @@ def check(binary, root, kind, invoke, expected, fault, *, compound=False, counts
                 rows.extend(page['cells'])
                 if page['complete_coverage']: break
             if counts:
-                assert rows == [[{'value': {'uint64': '0' if kind == 'document' else '10'}}]], rows
+                assert rows == [[{'value': {'atom': {'unsigned': '0' if kind == 'document' else '10'}}}]], rows
             else:
                 assert len(rows) == min(33, len(expected))
-                assert [row[0]['value']['utf8'] for row in rows] == [row['value']['value'] for row in expected[:33]]
+                assert [row[0]['value']['atom']['utf8'] for row in rows] == [row['value']['value'] for row in expected[:33]]
                 if kind == 'document':
                     assert all(row[3] == {'missing': {}} for row in rows), rows[:1]
             assert shell.call('.next')['err'] == 'QueryComplete'

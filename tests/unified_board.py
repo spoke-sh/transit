@@ -149,12 +149,12 @@ def check(binary, root, kind, invoke, expected, fixture, start, browser=False):
     cursor, rows, pages = None, [], []
     while True:
         page = api({'page': {'namespace': namespace, 'cursor': cursor}})['page']
-        assert page['evidence']['manifest']['basis']['kind'] == kind
+        assert page['evidence']['manifest']['basis']['cut']['kind'] == kind
         assert page['evidence']['manifest']['basis']['contract'] == compiled['contract']
         rows += page['cells']; pages.append(page)
         cursor = page['evidence']['next']
         if cursor is None: break
-    assert [row[0]['value']['utf8'] for row in rows] == [row['value']['value'] for row in expected[:33]]
+    assert [row[0]['value']['atom']['utf8'] for row in rows] == [row['value']['value'] for row in expected[:33]]
     subprocess.run(['node', 'tests/unified_board_client.mjs'],
         input=json.dumps([{'description': description}, {'compiled': compiled}, *[{'page': p} for p in pages]]).encode(),
         check=True, timeout=15)

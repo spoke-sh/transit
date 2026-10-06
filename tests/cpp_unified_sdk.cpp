@@ -148,7 +148,7 @@ static void serve(char **args) {
                     if(type=="signed")parameters->push_back(q::Scalar::signed_integer(static_cast<int64_t>(std::stoll(value))));
                     else if(type=="unsigned")parameters->push_back(q::Scalar::unsigned_integer(static_cast<uint64_t>(std::stoull(value))));
                     else if(type=="boolean")parameters->push_back(q::Scalar::boolean(value=="true"));
-                    else if(type=="float64_bits"){auto bits=unhex(value);assert(bits.size()==8);uint64_t raw=0;for(size_t j=0;j<8;++j)raw|=static_cast<uint64_t>(bits[j])<<(8*j);double number;std::memcpy(&number,&raw,8);parameters->push_back(q::Scalar::float64(number));}
+                    else if(type=="float_bits"){auto bits=unhex(value);assert(bits.size()==8);uint64_t raw=0;for(size_t j=0;j<8;++j)raw|=static_cast<uint64_t>(bits[j])<<(8*j);double number;std::memcpy(&number,&raw,8);parameters->push_back(q::Scalar::float64(number));}
                     else{const auto bytes=unhex(value);if(type=="utf8")parameters->push_back(q::Scalar::utf8(std::string(bytes.begin(),bytes.end())));else{assert(type=="binary");parameters->push_back(q::Scalar::binary(bytes));}}
                 }}
                 const auto bytes=unhex(token);auto compiled=client.compile_sql(definition,arg,std::string(bytes.begin(),bytes.end()),budgets,parameters);
