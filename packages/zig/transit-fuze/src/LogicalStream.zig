@@ -20,11 +20,10 @@ pub const Progress = struct {
         return .{ .binding = plan.source_basis, .plan = try plan.fingerprint() };
     }
     pub fn validate(self: Progress, plan: q.Plan) !void {
+        try self.validateRecord();
         if (!std.mem.eql(u8, &self.binding, &plan.source_basis) or !std.mem.eql(u8, &self.plan, &try plan.fingerprint())) return error.SourceChanged;
         const count = self.counters;
-        if (count.selected > count.scanned or pagesFor(count.scanned) > self.pages or self.segments > self.pages) return error.InvalidQueryProgress;
         if (count.value_count > count.selected or (plan.aggregate != .count_values and count.value_count != 0)) return error.InvalidQueryProgress;
-        if (self.pages == 0 and (count.sum != null or self.finished != null)) return error.InvalidQueryProgress;
         if (plan.limit) |limit| {
             if (count.selected > limit or (self.finished == .limit and count.selected != limit)) return error.InvalidQueryProgress;
             if (self.pages > 0 and count.selected == limit and self.finished != .limit) return error.InvalidQueryProgress;
@@ -45,8 +44,20 @@ pub const Progress = struct {
     fn pagesFor(rows: u64) u64 {
         return rows / max_rows + @intFromBool(rows % max_rows != 0);
     }
+    /// Structural validation for an enclosing durable record. Loading a record
+    /// is not execution admission: validate(plan) is mandatory before using it.
+    pub fn validateRecord(self: Progress) !void {
+        const count = self.counters;
+        if (count.selected > count.scanned or count.value_count > count.selected or pagesFor(count.scanned) > self.pages or self.segments > self.pages or pagesFor(self.rows) > self.segments) return error.InvalidQueryProgress;
+        if (self.pages == 0 and (count.sum != null or self.finished != null)) return error.InvalidQueryProgress;
+        if (self.finished != null and self.segments == 0) return error.InvalidQueryProgress;
+    }
     pub fn encode(self: Progress, plan: q.Plan) ![progress_bytes]u8 {
         try self.validate(plan);
+        return self.encodeRecord();
+    }
+    pub fn encodeRecord(self: Progress) ![progress_bytes]u8 {
+        try self.validateRecord();
         var bytes: [progress_bytes]u8 = undefined;
         var writer: std.Io.Writer = .fixed(&bytes);
         try writer.writeAll("FQS1");
@@ -63,6 +74,11 @@ pub const Progress = struct {
         return bytes;
     }
     pub fn decode(plan: q.Plan, bytes: []const u8) !Progress {
+        const progress = try decodeRecord(bytes);
+        try progress.validate(plan);
+        return progress;
+    }
+    pub fn decodeRecord(bytes: []const u8) !Progress {
         if (bytes.len != progress_bytes) return error.InvalidQueryProgress;
         var reader: std.Io.Reader = .fixed(bytes);
         if (!std.mem.eql(u8, try reader.take(4), "FQS1")) return error.InvalidQueryProgress;
@@ -76,7 +92,7 @@ pub const Progress = struct {
         progress.counters.sum = if (present == 1) sum else null;
         const finish = try reader.takeByte();
         progress.finished = if (finish == 0) null else std.enums.fromInt(Finish, finish) orelse return error.InvalidQueryProgress;
-        try progress.validate(plan);
+        try progress.validateRecord();
         return progress;
     }
 };

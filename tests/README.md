@@ -11954,6 +11954,16 @@ decoders delegate to the same implementations and retain their previous failure
 cleanup and canonical-byte checks. These are package/ownership checks, not native
 job integration or a fresh full-root/clean-checkout qualification.
 
+The logical durable-record codec and embedded neutral values pass **252/252
+Fuze tests** (`query-record-fuze2.log` in the same campaign). A structurally
+valid counter record that contradicts its immutable plan rejects on binding;
+changed bindings and impossible counter shapes reject separately. Neutral text
+and JSON remain valid after source buffers are overwritten, including exhaustive
+allocation failures and exact uint128 scalar round-trips. The earlier
+`query-record-fuze1.log` passes 251 tests before the neutral ownership case.
+Native query integration is in progress: its package compilation is not yet a
+pass, and neither this check nor the codec alone establishes durable admission.
+
 ## Fuze logical type foundation
 
 The local `Types` profile has nine passing focused Zig tests, including 46

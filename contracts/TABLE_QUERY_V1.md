@@ -115,6 +115,12 @@ rows; sum-presence byte and int64 sum; finish byte (0 pending, 1 source-end,
 the original plan and counter relationships, including selected/scanned ordering,
 page/segment coverage, aggregate state and exact LIMIT completion.
 
+An enclosing durable record can use `encodeRecord`/`decodeRecord` before its
+immutable request has been loaded. These methods check canonical bytes and
+plan-independent counter relationships only. Their result must pass
+`validate(plan)` against the original bound plan before execution, continuation
+or result disclosure; successful structural decoding is not query admission.
+
 Allocation/output failure, invalid rows, operator failure and cancellation return
 no candidate. Repeating a step from the same checkpoint and input yields the same
 bytes. First-failure evidence retains scan/page position and, where an operator

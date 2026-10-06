@@ -11,6 +11,27 @@ fn integer(n: i128) Cell {
 }
 const simple: t.Type = .{ .structure = &.{.{ .name = "n", .type = .int64, .nullable = true, .optional = true }} };
 
+test "durable logical records require plan validation after structural decoding" {
+    const plan: q.Plan = .{ .schema = simple, .source_basis = basis, .projection = &.{0} };
+    var progress = try s.Progress.start(plan);
+    try e.expectEqualDeep(progress, try s.Progress.decodeRecord(&try progress.encodeRecord()));
+    progress.pages = 1;
+    progress.counters = .{ .scanned = 1, .selected = 1, .value_count = 1 };
+    progress.segments = 1;
+    progress.rows = 1;
+    // Valid counter structure can still contradict a rows plan. The host must
+    // bind the immutable request before admitting a recovered checkpoint.
+    const decoded = try s.Progress.decodeRecord(&try progress.encodeRecord());
+    try e.expectError(error.InvalidQueryProgress, decoded.validate(plan));
+    try e.expectError(error.InvalidQueryProgress, s.Progress.decode(plan, &try progress.encodeRecord()));
+    progress.counters.value_count = 0;
+    progress.binding[0] ^= 1;
+    try e.expectError(error.SourceChanged, (try s.Progress.decodeRecord(&try progress.encodeRecord())).validate(plan));
+    progress.binding[0] ^= 1;
+    progress.counters.selected = 2;
+    try e.expectError(error.InvalidQueryProgress, progress.encodeRecord());
+}
+
 test "logical steps resume all finite operators over recursive rows at every page width" {
     const workspace = try e.allocator.alloc(u8, f.LogicalArrow.working_bytes);
     defer e.allocator.free(workspace);

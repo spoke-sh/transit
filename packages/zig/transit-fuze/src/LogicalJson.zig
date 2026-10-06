@@ -68,6 +68,39 @@ pub fn fromForeign(allocator: std.mem.Allocator, cell: Cell, field: types.Field)
     try result.validate(field, .{});
     return result;
 }
+/// Schema-bound scalar parameters embedded in another neutral contract.
+pub fn atomFromForeign(allocator: std.mem.Allocator, value: Atom, expected: types.Type) !values.Atom {
+    try expected.validate(.{});
+    var budget: Budget = .{};
+    return nativeAtom(allocator, value, expected, &budget);
+}
+pub fn atomToForeign(allocator: std.mem.Allocator, value: values.Atom, expected: types.Type) !Atom {
+    try types.Semantics.validate(value, expected);
+    return foreignAtom(allocator, value, expected);
+}
+test "embedded neutral logical results own text and JSON beyond their decoded source" {
+    const Run = struct {
+        fn run(allocator: std.mem.Allocator) !void {
+            var arena: std.heap.ArenaAllocator = .init(allocator);
+            defer arena.deinit();
+            const alloc = arena.allocator();
+            var text = [_]u8{ 'A', 'd', 'a' };
+            var json = [_]u8{ '{', '"', 'a', '"', ':', '1', '}' };
+            const schema: types.Type = .{ .structure = &.{ .{ .name = "text", .type = .utf8 }, .{ .name = "data", .type = .json } } };
+            const cell: values.Cell = .{ .value = .{ .structure = &.{ .{ .value = .{ .atom = .{ .bytes = &text } } }, .{ .value = .{ .json = &json } } } } };
+            const result = try foreignCell(alloc, cell, schema);
+            @memset(&text, 0);
+            @memset(&json, 0);
+            try std.testing.expectEqualStrings("Ada", result.value.structure[0].value.atom.utf8);
+            try std.testing.expectEqualStrings("{\"a\":1}", result.value.structure[1].value.json);
+            const wide = try atomFromForeign(alloc, .{ .unsigned = "340282366920938463463374607431768211455" }, .uint128);
+            try std.testing.expectEqual(std.math.maxInt(u128), wide.unsigned);
+            try std.testing.expectEqualStrings("340282366920938463463374607431768211455", (try atomToForeign(alloc, wide, .uint128)).unsigned);
+        }
+    };
+    try Run.run(std.testing.allocator);
+    try std.testing.checkAllAllocationFailures(std.testing.allocator, Run.run, .{});
+}
 pub fn decodeType(allocator: std.mem.Allocator, bytes: []const u8) !types.Decoded {
     return decodeTypeDiagnostic(allocator, bytes, null);
 }
@@ -255,7 +288,7 @@ fn foreignAtom(allocator: std.mem.Allocator, atom: types.Semantics.Atom, expecte
             break :blk .{ .float_bits = try hex(allocator, bytes[0..if (expected == .float32) @as(usize, 4) else 8]) };
         },
         .boolean => |boolean| .{ .boolean = boolean },
-        .bytes => |bytes| if (expected == .utf8) .{ .utf8 = bytes } else .{ .binary = try hex(allocator, bytes) },
+        .bytes => |bytes| if (expected == .utf8) .{ .utf8 = try allocator.dupe(u8, bytes) } else .{ .binary = try hex(allocator, bytes) },
         .date => |number| .{ .date_days = try decimal(allocator, number) },
         .time => |number| .{ .time_nanos = try decimal(allocator, number) },
         .timestamp => |number| .{ .timestamp_micros = try decimal(allocator, number) },
@@ -304,7 +337,7 @@ fn foreignValue(allocator: std.mem.Allocator, value: values.Value, expected: typ
             cell.* = try foreignCell(allocator, tagged.value.*, expected.tagged_union[tagged.index].type);
             break :blk .{ .tagged_union = .{ .index = tagged.index, .value = cell } };
         },
-        .json => |bytes| .{ .json = bytes },
+        .json => |bytes| .{ .json = try allocator.dupe(u8, bytes) },
     };
 }
 test "neutral JSON owns recursive descriptors and never rounds full width numbers" {
