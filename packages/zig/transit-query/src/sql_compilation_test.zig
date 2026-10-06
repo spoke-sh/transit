@@ -161,6 +161,21 @@ test "neutral compilation retains original parameter context without admitting w
     try t.expectEqualStrings("uint64", detail.expected.?);
     const diagnostic = q.fuze.SqlDiagnostic.bound(request.sql, error.InvalidIntegerEncoding, true, detail).?;
     try t.expect(std.mem.indexOf(u8, diagnostic.detail[0..diagnostic.detail_len], "02") != null);
+    for ([_]struct { value: v.Scalar, preview: []const u8 }{
+        .{ .value = .{ .signed = "2" }, .preview = "2" },
+        .{ .value = .{ .signed = "-170141183460469231731687303715884105728" }, .preview = "-170141183460469231731687303715884105728" },
+        .{ .value = .{ .timestamp_micros = "-1" }, .preview = "-1 microseconds since epoch" },
+        .{ .value = .{ .interval = .{ .months = "1", .days = "2", .nanos = "3" } }, .preview = "1 months, 2 days, 3 ns" },
+        .{ .value = .{ .interval = .{ .months = "1", .days = "bad\x1b\n", .nanos = "3" } }, .preview = "days: \"bad\\x1b\\x0a\"" },
+    }) |case| {
+        request.parameters = &.{ .{ .signed = "1" }, case.value };
+        const before = client.reads;
+        if (q.SqlCompilation.applyDiagnostic(alloc, &client, request, &detail)) |_| return error.AcceptedWrongParameter else |_| {}
+        try t.expectEqual(before + 1, client.reads);
+        try t.expectEqual(@as(?u32, 2), detail.parameter);
+        try t.expectEqualStrings(case.preview, detail.literal[0..detail.literal_len]);
+        try t.expectEqualStrings(@tagName(case.value), detail.actual.?);
+    }
     request.parameters = &.{};
     try t.expectError(error.ParameterCountMismatch, q.SqlCompilation.applyDiagnostic(alloc, &client, request, &detail));
     try t.expectEqual(@as(?usize, 2), detail.expected_count);

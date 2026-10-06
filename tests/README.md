@@ -16172,3 +16172,14 @@ exact lost-receipt resume/cancellation, metadata evolution and native bridge
 cases with the four-write and 256-byte native value bounds. The first run's new
 residual assertion incorrectly required key routing for an unqualified predicate;
 that failed assertion is retained in `typed-table-point-preview1.log`.
+
+
+The neutral SQL parameter boundary also preserves typed previews when decoding
+fails against the expected descriptor (`query-neutral-preview1.log`: all 114
+query ReleaseSafe tests pass; `console-neutral-preview-build1.log`: CLI builds).
+A valid signed JSON atom supplied to unsigned LIMIT displays the exact number;
+malformed canonical integer text retains its escaped encoding. Temporal units
+and valid intervals remain typed; malformed intervals name the original failing
+component. Preview scratch is bounded to 64 bytes and reads no additional source
+state. The preceding console run exposed the quoted-number difference
+(`console-logical-kv2.log`) and was not a passed console qualification.

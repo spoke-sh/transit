@@ -58,13 +58,7 @@ pub fn applyDiagnostic(allocator: std.mem.Allocator, client: anytype, request: R
                 }
                 context.expected = @tagName(template.parameterTypes()[i]);
                 context.actual = @tagName(value);
-                // This is supplied input, never a fetched stored value. Reuse
-                // the bounded inert preview for canonical numeric/text syntax.
-                switch (value) {
-                    .boolean => |boolean| q.fuze.Sql.Binding.supplied(context, q.fuze.Unified.Scalar{ .boolean = boolean }),
-                    .interval => {},
-                    inline else => |raw| q.fuze.Sql.Binding.supplied(context, q.fuze.Unified.Scalar{ .utf8 = raw }),
-                }
+                supplied(context, value);
             }
             return err;
         };
@@ -85,4 +79,50 @@ pub fn applyDiagnostic(allocator: std.mem.Allocator, client: anytype, request: R
         .contract = try definition.fingerprint(),
         .schema = try (try definition.schema(&columns)).fingerprint(),
     };
+}
+
+/// A wrong expected descriptor must not turn a valid number into quoted text.
+/// Decode only the caller's atom family into bounded scratch; malformed or
+/// oversized encodings retain escaped original bytes instead of a guessed value.
+fn supplied(context: *q.fuze.Sql.Binding, value: v.Scalar) void {
+    const kind: q.fuze.Types.Type = switch (value) {
+        .signed => .int128,
+        .unsigned => .uint128,
+        .decimal => .{ .decimal = .{ .precision = 38, .scale = 0 } },
+        .float_bits => |bytes| if (bytes.len == 8) .float32 else .float64,
+        .boolean => .boolean,
+        .utf8 => .utf8,
+        .binary => .binary,
+        .date_days => .date,
+        .time_nanos => .time,
+        .timestamp_micros => .{ .timestamp = .civil },
+        .interval => .interval,
+        .uuid => .uuid,
+    };
+    var bytes: [64]u8 = undefined;
+    var scratch: std.heap.FixedBufferAllocator = .init(&bytes);
+    const atom = v.scalar(scratch.allocator(), value, kind) catch {
+        switch (value) {
+            .boolean => unreachable,
+            .interval => |parts| {
+                // Name the original malformed component without interpolating
+                // arbitrary input into the terminal or omitting its context.
+                inline for (.{ "months", "days", "nanos" }, .{ q.fuze.Types.Type.int32, .int32, .int64 }) |field, field_type| {
+                    _ = v.scalar(scratch.allocator(), .{ .signed = @field(parts, field) }, field_type) catch {
+                        q.fuze.Sql.Binding.supplied(context, q.fuze.Unified.Scalar{ .utf8 = @field(parts, field) });
+                        const length = context.literal_len;
+                        std.mem.copyBackwards(u8, context.literal[field.len + 2 ..][0..length], context.literal[0..length]);
+                        @memcpy(context.literal[0..field.len], field);
+                        @memcpy(context.literal[field.len..][0..2], ": ");
+                        context.literal_len += field.len + 2;
+                        return;
+                    };
+                }
+                unreachable;
+            },
+            inline else => |raw| q.fuze.Sql.Binding.supplied(context, q.fuze.Unified.Scalar{ .utf8 = raw }),
+        }
+        return;
+    };
+    q.fuze.Sql.Binding.suppliedLogical(context, atom);
 }
