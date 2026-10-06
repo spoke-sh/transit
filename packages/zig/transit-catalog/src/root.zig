@@ -18,7 +18,10 @@ pub const TableDdlRequest = @import("TableDdlRequest.zig");
 pub const TableDmlRequest = @import("TableDmlRequest.zig");
 pub const TableCommand = @import("TableCommand.zig");
 pub const TableUpload = @import("TableUpload.zig");
+pub const TableControl = @import("TableControl.zig");
+pub const TableBehavior = @import("TableBehavior.zig");
 test {
+    _ = @import("table_behavior_test.zig");
     _ = @import("table_upload_test.zig");
     _ = @import("table_command_test.zig");
     _ = @import("table_metadata_test.zig");

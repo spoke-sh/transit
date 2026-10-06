@@ -10909,6 +10909,26 @@ checks (`table-upload-final.log`); the regenerated independent fixture passes in
 the cited rerun. These are captured-turn tests; native behavior scheduling,
 signed client transport, disk restart and performance remain unqualified here.
 
+The general owner hooks and native controls pass **65/65 catalog tests**
+(`table-behavior-final.log`). The guard/initializer/handler sequence executes
+uploaded CREATE and inline point/finite DML, schedules one durable output per
+pending step and preserves identical decisions with replacement handler instances.
+Initialization and point INSERT each use four writes. Current policy revocation
+records a denial without rescheduling; exact external resume finishes after
+restoration. Tests reject foreign origins, process-origin first admission,
+malformed/truncated bodies, foreign definitions and noncanonical part padding.
+Injected failures across every point-mutation read propagate without committing
+an input rejection. Malformed published request bytes receive a disposition;
+corrupt Publication evidence propagates its integrity failure instead. These
+tests use a dynamic-map captured-turn fixture and do not claim disk-backed host
+replacement, deployed client integration or console end-to-end support.
+Full pinned `just check` also passes on this owner-hook tree
+(`table-behavior-check.log`): generated contracts and binding drift gates,
+diagnostic inventory/mappings, unit and CLI checks, independent byte fixtures,
+frontend checks/tests and the documentation production build. Existing frontend
+lint warnings remain warnings. Committed-HEAD clean and disk qualification are
+still separate required gates.
+
 ## Fuze logical type foundation
 
 The local `Types` profile has nine passing focused Zig tests, including 46

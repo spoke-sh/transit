@@ -229,7 +229,10 @@ fn readCommand(self: Self, allocator: std.mem.Allocator, turn: *s.Turn, upload: 
         cursor = part.next orelse break;
     }
     if (offset != bytes.len or !std.meta.eql(try Command.inspect(bytes), upload.header)) return error.CatalogIdentityConflict;
-    return Command.decode(allocator, bytes, if (basis) |*value| value.borrow() else null);
+    return Command.decode(allocator, bytes, if (basis) |*value| value.borrow() else null) catch |err| switch (err) {
+        error.OutOfMemory => return err,
+        else => return error.InvalidTableCommand,
+    };
 }
 fn binding(allocator: std.mem.Allocator, upload: Status, command: Command.Body) !Status {
     if (!std.meta.eql(command.header, upload.header)) return error.CatalogIdentityConflict;

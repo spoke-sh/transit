@@ -123,7 +123,7 @@ pub const Reference = struct {
     principal: u64,
     operation: u64,
     digest: [32]u8,
-    fn validate(self: Reference) !void {
+    pub fn validate(self: Reference) !void {
         if (self.resource == 0 or self.resource > p.max_counter or self.object == 0 or self.principal > p.max_counter or self.operation == 0) return error.InvalidTableWrite;
     }
     pub fn key(self: Reference) p.Value {

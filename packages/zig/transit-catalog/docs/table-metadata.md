@@ -130,6 +130,20 @@ never deletes its receipt. Each staging/collection turn stays within four native
 writes. These helpers still require native behavior/client wiring and do not
 change the console's supported syntax by themselves.
 
+`TableBehavior` supplies the general owner hooks for a Station GenServer. It
+accepts small typed commands in one cast frame and handles larger uploads through
+`TableControl`. A pending operation schedules one exact durable self-message;
+completion schedules none. The owner checks recorded intent and current policy
+on every continuation. Denied work gets an input disposition and pauses without
+losing its reservation. Explicit exact resume can continue after rights are
+restored. Native evidence failures reject the entire private proposal.
+
+Initialization, policy and dependency controls retain separate input outcomes.
+SQL outcomes remain in their original catalog/Table receipts. Cancellation and
+cleanup use those exact references, with no extra fifth receipt write. The module
+is available for deployment composition; the existing configured native client
+and console are not switched by adding the module.
+
 A record owns scope, full-width object and metadata revision, exact name,
 immutable Table schema reference and complete schema fingerprint, principal,
 original operation and admission input. The metadata revision is independent of

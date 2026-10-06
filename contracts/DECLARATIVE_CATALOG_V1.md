@@ -625,3 +625,40 @@ collection. Cancellation of an unadmitted upload closes only transport; admitted
 work uses its original catalog/Table coordinator. Collection requires cancelled
 unadmitted transport or a terminal application receipt and preserves permanent
 upload identity, body commitment, application reference and SQL receipts.
+
+## General native owner controls
+
+`TableControl` uses current-definition `TCA1` records within ordinary Station
+cast frames. Command tags are initialize=`I`, conditional policy=`P`, dependency
+registration/removal=`D`, cancel/cleanup DDL=`X`/`Y`, cancel/cleanup DML=`M`/`N`,
+begin/part/seal upload=`B`/`A`/`S`, drive upload=`V`, and cancel/collect upload=
+`K`/`G`. All control payloads fit the 243-byte Station frame payload limit.
+Initialization contains the full general configuration. Policy contains expected
+revision:u64 and policy. Dependency contains the dependency and present:boolean.
+DDL controls contain scope, principal:u64, operation:u64 and digest:32; DML
+controls contain scope and the complete TableWrite reference.
+
+Upload begin contains the complete 141-byte TCQ1 header, namespace:u64 and body
+spec. Other upload controls contain scope and namespace:u64. A part appends
+offset:u32, length:u8 and 128 bytes, with mandatory zero padding beyond length.
+Control integers use little-endian and booleans are exactly 0 or 1. No control
+uses its supplied principal as authentication.
+
+`TableBehavior` supplies GenServer guard, initializer and handler hooks. It accepts
+inline TCQ1 bodies directly, schedules the exact body to itself while work is
+pending, and routes larger bodies through their retained upload namespace. Seal
+schedules binding; committed binding schedules execution. Successful point
+publication adds neither an extra catalog receipt nor a fifth native write.
+The first initializer, including the GenServer descriptor, uses four writes.
+No per-Table process, resource or grant is created.
+
+The owner records bounded input dispositions for malformed, denied, conflicting,
+stale-policy and blocked inputs. Disposition tag `E` contains scope, origin:u8,
+external principal:u64 (zero otherwise), input:u64, payload fingerprint:32 and
+outcome:u8. Outcome codes are initialized=1, policy applied=2, dependency applied=
+3, invalid command=4, denied=5, identity conflict=6, stale policy=7, blocked=8.
+These records never substitute for a Table or DDL outcome. Denial stops automatic
+continuations and preserves admitted work for explicit exact resume/cancel.
+Native read failures and corrupted published evidence reject the private proposal;
+they are not acknowledged as malformed user inputs. This behavior module still
+requires deployment/caller integration before replacing the configured runtime.
