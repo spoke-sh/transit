@@ -214,8 +214,7 @@ pub fn complete(allocator: std.mem.Allocator, client: *c.TableClient, request: a
         if (editor.name_role == .source) {
             var cursor: ?c.TableCatalog.Cursor = null;
             for (0..max_pages) |_| {
-                var page = try client.list(allocator, cursor);
-                defer page.deinit();
+                const page = try client.list(cursor);
                 if (page.resource_revision != initial.resource_revision) return error.CatalogCursorChanged;
                 for (page.entries) |entry| if (entry) |value| try builder.add(value.metadata.name.slice(), .source, "Authorized Table");
                 cursor = page.next;

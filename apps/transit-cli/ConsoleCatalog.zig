@@ -50,14 +50,19 @@ fn inspectTo(console: *Console, catalog: *c.TableClient, name: ?c.TableMetadata.
             defer definition.deinit();
             try describe(console, out, arena.allocator(), definition);
         } else {
-            var page = try catalog.list(arena.allocator(), cursor);
-            defer page.deinit();
+            const page = try catalog.list(cursor);
             if (console.session.format == .json) {
-                try std.json.Stringify.value(.{ .catalog_revision = page.resource_revision, .tables = blk: {
-                    var names: std.array_list.Managed([]const u8) = .init(arena.allocator());
-                    for (page.entries) |entry| if (entry) |value| try names.append(value.metadata.name.slice());
-                    break :blk names.items;
-                }, .complete = page.next == null }, .{}, out);
+                var json: std.json.Stringify = .{ .writer = out };
+                try json.beginObject();
+                try json.objectField("catalog_revision");
+                try json.write(page.resource_revision);
+                try json.objectField("tables");
+                try json.beginArray();
+                for (page.entries) |entry| if (entry) |value| try json.write(value.metadata.name.slice());
+                try json.endArray();
+                try json.objectField("complete");
+                try json.write(page.next == null);
+                try json.endObject();
                 try out.writeByte('\n');
             } else {
                 if (cursor == null) try out.print("Catalog tables (revision {d}):\n", .{page.resource_revision});

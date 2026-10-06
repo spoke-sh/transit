@@ -499,9 +499,11 @@ origin, realm, configured PID/resource and administrator where required. Metadat
 inspection is independent of data read/write and schema rights. Native authority
 remains separately required. `lookup` resolves hash buckets by exact names and
 validates the live head/schema. `list` scans at most one native object-record page,
-returning at most eight owned definitions in object-ID order; its cursor binds
-scope, native revision and last scanned object. A caller releases owned schemas
-and pages explicitly. Partial native pages with continuations are not EOF.
+returning at most eight inline metadata/head entries in object-ID order; its
+cursor binds scope, native revision and last scanned object. Listing validates
+each live identity without reading schema defaults or row data. Lookup returns an
+owned schema that the caller releases explicitly. Partial native pages with
+continuations are not EOF.
 
 Explicit dependency kinds are query source=1, writer=2, watch=3, maintained
 relation=4 and history=5. The first four restrict removal; historical references
@@ -714,4 +716,5 @@ does not prove that a particular native send was processed. `waitObserve` and
 `waitProgress` retain only a scheduling cursor for the exact signature/input,
 use bounded change notification, and fall back to a fresh read after bounded
 capacity backoff. They cache no permission or completion claim. Metadata lookup
-and object-ordered listing return owned schemas/pages requiring explicit release.
+returns an owned schema requiring explicit release. Object-ordered listing
+returns an inline page of metadata/head entries without acquiring schema or rows.

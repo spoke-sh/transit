@@ -19,15 +19,12 @@ pub const Definition = struct {
         self.* = undefined;
     }
 };
+pub const Entry = struct { metadata: Meta.Record, head: s.TableHead };
 pub const Cursor = struct { scope: m.Scope, resource_revision: u64, after_object: u64 };
 pub const Page = struct {
-    entries: [p.Growth.page_size]?Definition = @splat(null),
+    entries: [p.Growth.page_size]?Entry = @splat(null),
     next: ?Cursor = null,
     resource_revision: u64,
-    pub fn deinit(self: *Page) void {
-        for (&self.entries) |*slot| if (slot.*) |*entry| entry.deinit();
-        self.* = undefined;
-    }
 };
 pub fn key(self: Self, tag: u8, id: u64, revision: u64) p.Value {
     return r.key(self.configuration.scope.catalog, tag, id, revision);
@@ -143,11 +140,15 @@ fn binding(self: Self, source: anytype, name: Meta.Name) !?Bound {
         cursor = page.next orelse return found;
     }
 }
-fn resolve(self: Self, allocator: std.mem.Allocator, source: anytype, value: m.Object, record: Meta.Record) !Definition {
+fn resolveHead(self: Self, source: anytype, value: m.Object, record: Meta.Record) !s.TableHead {
     try self.scope(value.scope);
     if (value.state != .live or value.object != record.object or value.metadata.id != record.revision) return error.CatalogDefinitionChanged;
     const head = try s.TableHead.load(source, record.object);
     if (head.retired or !std.meta.eql(head.schema, record.schema)) return error.CatalogSourceChanged;
+    return head;
+}
+fn resolve(self: Self, allocator: std.mem.Allocator, source: anytype, value: m.Object, record: Meta.Record) !Definition {
+    const head = try self.resolveHead(source, value, record);
     var schema = try head.readSchema(allocator, source);
     errdefer schema.deinit();
     if (!std.mem.eql(u8, &try schema.schema.fingerprint(), &record.schema_fingerprint)) return error.CatalogDefinitionChanged;
@@ -160,7 +161,9 @@ pub fn lookup(self: Self, allocator: std.mem.Allocator, source: anytype, who: u6
 }
 /// Object-ordered pages are bound to one native revision. Tombstoned and pending
 /// creation records advance the cursor without being returned as live Tables.
-pub fn list(self: Self, allocator: std.mem.Allocator, source: anytype, who: u64, cursor: ?Cursor) !Page {
+/// Listing validates metadata/head identity without fetching schema or row pages.
+/// Entries are bounded inline values; lookup separately owns a complete schema.
+pub fn list(self: Self, source: anytype, who: u64, cursor: ?Cursor) !Page {
     _ = try self.authorize(source, who, .inspect);
     if (cursor) |prior| {
         try self.scope(prior.scope);
@@ -171,7 +174,6 @@ pub fn list(self: Self, allocator: std.mem.Allocator, source: anytype, who: u64,
     const page = try source.page(after);
     try c.Inspection.validatePage(page, after, source.view.revision);
     var result: Page = .{ .resource_revision = source.view.revision };
-    errdefer result.deinit();
     var count: usize = 0;
     var last: u64 = 0;
     for (page.entries) |slot| {
@@ -184,7 +186,8 @@ pub fn list(self: Self, allocator: std.mem.Allocator, source: anytype, who: u64,
         if (current.object != id or id == 0) return error.InvalidCatalogObject;
         last = id;
         if (current.state == .live) {
-            result.entries[count] = try self.resolve(allocator, source, current, try self.metadata(source, current));
+            const record = try self.metadata(source, current);
+            result.entries[count] = .{ .metadata = record, .head = try self.resolveHead(source, current, record) };
             count += 1;
         }
     }

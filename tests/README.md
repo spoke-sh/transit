@@ -11230,6 +11230,16 @@ including generated logical resources, the independent schema oracle, native and
 CLI cases, frontend validation and the documentation build. This is not the
 pending committed-HEAD clean-CI gate.
 
+General catalog listing now returns inline metadata/head entries without reading
+schema defaults or row data. The focused catalog and query suites pass **77/77**
+and **98/98** tests (`catalog-list2.log`, `catalog-list-query1.log`). A source that
+refuses schema reads still lists the live name, while lookup fails and a retired
+head is rejected. The disk-backed native/console proof passes in **109.611
+seconds** (`catalog-list-native1.log`), including distinct JSON names across a
+page and the existing lost-reply/restart checks. It retains 350 turns, 83 sends,
+four mutations per turn and 256-byte native values. This qualifies listing and
+rendering behavior, not the remaining neutral caller migration or clean CI.
+
 ## Fuze logical type foundation
 
 The local `Types` profile has nine passing focused Zig tests, including 46

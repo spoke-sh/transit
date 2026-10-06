@@ -93,7 +93,7 @@ test "typed catalog metadata caller validates connection before opening any sour
     client.connection.scope.resource = 0;
     try t.expectError(error.InvalidCatalogIdentity, client.describe());
     try t.expectError(error.InvalidCatalogIdentity, client.lookup(t.allocator, try c.TableMetadata.Name.init("people")));
-    try t.expectError(error.InvalidCatalogIdentity, client.list(t.allocator, null));
+    try t.expectError(error.InvalidCatalogIdentity, client.list(null));
 }
 
 test "general SQL creation compiles offline into the same typed intent" {

@@ -324,6 +324,10 @@ def run(node, proof, host, cli):
                 return result
 
             console('CREATE TABLE console_people (id INTEGER PRIMARY KEY, name VARCHAR(200) NOT NULL, active BOOLEAN DEFAULT TRUE, salary DECIMAL(18,2))')
+            listed = [json.loads(line) for line in console('SHOW TABLES').stdout.splitlines()]
+            names = [name for page in listed for name in page['tables']]
+            assert {'people', 'console_people'} <= set(names) and len(names) == len(set(names)), listed
+            assert listed[-1]['complete'], listed
             assisted = call('assist', 'SELECT na FROM console_people', str(len('SELECT na')))
             assert assisted['profile'] == 'catalog_v1' and [item['text'] for item in assisted['items']] == ['"name"'], assisted
             sources = call('assist', 'SELECT * FROM console_', str(len('SELECT * FROM console_')))

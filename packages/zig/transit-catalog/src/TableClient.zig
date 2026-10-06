@@ -173,9 +173,9 @@ pub fn lookup(self: *Self, allocator: std.mem.Allocator, name: c.TableMetadata.N
     var current = try self.source(&.{});
     return (try self.catalog(&current)).lookup(allocator, &current, self.connection.principal, name);
 }
-pub fn list(self: *Self, allocator: std.mem.Allocator, cursor: ?c.TableCatalog.Cursor) !c.TableCatalog.Page {
+pub fn list(self: *Self, cursor: ?c.TableCatalog.Cursor) !c.TableCatalog.Page {
     var current = try self.source(&.{});
-    return (try self.catalog(&current)).list(allocator, &current, self.connection.principal, cursor);
+    return (try self.catalog(&current)).list(&current, self.connection.principal, cursor);
 }
 pub const CompileIdentity = struct { operation: u64, namespace: u64, create_object: ?u64 = null };
 /// SQL and typed callers lower to the same immutable intent. Names resolve at

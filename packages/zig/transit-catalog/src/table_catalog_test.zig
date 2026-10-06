@@ -81,7 +81,7 @@ test "general namespace policy separates metadata data and schema rights and pre
     try owner.setPolicy(&turn, 1, administrator);
     try store.commit(turn);
     turn = try store.capture(17);
-    try t.expectError(error.CatalogDenied, owner.list(t.allocator, &turn, 17, .{ .scope = owner.configuration.scope, .resource_revision = 0, .after_object = 0 }));
+    try t.expectError(error.CatalogDenied, owner.list(&turn, 17, .{ .scope = owner.configuration.scope, .resource_revision = 0, .after_object = 0 }));
     administrator.revision = 3;
     administrator.inspect = true;
     try owner.setPolicy(&turn, 2, administrator);
@@ -110,8 +110,7 @@ test "general namespace resolves full names and pages stable objects beyond one 
     var cursor: ?Cat.Cursor = null;
     var count: u64 = 0;
     while (true) {
-        var page = try owner.list(t.allocator, &turn, 17, cursor);
-        defer page.deinit();
+        const page = try owner.list(&turn, 17, cursor);
         for (page.entries) |slot| if (slot) |entry| {
             count += 1;
             try t.expectEqual(count, entry.metadata.object);
@@ -119,11 +118,44 @@ test "general namespace resolves full names and pages stable objects beyond one 
         cursor = page.next orelse break;
     }
     try t.expectEqual(@as(u64, 20), count);
-    var first = try owner.list(t.allocator, &turn, 17, null);
-    defer first.deinit();
+    const first = try owner.list(&turn, 17, null);
     try install(&store, 30, try Meta.Name.init("later"));
     turn = try store.capture(17);
-    try t.expectError(error.CatalogCursorChanged, owner.list(t.allocator, &turn, 17, first.next));
+    try t.expectError(error.CatalogCursorChanged, owner.list(&turn, 17, first.next));
+}
+test "listing validates live identity without acquiring schema or row bytes" {
+    var store: TestStore = .{};
+    defer store.deinit();
+    try ready(&store);
+    try install(&store, 1, try Meta.Name.init("people"));
+    var turn = try store.capture(17);
+    const head = try s.TableHead.load(&turn, 1);
+    const Source = struct {
+        turn: *s.Turn,
+        view: p.Growth.View,
+        blocked: p.Value,
+        pub fn read(self: *@This(), key: p.Value) !?p.Value {
+            if (key.eql(self.blocked)) return error.Unavailable;
+            return self.turn.read(key);
+        }
+        pub fn page(self: *@This(), after: p.Value) !s.Turn.Page {
+            return self.turn.page(after);
+        }
+    };
+    var source: Source = .{ .turn = &turn, .view = turn.view, .blocked = s.TablePages.key(1, 'i', head.schema.id) };
+    const listed = try owner.list(&source, 17, null);
+    try t.expectEqualStrings("people", listed.entries[0].?.metadata.name.slice());
+    try t.expectEqualDeep(head, listed.entries[0].?.head);
+    try t.expectEqual(null, listed.next);
+    try t.expectError(error.Unavailable, owner.lookup(t.allocator, &source, 17, try Meta.Name.init("people")));
+    // Metadata still cannot describe a retired or mismatched live head.
+    var retired = head;
+    retired.retired = true;
+    retired.revision += 1;
+    try head.replace(&turn, retired);
+    try store.commit(turn);
+    turn = try store.capture(17);
+    try t.expectError(error.CatalogSourceChanged, owner.list(&turn, 17, null));
 }
 test "general namespace refuses stale heads wrong bindings orphan state and corrupt pages" {
     var store: TestStore = .{};
@@ -149,7 +181,7 @@ test "general namespace refuses stale heads wrong bindings orphan state and corr
     try t.expectError(error.CatalogSourceChanged, owner.lookup(t.allocator, &turn, 17, name));
     inline for (.{ .gap, .next, .revision, .order }) |failure| {
         store.bad_page = failure;
-        try t.expectError(error.InvalidCatalogPage, owner.list(t.allocator, &turn, 17, null));
+        try t.expectError(error.InvalidCatalogPage, owner.list(&turn, 17, null));
     }
     store.bad_page = .none;
     store.fail_at = store.reads + 1;

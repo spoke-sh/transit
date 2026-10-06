@@ -18,10 +18,12 @@ Read helpers receive the authenticated principal from their enclosing caller;
 neither a supplied number nor a stored policy grants native source access.
 `lookup` checks current inspect policy, resolves complete names and verifies the
 live head against immutable metadata and schema. `list` returns at most eight
-owned definitions in object-ID order. Its cursor binds scope and exact native
+inline metadata/head entries in object-ID order, without acquiring schema
+defaults or row data. Its cursor binds scope and exact native
 revision; current denial takes precedence over cursor use. Initializing/retired
-objects advance the scan without appearing as live Tables. Release owned pages
-and definitions with `deinit`. Resident work does not grow with catalog size.
+objects advance the scan without appearing as live Tables. Release lookup
+definitions with `deinit`; listing pages have no heap owner. Resident work does
+not grow with catalog size or schema defaults.
 
 The explicit administrator dependency registry distinguishes durable query
 sources, writers, watches and maintained relations from historical references.
