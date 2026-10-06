@@ -39,6 +39,12 @@ installed native Station gem is selected by default. Opening owns one worker and
 child, loads the supplied key and checks the exact definition and capabilities.
 Importing the module starts no worker and reads no credential.
 
+Resolved `Metadata` owns a `MetadataCommitment(bytes:, digest:)` for its immutable
+publication. The byte length is one to 436; the digest is a copied, frozen
+32-byte binary string. Query declarations consume this commitment with the
+metadata revision and schema. A commitment identifies the definition; it does
+not grant access or prove that the live name still resolves to it.
+
 ## Schemas and typed operations
 
 `Schema.new(object:, revision:, next_column:, columns:, primary_key: [])` owns

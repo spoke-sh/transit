@@ -63,6 +63,20 @@ def arrow_fixture(producer):
     return columns, rows, expected_rows, ipc
 
 
+def nested_arrow_fixture(producer, output):
+    datatype = {'list': {'type': {'uint128': {}}, 'nullable': True}}
+    columns = [dict(name='value', type=datatype, nullable=False, optional=False)]
+    cell = {'value': {'list': [{'value': {'atom': {'unsigned': str(2**128-1)}}}, {'null': {}}]}}
+    with tempfile.TemporaryDirectory(prefix='transit-query-nested-') as directory:
+        path = Path(directory)/'batch.json'
+        path.write_text(json.dumps(dict(columns=columns, rows=[[cell]])))
+        generated = subprocess.run([producer, '--batch', str(path)], capture_output=True, check=True, timeout=30).stdout
+    batches = list(pa.ipc.open_stream(generated))
+    assert len(batches) == 1 and batches[0].num_rows == 1
+    assert arrow_cell(batches[0].column(0), 0, datatype) == cell_bytes(cell, datatype)
+    Path(output).write_bytes(generated)
+
+
 def boolean_bundle_fixtures():
     from unified_contract import current_definition
     types = ['int64', 'uint64', 'float64', 'boolean', 'utf8', 'binary']

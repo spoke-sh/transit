@@ -15945,3 +15945,16 @@ preserves the retained manifest head. The initial type-check caught an accidenta
 conversion of a KV decoder as a predicate atom; it was corrected before the
 passing build. Native synchronous/asynchronous query recovery schedules remain
 unqualified until their shared catalog fixture migration is complete.
+
+### Ruby logical query caller
+
+Fresh Ruby gems pass the installed three-source/nine-Boolean-plan codec schedule,
+six scalar Arrow columns and all five states, 128 Unicode columns and a uint128
+predicate, and nested uint128/null decoding (`ruby-query-build1.log` and
+`ruby-query-installed1.log` in the local Table-schema campaign). The nested
+fixture uses the production Arrow encoder and is independently interpreted by
+PyArrow before the installed SDK reads it. Ruby reuses its owned logical values,
+retains the source-head digest and takes Table source identity from catalog
+metadata and its mandatory immutable commitment. Syntax checks pass
+(`ruby-query-syntax1.log`). Native recovery and authorization schedules remain
+unqualified until the common catalog query fixture is migrated.

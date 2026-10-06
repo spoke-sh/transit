@@ -136,9 +136,15 @@ module Transit
         def initialize(object:, revision:, schema_fingerprint:) = super(object: Values.wide(object), revision: Values.wide(revision), schema_fingerprint: Values.digest(schema_fingerprint))
         def wire = { 'object' => object.to_s, 'revision' => revision.to_s, 'schema_fingerprint' => schema_fingerprint.unpack1('H*') }
       end
-      Metadata = Data.define(:scope, :object, :revision, :name, :schema_fingerprint, :principal, :operation, :admitted_input) do
-        def initialize(scope:, object:, revision:, name:, schema_fingerprint:, principal:, operation:, admitted_input:)
-          super(scope: Values.typed(scope, Scope), object: Values.wide(object), revision: Values.wide(revision), name: Values.name(name), schema_fingerprint: Values.digest(schema_fingerprint), principal: Internal.integer(principal, min: 0), operation: Values.wide(operation), admitted_input: Internal.integer(admitted_input))
+      MetadataCommitment = Data.define(:bytes, :digest) do
+        def initialize(bytes:, digest:)
+          super(bytes: Internal.integer(bytes, min: 1, max: 436), digest: Values.digest(digest))
+        end
+        def wire = { 'format' => 0x54434d01, 'length' => bytes, 'digest' => digest.bytes }
+      end
+      Metadata = Data.define(:scope, :object, :revision, :name, :schema_fingerprint, :principal, :operation, :admitted_input, :commitment) do
+        def initialize(scope:, object:, revision:, name:, schema_fingerprint:, principal:, operation:, admitted_input:, commitment:)
+          super(scope: Values.typed(scope, Scope), object: Values.wide(object), revision: Values.wide(revision), name: Values.name(name), schema_fingerprint: Values.digest(schema_fingerprint), principal: Internal.integer(principal, min: 0), operation: Values.wide(operation), admitted_input: Internal.integer(admitted_input), commitment: Values.typed(commitment, MetadataCommitment))
         end
         def basis = Basis.new(object: object, revision: revision, schema_fingerprint: schema_fingerprint)
       end
@@ -358,9 +364,17 @@ module Transit
           end
           Schema.new(object: decimal(v.fetch('object')), revision: decimal(v.fetch('revision')), next_column: decimal(v.fetch('next_column')), columns: columns, primary_key: v.fetch('primary_key').map { |k| decimal(k) })
         end
+        def commitment(value)
+          v = object(value, %w[format length digest])
+          unless v.fetch('format') == 0x54434d01 && v.fetch('digest').is_a?(Array) && v.fetch('digest').length == 32
+            raise IncompatibleNative, 'Invalid Table metadata commitment'
+          end
+          digest = v.fetch('digest').map { |byte| Internal.integer(byte, min: 0, max: 255) }.pack('C*')
+          MetadataCommitment.new(bytes: v.fetch('length'), digest: digest)
+        end
         def metadata(value)
-          v = object(value, %w[scope object revision name schema_fingerprint principal operation admitted_input])
-          Metadata.new(scope: scope(v.fetch('scope')), object: decimal(v.fetch('object')), revision: decimal(v.fetch('revision')), name: v.fetch('name'), schema_fingerprint: Internal.unhex(v.fetch('schema_fingerprint'), 32), principal: v.fetch('principal'), operation: decimal(v.fetch('operation')), admitted_input: v.fetch('admitted_input'))
+          v = object(value, %w[scope object revision name schema_fingerprint principal operation admitted_input commitment])
+          Metadata.new(scope: scope(v.fetch('scope')), object: decimal(v.fetch('object')), revision: decimal(v.fetch('revision')), name: v.fetch('name'), schema_fingerprint: Internal.unhex(v.fetch('schema_fingerprint'), 32), principal: v.fetch('principal'), operation: decimal(v.fetch('operation')), admitted_input: v.fetch('admitted_input'), commitment: commitment(v.fetch('commitment')))
         end
         def head(value)
           v = object(value, %w[revision rows pending]); Head.new(revision: decimal(v.fetch('revision')), rows: decimal(v.fetch('rows'), min: 0), pending: decimal(v.fetch('pending'), min: 0))

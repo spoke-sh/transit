@@ -14,7 +14,7 @@ import tomllib
 
 import pyarrow
 from unified_abi import Failure
-from unified_codec import arrow_fixture, boolean_bundle_fixtures
+from unified_codec import arrow_fixture, boolean_bundle_fixtures, nested_arrow_fixture
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -80,6 +80,8 @@ def install(root, languages):
     fixtures = dict(bundles=str(root/'bundles.json'), arrow=str(root/'arrow.ipc'), empty=str(root/'empty.ipc'), malformed=str(root/'malformed.ipc'))
     (root/'boolean.json').write_text(json.dumps(boolean_bundle_fixtures()))
     fixtures['boolean'] = str(root/'boolean.json')
+    nested_arrow_fixture(root/'producer/bin/transit-logical-arrow-proof', root/'nested.ipc')
+    fixtures['nested'] = str(root/'nested.ipc')
     (root/'fixtures.json').write_text(json.dumps(fixtures))
     factories = []
     for language in languages:
@@ -148,12 +150,12 @@ def install_node(root, fixtures, packages=ROOT/'.cache/bindings/node'):
     return open_callers
 
 
-def install_ruby(root, fixtures):
+def install_ruby(root, fixtures, packages=ROOT/'.cache/bindings/ruby'):
     root.mkdir()
     default = subprocess.check_output(['ruby', '-rrubygems', '-e', 'puts Gem.default_dir'], text=True).strip()
     env = {k: v for k, v in os.environ.items() if k not in ('RUBYLIB', 'RUBYOPT', 'GEM_HOME', 'GEM_PATH', 'TRANSIT_HOST')}
     env.update(GEM_HOME=str(root/'gems'), GEM_PATH=f'{root / "gems"}:{default}')
-    files = [ROOT/'.cache/bindings/ruby'/name for name in (
+    files = [packages/name for name in (
         'transit-native-client-0.2.0-x86_64-linux.gem', 'transit-client-0.2.0.gem',
         'transit-native-station-0.2.0-x86_64-linux.gem', 'transit-station-0.2.0.gem')]
     subprocess.run(['gem', 'install', '--local', '--no-document', '--ignore-dependencies', *files], env=env, cwd=root, check=True, stdout=subprocess.DEVNULL)
