@@ -201,7 +201,7 @@ pub fn main(init: std.process.Init) !void {
     for (retained[0..retained_count]) |*row| row.deinit();
     retained_count = 0;
     try meter.begin();
-    var execution = try f.FileQuery.Execution.init(a, &binding, sources[0..count], plan.plan);
+    var execution = try f.FileQuery.execute(a, &binding, sources[0..count], plan.plan);
     defer execution.deinit();
     var output_fields: [128]f.Types.Field = undefined;
     const output_schema = try plan.plan.outputSchema(&output_fields);

@@ -253,7 +253,7 @@ pub fn run(init: std.process.Init, args: []const []const u8, diagnostic: *Diagno
         return err;
     };
     defer compiled.deinit();
-    var execution = try f.FileQuery.Execution.init(init.gpa, &binding, sources[0..count], compiled.plan);
+    var execution = try f.FileQuery.execute(init.gpa, &binding, sources[0..count], compiled.plan);
     defer execution.deinit();
     stage = .execute;
     limited = compiled.plan.limit != null;

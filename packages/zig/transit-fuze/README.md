@@ -24,6 +24,13 @@ programs over logical rows. File plans use these same primitives; source capture
 and statement admission remain with their callers. NULL/state handling, eager
 evaluation and comparison rejection follow the shared finite-query semantics.
 
+`LogicalQuery` owns source-independent logical projection, filtering, limits,
+counting and checked int64 summation. Its pull executor consumes one owned row
+at a time and retains bounded aggregate state and original failure evidence.
+`FileQuery.execute` binds it to the verified file scan; other adapters must
+establish their own immutable schema/source binding and current disclosure rights.
+The executor itself acquires no source or permission.
+
 `TableDml` compiles [typed Table statements](../../../contracts/TABLE_DML_V1.md)
 against a supplied name and complete schema. It owns generalized INSERT rows,
 constant/default UPDATE assignments and DELETE predicates using stable column

@@ -10973,6 +10973,14 @@ Inspection uses the shared typed row reader, not SQL SELECT. This proof does not
 qualify the deployed query host, console, language SDKs, every logical family,
 every ALTER case, memory growth, host power loss or the final current-v1 cutover.
 
+Extracting the source-independent `LogicalQuery` plan and pull executor passes
+**194/194 Fuze tests**, the semantic mapping gate and all **190 real file-query
+CLI cases**, including the unchanged 192 MiB/96 MiB streaming memory case.
+Existing plan fingerprints, counts, failure evidence and file-tail verification
+remain unchanged. This checkpoint enables reuse of the same operators by typed
+Tables; it does not yet establish a native Table SELECT adapter.
+Logs: `logical-query-extract.log` and `logical-query-file-proof.log`.
+
 ## Fuze logical type foundation
 
 The local `Types` profile has nine passing focused Zig tests, including 46
