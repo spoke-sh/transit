@@ -98,6 +98,7 @@ pub const Array = struct { element: Element, length: u32 };
 pub const Map = struct { key: *const Type, value: Element };
 pub const Field = struct { name: []const u8, type: Type, nullable: bool = false, optional: bool = false };
 pub const Type = union(Tag) {
+    pub const json_schema_sequence_bounds = .{ .structure = 256, .tagged_union = 256 };
     int64,
     uint64,
     float64,

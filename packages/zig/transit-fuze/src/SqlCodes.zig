@@ -22,6 +22,7 @@ pub const entries = [_]Entry{
     .{ .cause = error.InvalidColumnCount, .code = "sql.invalid_column_count", .category = .binding },
     .{ .cause = error.InvalidColumnName, .code = "sql.invalid_column_name", .category = .syntax },
     .{ .cause = error.InvalidDocumentInteger, .code = "sql.invalid_document_integer", .category = .binding },
+    .{ .cause = error.InvalidIntegerEncoding, .code = "sql.invalid_integer_encoding", .category = .binding, .summary = "The parameter binding has an invalid integer encoding", .hint = "Use a canonical decimal string without leading zeroes, a leading plus or negative zero. Keep the value within the declared integer or decimal range." },
     .{ .cause = error.InvalidHex, .code = "sql.invalid_hex", .category = .binding },
     .{ .cause = error.InvalidMutationColumns, .code = "sql.invalid_mutation_columns", .category = .binding },
     .{ .cause = error.InvalidMutationPlan, .code = "sql.invalid_mutation_plan", .category = .binding },

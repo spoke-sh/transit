@@ -2,75 +2,603 @@
   "version": 1,
   "source": "items",
   "columns": [
-    {"name":"id","type":"int64"},
-    {"name":"wide","type":"uint64"},
-    {"name":"label","type":"utf8"},
-    {"name":"Value","type":"int64"},
-    {"name":"flag","type":"boolean"},
-    {"name":"blob","type":"binary"},
-    {"name":"decimal","type":"float64"},
-    {"name":"select","type":"int64"}
+    {
+      "name": "id",
+      "type": {
+        "int64": {}
+      }
+    },
+    {
+      "name": "wide",
+      "type": {
+        "uint64": {}
+      }
+    },
+    {
+      "name": "label",
+      "type": {
+        "utf8": {}
+      }
+    },
+    {
+      "name": "Value",
+      "type": {
+        "int64": {}
+      }
+    },
+    {
+      "name": "flag",
+      "type": {
+        "boolean": {}
+      }
+    },
+    {
+      "name": "blob",
+      "type": {
+        "binary": {}
+      }
+    },
+    {
+      "name": "decimal",
+      "type": {
+        "float64": {}
+      }
+    },
+    {
+      "name": "select",
+      "type": {
+        "int64": {}
+      }
+    }
   ],
   "cases": [
-    {"sql":"SE","cursor":2,"start":0,"end":2,"items":["SELECT"]},
-    {"sql":"SELECT i","cursor":8,"start":7,"end":8,"items":["\"id\"","\"items\""]},
-    {"sql":"SELECT items.i","cursor":14,"start":13,"end":14,"items":["\"id\""]},
-    {"sql":"SELECT \"V","cursor":9,"start":7,"end":9,"items":["\"Value\""]},
-    {"sql":"SELECT sel FROM items","cursor":10,"start":7,"end":10,"items":["\"select\""]},
-    {"sql":"SELECT * FROM it","cursor":16,"start":14,"end":16,"items":["\"items\""]},
-    {"sql":"SELECT * FROM other WHERE ","cursor":26,"start":26,"end":26,"items":[]},
-    {"sql":"SELECT * FROM items WHERE wide ","cursor":31,"start":31,"end":31,"items":["IS","=","<>","<","<=",">",">="]},
-    {"sql":"SELECT * FROM items WHERE wide = ","cursor":33,"start":33,"end":33,"items":["'0'::uint64"]},
-    {"sql":"SELECT * FROM items WHERE label = ","cursor":34,"start":34,"end":34,"items":["''"]},
-    {"sql":"SELECT SUM(","cursor":11,"start":11,"end":11,"items":["\"id\"","\"Value\"","\"select\"","\"items\""]},
-    {"sql":"SELECT COUNT(*) FROM items L","cursor":28,"start":27,"end":28,"items":[]},
-    {"sql":"SELECT * FROM items WHERE nope ","cursor":31,"start":31,"end":31,"items":[]},
-    {"sql":".mo","cursor":3,"start":0,"end":3,"mode":"console","items":[".mode"]},
-    {"sql":".ex","cursor":3,"start":0,"end":3,"mode":"console","items":[".execute"]},
-    {"sql":".mode jsoSuffix","cursor":9,"start":6,"end":15,"mode":"console","items":["json"]},
-    {"sql":".ti","cursor":3,"start":0,"end":3,"mode":"console","items":[".timer"]},
-    {"sql":".timer o","cursor":8,"start":7,"end":8,"mode":"console","items":["on","off"]},
-    {"sql":"/for","cursor":4,"start":1,"end":4,"items":[]},
-    {"sql":"SELECT id, wide, la","cursor":19,"start":17,"end":19,"items":["\"label\""]},
-    {"sql":"SELECT * FROM items WHERE wide IS ","cursor":34,"start":34,"end":34,"items":["NULL","MISSING","TYPE_ERROR","VALUE","CONFLICT"]},
-    {"sql":"SELECT * FROM items WHERE decimal = ","cursor":36,"start":36,"end":36,"items":["'0'::float64"]},
-    {"sql": "SELECT * FROM items AS x WHERE x.i", "cursor": 34, "start": 33, "end": 34, "items": ["\"id\""]},
-    {"sql": "SELECT * FROM items AS x WHERE items.i", "cursor": 38, "start": 37, "end": 38, "items": []},
-    {"sql": "SELECT * FROM other AS items WHERE items.i", "cursor": 42, "start": 41, "end": 42, "items": []},
-    {"sql": "SELECT * FROM items AS x WHERE x.wide = ", "cursor": 40, "start": 40, "end": 40, "items": ["'0'::uint64"]},
-    {"sql": "SELECT * FROM items AS x WHERE x.wide IS ", "cursor": 41, "start": 41, "end": 41, "items": ["NULL", "MISSING", "TYPE_ERROR", "VALUE", "CONFLICT"]},
-    {"sql": "SELECT * FROM items AS \"Row\" WHERE \"Row\".l", "cursor": 42, "start": 41, "end": 42, "items": ["\"label\""]},
-    {"sql": "SELECT * FROM items AS \"Row\" WHERE row.l", "cursor": 40, "start": 39, "end": 40, "items": []},
-    {"sql": "SELECT * FROM items AS ", "cursor": 23, "start": 23, "end": 23, "items": []},
-    {"sql":"SELECT * FROM items WHERE items ","cursor":32,"start":32,"end":32,"items":["."]},
-    {"sql":"SELECT * FROM items AS x WHERE x ","cursor":33,"start":33,"end":33,"items":["."]},
-    {"sql":"SELECT * FROM items AS x WHERE items ","cursor":37,"start":37,"end":37,"items":[]},
-    {"sql":"SELECT * FROM other AS x WHERE x ","cursor":33,"start":33,"end":33,"items":[]},
-    {"sql":"SELECT * FROM items AS id WHERE id ","cursor":35,"start":35,"end":35,"items":["IS",".","=","<>","<","<=",">",">="]},
-    {"sql":"SELECT * FROM items AS id WHERE id.id ","cursor":38,"start":38,"end":38,"items":["IS","=","<>","<","<=",">",">="]},
-    {"sql":"SELECT * FROM items AS \"Row\" WHERE \"Row\" ","cursor":41,"start":41,"end":41,"items":["."]},
-    {"sql":"SELECT * FROM items AS \"Row\" WHERE row ","cursor":39,"start":39,"end":39,"items":[]},
-    {"sql":"SELECT id ","cursor":10,"start":10,"end":10,"items":["AS","FROM",".",","]},
-    {"sql":"SELECT id AS ","cursor":13,"start":13,"end":13,"items":[]},
-    {"sql":"SELECT count(*) ","cursor":16,"start":16,"end":16,"items":["AS","FROM"]},
-    {"sql":"SELECT count(*) AS ","cursor":19,"start":19,"end":19,"items":[]},
-    {"sql":"SELECT sum(id) AS ","cursor":18,"start":18,"end":18,"items":[]},
-    {"sql":"SELECT id AS key, la","cursor":20,"start":18,"end":20,"items":["\"label\""]},
-    {"sql":"SELECT id AS key FROM items WHERE ke","cursor":36,"start":34,"end":36,"items":[]},
-    {"sql":"SELECT id AS key FROM items WHERE key ","cursor":38,"start":38,"end":38,"items":[]},
-    {"sql":"SELECT id AS key FROM items WHERE i","cursor":35,"start":34,"end":35,"items":["\"id\"","\"items\""]},
-    {"sql":"SELECT id AS key FROM items AS x WHERE x.i","cursor":42,"start":41,"end":42,"items":["\"id\""]},
-    {"sql":"SELECT id AS key FROM items AS x WHERE key.i","cursor":44,"start":43,"end":44,"items":[]},
-    {"sql":"SELECT id AS key FROM items WHERE key.i","cursor":39,"start":38,"end":39,"items":[]},
-    {"sql":"SELECT * FROM items WHERE id = 1 A","cursor":34,"start":33,"end":34,"items":["AND"]},
-    {"sql":"SELECT * FROM items WHERE id = 1 O","cursor":34,"start":33,"end":34,"items":["OR"]},
-    {"sql":"SELECT * FROM items WHERE N","cursor":27,"start":26,"end":27,"items":["NOT"]},
-    {"sql":"SELECT * FROM items WHERE id = 1 AND N","cursor":38,"start":37,"end":38,"items":["NOT"]},
-    {"sql":"SELECT * FROM items WHERE NOT (id = 1 O","cursor":39,"start":38,"end":39,"items":["OR"]},
-    {"sql":"SELECT * FROM items WHERE id = 1 OR label = ","cursor":44,"start":44,"end":44,"items":["''"]},
-    {"sql":"SELECT * FROM items AS x WHERE x.id = 1 AND x.l","cursor":47,"start":46,"end":47,"items":["\"label\""]},
-    {"sql":"SELECT * FROM items AS x WHERE x.id = 1 OR items.l","cursor":50,"start":49,"end":50,"items":[]},
-    {"sql":".schema wr","cursor":10,"start":8,"end":10,"mode":"console","items":["writer"]},
-    {"sql":".help IN","cursor":8,"start":6,"end":8,"mode":"console","items":["INSERT"]}
+    {
+      "sql": "SE",
+      "cursor": 2,
+      "start": 0,
+      "end": 2,
+      "items": [
+        "SELECT"
+      ]
+    },
+    {
+      "sql": "SELECT i",
+      "cursor": 8,
+      "start": 7,
+      "end": 8,
+      "items": [
+        "\"id\"",
+        "\"items\""
+      ]
+    },
+    {
+      "sql": "SELECT items.i",
+      "cursor": 14,
+      "start": 13,
+      "end": 14,
+      "items": [
+        "\"id\""
+      ]
+    },
+    {
+      "sql": "SELECT \"V",
+      "cursor": 9,
+      "start": 7,
+      "end": 9,
+      "items": [
+        "\"Value\""
+      ]
+    },
+    {
+      "sql": "SELECT sel FROM items",
+      "cursor": 10,
+      "start": 7,
+      "end": 10,
+      "items": [
+        "\"select\""
+      ]
+    },
+    {
+      "sql": "SELECT * FROM it",
+      "cursor": 16,
+      "start": 14,
+      "end": 16,
+      "items": [
+        "\"items\""
+      ]
+    },
+    {
+      "sql": "SELECT * FROM other WHERE ",
+      "cursor": 26,
+      "start": 26,
+      "end": 26,
+      "items": []
+    },
+    {
+      "sql": "SELECT * FROM items WHERE wide ",
+      "cursor": 31,
+      "start": 31,
+      "end": 31,
+      "items": [
+        "IS",
+        "=",
+        "<>",
+        "<",
+        "<=",
+        ">",
+        ">="
+      ]
+    },
+    {
+      "sql": "SELECT * FROM items WHERE wide = ",
+      "cursor": 33,
+      "start": 33,
+      "end": 33,
+      "items": [
+        "0"
+      ]
+    },
+    {
+      "sql": "SELECT * FROM items WHERE label = ",
+      "cursor": 34,
+      "start": 34,
+      "end": 34,
+      "items": [
+        "''"
+      ]
+    },
+    {
+      "sql": "SELECT SUM(",
+      "cursor": 11,
+      "start": 11,
+      "end": 11,
+      "items": [
+        "\"id\"",
+        "\"Value\"",
+        "\"select\"",
+        "\"items\""
+      ]
+    },
+    {
+      "sql": "SELECT COUNT(*) FROM items L",
+      "cursor": 28,
+      "start": 27,
+      "end": 28,
+      "items": []
+    },
+    {
+      "sql": "SELECT * FROM items WHERE nope ",
+      "cursor": 31,
+      "start": 31,
+      "end": 31,
+      "items": []
+    },
+    {
+      "sql": ".mo",
+      "cursor": 3,
+      "start": 0,
+      "end": 3,
+      "mode": "console",
+      "items": [
+        ".mode"
+      ]
+    },
+    {
+      "sql": ".ex",
+      "cursor": 3,
+      "start": 0,
+      "end": 3,
+      "mode": "console",
+      "items": [
+        ".execute"
+      ]
+    },
+    {
+      "sql": ".mode jsoSuffix",
+      "cursor": 9,
+      "start": 6,
+      "end": 15,
+      "mode": "console",
+      "items": [
+        "json"
+      ]
+    },
+    {
+      "sql": ".ti",
+      "cursor": 3,
+      "start": 0,
+      "end": 3,
+      "mode": "console",
+      "items": [
+        ".timer"
+      ]
+    },
+    {
+      "sql": ".timer o",
+      "cursor": 8,
+      "start": 7,
+      "end": 8,
+      "mode": "console",
+      "items": [
+        "on",
+        "off"
+      ]
+    },
+    {
+      "sql": "/for",
+      "cursor": 4,
+      "start": 1,
+      "end": 4,
+      "items": []
+    },
+    {
+      "sql": "SELECT id, wide, la",
+      "cursor": 19,
+      "start": 17,
+      "end": 19,
+      "items": [
+        "\"label\""
+      ]
+    },
+    {
+      "sql": "SELECT * FROM items WHERE wide IS ",
+      "cursor": 34,
+      "start": 34,
+      "end": 34,
+      "items": [
+        "NOT",
+        "NULL",
+        "MISSING",
+        "TYPE_ERROR",
+        "VALUE",
+        "CONFLICT"
+      ]
+    },
+    {
+      "sql": "SELECT * FROM items WHERE decimal = ",
+      "cursor": 36,
+      "start": 36,
+      "end": 36,
+      "items": [
+        "0"
+      ]
+    },
+    {
+      "sql": "SELECT * FROM items AS x WHERE x.i",
+      "cursor": 34,
+      "start": 33,
+      "end": 34,
+      "items": [
+        "\"id\""
+      ]
+    },
+    {
+      "sql": "SELECT * FROM items AS x WHERE items.i",
+      "cursor": 38,
+      "start": 37,
+      "end": 38,
+      "items": []
+    },
+    {
+      "sql": "SELECT * FROM other AS items WHERE items.i",
+      "cursor": 42,
+      "start": 41,
+      "end": 42,
+      "items": []
+    },
+    {
+      "sql": "SELECT * FROM items AS x WHERE x.wide = ",
+      "cursor": 40,
+      "start": 40,
+      "end": 40,
+      "items": [
+        "0"
+      ]
+    },
+    {
+      "sql": "SELECT * FROM items AS x WHERE x.wide IS ",
+      "cursor": 41,
+      "start": 41,
+      "end": 41,
+      "items": [
+        "NOT",
+        "NULL",
+        "MISSING",
+        "TYPE_ERROR",
+        "VALUE",
+        "CONFLICT"
+      ]
+    },
+    {
+      "sql": "SELECT * FROM items AS \"Row\" WHERE \"Row\".l",
+      "cursor": 42,
+      "start": 41,
+      "end": 42,
+      "items": [
+        "\"label\""
+      ]
+    },
+    {
+      "sql": "SELECT * FROM items AS \"Row\" WHERE row.l",
+      "cursor": 40,
+      "start": 39,
+      "end": 40,
+      "items": []
+    },
+    {
+      "sql": "SELECT * FROM items AS ",
+      "cursor": 23,
+      "start": 23,
+      "end": 23,
+      "items": []
+    },
+    {
+      "sql": "SELECT * FROM items WHERE items ",
+      "cursor": 32,
+      "start": 32,
+      "end": 32,
+      "items": [
+        "."
+      ]
+    },
+    {
+      "sql": "SELECT * FROM items AS x WHERE x ",
+      "cursor": 33,
+      "start": 33,
+      "end": 33,
+      "items": [
+        "."
+      ]
+    },
+    {
+      "sql": "SELECT * FROM items AS x WHERE items ",
+      "cursor": 37,
+      "start": 37,
+      "end": 37,
+      "items": []
+    },
+    {
+      "sql": "SELECT * FROM other AS x WHERE x ",
+      "cursor": 33,
+      "start": 33,
+      "end": 33,
+      "items": []
+    },
+    {
+      "sql": "SELECT * FROM items AS id WHERE id ",
+      "cursor": 35,
+      "start": 35,
+      "end": 35,
+      "items": [
+        "IS",
+        ".",
+        "=",
+        "<>",
+        "<",
+        "<=",
+        ">",
+        ">="
+      ]
+    },
+    {
+      "sql": "SELECT * FROM items AS id WHERE id.id ",
+      "cursor": 38,
+      "start": 38,
+      "end": 38,
+      "items": [
+        "IS",
+        "=",
+        "<>",
+        "<",
+        "<=",
+        ">",
+        ">="
+      ]
+    },
+    {
+      "sql": "SELECT * FROM items AS \"Row\" WHERE \"Row\" ",
+      "cursor": 41,
+      "start": 41,
+      "end": 41,
+      "items": [
+        "."
+      ]
+    },
+    {
+      "sql": "SELECT * FROM items AS \"Row\" WHERE row ",
+      "cursor": 39,
+      "start": 39,
+      "end": 39,
+      "items": []
+    },
+    {
+      "sql": "SELECT id ",
+      "cursor": 10,
+      "start": 10,
+      "end": 10,
+      "items": [
+        "AS",
+        "FROM",
+        ".",
+        ","
+      ]
+    },
+    {
+      "sql": "SELECT id AS ",
+      "cursor": 13,
+      "start": 13,
+      "end": 13,
+      "items": []
+    },
+    {
+      "sql": "SELECT count(*) ",
+      "cursor": 16,
+      "start": 16,
+      "end": 16,
+      "items": [
+        "AS",
+        "FROM"
+      ]
+    },
+    {
+      "sql": "SELECT count(*) AS ",
+      "cursor": 19,
+      "start": 19,
+      "end": 19,
+      "items": []
+    },
+    {
+      "sql": "SELECT sum(id) AS ",
+      "cursor": 18,
+      "start": 18,
+      "end": 18,
+      "items": []
+    },
+    {
+      "sql": "SELECT id AS key, la",
+      "cursor": 20,
+      "start": 18,
+      "end": 20,
+      "items": [
+        "\"label\""
+      ]
+    },
+    {
+      "sql": "SELECT id AS key FROM items WHERE ke",
+      "cursor": 36,
+      "start": 34,
+      "end": 36,
+      "items": []
+    },
+    {
+      "sql": "SELECT id AS key FROM items WHERE key ",
+      "cursor": 38,
+      "start": 38,
+      "end": 38,
+      "items": []
+    },
+    {
+      "sql": "SELECT id AS key FROM items WHERE i",
+      "cursor": 35,
+      "start": 34,
+      "end": 35,
+      "items": [
+        "\"id\"",
+        "\"items\""
+      ]
+    },
+    {
+      "sql": "SELECT id AS key FROM items AS x WHERE x.i",
+      "cursor": 42,
+      "start": 41,
+      "end": 42,
+      "items": [
+        "\"id\""
+      ]
+    },
+    {
+      "sql": "SELECT id AS key FROM items AS x WHERE key.i",
+      "cursor": 44,
+      "start": 43,
+      "end": 44,
+      "items": []
+    },
+    {
+      "sql": "SELECT id AS key FROM items WHERE key.i",
+      "cursor": 39,
+      "start": 38,
+      "end": 39,
+      "items": []
+    },
+    {
+      "sql": "SELECT * FROM items WHERE id = 1 A",
+      "cursor": 34,
+      "start": 33,
+      "end": 34,
+      "items": [
+        "AND"
+      ]
+    },
+    {
+      "sql": "SELECT * FROM items WHERE id = 1 O",
+      "cursor": 34,
+      "start": 33,
+      "end": 34,
+      "items": [
+        "OR"
+      ]
+    },
+    {
+      "sql": "SELECT * FROM items WHERE N",
+      "cursor": 27,
+      "start": 26,
+      "end": 27,
+      "items": [
+        "NOT"
+      ]
+    },
+    {
+      "sql": "SELECT * FROM items WHERE id = 1 AND N",
+      "cursor": 38,
+      "start": 37,
+      "end": 38,
+      "items": [
+        "NOT"
+      ]
+    },
+    {
+      "sql": "SELECT * FROM items WHERE NOT (id = 1 O",
+      "cursor": 39,
+      "start": 38,
+      "end": 39,
+      "items": [
+        "OR"
+      ]
+    },
+    {
+      "sql": "SELECT * FROM items WHERE id = 1 OR label = ",
+      "cursor": 44,
+      "start": 44,
+      "end": 44,
+      "items": [
+        "''"
+      ]
+    },
+    {
+      "sql": "SELECT * FROM items AS x WHERE x.id = 1 AND x.l",
+      "cursor": 47,
+      "start": 46,
+      "end": 47,
+      "items": [
+        "\"label\""
+      ]
+    },
+    {
+      "sql": "SELECT * FROM items AS x WHERE x.id = 1 OR items.l",
+      "cursor": 50,
+      "start": 49,
+      "end": 50,
+      "items": []
+    },
+    {
+      "sql": ".schema wr",
+      "cursor": 10,
+      "start": 8,
+      "end": 10,
+      "mode": "console",
+      "items": [
+        "writer"
+      ]
+    },
+    {
+      "sql": ".help IN",
+      "cursor": 8,
+      "start": 6,
+      "end": 8,
+      "mode": "console",
+      "items": [
+        "INSERT"
+      ]
+    }
   ]
 }

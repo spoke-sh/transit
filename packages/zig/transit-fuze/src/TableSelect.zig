@@ -158,7 +158,8 @@ pub fn syntax(parser: *Parser, hints: ?t.Type) !Syntax {
     const qualifier = try alias(parser, subject.name);
     var result: Syntax = .{ .selection = selection, .subject = subject, .qualifier = qualifier };
     if (try parser.takeWord("WHERE")) result.predicate = try predicate.syntax(parser, hints, qualifier, error.UnsupportedConstruct);
-    if (try parser.takeWord("LIMIT")) {
+    const limit = if (selection.aggregate == .rows or parser.token.tag != .eof) try parser.takeWord("LIMIT") else false;
+    if (limit) {
         if (selection.aggregate != .rows) return error.UnsupportedAggregateLimit;
         if (try parser.parameter()) |site| {
             result.limit_parameter = site;
@@ -172,7 +173,7 @@ pub fn syntax(parser: *Parser, hints: ?t.Type) !Syntax {
         try parser.require(.right);
         try parser.requireWord("AS");
         result.outer = .{ .selection = outer, .qualifier = try parser.name() };
-        if (parser.word("LIMIT")) return error.UnsupportedAggregateLimit;
+        if (parser.token.tag != .eof and parser.word("LIMIT")) return error.UnsupportedAggregateLimit;
     }
     return result;
 }

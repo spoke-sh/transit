@@ -517,6 +517,102 @@
             "inspect_status",
             "inspect_scope"
           ]
+        },
+        "catalog_read_denied": {
+          "code": "query.catalog_read_denied",
+          "category": "access",
+          "actions": [
+            "inspect_status",
+            "inspect_scope"
+          ]
+        },
+        "catalog_owner_changed": {
+          "code": "query.catalog_owner_changed",
+          "category": "conflict",
+          "actions": [
+            "inspect_status",
+            "correct_input"
+          ]
+        },
+        "catalog_configuration_changed": {
+          "code": "query.catalog_configuration_changed",
+          "category": "conflict",
+          "actions": [
+            "inspect_status",
+            "correct_input"
+          ]
+        },
+        "catalog_uninitialized": {
+          "code": "query.catalog_uninitialized",
+          "category": "lifecycle",
+          "actions": [
+            "inspect_status",
+            "inspect_scope"
+          ]
+        },
+        "table_absent": {
+          "code": "query.table_absent",
+          "category": "lifecycle",
+          "actions": [
+            "inspect_status",
+            "inspect_scope"
+          ]
+        },
+        "table_retired": {
+          "code": "query.table_retired",
+          "category": "lifecycle",
+          "actions": [
+            "inspect_status",
+            "inspect_scope"
+          ]
+        },
+        "table_definition_changed": {
+          "code": "query.table_definition_changed",
+          "category": "conflict",
+          "actions": [
+            "inspect_status",
+            "recompile"
+          ]
+        },
+        "definition_mismatch": {
+          "code": "query.definition_mismatch",
+          "category": "integrity",
+          "actions": [
+            "inspect_status",
+            "contact_operator"
+          ]
+        },
+        "value_budget": {
+          "code": "query.value_budget",
+          "category": "limit",
+          "actions": [
+            "inspect_status",
+            "correct_input"
+          ]
+        },
+        "unsupported_comparison": {
+          "code": "query.unsupported_comparison",
+          "category": "unsupported",
+          "actions": [
+            "inspect_status",
+            "correct_input"
+          ]
+        },
+        "source_definition_too_large": {
+          "code": "query.source_definition_too_large",
+          "category": "limit",
+          "actions": [
+            "inspect_status",
+            "correct_input"
+          ]
+        },
+        "catalog_scope_changed": {
+          "code": "query.catalog_scope_changed",
+          "category": "conflict",
+          "actions": [
+            "inspect_status",
+            "correct_input"
+          ]
         }
       }
     },
@@ -6249,6 +6345,55 @@
           "actions": [
             "inspect_status"
           ]
+        },
+        "TableRetired": {
+          "code": "query.table_retired",
+          "category": "lifecycle",
+          "actions": [
+            "inspect_status"
+          ]
+        },
+        "CatalogDefinitionChanged": {
+          "code": "query.table_definition_changed",
+          "category": "conflict",
+          "actions": [
+            "retry_read"
+          ]
+        },
+        "IncompatibleDefinition": {
+          "code": "query.definition_mismatch",
+          "category": "integrity",
+          "actions": [
+            "contact_operator"
+          ]
+        },
+        "ValueBudgetExceeded": {
+          "code": "query.value_budget",
+          "category": "limit",
+          "actions": [
+            "inspect_status"
+          ]
+        },
+        "UnsupportedComparison": {
+          "code": "query.unsupported_comparison",
+          "category": "unsupported",
+          "actions": [
+            "inspect_status"
+          ]
+        },
+        "CatalogScopeChanged": {
+          "code": "query.catalog_scope_changed",
+          "category": "conflict",
+          "actions": [
+            "retry_read"
+          ]
+        },
+        "InvalidQuerySchema": {
+          "code": "query.invalid_schema",
+          "category": "binding",
+          "actions": [
+            "correct_input"
+          ]
         }
       }
     },
@@ -8179,6 +8324,62 @@
             "inspect_status"
           ],
           "transport_status": 409
+        },
+        "TableRetired": {
+          "code": "query.table_retired",
+          "category": "lifecycle",
+          "actions": [
+            "inspect_status"
+          ],
+          "transport_status": 409
+        },
+        "CatalogDefinitionChanged": {
+          "code": "query.table_definition_changed",
+          "category": "conflict",
+          "actions": [
+            "retry_read"
+          ],
+          "transport_status": 409
+        },
+        "IncompatibleDefinition": {
+          "code": "query.definition_mismatch",
+          "category": "integrity",
+          "actions": [
+            "contact_operator"
+          ],
+          "transport_status": 502
+        },
+        "ValueBudgetExceeded": {
+          "code": "query.value_budget",
+          "category": "limit",
+          "actions": [
+            "inspect_status"
+          ],
+          "transport_status": 400
+        },
+        "UnsupportedComparison": {
+          "code": "query.unsupported_comparison",
+          "category": "unsupported",
+          "actions": [
+            "inspect_status"
+          ],
+          "transport_status": 400
+        },
+        "CatalogScopeChanged": {
+          "code": "query.catalog_scope_changed",
+          "category": "conflict",
+          "actions": [
+            "retry_read"
+          ],
+          "transport_status": 409
+        },
+        "InvalidQuerySchema": {
+          "code": "query.invalid_schema",
+          "category": "binding",
+          "actions": [
+            "correct_input"
+          ],
+          "transport_status": 400
         }
       }
     },
@@ -9249,6 +9450,62 @@
             "inspect_status"
           ],
           "transport_status": 10
+        },
+        "TableRetired": {
+          "code": "query.table_retired",
+          "category": "lifecycle",
+          "actions": [
+            "inspect_status"
+          ],
+          "transport_status": 9
+        },
+        "CatalogDefinitionChanged": {
+          "code": "query.table_definition_changed",
+          "category": "conflict",
+          "actions": [
+            "retry_read"
+          ],
+          "transport_status": 10
+        },
+        "IncompatibleDefinition": {
+          "code": "query.definition_mismatch",
+          "category": "integrity",
+          "actions": [
+            "contact_operator"
+          ],
+          "transport_status": 15
+        },
+        "ValueBudgetExceeded": {
+          "code": "query.value_budget",
+          "category": "limit",
+          "actions": [
+            "inspect_status"
+          ],
+          "transport_status": 8
+        },
+        "UnsupportedComparison": {
+          "code": "query.unsupported_comparison",
+          "category": "unsupported",
+          "actions": [
+            "inspect_status"
+          ],
+          "transport_status": 12
+        },
+        "CatalogScopeChanged": {
+          "code": "query.catalog_scope_changed",
+          "category": "conflict",
+          "actions": [
+            "retry_read"
+          ],
+          "transport_status": 10
+        },
+        "InvalidQuerySchema": {
+          "code": "query.invalid_schema",
+          "category": "binding",
+          "actions": [
+            "correct_input"
+          ],
+          "transport_status": 3
         }
       }
     },
@@ -12386,6 +12643,48 @@
               "execution",
               "provided"
             ]
+          ]
+        },
+        "InvalidQuerySchema": {
+          "code": "query.invalid_schema",
+          "category": "binding",
+          "actions": [
+            "correct_input"
+          ]
+        },
+        "CatalogScopeChanged": {
+          "code": "query.catalog_scope_changed",
+          "category": "conflict",
+          "actions": [
+            "retry_read"
+          ]
+        },
+        "CatalogDefinitionChanged": {
+          "code": "query.table_definition_changed",
+          "category": "conflict",
+          "actions": [
+            "retry_read"
+          ]
+        },
+        "TableRetired": {
+          "code": "query.table_retired",
+          "category": "lifecycle",
+          "actions": [
+            "inspect_status"
+          ]
+        },
+        "UnsupportedComparison": {
+          "code": "query.unsupported_comparison",
+          "category": "unsupported",
+          "actions": [
+            "inspect_status"
+          ]
+        },
+        "ValueBudgetExceeded": {
+          "code": "query.value_budget",
+          "category": "limit",
+          "actions": [
+            "inspect_status"
           ]
         }
       }
@@ -17732,6 +18031,114 @@
           "actions": [
             "inspect_status",
             "inspect_scope"
+          ],
+          "transport_status": 9
+        },
+        "catalog_read_denied": {
+          "code": "query.catalog_read_denied",
+          "category": "access",
+          "actions": [
+            "inspect_status",
+            "inspect_scope"
+          ],
+          "transport_status": 7
+        },
+        "catalog_owner_changed": {
+          "code": "query.catalog_owner_changed",
+          "category": "conflict",
+          "actions": [
+            "inspect_status",
+            "correct_input"
+          ],
+          "transport_status": 9
+        },
+        "catalog_configuration_changed": {
+          "code": "query.catalog_configuration_changed",
+          "category": "conflict",
+          "actions": [
+            "inspect_status",
+            "correct_input"
+          ],
+          "transport_status": 9
+        },
+        "catalog_uninitialized": {
+          "code": "query.catalog_uninitialized",
+          "category": "lifecycle",
+          "actions": [
+            "inspect_status",
+            "inspect_scope"
+          ],
+          "transport_status": 9
+        },
+        "table_absent": {
+          "code": "query.table_absent",
+          "category": "lifecycle",
+          "actions": [
+            "inspect_status",
+            "inspect_scope"
+          ],
+          "transport_status": 9
+        },
+        "table_retired": {
+          "code": "query.table_retired",
+          "category": "lifecycle",
+          "actions": [
+            "inspect_status",
+            "inspect_scope"
+          ],
+          "transport_status": 9
+        },
+        "table_definition_changed": {
+          "code": "query.table_definition_changed",
+          "category": "conflict",
+          "actions": [
+            "inspect_status",
+            "recompile"
+          ],
+          "transport_status": 9
+        },
+        "definition_mismatch": {
+          "code": "query.definition_mismatch",
+          "category": "integrity",
+          "actions": [
+            "inspect_status",
+            "contact_operator"
+          ],
+          "transport_status": 9
+        },
+        "value_budget": {
+          "code": "query.value_budget",
+          "category": "limit",
+          "actions": [
+            "inspect_status",
+            "correct_input"
+          ],
+          "transport_status": 8
+        },
+        "unsupported_comparison": {
+          "code": "query.unsupported_comparison",
+          "category": "unsupported",
+          "actions": [
+            "inspect_status",
+            "correct_input"
+          ],
+          "transport_status": 12
+        },
+        "source_definition_too_large": {
+          "code": "query.source_definition_too_large",
+          "category": "limit",
+          "actions": [
+            "inspect_status",
+            "correct_input"
+          ],
+          "transport_status": 8
+        },
+        "catalog_scope_changed": {
+          "code": "query.catalog_scope_changed",
+          "category": "conflict",
+          "actions": [
+            "inspect_status",
+            "correct_input"
           ],
           "transport_status": 9
         }

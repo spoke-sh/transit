@@ -27,13 +27,18 @@ original schema/root through ALTER, DROP and name reuse. Complete composite-key
 equality uses the existing collision-safe index. Its
 [source contract](../../../contracts/TABLE_QUERY_V1.md#signed-native-table-reads)
 keeps retention, requester-policy mapping and durable result publication with the
-host; exporting this adapter alone does not enable those routes.
+host. `UnifiedCapture` retains the head/schema cut and `UnifiedResult` checks
+current rights before returning owned logical Arrow rows.
 `UnifiedRecords.Policy` has explicit declaration and catalog targets. A catalog
 target maps a requester process to a catalog principal within one scope and
 owner. It permits resolving new Table objects without installing a per-Table
 policy; every page still requires current catalog inspect/read rights. Policy
 installation belongs to the authorized owner, and a changed mapping advances its
-revision. Native durable admission still requires integration with this adapter.
+revision. Native durable admission and result verification use this adapter and the
+canonical logical plan/Arrow codecs. `CatalogQueryOwner` composes the Table
+lifecycle owner with query dispatch; its administrator installs explicit
+requester delegation without creating a worker or policy per Table. See
+[catalog query ownership](../../../contracts/CATALOG_QUERY_OWNER_V1.md).
 
 `TableAssistance` reads current catalog metadata, derives continuations from the
 same general Table parsers and checks the metadata/policy revision again before
@@ -93,16 +98,11 @@ exposes these actions through an explicit profile.
 [Typed SDK callers](../../../docs/reference/sdks.md#table-mutation-callers) use the same owner;
 The CLI's explicit `mutate` commands use the same bridge and saved-command rules.
 
-`TableQueryWriter` composes the query source and mutation writer for one typed
-Table. Its guarded two-turn initializer freezes the complete configuration,
-creates metadata, then atomically installs independent query/mutation policies
-and marks the host ready. Each turn stays within four mutations. It cannot adopt
-an existing standalone owner. The [combined owner contract](../../../contracts/TABLE_QUERY_WRITER_V1.md)
-defines readiness, authenticated continuations, conditional policy changes and
-the visibility of intermediate metadata to native readers. Component tests cover
-initialization and routing. `just test::table-query-writer` exercises both
-initialization commits through disk recovery and interleaves durable/interactive
-queries with CLI mutations; the proof ledger records the measured scope.
+`CatalogQueryOwner` routes query and Table lifecycle inputs through their owning
+operations. Administrator initialization and conditional requester delegation
+are separate bounded commits. Query access uses each requester's explicit mapped
+catalog principal and current read rights; mutation permissions remain independent.
+See the [catalog owner contract](../../../contracts/CATALOG_QUERY_OWNER_V1.md).
 
 `zig build test` checks the package independently. The real host and shell proof
 is `just test::unified-query`; `just test::table-mutation` exercises an explicit
@@ -119,7 +119,7 @@ Discard each source-page arena before requesting another page. The CLI bounds
 that arena at 1 MiB. The session caches at most 64 immutable point entries,
 including absent entries; current policy and native access remain uncached.
 
-`UnifiedSource.pagePlanned` can use a Table primary-key point/range access path;
+`UnifiedSource.page` can use a complete Table primary-key equality lookup;
 Fuze still evaluates the original predicate. Neither optimization changes the
 bound source basis. Native leases bound abandoned sessions, and a failed read
 never reopens a new cut. The [interactive contract](../../../contracts/INTERACTIVE_QUERY_V1.md)
@@ -130,12 +130,10 @@ The
 [caller guide](docs/unified-client.md) covers provisioning, ownership, retries and
 cancellation. `transit-query-host` composes its requester/source behaviors;
 `just test::unified-query` exercises these actual daemons over disk Ursula.
-`TableQueryWriter` supplies the local server's empty Table and independent query
-and mutation policies. Its recorded initializer and self continuation publish the
-Table and ready configuration in two bounded turns. Restart preserves that
-configuration and current policy, including revocation. See the
-[combined owner contract](../../../contracts/TABLE_QUERY_WRITER_V1.md) and
-[local server guide](../../../apps/transit-cli/docs/server.md).
+The local server initializes the catalog and requester, installs query delegation,
+and creates its default Table through an explicit recoverable catalog operation.
+Restart preserves recorded configuration and current policy, including revocation.
+See the [local server guide](../../../apps/transit-cli/docs/server.md).
 `SqlTemplate` owns a typed parameter template and commits to the full source
 definition, including resource, decoders, paths and accepted Document revision.
 `UnifiedClient.prepareSql` and `bindSql` check current access before and after

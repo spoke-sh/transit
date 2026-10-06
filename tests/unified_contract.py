@@ -72,44 +72,59 @@ def boolean_plans():
     return json.dumps(dict(version=1, cases=cases), indent=2) + '\n'
 
 
+def current_definition():
+    return bytes.fromhex(json.loads((ROOT / 'contracts/transit-v1.schema.json').read_text())['x-transit']['definition'])
+
+
+def logical_schema(kind):
+    types = b'transit.fuze.types.v1.2026-09-30'
+    columns = [('key', 6, 3), ('value', 2, 3)] if kind == 'kv' else [('id', 1, 0), ('label', 5, 1)] if kind == 'table' else [('title', 5, 3), ('body', 5, 3)]
+    return b'FTY1' + bytes([len(types)]) + types + bytes([22, len(columns)]) + b''.join(bytes([len(name)]) + name.encode() + bytes([flags, tag]) for name, tag, flags in columns)
+
+
 def sources():
-    def source(tag, payload): return b'UQS1' + struct.pack('<QB', 7, tag) + payload
+    definition = current_definition()
+    def source(tag, payload): return b'UQS1' + definition + struct.pack('<QB', 7, tag) + payload
     def projection(name, mode):
         field = name.encode()
         return bytes((len(field),)) + field + bytes((5, 0, mode)) + struct.pack('<HH', 4096, 4096) + bytes((1, len(field))) + field
-    table = b'TBL1\3\2id\5label'
+    descriptor = logical_schema('table')
+    table = (b'TQS1' + definition + struct.pack('<QQQQQQII', 1, 7, 9, 3, 9, 1, 0x54434d01, 200) +
+             bytes([1])*32 + struct.pack('<H', len(descriptor)) + descriptor)
     reference = b'SDR1' + struct.pack('<QQQIQ', 7, 2**64-1, 3, 1, 42)
     variants = [
         ('kv', source(1, b'\5data/\1\6\1\2')),
-        ('table', source(2, struct.pack('<IB', 9, len(table)) + table)),
+        ('table', source(2, struct.pack('<H', len(table)) + table)),
         ('document', source(3, reference + struct.pack('<IBB', 1, 0, 2) + projection('title', 0) + projection('body', 1))),
     ]
-    return json.dumps([dict(kind=kind, wire_hex=wire.hex(), digest=hashlib.sha256(b'transit.query.source.v1\0'+wire).hexdigest()) for kind, wire in variants], indent=2)+'\n'
+    return json.dumps([dict(kind=kind, wire_hex=wire.hex(), digest=hashlib.sha256(
+        b'transit.table.query.declaration.v1\0'+table if kind == 'table' else b'transit.query.source.v1\0'+wire).hexdigest()) for kind, wire in variants], indent=2)+'\n'
 
 
 def bundles():
-    plans = json.loads(generate())['plans']
-    definitions = json.loads(sources())
     limits = struct.pack('<QQQ', 1000, 500, 1048576)
     result = []
-    for definition in definitions:
-        source = bytes.fromhex(definition['wire_hex'])
-        selected = 'unsigned-max' if definition['kind'] == 'kv' else 'larger-plan'
-        plan = bytes.fromhex(next(p['wire_hex'] for p in plans if p['name'] == selected))
-        bundle = b'UQB1' + struct.pack('<HH', len(source), len(plan)) + limits + source + plan
-        # Independent FZP1 layout: two projections then two optional names.
-        assert plan[36:42] == bytes([0, 2, 1, 0, 0, 0])
-        named_plan = plan[:40] + bytes([6]) + b'Result' + bytes([0]) + plan[42:]
-        named_bundle = b'UQB1' + struct.pack('<HH', len(source), len(named_plan)) + limits + source + named_plan
-        initial = hashlib.sha256(b'transit.station.publication.v1\0' + struct.pack('<II', 0x31425155, len(bundle))).digest()
-        digest = initial
-        for index, offset in enumerate(range(0, len(bundle), 256)):
-            part = bundle[offset:offset+256]
+    plan_definition = hashlib.sha256(b'transit.fuze.logical-plan.v1:bound-schema:ordered-predicates:output-names').digest()
+    for declaration in json.loads(sources()):
+        kind = declaration['kind']
+        source = bytes.fromhex(declaration['wire_hex'])
+        schema = hashlib.sha256(logical_schema(kind)).digest()
+        head = b'FQP1' + plan_definition + bytes.fromhex(declaration['digest']) + schema
+        literal = b'\3' + (struct.pack('<Q', 2**64-1) if kind == 'kv' else struct.pack('<I', 512) + b'x'*512)
+        predicate = bytes([2, 1, 1]) + struct.pack('<H', len(literal)) + literal
+        suffix = b'\1' + struct.pack('<Q', 2**64-1) + predicate
+        plan = head + bytes([0, 2, 1, 0, 0, 0]) + suffix
+        named = head + bytes([0, 2, 1, 0, 6]) + b'Result' + b'\0' + suffix
+        counted = head + bytes([3, 1, 1, 7]) + b'present' + b'\0' + struct.pack('<Q', 0) + b'\0'
+        def bundle(plan):
+            return b'UQB1' + current_definition() + struct.pack('<HH', len(source), len(plan)) + limits + source + plan
+        wire = bundle(plan)
+        digest = hashlib.sha256(b'transit.station.publication.v1\0' + struct.pack('<II', 0x31425155, len(wire))).digest()
+        for index, offset in enumerate(range(0, len(wire), 256)):
+            part = wire[offset:offset+256]
             digest = hashlib.sha256(b'\1' + digest + struct.pack('<IH', index, len(part)) + part).digest()
-        ref = b'SPF1' + struct.pack('<QIQQII', 8, 2, 2**64-1, 1, 0x31425155, len(bundle)) + digest
-        counted_plan = b'FZP1' + PLAN_DEFINITION + bytes([3, 1, 1, 7]) + b'present' + b'\0' + struct.pack('<Q', 0) + b'\0'
-        counted_bundle = b'UQB1' + struct.pack('<HH', len(source), len(counted_plan)) + limits + source + counted_plan
-        result.append(dict(kind=definition['kind'], wire_hex=bundle.hex(), reference_hex=ref.hex(), named_wire_hex=named_bundle.hex(), counted_wire_hex=counted_bundle.hex()))
+        ref = b'SPF1' + struct.pack('<QIQQII', 8, 2, 2**64-1, 1, 0x31425155, len(wire)) + digest
+        result.append(dict(kind=kind, wire_hex=wire.hex(), reference_hex=ref.hex(), named_wire_hex=bundle(named).hex(), counted_wire_hex=bundle(counted).hex()))
     return json.dumps(result, indent=2)+'\n'
 
 
@@ -137,4 +152,4 @@ if __name__ == '__main__':
         BOOLEAN_PLANS.write_text(boolean_plans())
     elif sys.argv[1:] or FIXTURE.read_text() != generate() or SOURCES.read_text() != sources() or BUNDLES.read_text() != bundles() or UPLOADS.read_text() != uploads() or OUTPUT_NAMES.read_text() != output_names() or BOOLEAN_PLANS.read_text() != boolean_plans():
         raise SystemExit('Unified query fixtures differ; review and regenerate explicitly')
-    print('Unified query fixtures: independent schemas, source definitions and full-width/larger FZP1 plans passed.')
+    print('Unified query fixtures: independent schemas, definition-bound UQS1/UQB1 sources and logical FQP1 plans passed.')

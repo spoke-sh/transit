@@ -8,11 +8,12 @@ pub const catalog = @import("transit_catalog");
 pub const TableQuery = @import("TableQuery.zig");
 pub const TableSource = @import("TableSource.zig");
 pub const Bundle = @import("Bundle.zig");
+pub const Basis = @import("Basis.zig");
 pub const SqlTemplate = @import("SqlTemplate.zig");
 pub const UnifiedClient = @import("UnifiedClient.zig");
 pub const Interactive = @import("Interactive.zig");
 pub const UnifiedBehavior = @import("UnifiedBehavior.zig");
-pub const TableQueryWriter = @import("TableQueryWriter.zig");
+pub const CatalogQueryOwner = @import("CatalogQueryOwner.zig");
 pub const UnifiedRequest = @import("UnifiedRequest.zig");
 pub const UnifiedUpload = @import("UnifiedUpload.zig");
 pub const Draft = @import("Draft.zig");
@@ -34,7 +35,7 @@ test {
     _ = @import("table_mutation_admission_test.zig");
     _ = @import("table_mutation_client_test.zig");
     _ = @import("table_mutation_writer_test.zig");
-    _ = @import("table_query_writer_test.zig");
+    _ = @import("catalog_query_owner_test.zig");
     _ = @import("table_mutation_bridge_test.zig");
     @import("std").testing.refAllDecls(@This());
 }

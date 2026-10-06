@@ -22,6 +22,7 @@ pub const Atom = union(enum) {
     uuid: []const u8,
 };
 pub const Cell = union(types.State) {
+    pub const json_schema_sequence_bounds = .{ .conflict = 65536 };
     missing,
     null,
     type_error: types.Kind,
@@ -31,6 +32,7 @@ pub const Cell = union(types.State) {
 pub const Alternative = struct { counter: []const u8, replica: []const u8, value: union(enum) { null, type_error: types.Kind, value: Value } };
 pub const Entry = struct { key: Atom, value: Cell };
 pub const Value = union(enum) {
+    pub const json_schema_sequence_bounds = .{ .structure = 65536, .list = 65536, .array = 65536, .map = 65536 };
     atom: Atom,
     structure: []const Cell,
     list: []const Cell,

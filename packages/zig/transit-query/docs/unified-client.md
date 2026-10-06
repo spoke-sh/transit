@@ -7,7 +7,8 @@ The caller needs current inspect/send authority and read/inspect access to both
 resources. No worker ownership or provider credential is used by this API.
 
 Provision the source's declaration/policy, dedicated requester and both durable
-behavior configurations first. `describe(source)` verifies current source/schema
+behavior configurations first. A Table uses the initialized catalog owner and an
+explicit requester-to-principal delegation; it needs no per-Table worker. `describe(source)` verifies current source/schema
 availability, policy declaration, permitted work limits and the active requester
 slot. Its capabilities describe the current v1 finite query interface.
 PID-scoped source workers additionally need a non-required association to the
@@ -39,8 +40,8 @@ observation, without advancing coverage.
 complete result under current policy. It verifies the original route, immutable
 manifest, segment commitment and typed nested Arrow, then rechecks access before
 return. A null continuation establishes full ordered coverage. The returned IPC
-borrows `output`; schema/scalar bytes use `allocator`, while conflict alternatives
-borrow `decoded`, which must remain at its final address. Copy any values that
+borrows `output`; schema bytes use `allocator`, while `decoded` owns its descriptor and recursive
+rows. Call `decoded.deinit()` after each successful page, including before slot reuse. Copy any values that
 must outlive these owners. Keep one segment at a time rather than collecting the
 whole result in memory.
 
@@ -61,13 +62,15 @@ records which source profiles passed and the remaining qualification obligations
 
 `prepareSql(allocator, definition, name, text)` returns an owned `SqlTemplate`.
 It records the complete source definition and exposes inferred
-`parameterTypes()`. A replacement resource, Table ID, KV prefix/decoder or
+`parameterTypes()`. A replacement resource, Table object/metadata revision, KV prefix/decoder or
 Document identity, revision or path invalidates reuse, even with equal columns.
 The supplied definition and SQL text can be released after preparation.
 
 `bindSql(allocator, template, definition, values, limits)` returns a separately
-owned `SqlTemplate.Bound.bundle`. Values use the shared six-type `Unified.Scalar`;
-types must match exactly. Source arrays/paths and plan literals are copied.
+owned `SqlTemplate.Bound.bundle`. Values use `Types.Values.Atom`, bound to the complete logical descriptor.
+The 21 qualified comparison descriptors include exact integer widths, decimal,
+float, Boolean, UTF-8/binary, date/time/timestamp and UUID; intervals and
+containers do not gain comparisons. Types must match exactly. Source arrays/paths and plan literals are copied.
 Release each bound owner with `deinit`, independently of its template. These
 methods check current access before and after their work. Binding also checks
 the requested budgets at both observations. A denial or reduced budget returns

@@ -562,6 +562,10 @@
         "PlanTooLarge": {
           "code": "sql.plan_too_large",
           "category": "limit"
+        },
+        "InvalidIntegerEncoding": {
+          "code": "sql.invalid_integer_encoding",
+          "category": "binding"
         }
       }
     },
@@ -727,7 +731,13 @@
       ],
       "overrides": [
         "EndOfStream",
-        "AuthorityTransportDenied"
+        "AuthorityTransportDenied",
+        "CatalogDenied",
+        "CatalogOwnerChanged",
+        "CatalogConfigurationChanged",
+        "CatalogNotInitialized",
+        "TableNotFound",
+        "SourceDefinitionTooLarge"
       ],
       "shared_codes": true,
       "profile": "Non-SQL query caller attempts, with recorded query-failure and native transport classifiers; SQL compilation retains its own boundary",
@@ -1246,6 +1256,34 @@
         "InvalidTableIndex": {
           "code": "query.invalid_table_index",
           "category": "integrity"
+        },
+        "TableRetired": {
+          "code": "query.table_retired",
+          "category": "lifecycle"
+        },
+        "CatalogDefinitionChanged": {
+          "code": "query.table_definition_changed",
+          "category": "conflict"
+        },
+        "IncompatibleDefinition": {
+          "code": "query.definition_mismatch",
+          "category": "integrity"
+        },
+        "ValueBudgetExceeded": {
+          "code": "query.value_budget",
+          "category": "limit"
+        },
+        "UnsupportedComparison": {
+          "code": "query.unsupported_comparison",
+          "category": "unsupported"
+        },
+        "CatalogScopeChanged": {
+          "code": "query.catalog_scope_changed",
+          "category": "conflict"
+        },
+        "InvalidQuerySchema": {
+          "code": "query.invalid_schema",
+          "category": "binding"
         }
       },
       "exceptions": [],
@@ -2246,7 +2284,14 @@
         "Rejected",
         "ResourceUnavailable",
         "WriteFailed",
-        "AuthorityTransportDenied"
+        "AuthorityTransportDenied",
+        "CatalogDenied",
+        "CatalogOwnerChanged",
+        "CatalogConfigurationChanged",
+        "CatalogNotInitialized",
+        "TableNotFound",
+        "IncompatibleDefinition",
+        "SourceDefinitionTooLarge"
       ],
       "profile": "Board authorized read-only inspection",
       "stage": "Read",
@@ -2848,6 +2893,30 @@
         "InvalidTableIndex": {
           "code": "query.invalid_table_index",
           "category": "integrity"
+        },
+        "TableRetired": {
+          "code": "query.table_retired",
+          "category": "lifecycle"
+        },
+        "CatalogDefinitionChanged": {
+          "code": "query.table_definition_changed",
+          "category": "conflict"
+        },
+        "ValueBudgetExceeded": {
+          "code": "query.value_budget",
+          "category": "limit"
+        },
+        "UnsupportedComparison": {
+          "code": "query.unsupported_comparison",
+          "category": "unsupported"
+        },
+        "CatalogScopeChanged": {
+          "code": "query.catalog_scope_changed",
+          "category": "conflict"
+        },
+        "InvalidQuerySchema": {
+          "code": "query.invalid_schema",
+          "category": "binding"
         }
       },
       "exceptions": [],

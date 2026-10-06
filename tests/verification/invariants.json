@@ -1504,31 +1504,29 @@
     },
     {
       "id": "SQL-TABLE-OWNER-01",
-      "claim": "One Table owner gates queries and mutations on durable initialization while preserving independent policy and captured source cuts",
-      "owner": "contracts/TABLE_QUERY_WRITER_V1.md",
+      "claim": "One catalog owner gates queries and Table lifecycle operations on committed initialization and explicit delegation while preserving independent permissions and captured schema/head cuts",
+      "owner": "contracts/CATALOG_QUERY_OWNER_V1.md",
       "implementation": [
-        "packages/zig/transit-query/src/TableQueryWriter.zig",
-        "packages/zig/transit-query/src/TableMutationWriter.zig",
+        "packages/zig/transit-query/src/CatalogQueryOwner.zig",
+        "packages/zig/transit-catalog/src/TableBehavior.zig",
         "packages/zig/transit-query/src/UnifiedBehavior.zig",
         "apps/transit-query-host/main.zig"
       ],
-      "profile": "transit-v1/state-v1/station-v1/table-query-writer-v1",
+      "profile": "transit-v1/state-v1/station-v1/catalog-query-owner-v1",
       "tasks": [
         "test::unit",
         "test::table-query-writer"
       ],
       "scenarios": [
-        "Independent configuration, state, initialization and policy-control bytes",
-        "Four-mutation staged/ready phases, exact configuration after owner replacement, duplicate and forged continuations",
-        "Whole-proposal rollback and sticky read poison; early ingress cannot execute query or mutation work",
-        "Lost receipts at both initialization commits, worker fencing and node/disk-store restart",
-        "Retained durable and interactive console queries before an interleaved CLI mutation and current queries afterwards; identical numeric publication namespaces remain independent",
-        "Query-policy revocation permits separately authorized mutations; mutation-policy revocation permits separately authorized queries; native read revocation prevents disclosure",
-        "Optional ten-language installed mutation callers: full-width UPDATE, exact saved retry after lost admitted send and caller replacement, and current status denial"
+        "Four-write administrator initialization; requester delegation is a separate conditional commit",
+        "Independent definition-bound delegation bytes, exact owner configuration and multiple requester mappings",
+        "Whole-proposal rollback after write exhaustion; sticky read poison; undelegated calls do not access request bodies",
+        "Authenticated external administrator versus same-number process identity; stale revision and current revocation",
+        "Native durable queries retain the admitted schema/head through ALTER, DROP and name reuse, and require current read rights for disclosure"
       ],
-      "limits": "One explicitly configured Table, finite query peer and request resource. Native schedules use public Zig-backed ABI/CLI and optional installed mutation SDK callers, eight resident pages and explicit one-output delivery steps. Query reads in this composition proof use native ABI/console. It does not establish power-loss or maintained-view guarantees.",
+      "limits": "Component tests use private turns over an in-memory reference store. Native host, SDK and disk recovery qualification for the catalog composition is pending; historical two-column owner proofs do not qualify this replacement.",
       "model": null,
-      "qualification": "See tests/README.md#combined-table-owner-component-checks for executed evidence; native schedule results are recorded separately from in-memory tests."
+      "qualification": "See tests/README.md for current catalog query component results and separately recorded native qualification."
     },
     {
       "id": "SQL-DECLARATION-01",
@@ -1700,7 +1698,9 @@
         "tests/typed_table_native.py"
       ],
       "profile": "general typed Table coordinator/native-v1",
-      "tasks": ["test::typed-tables"],
+      "tasks": [
+        "test::typed-tables"
+      ],
       "scenarios": [
         "Five-column CREATE, aliases, defaults, nullable cells and decimal values",
         "Exact matched/changed counts and atomic rejection of a multi-row insert",

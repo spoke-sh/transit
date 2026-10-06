@@ -669,7 +669,7 @@
       },
       "status": "segmented",
       "source": "packages/zig/transit-query/src/Bundle.zig",
-      "anchor": "pub const max_bytes = 16384;",
+      "anchor": "pub const max_bytes = header_bytes + q.SourceDefinition.max_bytes + codec.max_bytes;",
       "meaning": "Durable plans use a finite uploaded bundle rather than a whole-plan mailbox frame."
     }
   ]

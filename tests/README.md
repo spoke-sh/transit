@@ -15699,3 +15699,36 @@ JSON pointer. The test traverses every generated reference in an embedded
 recursive schema and resolves it against the complete document. Existing scalar
 codecs, safe integer ranges and field-specific bounds remain covered. This is
 schema-generation evidence, not runtime admission or browser validation.
+
+### Catalog-backed logical query cutover
+
+The current `transit-query` package passes 109/109 tests and compiles its public
+schema exporter (`query-native-cutover-build18.log` in the local Table-schema
+campaign). Its 106 owner/unit tests plus three standalone catalog integration
+cases run on private turns and an in-memory reference store. They exercise
+complete schema-bound UQS1/UQB1/FQP1 requests; retained schema/head cuts across
+ALTER, DROP and name reuse; distinct requester/principal mappings; current read
+revocation including empty results; exact discarded proposals and terminal
+replay; maximum checkpoint bytes; and owned neutral parameters for all 21 scalar
+families. Table rows use internal RowIDs, while complete key equality uses the
+collision-safe primary-key index. KV and Document decoder semantics remain
+separately bounded. The independent source/bundle/publication Python vectors
+also pass.
+
+The catalog query owner cases cover four-write initialization, multiple explicit
+requester delegations, conditional revisions, same-number process spoofing,
+undelegated calls before request-body access, foreign continuations, rollback
+after disposition write exhaustion and sticky denied reads. Runtime witnesses
+retain complete UTF-8 prefixes at both Table and decoder-source byte boundaries.
+The migrated assistance corpus caught and verifies fixes for unresolved-column
+operator suggestions, partial source completion and unsupported aggregate LIMIT
+suggestions; full Fuze tests pass 253/253.
+
+The diagnostic mapping gate passes all eleven declared boundaries. The executable
+outcome matrix passes 3136 projections across 34 declared surfaces, including
+current catalog failures and their Board/Flight projections
+(`native-cutover-outcomes4.log`). These are projection tests, not native transport
+qualification. Verification catalog and fixture checks pass. Full root build,
+installed callers, catalog owner disk/restart schedules, resident-memory budgets
+and matched ReleaseSafe measurements remain to be completed for this cutover.
+Historical two-column owner schedules do not qualify the replacement.

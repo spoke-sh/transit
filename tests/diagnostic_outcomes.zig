@@ -26,6 +26,7 @@ fn emitTransport(out: *std.Io.Writer, family: []const u8, variant: []const u8, s
     try out.writeByte('\n');
 }
 fn queries(out: *std.Io.Writer) !void {
+    @setEvalBranchQuota(10000);
     inline for (comptime std.meta.tags(q.QueryFailure.Code)) |code| {
         inline for (comptime std.meta.tags(q.QueryFailure.Stage)) |stage| {
             inline for (.{ q.UnifiedRequest.Phase.denied, q.UnifiedRequest.Phase.rejected, q.UnifiedRequest.Phase.retired }) |phase| {
@@ -320,7 +321,7 @@ pub fn main(init: std.process.Init) !void {
 
 fn queryPhases(out: *std.Io.Writer) !void {
     inline for (comptime std.meta.tags(q.UnifiedRequest.Phase)) |phase| {
-        var value: q.UnifiedRequest.Status = .{ .reference = .{ .resource = 7, .domain = .query_request, .namespace = 19, .record = 1, .spec = .{ .format = q.Bundle.format, .length = 32, .digest = @splat(1) } }, .phase = phase };
+        var value: q.UnifiedRequest.Status = .{ .reference = .{ .resource = 7, .domain = .query_request, .namespace = 19, .record = 1, .spec = .{ .format = q.Bundle.format, .length = q.Bundle.header_bytes, .digest = @splat(1) } }, .phase = phase };
         if (phase == .admitted or phase == .complete or phase == .denied or phase == .rejected) value.correlation = 12;
         if (phase == .denied) value.failure = .{ .code = .policy_denied, .stage = .admission };
         if (phase == .rejected) value.failure = .{ .code = .arithmetic_overflow, .stage = .execution };

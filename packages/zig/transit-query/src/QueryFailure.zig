@@ -64,6 +64,18 @@ pub const Code = enum(u16) {
     writer_not_ready = 56,
     request_resource_expired = 57,
     request_resource_missing = 58,
+    catalog_read_denied = 59,
+    catalog_owner_changed = 60,
+    catalog_configuration_changed = 61,
+    catalog_uninitialized = 62,
+    table_absent = 63,
+    table_retired = 64,
+    table_definition_changed = 65,
+    definition_mismatch = 66,
+    value_budget = 67,
+    unsupported_comparison = 68,
+    source_definition_too_large = 69,
+    catalog_scope_changed = 70,
 };
 code: Code,
 stage: Stage,
@@ -76,10 +88,22 @@ pub const encoded_bytes = 112;
 pub fn category(self: Self) p.Diagnostic.Category {
     if (self.source) |witness| switch (witness.reason) {
         .policy_budget => return .limit,
-        .policy_revision, .declaration, .table_schema, .contract => return .conflict,
+        .policy_revision, .declaration, .table_schema, .table_metadata, .contract => return .conflict,
         else => {},
     };
     return switch (self.code) {
+        .catalog_read_denied => .access,
+        .catalog_owner_changed => .conflict,
+        .catalog_configuration_changed => .conflict,
+        .catalog_uninitialized => .lifecycle,
+        .table_absent => .lifecycle,
+        .table_retired => .lifecycle,
+        .table_definition_changed => .conflict,
+        .definition_mismatch => .integrity,
+        .value_budget => .limit,
+        .unsupported_comparison => .unsupported,
+        .source_definition_too_large => .limit,
+        .catalog_scope_changed => .conflict,
         .policy_denied, .access_denied, .publisher_mismatch, .peer_mismatch => .access,
         .resource_unavailable, .writer_not_ready => .unavailable,
         .request_unpublished, .document_history_gap, .document_retired, .document_resync_required, .request_resource_expired, .request_resource_missing => .lifecycle,
@@ -114,7 +138,7 @@ pub fn diagnostic(self: Self, namespace: u64, phase: q.UnifiedRequest.Phase) !p.
     if (self.source) |witness| try witness.enrich(&result);
     try result.fact(.completion, .execution, .{ .boolean = false });
     try result.action(.inspect_status);
-    if (self.code == .source_changed or self.code == .table_schema_changed or (self.source != null and (self.source.?.reason == .policy_revision or self.source.?.reason == .declaration))) {
+    if (self.code == .source_changed or self.code == .table_schema_changed or self.code == .table_definition_changed or (self.source != null and (self.source.?.reason == .policy_revision or self.source.?.reason == .declaration))) {
         try result.action(.recompile);
     } else switch (self.category()) {
         .access, .lifecycle, .unavailable => try result.action(.inspect_scope),
@@ -127,6 +151,19 @@ pub fn diagnostic(self: Self, namespace: u64, phase: q.UnifiedRequest.Phase) !p.
 pub fn fromError(cause: anyerror, stage: Stage) ?Self {
     return .{ .stage = stage, .code = switch (cause) {
         error.QueryDenied => .policy_denied,
+        error.CatalogDenied => .catalog_read_denied,
+        error.CatalogOwnerChanged => .catalog_owner_changed,
+        error.CatalogConfigurationChanged => .catalog_configuration_changed,
+        error.CatalogNotInitialized => .catalog_uninitialized,
+        error.TableNotFound => .table_absent,
+        error.TableRetired => .table_retired,
+        error.CatalogDefinitionChanged => .table_definition_changed,
+        error.IncompatibleDefinition => .definition_mismatch,
+        error.ValueBudgetExceeded => .value_budget,
+        error.UnsupportedComparison => .unsupported_comparison,
+        error.SourceDefinitionTooLarge => .source_definition_too_large,
+        error.CatalogScopeChanged => .catalog_scope_changed,
+
         error.AccessDenied => .access_denied,
         error.ResourceUnavailable => .resource_unavailable,
         error.PublicationNotPublished => .request_unpublished,
@@ -189,6 +226,13 @@ pub fn fromError(cause: anyerror, stage: Stage) ?Self {
 }
 pub fn denied(self: Self) bool {
     return switch (self.code) {
+        .catalog_read_denied => true,
+        .catalog_owner_changed => true,
+        .catalog_configuration_changed => true,
+        .catalog_uninitialized => true,
+        .table_absent => true,
+        .table_retired => true,
+        .catalog_scope_changed => true,
         .policy_denied => true,
         .access_denied => true,
         .resource_unavailable => true,
@@ -205,6 +249,18 @@ pub fn denied(self: Self) bool {
 pub fn message(self: Self) []const u8 {
     if (self.source) |witness| return witness.message();
     return switch (self.code) {
+        .catalog_read_denied => "Current catalog policy does not permit Table schema inspection or row reads.",
+        .catalog_owner_changed => "The catalog owner no longer matches this query source.",
+        .catalog_configuration_changed => "The catalog configuration no longer matches this query source.",
+        .catalog_uninitialized => "The query source catalog has not been initialized.",
+        .table_absent => "The declared Table object is absent at the admission cut.",
+        .table_retired => "The declared Table object is retired; a replacement name does not restore its identity.",
+        .table_definition_changed => "The Table metadata or schema no longer matches the submitted declaration. Compile a new query against its current definition.",
+        .definition_mismatch => "The submitted query uses a different Transit contract definition.",
+        .value_budget => "A logical query value exceeds its admitted depth, child or byte budget.",
+        .unsupported_comparison => "This logical type does not support the requested comparison.",
+        .source_definition_too_large => "The query source declaration exceeds its supported byte budget.",
+        .catalog_scope_changed => "The declared catalog scope does not match the query source resource.",
         .policy_denied => "The current query policy does not permit this request.",
         .access_denied => "Current access to a required resource was denied.",
         .resource_unavailable => "A required resource is unavailable.",
@@ -269,6 +325,7 @@ pub fn validate(self: Self) !void {
     if (self.source) |witness| {
         if (self.runtime != null or self.dimension != .none) return error.InvalidQueryFailure;
         const expected: Code = switch (witness.reason) {
+            .table_metadata => .table_definition_changed,
             .table_schema => .table_schema_changed,
             .contract => .source_changed,
             .resource => if (self.code == .policy_denied) .policy_denied else .source_changed,

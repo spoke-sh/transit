@@ -111,8 +111,17 @@ pub fn checkCurrent(self: Self, current: anytype, who: u64) !c.TableCatalog {
     return catalog;
 }
 fn resolve(self: Self, allocator: std.mem.Allocator, data: anytype, who: u64) !c.TableCatalog.Definition {
+    return self.resolveDiagnostic(allocator, data, who, null);
+}
+fn resolveDiagnostic(self: Self, allocator: std.mem.Allocator, data: anytype, who: u64, diagnostic: ?*?q.SourceWitness) !c.TableCatalog.Definition {
     const catalog = try self.checkCurrent(data, who);
-    var definition = try catalog.readDefinition(allocator, data, who, self.object, self.metadata);
+    var mismatch: ?c.TableCatalog.DefinitionMismatch = null;
+    var definition = catalog.readDefinitionDiagnostic(allocator, data, who, self.object, self.metadata, &mismatch) catch |err| {
+        if (diagnostic) |detail| if (mismatch) |value| {
+            detail.* = .{ .reason = .table_metadata, .resource = self.scope.resource, .object = self.object, .expected = value.expected.id, .actual = value.actual.id, .expected_hash = value.expected.spec.digest, .actual_hash = value.actual.spec.digest };
+        };
+        return err;
+    };
     errdefer definition.deinit();
     var fields: [f.TableSchema.max_columns]t.Field = undefined;
     if (!try self.row_type.eql(try definition.schema.schema.rowType(&fields))) return error.TableSchemaChanged;
@@ -120,33 +129,46 @@ fn resolve(self: Self, allocator: std.mem.Allocator, data: anytype, who: u64) !c
 }
 pub const Basis = struct {
     declaration: [32]u8,
+    resource: u64,
+    schema: [32]u8,
     revision: u64,
     head: s.TableHead,
+    pub fn record(self: Basis) !q.Basis {
+        return .{ .cut = .{ .kind = .table, .resource = self.resource, .revision = self.revision, .head = try q.Basis.tableHead(self.head) }, .contract = self.declaration, .schema = self.schema };
+    }
     pub fn fingerprint(self: Basis) ![32]u8 {
         if (self.revision == 0 or self.head.retired) return error.SourceChanged;
-        var digest: std.crypto.hash.sha2.Sha256 = .init(.{});
-        digest.update("transit.table.query.capture.v1\x00");
-        digest.update(&self.declaration);
-        var revision: [8]u8 = undefined;
-        std.mem.writeInt(u64, &revision, self.revision, .little);
-        digest.update(&revision);
-        digest.update((try self.head.encode()).slice());
-        return digest.finalResult();
+        return (try self.record()).fingerprint();
     }
 };
 /// Admission resolves the live object at exactly the cut the host will retain.
 /// The host must publish its request/retention decision atomically afterwards.
 pub fn capture(self: Self, allocator: std.mem.Allocator, data: anytype, current: anytype, who: u64) !Basis {
+    return self.captureDiagnostic(allocator, data, current, who, null);
+}
+pub fn captureDiagnostic(self: Self, allocator: std.mem.Allocator, data: anytype, current: anytype, who: u64, diagnostic: ?*?q.SourceWitness) !Basis {
+    if (diagnostic) |detail| detail.* = null;
     // New admissions require the declared live object. Continuations use page,
     // which deliberately does not reinterpret their retained cut through it.
-    var live = try self.resolve(allocator, current, who);
+    var live = try self.resolveDiagnostic(allocator, current, who, diagnostic);
     defer live.deinit();
-    var definition = try self.resolve(allocator, data, who);
+    var definition = try self.resolveDiagnostic(allocator, data, who, diagnostic);
     defer definition.deinit();
-    const basis: Basis = .{ .declaration = try self.fingerprint(), .revision = data.view.revision, .head = definition.head };
+    const basis: Basis = .{ .declaration = try self.fingerprint(), .resource = self.scope.resource, .schema = try self.row_type.fingerprint(), .revision = data.view.revision, .head = definition.head };
     _ = try basis.fingerprint();
     _ = try self.checkCurrent(current, who);
     return basis;
+}
+/// Restore the original schema and head from a retained cut. Current rights
+/// remain mandatory; a later ALTER or DROP never substitutes its current head.
+pub fn restore(self: Self, allocator: std.mem.Allocator, data: anytype, current: anytype, who: u64, expected: q.Basis) !Basis {
+    _ = try self.checkCurrent(current, who);
+    var definition = try self.resolve(allocator, data, who);
+    defer definition.deinit();
+    const result: Basis = .{ .declaration = try self.fingerprint(), .resource = self.scope.resource, .schema = try self.row_type.fingerprint(), .revision = data.view.revision, .head = definition.head };
+    if (!std.meta.eql(try result.record(), expected)) return error.SourceChanged;
+    _ = try self.checkCurrent(current, who);
+    return result;
 }
 pub const Cursor = struct {
     binding: [32]u8,
@@ -181,7 +203,7 @@ pub const Page = struct {
 pub fn page(self: Self, allocator: std.mem.Allocator, basis: Basis, cursor: Cursor, plan: f.LogicalQuery.Plan, data: anytype, current: anytype, who: u64) !Page {
     _ = try self.checkCurrent(current, who);
     const binding = try basis.fingerprint();
-    if (data.view.revision != basis.revision or !std.mem.eql(u8, &basis.declaration, &try self.fingerprint()) or
+    if (data.view.revision != basis.revision or basis.resource != self.scope.resource or !std.mem.eql(u8, &basis.schema, &try self.row_type.fingerprint()) or !std.mem.eql(u8, &basis.declaration, &try self.fingerprint()) or
         !std.mem.eql(u8, &binding, &cursor.binding) or !std.mem.eql(u8, &binding, &plan.source_basis) or !try self.row_type.eql(plan.schema)) return error.SourceChanged;
     if (cursor.done) return error.QueryComplete;
     if (cursor.scanned > basis.head.rows or (cursor.scanned == 0) != (cursor.after == null) or
@@ -196,7 +218,16 @@ pub fn page(self: Self, allocator: std.mem.Allocator, basis: Basis, cursor: Curs
     errdefer result.deinit();
     result.next.ordinal = try std.math.add(u64, cursor.ordinal, 1);
     var key_storage: [f.TableSchema.max_columns]t.Values.Cell = undefined;
-    const key = if (plan.predicate == .program) try (f.TableDml.Plan{ .name = definition.metadata.name.slice(), .schema = definition.schema.schema, .action = .delete, .predicate = plan.predicate.program }).primaryKeyEquality(&key_storage) else null;
+    var single: [1]f.LogicalPredicate.Program.Instruction = undefined;
+    const program: ?f.LogicalPredicate.Program = switch (plan.predicate) {
+        .program => |value| value,
+        .compare => |value| blk: {
+            single[0] = .{ .atom = .{ .compare = value } };
+            break :blk .{ .instructions = &single };
+        },
+        else => null,
+    };
+    const key = if (program) |predicate| try (f.TableDml.Plan{ .name = definition.metadata.name.slice(), .schema = definition.schema.schema, .action = .delete, .predicate = predicate }).primaryKeyEquality(&key_storage) else null;
     if (key) |values| {
         if (cursor.ordinal != 0) return error.InvalidQueryCursor;
         if (try table.findKey(allocator, &pages, values)) |id| {

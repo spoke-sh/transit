@@ -3,6 +3,16 @@ const t = std.testing;
 const q = @import("root.zig");
 const m = q.fuze.Unified;
 const Definition = q.SourceDefinition;
+const tables = @import("catalog_store_test.zig");
+fn pageSource(definition: Definition, basis: q.Basis, cursor: q.UnifiedSource.Cursor, data: anytype, current: anytype, allocator: std.mem.Allocator, batch: *q.UnifiedSource.Batch) !void {
+    var plan = try tables.plan(allocator, definition, &.{0});
+    plan.source_basis = try basis.fingerprint();
+    return q.UnifiedSource.page(definition, plan, basis, cursor, data, current, if (definition.source == .table) 17 else null, allocator, batch);
+}
+fn matches(plan: q.fuze.LogicalQuery.Plan, cells: []const q.fuze.Types.Values.Cell) !bool {
+    var failed: ?q.fuze.LogicalQuery.Plan.PredicateFailure = null;
+    return plan.matches(cells, &failed);
+}
 test "declared KV decoders retain full values and distinguish malformed bytes" {
     var arena = std.heap.ArenaAllocator.init(t.allocator);
     defer arena.deinit();
@@ -27,10 +37,15 @@ test "UQS1 binds decoder versions exact Document references and projection budge
     const allocator = arena.allocator();
     var output: [Definition.max_bytes]u8 = undefined;
     const kv: Definition = .{ .resource = 7, .source = .{ .kv = .{ .prefix = try q.protocol.Value.init("data/"), .key = .{ .type = .binary }, .value = .{ .type = .uint64 } } } };
-    const expected = "UQS1\x07\x00\x00\x00\x00\x00\x00\x00\x01\x05data/\x01\x06\x01\x02";
+    const expected = "UQS1" ++ q.catalog.TableMetadata.definition() ++ "\x07\x00\x00\x00\x00\x00\x00\x00\x01\x05data/\x01\x06\x01\x02";
     try t.expectEqualSlices(u8, expected, try kv.encode(&output));
     try t.expectEqualSlices(u8, &try kv.fingerprint(), &try (try Definition.decode(allocator, expected)).fingerprint());
-    const table: Definition = .{ .resource = 7, .source = .{ .table = .{ .id = 9, .schema = .{ .names = .{ try q.fuze.model.Name.init("id"), try q.fuze.model.Name.init("label") }, .value_type = .utf8 } } } };
+    var table_store: tables.Store = .{};
+    defer table_store.deinit();
+    try tables.create(&table_store, "CREATE TABLE items(id INT64 PRIMARY KEY, label UTF8)");
+    var owned = try tables.source(&table_store);
+    defer owned.deinit();
+    const table: Definition = .{ .resource = 7, .source = .{ .table = owned.source } };
     const projections = [_]Definition.Projection{
         .{ .column = .{ .name = try m.Name.init("title"), .type = .utf8 }, .path = &.{try q.document.Model.Name.init("title")} },
         .{ .column = .{ .name = try m.Name.init("body"), .type = .utf8 }, .path = &.{try q.document.Model.Name.init("body")}, .mode = .text },
@@ -81,13 +96,14 @@ test "KV and Table adapters page exact cuts and reject source or decoder substit
         var arena = std.heap.ArenaAllocator.init(t.allocator);
         defer arena.deinit();
         var batch: source.Batch = .{};
-        try source.page(definition, cut, cursor, &data, &data, arena.allocator(), &batch);
+        try pageSource(definition, cut, cursor, &data, &data, arena.allocator(), &batch);
         for (batch.engine().rows) |row| {
             count += 1;
-            try t.expectEqual(@as(u8, @intCast(count)), row.cells[0].value.binary[3]);
-            if (row.cells[1] == .type_error) errors += 1 else try t.expectEqual(std.math.maxInt(u64) - count, row.cells[1].value.uint64);
+            try t.expectEqual(@as(u8, @intCast(count)), row.cells[0].value.atom.bytes[3]);
+            if (row.cells[1] == .type_error) errors += 1 else try t.expectEqual(std.math.maxInt(u64) - count, row.cells[1].value.atom.unsigned);
         }
         cursor = batch.next;
+        batch.deinit();
     }
     try t.expectEqual(@as(usize, 38), count);
     try t.expectEqual(@as(usize, 1), errors);
@@ -96,42 +112,38 @@ test "KV and Table adapters page exact cuts and reject source or decoder substit
     var batch: source.Batch = .{};
     var changed = definition;
     changed.source.kv.value.type = .binary;
-    try t.expectError(error.SourceChanged, source.page(changed, cut, .{}, &data, &data, arena.allocator(), &batch));
+    try t.expectError(error.SourceChanged, pageSource(changed, cut, .{}, &data, &data, arena.allocator(), &batch));
     store.denied = true;
-    try t.expectError(error.AccessDenied, source.page(definition, cut, .{}, &data, &data, arena.allocator(), &batch));
+    try t.expectError(error.AccessDenied, pageSource(definition, cut, .{}, &data, &data, arena.allocator(), &batch));
     store.denied = false;
-    var turn = try store.capture();
-    const table_schema: q.fuze.model.Schema = .{ .names = .{ try q.fuze.model.Name.init("id"), try q.fuze.model.Name.init("label") }, .value_type = .utf8 };
-    _ = try q.station.Table.create(&turn, 1, table_schema);
-    try store.commit(turn);
+    try tables.create(&store, "CREATE TABLE items(id INT64 PRIMARY KEY, label UTF8)");
+    var owned = try tables.source(&store);
+    defer owned.deinit();
     for (0..19) |index| {
-        turn = try store.capture();
-        const table = try q.station.Table.open(&turn, 1);
-        try table.upsert(&turn, .{ .key = @as(i64, @intCast(index)) - 9, .value = if (index == 0) .null else .{ .utf8 = try q.fuze.model.Bytes.init("café🙂") } });
-        try store.commit(turn);
+        const row: [2]q.fuze.Types.Values.Cell = .{ .{ .value = .{ .atom = .{ .signed = @as(i128, @intCast(index)) - 9 } } }, if (index == 0) .null else .{ .value = .{ .atom = .{ .bytes = "café🙂" } } } };
+        try tables.mutate(&store, index + 2, .{ .insert = &.{&row} });
     }
     var old = try store.clone();
     defer old.deinit();
-    const table_definition: Definition = .{ .resource = 7, .source = .{ .table = .{ .id = 1, .schema = table_schema } } };
+    const table_definition: Definition = .{ .resource = 7, .source = .{ .table = owned.source } };
     var snapshot = try old.capture();
-    const table_cut = try source.basis(table_definition, snapshot.view.revision);
-    turn = try store.capture();
-    try (try q.station.Table.open(&turn, 1)).upsert(&turn, .{ .key = -9, .value = .{ .utf8 = try q.fuze.model.Bytes.init("new") } });
-    try store.commit(turn);
+    const table_cut = try source.capture(table_definition, &snapshot, &snapshot, 17, arena.allocator());
+    try tables.mutate(&store, 30, .{ .update = &.{.{ .column = 2, .value = .{ .cell = .{ .value = .{ .atom = .{ .bytes = "new" } } } } }} });
     var current = try store.capture();
     cursor = .{};
     count = 0;
     while (!cursor.done) {
-        try source.page(table_definition, table_cut, cursor, &snapshot, &current, arena.allocator(), &batch);
+        try pageSource(table_definition, table_cut, cursor, &snapshot, &current, arena.allocator(), &batch);
         for (batch.engine().rows) |row| {
-            try t.expectEqual(@as(i64, @intCast(count)) - 9, row.cells[0].value.int64);
-            if (count == 0) try t.expect(row.cells[1] == .null) else try t.expectEqualStrings("café🙂", row.cells[1].value.utf8);
+            try t.expectEqual(@as(i64, @intCast(count)) - 9, row.cells[0].value.atom.signed);
+            if (count == 0) try t.expect(row.cells[1] == .null) else try t.expectEqualStrings("café🙂", row.cells[1].value.atom.bytes);
             count += 1;
         }
         cursor = batch.next;
+        batch.deinit();
     }
     try t.expectEqual(@as(usize, 19), count);
-    try t.expectError(error.SourceChanged, source.page(table_definition, table_cut, .{}, &current, &current, arena.allocator(), &batch));
+    try t.expectError(error.SourceChanged, pageSource(table_definition, table_cut, .{}, &current, &current, arena.allocator(), &batch));
 }
 
 pub fn changeDocument(store: *@import("source_store_test.zig"), service: q.document.Service, job: u64, replica: u64, first: u64, operations: []const q.document.Operation) !void {
@@ -217,28 +229,29 @@ test "accepted Document paths text conflicts and list pages retain live lifecycl
     };
     var definition: Definition = .{ .resource = 7, .source = .{ .document = .{ .reference = reference, .projections = &projections } } };
     var metadata = try currentMetadata(&store, definition);
-    try source.checkCurrent(definition, &metadata);
+    try source.checkCurrent(definition, &metadata, null);
     var foreign = definition;
     foreign.source.document.reference.epoch += 1;
-    try t.expectError(error.DocumentIdentityMismatch, source.checkCurrent(foreign, &metadata));
+    try t.expectError(error.DocumentIdentityMismatch, source.checkCurrent(foreign, &metadata, null));
     var incomplete = metadata;
     incomplete.keys[2] = null;
-    try t.expectError(error.UnrequestedResourceKey, source.checkCurrent(definition, &incomplete));
+    try t.expectError(error.UnrequestedResourceKey, source.checkCurrent(definition, &incomplete, null));
     var arena = std.heap.ArenaAllocator.init(t.allocator);
     defer arena.deinit();
     var batch: source.Batch = .{};
-    try source.page(definition, try source.basis(definition, snapshot.view.revision), .{}, &snapshot, &current, arena.allocator(), &batch);
+    try pageSource(definition, try source.basis(definition, snapshot.view.revision), .{}, &snapshot, &current, arena.allocator(), &batch);
     const row = batch.engine().rows[0];
     try t.expect(row.cells[0] == .missing);
     try t.expect(row.cells[1] == .null);
-    try t.expectEqual(m.Kind.boolean, row.cells[2].type_error);
+    try t.expectEqual(q.fuze.Types.Kind.boolean, row.cells[2].type_error);
     try t.expectEqual(@as(usize, 2), row.cells[3].conflict.len);
-    try t.expectEqualStrings("first", row.cells[3].conflict[0].value.value.utf8);
-    try t.expectEqualStrings("second", row.cells[3].conflict[1].value.value.utf8);
-    try t.expectEqualStrings("🙂", row.cells[4].value.utf8);
-    try t.expectEqual(std.math.maxInt(u64), row.cells[5].value.uint64);
+    try t.expectEqualStrings("first", row.cells[3].conflict[0].value.value.atom.bytes);
+    try t.expectEqualStrings("second", row.cells[3].conflict[1].value.value.atom.bytes);
+    try t.expectEqualStrings("🙂", row.cells[4].value.atom.bytes);
+    try t.expectEqual(std.math.maxInt(u64), row.cells[5].value.atom.unsigned);
+    batch.deinit();
     projections[4].text_bytes = 3;
-    try t.expectError(error.QueryProjectionBudget, source.page(definition, try source.basis(definition, snapshot.view.revision), .{}, &snapshot, &current, arena.allocator(), &batch));
+    try t.expectError(error.QueryProjectionBudget, pageSource(definition, try source.basis(definition, snapshot.view.revision), .{}, &snapshot, &current, arena.allocator(), &batch));
     projections[4].text_bytes = 4096;
     const list_projections = [_]Definition.Projection{
         .{ .column = .{ .name = try m.Name.init("element"), .type = .int64 }, .path = &.{}, .relative = true },
@@ -250,19 +263,20 @@ test "accepted Document paths text conflicts and list pages retain live lifecycl
     var cursor: source.Cursor = .{};
     var count: usize = 0;
     while (!cursor.done) {
-        try source.page(definition, cut, cursor, &snapshot, &current, arena.allocator(), &batch);
+        try pageSource(definition, cut, cursor, &snapshot, &current, arena.allocator(), &batch);
         for (batch.engine().rows) |element| {
-            try t.expectEqual(@as(i64, @intCast(count)), element.cells[0].value.int64);
-            try t.expectEqual(@as(u64, 9 + count), element.cells[1].value.uint64);
+            try t.expectEqual(@as(i64, @intCast(count)), element.cells[0].value.atom.signed);
+            try t.expectEqual(@as(u64, 9 + count), element.cells[1].value.atom.unsigned);
             count += 1;
         }
         cursor = batch.next;
+        batch.deinit();
     }
     try t.expectEqual(@as(usize, 12), count);
     store.denied = true;
     current = try store.capture();
     try t.expectError(error.AccessDenied, currentMetadata(&store, definition));
-    try t.expectError(error.AccessDenied, source.page(definition, cut, .{}, &snapshot, &current, arena.allocator(), &batch));
+    try t.expectError(error.AccessDenied, pageSource(definition, cut, .{}, &snapshot, &current, arena.allocator(), &batch));
     store.denied = false;
     turn = try store.capture();
     try service.configureMergeWindow(&turn, 1);
@@ -277,16 +291,16 @@ test "accepted Document paths text conflicts and list pages retain live lifecycl
         if (result == .complete) break;
     } else return error.CheckpointIncomplete;
     current = try store.capture();
-    try t.expectError(error.DocumentHistoryGap, source.page(definition, cut, .{}, &snapshot, &current, arena.allocator(), &batch));
+    try t.expectError(error.DocumentHistoryGap, pageSource(definition, cut, .{}, &snapshot, &current, arena.allocator(), &batch));
     metadata = try currentMetadata(&store, definition);
-    try t.expectError(error.DocumentHistoryGap, source.checkCurrent(definition, &metadata));
+    try t.expectError(error.DocumentHistoryGap, source.checkCurrent(definition, &metadata, null));
     turn = try store.capture();
     try service.retire(&turn);
     try store.commit(turn);
     current = try store.capture();
-    try t.expectError(error.DocumentRetired, source.page(definition, cut, .{}, &snapshot, &current, arena.allocator(), &batch));
+    try t.expectError(error.DocumentRetired, pageSource(definition, cut, .{}, &snapshot, &current, arena.allocator(), &batch));
     metadata = try currentMetadata(&store, definition);
-    try t.expectError(error.DocumentRetired, source.checkCurrent(definition, &metadata));
+    try t.expectError(error.DocumentRetired, source.checkCurrent(definition, &metadata, null));
 }
 
 test "independent UQS1 fixtures preserve all three source declarations" {
@@ -311,29 +325,27 @@ test "Table primary-key access matches full predicate evaluation at signed bound
     const source = q.UnifiedSource;
     var store: Memory = .{};
     defer store.deinit();
-    const schema: q.fuze.model.Schema = .{ .names = .{ try .init("id"), try .init("value") }, .value_type = .int64 };
-    var turn = try store.capture();
-    _ = try q.station.Table.create(&turn, 1, schema);
-    try store.commit(turn);
+    try tables.create(&store, "CREATE TABLE items(id INT64 PRIMARY KEY, value INT64)");
+    var owned = try tables.source(&store);
+    defer owned.deinit();
     var keys: [43]i64 = undefined;
     keys[0] = std.math.minInt(i64);
     for (keys[1..42], 0..) |*key, i| key.* = @as(i64, @intCast(i)) - 20;
     keys[42] = std.math.maxInt(i64);
-    for (keys) |key| {
-        turn = try store.capture();
-        try (try q.station.Table.open(&turn, 1)).upsert(&turn, .{ .key = key, .value = if (key == 0) .null else .{ .int64 = key } });
-        try store.commit(turn);
+    for (keys, 0..) |key, i| {
+        const row: [2]q.fuze.Types.Values.Cell = .{ .{ .value = .{ .atom = .{ .signed = key } } }, if (key == 0) .null else .{ .value = .{ .atom = .{ .signed = key } } } };
+        try tables.mutate(&store, i + 2, .{ .insert = &.{&row} });
     }
-    const definition: Definition = .{ .resource = 7, .source = .{ .table = .{ .id = 1, .schema = schema } } };
+    const definition: Definition = .{ .resource = 7, .source = .{ .table = owned.source } };
     var snapshot = try store.capture();
-    const cut = try source.basis(definition, snapshot.view.revision);
+    const cut = try source.capture(definition, &snapshot, &snapshot, 17, t.allocator);
     for (0..2) |column| for (std.enums.values(m.Plan.Comparison)) |op| for ([_]i64{ std.math.minInt(i64), -21, -1, 0, 19, 21, std.math.maxInt(i64) }) |bound| {
-        const plan: m.Plan = .{ .projection = &.{ 0, 1 }, .predicate = .{ .compare = .{ .column = @intCast(column), .op = op, .value = .{ .int64 = bound } } } };
+        const plan: q.fuze.LogicalQuery.Plan = .{ .schema = owned.source.row_type, .source_basis = try cut.fingerprint(), .projection = &.{ 0, 1 }, .predicate = .{ .compare = .{ .column = @intCast(column), .op = op, .value = .{ .signed = bound } } } };
         var expected: [keys.len]i64 = undefined;
         var expected_count: usize = 0;
         for (keys) |key| {
-            const cells: [2]m.Cell = .{ .{ .value = .{ .int64 = key } }, if (key == 0) .null else .{ .value = .{ .int64 = key } } };
-            if (try plan.matches(.{ .cells = &cells })) {
+            const cells: [2]q.fuze.Types.Values.Cell = .{ .{ .value = .{ .atom = .{ .signed = key } } }, if (key == 0) .null else .{ .value = .{ .atom = .{ .signed = key } } } };
+            if (try matches(plan, &cells)) {
                 expected[expected_count] = key;
                 expected_count += 1;
             }
@@ -345,43 +357,46 @@ test "Table primary-key access matches full predicate evaluation at signed bound
             var arena: std.heap.ArenaAllocator = .init(t.allocator);
             defer arena.deinit();
             var batch: source.Batch = .{};
-            try source.pagePlanned(definition, plan, cut, cursor, &snapshot, &snapshot, arena.allocator(), &batch);
-            for (batch.engine().rows) |row| if (try plan.matches(row)) {
+            try source.page(definition, plan, cut, cursor, &snapshot, &snapshot, 17, arena.allocator(), &batch);
+            for (batch.engine().rows) |row| if (try matches(plan, row.cells)) {
                 try t.expect(count < expected_count);
-                try t.expectEqual(expected[count], row.cells[0].value.int64);
+                try t.expectEqual(expected[count], row.cells[0].value.atom.signed);
                 count += 1;
             };
             pages += 1;
             cursor = batch.next;
+            batch.deinit();
         }
         try t.expectEqual(expected_count, count);
         if (column == 0 and op == .eq) try t.expectEqual(@as(usize, 1), pages);
-        if (column == 0 and op == .ge and bound == 19) try t.expectEqual(@as(usize, 1), pages);
+        // Tuple digest lookup only qualifies complete primary-key equality.
+        if (op != .eq or column != 0) try t.expect(pages > 1);
     };
     var batch: source.Batch = .{};
-    const point: m.Plan = .{ .projection = &.{ 0, 1 }, .predicate = .{ .compare = .{ .column = 0, .op = .eq, .value = .{ .int64 = 1 } } } };
+    const point: q.fuze.LogicalQuery.Plan = .{ .schema = owned.source.row_type, .source_basis = try cut.fingerprint(), .projection = &.{ 0, 1 }, .predicate = .{ .compare = .{ .column = 0, .op = .eq, .value = .{ .signed = 1 } } } };
     // A comparison inside a program is not a safe range by itself. This OR
     // must retain every primary key, including those outside its first atom.
-    const compound: m.Plan = .{ .projection = &.{ 0, 1 }, .predicate = .{ .program = try .init(&.{
+    const compound: q.fuze.LogicalQuery.Plan = .{ .schema = owned.source.row_type, .source_basis = try cut.fingerprint(), .projection = &.{ 0, 1 }, .predicate = .{ .program = .{ .instructions = &.{
         .{ .atom = .{ .compare = point.predicate.compare } },
         .{ .atom = .all },
         .disjunction,
-    }) } };
+    } } } };
     var cursor: source.Cursor = .{};
     var selected: usize = 0;
     while (!cursor.done) {
         var arena: std.heap.ArenaAllocator = .init(t.allocator);
         defer arena.deinit();
-        try source.pagePlanned(definition, compound, cut, cursor, &snapshot, &snapshot, arena.allocator(), &batch);
+        try source.page(definition, compound, cut, cursor, &snapshot, &snapshot, 17, arena.allocator(), &batch);
         for (batch.engine().rows) |row| {
-            try t.expect(try compound.matches(row));
-            try t.expectEqual(keys[selected], row.cells[0].value.int64);
+            try t.expect(try matches(compound, row.cells));
+            try t.expectEqual(keys[selected], row.cells[0].value.atom.signed);
             selected += 1;
         }
         cursor = batch.next;
+        batch.deinit();
     }
     try t.expectEqual(keys.len, selected);
     store.denied = true;
-    try t.expectError(error.AccessDenied, source.pagePlanned(definition, point, cut, .{}, &snapshot, &snapshot, t.allocator, &batch));
-    try t.expectError(error.AccessDenied, source.pagePlanned(definition, compound, cut, .{}, &snapshot, &snapshot, t.allocator, &batch));
+    try t.expectError(error.AccessDenied, source.page(definition, point, cut, .{}, &snapshot, &snapshot, 17, t.allocator, &batch));
+    try t.expectError(error.AccessDenied, source.page(definition, compound, cut, .{}, &snapshot, &snapshot, 17, t.allocator, &batch));
 }

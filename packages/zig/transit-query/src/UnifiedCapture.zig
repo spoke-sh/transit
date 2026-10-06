@@ -4,7 +4,7 @@ const std = @import("std");
 const q = @import("root.zig");
 const s = q.station;
 const p = q.protocol;
-const m = q.fuze.Unified;
+const f = q.fuze;
 const r = q.UnifiedRecords;
 const Turn = s.Turn;
 const Pub = s.Publication;
@@ -55,21 +55,22 @@ fn permittedDiagnostic(source: anytype, stored: r.Job, diagnostic: ?*?q.SourceWi
     }
     return grant;
 }
-fn matches(bundle: q.Bundle, grant: r.Policy, resource: u64, diagnostic: ?*?q.SourceWitness) !void {
+fn matches(bundle: q.Bundle, grant: r.Policy, resource: u64, diagnostic: ?*?q.SourceWitness) !?u64 {
     try bundle.validate();
     if (bundle.source.resource != resource) {
         if (diagnostic) |detail| detail.* = .{ .reason = .resource, .resource = resource, .expected = resource, .actual = bundle.source.resource };
         return error.QueryDenied;
     }
     const declaration = try q.Bundle.declaration(bundle.source);
-    if (!grant.target.declarationMatches(declaration)) {
+    const principal = grant.principal(bundle.source) catch |err| {
         if (diagnostic) |detail| detail.* = .{ .reason = .declaration, .resource = resource, .expected_hash = try grant.target.fingerprint(), .actual_hash = declaration };
-        return error.QueryDenied;
-    }
+        return err;
+    };
     inline for (.{ "pages", "segments", "result_bytes" }) |field| if (@field(bundle.limits, field) > @field(grant.limits, field)) {
         if (diagnostic) |detail| detail.* = .{ .reason = .policy_budget, .resource = resource, .dimension = @field(q.QueryFailure.Dimension, field), .expected = @field(grant.limits, field), .actual = @field(bundle.limits, field) };
         return error.QueryDenied;
     };
+    return principal;
 }
 
 fn schedule(turn: *Turn, stored: *r.Job) !void {
@@ -118,15 +119,15 @@ fn startWitness(turn: *Turn, reference: Ref, source: anytype, allocator: std.mem
     var buffer: [q.Bundle.max_bytes]u8 = undefined;
     const bundle = try q.Bundle.decode(allocator, try reference.read(source, &buffer));
     try q.Bundle.checkPublisher(reference, source, peer);
-    try matches(bundle, grant, turn.view.resource, witness);
-    try q.UnifiedSource.checkCurrentDiagnostic(bundle.source, turn, witness);
-    var columns: [m.max_columns]m.Column = undefined;
-    const bound = try bundle.plan.bind(try q.UnifiedSource.basis(bundle.source, turn.view.revision), try bundle.source.schema(&columns));
+    const principal = try matches(bundle, grant, turn.view.resource, witness);
+    try q.UnifiedSource.checkCurrentDiagnostic(bundle.source, turn, principal, witness);
+    const captured = try q.UnifiedSource.captureDiagnostic(bundle.source, turn, turn, principal, allocator, witness);
+    const bound = try bundle.bind(try captured.fingerprint());
     var stored: r.Job = .{ .id = turn.delivery.input.position, .destination = peer, .correlation = frame.correlation, .policy_revision = grant.revision, .source = try turn.retain(), .request = reference, .continuation = turn.delivery.input.position };
     const publication = stored.publication(turn.view.resource);
     if (try turn.read(r.key('j', stored.id, 0)) != null or try turn.read(Pub.key(publication.domain, publication.namespace, 'b', 0, 0)) != null) return error.QueryNamespaceInUse;
-    _ = try Pub.create(turn, .query_result, publication.namespace, .{ .record_bytes = m.Arrow.segment_bytes, .staging_bytes = m.Arrow.segment_bytes, .staging_records = 1 });
-    try turn.write(r.key('c', stored.id, 0), try (r.Checkpoint{ .progress = m.Stream.Progress.start(bound) }).encode());
+    _ = try Pub.create(turn, .query_result, publication.namespace, .{ .record_bytes = f.LogicalArrow.segment_bytes, .staging_bytes = f.LogicalArrow.segment_bytes, .staging_records = 1 });
+    try turn.write(r.key('c', stored.id, 0), try (r.Checkpoint{ .cut = captured.cut, .progress = try f.LogicalStream.Progress.start(bound) }).encode());
     try turn.write(r.key('i', peer, frame.correlation), q.UnifiedRecords.identityValue(stored.id));
     try schedule(turn, &stored);
     try turn.validate();
@@ -182,17 +183,11 @@ fn advanceWitness(turn: *Turn, continuation: r.Continuation, source: anytype, al
     var buffer: [q.Bundle.max_bytes]u8 = undefined;
     const bundle = try q.Bundle.decode(allocator, try stored.request.read(source, &buffer));
     try q.Bundle.checkPublisher(stored.request, source, stored.destination);
-    try matches(bundle, grant, turn.view.resource, witness);
-    try q.UnifiedSource.checkCurrentDiagnostic(bundle.source, turn, witness);
+    const principal = try matches(bundle, grant, turn.view.resource, witness);
+    try q.UnifiedSource.checkCurrentDiagnostic(bundle.source, turn, principal, witness);
     const previous = try checkpoint(turn, stored.id);
-    var columns: [m.max_columns]m.Column = undefined;
-    const bound = try bundle.plan.bind(previous.progress.basis, try bundle.source.schema(&columns));
-    try previous.progress.validate(bound);
-    const observed_contract = try bundle.source.fingerprint();
-    if (!std.mem.eql(u8, &bound.basis.contract, &observed_contract)) {
-        witness.* = .{ .reason = .contract, .resource = turn.view.resource, .expected_hash = bound.basis.contract, .actual_hash = observed_contract };
-        return error.SourceChanged;
-    }
+    const bound = try previous.bound(bundle);
+    const captured = try previous.basis(bundle.source);
     if (stored.phase == .captured) {
         try publishManifest(turn, &stored, previous);
         return if (stored.phase == .complete) .complete else .progress;
@@ -201,12 +196,17 @@ fn advanceWitness(turn: *Turn, continuation: r.Continuation, source: anytype, al
         if (diagnostic) |detail| detail.* = .{ .code = .budget_exceeded, .stage = .execution, .dimension = .pages, .limit = bundle.limits.pages, .observed = try std.math.add(u64, previous.progress.pages, 1) };
         return error.QueryBudgetExceeded;
     }
-    var retained = try turn.openVersion(stored.source);
     var page: q.UnifiedSource.Batch = undefined;
-    try q.UnifiedSource.page(bundle.source, previous.progress.basis, previous.cursor, &retained, turn, allocator, &page);
-    var bytes: [m.Arrow.segment_bytes]u8 = undefined;
-    var runtime: ?m.Stream.Failure = null;
-    const candidate = m.Stream.stepDiagnostic(bound, previous.progress, page.engine(), workspace, &bytes, cancellation, &runtime) catch |err| {
+    if (bound.limit == 0) {
+        page = .{ .basis = captured, .binding = bound.source_basis, .ordinal = previous.cursor.ordinal, .next = .{ .ordinal = try std.math.add(u64, previous.cursor.ordinal, 1), .done = true } };
+    } else {
+        var retained = try turn.openVersion(stored.source);
+        try q.UnifiedSource.page(bundle.source, bound, captured, previous.cursor, &retained, turn, principal, allocator, &page);
+    }
+    defer page.deinit();
+    var bytes: [f.LogicalArrow.segment_bytes]u8 = undefined;
+    var runtime: ?f.LogicalStream.Failure = null;
+    const candidate = f.LogicalStream.step(bound, previous.progress, page.engine(), workspace, &bytes, cancellation, &runtime) catch |err| {
         const cause = if (err == error.WriteFailed) error.QuerySegmentBudgetExceeded else err;
         if (diagnostic) |detail| if (runtime) |runtime_failure| {
             if (q.QueryFailure.fromError(cause, .execution)) |failure| {

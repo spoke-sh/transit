@@ -22,7 +22,7 @@ pub const Capabilities = struct {
     part_bytes: u16 = q.UnifiedRequest.part_bytes,
     segment_bytes: u32 = q.fuze.Unified.Arrow.segment_bytes,
     batch_rows: u8 = q.fuze.Unified.max_rows,
-    columns: u8 = q.fuze.Unified.max_columns,
+    columns: u8 = q.SourceDefinition.max_columns,
     kv: bool = true,
     table: bool = true,
     document: bool = true,
@@ -79,8 +79,12 @@ fn sourceMetadata(self: *Self, definition: q.SourceDefinition, keys: *[3]p.Value
     switch (definition.source) {
         .kv => return keys[0..1],
         .table => |table| {
-            keys[1] = s.Table.descriptorKey(table.id);
-            return keys[0..2];
+            var reader = try self.checked(definition.resource, self.connection.source);
+            const grant = (try q.UnifiedCapture.policy(&reader, self.connection.requester)) orelse return error.QueryDenied;
+            const who = try grant.tablePrincipal(table);
+            keys[1] = q.catalog.Records.key(table.scope.catalog, 'c', 0, 0);
+            keys[2] = q.catalog.Records.key(table.scope.catalog, 'p', who, 0);
+            return keys[0..3];
         },
         .document => |document| {
             const service = try document.reference.identity().service();
@@ -110,25 +114,25 @@ pub fn interactiveDescription(self: *Self, definition: q.SourceDefinition, resul
     if (source.resource.writer != self.connection.source or requester_source.resource.writer != self.connection.requester) return error.QuerySourceUnavailable;
     try (q.UnifiedBehavior.Requester{ .principal = self.connection.principal, .source = self.connection.source }).check(&requester_source);
     const grant = (try q.UnifiedCapture.policy(&source, self.connection.requester)) orelse return error.QueryDenied;
-    if (!grant.allow or grant.requests != self.connection.requests or !grant.target.declarationMatches(try q.Bundle.declaration(definition))) return error.QueryDenied;
-    try q.UnifiedSource.checkCurrent(definition, &source);
+    if (!grant.allow or grant.requests != self.connection.requests) return error.QueryDenied;
+    try q.UnifiedSource.checkCurrent(definition, &source, try grant.principal(definition));
     return .{ .definition = definition, .resource_revision = source.view.revision, .policy_revision = grant.revision, .limits = grant.limits, .active = null };
 }
 /// Resolve SQL only against this currently authorized declaration and explicit
 /// budgets. This allocates a finite bundle, performs no admission and takes no
 /// retained pin; the source captures the committed basis when it admits the call.
-pub fn compileSql(self: *Self, allocator: std.mem.Allocator, definition: q.SourceDefinition, name: q.fuze.Unified.Name, text: []const u8, limits: q.Bundle.Limits) !q.Bundle {
+pub fn compileSql(self: *Self, allocator: std.mem.Allocator, definition: q.SourceDefinition, name: []const u8, text: []const u8, limits: q.Bundle.Limits) !q.Bundle {
     const current = try self.describe(definition);
     if (!current.limits.permits(limits)) return error.QueryBudgetExceeded;
     return q.Bundle.fromSql(allocator, definition, name, text, limits);
 }
 /// A template retains exact source identity, not permission or a source pin.
-pub fn prepareSql(self: *Self, allocator: std.mem.Allocator, definition: q.SourceDefinition, name: q.fuze.Unified.Name, text: []const u8) !q.SqlTemplate {
+pub fn prepareSql(self: *Self, allocator: std.mem.Allocator, definition: q.SourceDefinition, name: []const u8, text: []const u8) !q.SqlTemplate {
     return q.SqlTemplate.prepareCurrent(allocator, self, definition, name, text);
 }
 /// A new binding is a new finite query. Retry uncertain uploads using their
 /// original saved Bundle/Prepared commands instead of binding again.
-pub fn bindSql(self: *Self, allocator: std.mem.Allocator, template: *const q.SqlTemplate, definition: q.SourceDefinition, values: []const q.fuze.Unified.Scalar, limits: q.Bundle.Limits) !q.SqlTemplate.Bound {
+pub fn bindSql(self: *Self, allocator: std.mem.Allocator, template: *const q.SqlTemplate, definition: q.SourceDefinition, values: []const q.fuze.Types.Values.Atom, limits: q.Bundle.Limits) !q.SqlTemplate.Bound {
     return template.bindCurrent(allocator, self, definition, values, limits);
 }
 fn describeOnce(self: *Self, definition: q.SourceDefinition) !Description {
@@ -147,8 +151,8 @@ fn describeOnce(self: *Self, definition: q.SourceDefinition) !Description {
     if (source.resource.writer != self.connection.source or requests.resource.writer != self.connection.requester) return error.QuerySourceUnavailable;
     try (q.UnifiedBehavior.Requester{ .principal = self.connection.principal, .source = self.connection.source }).check(&requests);
     const grant = (try q.UnifiedCapture.policy(&source, self.connection.requester)) orelse return error.QueryDenied;
-    if (!grant.allow or grant.requests != self.connection.requests or !grant.target.declarationMatches(try q.Bundle.declaration(definition))) return error.QueryDenied;
-    try q.UnifiedSource.checkCurrent(definition, &source);
+    if (!grant.allow or grant.requests != self.connection.requests) return error.QueryDenied;
+    try q.UnifiedSource.checkCurrent(definition, &source, try grant.principal(definition));
     return .{ .definition = definition, .resource_revision = source.view.revision, .policy_revision = grant.revision, .limits = grant.limits, .active = try q.UnifiedUpload.active(&requests) };
 }
 /// Prepare only one command. After any uncertain submit, retain and resubmit
@@ -261,7 +265,7 @@ fn prepareNextOnce(self: *Self, namespace: u64, bundle: q.Bundle, generation: ?u
         else => return null,
     }
 }
-pub fn page(self: *Self, namespace: u64, cursor: ?q.UnifiedResult.Cursor, allocator: std.mem.Allocator, workspace: []u8, output: []u8, decoded: *q.fuze.Unified.Inspect.Batch) !q.UnifiedResult.Page {
+pub fn page(self: *Self, namespace: u64, cursor: ?q.UnifiedResult.Cursor, allocator: std.mem.Allocator, workspace: []u8, output: []u8, decoded: *q.fuze.LogicalInspect.Batch) !q.UnifiedResult.Page {
     const current = (try self.status(namespace)) orelse return error.QueryUploadNotFound;
     if (current.phase != .complete) return error.IncompleteResult;
     return q.UnifiedResult.page(current.manifest.?, .{ .resource = self.connection.resource, .source = self.connection.source, .requester = self.connection.requester, .correlation = current.correlation, .request = current.reference }, cursor, self.resources(), allocator, workspace, output, decoded);

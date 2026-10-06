@@ -23,7 +23,7 @@ pub const Record = struct {
     position: u64 = 0,
     genesis_observed: bool = false,
     provision: [14]?u64 = @splat(null),
-    initialized: [2]bool = .{ false, false },
+    initialized: [3]bool = .{ false, false, false },
     default_table_complete: bool,
     complete: bool = false,
     registration: ?q.wire.bootstrap.GrowingRegistration = null,
@@ -91,15 +91,6 @@ pub fn connectionFrom(record: Record, realm: u64) q.UnifiedClient.Connection {
     const done = record.provision;
     return .{ .realm = realm, .principal = caller, .requester = done[0].?, .requests = done[1].?, .source = done[4].?, .resource = done[5].? };
 }
-pub fn table(self: *Self) q.TableQueryWriter.Configuration {
-    return tableFor(self.connection());
-}
-pub fn tableFor(c: q.UnifiedClient.Connection) q.TableQueryWriter.Configuration {
-    return .{ .writer = .{ .resource = c.resource, .initializer = caller, .principal = caller, .permissions = 7 }, .peer = c.requester, .requests = c.requests, .allow = true, .limits = limits };
-}
-pub fn writerFor(c: q.UnifiedClient.Connection) q.TableMutationClient.Connection {
-    return .{ .realm = c.realm, .principal = c.principal, .writer = c.source, .resource = c.resource, .table = tableFor(c).writer.table };
-}
 pub fn catalogFor(c: q.UnifiedClient.Connection) q.catalog.TableCatalogRecords.Configuration {
     return .{ .scope = .{ .realm = c.realm, .resource = c.resource, .catalog = 1 }, .owner = c.source, .administrator = caller, .table_limits = .{ .record_bytes = q.fuze.TableRow.max_bytes, .staging_bytes = 2 * q.fuze.TableRow.max_bytes, .staging_records = 2 } };
 }
@@ -164,8 +155,13 @@ pub fn activate(self: *Self, registration: q.wire.bootstrap.GrowingRegistration)
 }
 pub fn initializeBehaviors(self: *Self) !void {
     const c = self.connection();
-    for ([_]u64{ c.source, c.requester }, 0..) |pid, i| if (!self.record.initialized[i]) {
-        const payload = if (i == 0) try (q.catalog.TableControl.Command{ .initialize = catalogFor(c) }).encode() else try q.UnifiedRequest.Command.encode(.initialize);
+    for ([_]u64{ c.source, c.requester, c.source }, 0..) |pid, i| if (!self.record.initialized[i]) {
+        const payload = switch (i) {
+            0 => try (q.catalog.TableControl.Command{ .initialize = catalogFor(c) }).encode(),
+            1 => try q.UnifiedRequest.Command.encode(.initialize),
+            2 => try (q.CatalogQueryOwner.PolicyChange{ .expected_revision = 0, .policy = .{ .peer = c.requester, .requests = c.requests, .revision = 1, .allow = true, .target = .{ .catalog = .{ .scope = catalogFor(c).scope, .owner = c.source, .principal = c.principal } }, .limits = limits } }).encode(),
+            else => unreachable,
+        };
         try self.submit(caller, .{ .send = .{ .pid = pid, .value = try (q.station.Frame{ .kind = .cast, .payload = payload }).encode() } }, .initialize, @intCast(i));
     };
 }

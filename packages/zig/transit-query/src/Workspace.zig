@@ -6,14 +6,14 @@ const v = q.Values;
 const b = q.Bridge;
 const a = q.document.JsonValues;
 const m = q.fuze.Unified;
-pub const schema_options: q.protocol.Schema.Options = .{ .output = true, .safe_integers = true, .sequence_max_length = 8, .text_max_length = 131072 };
-pub const request_schema_options: q.protocol.Schema.Options = .{ .safe_integers = true, .sequence_max_length = 8, .text_max_length = 131072 };
+pub const schema_options: q.protocol.Schema.Options = .{ .output = true, .safe_integers = true, .sequence_max_length = q.SourceDefinition.max_columns, .text_max_length = 131072 };
+pub const request_schema_options: q.protocol.Schema.Options = .{ .safe_integers = true, .sequence_max_length = q.SourceDefinition.max_columns, .text_max_length = 131072 };
 pub const Config = struct { name: []const u8, source: v.Source, limits: v.Limits };
 pub const SqlCapabilities = struct {
     version: u8 = 1,
     statement_bytes: u32 = q.fuze.Sql.max_statement_bytes,
-    named_columns: u8 = m.max_columns,
-    star_columns: u8 = m.max_columns,
+    named_columns: u8 = q.SourceDefinition.max_columns,
+    star_columns: u8 = q.SourceDefinition.max_columns,
     uint64_limits: bool = true,
     uint64_literals: bool = true,
     float64_literals: bool = true,
@@ -118,7 +118,7 @@ pub fn applyDiagnostic(allocator: std.mem.Allocator, client: *q.UnifiedClient, c
         .inspect => |value| return .{ .inspection = try q.SqlInspection.applyDiagnostic(allocator, client, .{ .scope = .{ .name = config.name, .source = config.source, .limits = config.limits }, .sql = value.sql }, detail) },
         .assist => |value| {
             _ = try client.describe(definition);
-            var columns: [m.max_columns]m.Column = undefined;
+            var columns: [q.SourceDefinition.max_columns]q.fuze.Types.Field = undefined;
             const result = try q.Assistance.complete(allocator, name, try definition.schema(&columns), value);
             errdefer result.deinit(allocator);
             const current = try client.describe(definition);
@@ -126,12 +126,12 @@ pub fn applyDiagnostic(allocator: std.mem.Allocator, client: *q.UnifiedClient, c
         },
         .suggest => |input| {
             _ = try client.describe(definition);
-            var columns: [m.max_columns]m.Column = undefined;
+            var columns: [q.SourceDefinition.max_columns]q.fuze.Types.Field = undefined;
             return .{ .suggestions = .{ .resource = definition.resource, .contract = try definition.fingerprint(), .items = try q.Editor.candidates(allocator, name, try definition.schema(&columns), input.search) } };
         },
         .describe => {
             const description = (try b.apply(allocator, client, .{ .describe = config.source })).description;
-            var columns: [m.max_columns]m.Column = undefined;
+            var columns: [q.SourceDefinition.max_columns]q.fuze.Types.Field = undefined;
             return .{ .description = .{ .connection = client.connection, .name = config.name, .source = description, .budgets = config.limits, .columns = try v.foreignColumns(allocator, try definition.schema(&columns)) } };
         },
         .compile => |input| return .{ .compiled = try q.SqlCompilation.applyDiagnostic(allocator, client, .{
@@ -207,11 +207,11 @@ pub fn diagnostic(request: Request, cause: anyerror, binding: q.fuze.Sql.Binding
     return result;
 }
 
-const Scope = struct { definition: q.SourceDefinition, limits: q.Bundle.Limits, name: m.Name };
+const Scope = struct { definition: q.SourceDefinition, limits: q.Bundle.Limits, name: []const u8 };
 fn checkedConfig(allocator: std.mem.Allocator, client: *q.UnifiedClient, config: Config) !Scope {
     const definition = try config.source.native(allocator);
     if (definition.resource != client.connection.resource) return error.QueryIdentityMismatch;
-    return .{ .definition = definition, .limits = try config.limits.native(), .name = try m.Name.init(config.name) };
+    return .{ .definition = definition, .limits = try config.limits.native(), .name = try allocator.dupe(u8, (try q.catalog.TableMetadata.Name.init(config.name)).slice()) };
 }
 /// Preserve the workspace's local scope checks before recording a dispatch
 /// boundary. No native request or replacement command is prepared here.

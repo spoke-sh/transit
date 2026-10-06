@@ -116,6 +116,24 @@ const Expression = struct {
             return self.parser.require(.right);
         }
         const column = try Reference.parse(self.parser);
+        var expected: ?t.Type = null;
+        if (self.hints) |schema| if (schema == .structure) {
+            if (column.resolve(self.name, schema.structure, null)) |index| expected = schema.structure[index].type else |_| {}
+        };
+        // Parser acceptance remains independent of binding. Editor guidance is
+        // scoped to the supplied schema, including a bare qualifier/column
+        // collision, and must not offer operators on an unresolved reference.
+        if (self.parser.editor != null) {
+            if (self.parser.boundary()) |editor| {
+                const qualifier = column.qualifier == null and std.mem.eql(u8, column.name, self.name);
+                editor.* = .{};
+                if (qualifier) editor.symbol(.dot);
+                if (expected == null) return error.UnknownColumn;
+            } else if (expected == null) {
+                self.parser.editor.?.* = .{};
+                return error.UnknownColumn;
+            }
+        }
         if (try self.parser.takeWord("IS")) {
             const negate = try self.parser.takeWord("NOT");
             const state: t.State = if (try self.parser.takeWord("NULL")) .null else if (try self.parser.takeWord("MISSING")) .missing else if (try self.parser.takeWord("TYPE_ERROR")) .type_error else if (try self.parser.takeWord("VALUE")) .value else if (try self.parser.takeWord("CONFLICT")) .conflict else return error.InvalidSqlSyntax;
@@ -123,7 +141,13 @@ const Expression = struct {
             if (negate) try self.append(.negate);
             return;
         }
-        if (self.parser.boundary()) |editor| for ([_]@import("Sql.zig").Tag{ .eq, .ne, .lt, .le, .gt, .ge }) |tag| editor.symbol(tag);
+        if (self.parser.boundary()) |editor| {
+            const comparison = if (expected) |kind| switch (kind) {
+                .interval, .structure, .list, .array, .map, .tagged_union, .json => false,
+                else => true,
+            } else false;
+            if (comparison) for ([_]@import("Sql.zig").Tag{ .eq, .ne, .lt, .le, .gt, .ge }) |tag| editor.symbol(tag);
+        }
         const op: @import("Finite.zig").Comparison = switch (self.parser.token.tag) {
             .eq => .eq,
             .ne => .ne,
@@ -134,10 +158,6 @@ const Expression = struct {
             else => return self.unsupported,
         };
         try self.parser.advance();
-        var expected: ?t.Type = null;
-        if (self.hints) |schema| if (schema == .structure) {
-            if (column.resolve(self.name, schema.structure, null)) |index| expected = schema.structure[index].type else |_| {}
-        };
         const value: @FieldType(@FieldType(Syntax.Atom, "compare"), "value") = if (try self.parser.parameter()) |site| .{ .parameter = site } else .{ .literal = try self.parser.literal(expected) };
         try self.append(.{ .atom = .{ .compare = .{ .column = column, .op = op, .value = value } } });
     }

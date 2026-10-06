@@ -88,7 +88,7 @@ test "typed query and mutation references reject other publication domains" {
     ref.domain = .query_request;
     try t.expectError(error.InvalidTableMutationRequest, q.TableMutationRequest.checkReference(ref));
     ref.spec.format = q.Bundle.format;
-    ref.spec.length = 32;
+    ref.spec.length = q.Bundle.header_bytes;
     try q.Bundle.checkReference(ref);
     ref.domain = .table_mutation;
     try t.expectError(error.InvalidQueryBundle, q.Bundle.checkReference(ref));

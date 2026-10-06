@@ -1,49 +1,68 @@
-//! Typed pages over public authorized readers. data is an exact captured or
-//! retained source; current supplies live Document lifecycle checks. No I/O or
-//! capability is introduced beyond the supplied readers.
+//! Bounded logical pages over exact captured data and independently current
+//! authorization. Decoder inputs retain their declared scalar admission profile.
 const std = @import("std");
 const q = @import("root.zig");
 const p = q.protocol;
-const m = q.fuze.Unified;
+const f = q.fuze;
+const t = f.Types;
+const m = f.Unified;
 const doc = q.document;
 const Def = q.SourceDefinition;
 pub const Cursor = struct {
     ordinal: u64 = 0,
     after: ?p.Value = null,
-    table_after: ?i64 = null,
+    table_after: ?f.TableRow.Identity = null,
+    table_scanned: u64 = 0,
     traversal: doc.Document.SequenceCursor = .{},
     done: bool = false,
 };
 pub const Batch = struct {
-    pub const Key = union(enum) { kv: p.Value, table: i64, element: doc.Model.Dot };
-    columns: [m.max_columns]m.Column = undefined,
+    pub const Key = union(enum) { kv: p.Value, table: f.TableRow.Identity, element: doc.Model.Dot };
+    columns: [Def.max_columns]t.Field = undefined,
     column_count: u8 = 0,
-    cells: [m.max_rows][m.max_columns]m.Cell = undefined,
-    rows: [m.max_rows]m.Row = undefined,
-    keys: [m.max_rows]?Key = @splat(null),
-    decoding: [m.max_rows][m.max_columns]?q.Decoder.Failure = @splat(@splat(null)),
+    cells: [f.LogicalArrow.max_rows][Def.max_columns]t.Values.Cell = undefined,
+    rows: [f.LogicalArrow.max_rows]f.LogicalArrow.Row = undefined,
+    keys: [f.LogicalArrow.max_rows]?Key = @splat(null),
+    decoding: [f.LogicalArrow.max_rows][Def.max_columns]?q.Decoder.Failure = @splat(@splat(null)),
     count: u8 = 0,
     next: Cursor = .{},
-    basis: m.Basis = undefined,
+    basis: q.Basis = undefined,
+    binding: [32]u8 = undefined,
     ordinal: u64 = 0,
-    pub fn schema(self: *const Batch) m.Schema {
-        return .{ .columns = self.columns[0..self.column_count] };
+    table: ?q.TableSource.Page = null,
+    pub fn deinit(self: *Batch) void {
+        if (self.table) |*page_| page_.deinit();
+        self.* = undefined;
     }
-    pub fn engine(self: *Batch) m.Page {
+    pub fn schema(self: *const Batch) t.Type {
+        return .{ .structure = self.columns[0..self.column_count] };
+    }
+    pub fn engine(self: *Batch) f.LogicalStream.Page {
+        if (self.table) |*page_| return page_.engine();
         for (self.rows[0..self.count], self.cells[0..self.count]) |*row, *cells| row.* = .{ .cells = cells[0..self.column_count] };
-        return .{ .basis = self.basis, .ordinal = self.ordinal, .rows = self.rows[0..self.count], .end = self.next.done };
+        return .{ .binding = self.binding, .ordinal = self.ordinal, .rows = self.rows[0..self.count], .end = self.next.done };
     }
 };
-pub fn basis(definition: Def, revision: u64) !m.Basis {
-    var columns: [m.max_columns]m.Column = undefined;
-    return .{ .kind = std.meta.activeTag(definition.source), .resource = definition.resource, .revision = revision, .contract = try definition.fingerprint(), .schema = try (try definition.schema(&columns)).fingerprint() };
+/// Decoder sources have no Table head. Table capture must resolve its exact head.
+pub fn basis(definition: Def, revision: u64) !q.Basis {
+    if (definition.source == .table) return error.TableBasisRequired;
+    return q.Basis.from(definition, .{ .kind = std.meta.activeTag(definition.source), .resource = definition.resource, .revision = revision });
 }
-/// Current declaration/lifecycle evidence, including after capture releases its
-/// source pin. A retained source must never be passed as the current reader.
-pub fn checkCurrent(definition: Def, current: anytype) !void {
-    return checkCurrentDiagnostic(definition, current, null);
+pub fn capture(definition: Def, data: anytype, current: anytype, principal: ?u64, allocator: std.mem.Allocator) !q.Basis {
+    return captureDiagnostic(definition, data, current, principal, allocator, null);
 }
-pub fn checkCurrentDiagnostic(definition: Def, current: anytype, diagnostic: ?*?q.SourceWitness) !void {
+pub fn captureDiagnostic(definition: Def, data: anytype, current: anytype, principal: ?u64, allocator: std.mem.Allocator, diagnostic: ?*?q.SourceWitness) !q.Basis {
+    if (definition.source == .table) return (try definition.source.table.captureDiagnostic(allocator, data, current, principal orelse return error.QueryDenied, diagnostic)).record();
+    try checkCurrent(definition, current, principal);
+    if (data.view.resource != definition.resource) return error.SourceChanged;
+    return basis(definition, data.view.revision);
+}
+/// Current rights remain mandatory after the source pin is released. A Table's
+/// old metadata is checked only at admission or against its retained data cut.
+pub fn checkCurrent(definition: Def, current: anytype, principal: ?u64) !void {
+    return checkCurrentDiagnostic(definition, current, principal, null);
+}
+pub fn checkCurrentDiagnostic(definition: Def, current: anytype, principal: ?u64, diagnostic: ?*?q.SourceWitness) !void {
     if (diagnostic) |detail| detail.* = null;
     if (current.view.resource != definition.resource) {
         if (diagnostic) |detail| detail.* = .{ .reason = .resource, .resource = definition.resource, .expected = definition.resource, .actual = current.view.resource };
@@ -52,11 +71,7 @@ pub fn checkCurrentDiagnostic(definition: Def, current: anytype, diagnostic: ?*?
     switch (definition.source) {
         .kv => {},
         .table => |table| {
-            const observed = (try q.station.Table.open(current, table.id)).schema;
-            if (!std.meta.eql(observed, table.schema)) {
-                if (diagnostic) |detail| detail.* = .{ .reason = .table_schema, .resource = definition.resource, .expected_hash = try table.schema.fingerprint(), .actual_hash = try observed.fingerprint() };
-                return error.TableSchemaChanged;
-            }
+            _ = try table.checkCurrent(current, principal orelse return error.QueryDenied);
         },
         .document => |document| {
             const service = try document.reference.identity().service();
@@ -64,62 +79,22 @@ pub fn checkCurrentDiagnostic(definition: Def, current: anytype, diagnostic: ?*?
         },
     }
 }
-/// Seek only on the ordered, non-null int64 Table primary key. The original
-/// predicate still runs in Fuze; unsupported predicates use the ordinary scan.
-/// This changes access work, never the bound plan, schema or snapshot basis.
-pub fn pagePlanned(definition: Def, plan: m.Plan, expected: m.Basis, cursor: Cursor, data: anytype, current: anytype, allocator: std.mem.Allocator, output: *Batch) !void {
-    if (definition.source != .table or plan.predicate != .compare or plan.predicate.compare.column != 0 or plan.predicate.compare.value != .int64 or plan.predicate.compare.op == .ne)
-        return page(definition, expected, cursor, data, current, allocator, output);
-    if (cursor.done) return error.QueryComplete;
-    if (data.view.resource != definition.resource or !std.meta.eql(expected, try basis(definition, data.view.revision))) return error.SourceChanged;
-    const comparison = plan.predicate.compare;
-    const key = comparison.value.int64;
-    if (comparison.op == .eq) {
-        const table: q.station.Table = .{ .resource = definition.resource, .id = definition.source.table.id, .schema = definition.source.table.schema };
-        output.* = .{ .basis = expected, .ordinal = cursor.ordinal, .next = .{ .ordinal = try std.math.add(u64, cursor.ordinal, 1), .done = true } };
-        output.column_count = @intCast((try definition.schema(&output.columns)).columns.len);
-        if (try table.get(data, key)) |row| try tableRow(output, row, allocator);
-        return;
-    }
-    var seek = cursor;
-    if (cursor.ordinal == 0) switch (comparison.op) {
-        .gt => seek.table_after = key,
-        .ge => if (key != std.math.minInt(i64)) {
-            seek.table_after = key - 1;
-        },
-        else => {},
-    };
-    try page(definition, expected, seek, data, current, allocator, output);
-    if (comparison.op == .lt or comparison.op == .le) {
-        for (output.cells[0..output.count]) |cells| {
-            if (cells[0].value.int64 >= key) {
-                // This source page already covers the entire qualifying range.
-                // Fuze evaluates the original upper-bound predicate on it.
-                output.next.done = true;
-                break;
-            }
-        }
-    }
+fn logicalCell(expected: m.Type, value: m.Cell, allocator: std.mem.Allocator) !t.Values.Cell {
+    return t.Values.fromQuery(allocator, expected, value);
 }
-fn tableRow(output: *Batch, row: q.fuze.model.Row, allocator: std.mem.Allocator) !void {
-    output.keys[output.count] = .{ .table = row.key };
-    output.cells[output.count][0] = .{ .value = .{ .int64 = row.key } };
-    output.cells[output.count][1] = switch (row.value) {
-        .null => .null,
-        .int64 => |value| .{ .value = .{ .int64 = value } },
-        .boolean => |value| .{ .value = .{ .boolean = value } },
-        .utf8 => |value| .{ .value = .{ .utf8 = try allocator.dupe(u8, value.slice()) } },
-        .binary => |value| .{ .value = .{ .binary = try allocator.dupe(u8, value.slice()) } },
-    };
-    output.count += 1;
-}
-/// Every pointer in output borrows the caller's bounded arena or output itself.
-/// An error invalidates the whole page. Never publish a partially filled batch.
-pub fn page(definition: Def, expected: m.Basis, cursor: Cursor, data: anytype, current: anytype, allocator: std.mem.Allocator, output: *Batch) !void {
+/// Call deinit on successful output. Other slices borrow the caller's bounded
+/// request arena; any error invalidates the whole page.
+pub fn page(definition: Def, plan: f.LogicalQuery.Plan, expected: q.Basis, cursor: Cursor, data: anytype, current: anytype, principal: ?u64, allocator: std.mem.Allocator, output: *Batch) !void {
     if (cursor.done) return error.QueryComplete;
-    if (data.view.resource != definition.resource or !std.meta.eql(expected, try basis(definition, data.view.revision))) return error.SourceChanged;
-    output.* = .{ .basis = expected, .ordinal = cursor.ordinal, .next = cursor };
-    output.column_count = @intCast((try definition.schema(&output.columns)).columns.len);
+    if (data.view.resource != definition.resource or data.view.revision != expected.cut.revision or !std.meta.eql(expected, try q.Basis.from(definition, expected.cut))) return error.SourceChanged;
+    try checkCurrent(definition, current, principal);
+    const binding = try expected.fingerprint();
+    if (!std.mem.eql(u8, &binding, &plan.source_basis)) return error.SourceChanged;
+    output.* = .{ .basis = expected, .binding = binding, .ordinal = cursor.ordinal, .next = cursor };
+    errdefer output.deinit();
+    const schema = try definition.schema(&output.columns);
+    output.column_count = @intCast(schema.structure.len);
+    if (definition.source == .table) @memcpy(output.columns[0..output.column_count], schema.structure);
     output.next.ordinal = try std.math.add(u64, cursor.ordinal, 1);
     switch (definition.source) {
         .kv => |kv| {
@@ -133,29 +108,23 @@ pub fn page(definition: Def, expected: m.Basis, cursor: Cursor, data: anytype, c
                     }
                     continue;
                 }
-                output.cells[output.count][0] = try q.Decoder.decodeDiagnostic(kv.key, allocator, entry.key.slice(), &output.decoding[output.count][0]);
-                output.cells[output.count][1] = try q.Decoder.decodeDiagnostic(kv.value, allocator, entry.value.slice(), &output.decoding[output.count][1]);
+                output.cells[output.count][0] = try logicalCell(kv.key.type, try q.Decoder.decodeDiagnostic(kv.key, allocator, entry.key.slice(), &output.decoding[output.count][0]), allocator);
+                output.cells[output.count][1] = try logicalCell(kv.value.type, try q.Decoder.decodeDiagnostic(kv.value, allocator, entry.value.slice(), &output.decoding[output.count][1]), allocator);
                 output.keys[output.count] = .{ .kv = entry.key };
                 output.count += 1;
             };
             if (entries.next == null) output.next.done = true;
         },
-        .table => |table_definition| {
-            // page() validates this declaration against the captured descriptor.
-            // Reuse the compiled schema instead of fetching it twice per page.
-            const table: q.station.Table = .{ .resource = definition.resource, .id = table_definition.id, .schema = table_definition.schema };
-            const continuation: ?q.station.Table.Cursor = if (cursor.table_after) |after| .{
-                .source = if (@TypeOf(data.view.id) == u64) .{ .view = data.view.id } else .{ .version = data.view.id },
-                .resource = definition.resource,
-                .revision = expected.revision,
-                .table = table.id,
-                .schema = try table.schema.fingerprint(),
-                .after = after,
-            } else null;
-            const rows = try table.page(data, continuation);
-            for (rows.rows[0..rows.len]) |row| try tableRow(output, row, allocator);
-            output.next.table_after = if (rows.next) |next| next.after else null;
-            output.next.done = rows.next == null;
+        .table => |table| {
+            const who = principal orelse return error.QueryDenied;
+            const captured = try table.restore(allocator, data, current, who, expected);
+            output.table = try table.page(allocator, captured, .{ .binding = binding, .ordinal = cursor.ordinal, .scanned = cursor.table_scanned, .after = cursor.table_after, .done = cursor.done }, plan, data, current, who);
+            const rows = &output.table.?;
+            output.count = rows.count;
+            output.next.table_after = rows.next.after;
+            output.next.table_scanned = rows.next.scanned;
+            output.next.done = rows.next.done;
+            for (rows.owned[0..rows.count], 0..) |row, index| output.keys[index] = .{ .table = row.?.identity };
         },
         .document => |document| {
             const service = try document.reference.identity().service();
@@ -182,7 +151,7 @@ pub fn page(definition: Def, expected: m.Basis, cursor: Cursor, data: anytype, c
                         },
                         .more => {},
                         .item => |item| {
-                            for (document.projections, 0..) |projection, index| output.cells[output.count][index] = try project(state, &reader, projection, item, allocator, &work);
+                            for (document.projections, 0..) |projection, index| output.cells[output.count][index] = try logicalCell(projection.column.type, try project(state, &reader, projection, item, allocator, &work), allocator);
                             output.keys[output.count] = .{ .element = item.id };
                             output.count += 1;
                             if (output.count == m.max_rows) break;
@@ -191,7 +160,7 @@ pub fn page(definition: Def, expected: m.Basis, cursor: Cursor, data: anytype, c
                 }
             } else {
                 if (cursor.ordinal != 0) return error.InvalidQueryOrdinal;
-                for (document.projections, 0..) |projection, index| output.cells[0][index] = try project(state, &reader, projection, null, allocator, &work);
+                for (document.projections, 0..) |projection, index| output.cells[0][index] = try logicalCell(projection.column.type, try project(state, &reader, projection, null, allocator, &work), allocator);
                 output.count = 1;
                 output.next.done = true;
             }
@@ -200,7 +169,7 @@ pub fn page(definition: Def, expected: m.Basis, cursor: Cursor, data: anytype, c
             try checkReference(document.reference, try service.open(current, document.reference.revision));
         },
     }
-    try output.engine().validate(output.schema());
+    try checkCurrent(definition, current, principal);
 }
 fn checkReference(reference: doc.Client.Reference, state: doc.Document) !void {
     if (state.document != reference.document or state.epoch != reference.epoch or state.type_revision != reference.type_revision or state.revision != reference.revision) return error.DocumentIdentityMismatch;

@@ -3,6 +3,8 @@
 const std = @import("std");
 const q = @import("root.zig");
 const m = q.fuze.Unified;
+const f = q.fuze;
+const types = f.Types;
 const v = q.Values;
 const a = q.document.JsonValues;
 const Allocator = std.mem.Allocator;
@@ -11,8 +13,8 @@ pub const Request = struct { scope: Scope, sql: []const u8 };
 pub const Operator = enum { scan, filter, limit, project, count, sum, count_values };
 pub const PredicateAtom = union(enum) {
     all,
-    state: struct { column: []const u8, value: m.State },
-    compare: struct { column: []const u8, op: m.Plan.Comparison, type: m.Type },
+    state: struct { column: []const u8, value: types.State },
+    compare: struct { column: []const u8, op: m.Plan.Comparison, type: types.Type },
 };
 pub const PredicateInstruction = union(enum) {
     atom: PredicateAtom,
@@ -27,17 +29,17 @@ pub const Predicate = union(enum) {
     compare: @FieldType(PredicateAtom, "compare"),
     program: []const PredicateInstruction,
 };
-fn inspectAtom(allocator: Allocator, atom: m.Plan.Atom, schema: m.Schema) !PredicateAtom {
+fn inspectAtom(allocator: Allocator, atom: f.LogicalQuery.Plan.Atom, schema: types.Type) !PredicateAtom {
     return switch (atom) {
         .all => .all,
-        .state => |state| .{ .state = .{ .column = try allocator.dupe(u8, (try schema.column(state.column)).name.slice()), .value = state.value } },
-        .compare => |comparison| .{ .compare = .{ .column = try allocator.dupe(u8, (try schema.column(comparison.column)).name.slice()), .op = comparison.op, .type = std.meta.activeTag(comparison.value) } },
+        .state => |state| .{ .state = .{ .column = try allocator.dupe(u8, schema.structure[state.column].name), .value = state.value } },
+        .compare => |comparison| .{ .compare = .{ .column = try allocator.dupe(u8, schema.structure[comparison.column].name), .op = comparison.op, .type = try schema.structure[comparison.column].type.cloneInto(allocator) } },
     };
 }
-fn inspectPredicate(allocator: Allocator, predicate: m.Plan.Predicate, schema: m.Schema) !Predicate {
+fn inspectPredicate(allocator: Allocator, predicate: @FieldType(f.LogicalQuery.Plan, "predicate"), schema: types.Type) !Predicate {
     return switch (predicate) {
         .program => |*program| blk: {
-            const view = try program.view();
+            const view = program;
             const result = try allocator.alloc(PredicateInstruction, view.instructions.len);
             for (view.instructions, result) |instruction, *out| out.* = switch (instruction) {
                 .atom => |atom| .{ .atom = try inspectAtom(allocator, atom, schema) },
@@ -45,7 +47,7 @@ fn inspectPredicate(allocator: Allocator, predicate: m.Plan.Predicate, schema: m
             };
             break :blk .{ .program = result };
         },
-        inline else => |value, tag| switch (try inspectAtom(allocator, @unionInit(m.Plan.Atom, @tagName(tag), value), schema)) {
+        inline else => |value, tag| switch (try inspectAtom(allocator, @unionInit(f.LogicalQuery.Plan.Atom, @tagName(tag), value), schema)) {
             inline else => |atom_value, atom_tag| @unionInit(Predicate, @tagName(atom_tag), atom_value),
         },
     };
@@ -84,40 +86,42 @@ pub fn apply(allocator: Allocator, client: anytype, request: Request) !Result {
 pub fn applyDiagnostic(allocator: Allocator, client: anytype, request: Request, detail: ?*q.fuze.Sql.Binding) !Result {
     if (detail) |value| value.* = .{};
     const definition = try request.scope.source.native(allocator);
-    const name = try m.Name.init(request.scope.name);
+    const source_name = try q.catalog.TableMetadata.Name.init(request.scope.name);
+    const name = source_name.slice();
     const limits = try request.scope.limits.native();
     _ = try client.describe(definition);
     var location: q.fuze.Sql.Location = .{ .offset = 0 };
-    const ast = (q.fuze.Sql.parseInspectionLocated(request.sql, &location) catch |err| {
-        if (detail) |value| value.location = location;
-        return err;
-    }) orelse return error.UnsupportedStatement;
-    var columns: [m.max_columns]m.Column = undefined;
-    const schema = try definition.schema(&columns);
-    const details: Details = switch (ast) {
-        .describe => |target| blk: {
-            if (!std.mem.eql(u8, target.slice(), name.slice())) {
-                if (detail) |value| {
-                    value.subject = target;
-                    @memcpy(value.scope[0..name.slice().len], name.slice());
-                    value.scope_len = name.slice().len;
-                }
-                return error.UnknownSource;
-            }
-            break :blk .{ .description = .{ .columns = try v.foreignColumns(allocator, schema) } };
-        },
-        .show => |catalog| blk: {
-            if (catalog != .tables) return error.UnsupportedCatalog;
-            const names = try allocator.alloc([]const u8, if (definition.source == .table) 1 else 0);
-            if (names.len != 0) names[0] = try allocator.dupe(u8, name.slice());
-            break :blk .{ .tables = names };
-        },
-        .explain => |select| .{ .explanation = try explain(allocator, try m.Sql.compileDiagnostic(allocator, select, .{ .name = name, .schema = schema }, detail), schema, limits) },
+    errdefer if (detail) |value| {
+        if (value.location == null) value.location = location;
     };
+    var parser = try f.SqlTyped.init(allocator, request.sql, &location);
+    var columns: [q.SourceDefinition.max_columns]types.Field = undefined;
+    const schema = try definition.schema(&columns);
+    const details: Details = if (try parser.takeWord("DESCRIBE")) blk: {
+        const target = try parser.named(.source);
+        try parser.finish();
+        if (!std.mem.eql(u8, target, name)) return error.UnknownSource;
+        break :blk .{ .description = .{ .columns = try v.foreignColumns(allocator, schema) } };
+    } else if (try parser.takeWord("SHOW")) blk: {
+        if (!try parser.takeWord("TABLES")) return error.UnsupportedCatalog;
+        try parser.finish();
+        const names = try allocator.alloc([]const u8, if (definition.source == .table) 1 else 0);
+        if (names.len != 0) names[0] = try allocator.dupe(u8, name);
+        break :blk .{ .tables = names };
+    } else if (try parser.takeWord("EXPLAIN")) blk: {
+        const offset = parser.lexer.start;
+        const bundle = q.Bundle.fromSqlDiagnostic(allocator, definition, name, request.sql[offset..], limits, detail) catch |err| {
+            if (detail) |value| if (value.location) |*at| {
+                at.offset += offset;
+            };
+            return err;
+        };
+        break :blk .{ .explanation = try explain(allocator, bundle.plan, bundle.plan.schema, limits) };
+    } else return error.UnsupportedStatement;
     const current = try client.describe(definition);
     if (details == .explanation and !current.limits.permits(limits)) return error.QueryBudgetExceeded;
     return .{
-        .name = try allocator.dupe(u8, name.slice()),
+        .name = try allocator.dupe(u8, name),
         .resource = definition.resource,
         .source_kind = std.meta.activeTag(definition.source),
         .contract = try definition.fingerprint(),
@@ -127,9 +131,9 @@ pub fn applyDiagnostic(allocator: Allocator, client: anytype, request: Request, 
         .details = details,
     };
 }
-fn explain(allocator: Allocator, plan: m.Plan, schema: m.Schema, limits: q.Bundle.Limits) !Explanation {
-    var output: [m.max_columns]m.Column = undefined;
-    const output_schema = try plan.outputSchema(schema, &output);
+fn explain(allocator: Allocator, plan: f.LogicalQuery.Plan, schema: types.Type, limits: q.Bundle.Limits) !Explanation {
+    var output: [q.SourceDefinition.max_columns]types.Field = undefined;
+    const output_schema = try plan.outputSchema(&output);
     var operators: [4]Operator = undefined;
     var count: usize = 1;
     operators[0] = .scan;
@@ -149,7 +153,7 @@ fn explain(allocator: Allocator, plan: m.Plan, schema: m.Schema, limits: q.Bundl
     };
     count += 1;
     const projection = try allocator.alloc([]const u8, plan.projection.len);
-    for (plan.projection, projection) |index, *target| target.* = try allocator.dupe(u8, (try schema.column(index)).name.slice());
+    for (plan.projection, projection) |index, *target| target.* = try allocator.dupe(u8, schema.structure[index].name);
     return .{
         .operators = try allocator.dupe(Operator, operators[0..count]),
         .predicate = try inspectPredicate(allocator, plan.predicate, schema),
@@ -165,20 +169,20 @@ test "compound explanation preserves instruction order and omits literals" {
     const t = std.testing;
     var arena: std.heap.ArenaAllocator = .init(t.allocator);
     defer arena.deinit();
-    const schema: m.Schema = .{ .columns = &.{.{ .name = try m.Name.init("label"), .type = .utf8 }} };
-    const plan: m.Plan = .{ .projection = &.{0}, .predicate = .{ .program = try .init(&.{
-        .{ .atom = .{ .compare = .{ .column = 0, .op = .eq, .value = .{ .utf8 = "private-literal" } } } },
+    const schema: types.Type = .{ .structure = &.{.{ .name = "label", .type = .utf8 }} };
+    const plan: f.LogicalQuery.Plan = .{ .schema = schema, .source_basis = @splat(0), .projection = &.{0}, .predicate = .{ .program = .{ .instructions = &.{
+        .{ .atom = .{ .compare = .{ .column = 0, .op = .eq, .value = .{ .bytes = "private-literal" } } } },
         .negate,
         .{ .atom = .{ .state = .{ .column = 0, .value = .null } } },
         .disjunction,
-    }) } };
+    } } } };
     const value = try explain(arena.allocator(), plan, schema, .{ .pages = 10, .segments = 10, .result_bytes = 1000 });
     try t.expectEqualSlices(Operator, &.{ .scan, .filter, .project }, value.operators);
     try t.expectEqual(4, value.predicate.program.len);
     try t.expectEqualStrings("label", value.predicate.program[0].atom.compare.column);
-    try t.expectEqual(m.Type.utf8, value.predicate.program[0].atom.compare.type);
+    try t.expectEqual(q.fuze.Types.Tag.utf8, std.meta.activeTag(value.predicate.program[0].atom.compare.type));
     try t.expect(value.predicate.program[1] == .negate);
-    try t.expectEqual(m.State.null, value.predicate.program[2].atom.state.value);
+    try t.expectEqual(q.fuze.Types.State.null, value.predicate.program[2].atom.state.value);
     try t.expect(value.predicate.program[3] == .disjunction);
     const encoded = try std.json.Stringify.valueAlloc(arena.allocator(), value, .{});
     try t.expect(std.mem.indexOf(u8, encoded, "private-literal") == null);
@@ -241,14 +245,14 @@ test "inspection fixtures share typed lowering and final authority without an ex
     kv_scope.source.source = .{ .kv = .{ .prefix = "", .key = .{ .type = .utf8 }, .value = .{ .type = .uint64 } } };
     const empty = try apply(allocator, &client, .{ .scope = kv_scope, .sql = "SHOW TABLES" });
     try t.expectEqual(0, empty.details.tables.len);
-    const value = try apply(allocator, &client, .{ .scope = kv_scope, .sql = "EXPLAIN SELECT value FROM items WHERE value = '18446744073709551615'::uint64" });
-    try t.expectEqual(m.Type.uint64, value.details.explanation.predicate.compare.type);
-    const compound_sql = "EXPLAIN SELECT value FROM items WHERE NOT (value = '123456789'::uint64 OR value IS NULL)";
+    const value = try apply(allocator, &client, .{ .scope = kv_scope, .sql = "EXPLAIN SELECT value FROM items WHERE value = 18446744073709551615" });
+    try t.expectEqual(q.fuze.Types.Tag.uint64, std.meta.activeTag(value.details.explanation.predicate.program[0].atom.compare.type));
+    const compound_sql = "EXPLAIN SELECT value FROM items WHERE NOT (value = 123456789 OR value IS NULL)";
     const compound = try apply(allocator, &client, .{ .scope = kv_scope, .sql = compound_sql });
     const program = compound.details.explanation.predicate.program;
     try t.expectEqual(4, program.len);
-    try t.expectEqual(m.Type.uint64, program[0].atom.compare.type);
-    try t.expectEqual(m.State.null, program[1].atom.state.value);
+    try t.expectEqual(q.fuze.Types.Tag.uint64, std.meta.activeTag(program[0].atom.compare.type));
+    try t.expectEqual(q.fuze.Types.State.null, program[1].atom.state.value);
     try t.expect(program[2] == .disjunction and program[3] == .negate);
     const inspected = try std.json.Stringify.valueAlloc(allocator, compound, .{});
     try t.expect(std.mem.indexOf(u8, inspected, "123456789") == null);

@@ -160,7 +160,7 @@ pub fn compileTableDiagnostic(text: []const u8, binding: ?*sql.Binding) !struct 
     const schema = definition.tableSchemaDiagnostic(binding) catch |err| {
         if (binding) |detail| if (detail.subject) |subject| {
             for (definition.body.table, 0..) |slot, index| if (slot) |column| {
-                if (std.meta.eql(column.name, subject)) detail.location = .{ .offset = locations.columns[index].? };
+                if (std.mem.eql(u8, column.name.slice(), subject.slice())) detail.location = .{ .offset = locations.columns[index].? };
             };
         };
         return err;

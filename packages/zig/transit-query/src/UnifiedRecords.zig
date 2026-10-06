@@ -2,7 +2,8 @@
 const std = @import("std");
 const q = @import("root.zig");
 const p = q.protocol;
-const m = q.fuze.Unified;
+const f = q.fuze;
+const m = f.Unified;
 const Pub = q.station.Publication;
 const Ref = q.station.PublicationReference;
 pub const arrow_format: u32 = 0x31415155; // UQA1
@@ -100,6 +101,12 @@ pub const Policy = struct {
         if (!std.meta.eql(grant.scope, source.scope) or grant.owner != source.owner) return error.QueryDenied;
         return grant.principal;
     }
+    pub fn principal(self: Policy, source: q.SourceDefinition) !?u64 {
+        if (!self.allow) return error.QueryDenied;
+        if (source.source == .table) return try self.tablePrincipal(source.source.table);
+        if (!self.target.declarationMatches(try q.Bundle.declaration(source))) return error.QueryDenied;
+        return null;
+    }
     pub fn encode(self: Policy) !p.Value {
         try identity(self.peer);
         try identity(self.requests);
@@ -196,18 +203,39 @@ pub fn initialChain() [32]u8 {
     return digest;
 }
 pub const Checkpoint = struct {
-    progress: m.Stream.Progress,
+    cut: q.Basis.Cut,
+    progress: f.LogicalStream.Progress,
     cursor: q.UnifiedSource.Cursor = .{},
     bytes: u64 = 0,
     chain: [32]u8 = initialChain(),
+    pub fn basis(self: Checkpoint, source: q.SourceDefinition) !q.Basis {
+        return q.Basis.from(source, self.cut);
+    }
+    pub fn bound(self: Checkpoint, bundle: q.Bundle) !f.LogicalQuery.Plan {
+        const plan = try bundle.bind(try (try self.basis(bundle.source)).fingerprint());
+        try self.progress.validate(plan);
+        if (self.cut.kind == .table) {
+            const capacity = std.math.mul(u64, self.progress.pages, f.LogicalArrow.max_rows) catch return error.InvalidQueryRecord;
+            if (self.cursor.table_scanned < self.progress.counters.scanned or self.cursor.table_scanned > capacity or (!self.cursor.done and self.cursor.table_scanned != capacity)) return error.InvalidQueryRecord;
+        }
+        _ = try self.encode();
+        return plan;
+    }
     pub fn encode(self: Checkpoint) !p.Value {
-        if (self.cursor.ordinal != self.progress.pages) return error.InvalidQueryRecord;
+        try self.cut.validate();
+        if (self.cursor.ordinal != self.progress.pages or (self.progress.segments == 0) != (self.bytes == 0)) return error.InvalidQueryRecord;
+        if (self.progress.pages == 0 and (self.cursor.after != null or self.cursor.table_after != null or self.cursor.table_scanned != 0 or self.cursor.done or !std.meta.eql(self.cursor.traversal, q.document.Document.SequenceCursor{}))) return error.InvalidQueryRecord;
+        if (self.progress.segments == 0 and !std.mem.eql(u8, &self.chain, &initialChain())) return error.InvalidQueryRecord;
         var bytes: [p.Value.max_bytes]u8 = undefined;
         var writer: std.Io.Writer = .fixed(&bytes);
         try writer.writeAll("UQC1");
-        try writer.writeAll(&try self.progress.encode());
+        try writer.writeByte(@backingInt(self.cut.kind));
+        try writer.writeInt(u64, self.cut.resource, .little);
+        try writer.writeInt(u64, self.cut.revision, .little);
+        try writer.writeAll(&self.cut.head);
+        try writer.writeAll(&try self.progress.encodeRecord());
         try writer.writeByte(@intFromBool(self.cursor.done));
-        switch (self.progress.basis.kind) {
+        switch (self.cut.kind) {
             .kv => {
                 try writer.writeByte(@intFromBool(self.cursor.after != null));
                 if (self.cursor.after) |after| {
@@ -215,11 +243,16 @@ pub const Checkpoint = struct {
                     try writer.writeByte(@intCast(after.len));
                     try writer.writeAll(after.slice());
                 }
-                if (self.cursor.table_after != null or !std.meta.eql(self.cursor.traversal, q.document.Document.SequenceCursor{})) return error.InvalidQueryRecord;
+                if (self.cursor.table_after != null or self.cursor.table_scanned != 0 or !std.meta.eql(self.cursor.traversal, q.document.Document.SequenceCursor{})) return error.InvalidQueryRecord;
             },
             .table => {
                 try writer.writeByte(@intFromBool(self.cursor.table_after != null));
-                try writer.writeInt(i64, self.cursor.table_after orelse 0, .little);
+                if (self.cursor.table_after) |after| {
+                    try after.validate();
+                    try writer.writeAll(&try after.encode());
+                } else try writer.splatByteAll(0, 20);
+                try writer.writeInt(u64, self.cursor.table_scanned, .little);
+                if ((self.cursor.table_after == null) != (self.cursor.table_scanned == 0)) return error.InvalidQueryRecord;
                 if (self.cursor.after != null or !std.meta.eql(self.cursor.traversal, q.document.Document.SequenceCursor{})) return error.InvalidQueryRecord;
             },
             .document => {
@@ -227,7 +260,7 @@ pub const Checkpoint = struct {
                 try writer.writeInt(u64, self.cursor.traversal.current.counter, .little);
                 try writer.writeInt(u64, self.cursor.traversal.current.replica, .little);
                 try writer.writeByte(@backingInt(self.cursor.traversal.phase));
-                if (self.cursor.after != null or self.cursor.table_after != null) return error.InvalidQueryRecord;
+                if (self.cursor.after != null or self.cursor.table_after != null or self.cursor.table_scanned != 0) return error.InvalidQueryRecord;
             },
         }
         try writer.writeInt(u64, self.bytes, .little);
@@ -238,14 +271,15 @@ pub const Checkpoint = struct {
         try value.validate();
         var reader: std.Io.Reader = .fixed(value.slice());
         try magic(&reader, "UQC1");
-        var result: Checkpoint = .{ .progress = try m.Stream.Progress.decode(try reader.take(m.Stream.progress_bytes)) };
+        const cut: q.Basis.Cut = .{ .kind = std.enums.fromInt(m.SourceKind, try reader.takeByte()) orelse return error.InvalidQueryRecord, .resource = try reader.takeInt(u64, .little), .revision = try reader.takeInt(u64, .little), .head = (try reader.takeArray(32)).* };
+        var result: Checkpoint = .{ .cut = cut, .progress = try f.LogicalStream.Progress.decodeRecord(try reader.take(f.LogicalStream.progress_bytes)) };
         result.cursor.ordinal = result.progress.pages;
         result.cursor.done = switch (try reader.takeByte()) {
             0 => false,
             1 => true,
             else => return error.InvalidQueryRecord,
         };
-        switch (result.progress.basis.kind) {
+        switch (result.cut.kind) {
             .kv => result.cursor.after = switch (try reader.takeByte()) {
                 0 => null,
                 1 => try p.Value.init(try reader.take(try reader.takeByte())),
@@ -253,9 +287,10 @@ pub const Checkpoint = struct {
             },
             .table => {
                 const present = try reader.takeByte();
-                const after = try reader.takeInt(i64, .little);
-                if (present > 1 or (present == 0 and after != 0)) return error.InvalidQueryRecord;
-                result.cursor.table_after = if (present == 1) after else null;
+                const after = try reader.takeArray(20);
+                if (present > 1 or (present == 0 and !std.mem.allEqual(u8, after, 0))) return error.InvalidQueryRecord;
+                result.cursor.table_after = if (present == 1) try f.TableRow.Identity.decode(after) else null;
+                result.cursor.table_scanned = try reader.takeInt(u64, .little);
             },
             .document => result.cursor.traversal = .{ .current = .{ .counter = try reader.takeInt(u64, .little), .replica = try reader.takeInt(u64, .little) }, .phase = std.enums.fromInt(@FieldType(q.document.Document.SequenceCursor, "phase"), try reader.takeByte()) orelse return error.InvalidQueryRecord },
         }
@@ -274,7 +309,7 @@ pub const Segment = struct {
     arrow_digest: [32]u8,
     pub fn encode(self: Segment) !p.Value {
         try self.reference.validate();
-        if (self.reference.domain != .query_result or self.ordinal >= manifest_record - 1 or self.reference.record != self.ordinal + 1 or self.rows > m.max_rows or self.reference.spec.format != arrow_format or self.reference.spec.length == 0 or self.reference.spec.length > m.Arrow.segment_bytes) return error.InvalidResultSegment;
+        if (self.reference.domain != .query_result or self.ordinal >= manifest_record - 1 or self.reference.record != self.ordinal + 1 or self.rows > f.LogicalArrow.max_rows or self.reference.spec.format != arrow_format or self.reference.spec.length == 0 or self.reference.spec.length > f.LogicalArrow.segment_bytes) return error.InvalidResultSegment;
         var bytes: [125]u8 = undefined;
         var writer: std.Io.Writer = .fixed(&bytes);
         try writer.writeAll("UQS1");

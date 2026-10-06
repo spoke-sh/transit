@@ -29,10 +29,10 @@
         "sql": "SELECT value AS chosen FROM items WHERE value = $1 LIMIT $2",
         "parameters": [
           {
-            "int64": "-9223372036854775808"
+            "signed": "-9223372036854775808"
           },
           {
-            "uint64": "18446744073709551615"
+            "unsigned": "18446744073709551615"
           }
         ]
       },
@@ -45,13 +45,19 @@
         ],
         "limit": "18446744073709551615",
         "predicate": {
-          "compare": {
-            "column": 1,
-            "op": "eq",
-            "value": {
-              "int64": "-9223372036854775808"
+          "program": [
+            {
+              "atom": {
+                "compare": {
+                  "column": 1,
+                  "op": "eq",
+                  "value": {
+                    "signed": "-9223372036854775808"
+                  }
+                }
+              }
             }
-          }
+          ]
         }
       },
       "literal_sql": "SELECT value AS chosen FROM items WHERE value = -9223372036854775808 LIMIT 18446744073709551615"
@@ -84,10 +90,10 @@
         "sql": "SELECT value AS chosen FROM items WHERE value = $1 LIMIT $2",
         "parameters": [
           {
-            "uint64": "18446744073709551615"
+            "unsigned": "18446744073709551615"
           },
           {
-            "uint64": "18446744073709551615"
+            "unsigned": "18446744073709551615"
           }
         ]
       },
@@ -100,16 +106,22 @@
         ],
         "limit": "18446744073709551615",
         "predicate": {
-          "compare": {
-            "column": 1,
-            "op": "eq",
-            "value": {
-              "uint64": "18446744073709551615"
+          "program": [
+            {
+              "atom": {
+                "compare": {
+                  "column": 1,
+                  "op": "eq",
+                  "value": {
+                    "unsigned": "18446744073709551615"
+                  }
+                }
+              }
             }
-          }
+          ]
         }
       },
-      "literal_sql": "SELECT value AS chosen FROM items WHERE value = '18446744073709551615'::uint64 LIMIT 18446744073709551615"
+      "literal_sql": "SELECT value AS chosen FROM items WHERE value = 18446744073709551615 LIMIT 18446744073709551615"
     },
     {
       "name": "float64",
@@ -142,7 +154,7 @@
             "float_bits": "0000000000000080"
           },
           {
-            "uint64": "18446744073709551615"
+            "unsigned": "18446744073709551615"
           }
         ]
       },
@@ -155,16 +167,22 @@
         ],
         "limit": "18446744073709551615",
         "predicate": {
-          "compare": {
-            "column": 1,
-            "op": "eq",
-            "value": {
-              "float_bits": "0000000000000080"
+          "program": [
+            {
+              "atom": {
+                "compare": {
+                  "column": 1,
+                  "op": "eq",
+                  "value": {
+                    "float_bits": "0000000000000080"
+                  }
+                }
+              }
             }
-          }
+          ]
         }
       },
-      "literal_sql": "SELECT value AS chosen FROM items WHERE value = '-0.0'::float64 LIMIT 18446744073709551615"
+      "literal_sql": "SELECT value AS chosen FROM items WHERE value = -0.0 LIMIT 18446744073709551615"
     },
     {
       "name": "boolean",
@@ -197,7 +215,7 @@
             "boolean": true
           },
           {
-            "uint64": "18446744073709551615"
+            "unsigned": "18446744073709551615"
           }
         ]
       },
@@ -210,13 +228,19 @@
         ],
         "limit": "18446744073709551615",
         "predicate": {
-          "compare": {
-            "column": 1,
-            "op": "eq",
-            "value": {
-              "boolean": true
+          "program": [
+            {
+              "atom": {
+                "compare": {
+                  "column": 1,
+                  "op": "eq",
+                  "value": {
+                    "boolean": true
+                  }
+                }
+              }
             }
-          }
+          ]
         }
       },
       "literal_sql": "SELECT value AS chosen FROM items WHERE value = TRUE LIMIT 18446744073709551615"
@@ -252,7 +276,7 @@
             "utf8": "'; DROP TABLE items; -- $2"
           },
           {
-            "uint64": "18446744073709551615"
+            "unsigned": "18446744073709551615"
           }
         ]
       },
@@ -265,13 +289,19 @@
         ],
         "limit": "18446744073709551615",
         "predicate": {
-          "compare": {
-            "column": 1,
-            "op": "eq",
-            "value": {
-              "utf8": "'; DROP TABLE items; -- $2"
+          "program": [
+            {
+              "atom": {
+                "compare": {
+                  "column": 1,
+                  "op": "eq",
+                  "value": {
+                    "utf8": "'; DROP TABLE items; -- $2"
+                  }
+                }
+              }
             }
-          }
+          ]
         }
       },
       "literal_sql": "SELECT value AS chosen FROM items WHERE value = '''; DROP TABLE items; -- $2' LIMIT 18446744073709551615"
@@ -307,7 +337,7 @@
             "binary": "0001275cff"
           },
           {
-            "uint64": "18446744073709551615"
+            "unsigned": "18446744073709551615"
           }
         ]
       },
@@ -320,16 +350,22 @@
         ],
         "limit": "18446744073709551615",
         "predicate": {
-          "compare": {
-            "column": 1,
-            "op": "eq",
-            "value": {
-              "binary": "0001275cff"
+          "program": [
+            {
+              "atom": {
+                "compare": {
+                  "column": 1,
+                  "op": "eq",
+                  "value": {
+                    "binary": "0001275cff"
+                  }
+                }
+              }
             }
-          }
+          ]
         }
       },
-      "literal_sql": "SELECT value AS chosen FROM items WHERE value = '\\x0001275cff'::bytea LIMIT 18446744073709551615"
+      "literal_sql": "SELECT value AS chosen FROM items WHERE value = X'0001275cff' LIMIT 18446744073709551615"
     },
     {
       "name": "ordinary",
@@ -340,12 +376,72 @@
             "resource": 7,
             "source": {
               "table": {
-                "id": 9,
-                "names": [
-                  "id",
-                  "value"
-                ],
-                "value_type": "int64"
+                "scope": {
+                  "realm": 1,
+                  "resource": 7,
+                  "catalog": "9"
+                },
+                "owner": 3,
+                "object": "9",
+                "metadata": {
+                  "id": "1",
+                  "spec": {
+                    "format": 1413696769,
+                    "length": 200,
+                    "digest": [
+                      1,
+                      1,
+                      1,
+                      1,
+                      1,
+                      1,
+                      1,
+                      1,
+                      1,
+                      1,
+                      1,
+                      1,
+                      1,
+                      1,
+                      1,
+                      1,
+                      1,
+                      1,
+                      1,
+                      1,
+                      1,
+                      1,
+                      1,
+                      1,
+                      1,
+                      1,
+                      1,
+                      1,
+                      1,
+                      1,
+                      1,
+                      1
+                    ]
+                  }
+                },
+                "row_type": {
+                  "structure": [
+                    {
+                      "name": "id",
+                      "type": {
+                        "int64": {}
+                      },
+                      "nullable": false
+                    },
+                    {
+                      "name": "value",
+                      "type": {
+                        "int64": {}
+                      },
+                      "nullable": true
+                    }
+                  ]
+                }
               }
             }
           },
@@ -375,12 +471,72 @@
             "resource": 7,
             "source": {
               "table": {
-                "id": 9,
-                "names": [
-                  "id",
-                  "value"
-                ],
-                "value_type": "int64"
+                "scope": {
+                  "realm": 1,
+                  "resource": 7,
+                  "catalog": "9"
+                },
+                "owner": 3,
+                "object": "9",
+                "metadata": {
+                  "id": "1",
+                  "spec": {
+                    "format": 1413696769,
+                    "length": 200,
+                    "digest": [
+                      1,
+                      1,
+                      1,
+                      1,
+                      1,
+                      1,
+                      1,
+                      1,
+                      1,
+                      1,
+                      1,
+                      1,
+                      1,
+                      1,
+                      1,
+                      1,
+                      1,
+                      1,
+                      1,
+                      1,
+                      1,
+                      1,
+                      1,
+                      1,
+                      1,
+                      1,
+                      1,
+                      1,
+                      1,
+                      1,
+                      1,
+                      1
+                    ]
+                  }
+                },
+                "row_type": {
+                  "structure": [
+                    {
+                      "name": "id",
+                      "type": {
+                        "int64": {}
+                      },
+                      "nullable": false
+                    },
+                    {
+                      "name": "value",
+                      "type": {
+                        "int64": {}
+                      },
+                      "nullable": true
+                    }
+                  ]
+                }
               }
             }
           },
@@ -410,12 +566,72 @@
             "resource": 7,
             "source": {
               "table": {
-                "id": 9,
-                "names": [
-                  "id",
-                  "value"
-                ],
-                "value_type": "int64"
+                "scope": {
+                  "realm": 1,
+                  "resource": 7,
+                  "catalog": "9"
+                },
+                "owner": 3,
+                "object": "9",
+                "metadata": {
+                  "id": "1",
+                  "spec": {
+                    "format": 1413696769,
+                    "length": 200,
+                    "digest": [
+                      1,
+                      1,
+                      1,
+                      1,
+                      1,
+                      1,
+                      1,
+                      1,
+                      1,
+                      1,
+                      1,
+                      1,
+                      1,
+                      1,
+                      1,
+                      1,
+                      1,
+                      1,
+                      1,
+                      1,
+                      1,
+                      1,
+                      1,
+                      1,
+                      1,
+                      1,
+                      1,
+                      1,
+                      1,
+                      1,
+                      1,
+                      1
+                    ]
+                  }
+                },
+                "row_type": {
+                  "structure": [
+                    {
+                      "name": "id",
+                      "type": {
+                        "int64": {}
+                      },
+                      "nullable": false
+                    },
+                    {
+                      "name": "value",
+                      "type": {
+                        "int64": {}
+                      },
+                      "nullable": true
+                    }
+                  ]
+                }
               }
             }
           },
@@ -428,10 +644,10 @@
         "sql": "SELECT count(chosen.amount) AS present FROM (SELECT value AS amount FROM items WHERE id > $2 LIMIT $1) AS chosen",
         "parameters": [
           {
-            "uint64": "2"
+            "unsigned": "2"
           },
           {
-            "int64": "9007199254740993"
+            "signed": "9007199254740993"
           }
         ]
       },
@@ -445,13 +661,19 @@
         "limit": "2",
         "aggregate": "count_values",
         "predicate": {
-          "compare": {
-            "column": 0,
-            "op": "gt",
-            "value": {
-              "int64": "9007199254740993"
+          "program": [
+            {
+              "atom": {
+                "compare": {
+                  "column": 0,
+                  "op": "gt",
+                  "value": {
+                    "signed": "9007199254740993"
+                  }
+                }
+              }
             }
-          }
+          ]
         }
       },
       "literal_sql": "SELECT count(chosen.amount) AS present FROM (SELECT value AS amount FROM items WHERE id > 9007199254740993 LIMIT 2) AS chosen"
@@ -504,13 +726,19 @@
           0
         ],
         "predicate": {
-          "compare": {
-            "column": 0,
-            "op": "eq",
-            "value": {
-              "utf8": "owned"
+          "program": [
+            {
+              "atom": {
+                "compare": {
+                  "column": 0,
+                  "op": "eq",
+                  "value": {
+                    "utf8": "owned"
+                  }
+                }
+              }
             }
-          }
+          ]
         }
       },
       "literal_sql": "SELECT value FROM items WHERE value = 'owned'"

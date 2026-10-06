@@ -7,6 +7,12 @@ const m = q.fuze.Unified;
 const r = q.UnifiedRecords;
 const capture = q.UnifiedCapture;
 const Store = @import("source_store_test.zig");
+const tables = @import("catalog_store_test.zig");
+fn plan(allocator: std.mem.Allocator, definition: q.SourceDefinition, projection: []const u8, aggregate: m.Plan.Aggregate) !q.fuze.LogicalQuery.Plan {
+    var result = try tables.plan(allocator, definition, projection);
+    result.aggregate = aggregate;
+    return result;
+}
 const Source = struct {
     store: *Store,
     other: ?*Store = null,
@@ -45,7 +51,7 @@ fn requestBytes(store: *Store, body: []const u8) !s.PublicationReference {
 const limits: q.Bundle.Limits = .{ .pages = 1000, .segments = 100, .result_bytes = 1048576 };
 fn start(store: *Store, requests: *Store, bundle: q.Bundle) !r.Job {
     var turn = try store.capture();
-    try capture.setPolicy(&turn, .{ .peer = 9, .requests = requests.resource, .revision = 1, .allow = true, .limits = limits, .target = .{ .declaration = try q.Bundle.declaration(bundle.source) } });
+    try capture.setPolicy(&turn, .{ .peer = 9, .requests = requests.resource, .revision = 1, .allow = true, .limits = limits, .target = if (bundle.source.source == .table) .{ .catalog = .{ .scope = bundle.source.source.table.scope, .owner = 3, .principal = 17 } } else .{ .declaration = try q.Bundle.declaration(bundle.source) } });
     try store.commit(turn);
     const ref = try request(requests, bundle);
     turn = try frame(store, 9, .{ .kind = .call, .correlation = 77, .payload = try ref.encode() });
@@ -115,21 +121,22 @@ fn verifyComplete(store: *Store, requests: *Store, job: r.Job, expected: u64, wo
     const authority: Source = .{ .store = store, .other = requests };
     const identity: q.UnifiedResult.Expected = .{ .resource = store.resource, .source = store.pid, .requester = 9, .correlation = 77, .request = job.request };
     var cursor: ?q.UnifiedResult.Cursor = null;
-    var decoded: m.Inspect.Batch = undefined;
+    var decoded: q.fuze.LogicalInspect.Batch = undefined;
     var output: [m.Arrow.segment_bytes]u8 = undefined;
     var seen: usize = 0;
     while (true) {
         var arena = std.heap.ArenaAllocator.init(t.allocator);
         defer arena.deinit();
         const page = try q.UnifiedResult.page(ref, identity, cursor, authority, arena.allocator(), workspace, &output, &decoded);
+        defer decoded.deinit();
         try t.expectEqualDeep(manifest, page.manifest);
-        for (0..decoded.count) |index| {
-            const row = try decoded.row(index);
-            try t.expectEqual(page.schema.columns.len, row.cells.len);
+        for (0..decoded.rows.len) |index| {
+            const row = decoded.rows[index];
+            try t.expectEqual(page.schema.structure.len, row.cells.len);
             seen += 1;
         }
         cursor = page.next;
-        if (seen == decoded.count and cursor != null) {
+        if (seen == decoded.rows.len and cursor != null) {
             store.denied = true;
             try t.expectError(error.AccessDenied, q.UnifiedResult.page(ref, identity, cursor, authority, arena.allocator(), workspace, &output, &decoded));
             store.denied = false;
@@ -142,12 +149,14 @@ fn verifyComplete(store: *Store, requests: *Store, job: r.Job, expected: u64, wo
     try t.expectEqual(expected, seen);
 }
 test "finite capture resumes discarded proposals publishes complete coverage and releases exact cut" {
+    var test_arena: std.heap.ArenaAllocator = .init(t.allocator);
+    defer test_arena.deinit();
     var store: Store = .{};
     defer store.deinit();
     var requests: Store = .{ .resource = 8, .pid = 9 };
     defer requests.deinit();
     const source = try seedKV(&store, 37);
-    const bundle: q.Bundle = .{ .source = source, .plan = .{ .projection = &.{ 0, 1 } }, .limits = limits };
+    const bundle: q.Bundle = .{ .source = source, .plan = try plan(test_arena.allocator(), source, &.{ 0, 1 }, .rows), .limits = limits };
     const job = try start(&store, &requests, bundle);
     const workspace = try t.allocator.alloc(u8, m.Arrow.working_bytes);
     defer t.allocator.free(workspace);
@@ -211,12 +220,14 @@ fn finishCleanup(store: *Store, requests: *Store, job: r.Job, workspace: []u8) !
     return error.CleanupDidNotFinish;
 }
 test "revoked current policy closes staged capture and bounded cleanup does not depend on request access" {
+    var test_arena: std.heap.ArenaAllocator = .init(t.allocator);
+    defer test_arena.deinit();
     var store: Store = .{};
     defer store.deinit();
     var requests: Store = .{ .resource = 8, .pid = 9 };
     defer requests.deinit();
     const source = try seedKV(&store, 12);
-    const job = try start(&store, &requests, .{ .source = source, .plan = .{ .projection = &.{1} }, .limits = limits });
+    const job = try start(&store, &requests, .{ .source = source, .plan = try plan(test_arena.allocator(), source, &.{1}, .rows), .limits = limits });
     const workspace = try t.allocator.alloc(u8, m.Arrow.working_bytes);
     defer t.allocator.free(workspace);
     for (0..3) |_| {
@@ -247,6 +258,8 @@ fn drive(store: *Store, requests: *Store, job: r.Job, workspace: []u8) !void {
     return error.CaptureDidNotFinish;
 }
 test "Table and accepted Document use the same retained capture manifest and cleanup" {
+    var test_arena: std.heap.ArenaAllocator = .init(t.allocator);
+    defer test_arena.deinit();
     const workspace = try t.allocator.alloc(u8, m.Arrow.working_bytes);
     defer t.allocator.free(workspace);
     for ([_]bool{ false, true }) |document| {
@@ -270,17 +283,17 @@ test "Table and accepted Document use the same retained capture manifest and cle
             for (0..12) |index| try change(&store, service, index + 2, 1, index + 2, &.{.{ .insert = .{ .object = .{ .counter = 1, .replica = 1 }, .after = if (index == 0) .root else .{ .counter = index + 1, .replica = 1 }, .value = .{ .signed = @intCast(index) } } }});
             definition = .{ .resource = 7, .source = .{ .document = .{ .reference = .{ .resource = 7, .document = 17, .epoch = 1, .type_revision = 1, .revision = 13 }, .expand = &path, .projections = &projections } } };
         } else {
-            var turn = try store.capture();
-            const table = try s.Table.create(&turn, 1, .{ .names = .{ try .init("id"), try .init("value") }, .value_type = .int64 });
-            try store.commit(turn);
+            try tables.create(&store, "CREATE TABLE items(id INT64 PRIMARY KEY, value INT64)");
+            var found = try tables.source(&store);
+            defer found.deinit();
+            definition = .{ .resource = 7, .source = .{ .table = found.source } };
+            definition.source.table.row_type = try found.source.row_type.cloneInto(test_arena.allocator());
             for (0..12) |index| {
-                turn = try store.capture();
-                try table.upsert(&turn, .{ .key = @intCast(index), .value = .{ .int64 = @intCast(index) } });
-                try store.commit(turn);
+                const row: [2]q.fuze.Types.Values.Cell = @splat(.{ .value = .{ .atom = .{ .signed = @intCast(index) } } });
+                try tables.mutate(&store, index + 2, .{ .insert = &.{&row} });
             }
-            definition = .{ .resource = 7, .source = .{ .table = .{ .id = table.id, .schema = table.schema } } };
         }
-        const job = try start(&store, &requests, .{ .source = definition, .plan = .{ .projection = &.{ 0, 1 } }, .limits = limits });
+        const job = try start(&store, &requests, .{ .source = definition, .plan = try plan(test_arena.allocator(), definition, &.{ 0, 1 }, .rows), .limits = limits });
         try drive(&store, &requests, job, workspace);
         try verifyComplete(&store, &requests, job, 12, workspace);
         var turn = try store.capture();
@@ -290,6 +303,8 @@ test "Table and accepted Document use the same retained capture manifest and cle
     }
 }
 test "query budgets and cancellation discard candidates without leaking source pins" {
+    var test_arena: std.heap.ArenaAllocator = .init(t.allocator);
+    defer test_arena.deinit();
     const workspace = try t.allocator.alloc(u8, m.Arrow.working_bytes);
     defer t.allocator.free(workspace);
     var store: Store = .{};
@@ -297,7 +312,7 @@ test "query budgets and cancellation discard candidates without leaking source p
     var requests: Store = .{ .resource = 8, .pid = 9 };
     defer requests.deinit();
     const definition = try seedKV(&store, 12);
-    const job = try start(&store, &requests, .{ .source = definition, .plan = .{ .projection = &.{1} }, .limits = .{ .pages = 100, .segments = 100, .result_bytes = 1 } });
+    const job = try start(&store, &requests, .{ .source = definition, .plan = try plan(test_arena.allocator(), definition, &.{1}, .rows), .limits = .{ .pages = 100, .segments = 100, .result_bytes = 1 } });
     try t.expectError(error.QueryBudgetExceeded, advance(&store, &requests, job.id, workspace));
     var turn = try store.capture();
     try t.expectEqual(@as(u64, 0), (try capture.checkpoint(&turn, job.id)).progress.pages);
@@ -308,12 +323,14 @@ test "query budgets and cancellation discard candidates without leaking source p
 }
 
 test "explicit cancellation and duplicate continuation do not reopen a capture" {
+    var test_arena: std.heap.ArenaAllocator = .init(t.allocator);
+    defer test_arena.deinit();
     var store: Store = .{};
     defer store.deinit();
     var requests: Store = .{ .resource = 8, .pid = 9 };
     defer requests.deinit();
     const definition = try seedKV(&store, 9);
-    const job = try start(&store, &requests, .{ .source = definition, .plan = .{ .projection = &.{1} }, .limits = limits });
+    const job = try start(&store, &requests, .{ .source = definition, .plan = try plan(test_arena.allocator(), definition, &.{1}, .rows), .limits = limits });
     const workspace = try t.allocator.alloc(u8, m.Arrow.working_bytes);
     defer t.allocator.free(workspace);
     const pending = try advance(&store, &requests, job.id, workspace);
@@ -338,12 +355,14 @@ test "explicit cancellation and duplicate continuation do not reopen a capture" 
 }
 
 test "completed result pages enforce current authority and policy before during and after a prefix" {
+    var test_arena: std.heap.ArenaAllocator = .init(t.allocator);
+    defer test_arena.deinit();
     var store: Store = .{};
     defer store.deinit();
     var requests: Store = .{ .resource = 8, .pid = 9 };
     defer requests.deinit();
     const definition = try seedKV(&store, 20);
-    const job = try start(&store, &requests, .{ .source = definition, .plan = .{ .projection = &.{1} }, .limits = limits });
+    const job = try start(&store, &requests, .{ .source = definition, .plan = try plan(test_arena.allocator(), definition, &.{1}, .rows), .limits = limits });
     const workspace = try t.allocator.alloc(u8, m.Arrow.working_bytes);
     defer t.allocator.free(workspace);
     try drive(&store, &requests, job, workspace);
@@ -356,10 +375,10 @@ test "completed result pages enforce current authority and policy before during 
     var authority: Source = .{ .store = &store, .other = &requests, .opens = &count };
     var arena = std.heap.ArenaAllocator.init(t.allocator);
     defer arena.deinit();
-    var decoded: m.Inspect.Batch = undefined;
+    var decoded: q.fuze.LogicalInspect.Batch = undefined;
     var output: [m.Arrow.segment_bytes]u8 = undefined;
     const first = try q.UnifiedResult.page(reference, identity, null, authority, arena.allocator(), workspace, &output, &decoded);
-    try t.expect(first.next != null and decoded.count > 0);
+    try t.expect(first.next != null and decoded.rows.len > 0);
     const reads = count;
     for ([_]usize{ 1, reads / 2, reads }) |denied| {
         count = 0;
@@ -389,16 +408,20 @@ test "completed result pages enforce current authority and policy before during 
 }
 
 test "admission rejects a request published by another PID even in the declared resource" {
+    var test_arena: std.heap.ArenaAllocator = .init(t.allocator);
+    defer test_arena.deinit();
     var store: Store = .{};
     defer store.deinit();
     var requests: Store = .{ .resource = 8, .pid = 10 };
     defer requests.deinit();
     const definition = try seedKV(&store, 1);
-    try t.expectError(error.UnexpectedQueryPublisher, start(&store, &requests, .{ .source = definition, .plan = .{ .projection = &.{1} }, .limits = limits }));
+    try t.expectError(error.UnexpectedQueryPublisher, start(&store, &requests, .{ .source = definition, .plan = try plan(test_arena.allocator(), definition, &.{1}, .rows), .limits = limits }));
     try t.expectEqual(@as(usize, 0), store.versions.count());
 }
 
 test "source behavior closes denied accepted work with the original reply and reusable bounded memory" {
+    var test_arena: std.heap.ArenaAllocator = .init(t.allocator);
+    defer test_arena.deinit();
     var store: Store = .{};
     defer store.deinit();
     var requests: Store = .{ .resource = 8, .pid = 9 };
@@ -416,7 +439,7 @@ test "source behavior closes denied accepted work with the original reply and re
     try handler.initialize.?(handler.context, &turn);
     try capture.setPolicy(&turn, .{ .peer = 9, .requests = 8, .revision = 1, .allow = true, .limits = limits, .target = .{ .declaration = try q.Bundle.declaration(definition) } });
     try store.commit(turn);
-    const ref = try request(&requests, .{ .source = definition, .plan = .{ .projection = &.{1} }, .limits = limits });
+    const ref = try request(&requests, .{ .source = definition, .plan = try plan(test_arena.allocator(), definition, &.{1}, .rows), .limits = limits });
     const call: s.Frame = .{ .kind = .call, .correlation = 77, .payload = try ref.encode() };
     turn = try frame(&store, 9, call);
     try q.UnifiedBehavior.dispatchSource(&turn, call, 9, 42, Source{ .store = &requests }, adapter, workspace, &cancellation);
@@ -445,6 +468,8 @@ test "source behavior closes denied accepted work with the original reply and re
 }
 
 test "source behavior rejects a published incompatible plan with an exact terminal reply" {
+    var test_arena: std.heap.ArenaAllocator = .init(t.allocator);
+    defer test_arena.deinit();
     var store: Store = .{};
     defer store.deinit();
     var requests: Store = .{ .resource = 8, .pid = 9 };
@@ -462,10 +487,10 @@ test "source behavior rejects a published incompatible plan with an exact termin
     try handler.initialize.?(handler.context, &turn);
     try capture.setPolicy(&turn, .{ .peer = 9, .requests = 8, .revision = 1, .allow = true, .limits = limits, .target = .{ .declaration = try q.Bundle.declaration(definition) } });
     try store.commit(turn);
-    const bundle: q.Bundle = .{ .source = definition, .plan = .{ .projection = &.{1} }, .limits = limits };
+    const bundle: q.Bundle = .{ .source = definition, .plan = try plan(test_arena.allocator(), definition, &.{1}, .rows), .limits = limits };
     var bytes: [q.Bundle.max_bytes]u8 = undefined;
     const encoded = try bundle.encode(&bytes);
-    const plan_start = 32 + @as(usize, std.mem.readInt(u16, bytes[4..6], .little));
+    const plan_start = q.Bundle.header_bytes + @as(usize, std.mem.readInt(u16, bytes[36..38], .little));
     bytes[plan_start + 4] ^= 1;
     // Publication integrity is valid; rejection must come from plan compatibility.
     const ref = try requestBytes(&requests, encoded);
@@ -487,6 +512,8 @@ test "source behavior rejects a published incompatible plan with an exact termin
 }
 
 test "source closure retains the exact first budget dimension and measurements through replay" {
+    var test_arena: std.heap.ArenaAllocator = .init(t.allocator);
+    defer test_arena.deinit();
     const workspace = try t.allocator.alloc(u8, m.Arrow.working_bytes);
     defer t.allocator.free(workspace);
     const cancellation = q.fuze.execution.Cancellation.init(false);
@@ -503,7 +530,7 @@ test "source closure retains the exact first budget dimension and measurements t
             .result_bytes => budget.result_bytes = 1,
             else => unreachable,
         }
-        const job = try start(&store, &requests, .{ .source = definition, .plan = .{ .projection = &.{1} }, .limits = budget });
+        const job = try start(&store, &requests, .{ .source = definition, .plan = try plan(test_arena.allocator(), definition, &.{1}, .rows), .limits = budget });
         var observed: ?q.QueryFailure = null;
         for (0..200) |_| {
             var reader = try store.capture();
@@ -540,6 +567,8 @@ test "source closure retains the exact first budget dimension and measurements t
 }
 
 test "runtime failure commits its original frozen row witness atomically within one value" {
+    var test_arena: std.heap.ArenaAllocator = .init(t.allocator);
+    defer test_arena.deinit();
     var store: Store = .{};
     defer store.deinit();
     var requests: Store = .{ .resource = 8, .pid = 9 };
@@ -554,7 +583,7 @@ test "runtime failure commits its original frozen row witness atomically within 
         try turn.put(try p.Value.init(&key), try p.Value.init(&bytes));
         try store.commit(turn);
     }
-    const job = try start(&store, &requests, .{ .source = source, .plan = .{ .projection = &.{1}, .aggregate = .sum }, .limits = limits });
+    const job = try start(&store, &requests, .{ .source = source, .plan = try plan(test_arena.allocator(), source, &.{1}, .sum), .limits = limits });
     // The live values now no longer overflow; the retained execution still does.
     _ = try seedKV(&store, 2);
     const cancellation = q.fuze.execution.Cancellation.init(false);
@@ -592,13 +621,15 @@ test "runtime failure commits its original frozen row witness atomically within 
 }
 
 test "policy changes retain observed metadata without reopening denied request publications" {
+    var test_arena: std.heap.ArenaAllocator = .init(t.allocator);
+    defer test_arena.deinit();
     for ([_]q.SourceWitness.Reason{ .policy_missing, .policy_disabled, .policy_revision }) |reason| {
         var store: Store = .{};
         defer store.deinit();
         var requests: Store = .{ .resource = 8, .pid = 9 };
         defer requests.deinit();
         const source = try seedKV(&store, 1);
-        const job = try start(&store, &requests, .{ .source = source, .plan = .{ .projection = &.{1} }, .limits = limits });
+        const job = try start(&store, &requests, .{ .source = source, .plan = try plan(test_arena.allocator(), source, &.{1}, .rows), .limits = limits });
         var turn = try store.capture();
         var grant = (try capture.policy(&turn, 9)).?;
         grant.revision = 2;
@@ -629,54 +660,33 @@ test "policy changes retain observed metadata without reopening denied request p
     }
 }
 
-test "changed Table schema failure owns both fingerprints across rollback repair and retirement" {
+test "admitted Table jobs retain their schema through metadata rename and retirement" {
+    var test_arena: std.heap.ArenaAllocator = .init(t.allocator);
+    defer test_arena.deinit();
     var store: Store = .{};
     defer store.deinit();
     var requests: Store = .{ .resource = 8, .pid = 9 };
     defer requests.deinit();
-    var turn = try store.capture();
-    const table = try s.Table.create(&turn, 1, .{ .names = .{ try .init("id"), try .init("value") }, .value_type = .int64 });
-    try store.commit(turn);
-    const source: q.SourceDefinition = .{ .resource = 7, .source = .{ .table = .{ .id = 1, .schema = table.schema } } };
-    const job = try start(&store, &requests, .{ .source = source, .plan = .{ .projection = &.{1} }, .limits = limits });
-    var changed = table.schema;
-    changed.value_type = .boolean;
-    turn = try store.capture();
-    try turn.write(s.Table.descriptorKey(1), try s.Table.encodeSchema(changed));
-    try store.commit(turn);
-    const continuation: r.Continuation = .{ .job = job.id, .input = job.continuation };
-    const cancellation = q.fuze.execution.Cancellation.init(false);
-    var observed: ?q.QueryFailure = null;
-    for (0..2) |attempt| {
-        turn = try frame(&store, 3, .{ .kind = .cast, .payload = try continuation.encode() });
-        var arena: std.heap.ArenaAllocator = .init(t.allocator);
-        defer arena.deinit();
-        const before = turn.decision;
-        var failure: ?q.QueryFailure = null;
-        try t.expectError(error.TableSchemaChanged, capture.advanceDiagnostic(&turn, continuation, Source{ .store = &requests }, arena.allocator(), &.{}, &cancellation, &failure));
-        try t.expectEqualDeep(before, turn.decision);
-        try t.expectEqualDeep(try table.schema.fingerprint(), failure.?.source.?.expected_hash.?);
-        try t.expectEqualDeep(try changed.fingerprint(), failure.?.source.?.actual_hash.?);
-        if (observed) |first| try t.expectEqualDeep(first, failure.?) else observed = failure;
-        if (attempt == 1) {
-            try capture.closeFailure(&turn, job.id, failure.?);
-            try store.commit(turn);
-        }
-    }
-    turn = try store.capture();
-    try turn.write(s.Table.descriptorKey(1), try s.Table.encodeSchema(table.schema));
-    try store.commit(turn);
-    turn = try store.capture();
-    try capture.close(&turn, job.id, .retired);
-    try store.commit(turn);
-    turn = try store.capture();
-    const final = try capture.job(&turn, job.id);
-    try t.expectEqualDeep(observed, final.failure);
-    try t.expect(store.versions.get(job.source).?.view.released_at != null);
-    var status: q.UnifiedRequest.Status = .{ .reference = job.request, .phase = .retired, .correlation = 77, .failure = final.failure };
-    status = try q.UnifiedRequest.Status.decode(try status.encode());
-    var arena: std.heap.ArenaAllocator = .init(t.allocator);
-    defer arena.deinit();
-    const neutral = try q.Bridge.Status.fromNative(arena.allocator(), status);
-    try t.expectEqualDeep(try changed.fingerprint(), neutral.diagnostic.?.facts[3].?.value.?.digest);
+    try tables.create(&store, "CREATE TABLE items(id INT64 PRIMARY KEY, value INT64)");
+    var source = try tables.source(&store);
+    defer source.deinit();
+    const declaration: q.SourceDefinition = .{ .resource = 7, .source = .{ .table = source.source } };
+    const bundle: q.Bundle = .{ .source = declaration, .plan = try plan(test_arena.allocator(), declaration, &.{1}, .rows), .limits = limits };
+    const job = try start(&store, &requests, bundle);
+    var found = try tables.definition(&store);
+    defer found.deinit();
+    const renamed = try tables.ddl(&store, .{ .principal = 17, .operation = 2, .object = 100, .expected_revision = found.metadata.revision, .name = try q.catalog.TableMetadata.Name.init("items"), .action = .{ .rename = try q.catalog.TableMetadata.Name.init("renamed") } });
+    try t.expectEqual(.applied, renamed.operation.state);
+    const dropped = try tables.ddl(&store, .{ .principal = 17, .operation = 3, .object = 100, .expected_revision = renamed.operation.metadata.id, .name = try q.catalog.TableMetadata.Name.init("renamed"), .action = .{ .drop = .{} } });
+    try t.expectEqual(.applied, dropped.operation.state);
+    const workspace = try t.allocator.alloc(u8, q.fuze.LogicalArrow.working_bytes);
+    defer t.allocator.free(workspace);
+    try drive(&store, &requests, job, workspace);
+    try verifyComplete(&store, &requests, job, 0, workspace);
+    var current = try store.capture();
+    try capture.close(&current, job.id, .retired);
+    try store.commit(current);
+    try finishCleanup(&store, &requests, job, workspace);
+    current = try store.capture();
+    try t.expectEqual(.retired, (try capture.job(&current, job.id)).phase);
 }

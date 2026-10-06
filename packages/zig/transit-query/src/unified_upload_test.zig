@@ -15,7 +15,8 @@ const Source = struct {
     }
 };
 fn fixture() q.Bundle {
-    return .{ .source = .{ .resource = 7, .source = .{ .kv = .{ .prefix = p.Value.init("k") catch unreachable, .key = .{ .type = .binary }, .value = .{ .type = .utf8 } } } }, .plan = .{ .projection = &.{1}, .predicate = .{ .compare = .{ .column = 1, .op = .ne, .value = .{ .utf8 = &@as([4096]u8, @splat('x')) } } } }, .limits = .{ .pages = 100, .segments = 100, .result_bytes = 1048576 } };
+    const source: q.SourceDefinition = .{ .resource = 7, .source = .{ .kv = .{ .prefix = p.Value.init("k") catch unreachable, .key = .{ .type = .binary }, .value = .{ .type = .utf8 } } } };
+    return .{ .source = source, .plan = .{ .schema = .{ .structure = &.{ .{ .name = "key", .type = .binary, .nullable = true, .optional = true }, .{ .name = "value", .type = .utf8, .nullable = true, .optional = true } } }, .source_basis = source.fingerprint() catch unreachable, .projection = &.{1}, .predicate = .{ .compare = .{ .column = 1, .op = .ne, .value = .{ .bytes = &@as([4096]u8, @splat('x')) } } } }, .limits = .{ .pages = 100, .segments = 100, .result_bytes = 1048576 } };
 }
 fn stage(store: *Store, ref: s.PublicationReference, bytes: []const u8) !void {
     for (0..ref.spec.chunks()) |ordinal| {

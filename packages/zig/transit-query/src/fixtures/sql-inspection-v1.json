@@ -2,17 +2,381 @@
   "version": 1,
   "scope": {
     "name": "items",
-    "source": {"version":1,"resource":17,"source":{"table":{"id":1,"names":["id","value"],"value_type":"int64"}}},
-    "limits": {"pages":"100","segments":"100","result_bytes":"1048576"}
+    "source": {
+      "version": 1,
+      "resource": 17,
+      "source": {
+        "table": {
+          "scope": {
+            "realm": 1,
+            "resource": 17,
+            "catalog": "9"
+          },
+          "owner": 3,
+          "object": "1",
+          "metadata": {
+            "id": "1",
+            "spec": {
+              "format": 1413696769,
+              "length": 200,
+              "digest": [
+                1,
+                1,
+                1,
+                1,
+                1,
+                1,
+                1,
+                1,
+                1,
+                1,
+                1,
+                1,
+                1,
+                1,
+                1,
+                1,
+                1,
+                1,
+                1,
+                1,
+                1,
+                1,
+                1,
+                1,
+                1,
+                1,
+                1,
+                1,
+                1,
+                1,
+                1,
+                1
+              ]
+            }
+          },
+          "row_type": {
+            "structure": [
+              {
+                "name": "id",
+                "type": {
+                  "int64": {}
+                },
+                "nullable": false
+              },
+              {
+                "name": "value",
+                "type": {
+                  "int64": {}
+                },
+                "nullable": true
+              }
+            ]
+          }
+        }
+      }
+    },
+    "limits": {
+      "pages": "100",
+      "segments": "100",
+      "result_bytes": "1048576"
+    }
   },
   "cases": [
-    {"sql":"DESCRIBE items;","details":{"description":{"columns":[{"name":"id","type":"int64"},{"name":"value","type":"int64"}]}}},
-    {"sql":"SHOW TABLES;","details":{"tables":["items"]}},
-    {"sql":"EXPLAIN SELECT value, id FROM items WHERE value IS NULL LIMIT 18446744073709551615;","details":{"explanation":{"operators":["scan","filter","limit","project"],"predicate":{"state":{"column":"value","value":"null"}},"projection":["value","id"],"limit":"18446744073709551615","aggregate":"rows","columns":[{"name":"value","type":"int64"},{"name":"id","type":"int64"}],"budgets":{"pages":"100","segments":"100","result_bytes":"1048576"}}}},
-    {"sql":"EXPLAIN SELECT count(*) FROM items;","details":{"explanation":{"operators":["scan","count"],"predicate":{"all":{}},"projection":["id"],"limit":null,"aggregate":"count","columns":[{"name":"count","type":"uint64"}],"budgets":{"pages":"100","segments":"100","result_bytes":"1048576"}}}},
-    {"sql":"EXPLAIN SELECT sum(chosen.value) FROM (SELECT value FROM items WHERE id > 123456789 LIMIT 2) AS chosen;","details":{"explanation":{"operators":["scan","filter","limit","sum"],"predicate":{"compare":{"column":"id","op":"gt","type":"int64"}},"projection":["value"],"limit":"2","aggregate":"sum","columns":[{"name":"sum","type":"int64"}],"budgets":{"pages":"100","segments":"100","result_bytes":"1048576"}}}},
-    {"sql":"EXPLAIN SELECT value AS amount, value AS copy FROM items WHERE value IS NULL LIMIT 18446744073709551615;","details":{"explanation":{"operators":["scan","filter","limit","project"],"predicate":{"state":{"column":"value","value":"null"}},"projection":["value","value"],"limit":"18446744073709551615","aggregate":"rows","columns":[{"name":"amount","type":"int64"},{"name":"copy","type":"int64"}],"budgets":{"pages":"100","segments":"100","result_bytes":"1048576"}}}},
-    {"sql":"EXPLAIN SELECT count(*) AS rows FROM items;","details":{"explanation":{"operators":["scan","count"],"predicate":{"all":{}},"projection":["id"],"limit":null,"aggregate":"count","columns":[{"name":"rows","type":"uint64"}],"budgets":{"pages":"100","segments":"100","result_bytes":"1048576"}}}},
-    {"sql":"EXPLAIN SELECT sum(chosen.id) AS total FROM (SELECT value AS id, id AS value FROM items WHERE id > 123456789 LIMIT 2) AS chosen;","details":{"explanation":{"operators":["scan","filter","limit","sum"],"predicate":{"compare":{"column":"id","op":"gt","type":"int64"}},"projection":["value"],"limit":"2","aggregate":"sum","columns":[{"name":"total","type":"int64"}],"budgets":{"pages":"100","segments":"100","result_bytes":"1048576"}}}}
+    {
+      "sql": "DESCRIBE items;",
+      "details": {
+        "description": {
+          "columns": [
+            {
+              "name": "id",
+              "type": {
+                "int64": {}
+              },
+              "nullable": false
+            },
+            {
+              "name": "value",
+              "type": {
+                "int64": {}
+              },
+              "nullable": true
+            }
+          ]
+        }
+      }
+    },
+    {
+      "sql": "SHOW TABLES;",
+      "details": {
+        "tables": [
+          "items"
+        ]
+      }
+    },
+    {
+      "sql": "EXPLAIN SELECT value, id FROM items WHERE value IS NULL LIMIT 18446744073709551615;",
+      "details": {
+        "explanation": {
+          "operators": [
+            "scan",
+            "filter",
+            "limit",
+            "project"
+          ],
+          "predicate": {
+            "program": [
+              {
+                "atom": {
+                  "state": {
+                    "column": "value",
+                    "value": "null"
+                  }
+                }
+              }
+            ]
+          },
+          "projection": [
+            "value",
+            "id"
+          ],
+          "limit": "18446744073709551615",
+          "aggregate": "rows",
+          "columns": [
+            {
+              "name": "value",
+              "type": {
+                "int64": {}
+              },
+              "nullable": true
+            },
+            {
+              "name": "id",
+              "type": {
+                "int64": {}
+              },
+              "nullable": false
+            }
+          ],
+          "budgets": {
+            "pages": "100",
+            "segments": "100",
+            "result_bytes": "1048576"
+          }
+        }
+      }
+    },
+    {
+      "sql": "EXPLAIN SELECT count(*) FROM items;",
+      "details": {
+        "explanation": {
+          "operators": [
+            "scan",
+            "count"
+          ],
+          "predicate": {
+            "all": {}
+          },
+          "projection": [
+            "id"
+          ],
+          "limit": null,
+          "aggregate": "count",
+          "columns": [
+            {
+              "name": "count",
+              "type": {
+                "uint64": {}
+              },
+              "nullable": false
+            }
+          ],
+          "budgets": {
+            "pages": "100",
+            "segments": "100",
+            "result_bytes": "1048576"
+          }
+        }
+      }
+    },
+    {
+      "sql": "EXPLAIN SELECT sum(chosen.value) FROM (SELECT value FROM items WHERE id > 123456789 LIMIT 2) AS chosen;",
+      "details": {
+        "explanation": {
+          "operators": [
+            "scan",
+            "filter",
+            "limit",
+            "sum"
+          ],
+          "predicate": {
+            "program": [
+              {
+                "atom": {
+                  "compare": {
+                    "column": "id",
+                    "op": "gt",
+                    "type": {
+                      "int64": {}
+                    }
+                  }
+                }
+              }
+            ]
+          },
+          "projection": [
+            "value"
+          ],
+          "limit": "2",
+          "aggregate": "sum",
+          "columns": [
+            {
+              "name": "sum",
+              "type": {
+                "int64": {}
+              },
+              "nullable": true
+            }
+          ],
+          "budgets": {
+            "pages": "100",
+            "segments": "100",
+            "result_bytes": "1048576"
+          }
+        }
+      }
+    },
+    {
+      "sql": "EXPLAIN SELECT value AS amount, value AS copy FROM items WHERE value IS NULL LIMIT 18446744073709551615;",
+      "details": {
+        "explanation": {
+          "operators": [
+            "scan",
+            "filter",
+            "limit",
+            "project"
+          ],
+          "predicate": {
+            "program": [
+              {
+                "atom": {
+                  "state": {
+                    "column": "value",
+                    "value": "null"
+                  }
+                }
+              }
+            ]
+          },
+          "projection": [
+            "value",
+            "value"
+          ],
+          "limit": "18446744073709551615",
+          "aggregate": "rows",
+          "columns": [
+            {
+              "name": "amount",
+              "type": {
+                "int64": {}
+              },
+              "nullable": true
+            },
+            {
+              "name": "copy",
+              "type": {
+                "int64": {}
+              },
+              "nullable": true
+            }
+          ],
+          "budgets": {
+            "pages": "100",
+            "segments": "100",
+            "result_bytes": "1048576"
+          }
+        }
+      }
+    },
+    {
+      "sql": "EXPLAIN SELECT count(*) AS rows FROM items;",
+      "details": {
+        "explanation": {
+          "operators": [
+            "scan",
+            "count"
+          ],
+          "predicate": {
+            "all": {}
+          },
+          "projection": [
+            "id"
+          ],
+          "limit": null,
+          "aggregate": "count",
+          "columns": [
+            {
+              "name": "rows",
+              "type": {
+                "uint64": {}
+              },
+              "nullable": false
+            }
+          ],
+          "budgets": {
+            "pages": "100",
+            "segments": "100",
+            "result_bytes": "1048576"
+          }
+        }
+      }
+    },
+    {
+      "sql": "EXPLAIN SELECT sum(chosen.id) AS total FROM (SELECT value AS id, id AS value FROM items WHERE id > 123456789 LIMIT 2) AS chosen;",
+      "details": {
+        "explanation": {
+          "operators": [
+            "scan",
+            "filter",
+            "limit",
+            "sum"
+          ],
+          "predicate": {
+            "program": [
+              {
+                "atom": {
+                  "compare": {
+                    "column": "id",
+                    "op": "gt",
+                    "type": {
+                      "int64": {}
+                    }
+                  }
+                }
+              }
+            ]
+          },
+          "projection": [
+            "value"
+          ],
+          "limit": "2",
+          "aggregate": "sum",
+          "columns": [
+            {
+              "name": "total",
+              "type": {
+                "int64": {}
+              },
+              "nullable": true
+            }
+          ],
+          "budgets": {
+            "pages": "100",
+            "segments": "100",
+            "result_bytes": "1048576"
+          }
+        }
+      }
+    }
   ]
 }
