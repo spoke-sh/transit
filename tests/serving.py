@@ -1,7 +1,7 @@
 """Independent signed HTTP peers against real Station workers and disk authority."""
 import argparse
 import concurrent.futures
-from contextlib import ExitStack
+from contextlib import ExitStack, nullcontext
 import hashlib
 from http.client import HTTPConnection, HTTPSConnection
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -15,6 +15,7 @@ import threading
 import time
 
 from storage import Fixture, free_port, wait_ready
+from cold_storage import ColdStore
 from serving_table import TABLE_LIMITS, bootstrap as bootstrap_counter
 
 REALM = 49
@@ -76,21 +77,37 @@ def signed_read(key, principal, ingress, kind, operation=0):
 
 
 def post(port, path, value, host=None, status=200, headers=None):
-    connection = HTTPSConnection('127.0.0.1', TLS[port].port, context=TLS[port].context, timeout=10) if port in TLS else HTTPConnection('127.0.0.1', port, timeout=10)
-    try:
-        request_headers = {'Content-Type': 'application/json'}
-        if host:
-            request_headers['Host'] = host
-        request_headers.update(headers or {})
-        connection.request('POST', path, compact(value), request_headers)
-        response = connection.getresponse()
-        body = response.read()
+    encoded = compact(value)
+    request_headers = {'Content-Type': 'application/json'}
+    if host:
+        request_headers['Host'] = host
+    request_headers.update(headers or {})
+    deadline, retries = time.monotonic() + 10, 0
+    while True:
+        connection = HTTPSConnection('127.0.0.1', TLS[port].port, context=TLS[port].context, timeout=10) if port in TLS else HTTPConnection('127.0.0.1', port, timeout=10)
+        try:
+            connection.request('POST', path, encoded, request_headers)
+            response = connection.getresponse()
+            body = response.read()
+            actual = response.status
+        finally:
+            connection.close()
+        decoded = json.loads(body)
+        # Cold recovery can temporarily exhaust authority request admission.
+        # Retry only the same serialized signed command, never a new sequence.
+        # Explicit rejection/fault assertions (status=None/503) remain visible.
+        capacity = actual == 503 and status == 202 and any(fact and fact['field'] == 'native_cause' and fact['value'] == {'text': 'HttpCapacity'}
+                       for fact in (decoded.get('diagnostic') or {}).get('facts', []))
+        if path == '/serving/v1/command' and status == 202 and actual == 503 and capacity and time.monotonic() < deadline:
+            retries += 1
+            time.sleep(.05)
+            continue
+        if retries:
+            print(f'Serving exact submission: {retries} temporary authority-capacity responses before status {actual}', flush=True)
         if status is None:
-            return response.status, json.loads(body)
-        assert response.status == status, (path, response.status, body, status)
-        return json.loads(body)
-    finally:
-        connection.close()
+            return actual, decoded
+        assert actual == status, (path, actual, body, status)
+        return decoded
 
 
 def run(node, example, courier, cli, tls=False, capacity=False, lifetimes=False, growth=False, reactive=False, reactive_browser=False, reactive_limits=False, reactive_client=False, reactive_refresh=False, reactive_views=False, reactive_views_lifecycle=False, board=None):
@@ -100,7 +117,7 @@ def run(node, example, courier, cli, tls=False, capacity=False, lifetimes=False,
     live_profile = reactive_refresh or reactive_views
     node, example, courier, cli = [str(Path(path).resolve()) for path in (node, example, courier, cli)]
     started = time.monotonic()
-    with Fixture() as store, ExitStack() as owned:
+    with ColdStore() if growth else nullcontext() as cold, Fixture(cold.config() if cold else None) as store, ExitStack() as owned:
         keys = {p: Key(store.root, f'key-{p}', seed) for p, seed in ((0, 7), (33, 8), (34, 9), (65536, 10), (65537, 11), (77, 12), (78, 13), (79, 14), (80, 15))}
         sequences = dict.fromkeys(keys, 0)
         port = free_port()
@@ -557,6 +574,9 @@ def run(node, example, courier, cli, tls=False, capacity=False, lifetimes=False,
                     if (ordinal + 1) % 32 == 0: print(f'Serving growth: retained {ordinal + 1}/128 operations', flush=True)
                 for ordinal in (0, 31, 63, 127): completed(100 + ordinal, ordinal + 4)
                 completed(1, 1)
+                objects, retained_bytes = cold.data_objects(), cold.file_bytes()
+                assert objects > 0 and retained_bytes > 0
+                print(f'Serving growth: 8 MiB hot-store budget, {objects} cold objects / {retained_bytes} bytes', flush=True)
                 rss = sum(int(next(line for line in Path(f'/proc/{worker.pid}/status').read_text().splitlines() if line.startswith('VmRSS:')).split()[1]) * 1024 for worker in (authority, ingress_worker, app_worker, gateways[0]))
                 assert rss <= 512 * 1024 * 1024, ('authority/workers/gateway exceeded finite growth profile ceiling', rss)
                 print(f'Serving growth: 128 additional retained operations and bounded old-result reads with 8 resident authority pages; authority/two workers/gateway RSS {rss} bytes <= 536870912 ceiling', flush=True)

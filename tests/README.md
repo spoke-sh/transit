@@ -16600,3 +16600,26 @@ reset the mandatory captured view as well as its proposal. The corrected
 40-test run passed before the owner-continuation cases were added. These are
 local ledger proofs; they do not qualify a migrated work-item application or
 native placement. The coordinated current-definition cutover remains pending.
+
+
+### Serving retained growth with bounded hot storage
+
+`general-serving-growth6.log` passes the combined ReleaseSafe lifetime/growth
+trace in 419.31 seconds (all nine build steps). It retains 128 additional exact
+operations, rereads early receipts and preserves immutable outcomes across worker,
+gateway, node and disk restart, cancellation, authenticated timeout, late replies,
+finite expiry and current policy/native revocation. Authority retains eight
+resident pages. The eight MiB hot-store profile spills to 488 cold data objects,
+with 128,143,451 filesystem bytes at the measured point. Authority, both workers
+and one gateway together use 81,838,080 resident bytes under the existing
+536,870,912-byte ceiling. This end-to-end fault trace is not a point-mutation
+latency benchmark; matched mutation measurements remain separate work.
+
+The third growth attempt was interrupted to correct cold metric collection before
+its final assertion. The fourth encountered temporary native `HttpCapacity`
+after recovery. The fixture now retries identical serialized signed submission
+bytes within ten seconds for that specific unavailable response; explicit
+503/fault assertions still observe their original result. The fifth attempt
+caught a null diagnostic in that fixture helper. Only the sixth complete run is
+counted as passed. The hot-store ceiling was reduced from the cold-disabled
+fixture's 64 MiB to the existing cold fixture's eight MiB, not enlarged.
