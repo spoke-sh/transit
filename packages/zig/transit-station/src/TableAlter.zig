@@ -74,6 +74,7 @@ pub fn step(allocator: std.mem.Allocator, turn: *Turn, request: Request) !Write.
     errdefer turn.decision = before;
     const reference = try request.reference();
     const prior = try Write.status(turn, reference);
+    if (prior) |result| if (result.route != .alter) return error.InvalidTableWriteStatus;
     if (prior) |result| if (result.state != .building) return result;
     const head = try Head.load(turn, reference.object);
     if (head.retired) return error.TableRetired;
@@ -89,7 +90,7 @@ pub fn step(allocator: std.mem.Allocator, turn: *Turn, request: Request) !Write.
         reserved.pending = head.next_record;
         // The schema owns the first ID; row overlays have a complete interval.
         reserved.next_record = try add(head.next_record, 1 + Candidate.max_records);
-        const admitted: Write.Status = .{ .reference = reference, .admitted_input = turn.delivery.input.position, .basis_revision = head.revision, .first_record = head.next_record, .end_record = reserved.next_record, .state = .building };
+        const admitted: Write.Status = .{ .reference = reference, .route = .alter, .admitted_input = turn.delivery.input.position, .basis_revision = head.revision, .first_record = head.next_record, .end_record = reserved.next_record, .state = .building };
         const progress: Statement.Progress = .{ .digest = reference.digest, .head_revision = reserved.revision, .index = if (transition.work == .rewrite_rows) .{} else head.index };
         try head.replace(turn, reserved);
         try turn.write(reference.key(), try admitted.encode());
@@ -175,4 +176,4 @@ fn stageAll(turn: *Turn, pages: Pages, overlay: anytype) !bool {
     };
     return true;
 }
-pub const cancel = Statement.cancel;
+pub const cancel = Statement.cancelAlter;

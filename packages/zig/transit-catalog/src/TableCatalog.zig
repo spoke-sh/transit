@@ -261,7 +261,9 @@ fn operation(self: Self, source: anytype, who: u64, id: u64) !?m.Operation {
     return found;
 }
 fn outcome(source: anytype, value: m.Operation) !Outcome {
-    return .{ .operation = value, .table = if (value.state == .delegated) (try s.TableWrite.status(source, try value.tableReference())) orelse return error.InvalidCatalogReceipt else null };
+    const table = if (value.state == .delegated) (try s.TableWrite.status(source, try value.tableReference())) orelse return error.InvalidCatalogReceipt else null;
+    if (table) |result| if (result.route != .alter) return error.InvalidCatalogReceipt;
+    return .{ .operation = value, .table = table };
 }
 pub fn status(self: Self, source: anytype, who: u64, id: u64, digest: [32]u8) !?Outcome {
     _ = try self.authorize(source, who, .inspect);
@@ -622,6 +624,7 @@ fn advanceMutation(self: Self, allocator: std.mem.Allocator, turn: *s.Turn, requ
     const ref = try route.reference(allocator);
     _ = (try self.object(turn, ref.object)) orelse return error.TableNotFound;
     if (try s.TableWrite.status(turn, ref)) |previous| {
+        if (previous.route != route.receiptRoute()) return error.InvalidTableWriteStatus;
         if (previous.state != .building) return previous;
     } else if (continuation) return error.TableWriteNotFound;
     try self.dataBinding(turn, request);
@@ -634,7 +637,39 @@ pub fn mutationStatus(self: Self, allocator: std.mem.Allocator, source: anytype,
     const route = try request.route(allocator, self.configuration.scope, &scratch);
     const ref = try route.reference(allocator);
     _ = (try self.object(source, ref.object)) orelse return error.TableNotFound;
-    return s.TableWrite.status(source, ref);
+    const result = try s.TableWrite.status(source, ref);
+    if (result) |value| if (value.route != route.receiptRoute()) return error.InvalidTableWriteStatus;
+    return result;
+}
+
+/// A saved exact reference can inspect/cancel DML without retransmitting its
+/// original typed rows. Catalog ownership and current disclosure still apply.
+pub fn mutationReceipt(self: Self, source: anytype, who: u64, ref: s.TableWrite.Reference) !?s.TableWrite.Status {
+    _ = try self.authorize(source, who, .inspect);
+    if (who != ref.principal) return error.CatalogDenied;
+    if (ref.resource != self.configuration.scope.resource) return error.CatalogScopeChanged;
+    _ = (try self.object(source, ref.object)) orelse return error.TableNotFound;
+    const result = (try s.TableWrite.status(source, ref)) orelse return null;
+    if (result.route == .alter) return error.CatalogIdentityConflict;
+    return result;
+}
+pub fn cancelMutationReference(self: Self, turn: *s.Turn, ref: s.TableWrite.Reference) !s.TableWrite.Status {
+    const before = turn.decision;
+    errdefer turn.decision = before;
+    try self.actor(turn, ref.principal, false);
+    const result = (try self.mutationReceipt(turn, ref.principal, ref)) orelse return error.TableWriteNotFound;
+    return switch (result.route) {
+        .point => s.TableWrite.cancel(turn, ref),
+        .statement => s.TableStatement.cancel(turn, ref),
+        .alter => unreachable,
+    };
+}
+pub fn cleanupMutationReference(self: Self, turn: *s.Turn, ref: s.TableWrite.Reference) !bool {
+    const before = turn.decision;
+    errdefer turn.decision = before;
+    try self.actor(turn, ref.principal, false);
+    _ = (try self.mutationReceipt(turn, ref.principal, ref)) orelse return error.TableWriteNotFound;
+    return s.TableCleanup.step(turn, ref);
 }
 pub fn cancelMutation(self: Self, allocator: std.mem.Allocator, turn: *s.Turn, request: DmlRequest) !s.TableWrite.Status {
     const before = turn.decision;

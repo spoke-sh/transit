@@ -13,6 +13,12 @@ plan: f.TableDml.Plan,
 pub const Route = union(enum) {
     point: s.TableWrite.Request,
     finite: s.TableStatement.Request,
+    pub fn receiptRoute(self: Route) s.TableWrite.Status.Route {
+        return switch (self) {
+            .point => .point,
+            .finite => .statement,
+        };
+    }
     pub fn reference(self: Route, allocator: std.mem.Allocator) !s.TableWrite.Reference {
         return switch (self) {
             inline else => |request| request.reference(allocator),

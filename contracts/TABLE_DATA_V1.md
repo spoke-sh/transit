@@ -173,14 +173,18 @@ and each column ID:u64le, a default/value tag:u8 (0/1), and for explicit values 
 length:u32le plus complete typed `FVL1` envelope. Assignment order is part of
 intent; DEFAULT remains distinct from a coincidentally equal explicit value.
 
-The `STW1` receipt is exactly 158 bytes: magic, raw shared definition, resource,
+The `STW1` receipt is exactly 159 bytes: magic, raw shared definition, resource,
 object, principal and operation (u64 each), request digest (32 bytes), admitted
 input, completed input, source head revision, first record, exclusive-end record,
-matched count and changed count (u64 each), state:u8 and rejection:u8. All value
+matched count and changed count (u64 each), state:u8, rejection:u8 and route:u8. All value
 integers are little-endian. States are building=1, applied=2, rejected=3 and
 cancelled=4. Rejections are none=0, row exists=1, row identity exists=2,
 NULL not allowed=3, missing required field=4, character limit exceeded=5,
 numeric overflow=6 and inexact conversion=7.
+Routes are point=1, finite statement=2 and ALTER=3. The route byte is mandatory;
+missing/unknown routes reject. The point coordinator admits at most one match,
+while ALTER reports zero DML counts. Cancellation dispatch uses this recorded
+route; a caller-selected DML path cannot close an ALTER behind its catalog owner.
 Building has zero completion input; terminal input is nonzero and no earlier
 than admission. Counts are full-width, with changed no greater than matched;
 single-row publication returns at most one. Rejection/cancellation have zero

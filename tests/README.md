@@ -10883,6 +10883,17 @@ specified Publication chunk-chain commitment, and its strict metadata fixture
 reader omitted the new command fields. The corrected fixture and reader pass;
 the failed `table-command-final.log` is not qualification evidence.
 
+Explicit receipt routes and reference-only recovery pass **86/86 Station** and
+**51/51 catalog** tests (`receipt-route-station-final.log`,
+`receipt-route-catalog2.log`). STW1 is now 159 bytes with a mandatory point/finite/
+ALTER route. Independent bytes and rejection tests cover missing/unknown routes
+and invalid ALTER row counts. Exact saved DML references inspect, cancel and
+clean their original work without resending rows; current scope/principal/policy
+checks remain. DML reference controls and the wrong low-level cancellation path
+reject ALTER, while catalog cancellation clears its Table and object together.
+The old 158-byte helper record is rejected; the coordinated native/current-v1
+cutover and regeneration remain required before enabling the general profile.
+
 ## Fuze logical type foundation
 
 The local `Types` profile has nine passing focused Zig tests, including 46

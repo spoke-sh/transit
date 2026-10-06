@@ -732,3 +732,52 @@ test "owner continuation cannot admit work or impersonate its original principal
     }
     return error.TestUnexpectedResult;
 }
+
+test "saved DML references retain their route and cannot cancel catalog ALTER" {
+    var store: TestStore = .{};
+    defer store.deinit();
+    try ready(&store);
+    const creation = try keyedCreate();
+    const created = try ddl(&store, creation);
+    var plan = try c.fuze.TableDml.compile(t.allocator, "INSERT INTO people VALUES (1, 'A'), (2, 'B')", "people", creation.action.create.schema, null);
+    defer plan.deinit();
+    const request: c.TableDmlRequest = .{ .principal = 17, .operation = 2, .metadata = created.operation.metadata, .plan = plan.plan };
+    var turn = try store.capture(17);
+    const admitted = try owner.mutate(t.allocator, &turn, request);
+    try t.expectEqual(.statement, admitted.route);
+    try store.commit(turn);
+    turn = try store.capture(17);
+    try t.expectEqualDeep(admitted, (try owner.mutationReceipt(&turn, 17, admitted.reference)).?);
+    try t.expectError(error.InvalidTableWriteStatus, s.TableWrite.cancel(&turn, admitted.reference));
+    try t.expectEqual(.cancelled, (try owner.cancelMutationReference(&turn, admitted.reference)).state);
+    try store.commit(turn);
+    for (0..100) |_| {
+        turn = try store.capture(17);
+        const complete = try owner.cleanupMutationReference(&turn, admitted.reference);
+        try store.commit(turn);
+        if (complete) break;
+    }
+    const alter: c.TableDdlRequest = .{ .principal = 17, .operation = 3, .object = 10, .expected_revision = 1, .name = creation.name, .action = .{ .alter = .{ .schema = creation.action.create.schema, .change = .{ .rename = .{ .column = 2, .name = "full_name" } } } } };
+    const alter_ref = try (try alter.tableAlter(owner.configuration.scope)).reference();
+    for (0..100) |_| {
+        turn = try store.capture(17);
+        const result = try owner.step(t.allocator, &turn, alter);
+        try store.commit(turn);
+        if (result.operation.state == .delegated) break;
+    }
+    turn = try store.capture(17);
+    try t.expectEqual(.alter, (try s.TableWrite.status(&turn, alter_ref)).?.route);
+    try t.expectError(error.CatalogIdentityConflict, owner.mutationReceipt(&turn, 17, alter_ref));
+    try t.expectError(error.CatalogIdentityConflict, owner.cancelMutationReference(&turn, alter_ref));
+    try t.expectError(error.CatalogIdentityConflict, owner.cleanupMutationReference(&turn, alter_ref));
+    try t.expectError(error.InvalidTableWriteStatus, s.TableStatement.cancel(&turn, alter_ref));
+    try t.expectEqual(@as(usize, 0), countWrites(turn));
+    const cancelled = try owner.cancel(&turn, 17, 3, try alter.digest(owner.configuration.scope));
+    try t.expectEqual(.cancelled, cancelled.table.?.state);
+    try store.commit(turn);
+    var other = admitted.reference;
+    other.resource += 1;
+    turn = try store.capture(17);
+    try t.expectError(error.CatalogScopeChanged, owner.mutationReceipt(&turn, 17, other));
+    try t.expectError(error.CatalogDenied, owner.mutationReceipt(&turn, 18, admitted.reference));
+}

@@ -73,6 +73,9 @@ four-write direct publication when possible, or reserves IDs and a frozen head
 before resumable staging. The final head and exact matched/changed counts publish
 together. Other writes see `TableBusy` during staging. Repeated terminal intent
 returns its original receipt even after the Table changes or retires.
+The receipt records the owning coordinator: point DML, finite statement or ALTER.
+The matching cancellation path checks that route before changing a reservation;
+callers cannot select another path from the same raw operation identity.
 
 `cancel` closes reserved work and releases the busy head without reusing IDs or
 erasing receipts. Candidate pages and unfinished storage quota await separate

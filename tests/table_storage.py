@@ -21,8 +21,8 @@ def fixtures():
     assert len(head) == 213
     payload = b'typed page'
     status = b'STW1' + contract + struct.pack('<QQQQ', 7, 9, 1, 21) + bytes([51]) * 32
-    status += struct.pack('<QQQQQQQBB', 12, 15, 1, 2, 5, 1, 1, 2, 0)
-    assert len(status) == 158
+    status += struct.pack('<QQQQQQQBBB', 12, 15, 1, 2, 5, 1, 1, 2, 0, 1)
+    assert len(status) == 159
     progress = b'STG1' + contract + bytes([51]) * 32 + struct.pack('<Q', 8) + b'\1'
     progress += index + bytes([0, len(minimum)]) + minimum + struct.pack('<Q', 3)
     progress += b'\1' + struct.pack('>QQI', 2, 30, 1) + struct.pack('<IQQ', 0, 2, 1)

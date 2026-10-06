@@ -210,6 +210,7 @@ pub fn step(allocator: std.mem.Allocator, turn: *Turn, request: Request) !Write.
     errdefer turn.decision = before;
     const reference = try request.reference(allocator);
     const prior = try Write.status(turn, reference);
+    if (prior) |result| if (result.route != .statement) return error.InvalidTableWriteStatus;
     if (prior) |result| if (result.state != .building) return result;
     const head = try Head.load(turn, reference.object);
     if (head.retired) return error.TableRetired;
@@ -222,7 +223,7 @@ pub fn step(allocator: std.mem.Allocator, turn: *Turn, request: Request) !Write.
         reserved.revision = try add(head.revision, 1);
         reserved.pending = head.next_record;
         reserved.next_record = try add(head.next_record, Candidate.max_records);
-        const admitted: Write.Status = .{ .reference = reference, .admitted_input = turn.delivery.input.position, .basis_revision = head.revision, .first_record = head.next_record, .end_record = reserved.next_record, .state = .building };
+        const admitted: Write.Status = .{ .reference = reference, .route = .statement, .admitted_input = turn.delivery.input.position, .basis_revision = head.revision, .first_record = head.next_record, .end_record = reserved.next_record, .state = .building };
         const progress: Progress = .{ .digest = reference.digest, .head_revision = reserved.revision, .index = head.index };
         try head.replace(turn, reserved);
         try record(turn, admitted);
@@ -315,9 +316,16 @@ fn stageAll(turn: *Turn, pages: Pages, overlay: anytype) !bool {
     return true;
 }
 pub fn cancel(turn: *Turn, reference: Write.Reference) !Write.Status {
+    return cancelRoute(turn, reference, .statement);
+}
+pub fn cancelAlter(turn: *Turn, reference: Write.Reference) !Write.Status {
+    return cancelRoute(turn, reference, .alter);
+}
+fn cancelRoute(turn: *Turn, reference: Write.Reference, route: Write.Status.Route) !Write.Status {
     const before = turn.decision;
     errdefer turn.decision = before;
     const result = (try Write.status(turn, reference)) orelse return error.TableWriteNotFound;
+    if (result.route != route) return error.InvalidTableWriteStatus;
     if (result.state != .building) return result;
     const head = try Head.load(turn, reference.object);
     _ = try Progress.load(turn, result, head);

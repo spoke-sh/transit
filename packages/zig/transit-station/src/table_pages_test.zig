@@ -1004,6 +1004,11 @@ test "typed Table head and page layouts match independent Python bytes" {
     try expectHex(expected.cleanup_key_hex, Cleanup.Cursor.key(receipt.reference).slice());
     try t.expectEqualDeep(cleanup, try Cleanup.Cursor.decode(cleanup_bytes));
     try t.expectEqualDeep(receipt, try Write.Status.decode(receipt_bytes));
+    var invalid_route = receipt_bytes;
+    invalid_route.data[158] = 0;
+    try t.expectError(error.InvalidTableWriteStatus, Write.Status.decode(invalid_route));
+    invalid_route.data[158] = 3; // ALTER cannot claim the point receipt's row counts.
+    try t.expectError(error.InvalidTableWriteStatus, Write.Status.decode(invalid_route));
     for (0..receipt_bytes.len) |length| try t.expectError(error.InvalidTableWriteStatus, Write.Status.decode(try p.Value.init(receipt_bytes.data[0..length])));
     var wrong = receipt_bytes;
     wrong.data[4] ^= 1;

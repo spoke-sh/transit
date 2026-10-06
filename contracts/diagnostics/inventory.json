@@ -3193,14 +3193,14 @@
         "CatalogCursorChanged": 1,
         "CatalogDefinitionChanged": 13,
         "CatalogDefinitionMissing": 8,
-        "CatalogDenied": 11,
+        "CatalogDenied": 12,
         "CatalogDependencyConflict": 1,
-        "CatalogIdentityConflict": 5,
+        "CatalogIdentityConflict": 6,
         "CatalogNotInitialized": 1,
         "CatalogOperationNotFound": 3,
         "CatalogOwnerChanged": 1,
         "CatalogPolicyConflict": 1,
-        "CatalogScopeChanged": 1,
+        "CatalogScopeChanged": 2,
         "CatalogSourceChanged": 4,
         "CrossResourceTransaction": 1,
         "InvalidCatalogBinding": 3,
@@ -3208,12 +3208,13 @@
         "InvalidCatalogIdentity": 2,
         "InvalidCatalogObject": 3,
         "InvalidCatalogPolicy": 5,
-        "InvalidCatalogReceipt": 4,
+        "InvalidCatalogReceipt": 5,
+        "InvalidTableWriteStatus": 2,
         "QueryAfterMutation": 1,
         "TableBusy": 4,
-        "TableNotFound": 6,
+        "TableNotFound": 7,
         "TableRetired": 2,
-        "TableWriteNotFound": 3
+        "TableWriteNotFound": 5
       },
       "outcomes": {},
       "error_sets": {},
@@ -3231,9 +3232,11 @@
         "boundStep()": "<inferred>",
         "cancel()": "<inferred>",
         "cancelMutation()": "<inferred>",
+        "cancelMutationReference()": "<inferred>",
         "check()": "<inferred>",
         "cleanup()": "<inferred>",
         "cleanupMutation()": "<inferred>",
+        "cleanupMutationReference()": "<inferred>",
         "close()": "<inferred>",
         "continueDdl()": "<inferred>",
         "continueMutation()": "<inferred>",
@@ -3247,6 +3250,7 @@
         "matchingPending()": "<inferred>",
         "metadata()": "<inferred>",
         "mutate()": "<inferred>",
+        "mutationReceipt()": "<inferred>",
         "mutationStatus()": "<inferred>",
         "object()": "<inferred>",
         "operation()": "<inferred>",
@@ -3270,7 +3274,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 236,
+        "try": 244,
         "catch": 2
       },
       "imports": [
@@ -15757,6 +15761,7 @@
         "Inexact": 1,
         "InvalidTableStatementProgress": 7,
         "InvalidTableWrite": 1,
+        "InvalidTableWriteStatus": 1,
         "MissingRequiredField": 1,
         "MutationBudgetExceeded": 2,
         "NullNotAllowed": 1,
@@ -16032,6 +16037,7 @@
         "InvalidTableHead": 1,
         "InvalidTableStatementProgress": 14,
         "InvalidTableWrite": 1,
+        "InvalidTableWriteStatus": 2,
         "MutationBudgetExceeded": 2,
         "RowExists": 1,
         "RowIdentityExists": 1,
@@ -16056,6 +16062,8 @@
         "advance()": "<inferred>",
         "apply()": "<inferred>",
         "cancel()": "<inferred>",
+        "cancelAlter()": "<inferred>",
+        "cancelRoute()": "<inferred>",
         "close()": "<inferred>",
         "finish()": "<inferred>",
         "publish()": "<inferred>",
@@ -16091,7 +16099,7 @@
         "InvalidTableHead": 1,
         "InvalidTableIndex": 1,
         "InvalidTableWrite": 4,
-        "InvalidTableWriteStatus": 9,
+        "InvalidTableWriteStatus": 14,
         "MutationBudgetExceeded": 5,
         "RowExists": 2,
         "RowIdentityExists": 1,
@@ -16111,6 +16119,11 @@
           "delete",
           "patch",
           "delete_key"
+        ],
+        "Status.Route": [
+          "point",
+          "statement",
+          "alter"
         ],
         "Status.rejection": [
           "none",
@@ -16151,7 +16164,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 63,
+        "try": 64,
         "catch": 12
       },
       "imports": [

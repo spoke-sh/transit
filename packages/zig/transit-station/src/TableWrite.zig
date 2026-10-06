@@ -136,6 +136,7 @@ pub const Reference = struct {
     }
 };
 pub const Status = struct {
+    pub const Route = enum(u8) { point = 1, statement = 2, alter = 3 };
     reference: Reference,
     admitted_input: u64,
     completed_input: u64 = 0,
@@ -144,6 +145,7 @@ pub const Status = struct {
     end_record: u64,
     matched: u64 = 0,
     changed: u64 = 0,
+    route: Route = .point,
     state: enum(u8) { building = 1, applied = 2, rejected = 3, cancelled = 4 },
     rejection: enum(u8) { none = 0, row_exists = 1, row_identity_exists = 2, null_not_allowed = 3, missing_required_field = 4, character_limit_exceeded = 5, overflow = 6, inexact = 7 } = .none,
     pub fn validate(self: Status) !void {
@@ -155,22 +157,24 @@ pub const Status = struct {
         if ((self.state == .rejected) != (self.rejection != .none)) return error.InvalidTableWriteStatus;
         if (self.state == .building and self.end_record == self.first_record) return error.InvalidTableWriteStatus;
         if ((self.state == .rejected or self.state == .cancelled) and (self.matched != 0 or self.changed != 0)) return error.InvalidTableWriteStatus;
+        if (self.route == .point and self.matched > 1) return error.InvalidTableWriteStatus;
+        if (self.route == .alter and (self.matched != 0 or self.changed != 0)) return error.InvalidTableWriteStatus;
     }
     pub fn encode(self: Status) !p.Value {
         try self.validate();
-        var bytes: [158]u8 = undefined;
+        var bytes: [159]u8 = undefined;
         var out: std.Io.Writer = .fixed(&bytes);
         try out.writeAll("STW1");
         try out.writeAll(&definition());
         inline for (.{ "resource", "object", "principal", "operation" }) |name| try out.writeInt(u64, @field(self.reference, name), .little);
         try out.writeAll(&self.reference.digest);
         inline for (.{ "admitted_input", "completed_input", "basis_revision", "first_record", "end_record", "matched", "changed" }) |name| try out.writeInt(u64, @field(self, name), .little);
-        try out.writeAll(&.{ @backingInt(self.state), @backingInt(self.rejection) });
+        try out.writeAll(&.{ @backingInt(self.state), @backingInt(self.rejection), @backingInt(self.route) });
         return p.Value.init(out.buffered());
     }
     pub fn decode(value: p.Value) !Status {
         try value.validate();
-        if (value.len != 158 or !std.mem.eql(u8, value.data[0..4], "STW1")) return error.InvalidTableWriteStatus;
+        if (value.len != 159 or !std.mem.eql(u8, value.data[0..4], "STW1")) return error.InvalidTableWriteStatus;
         if (!std.mem.eql(u8, value.data[4..36], &definition())) return error.IncompatibleTableStorage;
         var in: std.Io.Reader = .fixed(value.data[36..value.len]);
         var result: Status = undefined;
@@ -179,6 +183,7 @@ pub const Status = struct {
         inline for (.{ "admitted_input", "completed_input", "basis_revision", "first_record", "end_record", "matched", "changed" }) |name| @field(result, name) = try in.takeInt(u64, .little);
         result.state = std.enums.fromInt(@FieldType(Status, "state"), try in.takeByte()) orelse return error.InvalidTableWriteStatus;
         result.rejection = std.enums.fromInt(@FieldType(Status, "rejection"), try in.takeByte()) orelse return error.InvalidTableWriteStatus;
+        result.route = std.enums.fromInt(Status.Route, try in.takeByte()) orelse return error.InvalidTableWriteStatus;
         try result.validate();
         return result;
     }
@@ -233,6 +238,7 @@ pub fn step(allocator: std.mem.Allocator, turn: *Turn, request: Request) !Status
     errdefer turn.decision = before;
     const reference = try request.reference(allocator);
     const previous = try status(turn, reference);
+    if (previous) |result| if (result.route != .point) return error.InvalidTableWriteStatus;
     if (previous) |result| if (result.state != .building) return result;
     const head = try Head.load(turn, request.schema.object);
     if (head.retired) return error.TableRetired;
@@ -330,6 +336,7 @@ pub fn cancel(turn: *Turn, reference: Reference) !Status {
     const before = turn.decision;
     errdefer turn.decision = before;
     var result = (try status(turn, reference)) orelse return error.TableWriteNotFound;
+    if (result.route != .point) return error.InvalidTableWriteStatus;
     if (result.state != .building) return result;
     const head = try Head.load(turn, reference.object);
     try checkPending(head, result);

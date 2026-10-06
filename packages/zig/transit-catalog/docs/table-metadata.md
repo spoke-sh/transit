@@ -84,6 +84,14 @@ work. `readDefinition` separately requires current read permission and exact
 metadata, returning the original live schema during pending evolution. Its
 caller must retain the native cut for subsequent row reads.
 
+`mutationReceipt`, `cancelMutationReference` and `cleanupMutationReference` use
+the saved exact Table reference without retransmitting original rows. They check
+catalog/object ownership, principal, resource and current inspect permission.
+The retained receipt records whether its owner is point DML, a finite statement
+or ALTER. Direct DML controls reject ALTER references, preserving the catalog's
+schema/name decision and reservation cleanup. Typed-request controls also verify
+that the recorded route matches the complete original plan.
+
 `continueDdl` and `continueMutation` accept only native process input from the
 configured owner, referring to an already recorded exact operation. They cannot
 admit a first operation or reinterpret process input as an external principal.
