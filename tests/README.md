@@ -16344,3 +16344,43 @@ uses a separate response arena and at most eight retries within its request
 deadline for locally unsubmitted reads with that exact native rejection. It does
 not retry submit, permission denial or changed cursors, or replace saved intent.
 The successful schedule above includes the corrected path.
+
+### General Table owner with interleaved queries and writes
+
+The migrated combined fixture passes in 51.275 seconds
+(`combined-general-native5.log` in the local Table-schema campaign), using
+frozen ReleaseSafe native/host/proof/library/CLI artifacts identified in that
+log. The supplied owner recovers the exact original accepted catalog
+initialization and query-delegation commits after lost replies, fresh ownership
+and node/disk-store restart. Reader/writer policy is a separate explicit action;
+initialization does not manufacture those permissions.
+
+The schedule performs general catalog CREATE/DML through ABI and private CLI
+artifacts, holds an actual final `STW1` applied publication, and verifies both a
+retained durable query and an interactive snapshot keep their original rows.
+The mutation uses the same numeric namespace as the query. Ordered self-delivery
+is preserved: explicit resume advances the original Table operation while the
+query continuation is withheld. The final interactive pause is 0.075 seconds;
+the snapshot is not held through the whole upload.
+
+Console checks cover separate matched/changed counts, no-op/zero-match DML,
+late duplicate atomic rejection and attributed diagnostics, exact lost-send
+recovery after caller restart, altered recovery identity rejection, applied
+cancellation, staged-upload SIGINT cancellation and stopping subsequent SQL.
+An admitted upload part rejected by policy remains `uploading` with a separate
+`denied` input disposition, rather than fabricating a terminal operation result.
+Cancellation closes that original upload; restoring DML policy leaves rows
+unchanged. Query delegation, DML rights and native disclosure denial remain
+independent.
+
+Observed bounds are four native writes and 256-byte inline values across 186
+turns. The 18,623 instrumented reads include busy polling and fault setup and
+are not a production request budget or latency baseline. This run uses ABI and
+CLI consumers, with no installed SDKs. The fixture's optional SDK lane now
+selects the general catalog lifecycle scenarios; it needs separate execution.
+
+Earlier migration attempts are retained as failed evidence: the old selective
+self-delivery schedule hit `RouteBlocked`; the next failed to drain earlier
+Table continuations before capturing a query; later assertions incorrectly
+assumed every small request uses upload and that input rejection replaces the
+operation phase. None of those runs is counted as passed.

@@ -288,6 +288,10 @@ pub fn main(init: std.process.Init) !void {
         try save(init, directory, "courier.json", .{ .url = url, .realm = 46, .principal = 65538, .seed_file = try keyFile(init, directory, "courier.seed", 11), .role = .{ .courier = .{ .destinations = .{ writer.pid, requester.pid } } } });
         return print(init, connection);
     }
+    if (std.mem.startsWith(u8, command, "combined-")) {
+        const selected = try std.json.parseFromSlice(q.UnifiedClient.Connection, init.arena.allocator(), try std.Io.Dir.cwd().readFileAlloc(init.io, try file(init, directory, "combined-connection.json"), init.arena.allocator(), .limited(4096)), .{});
+        return Combined.execute(init, url, &transport, &admin, directory, command, selected.value);
+    }
     const parsed = try std.json.parseFromSlice(Config, init.arena.allocator(), try std.Io.Dir.cwd().readFileAlloc(init.io, try file(init, directory, "client.json"), init.arena.allocator(), .limited(8192)), .{});
     const config = parsed.value;
     if (std.mem.eql(u8, command, "invalidate-kv") or std.mem.eql(u8, command, "repair-kv") or std.mem.eql(u8, command, "lower-policy") or std.mem.eql(u8, command, "restore-policy")) {
@@ -309,7 +313,6 @@ pub fn main(init: std.process.Init) !void {
         try admin.send(config.connection.source, if (std.mem.eql(u8, command, "restore-policy")) -8 else if (std.mem.eql(u8, command, "lower-policy")) -7 else if (std.mem.eql(u8, command, "invalidate-kv")) -5 else -6);
         return drive(init, &server, .{ .context = &seed, .initialize = Seed.initialize, .handle = Seed.handle });
     }
-    if (std.mem.startsWith(u8, command, "combined-")) return Combined.execute(init, &transport, &admin, directory, command, config.connection);
     if (std.mem.eql(u8, command, "age")) {
         if (args.len != 5) return error.Usage;
         const entries = try std.fmt.parseInt(usize, args[4], 10);
