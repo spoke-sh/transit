@@ -30,6 +30,7 @@ check:
     just contract::station-check
     just contract::logical-check
     python3 -B bindings/generate.py
+    python3 -B tests/binding_schema_types.py
 
 # Regenerate the C ABI resource and header from exported Zig function types.
 client-generate:

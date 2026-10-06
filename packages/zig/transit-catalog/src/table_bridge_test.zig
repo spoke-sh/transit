@@ -117,3 +117,53 @@ test "neutral session releases allocations across compilation export and reload 
     var no_resize = t.FailingAllocator.init(t.allocator, .{ .resize_fail_index = 0 });
     try t.checkAllAllocationFailures(no_resize.allocator(), failures, .{});
 }
+
+test "recursive reflection covers actual typed Table actions and diagnostics without string substitutes" {
+    inline for (.{ b.Action, b.Result }) |T| {
+        var output: std.Io.Writer.Allocating = .init(t.allocator);
+        defer output.deinit();
+        var out: std.json.Stringify = .{ .writer = &output.writer };
+        try c.protocol.Schema.writeRecursive(T, &out, .{ .safe_integers = true, .sequence_max_length = 65536, .text_max_length = b.max_input_bytes, .output = T == b.Result });
+        const parsed = try std.json.parseFromSlice(std.json.Value, t.allocator, output.written(), .{});
+        defer parsed.deinit();
+        const definitions = parsed.value.object.get("$defs").?.object;
+        try t.expect(definitions.count() > 30 and definitions.count() < 300);
+        const Resolve = struct {
+            fn get(defs: std.json.ObjectMap, value: std.json.Value) std.json.Value {
+                if (value.object.get("$ref")) |ref| return get(defs, defs.get(ref.string[8..]).?);
+                return value;
+            }
+            fn field(defs: std.json.ObjectMap, value: std.json.Value, name: []const u8) std.json.Value {
+                const resolved = get(defs, value).object;
+                if (resolved.get("properties")) |props| return get(defs, props.object.get(name).?);
+                for (resolved.get("oneOf").?.array.items) |alternative| {
+                    if (alternative.object.get("properties").?.object.get(name)) |property| return get(defs, property);
+                }
+                unreachable;
+            }
+        };
+        const root = Resolve.get(definitions, parsed.value);
+        if (T == b.Action) {
+            const prepare = Resolve.field(definitions, root, "prepare");
+            const identity = Resolve.field(definitions, prepare, "identity");
+            const operation = Resolve.field(definitions, identity, "operation");
+            try t.expectEqualStrings("string", operation.object.get("type").?.string);
+            const action = Resolve.field(definitions, prepare, "action");
+            const create = Resolve.field(definitions, action, "create");
+            const schema = Resolve.field(definitions, create, "schema");
+            const columns = Resolve.field(definitions, schema, "columns");
+            const column = Resolve.get(definitions, columns.object.get("items").?);
+            const typed = Resolve.field(definitions, column, "type");
+            const list = Resolve.field(definitions, typed, "list");
+            const child = Resolve.field(definitions, list, "type");
+            try t.expectEqualDeep(typed, child);
+        } else {
+            const next = Resolve.field(definitions, root, "next");
+            const terminal = Resolve.field(definitions, next, "terminal");
+            const diagnostic = Resolve.field(definitions, terminal, "diagnostic");
+            const message = Resolve.field(definitions, diagnostic, "message");
+            try t.expectEqualStrings("string", message.object.get("type").?.string);
+            try t.expectEqual(@as(i64, 384), message.object.get("maxLength").?.integer);
+        }
+    }
+}

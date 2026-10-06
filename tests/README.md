@@ -11271,6 +11271,17 @@ guards (`table-pending-diagnostic-protocol1.log`,
 campaign. These helpers do not complete ABI/port/SDK migration or the coordinated
 current-v1 definition replacement.
 
+The final repository `just check` for that neutral caller checkpoint passes
+(`table-neutral-check2.log`). The subsequent recursive schema generator passes
+**33/33 protocol tests**, **91/91 catalog tests**, unchanged binding drift checks,
+and the pinned TypeScript compiler fixture. The fixture accepts recursive values
+and independent root namespaces while rejecting numeric wide integers, malformed
+nested children, foreign/unresolved references and invalid identifiers. The real
+Table action/result graphs retain recursive list children and diagnostic scalar
+codecs (`table-schema-graph1.log`, `table-schema-graph-catalog1.log`,
+`table-schema-graph-bindings1.log`). This qualifies generation; enabling the general
+catalog ABI and installed language callers remains a separate migration.
+
 ## Fuze logical type foundation
 
 The local `Types` profile has nine passing focused Zig tests, including 46

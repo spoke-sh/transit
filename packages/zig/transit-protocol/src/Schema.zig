@@ -20,12 +20,20 @@ pub const Options = struct {
 };
 /// A public owner can narrow or extend one sequence field without changing
 /// neighboring collections or the caller's other schema options.
-fn fieldOptions(comptime T: type, comptime name: []const u8, comptime options: Options) Options {
+pub fn fieldOptions(comptime T: type, comptime name: []const u8, comptime options: Options) Options {
     var result = options;
     if (comptime @hasDecl(T, "json_schema_sequence_bounds") and @hasField(@TypeOf(T.json_schema_sequence_bounds), name)) {
         result.sequence_max_length = @field(T.json_schema_sequence_bounds, name);
     }
     return result;
+}
+/// Reflect recursive host values with local references. The selected options
+/// and each owner's field bounds remain part of the referenced type identity.
+pub fn writeRecursive(comptime T: type, out: *std.json.Stringify, comptime options: Options) std.Io.Writer.Error!void {
+    return @import("RecursiveSchema.zig").write(T, out, options);
+}
+test {
+    _ = @import("RecursiveSchema.zig");
 }
 pub fn write(comptime T: type, out: *std.json.Stringify, comptime options: Options) std.Io.Writer.Error!void {
     @setEvalBranchQuota(100000);

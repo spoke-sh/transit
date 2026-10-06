@@ -53,6 +53,12 @@ host ABI may explicitly opt into `sequence_max_length` for bounded JSON sequence
 domain validation still enforces narrower per-field limits. This generation option
 does not widen protocol frames, mutation budgets or running-service capabilities.
 
+`Schema.writeRecursive` emits a root-local `$defs` graph for recursive host
+values. References preserve scalar codecs, field overrides, required fields and
+the generation options of each occurrence. Host consumers validate each complete
+root independently; generated TypeScript uses separate aliases for its references.
+The graph describes value shapes, not domain admission or aggregate memory limits.
+
 `Schema` and `Json` support schema-aligned host descriptions and values. Fixed
 byte arrays always encode as arrays, including inside bounded host sequences,
 even when they happen to contain UTF-8;

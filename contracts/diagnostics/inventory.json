@@ -9408,6 +9408,26 @@
         "std"
       ]
     },
+    "packages/zig/transit-protocol/src/RecursiveSchema.zig": {
+      "errors": {},
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "reference()": "std . Io . Writer . Error",
+        "write()": "std . Io . Writer . Error",
+        "writeNode()": "std . Io . Writer . Error"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 65,
+        "catch": 0
+      },
+      "imports": [
+        "Schema.zig",
+        "root.zig",
+        "std"
+      ]
+    },
     "packages/zig/transit-protocol/src/Runtime.zig": {
       "errors": {},
       "outcomes": {
@@ -9447,7 +9467,8 @@
       "error_returns": {
         "field()": "<inferred>",
         "schema()": "std . Io . Writer . Error",
-        "write()": "std . Io . Writer . Error"
+        "write()": "std . Io . Writer . Error",
+        "writeRecursive()": "std . Io . Writer . Error"
       },
       "open_error_set_uses": 0,
       "propagation": {
@@ -9455,6 +9476,7 @@
         "catch": 0
       },
       "imports": [
+        "RecursiveSchema.zig",
         "root.zig",
         "std"
       ]
