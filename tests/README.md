@@ -17019,3 +17019,15 @@ operation ID; it does not run installed SDK consumers. Its first invocation
 omitted a required CLI argument in the imported fixture module and did not run
 validation. The larger cold native run and final definition/clean qualification
 remain separate checkpoints.
+
+### Root-authored catalog page recovery
+
+The explicit CLI validates saved metadata authors as native principals, including
+zero, rather than positive resource identities. `general-catalog-root-page-cli1.log`
+passes **659** real CLI diagnostic cases and all **4/4** ReleaseSafe build/run
+steps. The new cases accept authors zero, 1,234 and the maximum native principal
+through local page validation, then require the missing signing credential as
+before; an author above the native bound rejects as `InvalidCatalogPage`.
+`general-catalog-root-page-negative1.log` runs the same regression against the
+prior built binary and fails on zero with `InvalidCatalogIdentity`. Neither test
+confers catalog rights or dispatches a request after local validation.

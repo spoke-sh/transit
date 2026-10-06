@@ -269,8 +269,17 @@ with tempfile.TemporaryDirectory(prefix='transit-cli-diagnostics-') as directory
     invalid_page['entries'][0]['metadata']['object'] = '01'
     page_path.write_text(json.dumps(dict(page=invalid_page)))
     invoke(page_args, 1, ('InvalidCatalogInteger',))
-    page_path.write_text(json.dumps(dict(page=page)))
-    invoke(page_args, contains=('cannot load the catalog signing credential',))
+    # Native root zero is a valid author, while resource/input identities remain
+    # positive. Passing local metadata validation does not supply a credential.
+    for principal in (0, 1234, 2**53 - 1):
+        authored_page = copy.deepcopy(page)
+        authored_page['entries'][0]['metadata']['principal'] = principal
+        page_path.write_text(json.dumps(dict(page=authored_page)))
+        invoke(page_args, contains=('cannot load the catalog signing credential',))
+    invalid_page = copy.deepcopy(page)
+    invalid_page['entries'][0]['metadata']['principal'] = 2**53
+    page_path.write_text(json.dumps(dict(page=invalid_page)))
+    invoke(page_args, 1, ('InvalidCatalogPage',))
     yaml_config = root / 'catalog.yaml'
     yaml_config.write_text("version: 1\nconnection:\n  scope:\n    realm: 46\n    resource: 2\n    catalog: '18446744073709551615'\n  owner: 1\n  principal: 1234\n")
     yaml_args = list(compile_args)

@@ -267,7 +267,7 @@ fn validatePage(page: V.Page) !void {
         _ = try V.unsigned(entry.head.rows);
         _ = try V.unsigned(entry.head.pending);
         _ = try V.digest(entry.metadata.schema_fingerprint);
-        try c.Model.nativeId(entry.metadata.principal);
+        if (entry.metadata.principal > p.max_counter) return error.InvalidCatalogPage;
         try c.Model.nativeId(entry.metadata.admitted_input);
         try c.TableCatalogRecords.metadataReference(.{ .id = try V.unsigned(entry.metadata.revision), .spec = entry.metadata.commitment });
         if (scope) |selected| if (!std.meta.eql(selected, current)) return error.InvalidCatalogPage;
