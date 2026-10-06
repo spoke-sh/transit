@@ -185,7 +185,7 @@ pub fn compile(self: *Self, allocator: std.mem.Allocator, text: []const u8, iden
     if (identity.operation == 0 or identity.namespace == 0 or identity.create_object == 0) return error.InvalidCatalogIdentity;
     var names: std.heap.ArenaAllocator = .init(allocator);
     defer names.deinit();
-    const ddl_target = c.fuze.TableDdl.target(names.allocator(), text) catch |err| switch (err) {
+    const ddl_target = c.fuze.TableDdl.targetDiagnostic(names.allocator(), text, location) catch |err| switch (err) {
         error.UnsupportedStatement => null,
         else => return err,
     };
@@ -216,7 +216,7 @@ pub fn compile(self: *Self, allocator: std.mem.Allocator, text: []const u8, iden
         return Intent.create(allocator, try c.TableCommand.fromDdl(self.connection.scope, self.connection.owner, request, record), identity.namespace);
     }
     if (identity.create_object != null) return error.InvalidCatalogIdentity;
-    const target = try c.fuze.TableDml.target(names.allocator(), text);
+    const target = try c.fuze.TableDml.targetDiagnostic(names.allocator(), text, location);
     var definition = (try self.lookup(allocator, try c.TableMetadata.Name.init(target.name))) orelse return error.TableNotFound;
     defer definition.deinit();
     var statement = try c.fuze.TableDml.compile(allocator, text, definition.metadata.name.slice(), definition.schema.schema, location);

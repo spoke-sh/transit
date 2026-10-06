@@ -345,6 +345,12 @@ def run(node, proof, host, cli):
             assert '125000.00' in table.stdout and 'Ada' in table.stdout and '2 rows' in table.stdout, table.stdout
             explanation = json.loads(console('EXPLAIN SELECT name FROM console_people WHERE id=1').stdout)['explanation']
             assert explanation['scan'] == 'primary_key' and not explanation['executed'], explanation
+            for invalid in ('SELECT FROM console_people', 'EXPLAIN SELECT FROM console_people',
+                            'EXPLAIN SELECT name FROM console_people WHERE name ='):
+                failure = console(invalid, fail=True)
+                offset = invalid.index('FROM') if 'SELECT FROM' in invalid else len(invalid)
+                assert f'line 1, column {offset + 1}' in failure.stderr, failure.stderr
+                assert 'Table SELECT cannot be compiled' in failure.stderr, failure.stderr
             replays.discard('send')
             armed = 'send'
             console("UPDATE console_people SET name='Ada Lovelace' WHERE id=1", fail=True)

@@ -31,7 +31,7 @@ pub fn open(allocator: std.mem.Allocator, client: *c.TableClient, text: []const 
     if (cancellation) |flag| if (flag.load(.acquire)) return error.Cancelled;
     var names: std.heap.ArenaAllocator = .init(allocator);
     defer names.deinit();
-    const name = try c.TableMetadata.Name.init(try f.TableSelect.target(names.allocator(), text));
+    const name = try c.TableMetadata.Name.init(try f.TableSelect.targetDiagnostic(names.allocator(), text, location));
     var scan = try Scan.open(allocator, client, name, nonce, limits.requests, cancellation);
     errdefer {
         const native = scan.rejection;
@@ -275,4 +275,10 @@ test "typed Table query validates budgets and connection before source access" {
     try t.expectError(error.Cancelled, open(t.allocator, &caller, "SELECT * FROM people", @splat(1), limits, &cancelled, null));
     caller.connection.scope.resource = 0;
     try t.expectError(error.InvalidCatalogIdentity, open(t.allocator, &caller, "SELECT * FROM people", @splat(1), limits, null, null));
+}
+test "invalid Table SELECT headers retain location before acquiring a source" {
+    var client: c.TableClient = .{ .transport = undefined, .connection = .{ .scope = .{ .realm = 1, .resource = 7, .catalog = 9 }, .owner = 3, .principal = 17 }, .key = try p.Ed25519.KeyPair.generateDeterministic(@splat(10)) };
+    var location: f.Sql.Location = .{ .offset = 999 };
+    try std.testing.expectError(error.InvalidSqlSyntax, open(std.testing.allocator, &client, "SELECT FROM people", @splat(1), .{ .requests = 100, .rows = 100, .result_bytes = 1024 }, null, &location));
+    try std.testing.expectEqual(@as(usize, 7), location.offset);
 }

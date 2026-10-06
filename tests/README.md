@@ -11148,6 +11148,21 @@ Initial development builds caught Zig's nested-name shadowing rule and the
 mutable vector required by `writeSplatAll`; those failed builds are retained.
 These checks do not replace the final full-type/caller and clean-CI gates.
 
+The Table header/EXPLAIN location checkpoint passes **206/206 Fuze tests**,
+**30/30 CLI lifecycle tests** and the real console build
+(`table-locations-fuze1.log`, `table-locations-console1.log`). Cases cover
+SELECT/CREATE/ALTER/DROP/INSERT/UPDATE/DELETE header offsets and ensure editor
+continuations do not suggest IF after ALTER TABLE or a derived relation after
+plain SELECT. Catalog/query tests supply no usable transport and establish that
+invalid headers fail before metadata acquisition.
+
+Full pinned `just check` passes (`table-locations-check1.log`). The expanded
+native proof passes in **110.858 seconds** (`table-locations-native1.log`),
+checking actual console error coordinates for SELECT and EXPLAIN, including a
+failure after schema acquisition. All 350 turns, 83 sends, four-mutation bounds,
+large-output checks and recovery cases remain in that run. These checks do not
+qualify complete contextual highlighting or all compiler binding witnesses.
+
 ## Fuze logical type foundation
 
 The local `Types` profile has nine passing focused Zig tests, including 46

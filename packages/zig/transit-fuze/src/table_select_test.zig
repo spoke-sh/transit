@@ -124,6 +124,37 @@ test "general SELECT rejects complete invalid bindings and unsupported construct
     defer duplicate.deinit();
     try e.expectEqual(@as(usize, 2), duplicate.plan.projection.len);
 }
+test "Table target parsing retains original header failure coordinates and grammar continuations" {
+    var arena: std.heap.ArenaAllocator = .init(e.allocator);
+    defer arena.deinit();
+    const f = @import("root.zig");
+    const cases = .{
+        .{ "SELECT FROM items", 7, select.targetDiagnostic },
+        .{ "SELECT COUNT( FROM items", 14, select.targetDiagnostic },
+        .{ "INSERT people VALUES (1)", 7, f.TableDml.targetDiagnostic },
+        .{ "DELETE people", 7, f.TableDml.targetDiagnostic },
+        .{ "UPDATE 7 SET x=1", 7, f.TableDml.targetDiagnostic },
+        .{ "CREATE people", 7, f.TableDdl.targetDiagnostic },
+        .{ "ALTER people", 6, f.TableDdl.targetDiagnostic },
+        .{ "DROP TABLE IF people", 14, f.TableDdl.targetDiagnostic },
+    };
+    inline for (cases) |case| {
+        var location: f.Sql.Location = .{ .offset = 999 };
+        try e.expectError(error.InvalidSqlSyntax, case[2](arena.allocator(), case[0], &location));
+        try e.expectEqual(@as(usize, case[1]), location.offset);
+    }
+    var alter: f.SqlTyped.Editor = .{};
+    try e.expectError(error.InvalidSqlSyntax, f.TableDdl.targetWithEditor(arena.allocator(), "ALTER TABLE ", &alter));
+    try e.expectEqual(.source, alter.name_role.?);
+    for (alter.words) |word| if (word) |value| try e.expect(!std.mem.eql(u8, value, "IF"));
+    var plain: f.SqlTyped.Editor = .{};
+    try e.expectError(error.InvalidSqlSyntax, select.targetWithEditor(arena.allocator(), "SELECT * FROM ", &plain));
+    try e.expectEqual(.source, plain.name_role.?);
+    for (plain.symbols) |symbol| try e.expect(symbol != .left);
+    var aggregate: f.SqlTyped.Editor = .{};
+    try e.expectError(error.InvalidSqlSyntax, select.targetWithEditor(arena.allocator(), "SELECT COUNT(*) FROM ", &aggregate));
+    try e.expect(std.mem.indexOfScalar(?f.Sql.Tag, &aggregate.symbols, .left) != null);
+}
 fn ownership(allocator: std.mem.Allocator) !void {
     const text = try allocator.dupe(u8, "SELECT n AS named FROM people WHERE n>=7 OR NOT n IS NULL");
     defer allocator.free(text);

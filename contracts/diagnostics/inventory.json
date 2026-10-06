@@ -491,15 +491,16 @@
       "outcomes": {},
       "error_sets": {},
       "error_returns": {
+        "compilationFailure()": "<inferred>",
         "explain()": "<inferred>",
         "explainTo()": "<inferred>",
         "sql()": "<inferred>",
         "sqlTo()": "<inferred>"
       },
-      "open_error_set_uses": 0,
+      "open_error_set_uses": 1,
       "propagation": {
-        "try": 35,
-        "catch": 4
+        "try": 36,
+        "catch": 5
       },
       "imports": [
         "Console.zig",
@@ -7095,7 +7096,6 @@
         "DuplicatePrimaryKeyColumn": 1,
         "InvalidColumnCount": 1,
         "InvalidPrimaryKey": 1,
-        "InvalidSqlSyntax": 1,
         "MultiplePrimaryKeys": 3,
         "NullablePrimaryKey": 2,
         "TableNotFound": 1,
@@ -7129,6 +7129,8 @@
         "drop()": "<inferred>",
         "selectedColumn()": "<inferred>",
         "target()": "<inferred>",
+        "targetContext()": "<inferred>",
+        "targetDiagnostic()": "<inferred>",
         "targetWithEditor()": "<inferred>"
       },
       "open_error_set_uses": 0,
@@ -7179,6 +7181,8 @@
         "insert()": "<inferred>",
         "parseAssignment()": "<inferred>",
         "target()": "<inferred>",
+        "targetContext()": "<inferred>",
+        "targetDiagnostic()": "<inferred>",
         "targetWithEditor()": "<inferred>",
         "update()": "<inferred>"
       },
@@ -7446,6 +7450,8 @@
         "compileWithEditor()": "<inferred>",
         "tail()": "<inferred>",
         "target()": "<inferred>",
+        "targetContext()": "<inferred>",
+        "targetDiagnostic()": "<inferred>",
         "targetQualifier()": "<inferred>",
         "targetWithEditor()": "<inferred>"
       },

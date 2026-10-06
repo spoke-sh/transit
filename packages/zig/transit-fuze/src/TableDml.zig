@@ -181,7 +181,13 @@ pub fn target(allocator: std.mem.Allocator, text: []const u8) !Target {
     return targetWithEditor(allocator, text, null);
 }
 pub fn targetWithEditor(allocator: std.mem.Allocator, text: []const u8, editor: ?*Parser.Editor) !Target {
-    var parser = try Parser.init(allocator, text, null);
+    return targetContext(allocator, text, null, editor);
+}
+pub fn targetDiagnostic(allocator: std.mem.Allocator, text: []const u8, location: ?*sql.Location) !Target {
+    return targetContext(allocator, text, location, null);
+}
+fn targetContext(allocator: std.mem.Allocator, text: []const u8, location: ?*sql.Location, editor: ?*Parser.Editor) !Target {
+    var parser = try Parser.init(allocator, text, location);
     parser.editor = editor;
     return header(&parser);
 }

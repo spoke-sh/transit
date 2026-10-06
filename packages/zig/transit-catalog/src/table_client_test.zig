@@ -111,3 +111,11 @@ test "general SQL creation compiles offline into the same typed intent" {
     try t.expectError(error.InvalidCatalogIdentity, client.compile(t.allocator, "CREATE TABLE people (id INTEGER)", .{ .operation = 1, .namespace = 1000 }, null));
     try t.expectError(error.InvalidCatalogIdentity, client.compile(t.allocator, "DELETE FROM people", .{ .operation = 1, .namespace = 1000, .create_object = 100 }, null));
 }
+test "invalid Table headers report their location before reading the authority" {
+    var client: Client = .{ .transport = undefined, .connection = connection, .key = try p.Ed25519.KeyPair.generateDeterministic(@splat(10)) };
+    inline for (.{ "CREATE people", "INSERT people", "DELETE people" }) |text| {
+        var location: c.fuze.Sql.Location = .{ .offset = 999 };
+        try t.expectError(error.InvalidSqlSyntax, client.compile(t.allocator, text, .{ .operation = 1, .namespace = 1000 }, &location));
+        try t.expectEqual(@as(usize, 7), location.offset);
+    }
+}

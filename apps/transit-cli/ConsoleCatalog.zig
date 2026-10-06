@@ -26,7 +26,7 @@ pub fn command(console: *Console, catalog: *c.TableClient, text: []const u8) !bo
         return true;
     }
     if (try parser.takeWord("EXPLAIN")) {
-        try @import("ConsoleTableQuery.zig").explain(console, catalog, statement[parser.lexer.start..]);
+        try @import("ConsoleTableQuery.zig").explain(console, catalog, statement, parser.lexer.start);
         return true;
     }
     return false;

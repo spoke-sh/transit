@@ -31,12 +31,18 @@ pub fn target(allocator: std.mem.Allocator, text: []const u8) !Target {
     return targetWithEditor(allocator, text, null);
 }
 pub fn targetWithEditor(allocator: std.mem.Allocator, text: []const u8, editor: ?*Parser.Editor) !Target {
-    var parser = try Parser.init(allocator, text, null);
+    return targetContext(allocator, text, null, editor);
+}
+pub fn targetDiagnostic(allocator: std.mem.Allocator, text: []const u8, location: ?*sql.Location) !Target {
+    return targetContext(allocator, text, location, null);
+}
+fn targetContext(allocator: std.mem.Allocator, text: []const u8, location: ?*sql.Location, editor: ?*Parser.Editor) !Target {
+    var parser = try Parser.init(allocator, text, location);
     parser.editor = editor;
     const kind: std.meta.Tag(Statement) = if (try parser.takeWord("CREATE")) .create else if (try parser.takeWord("ALTER")) .alter else if (try parser.takeWord("DROP")) .drop else return error.UnsupportedStatement;
     try parser.requireWord("TABLE");
-    if (try parser.takeWord("IF")) {
-        if (kind == .create) try parser.requireWord("NOT") else if (kind != .drop) return error.InvalidSqlSyntax;
+    if (kind != .alter and try parser.takeWord("IF")) {
+        if (kind == .create) try parser.requireWord("NOT");
         try parser.requireWord("EXISTS");
     }
     return .{ .kind = kind, .name = try parser.named(if (kind == .create) .proposed else .source) };

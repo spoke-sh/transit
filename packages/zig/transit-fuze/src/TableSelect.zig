@@ -92,11 +92,17 @@ pub fn target(allocator: std.mem.Allocator, text: []const u8) ![]const u8 {
     return targetWithEditor(allocator, text, null);
 }
 pub fn targetWithEditor(allocator: std.mem.Allocator, text: []const u8, editor: ?*Parser.Editor) ![]const u8 {
-    var parser = try Parser.init(allocator, text, null);
+    return targetContext(allocator, text, null, editor);
+}
+pub fn targetDiagnostic(allocator: std.mem.Allocator, text: []const u8, location: ?*sql.Location) ![]const u8 {
+    return targetContext(allocator, text, location, null);
+}
+fn targetContext(allocator: std.mem.Allocator, text: []const u8, location: ?*sql.Location, editor: ?*Parser.Editor) ![]const u8 {
+    var parser = try Parser.init(allocator, text, location);
     parser.editor = editor;
     const selection = try Selection.parse(&parser);
-    if (try parser.take(.left)) {
-        if (selection.aggregate == .rows) return error.UnsupportedConstruct;
+    if (selection.aggregate == .rows and parser.token.tag == .left) return error.UnsupportedConstruct;
+    if (selection.aggregate != .rows and try parser.take(.left)) {
         const inner = try Selection.parse(&parser);
         if (inner.aggregate != .rows) return error.UnsupportedConstruct;
     }
@@ -106,8 +112,8 @@ pub fn targetWithEditor(allocator: std.mem.Allocator, text: []const u8, editor: 
 pub fn targetQualifier(allocator: std.mem.Allocator, text: []const u8) ![]const u8 {
     var parser = try Parser.init(allocator, text, null);
     const selection = try Selection.parse(&parser);
-    if (try parser.take(.left)) {
-        if (selection.aggregate == .rows) return error.UnsupportedConstruct;
+    if (selection.aggregate == .rows and parser.token.tag == .left) return error.UnsupportedConstruct;
+    if (selection.aggregate != .rows and try parser.take(.left)) {
         _ = try Selection.parse(&parser);
     }
     const name = try parser.name();

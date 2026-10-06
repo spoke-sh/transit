@@ -574,6 +574,10 @@ response; the console does not automatically resend it.
 The [CLI reference](../../../docs/reference/cli.md#structured-errors) specifies
 source coordinates, timing records and stream boundaries.
 
+General Table header errors retain their original SQL positions before any
+catalog lookup. EXPLAIN diagnostics use positions in the complete EXPLAIN
+statement, including its prefix and intervening comments or whitespace.
+
 ## Exact recovery and bounds
 
 The recovery behavior below applies to `execution: durable`. Interactive queries

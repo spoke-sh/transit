@@ -7,18 +7,22 @@ const Console = @import("Console.zig").Console;
 const Signals = @import("Signals.zig");
 const Timing = @import("Timing.zig");
 const Output = @import("Output.zig");
-pub fn explain(console: *Console, catalog: *c.TableClient, statement: []const u8) !void {
+pub fn explain(console: *Console, catalog: *c.TableClient, statement: []const u8, start: usize) !void {
     var bytes: [16384]u8 = undefined;
     var stream = Output.Stream.init(console.init.io, console.out, &bytes);
-    explainTo(console, catalog, statement, &stream) catch |err| return stream.failure orelse err;
+    explainTo(console, catalog, statement, start, &stream) catch |err| return stream.failure orelse err;
 }
-fn explainTo(console: *Console, catalog: *c.TableClient, statement: []const u8, stream: *Output.Stream) !void {
+fn explainTo(console: *Console, catalog: *c.TableClient, statement: []const u8, start: usize, stream: *Output.Stream) !void {
     Signals.cancellation.store(false, .release);
     if (Signals.interrupted()) return error.ConsoleInterrupted;
     var nonce: [16]u8 = undefined;
     try console.init.io.randomSecure(&nonce);
     var location: q.fuze.Sql.Location = .{};
-    var query = try q.TableQuery.open(console.init.gpa, catalog, statement, nonce, console.table_limits, &Signals.cancellation, &location);
+    var query = q.TableQuery.open(console.init.gpa, catalog, statement[start..], nonce, console.table_limits, &Signals.cancellation, &location) catch |err| {
+        location.offset += @intCast(start);
+        try compilationFailure(console, catalog, statement, "table_explain", err, location);
+        return err;
+    };
     defer query.deinit();
     var fields: [q.fuze.TableSchema.max_columns]q.fuze.Types.Field = undefined;
     const schema = try query.schema(&fields);
@@ -75,9 +79,7 @@ fn sqlTo(console: *Console, catalog: *c.TableClient, request: @import("SqlInput.
     try console.init.io.randomSecure(&nonce);
     var location: q.fuze.Sql.Location = .{};
     var query = q.TableQuery.open(console.init.gpa, catalog, request.sql, nonce, console.table_limits, &Signals.cancellation, &location) catch |err| {
-        console.diagnostic.sql = q.fuze.SqlDiagnostic.tableSelect(request.sql, err, location);
-        if (console.diagnostic.sql == null) console.diagnostic.envelope = try q.ApiDiagnostic.attempt("table_select", .read, null, err, .{}, false, null);
-        if (console.diagnostic.envelope) |*detail| if (catalog.transport.last_rejection) |native| try detail.text(.native_cause, .authority, @tagName(native));
+        try compilationFailure(console, catalog, request.sql, "table_select", err, location);
         return err;
     };
     defer query.deinit();
@@ -143,4 +145,9 @@ fn sqlTo(console: *Console, catalog: *c.TableClient, request: @import("SqlInput.
     }
     if (console.writes) |writer| try writer.clearComplete();
     console.query_running = false;
+}
+fn compilationFailure(console: *Console, catalog: *c.TableClient, statement: []const u8, operation: []const u8, err: anyerror, location: q.fuze.Sql.Location) !void {
+    console.diagnostic.sql = q.fuze.SqlDiagnostic.tableSelect(statement, err, location);
+    if (console.diagnostic.sql == null) console.diagnostic.envelope = try q.ApiDiagnostic.attempt(operation, .read, null, err, .{}, false, null);
+    if (console.diagnostic.envelope) |*detail| if (catalog.transport.last_rejection) |native| try detail.text(.native_cause, .authority, @tagName(native));
 }
