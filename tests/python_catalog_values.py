@@ -59,7 +59,7 @@ for value in (l.Missing(), l.Null(), l.SourceTypeError('decimal'), cell,
     l.Present(l.Atom('interval', l.Interval(1, -2, 3000))), l.Present(l.Atom('uuid', bytes(range(16)))),
     l.Present(l.MapValue((l.MapEntry(l.Atom('signed', 1), l.Null()),))),
     l.Present(l.TaggedValue(1, l.Null())), l.Present(l.JsonValue('{"x":1}')),
-    l.Conflict((l.Alternative((1 << 64) - 1, 2, l.Null()),))):
+    l.Conflict((l.Alternative(1, 1, l.Null()), l.Alternative((1 << 64) - 1, 2, l.Null())))):
     assert codec.cell_from_wire(codec.cell_wire(value)) == value
 for width in (32, 64):
     value = codec.atom_from_wire(codec.atom_wire(l.Atom('float', -0.0, width)))
@@ -73,6 +73,28 @@ rejects(ValueError, lambda: codec.cell_from_wire({'conflict': [{'counter': '1', 
 nested = l.ScalarType('int8')
 for _ in range(16): nested = l.ListType(l.Element(nested))
 rejects(ValueError, lambda: codec.type_wire(nested))
+
+# Native conflicts share their owning column's depth; map keys consume children.
+deep = l.Conflict((l.Alternative(1, 1, l.Null()), l.Alternative(1, 2, l.Null())))
+for _ in range(15): deep = l.Present(l.SequenceValue('list', (deep,)))
+assert codec.cell_from_wire(codec.cell_wire(deep)) == deep
+rejects(ValueError, lambda: codec.cell_wire(l.Present(l.SequenceValue('list', (deep,)))))
+rejects(ValueError, lambda: codec.cell_from_wire({'value': {'list': [codec.cell_wire(deep)]}}))
+for alternatives in ((), (l.Alternative(1, 1, l.Null()),),
+    (l.Alternative(0, 1, l.Null()), l.Alternative(1, 1, l.Null())),
+    (l.Alternative(1, 1, l.Null()), l.Alternative(1, 1, l.Null())),
+    (l.Alternative(2, 1, l.Null()), l.Alternative(1, 1, l.Null()))):
+    rejects(ValueError, lambda: codec.cell_wire(l.Conflict(alternatives)))
+    wire = {'conflict': [dict(counter=str(a.counter), replica=str(a.replica), value={'null': {}}) for a in alternatives]}
+    rejects(ValueError, lambda: codec.cell_from_wire(wire))
+entries = tuple(l.MapEntry(l.Atom('signed', i), l.Null()) for i in range(32767))
+assert len(codec.cell_wire(l.Present(l.MapValue(entries)))['value']['map']) == 32767
+rejects(ValueError, lambda: codec.cell_wire(l.Present(l.MapValue(entries + (entries[-1],)))))
+rejects(ValueError, lambda: codec.cell_from_wire({'value': {'map': [{'key': {'signed': str(i)}, 'value': {'null': {}}} for i in range(32768)]}}))
+rejects(ValueError, lambda: codec.cell_wire(l.Present(l.SequenceValue('list', (l.Present(l.Atom('binary', bytes(600000))),) * 2))))
+rejects(ValueError, lambda: codec.cell_from_wire({'value': {'list': [{'value': {'atom': {'utf8': 'x' * 600000}}}] * 2}}))
+rejects(ValueError, lambda: codec.type_from_wire({'structure': [dict(name='x', type={'boolean': {}}, nullable=False, optional=False)] * 256}))
+rejects(ValueError, lambda: codec.type_wire(l.StructureType(tuple(l.Field('x' * 255, l.ScalarType('boolean')) for _ in range(17)))))
 
 
 class Api:

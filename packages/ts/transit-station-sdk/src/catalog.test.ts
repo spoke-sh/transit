@@ -220,6 +220,112 @@ test("native logical values preserve wide numbers, signed zero and nested states
   assert.throws(() => encodeType(recursive), /nesting/);
 });
 
+test("logical conflicts, map children and aggregate budgets match native limits", () => {
+  let deep: Cell = {
+    state: "conflict",
+    alternatives: [
+      { counter: 1n, replica: 1n, cell: { state: "null" } },
+      { counter: 1n, replica: 2n, cell: { state: "null" } },
+    ],
+  };
+  for (let i = 0; i < 15; i++) deep = { state: "value", value: { kind: "list", cells: [deep] } };
+  assert.deepEqual(decodeCell(encodeCell(deep)), deep);
+  assert.throws(() => encodeCell({ state: "value", value: { kind: "list", cells: [deep] } }));
+  assert.throws(() => decodeCell({ value: { list: [encodeCell(deep)] } }));
+  for (const dots of [
+    [],
+    [[1n, 1n]],
+    [
+      [0n, 1n],
+      [1n, 1n],
+    ],
+    [
+      [1n, 1n],
+      [1n, 1n],
+    ],
+    [
+      [2n, 1n],
+      [1n, 1n],
+    ],
+  ]) {
+    assert.throws(() =>
+      encodeCell({
+        state: "conflict",
+        alternatives: dots.map(([counter, replica]) => ({
+          counter: counter!,
+          replica: replica!,
+          cell: { state: "null" },
+        })),
+      }),
+    );
+    assert.throws(() =>
+      decodeCell({
+        conflict: dots.map(([counter, replica]) => ({
+          counter: counter!.toString(),
+          replica: replica!.toString(),
+          value: { null: {} },
+        })),
+      }),
+    );
+  }
+  const entries = Array.from({ length: 32767 }, (_, i) => ({
+    key: { kind: "signed" as const, value: BigInt(i) },
+    value: { state: "null" as const },
+  }));
+  assert.doesNotThrow(() =>
+    decodeCell(encodeCell({ state: "value", value: { kind: "map", entries } })),
+  );
+  assert.throws(() =>
+    encodeCell({ state: "value", value: { kind: "map", entries: [...entries, entries[0]!] } }),
+  );
+  assert.throws(() =>
+    decodeCell({
+      value: {
+        map: Array.from({ length: 32768 }, (_, i) => ({
+          key: { signed: String(i) },
+          value: { null: {} },
+        })),
+      },
+    }),
+  );
+  const payload: Cell = {
+    state: "value",
+    value: { kind: "atom", atom: { kind: "binary", value: new Uint8Array(600000) } },
+  };
+  assert.throws(() =>
+    encodeCell({ state: "value", value: { kind: "list", cells: [payload, payload] } }),
+  );
+  assert.throws(() =>
+    decodeCell({
+      value: {
+        list: [
+          { value: { atom: { utf8: "x".repeat(600000) } } },
+          { value: { json: "x".repeat(600000) } },
+        ],
+      },
+    }),
+  );
+  assert.throws(() =>
+    decodeType({
+      structure: Array.from({ length: 256 }, () => ({
+        name: "x",
+        type: { boolean: {} },
+        nullable: false,
+        optional: false,
+      })),
+    }),
+  );
+  assert.throws(() =>
+    encodeType({
+      kind: "structure",
+      fields: Array.from({ length: 17 }, () => ({
+        name: "x".repeat(255),
+        type: { kind: "boolean" },
+      })),
+    }),
+  );
+});
+
 for (const response of [
   { receipt: { position: 0 } },
   { receipt: { position: 1.5 } },

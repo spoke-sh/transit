@@ -11388,6 +11388,16 @@ and 256-byte native values across 586 turns and 157 sends. This checkpoint does
 not qualify unmigrated languages or the remaining cutover, query paths and
 performance/growth gates.
 
+The SDK logical-boundary correction passes **51 Station tests**, strict Python
+type checking across **25 files** and focused Python value/ownership checks
+(`table-sdk-bounds-{node,types,python}1.log` in the same campaign). Regression
+cases accept conflicts at depth 15, reject one more list level, reject invalid
+conflict counts/dot ordering, count both MAP keys and values, and reject aggregate
+payload/type budgets. A direct call through the built native logical codec
+independently accepts and round-trips the depth-15 conflict with two alternatives.
+These checks do not expand the supported Table schema depth or establish a new
+installed-package, full-repository or clean-CI pass.
+
 ## Fuze logical type foundation
 
 The local `Types` profile has nine passing focused Zig tests, including 46

@@ -150,6 +150,10 @@ Each client admits one operation at a time and rejects overlap with `Busy`.
 Returned bytes and nested values outlive the handle. Response decoding validates
 canonical integers, enum tags, definition IDs, requested identities, page cuts and
 outcome/count consistency; the native validator checks diagnostic evidence.
+Logical conversion bounds both directions to depth below 16, 256 type nodes,
+4,096 field-name bytes, 65,536 value children and 1 MiB of value data. MAP keys
+count as children. Conflict alternatives share the owning cell's depth and
+require two to eight increasing positive counter/replica pairs.
 Requests use the generated 16 MiB catalog frame limit. There is no implicit
 submission retry or principal-sequence coordinator. Native reads/preparation can
 restart only the exact transient stale-resource rejection within the deadline.

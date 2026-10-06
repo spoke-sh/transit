@@ -165,13 +165,18 @@ Cell: TypeAlias = Missing | Null | SourceTypeError | Present | Conflict
 
 class _Budget:
     def __init__(self, maximum: int) -> None:
-        self.maximum, self.nodes, self.bytes = maximum, 0, 0
+        self.maximum, self.nodes, self.bytes, self.names = maximum, 0, 0, 0
     def enter(self, depth: int) -> None:
         self.nodes += 1
         if depth >= 16 or self.nodes > self.maximum: raise ValueError('Logical value exceeds its nesting/child bound')
     def data(self, length: int) -> None:
         self.bytes += length
         if self.bytes > 1024 * 1024: raise ValueError('Logical value exceeds its byte bound')
+    def name(self, value: object) -> str:
+        text = _text(value)
+        self.names += len(text.encode())
+        if self.names > 4096: raise ValueError('Logical type exceeds its name byte bound')
+        return text
 
 
 def _object(value: object, fields: str) -> dict[str, Any]:
@@ -219,7 +224,7 @@ def type_wire(value: Descriptor, budget: _Budget | None = None, depth: int = 0) 
         if value.zone not in ('civil', 'utc'): raise ValueError('Unknown timestamp zone')
         return {'timestamp': value.zone}
     if isinstance(value, (StructureType, UnionType)):
-        return {'structure' if isinstance(value, StructureType) else 'tagged_union': [dict(name=_text(item.name), type=type_wire(item.type, budget, depth + 1), nullable=_boolean(item.nullable), optional=_boolean(item.optional)) for item in value.fields]}
+        return {'structure' if isinstance(value, StructureType) else 'tagged_union': [dict(name=budget.name(item.name), type=type_wire(item.type, budget, depth + 1), nullable=_boolean(item.nullable), optional=_boolean(item.optional)) for item in value.fields]}
     if isinstance(value, ListType): return {'list': element(value.element)}
     if isinstance(value, ArrayType): return {'array': dict(element=element(value.element), length=_integer(value.length, 1, 0xffffffff))}
     if isinstance(value, MapType): return {'map': dict(key=type_wire(value.key, budget, depth + 1), value=element(value.value))}
@@ -247,7 +252,7 @@ def type_from_wire(value: object, budget: _Budget | None = None, depth: int = 0)
         fields = []
         for source in payload:
             item = _object(source, 'name type nullable optional')
-            fields.append(Field(_text(item['name']), type_from_wire(item['type'], budget, depth + 1), _boolean(item['nullable']), _boolean(item['optional'])))
+            fields.append(Field(budget.name(item['name']), type_from_wire(item['type'], budget, depth + 1), _boolean(item['nullable']), _boolean(item['optional'])))
         return StructureType(tuple(fields)) if kind == 'structure' else UnionType(tuple(fields))
     if kind == 'list': return ListType(element(payload))
     if kind == 'array':
@@ -273,6 +278,7 @@ def atom_wire(value: Atom, budget: _Budget | None = None) -> dict[str, Any]:
         if type(data) is not float or not math.isfinite(data) or value.width not in (32, 64): raise ValueError('Expected finite float with explicit width')
         try: bits = struct.pack('<f' if value.width == 32 else '<d', data)
         except OverflowError: raise ValueError('Float exceeds its selected width') from None
+        budget.data(len(bits))
         return {'float_bits': bits.hex()}
     if kind == 'boolean': return {kind: _boolean(data)}
     if kind == 'utf8':
@@ -314,20 +320,39 @@ def atom_from_wire(value: object, budget: _Budget | None = None) -> Atom:
     raise ValueError('Unknown logical atom')
 
 
+def _conflict_dot(counter: int, replica: int, previous: tuple[int, int]) -> tuple[int, int]:
+    dot = _integer(counter, 1, (1 << 64) - 1), _integer(replica, 1, (1 << 64) - 1)
+    if dot <= previous: raise ValueError('Expected increasing positive conflict dots')
+    return dot
+
+
 def cell_wire(value: Cell, budget: _Budget | None = None, depth: int = 0) -> dict[str, Any]:
     budget = budget or _Budget(65536)
     budget.enter(depth)
     if isinstance(value, Missing): return {'missing': {}}
     if isinstance(value, Null): return {'null': {}}
     if isinstance(value, SourceTypeError): return {'type_error': value.actual}
-    if isinstance(value, Conflict): return {'conflict': [dict(counter=str(_integer(item.counter, 0, (1 << 64) - 1)), replica=str(_integer(item.replica, 0, (1 << 64) - 1)), value=cell_wire(item.value, budget, depth + 1)) for item in value.alternatives]}
+    if isinstance(value, Conflict):
+        if not 2 <= len(value.alternatives) <= 8: raise ValueError('Expected two to eight conflict alternatives')
+        alternatives = []
+        previous = (0, 0)
+        for alternative in value.alternatives:
+            previous = _conflict_dot(alternative.counter, alternative.replica, previous)
+            if not isinstance(alternative.value, (Null, SourceTypeError, Present)): raise ValueError('Invalid conflict alternative')
+            alternatives.append(dict(counter=str(alternative.counter), replica=str(alternative.replica), value=cell_wire(alternative.value, budget, depth)))
+        return {'conflict': alternatives}
     if not isinstance(value, Present): raise TypeError('Expected logical cell')
     item = value.value
     if isinstance(item, Atom): data: object = {'atom': atom_wire(item, budget)}
     elif isinstance(item, SequenceValue):
         if item.kind not in ('structure', 'list', 'array'): raise ValueError('Unknown logical sequence')
         data = {item.kind: [cell_wire(child, budget, depth + 1) for child in item.cells]}
-    elif isinstance(item, MapValue): data = {'map': [dict(key=atom_wire(entry.key, budget), value=cell_wire(entry.value, budget, depth + 1)) for entry in item.entries]}
+    elif isinstance(item, MapValue):
+        entries = []
+        for entry in item.entries:
+            budget.enter(depth + 1)
+            entries.append(dict(key=atom_wire(entry.key, budget), value=cell_wire(entry.value, budget, depth + 1)))
+        data = {'map': entries}
     elif isinstance(item, TaggedValue): data = {'tagged_union': dict(index=_integer(item.index, 0, 255), value=cell_wire(item.value, budget, depth + 1))}
     elif isinstance(item, JsonValue):
         text = _text(item.json); budget.data(len(text.encode()))
@@ -345,13 +370,15 @@ def cell_from_wire(value: object, budget: _Budget | None = None, depth: int = 0)
         return Missing() if kind == 'missing' else Null()
     if kind == 'type_error': return SourceTypeError(_text(payload))  # type: ignore[arg-type]
     if kind == 'conflict':
-        if not isinstance(payload, list): raise ValueError('Expected conflict alternatives')
+        if not isinstance(payload, list) or not 2 <= len(payload) <= 8: raise ValueError('Expected two to eight conflict alternatives')
         alternatives = []
+        previous = (0, 0)
         for source in payload:
             item = _object(source, 'counter replica value')
-            cell = cell_from_wire(item['value'], budget, depth + 1)
+            previous = _conflict_dot(_decimal(item['counter']), _decimal(item['replica']), previous)
+            cell = cell_from_wire(item['value'], budget, depth)
             if isinstance(cell, (Missing, Conflict)): raise ValueError('Invalid conflict alternative')
-            alternatives.append(Alternative(_integer(_decimal(item['counter']), 0, (1 << 64) - 1), _integer(_decimal(item['replica']), 0, (1 << 64) - 1), cell))
+            alternatives.append(Alternative(*previous, cell))
         return Conflict(tuple(alternatives))
     if kind != 'value': raise ValueError('Unknown logical cell state')
     kind, payload = _variant(payload)
@@ -364,6 +391,7 @@ def cell_from_wire(value: object, budget: _Budget | None = None, depth: int = 0)
         entries = []
         for source in payload:
             item = _object(source, 'key value')
+            budget.enter(depth + 1)
             entries.append(MapEntry(atom_from_wire(item['key'], budget), cell_from_wire(item['value'], budget, depth + 1)))
         return Present(MapValue(tuple(entries)))
     if kind == 'tagged_union':

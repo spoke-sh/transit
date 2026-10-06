@@ -107,6 +107,7 @@ function exact(value: string): bigint {
 class Budget {
   nodes = 0;
   bytes = 0;
+  names = 0;
   readonly maxNodes: number;
   constructor(maxNodes: number) {
     this.maxNodes = maxNodes;
@@ -118,6 +119,11 @@ class Budget {
   data(length: number): void {
     this.bytes += length;
     if (this.bytes > 1024 * 1024) throw new TypeError("Logical value exceeds its byte bound");
+  }
+  name(value: string): string {
+    this.names += Buffer.byteLength(value);
+    if (this.names > 4096) throw new TypeError("Logical type exceeds its name byte bound");
+    return value;
   }
 }
 export function encodeType(value: Descriptor, budget = new Budget(256), depth = 0): WireType {
@@ -134,7 +140,7 @@ export function encodeType(value: Descriptor, budget = new Budget(256), depth = 
     case "structure":
     case "tagged_union": {
       const fields = value.fields.map((field) => ({
-        name: field.name,
+        name: budget.name(field.name),
         type: encodeType(field.type, budget, depth + 1),
         nullable: field.nullable ?? false,
         optional: field.optional ?? false,
@@ -153,10 +159,10 @@ export function encodeType(value: Descriptor, budget = new Budget(256), depth = 
       return { [value.kind]: {} } as WireType;
   }
 }
-export function decodeType(value: WireType, depth = 0): Descriptor {
-  if (depth >= 16) throw new TypeError("Logical type exceeds its nesting bound");
+export function decodeType(value: WireType, budget = new Budget(256), depth = 0): Descriptor {
+  budget.enter(depth);
   const element = (value: { type: WireType; nullable?: boolean }): Element => ({
-    type: decodeType(value.type, depth + 1),
+    type: decodeType(value.type, budget, depth + 1),
     nullable: value.nullable ?? false,
   });
   if ("decimal" in value) return { kind: "decimal", ...value.decimal };
@@ -166,8 +172,8 @@ export function decodeType(value: WireType, depth = 0): Descriptor {
     return {
       kind: "structure" in value ? "structure" : "tagged_union",
       fields: fields.map((field) => ({
-        name: field.name,
-        type: decodeType(field.type, depth + 1),
+        name: budget.name(field.name),
+        type: decodeType(field.type, budget, depth + 1),
         nullable: field.nullable ?? false,
         optional: field.optional ?? false,
       })),
@@ -179,7 +185,7 @@ export function decodeType(value: WireType, depth = 0): Descriptor {
   if ("map" in value)
     return {
       kind: "map",
-      key: decodeType(value.map.key, depth + 1),
+      key: decodeType(value.map.key, budget, depth + 1),
       value: element(value.map.value),
     };
   return { kind: Object.keys(value)[0] as ScalarKind };
@@ -204,6 +210,7 @@ export function encodeAtom(value: Atom, budget = new Budget(65536)): WireAtom {
     case "float": {
       if (!Number.isFinite(value.value) || ![32, 64].includes(value.width))
         throw new TypeError("Expected a finite logical float");
+      budget.data(value.width / 8);
       const buffer = new ArrayBuffer(value.width / 8);
       const view = new DataView(buffer);
       if (value.width === 32) {
@@ -219,12 +226,15 @@ export function encodeAtom(value: Atom, budget = new Budget(65536)): WireAtom {
       return { utf8: value.value };
     case "binary":
     case "uuid":
+      if (value.kind === "uuid" && value.value.length !== 16)
+        throw new TypeError("Invalid logical UUID width");
       budget.data(value.value.length);
       return { [value.kind]: hex(value.value, 1024 * 1024) } as WireAtom;
   }
 }
-export function decodeAtom(value: WireAtom): Atom {
+export function decodeAtom(value: WireAtom, budget = new Budget(65536)): Atom {
   if ("float_bits" in value) {
+    budget.data(value.float_bits.length / 2);
     const bytes = unhex(value.float_bits, 8);
     if (bytes.length !== 4 && bytes.length !== 8)
       throw new TypeError("Invalid logical float width");
@@ -241,9 +251,19 @@ export function decodeAtom(value: WireAtom): Atom {
       nanos: exact(value.interval.nanos),
     };
   if ("boolean" in value) return { kind: "boolean", value: value.boolean };
-  if ("utf8" in value) return { kind: "utf8", value: value.utf8 };
-  if ("binary" in value) return { kind: "binary", value: unhex(value.binary, 1024 * 1024) };
-  if ("uuid" in value) return { kind: "uuid", value: unhex(value.uuid, 16) };
+  if ("utf8" in value) {
+    budget.data(Buffer.byteLength(value.utf8));
+    return { kind: "utf8", value: value.utf8 };
+  }
+  if ("binary" in value) {
+    budget.data(value.binary.length / 2);
+    return { kind: "binary", value: unhex(value.binary, 1024 * 1024) };
+  }
+  if ("uuid" in value) {
+    if (value.uuid.length !== 32) throw new TypeError("Invalid logical UUID width");
+    budget.data(16);
+    return { kind: "uuid", value: unhex(value.uuid, 16) };
+  }
   const [kind, text] = Object.entries(value)[0]!;
   return {
     kind: kind as
@@ -256,6 +276,26 @@ export function decodeAtom(value: WireAtom): Atom {
     value: exact(text as string),
   };
 }
+function conflictOrder(length: number): (counter: bigint, replica: bigint) => void {
+  if (length < 2 || length > 8) throw new TypeError("Expected two to eight conflict alternatives");
+  let previousCounter = 0n;
+  let previousReplica = 0n;
+  return (counter, replica) => {
+    if (
+      typeof counter !== "bigint" ||
+      typeof replica !== "bigint" ||
+      counter <= 0n ||
+      counter >= 1n << 64n ||
+      replica <= 0n ||
+      replica >= 1n << 64n ||
+      counter < previousCounter ||
+      (counter === previousCounter && replica <= previousReplica)
+    )
+      throw new TypeError("Expected increasing positive conflict dots");
+    previousCounter = counter;
+    previousReplica = replica;
+  };
+}
 export function encodeCell(value: Cell, budget = new Budget(65536), depth = 0): WireCell {
   budget.enter(depth);
   switch (value.state) {
@@ -265,17 +305,24 @@ export function encodeCell(value: Cell, budget = new Budget(65536), depth = 0): 
       return { missing: {} };
     case "type_error":
       return { type_error: value.actual };
-    case "conflict":
+    case "conflict": {
+      const dot = conflictOrder(value.alternatives.length);
       return {
-        conflict: value.alternatives.map((item) => ({
-          counter: numberText(item.counter),
-          replica: numberText(item.replica),
-          value: encodeCell(item.cell, budget, depth + 1) as Exclude<
-            WireCell,
-            { missing: unknown } | { conflict: unknown }
-          >,
-        })),
+        conflict: value.alternatives.map((item) => {
+          dot(item.counter, item.replica);
+          if (!["null", "type_error", "value"].includes(item.cell.state))
+            throw new TypeError("Invalid conflict alternative");
+          return {
+            counter: numberText(item.counter),
+            replica: numberText(item.replica),
+            value: encodeCell(item.cell, budget, depth) as Exclude<
+              WireCell,
+              { missing: unknown } | { conflict: unknown }
+            >,
+          };
+        }),
       };
+    }
     case "value": {
       const cell = (value: Cell) => encodeCell(value, budget, depth + 1);
       const item = value.value;
@@ -289,10 +336,10 @@ export function encodeCell(value: Cell, budget = new Budget(65536), depth = 0): 
         case "map":
           return {
             value: {
-              map: item.entries.map((entry) => ({
-                key: encodeAtom(entry.key, budget),
-                value: cell(entry.value),
-              })),
+              map: item.entries.map((entry) => {
+                budget.enter(depth + 1);
+                return { key: encodeAtom(entry.key, budget), value: cell(entry.value) };
+              }),
             },
           };
         case "tagged_union":
@@ -304,31 +351,45 @@ export function encodeCell(value: Cell, budget = new Budget(65536), depth = 0): 
     }
   }
 }
-export function decodeCell(value: WireCell, depth = 0): Cell {
-  if (depth >= 16) throw new TypeError("Logical cell exceeds its nesting bound");
-  const cell = (value: WireCell) => decodeCell(value, depth + 1);
+export function decodeCell(value: WireCell, budget = new Budget(65536), depth = 0): Cell {
+  budget.enter(depth);
+  const cell = (value: WireCell) => decodeCell(value, budget, depth + 1);
   if ("missing" in value) return { state: "missing" };
   if ("null" in value) return { state: "null" };
   if ("type_error" in value) return { state: "type_error", actual: value.type_error };
-  if ("conflict" in value)
+  if ("conflict" in value) {
+    const dot = conflictOrder(value.conflict.length);
     return {
       state: "conflict",
-      alternatives: value.conflict.map((item) => ({
-        counter: exact(item.counter),
-        replica: exact(item.replica),
-        cell: cell(item.value) as Cell & { state: "null" | "type_error" | "value" },
-      })),
+      alternatives: value.conflict.map((item) => {
+        const counter = exact(item.counter),
+          replica = exact(item.replica);
+        dot(counter, replica);
+        if ("missing" in item.value || "conflict" in item.value)
+          throw new TypeError("Invalid conflict alternative");
+        return {
+          counter,
+          replica,
+          cell: decodeCell(item.value, budget, depth) as Cell & {
+            state: "null" | "type_error" | "value";
+          },
+        };
+      }),
     };
+  }
   const item = value.value;
   let decoded: Value;
-  if ("atom" in item) decoded = { kind: "atom", atom: decodeAtom(item.atom) };
+  if ("atom" in item) decoded = { kind: "atom", atom: decodeAtom(item.atom, budget) };
   else if ("structure" in item) decoded = { kind: "structure", cells: item.structure.map(cell) };
   else if ("list" in item) decoded = { kind: "list", cells: item.list.map(cell) };
   else if ("array" in item) decoded = { kind: "array", cells: item.array.map(cell) };
   else if ("map" in item)
     decoded = {
       kind: "map",
-      entries: item.map.map((entry) => ({ key: decodeAtom(entry.key), value: cell(entry.value) })),
+      entries: item.map.map((entry) => {
+        budget.enter(depth + 1);
+        return { key: decodeAtom(entry.key, budget), value: cell(entry.value) };
+      }),
     };
   else if ("tagged_union" in item)
     decoded = {
@@ -336,6 +397,9 @@ export function decodeCell(value: WireCell, depth = 0): Cell {
       index: item.tagged_union.index,
       value: cell(item.tagged_union.value),
     };
-  else decoded = { kind: "json", json: item.json };
+  else {
+    budget.data(Buffer.byteLength(item.json));
+    decoded = { kind: "json", json: item.json };
+  }
   return { state: "value", value: decoded };
 }

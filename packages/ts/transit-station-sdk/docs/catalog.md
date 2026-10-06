@@ -166,7 +166,10 @@ The native owner rechecks authority and conditions when applying inputs.
 Generated schemas validate both port directions. The SDK uses the catalog's
 larger generated framing bound only for this profile and grows response storage
 geometrically with received bytes; idle clients release it. Logical conversion has
-bounded depth and children; the native owner enforces complete schema/value/intent
+depth below 16, at most 256 type nodes and 4,096 field-name bytes, and at most
+65,536 value children and 1 MiB of value data in either direction. MAP keys count
+as children; conflict alternatives share their owning cell's depth and require
+two to eight increasing positive counter/replica pairs. The native owner enforces complete schema/value/intent
 budgets. Kernel frames and turn limits remain unchanged. See the
 [shared caller contract](../../../zig/transit-station-bindings/docs/catalog.md)
 for exact transport, ownership and recovery limits.
