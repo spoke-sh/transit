@@ -17,6 +17,16 @@ DEFINITION: str = _contract['definition']
 LIMITS: dict[str, int] = _contract['limits']
 del _contract
 E = TypeVar('E', bound=Enum)
+W = TypeVar('W')
+
+
+class _WireBudget:
+    """Charge a fragment before converting the next owned logical value."""
+    def __init__(self, limit: int): self.remaining = limit
+    def take(self, value: W) -> W:
+        self.remaining -= len(encode(value))
+        if self.remaining < 0: raise ValueError('Table wire budget exceeded')
+        return value
 
 
 def _wide(value: object, name: str = 'identity', minimum: int = 1) -> int:
@@ -195,8 +205,9 @@ class Schema:
         if not 1 <= len(self.columns) <= 128 or len(self.primary_key) > len(self.columns): raise ValueError('Invalid Table column count')
         owned_bytes(encode(self._wire()), 2 * 1024 * 1024)
     def _wire(self) -> object:
+        budget = _WireBudget(2 * 1024 * 1024)
         return dict(definition=DEFINITION, object=str(self.object_id), revision=str(self.revision), next_column=str(self.next_column),
-                    columns=[item._wire() for item in self.columns], primary_key=[str(_wide(item)) for item in self.primary_key])
+                    columns=[budget.take(item._wire()) for item in self.columns], primary_key=[str(_wide(item)) for item in self.primary_key])
 
 
 @dataclass(frozen=True, slots=True)
@@ -810,9 +821,9 @@ def _description(value: object, connection: Connection, principal: int) -> Descr
     return Description(config, policy, integer(v['resource_revision'], 'resource revision', minimum=0))
 
 
-def _assignments(values: tuple[Assignment, ...]) -> object:
+def _assignments(values: tuple[Assignment, ...], budget: _WireBudget) -> object:
     if len(values) > 128: raise ValueError('Too many Table assignments')
-    return [dict(column=str(_wide(item.column)), value={'default': {}} if item.value is Default.VALUE else {'cell': logical.cell_wire(item.value)}) for item in values]
+    return [budget.take(dict(column=str(_wide(item.column)), value={'default': {}} if item.value is Default.VALUE else {'cell': logical.cell_wire(item.value)})) for item in values]
 
 
 def _predicate(value: Predicate) -> object:
@@ -823,15 +834,16 @@ def _predicate(value: Predicate) -> object:
 
 
 def _mutation(value: Mutation) -> object:
+    budget = _WireBudget(LIMITS['catalog_action_bytes'])
     predicates = None
     if isinstance(value, Insert):
         if not 1 <= len(value.rows) <= 1024: raise ValueError('Invalid insert row count')
-        action: object = {'insert': [_assignments(row) for row in value.rows]}
+        action: object = {'insert': [_assignments(row, budget) for row in value.rows]}
     elif isinstance(value, (Update, Delete)):
-        action = {'update': _assignments(value.assignments)} if isinstance(value, Update) else {'delete': {}}
+        action = {'update': _assignments(value.assignments, budget)} if isinstance(value, Update) else {'delete': {}}
         if value.predicate is not None:
             if len(value.predicate) > 64: raise ValueError('Too many predicate instructions')
-            predicates = [_predicate(item) for item in value.predicate]
+            predicates = [budget.take(_predicate(item)) for item in value.predicate]
     else: raise TypeError('Expected typed mutation')
     return dict(action=action, predicate=predicates)
 

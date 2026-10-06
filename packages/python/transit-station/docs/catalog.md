@@ -154,6 +154,11 @@ Logical conversion bounds both directions to depth below 16, 256 type nodes,
 4,096 field-name bytes, 65,536 value children and 1 MiB of value data. MAP keys
 count as children. Conflict alternatives share the owning cell's depth and
 require two to eight increasing positive counter/replica pairs.
+Schema and DML serialization charge each column, assignment and predicate before
+converting the next value, using 2 MiB for neutral schemas and 16 MiB for actions.
+The complete frame encoder still counts enclosing fields. Oversized input rejects
+before constructing the complete JSON batch or dispatching native work.
+
 Requests use the generated 16 MiB catalog frame limit. There is no implicit
 submission retry or principal-sequence coordinator. Native reads/preparation can
 restart only the exact transient stale-resource rejection within the deadline.

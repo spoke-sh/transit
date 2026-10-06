@@ -127,6 +127,30 @@ def client():
     return owner
 
 
+# Bound conversion itself, before constructing the complete 2-GiB JSON tree.
+large_cell = l.Present(l.Atom('binary', bytes(1024 * 1024)))
+large_column = m.Column(1, 'data', l.ScalarType('binary'), default=large_cell)
+wire_cell = codec.cell_wire
+visits = 0
+def counted_cell(value):
+    global visits
+    visits += 1
+    assert visits < 16, 'converted the complete oversized input'
+    return wire_cell(value)
+codec.cell_wire = counted_cell
+try:
+    rejects(ValueError, lambda: m.Schema(1, 1, 2, (large_column,) * 128))
+    assert visits < 16
+    visits = 0
+    budget_owner = client()
+    try:
+        rejects(ValueError, lambda: budget_owner.prepare('items', m.Identity(1, 100), m.Mutate(
+            m.Basis(17, 3, 'ab' * 32), m.Insert(((m.Assignment(1, large_cell),),) * 1024))))
+        assert visits < 16 and budget_owner._api.calls == []
+    finally: budget_owner.close()
+finally: codec.cell_wire = wire_cell
+
+
 owner = client()
 try:
     for response in (MemoryError(), None, {}, {'receipt': {'position': 0}}, {'receipt': {'position': '1'}}, {'receipt': {'position': 1}, 'extra': True}):

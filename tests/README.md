@@ -11740,6 +11740,16 @@ complete canonical intent admission. Existing SQL/typed byte-equality and
 exhaustive allocation-failure cleanup checks pass. This is a conversion-memory
 regression proof, not a whole-node or concurrent-workload RSS guarantee.
 
+TypeScript and Python now reject aggregate schema/DML conversion before building
+the complete JSON batch. Tests share one MiB binary values across 1,024 rows and
+128 schema columns; bounded access/conversion counters detect late rejection
+without allocating the entire invalid input. TypeScript's 52 adapter tests and
+type/lint checks pass (`table-node-budget-check1.log`). Fresh independent Python
+wheels pass isolated catalog value/recovery/lifetime checks
+(`table-python-budget-values1.log`), and strict mypy passes all 25 source files
+(`table-python-budget-types1.log`). This extends local preparation evidence;
+the earlier disk-backed lifecycle evidence remains separately recorded.
+
 ## Fuze logical type foundation
 
 The local `Types` profile has nine passing focused Zig tests, including 46

@@ -173,3 +173,9 @@ two to eight increasing positive counter/replica pairs. The native owner enforce
 budgets. Kernel frames and turn limits remain unchanged. See the
 [shared caller contract](../../../zig/transit-station-bindings/docs/catalog.md)
 for exact transport, ownership and recovery limits.
+
+Schema and DML serialization charge each completed column, assignment and
+predicate before converting the next value. Their aggregate allowances are
+2 MiB for neutral schemas and 16 MiB for actions; the complete frame encoder
+also checks enclosing fields. Oversized input rejects before constructing the
+complete JSON batch or dispatching native work.

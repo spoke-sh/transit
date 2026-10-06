@@ -189,6 +189,19 @@ export interface Column {
   readonly maxCharacters?: number;
 }
 const schemas = new WeakMap<Schema, NativeSchema>();
+// Charge completed fragments before constructing another owned logical tree.
+// The complete frame encoder still counts the enclosing punctuation/fields.
+class WireBudget {
+  private remaining: number;
+  constructor(remaining: number) {
+    this.remaining = remaining;
+  }
+  take<T>(value: T): T {
+    this.remaining -= Buffer.byteLength(JSON.stringify(value));
+    if (this.remaining < 0) throw new TypeError("Table wire budget exceeded");
+    return value;
+  }
+}
 function schema(value: Schema): NativeSchema {
   const result = schemas.get(value);
   if (!result) throw new TypeError("Expected Table schema");
@@ -210,19 +223,22 @@ export class Schema {
     this.nextColumn = positive(nextColumn);
     if (!columns.length || columns.length > 128 || primaryKey.length > columns.length)
       throw new TypeError("Invalid Table column count");
+    const budget = new WireBudget(2 * 1024 * 1024);
     const value: NativeSchema = {
       definition: currentDefinition,
       object: this.objectId.toString(),
       revision: this.revision.toString(),
       next_column: this.nextColumn.toString(),
-      columns: columns.map((column) => ({
-        id: positive(column.id).toString(),
-        name: name(column.name),
-        type: encodeType(column.type),
-        nullable: column.nullable ?? true,
-        default: column.default === undefined ? null : encodeCell(column.default),
-        max_characters: column.maxCharacters ?? null,
-      })),
+      columns: columns.map((column) =>
+        budget.take({
+          id: positive(column.id).toString(),
+          name: name(column.name),
+          type: encodeType(column.type),
+          nullable: column.nullable ?? true,
+          default: column.default === undefined ? null : encodeCell(column.default),
+          max_characters: column.maxCharacters ?? null,
+        }),
+      ),
       primary_key: primaryKey.map((value) => positive(value).toString()),
     };
     if (Buffer.byteLength(JSON.stringify(value)) > 2 * 1024 * 1024)
@@ -686,16 +702,19 @@ function operation(value: Operation): Action<"prepare">["action"] {
       return { alter: { basis: basis(value.basis), change } };
     }
     case "mutate": {
+      const budget = new WireBudget(contract.limits.catalog_action_bytes);
       type NativeMutation = Extract<
         Action<"prepare">["action"],
         { mutate: unknown }
       >["mutate"]["mutation"];
       const assignments = (values: readonly Assignment[]) => {
         if (values.length > 128) throw new TypeError("Too many Table assignments");
-        return values.map((item) => ({
-          column: positive(item.column).toString(),
-          value: item.value === "default" ? { default: {} } : { cell: encodeCell(item.value) },
-        }));
+        return values.map((item) =>
+          budget.take({
+            column: positive(item.column).toString(),
+            value: item.value === "default" ? { default: {} } : { cell: encodeCell(item.value) },
+          }),
+        );
       };
       const item = value.mutation;
       if (
@@ -713,34 +732,38 @@ function operation(value: Operation): Action<"prepare">["action"] {
       const predicate: NativeMutation["predicate"] =
         item.kind === "insert" || item.predicate === undefined
           ? null
-          : item.predicate.map((entry) => {
-              switch (entry.kind) {
-                case "all":
-                  return { atom: { all: {} } };
-                case "negate":
-                  return { negate: {} };
-                case "conjunction":
-                  return { conjunction: {} };
-                case "disjunction":
-                  return { disjunction: {} };
-                case "state":
-                  return {
-                    atom: {
-                      state: { column: positive(entry.column).toString(), value: entry.state },
-                    },
-                  };
-                case "compare":
-                  return {
-                    atom: {
-                      compare: {
-                        column: positive(entry.column).toString(),
-                        op: entry.op,
-                        value: encodeAtom(entry.value),
-                      },
-                    },
-                  };
-              }
-            });
+          : item.predicate.map((entry) =>
+              budget.take(
+                (() => {
+                  switch (entry.kind) {
+                    case "all":
+                      return { atom: { all: {} } };
+                    case "negate":
+                      return { negate: {} };
+                    case "conjunction":
+                      return { conjunction: {} };
+                    case "disjunction":
+                      return { disjunction: {} };
+                    case "state":
+                      return {
+                        atom: {
+                          state: { column: positive(entry.column).toString(), value: entry.state },
+                        },
+                      };
+                    case "compare":
+                      return {
+                        atom: {
+                          compare: {
+                            column: positive(entry.column).toString(),
+                            op: entry.op,
+                            value: encodeAtom(entry.value),
+                          },
+                        },
+                      };
+                  }
+                })(),
+              ),
+            );
       return { mutate: { basis: basis(value.basis), mutation: { action, predicate } } };
     }
   }

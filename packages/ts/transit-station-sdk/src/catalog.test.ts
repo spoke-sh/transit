@@ -326,6 +326,44 @@ test("logical conflicts, map children and aggregate budgets match native limits"
   );
 });
 
+test("aggregate conversion stops before materializing oversized schema and DML", async () => {
+  const cell: Cell = {
+    state: "value",
+    value: { kind: "atom", atom: { kind: "binary", value: new Uint8Array(1024 * 1024) } },
+  };
+  let visits = 0;
+  const column = {
+    id: 1n,
+    name: "data",
+    type: { kind: "binary" } as const,
+    get default() {
+      assert.ok(++visits < 8, "converted the complete oversized schema");
+      return cell;
+    },
+  };
+  assert.throws(() => new Schema(1n, 1n, 2n, Array(128).fill(column)), /Table wire budget/);
+  assert.ok(visits < 8);
+  visits = 0;
+  const assignment = {
+    column: 1n,
+    get value() {
+      assert.ok(++visits < 32, "converted the complete oversized DML");
+      return cell;
+    },
+  };
+  await withHost({}, async (client) => {
+    await assert.rejects(
+      client.prepare("items", ids, {
+        kind: "mutate",
+        basis: new Basis(17n, 3n, "ab".repeat(32)),
+        mutation: { kind: "insert", rows: Array(1024).fill([assignment]) },
+      }),
+      /Table wire budget/,
+    );
+  });
+  assert.ok(visits < 32);
+});
+
 for (const response of [
   { receipt: { position: 0 } },
   { receipt: { position: 1.5 } },
