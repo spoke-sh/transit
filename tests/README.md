@@ -11309,6 +11309,31 @@ or denial. The successful second run includes this correction. These are focused
 public ABI proofs; all-language migration, complete end-to-end type coverage,
 global current-v1 replacement and committed-HEAD clean CI remain open.
 
+The TypeScript general Table checkpoint passes `just bindings::node-check`,
+including **48 Station boundary tests** (`table-general-node-check3.log`). The
+catalog cases cover full-width identities/values, owned nested defaults, all eight
+independent rights, signed zero, malformed metadata and foreign intent attribution,
+empty continuing pages, large binary requests, fragmented 1.2 MB responses and
+uncertain replies retaining exact prepared text. The shared port grows response
+storage geometrically within its selected profile and releases it between calls.
+
+The installed Node tarball proof passes in **163.200 seconds** together with the
+disk-backed native/port scenario (`table-general-node-native2.log`): 478 turns,
+125 sends, at most four native mutations and 256-byte values. The consumer runs
+outside the checkout using installed packages and their packaged native host.
+It executes general CREATE, reordered typed nested INSERT with exact decimal,
+same-value UPDATE with matched=1/changed=0, ALTER with default, stale-basis
+rejection, DELETE, DROP/recreate and original saved-intent status after replacing
+the caller. The original object is 12001 and the replacement is 12002.
+
+The first installed run rejects a valid configuration because its SDK limit
+excluded the native row header. The adapter now validates the wire integer bound
+and leaves the narrower record profile to shared native admission; the rebuilt
+tarballs pass. Raw failed logs remain in the campaign. Documentation checks pass
+5,288 local links; the verification catalog and CI task-inventory checks pass.
+This is installed TypeScript evidence, not qualification of the other language
+callers, all logical-family value paths, the final definition cutover or clean CI.
+
 ## Fuze logical type foundation
 
 The local `Types` profile has nine passing focused Zig tests, including 46

@@ -71,7 +71,7 @@ node-sdk-test: node-build
     python3 -B tests/node_station_sdk.py zig-out/bin/transit-node zig-out/bin/rey-cli zig-out/lib/libtransit_client.so .cache/bindings/node zig-out/bin/transit-station-http-worker
     python3 -B tests/sdk_grpc_runner.py zig-out/bin/transit-node zig-out/bin/rey-cli zig-out/lib/libtransit_client.so zig-out/bin/transit-station-grpc-worker .cache/bindings --language node
     just test::table-mutation --sdk node
-    just test::catalog --sdk node
+    just test::typed-tables --sdk node
 
 # Qualify installed logical values and Arrow ownership outside the checkout.
 logical-test: python-build node-build
@@ -366,7 +366,7 @@ catalog-python: python-build
 
 # Installed TypeScript catalog caller with generated runtime checks and saved recovery.
 catalog-node: node-build node-check
-    just test::catalog --sdk node
+    just test::typed-tables --sdk node
 
 # Installed Rust catalog caller with exclusive borrows and saved recovery.
 catalog-rust: rust-build

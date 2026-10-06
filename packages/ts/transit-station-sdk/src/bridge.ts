@@ -68,7 +68,12 @@ async function openPort(config: object, override?: string): Promise<Port> {
   }
   const requestValidator = validation.HostRequest;
   if (!requestValidator) throw new IncompatibleNative("Missing generated Station schema");
-  const port = await Port.open(executable, config, requestValidator);
+  const port = await Port.open(
+    executable,
+    config,
+    requestValidator,
+    "catalog_client" in config ? contract.limits.catalog_line_bytes : undefined,
+  );
   try {
     const hello = record(await port.request({ hello: {} }, { phase: "hello" }));
     if (
@@ -427,14 +432,12 @@ export class CatalogBridge {
       if (
         caps.version !== 1 ||
         caps.definition !== contract.definition ||
-        caps.table_columns !== 2 ||
-        caps.max_saved_bytes !== 8192 ||
-        !caps.initialize ||
-        !caps.create_table ||
-        !caps.conditional_policy ||
-        !caps.current_metadata
+        caps.max_columns !== 128 ||
+        caps.max_rows !== 1024 ||
+        caps.max_prepared_bytes !== 8192 ||
+        caps.resident_intents !== 1
       )
-        throw new UnsupportedCapability("Native catalog client lacks the named Table profile");
+        throw new UnsupportedCapability("Native catalog client lacks the general Table profile");
       return bridge;
     } catch (error) {
       await port.close();

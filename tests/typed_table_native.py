@@ -12,7 +12,12 @@ import time
 from storage import Fixture, free_port, wait_ready
 
 
-def run(node, proof, host, cli, station_host):
+def run(node, proof, host, cli, station_host, *arguments):
+    languages = []
+    for index in range(0, len(arguments), 2):
+        assert arguments[index] == "--sdk" and index + 1 < len(arguments), arguments
+        languages.append(arguments[index + 1])
+    assert all(language == "node" for language in languages), languages
     node, proof, host, cli, station_host = (str(Path(binary).resolve()) for binary in (node, proof, host, cli, station_host))
     with Fixture() as fixture:
         root = fixture.root
@@ -414,9 +419,21 @@ def run(node, proof, host, cli, station_host):
             console('DROP TABLE console_output')
             from typed_table_bridge import run as bridge_proof
             bridge_result = bridge_proof(station_host, url, root, readers, lambda sql: call('select', sql))
+            installed = []
+            if languages:
+                from sdk_catalog import install
+                catalog_connection = json.loads((root / 'console.json').read_text())['catalog']
+                catalog_connection['scope']['catalog'] = str(catalog_connection['scope']['catalog'])
+                for language, factory in install(root / 'installed-general-tables', languages):
+                    consumer = factory(url, catalog_connection, root)
+                    try:
+                        installed.append(dict(language=language, result=consumer.call({'scenario': {}})))
+                    finally:
+                        consumer.close()
+
             assert not failures, failures
             assert measurements['max_mutations'] <= 4 and measurements['max_value_bytes'] <= 256, measurements
-            print(json.dumps(dict(profile='typed-table-native', seconds=round(time.monotonic() - started, 3), lost_reply_replays=sorted(replays), supplied_host_lost_receipt='host_turn' in faults, measurements=measurements, bridge=bridge_result)))
+            print(json.dumps(dict(profile='typed-table-native', seconds=round(time.monotonic() - started, 3), lost_reply_replays=sorted(replays), supplied_host_lost_receipt='host_turn' in faults, measurements=measurements, bridge=bridge_result, installed=installed)))
         finally:
             release_host_reply.set()
             for worker in workers:

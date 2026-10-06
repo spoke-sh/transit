@@ -1,75 +1,88 @@
 import assert from 'node:assert/strict';
-import { readFile } from 'node:fs/promises';
+import { readFile, open } from 'node:fs/promises';
+import { join, dirname } from 'node:path';
 import { createInterface } from 'node:readline';
 import { Credential, ProcessRef, ResourceRef, TransitError } from '@transit/client';
 import { catalog as m } from '@transit/station';
 
-const config = JSON.parse(await readFile(process.argv[2], 'utf8'));
 assert.ok(import.meta.resolve('@transit/station').startsWith(new URL('./node_modules/', import.meta.url).href));
+const config = JSON.parse(await readFile(process.argv[2], 'utf8'));
 const c = config.connection;
-const scope = v => new m.Scope(new ResourceRef(v.realm, v.resource), BigInt(v.catalog));
-const scopeJson = v => ({ realm:v.resource.realm, resource:v.resource.resource, catalog:v.catalog.toString() });
-const configuration = v => new m.Configuration(scope(v.scope), new ProcessRef(v.scope.realm, v.owner), v.administrator);
-const configurationJson = v => ({ scope:scopeJson(v.scope), owner:v.owner.pid, administrator:v.administrator });
-const policy = v => new m.Policy(scope(v.scope), v.principal, BigInt(v.revision), v.inspect, v.create);
-const policyJson = v => ({ scope:scopeJson(v.scope), principal:v.principal, revision:v.revision.toString(), inspect:v.inspect, create:v.create });
-const request = v => new m.CreateTable(scope(v.scope), BigInt(v.operation), BigInt(v.object), v.table, v.name, new m.Schema(v.schema.names, v.schema.value_type));
-const requestJson = v => ({ scope:scopeJson(v.scope), operation:v.operation.toString(), object:v.objectId.toString(), table:v.table, name:v.name, schema:{ names:v.schema.names, value_type:v.schema.valueType } });
-const prepared = v => new m.Prepared(v);
-const hex = v => Buffer.from(v).toString('hex');
-const cursor = v => v === null ? undefined : new m.Cursor(v.definition, scope(v.scope), v.resource_revision, v.after);
-const cursorJson = v => v === undefined ? null : ({ definition:v.definition, scope:scopeJson(v.scope), resource_revision:v.resourceRevision, after:v.after });
-const definitionJson = v => v === undefined ? null : ({ scope:scopeJson(v.scope), object:v.objectId.toString(), revision:v.revision.toString(), name:v.name,
-  source:{ table:{ id:v.source.table, schema:{ names:v.source.schema.names, value_type:v.source.schema.valueType } } }, principal:v.principal, operation:v.operation.toString(), input:v.input });
-const connection = new m.Connection(new ProcessRef(c.scope.realm, c.owner), scope(c.scope));
-const client = await m.Client.open({ url:config.url, profile:'native_v1', timeoutMs:10000 }, new Credential(c.scope.realm, c.principal, config.seed_file), connection);
-async function call(action) {
-  const [name,v] = Object.entries(action)[0];
-  if (name === 'capabilities') {
-    const r = await client.capabilities();
-    return { capabilities:{ version:r.version, definition:r.definition, initialize:r.initialize, create_table:r.createTable, conditional_policy:r.conditionalPolicy, current_metadata:r.currentMetadata, max_saved_bytes:r.maxSavedBytes, table_columns:r.tableColumns } };
-  }
-  if (name === 'describe') {
-    const r = await client.describe();
-    return { description:{ configuration:configurationJson(r.configuration), policy:policyJson(r.policy), resource_revision:r.resourceRevision } };
-  }
-  if (name === 'lookup') return { definition:definitionJson(await client.lookup(v)) };
-  if (name === 'definition') return { definition:definitionJson(await client.definition(BigInt(v.object), BigInt(v.revision))) };
-  if (name === 'list') {
-    const r = await client.list(cursor(v));
-    return { page:{ resource_revision:r.resourceRevision, entries:[...r.entries.map(definitionJson), ...Array(8-r.entries.length).fill(null)], next:cursorJson(r.next) } };
-  }
-  if (name === 'compile') {
-    const r = await client.compileSql(v.sql, BigInt(v.operation), BigInt(v.object), v.table);
-    const original = hex(r.canonical); r.canonical.fill(0); assert.equal(hex(r.canonical), original);
-    return { compiled:{ request:requestJson(r.request), canonical:original } };
-  }
-  if (name === 'prepare_initialize') return { prepared:(await client.prepareInitialize(configuration(v))).data };
-  if (name === 'prepare_create') return { prepared:(await client.prepareCreate(request(v))).data };
-  if (name === 'prepare_policy') return { prepared:(await client.preparePolicy(new m.PolicyChange(BigInt(v.expected_revision), policy(v.policy)))).data };
-  if (name === 'submit') return { receipt:{ position:(await client.submit(prepared(v))).position } };
-  if (name === 'observe') return { observation:await client.observe(prepared(v.prepared), v.input) };
-  if (name === 'input_disposition') {
-    const r = await client.inputDisposition(prepared(v.prepared), v.input);
-    return { disposition:r === undefined ? null : { scope:scopeJson(r.scope), origin:r.origin, principal:r.principal, input:r.input, payload:hex(r.payload), outcome:r.outcome, diagnostic:r.diagnostic } };
-  }
-  if (name === 'status') {
-    const r = await client.status(request(v));
-    return { status:r === undefined ? null : { request:requestJson(r.request), principal:r.principal, input:r.input, outcome:r.outcome, diagnostic:r.diagnostic } };
-  }
-  throw new Error('Unsupported catalog test action');
+const scope = new m.Scope(new ResourceRef(c.scope.realm, c.scope.resource), BigInt(c.scope.catalog));
+const connection = new m.Connection(new ProcessRef(c.scope.realm, c.owner), scope);
+const credential = new Credential(c.scope.realm, c.principal, config.seed_file);
+const connect = () => m.Client.open({url:config.url, profile:'native_v1', timeoutMs:10000}, credential, connection);
+let client = await connect();
+async function persist(name, data) {
+  const file = await open(join(dirname(process.argv[2]), name), 'w', 0o600);
+  try { await file.writeFile(data); await file.sync(); } finally { await file.close(); }
 }
-try {
-  console.log(JSON.stringify({ ready:true }));
-  for await (const line of createInterface({ input:process.stdin })) {
-    const action = JSON.parse(line);
-    if ('close' in action) break;
-    try { console.log(JSON.stringify({ status:0, value:await call(action) })); }
-    catch (error) {
-      if (!(error instanceof TransitError)) throw error;
-      if (error instanceof m.Uncertain) assert.equal(error.prepared.data, action.submit);
-      console.log(JSON.stringify({ status:error.status, value:{ err:error.code,diagnostic:error.diagnostic ?? null,diagnostic_invalid:error.diagnosticInvalid } }));
+const identity = operation => new m.Identity(BigInt(operation), BigInt(operation + 100000));
+async function finish(compiled) {
+  await persist('intent.bin', compiled.saved.bytes);
+  const ref = compiled.intent.reference;
+  const deadline = Date.now() + 120000;
+  while (Date.now() < deadline) {
+    const step = await client.next(ref);
+    if (step.kind === 'terminal') return step.outcome;
+    if (step.kind === 'running') continue;
+    assert.equal(step.kind, 'send');
+    await persist('step.json', step.prepared.data);
+    const input = await client.submit(step.prepared);
+    await persist('receipt.json', JSON.stringify({position:input.position}));
+    while (Date.now() < deadline) {
+      const progress = await client.progress(ref, step.prepared, input.position, true);
+      if (progress.kind === 'pending') continue;
+      assert.equal(progress.disposition, undefined);
+      if (progress.outcome?.terminal) return progress.outcome;
+      break;
     }
   }
+  throw new Error('Installed Table operation exceeded its budget');
+}
+const atom = (kind, value) => ({state:'value', value:{kind:'atom', atom:{kind,value}}});
+async function scenario() {
+  const description = await client.describe();
+  assert.equal(description.configuration.scope.catalog, scope.catalog);
+  assert.equal(description.policy.principal, credential.principal);
+  const compiled = await client.compileSql('CREATE TABLE sdk_people (id INTEGER PRIMARY KEY, payload STRUCT(data BINARY, label UTF8), amount DECIMAL(38,2))', identity(1100), 12001n);
+  const created = await finish(compiled);
+  assert.equal(created.phase, 'applied');
+  const original = await client.lookup('sdk_people');
+  assert.equal(original.schema.columns.length, 3);
+  const payload = {state:'value',value:{kind:'structure',cells:[atom('binary',new Uint8Array([0,128,255])),atom('utf8','東京')]}};
+  const insert = await client.prepare('sdk_people', identity(1101), {kind:'mutate', basis:original.metadata.basis, mutation:{kind:'insert',rows:[[
+    {column:3n,value:atom('decimal',123456789012345678901234567890n)},
+    {column:1n,value:atom('signed',1n)}, {column:2n,value:payload},
+  ]]}});
+  const applied = await finish(insert);
+  assert.deepEqual(applied.counts,{matched:1n,changed:1n});
+  const saved = insert.saved;
+  const unchanged = await finish(await client.prepare('sdk_people',identity(1102),{kind:'mutate',basis:original.metadata.basis,mutation:{kind:'update',assignments:[{column:3n,value:atom('decimal',123456789012345678901234567890n)}],predicate:[{kind:'compare',column:1n,op:'eq',value:{kind:'signed',value:1n}}]}}));
+  assert.deepEqual(unchanged.counts,{matched:1n,changed:0n});
+  const altered = await finish(await client.prepare('sdk_people',identity(1103),{kind:'alter',basis:original.metadata.basis,change:{kind:'add',column:{name:'enabled',type:{kind:'boolean'},nullable:false,default:atom('boolean',true)}}}));
+  assert.equal(altered.phase,'applied');
+  await assert.rejects(client.prepare('sdk_people',identity(1104),{kind:'drop',basis:original.metadata.basis}), TransitError);
+  const current = await client.lookup('sdk_people');
+  const deleted = await finish(await client.prepare('sdk_people',identity(1105),{kind:'mutate',basis:current.metadata.basis,mutation:{kind:'delete',predicate:[{kind:'compare',column:1n,op:'eq',value:{kind:'signed',value:1n}}]}}));
+  assert.deepEqual(deleted.counts,{matched:1n,changed:1n});
+  assert.equal((await finish(await client.prepare('sdk_people',identity(1106),{kind:'drop',basis:current.metadata.basis}))).phase,'applied');
+  assert.equal((await finish(await client.compileSql('CREATE TABLE sdk_people (replacement TEXT)',identity(1107),12002n))).phase,'applied');
+  await client.close(); client = await connect();
+  const loaded = await client.load(new m.SavedIntent(saved.definition,saved.bytes));
+  assert.equal(loaded.objectId,12001n);
+  assert.deepEqual((await client.status(loaded.reference)).outcome,applied);
+  assert.equal((await client.lookup('sdk_people')).metadata.objectId,12002n);
+  const page = await client.list(); assert.ok(page.entries.length > 0);
+  return {profile:'installed-node-general-table',original_object:loaded.objectId.toString(),replacement_object:'12002',counts:{matched:applied.counts.matched.toString(),changed:applied.counts.changed.toString()}};
+}
+try {
+  console.log(JSON.stringify({ready:true}));
+  for await (const line of createInterface({input:process.stdin})) {
+    const action = JSON.parse(line);
+    if ('close' in action) break;
+    assert.ok('scenario' in action);
+    console.log(JSON.stringify({status:0,value:await scenario()}));
+  }
 } finally { await client.close(); }
-console.log(JSON.stringify({ closed:true }));
+console.log(JSON.stringify({closed:true}));

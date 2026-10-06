@@ -1036,6 +1036,7 @@ pub fn build(b: *std.Build) void {
     typed_table_native.addArtifactArg(query_host);
     typed_table_native.addArtifactArg(query_shell);
     typed_table_native.addArtifactArg(station_host);
+    typed_table_native.addPassthruArgs();
     typed_table_native.has_side_effects = true;
     typed_table_native.stdio = .inherit;
     b.step("test-typed-tables", "Prove general typed Table lifecycle and exact recovery on disk").dependOn(&typed_table_native.step);
