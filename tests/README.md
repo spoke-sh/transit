@@ -11038,6 +11038,18 @@ failed logs are `typed-table-host1.log` and `typed-table-host3.log`; all logs re
 in the campaign above. This qualifies the supplied catalog/courier binaries,
 not the still-separate local server, console or SDK migration, nor power loss.
 
+The general console recovery-file owner passes **28/28 CLI lifecycle tests**
+(`table-recovery3.log`). A 48 KiB typed default makes the immutable intent larger
+than the mutable record limit; progress stays below 8 KiB and retains exact signed
+upload bytes through close/reopen. Tests cover the exclusive lock, unknown-send
+state, invalid successor checkpoints, retained original disk progress, completed
+intent cleanup, orphan non-adoption, altered referenced bytes, changed scope,
+missing/foreign compatibility definitions and invalid signatures. This is local
+file-owner evidence, before console dispatch integration. The first run crashed
+because Zig's immutable atomic publication requires `link`, while `replace`
+requires a replace-enabled temporary file; the corrected owner passes. These
+tests do not simulate filesystem power loss or establish native SQL outcomes.
+
 ## Fuze logical type foundation
 
 The local `Types` profile has nine passing focused Zig tests, including 46
