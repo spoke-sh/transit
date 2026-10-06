@@ -11888,6 +11888,25 @@ Generated schemas and ABI resources are regenerated and checked. The observed
 kind extension is part of the pending coordinated definition cutover; these
 local passes do not replace final committed-HEAD clean qualification.
 
+Explicit requester-to-catalog policies pass **104/104 query package tests**
+(`table-query-policy-test3.log`). Independent bytes cover declaration and catalog
+targets, full-width catalog IDs, the required current definition, every truncated
+prefix, extra bytes and obsolete unqualified records. Public reference-store
+transitions install one requester-to-principal mapping and use it for two Tables,
+including one created afterwards. Tests reject realm/resource/owner confusion,
+PID-as-principal inference, disabled or declaration-only delegation, and changed
+mappings without a policy revision. Current catalog read revocation still denies
+the unchanged requester policy. These checks do not establish native general-Table
+job admission. The first run uses the definition enum instead of its canonical
+bytes and misses two existing policy constructors; the second exposes a stale
+fixed-length wrapper check. All are corrected before the passing run.
+
+Full pinned `just check` passes this policy checkpoint
+(`table-query-policy-check1.log`), including migrated example controls, independent
+fixtures, generated contracts, native/CLI checks and frontends/documentation.
+The policy record replacement is part of the pending coordinated definition
+cutover; committed-HEAD clean qualification remains outstanding.
+
 ## Fuze logical type foundation
 
 The local `Types` profile has nine passing focused Zig tests, including 46

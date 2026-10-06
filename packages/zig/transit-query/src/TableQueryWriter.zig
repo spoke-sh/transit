@@ -70,17 +70,18 @@ pub const QueryPolicyChange = struct {
     policy: q.UnifiedRecords.Policy,
     pub fn encode(self: QueryPolicyChange) !p.Value {
         try q.UnifiedRecords.identity(self.resource);
-        if (self.expected_revision > p.max_counter) return error.InvalidQueryPolicyChange;
-        var bytes: [105]u8 = undefined;
+        if (self.expected_revision > p.max_counter or self.policy.target != .declaration) return error.InvalidQueryPolicyChange;
+        var bytes: [20 + q.UnifiedRecords.Policy.declaration_bytes]u8 = undefined;
         bytes[0..4].* = "TQG1".*;
         std.mem.writeInt(u64, bytes[4..12], self.resource, .little);
         std.mem.writeInt(u64, bytes[12..20], self.expected_revision, .little);
-        bytes[20..105].* = (try self.policy.encode()).data[0..85].*;
-        return p.Value.init(&bytes);
+        const encoded = try self.policy.encode();
+        @memcpy(bytes[20..][0..encoded.len], encoded.slice());
+        return p.Value.init(bytes[0 .. 20 + encoded.len]);
     }
     pub fn decode(value: p.Value) !QueryPolicyChange {
         try value.validate();
-        if (value.len != 105 or !std.mem.eql(u8, value.data[0..4], "TQG1")) return error.InvalidQueryPolicyChange;
+        if (value.len != 20 + q.UnifiedRecords.Policy.declaration_bytes or !std.mem.eql(u8, value.data[0..4], "TQG1")) return error.InvalidQueryPolicyChange;
         const result: QueryPolicyChange = .{ .resource = std.mem.readInt(u64, value.data[4..12], .little), .expected_revision = std.mem.readInt(u64, value.data[12..20], .little), .policy = try q.UnifiedRecords.Policy.decode(try p.Value.init(value.slice()[20..])) };
         _ = try result.encode();
         return result;
@@ -134,7 +135,7 @@ fn activate(self: *Self, turn: *s.Turn) !void {
     const before = turn.decision;
     errdefer turn.decision = before;
     try q.TableMutationAdmission.setPolicy(turn, 0, .{ .principal = self.configuration.writer.principal, .table = self.configuration.writer.table, .revision = 1, .declaration = try q.Bundle.declaration(definition), .permissions = self.configuration.writer.permissions });
-    try q.UnifiedCapture.setPolicy(turn, .{ .peer = self.configuration.peer, .requests = self.configuration.requests, .revision = 1, .declaration = try q.Bundle.declaration(definition), .allow = self.configuration.allow, .limits = self.configuration.limits });
+    try q.UnifiedCapture.setPolicy(turn, .{ .peer = self.configuration.peer, .requests = self.configuration.requests, .revision = 1, .target = .{ .declaration = try q.Bundle.declaration(definition) }, .allow = self.configuration.allow, .limits = self.configuration.limits });
     const source = self.source.interface();
     try source.initialize.?(source.context, turn);
     try turn.write(state_key, try self.configuration.state(.ready));
@@ -185,7 +186,7 @@ fn rejectInput(raw: ?*anyopaque, turn: *s.Turn) !bool {
 fn changeQueryPolicy(self: *Self, turn: *s.Turn, payload: p.Value) !void {
     if (!external(turn, self.configuration.writer.initializer)) return error.MutationDenied;
     const change = try QueryPolicyChange.decode(payload);
-    if (change.resource != self.configuration.writer.resource or change.policy.peer != self.configuration.peer or change.policy.requests != self.configuration.requests or !std.mem.eql(u8, &change.policy.declaration, &try q.Bundle.declaration(try self.configuration.definition()))) {
+    if (change.resource != self.configuration.writer.resource or change.policy.peer != self.configuration.peer or change.policy.requests != self.configuration.requests or !change.policy.target.declarationMatches(try q.Bundle.declaration(try self.configuration.definition()))) {
         _ = try rejectMutation(turn, .identity_conflict);
         return;
     }

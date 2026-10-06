@@ -22,7 +22,7 @@ def run(env, tls):
     table = b'TBL1\1\2id\5count'
     source = b'UQS1' + struct.pack('<QBI', resource, 2, 1) + bytes([len(table)]) + table
     declaration = hashlib.sha256(b'transit.query.source.v1\0' + source).digest()
-    cast(application, b'UQA1' + struct.pack('<QQQ', ingress, requests, 1) + declaration + b'\1' + struct.pack('<QQQ', 64, 64, 1048576))
+    cast(application, b'UQA1' + bytes.fromhex(json.loads((Path(__file__).resolve().parents[1] / 'contracts/transit-v1.schema.json').read_text())['x-transit']['definition']) + struct.pack('<QQQ', ingress, requests, 1) + b'\1' + declaration + b'\1' + struct.pack('<QQQ', 64, 64, 1048576))
     cast(ingress, policy(33))
     drained(application); drained(ingress)
     env['grant'](33, 20, ingress)

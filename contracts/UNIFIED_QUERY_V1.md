@@ -174,10 +174,29 @@ uses the query-request publication domain, record 1, format `0x31425155`, refere
 Neither truncation nor trailing bytes is canonical.
 
 The source's revisioned `UQA1` policy binds the authenticated requester PID,
-request resource, allowed declaration and maximum budgets. Its declaration digest
-covers all decoder/projection details. Only an accepted Document revision may
-vary within that declaration; Document epoch, type, identity and change format
+request resource, target, enabled flag and maximum budgets. Its canonical bytes
+are `UQA1`, the 32-byte shared current definition, requester/request-resource/policy
+revision u64s, target, enabled byte and pages/segments/result-bytes u64s. Integers
+are little-endian. Missing/foreign definitions, noncanonical booleans, truncated
+records and extra bytes reject before execution; the definition is never supplied
+as a default when reading stored records.
+
+Target tag `1` carries a 32-byte declaration digest; the policy is 118 bytes.
+The digest covers decoder/projection details. Only an accepted Document revision
+may vary within that declaration; Document epoch, type, identity and change format
 remain fenced. Every accepted job also records the complete exact source digest.
+
+Target tag `2` carries five u64s: catalog realm/resource/namespace, owning process
+and delegated catalog principal; the policy is 126 bytes. Installation checks the
+catalog realm/resource/owner against the owning turn. The requester PID selects
+the committed policy; it is not interpreted as a principal. Neither query SQL nor
+a submitted Table declaration supplies the delegation. Current catalog inspect
+and read rights still apply independently. Mapping changes require a new policy
+revision and invalidate jobs admitted under the old policy revision. One catalog
+target can cover new Table objects without a new per-Table policy. It cannot
+permit KV/Document declarations or another catalog/owner. Declaration targets
+cannot supply catalog delegation. The general Table source adapter consumes this
+mapping; enabling it in durable job admission remains an integration requirement.
 
 The command envelope uses these distinct magic bytes: `UQI1` initialize,
 `UQB1` begin plus `SPF1`, `UQP1` part (u64 namespace, u32 chunk ordinal, one

@@ -68,7 +68,7 @@ test "a data commit during actual finite capture escapes its basis while capture
     const limits: q.Bundle.Limits = .{ .pages = 1000, .segments = 100, .result_bytes = 1048576 };
     const reference = try upload(&requests, .{ .source = definition, .plan = .{ .projection = &.{ 0, 1 } }, .limits = limits });
     turn = try store.capture();
-    try q.UnifiedCapture.setPolicy(&turn, .{ .peer = requests.pid, .requests = requests.resource, .revision = 1, .allow = true, .limits = limits, .declaration = try q.Bundle.declaration(definition) });
+    try q.UnifiedCapture.setPolicy(&turn, .{ .peer = requests.pid, .requests = requests.resource, .revision = 1, .allow = true, .limits = limits, .target = .{ .declaration = try q.Bundle.declaration(definition) } });
     try store.commit(turn);
     turn = try store.capture();
     turn.delivery.input.origin = .{ .process = .{ .pid = requests.pid, .turn = 1, .output = 0 } };

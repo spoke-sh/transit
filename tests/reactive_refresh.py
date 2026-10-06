@@ -99,7 +99,7 @@ def run(env, _tls):
     source = b'UQS1' + struct.pack('<QBI', resource, 2, 1) + bytes([len(table)]) + table
     limits = struct.pack('<QQQ', 100, 100, 1048576)
     declaration = hashlib.sha256(b'transit.query.source.v1\0' + source).digest()
-    cast(application, b'UQA1' + struct.pack('<QQQ', ingress, requests, 1) + declaration + b'\1' + limits)
+    cast(application, b'UQA1' + bytes.fromhex(json.loads((Path(__file__).resolve().parents[1] / 'contracts/transit-v1.schema.json').read_text())['x-transit']['definition']) + struct.pack('<QQQ', ingress, requests, 1) + b'\1' + declaration + b'\1' + limits)
     drained(application)
     mutate(1)
     definition = hashlib.sha256(b'transit.fuze.plan.v1.boolean-programs.count-values.2026-10-01').digest()
@@ -213,7 +213,7 @@ def run(env, _tls):
     leases[3] = identity, now + 28000
     selected = dict(session=identity, generation=command({'follow': dict(session=identity, expected=0, template='2', limit=1)}, refresh=True))
     assert view(selected)['starts'] == 0
-    cast(application, b'UQA1' + struct.pack('<QQQ', ingress, requests, 2) + declaration + b'\0' + limits)
+    cast(application, b'UQA1' + bytes.fromhex(json.loads((Path(__file__).resolve().parents[1] / 'contracts/transit-v1.schema.json').read_text())['x-transit']['definition']) + struct.pack('<QQQ', ingress, requests, 2) + b'\1' + declaration + b'\0' + limits)
     drained(application)
     mutate(4)
     command({'invalidate': selected}, refresh=True)
@@ -224,7 +224,7 @@ def run(env, _tls):
     assert failed['query_diagnostic']['code'] == 'query.policy_denied', failed
     assert failed['query_diagnostic']['outcome'] == 'rejected', failed
     assert failed['query_diagnostic']['identity']['id'] == failed['view']['namespace'], failed
-    cast(application, b'UQA1' + struct.pack('<QQQ', ingress, requests, 3) + declaration + b'\1' + limits)
+    cast(application, b'UQA1' + bytes.fromhex(json.loads((Path(__file__).resolve().parents[1] / 'contracts/transit-v1.schema.json').read_text())['x-transit']['definition']) + struct.pack('<QQQ', ingress, requests, 3) + b'\1' + declaration + b'\1' + limits)
     drained(application)
     restored = client({'refresh_status': selected})['refresh_status']
     assert restored['diagnostic'] == failed['diagnostic'], restored

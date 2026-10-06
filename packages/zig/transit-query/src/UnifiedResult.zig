@@ -34,7 +34,7 @@ fn live(reference: Ref, expected: Expected, opened: Open, source: anytype) !void
     var reader = try source.open(reference.resource);
     if (!std.meta.eql(try q.UnifiedCapture.job(&reader, job.id), job) or job.phase != .complete) return error.ResultUnavailable;
     const grant = (try q.UnifiedCapture.permitted(&reader, job)) orelse return error.QueryDenied;
-    if (opened.bundle.source.resource != reference.resource or !std.mem.eql(u8, &grant.declaration, &try q.Bundle.declaration(opened.bundle.source)) or !grant.limits.permits(opened.bundle.limits)) return error.QueryDenied;
+    if (opened.bundle.source.resource != reference.resource or !grant.target.declarationMatches(try q.Bundle.declaration(opened.bundle.source)) or !grant.limits.permits(opened.bundle.limits)) return error.QueryDenied;
     try q.UnifiedSource.checkCurrent(opened.bundle.source, &reader);
     const descriptor = try reference.publication().inspect(&reader, reference.record);
     if (descriptor.state != .published or descriptor.publisher != expected.source or !std.meta.eql(descriptor.spec, reference.spec)) return error.ResultUnavailable;

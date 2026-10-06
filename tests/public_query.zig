@@ -27,7 +27,7 @@ const Seed = struct {
     fn initialize(raw: ?*anyopaque, turn: *s.Turn) anyerror!void {
         const self: *Seed = @ptrCast(@alignCast(raw.?));
         _ = try s.Table.create(turn, 1, .{ .names = .{ try .init("id"), try .init("value") }, .value_type = .int64 });
-        try q.UnifiedCapture.setPolicy(turn, .{ .peer = self.peer, .requests = self.requests, .revision = 1, .allow = true, .limits = limits, .declaration = try q.Bundle.declaration(try definition(turn.view.resource)) });
+        try q.UnifiedCapture.setPolicy(turn, .{ .peer = self.peer, .requests = self.requests, .revision = 1, .allow = true, .limits = limits, .target = .{ .declaration = try q.Bundle.declaration(try definition(turn.view.resource)) } });
         var source: q.UnifiedBehavior.Source = .{ .peer = self.peer, .initializer = self.initializer, .resources = undefined, .adapter = undefined, .workspace = undefined, .cancellation = undefined };
         const handler = source.interface();
         try handler.initialize.?(handler.context, turn);

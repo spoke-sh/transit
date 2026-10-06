@@ -90,7 +90,8 @@ def combined_records(encoded_writer, encoded_records):
     declaration = bytes.fromhex(json.loads(encoded_records)['declaration'])
     configuration = b'TQC1'+bytes([len(writer)])+writer+struct.pack('<QQBQQQ',9,8,1,1000,100,1048576)
     identity = struct.pack('<Q',7)+hashlib.sha256(b'transit.table.query.writer.v1\0'+configuration).digest()
-    policy = b'UQA1'+struct.pack('<QQQ',9,8,2)+declaration+b'\0'+struct.pack('<QQQ',1000,100,1048576)
+    definition = bytes.fromhex(json.loads((ROOT/'contracts/transit-v1.schema.json').read_text())['x-transit']['definition'])
+    policy = b'UQA1'+definition+struct.pack('<QQQ',9,8,2)+b'\1'+declaration+b'\0'+struct.pack('<QQQ',1000,100,1048576)
     return json.dumps(dict(version=1,configuration=configuration.hex(),initialize=(b'TQI1'+identity).hex(),continuation=(b'TQR1'+identity).hex(),staged=(b'TQW1\1'+configuration).hex(),ready=(b'TQW1\2'+configuration).hex(),policy_change=(b'TQG1'+struct.pack('<QQ',7,1)+policy).hex()),indent=2)+'\n'
 
 

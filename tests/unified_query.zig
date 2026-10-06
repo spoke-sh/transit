@@ -96,11 +96,11 @@ const Seed = struct {
         if (command == -7 or command == -8) {
             var limits = budgets;
             limits.pages = if (command == -7) 999 else 1000;
-            try q.UnifiedCapture.setPolicy(turn, .{ .peer = self.peer, .requests = self.requests, .revision = if (command == -7) 2 else 3, .allow = true, .limits = limits, .declaration = try q.Bundle.declaration(try definition(self.kind, turn.view.resource)) });
+            try q.UnifiedCapture.setPolicy(turn, .{ .peer = self.peer, .requests = self.requests, .revision = if (command == -7) 2 else 3, .allow = true, .limits = limits, .target = .{ .declaration = try q.Bundle.declaration(try definition(self.kind, turn.view.resource)) } });
             return;
         }
         if (command == -2 or command == -3) {
-            try q.UnifiedCapture.setPolicy(turn, .{ .peer = self.peer, .requests = self.requests, .revision = if (command == -2) 1 else 2, .allow = command == -2, .limits = budgets, .declaration = try q.Bundle.declaration(try definition(self.kind, turn.view.resource)) });
+            try q.UnifiedCapture.setPolicy(turn, .{ .peer = self.peer, .requests = self.requests, .revision = if (command == -2) 1 else 2, .allow = command == -2, .limits = budgets, .target = .{ .declaration = try q.Bundle.declaration(try definition(self.kind, turn.view.resource)) } });
             if (command == -2) {
                 var source: q.UnifiedBehavior.Source = .{ .peer = self.peer, .initializer = 65536, .resources = undefined, .adapter = &.{}, .workspace = &.{}, .cancellation = undefined };
                 const handler = source.interface();

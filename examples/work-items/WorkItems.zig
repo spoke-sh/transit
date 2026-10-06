@@ -277,7 +277,7 @@ pub const Behavior = struct {
                     const policy = query.UnifiedRecords.Policy.decode(frame.payload) catch return self.disposition(turn, "InvalidWorkItemQueryPolicy");
                     if (policy.peer != capture.peer) return self.disposition(turn, "InvalidWorkItemQueryPolicy");
                     const definition = try self.owner.source(try self.owner.selected(turn));
-                    if (!std.mem.eql(u8, &policy.declaration, &try query.Bundle.declaration(definition))) return self.disposition(turn, "WorkItemEpochChanged");
+                    if (!policy.target.declarationMatches(try query.Bundle.declaration(definition))) return self.disposition(turn, "WorkItemEpochChanged");
                     if (try turn.read(query.UnifiedRecords.key('v', 0, 0)) == null) {
                         try handler.initialize.?(handler.context, turn);
                     } else {

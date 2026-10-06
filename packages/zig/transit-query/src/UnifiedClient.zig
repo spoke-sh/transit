@@ -110,7 +110,7 @@ pub fn interactiveDescription(self: *Self, definition: q.SourceDefinition, resul
     if (source.resource.writer != self.connection.source or requester_source.resource.writer != self.connection.requester) return error.QuerySourceUnavailable;
     try (q.UnifiedBehavior.Requester{ .principal = self.connection.principal, .source = self.connection.source }).check(&requester_source);
     const grant = (try q.UnifiedCapture.policy(&source, self.connection.requester)) orelse return error.QueryDenied;
-    if (!grant.allow or grant.requests != self.connection.requests or !std.mem.eql(u8, &grant.declaration, &try q.Bundle.declaration(definition))) return error.QueryDenied;
+    if (!grant.allow or grant.requests != self.connection.requests or !grant.target.declarationMatches(try q.Bundle.declaration(definition))) return error.QueryDenied;
     try q.UnifiedSource.checkCurrent(definition, &source);
     return .{ .definition = definition, .resource_revision = source.view.revision, .policy_revision = grant.revision, .limits = grant.limits, .active = null };
 }
@@ -147,7 +147,7 @@ fn describeOnce(self: *Self, definition: q.SourceDefinition) !Description {
     if (source.resource.writer != self.connection.source or requests.resource.writer != self.connection.requester) return error.QuerySourceUnavailable;
     try (q.UnifiedBehavior.Requester{ .principal = self.connection.principal, .source = self.connection.source }).check(&requests);
     const grant = (try q.UnifiedCapture.policy(&source, self.connection.requester)) orelse return error.QueryDenied;
-    if (!grant.allow or grant.requests != self.connection.requests or !std.mem.eql(u8, &grant.declaration, &try q.Bundle.declaration(definition))) return error.QueryDenied;
+    if (!grant.allow or grant.requests != self.connection.requests or !grant.target.declarationMatches(try q.Bundle.declaration(definition))) return error.QueryDenied;
     try q.UnifiedSource.checkCurrent(definition, &source);
     return .{ .definition = definition, .resource_revision = source.view.revision, .policy_revision = grant.revision, .limits = grant.limits, .active = try q.UnifiedUpload.active(&requests) };
 }

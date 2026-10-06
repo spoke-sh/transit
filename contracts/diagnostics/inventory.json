@@ -11374,7 +11374,7 @@
         "IncompleteResult": 1,
         "InvalidQueryContinuation": 2,
         "InvalidQueryJob": 3,
-        "InvalidQueryPolicy": 1,
+        "InvalidQueryPolicy": 2,
         "MissingQueryProgress": 1,
         "PublicationNotFound": 2,
         "QueryAfterMutation": 1,
@@ -11433,7 +11433,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 105,
+        "try": 106,
         "catch": 9
       },
       "imports": [
@@ -11511,12 +11511,15 @@
     },
     "packages/zig/transit-query/src/UnifiedRecords.zig": {
       "errors": {
+        "IncompatibleDefinition": 1,
         "IncompleteResult": 1,
         "InvalidQueryContinuation": 1,
         "InvalidQueryIdentity": 3,
         "InvalidQueryManifest": 3,
+        "InvalidQueryPolicy": 3,
         "InvalidQueryRecord": 16,
-        "InvalidResultSegment": 1
+        "InvalidResultSegment": 1,
+        "QueryDenied": 2
       },
       "outcomes": {
         "Phase": [
@@ -11527,6 +11530,10 @@
           "denied",
           "failed",
           "retired"
+        ],
+        "Policy.Target": [
+          "declaration",
+          "catalog"
         ]
       },
       "error_sets": {},
@@ -11539,8 +11546,13 @@
         "Job.encode()": "<inferred>",
         "Manifest.decode()": "<inferred>",
         "Manifest.encode()": "<inferred>",
+        "Policy.Catalog.validate()": "<inferred>",
+        "Policy.Target.fingerprint()": "<inferred>",
+        "Policy.Target.read()": "<inferred>",
+        "Policy.Target.write()": "<inferred>",
         "Policy.decode()": "<inferred>",
         "Policy.encode()": "<inferred>",
+        "Policy.tablePrincipal()": "<inferred>",
         "Segment.decode()": "<inferred>",
         "Segment.encode()": "<inferred>",
         "Segment.extend()": "<inferred>",
@@ -11551,7 +11563,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 135,
+        "try": 155,
         "catch": 2
       },
       "imports": [

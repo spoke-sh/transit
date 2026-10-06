@@ -99,7 +99,7 @@ const Rig = struct {
         try self.mutate();
         const bundle: q.Bundle = .{ .source = .{ .resource = 7, .source = .{ .table = .{ .id = 1, .schema = table.schema } } }, .plan = .{ .projection = &.{ 0, 1 } }, .limits = .{ .pages = 100, .segments = 100, .result_bytes = 1048576 } };
         turn = try self.source.capture();
-        try q.UnifiedCapture.setPolicy(&turn, .{ .peer = 9, .requests = 8, .revision = 1, .allow = true, .limits = bundle.limits, .declaration = try q.Bundle.declaration(bundle.source) });
+        try q.UnifiedCapture.setPolicy(&turn, .{ .peer = 9, .requests = 8, .revision = 1, .allow = true, .limits = bundle.limits, .target = .{ .declaration = try q.Bundle.declaration(bundle.source) } });
         try self.source.commit(turn);
         turn = try self.requests.capture();
         var service: root.Service = .{ .configuration = configuration };

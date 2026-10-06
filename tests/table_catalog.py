@@ -91,7 +91,12 @@ def main():
     declaration += struct.pack('<H', len(logical)) + logical
     assert len(declaration) == 126 + len(logical)
     query = {'wire_hex': declaration.hex(), 'fingerprint_hex': hashlib.sha256(b'transit.table.query.declaration.v1\0' + declaration).hexdigest()}
-    for path, value in ((FIXTURE, catalog), (QUERY_FIXTURE, query)):
+    policies = []
+    for tag, body in ((1, bytes.fromhex(query['fingerprint_hex'])), (2, struct.pack('<QQQQQ', 1, 7, 2**64-1, 3, 17))):
+        policy = b'UQA1' + contract + struct.pack('<QQQ', 9, 8, 1) + bytes([tag]) + body + b'\1' + struct.pack('<QQQ', 100, 200, 1048576)
+        assert len(policy) == (118 if tag == 1 else 126)
+        policies.append(dict(wire_hex=policy.hex(), target=tag))
+    for path, value in ((FIXTURE, catalog), (QUERY_FIXTURE, query), (QUERY_FIXTURE.with_name('query-policy.json'), policies)):
         encoded = json.dumps(value, indent=2) + '\n'
         if args.record:
             path.write_text(encoded)

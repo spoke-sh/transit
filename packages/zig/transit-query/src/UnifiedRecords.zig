@@ -25,23 +25,92 @@ fn finish(reader: *std.Io.Reader) !void {
 fn magic(reader: *std.Io.Reader, expected: []const u8) !void {
     if (!std.mem.eql(u8, try reader.take(expected.len), expected)) return error.InvalidQueryRecord;
 }
+/// Committed delegation from an authenticated requester process to one source
+/// declaration or a catalog's current read rights. Payloads never choose it.
 pub const Policy = struct {
+    pub const declaration_bytes = 118;
+    pub const max_bytes = 126;
+    pub const Catalog = struct {
+        scope: q.catalog.TableCatalogRecords.Scope,
+        owner: u64,
+        principal: u64,
+        pub fn validate(self: Catalog) !void {
+            try self.scope.validate();
+            try identity(self.owner);
+            if (self.principal > p.max_counter) return error.InvalidQueryPolicy;
+        }
+    };
+    pub const Target = union(enum(u8)) {
+        declaration: [32]u8 = 1,
+        catalog: Catalog = 2,
+        pub fn declarationMatches(self: Target, expected: [32]u8) bool {
+            return switch (self) {
+                .declaration => |value| std.mem.eql(u8, &value, &expected),
+                .catalog => false,
+            };
+        }
+        /// A digest is evidence for a denied declaration, never its authority.
+        pub fn fingerprint(self: Target) ![32]u8 {
+            if (self == .declaration) return self.declaration;
+            var bytes: [41]u8 = undefined;
+            var writer: std.Io.Writer = .fixed(&bytes);
+            try self.write(&writer);
+            var digest = std.crypto.hash.sha2.Sha256.init(.{});
+            digest.update("transit.query.policy.target.v1\x00");
+            digest.update(writer.buffered());
+            return digest.finalResult();
+        }
+        fn write(self: Target, writer: *std.Io.Writer) !void {
+            try writer.writeByte(@backingInt(std.meta.activeTag(self)));
+            switch (self) {
+                .declaration => |value| try writer.writeAll(&value),
+                .catalog => |value| {
+                    try value.validate();
+                    try q.catalog.TableMetadata.scopeWrite(writer, value.scope);
+                    try writer.writeInt(u64, value.owner, .little);
+                    try writer.writeInt(u64, value.principal, .little);
+                },
+            }
+        }
+        fn read(reader: *std.Io.Reader) !Target {
+            return switch (try reader.takeByte()) {
+                1 => .{ .declaration = (try reader.takeArray(32)).* },
+                2 => .{ .catalog = .{
+                    .scope = .{ .realm = try reader.takeInt(u64, .little), .resource = try reader.takeInt(u64, .little), .catalog = try reader.takeInt(u64, .little) },
+                    .owner = try reader.takeInt(u64, .little),
+                    .principal = try reader.takeInt(u64, .little),
+                } },
+                else => error.InvalidQueryPolicy,
+            };
+        }
+    };
     peer: u64,
     requests: u64,
     revision: u64,
-    declaration: [32]u8,
+    target: Target,
     allow: bool,
     limits: q.Bundle.Limits,
+    /// Select policy by authenticated peer before calling. This returns only
+    /// the committed mapping; callers must still check current catalog rights.
+    pub fn tablePrincipal(self: Policy, source: q.TableSource) !u64 {
+        _ = try self.encode();
+        try source.validate();
+        if (!self.allow or self.target != .catalog) return error.QueryDenied;
+        const grant = self.target.catalog;
+        if (!std.meta.eql(grant.scope, source.scope) or grant.owner != source.owner) return error.QueryDenied;
+        return grant.principal;
+    }
     pub fn encode(self: Policy) !p.Value {
         try identity(self.peer);
         try identity(self.requests);
         try identity(self.revision);
         try self.limits.validate();
-        var bytes: [85]u8 = undefined;
+        var bytes: [max_bytes]u8 = undefined;
         var writer: std.Io.Writer = .fixed(&bytes);
         try writer.writeAll("UQA1");
+        try writer.writeAll(&q.catalog.TableMetadata.definition());
         inline for (.{ "peer", "requests", "revision" }) |name| try writer.writeInt(u64, @field(self, name), .little);
-        try writer.writeAll(&self.declaration);
+        try self.target.write(&writer);
         try writer.writeByte(@intFromBool(self.allow));
         inline for (.{ "pages", "segments", "result_bytes" }) |name| try writer.writeInt(u64, @field(self.limits, name), .little);
         return p.Value.init(writer.buffered());
@@ -50,7 +119,8 @@ pub const Policy = struct {
         try value.validate();
         var reader: std.Io.Reader = .fixed(value.slice());
         try magic(&reader, "UQA1");
-        var result: Policy = .{ .peer = try reader.takeInt(u64, .little), .requests = try reader.takeInt(u64, .little), .revision = try reader.takeInt(u64, .little), .declaration = (try reader.takeArray(32)).*, .allow = false, .limits = undefined };
+        if (!std.mem.eql(u8, try reader.take(32), &q.catalog.TableMetadata.definition())) return error.IncompatibleDefinition;
+        var result: Policy = .{ .peer = try reader.takeInt(u64, .little), .requests = try reader.takeInt(u64, .little), .revision = try reader.takeInt(u64, .little), .target = try Target.read(&reader), .allow = false, .limits = undefined };
         result.allow = switch (try reader.takeByte()) {
             0 => false,
             1 => true,
@@ -58,10 +128,11 @@ pub const Policy = struct {
         };
         result.limits = .{ .pages = try reader.takeInt(u64, .little), .segments = try reader.takeInt(u64, .little), .result_bytes = try reader.takeInt(u64, .little) };
         try finish(&reader);
-        _ = try result.encode();
+        if (!(try result.encode()).eql(value)) return error.InvalidQueryPolicy;
         return result;
     }
 };
+
 pub const Phase = enum(u8) { capturing = 1, captured = 2, complete = 3, cancelled = 4, denied = 5, failed = 6, retired = 7 };
 pub const Job = struct {
     id: u64,

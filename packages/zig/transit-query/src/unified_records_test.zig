@@ -44,7 +44,7 @@ test "larger canonical request bundles use an independent immutable commitment" 
 test "durable source records fit unchanged values and preserve all continuation identities" {
     const source: q.SourceDefinition = .{ .resource = 7, .source = .{ .kv = .{ .prefix = .{}, .key = .{ .type = .binary }, .value = .{ .type = .int64 } } } };
     const bundle: q.Bundle = .{ .source = source, .plan = .{ .projection = &.{ 0, 1 } }, .limits = .{ .pages = 1000, .segments = 500, .result_bytes = 1048576 } };
-    const policy: r.Policy = .{ .peer = 9, .requests = 8, .revision = 1, .declaration = try q.Bundle.declaration(source), .allow = true, .limits = bundle.limits };
+    const policy: r.Policy = .{ .peer = 9, .requests = 8, .revision = 1, .target = .{ .declaration = try q.Bundle.declaration(source) }, .allow = true, .limits = bundle.limits };
     try t.expectEqualDeep(policy, try r.Policy.decode(try policy.encode()));
     const job: r.Job = .{ .id = 100, .destination = 9, .correlation = 55, .policy_revision = 1, .source = .{ .pid = 3, .input = 100, .index = 0 }, .request = try bundle.reference(8, 2), .continuation = 101 };
     try t.expectEqualDeep(job, try r.Job.decode(try job.encode()));
@@ -149,4 +149,39 @@ test "failure records reject missing witnesses and preserve full-width budget ev
     var reserved = encoded;
     reserved.data[111] = 1;
     try t.expectError(error.InvalidQueryFailure, q.QueryFailure.decode(reserved));
+}
+
+test "query policies bind explicit catalog delegation and reject old foreign or truncated records" {
+    const fixtures = try std.json.parseFromSlice([]const struct { wire_hex: []const u8, target: u8 }, t.allocator, @embedFile("fixtures/query-policy.json"), .{});
+    defer fixtures.deinit();
+    for (fixtures.value) |fixture| {
+        var buffer: [r.Policy.max_bytes]u8 = undefined;
+        const bytes = try std.fmt.hexToBytes(&buffer, fixture.wire_hex);
+        const value = try p.Value.init(bytes);
+        const policy = try r.Policy.decode(value);
+        try t.expectEqualSlices(u8, bytes, (try policy.encode()).slice());
+        try t.expectEqual(fixture.target, @backingInt(std.meta.activeTag(policy.target)));
+        if (policy.target == .catalog) {
+            try t.expectEqual(std.math.maxInt(u64), policy.target.catalog.scope.catalog);
+            try t.expectEqual(@as(u64, 17), policy.target.catalog.principal);
+            try t.expect(!policy.target.declarationMatches(@splat(0)));
+        } else try t.expect(policy.target.declarationMatches(policy.target.declaration));
+        for (0..bytes.len) |length| {
+            if (r.Policy.decode(try p.Value.init(bytes[0..length]))) |_| return error.AcceptedTruncatedPolicy else |_| {}
+        }
+        var malformed = value;
+        malformed.data[4] ^= 1;
+        try t.expectError(error.IncompatibleDefinition, r.Policy.decode(malformed));
+        malformed = value;
+        malformed.data[60] = 0;
+        try t.expectError(error.InvalidQueryPolicy, r.Policy.decode(malformed));
+        malformed = value;
+        malformed.data[malformed.len] = 0;
+        malformed.len += 1;
+        try t.expectError(error.InvalidQueryRecord, r.Policy.decode(malformed));
+    }
+    // Superseded 85-byte policies have no definition or target discriminator.
+    var old: [85]u8 = @splat(0);
+    old[0..4].* = "UQA1".*;
+    try t.expectError(error.IncompatibleDefinition, r.Policy.decode(try p.Value.init(&old)));
 }

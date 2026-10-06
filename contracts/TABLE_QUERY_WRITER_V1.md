@@ -77,7 +77,7 @@ reject. No old stored profile is inferred or converted.
 | State `TQW1`, at most 124 bytes | phase u8 (`staged=1`, `ready=2`), complete configuration |
 | Initialize `TQI1`, 44 bytes | resource u64, SHA-256 of `transit.table.query.writer.v1` + NUL + complete configuration |
 | Continue `TQR1`, 44 bytes | same resource and digest; accepted only from this PID |
-| Query policy change `TQG1`, 105 bytes | resource u64, expected revision u64, complete 85-byte `UQA1` |
+| Query policy change `TQG1`, 138 bytes | resource u64, expected revision u64, complete 118-byte declaration-target `UQA1` |
 
 Mutation uploads use Publication domain `table_mutation`; finite result records
 use `query_result`. Equal full-width numeric namespaces cannot alias their

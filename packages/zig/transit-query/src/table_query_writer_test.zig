@@ -75,7 +75,7 @@ test "combined Table owner matches independently generated configuration, phase 
     const encoded = try p.Value.init(try std.fmt.hexToBytes(&bytes, fixture.policy_change));
     const policy = try Owner.QueryPolicyChange.decode(encoded);
     try t.expect(encoded.eql(try policy.encode()));
-    try t.expectEqualSlices(u8, &try q.Bundle.declaration(try config.definition()), &policy.policy.declaration);
+    try t.expectEqualSlices(u8, &try q.Bundle.declaration(try config.definition()), &policy.policy.target.declaration);
     for (0..encoded.len) |length| {
         if (Owner.QueryPolicyChange.decode(try p.Value.init(encoded.slice()[0..length]))) |_| return error.AcceptedTruncation else |_| {}
     }

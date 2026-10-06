@@ -45,7 +45,7 @@ fn requestBytes(store: *Store, body: []const u8) !s.PublicationReference {
 const limits: q.Bundle.Limits = .{ .pages = 1000, .segments = 100, .result_bytes = 1048576 };
 fn start(store: *Store, requests: *Store, bundle: q.Bundle) !r.Job {
     var turn = try store.capture();
-    try capture.setPolicy(&turn, .{ .peer = 9, .requests = requests.resource, .revision = 1, .allow = true, .limits = limits, .declaration = try q.Bundle.declaration(bundle.source) });
+    try capture.setPolicy(&turn, .{ .peer = 9, .requests = requests.resource, .revision = 1, .allow = true, .limits = limits, .target = .{ .declaration = try q.Bundle.declaration(bundle.source) } });
     try store.commit(turn);
     const ref = try request(requests, bundle);
     turn = try frame(store, 9, .{ .kind = .call, .correlation = 77, .payload = try ref.encode() });
@@ -414,7 +414,7 @@ test "source behavior closes denied accepted work with the original reply and re
     var turn = try store.capture();
     try turn.write(s.GenServer.descriptor_key, s.GenServer.descriptor);
     try handler.initialize.?(handler.context, &turn);
-    try capture.setPolicy(&turn, .{ .peer = 9, .requests = 8, .revision = 1, .allow = true, .limits = limits, .declaration = try q.Bundle.declaration(definition) });
+    try capture.setPolicy(&turn, .{ .peer = 9, .requests = 8, .revision = 1, .allow = true, .limits = limits, .target = .{ .declaration = try q.Bundle.declaration(definition) } });
     try store.commit(turn);
     const ref = try request(&requests, .{ .source = definition, .plan = .{ .projection = &.{1} }, .limits = limits });
     const call: s.Frame = .{ .kind = .call, .correlation = 77, .payload = try ref.encode() };
@@ -460,7 +460,7 @@ test "source behavior rejects a published incompatible plan with an exact termin
     var turn = try store.capture();
     try turn.write(s.GenServer.descriptor_key, s.GenServer.descriptor);
     try handler.initialize.?(handler.context, &turn);
-    try capture.setPolicy(&turn, .{ .peer = 9, .requests = 8, .revision = 1, .allow = true, .limits = limits, .declaration = try q.Bundle.declaration(definition) });
+    try capture.setPolicy(&turn, .{ .peer = 9, .requests = 8, .revision = 1, .allow = true, .limits = limits, .target = .{ .declaration = try q.Bundle.declaration(definition) } });
     try store.commit(turn);
     const bundle: q.Bundle = .{ .source = definition, .plan = .{ .projection = &.{1} }, .limits = limits };
     var bytes: [q.Bundle.max_bytes]u8 = undefined;

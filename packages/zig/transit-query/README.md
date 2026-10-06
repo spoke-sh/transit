@@ -28,6 +28,12 @@ equality uses the existing collision-safe index. Its
 [source contract](../../../contracts/TABLE_QUERY_V1.md#signed-native-table-reads)
 keeps retention, requester-policy mapping and durable result publication with the
 host; exporting this adapter alone does not enable those routes.
+`UnifiedRecords.Policy` has explicit declaration and catalog targets. A catalog
+target maps a requester process to a catalog principal within one scope and
+owner. It permits resolving new Table objects without installing a per-Table
+policy; every page still requires current catalog inspect/read rights. Policy
+installation belongs to the authorized owner, and a changed mapping advances its
+revision. Native durable admission still requires integration with this adapter.
 
 `TableAssistance` reads current catalog metadata, derives continuations from the
 same general Table parsers and checks the metadata/policy revision again before

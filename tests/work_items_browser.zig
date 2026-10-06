@@ -19,7 +19,7 @@ fn publication() app.Publication {
     return .{ .configuration = .{ .application = 9, .realm = 51, .namespace = .{ .value = 19 }, .administrator = 65537, .name_digest = app.Publication.nameDigest("work_items") } };
 }
 fn policy(caller: *proof.Caller, init: std.process.Init, saved: Saved, revision: u64) !void {
-    _ = try caller.sendPayload(init.io, try (q.UnifiedRecords.Policy{ .peer = saved.requests.pid, .requests = saved.requests.resource, .revision = revision, .declaration = try q.Bundle.declaration(try proof.owner(saved.data).source(@intCast(revision))), .allow = true, .limits = limits }).encode(), null);
+    _ = try caller.sendPayload(init.io, try (q.UnifiedRecords.Policy{ .peer = saved.requests.pid, .requests = saved.requests.resource, .revision = revision, .target = .{ .declaration = try q.Bundle.declaration(try proof.owner(saved.data).source(@intCast(revision))) }, .allow = true, .limits = limits }).encode(), null);
 }
 fn publish(caller: *proof.Caller, init: std.process.Init, saved: Saved, revision: u64) !void {
     caller.saved = saved.publication;

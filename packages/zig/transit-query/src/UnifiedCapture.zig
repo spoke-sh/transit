@@ -17,6 +17,10 @@ pub fn policy(source: anytype, peer: u64) !?r.Policy {
 }
 pub fn setPolicy(turn: *Turn, next: r.Policy) !void {
     const encoded = try next.encode();
+    if (next.target == .catalog) {
+        const grant = next.target.catalog;
+        if (grant.scope.realm != turn.delivery.realm or grant.scope.resource != turn.view.resource or grant.owner != turn.delivery.pid) return error.InvalidQueryPolicy;
+    }
     if (try policy(turn, next.peer)) |old| {
         if (std.meta.eql(old, next)) return;
         if (next.revision <= old.revision) return error.StaleQueryPolicy;
@@ -58,8 +62,8 @@ fn matches(bundle: q.Bundle, grant: r.Policy, resource: u64, diagnostic: ?*?q.So
         return error.QueryDenied;
     }
     const declaration = try q.Bundle.declaration(bundle.source);
-    if (!std.mem.eql(u8, &grant.declaration, &declaration)) {
-        if (diagnostic) |detail| detail.* = .{ .reason = .declaration, .resource = resource, .expected_hash = grant.declaration, .actual_hash = declaration };
+    if (!grant.target.declarationMatches(declaration)) {
+        if (diagnostic) |detail| detail.* = .{ .reason = .declaration, .resource = resource, .expected_hash = try grant.target.fingerprint(), .actual_hash = declaration };
         return error.QueryDenied;
     }
     inline for (.{ "pages", "segments", "result_bytes" }) |field| if (@field(bundle.limits, field) > @field(grant.limits, field)) {

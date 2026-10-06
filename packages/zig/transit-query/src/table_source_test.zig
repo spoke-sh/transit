@@ -231,3 +231,71 @@ test "complete composite key predicates seek one row and still bind the captured
         try e.expectEqual(@as(usize, 4), live.policy_reads);
     }
 }
+
+test "one committed requester policy delegates multiple Tables and still requires current catalog rights" {
+    var store: Store = .{};
+    defer store.deinit();
+    try create(&store, "CREATE TABLE people (id INTEGER, name UTF8)");
+    var found = try definition(&store);
+    defer found.deinit();
+    var people = try Source.from(e.allocator, config, found);
+    defer people.deinit();
+    const grant: q.UnifiedRecords.Policy = .{ .peer = 9, .requests = 8, .revision = 1, .target = .{ .catalog = .{ .scope = config.scope, .owner = config.owner, .principal = 17 } }, .allow = true, .limits = .{ .pages = 100, .segments = 200, .result_bytes = 1048576 } };
+    var current = try turn(&store);
+    inline for (.{ "realm", "resource" }) |field| {
+        var foreign = grant;
+        @field(foreign.target.catalog.scope, field) += 1;
+        try e.expectError(error.InvalidQueryPolicy, q.UnifiedCapture.setPolicy(&current, foreign));
+    }
+    var foreign_owner = grant;
+    foreign_owner.target.catalog.owner += 1;
+    try e.expectError(error.InvalidQueryPolicy, q.UnifiedCapture.setPolicy(&current, foreign_owner));
+    try q.UnifiedCapture.setPolicy(&current, grant);
+    try store.commit(current);
+    current = try turn(&store);
+    try e.expect((try q.UnifiedCapture.policy(&current, 17)) == null);
+    const admitted = (try q.UnifiedCapture.policy(&current, 9)).?;
+    const who = try admitted.tablePrincipal(people.source);
+    try e.expectEqual(@as(u64, 17), who);
+    try e.expectError(error.CatalogDenied, people.source.checkCurrent(&current, admitted.peer));
+    _ = try people.source.capture(e.allocator, &current, &current, who);
+
+    var compiled = try f.TableDdl.compile(e.allocator, "CREATE TABLE places (city UTF8)", null, null);
+    defer compiled.deinit();
+    const created = try ddl(&store, .{ .principal = 17, .operation = 3, .object = 101, .expected_revision = 0, .name = try c.TableMetadata.Name.init("places"), .action = .{ .create = .{ .schema = try compiled.statement.create.bind(101) } } });
+    try e.expectEqual(.applied, created.operation.state);
+    current = try turn(&store);
+    var next = (try catalog.lookup(e.allocator, &current, who, try c.TableMetadata.Name.init("places"))).?;
+    defer next.deinit();
+    var places = try Source.from(e.allocator, config, next);
+    defer places.deinit();
+    try e.expectEqualDeep(admitted, (try q.UnifiedCapture.policy(&current, 9)).?);
+    _ = try places.source.capture(e.allocator, &current, &current, try admitted.tablePrincipal(places.source));
+    inline for (.{ "realm", "resource", "catalog" }) |field| {
+        var changed = places.source;
+        @field(changed.scope, field) += 1;
+        try e.expectError(error.QueryDenied, admitted.tablePrincipal(changed));
+    }
+    var changed = places.source;
+    changed.owner += 1;
+    try e.expectError(error.QueryDenied, admitted.tablePrincipal(changed));
+    var disabled = admitted;
+    disabled.allow = false;
+    try e.expectError(error.QueryDenied, disabled.tablePrincipal(places.source));
+    disabled = admitted;
+    disabled.target = .{ .declaration = try places.source.fingerprint() };
+    try e.expectError(error.QueryDenied, disabled.tablePrincipal(places.source));
+    // A changed mapping cannot reuse an admitted policy revision.
+    var remapped = admitted;
+    remapped.target.catalog.principal = 18;
+    try e.expectError(error.StaleQueryPolicy, q.UnifiedCapture.setPolicy(&current, remapped));
+    var denied = try c.TableCatalogRecords.Policy.administrator(config.scope, who);
+    denied.revision = 2;
+    denied.read = false;
+    try catalog.setPolicy(&current, 1, denied);
+    try store.commit(current);
+    current = try turn(&store);
+    const unchanged = (try q.UnifiedCapture.policy(&current, 9)).?;
+    try e.expectEqualDeep(admitted, unchanged);
+    try e.expectError(error.CatalogDenied, places.source.checkCurrent(&current, try unchanged.tablePrincipal(places.source)));
+}

@@ -157,7 +157,11 @@ Every page checks current inspect/read permission before and after reading its
 original captured schema/root. Continuations may finish after ALTER or DROP;
 new capture against a stale declaration rejects. The principal comes from an
 authenticated caller or explicit committed requester-policy mapping, never from
-the submitted declaration. Native readers retain resource access/lifetime checks.
+the submitted declaration. `UnifiedRecords.Policy` supplies an explicit
+catalog target: requester PID, request resource, scope/owner, catalog principal,
+revision and budgets. The host selects it by authenticated requester, checks its
+revision/request resource and passes `tablePrincipal` to the adapter. The mapping
+alone never grants catalog rights. Native readers retain resource access/lifetime checks.
 The page's `deinit` releases every row; `engine` borrows those values until release.
 An error provides no page. This adapter does not itself install durable query
 routing, requester-to-principal policy, result publication or foreign SDK support.
