@@ -16909,3 +16909,23 @@ JSON-tree decoder fixes the signed body round-trip. Those attempts failed and
 are retained as `general-signed-definition-unit1.log`, `unit2.log` and the focused
 debug logs in `/var/tmp/transit-table-75-_el6xx0v`. The shared definition replacement
 for the complete Table cutover remains a separate pending step.
+
+### General catalog seeded publication and recovery oracle
+
+The catalog domain simulation uses the general `TableCatalog` owner and
+three-column typed schemas. Each 64-operation schedule checks successful
+creation, name/object conflicts and IF NOT EXISTS against retained intent and
+original outcomes. It injects point-read failures, independently revokes inspect
+or create rights during staging, discards private candidates, and replaces the
+owner's in-memory fixture after lost replies. Every stage checks bounded writes,
+unchanged state on failure/discard, invisible partial publication, exact terminal
+retries, historical definitions and stale-page rejection.
+
+`general-catalog-simulation-unit1.log` passes **99/99** ReleaseSafe catalog tests
+(482 ms, 21 MiB). `general-catalog-simulation-domains1.log` passes **8/8** steps
+and ten component schedules across two seeds, with identical replay in 1.488
+seconds. These dynamic-map fixtures test deterministic contracts, not provider
+durability. The four catalog mutation guards now target the general owner; the
+refresh generation guard is aligned with its retained diagnostic implementation.
+All nine guard anchors match once. Their committed-source mutation run remains
+separate pending qualification. Logs are in `/var/tmp/transit-table-75-_el6xx0v`.
