@@ -1,12 +1,14 @@
 #!/usr/bin/env python3
 """Independent typed Table storage keys, envelopes and native-definition binding."""
 import argparse
+import hashlib
 import json
 from pathlib import Path
 import struct
 
 ROOT = Path(__file__).resolve().parents[1]
 FIXTURE = ROOT / 'packages/zig/transit-station/src/fixtures/table-storage.json'
+INDEX_FIXTURE = FIXTURE.with_name('immutable-index.json')
 
 
 def fixtures():
@@ -52,16 +54,66 @@ def fixtures():
     }
 
 
+def index_fixtures():
+    def encode(level, entries):
+        body = bytearray([level, len(entries)])
+        previous = b''
+        for entry in entries:
+            key = bytes.fromhex(entry['key'])
+            prefix = 0
+            while prefix < min(len(previous), len(key)) and previous[prefix] == key[prefix]:
+                prefix += 1
+            body += bytes([prefix, len(key) - prefix]) + key[prefix:]
+            previous = key
+            if level == 0:
+                value = bytes.fromhex(entry['value'])
+                body += struct.pack('<H', len(value)) + value
+            else:
+                body += struct.pack('<QII', entry['id'], 0x53495801, entry['length'])
+                body += bytes.fromhex(entry['digest']) + struct.pack('<Q', entry['count'])
+        packed = bytearray()
+        for at in range(0, len(body), 8):
+            block = body[at:at + 8]
+            packed.append(sum(1 << i for i, byte in enumerate(block) if byte))
+            packed.extend(byte for byte in block if byte)
+        use_packed = len(packed) < len(body)
+        return (b'SIX1' + struct.pack('<BH', use_packed, len(body)) +
+                (packed if use_packed else body)).hex()
+    cases = []
+    for name, origin, operation in [('three-small', 1, 1500), ('three-wide', 65537, 2**53 + 1),
+                                     ('three-maximum', 2**64 - 1, 2**64 - 1)]:
+        entries = []
+        for i in range(3):
+            identity = struct.pack('>QQI', origin, operation, i)
+            selector = hashlib.sha256(bytes([i])).digest()[:16]
+            blob = struct.pack('<QII', 1200 + i, 0x54525701, 150)
+            blob += hashlib.sha256(b'row' + bytes([i])).digest()
+            entries += [dict(key=(b'K' + selector + identity).hex(), value=''),
+                        dict(key=(b'R' + identity).hex(), value=blob.hex())]
+        cases.append(dict(name=name, level=0, entries=sorted(entries, key=lambda entry: entry['key'])))
+    cases.append(dict(name='raw-leaf', level=0, entries=[dict(key='7a', value=(bytes([255])*256).hex())]))
+    cases.append(dict(name='maximum-leaf', level=0, entries=[dict(
+        key=(bytes([i+1])*128).hex(), value=(bytes([255-i])*256).hex()) for i in range(8)]))
+    cases.append(dict(name='branch', level=31, entries=[dict(key=(b'prefix' + bytes([i])).hex(),
+        id=2**64-8+i, length=3000+i, digest=hashlib.sha256(bytes([i])).hexdigest(), count=2**53+i)
+        for i in range(8)]))
+    for case in cases:
+        case['encoded'] = encode(case['level'], case['entries'])
+    return cases
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--record', action='store_true')
     args = parser.parse_args()
     encoded = json.dumps(fixtures(), indent=2) + '\n'
-    if args.record:
-        FIXTURE.write_text(encoded)
-    elif not FIXTURE.is_file() or FIXTURE.read_text() != encoded:
-        raise SystemExit('Typed Table storage fixtures drifted; review the current format before --record.')
-    print('Typed Table storage: independent head, creation, page, manifest, receipt, statement progress and namespace bytes passed.')
+    index = json.dumps(index_fixtures(), indent=2) + '\n'
+    for path, content in ((FIXTURE, encoded), (INDEX_FIXTURE, index)):
+        if args.record:
+            path.write_text(content)
+        elif not path.is_file() or path.read_text() != content:
+            raise SystemExit(f'{path.name} drifted; review the current format before --record.')
+    print('Typed Table storage: independent head, creation, page, manifest, receipt, statement progress, namespace and packed index bytes passed.')
 
 
 if __name__ == '__main__':

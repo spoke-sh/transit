@@ -15,13 +15,32 @@ level and immutable record spec. All descendants have the advertised level.
 Nodes have at most 32 levels; this is a representation/operation bound independent
 of total retained node count. Node records are at most 4096 bytes.
 
-The canonical node envelope is `SIX1`, level:u8, count:u8, followed by entries.
-A leaf entry is key_length:u16, key, value_length:u16, value. A branch entry is
-key_length:u16, minimum_key, record_id:u64, format:u32, length:u32, digest:32 bytes,
-subtree_entries:u64. Integers are little endian. Keys are strictly increasing;
-counts and record identities are nonzero. Extra bytes, unknown versions, invalid
-levels/lengths and inconsistent reference metadata reject explicitly. Publication
-format is `0x53495801` and its chunk chain covers these exact bytes.
+The canonical node envelope is `SIX1`, encoding:u8, decoded_length:u16 and
+body. Integers are little endian. Encoding 0 stores the body directly. Encoding
+1 divides the decoded body into consecutive groups of at most eight bytes:
+a one-byte mask marks nonzero positions, low bit first, followed by exactly
+those nonzero bytes in position order. Bits beyond a final short group must be
+zero, and a present byte cannot be zero. Choose masks only when their complete
+payload is shorter than the direct body; ties use encoding 0. Both encoded
+records and decoded bodies remain bounded by 4096 bytes (the body allows 4089).
+There are no dictionaries or back references. Encoding/decoding does linear
+bounded work without heap allocation.
+
+The decoded body is level:u8, count:u8, followed by entries. Each entry starts
+with prefix_length:u8, suffix_length:u8 and the key suffix. The prefix is the
+maximal common prefix with the preceding complete key; the first key uses zero.
+Reconstructed keys retain the 128-byte bound. A leaf then stores value_length:u16
+and value. A branch then stores record_id:u64, format:u32, length:u32, digest:32
+bytes and subtree_entries:u64. Compression preserves every identity, value and
+commitment byte; it never shortens cryptographic commitments.
+
+Keys are strictly increasing; counts and record identities are nonzero. Extra
+bytes, unknown encodings, noncanonical masks/prefixes/representation choices,
+invalid levels/lengths and inconsistent reference metadata reject explicitly.
+Publication format is `0x53495801` and its chunk chain covers the exact encoded
+envelope, not a separately inferred decoded commitment. The shared current-v1
+definition covers this replacement; the former positional node envelope has no
+fallback decoder.
 
 Updates copy only the bounded path to a leaf, split a full node deterministically
 and return a new root. Previously published roots retain their original content.
@@ -57,5 +76,4 @@ Publication read/staging adapters keep an implementation cache of eight
 node bodies (32 KiB plus metadata), independent of total retained history. Each
 hit reopens the current authorized descriptor and verifies its exact commitment;
 changing the source basis or namespace clears it. Cached bytes cannot authorize a
-read after revocation/retirement or preserve a closed Document revision. The
-index wire format is unchanged.
+read after revocation/retirement or preserve a closed Document revision. Cached bodies use the current canonical node envelope.

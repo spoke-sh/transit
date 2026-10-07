@@ -18274,3 +18274,27 @@ Raw `general-query-abi2.log` SHA-256: `3cf1e5194f1660a5b4a6d0bd5b70ac9680a8e5067
 Raw `general-bindings-native1.log` SHA-256: `db510373e9ba44b2a7ff06c9275d7c4d559d0e22e3c8156ea514769787ebe613`.
 
 Raw `query-failure-python-full2.log` SHA-256: `8ac6d6247f674308f8e1f17f8deb1291432f79839f9606c05e7df8f389d3b5c9`.
+
+### Bounded immutable index encoding
+
+`packed-index-unit3.log` passes all 113 Station tests and
+`packed-index-root-unit1.log` passes the root Zig test target. Independent Python
+fixtures cover two three-row inline leaves, maximum-width identities, a direct
+uncompressed leaf, full-size keys/values and a maximum-depth branch. Tests retain
+all identities and 32-byte commitments, reject every truncated fixture and
+malformed/noncanonical envelopes, and verify unchanged retained roots. Three
+small point inserts each fit four writes; a fourth still exercises staged
+publication and exact terminal replay. Encoding uses maximal key prefixes and
+zero-byte presence masks, with direct bytes when masks do not reduce size.
+
+The first compile failed on a reserved Zig identifier. The next run passed
+112/113 tests and exposed a test whose third-row staging assumption was obsolete;
+its replacement checks that third-row direct publication and fourth-row staging
+both preserve the visibility and four-write boundaries. Those failed attempts
+are not passes. The independent storage fixtures and 5,316 documentation links
+pass; the combined command's registry invocation used a nonexistent script and
+is not a registry pass. Native recovery and matched latency remain separate
+checks. The final shared-definition replacement covers this incompatible v1
+node encoding; no old-envelope decoder is retained.
+
+Raw `packed-index-root-unit1.log` SHA-256: `f8a9f88dca914da04ad0b24f134ea462bee1ac3aaa7e922f83400f086f362c2f`.

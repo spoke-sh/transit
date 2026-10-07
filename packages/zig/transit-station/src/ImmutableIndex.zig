@@ -113,42 +113,108 @@ const Decoder = struct {
         return self.read(try self.int(u16));
     }
 };
+/// Prefix keys and omit zero bytes with one presence mask per eight body
+/// bytes. Both representations are current v1; the shorter one is mandatory
+/// (raw on ties). This is linear work with fixed 4096-byte scratch buffers,
+/// no heap, dictionaries, shortened commitments or unbounded decompression.
+fn commonPrefix(left: []const u8, right: []const u8) usize {
+    var length: usize = 0;
+    while (length < @min(left.len, right.len) and left[length] == right[length]) : (length += 1) {}
+    return length;
+}
 fn encode(node: Node, buffer: []u8) ![]const u8 {
     try node.validate();
-    var out: Encoder = .{ .bytes = buffer };
-    try out.write("SIX1");
-    try out.int(u8, node.level);
-    try out.int(u8, node.used);
+    var body: [node_bytes - 7]u8 = undefined;
+    var plain: Encoder = .{ .bytes = &body };
+    try plain.int(u8, node.level);
+    try plain.int(u8, node.used);
+    var previous: []const u8 = "";
     for (0..node.used) |i| {
+        const key = if (node.level == 0) node.items.leaves[i].key.slice() else node.items.branches[i].minimum.slice();
+        const prefix = commonPrefix(previous, key);
+        try plain.int(u8, @intCast(prefix));
+        try plain.int(u8, @intCast(key.len - prefix));
+        try plain.write(key[prefix..]);
+        previous = key;
         if (node.level == 0) {
-            const entry = node.items.leaves[i];
-            try out.string(entry.key.slice());
-            try out.string(entry.value.slice());
+            try plain.string(node.items.leaves[i].value.slice());
         } else {
             const child = node.items.branches[i];
-            try out.string(child.minimum.slice());
-            try out.int(u64, child.id);
-            try out.int(u32, child.spec.format);
-            try out.int(u32, child.spec.length);
-            try out.write(&child.spec.digest);
-            try out.int(u64, child.entries);
+            try plain.int(u64, child.id);
+            try plain.int(u32, child.spec.format);
+            try plain.int(u32, child.spec.length);
+            try plain.write(&child.spec.digest);
+            try plain.int(u64, child.entries);
+        }
+    }
+    const bytes = body[0..plain.offset];
+    var packed_length: usize = (bytes.len + 7) / 8;
+    for (bytes) |byte| packed_length += @intFromBool(byte != 0);
+    const use_masks = packed_length < bytes.len;
+    var out: Encoder = .{ .bytes = buffer };
+    try out.write("SIX1");
+    try out.int(u8, @intFromBool(use_masks));
+    try out.int(u16, @intCast(bytes.len));
+    if (!use_masks) {
+        try out.write(bytes);
+    } else {
+        var at: usize = 0;
+        while (at < bytes.len) : (at += 8) {
+            const block = bytes[at..@min(at + 8, bytes.len)];
+            var mask: u8 = 0;
+            for (block, 0..) |byte, bit| if (byte != 0) {
+                mask |= @as(u8, 1) << @intCast(bit);
+            };
+            try out.int(u8, mask);
+            for (block) |byte| if (byte != 0) try out.int(u8, byte);
         }
     }
     return buffer[0..out.offset];
 }
 fn decode(bytes: []const u8) !Node {
     if (bytes.len > node_bytes) return error.InvalidIndexNode;
-    var input: Decoder = .{ .bytes = bytes };
-    if (!std.mem.eql(u8, try input.read(4), "SIX1")) return error.InvalidIndexNode;
+    var envelope: Decoder = .{ .bytes = bytes };
+    if (!std.mem.eql(u8, try envelope.read(4), "SIX1")) return error.InvalidIndexNode;
+    const encoding = try envelope.int(u8);
+    const length = try envelope.int(u16);
+    if (encoding > 1 or length < 2 or length > node_bytes - 7) return error.InvalidIndexNode;
+    var body: [node_bytes - 7]u8 = undefined;
+    const plain = body[0..length];
+    if (encoding == 0) {
+        @memcpy(plain, try envelope.read(length));
+    } else {
+        var at: usize = 0;
+        while (at < plain.len) : (at += 8) {
+            const block = plain[at..@min(at + 8, plain.len)];
+            const mask = try envelope.int(u8);
+            if (@as(u16, mask) >> @intCast(block.len) != 0) return error.InvalidIndexNode;
+            for (block, 0..) |*byte, bit| {
+                byte.* = if (mask & (@as(u8, 1) << @intCast(bit)) == 0) 0 else try envelope.int(u8);
+                if (byte.* == 0 and mask & (@as(u8, 1) << @intCast(bit)) != 0) return error.InvalidIndexNode;
+            }
+        }
+    }
+    if (envelope.offset != bytes.len) return error.InvalidIndexNode;
+    var input: Decoder = .{ .bytes = plain };
     var result: Node = .{ .level = try input.int(u8), .used = try input.int(u8), .items = undefined };
     if (result.level > max_level or result.used == 0 or result.used > fanout) return error.InvalidIndexNode;
     result.items = if (result.level == 0) .{ .leaves = undefined } else .{ .branches = undefined };
+    var previous: Key = .{};
     for (0..result.used) |i| {
-        const key = try Key.init(try input.string());
+        const prefix = try input.int(u8);
+        const suffix = try input.int(u8);
+        if (prefix > previous.len or suffix > previous.data.len - prefix) return error.InvalidIndexNode;
+        var key: Key = .{ .len = @as(u16, prefix) + suffix };
+        @memcpy(key.data[0..prefix], previous.data[0..prefix]);
+        @memcpy(key.data[prefix..][0..suffix], try input.read(suffix));
+        if (commonPrefix(previous.slice(), key.slice()) != prefix) return error.InvalidIndexNode;
+        previous = key;
         if (result.level == 0) result.items.leaves[i] = .{ .key = key, .value = try Value.init(try input.string()) } else result.items.branches[i] = .{ .id = try input.int(u64), .spec = .{ .format = try input.int(u32), .length = try input.int(u32), .digest = (try input.read(32))[0..32].* }, .level = result.level - 1, .minimum = key, .entries = try input.int(u64) };
     }
-    if (input.offset != bytes.len) return error.InvalidIndexNode;
+    if (input.offset != plain.len) return error.InvalidIndexNode;
     try result.validate();
+    var canonical: [node_bytes]u8 = undefined;
+    if (!std.mem.eql(u8, try encode(result, &canonical), bytes)) return error.InvalidIndexNode;
     return result;
 }
 fn load(source: anytype, ref: Reference) !Node {
@@ -452,3 +518,59 @@ pub const Staging = struct {
         }
     }
 };
+
+test "packed index agrees with independent leaf and branch bytes without narrowing identities" {
+    const t = std.testing;
+    const EntryFixture = struct { key: []const u8, value: ?[]const u8 = null, id: u64 = 0, length: u32 = 0, digest: ?[]const u8 = null, count: u64 = 0 };
+    const Fixture = struct { name: []const u8, level: u8, entries: []const EntryFixture, encoded: []const u8 };
+    const fixtures = try std.json.parseFromSlice([]const Fixture, t.allocator, @embedFile("fixtures/immutable-index.json"), .{});
+    defer fixtures.deinit();
+    for (fixtures.value) |fixture| {
+        var node: Node = .{ .level = fixture.level, .used = @intCast(fixture.entries.len), .items = undefined };
+        node.items = if (node.level == 0) .{ .leaves = undefined } else .{ .branches = undefined };
+        for (fixture.entries, 0..) |entry, i| {
+            var key_bytes: [128]u8 = undefined;
+            const key = try Key.init(try std.fmt.hexToBytes(&key_bytes, entry.key));
+            if (node.level == 0) {
+                var value_bytes: [256]u8 = undefined;
+                node.items.leaves[i] = .{ .key = key, .value = try Value.init(try std.fmt.hexToBytes(&value_bytes, entry.value.?)) };
+            } else {
+                var digest: [32]u8 = undefined;
+                _ = try std.fmt.hexToBytes(&digest, entry.digest.?);
+                node.items.branches[i] = .{ .id = entry.id, .spec = .{ .format = format, .length = entry.length, .digest = digest }, .level = node.level - 1, .minimum = key, .entries = entry.count };
+            }
+        }
+        var buffer: [node_bytes]u8 = undefined;
+        const encoded = try encode(node, &buffer);
+        var expected: [node_bytes]u8 = undefined;
+        try t.expectEqualSlices(u8, try std.fmt.hexToBytes(&expected, fixture.encoded), encoded);
+        const decoded = try decode(encoded);
+        try t.expectEqual(node.level, decoded.level);
+        try t.expectEqual(try node.count(), try decoded.count());
+        for (0..node.used) |i| {
+            if (node.level == 0) {
+                try t.expect(Key.eql(node.items.leaves[i].key, decoded.items.leaves[i].key));
+                try t.expect(Value.eql(node.items.leaves[i].value, decoded.items.leaves[i].value));
+            } else try t.expect(std.meta.eql(node.items.branches[i], decoded.items.branches[i]));
+        }
+        for (0..encoded.len) |length| {
+            if (decode(encoded[0..length])) |_| return error.AcceptedTruncatedIndex else |_| {}
+        }
+        if (std.mem.eql(u8, fixture.name, "three-small") or std.mem.eql(u8, fixture.name, "three-wide")) try t.expect(encoded.len <= 246);
+        if (std.mem.eql(u8, fixture.name, "raw-leaf")) try t.expectEqual(@as(u8, 0), encoded[4]);
+    }
+}
+
+test "packed index rejects unknown envelopes expansion bounds zero literals and noncanonical forms" {
+    const t = std.testing;
+    try t.expectError(error.InvalidIndexNode, decode("SIX1\x02\x02\x00\x00\x01"));
+    try t.expectError(error.InvalidIndexNode, decode("SIX1\x01\xff\xff"));
+    try t.expectError(error.InvalidIndexNode, decode("SIX1\x01\x02\x00\x80\x01"));
+    try t.expectError(error.InvalidIndexNode, decode("SIX1\x01\x02\x00\x02\x00"));
+    // This valid raw leaf has a shorter zero-mask representation.
+    try t.expectError(error.InvalidIndexNode, decode("SIX1\x00\x07\x00\x00\x01\x00\x01a\x00\x00"));
+    // The previous key is empty; a nonzero prefix cannot be decoded.
+    try t.expectError(error.InvalidIndexNode, decode("SIX1\x00\x07\x00\x00\x01\x01\x01a\x00\x00"));
+    // The superseded positional envelope is never accepted as another profile.
+    try t.expectError(error.InvalidIndexNode, decode("SIX1\x00\x01\x01\x00a\x00\x00"));
+}

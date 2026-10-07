@@ -2024,8 +2024,8 @@ test "point admission stages the first row while the old head remains visible" {
     var turn = try store.capture();
     try t.expectEqual(.applied, (try Write.step(t.allocator, &turn, first)).state);
     try store.commit(turn);
-    // A second small row now fits alongside its compact collision-safe index
-    // in the same four-write decision. The third still needs staged publication.
+    // Three small rows keep their full collision-safe index inline. Each point
+    // insert still fits one four-write decision; a fourth stages publication.
     var second_cells: [2]f.Types.Values.Cell = undefined;
     turn = try store.capture();
     const second = insertRequest(201, 2, "second", &second_cells);
@@ -2037,9 +2037,14 @@ test "point admission stages the first row while the old head remains visible" {
     try t.expectEqual(null, try Write.status(&lost, try second.reference(t.allocator)));
     try store.commit(turn);
     turn = try store.capture();
+    var third_cells: [2]f.Types.Values.Cell = undefined;
+    try t.expectEqual(.applied, (try Write.step(t.allocator, &turn, insertRequest(202, 3, "third", &third_cells))).state);
+    try t.expectEqual(@as(usize, 4), writes(turn));
+    try store.commit(turn);
+    turn = try store.capture();
     const original = try Head.load(&turn, 9);
     var next_cells: [2]f.Types.Values.Cell = undefined;
-    const request = insertRequest(202, 3, "third", &next_cells);
+    const request = insertRequest(203, 4, "fourth", &next_cells);
     var outcome = try Write.step(t.allocator, &turn, request);
     try t.expectEqual(.building, outcome.state);
     try t.expectEqual(@as(usize, 3), writes(turn));
@@ -2059,7 +2064,7 @@ test "point admission stages the first row while the old head remains visible" {
     }
     try t.expectEqual(.applied, outcome.state);
     turn = try store.capture();
-    try t.expectEqual(@as(u64, 3), (try Head.load(&turn, 9)).rows);
+    try t.expectEqual(@as(u64, 4), (try Head.load(&turn, 9)).rows);
     try t.expectEqualDeep(outcome, try Write.step(t.allocator, &turn, request));
     try t.expectEqual(@as(usize, 0), writes(turn));
 }
