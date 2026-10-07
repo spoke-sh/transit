@@ -84,35 +84,36 @@ public final class JavaStationSdk {
     }
     static final class TableProof extends Handlers.TableService {
         final Path output;
-        Table<Long> escaped;
+        Table escaped;
         Source source;
         TableProof(ProcessRef peer, Path output) { super(peer); this.output = output; }
         @Override public void onMessage(Turn turn, Incoming<QueryMessage> input) {
             Path saved = output.resolve("version.json");
             if (input instanceof Cast<QueryMessage> && input.value() instanceof Rows) {
-                Table<Long> table = turn.table(Handlers.TABLE); escaped = table;
-                Cursor cursor = null; List<Table.Row<Long>> rows = new ArrayList<>(); int pages = 0;
+                Table table = turn.table(Handlers.TABLE.object()); escaped = table;
+                check(table.schema().equals(Handlers.TABLE));
+                Cursor cursor = null; List<Table.Row> rows = new ArrayList<>(); int pages = 0;
                 do {
-                    Page<Table.Row<Long>> page = table.page(cursor);
-                    check(page.entries().size() <= 8 && page.basis().equals(table.basis()));
-                    rows.addAll(page.entries()); pages++; cursor = page.cursor();
+                    Table.Page page = table.page(cursor, 8);
+                    check(page.rows().size() <= 8 && turn.table(Handlers.TABLE.object()).basis().equals(table.basis()));
+                    rows.addAll(page.rows()); pages++; cursor = page.next().orElse(null);
                 } while (cursor != null);
-                check(rows.size() == 41 && pages == 6 && rows.getFirst().key() == Long.MIN_VALUE && rows.getFirst().value() == null);
+                check(rows.size() == 41 && pages == 6 && rows.getFirst().cells().subList(0, 2).equals(List.of(Handlers.signed(Long.MIN_VALUE), new Logical.Null())));
+                for (Table.Row row : rows) check(row.cells().subList(2, 4).equals(Handlers.TABLE.columns().subList(2, 4).stream().map(c -> c.defaultValue().orElseThrow()).toList()));
                 ReadVersion version = turn.retain();
                 write(saved, Values.obj("pid", version.pid(), "input", version.input(), "index", version.index()));
-                table.update(new Table.Row<>(Long.MIN_VALUE, 17L));
-            } else if (input.value() instanceof Initialize && Files.exists(saved)) {
+            } else if (input instanceof Cast<QueryMessage> && input.value() instanceof Initialize && Files.exists(saved)) {
                 JsonObject savedVersion = read(saved);
                 ReadVersion version = new ReadVersion(savedVersion.get("pid").getAsLong(), savedVersion.get("input").getAsLong(), savedVersion.get("index").getAsInt());
-                check(turn.table(Handlers.TABLE).get(Long.MIN_VALUE).orElseThrow().value() == 17L);
+                check(turn.table(Handlers.TABLE.object()).getKey(List.of(Handlers.signed(Long.MIN_VALUE))).orElseThrow().cells().get(1).equals(Handlers.signed(17)));
                 source = turn.openVersion(version);
-                check(source.table(Handlers.TABLE).get(Long.MIN_VALUE).orElseThrow().value() == null);
-                check(source.table(Handlers.TABLE).page().entries().size() == 8 && source.state().page().entries().size() <= 8);
+                check(source.table(Handlers.TABLE.object()).getKey(List.of(Handlers.signed(Long.MIN_VALUE))).orElseThrow().cells().get(1).equals(new Logical.Null()));
+                check(source.table(Handlers.TABLE.object()).page().rows().size() == 8 && source.state().page().entries().size() <= 8);
                 turn.release(version);
             } else super.onMessage(turn, input);
         }
         void expired() {
-            if (escaped != null) expect(TransitException.Kind.TURN_EXPIRED, () -> escaped.get(0));
+            if (escaped != null) expect(TransitException.Kind.TURN_EXPIRED, () -> escaped.get(new Table.RowIdentity(new byte[20])));
             if (source != null) expect(TransitException.Kind.TURN_EXPIRED, source::state);
         }
     }
@@ -188,7 +189,7 @@ public final class JavaStationSdk {
     static <T> void roundtrip(Codec<T> codec, byte[] bytes) { check(Arrays.equals(codec.encode(codec.decode(bytes)), bytes)); }
     static void codecs(JsonObject cfg) {
         Codec<CounterMessage> counter = new Codecs.CounterCodec(Set.of(Add.class, Read.class, Start.class, Total.class));
-        Codec<QueryMessage> query = new Codecs.QueryCodec(Set.of(Initialize.class, Insert.class, Rows.class, Start.class));
+        Codec<QueryMessage> query = new Codecs.QueryCodec(Set.of(Initialize.class, Insert.class, Rows.class, Start.class, Advance.class, NotReady.class, Update.class, Delete.class));
         JsonObject fixtures = read(Path.of(cfg.get("fixtures").getAsString()));
         for (JsonElement item : fixtures.getAsJsonArray("valid")) {
             JsonObject fixture = item.getAsJsonObject(); byte[] bytes = HexFormat.of().parseHex(fixture.get("hex").getAsString());
@@ -217,6 +218,16 @@ public final class JavaStationSdk {
                 switch (fixture.get("codec").getAsString()) { case "u64" -> Codecs.U64.decode(bytes); case "counter" -> counter.decode(bytes); case "query" -> query.decode(bytes); default -> throw new AssertionError("Unknown codec"); }
                 throw new AssertionError("Invalid payload accepted");
             } catch (IllegalArgumentException | BufferUnderflowException expected) { }
+        }
+        JsonObject tableFixtures = read(Path.of(cfg.get("table_fixtures").getAsString()));
+        Map<String, Codec<?>> tableCodecs = Map.of("queue", TableWork.QUEUE_CODEC, "work", TableWork.WORK_CODEC, "outcome", TableWork.OUTCOME_CODEC);
+        for (JsonElement item : tableFixtures.getAsJsonArray("valid")) {
+            JsonObject fixture = item.getAsJsonObject(); roundtrip(tableCodecs.get(fixture.get("codec").getAsString()), HexFormat.of().parseHex(fixture.get("hex").getAsString()));
+        }
+        for (JsonElement item : tableFixtures.getAsJsonArray("invalid")) {
+            JsonObject fixture = item.getAsJsonObject();
+            try { tableCodecs.get(fixture.get("codec").getAsString()).decode(HexFormat.of().parseHex(fixture.get("hex").getAsString())); throw new AssertionError("Invalid Table record accepted"); }
+            catch (IllegalArgumentException | BufferUnderflowException expected) { }
         }
         Add value = new Add(BigInteger.ONE.shiftLeft(53).add(BigInteger.ONE));
         byte[] expected = ByteBuffer.allocate(26).order(ByteOrder.LITTLE_ENDIAN).put(new byte[]{'S','T','N','1',1}).putLong(0).put(Codecs.COUNTER.encode(value)).array();

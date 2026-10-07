@@ -8,7 +8,7 @@ public final class Messages {
         return value;
     }
     public sealed interface CounterMessage permits Add, Read, Start, Total {}
-    public sealed interface QueryMessage permits Initialize, Insert, Rows, Start {}
+    public sealed interface QueryMessage permits Initialize, Insert, Rows, Start, Advance, NotReady, Update, Delete {}
     public record Add(BigInteger value) implements CounterMessage { public Add { u64(value); } }
     public record Read() implements CounterMessage {}
     public record Start() implements CounterMessage, QueryMessage {}
@@ -16,4 +16,8 @@ public final class Messages {
     public record Initialize() implements QueryMessage {}
     public record Insert(long key, Long value) implements QueryMessage {}
     public record Rows() implements QueryMessage {}
+    public record Advance() implements QueryMessage {}
+    public record NotReady() implements QueryMessage {}
+    public record Update(long key, Long value) implements QueryMessage {}
+    public record Delete(long key) implements QueryMessage {}
 }

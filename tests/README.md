@@ -17943,3 +17943,26 @@ fencing/expiry and callback/scope checks with **8 MiB** provider hot/cache limit
 Raw `sdk-table-queue-node-native2.log` SHA-256: `bdfdcc6a9964c048aaf566a22941b2b522b509bda315515b99e0794b4da7ae9e`.
 
 Raw `sdk-table-queue-node-unit1.log` SHA-256: `6d4d7362fee7286423db548db656b7e66b38e659511ea89f1c6271c63a315d93`.
+
+### Installed Java Table FIFO and owned record codecs
+
+Fresh Java native/client/Station/example JARs build under `--release 21`,
+`-Xlint:all -Werror` and pass the installed Station/HTTP schedules
+(`sdk-table-queue-java-native2.log`, exit 0). The examples use immutable records,
+BigInteger queue identities/counts, general logical values and the shared
+Advance/NotReady/Update/Delete formats. Golden FIFO/message fixtures and **35**
+handler-value rejection checks pass. The initial external consumer compilation
+catches its remaining fixed-Table getter/page calls; the migrated consumer uses
+the current public API and passes.
+
+The same **46** terminal outcomes and **462** drain turns qualify FIFO recovery,
+rejection followed by later work, exact signed retries, retained old rows,
+current-grant denial and host replacement. Independent PyArrow validates the
+**41 rows / 6 streams / 41,992 bytes** after native/host handles close; delivery
+takes **275** rounds. The fixture observes **301** cold objects while retaining
+**8 MiB** provider hot/cache limits and **64** authority pages. The Java HTTP
+SDK schedule passes (**27.67 s**). Artifact mismatch, compile-time wrong-value,
+scope/thread and callback-failure checks remain enabled. No performance claim
+or remaining-language qualification follows from this run.
+
+Raw `sdk-table-queue-java-native2.log` SHA-256: `3bf83303cf2f57d2afa21cda262c01b8d43e1fbe4fb591221b2cf1ed71dd7df1`.
