@@ -17590,3 +17590,33 @@ the installed handler schedule can run. Documentation links pass.
 Raw `handler-table-python-check2.log` SHA-256: `3bb73e17272862f0f3b1235f006dbaf9962ad75a03454bfadf9e0e8953f8f38b`.
 
 Raw `handler-table-ts-routing3.log` SHA-256: `9a27c26153e3fe41f1ac78f3c90ff9871bd00eaf3ff1d098cb6ab6f0673dee1c`.
+
+
+### Ruby handler Table values and scoped read materialization
+
+Ruby handlers now use general catalog schemas and owned logical cells, stable
+row identities, bounded pages and immutable saved mutation/reference values.
+Query plans reuse `Unified::Plan`; manifests bind the complete Table head and
+preserve full-width object IDs. Schema/row/page conversion and status identity
+checks remain inside the read guard: catching a malformed result still poisons
+the real Ruby turn. Mutation results match the original operation, and saved
+status/cancellation match its digest.
+
+`handler-table-ruby-final1.log` passes syntax checks for all three changed source
+files, the handler value suite with **28 adversarial rejections**, and the
+independent recursive-schema validator suite. Cases cover nested decimal/list
+and binary ownership, saved definitions and canonical identities, 128 columns and
+1024 rows, action-size rejection, foreign realm/resource, changed read cuts,
+read poisoning, retained mutation rejection and mismatched outcomes. The new
+suite is registered in source and installed handler tasks.
+
+Earlier attempts do not count as passing full checks: the first catalog-suite
+invocation lacks its staged relative schema fixture, the first new test uses an
+incorrect Ruby endless-method conditional, and later standalone catalog runs
+lack the installed-gem fixture environment. That installed catalog suite remains
+pending; these source checks do not substitute for it or for the real-authority
+handler scenario. The final handler test and recursive schema test both pass,
+and documentation links pass. Query examples and the shared multi-turn installed
+scenario remain part of the continuing SDK migration.
+
+Raw `handler-table-ruby-final1.log` SHA-256: `d49edcf78bbffd0b2900554df4ce6f15b4e5f20776e79eb8dcf89ec263c23c7e`.

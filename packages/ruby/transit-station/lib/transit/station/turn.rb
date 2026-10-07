@@ -67,9 +67,9 @@ module Transit
         @turn.__send__(:check!)
         State.new(@turn, identity)
       end
-      def table(schema)
+      def table(object)
         @turn.__send__(:check!)
-        Table.new(@turn, schema, identity)
+        Table.new(@turn, object, identity)
       end
     end
     class Turn
@@ -126,16 +126,12 @@ module Transit
       def cancel_call(correlation)
         apply_native({ 'cancel' => Internal.integer(correlation, max: U64_MAX).to_s }).fetch('cancelled')
       end
-      def table(schema)
+      def table(object)
         check!
-        Table.new(self, schema)
+        Table.new(self, object)
       end
-      def create_table(schema)
-        check!
-        raise ArgumentError, 'Expected TableSchema' unless schema.is_a?(TableSchema)
-        [schema.key_name, schema.value_name].each { |name| Internal.text(name, caps.fetch('table_name_bytes')) }
-        apply_native({ 'table_create' => { 'id' => schema.id, 'key_name' => schema.key_name, 'value_name' => schema.value_name, 'value_type' => schema.value_type.to_s } })
-        table(schema)
+      def create_table(schema, limits)
+        Table.create(self, schema, limits)
       end
       def retain = Value.version(apply_native({ 'retain' => {} }).fetch('version'))
       def stage_http(request)

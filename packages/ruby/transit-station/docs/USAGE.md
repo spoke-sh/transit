@@ -65,9 +65,11 @@ aborts the proposal and cannot record a block marker.
 
 `turn.state` supports `find`, `require`, `put`, `delete` and `page` through `Key`
 objects pairing binary names and codecs. `Found(nil)` is distinct from an absent
-key. Tables use `TableSchema(id:, value_type:)` with `:int64`, `:boolean`, `:utf8`
-or `:binary`, i64 keys and nullable values. `get`, `insert`, `update`, `upsert`,
-`delete` and `page` enforce the captured native schema and operation bounds.
+key. [Typed Tables](TABLES.md) use general `Catalog::Schema` columns and logical
+cells. `turn.table(object)` captures the committed schema/head for stable-identity
+or composite-key reads and bounded pages. `TableMutation` saves the original
+schema and operation identity; each explicit `step(turn)` prepares one private
+turn. Completion can require multiple committed inputs.
 
 Pages own their entries and opaque cursors; at most eight entries are admitted
 by the current profile. Cursors remain bound to source revisions. `retain`
@@ -91,14 +93,15 @@ such durable meaning.
 ## Queries and original IPC
 
 Enable query results on both roles. Service policy is explicit through
-`allow_query`; `start_query` takes a `TableSchema` and typed `QueryPlan` with
-projection, aggregate, optional limit and predicate. These helpers delegate
+`allow_query`; `start_query` takes a full-width Table object ID and a
+`QueryPlan.new(Unified::Plan.new(...))` with explicit projection indices,
+aggregate, optional output names, limit and typed predicate. These helpers delegate
 capture, planning, execution, credit and acknowledgement to shared Zig.
 
 `on_result(turn, complete)` receives verified completion. Open
 `turn.result(complete.correlation)` and read its full manifest and bounded
 individual segments. Each read checks current access. Metadata includes source
-and destination, correlation, resource/revision/schema basis, plan and chain
+and destination, correlation, resource/revision/head basis, plan and chain
 digests, policy revision, rows, segments and bytes. Every segment is an independent
 IPC stream. `IpcSegment#ipc` returns an owned binary `String` copy and survives
 runner disposal. A segment alone does not prove whole-result completeness.

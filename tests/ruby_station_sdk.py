@@ -19,6 +19,9 @@ def run(node, cli, library, artifacts, http_worker=None, *, execute=None):
             'transit-native-client-0.2.0-x86_64-linux.gem', 'transit-client-0.2.0.gem',
             'transit-native-station-0.2.0-x86_64-linux.gem', 'transit-station-0.2.0.gem', 'transit-sdk-examples-0.2.0.gem')]
         subprocess.run(['gem', 'install', '--local', '--no-document', '--ignore-dependencies', *files], env=environment, cwd=target, check=True)
+        values = target / 'handler_tables.rb'
+        shutil.copyfile(root / 'tests/ruby_handler_tables.rb', values)
+        subprocess.run(['ruby', values], env=environment, cwd=target, check=True)
         script = target / 'consumer.rb'
         shutil.copyfile(root / 'tests/ruby_station_sdk.rb', script)
         return Consumer(environment, lambda mode, config: ['ruby', script, mode, config],

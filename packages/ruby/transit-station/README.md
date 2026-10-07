@@ -38,3 +38,6 @@ The [catalog guide](docs/CATALOG.md) covers general schemas, typed mutations,
 ALTER/DROP, historical metadata, policy and exact saved-intent recovery.
 The [logical value guide](docs/LOGICAL.md) describes owned recursive types and
 cells, exact numbers and bounded neutral codecs.
+
+The [handler Table guide](docs/TABLES.md) covers typed rows, retained cuts and
+saved mutations that advance through explicit continuation turns.

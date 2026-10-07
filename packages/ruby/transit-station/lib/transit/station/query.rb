@@ -1,25 +1,17 @@
 # frozen_string_literal: true
+require_relative 'unified'
 module Transit
   module Station
-    Predicate = Data.define(:column, :comparison, :value, :value_type) do
-      def initialize(column:, comparison: nil, value: nil, value_type: :int64)
-        raise ArgumentError, 'Select key or value' unless %i[key value].include?(column)
-        raise ArgumentError, 'Select a comparison or null predicate' unless comparison.nil? || %i[eq ne lt le gt ge].include?(comparison)
-        raise ArgumentError, 'Null predicate cannot carry a value' if comparison.nil? && !value.nil?
-        raise ArgumentError, 'Select a cell type' unless %i[int64 boolean utf8 binary].include?(value_type)
-        super(column: column, comparison: comparison, value: value.is_a?(String) ? value.dup.freeze : value, value_type: value_type)
+    class QueryPlan
+      def initialize(plan)
+        raise ArgumentError, 'Expected a general query plan' unless plan.is_a?(Unified::Plan)
+        @data = JSON.generate(plan.wire).freeze
+        freeze
       end
-    end
-    QueryPlan = Data.define(:projection, :aggregate, :limit, :predicate) do
-      def initialize(projection: :both, aggregate: :rows, limit: nil, predicate: nil)
-        raise ArgumentError, 'Select a supported projection/aggregate' unless %i[both key value].include?(projection) && %i[rows count sum count_values].include?(aggregate)
-        Internal.integer(limit, min: 0, max: U64_MAX) unless limit.nil?
-        raise ArgumentError, 'Expected Predicate' unless predicate.nil? || predicate.is_a?(Predicate)
-        super
-      end
+      def wire = JSON.parse(@data)
     end
     QueryJob = Data.define(:result, :correlation, :source)
-    ResultManifest = Data.define(:result, :source, :destination, :correlation, :table, :policy_revision, :basis, :source_contract,
+    ResultManifest = Data.define(:result, :source, :destination, :correlation, :table, :policy_revision, :basis,
                                  :plan, :segments, :byte_count, :rows, :chain, :schema)
     class IpcSegment
       attr_reader :manifest, :ordinal, :rows, :digest
@@ -44,7 +36,9 @@ module Transit
         realm = @turn.process.realm
         ResultManifest.new(result: value.fetch('result'), source: ProcessRef.new(realm: realm, pid: value.fetch('source')),
           destination: ProcessRef.new(realm: realm, pid: value.fetch('destination')), correlation: Value.wide(value.fetch('correlation'), min: 1),
-          table: value.fetch('table'), policy_revision: Value.wide(value.fetch('policy_revision')), basis: Value.basis(value.fetch('basis'), realm), source_contract: Value.digest(value.fetch('basis').fetch('contract')),
+          table: Value.wide(value.fetch('table'), min: 1), policy_revision: Value.wide(value.fetch('policy_revision')),
+          basis: TableBasis.new(resource: ResourceRef.new(realm: realm, resource: value.fetch('basis').fetch('resource')),
+            revision: Internal.integer(value.fetch('basis').fetch('revision')), object: Value.wide(value.fetch('table'), min: 1), head: Value.digest(value.fetch('basis').fetch('head'))),
           plan: Value.digest(value.fetch('plan')), segments: Value.wide(value.fetch('segments')), byte_count: Value.wide(value.fetch('bytes')),
           rows: Value.wide(value.fetch('rows')), chain: Value.digest(value.fetch('chain')), schema: Value.digest(value.fetch('schema')))
       end
@@ -64,30 +58,18 @@ module Transit
       def apply(action) = @turn.__send__(:raw_native, action)
     end
     class Turn
-      def allow_query(peer, table, expected_revision:, allow:)
+      def allow_query(peer, object, expected_revision:, allow:)
         pid = peer_id(peer)
-        raise ArgumentError, 'Expected TableSchema' unless table.is_a?(TableSchema)
-        Internal.integer(expected_revision, min: 0)
+        Internal.integer(object, max: U64_MAX); Internal.integer(expected_revision, min: 0, max: U64_MAX)
         Internal.boolean(allow)
-        apply_native({ 'query_policy' => { 'peer' => pid, 'table' => table.id, 'expected_revision' => expected_revision, 'allow' => allow } })
+        apply_native({ 'query_policy' => { 'peer' => pid, 'table' => object.to_s, 'expected_revision' => expected_revision.to_s, 'allow' => allow } })
         nil
       end
-      def start_query(schema, plan)
+      def start_query(object, plan)
         check!
+        Internal.integer(object, max: U64_MAX)
         raise ArgumentError, 'Expected QueryPlan' unless plan.is_a?(QueryPlan)
-        table(schema)
-        predicate = { 'all' => {} }
-        if (selected = plan.predicate)
-          column = selected.column == :key ? 0 : 1
-          predicate = if selected.comparison.nil?
-                        { 'is_null' => column }
-                      else
-                        { 'compare' => { 'column' => column, 'op' => selected.comparison.to_s,
-                          'value' => Value.cell(selected.value, selected.value_type, caps.fetch('table_cell_bytes')) } }
-                      end
-        end
-        value = apply_native({ 'query_start' => { 'id' => schema.id, 'plan' => { 'projection' => plan.projection.to_s,
-          'aggregate' => plan.aggregate.to_s, 'limit' => plan.limit&.to_s, 'predicate' => predicate } } }).fetch('query')
+        value = apply_native({ 'query_start' => { 'id' => object.to_s, 'plan' => plan.wire } }).fetch('query')
         QueryJob.new(result: value.fetch('result'), correlation: Value.wide(value.fetch('correlation'), min: 1), source: Value.version(value.fetch('source')))
       end
       def close_query(result, reason: :cancelled)

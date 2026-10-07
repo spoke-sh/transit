@@ -108,6 +108,7 @@ ruby-build: build
 
 # Syntax checks and installed public Ruby client/authority schedules.
 ruby-sdk-test: ruby-build
+    ruby -Ipackages/ruby/transit-client/lib -Ipackages/ruby/transit-station/lib tests/ruby_handler_tables.rb
     ruby -c packages/ruby/transit-client/lib/transit/client.rb
     ruby -c packages/ruby/transit-client/lib/transit/client/values.rb
     ruby -c packages/ruby/transit-client/lib/transit/client/worker.rb
