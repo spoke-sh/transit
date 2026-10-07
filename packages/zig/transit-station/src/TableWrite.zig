@@ -225,6 +225,16 @@ fn writeCount(turn: *const Turn) usize {
     for (turn.decision.mutations) |slot| count += @intFromBool(slot != null);
     return count;
 }
+fn fitsSingleTurn(turn: *const Turn, overlay: anytype, reserved_mutations: u8) bool {
+    var required: usize = writeCount(turn) + reserved_mutations + 2;
+    for (overlay.records.items) |item| if (item.reachable) {
+        // Fresh reservation IDs cannot name earlier staged records. Large
+        // publications need descriptor/quota slots as well as their chunks.
+        required += if (item.bytes.len <= Pages.inline_bytes) 1 else 2 + item.spec.chunks();
+        if (required > turn.decision.mutations.len) return false;
+    };
+    return required <= turn.decision.mutations.len;
+}
 fn requireCompletionSpace(turn: *Turn, reserved_mutations: u8) !void {
     if (writeCount(turn) + reserved_mutations > turn.decision.mutations.len) return error.MutationBudgetExceeded;
 }
@@ -314,10 +324,10 @@ pub fn stepWithReserve(allocator: std.mem.Allocator, turn: *Turn, request: Reque
 
     if (previous == null) {
         const fast_before = turn.decision;
-        const ready = stageAll(turn, pages, &overlay) catch |err| blk: {
+        const ready = if (fitsSingleTurn(turn, &overlay, reserved_mutations)) stageAll(turn, pages, &overlay) catch |err| blk: {
             if (err != error.MutationBudgetExceeded) return err;
             break :blk false;
-        };
+        } else false;
         if (ready) {
             if (completion(turn, head, result, changed, request, reserved_mutations)) |accepted| return accepted else |err| if (err != error.MutationBudgetExceeded) return err;
         }
@@ -331,6 +341,12 @@ pub fn stepWithReserve(allocator: std.mem.Allocator, turn: *Turn, request: Reque
         reserved.pending = result.first_record;
         try head.replace(turn, reserved);
         try record(turn, result);
+        // The reservation and any first staged bytes commit together. Their
+        // visibility still belongs to a later atomic head/outcome publication.
+        _ = stageAll(turn, pages, &overlay) catch |err| blk: {
+            if (err != error.MutationBudgetExceeded) return err;
+            break :blk false;
+        };
         return result;
     }
 

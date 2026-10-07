@@ -83,7 +83,10 @@ data. This helper does not implement catalog DROP, name reuse or write admission
 row-identity deletion. The owner supplies authenticated principal/operation,
 captured schema and current policy. The helper recomputes intent identity, uses a
 four-write direct publication when possible, or reserves IDs and a frozen head
-before resumable staging. The final head and exact matched/changed counts publish
+for resumable staging. It checks the fresh candidate's write-slot cost before
+attempting direct publication. Admission uses remaining slots to stage the first
+records alongside the reservation; the old root and row count remain visible.
+The final head and exact matched/changed counts publish
 together. Other writes see `TableBusy` during staging. Repeated terminal intent
 returns its original receipt even after the Table changes or retires.
 `TableWrite.stepWithReserve` additionally reserves one or two native mutation

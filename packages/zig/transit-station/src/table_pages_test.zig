@@ -1132,7 +1132,10 @@ test "large point write reserves before staging, fences competitors and accepts 
     var turn = try store.capture();
     var result = try Write.step(t.allocator, &turn, request);
     try t.expectEqual(.building, result.state);
-    try t.expectEqual(@as(usize, 2), writes(turn));
+    try t.expectEqual(@as(usize, 4), writes(turn));
+    const staged = try (Pub{ .resource = 7, .domain = .table, .namespace = 9 }).inspect(&turn, initial.next_record);
+    try t.expectEqual(.staging, staged.state);
+    try t.expectEqual(@as(u32, 0), staged.written);
     try t.expectEqual(@as(u64, 0), (try Head.load(&turn, 9)).rows);
     try t.expectEqual(initial.next_record, result.first_record);
     try store.commit(turn);
@@ -1661,4 +1664,41 @@ test "packed Table staging restores its whole proposal after inconsistent chunk 
     const before = turn.decision;
     try t.expectError(error.InvalidPublicationDescriptor, pages.stage(&turn, ref, &bytes));
     try t.expectEqualDeep(before, turn.decision);
+}
+
+test "point admission stages the first row while the old head remains visible" {
+    var store: Store = .{};
+    defer store.deinit();
+    _ = try store.table();
+    var first_cells: [2]f.Types.Values.Cell = undefined;
+    const first = insertRequest(200, 1, "first", &first_cells);
+    var turn = try store.capture();
+    try t.expectEqual(.applied, (try Write.step(t.allocator, &turn, first)).state);
+    try store.commit(turn);
+    turn = try store.capture();
+    const original = try Head.load(&turn, 9);
+    var next_cells: [2]f.Types.Values.Cell = undefined;
+    const request = insertRequest(201, 2, "second", &next_cells);
+    var outcome = try Write.step(t.allocator, &turn, request);
+    try t.expectEqual(.building, outcome.state);
+    try t.expectEqual(@as(usize, 3), writes(turn));
+    try t.expect((try turn.read(Pages.key(9, 'i', original.next_record))) != null);
+    const reserved = try Head.load(&turn, 9);
+    try t.expectEqualDeep(original.index, reserved.index);
+    try t.expectEqual(original.rows, reserved.rows);
+    try store.commit(turn);
+    var steps: usize = 1;
+    while (outcome.state == .building) {
+        turn = try store.capture();
+        outcome = try Write.step(t.allocator, &turn, request);
+        try t.expect(writes(turn) <= 4);
+        try store.commit(turn);
+        steps += 1;
+        try t.expect(steps <= 3);
+    }
+    try t.expectEqual(.applied, outcome.state);
+    turn = try store.capture();
+    try t.expectEqual(@as(u64, 2), (try Head.load(&turn, 9)).rows);
+    try t.expectEqualDeep(outcome, try Write.step(t.allocator, &turn, request));
+    try t.expectEqual(@as(usize, 0), writes(turn));
 }
