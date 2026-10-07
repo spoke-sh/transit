@@ -41,7 +41,8 @@ final class Bridge implements Worker.State<Void> {
         JsonObject limits = resource("/io/transit/sdk/station/contract.json").getAsJsonObject("limits");
         port = config.has("catalog_client")
             ? new Port("station", nativeHost, config, schemas, "HostRequest", limits.get("catalog_line_bytes").getAsInt(), 96)
-            : new Port("station", nativeHost, config, schemas, "HostRequest");
+            : new Port("station", nativeHost, config, schemas, "HostRequest",
+                Math.toIntExact(number(io.transit.client.internal.Values.CONTRACT.getAsJsonObject("limits").get("host_line_bytes"), 1)), 96);
         try {
             JsonObject hello = object(port.request(obj("hello", obj()), "hello"));
             if (!hello.keySet().equals(Set.of("host_version", "station_version", "transit_version"))) throw incompatible("station-version");

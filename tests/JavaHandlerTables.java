@@ -34,7 +34,7 @@ public final class JavaHandlerTables {
         return obj("reference", reference(), "state", "applied", "route", "statement", "admitted_input", 9,
             "completed_input", 11, "counts", obj("matched", "1", "changed", "1"), "rejection", "none", "witness", null);
     }
-    public static void main(String[] args) {
+    public static void main(String[] args) throws java.io.IOException {
         byte[] bytes = {1, 2, 3};
         List<Logical.Cell> tags = new ArrayList<>(List.of(new Logical.Present(new Logical.Utf8("red")), new Logical.Null()));
         List<Catalog.Assignment> assignments = new ArrayList<>(List.of(
@@ -47,6 +47,17 @@ public final class JavaHandlerTables {
         String saved = mutation.save(); bytes[0] = 9; tags.clear(); assignments.clear(); rows.clear();
         check(mutation.save().equals(saved)); check(mutation.schema().equals(schema())); check(mutation.operation().equals(MAX));
         check(Table.Mutation.load(saved).save().equals(saved));
+        Logical.Descriptor nestedType = Logical.Scalar.INT64; Logical.Cell nested = signed(1);
+        for (int i = 0; i < 15; i++) {
+            nestedType = new Logical.MapType(Logical.Scalar.INT64, new Logical.Element(nestedType, false));
+            nested = new Logical.Present(new Logical.MapValue(List.of(new Logical.MapEntry(new Logical.Signed(n(0)), nested))));
+        }
+        var nestedIntent = Table.Mutation.prepare(RESOURCE, 0, n(1), new Catalog.Schema(n(1), n(1), n(2), List.of(new Catalog.Column(n(1), "deep", nestedType))), new Catalog.Insert(List.of(List.of(new Catalog.Assignment(n(1), nested)))));
+        check(Table.Mutation.load(nestedIntent.save()).schema().columns().getFirst().type().equals(nestedType));
+        byte[] envelope = obj("table", obj("mutate", json(nestedIntent.save()))).toString().getBytes(java.nio.charset.StandardCharsets.UTF_8);
+        check(io.transit.client.internal.Values.parse(envelope, 96).isJsonObject());
+        try { io.transit.client.internal.Values.parse(envelope, 64); throw new AssertionError("Expected shallow transport rejection"); }
+        catch (java.io.IOException expected) { rejected++; }
         Catalog.Mutation decoded = CatalogValues.mutation(json(saved).get("mutation"));
         var stored = ((Catalog.Insert)decoded).rows().getFirst();
         check(((Logical.Binary)((Logical.Present)((Catalog.CellValue)stored.get(2).value()).cell()).value()).value().copy()[0] == 1);

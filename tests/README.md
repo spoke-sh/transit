@@ -17735,3 +17735,15 @@ this value suite. Fresh all-package builds, examples and the installed authority
 schedule remain pending; these results do not qualify them.
 
 Raw `handler-table-dotnet-check4.log` SHA-256: `d7c7fd0b57e74d54e31163d0395c5dfcaf2f3443268273cba5ae5f916b1de714`.
+
+### Java handler transport nesting
+
+The Java Station port now uses the shared 96-level JSON nesting bound. A valid
+15-map logical value, its schema and complete mutation envelope round-trip in
+`handler-table-java-depth2.log`; the previous 64-level parser rejects that same
+envelope. All existing handler value checks pass, for **35 rejection cases**.
+The first attempt fails to compile because the test omitted the parser's checked
+I/O exception; the corrected test compiles with `-Xlint:all -Werror`. This source
+test exercises the actual bounded parser, not a running native port or authority.
+
+Raw `handler-table-java-depth2.log` SHA-256: `ae05f6eac9e440e3980aff5fc4980284bb398238a536466279150a704fbc8905`.
