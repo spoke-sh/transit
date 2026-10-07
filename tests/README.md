@@ -18310,3 +18310,32 @@ A source unit forbids all row-body loads during reference gathering, permits
 one subsequent decode, rejects changed identities/digests and current denial,
 and checks the final short page. Existing allocation-failure page tests pass.
 Native lifecycle and request/latency measurements remain separate checks.
+
+### Current local application and console capacity recovery
+
+The work-item application audit retains its existing selected schedule.
+`general-work-items-capacity1.log` passes `just test::server-application-capacity`:
+an accepted application input survives actual ENOSPC on an owned ext4 image,
+joined shutdown, space release and restart with the same receipt, PID and resource
+(19.46 seconds after setup). The separately built example uses the general Table
+implementation.
+
+`general-console-capacity1.log` passes `just test::server-capacity` in 12.73 seconds
+after setup. The console proof now uses the configured catalog and freezes an
+admitted INSERT while its Table owner is stopped. It preserves the exact saved
+intent/input outside the filled provider volume, resumes that owner under real
+ENOSPC, checks bounded control/shutdown, releases space, and reconciles the same
+operation after restart. The applied count is one matched/changed row and a fresh
+SELECT verifies exactly one row with the original values. The old proof expected
+a saved durable SELECT from an interactive console, which cannot establish that
+recovery scenario. This migration preserves accepted-work recovery instead of
+inventing a saved query.
+
+Both fixtures fill only their owned 2 GiB ext4 image, leave 4 MiB metadata
+headroom and verify that a real 32 MiB allocation returns ENOSPC. They do not
+establish zero-free-byte progress or storage throughput. These current passes
+close the local application capacity audit; final clean qualification remains.
+
+Raw `general-work-items-capacity1.log` SHA-256: `78a3459e6e8898ae260eea82192ce11ae22b62541cae7294753e93702be69833`.
+
+Raw `general-console-capacity1.log` SHA-256: `3698227870320d085ca12ffaa943cd88005ddbae4a6c3085850d043a1ca40113`.
