@@ -17861,3 +17861,38 @@ do not qualify this replacement application flow.
 Raw `sdk-table-queue-python-model3.log` SHA-256: `18d2a0feb98dc344c90e00905af71871eb3bef937364cbb0924ffa046c4c767f`.
 
 Raw `sdk-table-queue-python-type3.log` SHA-256: `5107f9446510710cfc458474a6bae8746bf7ed9a2bccb85b1de3b0a14e84c8ad`.
+
+### Installed Python Table FIFO and nested query recovery
+
+Fresh ReleaseSafe native libraries/hosts and five current Python wheels pass the
+installed public Station and HTTP schedules (`sdk-table-queue-python-native4.log`,
+exit 0). The shared live schedule queues commands before advancing them, loses
+an accepted queue commit response, reconciles the original signed request,
+observes an explicit NotReady reply, and replaces the service host with pending
+work. It checks **46 terminal application outcomes**, FIFO completion after a
+duplicate-key rejection, insert/update/delete counts, deleted work nodes and
+stable original admission identities. These identities are global input
+positions; mailbox ordinals are not interchangeable with them. Queue draining
+takes **462 turns** within the unchanged four-write callback limit.
+
+General retained reads verify the old nullable value after a later update, then
+release the retained version. Six owned logical IPC streams contain **41 rows**,
+**41,992 bytes**, text/list defaults and full-width signed values. Independent
+PyArrow checks all four columns and nested cell states after runner disposal.
+Publication/receipt takes **275 rounds**. Result access after grant revocation
+fails. The existing fencing, expiry, callback failure, exact disk/host recovery
+and joined disposal checks pass, as does the HTTP SDK schedule (**31.05 s**).
+Installed pure-value checks reject **31** adversarial handler intents; the
+application codecs pass the shared message and FIFO golden fixtures.
+
+Earlier runs expose two fixture assumptions: using mailbox ordinals for outcome
+keys, and limiting the former two-column query to 150 rounds. The replacement
+progress cap is derived from six 65,535-byte streams, 221-byte fragments and
+three capture writes per turn, with a separate 600-second deadline. A further
+run correctly stops on hot-only storage backpressure at 64 MiB. The passing
+schedule uses disk-backed cold storage with **8 MiB** provider hot/cache limits,
+**64** authority pages and **294** observed cold objects. It does not increase
+production memory bounds, disable retention or qualify latency. The other SDK
+consumers and final shared-definition cutover remain separate checks.
+
+Raw `sdk-table-queue-python-native4.log` SHA-256: `6deeca59fd5e33f8bb3deeeb3bae5400b6bbdfb313df853ca34df8ad25aeb68d`.

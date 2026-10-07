@@ -1,5 +1,10 @@
 # Python Station SDK examples
 
+The [Table workflow](../TABLES.md) records each mutation's global admission
+position as its operation identity. Mailbox admitted/consumed counts are ordinals,
+not those identities. Retained Table handles continue to read their original
+schema and row cut after a later queued update completes.
+
 `transit-sdk-examples` is an installable application package. It uses only the
 public `transit_client` and `transit_station` APIs. [Shared codecs](../README.md)
 define its counter, u64-state and query formats; malformed, unsupported and

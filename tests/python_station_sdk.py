@@ -61,6 +61,16 @@ def consumer(mode, config_path):
             try: codecs.u64.encode(invalid)
             except ValueError: pass
             else: raise AssertionError('Invalid full-width integer accepted')
+        from transit_sdk_examples import table_work
+        table_fixtures = json.loads(Path(cfg['table_fixtures']).read_bytes())
+        for case in table_fixtures['valid']:
+            codec = getattr(table_work, case['codec'] + '_codec')
+            data = bytes.fromhex(case['hex'])
+            assert codec.encode(codec.decode(data)) == data
+        for case in table_fixtures['invalid']:
+            try: getattr(table_work, case['codec'] + '_codec').decode(bytes.fromhex(case['hex']))
+            except ValueError: pass
+            else: raise AssertionError(case)
         from transit_station import encode_cast
         assert encode_cast(codecs.Add(2**53+1), codecs.counter_codec) == b'STN1\x01' + bytes(8) + codecs.counter.encode(codecs.Add(2**53+1))
         from transit_client import ResourceRef
@@ -137,31 +147,35 @@ def consumer(mode, config_path):
     handler, codec = CounterProof(), codecs.counter_codec
     if cfg['role'] == 'requester': handler, codec = Requester(peer), codecs.requester_codec
     elif cfg['role'] == 'table':
-        from transit_station import Cast, Row, ReadVersion
+        from transit_station import Cast, ReadVersion
+        from transit_station import logical_values as logical
         from transit_sdk_examples.query import TABLE
         class TableProof(TableService):
             def handle(self, turn, incoming):
                 saved = Path(cfg['output']) / 'version.json'
                 if isinstance(incoming, Cast) and isinstance(incoming.value, codecs.Rows):
                     cursor, rows, pages = None, [], 0
+                    table = turn.table(TABLE.object_id)
+                    assert table.schema == TABLE
                     while True:
-                        page = turn.table(TABLE).page(cursor)
-                        assert len(page.entries) <= 8 and page.basis == turn.table(TABLE).basis
-                        rows.extend(page.entries)
+                        page = table.page(cursor)
+                        assert len(page.rows) <= 8 and table.basis == turn.table(TABLE.object_id).basis
+                        rows.extend(page.rows)
                         pages += 1
                         cursor = page.next
                         if cursor is None: break
                     assert len(rows) == 41 and pages == 6
-                    assert rows[0].key == -(2**63) and rows[0].value is None
+                    assert rows[0].cells[:2] == (logical.Present(logical.Atom('signed', -(2**63))), logical.Null())
+                    assert all(row.cells[2:] == (TABLE.columns[2].default, TABLE.columns[3].default) for row in rows)
                     version = turn.retain()
                     saved.write_text(json.dumps({'pid': version.pid, 'input': version.input, 'index': version.index}))
-                    turn.table(TABLE).update(Row(-(2**63), 17))
-                elif isinstance(incoming.value, codecs.Initialize) and saved.exists():
+                elif isinstance(incoming, Cast) and isinstance(incoming.value, codecs.Initialize) and saved.exists():
                     version = ReadVersion(**json.loads(saved.read_bytes()))
-                    assert turn.table(TABLE).get(-(2**63)).value == 17
+                    key = (logical.Present(logical.Atom('signed', -(2**63))),)
+                    assert turn.table(TABLE.object_id).get_key(key).cells[1] == logical.Present(logical.Atom('signed', 17))
                     source = turn.open_version(version)
-                    assert source.table(TABLE).get(-(2**63)).value is None
-                    assert len(source.table(TABLE).page().entries) == 8
+                    assert source.table(TABLE.object_id).get_key(key).cells[1] == logical.Null()
+                    assert len(source.table(TABLE.object_id).page().rows) == 8
                     assert len(source.state.page().entries) <= 8
                     turn.release(version)
                 else:
