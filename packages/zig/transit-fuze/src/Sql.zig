@@ -62,17 +62,6 @@ pub const Parameter = struct { index: u32, offset: usize };
 pub const TemplateAst = struct { ast: Ast, parameters: ParameterSites };
 pub const Catalog = enum { tables, sources, sinks, connections };
 pub const Inspection = union(enum) { describe: m.Name, show: Catalog, explain: Ast };
-pub const max_mutation_rows = 3;
-pub const KeyEquality = struct { column: Column, literal: Literal };
-pub const Mutation = struct {
-    source: m.Name,
-    operation: union(enum) {
-        insert: struct { columns: [2]m.Name, rows: [max_mutation_rows]?[2]Literal = @splat(null) },
-        update: struct { column: Column, literal: Literal, key: KeyEquality },
-        delete: KeyEquality,
-    },
-};
-
 /// Returned AST contains no pointers into text, allocations, effects or authority.
 pub fn parse(text: []const u8) !Ast {
     return parseLocated(text, null);
@@ -164,57 +153,6 @@ fn declaration(parser: *Parser, locations: ?*DeclarationLocations) !?f.Declarati
 pub fn validateText(text: []const u8) !void {
     if (text.len > max_statement_bytes) return error.StatementTooLarge;
     if (!std.unicode.utf8ValidateSlice(text) or std.mem.indexOfScalar(u8, text, 0) != null) return error.InvalidSqlEncoding;
-}
-/// Parse only bounded, literal Table mutations. This supplies no write authority;
-/// the application must explicitly route the plan through its fenced writer.
-pub fn parseMutation(text: []const u8) !?Mutation {
-    return parseMutationLocated(text, null);
-}
-pub fn parseMutationLocated(text: []const u8, location: ?*Location) !?Mutation {
-    if (location) |value| value.* = .{};
-    try validateText(text);
-    var parser: Parser = .{ .lexer = .{ .text = text }, .location = location };
-    return mutation(&parser);
-}
-fn mutation(parser: *Parser) !?Mutation {
-    try parser.advance();
-    const insert = parser.word("INSERT");
-    const update = parser.word("UPDATE");
-    const delete = parser.word("DELETE");
-    if (!insert and !update and !delete) return null;
-    try parser.advance();
-    if (insert) try parser.requireWord("INTO");
-    if (delete) try parser.requireWord("FROM");
-    const source = try parser.name();
-    const operation: @FieldType(Mutation, "operation") = if (insert) blk: {
-        try parser.require(.left);
-        const first = try parser.name();
-        try parser.require(.comma);
-        const second = try parser.name();
-        try parser.require(.right);
-        try parser.requireWord("VALUES");
-        var values: @FieldType(@FieldType(Mutation, "operation"), "insert") = .{ .columns = .{ first, second } };
-        var index: usize = 0;
-        while (true) : (index += 1) {
-            if (index == max_mutation_rows) return error.MutationBatchTooLarge;
-            try parser.require(.left);
-            const key = try parser.literal();
-            try parser.require(.comma);
-            const value = try parser.literal();
-            try parser.require(.right);
-            values.rows[index] = .{ key, value };
-            if (!try parser.take(.comma)) break;
-        }
-        break :blk .{ .insert = values };
-    } else if (update) blk: {
-        try parser.requireWord("SET");
-        const column = try parser.column();
-        try parser.require(.eq);
-        const literal = try parser.literal();
-        break :blk .{ .update = .{ .column = column, .literal = literal, .key = try parser.keyEquality() } };
-    } else .{ .delete = try parser.keyEquality() };
-    try parser.end();
-    return .{ .source = source, .operation = operation };
 }
 /// Recognize inspection without making it an executable SELECT. A null result
 /// leaves other statements to their owner; recognized forms consume all input.
@@ -318,8 +256,6 @@ pub fn classifyTokens(text: []const u8, roles: []TokenRole) void {
     if (std.ascii.eqlIgnoreCase(first.text, "SELECT")) {
         var ast: Ast = undefined;
         statement(&parser, &ast) catch {};
-    } else if (std.ascii.eqlIgnoreCase(first.text, "INSERT") or std.ascii.eqlIgnoreCase(first.text, "UPDATE") or std.ascii.eqlIgnoreCase(first.text, "DELETE")) {
-        _ = mutation(&parser) catch null;
     } else if (std.ascii.eqlIgnoreCase(first.text, "CREATE")) {
         _ = declaration(&parser, null) catch null;
     } else if (std.ascii.eqlIgnoreCase(first.text, "EXPLAIN") or std.ascii.eqlIgnoreCase(first.text, "DESCRIBE") or std.ascii.eqlIgnoreCase(first.text, "SHOW")) {
@@ -724,12 +660,6 @@ const Parser = struct {
             h.predicate_column = null;
         }
         return .{ .compare = .{ .column = col, .op = op, .literal = value } };
-    }
-    fn keyEquality(self: *Parser) !KeyEquality {
-        try self.requireWord("WHERE");
-        const column_value = try self.column();
-        try self.require(.eq);
-        return .{ .column = column_value, .literal = try self.literal() };
     }
     fn literal(self: *Parser) !Literal {
         if (try self.parameter()) |index| {

@@ -48,7 +48,7 @@ Document paths, expansion and text materialization belong to the declared source
 not SQL syntax. DDL, writes, joins, arbitrary expressions and continuous queries
 remain unsupported. The [syntax guide](sql.md) defines parser bounds and escaping.
 
-`Sql.parseLocated`, `parseInspectionLocated`, `parseMutationLocated` and
+`Sql.parseLocated`, `parseInspectionLocated` and
 `parseDeclarationLocated` accept an optional `*Sql.Location` while preserving
 their ordinary parser's results and errors. A failure supplies a statement byte
 offset and, when known, static expected-token vocabulary. EOF points just beyond

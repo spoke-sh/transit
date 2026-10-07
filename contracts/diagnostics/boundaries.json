@@ -161,57 +161,11 @@
         "InvalidParameterIndex",
         "InvalidSqlEncoding",
         "InvalidSqlSyntax",
-        "NotTableDeclaration",
         "StatementTooLarge",
         "UnboundParameters",
-        "UnspecifiedNullability",
         "UnsupportedConstruct",
         "UnsupportedDeclaration",
         "UnsupportedDeclarationType",
-        "UnsupportedSchema",
-        "UnsupportedStatement",
-        "UnsupportedTableColumnCount",
-        "UnsupportedTableKey",
-        "UnsupportedTableNullability"
-      ],
-      "mappings": [
-        "sql-compilation"
-      ],
-      "reason": "Compiler-inferred set is conservative; it includes errors normalized by the enclosing compiler.",
-      "exceptions": {
-        "IncompleteSql": "Consumed editor cursor sentinel; public parse paths do not provide the cursor assistance that creates it. The SQL mapping manifest owns its control-flow tests."
-      }
-    },
-    "sql-mutation": {
-      "causes": [
-        "CellTooLarge",
-        "CommentTooDeep",
-        "DuplicateColumn",
-        "DuplicateMutationKey",
-        "ImmutablePrimaryKey",
-        "IncompleteSql",
-        "InvalidBinaryLiteral",
-        "InvalidColumnName",
-        "InvalidMutationPlan",
-        "InvalidNumericLiteral",
-        "InvalidParameterIndex",
-        "InvalidSqlEncoding",
-        "InvalidSqlSyntax",
-        "InvalidUtf8",
-        "LiteralOutOfRange",
-        "LiteralTooLarge",
-        "MutationBatchTooLarge",
-        "NullPrimaryKey",
-        "StatementTooLarge",
-        "TypeMismatch",
-        "UnboundParameters",
-        "UnknownColumn",
-        "UnknownQualifier",
-        "UnknownSource",
-        "UnsupportedConstruct",
-        "UnsupportedLiteral",
-        "UnsupportedMutationPredicate",
-        "UnsupportedSchema",
         "UnsupportedStatement"
       ],
       "mappings": [

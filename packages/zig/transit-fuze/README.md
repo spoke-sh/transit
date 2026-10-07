@@ -169,11 +169,11 @@ all use-site byte offsets, expected/supplied types and counts, and changed-schem
 fingerprints in an optional `Sql.Binding`. Ordinary and diagnostic entry points
 produce the same plans and errors; diagnostic storage requires no allocation.
 
-`Sql.parseMutation` and `TableMutation.compile/lower` produce owned, exactly
-typed plans for literal INSERT, UPDATE and DELETE against one declared Table.
-These plans are separate from read queries. The application invokes Station's
-private-turn helper under its own command authorization; public query transports
-reject mutation statements. See the [Table mutation contract](../../../contracts/TABLE_DML_V1.md).
+`TableDml.compile` produces owned, schema-bound INSERT, UPDATE and DELETE plans
+with typed cells, column assignments and predicates. These plans are separate
+from read queries. Station's staged Table owner validates the captured basis and
+publishes the complete result atomically. See the
+[Table mutation contract](../../../contracts/TABLE_DML_V1.md).
 
 `TableSchema` supplies the pure general schema/row model with stable column IDs,
 nullable defaults, typed defaults and declared keys. Its owned codec and exact

@@ -17339,3 +17339,55 @@ on the removed request-bound source and is retained; its replacement classifies
 the general intent and existing private batch budgets rather than dropping bounds.
 The global definition cutover, installed-language requalification and full clean
 CI remain outstanding.
+
+### General typed component compiler migration
+
+The fixed `Sql.Mutation`/`Fuze.TableMutation`/`Station.TableMutation` paths and
+`Declaration.tableSchema` conversion are removed. DDL/DML compiler measurements
+now use `TableDdl`/`TableDml`. The existing non-executable state-definition
+formatter remains separate. Diagnostic reflection removes the old mutation
+boundary and six obsolete declaration-conversion causes; general Table compiler
+boundaries retain their reviewed mappings and unknown-cause fallback.
+
+`component-general-fuze2.log` passes **250/250** tests; Station's matching
+`station1` run passes **97/97**. The first Fuze run fails one obsolete binary-cast
+highlighting fixture; the corrected fixture uses the general parser's `X'00ff'`
+constructor. The first root build finds the removed parser's classifier branch
+and an obsolete neutral scalar conversion in the parameter benchmark; both are
+migrated before `build3` passes **7/7** steps, including **16** compiler-inferred
+error sets and **nine** unknown-cause checks. `build4` recompiles the final
+parameter benchmark. Its first runtime attempt rejects old cast literals; the
+second uses typed numeric/binary literals and passes all **12** neutral parameter
+cases, preserving ordinary/prepared bundle equality and two description reads.
+The default pure SQL benchmark passes its **13** compilation/aggregate cases.
+These single-sample smoke runs are correctness checks, not latency comparisons.
+
+The general declarative consumer passes **33** components and **nine** capability
+probes with 257 rows/three-row pages and separately with empty input. SQLite
+checks complete typed mutation rows and matched/changed counts; PyArrow checks
+SELECT cells and schemas. Decimal, wide-schema and compound-predicate probes
+now require acceptance. Full TPC inventories remain blocked. Mutation timing is
+named `build_candidate` and includes immutable row/index construction, bounded
+overlay allocation and decoded result traversal; it cannot be compared with the
+historical fixed-cell `propose_mutation` phase as equivalent work. The SQL probe
+also marks its general DDL/DML workload contract to reject mismatched controls.
+Runner checks pass **9/9**, including unchanged-row and zero-match oracle cases.
+
+Raw reports are retained in the local campaign (one sample, ten component
+compile iterations, one query execution; parameter/default probes retain their
+own fixed iteration counts):
+
+| Report | SHA-256 |
+| --- | --- |
+| `component-general-report1.json` | `dc6ffbc70fe2067da3bf70ac12ad1e9ed5754820f230c1c2cbcde8b1cc3b0702` |
+| `component-general-empty1.json` | `8790d3e3848f1b511a24e1625f381281a136b74adfff8dd1a034897d5cf55e95` |
+| `component-general-sql1.json` | `ddf50e7ab2cfcb1b2ed3971221743a5cd62560326b1593f6937f478a248c9af4` |
+| `component-general-parameters2.json` | `d599ce91049ebdd93fe0e0b1ab7003757b650c684888d4818b0125a6c2f0fbf2` |
+
+Documentation and diagnostic semantic mappings pass. The updated source
+inventory records 375 owners, 3,499 owner/error pairs, 445 enum/union surfaces,
+13 declared sets, 2,887 error-return boundaries and 194 grammar productions;
+this inventory is not executable proof. The verification registry passes with
+the superseded three-row compiler bounds removed. Handler Table/query migration,
+installed SDKs, current-definition regeneration and complete clean qualification
+remain separate gates.

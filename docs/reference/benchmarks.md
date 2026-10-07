@@ -35,12 +35,12 @@ load, transaction mixes, refresh schedules, query validation, concurrency,
 recovery, measurement intervals and disclosure requirements remain unimplemented
 in the full-suite driver.
 
-All 151 inventory units share two immediate blockers: the full schemas exceed
-Transit's published Table profile, and complete workload drivers/oracles are
+All 151 inventory units share two immediate blockers: the full schemas need
+additional UNIQUE/CHECK/foreign-key constraints, and complete workload drivers/oracles are
 absent. The report also records suite-level transaction, relational, expression
 and bulk-operation prerequisites. This is complete enumeration with common
 blockers, not an exhaustive operator audit of every generated query variant.
-Nine small executable probes check current rejection boundaries; they are
+Nine small executable probes check supported and unsupported capabilities; they are
 Transit examples, not substituted standard queries.
 
 These results provide no tpmC, tpsE, QphH or QphDS score and are not comparable
@@ -63,9 +63,9 @@ transport-specific latency or execute a complete business transaction.
 | ----------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
 | SELECT compilation      | SQL text to the production Fuze plan                                                                                                               | Catalog lookup, authorization and source acquisition                                              |
 | SELECT execution        | Canonical plan round-trip and binding precede timed paged Fuze execution, including generated rows, validation, Arrow encoding and segment hashing | Native source adapters, snapshot acquisition, disk/network I/O, rendering and durable publication |
-| Declaration compilation | Production state compiler; independent canonical text and two-column schema checks follow                                                          | Catalog creation, resource provisioning and grants                                                |
-| Mutation compilation    | Literal SQL to the shared typed mutation plan                                                                                                      | Admission and durable request recovery                                                            |
-| Mutation proposal       | Real Station private turn with in-memory point reads and bounded row proposals                                                                     | Authority validation, commit, Ursula durability, contention and external callers                  |
+| Declaration compilation | General Table DDL compiler; independent full typed schema checks follow                                                          | Catalog creation, resource provisioning and grants                                                |
+| Mutation compilation    | SQL to the general typed mutation plan                                                                                                      | Admission and durable request recovery                                                            |
+| Mutation candidate      | Immutable general Table row/index construction and decoded final rows                                                                     | Authority validation, commit, Ursula durability, contention and external callers                  |
 
 The reduced fixture has `id INT64 NOT NULL` and `quantity INT64 NULL`.
 IDs increase from zero; quantity is null every thirteenth row and otherwise
@@ -77,8 +77,8 @@ Changing row count changes work, without allocating the complete source in Zig.
 SELECT results are independently checked against SQLite and decoded with
 PyArrow before measurement. All output cells, column order, completion and row
 counts are checked. Empty inputs preserve typed empty results and null SUM.
-Mutation checks compare independently encoded row keys/values and affected counts;
-every repetition starts from the same two existing rows. Those private proposals
+Mutation checks compare complete typed rows and matched/changed counts with SQLite;
+every repetition starts from the same two existing rows. Those candidates
 do not accumulate committed data. SQLite and PyArrow are verification tools;
 Transit's runtime remains Zig native.
 
@@ -88,6 +88,10 @@ CLI, SDK, Board and Flight calls are outside these component timings. Sharing
 Fuze does not make those execution paths equally fast or equally capable.
 
 ## Recorded component measurements
+
+The following historical measurements use the earlier fixed-cell declaration
+and mutation profile. Current general Table candidates perform different work;
+`build_candidate` results are not equivalent to historical private-turn timings.
 
 A local run on 2026-09-30 at clean source `bc9476ba`, including
 `main` at `4c22b426`, passes all 28 components.
@@ -138,8 +142,8 @@ Benchmark coverage follows its exact contracts and does not enable new syntax.
 | Surface                                               | Current measurement or blocker                                                                                                          | Owning contract                                                                                                                     |
 | ----------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
 | SELECT and shared typed plans                         | Measured finite filter/projection/limit/count/checked int64 sum; canonical plan round-trip precedes execution                           | [SQL](sql.md), [queries](queries.md)                                                                                                |
-| CREATE TABLE and catalog                              | Historical reduced-definition measurements; general Table schemas use the shared DDL/DML contracts                | [CREATE TABLE](sql/create-table.md)                                                                                                 |
-| INSERT, UPDATE, DELETE                                | Compilation and private proposals measured; literal bounded writes cannot substitute for full transactions or refresh functions         | [Mutation contract](../../contracts/TABLE_DML_V1.md)                                                                           |
+| CREATE TABLE and catalog                              | General typed DDL compilation and exact schema checks                | [CREATE TABLE](sql/create-table.md)                                                                                                 |
+| INSERT, UPDATE, DELETE                                | Compilation and immutable candidates measured; bounded writes cannot substitute for full transactions or refresh functions         | [Mutation contract](../../contracts/TABLE_DML_V1.md)                                                                           |
 | Joins, grouping, ordering and subqueries              | Planned; full relational workloads blocked                                                                                              | [Planned composition](sql/grammar-surface.md#planned-declarations-and-relational-composition)                                       |
 | Decimal/date operations and arithmetic                | Planned; quantities here do not implement monetary/date expressions                                                                     | [Expressions](sql/expressions.md)                                                                                                   |
 | CSV/JSONL, schema discovery and nested types          | Separate file-discovery matrix with frozen numeric budgets; these measurements do not extend the synthetic declarative int64 fixture    | [Types and discovery](sql/types.md#schema-discovery-and-binding), [file measurements](performance.md#schema-on-demand-measurements) |
@@ -186,4 +190,4 @@ end-to-end throughput follows from component nanoseconds.
 For single-row durable INSERT/UPDATE/DELETE latency, use the
 [mutation measurement fixture](performance.md#durable-table-mutation-measurements).
 It includes admission, owner processing, durable storage and caller persistence,
-which compiler and private-proposal component cases exclude.
+which compiler and candidate component cases exclude.

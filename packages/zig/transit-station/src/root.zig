@@ -13,7 +13,6 @@ pub const TableWrite = @import("TableWrite.zig");
 pub const TableStatement = @import("TableStatement.zig");
 pub const TableCleanup = @import("TableCleanup.zig");
 pub const TableAlter = @import("TableAlter.zig");
-pub const TableMutation = @import("TableMutation.zig");
 pub const Publication = @import("Publication.zig");
 pub const PublicationReference = @import("PublicationReference.zig");
 pub const ImmutableIndex = @import("ImmutableIndex.zig");
@@ -38,7 +37,6 @@ test {
     _ = Turn;
     _ = GenServer;
     _ = Table;
-    _ = @import("table_mutation_test.zig");
     _ = Query;
     _ = Registry;
     _ = Waiting;

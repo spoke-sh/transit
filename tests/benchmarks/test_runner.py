@@ -19,12 +19,12 @@ class ReportTests(unittest.TestCase):
         records = [dict(kind='metadata', optimization='safe')]
         for case in self.data['components']:
             records.append(dict(id=case['id'], phase='compile', elapsed_ns=10, iterations=2))
-            phases = {'select': ['execute'], 'declaration': ['verify_declaration'], 'mutation': ['verify_mutation', 'propose_mutation']}[case['kind']]
+            phases = {'select': ['execute'], 'declaration': ['verify_declaration'], 'mutation': ['verify_mutation', 'build_candidate']}[case['kind']]
             records.extend(dict(id=case['id'], phase=phase) for phase in phases)
         for record in records[1:]:
-            if record['phase'] in ('execute', 'propose_mutation'):
+            if record['phase'] in ('execute', 'build_candidate'):
                 record.update(elapsed_ns=10, iterations=2)
-        records.extend(dict(id=probe['id'], phase='blocker_probe') for probe in self.data['probes'])
+        records.extend(dict(id=probe['id'], phase='capability_probe') for probe in self.data['probes'])
         return records
 
     def test_complete_inventory_does_not_promote_components(self):
@@ -75,6 +75,15 @@ class ReportTests(unittest.TestCase):
                 del changed[1]['elapsed_ns']
             with self.assertRaises(ValueError):
                 run.checked_records(changed, self.data)
+
+    def test_mutation_oracle_preserves_null_and_untouched_rows(self):
+        insert = next(c for c in self.data['components'] if c['id'] == 'tpc-c.insert')
+        self.assertEqual(run.expected_candidate(insert), dict(matched=3, changed=3,
+                         rows=[[1, 50], [2, None], [3, 12], [4, None], [5, 31]]))
+        for sql, matched, changed in [('UPDATE stock SET quantity=50 WHERE id=1', 1, 0),
+                                      ('DELETE FROM stock WHERE id=9', 0, 0)]:
+            self.assertEqual(run.expected_candidate(dict(source='stock', sql=sql)),
+                             dict(matched=matched, changed=changed, rows=[[1, 50], [2, None], None, None, None]))
 
     def test_empty_null_and_seed_provenance(self):
         self.assertEqual(list(run.fixture_rows(3, 42)), [(0, None), (1, 59), (2, 76)])

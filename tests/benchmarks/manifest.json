@@ -4,7 +4,7 @@
     "schema": {
       "status": "blocked",
       "owner": "docs/reference/sql/create-table.md",
-      "reason": "Full benchmark schemas, keys and constraints exceed the two-column published Table profile."
+      "reason": "Full benchmark schemas require UNIQUE, CHECK and foreign-key constraints beyond the selected general Table profile."
     },
     "transactions": {
       "status": "blocked",
@@ -19,12 +19,12 @@
     "expressions": {
       "status": "blocked",
       "owner": "docs/reference/sql/expressions.md",
-      "reason": "No decimal/date arithmetic, general expressions or compound predicates."
+      "reason": "No decimal/date arithmetic or general scalar expressions."
     },
     "bulk": {
       "status": "blocked",
       "owner": "docs/reference/sql.md",
-      "reason": "No declarative COPY or query-driven INSERT/DELETE; literal inserts have at most three rows."
+      "reason": "No declarative COPY or INSERT SELECT; finite literal inserts are limited to 1024 rows and 4 MiB."
     },
     "suite_driver": {
       "status": "not_implemented",
@@ -284,7 +284,7 @@
       "suite": "TPC-C",
       "kind": "declaration",
       "source": "stock",
-      "sql": "CREATE TABLE stock (id INT64 NOT NULL, quantity INT64 NULL)"
+      "sql": "CREATE TABLE stock (id INT64 PRIMARY KEY, quantity INT64 NULL)"
     },
     {
       "id": "tpc-c.insert",
@@ -343,7 +343,7 @@
       "suite": "TPC-E",
       "kind": "declaration",
       "source": "trade",
-      "sql": "CREATE TABLE trade (id INT64 NOT NULL, quantity INT64 NULL)"
+      "sql": "CREATE TABLE trade (id INT64 PRIMARY KEY, quantity INT64 NULL)"
     },
     {
       "id": "tpc-e.insert",
@@ -411,7 +411,7 @@
       "suite": "TPC-H",
       "kind": "declaration",
       "source": "lineitem",
-      "sql": "CREATE TABLE lineitem (id INT64 NOT NULL, quantity INT64 NULL)"
+      "sql": "CREATE TABLE lineitem (id INT64 PRIMARY KEY, quantity INT64 NULL)"
     },
     {
       "id": "tpc-h.insert",
@@ -470,7 +470,7 @@
       "suite": "TPC-DS",
       "kind": "declaration",
       "source": "inventory",
-      "sql": "CREATE TABLE inventory (id INT64 NOT NULL, quantity INT64 NULL)"
+      "sql": "CREATE TABLE inventory (id INT64 PRIMARY KEY, quantity INT64 NULL)"
     },
     {
       "id": "tpc-ds.insert",
@@ -565,7 +565,7 @@
       "id": "compound",
       "kind": "select",
       "sql": "SELECT id FROM stock WHERE id > 0 AND quantity < 20",
-      "expected_error": "UnsupportedConstruct"
+      "expected_error": null
     },
     {
       "id": "transaction",
@@ -577,13 +577,13 @@
       "id": "decimal",
       "kind": "declaration",
       "sql": "CREATE TABLE stock (id INT64 NOT NULL, quantity DECIMAL(12,2) NULL)",
-      "expected_error": "UnsupportedDeclarationType"
+      "expected_error": null
     },
     {
       "id": "wide_publication",
       "kind": "table_schema",
       "sql": "CREATE TABLE stock (id INT64 NOT NULL, quantity INT64 NULL, extra INT64 NULL)",
-      "expected_error": "UnsupportedTableColumnCount"
+      "expected_error": null
     },
     {
       "id": "bulk_insert",

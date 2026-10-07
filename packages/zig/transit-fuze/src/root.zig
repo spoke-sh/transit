@@ -24,7 +24,6 @@ pub const LogicalPrepared = @import("LogicalPrepared.zig");
 pub const Prepared = @import("Prepared.zig");
 pub const SqlDiagnostic = @import("SqlDiagnostic.zig");
 pub const SqlInput = @import("SqlInput.zig");
-pub const TableMutation = @import("TableMutation.zig");
 pub const TableSchema = @import("TableSchema.zig");
 pub const TableWitness = @import("TableWitness.zig");
 pub const TableRow = @import("TableRow.zig");
@@ -67,7 +66,6 @@ test {
     _ = @import("logical_prepared_test.zig");
     _ = @import("stream_test.zig");
     _ = @import("inspect_test.zig");
-    _ = @import("mutation_test.zig");
     _ = @import("declaration_test.zig");
 }
 

@@ -34,48 +34,6 @@ pub const Definition = struct {
         }
     }
 
-    /// Explicit capability check for Station's existing two-column Table model.
-    /// Never infer primary-key/nullability semantics from a wider declaration.
-    /// The result still needs an authorized resource, writer and Table identity.
-    pub fn tableSchema(self: Definition) !m.Schema {
-        return self.tableSchemaDiagnostic(null);
-    }
-    pub fn tableSchemaDiagnostic(self: Definition, binding: ?*sql.Binding) !m.Schema {
-        try self.validate();
-        const columns = switch (self.body) {
-            .table => |columns| columns,
-            else => return error.NotTableDeclaration,
-        };
-        if (columns[1] == null or columns[2] != null) {
-            if (binding) |detail| {
-                detail.expected_count = 2;
-                var count: usize = 0;
-                for (columns) |column| if (column != null) {
-                    count += 1;
-                };
-                detail.actual_count = count;
-            }
-            return error.UnsupportedTableColumnCount;
-        }
-        const key = columns[0].?;
-        const value = columns[1].?;
-        if (key.nullability == .unspecified or value.nullability == .unspecified) {
-            columnContext(binding, self.name, if (key.nullability == .unspecified) key else value, "explicit NULL or NOT NULL", "unspecified");
-            return error.UnspecifiedNullability;
-        }
-        if (key.type != .int64 or key.nullability != .not_null) {
-            columnContext(binding, self.name, key, if (key.type != .int64) "int64" else "not_null", if (key.type != .int64) @tagName(key.type) else @tagName(key.nullability));
-            return error.UnsupportedTableKey;
-        }
-        if (value.nullability != .null) {
-            columnContext(binding, self.name, value, "null", @tagName(value.nullability));
-            return error.UnsupportedTableNullability;
-        }
-        const result: m.Schema = .{ .names = .{ key.name, value.name }, .value_type = value.type };
-        try result.validate();
-        return result;
-    }
-
     /// Canonical SQL for review, borrowing the caller's buffer. Reparse to a
     /// definition; this text is not a saved administrative command or authority.
     /// On failure discard the buffer; no partial formatted result is returned.
@@ -154,20 +112,6 @@ pub fn compileDiagnostic(text: []const u8, binding: ?*sql.Binding) !Definition {
     var locations: sql.DeclarationLocations = .{};
     return compileDetailed(text, binding, &locations);
 }
-pub fn compileTableDiagnostic(text: []const u8, binding: ?*sql.Binding) !struct { definition: Definition, schema: m.Schema } {
-    var locations: sql.DeclarationLocations = .{};
-    const definition = try compileDetailed(text, binding, &locations);
-    const schema = definition.tableSchemaDiagnostic(binding) catch |err| {
-        if (binding) |detail| if (detail.subject) |subject| {
-            for (definition.body.table, 0..) |slot, index| if (slot) |column| {
-                if (std.mem.eql(u8, column.name.slice(), subject.slice())) detail.location = .{ .offset = locations.columns[index].? };
-            };
-        };
-        return err;
-    };
-    return .{ .definition = definition, .schema = schema };
-}
-
 fn validName(name: m.Name) !void {
     if (name.len > name.bytes.len) return error.InvalidColumnName;
     if (!std.meta.eql(name, try m.Name.init(name.slice()))) return error.InvalidColumnName;

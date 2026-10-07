@@ -5373,12 +5373,7 @@
         "DuplicateColumn": 2,
         "InvalidColumnCount": 2,
         "InvalidColumnName": 2,
-        "NotTableDeclaration": 1,
-        "UnspecifiedNullability": 1,
-        "UnsupportedStatement": 1,
-        "UnsupportedTableColumnCount": 1,
-        "UnsupportedTableKey": 1,
-        "UnsupportedTableNullability": 1
+        "UnsupportedStatement": 1
       },
       "outcomes": {
         "Body": [
@@ -5395,20 +5390,17 @@
       "error_sets": {},
       "error_returns": {
         "Definition.format()": "<inferred>",
-        "Definition.tableSchema()": "<inferred>",
-        "Definition.tableSchemaDiagnostic()": "<inferred>",
         "Definition.validate()": "<inferred>",
         "compile()": "<inferred>",
         "compileDetailed()": "<inferred>",
         "compileDiagnostic()": "<inferred>",
-        "compileTableDiagnostic()": "<inferred>",
         "validName()": "<inferred>",
         "writeName()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 24,
-        "catch": 3
+        "try": 21,
+        "catch": 2
       },
       "imports": [
         "Sql.zig",
@@ -6463,7 +6455,6 @@
         "InvalidSqlSyntax": 9,
         "LiteralOutOfRange": 5,
         "LiteralTooLarge": 2,
-        "MutationBatchTooLarge": 1,
         "PredicateTooComplex": 2,
         "StatementTooLarge": 2,
         "UnboundParameters": 2,
@@ -6495,11 +6486,6 @@
           "boolean",
           "utf8",
           "binary"
-        ],
-        "Mutation.operation": [
-          "insert",
-          "update",
-          "delete"
         ],
         "NameRole": [
           "source",
@@ -6572,7 +6558,6 @@
         "Parser.compoundPredicate()": "<inferred>",
         "Parser.declarationType()": "<inferred>",
         "Parser.end()": "<inferred>",
-        "Parser.keyEquality()": "<inferred>",
         "Parser.limit()": "<inferred>",
         "Parser.literal()": "<inferred>",
         "Parser.name()": "<inferred>",
@@ -6590,7 +6575,6 @@
         "hints()": "<inferred>",
         "inspection()": "<inferred>",
         "literalCell()": "<inferred>",
-        "mutation()": "<inferred>",
         "parse()": "<inferred>",
         "parseDeclaration()": "<inferred>",
         "parseDeclarationDetailed()": "<inferred>",
@@ -6599,16 +6583,14 @@
         "parseInspectionLocated()": "<inferred>",
         "parseInto()": "<inferred>",
         "parseLocated()": "<inferred>",
-        "parseMutation()": "<inferred>",
-        "parseMutationLocated()": "<inferred>",
         "parseTemplate()": "<inferred>",
         "statement()": "<inferred>",
         "validateText()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 139,
-        "catch": 13
+        "try": 110,
+        "catch": 12
       },
       "imports": [
         "SqlBinding.zig",
@@ -7496,51 +7478,6 @@
       "imports": [
         "TableSchema.zig",
         "Types.zig",
-        "std"
-      ]
-    },
-    "packages/zig/transit-fuze/src/TableMutation.zig": {
-      "errors": {
-        "DuplicateColumn": 1,
-        "DuplicateMutationKey": 2,
-        "ImmutablePrimaryKey": 1,
-        "InvalidColumnName": 2,
-        "InvalidMutationPlan": 2,
-        "NullPrimaryKey": 1,
-        "TypeMismatch": 1,
-        "UnknownColumn": 1,
-        "UnknownQualifier": 2,
-        "UnknownSource": 1,
-        "UnsupportedMutationPredicate": 2,
-        "UnsupportedSchema": 1,
-        "UnsupportedStatement": 1
-      },
-      "outcomes": {
-        "Operation": [
-          "insert",
-          "update",
-          "delete"
-        ]
-      },
-      "error_sets": {},
-      "error_returns": {
-        "Plan.validate()": "<inferred>",
-        "column()": "<inferred>",
-        "compile()": "<inferred>",
-        "compileDiagnostic()": "<inferred>",
-        "lower()": "<inferred>",
-        "lowerDiagnostic()": "<inferred>",
-        "primaryKey()": "<inferred>",
-        "validName()": "<inferred>"
-      },
-      "open_error_set_uses": 0,
-      "propagation": {
-        "try": 21,
-        "catch": 1
-      },
-      "imports": [
-        "Sql.zig",
-        "model.zig",
         "std"
       ]
     },
@@ -8531,7 +8468,6 @@
         "TableDml.zig",
         "TableDmlCodec.zig",
         "TableEvolution.zig",
-        "TableMutation.zig",
         "TableRow.zig",
         "TableSchema.zig",
         "TableSchemaJson.zig",
@@ -16719,29 +16655,6 @@
         "transit_fuze"
       ]
     },
-    "packages/zig/transit-station/src/TableMutation.zig": {
-      "errors": {
-        "RowExists": 1,
-        "TableSchemaChanged": 1
-      },
-      "outcomes": {},
-      "error_sets": {},
-      "error_returns": {
-        "apply()": "<inferred>",
-        "applyDetailed()": "<inferred>",
-        "applySql()": "<inferred>"
-      },
-      "open_error_set_uses": 0,
-      "propagation": {
-        "try": 7,
-        "catch": 1
-      },
-      "imports": [
-        "Table.zig",
-        "std",
-        "transit_fuze"
-      ]
-    },
     "packages/zig/transit-station/src/TablePages.zig": {
       "errors": {
         "CrossResourceTransaction": 2,
@@ -17095,7 +17008,6 @@
         "TableCleanup.zig",
         "TableData.zig",
         "TableHead.zig",
-        "TableMutation.zig",
         "TablePages.zig",
         "TableStatement.zig",
         "TableWrite.zig",

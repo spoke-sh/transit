@@ -252,9 +252,9 @@ test "highlighting covers aggregate templates casts derived inputs and Boolean p
 }
 
 test "highlighting covers mutation declaration and inspection parser roots" {
-    try expectRoles("INSERT INTO update (value, missing) VALUES (-1, TRUE), (2, NULL); UPDATE update SET value = '\\x00ff'::bytea WHERE missing = +2; DELETE FROM update WHERE value = 1;", &.{
-        .{ "INSERT", .keyword }, .{ "INTO", .keyword },      .{ "update", .identifier }, .{ "value", .identifier }, .{ "missing", .identifier }, .{ "VALUES", .keyword },  .{ "-1", .number },     .{ "TRUE", .literal },       .{ "2", .number },  .{ "NULL", .literal },
-        .{ "UPDATE", .keyword }, .{ "update", .identifier }, .{ "SET", .keyword },       .{ "value", .identifier }, .{ "'\\x00ff'", .literal },  .{ "bytea", .type_name }, .{ "WHERE", .keyword }, .{ "missing", .identifier }, .{ "+2", .number }, .{ "DELETE", .keyword },
+    try expectRoles("INSERT INTO update (value, missing) VALUES (-1, TRUE), (2, NULL); UPDATE update SET value = X'00ff' WHERE missing = +2; DELETE FROM update WHERE value = 1;", &.{
+        .{ "INSERT", .keyword }, .{ "INTO", .keyword },      .{ "update", .identifier }, .{ "value", .identifier }, .{ "missing", .identifier }, .{ "VALUES", .keyword }, .{ "-1", .number },     .{ "TRUE", .literal },       .{ "2", .number },  .{ "NULL", .literal },
+        .{ "UPDATE", .keyword }, .{ "update", .identifier }, .{ "SET", .keyword },       .{ "value", .identifier }, .{ "X", .type_name },        .{ "'00ff'", .literal }, .{ "WHERE", .keyword }, .{ "missing", .identifier }, .{ "+2", .number }, .{ "DELETE", .keyword },
         .{ "FROM", .keyword },   .{ "update", .identifier }, .{ "WHERE", .keyword },     .{ "value", .identifier }, .{ "1", .number },
     });
     try expectRoles("CREATE TABLE update (value INT64 NOT NULL, missing UTF8 NULL); CREATE KV value (BINARY); CREATE DOCUMENT explain; CREATE KV conflict (BOOL);", &.{

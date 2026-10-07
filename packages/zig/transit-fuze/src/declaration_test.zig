@@ -13,7 +13,6 @@ test "state declarations own names and preserve unspecified nullability" {
     try expect(definition.body.table[1].?.nullability == .unspecified);
     try expect(definition.body.table[2].?.nullability == .null);
     try expect(definition.body.table[3].?.type == .binary);
-    try expectError(error.UnsupportedTableColumnCount, definition.tableSchema());
     var output: [512]u8 = undefined;
     const formatted = try definition.format(&output);
     try std.testing.expectEqualStrings("CREATE TABLE \"items\" (\"id\" INT64 NOT NULL, \"value\" UTF8, \"enabled\" BOOL NULL, \"body\" BINARY);", formatted);
@@ -38,35 +37,11 @@ test "state declarations normalize syntax and preserve quoted identity" {
         try expect(std.meta.eql(definition, restored));
         try std.testing.expectEqualStrings(formatted, try restored.format(&second));
         try expectError(error.UnsupportedStatement, f.Sql.parse(formatted));
-        try expect((try f.Sql.parseMutation(formatted)) == null);
         try expect((try f.Sql.parseInspection(formatted)) == null);
         try expectError(error.WriteFailed, definition.format(first[0 .. formatted.len - 1]));
     }
     try expect((try f.Sql.parseDeclaration("SELECT * FROM items")) == null);
     try expectError(error.UnsupportedStatement, d.compile("SELECT * FROM items"));
-}
-
-test "Table capability requires explicit current key and value nullability" {
-    inline for (.{ .{ "INT64", f.model.Type.int64 }, .{ "BOOL", f.model.Type.boolean }, .{ "UTF8", f.model.Type.utf8 }, .{ "BINARY", f.model.Type.binary } }) |pair| {
-        const definition = try d.compile("CREATE TABLE items (key INT64 NOT NULL, value " ++ pair[0] ++ " NULL)");
-        const schema = try definition.tableSchema();
-        try expect(schema.value_type == pair[1]);
-        const plan = try f.TableMutation.compile("INSERT INTO items (key,value) VALUES (1,NULL)", .{ .name = definition.name, .schema = schema });
-        try plan.validate();
-        try expect(plan.operation.insert[0].?.value == .null);
-    }
-    for ([_]struct { []const u8, anyerror }{
-        .{ "CREATE TABLE items (id INT64 NOT NULL)", error.UnsupportedTableColumnCount },
-        .{ "CREATE TABLE items (id INT64, value UTF8 NULL)", error.UnspecifiedNullability },
-        .{ "CREATE TABLE items (id INT64 NOT NULL, value UTF8)", error.UnspecifiedNullability },
-        .{ "CREATE TABLE items (id UTF8 NOT NULL, value UTF8 NULL)", error.UnsupportedTableKey },
-        .{ "CREATE TABLE items (id INT64 NULL, value UTF8 NULL)", error.UnsupportedTableKey },
-        .{ "CREATE TABLE items (id INT64 NOT NULL, value UTF8 NOT NULL)", error.UnsupportedTableNullability },
-        .{ "CREATE KV settings (UTF8)", error.NotTableDeclaration },
-        .{ "CREATE DOCUMENT notebook", error.NotTableDeclaration },
-    }) |case| {
-        try expectError(case[1], (try d.compile(case[0])).tableSchema());
-    }
 }
 
 test "state declarations reject incomplete, ambiguous and oversized input" {
