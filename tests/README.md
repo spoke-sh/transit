@@ -18242,3 +18242,35 @@ Raw `query-failure-dotnet-native1.log` SHA-256: `91bec6d778b573564dc650b9d53664f
 Raw `query-failure-beam-native1.log` SHA-256: `be505695ecec58927417a8283c5c7e9bc5fc717133fd86807cb5c80bc616f8d9`.
 
 Raw `query-failure-c-native2.log` SHA-256: `c165d0b83cfb33a1db034e8873235df98910bd43e2508e5d789e47fcc120556b`.
+
+### General Table query ABI and checkpoint recovery
+
+`general-query-abi2.log` passes the three-column capture migration, including
+six bounded IPC segments, independent logical Arrow decoding, exact retry,
+worker/store replacement, stale scopes and revocation. Its first attempt failed
+a proof lookup of `creation` instead of the current `created` result; that failed
+attempt is not passing evidence.
+
+`general-bindings-native1.log` passes the complete native bindings schedule on a
+single CPU: local codecs, growing state/turn ABI, query capture and checkpoint
+materialization. The materializer uses three typed columns, a defaulted label,
+original mutation identities and a fresh host for each of 25 callbacks. It
+checks duplicate admission and 16 exact commit retries per callback, update and
+delete/reinsert counts, physical checkpoint trimming, tail updates and node/store
+recovery. Updates preserve row identity; reinsertion allocates a different row.
+The fixture uses disk Ursula with cold storage (three objects) and 8 MiB hot memory.
+The separate query fixture uses 64 authority pages, 83 cold objects and 117 setup
+callbacks. These are recovery checks, not throughput measurements.
+
+The broader installed Python Station schedule passes in
+`query-failure-python-full2.log`: all five negative query reasons, 46 Table
+outcomes, 462 drain turns and 41 rows in six owned Arrow segments (41,992 bytes,
+275 publication rounds). Its two injected lost receipts and two unavailable
+observations recover exact work. It uses 329 cold objects, 8 MiB hot memory and
+64 authority pages. The earlier import-side-effect failure remains a failed run.
+
+Raw `general-query-abi2.log` SHA-256: `3cf1e5194f1660a5b4a6d0bd5b70ac9680a8e5067f4a6452a4bb116cb8150ab3`.
+
+Raw `general-bindings-native1.log` SHA-256: `db510373e9ba44b2a7ff06c9275d7c4d559d0e22e3c8156ea514769787ebe613`.
+
+Raw `query-failure-python-full2.log` SHA-256: `8ac6d6247f674308f8e1f17f8deb1291432f79839f9606c05e7df8f389d3b5c9`.
