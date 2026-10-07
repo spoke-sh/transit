@@ -1,7 +1,6 @@
 # Typed C Station examples
 
-M11's installed C application library
-contains the shared counter/requester and Table/query requester handlers, with
+The installed C application library contains the shared counter/requester and Table/query requester handlers, with
 strict versioned codecs and full u64/i64 values. Applications use the public C
 SDK; they do not pump native actions or import repository source files.
 `just bindings::c-sdk-test` installs and runs the actual counter executable and
@@ -15,6 +14,8 @@ and input; running the CLI does not provision authority or deliver outputs.
 
 The C example codecs are also a direct application-library dependency of the
 C++ examples, keeping the two application wire implementations consistent.
+The [Table queue contract](../TABLES.md) defines resumable four-column creation,
+ordered mutations, original operation identities and explicit busy query replies.
 Table results arrive as bounded owned segments. The query requester's `consume`
 callback borrows a segment and can copy original IPC bytes and metadata before
 returning. Such callback effects occur during a private turn and require the

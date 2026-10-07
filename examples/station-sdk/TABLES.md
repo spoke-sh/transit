@@ -11,8 +11,9 @@ Creation limits are explicit: 65,536 record bytes, 8,388,608 staging bytes and
 The [Python](python/transit_sdk_examples/query.py),
 [TypeScript](typescript/src/query.ts), [Java](java/src/io/transit/examples/Handlers.java),
 [.NET](dotnet/Handlers.cs), [Rust](rust/src/lib.rs),
-[Erlang](erlang/src/transit_example_table_service.erl), [Elixir](elixir/lib/handlers.ex) and
-[Ruby](ruby/lib/transit/sdk_examples.rb) implementations execute this
+[Erlang](erlang/src/transit_example_table_service.erl), [Elixir](elixir/lib/handlers.ex),
+[Ruby](ruby/lib/transit/sdk_examples.rb), [C](c/src/handlers.c) and
+[C++](cpp/include/transit/sdk_examples.hpp) implementations execute this
 contract. The [neutral fixtures](../../tests/verification/sdk-table-work-v1.json)
 define application records independently of any host encoder. They do not assert
 that every language's example has migrated or passed its runtime proof.

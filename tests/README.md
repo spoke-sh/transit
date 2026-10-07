@@ -18045,3 +18045,30 @@ controls, not latency measurements or final definition-cutover qualification.
 Raw `sdk-table-queue-beam-native2.log` SHA-256: `6b8fa667ee85374ba6fe8cad0261fcb258413644a1bccb2de045d9ee4856f7b3`.
 
 Raw `sdk-table-queue-elixir-native3.log` SHA-256: `bdae68aab46636262919a14ee55f534acc4238dfca518e0856bbdf451f682629`.
+
+
+### C and C++ queued general Table examples
+
+Fresh installed C and C++ archives pass both full Station and HTTP schedules
+(`sdk-table-queue-c-native3.log`, exit 0). Both application libraries implement
+the shared [durable Table FIFO](../examples/station-sdk/TABLES.md), with explicit
+owned logical values, original input identities and resumable four-column
+creation. Each schedule verifies 46 terminal outcomes / 462 drain turns, rejection
+followed by queued work, worker replacement, authenticated busy replies, retained
+old rows, current grants and exact signed recovery. Independent PyArrow decodes
+41 rows / 6 streams / 41,992 bytes after 275 publication rounds and host disposal.
+Each observes 301 cold objects with 8 MiB hot storage and 64 authority pages.
+The HTTP schedules pass in 39.23 seconds (C) and 33.76 seconds (C++).
+
+Strict C11/C++17 consumer compilation, wrong-codec and runner-copy rejection,
+incompatible-native checks and shared message/FIFO fixtures remain enabled.
+The standalone C wrapper check passes its 34 rejection cases; the C++ wrapper
+check passes ownership, saved-operation and general-plan checks. The C query
+manifest decoder now takes the object identity from the manifest's `table` field:
+its captured basis contains resource/revision/head, unlike handler Table reads.
+The preceding run passed the mutation queue but failed on that response-shape
+mismatch; an earlier consumer build used an obsolete page field. Neither failed
+run is a qualification pass. These are correctness controls, not performance or
+final shared-definition cutover measurements.
+
+Raw `sdk-table-queue-c-native3.log` SHA-256: `8f6252ec6c363a75b7dcf0a709080b9d1ad576b6e30ed64c663cf2444b86976a`.

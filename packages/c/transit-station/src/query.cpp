@@ -10,7 +10,9 @@ transit_station_manifest manifest(transit_station_turn &turn, uint64_t correlati
     out.source = {realm, raw.number(value, path + "source")}; out.destination = {realm, raw.number(value, path + "destination")};
     out.correlation = wide(raw, value, path + "correlation"); out.table = wide(raw, value, path + "table");
     if (!out.table || out.correlation != correlation) fail(TRANSIT_SDK_INCOMPATIBLE_NATIVE, "manifest");
-    out.policy_revision = wide(raw, value, path + "policy_revision"); out.basis = table_basis(raw, value, path + "basis", realm);
+    // Query manifests carry the object once, in `table`; their captured basis
+    // contains resource/revision/head. Table read responses use another shape.
+    out.policy_revision = wide(raw, value, path + "policy_revision"); out.basis = query_basis(raw, value, path + "basis", realm, out.table);
     require(out.policy_revision && out.basis.object == out.table, "manifest-basis");
     digest(raw, value, path + "plan", out.plan); out.segments = wide(raw, value, path + "segments"); out.bytes = wide(raw, value, path + "bytes"); out.rows = wide(raw, value, path + "rows");
     digest(raw, value, path + "chain", out.chain); digest(raw, value, path + "schema", out.schema); return out;

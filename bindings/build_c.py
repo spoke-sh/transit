@@ -1,18 +1,19 @@
 """Package relocatable C/C++ SDK prefixes with standard pkg-config discovery."""
 import io
+import argparse
 from pathlib import Path
 import re
-import sys
 import tarfile
 
 ROOT = Path(__file__).resolve().parents[1]
 VERSION = '0.2.0'
 
 
-def build(output):
+def build(output, native_prefix=None):
     output = Path(output).resolve()
     output.mkdir(parents=True, exist_ok=True)
-    native = ROOT / 'zig-out/lib/libtransit_client.so'
+    native_prefix = Path(native_prefix).resolve() if native_prefix else ROOT / 'zig-out'
+    native = native_prefix / 'lib/libtransit_client.so'
     sdk = ROOT / 'packages/c/transit-client/zig-out/lib/libtransit_sdk_client.so'
     if not native.is_file() or not sdk.is_file():
         raise SystemExit('Run just bindings::c-build to compile both SDK and native dependency')
@@ -21,7 +22,7 @@ def build(output):
             'include/transit_client.h': (ROOT / 'packages/zig/transit-client/include/transit_client.h').read_bytes()},
         'transit-client-c': {'lib/libtransit_sdk_client.so': sdk.read_bytes()},
         'transit-client-cpp': {},
-        'transit-native-station-c': {'lib/libtransit_station.so': (ROOT / 'zig-out/lib/libtransit_station.so').read_bytes(),
+        'transit-native-station-c': {'lib/libtransit_station.so': (native_prefix / 'lib/libtransit_station.so').read_bytes(),
             'include/transit_station.h': (ROOT / 'packages/zig/transit-station-bindings/include/transit_station.h').read_bytes()},
         'transit-station-c': {'lib/libtransit_sdk_station.so': (ROOT / 'packages/c/transit-station/zig-out/lib/libtransit_sdk_station.so').read_bytes()},
         'transit-station-cpp': {},
@@ -66,4 +67,9 @@ def build(output):
         print(f'Built {artifact.name}')
 
 
-if __name__ == '__main__': build(sys.argv[1])
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('output')
+    parser.add_argument('--native-prefix')
+    args = parser.parse_args()
+    build(args.output, args.native_prefix)

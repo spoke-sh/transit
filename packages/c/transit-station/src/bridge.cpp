@@ -176,9 +176,9 @@ transit_station_read_version read_version(const Raw &raw, const Bytes &value, co
     if (index > 255) fail(TRANSIT_SDK_INCOMPATIBLE_NATIVE, "read-version");
     return {raw.number(value, path + "/pid"), raw.number(value, path + "/input"), static_cast<uint8_t>(index)};
 }
-transit_station_table_basis table_basis(const Raw &raw, const Bytes &value, const std::string &path, uint64_t realm) {
+transit_station_table_basis query_basis(const Raw &raw, const Bytes &value, const std::string &path, uint64_t realm, uint64_t object) {
     transit_station_table_basis result{}; result.resource = {realm, raw.number(value, path + "/resource")};
-    result.revision = raw.number(value, path + "/revision", true); result.object = wide(raw, value, path + "/object");
+    result.revision = raw.number(value, path + "/revision", true); result.object = object;
     require(result.object, "table-object"); digest(raw, value, path + "/head", result.head); return result;
 }
 std::string cursor(const transit_station_cursor *value) { return value ? quote(value->value) : "null"; }

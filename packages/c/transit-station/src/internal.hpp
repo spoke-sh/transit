@@ -68,7 +68,7 @@ int64_t signed_number(const Raw &raw, const Bytes &value, const std::string &pat
 void digest(const Raw &raw, const Bytes &value, const std::string &path, uint8_t out[32]);
 std::string version(const transit_station_read_version &value);
 transit_station_read_version read_version(const Raw &raw, const Bytes &value, const std::string &path);
-transit_station_table_basis table_basis(const Raw &raw, const Bytes &value, const std::string &path, uint64_t realm);
+transit_station_table_basis query_basis(const Raw &raw, const Bytes &value, const std::string &path, uint64_t realm, uint64_t object);
 std::string cursor(const transit_station_cursor *value);
 std::optional<std::string> next_cursor(const Raw &raw, const Bytes &value, const std::string &path);
 Bytes encode(const transit_station_codec &codec, const void *value, size_t bound);

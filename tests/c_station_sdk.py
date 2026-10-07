@@ -81,6 +81,9 @@ def run(node, cli, library, artifacts, http_worker=None, *, execute=None):
             data = json.loads((root / 'tests/verification/sdk-codecs-v1.json').read_bytes())
             fixtures.write_text(''.join(f'{category} {item["codec"]} {item["hex"] or "-"} {item["value"] if item["codec"] == "u64" and category == "valid" else "-"}\n'
                                        for category in ('valid', 'invalid') for item in data[category]))
+            table_data = json.loads((root / 'tests/verification/sdk-table-work-v1.json').read_bytes())
+            with fixtures.open('a') as output:
+                output.write(''.join(f'{category} {item["codec"]} {item["hex"] or "-"} -\n' for category in ('valid', 'invalid') for item in table_data[category]))
             http_fixtures = target / 'http-codecs.txt'
             data = json.loads((root / 'packages/zig/transit-station-http/src/admission-fixtures.json').read_bytes())
             release = json.loads((root / 'packages/zig/transit-station-http/src/release-fixtures.json').read_bytes())
