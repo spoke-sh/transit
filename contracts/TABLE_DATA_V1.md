@@ -14,10 +14,17 @@ exactly 48 bytes. These reference integers are little-endian. Row format is
 physical layout fingerprint. The record ID is nonzero; length is bounded by the
 Fuze row codec. The owning store supplies the fixed resource/namespace.
 
-Primary-key keys are ASCII `K`, the 32-byte SHA-256 canonical equality-key digest,
+Primary-key keys are ASCII `K`, the first 16 bytes of the SHA-256 canonical equality-key digest,
 then the 20-byte row identity. Their values are empty. Different row identities
 retain distinct equal-digest candidates. Readers compare actual typed key values
 before concluding equality; collisions never establish a constraint violation.
+The 128-bit prefix selects a lookup bucket only. It is neither an integrity
+commitment nor authorization evidence: immutable nodes and row blobs retain
+their complete 256-bit SHA-256 commitments. Prefix collisions can add bounded
+per-candidate reads but cannot substitute a row or weaken uniqueness checking.
+The shorter entries reduce every keyed leaf's encoded size. Two small keyed
+rows need a 234-byte leaf, within the 246-byte inline page payload, allowing a
+changed point write to compose its row, index, head and receipt in four writes.
 Unkeyed Tables have no `K` entries and permit duplicate payloads. A row's identity
 does not change when its primary key changes.
 
@@ -111,8 +118,8 @@ head revision:u64, schema reference (48 bytes), root-presence:u8, optional root,
 row count:u64, next record ID:u64, pending operation:u64 and retired:u8.
 All integers are little-endian; the root-presence and retired flags are 0 or 1.
 A root is record reference (48 bytes), level:u8, minimum key length:u8, minimum
-key bytes and entry count:u64. The minimum is a 21-byte row or 53-byte key entry.
-The maximum complete head is 245 bytes. Trailing/truncated values, invalid flags,
+key bytes and entry count:u64. The minimum is a 21-byte row or 37-byte key entry.
+The maximum complete head is 229 bytes. Trailing/truncated values, invalid flags,
 foreign definitions, wrong resources and inconsistent identities/counts reject.
 
 The head binds one resource/object and exact immutable schema/data references.

@@ -71,7 +71,7 @@ pub const Progress = struct {
         if (self.cursor) |cursor| try cursor.validate();
         if (self.index.root) |root| {
             try root.validate();
-            if (!((root.minimum.len == 21 and root.minimum.data[0] == 'R') or (root.minimum.len == 53 and root.minimum.data[0] == 'K'))) return error.InvalidTableStatementProgress;
+            if (!((root.minimum.len == 21 and root.minimum.data[0] == 'R') or (root.minimum.len == Data.primary_key_bytes and root.minimum.data[0] == 'K'))) return error.InvalidTableStatementProgress;
         }
     }
     pub fn encode(self: Progress) !p.Value {

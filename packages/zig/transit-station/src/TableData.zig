@@ -9,6 +9,10 @@ const Row = f.TableRow;
 const Cell = f.Types.Values.Cell;
 const Self = @This();
 pub const row_format: u32 = 0x54525701;
+/// A bucket selector, never a commitment or proof of equality. Every matching
+/// candidate is decoded and compared by its complete canonical typed key.
+pub const key_digest_bytes = 16;
+pub const primary_key_bytes = 1 + key_digest_bytes + Row.Identity.encoded_bytes;
 schema: f.TableSchema.Schema,
 index: Index = .{},
 
@@ -62,10 +66,10 @@ fn identity(key: Index.Key) !Row.Identity {
     return Row.Identity.decode(key.data[1..21]);
 }
 fn primaryKey(digest: [32]u8, id: Row.Identity) !Index.Key {
-    var bytes: [53]u8 = undefined;
+    var bytes: [primary_key_bytes]u8 = undefined;
     bytes[0] = 'K';
-    bytes[1..33].* = digest;
-    bytes[33..].* = try id.encode();
+    bytes[1..][0..key_digest_bytes].* = digest[0..key_digest_bytes].*;
+    bytes[1 + key_digest_bytes ..].* = try id.encode();
     return Index.Key.init(&bytes);
 }
 fn digestValues(allocator: std.mem.Allocator, schema: f.TableSchema.Schema, values: []const Cell) ![32]u8 {
@@ -142,14 +146,14 @@ pub fn findKey(self: Self, allocator: std.mem.Allocator, source: anytype, values
     return self.findDigest(allocator, source, values, try digestValues(allocator, self.schema, values), null);
 }
 fn findDigest(self: Self, allocator: std.mem.Allocator, source: anytype, values: []const Cell, digest: [32]u8, except: ?Row.Identity) !?Row.Identity {
-    var prefix: [33]u8 = undefined;
+    var prefix: [1 + key_digest_bytes]u8 = undefined;
     prefix[0] = 'K';
-    prefix[1..].* = digest;
+    prefix[1..].* = digest[0..key_digest_bytes].*;
     var after = try Index.Key.init(&prefix);
     while (try self.index.next(source, after)) |entry| {
         if (!std.mem.startsWith(u8, entry.key.slice(), &prefix)) break;
-        if (entry.key.len != 53 or entry.value.len != 0) return error.InvalidTableIndex;
-        const id = try Row.Identity.decode(entry.key.data[33..53]);
+        if (entry.key.len != primary_key_bytes or entry.value.len != 0) return error.InvalidTableIndex;
+        const id = try Row.Identity.decode(entry.key.data[1 + key_digest_bytes .. primary_key_bytes]);
         after = entry.key;
         if (except) |excluded| if (std.meta.eql(id, excluded)) continue;
         var row = try self.get(allocator, source, id) orelse return error.InvalidTableIndex;

@@ -98,7 +98,7 @@ pub fn Overlay(comptime Source: type) type {
                     if (entry.key.data[0] == 'R') {
                         if (entry.key.len != 21) return error.InvalidTableCandidate;
                         try self.markBlob(try Data.Blob.decode(entry.value), ref.id);
-                    } else if (entry.key.data[0] != 'K' or entry.key.len != 53 or entry.value.len != 0) return error.InvalidTableCandidate;
+                    } else if (entry.key.data[0] != 'K' or entry.key.len != Data.primary_key_bytes or entry.value.len != 0) return error.InvalidTableCandidate;
                 }
             } else for (node.items.branches[0..node.used]) |child| {
                 if (child.id >= ref.id) return error.InvalidTableCandidate;

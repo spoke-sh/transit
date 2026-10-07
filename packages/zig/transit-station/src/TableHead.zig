@@ -6,6 +6,7 @@ const f = @import("transit_fuze");
 const Pages = @import("TablePages.zig");
 const Index = @import("ImmutableIndex.zig");
 const Turn = @import("Turn.zig");
+const Data = @import("TableData.zig");
 const Self = @This();
 
 resource: u64,
@@ -33,7 +34,7 @@ pub fn validate(self: Self) !void {
     if (self.index.root) |root| {
         try root.validate();
         if (root.id >= self.next_record or self.rows == 0 or root.entries < self.rows) return error.InvalidTableHead;
-        if (!((root.minimum.len == 21 and root.minimum.data[0] == 'R') or (root.minimum.len == 53 and root.minimum.data[0] == 'K'))) return error.InvalidTableHead;
+        if (!((root.minimum.len == 21 and root.minimum.data[0] == 'R') or (root.minimum.len == Data.primary_key_bytes and root.minimum.data[0] == 'K'))) return error.InvalidTableHead;
     } else if (self.rows != 0) return error.InvalidTableHead;
 }
 fn reference(out: *std.Io.Writer, ref: Pages.Reference) !void {

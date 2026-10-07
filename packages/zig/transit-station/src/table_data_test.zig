@@ -156,12 +156,12 @@ test "a digest bucket compares actual keys instead of rejecting its first unequa
     var buffer: [4096]u8 = undefined;
     const wanted = [_]Cell{ text("tenant"), integer(2), .null };
     const digest = try Row.keyDigest(schema, &wanted, &buffer);
-    // Synthetic collision candidate: real SHA-256 collisions are not required
-    // to exercise the comparison path. The candidate names a different real row.
-    var key: [53]u8 = undefined;
+    // Synthetic prefix collision: matching the lookup bucket never proves
+    // equality. The candidate names a different real row.
+    var key: [Data.primary_key_bytes]u8 = undefined;
     key[0] = 'K';
-    key[1..33].* = digest;
-    key[33..53].* = try identity(1).encode();
+    key[1..][0..Data.key_digest_bytes].* = digest[0..Data.key_digest_bytes].*;
+    key[1 + Data.key_digest_bytes ..].* = try identity(1).encode();
     data.index = try data.index.put(&store, try Index.Key.init(&key), try Index.Value.init(""));
     try e.expectEqual(null, try data.findKey(e.allocator, &store, wanted[0..2]));
     data = (try data.insert(e.allocator, &store, .{ .identity = identity(2), .cells = &wanted })).data;

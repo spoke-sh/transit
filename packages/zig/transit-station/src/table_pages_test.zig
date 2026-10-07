@@ -1006,7 +1006,7 @@ test "Table head binds schema and exact successor, retains retired data and reje
     defer retired_schema.deinit();
 
     const head_bytes = try after.encode();
-    try t.expectEqual(@as(u16, 245), head_bytes.len);
+    try t.expectEqual(@as(u16, 229), head_bytes.len);
     try t.expectEqualDeep(after, try Head.decode(head_bytes));
     for (0..head_bytes.len) |length| try t.expectError(error.InvalidTableHead, Head.decode(try p.Value.init(head_bytes.data[0..length])));
     var bad = head_bytes;
@@ -1738,10 +1738,22 @@ test "point admission stages the first row while the old head remains visible" {
     var turn = try store.capture();
     try t.expectEqual(.applied, (try Write.step(t.allocator, &turn, first)).state);
     try store.commit(turn);
+    // A second small row now fits alongside its compact collision-safe index
+    // in the same four-write decision. The third still needs staged publication.
+    var second_cells: [2]f.Types.Values.Cell = undefined;
+    turn = try store.capture();
+    const second = insertRequest(201, 2, "second", &second_cells);
+    const accepted = try Write.step(t.allocator, &turn, second);
+    try t.expectEqual(.applied, accepted.state);
+    try t.expectEqual(@as(usize, 4), writes(turn));
+    var lost = try store.capture();
+    try t.expectEqual(@as(u64, 1), (try Head.load(&lost, 9)).rows);
+    try t.expectEqual(null, try Write.status(&lost, try second.reference(t.allocator)));
+    try store.commit(turn);
     turn = try store.capture();
     const original = try Head.load(&turn, 9);
     var next_cells: [2]f.Types.Values.Cell = undefined;
-    const request = insertRequest(201, 2, "second", &next_cells);
+    const request = insertRequest(202, 3, "third", &next_cells);
     var outcome = try Write.step(t.allocator, &turn, request);
     try t.expectEqual(.building, outcome.state);
     try t.expectEqual(@as(usize, 3), writes(turn));
@@ -1761,7 +1773,7 @@ test "point admission stages the first row while the old head remains visible" {
     }
     try t.expectEqual(.applied, outcome.state);
     turn = try store.capture();
-    try t.expectEqual(@as(u64, 2), (try Head.load(&turn, 9)).rows);
+    try t.expectEqual(@as(u64, 3), (try Head.load(&turn, 9)).rows);
     try t.expectEqualDeep(outcome, try Write.step(t.allocator, &turn, request));
     try t.expectEqual(@as(usize, 0), writes(turn));
 }

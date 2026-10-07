@@ -9,11 +9,15 @@ The [candidate data contract](../../../../contracts/TABLE_DATA_V1.md) defines
 index keys, row references and count semantics.
 
 One index contains row identities and primary-key entries. Row entries point to
-typed immutable row blobs; key entries combine a canonical key digest and stable
+typed immutable row blobs; key entries combine a 128-bit canonical key-digest prefix and stable
 row identity. The reader verifies each blob commitment and exact physical layout.
 Lookup scans equal-digest candidates one at a time and compares their actual typed
 key values. A digest match alone cannot cause a uniqueness rejection. Unkeyed
 Tables preserve duplicate values under separate row identities.
+The prefix selects candidates only; immutable node and row commitments retain
+all 256 hash bits. Two small keyed rows fit a 234-byte inline index, so their
+changed point writes need one native commit. Larger indexes and values retain
+the same staged publication and whole-statement visibility rules.
 
 `insert`, `update` and `delete` return a successor plus matched/changed counts.
 The old value and every retained index root remain unchanged. A same-value update
