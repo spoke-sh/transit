@@ -202,7 +202,7 @@ class WireBudget {
     return value;
   }
 }
-function schema(value: Schema): NativeSchema {
+export function schemaWire(value: Schema): NativeSchema {
   const result = schemas.get(value);
   if (!result) throw new TypeError("Expected Table schema");
   return structuredClone(result);
@@ -247,7 +247,7 @@ export class Schema {
     Object.freeze(this);
   }
   get columns(): readonly Column[] {
-    return schema(this).columns.map((column) => ({
+    return schemaWire(this).columns.map((column) => ({
       id: nativeWide(column.id),
       name: column.name,
       type: decodeType(column.type),
@@ -257,10 +257,10 @@ export class Schema {
     }));
   }
   get primaryKey(): readonly bigint[] {
-    return schema(this).primary_key.map((value) => nativeWide(value));
+    return schemaWire(this).primary_key.map((value) => nativeWide(value));
   }
 }
-function fromSchema(value: NativeSchema): Schema {
+export function schemaValue(value: NativeSchema): Schema {
   definition(value.definition);
   const columns = value.columns.map((column) => ({
     id: nativeWide(column.id),
@@ -663,7 +663,7 @@ function operation(value: Operation): Action<"prepare">["action"] {
   switch (value.kind) {
     case "create":
       return {
-        create: { schema: schema(value.schema), if_not_exists: value.ifNotExists ?? false },
+        create: { schema: schemaWire(value.schema), if_not_exists: value.ifNotExists ?? false },
       };
     case "rename":
       return { rename: { basis: basis(value.basis), name: name(value.name) } };
@@ -722,71 +722,8 @@ function operation(value: Operation): Action<"prepare">["action"] {
       }
       return { alter: { basis: basis(value.basis), change } };
     }
-    case "mutate": {
-      const budget = new WireBudget(contract.limits.catalog_action_bytes);
-      type NativeMutation = Extract<
-        Action<"prepare">["action"],
-        { mutate: unknown }
-      >["mutate"]["mutation"];
-      const assignments = (values: readonly Assignment[]) => {
-        if (values.length > 128) throw new TypeError("Too many Table assignments");
-        return values.map((item) =>
-          budget.take({
-            column: positive(item.column).toString(),
-            value: item.value === "default" ? { default: {} } : { cell: encodeCell(item.value) },
-          }),
-        );
-      };
-      const item = value.mutation;
-      if (
-        item.kind === "insert"
-          ? item.rows.length === 0 || item.rows.length > 1024
-          : (item.predicate?.length ?? 0) > 64
-      )
-        throw new TypeError("Table mutation exceeds its row or predicate bound");
-      const action: NativeMutation["action"] =
-        item.kind === "insert"
-          ? { insert: item.rows.map(assignments) }
-          : item.kind === "update"
-            ? { update: assignments(item.assignments) }
-            : { delete: {} };
-      const predicate: NativeMutation["predicate"] =
-        item.kind === "insert" || item.predicate === undefined
-          ? null
-          : item.predicate.map((entry) =>
-              budget.take(
-                (() => {
-                  switch (entry.kind) {
-                    case "all":
-                      return { atom: { all: {} } };
-                    case "negate":
-                      return { negate: {} };
-                    case "conjunction":
-                      return { conjunction: {} };
-                    case "disjunction":
-                      return { disjunction: {} };
-                    case "state":
-                      return {
-                        atom: {
-                          state: { column: positive(entry.column).toString(), value: entry.state },
-                        },
-                      };
-                    case "compare":
-                      return {
-                        atom: {
-                          compare: {
-                            column: positive(entry.column).toString(),
-                            op: entry.op,
-                            value: encodeAtom(entry.value),
-                          },
-                        },
-                      };
-                  }
-                })(),
-              ),
-            );
-      return { mutate: { basis: basis(value.basis), mutation: { action, predicate } } };
-    }
+    case "mutate":
+      return { mutate: { basis: basis(value.basis), mutation: mutationWire(value.mutation) } };
   }
 }
 export interface Capabilities {
@@ -906,7 +843,7 @@ export class Client {
     if (v === null) return undefined;
     return decoded(() => {
       const metadata = fromMetadata(v.metadata),
-        schema = fromSchema(v.schema);
+        schema = schemaValue(v.schema);
       if (
         !sameScope(metadata.scope, this.connection.scope) ||
         metadata.name !== requestedName ||
@@ -929,7 +866,7 @@ export class Client {
     if (value === null) return undefined;
     return decoded(() => {
       const metadata = fromMetadata(value.metadata),
-        schema = fromSchema(value.schema);
+        schema = schemaValue(value.schema);
       if (
         !sameScope(metadata.scope, this.connection.scope) ||
         metadata.objectId !== objectId ||
@@ -1211,4 +1148,69 @@ export class Client {
   close(): Promise<void> {
     return this.#bridge.close();
   }
+}
+
+export function mutationWire(item: Mutation, bytes = contract.limits.catalog_action_bytes) {
+  const budget = new WireBudget(bytes);
+  type NativeMutation = Extract<
+    Action<"prepare">["action"],
+    { mutate: unknown }
+  >["mutate"]["mutation"];
+  const assignments = (values: readonly Assignment[]) => {
+    if (values.length > 128) throw new TypeError("Too many Table assignments");
+    return values.map((item) =>
+      budget.take({
+        column: positive(item.column).toString(),
+        value: item.value === "default" ? { default: {} } : { cell: encodeCell(item.value) },
+      }),
+    );
+  };
+  if (
+    item.kind === "insert"
+      ? item.rows.length === 0 || item.rows.length > 1024
+      : (item.predicate?.length ?? 0) > 64
+  )
+    throw new TypeError("Table mutation exceeds its row or predicate bound");
+  const action: NativeMutation["action"] =
+    item.kind === "insert"
+      ? { insert: item.rows.map(assignments) }
+      : item.kind === "update"
+        ? { update: assignments(item.assignments) }
+        : { delete: {} };
+  const predicate: NativeMutation["predicate"] =
+    item.kind === "insert" || item.predicate === undefined
+      ? null
+      : item.predicate.map((entry) =>
+          budget.take(
+            (() => {
+              switch (entry.kind) {
+                case "all":
+                  return { atom: { all: {} } };
+                case "negate":
+                  return { negate: {} };
+                case "conjunction":
+                  return { conjunction: {} };
+                case "disjunction":
+                  return { disjunction: {} };
+                case "state":
+                  return {
+                    atom: {
+                      state: { column: positive(entry.column).toString(), value: entry.state },
+                    },
+                  };
+                case "compare":
+                  return {
+                    atom: {
+                      compare: {
+                        column: positive(entry.column).toString(),
+                        op: entry.op,
+                        value: encodeAtom(entry.value),
+                      },
+                    },
+                  };
+              }
+            })(),
+          ),
+        );
+  return { action, predicate };
 }

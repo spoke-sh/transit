@@ -63,3 +63,6 @@ Qualification is tracked per source and SDK.
 The [catalog guide](docs/catalog.md) covers general typed Table schemas, DDL/DML,
 metadata, conditional policy and exact saved-intent recovery, with `bigint`
 identities and generated runtime validation through the native port.
+
+The [handler Table guide](docs/tables.md) covers general typed rows, captured
+reads, resumable creation and saved mutation intents within native turns.

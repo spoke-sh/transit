@@ -56,7 +56,7 @@
       "symbol": "max_body",
       "expression": "256 * 1024",
       "classification": "operation",
-      "meaning": "HTTP input parsing budget."
+      "meaning": "HTTP input and private handler action parsing budget; independent of native Table row and durable cardinality bounds."
     },
     {
       "source": "packages/zig/transit-station-bindings/src/Abi.zig",

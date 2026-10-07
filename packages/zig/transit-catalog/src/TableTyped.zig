@@ -18,7 +18,14 @@ pub const Instruction = union(enum) {
     disjunction,
 };
 pub const Mutation = struct {
-    action: union(enum) { insert: []const []const Assignment, update: []const Assignment, delete },
+    pub const json_schema_sequence_bounds = .{ .predicate = f.LogicalPredicate.Program.max_instructions };
+    action: union(enum) {
+        insert: []const []const Assignment,
+        update: []const Assignment,
+        delete,
+        pub const json_schema_sequence_bounds = .{ .insert = s.max_columns, .update = s.max_columns };
+        pub const json_schema_outer_sequence_bounds = .{ .insert = f.TableDml.max_rows };
+    },
     predicate: ?[]const Instruction,
 };
 pub const Change = union(enum) {

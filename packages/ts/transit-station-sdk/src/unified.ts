@@ -272,7 +272,7 @@ function predicateWire(selected: Predicate | undefined): WirePredicate {
     }),
   };
 }
-function planWire(plan: Plan): WireBundle["plan"] {
+export function planWire(plan: Plan): WireBundle["plan"] {
   if (!Array.isArray(plan.projection) || plan.projection.length < 1 || plan.projection.length > 128)
     throw new TypeError("Expected one to 128 projection indices");
   if (

@@ -1,92 +1,26 @@
-import { ProcessRef, ResourceRef, IncompatibleNative, limits } from "@transit/client";
+import { ProcessRef, ResourceRef, IncompatibleNative } from "@transit/client";
 import { integer, owned } from "@transit/client/internal";
 import { result } from "./bridge.ts";
 import { operation, type Context } from "./context.ts";
-import { cell, type Cell } from "./table.ts";
-import { nativeWide, wide, ReadVersion, type Basis } from "./values.ts";
+import { planWire, type Plan, type Predicate as LogicalPredicate } from "./unified.ts";
+import { nativeWide, wide, ReadVersion } from "./values.ts";
 import { unhex } from "./framing.ts";
 import type { GrowingAction } from "./wire.ts";
 import type { Turn } from "./turn.ts";
 
-export type Projection = "both" | "key" | "value";
+export type Projection = readonly number[];
 export type Aggregate = "rows" | "count" | "sum" | "count_values";
 export type Comparison = "eq" | "ne" | "lt" | "le" | "gt" | "ge";
-export type Predicate =
-  | { readonly kind: "is-null"; readonly column: 0 | 1 }
-  | {
-      readonly kind: "compare";
-      readonly column: 0 | 1;
-      readonly comparison: Comparison;
-      readonly value: Cell;
-    };
-type NativePlan = NonNullable<
-  Extract<GrowingAction, { query_start: unknown }>["query_start"]["plan"]
->;
+export type Predicate = LogicalPredicate;
+type NativePlan = Extract<GrowingAction, { query_start: unknown }>["query_start"]["plan"];
 export class QueryPlan {
-  readonly projection: Projection;
-  readonly aggregate: Aggregate;
-  readonly limit: bigint | undefined;
-  readonly #predicate: Predicate | undefined;
-  constructor(
-    options: {
-      projection?: Projection;
-      aggregate?: Aggregate;
-      limit?: bigint;
-      predicate?: Predicate;
-    } = {},
-  ) {
-    this.projection = options.projection ?? "both";
-    this.aggregate = options.aggregate ?? "rows";
-    if (
-      !["both", "key", "value"].includes(this.projection) ||
-      !["rows", "count", "sum", "count_values"].includes(this.aggregate)
-    )
-      throw new TypeError("Unsupported query projection or aggregate");
-    this.limit = options.limit === undefined ? undefined : wide(options.limit);
-    const predicate = options.predicate;
-    if (predicate) {
-      integer(predicate.column, "column", 0, 1);
-      if (predicate.kind === "compare") {
-        if (!["eq", "ne", "lt", "le", "gt", "ge"].includes(predicate.comparison))
-          throw new TypeError("Unsupported comparison");
-        const value =
-          predicate.value instanceof Uint8Array
-            ? owned(predicate.value, limits.value_bytes)
-            : predicate.value;
-        this.#predicate = Object.freeze({ ...predicate, value });
-      } else if (predicate.kind === "is-null") this.#predicate = Object.freeze({ ...predicate });
-      else throw new TypeError("Unsupported predicate");
-    }
+  readonly #value: NativePlan;
+  constructor(options: Plan) {
+    this.#value = structuredClone(planWire(options));
     Object.freeze(this);
   }
-  wire(bound: number): NativePlan {
-    let predicate: NativePlan["predicate"] = { all: {} };
-    const selected = this.#predicate;
-    if (selected?.kind === "is-null") predicate = { is_null: selected.column };
-    else if (selected?.kind === "compare") {
-      const value = selected.value;
-      const type =
-        typeof value === "bigint"
-          ? "int64"
-          : typeof value === "boolean"
-            ? "boolean"
-            : typeof value === "string"
-              ? "utf8"
-              : "binary";
-      predicate = {
-        compare: {
-          column: selected.column,
-          op: selected.comparison,
-          value: cell(value, type, bound),
-        },
-      };
-    }
-    return {
-      projection: this.projection,
-      aggregate: this.aggregate,
-      limit: this.limit?.toString() ?? null,
-      predicate,
-    };
+  wire(): NativePlan {
+    return structuredClone(this.#value);
   }
 }
 export interface QueryJob {
@@ -99,10 +33,9 @@ export interface ResultManifest {
   readonly source: ProcessRef;
   readonly destination: ProcessRef;
   readonly correlation: bigint;
-  readonly table: number;
+  readonly table: bigint;
   readonly policyRevision: bigint;
-  readonly basis: Basis;
-  readonly sourceContract: Uint8Array;
+  readonly basis: Readonly<{ resource: ResourceRef; revision: number; head: Uint8Array }>;
   readonly plan: Uint8Array;
   readonly segments: bigint;
   readonly byteCount: bigint;
@@ -152,17 +85,16 @@ async function complete(
   const basis = Object.freeze({
     resource: new ResourceRef(realm, value.basis.resource),
     revision: integer(value.basis.revision, "revision"),
-    schema: new Uint8Array(value.basis.schema),
+    head: new Uint8Array(value.basis.head),
   });
   return Object.freeze({
     result: integer(value.result, "result"),
     source: new ProcessRef(realm, value.source),
     destination: new ProcessRef(realm, value.destination),
     correlation: nativeWide(value.correlation),
-    table: integer(value.table, "table"),
+    table: nativeWide(value.table),
     policyRevision: nativeWide(value.policy_revision),
     basis,
-    sourceContract: new Uint8Array(value.basis.contract),
     plan: new Uint8Array(value.plan),
     segments: nativeWide(value.segments),
     byteCount: nativeWide(value.bytes),

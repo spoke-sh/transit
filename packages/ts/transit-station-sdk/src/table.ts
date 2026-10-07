@@ -1,207 +1,382 @@
-import { ResourceRef, HandlerError, Busy, limits } from "@transit/client";
-import { integer, text } from "@transit/client/internal";
+import { ResourceRef, HandlerError, Busy, IncompatibleNative } from "@transit/client";
+import { integer, validators } from "@transit/client/internal";
 import { context, operation, type Context } from "./context.ts";
 import { result } from "./bridge.ts";
 import { hex, unhex } from "./framing.ts";
-import { nativeWide, wide, ReadVersion, type Basis, type Page } from "./values.ts";
-import type { GrowingAction } from "./wire.ts";
+import { nativeWide, wide, ReadVersion } from "./values.ts";
+import {
+  Schema,
+  schemaWire,
+  schemaValue,
+  mutationWire,
+  type TableLimits,
+  type Mutation,
+} from "./catalog.ts";
+import { encodeCell, decodeCell, type Cell } from "./logical-values.ts";
+import type { GrowingAction, GrowingResult } from "./wire.ts";
 import type { Turn } from "./turn.ts";
+import contract from "./contract.json" with { type: "json" };
+import schemas from "./schemas.json" with { type: "json" };
 
-export type Cell = bigint | boolean | string | Uint8Array | null;
-export type CellType = "int64" | "boolean" | "utf8" | "binary";
-export type WireCell =
-  | { int64: string }
-  | { boolean: boolean }
-  | { utf8: string }
-  | { binary: string }
-  | { null: object };
-export function cell(value: Cell, kind: CellType, bound: number): WireCell {
-  if (value === null) return { null: {} };
-  if (kind === "int64") return { int64: wide(value, true).toString() };
-  if (kind === "boolean" && typeof value === "boolean") return { boolean: value };
-  if (kind === "utf8" && typeof value === "string") return { utf8: text(value, bound) };
-  if (kind === "binary" && value instanceof Uint8Array) return { binary: hex(value, bound) };
-  throw new TypeError("Cell does not match its Table schema");
+export { Schema as TableSchema } from "./catalog.ts";
+export type { Cell } from "./logical-values.ts";
+export type { Column, TableLimits, Mutation, Assignment } from "./catalog.ts";
+type Action = Extract<GrowingAction, { table: unknown }>["table"];
+type Result = Extract<GrowingResult, { table: unknown }>["table"];
+type NativeMutation = Extract<Action, { mutate: unknown }>["mutate"];
+type NativeReference = Extract<Action, { status: unknown }>["status"];
+type NativeStatus = NonNullable<Extract<Result, { mutation: unknown }>["mutation"]>;
+type NativeDefinition = Extract<Result, { schema: unknown }>["schema"];
+type NativeRow = NonNullable<Extract<Result, { row: unknown }>["row"]["row"]>;
+type Tags<T> = T extends unknown ? keyof T : never;
+const validate = validators(schemas).GrowingAction!;
+function tableResult<K extends Tags<Result>>(
+  value: GrowingResult,
+  tag: K,
+): Extract<Result, Record<K, unknown>>[K] {
+  const table = result(value, "table");
+  if (!(tag in table)) throw new IncompatibleNative("Unexpected Table result");
+  return (table as Extract<Result, Record<K, unknown>>)[tag];
 }
-function cellValue(value: WireCell, bound: number): Cell {
-  if ("null" in value) return null;
-  if ("int64" in value) return nativeWide(value.int64, true);
-  if ("boolean" in value) return value.boolean;
-  if ("utf8" in value) return text(value.utf8, bound);
-  return unhex(value.binary, bound);
+function saved<T extends "mutate" | "status">(
+  text: string,
+  tag: T,
+): Extract<Action, Record<T, unknown>>[T] {
+  if (typeof text !== "string" || Buffer.byteLength(text) > contract.limits.handler_action_bytes)
+    throw new TypeError("Table intent exceeds its action budget");
+  const value: unknown = JSON.parse(text);
+  if (
+    JSON.stringify(value) !== text ||
+    Buffer.byteLength(JSON.stringify({ table: { [tag]: value } })) >
+      contract.limits.handler_action_bytes ||
+    !validate({ table: { [tag]: value } })
+  )
+    throw new IncompatibleNative("Invalid saved Table intent");
+  return value as Extract<Action, Record<T, unknown>>[T];
 }
-export class TableSchema<C extends Cell> {
-  readonly id: number;
-  readonly valueType: CellType;
-  readonly keyName: string;
-  readonly valueName: string;
-  private constructor(id: number, kind: CellType, keyName: string, valueName: string) {
-    this.id = integer(id, "table ID", 1, 0xffffffff);
-    this.valueType = kind;
-    this.keyName = text(keyName, limits.value_bytes);
-    this.valueName = text(valueName, limits.value_bytes);
+function currentDefinition(value: string): void {
+  if (value !== contract.definition) throw new IncompatibleNative("Incompatible Table definition");
+}
+export class RowIdentity {
+  readonly #hex: string;
+  constructor(bytes: Uint8Array) {
+    this.#hex = hex(bytes, 20);
+    if (this.#hex.length !== 40) throw new TypeError("Expected a 20-byte row identity");
     Object.freeze(this);
   }
-  static int64(id: number, key = "id", value = "value"): TableSchema<bigint> {
-    return new TableSchema(id, "int64", key, value);
+  get bytes(): Uint8Array {
+    return unhex(this.#hex, 20);
   }
-  static boolean(id: number, key = "id", value = "value"): TableSchema<boolean> {
-    return new TableSchema(id, "boolean", key, value);
-  }
-  static utf8(id: number, key = "id", value = "value"): TableSchema<string> {
-    return new TableSchema(id, "utf8", key, value);
-  }
-  static binary(id: number, key = "id", value = "value"): TableSchema<Uint8Array> {
-    return new TableSchema(id, "binary", key, value);
-  }
-  encode(value: C | null, bound: number): WireCell {
-    return cell(value, this.valueType, bound);
+  wire(): string {
+    return this.#hex;
   }
 }
-export interface Row<C extends Cell> {
-  readonly key: bigint;
-  readonly value: C;
+export interface Row {
+  readonly identity: RowIdentity;
+  readonly cells: readonly Cell[];
+}
+export interface TableBasis {
+  readonly resource: ResourceRef;
+  readonly revision: number;
+  readonly objectId: bigint;
+  readonly head: string;
+}
+export interface TablePage {
+  readonly rows: readonly Row[];
+  readonly next?: string;
+}
+export interface TableCreation {
+  readonly state: "building" | "applied";
+  readonly admittedInput: number;
+  readonly completedInput?: number;
+}
+export interface TableMutationStatus {
+  readonly reference: TableMutationReference;
+  readonly state: NativeStatus["state"];
+  readonly route: NativeStatus["route"];
+  readonly admittedInput: number;
+  readonly completedInput?: number;
+  readonly counts?: { readonly matched: bigint; readonly changed: bigint };
+  readonly rejection: NativeStatus["rejection"];
+  readonly witness?: {
+    readonly source: NonNullable<NativeStatus["witness"]>["source"];
+    readonly row?: RowIdentity;
+    readonly column: bigint;
+    readonly text: string;
+    readonly truncated: boolean;
+  };
+}
+function status(value: NativeStatus): TableMutationStatus {
+  return Object.freeze({
+    reference: TableMutationReference.load(JSON.stringify(value.reference)),
+    state: value.state,
+    route: value.route,
+    admittedInput: integer(value.admitted_input, "admitted input"),
+    ...(value.completed_input === null
+      ? {}
+      : { completedInput: integer(value.completed_input, "completed input") }),
+    ...(value.counts === null
+      ? {}
+      : {
+          counts: Object.freeze({
+            matched: nativeWide(value.counts.matched),
+            changed: nativeWide(value.counts.changed),
+          }),
+        }),
+    rejection: value.rejection,
+    ...(value.witness === null
+      ? {}
+      : {
+          witness: Object.freeze({
+            source: value.witness.source,
+            column: nativeWide(value.witness.column),
+            text: value.witness.text,
+            truncated: value.witness.truncated,
+            ...(value.witness.row === null
+              ? {}
+              : { row: new RowIdentity(unhex(value.witness.row, 20)) }),
+          }),
+        }),
+  });
+}
+function sameResource(turn: Turn, realm: number, resource: number): void {
+  if (turn.resource.realm !== realm || turn.resource.resource !== resource)
+    throw new HandlerError("Table intent belongs to another resource");
+}
+export class TableMutationReference {
+  readonly #value: NativeReference;
+  private constructor(value: NativeReference) {
+    this.#value = structuredClone(value);
+    Object.freeze(this);
+  }
+  static load(text: string): TableMutationReference {
+    const value = saved(text, "status");
+    currentDefinition(value.definition);
+    return new TableMutationReference(value);
+  }
+  save(): string {
+    return JSON.stringify(this.#value);
+  }
+  status(turn: Turn): Promise<TableMutationStatus | undefined> {
+    return this.#read(turn, "status");
+  }
+  async cancel(turn: Turn): Promise<TableMutationStatus> {
+    const value = await this.#read(turn, "cancel");
+    if (!value) throw new IncompatibleNative("Missing cancelled Table mutation");
+    return value;
+  }
+  #read(turn: Turn, tag: "status" | "cancel"): Promise<TableMutationStatus | undefined> {
+    sameResource(turn, this.#value.realm, this.#value.resource);
+    return operation(turn, async ({ bridge, token }) => {
+      const action: Action = tag === "status" ? { status: this.#value } : { cancel: this.#value };
+      const value = tableResult(await bridge.apply(token, { table: action }), "mutation");
+      return value === null ? undefined : status(value);
+    });
+  }
+}
+/** Persist save() before accepting work; step() prepares exactly one private turn. */
+export class TableMutation {
+  readonly #value: NativeMutation;
+  private constructor(value: NativeMutation) {
+    this.#value = structuredClone(value);
+    Object.freeze(this);
+  }
+  static prepare(
+    resource: ResourceRef,
+    principal: number,
+    operationId: bigint,
+    schema: Schema,
+    mutation: Mutation,
+  ): TableMutation {
+    if (!(resource instanceof ResourceRef)) throw new TypeError("Expected a resource reference");
+    const operation = wide(operationId);
+    if (operation === 0n) throw new TypeError("Mutation identity must be positive");
+    const value: NativeMutation = {
+      realm: resource.realm,
+      resource: resource.resource,
+      principal: integer(principal, "principal", 0),
+      operation: operation.toString(),
+      schema: schemaWire(schema),
+      mutation: mutationWire(mutation, contract.limits.handler_action_bytes),
+    };
+    return TableMutation.load(JSON.stringify(value));
+  }
+  static load(text: string): TableMutation {
+    const value = saved(text, "mutate");
+    currentDefinition(value.schema.definition);
+    schemaValue(value.schema);
+    return new TableMutation(value);
+  }
+  save(): string {
+    return JSON.stringify(this.#value);
+  }
+  get schema(): Schema {
+    return schemaValue(this.#value.schema);
+  }
+  get operationId(): bigint {
+    return nativeWide(this.#value.operation);
+  }
+  step(turn: Turn): Promise<TableMutationStatus> {
+    sameResource(turn, this.#value.realm, this.#value.resource);
+    return operation(turn, async ({ bridge, token }) => {
+      const value = tableResult(
+        await bridge.apply(token, { table: { mutate: this.#value } }),
+        "mutation",
+      );
+      if (!value) throw new IncompatibleNative("Missing Table mutation outcome");
+      return status(value);
+    });
+  }
+}
+function decodedRow(value: NativeRow): Row {
+  return Object.freeze({
+    identity: new RowIdentity(unhex(value.identity, 20)),
+    cells: Object.freeze(value.cells.map((cell) => decodeCell(cell))),
+  });
 }
 const construction = Symbol("captured-table");
-export class Table<C extends Cell> {
-  readonly schema: TableSchema<C>;
-  readonly basis: Basis;
+export class Table {
+  readonly schema: Schema;
+  readonly basis: TableBasis;
   readonly #turn: Turn;
   readonly #version: ReadVersion | undefined;
-  constructor(
+  private constructor(
     secret: typeof construction,
     turn: Turn,
-    schema: TableSchema<C>,
-    basis: Basis,
+    metadata: NativeDefinition,
     version?: ReadVersion,
   ) {
-    if (secret !== construction) throw new TypeError("Tables require a captured native schema");
+    if (secret !== construction) throw new TypeError("Open a Table through its turn");
     this.#turn = turn;
-    this.schema = schema;
-    this.basis = basis;
     this.#version = version;
+    this.schema = schemaValue(metadata.schema);
+    const head = hex(unhex(metadata.basis.head, 32), 32);
+    if (head.length !== 64 || nativeWide(metadata.basis.object) !== this.schema.objectId)
+      throw new IncompatibleNative("Invalid Table basis");
+    this.basis = Object.freeze({
+      resource: new ResourceRef(turn.process.realm, metadata.basis.resource),
+      revision: integer(metadata.basis.revision, "revision"),
+      objectId: this.schema.objectId,
+      head,
+    });
     Object.freeze(this);
   }
-  static async capture<C extends Cell>(
+  static async capture(
     current: Context,
     owner: Turn,
-    schema: TableSchema<C>,
+    objectId: bigint,
     version?: ReadVersion,
-  ): Promise<Table<C>> {
+  ): Promise<Table> {
     if (context(owner) !== current) throw new Busy("Table capture belongs to its current turn");
     current.scope.check();
-    if (!(schema instanceof TableSchema)) throw new TypeError("Expected TableSchema");
-    const value = result(
+    if (wide(objectId) === 0n) throw new TypeError("Table identity must be positive");
+    const value = tableResult(
       await current.bridge.apply(current.token, {
-        table_schema: { id: schema.id, version: version ?? null },
+        table: { schema: { object: objectId.toString(), version: version ?? null } },
       }),
       "schema",
     );
-    if (
-      value.key_name !== schema.keyName ||
-      value.value_name !== schema.valueName ||
-      value.value_type !== schema.valueType
-    ) {
-      throw new HandlerError("Captured Table schema differs from the requested public type");
-    }
-    const basis = Object.freeze({
-      resource: new ResourceRef(owner.process.realm, value.basis.resource),
-      revision: integer(value.basis.revision, "revision"),
-      schema: new Uint8Array(value.basis.schema),
-    });
-    return new Table(construction, owner, schema, basis, version);
+    return new Table(construction, owner, value, version);
   }
-  static open<C extends Cell>(
-    turn: Turn,
-    schema: TableSchema<C>,
-    version?: ReadVersion,
-  ): Promise<Table<C>> {
-    return operation(turn, (current) => Table.capture(current, turn, schema, version));
+  static open(turn: Turn, objectId: bigint, version?: ReadVersion): Promise<Table> {
+    return operation(turn, (current) => Table.capture(current, turn, objectId, version));
   }
-  static create<C extends Cell>(turn: Turn, schema: TableSchema<C>): Promise<Table<C>> {
-    return operation(turn, async (current) => {
-      if (!(schema instanceof TableSchema)) throw new TypeError("Expected TableSchema");
-      text(schema.keyName, current.bridge.caps.table_name_bytes);
-      text(schema.valueName, current.bridge.caps.table_name_bytes);
-      await current.bridge.apply(current.token, {
-        table_create: {
-          id: schema.id,
-          key_name: schema.keyName,
-          value_name: schema.valueName,
-          value_type: schema.valueType,
-        },
-      });
-      return Table.capture(current, turn, schema);
-    });
-  }
-  get(key: bigint): Promise<Row<C | null> | undefined> {
-    return operation(this.#turn, async ({ bridge, token }) => {
-      const request = { id: this.schema.id, key: wide(key, true).toString() };
-      const action: GrowingAction = this.#version
-        ? { version_table_get: { ...request, version: this.#version } }
-        : { table_get: request };
-      const value = result(await bridge.apply(token, action), "row");
-      return value === null
-        ? undefined
-        : Object.freeze({
-            key: nativeWide(value.key, true),
-            value: cellValue(value.value, bridge.caps.table_cell_bytes) as C | null,
-          });
-    });
-  }
-  #write(mode: "insert" | "update" | "upsert", row: Row<C | null>): Promise<void> {
-    return operation(this.#turn, async ({ bridge, token }) => {
-      if (this.#version) throw new HandlerError("Retained Tables are read-only");
-      const value = {
-        key: wide(row.key, true).toString(),
-        value: this.schema.encode(row.value, bridge.caps.table_cell_bytes),
-      };
-      await bridge.apply(token, { table_write: { id: this.schema.id, mode, row: value } });
-    });
-  }
-  insert(row: Row<C | null>): Promise<void> {
-    return this.#write("insert", row);
-  }
-  update(row: Row<C | null>): Promise<void> {
-    return this.#write("update", row);
-  }
-  upsert(row: Row<C | null>): Promise<void> {
-    return this.#write("upsert", row);
-  }
-  delete(key: bigint): Promise<void> {
-    return operation(this.#turn, async ({ bridge, token }) => {
-      if (this.#version) throw new HandlerError("Retained Tables are read-only");
-      await bridge.apply(token, {
-        table_delete: { id: this.schema.id, key: wide(key, true).toString() },
-      });
-    });
-  }
-  page(after?: string): Promise<Page<Row<C | null>>> {
-    return operation(this.#turn, async ({ bridge, token }) => {
-      const value = result(
+  static create(turn: Turn, schema: Schema, limits: TableLimits): Promise<TableCreation> {
+    return operation(turn, async ({ bridge, token }) => {
+      const value = tableResult(
         await bridge.apply(token, {
-          table_page: {
-            id: this.schema.id,
-            cursor: after === undefined ? null : text(after, limits.max_body),
-            version: this.#version ?? null,
+          table: {
+            create: {
+              realm: turn.resource.realm,
+              resource: turn.resource.resource,
+              schema: schemaWire(schema),
+              limits: {
+                record_bytes: integer(limits.recordBytes, "record bytes"),
+                staging_bytes: wide(limits.stagingBytes).toString(),
+                staging_records: integer(limits.stagingRecords, "staging records"),
+              },
+            },
           },
         }),
-        "rows",
+        "created",
       );
-      const basis = Object.freeze({
-        resource: new ResourceRef(this.#turn.process.realm, value.basis.resource),
-        revision: integer(value.basis.revision, "revision"),
-        schema: new Uint8Array(value.basis.schema),
+      return Object.freeze({
+        state: value.state,
+        admittedInput: integer(value.admitted_input, "admitted input"),
+        ...(value.completed_input === 0
+          ? {}
+          : { completedInput: integer(value.completed_input, "completed input") }),
       });
-      const rows = value.rows
-        .filter((row) => row !== null)
-        .map((row) =>
-          Object.freeze({
-            key: nativeWide(row.key, true),
-            value: cellValue(row.value, bridge.caps.table_cell_bytes) as C | null,
-          }),
-        );
-      return Object.freeze({ entries: Object.freeze(rows), next: value.next ?? undefined, basis });
     });
+  }
+  #source() {
+    return { object: this.schema.objectId.toString(), version: this.#version ?? null };
+  }
+  #check(value: NativeDefinition): void {
+    if (
+      value.basis.head !== this.basis.head ||
+      value.basis.resource !== this.basis.resource.resource ||
+      value.basis.revision !== this.basis.revision
+    )
+      throw new IncompatibleNative("Table read changed its captured basis");
+  }
+  get(identity: RowIdentity): Promise<Row | undefined> {
+    return operation(this.#turn, async ({ bridge, token }) => {
+      if (!(identity instanceof RowIdentity)) throw new TypeError("Expected a row identity");
+      const value = tableResult(
+        await bridge.apply(token, {
+          table: { get: { source: this.#source(), identity: identity.wire() } },
+        }),
+        "row",
+      );
+      this.#check(value.definition);
+      return value.row === null ? undefined : decodedRow(value.row);
+    });
+  }
+  getKey(key: readonly Cell[]): Promise<Row | undefined> {
+    return operation(this.#turn, async ({ bridge, token }) => {
+      const value = tableResult(
+        await bridge.apply(token, {
+          table: {
+            get_key: { source: this.#source(), key: key.map((value) => encodeCell(value)) },
+          },
+        }),
+        "row",
+      );
+      this.#check(value.definition);
+      return value.row === null ? undefined : decodedRow(value.row);
+    });
+  }
+  page(cursor?: string, limit = 8): Promise<TablePage> {
+    return operation(this.#turn, async ({ bridge, token }) => {
+      const value = tableResult(
+        await bridge.apply(token, {
+          table: {
+            page: {
+              source: this.#source(),
+              cursor: cursor ?? null,
+              limit: integer(limit, "page rows", 1, bridge.caps.table_page_rows),
+            },
+          },
+        }),
+        "page",
+      );
+      this.#check(value.definition);
+      return Object.freeze({
+        rows: Object.freeze(value.rows.map(decodedRow)),
+        ...(value.next === null ? {} : { next: value.next }),
+      });
+    });
+  }
+  prepare(principal: number, operationId: bigint, mutation: Mutation): TableMutation {
+    context(this.#turn).scope.check();
+    if (this.#version) throw new HandlerError("Retained Tables are read-only");
+    return TableMutation.prepare(
+      this.basis.resource,
+      principal,
+      operationId,
+      this.schema,
+      mutation,
+    );
   }
 }

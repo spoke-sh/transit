@@ -17514,3 +17514,44 @@ Raw `handler-query-unit6.log` SHA-256: `56ca7cc707fd6cd2cd3bfe7c0364bbf942e30136
 Raw `handler-query-bindings1.log` SHA-256: `09556090d8786e89f76c75df5abd471b756674c6c9c41d44d939986752a1892a`.
 
 Raw `handler-query-native5.log` SHA-256: `e22dea584887532f4e48b8cd359bd899be6367a04501eeb1de583ccbfe5e4227`.
+
+
+### General typed handler Table boundary and TypeScript API
+
+The private handler bridge replaces the two-column Table actions with schema
+creation/discovery, stable row identities, composite primary-key lookup, bounded
+pages and exact resumable mutations. Creation and mutation prepare one private
+turn; the application owns durable intent capture and continuation scheduling.
+Saved work binds the current definition, realm, resource, schema, principal and
+operation. Applied counts, rejection witnesses and original admission/completion
+positions remain distinct. Current grants, retained cuts and four-write commits
+are unchanged. The neutral action budget is 256 KiB, independent of the native
+row bound. Generated schemas distinguish 128 columns, eight returned page rows
+and 1024 insert rows; schema acceptance does not promise an action fits its byte
+budget.
+
+`handler-table-bridge-unit7.log` passes **20/20** native binding tests, four build
+steps, 116 ms and 31 MiB test-process MaxRSS. Cases use four columns including
+nullable UTF-8, decimal and nested lists, full-width object/operation identities,
+exact duplicate/conflicting intents, changed realm/resource, committed and
+retained reads, moved cursors, cancellation and read poisoning. Independent
+Arrow-cell checks retain nested descriptors/values after input/workspace reuse.
+`handler-table-bridge-build3.log` builds the ReleaseSafe shared library in a
+private prefix; no live workspace installation is replaced.
+
+`handler-table-ts-final2.log` passes formatting, lint, strict TypeScript checking
+and **54/54** tests. Six new boundary tests cover immutable saved typed work,
+foreign/missing definitions, malformed/full-width identities, resource routing,
+owned row identities, general projection/predicates, action budgets and the
+128-column/1024-row schema distinction. The first final check stops on Markdown
+formatting before type checking/tests and is not counted as a passing run.
+Earlier native attempts fail on identity-array typing and an incorrect expected
+conflict error; the final suite includes both corrections and the later Arrow
+ownership test. Other language wrappers, installed SDK integration, the shared
+definition cutover, performance controls and full clean checks remain pending.
+
+Raw `handler-table-bridge-unit7.log` SHA-256: `d0f9542b2ec0ad65a613a5dda0d54edcd9d8eacfadd10faaee13d7462b58fdab`.
+
+Raw `handler-table-bridge-build3.log` SHA-256: `0097519a84734af8db38f1e62edf2e55af4145c2481d2f0f0e1d4982cc9c061b`.
+
+Raw `handler-table-ts-final2.log` SHA-256: `77ac1efd7750b1d38b77c02f57cf3676cd6f12355bc0f0a95890510c2f8d0c35`.

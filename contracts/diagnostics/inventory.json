@@ -13599,39 +13599,13 @@
         "EffectBudgetExceeded": 1,
         "InvalidArrowResult": 1,
         "InvalidColumn": 1,
-        "InvalidRow": 1,
-        "UnsupportedCellState": 1,
-        "UnsupportedType": 1
+        "InvalidRow": 1
       },
       "outcomes": {
-        "ArrowValue": [
-          "null",
-          "int64",
-          "uint64",
-          "boolean",
-          "utf8",
-          "binary"
-        ],
         "BasicAction": [
           "put",
           "cast",
-          "table_create",
-          "table_get",
-          "table_write",
-          "table_delete",
           "query_policy"
-        ],
-        "BasicAction.table_write.mode": [
-          "insert",
-          "update",
-          "upsert"
-        ],
-        "Cell": [
-          "null",
-          "int64",
-          "boolean",
-          "utf8",
-          "binary"
         ]
       },
       "error_sets": {},
@@ -13639,13 +13613,11 @@
         "arrowCellBounded()": "<inferred>",
         "basic()": "<inferred>",
         "decimal()": "<inferred>",
-        "foreignCell()": "<inferred>",
-        "hex()": "<inferred>",
-        "nativeCell()": "<inferred>"
+        "hex()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 42,
+        "try": 18,
         "catch": 0
       },
       "imports": [
@@ -13847,7 +13819,7 @@
       "open_error_set_uses": 1,
       "propagation": {
         "try": 0,
-        "catch": 35
+        "catch": 36
       },
       "imports": [
         "Abi.zig",
@@ -13870,6 +13842,7 @@
       },
       "outcomes": {
         "Action": [
+          "table",
           "document",
           "budgets",
           "get",
@@ -13880,18 +13853,11 @@
           "reply",
           "cancel",
           "effect",
-          "table_create",
-          "table_get",
-          "table_write",
-          "table_delete",
           "page",
-          "table_page",
-          "table_schema",
           "retain",
           "release",
           "version_get",
           "version_page",
-          "version_table_get",
           "registry_create",
           "registry_grant",
           "registry_handle",
@@ -13924,6 +13890,7 @@
           "denied"
         ],
         "Result": [
+          "table",
           "document",
           "budgets",
           "none",
@@ -13933,10 +13900,7 @@
           "publication",
           "collected",
           "staged",
-          "row",
-          "schema",
           "page",
-          "rows",
           "version",
           "query",
           "manifest",
@@ -13949,13 +13913,11 @@
         "page()": "<inferred>",
         "parseCursor()": "<inferred>",
         "publishedGrpcRequest()": "<inferred>",
-        "publishedRequest()": "<inferred>",
-        "tablePage()": "<inferred>",
-        "tableSchema()": "<inferred>"
+        "publishedRequest()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 127,
+        "try": 112,
         "catch": 0
       },
       "imports": [
@@ -13963,6 +13925,7 @@
         "DocumentBridge.zig",
         "GrpcCodec.zig",
         "HttpCodec.zig",
+        "TableBridge.zig",
         "std",
         "transit_query",
         "transit_station"
@@ -14220,6 +14183,55 @@
         "Abi.zig",
         "std",
         "transit_query"
+      ]
+    },
+    "packages/zig/transit-station-bindings/src/TableBridge.zig": {
+      "errors": {
+        "IncompatibleDefinition": 1,
+        "InvalidCursor": 2,
+        "InvalidPrimaryKey": 1,
+        "InvalidRowIdentity": 1,
+        "WrongResource": 3
+      },
+      "outcomes": {
+        "Action": [
+          "create",
+          "schema",
+          "get",
+          "get_key",
+          "page",
+          "mutate",
+          "status",
+          "cancel"
+        ],
+        "Result": [
+          "created",
+          "schema",
+          "row",
+          "page",
+          "mutation"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "Reference.foreign()": "<inferred>",
+        "Reference.native()": "<inferred>",
+        "Status.foreign()": "<inferred>",
+        "apply()": "<inferred>",
+        "definition()": "<inferred>",
+        "identity()": "<inferred>",
+        "read()": "<inferred>",
+        "row()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 55,
+        "catch": 0
+      },
+      "imports": [
+        "std",
+        "transit_catalog",
+        "transit_station"
       ]
     },
     "packages/zig/transit-station-bindings/src/abi_contract.zig": {

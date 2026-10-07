@@ -57,8 +57,11 @@ pub const Capabilities = struct {
     value_bytes: u32 = p.Value.max_bytes,
     message_bytes: u32 = s.Frame.max_payload,
     key_bytes: u32 = p.Growth.key_bytes,
-    table_cell_bytes: u32 = s.fuze.model.max_cell_bytes,
-    table_name_bytes: u32 = @typeInfo(@FieldType(s.fuze.model.Name, "bytes")).array.len,
+    table_columns: u32 = s.fuze.TableSchema.max_columns,
+    table_row_bytes: u32 = s.fuze.TableRow.max_bytes,
+    table_page_rows: u32 = s.TableReader.max_page_rows,
+    table_action_bytes: u32 = p.max_body,
+    table_resumable_mutations: bool = true,
     page_entries: u32 = p.Growth.page_size,
     turn_mutations: u32 = p.Growth.turn_mutations,
     turn_outputs: u32 = p.Growth.turn_outputs,
@@ -251,6 +254,7 @@ pub fn apply(pointer: *Server, scope: u64, json: [*]const u8, len: usize, out: *
     defer server.busy.store(false, .release);
     if (server.scope == null or server.scope.? != scope) return .not_ready;
     const turn = if (server.behavior.ready) |*value| value else return .not_ready;
+    s.fuze.Types.Json.preflight(json[0..len], .{ .bytes = p.max_body, .depth = 96, .tokens = p.max_body + 1 }) catch |err| return base.failure(err, out);
     const parsed = std.json.parseFromSlice(actions.Action, allocator, json[0..len], .{}) catch |err| return base.failure(err, out);
     defer parsed.deinit();
     if (parsed.value.requiresQuery() and server.behavior.query == null) return base.failure(error.UnsupportedQuery, out);
@@ -258,7 +262,7 @@ pub fn apply(pointer: *Server, scope: u64, json: [*]const u8, len: usize, out: *
     const before = turn.decision;
     var arena = std.heap.ArenaAllocator.init(allocator);
     defer arena.deinit();
-    const result = actions.apply(arena.allocator(), turn, parsed.value) catch |err| {
+    const result = actions.apply(&arena, turn, parsed.value) catch |err| {
         turn.decision = before; // Sticky read_error deliberately survives rollback.
         return failure(server, err, false, out);
     };

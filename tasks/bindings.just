@@ -33,7 +33,7 @@ node-check:
     vp exec --filter @transit/client tsc
     cd packages/ts/transit-station-sdk && vp check
     vp exec --filter @transit/station tsc --noEmit
-    vp exec --filter @transit/station node --test src/scope.test.ts src/runner.test.ts src/catalog.test.ts src/unified.test.ts
+    vp exec --filter @transit/station node --test src/scope.test.ts src/runner.test.ts src/catalog.test.ts src/unified.test.ts src/table.test.ts
 
 # Build version-matched Python wheels, including separate native dependencies.
 python-build: build
@@ -61,7 +61,7 @@ node-sdk-test: node-build
     vp exec --filter @transit/client tsc --noEmit
     cd packages/ts/transit-station-sdk && vp check
     vp exec --filter @transit/station tsc --noEmit
-    vp exec --filter @transit/station node --test src/scope.test.ts src/runner.test.ts src/catalog.test.ts src/unified.test.ts
+    vp exec --filter @transit/station node --test src/scope.test.ts src/runner.test.ts src/catalog.test.ts src/unified.test.ts src/table.test.ts
     cd examples/station-sdk/typescript && vp check
     vp exec --filter @transit/sdk-examples tsc --noEmit
     zig build transit-node rey-cli transit-station-http-worker

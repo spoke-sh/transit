@@ -15,6 +15,7 @@ pub const Column = struct {
     max_characters: ?u32,
 };
 pub const Schema = struct {
+    pub const json_schema_sequence_bounds = .{ .columns = s.max_columns, .primary_key = s.max_columns };
     // Mandatory even for callers persisting a schema outside a saved intent.
     definition: p.Growth.Definition,
     object: []const u8,

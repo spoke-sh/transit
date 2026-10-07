@@ -41,6 +41,7 @@ pub const Manifest = struct {
     schema: [32]u8,
 };
 pub const Action = union(enum) {
+    table: @import("TableBridge.zig").Action,
     document: @import("DocumentBridge.zig").Action,
     budgets: void,
     get: p.Value,
@@ -51,18 +52,11 @@ pub const Action = union(enum) {
     reply: p.Value,
     cancel: []const u8,
     effect: p.Value,
-    table_create: @FieldType(a.BasicAction, "table_create"),
-    table_get: @FieldType(a.BasicAction, "table_get"),
-    table_write: @FieldType(a.BasicAction, "table_write"),
-    table_delete: @FieldType(a.BasicAction, "table_delete"),
     page: ?[]const u8,
-    table_page: struct { id: u32, cursor: ?[]const u8 = null, version: ?p.Growth.ReadVersionId = null },
-    table_schema: struct { id: u32, version: ?p.Growth.ReadVersionId = null },
     retain: void,
     release: p.Growth.ReadVersionId,
     version_get: struct { id: p.Growth.ReadVersionId, key: p.Value },
     version_page: struct { id: p.Growth.ReadVersionId, cursor: ?[]const u8 = null },
-    version_table_get: struct { version: p.Growth.ReadVersionId, id: u32, key: []const u8 },
     registry_create: u32,
     registry_grant: struct { scope: u32, subject: s.Registry.Subject, lookup: bool, mutate: bool },
     registry_handle: void,
@@ -98,6 +92,7 @@ pub const Action = union(enum) {
     }
 };
 pub const Result = union(enum) {
+    table: @import("TableBridge.zig").Result,
     document: @import("DocumentBridge.zig").Result,
     budgets: struct { mutations: u32, outputs: u32, views: u32, retained_reads: u32, retains: u32, releases: u32 },
     none,
@@ -107,16 +102,13 @@ pub const Result = union(enum) {
     publication: s.Publication.Outcome,
     collected: bool,
     staged: bool,
-    row: ?a.Row,
-    schema: struct { id: u32, key_name: []const u8, value_name: []const u8, value_type: s.fuze.model.Type, basis: s.fuze.model.Basis },
     page: struct { entries: [p.Growth.page_size]?p.Growth.Entry, next: ?[]const u8 },
-    rows: struct { basis: s.fuze.model.Basis, rows: [p.Growth.page_size]?a.Row, next: ?[]const u8 },
     version: p.Growth.ReadVersionId,
     query: struct { result: u64, correlation: []const u8, source: p.Growth.ReadVersionId },
     manifest: Manifest,
     segment: struct { result: u64, ordinal: []const u8, rows: u8, bytes: u16, digest: [32]u8, ipc: []const u8 },
 };
-const Cursor = struct { source: @FieldType(s.Table.Cursor, "source"), resource: u64, revision: u64, after: p.Value };
+const Cursor = struct { source: s.TableReader.Cut, resource: u64, revision: u64, after: p.Value };
 
 fn parseCursor(comptime T: type, allocator: std.mem.Allocator, bytes: []const u8) !T {
     if (bytes.len == 0 or bytes.len > 2048) return error.InvalidCursor;
@@ -134,27 +126,11 @@ fn page(allocator: std.mem.Allocator, source: anytype, encoded: ?[]const u8) !Re
     const batch = try source.page(if (cursor) |saved| saved.after else null);
     return .{ .page = .{ .entries = batch.entries, .next = if (batch.next) |after| try std.json.Stringify.valueAlloc(allocator, Cursor{ .source = identity, .resource = source.view.resource, .revision = source.view.revision, .after = after }, .{}) else null } };
 }
-fn tablePage(allocator: std.mem.Allocator, source: anytype, id: u32, encoded: ?[]const u8) !Result {
-    const table = try s.Table.open(source, id);
-    const cursor = if (encoded) |bytes| try parseCursor(s.Table.Cursor, allocator, bytes) else null;
-    const batch = try table.page(source, cursor);
-    var rows: [p.Growth.page_size]?a.Row = @splat(null);
-    for (rows[0..batch.len], batch.rows[0..batch.len]) |*out, row| out.* = .{ .key = try a.decimal(allocator, row.key), .value = try a.foreignCell(allocator, row.value) };
-    return .{ .rows = .{ .basis = batch.basis, .rows = rows, .next = if (batch.next) |next| try std.json.Stringify.valueAlloc(allocator, next, .{}) else null } };
-}
-fn tableSchema(allocator: std.mem.Allocator, source: anytype, id: u32) !Result {
-    const table = try s.Table.open(source, id);
-    return .{ .schema = .{
-        .id = table.id,
-        .key_name = try allocator.dupe(u8, table.schema.names[0].slice()),
-        .value_name = try allocator.dupe(u8, table.schema.names[1].slice()),
-        .value_type = table.schema.value_type,
-        .basis = .{ .resource = source.view.resource, .revision = source.view.revision, .schema = try table.schema.fingerprint() },
-    } };
-}
-pub fn apply(allocator: std.mem.Allocator, turn: *s.Turn, action: Action) !Result {
+pub fn apply(arena: *std.heap.ArenaAllocator, turn: *s.Turn, action: Action) !Result {
+    const allocator = arena.allocator();
     if (try a.basic(Result, allocator, turn, action)) |result| return result;
     switch (action) {
+        .table => |value| return .{ .table = try @import("TableBridge.zig").apply(arena, turn, value) },
         .registry_create => |scope| try s.Registry.create(turn, scope),
         .registry_grant => |grant| try s.Registry.grant(turn, grant.scope, grant.subject, .{ .lookup = grant.lookup, .mutate = grant.mutate }),
         .registry_handle => try s.Registry.handle(turn, try s.Frame.decode(turn.delivery.input.value)),
@@ -219,20 +195,6 @@ pub fn apply(allocator: std.mem.Allocator, turn: *s.Turn, action: Action) !Resul
             return .{ .correlation = try a.decimal(allocator, try turn.call(v.pid, try request.encode(), null)) };
         },
         .page => |cursor| return page(allocator, turn, cursor),
-        .table_page => |request| {
-            if (request.version) |id| {
-                var source = try turn.openVersion(id);
-                return tablePage(allocator, &source, request.id, request.cursor);
-            }
-            return tablePage(allocator, turn, request.id, request.cursor);
-        },
-        .table_schema => |request| {
-            if (request.version) |id| {
-                var source = try turn.openVersion(id);
-                return tableSchema(allocator, &source, request.id);
-            }
-            return tableSchema(allocator, turn, request.id);
-        },
         .retain => return .{ .version = try turn.retain() },
         .release => |id| try turn.release(id),
         .version_get => |request| {
@@ -243,13 +205,7 @@ pub fn apply(allocator: std.mem.Allocator, turn: *s.Turn, action: Action) !Resul
             var source = try turn.openVersion(request.id);
             return page(allocator, &source, request.cursor);
         },
-        .version_table_get => |request| {
-            var source = try turn.openVersion(request.version);
-            const table = try s.Table.open(&source, request.id);
-            const row = (try table.get(&source, try std.fmt.parseInt(i64, request.key, 10))) orelse return .{ .row = null };
-            return .{ .row = .{ .key = try a.decimal(allocator, row.key), .value = try a.foreignCell(allocator, row.value) } };
-        },
-        .query_policy => |grant| try q.setPolicy(turn, grant.peer, grant.table, grant.expected_revision, grant.allow),
+        .query_policy => |grant| try q.setPolicy(turn, grant.peer, try unsigned(grant.table), try unsigned(grant.expected_revision), grant.allow),
         .query_start => |request| {
             var table = try s.TableReader.open(allocator, turn, try unsigned(request.id));
             defer table.deinit();

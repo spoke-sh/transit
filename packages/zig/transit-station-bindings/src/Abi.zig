@@ -142,6 +142,7 @@ pub const Api = struct {
 };
 
 test {
+    _ = @import("table_bridge_test.zig");
     _ = host;
     _ = growing;
     _ = http;
