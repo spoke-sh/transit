@@ -24,22 +24,11 @@ durable work is noticed; interactive reads do not wait for these workers.
 | Role | Configuration | Provisioning |
 | --- | --- | --- |
 | Unified source | `{"unified_source":{"peer":REQUESTER_PID,"initializer":PRINCIPAL}}` | Existing v1 source declaration/policy and data; a non-required association and independent current read/inspect grant to the request resource |
-| Table mutation writer | `{"table_writer":{"resource":RESOURCE,"initializer":ADMIN,"principal":CALLER,"permissions":7,"value_type":"utf8"}}` | Existing native resource and required association; exact initializer cast creates an empty typed Table and separate mutation policy. Defaults `table: 1`, names `id`/`value`, type `int64`; permissions are explicit |
 | Catalog | `{"catalog":{"scope":{"realm":REALM,"resource":RESOURCE,"catalog":CATALOG_ID},"owner":PID,"administrator":ADMIN,"table_limits":{"record_bytes":2097152,"staging_bytes":4194304,"staging_records":2}}}` | Existing resource and required association; realm/PID match the activation. Exact administrator initialization publishes framework/configuration/policy/disposition in one turn. Explicit limits must admit the selected row/schema sizes |
 | Unified requester | `{"unified_requester":{"principal":QUERY_PRINCIPAL,"source":SOURCE_PID}}` | Dedicated requester PID/resource; separate first `UQI1` cast, authenticating the configured principal |
 | Finite service requester | `{"finite_service":{"service":{"service":1,"administrator":ADMIN,"observer":OBSERVER},"query_principal":CALLER,"source":SOURCE_PID,"binding_revision":1}}` | Composition with current service policy/publication and one active finite query |
 | Courier | `{"courier":{"destinations":[CATALOG_PID]}}` | One through sixteen distinct nonzero destination PIDs; dedicated unscoped inspect/delivery/send principal, with no execution/storage credentials |
 | Realm courier | `{"courier":{"all_destinations":true}}` | All pending recorded outputs in the configured realm; the explicit destination list must be empty; the same native grants remain mandatory |
-
-The Table mutation writer uses the [shared mutation contract](../../contracts/TABLE_MUTATION_V1.md#explicit-writer-host)
-and [signed Zig client](../../contracts/TABLE_MUTATION_V1.md#signed-zig-caller).
-Initialize it through `TableMutationWriter.Configuration.initializeCommand()`
-from the configured initializer before admitting untrusted caller input. Resource
-and stored configuration must match on every activation; file edits cannot
-reconfigure accepted work. Authorized `PolicyChange` casts conditionally grant or
-revoke operation masks without changing native grants. Rejected inputs have
-separate recorded dispositions; they do not replace terminal mutation results.
-This role owns writes and does not initialize a read-query peer.
 
 The `catalog` role composes `CatalogQueryOwner` with general Table lifecycle
 operations. After catalog initialization, the administrator installs each

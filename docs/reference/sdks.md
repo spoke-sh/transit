@@ -126,30 +126,6 @@ requires a fresh listing. Every metadata call rechecks current inspection and
 native rights. The [catalog CLI](../../apps/transit-cli/docs/catalog.md) uses the same
 Zig owner; query connections do not enable administration.
 
-## Table mutation callers
-
-Typed mutation clients provide SQL compilation, explicit staging, exact saved
-retries and durable status through the shared Zig owner. They require an
-explicit writer/resource/Table connection and a separate mutation policy.
-Read-query clients do not confer mutation access.
-
-| Language | Caller API |
-| --- | --- |
-| Python | [Synchronous and asynchronous clients](../../packages/python/transit-station/docs/mutations.md) |
-| TypeScript | [Promise methods and owned native port](../../packages/ts/transit-station-sdk/docs/mutations.md) |
-| Ruby | [Blocking client with owned worker and immutable values](../../packages/ruby/transit-station/docs/MUTATIONS.md) |
-| Rust | [Blocking client with exclusive borrows and owned requests](../../packages/rust/transit-station-sdk/docs/MUTATIONS.md) |
-| C | [Owned handles, buffers and typed observations](../../packages/c/transit-station/docs/TABLE_MUTATIONS.md) |
-| C++ | [Move-only clients and saved commands](../../packages/cpp/transit-station-sdk/docs/TABLE_MUTATIONS.md) |
-| Java | [Immutable values and bounded asynchronous calls](../../packages/java/transit-station-sdk/docs/MUTATIONS.md) |
-| .NET | [Immutable values, asynchronous calls and joined disposal](../../packages/dotnet/transit-station-sdk/docs/MUTATIONS.md) |
-| Erlang | [Immutable records and an owned native-port worker](../../packages/beam/transit-station-sdk/docs/mutations.md) |
-| Elixir | [Immutable structs and tagged recovery results](../../packages/beam/transit-station-elixir/docs/mutations.md) |
-
-The
-[native ABI/port](../../packages/zig/transit-station-bindings/docs/table-mutations.md)
-exposes the same neutral operation independently of those public adapters.
-
 ## Rules that travel across languages
 
 - Supply credentials and the protocol profile explicitly; imports perform no I/O.

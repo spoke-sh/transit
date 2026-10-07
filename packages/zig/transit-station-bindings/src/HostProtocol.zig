@@ -26,12 +26,11 @@ pub const Config = struct {
     seed_file: ?[]const u8 = null,
     growing_server: ?abi.growing.Config = null,
     query_client: ?abi.query_client.Config = null,
-    mutation_client: ?abi.mutation_client.Config = null,
     catalog_client: ?abi.catalog_client.Config = null,
     timeout_ms: u32 = 5000,
     pub fn validateProfiles(self: Config) !void {
         var profiles: u8 = 0;
-        inline for (.{ self.growing_server != null, self.query_client != null, self.mutation_client != null, self.catalog_client != null }) |present| if (present) {
+        inline for (.{ self.growing_server != null, self.query_client != null, self.catalog_client != null }) |present| if (present) {
             profiles += 1;
         };
         if (self.local_codec) {
@@ -51,7 +50,6 @@ pub const Request = union(enum) {
     unified_query_codec: abi.unified_query.Action,
     logical_codec: abi.logical_codec.Action,
     unified_query: abi.query_client.bridge.Action,
-    table_mutation: abi.mutation_client.bridge.Action,
     catalog: abi.catalog_client.bridge.Action,
     grpc_codec: abi.grpc.Action,
     growing_grpc_read: abi.grpc.ReadAction,

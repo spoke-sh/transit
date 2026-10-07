@@ -50,33 +50,6 @@ fn applicationCallers(out: *std.Io.Writer) !void {
         try emitScenario(out, "application.host", @errorName(entry.cause), "dispatched", try a.HostDiagnostic.attempt(config, .{ .submit = signed }, entry.cause, true, null));
     }
 }
-fn mutations(out: *std.Io.Writer) !void {
-    const r = q.TableMutationRecords;
-    const base: r.Status = .{ .reference = .{ .resource = 7, .domain = .table_mutation, .namespace = 19, .record = 1, .spec = .{ .format = q.TableMutationRequest.format, .length = 1, .digest = @splat(1) } }, .principal = 9, .table = 1, .declaration = @splat(2), .policy_revision = 1 };
-    inline for (comptime std.meta.tags(r.Phase)) |phase| {
-        var value = base;
-        value.phase = phase;
-        value.input = if (value.terminal()) 11 else 0;
-        if (phase == .rejected) value.reason = .invalid_request;
-        try emit(out, "mutation.phase", @tagName(phase), try q.MutationDiagnostic.status(value));
-    }
-    inline for (comptime std.meta.tags(r.Reason)) |reason| {
-        var value = base;
-        value.phase = if (reason == .none) .applied else .rejected;
-        value.reason = reason;
-        value.input = 11;
-        value.witness = switch (reason) {
-            .denied => .{ .kind = .policy_missing },
-            .source_changed => .{ .kind = .table_missing },
-            else => null,
-        };
-        if (reason == .row_exists) value.conflict = .{ .row = 2, .key = std.math.minInt(i64) };
-        try emit(out, "mutation.reason", @tagName(reason), try q.MutationDiagnostic.status(value));
-    }
-    inline for (comptime std.meta.tags(q.TableMutationWriter.Rejection)) |reason| {
-        try emit(out, "mutation.input", @tagName(reason), try q.MutationDiagnostic.input(.{ .principal = 9, .input = 11, .payload = @splat(3), .reason = reason }));
-    }
-}
 fn generalTables(allocator: std.mem.Allocator, out: *std.Io.Writer) !void {
     const scope: c.TableCatalogRecords.Scope = .{ .realm = 1, .catalog = 2, .resource = 7 };
     const schema: q.fuze.TableSchema.Schema = .{ .object = 20, .revision = 1, .next_column = 2, .columns = &.{.{ .id = 1, .name = "id", .type = .int64, .nullable = false }}, .primary_key = &.{1} };
@@ -243,18 +216,6 @@ fn queryCallers(out: *std.Io.Writer) !void {
 }
 
 fn writeCallers(out: *std.Io.Writer) !void {
-    const table: q.station.Table = .{ .resource = 7, .id = 1, .schema = .{ .names = .{ try .init("id"), try .init("value") }, .value_type = .int64 } };
-    const request = try q.TableMutationRequest.fromSql(46, 65536, table, try .init("items"), "DELETE FROM items WHERE id=1");
-    const ref = try (try request.reference(19)).encode();
-    var storage: [q.station.PublicationReference.encoded_bytes * 2]u8 = undefined;
-    var allocator = std.heap.FixedBufferAllocator.init(&storage);
-    const text = try q.document.JsonValues.hex(allocator.allocator(), ref.slice());
-    for (q.MutationDiagnostic.codes.entries) |entry| {
-        var read: ?d = try q.MutationDiagnostic.attempt(.{ .status = text }, entry.cause, .{}, false, null);
-        q.MutationDiagnostic.qualify(&read, .{ .realm = 46, .resource = 7, .writer = 65536, .principal = 1234, .table = 1 }, null);
-        try emitScenario(out, "mutation.caller", @errorName(entry.cause), "read", read.?);
-        try emitScenario(out, "mutation.caller", @errorName(entry.cause), "dispatched", try q.MutationDiagnostic.attempt(.{ .submit = "original" }, entry.cause, .{}, true, .{ .domain = .transport, .id = .init(12), .sequence = .init(12) }));
-    }
     var catalog_session: c.TableBridge.Session = .{ .allocator = std.heap.page_allocator };
     defer catalog_session.deinit();
     const connection: c.TableClient.Connection = .{ .scope = .{ .realm = 46, .resource = 7, .catalog = 2 }, .owner = 3, .principal = 17 };
@@ -307,7 +268,6 @@ pub fn main(init: std.process.Init) !void {
     var stdout = std.Io.File.stdout().writerStreaming(init.io, &buffer);
     try queries(&stdout.interface);
     try queryPhases(&stdout.interface);
-    try mutations(&stdout.interface);
     try generalTables(init.gpa, &stdout.interface);
     try serving(&stdout.interface);
     try capture(&stdout.interface);

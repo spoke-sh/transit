@@ -56,17 +56,6 @@ fn run(init: std.process.Init, diagnostics: *telemetry.Runtime) !void {
         if (abi.Api.station_unified_query_create(1, url.ptr, url.len, &seed, json.ptr, json.len, &query_client) != .ok) return error.InvalidHostConfiguration;
         abi.query_client.observe(query_client.?, diagnostics);
     }
-    var mutation_client: ?*abi.mutation_client.Client = null;
-    defer abi.Api.station_table_mutation_destroy(mutation_client);
-    if (config.mutation_client) |options| {
-        var seed = try readSeed(init, config.seed_file orelse return error.MissingSeedFile);
-        defer std.crypto.secureZero(u8, &seed);
-        const json = try std.json.Stringify.valueAlloc(init.gpa, options, .{});
-        defer init.gpa.free(json);
-        const url = config.url.?;
-        if (abi.Api.station_table_mutation_create(1, url.ptr, url.len, &seed, json.ptr, json.len, &mutation_client) != .ok) return error.InvalidHostConfiguration;
-        abi.mutation_client.observe(mutation_client.?, diagnostics);
-    }
     var growing: ?*abi.growing.Server = null;
     defer abi.Api.station_growing_destroy(growing);
     if (config.growing_server) |options| {
@@ -106,8 +95,6 @@ fn run(init: std.process.Init, diagnostics: *telemetry.Runtime) !void {
             growing = null;
             abi.Api.station_unified_query_destroy(query_client);
             query_client = null;
-            abi.Api.station_table_mutation_destroy(mutation_client);
-            mutation_client = null;
             abi.Api.station_catalog_destroy(catalog_client);
             catalog_client = null;
             raw.Api.transit_client_destroy(client);
@@ -115,12 +102,12 @@ fn run(init: std.process.Init, diagnostics: *telemetry.Runtime) !void {
             try respond(&output.interface, 0, "{\"closed\":true}");
             return;
         }
-        process(init, growing, query_client, mutation_client, catalog_client, client, request.value, arena.allocator(), &output.interface) catch |err| {
+        process(init, growing, query_client, catalog_client, client, request.value, arena.allocator(), &output.interface) catch |err| {
             try respond(&output.interface, 1, try std.json.Stringify.valueAlloc(arena.allocator(), .{ .err = @errorName(err) }, .{}));
         };
     }
 }
-fn process(init: std.process.Init, growing: ?*abi.growing.Server, query_client: ?*abi.query_client.Client, mutation_client: ?*abi.mutation_client.Client, catalog_client: ?*abi.catalog_client.Client, client: ?*raw.Client, request: host.Request, allocator: std.mem.Allocator, out: *std.Io.Writer) !void {
+fn process(init: std.process.Init, growing: ?*abi.growing.Server, query_client: ?*abi.query_client.Client, catalog_client: ?*abi.catalog_client.Client, client: ?*raw.Client, request: host.Request, allocator: std.mem.Allocator, out: *std.Io.Writer) !void {
     var buffer: ?*abi.Buffer = null;
     defer abi.Api.station_buffer_destroy(buffer);
     const status: abi.Status = switch (request) {
@@ -151,10 +138,6 @@ fn process(init: std.process.Init, growing: ?*abi.growing.Server, query_client: 
         .unified_query => |action| blk: {
             const json = try std.json.Stringify.valueAlloc(allocator, action, .{});
             break :blk if (query_client) |pointer| abi.Api.station_unified_query_call(pointer, json.ptr, json.len, &buffer) else .not_ready;
-        },
-        .table_mutation => |action| blk: {
-            const json = try std.json.Stringify.valueAlloc(allocator, action, .{});
-            break :blk if (mutation_client) |pointer| abi.Api.station_table_mutation_call(pointer, json.ptr, json.len, &buffer) else .not_ready;
         },
         .catalog => |action| blk: {
             const json = try s.protocol.Json.valueAlloc(allocator, action);

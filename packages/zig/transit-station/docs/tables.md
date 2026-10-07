@@ -13,7 +13,7 @@ explicitly authorizes and routes these operations to its writer; the helper
 neither submits nor commits. Inserts accept one to three literal rows and reject
 duplicate keys. Updates and deletes require primary-key equality, returning zero
 for a missing row. The provisional affected-row count becomes durable only with
-the enclosing commit. The [mutation contract](../../../../contracts/TABLE_MUTATION_V1.md)
+the enclosing commit. The [mutation contract](../../../../contracts/TABLE_DML_V1.md)
 defines rollback, exact typing, bounds and recovery. Public query transports do
 not admit these statements.
 

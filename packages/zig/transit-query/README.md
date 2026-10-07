@@ -57,51 +57,6 @@ hosted source behavior and result verification reuses Station. Current reads
 may return a conflict if a resource changes during a bounded observation; callers
 may retry the read, but must never regenerate uncertain mutations automatically.
 
-`TableMutationRequest` encodes owned, definition-bound requests over the shared
-Table mutation plan and Station Table codecs. It can produce an immutable
-publication reference without admission or execution. `TableMutationAdmission`
-composes explicit principal/Table policies, immutable upload staging and a
-terminal result with the row proposal in one private Station turn. Applications
-retain the full immutable publication reference in every staged or control command;
-the owner rejects changed resource, length or digest even for terminal results.
-Applications must install its policy through their authorized configuration path and opt into
-its external-cast dispatch. The query host offers an explicit `table_writer`
-role; read-query roles and public query clients still reject writes. No read permission implicitly enables mutation dispatch.
-See the [mutation contract](../../../contracts/TABLE_MUTATION_V1.md).
-
-`TableMutationClient` supplies the shared Zig caller for applications that expose
-that owner: current metadata/SQL compilation, canonical saved signed commands,
-explicit submission, input observation, status and bounded upload resumption.
-`prepareNew` rejects namespace collisions in its preparation batch. `progress`
-checks mailbox advancement before returning both input disposition and mutation
-status from one authorized resource cut. `prepareNextResult` preserves terminal
-evidence acquired during successor selection. These composed Zig helpers avoid
-redundant reads; the neutral caller's individual actions keep their contracts.
-`waitObserve` and `waitProgress` use a bounded notification hint after observing
-the same exact input pending. They retain only its scheduling position and wait
-at most 50 ms per native wait, with current checks after wake/timeout. Exhausted
-wait admission uses bounded backoff followed by an ordinary authorized read.
-The console and neutral SDK `observe` action use these helpers. A timeout is
-not completion, and observation never resubmits a command. `observe` and
-`progress` remain available for immediate current reads.
-It retains full request identity across caller and writer recovery. Preparing the
-next step requires reconciling the preceding exact command first; a native send
-receipt is admission, and only a terminal mutation status establishes the result.
-The [caller contract](../../../contracts/TABLE_MUTATION_V1.md#signed-zig-caller)
-defines these APIs and the required current grants. `TableMutationWriter`
-composes guarded initialization, policy changes and durable rejected-input
-dispositions for the explicit host role. Read-query routes do not dispatch
-mutations. `TableMutationBridge` supplies owned neutral actions/results
-over the same caller, including exact compiled-reference validation and opaque
-saved commands. Its [neutral value contract](../../../contracts/TABLE_MUTATION_V1.md#neutral-caller-values)
-keeps full-width namespaces and conflicting signed keys out of JSON numbers.
-Rejected INSERT status includes the actual key and one-based input row from the
-rejecting execution, retained atomically with the outcome. The
-[native ABI/port caller](../transit-station-bindings/docs/table-mutations.md)
-exposes these actions through an explicit profile.
-[Typed SDK callers](../../../docs/reference/sdks.md#table-mutation-callers) use the same owner;
-The CLI's explicit `mutate` commands use the same bridge and saved-command rules.
-
 `CatalogQueryOwner` routes query and Table lifecycle inputs through their owning
 operations. Administrator initialization and conditional requester delegation
 are separate bounded commits. Query access uses each requester's explicit mapped
@@ -109,8 +64,7 @@ catalog principal and current read rights; mutation permissions remain independe
 See the [catalog owner contract](../../../contracts/CATALOG_QUERY_OWNER_V1.md).
 
 `zig build test` checks the package independently. The real host and shell proof
-is `just test::unified-query`; `just test::table-mutation` exercises an explicit
-mutation application against native authority and disk-backed Ursula, including
+is `just test::unified-query`; `just test::typed-tables` exercises general Table DDL/DML against native authority and disk-backed Ursula, including
 exact frozen recovery, writer fencing and current grants.
 [Tests](../../../tests/README.md) record evidence and interface limits.
 
@@ -305,25 +259,6 @@ adapter batch's key/decoding evidence. Current native and query-policy checks
 precede disclosure; no later source read reconstructs a failing row. KV keys use
 bounded hex, Table keys preserve signed width, and Document expansion identifies
 elements by counter/replica. These local details do not change durable job records.
-
-`MutationDiagnostic` projects authorized mutation statuses and rejected input
-dispositions into owned diagnostic values. Statuses retain the original conflict
-key/row and policy or descriptor mismatch evidence. `bound` verifies the original
-immutable request before adding its column name. Terminal results and rejected
-inputs retain distinct recovery guidance; projection never reads current rows or
-changes work. See the [mutation record contract](../../../contracts/TABLE_MUTATION_V1.md#record-and-command-encodings).
-
-`TableMutationBridge.Status.diagnostic` and `.Disposition.diagnostic` carry these
-projections through the ABI, native port, CLI and all SDK models. The bridge's
-`rejection` response retains the complete checked input disposition, including
-principal, native input and payload commitment, separately from mutation status.
-
-`MutationDiagnostic.codes` defines finite caller causes separately from durable
-mutation outcomes. Failed status reads preserve the exact supplied publication
-reference's namespace and resource, qualified by the connection realm. A failed
-read does not prove absence, rejection or cancellation. Native authority conflict
-is distinct from mutation identity conflict; ABI and CLI details retain its native
-cause. Unknown sends still require reconciliation of the original signed command.
 
 Native source hosts use separate 1 MiB source/plan decoding and 4 MiB logical
 Arrow workspaces. Exhausting either explicit buffer closes that query with

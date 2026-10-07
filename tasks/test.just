@@ -298,11 +298,6 @@ table-ddl-sql:
 table-dml-sql:
     nix shell .#sql-tools --command zig build test-table-dml-sql -Doptimize=ReleaseSafe
 
-# Real Table mutation authority gates, exact frozen recovery and disk restart.
-[positional-arguments]
-table-mutation *args:
-    zig build test-table-mutation -Doptimize=ReleaseSafe -- "$@"
-
 # Catalog Table publication, exact receipt recovery and native fencing on disk.
 [positional-arguments]
 catalog *args:

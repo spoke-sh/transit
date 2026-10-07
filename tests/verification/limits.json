@@ -353,13 +353,6 @@
       "meaning": "Typed mutation batch shares the SQL operation bound; retained collection cardinality remains independent."
     },
     {
-      "source": "packages/zig/transit-query/src/TableMutationRequest.zig",
-      "symbol": "max_bytes",
-      "expression": "4 + 32 + 8 * 3 + 4 + 1 + 39 + 2 + f.TableMutation.max_rows * (8 + 1 + f.model.max_cell_bytes + 2)",
-      "classification": "operation",
-      "meaning": "799-byte maximum canonical request for three full-width Table rows and exact target/schema; immutable publication stages larger-than-envelope requests without enlarging a native turn."
-    },
-    {
       "source": "packages/zig/transit-fuze/src/Declaration.zig",
       "symbol": "max_columns",
       "expression": "@import(\"Unified.zig\").max_columns",
@@ -372,6 +365,41 @@
       "expression": "8192",
       "classification": "encoding",
       "meaning": "Complete owned canonical saved catalog command; bounds one recovery artifact, not retained operation receipts or catalog cardinality."
+    },
+    {
+      "source": "packages/zig/transit-catalog/src/TableIntent.zig",
+      "symbol": "max_bytes",
+      "expression": "prefix_bytes + Meta.max_bytes + Schema.max_bytes + Command.max_bytes",
+      "classification": "operation",
+      "meaning": "Exact saved general Table intent includes its original schema and bounded command. It is independent of retained Table/cardinality; staged commands retain this identity."
+    },
+    {
+      "source": "packages/zig/transit-station/src/TableStatement.zig",
+      "symbol": "max_insert_batch",
+      "expression": "8",
+      "classification": "working-set",
+      "meaning": "Finite INSERT scheduling batch; uses the existing private candidate record/byte ceilings and native four-write turns, independent of query vectors and total Table size."
+    },
+    {
+      "source": "packages/zig/transit-station/src/TableCandidate.zig",
+      "symbol": "max_nodes",
+      "expression": "3 * (2 * (Index.max_level + 1) + 1)",
+      "classification": "working-set",
+      "meaning": "Private point or finite batch overlay budget derived from maximum-depth index edits and a bounded row. Intermediates stay private and durable candidates remain paged."
+    },
+    {
+      "source": "packages/zig/transit-station/src/TableCandidate.zig",
+      "symbol": "max_records",
+      "expression": "max_nodes + 1",
+      "classification": "working-set",
+      "meaning": "Private point or finite batch overlay budget derived from maximum-depth index edits and a bounded row. Intermediates stay private and durable candidates remain paged."
+    },
+    {
+      "source": "packages/zig/transit-station/src/TableCandidate.zig",
+      "symbol": "max_bytes",
+      "expression": "max_nodes * Index.node_bytes + f.TableRow.max_bytes",
+      "classification": "working-set",
+      "meaning": "Private point or finite batch overlay budget derived from maximum-depth index edits and a bounded row. Intermediates stay private and durable candidates remain paged."
     }
   ],
   "identities": [

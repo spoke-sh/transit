@@ -17,10 +17,6 @@ final class Bridge implements Worker.State<Void> {
         return new Bridge(obj("url", client.endpoint().toString(), "seed_file", credential.seedFile().toString(), "timeout_ms", client.timeoutMillis(),
             "query_client", obj("connection", connection.wire(credential), "timeout_ms", client.timeoutMillis())), client.nativeHost());
     }
-    static Bridge mutation(ClientConfig client, Credential credential, Mutations.Connection connection) {
-        return new Bridge(obj("url", client.endpoint().toString(), "seed_file", credential.seedFile().toString(), "timeout_ms", client.timeoutMillis(),
-            "mutation_client", obj("connection", connection.wire(credential), "timeout_ms", client.timeoutMillis())), client.nativeHost());
-    }
     static Bridge catalog(ClientConfig client, Credential credential, Catalog.Connection connection) {
         return new Bridge(obj("url", client.endpoint().toString(), "seed_file", credential.seedFile().toString(), "timeout_ms", client.timeoutMillis(),
             "catalog_client", obj("connection", connection.wire(credential), "timeout_ms", client.timeoutMillis())), client.nativeHost());
@@ -93,9 +89,6 @@ final class Bridge implements Worker.State<Void> {
     }
     JsonObject unifiedQuery(JsonObject action, boolean mutation) {
         return object(port.request(obj("unified_query", action), "unified-query", mutation, "UnifiedQueryResult"));
-    }
-    JsonObject tableMutation(JsonObject action) {
-        return object(port.request(obj("table_mutation", action), "table-mutation", action.has("submit"), "TableMutationResult"));
     }
     JsonObject catalog(JsonObject action) {
         return object(port.request(obj("catalog", action), "catalog", action.has("submit"), "CatalogResult"));

@@ -147,26 +147,6 @@ no replacement preparation, automatic dispatch or implicit provisioning occurs.
 The [catalog guide](../apps/transit-cli/docs/catalog.md) owns configuration,
 command syntax, input envelopes, numeric bounds and recovery examples.
 
-## Explicit mutation commands
-
-`transit mutate` uses the shared [Table mutation contract](TABLE_MUTATION_V1.md).
-`capabilities` is offline; `describe` reads currently authorized metadata.
-`compile` saves a request/reference, `next` prepares one upload stage and
-`prepare --control apply|cancel` prepares an explicit control. These operations
-do not send native commands. `submit` sends an exact saved command; `observe`
-and `rejection` inspect its admitted input, while `status` reads the durable
-request outcome. Admission and application remain distinct.
-
-Compilation and preparation require a new private output file. Atomic creation,
-file synchronization and directory synchronization precede successful output;
-existing paths are refused. Submission validates the saved definition, target
-and signature through the shared client. An unknown outcome retains the original
-file for exact retry; there is no automatic retry or sequence coordination.
-Current grants and writer policy still apply. Terminal cancellation cannot undo
-an applied result. The [mutation guide](../apps/transit-cli/docs/mutations.md)
-owns exact flags, configuration and artifact bounds. These commands require their
-own mutation connection; query permissions do not authorize writes.
-
 ## Local server and recovery
 
 The initial service neighborhood is a growing authority over disk-backed Ursula,

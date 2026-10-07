@@ -1,6 +1,5 @@
 #include <transit/station.hpp>
 #include <transit/unified_query.hpp>
-#include <transit/table_mutation.hpp>
 #include <transit/catalog.hpp>
 #include <transit/logical.hpp>
 #include <cassert>
@@ -11,10 +10,6 @@ static_assert(!std::is_copy_constructible_v<Table<int64_t>>);
 static_assert(!std::is_copy_constructible_v<unified::Client>);
 static_assert(!std::is_copy_constructible_v<unified::Prepared>);
 static_assert(std::is_move_constructible_v<unified::Page>);
-static_assert(!std::is_copy_constructible_v<mutations::Client>);
-static_assert(!std::is_copy_constructible_v<mutations::Prepared>);
-static_assert(!std::is_copy_constructible_v<mutations::Compiled>);
-static_assert(std::is_move_constructible_v<mutations::Prepared>);
 static_assert(!std::is_copy_constructible_v<catalog::Client>);
 static_assert(!std::is_copy_constructible_v<catalog::Compiled>);
 static_assert(!std::is_copy_constructible_v<catalog::Prepared>);

@@ -8,13 +8,6 @@
       "exceptions": {},
       "fallback": "query"
     },
-    "mutation": {
-      "causes": null,
-      "mappings": [],
-      "reason": "Transport, allocator or callback APIs expose anyerror. Selected known causes are mapped separately; arbitrary external causes cannot be enumerated.",
-      "exceptions": {},
-      "fallback": "mutation"
-    },
     "catalog": {
       "causes": null,
       "mappings": [],
@@ -332,27 +325,6 @@
     },
     "query.dispatched": {
       "code": "query.send_unknown",
-      "category": "unavailable",
-      "stage": "submit",
-      "outcome": "unknown",
-      "evidence": "saved_intent",
-      "actions": [
-        "inspect_status",
-        "resume_exact"
-      ]
-    },
-    "mutation.read": {
-      "code": "mutation.internal_failure",
-      "category": "internal",
-      "stage": "read",
-      "outcome": "not_applicable",
-      "evidence": "none",
-      "actions": [
-        "contact_operator"
-      ]
-    },
-    "mutation.dispatched": {
-      "code": "mutation.send_unknown",
       "category": "unavailable",
       "stage": "submit",
       "outcome": "unknown",

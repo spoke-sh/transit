@@ -5,7 +5,7 @@ process by default in version-1 local installations, with `--no-ui` for headless
 [server guide](docs/server.md#default-board-and-compatibility) for grants and compatibility.
 
 The `transit` executable provides the local `server`, interactive/batch `console`,
-explicit signed query shell, saved Table mutation commands and catalog operations. Existing `rey-cli`
+explicit signed query shell, general Table DDL/DML and catalog operations. Existing `rey-cli`
 administration commands remain separate.
 
 The [server/console contract](../../contracts/TRANSIT_CLI_V1.md) defines commands,
@@ -59,14 +59,6 @@ CREATE is offline; other operations bind authorized current metadata. It saves
 individual signed steps and explicitly submits and observes them, with separate
 lifecycle, policy and dependency controls. The [catalog guide](docs/catalog.md) defines typed inputs, private artifacts,
 current authority and exact saved recovery through the shared catalog caller.
-
-## Explicit Table mutations
-
-`transit mutate` compiles bounded SQL, saves exact prepared commands to new
-private files, and explicitly submits and observes them through an authorized
-Table writer. Only `submit` dispatches. The [mutation guide](docs/mutations.md)
-defines connection fields, commands, bounds and recovery after unknown outcomes.
-This uses the same mutation owner as the Zig client and ten language SDKs.
 
 ## Explicit durable queries
 

@@ -17,7 +17,6 @@ pub fn main(init: std.process.Init) !void {
     var buffer: [8192]u8 = undefined;
     var stdout = std.Io.File.stdout().writerStreaming(init.io, &buffer);
     try report(&stdout.interface, "query", q.Bridge.applyDiagnostic);
-    try report(&stdout.interface, "mutation", q.TableMutationBridge.applyDiagnostic);
     try report(&stdout.interface, "catalog", c.TableBridge.Session.applyDiagnostic);
     try report(&stdout.interface, "application", a.Host.runDiagnostic);
     try report(&stdout.interface, "application-compiler", a.Host.compileDiagnostic);
@@ -48,8 +47,6 @@ fn fallbacks(out: *std.Io.Writer) !void {
     const identity: q.protocol.Diagnostic.Identity = .{ .domain = .transport, .id = .init(12), .sequence = .init(12) };
     try emit(out, "query", "read", try q.ApiDiagnostic.project(.{ .status = "19" }, cause, .{}, false, null));
     try emit(out, "query", "dispatched", try q.ApiDiagnostic.project(.{ .submit = "original" }, cause, .{}, true, identity));
-    try emit(out, "mutation", "read", try q.MutationDiagnostic.attempt(.{ .status = "invalid" }, cause, .{}, false, null));
-    try emit(out, "mutation", "dispatched", try q.MutationDiagnostic.attempt(.{ .submit = "original" }, cause, .{}, true, identity));
     var catalog_session: c.TableBridge.Session = .{ .allocator = std.heap.page_allocator };
     defer catalog_session.deinit();
     const connection: c.TableClient.Connection = .{ .scope = .{ .realm = 46, .resource = 7, .catalog = 2 }, .owner = 3, .principal = 17 };

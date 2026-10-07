@@ -22,7 +22,6 @@ const Config = struct {
     role: union(enum) {
         finite_service: serving.FiniteService.Configuration,
         unified_source: struct { peer: u64, initializer: u64 },
-        table_writer: q.TableMutationWriter.Configuration,
         catalog: catalog.TableCatalogRecords.Configuration,
         unified_requester: q.UnifiedBehavior.Requester,
         courier: struct { destinations: []const u64 = &.{}, all_destinations: bool = false },
@@ -107,7 +106,6 @@ fn run(init: std.process.Init, diagnostics: *telemetry.Runtime) !void {
         .workspace = workspace,
         .cancellation = &cancellation,
     };
-    var table_writer: q.TableMutationWriter = .{ .configuration = if (config.role == .table_writer) config.role.table_writer else undefined };
     var declarations: q.CatalogQueryOwner = .{ .tables = .{ .allocator = init.gpa, .configuration = if (config.role == .catalog) config.role.catalog else undefined }, .resources = unified_source.resources, .adapter = adapter, .workspace = workspace, .cancellation = &cancellation };
     var finite: serving.FiniteService = .{ .configuration = if (config.role == .finite_service) config.role.finite_service else undefined };
     const handler = switch (config.role) {
@@ -120,11 +118,6 @@ fn run(init: std.process.Init, diagnostics: *telemetry.Runtime) !void {
             break :blk finite.interface();
         },
         .unified_source => unified_source.interface(),
-        .table_writer => blk: {
-            _ = try table_writer.configuration.target();
-            server.input_guard = table_writer.guard();
-            break :blk table_writer.interface();
-        },
         .unified_requester => |*requester| requester.interface(),
         .courier => unreachable,
     };

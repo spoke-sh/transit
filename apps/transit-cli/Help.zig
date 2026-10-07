@@ -11,7 +11,6 @@ pub const root =
     \\  server    Run a local server
     \\  console   Open an SQL console
     \\  app       Manage installed applications
-    \\  mutate    Prepare, submit and observe SQL Table mutations
     \\  catalog   Compile, prepare, submit and inspect catalog operations
     \\  file-query  Query captured CSV or JSONL files with a frozen schema
     \\

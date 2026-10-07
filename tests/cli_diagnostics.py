@@ -113,27 +113,8 @@ invoke(['app', 'install', '--config', 'missing', '--file', 'missing'], contains=
 invoke(['app', 'status', '--file', 'private-must-not-appear'], contains=('--file is not supported', 'transit app status --help'))
 invoke(['app', 'status', '--after', '4294967296'], stderr='error: --after must be an integer from 0 through 4294967295\n')
 
-# Mutation invocation and local capabilities need no credential discovery or I/O.
-invoke(['mutate'], 0, ('Only submit sends a command',))
-invoke(['mutate', '--help'], 0, ('transit mutate COMMAND',))
-capabilities = json.loads(invoke(['mutate', 'capabilities'], 0).stdout)['capabilities']
-assert capabilities['max_rows'] == 3 and capabilities['max_saved_bytes'] == 8192
-invoke(['mutate', 'private-must-not-appear'], contains=('unknown mutation subcommand', 'argument 2'))
-for mode in ('describe', 'compile', 'next', 'prepare', 'submit', 'observe', 'rejection', 'status'):
-    invoke(['mutate', mode], contains=(f'Usage: transit mutate {mode}', '--config is required'))
-    invoke(['mutate', mode, '--help'], 0, (f'Usage: transit mutate {mode}', 'Only submit sends a command'))
-    invoke(['mutate', mode, '--config', 'private-must-not-appear', '--help'], 0)
-    invoke(['mutate', mode, '--help', '--config'], stderr='error: --config requires a file path\n')
-    invoke(['mutate', mode, '--help', '--unknown=private-must-not-appear'], contains=('argument 4',))
-    invoke(['mutate', mode, '--config', 'one', '--config', 'two'], stderr='error: --config can only be specified once\n')
-invoke(['mutate', 'submit', '--output', 'private-must-not-appear'], contains=('--output is not supported',))
-invoke(['mutate', 'capabilities', '--config', 'private-must-not-appear'], contains=('--config is not supported',))
-invoke(['mutate', 'compile', '--namespace', '18446744073709551616'], contains=('positive uint64',))
-invoke(['mutate', 'compile', '--namespace', '0'], contains=('positive uint64',))
-invoke(['mutate', 'observe', '--input', '9007199254740992'], contains=('positive native position',))
-invoke(['mutate', 'prepare', '--control', 'private-must-not-appear'], contains=('must be apply or cancel',))
-
 # Catalog options validate before configuration; compilation needs no endpoint/key.
+invoke(['mutate'], contains=('unknown command',))
 invoke(['catalog'], 0, ('Only submit sends a command',))
 invoke(['catalog', '--help'], 0, ('transit catalog COMMAND',))
 capabilities = json.loads(invoke(['catalog', 'capabilities'], 0).stdout)['capabilities']
@@ -178,7 +159,6 @@ with tempfile.TemporaryDirectory(prefix='transit-cli-diagnostics-') as directory
     for command in ('server', 'console'):
         invoke([command, '--config', root / 'missing.json'], contains=('configuration file', 'missing.json', 'was not found'))
     invoke(['app', 'status', '--config', root / 'missing.json', '--application', 'test'], contains=('configuration file', 'was not found'))
-    invoke(['mutate', 'describe', '--config', root / 'missing.json'], contains=('configuration file', 'was not found'))
     catalog_config = root / 'catalog.json'
     catalog_values = dict(version=1, connection=dict(scope=dict(realm=46, resource=2, catalog='18446744073709551615'), owner=1, principal=1234))
     sql = root / 'create.sql'
@@ -287,18 +267,6 @@ with tempfile.TemporaryDirectory(prefix='transit-cli-diagnostics-') as directory
     yaml_args[-1] = root / 'yaml-compiled.json'
     assert json.loads(invoke(yaml_args, 0).stdout) == compiled
     assert not (root / 'must-not-exist.json').exists()
-    mutation_config = root / 'mutation.json'
-    mutation_values = dict(version=1,url='http://127.0.0.1:1',seed_file='missing.seed',connection=dict(realm=46,principal=1234,writer=1,resource=2,table=1))
-    mutation_config.write_text(json.dumps(dict(mutation_values,version=2)))
-    invoke(['mutate', 'describe', '--config', mutation_config], contains=('version', 'must be 1'))
-    mutation_config.write_text(json.dumps(dict(mutation_values,url='http://private-must-not-appear@127.0.0.1:1')))
-    invoke(['mutate', 'describe', '--config', mutation_config], contains=('url', 'without embedded credentials'))
-    mutation_config.write_text(json.dumps(mutation_values))
-    invalid_prepared = root / 'invalid-prepared.json'
-    invalid_prepared.write_text('{"prepared":null}')
-    invoke(['mutate', 'submit', '--config', mutation_config, '--file', invalid_prepared], 1, ('NoPreparedMutation',))
-    invalid_prepared.write_text('{"prepared":"{}"}')
-    invoke(['mutate', 'submit', '--config', mutation_config, '--file', invalid_prepared], 1, ('InvalidMutationPrepared',))
     # Malformed artifacts fail before the missing key could be loaded.
     for text, explanation in (('{\n  "version": !\n}', 'invalid JSON'), ('{"version":1,"version":1}', 'duplicate field'), ('{"private-must-not-appear":0}', 'unknown field')):
         path.write_text(text)
@@ -782,7 +750,7 @@ def facts(diagnostic):
 result,detail,_ = machine(['private-must-not-appear'],2)
 assert detail['code'] == 'cli.invalid_invocation' and facts(detail)['argument'] == {'unsigned':'2'}
 assert detail['outcome'] == 'not_submitted' and not result.stdout
-for route in ('console','app','mutate','catalog','query','file-query'):
+for route in ('console','app','catalog','query','file-query'):
     args = [route,'--bad=private-must-not-appear']
     _,detail,_ = machine(args,2)
     assert detail['code'] == 'cli.invalid_invocation', detail

@@ -1,7 +1,7 @@
 # Transit CLI reference
 
 `transit` starts a local server, manages installed applications and opens signed
-query sessions, explicit Table mutation commands and catalog operations. It is separate from the retained `rey-cli` administration utility
+query sessions, general Table DDL/DML and catalog operations. It is separate from the retained `rey-cli` administration utility
 and `kubectl-transit` runtime tooling. Commands assume `transit` is on `PATH`.
 Use the [local quickstart](../guides/quickstart.md) for prerequisites and startup.
 
@@ -14,7 +14,6 @@ transit serve [--config FILE] [--initialize] [--no-ui]
 transit server [--config FILE] [--initialize] [--no-ui]
 transit console [--config FILE] [--format table|json] [-c SQL | -f FILE] [--init FILE | --no-rc]
 transit query FILE
-transit mutate COMMAND [OPTIONS]
 transit catalog COMMAND [OPTIONS]
 transit app install --config FILE --file DECLARATION --operation ID
 transit app replace --config FILE --file REPLACEMENT --operation ID
@@ -28,7 +27,6 @@ transit app connect --config FILE --application NAME --caller NAME [--output FIL
 | `serve`, `server` | Aliases. Run the local supervisor in the foreground; `--initialize` creates a new installation. Version 3 starts Board by default; `--no-ui` runs headlessly |
 | `console` | Interactive and batch finite SQL, automatic query identity/progress/results, terminal assistance and saved recovery |
 | `query` | Single-line KV/Table/Document shell with positional configuration and explicit recovery exports |
-| `mutate` | Compile, save, explicitly submit and observe bounded SQL commands through an authorized Table writer |
 | `catalog` | [Compile Table declarations, save, submit and inspect explicit initialization, creation and conditional policy commands](../../apps/transit-cli/docs/catalog.md) |
 | `app install` | Freeze/sign a declaration under an operation ID; accepted management intent is separate from installed/ready/domain state |
 | `app replace` | Conditional role replacement using `expected_revision`; stable durable IDs and current permissions remain |
@@ -252,7 +250,7 @@ an explicit apply/cancel control. Only `submit` dispatches a saved command.
 Preparation requires a new private output file and refuses to replace existing
 paths. An unknown outcome requires the same saved command and connection for
 exact retry. There is no automatic retry or sequence coordinator. See the
-[mutation guide](../../apps/transit-cli/docs/mutations.md) for flags, connection
+[mutation guide](../../apps/transit-cli/docs/catalog.md) for flags, connection
 fields, file bounds and the explicit preparation/submission workflow.
 
 ## Configuration, output and recovery

@@ -31,12 +31,7 @@ test {
     _ = @import("unified_capture_test.zig");
     _ = @import("unified_upload_test.zig");
     _ = @import("unified_records_test.zig");
-    _ = @import("table_mutation_request_test.zig");
-    _ = @import("table_mutation_admission_test.zig");
-    _ = @import("table_mutation_client_test.zig");
-    _ = @import("table_mutation_writer_test.zig");
     _ = @import("catalog_query_owner_test.zig");
-    _ = @import("table_mutation_bridge_test.zig");
     @import("std").testing.refAllDecls(@This());
 }
 
@@ -48,19 +43,11 @@ pub const TableAssistance = @import("TableAssistance.zig");
 pub const Assistance = @import("Assistance.zig");
 pub const SqlInspection = @import("SqlInspection.zig");
 pub const SqlCompilation = @import("SqlCompilation.zig");
-pub const TableMutationRequest = @import("TableMutationRequest.zig");
-pub const MutationDiagnostic = @import("MutationDiagnostic.zig");
-pub const TableMutationRecords = @import("TableMutationRecords.zig");
-pub const TableMutationAdmission = @import("TableMutationAdmission.zig");
-pub const TableMutationClient = @import("TableMutationClient.zig");
-pub const TableMutationWriter = @import("TableMutationWriter.zig");
 
 /// Test-only reference transactions; never a production authority or backend.
 pub const testing = if (@import("builtin").is_test) struct {
     pub const Store = @import("source_store_test.zig");
 } else struct {};
-
-pub const TableMutationBridge = @import("TableMutationBridge.zig");
 
 pub const SourceWitness = @import("SourceWitness.zig");
 pub const RuntimeWitness = @import("RuntimeWitness.zig");

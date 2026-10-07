@@ -60,10 +60,6 @@ The [unified query guide](docs/unified-query.md) covers explicit v1 sources,
 persisted admission commands, current-policy results and owned nested Arrow.
 Qualification is tracked per source and SDK.
 
-The [Table mutation guide](docs/mutations.md) covers explicit SQL writes, owned
-request references, exact saved-command recovery and durable results through
-the shared Zig mutation caller.
-
 The [catalog guide](docs/catalog.md) covers general typed Table schemas, DDL/DML,
 metadata, conditional policy and exact saved-intent recovery, with `bigint`
 identities and generated runtime validation through the native port.

@@ -36,9 +36,6 @@ import type {
   UnifiedQueryAction,
   UnifiedQueryResult,
   UnifiedQueryConfig,
-  TableMutationAction,
-  TableMutationResult,
-  TableMutationConfig,
   CatalogAction,
   CatalogResult,
   CatalogConfig,
@@ -358,55 +355,6 @@ export class QueryBridge {
   }
   close(): Promise<void> {
     return this.port.close();
-  }
-}
-
-export class MutationBridge {
-  readonly #port: Port;
-  private constructor(port: Port) {
-    this.#port = port;
-  }
-  static async open(
-    url: string,
-    seedFile: string,
-    config: TableMutationConfig,
-    nativeHost?: string,
-  ): Promise<MutationBridge> {
-    const port = await openPort({ url, seed_file: seedFile, mutation_client: config }, nativeHost);
-    try {
-      const bridge = new MutationBridge(port);
-      const value = await bridge.call({ capabilities: {} });
-      if (!("capabilities" in value))
-        throw new IncompatibleNative("Expected mutation capabilities");
-      const caps = value.capabilities;
-      if (
-        caps.version !== 1 ||
-        caps.max_rows !== 3 ||
-        caps.max_request_bytes !== 799 ||
-        caps.max_saved_bytes !== 8192 ||
-        !caps.insert ||
-        !caps.update_primary_key ||
-        !caps.delete_primary_key
-      )
-        throw new UnsupportedCapability("Native mutation client lacks the bounded Table profile");
-      return bridge;
-    } catch (error) {
-      await port.close();
-      throw error;
-    }
-  }
-  async call(action: TableMutationAction): Promise<TableMutationResult> {
-    return (await this.#port.request(
-      { table_mutation: action },
-      {
-        phase: "table-mutation",
-        mutation: "submit" in action,
-        validator: validation.TableMutationResult,
-      },
-    )) as TableMutationResult;
-  }
-  close(): Promise<void> {
-    return this.#port.close();
   }
 }
 

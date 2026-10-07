@@ -173,7 +173,7 @@ produce the same plans and errors; diagnostic storage requires no allocation.
 typed plans for literal INSERT, UPDATE and DELETE against one declared Table.
 These plans are separate from read queries. The application invokes Station's
 private-turn helper under its own command authorization; public query transports
-reject mutation statements. See the [Table mutation contract](../../../contracts/TABLE_MUTATION_V1.md).
+reject mutation statements. See the [Table mutation contract](../../../contracts/TABLE_DML_V1.md).
 
 `TableSchema` supplies the pure general schema/row model with stable column IDs,
 nullable defaults, typed defaults and declared keys. Its owned codec and exact

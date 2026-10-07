@@ -81,7 +81,6 @@ reference deployment and physical-capacity tests remain explicit commands.
 | `just test::sql` | Compare Zig/ANTLR/PostgreSQL ASTs, durable plan encodings and independently decoded paged Arrow results |
 | `just test::declarative-benchmark [--rows N --samples N --output PATH]` | Verify and measure synthetic declarative components; report all TPC-C/E/H/DS workload blockers; see [benchmark tooling](../tests/benchmarks/README.md) |
 | `just test::sql-benchmark [--samples N --output PATH]` | Record pure ReleaseSafe compiler and paged count/sum costs with raw samples and binary provenance |
-| `just test::table-mutation` | Prove atomic Table rows/results, frozen receipt recovery after disk restart, stale views/writers and current grants through an explicit native application, native ABI/port and saved-file CLI |
 | `just test::table-query-writer [--sdk LANGUAGE ...]` | Exercise separate catalog initialization/delegation, lost receipts and disk recovery, retained query cuts across same-namespace Table mutations, and independent query/write policies; optionally use installed catalog SDKs |
 | `just test::catalog [--sdk python\|node\|rust\|ruby ...]` | Prove atomic named Table creation, shared Zig/C ABI/native-port/CLI callers, supplied-host initialization/creation receipt recovery after disk restart, conditional policy/disposition outcomes, fresh ownership and current native grants |
 | `just test::catalog-growth` | Create 65 additional Tables on disk with eight resident pages; check nine ordered metadata pages, changed cursors, current disclosure rights and node/store restart; larger counts use `test::catalog --grow N` |
@@ -93,14 +92,6 @@ reference deployment and physical-capacity tests remain explicit commands.
 | `just bindings::catalog-java` | Build/install Java JARs; verify immutable values, exact catalog recovery, uncertain replies and joined native-port cancellation |
 | `just bindings::catalog-dotnet` | Build/install .NET NuGets; verify immutable values, exact catalog recovery, strict receipt decoding and joined native ABI read cancellation |
 | `just bindings::catalog-beam` | Build/install Erlang/Elixir OTP applications; verify immutable values, exact catalog recovery, malformed replies and joined waiting-process loss |
-| `just bindings::mutation-python` | Build and install Python wheels outside the checkout; prove sync/async mutation caller replacement, exact retry and current denial through the shared native schedule |
-| `just bindings::mutation-rust` | Install Rust crates outside the checkout; verify exclusive caller borrows, full-width mutation identity and exact saved recovery |
-| `just bindings::mutation-c` | Build and install C11/C++17 consumers; prove copied buffers, saved-command lifetime, full-width namespaces and exact recovery |
-| `just bindings::mutation-java` | Install Java JARs outside the checkout; verify immutable values, full-width mutation identity and exact caller replacement recovery |
-| `just bindings::mutation-dotnet` | Restore installed NuGet packages outside the checkout; verify immutable values, asynchronous disposal and exact mutation recovery |
-| `just bindings::mutation-beam` | Install Erlang/Elixir OTP artifacts outside the checkout; verify immutable recovery values, full-width namespaces and current status denial |
-| `just bindings::mutation-ruby` | Build and install Ruby gems outside the checkout; prove immutable requests, full-width namespace recovery and current read denial |
-| `just bindings::mutation-node` | Build and install TypeScript packages outside the checkout; check owned mutation values, runtime response validation and exact receipt recovery with a full-width namespace |
 | `just test::sql-grammar`, `just test::sql-rewrites` | Regenerate the SQL reference parser, compare covered PostgreSQL ASTs, and type-check named Lean proofs with pinned optional tools |
 | `just test::table-ddl-sql` | Compare general Table DDL with independent aliases, defaults, keys, schema bytes and selected evolution semantics |
 | `just test::table-dml-sql` | Compare general Table DML with independent PostgreSQL/ANTLR ASTs and exact typed intent bytes; no native admission claim |

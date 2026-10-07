@@ -38,9 +38,6 @@ with explicit owned values and bounded continuations.
 M18 adds [typed unified KV/Table/Document queries](docs/UNIFIED_QUERY.md),
 with explicit signed recovery, owned nested Arrow and current-source checks.
 
-The [Table mutation caller](docs/TABLE_MUTATIONS.md) provides explicit SQL writes,
-move-only request/command owners and exact recovery through the public C SDK.
-
 The [catalog caller](docs/CATALOG.md) provides owned general Table schemas, DDL,
 DML, historical definitions and move-only saved work through the native worker.
 

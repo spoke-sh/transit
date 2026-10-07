@@ -49,7 +49,7 @@ telemetry are volatile; neither establishes the mutation outcome.
 
 The implementation combines three independent mechanisms:
 
-- The [shared mutation caller](../../packages/zig/transit-query/src/TableMutationClient.zig)
+- The [shared mutation caller](../../packages/zig/transit-catalog/src/TableClient.zig)
   prepares compatible metadata in one authorized batch and observes processed
   input with disposition/status evidence. The console keeps the acknowledged
   input until a next-request or terminal checkpoint atomically replaces it.

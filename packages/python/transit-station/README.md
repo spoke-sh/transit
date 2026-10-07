@@ -67,10 +67,6 @@ The [unified query guide](docs/unified-query.md) covers explicit v1 KV/Table/
 Document sources, sync/async query callers, persisted admission commands and
 owned nested Arrow pages. Qualification is tracked per source and SDK.
 
-The [Table mutation guide](docs/mutations.md) covers explicit signed SQL writes,
-owned compiled references, exact prepared-command recovery and separate durable
-result/input-rejection observations through synchronous and asynchronous callers.
-
 The [catalog guide](docs/catalog.md) covers general typed schemas, sync/async
 CREATE/ALTER/DROP and INSERT/UPDATE/DELETE, conditional policy, exact saved-intent
 recovery and currently authorized outcomes through the shared native caller.

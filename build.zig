@@ -266,11 +266,6 @@ pub fn build(b: *std.Build) void {
     unified_contract_test.has_side_effects = true;
     unified_contract_test.stdio = .inherit;
     test_step.dependOn(&unified_contract_test.step);
-    const mutation_contract_test = b.addSystemCommand(&.{ "python3", "-B" });
-    mutation_contract_test.addFileArg(b.path("tests/table_mutation_contract.py"));
-    mutation_contract_test.has_side_effects = true;
-    mutation_contract_test.stdio = .inherit;
-    test_step.dependOn(&mutation_contract_test.step);
     const document_contract_test = b.addSystemCommand(&.{ "python3", "-B" });
     document_contract_test.addFileArg(b.path("tests/document_contract.py"));
     document_contract_test.has_side_effects = true;
@@ -1048,25 +1043,6 @@ pub fn build(b: *std.Build) void {
     typed_table_native.has_side_effects = true;
     typed_table_native.stdio = .inherit;
     b.step("test-typed-tables", "Prove general typed Table lifecycle and exact recovery on disk").dependOn(&typed_table_native.step);
-    const mutation_proof = b.addExecutable(.{ .name = "transit-table-mutation-proof", .root_module = b.createModule(.{
-        .root_source_file = b.path("tests/table_mutation_native.zig"),
-        .target = target,
-        .optimize = optimize,
-        .imports = &.{ .{ .name = "transit_query", .module = query.module("transit_query") }, .{ .name = "transit_station", .module = station.module("transit_station") } },
-    }) });
-    build_test_step.dependOn(&mutation_proof.step);
-    const mutation_native_test = b.addSystemCommand(&.{ "python3", "-B" });
-    mutation_native_test.addFileArg(b.path("tests/table_mutation_native.py"));
-    mutation_native_test.addArtifactArg(node_artifact);
-    mutation_native_test.addArtifactArg(mutation_proof);
-    mutation_native_test.addArtifactArg(query_host);
-    mutation_native_test.addArtifactArg(station_host);
-    mutation_native_test.addArtifactArg(station_bindings.artifact("transit_station"));
-    mutation_native_test.addArtifactArg(query_shell);
-    mutation_native_test.addPassthruArgs();
-    mutation_native_test.has_side_effects = true;
-    mutation_native_test.stdio = .inherit;
-    b.step("test-table-mutation", "Prove Table mutation rows and results share native recovery and authority gates").dependOn(&mutation_native_test.step);
     const combined_table_test = b.addSystemCommand(&.{ "python3", "-B" });
     combined_table_test.addFileArg(b.path("tests/table_query_writer.py"));
     combined_table_test.addArtifactArg(node_artifact);

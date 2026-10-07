@@ -81,7 +81,7 @@ Table creation does not provision its native resource or implicitly grant query
 or mutation policy. Mutation callers retain admission, processing and application
 outcomes separately, including accepted work with a lost reply.
 
-The [SDK matrix](../sdks.md#table-mutation-callers) and
+The [SDK matrix](../sdks.md#catalog-callers) and
 [catalog contract](../../../contracts/DECLARATIVE_CATALOG_V1.md) identify the
 available language callers. All ten SDKs expose general typed catalog lifecycle,
 DML, controls, exact saved recovery and owned lookup/definition/page values through

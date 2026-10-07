@@ -17302,3 +17302,40 @@ latency SLO is claimed. Point-write overhead is substantially reduced, but the
 remaining general-schema metadata, upload and staged-publication cost still
 requires review. The multi-row regression is not resolved by this checkpoint;
 wide/nested, age/readers and final committed-source controls remain separate.
+
+### Fixed mutation caller removal
+
+The separate fixed-table writer, query-package mutation caller/bridge, native
+mutation handle/port profile, `transit mutate` route and ten SDK mutation adapters
+are removed. General Catalog DDL/DML owns replacement dispatch and exact saved
+recovery. Old generated ABI/schema declarations and dedicated tests/tasks are
+removed with their implementation. The [historical record](../docs/history/fixed-table-mutations.md)
+retains the earlier contracts and executed SDK observations; those observations
+are not counted as new general-Table qualification. The remaining Station
+handler Table/query helpers and pure fixed SQL compiler are a separate migration.
+
+`general-query-mutation-removal-unit1.log` passes **89/89** Query tests;
+`general-station-bindings-mutation-removal-unit1.log` passes **17/17** binding tests.
+The regenerated Station ABI and language resources pass their owner generators.
+`general-mutation-removal-boundaries1.log` passes **12/12** steps, **3,083** executed
+diagnostic projections across **29** surfaces, **17** compiler-inferred error sets
+and **nine** unknown-cause projections. The subsequent explicit removed-command
+check raises CLI coverage from 595 to **596** real cases, retaining privacy and
+no-provisioning assertions. General Catalog diagnostics replace the removed
+writer family; unknown-send recovery remains separately asserted.
+
+`general-mutation-removal-native1.log` passes **11/11** steps, including the CLI
+checks and the signed general native/console/port lifecycle in **95.562 seconds**.
+It records **364 turns/141 sends**, lost send/turn receipts, supplied-host receipt
+loss, one disconnect and unchanged four-write/256-byte maxima. No installed SDK
+is selected. Strict Python checking passes 24 source files, TypeScript no-emit
+checking passes, and locked Rust checking passes with the explicit source-development
+library directory. The first Rust attempt lacks that required artifact setting
+and fails before SDK compilation; it is not an installed-language qualification.
+Recursive generated-host declaration checks and the recorded diagnostic inventory
+also pass. Documentation (`docs5`), semantic mappings (`mappings1`) and the
+updated verification registry (`invariants2`) pass. The first registry run fails
+on the removed request-bound source and is retained; its replacement classifies
+the general intent and existing private batch budgets rather than dropping bounds.
+The global definition cutover, installed-language requalification and full clean
+CI remain outstanding.
