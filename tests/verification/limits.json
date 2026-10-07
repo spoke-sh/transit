@@ -203,12 +203,12 @@
       "symbol": "max_plan_bytes",
       "expression": "8192",
       "classification": "encoding",
-      "meaning": "Current canonical FZP1 plan ceiling. Atomic Station Table starts additionally require one 256-byte native value; other clients upload plans explicitly."
+      "meaning": "Current canonical FZP1 plan ceiling. Atomic Station Table starts use the separate 512-byte FQP1 profile; other clients upload plans explicitly."
     },
     {
       "source": "packages/zig/transit-station/src/QueryRecords.zig",
       "symbol": "segment_bytes",
-      "expression": "8192",
+      "expression": "std.math.maxInt(u16)",
       "classification": "operation",
       "meaning": "One independently encoded/captured Arrow segment; a query has a growing segment catalog."
     },
@@ -336,7 +336,7 @@
       "symbol": "segment_bytes",
       "expression": "64 * 1024",
       "classification": "operation",
-      "meaning": "General nested Arrow segment ceiling. Station Table delivery imposes its separate 8192-byte operation bound."
+      "meaning": "General nested Arrow segment ceiling. Station Table delivery uses u16 lengths and admits aligned segments up to 65528 bytes."
     },
     {
       "source": "packages/zig/transit-fuze/src/Declaration.zig",
@@ -393,6 +393,13 @@
       "expression": "p.Growth.page_size",
       "classification": "operation",
       "meaning": "One general handler read owns at most eight individually bounded decoded rows; neither Table cardinality nor query execution vectors are bounded by this storage page."
+    },
+    {
+      "source": "packages/zig/transit-station/src/QueryRecords.zig",
+      "symbol": "max_plan_bytes",
+      "expression": "2 * p.Value.max_bytes",
+      "classification": "operation",
+      "meaning": "Frozen logical plan in at most two cells; job plus correlation index preserves four native admission writes. Larger accepted logical plans require a different explicit upload protocol."
     }
   ],
   "identities": [
@@ -608,9 +615,9 @@
     },
     {
       "status": "segmented",
-      "meaning": "An 8192-byte segment is an operation budget, not a total-result bound; result ordinals and total bytes are retained.",
+      "meaning": "A 65535-byte segment buffer is an operation budget, not a total-result bound; result ordinals and total bytes are retained.",
       "source": "packages/zig/transit-station/src/QueryRecords.zig",
-      "anchor": "pub const segment_bytes = 8192;",
+      "anchor": "pub const segment_bytes = std.math.maxInt(u16);",
       "replaces": {
         "source": "packages/zig/transit-station/src/Query.zig",
         "symbol": "max_bytes"

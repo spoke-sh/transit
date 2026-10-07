@@ -14,7 +14,14 @@ const Realm = 44;
 const Count = 41;
 const Admin = @import("growing_support.zig").Admin(Realm);
 const Expected = struct { service: u64, requester: u64, resource: u64, requests: u64, result: u64, correlation: u64, output: u64, generation: u64 = 2, requester_generation: u64 = 2 };
+const schema: f.TableSchema.Schema = .{ .object = 1, .revision = 1, .next_column = 3, .columns = &.{
+    .{ .id = 1, .name = "id", .type = .int64, .nullable = false },
+    .{ .id = 2, .name = "value", .type = .utf8 },
+}, .primary_key = &.{1} };
 const Handler = struct {
+    allocator: std.mem.Allocator,
+    table_ready: bool = false,
+    write_done: bool = false,
     writer: bool,
     peer: u64,
     result: u64 = 0,
@@ -27,13 +34,9 @@ const Handler = struct {
     fn context(raw: ?*anyopaque) *Handler {
         return @ptrCast(@alignCast(raw.?));
     }
-    fn initialize(raw: ?*anyopaque, turn: *Turn) anyerror!void {
+    fn initialize(raw: ?*anyopaque, _: *Turn) anyerror!void {
         const self = context(raw);
         self.initialized += 1;
-        if (self.writer) {
-            _ = try station.Table.create(turn, 1, .{ .names = .{ try .init("id"), try .init("value") }, .value_type = .utf8 });
-            try q.setPolicy(turn, self.peer, 1, 0, true);
-        }
     }
     fn handle(raw: ?*anyopaque, turn: *Turn, frame: station.Frame) anyerror!void {
         const self = context(raw);
@@ -51,30 +54,43 @@ const Handler = struct {
             return;
         }
         if (frame.kind == .call) {
-            const job = try q.start(turn, try station.Table.open(turn, 1), .{ .projection = &.{ 0, 1 } });
+            var table = try station.TableReader.open(self.allocator, turn, schema.object);
+            defer table.deinit();
+            var fields: [f.TableSchema.max_columns]f.Types.Field = undefined;
+            const job = try q.start(turn, &table, .{ .schema = try table.schema.schema.rowType(&fields), .source_basis = table.basis.head, .projection = &.{ 0, 1 } });
             self.result = job.result;
             return;
         }
         if (frame.kind != .cast) return error.UnexpectedFrame;
         if (std.mem.eql(u8, frame.payload.slice(), "publish")) return q.beginPublication(turn, self.result);
-        if (std.mem.eql(u8, frame.payload.slice(), "init")) return;
-        if (std.mem.startsWith(u8, frame.payload.slice(), "GQC1")) {
-            const cancel = f.execution.Cancellation.init(false);
-            _ = try q.advance(turn, try q.Continuation.decode(frame.payload), &self.workspace, &cancel);
+        if (std.mem.eql(u8, frame.payload.slice(), "init")) {
+            const created = try station.TableCreation.step(self.allocator, turn, schema, .{ .record_bytes = 65536, .staging_bytes = 8 * 1024 * 1024, .staging_records = 1024 });
+            self.table_ready = created.state == .applied;
+            if (self.table_ready) try q.setPolicy(turn, self.peer, schema.object, 0, true);
             return;
         }
-        const first: usize = @intCast(try frame.payload.asInteger());
-        const table = try station.Table.open(turn, 1);
-        for (first..@min(first + 4, Count)) |i| {
-            const text: [220]u8 = @splat(@as(u8, @intCast('a' + i % 26)));
-            try table.insert(turn, .{ .key = @intCast(i), .value = if (i % 5 == 0) .null else .{ .utf8 = try .init(&text) } });
+        if (std.mem.startsWith(u8, frame.payload.slice(), "GQC1")) {
+            const cancel = f.execution.Cancellation.init(false);
+            _ = try q.advance(self.allocator, turn, try q.Continuation.decode(frame.payload), &self.workspace, &cancel);
+            return;
         }
+        const i: usize = @intCast(try frame.payload.asInteger());
+        const text: [220]u8 = @splat(@as(u8, @intCast('a' + i % 26)));
+        const cells = [_]f.Types.Values.Cell{
+            .{ .value = .{ .atom = .{ .signed = @intCast(i) } } },
+            if (i % 5 == 0) .null else .{ .value = .{ .atom = .{ .bytes = &text } } },
+        };
+        var write: station.TableWrite.Request = .{ .resource = turn.view.resource, .principal = 65536, .operation = i + 1, .schema = schema, .change = undefined };
+        write.change = .{ .insert = .{ .identity = try write.insertIdentity(), .cells = &cells } };
+        const state = try station.TableWrite.step(self.allocator, turn, write);
+        try t.expect(state.state == .building or state.state == .applied);
+        self.write_done = state.state == .applied;
     }
     fn interface(self: *Handler) Server.Handler {
         return .{ .context = self, .initialize = initialize, .handle = handle };
     }
     fn configure(self: *Handler, host: *Server) void {
-        host.query = .{ .workspace = &self.workspace, .cancellation = &self.cancellation };
+        host.query = .{ .allocator = self.allocator, .workspace = &self.workspace, .cancellation = &self.cancellation };
     }
 };
 fn deadline(io: std.Io) u64 {
@@ -152,26 +168,33 @@ pub fn main(init: std.process.Init) !void {
         const requester = try admin.provision(65537, requester_key);
         var write_server = try makeServer(&wire, 65536, writer.pid, 2, writer_key);
         var request_server = try makeServer(&wire, 65537, requester.pid, 2, requester_key);
-        var handler: Handler = .{ .writer = true, .peer = requester.pid };
-        var request_handler: Handler = .{ .writer = false, .peer = writer.pid };
-        _ = try admin.submit(.{ .send = .{ .pid = writer.pid, .value = try (station.Frame{ .kind = .cast, .payload = try p.Value.init("init") }).encode() } });
-        try drive(init.io, &write_server, &handler);
-        for (0..(Count + 3) / 4) |i| {
-            try admin.send(writer.pid, @intCast(i * 4));
+        var handler: Handler = .{ .allocator = init.gpa, .writer = true, .peer = requester.pid };
+        var request_handler: Handler = .{ .allocator = init.gpa, .writer = false, .peer = writer.pid };
+        for (0..64) |_| {
+            _ = try admin.submit(.{ .send = .{ .pid = writer.pid, .value = try (station.Frame{ .kind = .cast, .payload = try p.Value.init("init") }).encode() } });
             try drive(init.io, &write_server, &handler);
+            if (handler.table_ready) break;
+        }
+        try t.expect(handler.table_ready);
+        for (0..Count) |i| {
+            handler.write_done = false;
+            for (0..64) |_| {
+                try admin.send(writer.pid, @intCast(i));
+                try drive(init.io, &write_server, &handler);
+                if (handler.write_done) break;
+            }
+            try t.expect(handler.write_done);
         }
         try admin.send(requester.pid, 0);
         try drive(init.io, &request_server, &request_handler);
         var after: u64 = 0;
         try deliver(&admin, &after);
-        try drive(init.io, &write_server, &handler); // Start retains source with job/plan/progress.
+        try drive(init.io, &write_server, &handler); // Start retains source with the frozen plan and job.
         try deliver(&admin, &after);
         try drive(init.io, &write_server, &handler); // First three fragments, not a sealed segment.
         const stage = try q.records.Stage.decode((try value(&admin, writer.resource, q.records.key('s', handler.result, 0, 0))).?);
         try t.expect(stage.written == 3 * q.records.fragment_bytes and stage.written < stage.segment.bytes);
-        const progress = try f.Unified.Stream.Progress.decode((try value(&admin, writer.resource, q.records.key('e', handler.result, 0, 0))).?.slice());
-        try t.expectEqual(@as(u64, 0), progress.pages);
-        try t.expectEqual(@as(u64, 0), progress.segments);
+        try t.expect((try value(&admin, writer.resource, q.records.key('e', handler.result, 0, 0))) == null);
         try save(init, args[3], .{ .service = writer.pid, .requester = requester.pid, .resource = writer.resource, .requests = requester.resource, .result = handler.result, .correlation = request_handler.result, .output = after });
     } else if (std.mem.eql(u8, args[2], "seal") or std.mem.eql(u8, args[2], "recover")) {
         const bytes = try std.Io.Dir.cwd().readFileAlloc(init.io, args[3], init.gpa, .limited(8192));
@@ -182,12 +205,13 @@ pub fn main(init: std.process.Init) !void {
         _ = try admin.submit(.{ .own = .{ .pid = expected.service, .expected_generation = expected.generation, .worker = 65536 } });
         expected.generation += 1;
         var write_server = try makeServer(&wire, 65536, expected.service, expected.generation, writer_key);
-        var handler: Handler = .{ .writer = true, .peer = expected.requester };
+        var handler: Handler = .{ .allocator = init.gpa, .writer = true, .peer = expected.requester };
         var captured = false;
-        for (0..64) |_| {
+        for (0..256) |_| {
             try deliver(&admin, &expected.output);
             try drive(init.io, &write_server, &handler);
-            const progress = try f.Unified.Stream.Progress.decode((try value(&admin, expected.resource, q.records.key('e', expected.result, 0, 0))).?.slice());
+            const saved_progress = (try value(&admin, expected.resource, q.records.key('e', expected.result, 0, 0))) orelse continue;
+            const progress = try f.LogicalStream.Progress.decodeRecord(saved_progress.slice());
             if (std.mem.eql(u8, args[2], "seal") and progress.segments == 1) {
                 try t.expectEqual(@as(u64, 1), progress.pages);
                 try t.expect(progress.finished == null);
@@ -225,7 +249,10 @@ pub fn main(init: std.process.Init) !void {
                 const path = try std.fmt.bufPrint(&path_buffer, "{s}.{d}.arrow", .{ args[3], ordinal });
                 try std.Io.Dir.cwd().writeFile(init.io, .{ .sub_path = path, .data = segment.bytes });
             }
-            const report = try std.json.Stringify.valueAlloc(init.gpa, .{ .job = result.job, .progress = result.progress, .segments = manifests }, .{});
+            const job_record = try result.job.encode();
+            const job_hex = std.fmt.bytesToHex(job_record.data[0..152].*, .lower);
+            const progress_hex = std.fmt.bytesToHex(try result.progress.encodeRecord(), .lower);
+            const report = try std.json.Stringify.valueAlloc(init.gpa, .{ .job = result.job, .job_wire = job_hex[0..], .progress = result.progress, .progress_wire = progress_hex[0..], .segments = manifests }, .{});
             defer init.gpa.free(report);
             const path = try std.fmt.bufPrint(&path_buffer, "{s}.result.json", .{args[3]});
             try std.Io.Dir.cwd().writeFile(init.io, .{ .sub_path = path, .data = report });
@@ -247,8 +274,8 @@ pub fn main(init: std.process.Init) !void {
         expected.requester_generation += 1;
         var sender = try makeServer(&wire, 65536, expected.service, expected.generation, writer_key);
         var receiver = try makeServer(&wire, 65537, expected.requester, expected.requester_generation, requester_key);
-        var send_handler: Handler = .{ .writer = true, .peer = expected.requester, .result = expected.result };
-        var receive_handler: Handler = .{ .writer = false, .peer = expected.service };
+        var send_handler: Handler = .{ .allocator = init.gpa, .writer = true, .peer = expected.requester, .result = expected.result };
+        var receive_handler: Handler = .{ .allocator = init.gpa, .writer = false, .peer = expected.service };
         send_handler.configure(&sender);
         receive_handler.configure(&receiver);
         const stopping = std.mem.eql(u8, args[2], "publish");

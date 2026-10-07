@@ -8,7 +8,7 @@ const Frame = @import("Frame.zig");
 const q = @import("Query.zig");
 const r = q.records;
 pub const Manifest = r.Manifest;
-pub const Context = struct { workspace: []u8, cancellation: *const f.execution.Cancellation };
+pub const Context = struct { allocator: std.mem.Allocator, workspace: []u8, cancellation: *const f.execution.Cancellation };
 
 pub fn begin(turn: *Turn, identity: u64) !void {
     const result = try q.captured(turn, identity);
@@ -34,7 +34,7 @@ fn publishing(turn: *Turn, request: r.Publication, context: Context) !void {
     if (transfer.source != turn.delivery.pid or transfer.result != job.result or transfer.segments != job.send_segment or transfer.pending != 0) return error.InvalidResultTransfer;
     var output: [r.segment_bytes]u8 = undefined;
     const captured = try q.capturedSegment(turn, job.result, job.send_segment, &output);
-    const schema = try f.Unified.Inspect.segment(captured.bytes, captured.manifest.rows, context.workspace);
+    const schema = try f.LogicalInspect.segment(context.allocator, captured.bytes, captured.manifest.rows, context.workspace);
     if (job.send_offset > captured.bytes.len) return error.InvalidResultTransfer;
     if (job.send_offset == captured.bytes.len) {
         transfer.pending = job.send_offset;
@@ -44,7 +44,7 @@ fn publishing(turn: *Turn, request: r.Publication, context: Context) !void {
         job.send_offset = 0;
         try turn.write(transfer_key, try transfer.encode());
         if (job.send_segment == state.progress.segments) {
-            const manifest: Manifest = .{ .result = job.result, .destination = job.destination, .correlation = job.correlation, .table = job.table, .policy_revision = job.policy_revision, .basis = state.progress.basis, .plan = state.progress.plan, .segments = state.progress.segments, .bytes = job.bytes, .rows = state.progress.rows, .chain = job.chain, .schema = transfer.schema };
+            const manifest: Manifest = .{ .result = job.result, .destination = job.destination, .correlation = job.correlation, .table = job.table, .policy_revision = job.policy_revision, .basis = .{ .resource = job.resource, .revision = job.revision, .head = state.progress.binding }, .plan = state.progress.plan, .segments = state.progress.segments, .bytes = job.bytes, .rows = state.progress.rows, .chain = job.chain, .schema = transfer.schema };
             try manifest.check(transfer);
             try turn.write(r.key('z', job.result, 0, 0), try manifest.encode());
             try turn.send(job.destination, .{ .kind = .result_complete, .correlation = job.correlation, .payload = try manifest.encode() });
@@ -144,7 +144,7 @@ fn receiving(turn: *Turn, frame: Frame, context: Context) !bool {
         if (manifest.ordinal != transfer.segments or transfer.pending != manifest.bytes) return error.IncompleteResultSegment;
         var output: [r.segment_bytes]u8 = undefined;
         const encoded = try bytes(turn, frame.correlation, manifest, &output);
-        const schema = try f.Unified.Inspect.segment(encoded, manifest.rows, context.workspace);
+        const schema = try f.LogicalInspect.segment(context.allocator, encoded, manifest.rows, context.workspace);
         try transfer.seal(manifest, schema);
         if (context.cancellation.load(.acquire)) return error.Cancelled;
         try turn.write(key, frame.payload);
@@ -186,7 +186,7 @@ pub fn dispatch(turn: *Turn, frame: Frame, context: Context) !bool {
         .cast => blk: {
             if (std.mem.startsWith(u8, frame.payload.slice(), "GQC1")) {
                 const request = try q.Continuation.decode(frame.payload);
-                if (try q.advance(turn, request, context.workspace, context.cancellation) == .captured) try begin(turn, request.result);
+                if (try q.advance(context.allocator, turn, request, context.workspace, context.cancellation) == .captured) try begin(turn, request.result);
                 break :blk true;
             }
             if (std.mem.startsWith(u8, frame.payload.slice(), "GQP1")) {

@@ -993,7 +993,7 @@
               ],
               "properties": {
                 "growing_finish": {
-                  "$ref": "#/$defs/T307"
+                  "$ref": "#/$defs/T303"
                 }
               }
             },
@@ -1005,7 +1005,7 @@
               ],
               "properties": {
                 "growing_finish_result": {
-                  "$ref": "#/$defs/T308"
+                  "$ref": "#/$defs/T304"
                 }
               }
             },
@@ -1041,7 +1041,7 @@
               ],
               "properties": {
                 "growing_arrow_cell": {
-                  "$ref": "#/$defs/T309"
+                  "$ref": "#/$defs/T305"
                 }
               }
             },
@@ -1053,7 +1053,7 @@
               ],
               "properties": {
                 "frame": {
-                  "$ref": "#/$defs/T310"
+                  "$ref": "#/$defs/T306"
                 }
               }
             },
@@ -1065,7 +1065,7 @@
               ],
               "properties": {
                 "prepare": {
-                  "$ref": "#/$defs/T311"
+                  "$ref": "#/$defs/T307"
                 }
               }
             },
@@ -9114,7 +9114,7 @@
               ],
               "properties": {
                 "query_close": {
-                  "$ref": "#/$defs/T289"
+                  "$ref": "#/$defs/T285"
                 }
               }
             },
@@ -9138,7 +9138,7 @@
               ],
               "properties": {
                 "query_segment": {
-                  "$ref": "#/$defs/T291"
+                  "$ref": "#/$defs/T287"
                 }
               }
             },
@@ -9150,7 +9150,7 @@
               ],
               "properties": {
                 "publication_create": {
-                  "$ref": "#/$defs/T292"
+                  "$ref": "#/$defs/T288"
                 }
               }
             },
@@ -9162,7 +9162,7 @@
               ],
               "properties": {
                 "publication_begin": {
-                  "$ref": "#/$defs/T293"
+                  "$ref": "#/$defs/T289"
                 }
               }
             },
@@ -9174,7 +9174,7 @@
               ],
               "properties": {
                 "publication_append": {
-                  "$ref": "#/$defs/T294"
+                  "$ref": "#/$defs/T290"
                 }
               }
             },
@@ -9186,7 +9186,7 @@
               ],
               "properties": {
                 "publication_publish": {
-                  "$ref": "#/$defs/T295"
+                  "$ref": "#/$defs/T291"
                 }
               }
             },
@@ -9198,7 +9198,7 @@
               ],
               "properties": {
                 "publication_abandon": {
-                  "$ref": "#/$defs/T296"
+                  "$ref": "#/$defs/T292"
                 }
               }
             },
@@ -9210,7 +9210,7 @@
               ],
               "properties": {
                 "publication_retire": {
-                  "$ref": "#/$defs/T297"
+                  "$ref": "#/$defs/T293"
                 }
               }
             },
@@ -9222,7 +9222,7 @@
               ],
               "properties": {
                 "publication_collect": {
-                  "$ref": "#/$defs/T298"
+                  "$ref": "#/$defs/T294"
                 }
               }
             },
@@ -9234,7 +9234,7 @@
               ],
               "properties": {
                 "http_call": {
-                  "$ref": "#/$defs/T299"
+                  "$ref": "#/$defs/T295"
                 }
               }
             },
@@ -9246,7 +9246,7 @@
               ],
               "properties": {
                 "http_stage": {
-                  "$ref": "#/$defs/T300"
+                  "$ref": "#/$defs/T296"
                 }
               }
             },
@@ -9258,7 +9258,7 @@
               ],
               "properties": {
                 "http_release": {
-                  "$ref": "#/$defs/T301"
+                  "$ref": "#/$defs/T297"
                 }
               }
             },
@@ -9270,7 +9270,7 @@
               ],
               "properties": {
                 "http_followup": {
-                  "$ref": "#/$defs/T302"
+                  "$ref": "#/$defs/T298"
                 }
               }
             },
@@ -9282,7 +9282,7 @@
               ],
               "properties": {
                 "grpc_call": {
-                  "$ref": "#/$defs/T303"
+                  "$ref": "#/$defs/T299"
                 }
               }
             },
@@ -9294,7 +9294,7 @@
               ],
               "properties": {
                 "grpc_stage": {
-                  "$ref": "#/$defs/T304"
+                  "$ref": "#/$defs/T300"
                 }
               }
             },
@@ -9306,7 +9306,7 @@
               ],
               "properties": {
                 "grpc_release": {
-                  "$ref": "#/$defs/T305"
+                  "$ref": "#/$defs/T301"
                 }
               }
             },
@@ -9318,7 +9318,7 @@
               ],
               "properties": {
                 "grpc_followup": {
-                  "$ref": "#/$defs/T306"
+                  "$ref": "#/$defs/T302"
                 }
               }
             }
@@ -10224,134 +10224,19 @@
           ],
           "properties": {
             "id": {
-              "$ref": "#/$defs/T15"
+              "$ref": "#/$defs/T5"
             },
             "plan": {
-              "$ref": "#/$defs/T285"
+              "$ref": "#/$defs/T72"
             }
           },
           "required": [
-            "id"
-          ],
-          "x-transit-defaults": {
-            "plan": {
-              "projection": "both",
-              "limit": null,
-              "aggregate": "rows",
-              "predicate": {
-                "all": {}
-              }
-            }
-          }
-        },
-        "T285": {
-          "type": "object",
-          "additionalProperties": false,
-          "x-transit-field-order": [
-            "projection",
-            "limit",
-            "aggregate",
-            "predicate"
-          ],
-          "properties": {
-            "projection": {
-              "$ref": "#/$defs/T286"
-            },
-            "limit": {
-              "$ref": "#/$defs/T11"
-            },
-            "aggregate": {
-              "$ref": "#/$defs/T76"
-            },
-            "predicate": {
-              "$ref": "#/$defs/T287"
-            }
-          },
-          "required": [],
-          "x-transit-defaults": {
-            "projection": "both",
-            "limit": null,
-            "aggregate": "rows",
-            "predicate": {
-              "all": {}
-            }
-          }
-        },
-        "T286": {
-          "type": "string",
-          "enum": [
-            "both",
-            "key",
-            "value"
-          ]
-        },
-        "T287": {
-          "oneOf": [
-            {
-              "type": "object",
-              "additionalProperties": false,
-              "required": [
-                "all"
-              ],
-              "properties": {
-                "all": {
-                  "$ref": "#/$defs/T1"
-                }
-              }
-            },
-            {
-              "type": "object",
-              "additionalProperties": false,
-              "required": [
-                "is_null"
-              ],
-              "properties": {
-                "is_null": {
-                  "$ref": "#/$defs/T30"
-                }
-              }
-            },
-            {
-              "type": "object",
-              "additionalProperties": false,
-              "required": [
-                "compare"
-              ],
-              "properties": {
-                "compare": {
-                  "$ref": "#/$defs/T288"
-                }
-              }
-            }
-          ]
-        },
-        "T288": {
-          "type": "object",
-          "additionalProperties": false,
-          "x-transit-field-order": [
-            "column",
-            "op",
-            "value"
-          ],
-          "properties": {
-            "column": {
-              "$ref": "#/$defs/T30"
-            },
-            "op": {
-              "$ref": "#/$defs/T81"
-            },
-            "value": {
-              "$ref": "#/$defs/T269"
-            }
-          },
-          "required": [
-            "column",
-            "op",
-            "value"
+            "id",
+            "plan"
           ],
           "x-transit-defaults": {}
         },
-        "T289": {
+        "T285": {
           "type": "object",
           "additionalProperties": false,
           "x-transit-field-order": [
@@ -10363,7 +10248,7 @@
               "$ref": "#/$defs/T4"
             },
             "reason": {
-              "$ref": "#/$defs/T290"
+              "$ref": "#/$defs/T286"
             }
           },
           "required": [
@@ -10372,14 +10257,14 @@
           ],
           "x-transit-defaults": {}
         },
-        "T290": {
+        "T286": {
           "type": "string",
           "enum": [
             "cancelled",
             "denied"
           ]
         },
-        "T291": {
+        "T287": {
           "type": "object",
           "additionalProperties": false,
           "x-transit-field-order": [
@@ -10400,7 +10285,7 @@
           ],
           "x-transit-defaults": {}
         },
-        "T292": {
+        "T288": {
           "type": "object",
           "additionalProperties": false,
           "x-transit-field-order": [
@@ -10431,7 +10316,7 @@
           ],
           "x-transit-defaults": {}
         },
-        "T293": {
+        "T289": {
           "type": "object",
           "additionalProperties": false,
           "x-transit-field-order": [
@@ -10457,7 +10342,7 @@
           ],
           "x-transit-defaults": {}
         },
-        "T294": {
+        "T290": {
           "type": "object",
           "additionalProperties": false,
           "x-transit-field-order": [
@@ -10488,7 +10373,7 @@
           ],
           "x-transit-defaults": {}
         },
-        "T295": {
+        "T291": {
           "type": "object",
           "additionalProperties": false,
           "x-transit-field-order": [
@@ -10506,6 +10391,90 @@
           "required": [
             "namespace",
             "id"
+          ],
+          "x-transit-defaults": {}
+        },
+        "T292": {
+          "type": "object",
+          "additionalProperties": false,
+          "x-transit-field-order": [
+            "namespace",
+            "id"
+          ],
+          "properties": {
+            "namespace": {
+              "$ref": "#/$defs/T5"
+            },
+            "id": {
+              "$ref": "#/$defs/T5"
+            }
+          },
+          "required": [
+            "namespace",
+            "id"
+          ],
+          "x-transit-defaults": {}
+        },
+        "T293": {
+          "type": "object",
+          "additionalProperties": false,
+          "x-transit-field-order": [
+            "namespace",
+            "id"
+          ],
+          "properties": {
+            "namespace": {
+              "$ref": "#/$defs/T5"
+            },
+            "id": {
+              "$ref": "#/$defs/T5"
+            }
+          },
+          "required": [
+            "namespace",
+            "id"
+          ],
+          "x-transit-defaults": {}
+        },
+        "T294": {
+          "type": "object",
+          "additionalProperties": false,
+          "x-transit-field-order": [
+            "namespace",
+            "id"
+          ],
+          "properties": {
+            "namespace": {
+              "$ref": "#/$defs/T5"
+            },
+            "id": {
+              "$ref": "#/$defs/T5"
+            }
+          },
+          "required": [
+            "namespace",
+            "id"
+          ],
+          "x-transit-defaults": {}
+        },
+        "T295": {
+          "type": "object",
+          "additionalProperties": false,
+          "x-transit-field-order": [
+            "pid",
+            "reference"
+          ],
+          "properties": {
+            "pid": {
+              "$ref": "#/$defs/T4"
+            },
+            "reference": {
+              "$ref": "#/$defs/T7"
+            }
+          },
+          "required": [
+            "pid",
+            "reference"
           ],
           "x-transit-defaults": {}
         },
@@ -10513,20 +10482,25 @@
           "type": "object",
           "additionalProperties": false,
           "x-transit-field-order": [
-            "namespace",
-            "id"
+            "reference",
+            "metadata",
+            "body"
           ],
           "properties": {
-            "namespace": {
+            "reference": {
+              "$ref": "#/$defs/T7"
+            },
+            "metadata": {
               "$ref": "#/$defs/T5"
             },
-            "id": {
+            "body": {
               "$ref": "#/$defs/T5"
             }
           },
           "required": [
-            "namespace",
-            "id"
+            "reference",
+            "metadata",
+            "body"
           ],
           "x-transit-defaults": {}
         },
@@ -10534,20 +10508,25 @@
           "type": "object",
           "additionalProperties": false,
           "x-transit-field-order": [
-            "namespace",
-            "id"
+            "pid",
+            "resource",
+            "exchange"
           ],
           "properties": {
-            "namespace": {
-              "$ref": "#/$defs/T5"
+            "pid": {
+              "$ref": "#/$defs/T4"
             },
-            "id": {
+            "resource": {
+              "$ref": "#/$defs/T4"
+            },
+            "exchange": {
               "$ref": "#/$defs/T5"
             }
           },
           "required": [
-            "namespace",
-            "id"
+            "pid",
+            "resource",
+            "exchange"
           ],
           "x-transit-defaults": {}
         },
@@ -10555,20 +10534,35 @@
           "type": "object",
           "additionalProperties": false,
           "x-transit-field-order": [
-            "namespace",
-            "id"
+            "pid",
+            "resource",
+            "parent",
+            "reason",
+            "reference"
           ],
           "properties": {
-            "namespace": {
+            "pid": {
+              "$ref": "#/$defs/T4"
+            },
+            "resource": {
+              "$ref": "#/$defs/T4"
+            },
+            "parent": {
               "$ref": "#/$defs/T5"
             },
-            "id": {
-              "$ref": "#/$defs/T5"
+            "reason": {
+              "$ref": "#/$defs/T245"
+            },
+            "reference": {
+              "$ref": "#/$defs/T7"
             }
           },
           "required": [
-            "namespace",
-            "id"
+            "pid",
+            "resource",
+            "parent",
+            "reason",
+            "reference"
           ],
           "x-transit-defaults": {}
         },
@@ -10599,7 +10593,7 @@
           "x-transit-field-order": [
             "reference",
             "metadata",
-            "body"
+            "batch"
           ],
           "properties": {
             "reference": {
@@ -10608,14 +10602,14 @@
             "metadata": {
               "$ref": "#/$defs/T5"
             },
-            "body": {
+            "batch": {
               "$ref": "#/$defs/T5"
             }
           },
           "required": [
             "reference",
             "metadata",
-            "body"
+            "batch"
           ],
           "x-transit-defaults": {}
         },
@@ -10652,7 +10646,6 @@
             "pid",
             "resource",
             "parent",
-            "reason",
             "reference"
           ],
           "properties": {
@@ -10665,9 +10658,6 @@
             "parent": {
               "$ref": "#/$defs/T5"
             },
-            "reason": {
-              "$ref": "#/$defs/T245"
-            },
             "reference": {
               "$ref": "#/$defs/T7"
             }
@@ -10676,7 +10666,6 @@
             "pid",
             "resource",
             "parent",
-            "reason",
             "reference"
           ],
           "x-transit-defaults": {}
@@ -10685,20 +10674,20 @@
           "type": "object",
           "additionalProperties": false,
           "x-transit-field-order": [
-            "pid",
-            "reference"
+            "scope",
+            "failed"
           ],
           "properties": {
-            "pid": {
+            "scope": {
               "$ref": "#/$defs/T4"
             },
-            "reference": {
-              "$ref": "#/$defs/T7"
+            "failed": {
+              "$ref": "#/$defs/T21"
             }
           },
           "required": [
-            "pid",
-            "reference"
+            "scope",
+            "failed"
           ],
           "x-transit-defaults": {}
         },
@@ -10706,128 +10695,24 @@
           "type": "object",
           "additionalProperties": false,
           "x-transit-field-order": [
-            "reference",
-            "metadata",
-            "batch"
+            "scope",
+            "failed"
           ],
           "properties": {
-            "reference": {
-              "$ref": "#/$defs/T7"
+            "scope": {
+              "$ref": "#/$defs/T4"
             },
-            "metadata": {
-              "$ref": "#/$defs/T5"
-            },
-            "batch": {
-              "$ref": "#/$defs/T5"
+            "failed": {
+              "$ref": "#/$defs/T21"
             }
           },
           "required": [
-            "reference",
-            "metadata",
-            "batch"
+            "scope",
+            "failed"
           ],
           "x-transit-defaults": {}
         },
         "T305": {
-          "type": "object",
-          "additionalProperties": false,
-          "x-transit-field-order": [
-            "pid",
-            "resource",
-            "exchange"
-          ],
-          "properties": {
-            "pid": {
-              "$ref": "#/$defs/T4"
-            },
-            "resource": {
-              "$ref": "#/$defs/T4"
-            },
-            "exchange": {
-              "$ref": "#/$defs/T5"
-            }
-          },
-          "required": [
-            "pid",
-            "resource",
-            "exchange"
-          ],
-          "x-transit-defaults": {}
-        },
-        "T306": {
-          "type": "object",
-          "additionalProperties": false,
-          "x-transit-field-order": [
-            "pid",
-            "resource",
-            "parent",
-            "reference"
-          ],
-          "properties": {
-            "pid": {
-              "$ref": "#/$defs/T4"
-            },
-            "resource": {
-              "$ref": "#/$defs/T4"
-            },
-            "parent": {
-              "$ref": "#/$defs/T5"
-            },
-            "reference": {
-              "$ref": "#/$defs/T7"
-            }
-          },
-          "required": [
-            "pid",
-            "resource",
-            "parent",
-            "reference"
-          ],
-          "x-transit-defaults": {}
-        },
-        "T307": {
-          "type": "object",
-          "additionalProperties": false,
-          "x-transit-field-order": [
-            "scope",
-            "failed"
-          ],
-          "properties": {
-            "scope": {
-              "$ref": "#/$defs/T4"
-            },
-            "failed": {
-              "$ref": "#/$defs/T21"
-            }
-          },
-          "required": [
-            "scope",
-            "failed"
-          ],
-          "x-transit-defaults": {}
-        },
-        "T308": {
-          "type": "object",
-          "additionalProperties": false,
-          "x-transit-field-order": [
-            "scope",
-            "failed"
-          ],
-          "properties": {
-            "scope": {
-              "$ref": "#/$defs/T4"
-            },
-            "failed": {
-              "$ref": "#/$defs/T21"
-            }
-          },
-          "required": [
-            "scope",
-            "failed"
-          ],
-          "x-transit-defaults": {}
-        },
-        "T309": {
           "type": "object",
           "additionalProperties": false,
           "x-transit-field-order": [
@@ -10853,7 +10738,7 @@
           ],
           "x-transit-defaults": {}
         },
-        "T310": {
+        "T306": {
           "type": "object",
           "additionalProperties": false,
           "x-transit-field-order": [
@@ -10879,7 +10764,7 @@
           ],
           "x-transit-defaults": {}
         },
-        "T311": {
+        "T307": {
           "type": "object",
           "additionalProperties": false,
           "x-transit-field-order": [
@@ -12582,28 +12467,59 @@
               ],
               "properties": {
                 "id": {
-                  "type": "integer",
-                  "minimum": 0,
-                  "maximum": 4294967295,
-                  "x-transit-bits": 32,
-                  "x-transit-signed": false
+                  "type": "string",
+                  "maxLength": 524288
                 },
                 "plan": {
                   "type": "object",
                   "additionalProperties": false,
                   "x-transit-field-order": [
+                    "version",
                     "projection",
+                    "output_names",
                     "limit",
                     "aggregate",
                     "predicate"
                   ],
                   "properties": {
+                    "version": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 255,
+                      "x-transit-bits": 8,
+                      "x-transit-signed": false
+                    },
                     "projection": {
-                      "type": "string",
-                      "enum": [
-                        "both",
-                        "key",
-                        "value"
+                      "type": "array",
+                      "maxItems": 128,
+                      "items": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 4294967295,
+                        "x-transit-bits": 32,
+                        "x-transit-signed": false
+                      }
+                    },
+                    "output_names": {
+                      "anyOf": [
+                        {
+                          "type": "array",
+                          "maxItems": 128,
+                          "items": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "maxLength": 524288
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          }
+                        },
+                        {
+                          "type": "null"
+                        }
                       ]
                     },
                     "limit": {
@@ -12645,15 +12561,40 @@
                           "type": "object",
                           "additionalProperties": false,
                           "required": [
-                            "is_null"
+                            "state"
                           ],
                           "properties": {
-                            "is_null": {
-                              "type": "integer",
-                              "minimum": 0,
-                              "maximum": 255,
-                              "x-transit-bits": 8,
-                              "x-transit-signed": false
+                            "state": {
+                              "type": "object",
+                              "additionalProperties": false,
+                              "x-transit-field-order": [
+                                "column",
+                                "value"
+                              ],
+                              "properties": {
+                                "column": {
+                                  "type": "integer",
+                                  "minimum": 0,
+                                  "maximum": 255,
+                                  "x-transit-bits": 8,
+                                  "x-transit-signed": false
+                                },
+                                "value": {
+                                  "type": "string",
+                                  "enum": [
+                                    "missing",
+                                    "null",
+                                    "type_error",
+                                    "value",
+                                    "conflict"
+                                  ]
+                                }
+                              },
+                              "required": [
+                                "column",
+                                "value"
+                              ],
+                              "x-transit-defaults": {}
                             }
                           }
                         },
@@ -12697,12 +12638,12 @@
                                       "type": "object",
                                       "additionalProperties": false,
                                       "required": [
-                                        "null"
+                                        "signed"
                                       ],
                                       "properties": {
-                                        "null": {
-                                          "type": "object",
-                                          "maxProperties": 0
+                                        "signed": {
+                                          "type": "string",
+                                          "maxLength": 524288
                                         }
                                       }
                                     },
@@ -12710,10 +12651,36 @@
                                       "type": "object",
                                       "additionalProperties": false,
                                       "required": [
-                                        "int64"
+                                        "unsigned"
                                       ],
                                       "properties": {
-                                        "int64": {
+                                        "unsigned": {
+                                          "type": "string",
+                                          "maxLength": 524288
+                                        }
+                                      }
+                                    },
+                                    {
+                                      "type": "object",
+                                      "additionalProperties": false,
+                                      "required": [
+                                        "decimal"
+                                      ],
+                                      "properties": {
+                                        "decimal": {
+                                          "type": "string",
+                                          "maxLength": 524288
+                                        }
+                                      }
+                                    },
+                                    {
+                                      "type": "object",
+                                      "additionalProperties": false,
+                                      "required": [
+                                        "float_bits"
+                                      ],
+                                      "properties": {
+                                        "float_bits": {
                                           "type": "string",
                                           "maxLength": 524288
                                         }
@@ -12753,9 +12720,97 @@
                                       "properties": {
                                         "binary": {
                                           "type": "string",
-                                          "pattern": "^(?:[0-9a-f]{2})*$",
-                                          "maxLength": 512,
-                                          "x-transit-encoding": "lowercase-hex"
+                                          "maxLength": 524288
+                                        }
+                                      }
+                                    },
+                                    {
+                                      "type": "object",
+                                      "additionalProperties": false,
+                                      "required": [
+                                        "date_days"
+                                      ],
+                                      "properties": {
+                                        "date_days": {
+                                          "type": "string",
+                                          "maxLength": 524288
+                                        }
+                                      }
+                                    },
+                                    {
+                                      "type": "object",
+                                      "additionalProperties": false,
+                                      "required": [
+                                        "time_nanos"
+                                      ],
+                                      "properties": {
+                                        "time_nanos": {
+                                          "type": "string",
+                                          "maxLength": 524288
+                                        }
+                                      }
+                                    },
+                                    {
+                                      "type": "object",
+                                      "additionalProperties": false,
+                                      "required": [
+                                        "timestamp_micros"
+                                      ],
+                                      "properties": {
+                                        "timestamp_micros": {
+                                          "type": "string",
+                                          "maxLength": 524288
+                                        }
+                                      }
+                                    },
+                                    {
+                                      "type": "object",
+                                      "additionalProperties": false,
+                                      "required": [
+                                        "interval"
+                                      ],
+                                      "properties": {
+                                        "interval": {
+                                          "type": "object",
+                                          "additionalProperties": false,
+                                          "x-transit-field-order": [
+                                            "months",
+                                            "days",
+                                            "nanos"
+                                          ],
+                                          "properties": {
+                                            "months": {
+                                              "type": "string",
+                                              "maxLength": 524288
+                                            },
+                                            "days": {
+                                              "type": "string",
+                                              "maxLength": 524288
+                                            },
+                                            "nanos": {
+                                              "type": "string",
+                                              "maxLength": 524288
+                                            }
+                                          },
+                                          "required": [
+                                            "months",
+                                            "days",
+                                            "nanos"
+                                          ],
+                                          "x-transit-defaults": {}
+                                        }
+                                      }
+                                    },
+                                    {
+                                      "type": "object",
+                                      "additionalProperties": false,
+                                      "required": [
+                                        "uuid"
+                                      ],
+                                      "properties": {
+                                        "uuid": {
+                                          "type": "string",
+                                          "maxLength": 524288
                                         }
                                       }
                                     }
@@ -12770,13 +12825,367 @@
                               "x-transit-defaults": {}
                             }
                           }
+                        },
+                        {
+                          "type": "object",
+                          "additionalProperties": false,
+                          "required": [
+                            "program"
+                          ],
+                          "properties": {
+                            "program": {
+                              "type": "array",
+                              "maxItems": 64,
+                              "items": {
+                                "oneOf": [
+                                  {
+                                    "type": "object",
+                                    "additionalProperties": false,
+                                    "required": [
+                                      "atom"
+                                    ],
+                                    "properties": {
+                                      "atom": {
+                                        "oneOf": [
+                                          {
+                                            "type": "object",
+                                            "additionalProperties": false,
+                                            "required": [
+                                              "all"
+                                            ],
+                                            "properties": {
+                                              "all": {
+                                                "type": "object",
+                                                "maxProperties": 0
+                                              }
+                                            }
+                                          },
+                                          {
+                                            "type": "object",
+                                            "additionalProperties": false,
+                                            "required": [
+                                              "state"
+                                            ],
+                                            "properties": {
+                                              "state": {
+                                                "type": "object",
+                                                "additionalProperties": false,
+                                                "x-transit-field-order": [
+                                                  "column",
+                                                  "value"
+                                                ],
+                                                "properties": {
+                                                  "column": {
+                                                    "type": "integer",
+                                                    "minimum": 0,
+                                                    "maximum": 255,
+                                                    "x-transit-bits": 8,
+                                                    "x-transit-signed": false
+                                                  },
+                                                  "value": {
+                                                    "type": "string",
+                                                    "enum": [
+                                                      "missing",
+                                                      "null",
+                                                      "type_error",
+                                                      "value",
+                                                      "conflict"
+                                                    ]
+                                                  }
+                                                },
+                                                "required": [
+                                                  "column",
+                                                  "value"
+                                                ],
+                                                "x-transit-defaults": {}
+                                              }
+                                            }
+                                          },
+                                          {
+                                            "type": "object",
+                                            "additionalProperties": false,
+                                            "required": [
+                                              "compare"
+                                            ],
+                                            "properties": {
+                                              "compare": {
+                                                "type": "object",
+                                                "additionalProperties": false,
+                                                "x-transit-field-order": [
+                                                  "column",
+                                                  "op",
+                                                  "value"
+                                                ],
+                                                "properties": {
+                                                  "column": {
+                                                    "type": "integer",
+                                                    "minimum": 0,
+                                                    "maximum": 255,
+                                                    "x-transit-bits": 8,
+                                                    "x-transit-signed": false
+                                                  },
+                                                  "op": {
+                                                    "type": "string",
+                                                    "enum": [
+                                                      "eq",
+                                                      "ne",
+                                                      "lt",
+                                                      "le",
+                                                      "gt",
+                                                      "ge"
+                                                    ]
+                                                  },
+                                                  "value": {
+                                                    "oneOf": [
+                                                      {
+                                                        "type": "object",
+                                                        "additionalProperties": false,
+                                                        "required": [
+                                                          "signed"
+                                                        ],
+                                                        "properties": {
+                                                          "signed": {
+                                                            "type": "string",
+                                                            "maxLength": 524288
+                                                          }
+                                                        }
+                                                      },
+                                                      {
+                                                        "type": "object",
+                                                        "additionalProperties": false,
+                                                        "required": [
+                                                          "unsigned"
+                                                        ],
+                                                        "properties": {
+                                                          "unsigned": {
+                                                            "type": "string",
+                                                            "maxLength": 524288
+                                                          }
+                                                        }
+                                                      },
+                                                      {
+                                                        "type": "object",
+                                                        "additionalProperties": false,
+                                                        "required": [
+                                                          "decimal"
+                                                        ],
+                                                        "properties": {
+                                                          "decimal": {
+                                                            "type": "string",
+                                                            "maxLength": 524288
+                                                          }
+                                                        }
+                                                      },
+                                                      {
+                                                        "type": "object",
+                                                        "additionalProperties": false,
+                                                        "required": [
+                                                          "float_bits"
+                                                        ],
+                                                        "properties": {
+                                                          "float_bits": {
+                                                            "type": "string",
+                                                            "maxLength": 524288
+                                                          }
+                                                        }
+                                                      },
+                                                      {
+                                                        "type": "object",
+                                                        "additionalProperties": false,
+                                                        "required": [
+                                                          "boolean"
+                                                        ],
+                                                        "properties": {
+                                                          "boolean": {
+                                                            "type": "boolean"
+                                                          }
+                                                        }
+                                                      },
+                                                      {
+                                                        "type": "object",
+                                                        "additionalProperties": false,
+                                                        "required": [
+                                                          "utf8"
+                                                        ],
+                                                        "properties": {
+                                                          "utf8": {
+                                                            "type": "string",
+                                                            "maxLength": 524288
+                                                          }
+                                                        }
+                                                      },
+                                                      {
+                                                        "type": "object",
+                                                        "additionalProperties": false,
+                                                        "required": [
+                                                          "binary"
+                                                        ],
+                                                        "properties": {
+                                                          "binary": {
+                                                            "type": "string",
+                                                            "maxLength": 524288
+                                                          }
+                                                        }
+                                                      },
+                                                      {
+                                                        "type": "object",
+                                                        "additionalProperties": false,
+                                                        "required": [
+                                                          "date_days"
+                                                        ],
+                                                        "properties": {
+                                                          "date_days": {
+                                                            "type": "string",
+                                                            "maxLength": 524288
+                                                          }
+                                                        }
+                                                      },
+                                                      {
+                                                        "type": "object",
+                                                        "additionalProperties": false,
+                                                        "required": [
+                                                          "time_nanos"
+                                                        ],
+                                                        "properties": {
+                                                          "time_nanos": {
+                                                            "type": "string",
+                                                            "maxLength": 524288
+                                                          }
+                                                        }
+                                                      },
+                                                      {
+                                                        "type": "object",
+                                                        "additionalProperties": false,
+                                                        "required": [
+                                                          "timestamp_micros"
+                                                        ],
+                                                        "properties": {
+                                                          "timestamp_micros": {
+                                                            "type": "string",
+                                                            "maxLength": 524288
+                                                          }
+                                                        }
+                                                      },
+                                                      {
+                                                        "type": "object",
+                                                        "additionalProperties": false,
+                                                        "required": [
+                                                          "interval"
+                                                        ],
+                                                        "properties": {
+                                                          "interval": {
+                                                            "type": "object",
+                                                            "additionalProperties": false,
+                                                            "x-transit-field-order": [
+                                                              "months",
+                                                              "days",
+                                                              "nanos"
+                                                            ],
+                                                            "properties": {
+                                                              "months": {
+                                                                "type": "string",
+                                                                "maxLength": 524288
+                                                              },
+                                                              "days": {
+                                                                "type": "string",
+                                                                "maxLength": 524288
+                                                              },
+                                                              "nanos": {
+                                                                "type": "string",
+                                                                "maxLength": 524288
+                                                              }
+                                                            },
+                                                            "required": [
+                                                              "months",
+                                                              "days",
+                                                              "nanos"
+                                                            ],
+                                                            "x-transit-defaults": {}
+                                                          }
+                                                        }
+                                                      },
+                                                      {
+                                                        "type": "object",
+                                                        "additionalProperties": false,
+                                                        "required": [
+                                                          "uuid"
+                                                        ],
+                                                        "properties": {
+                                                          "uuid": {
+                                                            "type": "string",
+                                                            "maxLength": 524288
+                                                          }
+                                                        }
+                                                      }
+                                                    ]
+                                                  }
+                                                },
+                                                "required": [
+                                                  "column",
+                                                  "op",
+                                                  "value"
+                                                ],
+                                                "x-transit-defaults": {}
+                                              }
+                                            }
+                                          }
+                                        ]
+                                      }
+                                    }
+                                  },
+                                  {
+                                    "type": "object",
+                                    "additionalProperties": false,
+                                    "required": [
+                                      "negate"
+                                    ],
+                                    "properties": {
+                                      "negate": {
+                                        "type": "object",
+                                        "maxProperties": 0
+                                      }
+                                    }
+                                  },
+                                  {
+                                    "type": "object",
+                                    "additionalProperties": false,
+                                    "required": [
+                                      "conjunction"
+                                    ],
+                                    "properties": {
+                                      "conjunction": {
+                                        "type": "object",
+                                        "maxProperties": 0
+                                      }
+                                    }
+                                  },
+                                  {
+                                    "type": "object",
+                                    "additionalProperties": false,
+                                    "required": [
+                                      "disjunction"
+                                    ],
+                                    "properties": {
+                                      "disjunction": {
+                                        "type": "object",
+                                        "maxProperties": 0
+                                      }
+                                    }
+                                  }
+                                ]
+                              }
+                            }
+                          }
                         }
                       ]
                     }
                   },
-                  "required": [],
+                  "required": [
+                    "projection"
+                  ],
                   "x-transit-defaults": {
-                    "projection": "both",
+                    "version": 1,
+                    "output_names": null,
                     "limit": null,
                     "aggregate": "rows",
                     "predicate": {
@@ -12786,18 +13195,10 @@
                 }
               },
               "required": [
-                "id"
+                "id",
+                "plan"
               ],
-              "x-transit-defaults": {
-                "plan": {
-                  "projection": "both",
-                  "limit": null,
-                  "aggregate": "rows",
-                  "predicate": {
-                    "all": {}
-                  }
-                }
-              }
+              "x-transit-defaults": {}
             }
           }
         },
@@ -14447,11 +14848,8 @@
                   "maxLength": 524288
                 },
                 "table": {
-                  "type": "integer",
-                  "minimum": 0,
-                  "maximum": 4294967295,
-                  "x-transit-bits": 32,
-                  "x-transit-signed": false
+                  "type": "string",
+                  "maxLength": 524288
                 },
                 "policy_revision": {
                   "type": "string",
@@ -14461,21 +14859,11 @@
                   "type": "object",
                   "additionalProperties": false,
                   "x-transit-field-order": [
-                    "kind",
                     "resource",
                     "revision",
-                    "contract",
-                    "schema"
+                    "head"
                   ],
                   "properties": {
-                    "kind": {
-                      "type": "string",
-                      "enum": [
-                        "kv",
-                        "table",
-                        "document"
-                      ]
-                    },
                     "resource": {
                       "type": "integer",
                       "minimum": 0,
@@ -14490,19 +14878,7 @@
                       "x-transit-bits": 64,
                       "x-transit-signed": false
                     },
-                    "contract": {
-                      "type": "array",
-                      "minItems": 32,
-                      "maxItems": 32,
-                      "items": {
-                        "type": "integer",
-                        "minimum": 0,
-                        "maximum": 255,
-                        "x-transit-bits": 8,
-                        "x-transit-signed": false
-                      }
-                    },
-                    "schema": {
+                    "head": {
                       "type": "array",
                       "minItems": 32,
                       "maxItems": 32,
@@ -14516,11 +14892,9 @@
                     }
                   },
                   "required": [
-                    "kind",
                     "resource",
                     "revision",
-                    "contract",
-                    "schema"
+                    "head"
                   ],
                   "x-transit-defaults": {}
                 },
@@ -15408,7 +15782,7 @@
         "publication_chunk_bytes": 256,
         "query_results": true,
         "ipc_cells": true,
-        "query_segment_bytes": 8192,
+        "query_segment_bytes": 65535,
         "query_workspace_bytes": 4194304,
         "value_bytes": 256,
         "message_bytes": 243,

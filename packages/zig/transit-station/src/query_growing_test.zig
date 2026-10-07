@@ -3,7 +3,9 @@ const t = std.testing;
 const p = @import("transit_client").protocol;
 const f = @import("transit_fuze");
 const Turn = @import("Turn.zig");
-const Table = @import("Table.zig");
+const Table = @import("TableReader.zig");
+const Creation = @import("TableCreation.zig");
+const Write = @import("TableWrite.zig");
 const Frame = @import("Frame.zig");
 const q = @import("Query.zig");
 const r = q.records;
@@ -30,7 +32,7 @@ const Store = struct {
     }
     fn turn(self: *Store, frame: Frame, peer: u64) !Turn {
         self.input += 1;
-        return Turn.init(.{ .realm = 1, .principal = 65536, .pid = self.pid, .generation = 3, .sequence = self.input, .revision = self.revision, .input = .{ .position = self.input, .ordinal = self.input, .value = try frame.encode(), .origin = .{ .process = .{ .pid = peer, .turn = self.input - 1, .output = 0 } } }, .permit = null, .needs_permit = false }, .{ .id = self.input + 1000, .pid = self.pid, .principal = 65536, .generation = 3, .input = self.input, .process_revision = self.revision, .resource = self.resource, .revision = self.revision, .deadline_ms = 10_000 }, .{ .context = self, .read = read, .many = many, .cache_reads = self.batch_reads, .version = metadata, .version_entries = entries });
+        return Turn.init(.{ .realm = 1, .principal = 65536, .pid = self.pid, .generation = 3, .sequence = self.input, .revision = self.revision, .input = .{ .position = self.input, .ordinal = self.input, .value = try frame.encode(), .origin = .{ .process = .{ .pid = peer, .turn = self.input - 1, .output = 0 } } }, .permit = null, .needs_permit = false }, .{ .id = self.input + 1000, .pid = self.pid, .principal = 65536, .generation = 3, .input = self.input, .process_revision = self.revision, .resource = self.resource, .revision = self.revision, .deadline_ms = 10_000 }, .{ .context = self, .read = read, .many = many, .page = currentPage, .cache_reads = self.batch_reads, .version = metadata, .version_entries = entries });
     }
     fn read(raw: *anyopaque, _: p.Growth.View, key: p.Value) !?p.Value {
         const self: *Store = @ptrCast(@alignCast(raw));
@@ -58,15 +60,22 @@ const Store = struct {
         const self: *Store = @ptrCast(@alignCast(raw));
         self.source_reads += 1;
         if (self.unavailable) return error.Unavailable;
-        var page: @import("Turn.zig").Page = .{};
+        return mapPage(&self.source, 1, key, after);
+    }
+    fn currentPage(raw: *anyopaque, view: p.Growth.View, after: ?p.Value) !Turn.Page {
+        const self: *Store = @ptrCast(@alignCast(raw));
+        return mapPage(&self.state, view.revision, null, after);
+    }
+    fn mapPage(map: *Map, revision: u64, key: ?p.Value, after: ?p.Value) Turn.Page {
+        var page: Turn.Page = .{};
         if (key) |point| {
-            if (self.source.get(point)) |value| page.entries[0] = .{ .key = point, .value = value, .revision = 1 };
+            if (map.get(point)) |value| page.entries[0] = .{ .key = point, .value = value, .revision = revision };
             return page;
         }
         var cursor = after;
         for (0..page.entries.len + 1) |i| {
             var next: ?p.Value = null;
-            var iterator = self.source.keyIterator();
+            var iterator = map.keyIterator();
             while (iterator.next()) |candidate| {
                 if (cursor) |previous| if (std.mem.order(u8, candidate.slice(), previous.slice()) != .gt) continue;
                 if (next == null or std.mem.order(u8, candidate.slice(), next.?.slice()) == .lt) next = candidate.*;
@@ -76,7 +85,7 @@ const Store = struct {
                 page.next = cursor;
                 return page;
             }
-            page.entries[i] = .{ .key = found, .value = self.source.get(found).?, .revision = 1 };
+            page.entries[i] = .{ .key = found, .value = map.get(found).?, .revision = revision };
             cursor = found;
         }
         unreachable;
@@ -98,25 +107,59 @@ const Store = struct {
         };
         self.revision += 1;
     }
-    fn seed(self: *Store, rows: usize, data_type: f.model.Type) !Table {
-        var setup = try self.turn(.{ .kind = .cast }, 2);
-        const table = try Table.create(&setup, 1, .{ .names = .{ try .init("id"), try .init("value") }, .value_type = data_type });
-        try q.setPolicy(&setup, 8, 1, 0, true);
-        try self.commit(setup);
-        for (0..rows) |i| {
-            var insert = try self.turn(.{ .kind = .cast }, 2);
-            try table.insert(&insert, .{ .key = @intCast(i), .value = if (i % 5 == 0) .null else if (data_type == .utf8) .{ .utf8 = try .init(&@as([220]u8, @splat('x'))) } else .{ .int64 = @intCast(i * 10) } });
-            try self.commit(insert);
+    fn create(self: *Store, schema: f.TableSchema.Schema) !void {
+        while (true) {
+            var setup = try self.turn(.{ .kind = .cast }, 2);
+            const state = try Creation.step(t.allocator, &setup, schema, .{ .record_bytes = 65536, .staging_bytes = 8 * 1024 * 1024, .staging_records = 1024 });
+            try self.commit(setup);
+            if (state.state == .applied) break;
         }
-        return table;
+        var setup = try self.turn(.{ .kind = .cast }, 2);
+        try q.setPolicy(&setup, 8, schema.object, 0, true);
+        try self.commit(setup);
+    }
+    fn insert(self: *Store, schema: f.TableSchema.Schema, operation: u64, cells: []const f.Types.Values.Cell) !void {
+        var write: Write.Request = .{ .resource = self.resource, .principal = 65536, .operation = operation, .schema = schema, .change = undefined };
+        write.change = .{ .insert = .{ .identity = try write.insertIdentity(), .cells = cells } };
+        while (true) {
+            var step = try self.turn(.{ .kind = .cast }, 2);
+            const state = try Write.step(t.allocator, &step, write);
+            try self.commit(step);
+            if (state.state != .building) {
+                try t.expectEqual(.applied, state.state);
+                break;
+            }
+        }
+    }
+    fn seed(self: *Store, rows: usize, data_type: f.Types.Type) !u64 {
+        const columns = [_]f.TableSchema.Column{
+            .{ .id = 1, .name = "id", .type = .int64, .nullable = false },
+            .{ .id = 2, .name = "value", .type = data_type },
+        };
+        const schema: f.TableSchema.Schema = .{ .object = 1, .revision = 1, .next_column = 3, .columns = &columns, .primary_key = &.{1} };
+        try self.create(schema);
+        for (0..rows) |i| {
+            const cells = [_]f.Types.Values.Cell{
+                .{ .value = .{ .atom = .{ .signed = @intCast(i) } } },
+                if (i % 5 == 0) .null else .{ .value = .{ .atom = if (data_type == .utf8) .{ .bytes = &@as([220]u8, @splat('x')) } else .{ .signed = @intCast(i * 10) } } },
+            };
+            try self.insert(schema, i + 1, &cells);
+        }
+        return schema.object;
     }
 };
+fn startQuery(turn: *Turn, object: u64, options: struct { projection: []const u8 }) !q.Job {
+    var table = try Table.open(t.allocator, turn, object);
+    defer table.deinit();
+    var fields: [f.TableSchema.max_columns]f.Types.Field = undefined;
+    return q.start(turn, &table, .{ .schema = try table.schema.schema.rowType(&fields), .source_basis = table.basis.head, .projection = options.projection });
+}
 fn request(turn: Turn) !q.Continuation {
     return q.Continuation.decode((try Frame.decode(turn.decision.outputs[0].?.value)).payload);
 }
 fn advance(store: *Store, continuation: q.Continuation, workspace: []u8, cancel: *const f.execution.Cancellation) !struct { turn: Turn, result: q.Advance } {
     var turn = try store.turn(.{ .kind = .cast, .payload = try continuation.encode() }, 2);
-    const result = try q.advance(&turn, continuation, workspace, cancel);
+    const result = try q.advance(t.allocator, &turn, continuation, workspace, cancel);
     return .{ .turn = turn, .result = result };
 }
 
@@ -164,7 +207,7 @@ test "growing capture seals bounded segments across fresh turns and keeps comple
     defer store.deinit();
     const table = try store.seed(70, .utf8);
     var start = try store.turn(.{ .kind = .call, .correlation = std.math.maxInt(u64) }, 8);
-    const job = try q.start(&start, table, .{ .projection = &.{ 0, 1 } });
+    const job = try startQuery(&start, table, .{ .projection = &.{ 0, 1 } });
     try store.commit(start);
     var next = try request(start);
     const original = next;
@@ -178,7 +221,7 @@ test "growing capture seals bounded segments across fresh turns and keeps comple
         const prior_progress = try q.progress(&step.turn, job.result);
         // A fresh handler recreates the exact candidate after an uncommitted loss.
         var retry = try Turn.init(step.turn.delivery, step.turn.view, step.turn.reader);
-        try t.expectEqual(step.result, try q.advance(&retry, next, &workspace, &cancel));
+        try t.expectEqual(step.result, try q.advance(t.allocator, &retry, next, &workspace, &cancel));
         try t.expect(std.meta.eql(step.turn.decision, retry.decision));
         try store.commit(step.turn);
         if (step.result == .captured) {
@@ -188,7 +231,7 @@ test "growing capture seals bounded segments across fresh turns and keeps comple
         next = try request(step.turn);
         if (next.written != 0) {
             staging_turns += 1;
-            try t.expectEqual(prior_progress.pages, next.page);
+            try t.expectEqual((if (prior_progress) |state| state.pages else 0), next.page);
         }
         var inspect = try store.turn(.{ .kind = .cast }, 2);
         try t.expectError(error.IncompleteResult, q.captured(&inspect, job.result));
@@ -228,7 +271,7 @@ test "growing capture seals bounded segments across fresh turns and keeps comple
     try t.expectEqualSlices(u8, &chain, &result.job.chain);
     try batchedSegment(&store, q.capturedSegment, job.result, 'f', error.MissingResultFragment);
     var duplicate_call = try store.turn(.{ .kind = .call, .correlation = job.correlation }, 8);
-    try t.expectError(error.CorrelationAlreadyUsed, q.start(&duplicate_call, table, .{ .projection = &.{ 0, 1 } }));
+    try t.expectError(error.CorrelationAlreadyUsed, startQuery(&duplicate_call, table, .{ .projection = &.{ 0, 1 } }));
     try t.expectError(error.InvalidQueryOrdinal, q.capturedSegment(&inspect, job.result, result.progress.segments, &buffer));
     const fragment = r.key('f', job.result, 0, 0);
     const old = store.state.get(fragment).?;
@@ -245,7 +288,7 @@ test "growing capture rejects changed staging and closes policy or source loss w
     defer store.deinit();
     const table = try store.seed(10, .utf8);
     var start = try store.turn(.{ .kind = .call, .correlation = 3 }, 8);
-    const job = try q.start(&start, table, .{ .projection = &.{ 0, 1 } });
+    const job = try startQuery(&start, table, .{ .projection = &.{ 0, 1 } });
     try store.commit(start);
     var workspace: [f.execution.working_bytes]u8 = undefined;
     var cancel = f.execution.Cancellation.init(true);
@@ -263,13 +306,13 @@ test "growing capture rejects changed staging and closes policy or source loss w
     try t.expectError(error.QueryStageChanged, advance(&store, next, &workspace, &cancel));
     try store.state.put(t.allocator, stage_key, original);
     var forged = try store.turn(.{ .kind = .cast, .payload = try next.encode() }, 8);
-    try t.expectError(error.UnexpectedResultContinuation, q.advance(&forged, next, &workspace, &cancel));
+    try t.expectError(error.UnexpectedResultContinuation, q.advance(t.allocator, &forged, next, &workspace, &cancel));
     var future = next;
     future.page += 1;
     try t.expectError(error.InvalidQueryContinuation, advance(&store, future, &workspace, &cancel));
     store.unavailable = true;
     var failed = try store.turn(.{ .kind = .cast, .payload = try next.encode() }, 2);
-    try t.expectError(error.Unavailable, q.advance(&failed, next, &workspace, &cancel));
+    try t.expectError(error.Unavailable, q.advance(t.allocator, &failed, next, &workspace, &cancel));
     try t.expectError(error.Unavailable, q.close(&failed, job.result, .cancelled));
     for (failed.decision.mutations) |slot| try t.expect(slot == null);
     var close = try store.turn(.{ .kind = .cast }, 2);
@@ -287,7 +330,7 @@ test "growing capture rejects changed staging and closes policy or source loss w
     defer revoked.deinit();
     const second_table = try revoked.seed(10, .int64);
     start = try revoked.turn(.{ .kind = .call, .correlation = 4 }, 8);
-    const second = try q.start(&start, second_table, .{ .projection = &.{ 0, 1 } });
+    const second = try startQuery(&start, second_table, .{ .projection = &.{ 0, 1 } });
     try revoked.commit(start);
     var policy = try revoked.turn(.{ .kind = .cast }, 2);
     try q.setPolicy(&policy, 8, 1, 1, false);
@@ -320,7 +363,7 @@ test "growing result delivery preserves bounded progress through fresh handlers 
     try enqueue(&queue, initial);
     var workspace: [f.execution.working_bytes]u8 = undefined;
     const cancel = f.execution.Cancellation.init(false);
-    const context: q.Context = .{ .workspace = &workspace, .cancellation = &cancel };
+    const context: q.Context = .{ .allocator = t.allocator, .workspace = &workspace, .cancellation = &cancel };
     var next: usize = 0;
     var identity: u64 = 0;
     var callbacks: usize = 0;
@@ -335,7 +378,7 @@ test "growing result delivery preserves bounded progress through fresh handlers 
         var turn = try target.turn(message.frame, message.source);
         if (!try q.dispatch(&turn, message.frame, context)) {
             if (message.frame.kind == .call) {
-                identity = (try q.start(&turn, table, .{ .projection = &.{ 0, 1 } })).result;
+                identity = (try startQuery(&turn, table, .{ .projection = &.{ 0, 1 } })).result;
             } else {
                 try t.expectEqual(Frame.Kind.result_complete, message.frame.kind);
                 const result = try q.completed(&turn, correlation);
@@ -412,7 +455,7 @@ test "receiver rejects out-of-order conflicting and premature result evidence wi
     try receiver.commit(initial);
     var workspace: [f.execution.working_bytes]u8 = undefined;
     var cancel = f.execution.Cancellation.init(false);
-    const context: q.Context = .{ .workspace = &workspace, .cancellation = &cancel };
+    const context: q.Context = .{ .allocator = t.allocator, .workspace = &workspace, .cancellation = &cancel };
     const data: [r.fragment_bytes]u8 = @splat(1);
     var fragment: r.Fragment = .{ .result = 55, .segment = 0, .offset = r.fragment_bytes, .bytes = &data };
     var frame: Frame = .{ .kind = .result_chunk, .correlation = correlation, .payload = try fragment.encode() };
@@ -438,8 +481,7 @@ test "receiver rejects out-of-order conflicting and premature result evidence wi
     frame.payload = try fragment.encode();
     turn.delivery.input.value = try frame.encode();
     try t.expectError(error.ConflictingResultIdentity, q.dispatch(&turn, frame, context));
-    const schema: f.model.Schema = .{ .names = .{ try .init("id"), try .init("value") }, .value_type = .int64 };
-    const manifest: q.Manifest = .{ .result = 55, .destination = 8, .correlation = correlation, .table = 1, .policy_revision = 1, .basis = try (Table{ .resource = 7, .id = 1, .schema = schema }).queryBasis(1), .plan = @splat(1), .segments = 1, .bytes = data.len, .rows = 1, .chain = @splat(0), .schema = @splat(0) };
+    const manifest: q.Manifest = .{ .result = 55, .destination = 8, .correlation = correlation, .table = 1, .policy_revision = 1, .basis = .{ .resource = 7, .revision = 1, .head = @splat(2) }, .plan = @splat(1), .segments = 1, .bytes = data.len, .rows = 1, .chain = @splat(0), .schema = @splat(0) };
     frame = .{ .kind = .result_complete, .correlation = correlation, .payload = try manifest.encode() };
     turn.delivery.input.value = try frame.encode();
     try t.expectError(error.IncompleteResult, q.dispatch(&turn, frame, context));
@@ -465,13 +507,13 @@ fn countSet(slots: anytype) usize {
 test "receiver-issued credit authenticates its peer, never regresses and is inert once published" {
     var producer: Store = .{};
     defer producer.deinit();
-    const job: r.Job = .{ .result = 55, .destination = 8, .correlation = 1, .table = 1, .source = .{ .pid = 2, .input = 55, .index = 0 }, .policy_revision = 1, .phase = .captured, .send_segment = r.credit_window, .send_offset = 0 };
+    const job: r.Job = .{ .result = 55, .destination = 8, .correlation = 1, .table = 1, .source = .{ .pid = 2, .input = 55, .index = 0 }, .resource = 7, .revision = 1, .plan_bytes = 1, .policy_revision = 1, .phase = .captured, .send_segment = r.credit_window, .send_offset = 0 };
     var setup = try producer.turn(.{ .kind = .cast }, 2);
     try setup.write(r.key('j', job.result, 0, 0), try job.encode());
     try producer.commit(setup);
     var workspace: [f.execution.working_bytes]u8 = undefined;
     const cancel = f.execution.Cancellation.init(false);
-    const context: q.Context = .{ .workspace = &workspace, .cancellation = &cancel };
+    const context: q.Context = .{ .allocator = t.allocator, .workspace = &workspace, .cancellation = &cancel };
     const first: r.Credit = .{ .result = job.result, .granted = 1 };
     var frame: Frame = .{ .kind = .cast, .payload = try first.encode() };
     // Only the job's authenticated destination may grant credit for it.
@@ -504,4 +546,216 @@ test "receiver-issued credit authenticates its peer, never regresses and is iner
     turn = try producer.turn(frame, job.destination);
     try t.expect(try q.dispatch(&turn, frame, context));
     try t.expect(countSet(turn.decision.mutations) == 0 and countSet(turn.decision.outputs) == 0);
+}
+
+fn capture(store: *Store, initial: Turn, workspace: []u8) !q.Captured {
+    const cancel = f.execution.Cancellation.init(false);
+    var next = try request(initial);
+    for (0..2048) |_| {
+        const step = try advance(store, next, workspace, &cancel);
+        try store.commit(step.turn);
+        if (step.result == .captured) {
+            var inspect = try store.turn(.{ .kind = .cast }, 2);
+            return q.captured(&inspect, next.result);
+        }
+        try t.expectEqual(.progress, step.result);
+        next = try request(step.turn);
+    }
+    return error.StepBudgetExceeded;
+}
+
+test "typed capture finishes empty successor pages and a filtered tail without a spurious segment" {
+    var workspace: [f.execution.working_bytes]u8 = undefined;
+    for ([_]usize{ 0, 8, 16, 17 }) |rows| {
+        var store: Store = .{};
+        defer store.deinit();
+        const object = try store.seed(rows, .int64);
+        var begin = try store.turn(.{ .kind = .call, .correlation = 17 }, 8);
+        var table = try Table.open(t.allocator, &begin, object);
+        defer table.deinit();
+        var fields: [f.TableSchema.max_columns]f.Types.Field = undefined;
+        const job = try q.start(&begin, &table, .{
+            .schema = try table.schema.schema.rowType(&fields),
+            .source_basis = table.basis.head,
+            .projection = &.{ 0, 1 },
+            .predicate = if (rows == 17) .{ .compare = .{ .column = 0, .op = .lt, .value = .{ .signed = 8 } } } else .all,
+        });
+        try t.expect((try q.progress(&begin, job.result)) == null);
+        try store.commit(begin);
+        const result = try capture(&store, begin, &workspace);
+        try t.expectEqual(@as(u64, if (rows == 17) 8 else rows), result.progress.rows);
+        try t.expectEqual(@as(u64, if (rows == 16) 2 else 1), result.progress.segments);
+        try t.expectEqual(@as(u64, rows / 8 + 1), result.progress.pages);
+        try t.expect(store.version.?.released_at != null);
+    }
+}
+
+test "typed capture owns two-cell plans and rejects missing changed or oversized plan evidence" {
+    var store: Store = .{};
+    defer store.deinit();
+    const object = try store.seed(1, .int64);
+    var begin = try store.turn(.{ .kind = .call, .correlation = 7 }, 8);
+    var table = try Table.open(t.allocator, &begin, object);
+    defer table.deinit();
+    var fields: [f.TableSchema.max_columns]f.Types.Field = undefined;
+    const left: [150]u8 = @splat('a');
+    const right: [150]u8 = @splat('b');
+    var plan: f.LogicalQuery.Plan = .{ .schema = try table.schema.schema.rowType(&fields), .source_basis = table.basis.head, .projection = &.{ 0, 1 }, .output_names = &.{ &left, &right } };
+    const larger_left: [210]u8 = @splat('a');
+    const larger_right: [210]u8 = @splat('b');
+    const before = begin.decision;
+    plan.output_names = &.{ &larger_left, &larger_right };
+    try t.expectError(error.QueryPlanTooLarge, q.start(&begin, &table, plan));
+    try t.expect(std.meta.eql(before, begin.decision));
+    plan.output_names = &.{ &left, &right };
+    const job = try q.start(&begin, &table, plan);
+    try t.expect(job.plan_bytes > 256 and job.plan_bytes <= 512);
+    try t.expectEqual(@as(usize, 4), countSet(begin.decision.mutations));
+    try store.commit(begin);
+    const second = r.key('p', job.result, 0, 1);
+    const saved = store.state.get(second).?;
+    _ = store.state.remove(second);
+    var workspace: [f.execution.working_bytes]u8 = undefined;
+    const cancel = f.execution.Cancellation.init(false);
+    try t.expectError(error.MissingQueryPlan, advance(&store, try request(begin), &workspace, &cancel));
+    try store.state.put(t.allocator, second, saved);
+    const first = r.key('p', job.result, 0, 0);
+    const original = store.state.get(first).?;
+    var changed = original;
+    changed.data[36] ^= 1;
+    try store.state.put(t.allocator, first, changed);
+    try t.expectError(error.SourceChanged, advance(&store, try request(begin), &workspace, &cancel));
+    try store.state.put(t.allocator, first, original);
+    const result = try capture(&store, begin, &workspace);
+    try t.expectEqual(@as(u64, 1), result.progress.rows);
+}
+
+test "typed capture preserves decimal and nested cells with full-width Table identity" {
+    var store: Store = .{};
+    defer store.deinit();
+    const columns = [_]f.TableSchema.Column{
+        .{ .id = 1, .name = "id", .type = .int64 },
+        .{ .id = 2, .name = "value", .type = .utf8 },
+        .{ .id = 3, .name = "amount", .type = .{ .decimal = .{ .precision = 18, .scale = 2 } } },
+        .{ .id = 4, .name = "tags", .type = .{ .list = .{ .type = &.utf8, .nullable = true } } },
+    };
+    const schema: f.TableSchema.Schema = .{ .object = std.math.maxInt(u64), .revision = 1, .next_column = 5, .columns = &columns };
+    try store.create(schema);
+    const cells = [_]f.Types.Values.Cell{
+        .{ .value = .{ .atom = .{ .signed = 12 } } },
+        .null,
+        .{ .value = .{ .atom = .{ .decimal = 12345 } } },
+        .{ .value = .{ .list = &.{ .{ .value = .{ .atom = .{ .bytes = "nested" } } }, .null } } },
+    };
+    try store.insert(schema, 1, &cells);
+    var begin = try store.turn(.{ .kind = .call, .correlation = 99 }, 8);
+    const job = try startQuery(&begin, schema.object, .{ .projection = &.{ 0, 1, 2, 3 } });
+    try store.commit(begin);
+    var workspace: [f.execution.working_bytes]u8 = undefined;
+    const result = try capture(&store, begin, &workspace);
+    try t.expectEqual(schema.object, result.job.table);
+    var inspect = try store.turn(.{ .kind = .cast }, 2);
+    var bytes: [r.segment_bytes]u8 = undefined;
+    const segment = try q.capturedSegment(&inspect, job.result, 0, &bytes);
+    var inferred = try f.LogicalInspect.infer(t.allocator, segment.bytes, &workspace);
+    defer inferred.deinit();
+    var decoded = try f.LogicalInspect.decode(t.allocator, inferred.descriptor.type, segment.bytes, 1, &workspace);
+    defer decoded.deinit();
+    try t.expectEqual(@as(usize, 4), inferred.descriptor.type.structure.len);
+    try t.expectEqual(@as(i128, 12345), decoded.rows[0].cells[2].value.atom.decimal);
+    try t.expectEqualStrings("nested", decoded.rows[0].cells[3].value.list[0].value.atom.bytes);
+    try t.expectEqual(.null, std.meta.activeTag(decoded.rows[0].cells[3].value.list[1]));
+}
+
+test "deterministic query budget failure closes once and never publishes a complete prefix" {
+    var store: Store = .{};
+    defer store.deinit();
+    const object = try store.seed(1, .int64);
+    var begin = try store.turn(.{ .kind = .call, .correlation = 101 }, 8);
+    const job = try startQuery(&begin, object, .{ .projection = &.{ 0, 1 } });
+    try store.commit(begin);
+    var workspace: [1]u8 = undefined;
+    const cancel = f.execution.Cancellation.init(false);
+    const next = try request(begin);
+    var allocation_failure = t.FailingAllocator.init(t.allocator, .{ .fail_index = 0 });
+    var unsent = try store.turn(.{ .kind = .cast, .payload = try next.encode() }, 2);
+    const before = unsent.decision;
+    try t.expectError(error.OutOfMemory, q.advance(allocation_failure.allocator(), &unsent, next, &workspace, &cancel));
+    try t.expect(std.meta.eql(before, unsent.decision));
+    try t.expect(store.version.?.released_at == null);
+    const failed = try advance(&store, next, &workspace, &cancel);
+    try t.expectEqual(.closed, failed.result);
+    try store.commit(failed.turn);
+    var inspect = try store.turn(.{ .kind = .cast }, 2);
+    const stored = try q.job(&inspect, job.result);
+    try t.expectEqual(.failed, stored.phase);
+    try t.expectEqual(.workspace_exceeded, stored.failure);
+    try t.expect(store.version.?.released_at != null);
+    try t.expectError(error.IncompleteResult, q.captured(&inspect, job.result));
+    try t.expectEqual(@as(usize, 1), countSet(failed.turn.decision.outputs));
+    try t.expectEqualStrings("station.query.failed.v1:workspace_exceeded", (try Frame.decode(failed.turn.decision.outputs[0].?.value)).payload.slice());
+    const duplicate = try advance(&store, next, &workspace, &cancel);
+    try t.expectEqual(.duplicate, duplicate.result);
+    try t.expect(countSet(duplicate.turn.decision.outputs) == 0);
+    try q.close(&inspect, job.result, .cancelled);
+    try t.expect(countSet(inspect.decision.mutations) == 0);
+}
+
+test "wide logical plan admission fits four writes and oversized output has a terminal outcome" {
+    var store: Store = .{};
+    defer store.deinit();
+    var names: [128][4]u8 = undefined;
+    var columns: [128]f.TableSchema.Column = undefined;
+    var projection: [128]u8 = undefined;
+    for (&names, &columns, &projection, 0..) |*name, *column, *selected, i| {
+        column.* = .{ .id = i + 1, .name = try std.fmt.bufPrint(name, "c{d:0>3}", .{i}), .type = .int64 };
+        selected.* = @intCast(i);
+    }
+    try store.create(.{ .object = 1, .revision = 1, .next_column = 129, .columns = &columns });
+    var begin = try store.turn(.{ .kind = .call, .correlation = 12 }, 8);
+    const job = try startQuery(&begin, 1, .{ .projection = &projection });
+    try t.expect(job.plan_bytes > 256 and job.plan_bytes <= 512);
+    try t.expectEqual(@as(usize, 4), countSet(begin.decision.mutations));
+    try store.commit(begin);
+    var workspace: [f.execution.working_bytes]u8 = undefined;
+    const cancel = f.execution.Cancellation.init(false);
+    const step = try advance(&store, try request(begin), &workspace, &cancel);
+    try t.expectEqual(.closed, step.result);
+    try store.commit(step.turn);
+    var inspect = try store.turn(.{ .kind = .cast }, 2);
+    const failed = try q.job(&inspect, job.result);
+    try t.expectEqual(.failed, failed.phase);
+    try t.expectEqual(.result_too_large, failed.failure);
+    try t.expect(store.version.?.released_at != null);
+    try t.expectError(error.IncompleteResult, q.captured(&inspect, job.result));
+}
+
+test "a completed segment prefix remains incomplete when the next page fails" {
+    var store: Store = .{};
+    defer store.deinit();
+    const object = try store.seed(9, .int64);
+    var begin = try store.turn(.{ .kind = .call, .correlation = 11 }, 8);
+    const job = try startQuery(&begin, object, .{ .projection = &.{ 0, 1 } });
+    try store.commit(begin);
+    var workspace: [f.execution.working_bytes]u8 = undefined;
+    const cancel = f.execution.Cancellation.init(false);
+    var next = try request(begin);
+    for (0..128) |_| {
+        const step = try advance(&store, next, &workspace, &cancel);
+        try t.expectEqual(.progress, step.result);
+        try store.commit(step.turn);
+        next = try request(step.turn);
+        if (next.page == 1) break;
+    }
+    try t.expectEqual(@as(u64, 1), next.page);
+    const failed = try advance(&store, next, workspace[0..1], &cancel);
+    try t.expectEqual(.closed, failed.result);
+    try store.commit(failed.turn);
+    var inspect = try store.turn(.{ .kind = .cast }, 2);
+    const stored = try q.job(&inspect, job.result);
+    try t.expect(stored.bytes > 0 and stored.failure == .workspace_exceeded);
+    try t.expectEqual(@as(u64, 1), (try q.progress(&inspect, job.result)).?.segments);
+    try t.expectError(error.IncompleteResult, q.captured(&inspect, job.result));
+    try t.expectError(error.IncompleteResult, q.beginPublication(&inspect, job.result));
+    try t.expect(countSet(inspect.decision.outputs) == 0);
 }

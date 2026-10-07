@@ -17453,3 +17453,64 @@ now verifies inferred schemas and sealed segment fingerprints before the
 independent PyArrow checks. Documentation, invariant registry and the refreshed
 diagnostic inventory pass. Handler dispatch and installed SDK migration remain
 separate from these codec checks.
+
+### General typed handler query capture and delivery
+
+Station private queries now retain the general Table head/schema, persist an
+FQP1 plan in one or two native cells, and resume with a stable 20-byte row
+identity and FQS1 progress. Job/correlation plus two plan cells still consume
+at most four native writes. Logical Arrow delivery verifies canonical schema
+metadata and every cell through the shared inspector. The transport keeps u16
+lengths with a 65535-byte buffer (aligned streams fit at most 65528 bytes),
+eight-row pages and the existing 4 MiB Arrow workspace. These are operation
+bounds; durable source/result cardinality remains paged.
+
+`handler-query-unit6.log` passes **109/109** Station tests, four build steps,
+4 seconds and 28 MiB test-process MaxRSS. It preserves the prior restart,
+authenticated-origin, current-policy, cancellation, read-poison, duplicate,
+fragment-conflict and credit checks over general typed storage. New cases cover
+empty source/successor pages, a filtered tail, independent decimal/list cells,
+full-width Table identities, two-cell frozen plans, missing/changed/oversized
+plans, and four-write admission at 128 columns. That last empty result exceeds
+the per-segment output budget and records a terminal `result_too_large`; schema
+admission does not promise every projection fits one output segment. Explicit
+workspace exhaustion also records failure and releases the source. An earlier
+sealed prefix cannot become a complete result after failure. Host allocator
+failure restores the private proposal and does not manufacture a terminal result.
+
+`handler-query-bindings1.log` passes **17/17** shared Zig binding tests. Neutral
+query plans now reuse the general logical plan model and manifests preserve
+full-width Table IDs as decimal strings. Generated binding resources reflect
+this change; language-native handler wrappers and installed SDK qualification
+remain part of the subsequent Table API migration.
+
+`handler-query-native5.log` passes **6/6** steps against disk-backed Ursula:
+**41 rows, six segments, 22880 bytes**. Worker/provider/node replacement resumes
+staging, sealing and partial receipt; four lost-reply sites reconcile identical
+requests and receipts. Source access stops before publication, completion occurs
+once, local cancellation preserves uncertain proposals, and acknowledgement is
+retained. Independent Python checks reconstruct the 152-byte GQJ1 job and
+126-byte FQS1 progress, verify logical descriptor metadata and every PyArrow
+cell, ordered segment digests, complete source binding and received-byte identity.
+Phase times are write 33.461 s, seal 8.934 s, recover 13.652 s, publish 0.517 s,
+and delivery 22.927 s. These fault-injection proof times are not matched latency
+controls. Authority residency is 64 pages initially, one after the first restart,
+and 64 for final capture/delivery; no default deployment bound changes.
+
+The first native build fails on an unused fixture parameter. Native runs 2–4
+complete all service phases but fail independent final checks that still use
+the old descriptor fixture shape, null-kind convention and progress basis.
+They are not counted as passing proofs. The final oracle uses shared independent
+logical type/cell encoders and verifies the new manifest head binding and schema
+fingerprint. Unit runs 1 and 4 fail on fixture field/enum names; run 2 accidentally
+invokes the broader root test target (943 tests pass, two binding builds fail
+before their API migration). Focused runs 3 and 5 pass 103 and 107 tests; run 6
+adds the output-budget and incomplete-prefix adversaries. Documentation and
+classified-bound checks pass. The final shared-definition cutover, all installed
+SDKs, full checks, performance controls and committed-HEAD clean CI remain pending.
+
+Raw `handler-query-unit6.log` SHA-256: `56ca7cc707fd6cd2cd3bfe7c0364bbf942e3013619b4f9696f4f787fbee829bc`.
+
+Raw `handler-query-bindings1.log` SHA-256: `09556090d8786e89f76c75df5abd471b756674c6c9c41d44d939986752a1892a`.
+
+Raw `handler-query-native5.log` SHA-256: `e22dea584887532f4e48b8cd359bd899be6367a04501eeb1de583ccbfe5e4227`.

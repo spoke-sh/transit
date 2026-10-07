@@ -143,7 +143,7 @@ pub fn create(abi_version: u32, url: [*]const u8, url_len: usize, seed: *const [
             destroy(@ptrCast(server));
             return .out_of_memory;
         };
-        server.behavior.query = .{ .workspace = server.workspace.?, .cancellation = &server.cancellation };
+        server.behavior.query = .{ .allocator = allocator, .workspace = server.workspace.?, .cancellation = &server.cancellation };
     }
     out.* = @ptrCast(server);
     return .ok;

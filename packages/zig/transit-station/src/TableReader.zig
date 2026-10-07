@@ -62,6 +62,11 @@ fn check(self: *const Self, source: anytype) !void {
     const actual = try Head.load(source, self.head.object);
     if (!std.meta.eql(self.basis, try basisOf(source, actual))) return error.TableHeadChanged;
 }
+/// Validate the exact captured handle before another owner retains its source.
+pub fn validate(self: *const Self, source: anytype) !void {
+    var snapshot = committed(source);
+    try self.check(&snapshot);
+}
 fn data(self: *const Self) Data {
     return .{ .schema = self.schema.schema, .index = self.head.index };
 }

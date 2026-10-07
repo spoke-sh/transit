@@ -10,30 +10,32 @@ delivery and credit. The public finite KV/Table/Document client composes its
 own source and upload protocol in [transit-query](../../transit-query/README.md).
 
 Set a revisioned peer/Table policy with `Query.setPolicy`. A handler for
-an authenticated call invokes `start(turn, table, plan)` after its behavior
-has already initialized. Start consumes all four mutations: job, owned plan,
-owned engine progress and peer/correlation index. It retains the committed source
+an authenticated call invokes `start(turn, &table_reader, plan)` after its behavior
+has already initialized. Open an owned `TableReader` at that turn's committed cut. Start consumes three
+or four mutations: job, one or two owned plan cells and peer/correlation index.
+Initial engine progress is reconstructed until the first completed page. It retains the committed source
 and emits a self-continuation. No source or result is an implicit lifetime owner;
 normal process/resource/grant rules still apply.
 
 Dispatch the recorded `GQC1` cast payload by decoding `Query.Continuation`
-and calling `advance(turn, continuation, workspace, cancellation)`. It handles one
+and calling `advance(allocator, turn, continuation, workspace, cancellation)`. It handles one
 bounded step, stages its next continuation, and returns `progress`, `captured`,
 `closed` or `duplicate`. The application supplies a per-step workspace; it must
-not preserve a native stack or iterator across inputs. `plan` is a `fuze.Unified.Plan`; all projections are explicit. The framework verifies
+not preserve a native stack or iterator across inputs. `plan` is a `fuze.LogicalQuery.Plan`; all projections are explicit. The framework verifies
 self-origin, source identity, persisted plan/progress, current policy and the
 candidate segment's identity before adding staged fragments.
 
-The plan uses canonical `FZP1` bytes and must fit one 256-byte value at start.
-The source basis and 175-byte `FZS1` progress use the current query definition;
+The plan uses canonical `FQP1` bytes and must fit two 256-byte values at start.
+Its source binding hashes the complete retained Table head and typed schema.
+The 126-byte `FQS1` progress uses the shared logical execution definition;
 the Table cursor is stored separately in the job. Each step uses a 4 MiB workspace
-and an 8192-byte nested Arrow segment buffer independently of total result size.
+and a 65535-byte logical Arrow segment buffer independently of total result size.
 At most three 221-byte fragments are staged in a turn. A separate seal verifies
 those bytes and atomically advances the source and aggregate progress with the
 segment manifest and result chain. Until then, progress still names the previous
 sealed source page. A restart recomputes only the current unsealed step from the
 retained version, verifying it against staging metadata. Global limits and
-aggregates come from `transit_fuze.Unified.Stream`; they do not reset on a source page.
+aggregates come from `transit_fuze.LogicalStream`; they do not reset on a source page.
 
 After `captured`, `captured(turn, result_id)` returns owned job/progress metadata.
 `capturedSegment(turn, result_id, ordinal, buffer)` reads one sealed segment and
@@ -41,7 +43,14 @@ checks its byte digest. The returned bytes borrow the buffer. It rejects partial
 jobs, missing fragments and altered bytes. It does not return the whole result
 as one allocation or claim separate IPC streams can be concatenated. The source
 version is released with the final seal; captured data remains ordinary retained
-state. End-to-end publication must still validate the complete ordered chain.
+state. End-to-end publication must still validate the complete ordered chain. Empty
+final scan pages can finish an existing result without an extra segment.
+
+Deterministic output/workspace exhaustion and aggregate overflow record a terminal
+failed job, release its retained source and reply with the exact failure code.
+Earlier segments cannot be consumed as a complete result. Failed native reads,
+host allocation failures and local cancellation still abort the private proposal;
+they do not authorize a failed-result commit.
 
 Native captured turns prefetch fragment keys in groups of at most eight while
 assembling or verifying a segment. Each group uses the same captured view and
@@ -52,7 +61,7 @@ their ordinary point-read interface.
 
 ## Publication and receipt
 
-Configure both hosts with `server.query = .{ .workspace = workspace,
+Configure both hosts with `server.query = .{ .allocator = allocator, .workspace = workspace,
 .cancellation = &cancellation }`, keeping the borrowed workspace and flag alive
 through each poll/finish operation. Without that opt-in, result frames fail with
 `UnsupportedQuery`. The host does not allocate an unbounded result buffer

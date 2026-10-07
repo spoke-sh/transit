@@ -13863,12 +13863,10 @@
     },
     "packages/zig/transit-station-bindings/src/GrowingActions.zig": {
       "errors": {
-        "CellTooLarge": 2,
         "InvalidCursor": 2,
         "InvalidGrpcRequestReference": 3,
         "InvalidHttpRequestReference": 3,
-        "StaleStateCursor": 1,
-        "UnsupportedNullComparison": 1
+        "StaleStateCursor": 1
       },
       "outcomes": {
         "Action": [
@@ -13925,16 +13923,6 @@
           "cancelled",
           "denied"
         ],
-        "Plan.predicate": [
-          "all",
-          "is_null",
-          "compare"
-        ],
-        "Plan.projection": [
-          "both",
-          "key",
-          "value"
-        ],
         "Result": [
           "document",
           "budgets",
@@ -13957,7 +13945,6 @@
       },
       "error_sets": {},
       "error_returns": {
-        "Plan.native()": "<inferred>",
         "apply()": "<inferred>",
         "page()": "<inferred>",
         "parseCursor()": "<inferred>",
@@ -13968,7 +13955,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 126,
+        "try": 127,
         "catch": 0
       },
       "imports": [
@@ -13977,6 +13964,7 @@
         "GrpcCodec.zig",
         "HttpCodec.zig",
         "std",
+        "transit_query",
         "transit_station"
       ]
     },
@@ -16087,6 +16075,7 @@
     },
     "packages/zig/transit-station/src/Query.zig": {
       "errors": {
+        "ArrowWorkspaceExceeded": 1,
         "ConflictingResultFragment": 1,
         "CorrelationAlreadyUsed": 1,
         "ExpectedCall": 1,
@@ -16094,6 +16083,7 @@
         "InvalidQueryContinuation": 2,
         "InvalidQueryJob": 2,
         "InvalidQueryOrdinal": 1,
+        "InvalidQueryPlan": 1,
         "InvalidQueryStage": 1,
         "InvalidResultDigest": 1,
         "InvalidResultFragment": 1,
@@ -16103,13 +16093,16 @@
         "MissingResult": 1,
         "MissingResultFragment": 1,
         "MissingResultSegment": 1,
+        "Overflow": 1,
         "QueryAfterMutation": 1,
         "QueryDenied": 2,
+        "QueryPlanTooLarge": 1,
         "QueryStageChanged": 1,
         "ResultAlreadyExists": 1,
         "ResultBufferTooSmall": 1,
-        "TableSchemaChanged": 1,
-        "UnexpectedResultContinuation": 1
+        "SourceChanged": 2,
+        "UnexpectedResultContinuation": 1,
+        "WriteFailed": 2
       },
       "outcomes": {
         "Advance": [
@@ -16138,15 +16131,15 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 93,
-        "catch": 1
+        "try": 94,
+        "catch": 3
       },
       "imports": [
         "Frame.zig",
         "QueryDelivery.zig",
         "QueryPolicy.zig",
         "QueryRecords.zig",
-        "Table.zig",
+        "TableReader.zig",
         "Turn.zig",
         "std",
         "transit_client",
@@ -16233,23 +16226,30 @@
         "IncompleteResult": 1,
         "IncompleteResultSegment": 1,
         "InvalidQueryContinuation": 3,
-        "InvalidQueryJob": 4,
+        "InvalidQueryJob": 7,
         "InvalidQueryStage": 2,
         "InvalidResultCredit": 2,
         "InvalidResultFragment": 2,
-        "InvalidResultManifest": 3,
+        "InvalidResultManifest": 2,
         "InvalidResultSegment": 2,
         "InvalidResultTransfer": 2,
         "ResultSchemaChanged": 1
       },
       "outcomes": {
+        "Failure": [
+          "none",
+          "result_too_large",
+          "workspace_exceeded",
+          "overflow"
+        ],
         "Phase": [
           "capturing",
           "captured",
           "published",
           "acknowledged",
           "cancelled",
-          "denied"
+          "denied",
+          "failed"
         ]
       },
       "error_sets": {},
@@ -16278,7 +16278,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 108,
+        "try": 114,
         "catch": 1
       },
       "imports": [
@@ -16776,11 +16776,12 @@
         "get()": "<inferred>",
         "getKey()": "<inferred>",
         "open()": "<inferred>",
-        "page()": "<inferred>"
+        "page()": "<inferred>",
+        "validate()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 13,
+        "try": 14,
         "catch": 0
       },
       "imports": [
