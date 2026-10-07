@@ -66,6 +66,11 @@ Json prepared_wire(const Prepared &);
 // This streams arrays into a bounded action, validating each logical value
 // before appending it. A finite row count never permits an unbounded aggregate
 // allocation of individually valid megabyte cells.
+std::string schema_wire(const Schema &);
+Schema schema(const Json &, Arena &);
+// Only INSERT/UPDATE/DELETE payloads are encoded here. Source basis belongs to
+// the caller envelope and is deliberately excluded from a saved mutation body.
+std::string mutation_wire(const transit_station_catalog_action &, size_t maximum = max_action);
 std::string request_wire(const Request &);
 std::string kind_name(transit_station_catalog_kind);
 std::string control_name(transit_station_catalog_control);

@@ -42,7 +42,7 @@ Metadata metadata(const Json &v) {
     return out;
 }
 Head head(const Json &v) { v.fields({"revision", "rows", "pending"}); return {full(v.at("revision")), full(v.at("rows"), true), full(v.at("pending"), true)}; }
-Schema schema(const Json &v, Arena &a) {
+Schema decode_schema(const Json &v, Arena &a) {
     v.fields({"definition", "object", "revision", "next_column", "columns", "primary_key"}); current(v.at("definition"));
     // Bound the entire schema independently of each descriptor/default.
     (void)logical_detail::encode(v, 2 * 1024 * 1024);
@@ -92,6 +92,7 @@ State state_fields(const Json &v, const Local &local) {
     if (!v.at("upload").is_null()) { out.has_upload = true; out.upload = upload(v.at("upload")); } return out;
 }
 }
+Schema schema(const Json &value, Arena &arena) { return decode_schema(value, arena); }
 Capabilities capabilities(const Json &v) {
     v.fields({"version", "definition", "max_columns", "max_rows", "max_sql_bytes", "max_intent_bytes", "max_action_bytes", "max_prepared_bytes", "resident_intents"}); current(v.at("definition"));
     Capabilities out{}; out.version = static_cast<uint8_t>(v.at("version").number(UINT8_MAX, false)); string(v.at("definition"), out.definition);

@@ -37,7 +37,7 @@ void column_fields(Writer &w, const transit_station_catalog_column_spec &c) {
     w.text(",\"nullable\":"); w.value(Json::boolean(c.nullable)); w.text(",\"default\":"); w.value(cell(c.default_value));
     w.text(",\"max_characters\":"); w.value(characters(c.max_characters));
 }
-std::string schema_wire(const Schema &s) {
+std::string encode_schema(const Schema &s) {
     array(s.columns, s.column_count, 128); require(s.column_count, "catalog-columns"); array(s.primary_key, s.primary_key_count, s.column_count);
     Writer w(2 * 1024 * 1024); w.text("{\"definition\":"); w.value(Json::string(STATION_ABI_DEFINITION));
     w.text(",\"object\":"); w.value(wide(s.object)); w.text(",\"revision\":"); w.value(wide(s.revision));
@@ -88,6 +88,25 @@ void change(Writer &w, const transit_station_catalog_change &v) {
         default: fail(TRANSIT_SDK_INVALID_ARGUMENT, "catalog-change");
     }
 }
+void mutation(Writer &w, const transit_station_catalog_action &a) {
+    w.text("{\"action\":");
+    if (a.kind == TRANSIT_CATALOG_INSERT) {
+        array(a.as.insert.rows, a.as.insert.row_count, 1024); require(a.as.insert.row_count, "catalog-rows"); w.text("{\"insert\":[");
+        for (size_t i = 0; i < a.as.insert.row_count; ++i) { if (i) w.text(","); assignments(w, a.as.insert.rows[i]); }
+        w.text("]},\"predicate\":null");
+    } else if (a.kind == TRANSIT_CATALOG_UPDATE) {
+        w.text("{\"update\":"); assignments(w, a.as.update.assignments); w.text("},\"predicate\":"); predicate(w, a.as.update.predicate);
+    } else {
+        require(a.kind == TRANSIT_CATALOG_DELETE, "table-mutation-kind");
+        w.text("{\"delete\":{}},\"predicate\":"); predicate(w, a.as.remove.predicate);
+    }
+    w.text("}");
+}
+
+}
+std::string schema_wire(const Schema &value) { return encode_schema(value); }
+std::string mutation_wire(const transit_station_catalog_action &value, size_t maximum) {
+    Writer writer(maximum); mutation(writer, value); return writer.finish();
 }
 bool same_scope(Scope a, Scope b) { return a.catalog == b.catalog && a.resource.realm == b.resource.realm && a.resource.resource == b.resource.resource; }
 std::string name(const char *value) {
@@ -135,15 +154,7 @@ std::string request_wire(const Request &v) {
         case TRANSIT_CATALOG_DROP: w.value(tag("drop", Json::object({{"basis", a.as.drop.basis ? basis_wire(*a.as.drop.basis) : Json{}}, {"if_exists", Json::boolean(a.as.drop.if_exists)}}))); break;
         case TRANSIT_CATALOG_INSERT: case TRANSIT_CATALOG_UPDATE: case TRANSIT_CATALOG_DELETE:
             w.text("{\"mutate\":{\"basis\":"); w.value(basis_wire(a.kind == TRANSIT_CATALOG_INSERT ? a.as.insert.basis : a.kind == TRANSIT_CATALOG_UPDATE ? a.as.update.basis : a.as.remove.basis));
-            w.text(",\"mutation\":{\"action\":");
-            if (a.kind == TRANSIT_CATALOG_INSERT) {
-                array(a.as.insert.rows, a.as.insert.row_count, 1024); require(a.as.insert.row_count, "catalog-rows"); w.text("{\"insert\":[");
-                for (size_t i = 0; i < a.as.insert.row_count; ++i) { if (i) w.text(","); assignments(w, a.as.insert.rows[i]); }
-                w.text("]},\"predicate\":null");
-            } else if (a.kind == TRANSIT_CATALOG_UPDATE) {
-                w.text("{\"update\":"); assignments(w, a.as.update.assignments); w.text("},\"predicate\":"); predicate(w, a.as.update.predicate);
-            } else { w.text("{\"delete\":{}},\"predicate\":"); predicate(w, a.as.remove.predicate); }
-            w.text("}}}"); break;
+            w.text(",\"mutation\":"); mutation(w, a); w.text("}}"); break;
         default: fail(TRANSIT_SDK_INVALID_ARGUMENT, "catalog-action");
     }
     w.text("}}"); return w.finish();

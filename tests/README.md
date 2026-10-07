@@ -17777,3 +17777,13 @@ native handler or authority. Shared examples, live installed schedules and final
 full qualification remain pending.
 
 Raw `handler-table-beam-check1.log` SHA-256: `971af456ae695565e47eb3d33652a591a0c17abfc4d2150c76018e60befbb9d9`.
+
+### C schema and mutation codec reuse
+
+The C SDK's internal catalog codecs now expose the existing owned schema decoder
+and bounded schema/mutation writers for reuse by handler Tables. Catalog requests
+continue to write their basis and mutation through the same bounded output
+writer. `zig build check` in `packages/c/transit-station`, under `nix develop`,
+completes successfully with the package's C++17 `-Wall -Wextra -Werror` flags
+(`handler-table-c-codecs-build1.log`, exit 0). This is compilation evidence for
+the refactor; C/C++ handler replacement and runtime qualification are pending.
