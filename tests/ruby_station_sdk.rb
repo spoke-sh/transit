@@ -106,6 +106,14 @@ class QueryProof < E::QueryRequester
     else super
     end
   end
+  def on_query_failure(turn, failure)
+    check failure.correlation == turn.state.require(E::REQUEST) && failure.result.positive?
+    check turn.state.find(E::TOTAL).nil?
+    reason = %i[result_too_large workspace_exceeded overflow cancelled denied].index(failure.reason)
+    check !reason.nil?
+    turn.state.put(E::TOTAL, 1)
+    turn.state.put(E::OBSERVED, reason + 1)
+  end
   def on_result(turn, complete)
     super
     manifest = turn.result(complete.correlation).manifest

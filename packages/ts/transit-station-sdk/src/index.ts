@@ -38,6 +38,8 @@ export type {
 } from "./table.ts";
 export { QueryPlan, ResultReader, IpcSegment } from "./query.ts";
 export type {
+  QueryFailure,
+  QueryFailureReason,
   QueryJob,
   ResultManifest,
   Projection,

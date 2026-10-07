@@ -95,4 +95,4 @@ static transit_sdk_error handle(void *context, transit_station_turn *turn, const
     }
     return (transit_sdk_error){0};
 }
-transit_station_handler grpc_test_handler(grpc_test_context *context) { return (transit_station_handler){context, NULL, handle, NULL, NULL}; }
+transit_station_handler grpc_test_handler(grpc_test_context *context) { return (transit_station_handler){context, NULL, handle, NULL, NULL, NULL}; }

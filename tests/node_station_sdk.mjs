@@ -159,6 +159,14 @@ async function main() {
           await reader.segment(0n);
         } else await super.handle(turn, input);
       }
+      async handleQueryFailure(turn, failure) {
+        assert.equal(failure.origin.kind, 'process'); assert.equal(failure.origin.process.pid, peer.pid);
+        assert.equal(failure.correlation, await turn.state.require(new Key(new TextEncoder().encode('request'), u64Codec)));
+        assert.ok(failure.result > 0); assert.equal(await turn.state.find(TOTAL), undefined);
+        const reason = ['result_too_large','workspace_exceeded','overflow','cancelled','denied'].indexOf(failure.reason) + 1;
+        assert.ok(reason > 0); await turn.state.put(TOTAL, 1n);
+        await turn.state.put(new Key(new TextEncoder().encode('observed'), u64Codec), BigInt(reason));
+      }
       async handleResult(turn, reader) {
         await super.handleResult(turn, reader);
         // Publish test observations after reading all segments, so the driver can

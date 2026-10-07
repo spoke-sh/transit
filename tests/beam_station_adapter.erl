@@ -3,9 +3,9 @@
 -behaviour(transit_station_recovery).
 -include_lib("transit_station_sdk/include/transit_station_sdk.hrl").
 -export([open/2,next/1,reconcile/1,close/1,stop/1,view/1,codecs/1,recover/1,
-         initialize/2,handle_message/3,handle_result/3,before_dispatch/2,confirmed/3,
+         initialize/2,handle_message/3,handle_result/3,handle_query_failure/3,before_dispatch/2,confirmed/3,
          example_initialize/3,example_message/4,example_result/3,input_variant/1,
-         budgets/1,state/1,key/1,require/2,put/3,require_reentrant/1,table/1,basis/1,
+         budgets/1,state/1,key/1,require/2,put/3,find/2,require_reentrant/1,table/1,basis/1,
          table_get/2,table_page/2,retain/1,open_version/2,version/1,
          source_state/1,source_table/1,state_page/1,release/2,result/2,manifest/1,segment/2,raise_error/1]).
 open(C, S) ->
@@ -30,6 +30,7 @@ view(#transit_page{entries=E,cursor=C}) -> #{entries=>E,cursor=>C};
 view(#transit_table_page{rows=R,next=N}) -> #{rows=>R,next=>N};
 view(#transit_row{identity=I,cells=C}) -> #{identity=>I,cells=>C};
 view(#transit_read_version{pid=P,input=I,index=X}) -> #{pid=>P,input=>I,index=>X};
+view(#transit_query_failure{correlation=C,result=R,reason=F}) -> #{correlation=>C,result=>R,reason=>F};
 view(#transit_result_complete{correlation=C}) -> #{correlation=>C};
 view(#transit_manifest{rows=R,segments=S,source=F,destination=D,basis=B,byte_count=N}) -> #{rows=>R,segments=>S,source=>F,destination=>D,basis=>B,byte_count=>N};
 view(#transit_table_basis{resource=R,revision=V}) -> #{resource=>R,revision=>V};
@@ -38,6 +39,7 @@ view(#transit_resource{resource=R}) -> #{resource=>R};
 view(#transit_ipc_segment{ordinal=O,ipc=B}) -> #{ordinal=>O,ipc=>B}.
 initialize(T,S) -> beam_station_controller:initialize(?MODULE,T,S).
 handle_message(T,I,S) -> beam_station_controller:handle_message(?MODULE,T,I,S).
+handle_query_failure(T,I,S) -> beam_station_controller:handle_query_failure(?MODULE,T,I,S).
 handle_result(T,I,S) -> beam_station_controller:handle_result(?MODULE,T,I,S).
 before_dispatch(M,S) -> beam_station_controller:before_dispatch(?MODULE,M,S).
 confirmed(I,R,S) -> beam_station_controller:confirmed(?MODULE,I,R,S).
@@ -57,7 +59,10 @@ input_variant(#transit_incoming{kind=cast,value=V}) -> V;
 input_variant(_) -> other.
 budgets(T) -> transit_turn:budgets(T).
 state(T) -> transit_turn:state(T).
+key(request) -> transit_example_keys:request();
+key(observed) -> transit_example_keys:observed();
 key(total) -> transit_example_keys:total().
+find(S,K) -> transit_turn:find(S,K).
 require(S,K) -> transit_turn:require(S,K).
 put(S,K,V) -> transit_turn:put(S,K,V).
 require_reentrant(S) -> transit_turn:require(S,#transit_key{name= <<"total">>,codec=beam_station_reentrant}).

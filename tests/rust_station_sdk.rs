@@ -127,6 +127,9 @@ impl<M: 'static, H: Handler<M>> Handler<M> for Instrumented<H> {
         }
         self.inner.handle(turn, input)
     }
+    fn handle_query_failure(&mut self, turn: &mut Turn<'_>, input: QueryFailure) -> Result<()> {
+        self.inner.handle_query_failure(turn, input)
+    }
     fn handle_result(&mut self, turn: &mut Turn<'_>, input: ResultComplete) -> Result<()> {
         self.inner.handle_result(turn, input)
     }
@@ -221,6 +224,14 @@ impl<F: FnMut(IpcSegment) -> Result<()> + Send + 'static> Handler<QueryStart> fo
         } else {
             self.inner.handle(turn, input)
         }
+    }
+    fn handle_query_failure(&mut self, turn: &mut Turn<'_>, failure: QueryFailure) -> Result<()> {
+        assert_eq!(failure.correlation.get(), turn.state().require(&transit_sdk_examples::REQUEST)?);
+        assert!(failure.result.get() > 0 && turn.state().find(&TOTAL)?.is_none());
+        let reason = match failure.reason { QueryFailureReason::ResultTooLarge => 1, QueryFailureReason::WorkspaceExceeded => 2,
+            QueryFailureReason::Overflow => 3, QueryFailureReason::Cancelled => 4, QueryFailureReason::Denied => 5 };
+        turn.state().put(&TOTAL, &1)?;
+        turn.state().put(&transit_sdk_examples::OBSERVED, &reason)
     }
     fn handle_result(&mut self, turn: &mut Turn<'_>, complete: ResultComplete) -> Result<()> {
         self.inner.handle_result(turn, complete.clone())?;

@@ -54,8 +54,10 @@ const empty = (): GrowingEvent => ({
 class Native {
   readonly caps = { message_bytes: 243, value_bytes: 256, key_bytes: 32 };
   phase = 0;
+  input: GrowingEvent["input"] = null;
   dispatches = 0;
   finishes = 0;
+  failed = false;
   discards = 0;
   closed = false;
   lost = false;
@@ -72,7 +74,8 @@ class Native {
         initializing: true,
         resource: 1,
         resource_revision: 1,
-        input: {
+        input: this.input ?? {
+          query_failure: null,
           position: 1,
           kind: "cast",
           correlation: "0",
@@ -121,6 +124,7 @@ class Native {
   }
   async finish(_scope: number, failed: boolean): Promise<void> {
     this.finishes++;
+    this.failed = failed;
     if (this.poison) throw new ReadFailed("Sticky native read failure");
     if (failed && !this.block) {
       this.phase = 5;
@@ -285,4 +289,100 @@ test("external close joins handler I/O and discards without finishing", () =>
     assert.equal(native.finishes, 0);
     assert.equal(native.discards, 1);
     assert.equal(native.closed, true);
+  }));
+
+test("negative query outcomes bypass application codecs and preserve full correlation width", () =>
+  fixture(async (native) => {
+    for (const reason of [
+      "result_too_large",
+      "workspace_exceeded",
+      "overflow",
+      "cancelled",
+      "denied",
+    ] as const) {
+      native.phase = 0;
+      native.input = {
+        position: 7,
+        kind: "result_failed",
+        correlation: "18446744073709551615",
+        payload: "",
+        origin: { process: { pid: 2, turn: 3, output: 0 } },
+        query_failure: { result: 55, reason },
+      };
+      let calls = 0;
+      const runner = await Runner.open(
+        config,
+        {
+          ...handler,
+          async handle() {
+            assert.fail("Application message callback must not run");
+          },
+          async handleQueryFailure(_turn, failure) {
+            calls++;
+            assert.deepEqual(failure, {
+              position: 7,
+              origin: { kind: "process", process: new ProcessRef(1, 2), turn: 3, output: 0 },
+              correlation: 18446744073709551615n,
+              result: 55,
+              reason,
+            });
+            assert.ok(Object.isFrozen(failure));
+          },
+        },
+        {
+          ...codec,
+          decode() {
+            assert.fail("Application codec must not run");
+          },
+        },
+        fencing,
+      );
+      try {
+        await ready(runner);
+        assert.equal((await runner.next()).kind, "committed");
+        assert.equal(calls, 1);
+        assert.equal((await runner.next()).kind, "idle");
+        assert.equal(calls, 1);
+      } finally {
+        await runner.close();
+      }
+    }
+  }));
+
+test("unhandled or malformed query failure cannot commit a successful callback", () =>
+  fixture(async (native) => {
+    for (const queryFailure of [null, { result: 55, reason: "denied" as const }]) {
+      native.phase = 0;
+      native.input = {
+        position: 1,
+        kind: "result_failed",
+        correlation: "1",
+        payload: "",
+        origin: { process: { pid: 2, turn: 3, output: 0 } },
+        query_failure: queryFailure,
+      };
+      native.block = false;
+      native.failed = false;
+      const selected =
+        queryFailure === null
+          ? {
+              ...handler,
+              async handleQueryFailure() {
+                assert.fail("Missing native outcome must reject");
+              },
+            }
+          : handler;
+      const runner = await Runner.open(config, selected, codec, {
+        failure: "block-input",
+        recovery: fencing.recovery,
+      });
+      try {
+        await ready(runner);
+        native.block = true;
+        assert.equal((await runner.next()).kind, "blocked");
+        assert.equal(native.failed, true);
+      } finally {
+        await runner.close();
+      }
+    }
   }));

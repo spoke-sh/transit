@@ -132,6 +132,13 @@ static bool query_extra(Turn &turn, const Config &cfg) {
     const auto reader = turn.result(correlation); assert(reader.manifest().rows == 41);
     write_text(cfg.output + "/ready", ""); wait_file(cfg.output + "/continue"); reader.segment(0); return true;
 }
+static void negative_result(Turn &turn, const QueryFailure &failure) {
+    assert(failure.origin.kind == TRANSIT_ORIGIN_PROCESS && failure.result > 0);
+    assert(failure.correlation == turn.state().require(request_key));
+    assert(!turn.state().find(total_key));
+    turn.state().put(total_key, uint64_t{1});
+    turn.state().put(observed_key, static_cast<uint64_t>(failure.reason));
+}
 template<class M> class Instrumented : public Handler<M> {
     std::unique_ptr<Handler<M>> inner_;
     const Config &cfg_;
@@ -147,6 +154,7 @@ public:
         if constexpr (std::is_same_v<M, QueryStart>) if (query_extra(turn, cfg_)) return;
         inner_->handle(turn, input);
     }
+    void handle_query_failure(Turn &turn, const QueryFailure &failure) override { negative_result(turn, failure); }
     void handle_result(Turn &turn, const ResultComplete &complete) override {
         inner_->handle_result(turn, complete); save_manifest(cfg_, turn.result(complete.correlation).manifest());
     }
@@ -196,7 +204,9 @@ public:
                 if (self.cfg_.role == "table" && input->kind == TRANSIT_INPUT_CAST) { const auto &message = *static_cast<const transit_query_message *>(input->value); if (table_extra(turn, self.cfg_, message.tag == TRANSIT_QUERY_ROWS, message.tag == TRANSIT_QUERY_INITIALIZE)) return; }
                 if (self.cfg_.role == "query" && query_extra(turn, self.cfg_)) return;
                 check(self.inner_.message(self.inner_.context, pointer, input)); }); }, nullptr,
-            [](void *context, transit_station_turn *pointer, const transit_station_incoming *input) { return callback([&] { auto &self = *static_cast<CController *>(context); assert(self.inner_.result); check(self.inner_.result(self.inner_.context, pointer, input)); Turn turn(pointer); save_manifest(self.cfg_, turn.result(input->correlation).manifest()); }); }};
+            [](void *context, transit_station_turn *pointer, const transit_station_incoming *input) { return callback([&] { auto &self = *static_cast<CController *>(context); assert(self.inner_.result); check(self.inner_.result(self.inner_.context, pointer, input)); Turn turn(pointer); save_manifest(self.cfg_, turn.result(input->correlation).manifest()); }); },
+            [](void *, transit_station_turn *pointer, const transit_station_query_failure *value) { return callback([&] { Turn turn(pointer);
+                negative_result(turn, {value->position, value->origin, value->correlation, value->result, static_cast<QueryFailureReason>(value->reason)}); }); }};
         transit_station_options options{cfg.mode.size() >= 6 && cfg.mode.substr(cfg.mode.size() - 6) == "-block" ? TRANSIT_FAILURE_BLOCK_INPUT : TRANSIT_FAILURE_STOP, TRANSIT_RECOVERY_PERSIST_BEFORE_DISPATCH, this,
             [](void *context, const transit_station_mutation *mutation) { return callback([&] { static_cast<CController *>(context)->store_->before_dispatch(FrozenMutation(mutation)); }); },
             [](void *context, const char *identity, transit_sdk_confirmation receipt) { return callback([&] { static_cast<CController *>(context)->store_->confirmed(identity, receipt); }); }};

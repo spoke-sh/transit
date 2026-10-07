@@ -73,3 +73,9 @@ owned nested Arrow pages. Qualification is tracked per source and SDK.
 The [catalog guide](docs/catalog.md) covers general typed schemas, sync/async
 CREATE/ALTER/DROP and INSERT/UPDATE/DELETE, conditional policy, exact saved-intent
 recovery and currently authorized outcomes through the shared native caller.
+
+
+Handler query failures use a typed callback with the authenticated origin,
+correlation, result identity and reason. See
+[negative query outcomes](../../../docs/reference/sdks.md#handler-query-failures)
+for callback names, write budgets and recovery behavior.

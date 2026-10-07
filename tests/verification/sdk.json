@@ -492,6 +492,83 @@
         }
       ],
       "limits": "Actual disk recovery uses the shared catalog host. All ten SDKs run the general Table lifecycle fixture. Python cancellation/malformed-response checks use injected adapters; TypeScript malformed responses use an owned port with an injected host; Rust malformed receipts exercise parser/panic injection; Ruby uses injected wait/allocation adapters plus actual child loss. C/C++ uses a forwarding installed native library to inject malformed replies and block submission while deferred POSIX waiter cancellation preserves ownership and close joins; it does not inject allocator exhaustion or establish durable admission for that boundary schedule. Java and BEAM use actual owned ports with post-handshake injected faults and blocked submissions; .NET uses installed decoder checks and actual native HTTP read cancellation, without admitted-mutation cancellation or allocator injection. Table counts and exact selected artifact identities are recorded in tests/README.md; these schedules do not establish native catalog growth or host power-loss recovery."
+    },
+    {
+      "id": "typed-query-failures",
+      "steps": [
+        "Install the public SDK and examples outside the source checkout",
+        "Call an authenticated peer and deliver each of the five framework failure reasons through ordinary authorized native output",
+        "Verify typed callback state commits with the terminal wait and retained negative result",
+        "Lose the first accepted commit reply and an observation, preserving the exact signed request through recovery",
+        "Replace each requester and deliver a later failure; verify the first reason survives without another callback"
+      ],
+      "expected": {
+        "reason_codes": [
+          1,
+          2,
+          3,
+          4,
+          5
+        ],
+        "consumed_after_replacement": [
+          3,
+          3,
+          3,
+          3,
+          3
+        ],
+        "lost_receipts": 1,
+        "unavailable_reads": 1,
+        "exact_recovery": true
+      },
+      "proofs": [
+        {
+          "task": "bindings::query-failures",
+          "source": "tests/sdk_station_runner.py",
+          "anchor": "check('typed-query-failures'"
+        },
+        {
+          "task": "bindings::python-test",
+          "source": "tests/sdk_station_runner.py",
+          "anchor": "check('typed-query-failures'"
+        },
+        {
+          "task": "bindings::node-sdk-test",
+          "source": "tests/sdk_station_runner.py",
+          "anchor": "check('typed-query-failures'"
+        },
+        {
+          "task": "bindings::rust-sdk-test",
+          "source": "tests/sdk_station_runner.py",
+          "anchor": "check('typed-query-failures'"
+        },
+        {
+          "task": "bindings::ruby-sdk-test",
+          "source": "tests/sdk_station_runner.py",
+          "anchor": "check('typed-query-failures'"
+        },
+        {
+          "task": "bindings::c-sdk-test",
+          "source": "tests/sdk_station_runner.py",
+          "anchor": "check('typed-query-failures'"
+        },
+        {
+          "task": "bindings::java-sdk-test",
+          "source": "tests/sdk_station_runner.py",
+          "anchor": "check('typed-query-failures'"
+        },
+        {
+          "task": "bindings::dotnet-sdk-test",
+          "source": "tests/sdk_station_runner.py",
+          "anchor": "check('typed-query-failures'"
+        },
+        {
+          "task": "bindings::beam-sdk-test",
+          "source": "tests/sdk_station_runner.py",
+          "anchor": "check('typed-query-failures'"
+        }
+      ],
+      "limits": "Ten installed language APIs on Linux. A raw authorized sender independently exercises framework ingress; native query capture, computation limits and source release have separate Station unit/disk proofs. Five serial calls per language, disk-backed cold storage, 8 MiB hot memory and 64 authority pages. This is correctness evidence, not a query latency or all-pairs compatibility result."
     }
   ]
 }

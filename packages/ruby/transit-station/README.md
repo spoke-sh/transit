@@ -41,3 +41,9 @@ cells, exact numbers and bounded neutral codecs.
 
 The [handler Table guide](docs/TABLES.md) covers typed rows, retained cuts and
 saved mutations that advance through explicit continuation turns.
+
+
+Handler query failures use a typed callback with the authenticated origin,
+correlation, result identity and reason. See
+[negative query outcomes](../../../docs/reference/sdks.md#handler-query-failures)
+for callback names, write budgets and recovery behavior.

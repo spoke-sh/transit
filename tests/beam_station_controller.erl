@@ -2,7 +2,7 @@
 -module(beam_station_controller).
 -compile({no_auto_import,[get/1,put/2]}).
 -export([main/0, main/2, ok/2, expect/3, read/1, write/2, wait_file/1, get/2, put/3,
-         initialize/3, handle_message/4, handle_result/4, before_dispatch/3, confirmed/4]).
+         initialize/3, handle_message/4, handle_result/4, handle_query_failure/4, before_dispatch/3, confirmed/4]).
 main() -> [Mode, Path] = init:get_plain_arguments(), main(beam_station_adapter, [Mode, Path]), halt().
 main(A, Args) ->
     try execute(A, Args) catch Class:Reason:Stack ->
@@ -163,6 +163,13 @@ table_message(A, Turn, Input, S) ->
 pages(A, Table, Cursor, Basis, Rows, N) ->
     Basis = ok(A,A:basis(Table)), #{rows := Entries, next := Next} = view(A, ok(A, A:table_page(Table, Cursor))), true = length(Entries) =< 8,
     case Next of undefined -> {Rows ++ Entries, N+1}; _ -> pages(A, Table, Next, Basis, Rows ++ Entries, N+1) end.
+handle_query_failure(A, Turn, Input, S) ->
+    #{correlation := Correlation, result := Result, reason := Reason} = view(A, Input),
+    true = Result > 0, State = ok(A, A:state(Turn)),
+    Correlation = ok(A, A:require(State, A:key(request))),
+    missing = ok(A, A:find(State, A:key(total))),
+    Code = case Reason of result_too_large -> 1; workspace_exceeded -> 2; overflow -> 3; cancelled -> 4; denied -> 5 end,
+    ok(A, A:put(State, A:key(total), 1)), ok(A, A:put(State, A:key(observed), Code)), {ok,S}.
 handle_result(A, Turn, Input, S) ->
     {ok, _} = A:example_result(Turn, Input, S), #{correlation := Correlation} = view(A, Input),
     Reader = ok(A, A:result(Turn, Correlation)), put(S, escaped_reader, Reader),

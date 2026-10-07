@@ -218,7 +218,8 @@
       "bindings::catalog-beam",
       "test::catalog-growth",
       "bindings::rust-lifetime",
-      "test::grpc-control"
+      "test::grpc-control",
+      "bindings::query-failures"
     ]
   },
   "nested_tasks": {

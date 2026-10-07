@@ -13,7 +13,7 @@ from ._growing import Growing
 from .models import (Blocked, Call, Cast, Codec, Committed, Control, FailurePolicy, FrozenMutation,
                      Idle, Incoming, NeedsRecovery, Origin, Progress, Recovery, Reply, RunnerEvent,
                      ServiceConfig, Stopped, ExchangeDiagnosticKind, decoded)
-from .query import ResultReader
+from .query import ResultReader, QueryFailure, QueryFailureReason
 from .turn import Turn
 from .http import HttpOutcome, HttpPhase, HttpReplayPolicy, HttpReader, AsyncHttpReader
 from .grpc import GrpcOutcome, GrpcPhase, GrpcReplayPolicy, GrpcReader, AsyncGrpcReader
@@ -295,6 +295,16 @@ class Runner(Generic[M]):
                 if event['initializing']:
                     _invoke(self._handler.initialize, turn)
                 _invoke(self._handler.handle, turn, incoming)
+            elif kind == 'result_failed':
+                callback = getattr(self._handler, 'handle_query_failure', None)
+                if not callable(callback):
+                    raise HandlerError('A negative query outcome requires handle_query_failure')
+                native_failure = message['query_failure']
+                failed = QueryFailure(position, origin, correlation, native_failure['result'],
+                                      QueryFailureReason(native_failure['reason']))
+                if event['initializing']:
+                    _invoke(self._handler.initialize, turn)
+                _invoke(callback, turn, failed)
             elif kind == 'result_complete':
                 callback = getattr(self._handler, 'handle_result', None)
                 if not callable(callback):

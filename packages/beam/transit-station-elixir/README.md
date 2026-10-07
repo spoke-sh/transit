@@ -33,3 +33,9 @@ numbers, distinct cell states and bounded neutral codecs.
 
 [Typed handler Tables](../transit-station-sdk/docs/tables.md) share general catalog schemas, stable row
 identities, retained reads and explicit saved mutation steps across Erlang and Elixir.
+
+
+Handler query failures use a typed callback with the authenticated origin,
+correlation, result identity and reason. See
+[negative query outcomes](../../../docs/reference/sdks.md#handler-query-failures)
+for callback names, write budgets and recovery behavior.

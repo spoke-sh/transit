@@ -69,7 +69,7 @@ static class Proof
         }
         public void Expired() { if (escaped is not null) Expect(ErrorKind.TurnExpired, () => escaped.Get(new RowIdentity(new byte[20]))); if (source is not null) Expect(ErrorKind.TurnExpired, () => _ = source.State); }
     }
-    sealed class QueryProof : QueryRequester {
+    sealed class QueryProof : QueryRequester, IHandler<IQueryMessage> {
         readonly string output; readonly List<IpcSegment> owned; ResultReader? escaped;
         public QueryProof(ProcessRef peer, string output) : this(peer, output, []) { }
         QueryProof(ProcessRef peer, string output, List<IpcSegment> owned) : base(peer, owned.Add) { this.output = output; this.owned = owned; }
@@ -78,6 +78,12 @@ static class Proof
             if (File.Exists(saved)) { var reader = turn.Result(ulong.Parse(Text(Read(saved), "correlation"))); Check(reader.Manifest().Rows == 41);
                 File.WriteAllText(Path.Combine(output, "ready"), ""); WaitFile(Path.Combine(output, "continue")); reader.Segment(0);
             } else base.OnMessage(turn, input);
+        }
+        public void OnQueryFailure(Turn turn, QueryFailure failure) {
+            Check(failure.Correlation == turn.State.Require(StateKeys.Request) && failure.Result > 0);
+            Check(turn.State.Find(StateKeys.Total) is null);
+            turn.State.Put(StateKeys.Total, 1UL);
+            turn.State.Put(StateKeys.Observed, (ulong)failure.Reason + 1);
         }
         public override void OnResult(Turn turn, ResultComplete complete) {
             base.OnResult(turn, complete); escaped = turn.Result(complete.Correlation); var manifest = escaped.Manifest();

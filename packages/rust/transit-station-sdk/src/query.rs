@@ -41,6 +41,39 @@ pub struct QueryJob {
     pub correlation: Correlation,
     pub source: ReadVersion,
 }
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum QueryFailureReason {
+    ResultTooLarge,
+    WorkspaceExceeded,
+    Overflow,
+    Cancelled,
+    Denied,
+}
+impl QueryFailureReason {
+    pub(crate) fn decode(value: &Value) -> Result<Self> {
+        Ok(match string(value, "query-failure-reason")? {
+            "result_too_large" => Self::ResultTooLarge,
+            "workspace_exceeded" => Self::WorkspaceExceeded,
+            "overflow" => Self::Overflow,
+            "cancelled" => Self::Cancelled,
+            "denied" => Self::Denied,
+            _ => {
+                return Err(Error::new(
+                    ErrorKind::IncompatibleNative,
+                    "query-failure-reason",
+                ));
+            }
+        })
+    }
+}
+#[derive(Clone, Debug)]
+pub struct QueryFailure {
+    pub position: Counter,
+    pub origin: Origin,
+    pub correlation: Correlation,
+    pub result: Counter,
+    pub reason: QueryFailureReason,
+}
 #[derive(Clone, Debug)]
 pub struct ResultComplete {
     pub position: Counter,

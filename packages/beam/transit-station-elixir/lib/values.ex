@@ -28,6 +28,12 @@ defmodule Transit.Station.Sdk.Control do
   @type t :: %__MODULE__{}
 end
 
+defmodule Transit.Station.Sdk.QueryFailure do
+  @enforce_keys [:position, :origin, :correlation, :result, :reason]
+  defstruct [:position, :origin, :correlation, :result, :reason]
+  @type t :: %__MODULE__{}
+end
+
 defmodule Transit.Station.Sdk.ResultComplete do
   @enforce_keys [:position, :origin, :correlation]
   defstruct [:position, :origin, :correlation]

@@ -5,6 +5,7 @@ module Transit
       def on_start(_turn); end
       def on_message(_turn, _input) = raise HandlerError, 'No message handler'
       def on_control(_turn, _input) = raise HandlerError, 'No control handler'
+      def on_query_failure(_turn, _input) = raise HandlerError, 'No query failure handler'
       def on_result(_turn, _input) = raise HandlerError, 'No query result handler'
     end
     class Runner
@@ -94,6 +95,11 @@ module Transit
                         end
                       when 'cancel', 'timeout'
                         Control.new(kind: kind.to_sym, correlation: Value.wide(input.fetch('correlation'), min: 1), **metadata)
+                      when 'result_failed'
+                        negative = input.fetch('query_failure')
+                        reason = negative.fetch('reason')
+                        raise HandlerError, 'Invalid query failure reason' unless %w[result_too_large workspace_exceeded overflow cancelled denied].include?(reason)
+                        QueryFailure.new(correlation: Value.wide(input.fetch('correlation'), min: 1), result: negative.fetch('result'), reason: reason.to_sym, **metadata)
                       when 'result_complete'
                         ResultComplete.new(correlation: Value.wide(input.fetch('correlation'), min: 1), **metadata)
                       else raise HandlerError, 'Unsupported native input'
@@ -102,6 +108,7 @@ module Transit
             unless @stop.stopped?
               case decoded
               when Control then @handler.on_control(turn, decoded)
+              when QueryFailure then @handler.on_query_failure(turn, decoded)
               when ResultComplete then @handler.on_result(turn, decoded)
               else @handler.on_message(turn, decoded)
               end

@@ -25,6 +25,12 @@ native:
 # Qualify every implemented language; enter nix develop .#bindings first.
 test: native python-test node-sdk-test rust-sdk-test ruby-sdk-test c-sdk-test java-sdk-test dotnet-sdk-test beam-sdk-test sdk-interop
 
+# Requires the installed language artifacts from the corresponding *-build tasks.
+# C exercises C/C++; BEAM exercises Erlang/Elixir. Select with --family.
+query-failures *args: build
+    zig build transit-node rey-cli
+    python3 -B tests/sdk_query_failures.py {{args}}
+
 # Validate the current Node adapters and their asynchronous port transport.
 node-check:
     cd packages/ts/transit-client && vp check

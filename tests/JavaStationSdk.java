@@ -132,6 +132,12 @@ public final class JavaStationSdk {
                 waitFile(output.resolve("continue")); reader.segment(BigInteger.ZERO);
             } else super.onMessage(turn, input);
         }
+        @Override public void onQueryFailure(Turn turn, QueryFailure failure) {
+            check(failure.correlation().equals(turn.state().require(Handlers.REQUEST)) && failure.result() > 0);
+            check(turn.state().find(Handlers.TOTAL).isEmpty());
+            turn.state().put(Handlers.TOTAL, BigInteger.ONE);
+            turn.state().put(Handlers.OBSERVED, BigInteger.valueOf(failure.reason().ordinal() + 1));
+        }
         @Override public void onResult(Turn turn, ResultComplete complete) {
             super.onResult(turn, complete);
             escaped = turn.result(complete.correlation()); Query.Manifest manifest = escaped.manifest();

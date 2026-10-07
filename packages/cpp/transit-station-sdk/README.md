@@ -46,3 +46,9 @@ exact wide numbers and bounded codecs with C++ value semantics.
 
 [General handler Tables](docs/TABLES.md) use catalog schemas, owned logical rows,
 stable identities and explicit saved creation/mutation steps.
+
+
+Handler query failures use a typed callback with the authenticated origin,
+correlation, result identity and reason. See
+[negative query outcomes](../../../docs/reference/sdks.md#handler-query-failures)
+for callback names, write budgets and recovery behavior.

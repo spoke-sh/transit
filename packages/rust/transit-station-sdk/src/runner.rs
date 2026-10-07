@@ -1,6 +1,7 @@
 use crate::{
-    Codec, Control, FailurePolicy, FrozenMutation, Incoming, Origin, Purpose, Recovery, Reply,
-    ResultComplete, RunnerEvent, RunnerOptions, ServiceConfig, Turn, abi,
+    Codec, Control, FailurePolicy, FrozenMutation, Incoming, Origin, Purpose, QueryFailure,
+    QueryFailureReason, Recovery, Reply, ResultComplete, RunnerEvent, RunnerOptions, ServiceConfig,
+    Turn, abi,
     bridge::{Bridge, counter, wide},
     types::decode,
 };
@@ -30,6 +31,9 @@ pub trait Handler<M>: Send + 'static {
     fn handle(&mut self, turn: &mut Turn<'_>, input: Incoming<M>) -> Result<()>;
     fn handle_control(&mut self, _turn: &mut Turn<'_>, _input: Control) -> Result<()> {
         Err(Error::new(ErrorKind::Handler, "unhandled-control"))
+    }
+    fn handle_query_failure(&mut self, _turn: &mut Turn<'_>, _input: QueryFailure) -> Result<()> {
+        Err(Error::new(ErrorKind::Handler, "unhandled-query-failure"))
     }
     fn handle_result(&mut self, _turn: &mut Turn<'_>, _input: ResultComplete) -> Result<()> {
         Err(Error::new(ErrorKind::Handler, "unhandled-query-result"))
@@ -237,7 +241,10 @@ impl<M: 'static> State<M> {
                             }
                         } else {
                             let correlation = Correlation::new(wide(&input["correlation"])?)?;
-                            if !matches!(kind, "result_complete" | "cancel" | "timeout") {
+                            if !matches!(
+                                kind,
+                                "result_complete" | "result_failed" | "cancel" | "timeout"
+                            ) {
                                 return Err(Error::new(
                                     ErrorKind::Handler,
                                     "unsupported-native-input",
@@ -247,7 +254,23 @@ impl<M: 'static> State<M> {
                                 self.handler.initialize(&mut turn)?;
                             }
                             if !self.stop.is_stopped() {
-                                if kind == "result_complete" {
+                                if kind == "result_failed" {
+                                    self.handler.handle_query_failure(
+                                        &mut turn,
+                                        QueryFailure {
+                                            position,
+                                            origin: provenance,
+                                            correlation,
+                                            result: counter(
+                                                &input["query_failure"]["result"],
+                                                false,
+                                            )?,
+                                            reason: QueryFailureReason::decode(
+                                                &input["query_failure"]["reason"],
+                                            )?,
+                                        },
+                                    )?;
+                                } else if kind == "result_complete" {
                                     self.handler.handle_result(
                                         &mut turn,
                                         ResultComplete {

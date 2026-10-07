@@ -27,8 +27,8 @@ pub use http::{
     decode_http_reply, prepare_http,
 };
 pub use query::{
-    Aggregate, Comparison, IpcSegment, QueryCloseReason, QueryJob, QueryPlan, ResultComplete,
-    ResultManifest, ResultReader,
+    Aggregate, Comparison, IpcSegment, QueryCloseReason, QueryFailure, QueryFailureReason,
+    QueryJob, QueryPlan, ResultComplete, ResultManifest, ResultReader,
 };
 pub use runner::{CloseError, ExchangeDiagnosticKind, Handler, Runner, Shutdown};
 pub use table::{

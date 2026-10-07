@@ -54,6 +54,9 @@ defmodule Transit.Station.Sdk.Value do
       correlation: correlation
     }
 
+  def convert({:transit_query_failure, position, origin, correlation, result, reason}),
+    do: %S.QueryFailure{position: position, origin: origin(origin), correlation: correlation, result: result, reason: reason}
+
   def convert({:transit_result_complete, position, origin, correlation}),
     do: %S.ResultComplete{position: position, origin: origin(origin), correlation: correlation}
 

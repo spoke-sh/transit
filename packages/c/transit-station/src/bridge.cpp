@@ -222,6 +222,7 @@ transit_station_incoming incoming(const Raw &raw, const Bytes &event, uint64_t r
     else if (kind == "reply") out.kind = TRANSIT_INPUT_REPLY;
     else if (kind == "cancel") out.kind = TRANSIT_INPUT_CANCEL;
     else if (kind == "timeout") out.kind = TRANSIT_INPUT_TIMEOUT;
+    else if (kind == "result_failed") out.kind = TRANSIT_INPUT_RESULT_FAILED;
     else if (kind == "result_complete") out.kind = TRANSIT_INPUT_RESULT_COMPLETE;
     else fail(TRANSIT_SDK_HANDLER_ERROR, "unsupported-native-input");
     out.position = raw.number(event, "input/position"); out.origin = origin(raw, event, realm);

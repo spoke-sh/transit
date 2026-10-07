@@ -18190,3 +18190,55 @@ Generated host contracts, documentation links, diagnostic mappings and verificat
 registry checks pass. Typed language callbacks, installed-runtime negative-result
 proofs and the final shared-definition cutover remain separate qualification work;
 these unit results do not establish that those consumers are complete.
+
+
+### Typed negative query callbacks in installed SDKs
+
+All ten public Station SDKs expose a distinct typed query-failure callback and
+owned position/origin/correlation/result/reason values. Application codecs do not
+receive framework failures. `bindings::query-failures` runs the shared installed
+schedule; the same cases run in each ordinary Station SDK task. The
+`typed-query-failures` registry checks five reason codes, closure after owner
+replacement, one injected lost commit receipt, one unavailable observation and
+exact signed recovery. The raw authorized source isolates consumer framing from
+the separately checked native computation/capture failure paths.
+
+The focused Python, Node, Rust, Ruby, Java, .NET, C/C++, Erlang and Elixir runs
+listed below all pass (exit 0). Every callback verifies its saved correlation,
+records application state with the terminal native wait, and leaves the exact
+negative-result payload retained. Each requester is replaced before another
+source output; its first reason survives without another callback. Runs use disk
+Ursula/cold storage, 8 MiB hot memory and 64 authority pages. These are correctness
+checks, not latency measurements or an all-pairs compatibility claim. Native
+artifacts were rebuilt at `6cbbf059`; the final shared-definition cutover and
+committed-source clean qualification remain separate.
+
+Python strict typing passes (26 files), Rust unit tests pass (14), and the Node
+check passes (57 tests), including application-codec bypass, all five reasons,
+maximum-width correlation and absent/malformed callback handling. Java/.NET
+packages and both BEAM packages compile; C and C++ ownership/value checks pass.
+The first C builds exposed missing optional callback initializers and colliding
+C enum names; both are corrected. The first Node installed run failed a proof
+key constructed from a string instead of owned bytes. The first Ruby installed
+run exposed a new local variable shadowing its callback-error slot; the corrected
+runner and fresh gem pass. Those failed attempts are not passing evidence.
+The first focused Python attempt selected the public CLI instead of the raw
+proof CLI; its corrected run passes. A broader Python run then found an import
+side effect in the independent file-codec oracle; CLI argument parsing now runs
+only from that proof's entry point. Its full rerun remains a separate result.
+
+Raw `query-failure-python-native3.log` SHA-256: `058ba8224e5507bba554950f6802b0c745ae3ddd7122092a698ed57682e5cdf6`.
+
+Raw `query-failure-node-native2.log` SHA-256: `f581f21f86589ae3262cf87493549c03fd244837a67ba115ed6346236008d0be`.
+
+Raw `query-failure-rust-native1.log` SHA-256: `9ff90a0dac92e9bc44e1ce0a26c6bd6e81e62404f817cbff4ca517f9e95a02f0`.
+
+Raw `query-failure-ruby-native2.log` SHA-256: `a49ff62415fcc857a4b2055fb255bbf8690af7c02c01c04d755c9b32c9e4c889`.
+
+Raw `query-failure-java-native1.log` SHA-256: `933ed66927b87e617e52c9c56656e9a1a01f76f560f9067769bb9e01c5e853e8`.
+
+Raw `query-failure-dotnet-native1.log` SHA-256: `91bec6d778b573564dc650b9d53664f68a6be756369da467248f77bb0d786866`.
+
+Raw `query-failure-beam-native1.log` SHA-256: `be505695ecec58927417a8283c5c7e9bc5fc717133fd86807cb5c80bc616f8d9`.
+
+Raw `query-failure-c-native2.log` SHA-256: `c165d0b83cfb33a1db034e8873235df98910bd43e2508e5d789e47fcc120556b`.

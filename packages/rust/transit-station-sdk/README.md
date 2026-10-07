@@ -35,3 +35,9 @@ historical metadata, policy and owned saved-intent recovery.
 
 The [handler Table guide](docs/TABLES.md) describes owned typed rows, retained
 reads and explicit resumable mutation steps.
+
+
+Handler query failures use a typed callback with the authenticated origin,
+correlation, result identity and reason. See
+[negative query outcomes](../../../docs/reference/sdks.md#handler-query-failures)
+for callback names, write budgets and recovery behavior.

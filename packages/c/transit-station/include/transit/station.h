@@ -38,19 +38,30 @@ typedef struct transit_station_origin {
     transit_sdk_process process;
     uint64_t turn, output, effect, attempt, executor;
 } transit_station_origin;
-typedef enum transit_station_input_kind { TRANSIT_INPUT_CAST, TRANSIT_INPUT_CALL, TRANSIT_INPUT_REPLY, TRANSIT_INPUT_CANCEL, TRANSIT_INPUT_TIMEOUT, TRANSIT_INPUT_RESULT_COMPLETE } transit_station_input_kind;
+typedef enum transit_station_input_kind { TRANSIT_INPUT_CAST, TRANSIT_INPUT_CALL, TRANSIT_INPUT_REPLY, TRANSIT_INPUT_CANCEL, TRANSIT_INPUT_TIMEOUT, TRANSIT_INPUT_RESULT_COMPLETE, TRANSIT_INPUT_RESULT_FAILED } transit_station_input_kind;
 typedef struct transit_station_incoming {
     transit_station_input_kind kind;
     uint64_t position, correlation;
     transit_station_origin origin;
     const void *value; /* Borrowed decoded application object; NULL for controls/results. */
 } transit_station_incoming;
+typedef enum transit_station_query_failure_reason {
+    TRANSIT_QUERY_FAILURE_RESULT_TOO_LARGE = 1, TRANSIT_QUERY_FAILURE_WORKSPACE_EXCEEDED = 2,
+    TRANSIT_QUERY_FAILURE_OVERFLOW = 3, TRANSIT_QUERY_FAILURE_CANCELLED = 4, TRANSIT_QUERY_FAILURE_DENIED = 5
+} transit_station_query_failure_reason;
+typedef struct transit_station_query_failure {
+    uint64_t position;
+    transit_station_origin origin;
+    uint64_t correlation, result;
+    transit_station_query_failure_reason reason;
+} transit_station_query_failure;
 typedef struct transit_station_handler {
     void *context;
     transit_sdk_error (*initialize)(void *context, transit_station_turn *turn);
     transit_sdk_error (*message)(void *context, transit_station_turn *turn, const transit_station_incoming *input);
     transit_sdk_error (*control)(void *context, transit_station_turn *turn, const transit_station_incoming *input);
     transit_sdk_error (*result)(void *context, transit_station_turn *turn, const transit_station_incoming *input);
+    transit_sdk_error (*query_failure)(void *context, transit_station_turn *turn, const transit_station_query_failure *input);
 } transit_station_handler;
 typedef enum transit_station_failure_policy { TRANSIT_FAILURE_STOP, TRANSIT_FAILURE_BLOCK_INPUT } transit_station_failure_policy;
 typedef enum transit_station_recovery_policy { TRANSIT_RECOVERY_FRESH_OWNERSHIP, TRANSIT_RECOVERY_PERSIST_BEFORE_DISPATCH } transit_station_recovery_policy;

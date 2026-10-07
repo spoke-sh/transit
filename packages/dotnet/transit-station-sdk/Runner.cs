@@ -82,7 +82,7 @@ public sealed class Runner<T> : IDisposable, IAsyncDisposable, IHttpOwner, IGrpc
                 string kind = Value.String(input["kind"]);
                 ulong position = Value.Number(input["position"], 1);
                 Origin origin = NativeValues.Origin(input["origin"], process.Realm);
-                Incoming<T>? message = null; Control? control = null; ResultComplete? result = null;
+                Incoming<T>? message = null; Control? control = null; ResultComplete? result = null; QueryFailure? queryFailure = null;
                 switch (kind) {
                     case "cast": case "call": case "reply":
                         T decoded = NativeValues.Decode(codec, Value.Unhex(input["payload"], bridge.Limit("message_bytes")), bridge.Limit("message_bytes"));
@@ -94,6 +94,17 @@ public sealed class Runner<T> : IDisposable, IAsyncDisposable, IHttpOwner, IGrpc
                         break;
                     case "cancel": case "timeout":
                         control = new Control(kind == "cancel" ? ControlKind.Cancel : ControlKind.Timeout, position, origin, NativeValues.Wide(input["correlation"], true)); break;
+                    case "result_failed":
+                        var negative = Value.Object(input["query_failure"]);
+                        var reason = Value.String(negative["reason"]) switch {
+                            "result_too_large" => QueryFailureReason.ResultTooLarge,
+                            "workspace_exceeded" => QueryFailureReason.WorkspaceExceeded,
+                            "overflow" => QueryFailureReason.Overflow,
+                            "cancelled" => QueryFailureReason.Cancelled,
+                            "denied" => QueryFailureReason.Denied,
+                            _ => throw new TransitException(ErrorKind.IncompatibleNative, "query-failure-reason")
+                        };
+                        queryFailure = new QueryFailure(position, origin, NativeValues.Wide(input["correlation"], true), Value.Number(negative["result"], 1), reason); break;
                     case "result_complete":
                         result = new ResultComplete(position, origin, NativeValues.Wide(input["correlation"], true)); break;
                     default: throw new TransitException(ErrorKind.Handler, "unsupported-input");
@@ -102,6 +113,7 @@ public sealed class Runner<T> : IDisposable, IAsyncDisposable, IHttpOwner, IGrpc
                 if (Value.Boolean(value["initializing"]) && !stop.Stopped) handler.Initialize(turn);
                 if (!stop.Stopped) {
                     if (control is not null) handler.OnControl(turn, control);
+                    else if (queryFailure is not null) handler.OnQueryFailure(turn, queryFailure);
                     else if (result is not null) handler.OnResult(turn, result);
                     else handler.OnMessage(turn, message!);
                 }

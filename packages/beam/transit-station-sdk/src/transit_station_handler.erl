@@ -4,4 +4,5 @@
 -callback handle_message(transit_turn:turn(), #transit_incoming{}, term()) -> {ok, term()} | {error, term()}.
 -callback handle_control(transit_turn:turn(), #transit_control{}, term()) -> {ok, term()} | {error, term()}.
 -callback handle_result(transit_turn:turn(), #transit_result_complete{}, term()) -> {ok, term()} | {error, term()}.
--optional_callbacks([initialize/2, handle_control/3, handle_result/3]).
+-callback handle_query_failure(transit_turn:turn(), #transit_query_failure{}, term()) -> {ok, term()} | {error, term()}.
+-optional_callbacks([initialize/2, handle_control/3, handle_result/3, handle_query_failure/3]).

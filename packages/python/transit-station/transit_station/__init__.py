@@ -13,7 +13,8 @@ from .table import (TableSchema as TableSchema, Table as Table, Row as Row, RowI
     TableMutation as TableMutation, TableMutationReference as TableMutationReference,
     TableMutationStatus as TableMutationStatus, TableMutationState as TableMutationState,
     TableRejection as TableRejection, TableWitness as TableWitness)
-from .query import (QueryPlan as QueryPlan, Aggregate as Aggregate,
+from .query import (QueryFailure as QueryFailure, QueryFailureReason as QueryFailureReason,
+    QueryPlan as QueryPlan, Aggregate as Aggregate,
     Comparison as Comparison, QueryJob as QueryJob,
     ResultManifest as ResultManifest, IpcSegment as IpcSegment, ResultReader as ResultReader)
 from .runner import Runner as Runner, AsyncRunner as AsyncRunner, Handler as Handler, StopSignal as StopSignal

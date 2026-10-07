@@ -3,6 +3,7 @@ from dataclasses import dataclass
 from http.client import HTTPConnection
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
+import os
 from pathlib import Path
 import select
 import shutil
@@ -275,7 +276,58 @@ def _run(node, cli, raw_library, install, label, cold, *, decode_block_repetitio
                 assert state_value(cfg, f'table.work.{operation:016x}'.encode()) is None
                 outcomes.append((admitted, completed))
             assert all(left[1] <= right[0] for left, right in zip(outcomes, outcomes[1:])), outcomes
+        def negative_queries():
+            # The raw sender uses ordinary authorized native turns, exercising
+            # typed SDK ingress independently of the native capture unit tests.
+            source = command({'spawn': {}})
+            source_state = read({'process': source})['body']['process']['process']
+            command({'own': {'pid': source, 'worker': 0, 'expected_generation': source_state['generation']}})
+            def emit(requester, correlation, result, reason):
+                view = read({'process': source})['body']['process']
+                command({'turn': {'pid': source, 'generation': view['process']['generation'],
+                    'input': view['input']['position'], 'expected_revision': view['process']['revision'],
+                    'outputs': [{'pid': requester['pid'], 'value': frame(b'GQE1' + struct.pack('<QB', result, reason), 9, correlation)}, None, None, None]}})
+                deliver()
+            observed_reasons, closed_after_replacement = [], []
+            for reason in range(1, 6):
+                requester = provision('query'); requester['peer'] = source
+                child = worker(requester)
+                correlation = send(requester, b'TSQ\x01\x04')
+                expect_one(child, 'Committed'); deliver()
+                admitted = read({'process': source})['body']['process']['input']['position']
+                emit(requester, correlation, admitted, reason)
+                if reason == 1:
+                    fault['unavailable_reply'] = True
+                    fault['unavailable_process'] = requester['pid']
+                expect_one(child, 'Committed')
+                # Callback writes commit with the native terminal wait evidence.
+                assert state_value(requester, b'total') == b'TSU\x01' + struct.pack('<Q', 1)
+                assert state_value(requester, b'observed') == b'TSU\x01' + struct.pack('<Q', reason)
+                assert state_value(requester, b'\0Qh' + struct.pack('>QQH', correlation, 0, 0)) == b'GQE1' + struct.pack('<QB', admitted, reason)
+                assert process(requester)['failure'] is None
+                close(child)
+                own(requester)
+                child = worker(requester)
+                # A replacement sees the closed wait; a later source output may
+                # not invoke another callback or overwrite the first outcome.
+                command({'send': {'pid': source, 'value': frame(b'duplicate')}})
+                emit(requester, correlation, admitted, 5 if reason != 5 else 3)
+                expect_one(child, 'Committed')
+                assert state_value(requester, b'total') == b'TSU\x01' + struct.pack('<Q', 1)
+                assert state_value(requester, b'observed') == b'TSU\x01' + struct.pack('<Q', reason)
+                assert process(requester)['failure'] is None and process(requester)['consumed'] == 3
+                observed_reasons.append(int.from_bytes(state_value(requester, b'observed')[4:], 'little'))
+                closed_after_replacement.append(process(requester)['consumed'])
+                close(child)
+            assert fault['unavailable_replies'] == 1 and fault['unavailable_reads'] == 1 and recovered_events >= 1
+            check('typed-query-failures', {'reason_codes': observed_reasons,
+                'consumed_after_replacement': closed_after_replacement,
+                'lost_receipts': fault['unavailable_replies'], 'unavailable_reads': fault['unavailable_reads'],
+                'exact_recovery': recovered_events >= 1})
+            print(f'{label} Station: five authenticated typed query failures, exact lost-receipt recovery and duplicate suppression after replacement passed.')
         try:
+            negative_queries()
+            if os.environ.get('TRANSIT_TEST_QUERY_FAILURES_ONLY') == '1': return
             gated = provision(finite=True)
             invoke('codecs', gated)
             send(gated, b'TSC\x01\x01' + (2**53+1).to_bytes(8, 'little'))
@@ -369,12 +421,13 @@ def _run(node, cli, raw_library, install, label, cold, *, decode_block_repetitio
             # Deterministically exercise the same uncertain outcome observed
             # under storage latency, after this queue turn has been accepted.
             before_recovery = recovered_events
+            before_reply_faults, before_read_faults = fault['unavailable_replies'], fault['unavailable_reads']
             before_reads = repeated_reads
             fault['unavailable_process'] = table['pid']
             fault['unavailable_reply'] = True
             expect_one(service, 'Committed')
-            assert fault['unavailable_replies'] == 1 and recovered_events > before_recovery
-            assert fault['unavailable_reads'] == 1 and repeated_reads > before_reads
+            assert fault['unavailable_replies'] == before_reply_faults + 1 and recovered_events > before_recovery
+            assert fault['unavailable_reads'] == before_read_faults + 1 and repeated_reads > before_reads
             assert process(table)['consumed'] == 1
             assert state_value(table, f'table.done.{initialization:016x}'.encode()) is None
             expected_table = [(initialization, 0, 0, 0, 0)]

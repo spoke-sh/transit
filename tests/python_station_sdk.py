@@ -192,6 +192,14 @@ def consumer(mode, config_path):
                 'destination': segment.manifest.destination.pid, 'resource': segment.manifest.basis.resource.resource,
                 'revision': segment.manifest.basis.revision, 'bytes': segment.manifest.byte_count}))
         class QueryProof(QueryRequester):
+            def handle_query_failure(self, turn, failure):
+                from transit_sdk_examples.query import REQUEST, OBSERVED
+                assert failure.origin.process == peer and failure.correlation == turn.state.require(REQUEST)
+                assert failure.result > 0 and turn.state.find(TOTAL) is None
+                reason = list(station.QueryFailureReason).index(failure.reason) + 1
+                turn.state.put(TOTAL, 1)
+                turn.state.put(OBSERVED, reason)
+
             def handle(self, turn, incoming):
                 if Path(cfg['output'], 'manifest.json').exists():
                     manifest = json.loads(Path(cfg['output'], 'manifest.json').read_bytes())

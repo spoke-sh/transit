@@ -7,6 +7,10 @@ template<class T> struct Call { T value; uint64_t position; Origin origin; uint6
 template<class T> struct Reply { T value; uint64_t position; Origin origin; uint64_t correlation; };
 template<class T> using Incoming = std::variant<Cast<T>, Call<T>, Reply<T>>;
 struct Control { InputKind kind; uint64_t position; Origin origin; uint64_t correlation; };
+enum class QueryFailureReason { result_too_large = TRANSIT_QUERY_FAILURE_RESULT_TOO_LARGE,
+    workspace_exceeded = TRANSIT_QUERY_FAILURE_WORKSPACE_EXCEEDED, overflow = TRANSIT_QUERY_FAILURE_OVERFLOW,
+    cancelled = TRANSIT_QUERY_FAILURE_CANCELLED, denied = TRANSIT_QUERY_FAILURE_DENIED };
+struct QueryFailure { uint64_t position; Origin origin; uint64_t correlation; uint64_t result; QueryFailureReason reason; };
 struct ResultComplete { uint64_t position; Origin origin; uint64_t correlation; };
 template<class T> class Handler {
 public:
@@ -14,6 +18,7 @@ public:
     virtual void initialize(Turn &) {}
     virtual void handle(Turn &turn, const Incoming<T> &input) = 0;
     virtual void handle_control(Turn &, const Control &) { throw failure(TRANSIT_SDK_HANDLER_ERROR, "unhandled-control"); }
+    virtual void handle_query_failure(Turn &, const QueryFailure &) { throw failure(TRANSIT_SDK_HANDLER_ERROR, "unhandled-query-failure"); }
     virtual void handle_result(Turn &, const ResultComplete &) { throw failure(TRANSIT_SDK_HANDLER_ERROR, "unhandled-result"); }
 };
 class FrozenMutation {
@@ -101,6 +106,10 @@ public:
             },
             [](void *context, transit_station_turn *pointer, const transit_station_incoming *value) {
                 return callback([&] { Turn turn(pointer); static_cast<Context *>(context)->handler->handle_result(turn, {value->position, value->origin, value->correlation}); });
+            },
+            [](void *context, transit_station_turn *pointer, const transit_station_query_failure *value) {
+                return callback([&] { Turn turn(pointer); static_cast<Context *>(context)->handler->handle_query_failure(turn,
+                    {value->position, value->origin, value->correlation, value->result, static_cast<QueryFailureReason>(value->reason)}); });
             }};
         transit_station_options settings{static_cast<transit_station_failure_policy>(context->options.failure),
             context->options.store ? TRANSIT_RECOVERY_PERSIST_BEFORE_DISPATCH : TRANSIT_RECOVERY_FRESH_OWNERSHIP, context.get(),

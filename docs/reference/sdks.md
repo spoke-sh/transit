@@ -210,3 +210,43 @@ access again before returning. Revocation, a changed authority cut, unavailable
 evidence or inconsistent history remains a read error; it never rewrites a saved
 outcome. The runner must have no pending mutation. Reads create no replay cursor,
 resolve no credentials, and dispatch, resume or retry no effect.
+
+
+## Handler query failures
+
+When query-result handling is enabled, terminal negative results invoke a typed
+failure callback. The callback receives the input position, authenticated origin,
+full-width correlation, result identity and reason. It runs in the same private
+turn that records the outcome and closes the durable wait. Application message
+codecs do not parse framework failures.
+
+| SDK | Handler callback | Outcome type |
+| --- | --- | --- |
+| Python | `handle_query_failure(turn, failure)` | `QueryFailure` |
+| TypeScript | `handleQueryFailure(turn, failure)` | `QueryFailure` |
+| Rust | `handle_query_failure(turn, failure)` | `QueryFailure` |
+| Ruby | `on_query_failure(turn, failure)` | `QueryFailure` |
+| C | `transit_station_handler.query_failure` | `transit_station_query_failure` |
+| C++ | `handle_query_failure(turn, failure)` | `QueryFailure` |
+| Java | `onQueryFailure(turn, failure)` | `Types.QueryFailure` |
+| .NET | `OnQueryFailure(turn, failure)` | `QueryFailure` |
+| Erlang | `handle_query_failure/3` | `#transit_query_failure{}` |
+| Elixir | `handle_query_failure/3` | `%QueryFailure{}` |
+
+Reasons are `result_too_large`, `workspace_exceeded`, `overflow`, `cancelled` and
+`denied`, represented by the SDK's typed enum, string union or atom. A failed
+query has no completed result reader. Received prefixes remain incomplete
+retained evidence. The callback may record application state within the remaining
+native write budget; framework closure uses two of the four mutations. Omitting
+the callback or raising from it follows the configured stop/block policy and
+does not silently consume the outcome. Java and .NET use interface defaults;
+applications implementing a failure callback must include it in their handler's
+interface implementation.
+
+Duplicates and late outcomes cannot invoke another callback or reopen a closed
+wait, including after replacement. Callbacks can still run again after an unsent
+proposal is discarded, so external effects require their own recorded intent and
+idempotency policy. No SDK automatically retries a failed query. An application
+can explicitly submit a new call after addressing the reason. The
+[handler query contract](../../contracts/STATION_QUERY_V1.md) specifies source
+checks, first-outcome semantics and retained evidence.

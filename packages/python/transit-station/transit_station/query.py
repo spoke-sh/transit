@@ -3,14 +3,33 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 import importlib
 import json
+from enum import Enum
 from typing import Any
 from transit_client import ProcessRef, ResourceRef
 from transit_client.types import integer
 from transit_client.errors import UnsupportedCapability
 from transit_client._native import encode
 from .unified import Plan, Aggregate as Aggregate, Comparison as Comparison
+from .models import Origin
 from .table import TableBasis
 from .turn import ReadVersion, Turn, U64_MAX
+
+
+class QueryFailureReason(str, Enum):
+    RESULT_TOO_LARGE = 'result_too_large'
+    WORKSPACE_EXCEEDED = 'workspace_exceeded'
+    OVERFLOW = 'overflow'
+    CANCELLED = 'cancelled'
+    DENIED = 'denied'
+
+
+@dataclass(frozen=True, slots=True)
+class QueryFailure:
+    position: int
+    origin: Origin
+    correlation: int
+    result: int
+    reason: QueryFailureReason
 
 
 @dataclass(frozen=True, slots=True, init=False)

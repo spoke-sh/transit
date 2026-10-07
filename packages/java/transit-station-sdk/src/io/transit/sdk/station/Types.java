@@ -42,6 +42,8 @@ public final class Types {
     public record Reply<T>(T value, long position, Origin origin, BigInteger correlation) implements Incoming<T> {}
     public enum ControlKind { CANCEL, TIMEOUT }
     public record Control(ControlKind kind, long position, Origin origin, BigInteger correlation) {}
+    public enum QueryFailureReason { RESULT_TOO_LARGE, WORKSPACE_EXCEEDED, OVERFLOW, CANCELLED, DENIED }
+    public record QueryFailure(long position, Origin origin, BigInteger correlation, long result, QueryFailureReason reason) {}
     public record ResultComplete(long position, Origin origin, BigInteger correlation) {}
     public record Budgets(int mutations, int outputs, int views, int retainedReads, int retains, int releases) {}
     public record ReadVersion(long pid, long input, int index) {

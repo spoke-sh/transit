@@ -55,6 +55,8 @@ defmodule ElixirStationAdapter do
   @impl true
   def handle_message(t, i, s), do: Proof.handle_message(__MODULE__, t, i, s)
   @impl true
+  def handle_query_failure(t, i, s), do: Proof.handle_query_failure(__MODULE__, t, i, s)
+  @impl true
   def handle_result(t, i, s), do: Proof.handle_result(__MODULE__, t, i, s)
   @impl true
   def before_dispatch(m, s), do: Proof.before_dispatch(__MODULE__, m, s)
@@ -104,7 +106,10 @@ defmodule ElixirStationAdapter do
   def input_variant(_), do: :other
   def budgets(t), do: Turn.budgets(t)
   def state(t), do: Turn.state(t)
+  def key(:request), do: E.Keys.request()
+  def key(:observed), do: E.Keys.observed()
   def key(:total), do: E.Keys.total()
+  def find(s, k), do: State.find(s, k)
   def require(s, k), do: State.require(s, k)
   def put(s, k, v), do: State.put(s, k, v)
 

@@ -171,7 +171,7 @@ static transit_sdk_error query_result(void *context, transit_station_turn *turn,
     }
     const transit_station_key observed = transit_example_observed_key(); return transit_station_state_put(turn, &observed, &manifest.rows);
 }
-transit_station_handler transit_example_counter_handler(void) { return (transit_station_handler){NULL, initialize_counter, counter, NULL, NULL}; }
-transit_station_handler transit_example_requester_handler(transit_example_peer *context) { return (transit_station_handler){context, NULL, requester, NULL, NULL}; }
-transit_station_handler transit_example_table_handler(transit_example_peer *context) { return (transit_station_handler){context, NULL, table_service, NULL, NULL}; }
-transit_station_handler transit_example_query_requester_handler(transit_example_query_requester *context) { return (transit_station_handler){context, NULL, query_start, NULL, query_result}; }
+transit_station_handler transit_example_counter_handler(void) { return (transit_station_handler){NULL, initialize_counter, counter, NULL, NULL, NULL}; }
+transit_station_handler transit_example_requester_handler(transit_example_peer *context) { return (transit_station_handler){context, NULL, requester, NULL, NULL, NULL}; }
+transit_station_handler transit_example_table_handler(transit_example_peer *context) { return (transit_station_handler){context, NULL, table_service, NULL, NULL, NULL}; }
+transit_station_handler transit_example_query_requester_handler(transit_example_query_requester *context) { return (transit_station_handler){context, NULL, query_start, NULL, query_result, NULL}; }

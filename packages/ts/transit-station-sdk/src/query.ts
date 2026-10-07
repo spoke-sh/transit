@@ -5,9 +5,20 @@ import { operation, type Context } from "./context.ts";
 import { planWire, type Plan, type Predicate as LogicalPredicate } from "./unified.ts";
 import { nativeWide, wide, ReadVersion } from "./values.ts";
 import { unhex } from "./framing.ts";
-import type { GrowingAction } from "./wire.ts";
+import type { GrowingAction, GrowingEvent } from "./wire.ts";
 import type { Turn } from "./turn.ts";
+import type { Origin } from "./values.ts";
 
+export type QueryFailureReason = NonNullable<
+  NonNullable<GrowingEvent["input"]>["query_failure"]
+>["reason"];
+export interface QueryFailure {
+  readonly position: number;
+  readonly origin: Origin;
+  readonly correlation: bigint;
+  readonly result: number;
+  readonly reason: QueryFailureReason;
+}
 export type Projection = readonly number[];
 export type Aggregate = "rows" | "count" | "sum" | "count_values";
 export type Comparison = "eq" | "ne" | "lt" | "le" | "gt" | "ge";

@@ -6,6 +6,8 @@
 -record(transit_key, {name :: binary(), codec :: module()}).
 -record(transit_incoming, {kind :: cast | call | reply, value :: term(), position :: transit_counter(), origin :: term(), correlation = undefined :: undefined | pos_integer()}).
 -record(transit_control, {kind :: cancel | timeout, position :: transit_counter(), origin :: term(), correlation :: pos_integer()}).
+-record(transit_query_failure, {position :: transit_counter(), origin :: term(), correlation :: pos_integer(), result :: transit_counter(),
+    reason :: result_too_large | workspace_exceeded | overflow | cancelled | denied}).
 -record(transit_result_complete, {position :: transit_counter(), origin :: term(), correlation :: pos_integer()}).
 -record(transit_read_version, {pid :: transit_counter(), input :: transit_counter(), index :: 0..255}).
 -record(transit_basis, {resource :: #transit_resource{}, revision :: non_neg_integer(), schema :: binary()}).
