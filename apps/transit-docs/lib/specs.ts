@@ -35,11 +35,19 @@ const code = (value: unknown): string => `\`${cell(value)}\``;
 const json = (value: unknown): string =>
   `\n\n\`\`\`json\n${JSON.stringify(value, null, 2)}\n\`\`\`\n`;
 const anchor = (name: string): string => name.toLowerCase().replace(/[^\w-]/g, "");
+const reference = (value: unknown): string => {
+  const ref = String(value);
+  const match = /^#\/components\/schemas\/([^/]+)(.*)$/.exec(ref);
+  if (!match) return code(ref);
+  // Nested $defs belong to the named schema; they have no separate heading.
+  const owner = match[1]!.replaceAll("~1", "/").replaceAll("~0", "~");
+  return `[${cell(owner + match[2])}](#${anchor(owner)})`;
+};
 
 function schemaRows(value: unknown, prefix = "$", required = true): string[] {
   const s = object(value);
   const type = s.$ref
-    ? `[${cell(String(s.$ref).split("/").at(-1))}](#${anchor(String(s.$ref).split("/").at(-1)!)})`
+    ? reference(s.$ref)
     : code(s.type ?? (s.oneOf ? "oneOf" : s.anyOf ? "anyOf" : "value"));
   const constraints = Object.entries(s)
     .filter(

@@ -56,6 +56,8 @@ export const sections: Section[] = [
       reference("sql/create-source", "CREATE SOURCE"),
       reference("sql/create-sink", "CREATE SINK"),
       reference("sql/create-table", "CREATE TABLE"),
+      reference("sql/alter-table", "ALTER TABLE"),
+      reference("sql/drop-table", "DROP TABLE"),
       reference("sql/create-document", "CREATE DOCUMENT"),
       reference("sql/create-kv", "CREATE KV"),
       reference("sql/grant", "GRANT"),

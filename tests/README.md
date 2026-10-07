@@ -18164,3 +18164,11 @@ columns and 65,536 encoded bytes); Markdown links and registry checks pass in
 The broader check reached documentation tests and exposed missing ALTER/DROP site
 entries and a stale Python workload excerpt. Those failures are not a full check
 pass; their corrections and site validation are recorded separately.
+
+The documentation site adds ALTER/DROP navigation and refreshes the Python
+workload excerpt to the durable general Table queue. Generated references to
+nested JSON Schema `$defs` now link to their owning component heading, with a
+recursive-reference regression test. `general-docs-check2.log` passes formatting,
+lint, TypeScript, all eight content tests and the production site build with
+strict anchor checking. The preceding run passed seven content tests but failed
+the production build on a generated `#t0` anchor; it is not counted as a pass.
