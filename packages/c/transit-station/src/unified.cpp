@@ -239,6 +239,9 @@ std::unique_ptr<transit_station_unified_page> page_parse(const Raw &raw,const By
     return out;
 }
 }
+namespace transit::sdk::station_detail {
+std::string query_plan_wire(const transit_station_unified_plan &value) { return plan_wire(value); }
+}
 extern "C" {
 transit_sdk_error transit_station_unified_prepare_bundle(const transit_station_unified_source *source,const transit_station_unified_plan *plan,transit_station_unified_budgets budgets,const char *directory,transit_station_unified_bundle **out){
     Uninterruptible guard;if(out)*out=nullptr;return boundary([&]{require(source && plan && out,"query-bundle");const auto action="{\"prepare\":{\"source\":"+source_wire(*source)+",\"plan\":"+plan_wire(*plan)+",\"limits\":"+limits_wire(budgets)+"}}";auto bundle=std::make_unique<transit_station_unified_bundle>();Worker worker;worker.run([&]{Local local(directory);bundle->bytes=unhex(local.raw.field(codec(local,action),"prepared/bytes",true),25069);});*out=bundle.release();});

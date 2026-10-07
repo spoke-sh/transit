@@ -43,3 +43,6 @@ DML, historical definitions and move-only saved work through the native worker.
 
 [Logical values](docs/LOGICAL.md) provide immutable owned descriptors and cells,
 exact wide numbers and bounded codecs with C++ value semantics.
+
+[General handler Tables](docs/TABLES.md) use catalog schemas, owned logical rows,
+stable identities and explicit saved creation/mutation steps.

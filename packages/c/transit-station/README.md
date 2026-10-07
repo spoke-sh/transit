@@ -55,3 +55,6 @@ DML, accepted historical definitions and exact saved-intent recovery.
 
 [Logical values](docs/LOGICAL.md) provide owned recursive descriptors and cells,
 exact wide numbers and bounded neutral codecs through explicit C ownership.
+
+[General handler Tables](docs/TABLES.md) use catalog schemas, owned logical rows,
+stable identities and explicit saved creation/mutation steps.

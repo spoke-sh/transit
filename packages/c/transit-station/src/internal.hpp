@@ -8,7 +8,7 @@
 
 namespace transit::sdk::station_detail {
 using namespace internal;
-struct Caps { size_t message, value, key, cell, name, page, segment; bool queries, http_requests, http_replay, http_release, http_followup, grpc_requests, grpc_replay, grpc_release, grpc_followup, document_codecs, document_owner, document_reads; };
+struct Caps { size_t message, value, key, page, table_page, segment; bool queries, http_requests, http_replay, http_release, http_followup, grpc_requests, grpc_replay, grpc_release, grpc_followup, document_codecs, document_owner, document_reads; };
 #define TRANSIT_STATION_FUNCTIONS(X) \
     X(station_abi_definition_matches) X(station_abi_version) X(station_growing_capabilities) X(station_growing_create) X(station_growing_destroy) \
     X(station_growing_prepare) X(station_growing_dispatch) X(station_growing_confirmation) X(station_growing_apply) \
@@ -68,7 +68,7 @@ int64_t signed_number(const Raw &raw, const Bytes &value, const std::string &pat
 void digest(const Raw &raw, const Bytes &value, const std::string &path, uint8_t out[32]);
 std::string version(const transit_station_read_version &value);
 transit_station_read_version read_version(const Raw &raw, const Bytes &value, const std::string &path);
-transit_station_basis basis(const Raw &raw, const Bytes &value, const std::string &path, uint64_t realm);
+transit_station_table_basis table_basis(const Raw &raw, const Bytes &value, const std::string &path, uint64_t realm);
 std::string cursor(const transit_station_cursor *value);
 std::optional<std::string> next_cursor(const Raw &raw, const Bytes &value, const std::string &path);
 Bytes encode(const transit_station_codec &codec, const void *value, size_t bound);
@@ -86,11 +86,7 @@ public:
     explicit TurnGuard(transit_station_turn *turn);
 };
 template<class F> transit_sdk_error with_turn(transit_station_turn *turn, bool read, F &&work);
-std::unique_ptr<transit_station_table> capture_table(transit_station_turn &turn, const transit_station_table_schema &schema, const transit_station_read_version *version);
-std::string cell_wire(transit_station_cell cell, size_t bound);
-const char *cell_name(transit_station_cell_kind kind);
-void schema_check(const transit_station_table_schema &schema, const Caps &caps);
-transit_station_row read_row(const Raw &raw, const Bytes &json, const std::string &path, size_t bound, transit_station_cell_kind type);
+std::string query_plan_wire(const transit_station_unified_plan &);
 transit_station_manifest manifest(transit_station_turn &turn, uint64_t correlation);
 }
 struct transit_station_mutation {
@@ -112,8 +108,8 @@ struct transit_station_turn {
     transit_station_turn_info info;
     transit_station_incoming input;
     transit_sdk_error poison{};
-    transit_station_turn(transit::sdk::station_detail::Bridge &bridge_, std::atomic<bool> &stop_, uint64_t scope_, transit_station_turn_info info_, transit_station_incoming input_)
-        : bridge(&bridge_), stop(&stop_), scope(scope_), info(info_), input(input_) {}
+    transit_station_turn(transit::sdk::station_detail::Bridge *bridge_, std::atomic<bool> &stop_, uint64_t scope_, transit_station_turn_info info_, transit_station_incoming input_)
+        : bridge(bridge_), stop(&stop_), scope(scope_), info(info_), input(input_) {}
 };
 struct transit_station_value {
     transit_station_codec codec;
@@ -126,34 +122,10 @@ struct transit_station_value {
     }
 };
 struct transit_station_cursor { std::string value; };
-struct transit_station_row {
-    int64_t key{};
-    transit_station_cell_kind kind = TRANSIT_CELL_NULL;
-    int64_t integer{};
-    bool boolean{};
-    transit::sdk::internal::Bytes bytes;
-    transit_station_row_view view() const { return {key, {kind, integer, boolean, transit::sdk::internal::view(bytes)}}; }
-};
 struct KvEntry { transit::sdk::internal::Bytes key, value; uint64_t revision; };
 struct transit_station_page {
-    bool table = false;
     std::vector<KvEntry> entries;
-    std::vector<transit_station_row> rows;
     std::optional<std::string> next;
-    transit_station_basis basis{};
-};
-struct transit_station_table {
-    transit_station_turn *turn;
-    uint32_t id;
-    transit_station_cell_kind type;
-    transit_station_basis basis;
-    std::optional<transit_station_read_version> retained;
-    transit_station_table(transit_station_turn &turn_, uint32_t id_, transit_station_cell_kind type_, transit_station_basis basis_, const transit_station_read_version *version)
-        : turn(&turn_), id(id_), type(type_), basis(basis_) {
-        if (version) retained = *version;
-        transit_station_turn_retain(turn);
-    }
-    ~transit_station_table() { transit_station_turn_release(turn); }
 };
 struct transit_station_segment { transit_station_segment_info info{}; transit::sdk::internal::Bytes ipc; };
 struct transit_station_http_request {

@@ -17787,3 +17787,43 @@ writer. `zig build check` in `packages/c/transit-station`, under `nix develop`,
 completes successfully with the package's C++17 `-Wall -Wextra -Werror` flags
 (`handler-table-c-codecs-build1.log`, exit 0). This is compilation evidence for
 the refactor; C/C++ handler replacement and runtime qualification are pending.
+
+### C and C++ general handler Tables
+
+The C SDK replaces fixed key/value Tables with catalog schemas, logical row
+cells, stable identities, composite-key reads, captured head bases and explicit
+saved creation/mutation steps. C++ exposes owned schema/row values, move-only
+saved mutations and the same shared unified query model. Query object/policy
+identities retain full u64 values. Public C symbols are regenerated against the
+current definition; the final coordinated definition replacement remains pending.
+
+Under `nix develop`, `zig build check` in `packages/c/transit-station` passes
+C11 public-header/ownership execution and **34 rejection cases**, plus local
+scope/thread/retained-write/read-poison checks. The cases exercise saved input
+ownership, current/missing/foreign definitions, full-width identities, bounded
+rows/assignments/predicates, defaults, complete action envelopes (exact fit and
+one-byte overflow), malformed outcomes/counts and 15 nested logical maps. The
+shared 96-level JSON profile admits that valid envelope; a 64-level parser
+rejects it. A companion C++ conversion error records a failed read under the
+existing scope guard; a caught failure still blocks subsequent private work.
+Local guard tests omit transport, so passing them establishes no native dispatch
+or authority observation.
+
+`zig build check` in `packages/cpp/transit-station-sdk` passes C++17 ownership
+and codec checks, including general schemas, owned inputs, saved recovery,
+INSERT/UPDATE/DELETE construction, typed DEFAULT, malformed input and a frozen
+copy of the unified plan. Both packages compile with `-Wall -Wextra -Werror`.
+The initial C build was invoked from the repository root and correctly fails
+because that build has no `check` step. Initial value checks reject a malformed
+positive map fixture whose key was a cell rather than an atom; correcting the
+fixture produces the passing runs. No failed attempt is counted as evidence.
+
+Generated binding drift, diagnostic mappings/inventory and the verification
+registry pass. Documentation passes 5272 local links across 528 files. These
+are package source/value checks, not fresh installed SDK/native handler
+qualification. Shared examples, live recovery/fault schedules, allocator-fault
+coverage, coordinated definition cutover and full clean-CI remain separate work.
+
+Raw `handler-table-c-check6.log` SHA-256: `0072a03edfde54b92d9a068eff9dd7e74d450d7cf1041dd7a4d32f612963a2eb`.
+
+Raw `handler-table-cpp-check4.log` SHA-256: `00c2907e35f59d3380cca04e117e381405bdaad1f541addaac859411a2a30cb8`.

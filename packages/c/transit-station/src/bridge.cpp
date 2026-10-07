@@ -14,7 +14,7 @@ Local::Local(const char *directory) : raw(directory), library(directory, "libtra
     for (const auto *flag : {"gated_dispatch", "retained_confirmation", "scoped_turns", "paged_state", "tables", "retained_sources"})
         if (!raw.boolean(value, flag)) fail(TRANSIT_SDK_UNSUPPORTED_CAPABILITY, "station-capabilities");
     caps = {raw.number(value, "message_bytes"), raw.number(value, "value_bytes"), raw.number(value, "key_bytes"),
-        raw.number(value, "table_cell_bytes"), raw.number(value, "table_name_bytes"), raw.number(value, "page_entries"),
+        raw.number(value, "page_entries"), raw.number(value, "table_page_rows"),
         raw.number(value, "query_segment_bytes"), raw.boolean(value, "query_results"), raw.boolean(value, "http_requests"), raw.boolean(value, "http_replay"),
         exists(raw, value, "http_release") && raw.boolean(value, "http_release"),
         exists(raw, value, "http_followup") && raw.boolean(value, "http_followup"),
@@ -25,7 +25,12 @@ Local::Local(const char *directory) : raw(directory), library(directory, "libtra
         exists(raw, value, "document_codecs") && raw.boolean(value, "document_codecs"),
         exists(raw, value, "document_owner") && raw.boolean(value, "document_owner"),
         exists(raw, value, "document_reads") && raw.boolean(value, "document_reads")};
-    for (auto bound : {caps.message, caps.value, caps.key, caps.cell, caps.name, caps.page, caps.segment})
+    if (!raw.boolean(value, "table_resumable_mutations")) fail(TRANSIT_SDK_UNSUPPORTED_CAPABILITY, "table-mutations");
+    if (caps.table_page != 8 || raw.number(value, "table_columns") != 128 ||
+        raw.number(value, "table_action_bytes") != TRANSIT_SDK_STATION_HANDLER_ACTION_BYTES ||
+        raw.number(value, "table_result_bytes") != TRANSIT_SDK_STATION_HANDLER_TABLE_RESULT_BYTES)
+        fail(TRANSIT_SDK_INCOMPATIBLE_NATIVE, "table-bounds");
+    for (auto bound : {caps.message, caps.value, caps.key, caps.page, caps.table_page, caps.segment})
         if (bound > TRANSIT_CLIENT_MAX_BODY) fail(TRANSIT_SDK_INCOMPATIBLE_NATIVE, "native-bound");
 }
 Bytes Local::take(station_buffer *buffer, size_t maximum) const {
@@ -171,9 +176,10 @@ transit_station_read_version read_version(const Raw &raw, const Bytes &value, co
     if (index > 255) fail(TRANSIT_SDK_INCOMPATIBLE_NATIVE, "read-version");
     return {raw.number(value, path + "/pid"), raw.number(value, path + "/input"), static_cast<uint8_t>(index)};
 }
-transit_station_basis basis(const Raw &raw, const Bytes &value, const std::string &path, uint64_t realm) {
-    transit_station_basis result{}; result.resource = {realm, raw.number(value, path + "/resource")};
-    result.revision = raw.number(value, path + "/revision", true); digest(raw, value, path + "/schema", result.schema); return result;
+transit_station_table_basis table_basis(const Raw &raw, const Bytes &value, const std::string &path, uint64_t realm) {
+    transit_station_table_basis result{}; result.resource = {realm, raw.number(value, path + "/resource")};
+    result.revision = raw.number(value, path + "/revision", true); result.object = wide(raw, value, path + "/object");
+    require(result.object, "table-object"); digest(raw, value, path + "/head", result.head); return result;
 }
 std::string cursor(const transit_station_cursor *value) { return value ? quote(value->value) : "null"; }
 std::optional<std::string> next_cursor(const Raw &raw, const Bytes &value, const std::string &path) {

@@ -67,7 +67,7 @@ struct RunnerState {
         const uint64_t scope = raw.number(event, "scope");
         const transit_station_turn_info info{process, {process.realm, raw.number(event, "resource")}, raw.number(event, "resource_revision", true), raw.boolean(event, "initializing")};
         auto input = incoming(raw, event, process.realm);
-        std::unique_ptr<transit_station_turn, decltype(&transit_station_turn_release)> turn(new transit_station_turn(bridge, stop, scope, info, input), transit_station_turn_release);
+        std::unique_ptr<transit_station_turn, decltype(&transit_station_turn_release)> turn(new transit_station_turn(&bridge, stop, scope, info, input), transit_station_turn_release);
         const auto error = boundary([&] {
             if (stop) return;
             std::unique_ptr<transit_station_value> value;

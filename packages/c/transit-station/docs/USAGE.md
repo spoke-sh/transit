@@ -103,16 +103,17 @@ remaining operations; durable collection size is independent of a page bound.
 
 Pages, cursors, decoded values, rows and segments have explicit destroy functions.
 Page entry/row views borrow their owning page; copy bytes before releasing it.
-Table handles retain their turn scope and reject use after completion. Tables
-have an i64 key and one nullable i64, boolean, UTF-8 or binary value column. Native
-schema capture verifies the typed declaration. Nullable cells differ from a
-missing row. Retained versions support bounded point/page reads with current
-authorization, and are read-only. Releasing their durable identity is an explicit
-turn operation, separate from freeing a local handle.
+[General Table handles](TABLES.md) retain their turn scope and expose catalog
+schemas, owned logical rows, stable identities, composite keys and saved
+resumable mutations. Nullable cells differ from a missing row. Retained versions
+support bounded point/page reads with current authorization and are read-only.
+Releasing their durable identity is an explicit turn operation, separate from
+freeing a local handle. Each creation/mutation helper prepares one private step;
+its domain completion is distinct from admission and a framework commit.
 
-Query plans expose projection, comparison/null predicates, aggregation and limit.
-Fuze executes in Zig. Verified result completion leads to a complete manifest
-with source/destination, correlation, captured resource/revision/schema, plan and
+Query plans use the shared unified projections, typed predicates, Boolean
+programs, aggregation and limits. Fuze executes in Zig. Verified result completion leads to a complete manifest
+with source/destination, correlation, captured resource/revision/object/head, plan/schema digests and
 segment/row/byte counts. Every segment read rechecks current access. Each owned
 segment retains its manifest, digest, ordinal, row count and original IPC bytes;
 `segment_ipc` returns a copy that survives segment and runner destruction. Reading
