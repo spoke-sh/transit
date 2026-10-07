@@ -46,15 +46,9 @@ defmodule Transit.Station.Sdk.ReadVersion do
   @type t :: %__MODULE__{}
 end
 
-defmodule Transit.Station.Sdk.Basis do
-  @enforce_keys [:resource, :revision, :schema]
-  defstruct [:resource, :revision, :schema]
-  @type t :: %__MODULE__{}
-end
-
 defmodule Transit.Station.Sdk.Page do
   @enforce_keys [:entries]
-  defstruct [:entries, cursor: nil, basis: nil]
+  defstruct [:entries, cursor: nil]
   @type t :: %__MODULE__{}
 end
 

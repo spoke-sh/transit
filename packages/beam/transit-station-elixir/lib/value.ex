@@ -63,14 +63,10 @@ defmodule Transit.Station.Sdk.Value do
   def convert({:transit_read_version, pid, input, index}),
     do: %S.ReadVersion{pid: pid, input: input, index: index}
 
-  def convert({:transit_basis, resource, revision, schema}),
-    do: %S.Basis{resource: Client.convert(resource), revision: revision, schema: schema}
-
-  def convert({:transit_page, entries, cursor, basis}),
+  def convert({:transit_page, entries, cursor}),
     do: %S.Page{
       entries: Enum.map(entries, &convert/1),
-      cursor: convert(cursor),
-      basis: convert(basis)
+      cursor: convert(cursor)
     }
 
   def convert({:transit_kv_entry, key, value, revision}),

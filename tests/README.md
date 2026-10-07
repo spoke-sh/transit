@@ -18339,3 +18339,30 @@ close the local application capacity audit; final clean qualification remains.
 Raw `general-work-items-capacity1.log` SHA-256: `78a3459e6e8898ae260eea82192ce11ae22b62541cae7294753e93702be69833`.
 
 Raw `general-console-capacity1.log` SHA-256: `3698227870320d085ca12ffaa943cd88005ddbae4a6c3085850d043a1ca40113`.
+
+### Remove superseded BEAM Table value helpers
+
+The BEAM packages remove unused positional Table cell/basis codecs and the
+obsolete basis slot on generic KV pages. Current Table pages continue to carry
+their typed Table basis. `general-beam-cleanup2.log` builds all eight packages;
+`general-beam-cleanup-native2.log` passes the full installed Erlang and Elixir
+Station schedules. Both check five typed query failures, 46 Table outcomes,
+462 queue drain turns, exact signed recovery and six owned Arrow segments.
+Each retains the 8 MiB hot-store and 64-authority-page fixture. The initial build
+command used an unsupported output flag, and the first runner call omitted its
+required binary arguments; both setup failures are excluded from passing evidence.
+These installed artifacts contain the native query-failure build, before the
+separate compact-index change.
+
+`packed-index-table-native1.log` independently passes the signed native general
+Table lifecycle/console/bridge/CLI schedule with compact indexes and lazy pull
+prefetch: 96.592 seconds, 364 turns, 141 sends, at most four mutations and 256
+bytes per native value, lost send/turn replies, supplied-host receipt loss and
+an injected disconnect. Original objects/receipts survive name reuse. This is
+functional recovery evidence, not a matched latency sample. The corrected
+verification registry check also passes: 59 invariants, 58 classified bounds
+and 14 SDK scenarios.
+
+Raw `general-beam-cleanup-native2.log` SHA-256: `30070f738ec805b94f7be0e33c3460faa947ec0f83c58cfb3981551a23ed4d3a`.
+
+Raw `packed-index-table-native1.log` SHA-256: `22f5568cf3742c66776875495b9cac69cb1ab1fb5a133efb8970b0d486eda011`.

@@ -10,8 +10,7 @@
     reason :: result_too_large | workspace_exceeded | overflow | cancelled | denied}).
 -record(transit_result_complete, {position :: transit_counter(), origin :: term(), correlation :: pos_integer()}).
 -record(transit_read_version, {pid :: transit_counter(), input :: transit_counter(), index :: 0..255}).
--record(transit_basis, {resource :: #transit_resource{}, revision :: non_neg_integer(), schema :: binary()}).
--record(transit_page, {entries = [] :: list(), cursor = undefined :: undefined | binary(), basis = undefined :: undefined | #transit_basis{}}).
+-record(transit_page, {entries = [] :: list(), cursor = undefined :: undefined | binary()}).
 -record(transit_kv_entry, {key :: binary(), value :: binary(), revision :: non_neg_integer()}).
 -record(transit_table_basis, {resource :: #transit_resource{}, revision :: transit_counter(), object :: pos_integer(), head :: binary()}).
 -record(transit_row, {identity :: binary(), cells :: list()}).
