@@ -17896,3 +17896,24 @@ production memory bounds, disable retention or qualify latency. The other SDK
 consumers and final shared-definition cutover remain separate checks.
 
 Raw `sdk-table-queue-python-native4.log` SHA-256: `6deeca59fd5e33f8bb3deeeb3bae5400b6bbdfb313df853ca34df8ad25aeb68d`.
+
+### Installed Ruby Table FIFO and general retained reads
+
+Five fresh Ruby gems pass the same installed FIFO/retained-query schedule as
+Python (`sdk-table-queue-ruby-native1.log`, exit 0). The application uses Ruby
+value objects for the neutral queue records and general logical schema, with
+explicit quotas, stable original inputs, insert/update/delete, self-origin
+validation, and an authenticated NotReady reply. Golden application fixtures,
+**28** adversarial handler-value checks, **46** terminal outcomes and **462**
+drain turns pass. A rejected duplicate does not strand later work across host
+replacement. The old retained cut remains readable after a queued update.
+
+Independent PyArrow verifies **41 rows / 6 streams / 41,992 bytes** after runner
+closure; capture and delivery take **275** rounds. The current-grant revocation,
+exact signed recovery, thread/fiber scope and callback-failure checks pass. The
+fixture keeps **8 MiB** provider hot/cache limits and **64** authority pages,
+with **306** observed cold objects. The Ruby HTTP SDK schedule also passes
+(**14.71 s**). This is installed correctness evidence, not a latency comparison
+or qualification of the still-unmigrated language examples.
+
+Raw `sdk-table-queue-ruby-native1.log` SHA-256: `cdee05106802e7f4687e129587c6dbb34a0510c15bafc12cc9916ad036686e7f`.

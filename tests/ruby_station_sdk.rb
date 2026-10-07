@@ -61,28 +61,29 @@ class TableProof < E::TableService
   def on_message(turn, input)
     saved = File.join(@output, 'version.json')
     if input.is_a?(S::Cast) && input.value.is_a?(E::Rows)
-      table = turn.table(E::TABLE)
+      table = turn.table(E::TABLE.object)
+      check table.schema == E::TABLE
       cursor = nil
       rows = []
       pages = 0
       loop do
         page = table.page(cursor)
-        check page.entries.length <= 8 && page.basis == table.basis
-        rows.concat(page.entries)
+        check page.rows.length <= 8 && turn.table(E::TABLE.object).basis == table.basis
+        rows.concat(page.rows)
         pages += 1
         cursor = page.cursor
         break unless cursor
       end
-      check rows.length == 41 && pages == 6 && rows[0].key == -(1 << 63) && rows[0].value.nil?
+      check rows.length == 41 && pages == 6 && rows[0].cells[0..1] == [E.signed(-(1 << 63)), S::Logical::Null.new]
+      check rows.all? { |row| row.cells[2..] == E::TABLE.columns[2..].map(&:default) }
       version = turn.retain
       File.write(saved, JSON.generate(version.to_h))
-      table.update(S::Row.new(key: -(1 << 63), value: 17))
-    elsif input.value.is_a?(E::Initialize) && File.exist?(saved)
+    elsif input.is_a?(S::Cast) && input.value.is_a?(E::Initialize) && File.exist?(saved)
       version = S::ReadVersion.new(**JSON.parse(File.read(saved), symbolize_names: true))
-      check turn.table(E::TABLE).get(-(1 << 63)).value == 17
+      check turn.table(E::TABLE.object).get_key([E.signed(-(1 << 63))]).cells[1] == E.signed(17)
       source = turn.open_version(version)
-      check source.table(E::TABLE).get(-(1 << 63)).value.nil?
-      check source.table(E::TABLE).page.entries.length == 8 && source.state.page.entries.length <= 8
+      check source.table(E::TABLE.object).get_key([E.signed(-(1 << 63))]).cells[1] == S::Logical::Null.new
+      check source.table(E::TABLE.object).page.rows.length == 8 && source.state.page.entries.length <= 8
       turn.release(version)
     else super
     end
@@ -657,6 +658,13 @@ if mode == 'codecs'
     end
   end
   fixtures.fetch('invalid').each { |item| expect(ArgumentError) { codecs.fetch(item.fetch('codec')).decode([item.fetch('hex')].pack('H*')) } }
+  table_codecs = {'queue' => E::TableWork::QUEUE_CODEC, 'work' => E::TableWork::WORK_CODEC, 'outcome' => E::TableWork::OUTCOME_CODEC}
+  table_fixtures = JSON.parse(File.read(cfg.fetch('table_fixtures')))
+  table_fixtures.fetch('valid').each do |item|
+    codec = table_codecs.fetch(item.fetch('codec')); bytes = [item.fetch('hex')].pack('H*')
+    check codec.encode(codec.decode(bytes)) == bytes
+  end
+  table_fixtures.fetch('invalid').each { |item| expect(ArgumentError) { table_codecs.fetch(item.fetch('codec')).decode([item.fetch('hex')].pack('H*')) } }
   [true, -1, 1 << 64, 1.0].each { |value| expect(ArgumentError) { E::U64.encode(value) } }
   value = E::Add.new(value: (1 << 53) + 1)
   check S.encode_cast(value, codec: E::COUNTER) == "STN1\x01".b + [0].pack('Q<') + E::COUNTER.encode(value)
