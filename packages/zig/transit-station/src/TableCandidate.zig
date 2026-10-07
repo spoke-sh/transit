@@ -1,4 +1,4 @@
-//! One row operation's bounded private overlay. Intermediate index paths never
+//! A bounded private overlay for point or finite statement work. Intermediate index paths never
 //! need durable publication. IDs come from the owner's reserved interval.
 const std = @import("std");
 const f = @import("transit_fuze");
@@ -7,7 +7,8 @@ const Index = @import("ImmutableIndex.zig");
 const Pub = @import("Publication.zig");
 
 // A key-changing UPDATE performs at most three index edits, each saving at most
-// two nodes per level and one new root. One operation creates at most one row.
+// two nodes per level and one new root. The same record/byte budget also admits
+// a finite INSERT batch; it never grows with the number of statement rows.
 pub const max_nodes = 3 * (2 * (Index.max_level + 1) + 1);
 pub const max_records = max_nodes + 1;
 pub const max_bytes = max_nodes * Index.node_bytes + f.TableRow.max_bytes;
@@ -22,7 +23,6 @@ pub fn Overlay(comptime Source: type) type {
         end: u64,
         records: std.ArrayList(Record) = .empty,
         bytes: usize = 0,
-        blobs: usize = 0,
         sealed: bool = false,
 
         pub fn init(allocator: std.mem.Allocator, source: Source, first: u64, end: u64) !Self {
@@ -35,6 +35,16 @@ pub fn Overlay(comptime Source: type) type {
         }
         pub fn nextId(self: Self) u64 {
             return self.first + @as(u64, @intCast(self.records.items.len));
+        }
+        /// Roll back an unsealed, unstaged attempt at the next batch row. The
+        /// caller keeps its previous root; these private IDs have never escaped.
+        pub fn discardAfter(self: *Self, count: usize) void {
+            std.debug.assert(!self.sealed and count <= self.records.items.len);
+            for (self.records.items[count..]) |record| {
+                self.bytes -= record.bytes.len;
+                self.allocator.free(record.bytes);
+            }
+            self.records.shrinkRetainingCapacity(count);
         }
         fn local(self: *Self, id: u64, spec: Pub.Spec, output: []u8) !?[]const u8 {
             if (id < self.first) return null;
@@ -67,10 +77,7 @@ pub fn Overlay(comptime Source: type) type {
         }
         pub fn saveBlob(self: *Self, spec: Pub.Spec, bytes: []const u8) !u64 {
             if (spec.format != Data.row_format or bytes.len > f.TableRow.max_bytes) return error.InvalidTableCandidate;
-            if (self.blobs != 0) return error.TableCandidateCapacity;
-            const id = try self.append(spec, bytes);
-            self.blobs += 1;
-            return id;
+            return self.append(spec, bytes);
         }
         fn markBlob(self: *Self, blob: Data.Blob, parent: u64) !void {
             if (blob.id < self.first) return;

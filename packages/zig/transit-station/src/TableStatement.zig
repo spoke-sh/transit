@@ -12,6 +12,8 @@ const Pages = @import("TablePages.zig");
 const Data = @import("TableData.zig");
 const Candidate = @import("TableCandidate.zig");
 const Index = @import("ImmutableIndex.zig");
+/// Scheduling bound, independent of storage pages and query execution vectors.
+pub const max_insert_batch = 8;
 
 pub const Request = struct {
     resource: u64,
@@ -207,7 +209,8 @@ pub fn closeDetailed(turn: *Turn, head: Head, previous: Write.Status, rejection:
     try turn.write(Progress.key(result.reference), null);
     return result;
 }
-/// Process at most one frozen source row and one bounded publication phase.
+/// Process a bounded INSERT batch or one frozen UPDATE/DELETE source row and
+/// stage its reachable records within the native write budget.
 /// Returned outcomes describe PRIVATE proposals until the native commit accepts.
 pub fn step(allocator: std.mem.Allocator, turn: *Turn, request: Request) !Write.Status {
     const before = turn.decision;
@@ -274,11 +277,32 @@ pub fn step(allocator: std.mem.Allocator, turn: *Turn, request: Request) !Write.
         return closeDetailed(turn, head, result, if (err == error.RowExists) .row_exists else .row_identity_exists, witness);
     };
     if (changed.matched != 1 or changed.changed > 1) return error.InvalidTableStatementProgress;
-    _ = try overlay.finish(changed.data.index);
     progress.index = changed.data.index;
     progress.matched = try add(progress.matched, changed.matched);
     progress.changed = try add(progress.changed, changed.changed);
-    if (request.plan.action == .insert) progress.ordinal += 1;
+    if (request.plan.action == .insert) {
+        progress.ordinal += 1;
+        const end = @min(request.plan.action.insert.len, progress.ordinal + max_insert_batch - 1);
+        while (progress.ordinal < end) {
+            const checkpoint = overlay.records.items.len;
+            const next_row: f.TableRow.Row = .{ .identity = .{ .origin = reference.principal + 1, .operation = reference.operation, .ordinal = progress.ordinal }, .cells = request.plan.action.insert[progress.ordinal] };
+            const next = (Data{ .schema = schema.schema, .index = progress.index }).insert(allocator, &overlay, next_row) catch |err| {
+                if (err == error.TableCandidateCapacity) {
+                    overlay.discardAfter(checkpoint);
+                    break;
+                }
+                if (err != error.RowExists and err != error.RowIdentityExists) return err;
+                const witness = if (err == error.RowExists) try f.TableWitness.key(.input, schema.schema, next_row) else try f.TableWitness.identity(.input, next_row.identity);
+                return closeDetailed(turn, head, result, if (err == error.RowExists) .row_exists else .row_identity_exists, witness);
+            };
+            if (next.matched != 1 or next.changed != 1) return error.InvalidTableStatementProgress;
+            progress.index = next.data.index;
+            progress.ordinal += 1;
+            progress.matched = try add(progress.matched, next.matched);
+            progress.changed = try add(progress.changed, next.changed);
+        }
+    }
+    _ = try overlay.finish(progress.index);
     try validateCandidate(head, progress, request.plan);
     if (changed.changed == 0) {
         try progress.save(turn, reference);
@@ -290,6 +314,14 @@ pub fn step(allocator: std.mem.Allocator, turn: *Turn, request: Request) !Write.
         return result;
     };
     if (!ready) return result;
+    if (request.plan.action == .insert and progress.ordinal == request.plan.action.insert.len) {
+        const staged = turn.decision;
+        return finish(turn, head, result, progress, request.plan.action) catch |err| {
+            turn.decision = staged;
+            if (err != error.MutationBudgetExceeded or writeCount(turn) == count_before) return err;
+            return result;
+        };
+    }
     // Advancing the durable cursor consumes this interval. A fresh interval is
     // fenced before any next row can be staged; IDs are never recycled.
     const staged = turn.decision;

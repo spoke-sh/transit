@@ -43,11 +43,13 @@ atomically, after complete statement validation. It must never expose intermedia
 candidate roots as successful statement prefixes. `TableData` itself performs no
 head publication, catalog mutation or kernel transaction.
 
-`TableCandidate.Overlay` holds one row operation's new records privately and
+`TableCandidate.Overlay` holds a point operation or bounded INSERT batch privately and
 marks the final root's reachable records before staging. Intermediate index paths
 are discarded without a storage round trip. The owner supplies a reserved ID
 interval and advances past all consumed IDs, including discarded paths. Memory
-is bounded by three index edits and one row, independent of Table size.
+uses the same record and byte ceilings sized for three maximum-depth index edits
+and one maximum-sized row, independent of Table size. A batch stops before a row
+would exceed either ceiling; its unfinished private paths are discarded.
 
 `TablePages` adapts these records to captured or retained growing KV. A mandatory
 namespace manifest binds the shared native definition and record limit. Small
@@ -120,8 +122,12 @@ receipt before any new key lookup. The DML compiler qualifies this path only whe
 every predicate condition is part of that exact key equality.
 
 `TableStatement.step` owns finite multi-row publication over a bound DML plan.
-It freezes the original head, processes one row per step and saves a bounded
-candidate root/cursor between turns. Readers continue seeing the original root
+It freezes the original head, builds up to eight INSERT rows in one private
+candidate, or processes one frozen UPDATE/DELETE row. INSERT batches stage only
+the final root's reachable records, without publishing each intermediate index.
+The eight-row scheduling bound is independent of query execution vector size.
+It saves a bounded candidate root/cursor between batches. A final INSERT batch
+can publish directly once all its records are staged. Readers see the original root
 until all rows pass and a single final commit publishes the successor and counts.
 A later duplicate rejects the whole candidate. Predicates read the original rows;
 key changes cannot change selection or cause revisits. No-op and unselected rows

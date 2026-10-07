@@ -345,7 +345,9 @@ test "rejected statement cleanup skips unused IDs and retires only unpublished c
     defer store.deinit();
     _ = try store.table();
     _ = try sqlStatement(&store, 310, schema, "INSERT INTO items VALUES(1,'one'),(2,'two'),(3,'three')");
-    const rejected = try sqlStatement(&store, 311, schema, "INSERT INTO items VALUES(4,'four'),(5,'five'),(6,'six'),(2,'duplicate')");
+    // Cross two complete scheduling batches before the duplicate so cleanup
+    // still proves multiple consumed intervals and partially staged indexes.
+    const rejected = try sqlStatement(&store, 311, schema, "INSERT INTO items VALUES(4,'four'),(5,'five'),(6,'six'),(7,'seven'),(8,'eight'),(9,'nine'),(10,'ten'),(11,'eleven'),(12,'twelve'),(13,'thirteen'),(14,'fourteen'),(15,'fifteen'),(16,'sixteen'),(17,'seventeen'),(18,'eighteen'),(19,'nineteen'),(20,'twenty'),(2,'duplicate')");
     try t.expectEqual(.rejected, rejected.state);
     try t.expect(rejected.end_record - rejected.first_record > 500);
     try cleanCandidate(&store, rejected);
@@ -473,6 +475,43 @@ test "finite statements publish all rows or none, exact counts and original rece
     try t.expectEqualStrings("two", old.row().cells[1].value.atom.bytes);
     try t.expectError(error.TableWriteIdentityConflict, sqlStatement(&store, 201, schema, "DELETE FROM items"));
 }
+test "INSERT batches discard intermediate paths and reject a duplicate after a saved batch" {
+    var store: Store = .{};
+    defer store.deinit();
+    const initial = try store.table();
+    var compiled = try f.TableDml.compile(t.allocator, "INSERT INTO items VALUES(1,'one'),(2,'two'),(3,'three')", "items", schema, null);
+    defer compiled.deinit();
+    const request: Statement.Request = .{ .resource = 7, .principal = 1, .operation = 250, .plan = compiled.plan };
+    var completed = false;
+    for (0..6) |_| {
+        var lost = try store.capture();
+        _ = try Statement.step(t.allocator, &lost, request);
+        var turn = try store.capture();
+        const visible = try Head.load(&turn, 9);
+        try t.expectEqualDeep(initial.index, visible.index);
+        try t.expectEqual(initial.rows, visible.rows);
+        const result = try Statement.step(t.allocator, &turn, request);
+        try t.expect(writes(turn) > 0 and writes(turn) <= 4);
+        try store.commit(turn);
+        if (result.state == .applied) {
+            try t.expectEqual(@as(u64, 3), result.changed);
+            completed = true;
+            break;
+        }
+    }
+    try t.expect(completed);
+    var turn = try store.capture();
+    const saved = try Head.load(&turn, 9);
+    // Ordinal eight is in the next scheduling batch. Earlier staged rows must
+    // remain invisible when it conflicts with that batch's first row.
+    const rejected = try sqlStatement(&store, 251, schema, "INSERT INTO items VALUES(10,'a'),(11,'b'),(12,'c'),(13,'d'),(14,'e'),(15,'f'),(16,'g'),(17,'h'),(10,'duplicate')");
+    try t.expectEqual(.rejected, rejected.state);
+    try t.expectEqual(@as(u32, 8), rejected.witness.row.ordinal);
+    try t.expectEqual(@as(u64, 0), rejected.changed);
+    turn = try store.capture();
+    try t.expectEqualDeep(saved.index, (try Head.load(&turn, 9)).index);
+    try cleanCandidate(&store, rejected);
+}
 test "unkeyed duplicate rows retain identities across predicate updates and deletes" {
     var store: Store = .{};
     defer store.deinit();
@@ -516,7 +555,7 @@ test "statement reservations fence competing work and cancellation preserves exa
     try t.expectError(error.TableBusy, Statement.step(t.allocator, &turn, competitor));
     var cells: [2]f.Types.Values.Cell = undefined;
     try t.expectError(error.TableBusy, Write.step(t.allocator, &turn, insertRequest(222, 3, "point", &cells)));
-    for (0..3) |_| {
+    for (0..1) |_| {
         turn = try store.capture();
         try t.expectEqual(.building, (try Statement.step(t.allocator, &turn, request)).state);
         try store.commit(turn);
@@ -535,7 +574,7 @@ test "statement reservations fence competing work and cancellation preserves exa
     const cancelled = try Head.load(&turn, 9);
     try t.expectEqualDeep(initial.index, cancelled.index);
     try t.expectEqual(@as(u64, 0), cancelled.pending);
-    try t.expect(cancelled.next_record > admitted.end_record);
+    try t.expect(cancelled.next_record >= admitted.end_record);
     try t.expectEqualDeep(closed, try Statement.step(t.allocator, &turn, request));
     try t.expectEqualDeep(closed, try Statement.cancel(&turn, reference));
     try t.expectEqual(@as(usize, 0), writes(turn));
@@ -841,6 +880,30 @@ fn allocationCase(allocator: std.mem.Allocator) !void {
 }
 test "private candidate allocations unwind without changing the captured turn" {
     try t.checkAllAllocationFailures(t.allocator, allocationCase, .{});
+}
+test "a full private candidate rolls back only its unfinished batch row" {
+    var store: Store = .{};
+    defer store.deinit();
+    const pages = try store.create();
+    var turn = try store.capture();
+    var reader: Pages.Reader(*Turn) = .{ .pages = pages, .source = &turn };
+    // The first keyed row needs three records. The next row's blob fits, but
+    // its first index path does not. None of that second row can escape.
+    var overlay = try Candidate.Overlay(*@TypeOf(reader)).init(t.allocator, &reader, 1, 5);
+    defer overlay.deinit();
+    var cells: [2]f.Types.Values.Cell = undefined;
+    const first = try (Data{ .schema = schema }).insert(t.allocator, &overlay, row(1, "first", &cells));
+    const count = overlay.records.items.len;
+    const bytes = overlay.bytes;
+    try t.expectError(error.TableCandidateCapacity, first.data.insert(t.allocator, &overlay, row(2, "second", &cells)));
+    try t.expect(overlay.records.items.len > count);
+    overlay.discardAfter(count);
+    try t.expectEqual(bytes, overlay.bytes);
+    var retained = (try first.data.get(t.allocator, &overlay, row(1, "first", &cells).identity)).?;
+    defer retained.deinit();
+    try t.expectEqualStrings("first", retained.row().cells[1].value.atom.bytes);
+    try t.expectEqual(@as(usize, 2), try overlay.finish(first.data.index));
+    try t.expectEqual(@as(usize, 0), writes(turn));
 }
 
 test "Table page bounds and failed turn composition preserve prior private writes" {

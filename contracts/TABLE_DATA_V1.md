@@ -46,13 +46,16 @@ next. Small encodings use 4 KiB scratch; larger encodings allocate only within
 the row/key envelope bounds. Total Table size is not a resident-memory bound.
 Owners enforce operation work/deployment quotas and source lifetime separately.
 
-## Private row-operation overlay
+## Private candidate overlay
 
 `TableCandidate.Overlay` borrows an authorized source and reserves a nonzero,
-exclusive-end record-ID interval. It builds one row operation without writing
-KV. At most three index edits create 195 nodes (two per level and one new root
-per edit) and one bounded row blob. Its allocation bound is 195 × 4096 bytes
-plus the maximum row envelope, independent of Table size. Allocation failure
+exclusive-end record-ID interval. It builds a point operation or bounded INSERT
+batch without writing KV. A point operation needs at most three index edits,
+creating 195 nodes (two per level and one new root per edit) and one bounded row
+blob. The shared ceiling remains 196 records and 195 × 4096 bytes plus the maximum
+row envelope, independent of Table size. A batch that reaches either ceiling
+discards only its unfinished next row's private records and stages the preceding
+complete rows. The unfinished IDs have never escaped or been staged. Allocation failure
 discards private bytes; previously accepted roots remain unchanged.
 
 Finishing verifies the successor's new node references and marks only reachable
@@ -268,14 +271,19 @@ UPDATE/DELETE traverse the original immutable root in row-identity order and
 evaluate the complete predicate against original rows. Updated keys never change
 selection or cause revisits; inserted candidates do not extend the frozen source.
 
-Each step processes at most one source row and holds at most one row overlay.
+UPDATE/DELETE process at most one source row per step. INSERT builds up to eight
+rows in the same bounded overlay, stopping sooner if its existing record or byte
+budget is exhausted. This scheduling bound does not define a query vector size.
+Only the batch's final reachable records are staged; intermediate index paths
+are discarded. Every restarted stage reconstructs the same batch and IDs.
 Unselected rows and same-value updates advance only progress. Changed rows stage
 their complete reachable pages before advancing the candidate root/cursor/counts
 and reserving a new interval. Each interval contains `TableCandidate.max_records`
 IDs; unused IDs stay consumed. This is a finite operation budget, not a collection
 cardinality bound. The candidate accumulates in durable immutable pages, not RAM.
 Native turns retain the four-mutation limit. A page-only turn may precede the
-three-write progress advance. Lost proposals repeat the same row and reserved
+three-write progress advance. The last INSERT batch can complete directly once
+all its records are staged. Lost proposals repeat the same batch/row and reserved
 IDs; a saved cursor never points beyond unpublished candidate pages.
 
 Completion atomically swaps the live root, updates row count, clears pending work,
