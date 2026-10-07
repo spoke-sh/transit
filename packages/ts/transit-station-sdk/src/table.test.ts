@@ -4,6 +4,9 @@ import { HandlerError, IncompatibleNative, ResourceRef } from "@transit/client";
 import { TableSchema, TableMutation, TableMutationReference, RowIdentity } from "./table.ts";
 import { QueryPlan } from "./query.ts";
 import type { Turn } from "./turn.ts";
+import { register, Scope } from "./context.ts";
+import type { Bridge } from "./bridge.ts";
+import type { GrowingEvent, GrowingResult } from "./wire.ts";
 import contract from "./contract.json" with { type: "json" };
 const maximum = (1n << 64n) - 1n;
 const resource = new ResourceRef(1, 7);
@@ -214,4 +217,49 @@ test("handler schema bounds distinguish 128 columns from 1024 mutation rows", ()
   assert.throws(() =>
     TableMutation.prepare(resource, 0, 9n, wide, { kind: "insert", rows: [...rows, rows[0]!] }),
   );
+});
+
+test("returned mutation outcomes preserve the requested identity and digest", async () => {
+  const intent = TableMutation.prepare(resource, 0, 1n, schema, { kind: "delete" });
+  const identity = {
+    definition: contract.definition,
+    realm: 1,
+    resource: 7,
+    object: maximum.toString(),
+    principal: 0,
+    operation: "1",
+    digest: "11".repeat(32),
+  };
+  const reference = TableMutationReference.load(JSON.stringify(identity));
+  const outcome = {
+    reference: { ...identity },
+    state: "building" as const,
+    route: "statement" as const,
+    admitted_input: 1,
+    completed_input: null,
+    counts: null,
+    rejection: "none" as const,
+    witness: null,
+  };
+  const turn = { resource } as Turn;
+  const scope = new Scope(() => false);
+  register(turn, {
+    bridge: { apply: async () => ({ table: { mutation: outcome } }) as GrowingResult } as Bridge,
+    scope,
+    token: 1,
+    event: {} as GrowingEvent,
+  });
+  await scope.invoke(async () => {
+    assert.equal((await intent.step(turn)).state, "building");
+    assert.equal((await reference.status(turn))?.state, "building");
+    outcome.reference.operation = "2";
+    await assert.rejects(intent.step(turn), IncompatibleNative);
+    outcome.reference = { ...identity, digest: "22".repeat(32) };
+    await assert.rejects(reference.status(turn), IncompatibleNative);
+    for (const value of ["0", "01", "18446744073709551616"]) {
+      const saved = JSON.parse(intent.save());
+      saved.operation = value;
+      assert.throws(() => TableMutation.load(JSON.stringify(saved)));
+    }
+  });
 });

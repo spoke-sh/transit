@@ -1,5 +1,8 @@
 # transit-station for Python
 
+The [handler Table guide](docs/tables.md) covers general schemas, typed reads and
+exact resumable mutations.
+
 The [local logical codec guide](docs/logical.md) covers exact scalar/recursive
 documents, owned values, checked casts and logical Arrow export.
 

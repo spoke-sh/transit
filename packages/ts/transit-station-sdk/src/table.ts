@@ -152,6 +152,9 @@ export class TableMutationReference {
   static load(text: string): TableMutationReference {
     const value = saved(text, "status");
     currentDefinition(value.definition);
+    new ResourceRef(value.realm, value.resource);
+    if (nativeWide(value.object) === 0n || nativeWide(value.operation) === 0n)
+      throw new IncompatibleNative("Table identities must be positive");
     return new TableMutationReference(value);
   }
   save(): string {
@@ -170,7 +173,11 @@ export class TableMutationReference {
     return operation(turn, async ({ bridge, token }) => {
       const action: Action = tag === "status" ? { status: this.#value } : { cancel: this.#value };
       const value = tableResult(await bridge.apply(token, { table: action }), "mutation");
-      return value === null ? undefined : status(value);
+      if (value === null) return undefined;
+      for (const key of Object.keys(this.#value) as (keyof NativeReference)[])
+        if (value.reference[key] !== this.#value[key])
+          throw new IncompatibleNative("Foreign Table mutation outcome");
+      return status(value);
     });
   }
 }
@@ -205,6 +212,9 @@ export class TableMutation {
     const value = saved(text, "mutate");
     currentDefinition(value.schema.definition);
     schemaValue(value.schema);
+    new ResourceRef(value.realm, value.resource);
+    if (nativeWide(value.operation) === 0n)
+      throw new IncompatibleNative("Mutation identity must be positive");
     return new TableMutation(value);
   }
   save(): string {
@@ -224,6 +234,15 @@ export class TableMutation {
         "mutation",
       );
       if (!value) throw new IncompatibleNative("Missing Table mutation outcome");
+      if (
+        value.reference.object !== this.#value.schema.object ||
+        ["realm", "resource", "principal", "operation"].some(
+          (key) =>
+            value.reference[key as keyof NativeReference] !==
+            this.#value[key as keyof NativeMutation],
+        )
+      )
+        throw new IncompatibleNative("Foreign Table mutation outcome");
       return status(value);
     });
   }

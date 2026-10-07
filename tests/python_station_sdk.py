@@ -906,6 +906,9 @@ def run(node, cli, raw_library, wheels, http_worker=None, *, execute=None):
         subprocess.run([sys.executable, '-m', 'venv', '--without-pip', venv], check=True, env=env)
         python = venv / 'bin/python'
         subprocess.run([sys.executable, '-m', 'pip', '--python', python, 'install', '--no-index', '--find-links', str(Path(wheels).resolve()), 'transit-sdk-examples==0.2.0'], check=True, env=env, stdout=subprocess.DEVNULL)
+        values = target / 'handler_tables.py'
+        shutil.copyfile(Path(__file__).with_name('python_handler_tables.py'), values)
+        subprocess.run([python, '-B', values], check=True, env=env, cwd=target)
         script = target / 'consumer.py'
         shutil.copyfile(__file__, script)
         return Consumer(env,

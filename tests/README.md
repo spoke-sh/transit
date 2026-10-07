@@ -17555,3 +17555,38 @@ Raw `handler-table-bridge-unit7.log` SHA-256: `d0f9542b2ec0ad65a613a5dda0d54edcd
 Raw `handler-table-bridge-build3.log` SHA-256: `0097519a84734af8db38f1e62edf2e55af4145c2481d2f0f0e1d4982cc9c061b`.
 
 Raw `handler-table-ts-final2.log` SHA-256: `77ac1efd7750b1d38b77c02f57cf3676cd6f12355bc0f0a95890510c2f8d0c35`.
+
+
+### Python handler Table values and outcome identity checks
+
+The Python handler API replaces fixed key/value Tables with the shared general
+schema/logical value model, owned row identities, bounded pages, typed creation
+and immutable saved mutations. Saved work validates before dispatch, binds the
+original realm/resource/schema/operation and advances one private turn at a time.
+Handler queries reuse the general immutable plan model and manifest head binding.
+Current/retained reads preserve scope checks; no API loops or silently schedules
+work. Returned mutation outcomes must match the requested operation; status and
+cancellation also match the saved digest. TypeScript now enforces those same
+outcome checks.
+
+`handler-table-python-check2.log` passes strict mypy over **21 source files**, the
+new handler boundary suite with **31 adversarial rejections**, and the existing
+catalog ownership/lifetime suite. The handler suite covers exact saved values,
+malformed/missing/foreign definitions, default/predicate recovery, nested decimal
+and binary cells, 128-column/1024-row bounds, current/retained routing, moved cuts,
+expired scopes, outcome counts, foreign returned identities and digest mismatch.
+The first check fails on an explicit Python re-export declaration; no tests are
+counted for that attempt. `handler-table-ts-routing3.log` passes formatting/lint,
+strict source type checking and **55/55 tests**. Routing attempt 1 uses the wrong
+formatter working directory; attempt 2 runs 54 passing tests but its new mock
+omits the handler async context. Neither is counted as a complete pass. Attempt
+3 invokes the real scope context and passes the foreign-outcome checks.
+
+The Python test is registered in source and installed-consumer tasks. These
+results are source-level boundary checks, not installed authority proof. Query
+examples and the shared multi-turn SDK scenario still require migration before
+the installed handler schedule can run. Documentation links pass.
+
+Raw `handler-table-python-check2.log` SHA-256: `3bb73e17272862f0f3b1235f006dbaf9962ad75a03454bfadf9e0e8953f8f38b`.
+
+Raw `handler-table-ts-routing3.log` SHA-256: `9a27c26153e3fe41f1ac78f3c90ff9871bd00eaf3ff1d098cb6ab6f0673dee1c`.

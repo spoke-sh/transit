@@ -7,10 +7,14 @@ from .models import (Activation as Activation, ServiceConfig as ServiceConfig, C
     Committed as Committed, Blocked as Blocked, NeedsRecovery as NeedsRecovery,
     Idle as Idle, Progress as Progress, Stopped as Stopped, RunnerEvent as RunnerEvent, ExchangeDiagnosticKind as ExchangeDiagnosticKind)
 from .turn import (Turn as Turn, State as State, U64 as U64, Budgets as Budgets,
-    ReadVersion as ReadVersion, CellType as CellType, Cell as Cell,
-    TableSchema as TableSchema, Table as Table, Row as Row, Source as Source)
-from .query import (QueryPlan as QueryPlan, Projection as Projection, Aggregate as Aggregate,
-    Comparison as Comparison, Predicate as Predicate, QueryJob as QueryJob,
+    ReadVersion as ReadVersion, Source as Source)
+from .table import (TableSchema as TableSchema, Table as Table, Row as Row, RowIdentity as RowIdentity,
+    TableLimits as TableLimits, TableCreation as TableCreation, TableBasis as TableBasis, TablePage as TablePage,
+    TableMutation as TableMutation, TableMutationReference as TableMutationReference,
+    TableMutationStatus as TableMutationStatus, TableMutationState as TableMutationState,
+    TableRejection as TableRejection, TableWitness as TableWitness)
+from .query import (QueryPlan as QueryPlan, Aggregate as Aggregate,
+    Comparison as Comparison, QueryJob as QueryJob,
     ResultManifest as ResultManifest, IpcSegment as IpcSegment, ResultReader as ResultReader)
 from .runner import Runner as Runner, AsyncRunner as AsyncRunner, Handler as Handler, StopSignal as StopSignal
 from .framing import encode_cast as encode_cast

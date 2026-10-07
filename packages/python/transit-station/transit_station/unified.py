@@ -14,11 +14,26 @@ from transit_client._worker import Worker, owned_await
 from transit_client.errors import IncompatibleNative, UnsupportedCapability, native_error
 from transit_client.types import integer, owned_bytes
 from .document import DocumentReference
-from .query import Comparison, Aggregate
 from .turn import ReadVersion
 from . import logical_values as logical
 from .logical_values import Descriptor as Type, Atom as Scalar, Cell as Cell
 from .catalog_values import Metadata, Schema
+
+class Aggregate(Enum):
+    ROWS = 'rows'
+    COUNT = 'count'
+    SUM = 'sum'
+    COUNT_VALUES = 'count_values'
+
+
+class Comparison(Enum):
+    EQ = 'eq'
+    NE = 'ne'
+    LT = 'lt'
+    LE = 'le'
+    GT = 'gt'
+    GE = 'ge'
+
 
 U64_MAX = (1 << 64)-1
 
@@ -211,6 +226,7 @@ class Plan:
     aggregate: Aggregate = Aggregate.ROWS
     output_names: tuple[str | None, ...] | None = None
     def _wire(self) -> object:
+        if not isinstance(self.aggregate, Aggregate): raise TypeError('Expected a query aggregate')
         if self.predicate is not None and not isinstance(self.predicate, (IsState, Compare, PredicateProgram)):
             raise TypeError('Expected a query predicate')
         if not isinstance(self.projection, tuple) or not 1 <= len(self.projection) <= 128:

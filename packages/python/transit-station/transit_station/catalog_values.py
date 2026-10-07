@@ -846,8 +846,8 @@ def _predicate(value: Predicate) -> object:
     raise TypeError('Expected typed predicate')
 
 
-def _mutation(value: Mutation) -> object:
-    budget = _WireBudget(LIMITS['catalog_action_bytes'])
+def _mutation(value: Mutation, limit: int = LIMITS['catalog_action_bytes']) -> object:
+    budget = _WireBudget(limit)
     predicates = None
     if isinstance(value, Insert):
         if not 1 <= len(value.rows) <= 1024: raise ValueError('Invalid insert row count')
@@ -859,6 +859,54 @@ def _mutation(value: Mutation) -> object:
             predicates = [budget.take(_predicate(item)) for item in value.predicate]
     else: raise TypeError('Expected typed mutation')
     return dict(action=action, predicate=predicates)
+
+
+
+def _mutation_value(value: object) -> Mutation:
+    """Decode saved handler work without changing its original typed intent."""
+    document = _object(value, 'action predicate')
+    def assignments(raw: object) -> tuple[Assignment, ...]:
+        if not isinstance(raw, list) or len(raw) > 128: raise ValueError('Invalid assignments')
+        result = []
+        for entry in raw:
+            item = _object(entry, 'column value'); tag, payload = _variant(item['value'])
+            if tag == 'default':
+                _object(payload, ''); cell: logical.Cell | Default = Default.VALUE
+            elif tag == 'cell': cell = logical.cell_from_wire(payload)
+            else: raise ValueError('Invalid assignment value')
+            result.append(Assignment(_decimal(item['column']), cell))
+        return tuple(result)
+    predicate = None
+    if document['predicate'] is not None:
+        raw = document['predicate']
+        if not isinstance(raw, list) or not 1 <= len(raw) <= 64: raise ValueError('Invalid predicate instructions')
+        instructions: list[Predicate] = []
+        for instruction in raw:
+            tag, payload = _variant(instruction)
+            if tag == 'atom':
+                tag, payload = _variant(payload)
+                if tag == 'all': _object(payload, ''); instructions.append(BooleanOperator.ALL)
+                elif tag == 'state':
+                    item = _object(payload, 'column value')
+                    instructions.append(StatePredicate(_decimal(item['column']), CellState(item['value'])))
+                elif tag == 'compare':
+                    item = _object(payload, 'column op value')
+                    instructions.append(Comparison(_decimal(item['column']), CompareOperator(item['op']), logical.atom_from_wire(item['value'])))
+                else: raise ValueError('Invalid predicate atom')
+            else:
+                _object(payload, ''); operator = BooleanOperator(tag)
+                if operator is BooleanOperator.ALL: raise ValueError('Invalid predicate operator')
+                instructions.append(operator)
+        predicate = tuple(instructions)
+    tag, payload = _variant(document['action'])
+    if tag == 'insert':
+        if predicate is not None or not isinstance(payload, list) or not 1 <= len(payload) <= 1024: raise ValueError('Invalid insert rows')
+        result: Mutation = Insert(tuple(assignments(row) for row in payload))
+    elif tag == 'update': result = Update(assignments(payload), predicate)
+    elif tag == 'delete': _object(payload, ''); result = Delete(predicate)
+    else: raise ValueError('Invalid mutation action')
+    if _mutation(result) != value: raise ValueError('Invalid saved mutation')
+    return result
 
 
 def _change(value: Change) -> object:
