@@ -141,21 +141,27 @@ fn batch(self: *Self, extra: []const p.Value) !wire.ResourceReader.Batch {
     return result;
 }
 const Source = struct {
-    metadata: wire.ResourceReader.Batch,
+    cache: wire.ResourceReader.Cached(wire.ResourceReader.Batches),
     reader: wire.ResourceReader.Reader,
     view: @FieldType(wire.ResourceReader.Reader, "view"),
     pub fn read(self: *@This(), key: p.Value) !?p.Value {
-        for (self.metadata.keys) |slot| if (slot) |requested| if (requested.eql(key)) return self.metadata.read(key);
-        return self.reader.read(key);
+        return self.cache.read(key);
+    }
+    pub fn prefetch(self: *@This(), keys: []const p.Value) !void {
+        try self.cache.prefetch(keys);
     }
     pub fn page(self: *@This(), after: ?p.Value) !g.Batch(g.Entry, p.Value) {
-        return self.reader.page(after);
+        if (self.cache.failed) |err| return err;
+        return self.reader.page(after) catch |err| {
+            self.cache.failed = err;
+            return err;
+        };
     }
 };
 fn source(self: *Self, extra: []const p.Value) !Source {
     const metadata = try self.batch(extra);
     const reader: wire.ResourceReader.Reader = .{ .client = self.resources(), .view = .{ .resource = metadata.view.resource, .revision = metadata.view.revision } };
-    return .{ .metadata = metadata, .reader = reader, .view = reader.view };
+    return .{ .cache = (wire.ResourceReader.Batches{ .client = self.resources() }).cached(metadata), .reader = reader, .view = reader.view };
 }
 fn catalog(self: *Self, current: *Source) !c.TableCatalog {
     const config = try c.Records.decode(m.Configuration, 'C', (try current.read(self.address('c', 0, 0))) orelse return error.CatalogNotInitialized);

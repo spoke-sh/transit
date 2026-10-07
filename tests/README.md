@@ -17100,3 +17100,41 @@ objects after replacement. The earlier corresponding CLI/native schedule used
 525 turns; wall-clock differences are not a matched latency comparison. Installed
 SDK consumers were not selected. `general-table-staging-docs1.log` checks 5,313
 local documentation links.
+
+### Catalog acquisition cache and initial matched mutation comparison
+
+`TableClient` uses the shared 64-key, one-revision resource cache for each
+metadata acquisition, with chunk prefetch and shared failure poisoning across
+point/page reads. `general-mutation-latency-staged-build1.log` builds the current
+ReleaseSafe callers into a separate private prefix.
+`general-table-cache-native1.log` passes the signed lifecycle/console/bridge/CLI
+schedule in **120.318 seconds**, with **401** turns, **141** sends, lost receipts
+and an injected disconnect. The callers use the new cache; the unchanged proof
+and Station host binaries come from the preceding staging qualification.
+All native writes remain at most four mutations and 256 bytes.
+
+After that proof and all compilation finished, the owned runner executes the
+baseline and candidate benchmarks sequentially with eight resident pages, no
+proxies, no extra rows/history/readers and three repetitions per case. Each
+revision uses its own harness. `general-mutation-latency-baseline2.json` records
+clean baseline `cc5f57e7`; `general-mutation-latency-staged1.json` records `be358aeb`
+plus the acquisition-cache changes and exact executable hashes. Both finish all
+21 samples with zero errors, unknown outcomes or supervisor restarts.
+
+| Case | Baseline median ms | Candidate median ms |
+| --- | ---: | ---: |
+| INSERT one | 84.929 | 834.129 |
+| UPDATE one | 92.991 | 921.899 |
+| UPDATE unchanged | 69.377 | 177.602 |
+| UPDATE absent | 76.444 | 166.060 |
+| DELETE one | 68.143 | 183.819 |
+| DELETE absent | 89.865 | 168.663 |
+| INSERT three | 70.212 | 3,866.094 |
+
+Three samples do not establish tail percentiles. This is a measured regression,
+not passed performance qualification; worker read amplification and polling
+between staged outcomes remain under investigation. The first baseline attempt
+failed before workload execution because its Board binary was absent. The first
+Board build failed before locked frontend dependencies were installed; the second
+build succeeded after installation. These setup failures remain in
+`general-mutation-latency-baseline1.log` and `performance-baseline-board1.log`.

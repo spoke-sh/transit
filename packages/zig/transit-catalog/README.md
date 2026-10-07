@@ -47,6 +47,12 @@ steps, submits exact saved commands and inspects original outcomes. Current
 metadata lookup binds the source before preparation. Loading saved work never
 resolves its name again or recompiles against a replacement schema.
 
+Each metadata acquisition seeds a bounded 64-key cache from one authorized
+resource revision. Schema chunks share native read batches at that same cut;
+missing keys are cached too. Read failures poison the acquisition, and a later
+call acquires current policy and resource evidence again. This cache neither
+retains a snapshot nor carries permission between calls.
+
 `TableTyped` lowers complete neutral schemas, assignments, predicates and
 lifecycle requests into the same immutable intent. `TableBridge.Session` owns
 one intent at a time; small content references identify it for progress calls.
