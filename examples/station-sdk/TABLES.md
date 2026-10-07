@@ -9,7 +9,8 @@ Creation limits are explicit: 65,536 record bytes, 8,388,608 staging bytes and
 1,024 staging records. These are operation quotas, not a total row limit.
 
 The [Python](python/transit_sdk_examples/query.py),
-[TypeScript](typescript/src/query.ts), [Java](java/src/io/transit/examples/Handlers.java) and
+[TypeScript](typescript/src/query.ts), [Java](java/src/io/transit/examples/Handlers.java),
+[.NET](dotnet/Handlers.cs) and
 [Ruby](ruby/lib/transit/sdk_examples.rb) implementations execute this
 contract. The [neutral fixtures](../../tests/verification/sdk-table-work-v1.json)
 define application records independently of any host encoder. They do not assert

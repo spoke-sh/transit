@@ -17966,3 +17966,28 @@ scope/thread and callback-failure checks remain enabled. No performance claim
 or remaining-language qualification follows from this run.
 
 Raw `sdk-table-queue-java-native2.log` SHA-256: `3bf83303cf2f57d2afa21cda262c01b8d43e1fbe4fb591221b2cf1ed71dd7df1`.
+
+### .NET queued general Table example
+
+The five freshly built NuGet packages pass the complete installed Station and
+HTTP schedules against the selected ReleaseSafe native prefix
+(`sdk-table-queue-dotnet-native3.log`, exit 0). .NET implements the shared
+[application FIFO](../examples/station-sdk/TABLES.md) with strict neutral record
+codecs, original mutation identities, bounded continuation casts and atomic
+terminal bookkeeping. The schedule verifies 46 outcomes across 462 drain turns,
+including duplicate-key rejection, insert/update/delete, defaults, pending-host
+replacement and the authenticated busy reply followed by explicit retry. Retained
+reads preserve the earlier row after update, and all four result columns survive
+owned IPC disposal. The common decoder verifies 41 rows in six streams.
+
+The installed consumer also passes 34 adversarial Table wrapper checks and the
+shared message/FIFO golden cases. The normal HTTP schedule passes in 18.36 seconds.
+The first two attempts failed before the authority schedule: reflection selected
+an overloaded schema method ambiguously, then the fixture assumed an inline
+schema instead of recursive references. The fixture now selects the public
+validation entry signature and validates complete result envelopes, preserving
+missing/null/numeric boundary checks. Those failed attempts are not passes.
+These are correctness controls using the shared cold-store profile, not latency
+measurements or final shared-definition qualification.
+
+Raw `sdk-table-queue-dotnet-native3.log` SHA-256: `7d97dc9f83549baa9ebe32e2f68097bd6991b9636e9af46e64a8d9fb6406c921`.

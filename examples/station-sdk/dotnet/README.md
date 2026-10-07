@@ -7,6 +7,14 @@ application fields and suspended tasks are not durable. Codecs validate exact
 versions, lengths, tags and nullable markers, with `ulong`/`long` preserving all
 64-bit values.
 
+The Table service implements the shared [durable FIFO contract](../TABLES.md).
+Creation and insert/update/delete advance one bounded step per authenticated self
+cast, preserving each original input identity through restarts. It stores terminal
+outcomes before removing pending work. Busy query calls return an authenticated
+`NotReady` reply; a later explicit Start queries four columns, including UTF8 and
+LIST defaults. Table completion and application bookkeeping can require separate
+turns under the four-write budget.
+
 Build with `nix develop .#bindings -c just bindings::dotnet-build` and reference
 `Transit.Sdk.Examples` 0.2.0 from the local NuGet feed. Its dependencies install the
 public SDKs and separate native artifacts. Build a normal console consumer named
@@ -28,5 +36,5 @@ uncertainty and requires fencing/reconciliation after host loss. Use
 
 Query callbacks stream bounded original IPC segments. Their external effects need
 application idempotency. No optional .NET Arrow adapter is selected. The public
-runner and installed executable pass the shared M11 lifecycle/data schedule via
+runner and installed executable pass the shared lifecycle/data schedule via
 `just bindings::dotnet-sdk-test`, including independent IPC decoding after disposal.
