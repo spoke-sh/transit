@@ -1,14 +1,14 @@
 """Build independent Ruby gems with version-matched native port dependencies."""
 from pathlib import Path
+import argparse
 import shutil
 import subprocess
-import sys
 import tempfile
 
 ROOT = Path(__file__).resolve().parents[1]
 
 
-def build(output, names):
+def build(output, names, native_prefix=ROOT / 'zig-out'):
     output = Path(output).resolve()
     output.mkdir(parents=True, exist_ok=True)
     for name in names:
@@ -19,7 +19,7 @@ def build(output, names):
             if name.startswith('transit-native-'):
                 family = name.removeprefix('transit-native-')
                 (target / 'native').mkdir()
-                shutil.copy2(ROOT / 'zig-out/bin' / f'transit-{family}-host', target / 'native' / f'transit-{family}-host')
+                shutil.copy2(native_prefix / 'bin' / f'transit-{family}-host', target / 'native' / f'transit-{family}-host')
             manifest, = target.glob('*.gemspec')
             subprocess.run(['gem', 'build', manifest.name, '--quiet'], cwd=target, check=True)
             artifact, = target.glob('*.gem')
@@ -28,4 +28,9 @@ def build(output, names):
 
 
 if __name__ == '__main__':
-    build(sys.argv[1], sys.argv[2:] or ['transit-native-client', 'transit-client', 'transit-native-station', 'transit-station', 'examples/station-sdk/ruby'])
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('output', type=Path)
+    parser.add_argument('packages', nargs='*')
+    parser.add_argument('--native-prefix', type=Path, default=ROOT / 'zig-out')
+    args = parser.parse_args()
+    build(args.output, args.packages or ['transit-native-client', 'transit-client', 'transit-native-station', 'transit-station', 'examples/station-sdk/ruby'], args.native_prefix.resolve())
