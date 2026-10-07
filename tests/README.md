@@ -17138,3 +17138,29 @@ failed before workload execution because its Board binary was absent. The first
 Board build failed before locked frontend dependencies were installed; the second
 build succeeded after installation. These setup failures remain in
 `general-mutation-latency-baseline1.log` and `performance-baseline-board1.log`.
+
+### General Table outcome scheduling
+
+The console and persistent control call `TableClient.waitForChange` after a
+running outcome. Its process-inspection hint uses the native authority position
+from the same metadata acquisition, is tied to the exact connection/intent, and
+requires a fresh outcome acquisition after the bounded wait. It does not infer
+completion from a wakeup or mailbox progress. Known wait-capacity exhaustion
+falls back to the existing bounded read-side delay.
+
+`general-table-wait-client-unit1.log` passes **19/19** ReleaseSafe client tests;
+`general-table-wait-catalog-unit1.log` passes **77/77** catalog tests, including
+rejection of hints belonging to another connection, namespace or operation before
+transport access. Documentation and declared diagnostic mappings pass in the
+corresponding `general-table-wait-docs1.log` and `mappings1.log`.
+After the private ReleaseSafe build completes, `general-mutation-latency-wait1`,
+`wait-probe1` and `wait-client1` run sequentially, with respectively three console
+repetitions, one instrumented console repetition and one public-client repetition.
+All finish without errors, unknown outcomes or supervisor restarts. The console
+medians are INSERT **811.5 ms**, UPDATE **922.7 ms**, DELETE **191.8 ms** and
+three-row INSERT **3,568.2 ms**. These small samples do not establish a latency
+improvement over the preceding candidate. The instrumented schedule records
+four turns and 23/24 caller metadata batches for INSERT/UPDATE, and 16 turns with
+88 caller metadata batches for the three-row INSERT. Staging and worker reads
+still dominate; the matched baseline regression remains unresolved. Reports and
+exact binary hashes remain in the local Table-schema campaign.

@@ -181,7 +181,7 @@ fn advance(self: *Self, console: *Console, timing: *Timing, resuming: bool) !voi
                     resume_once = false;
                 } else {
                     timing.enter(.wait);
-                    try self.io.sleep(.fromMilliseconds(10), .awake);
+                    try self.readOnly(c.TableClient.waitForChange, .{ &self.catalog, work });
                     continue;
                 }
             },

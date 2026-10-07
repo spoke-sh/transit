@@ -66,6 +66,13 @@ admission, processing, upload state and domain completion separately. An uncerta
 send must use the original signed bytes. Cancellation cannot undo publication;
 cleanup cannot erase accepted history, receipts or identity floors.
 
+After `next` reports running work, native callers can use `waitForChange` before
+the next acquisition. This bounded process-inspection hint avoids continuous
+metadata polling between staging turns. It is tied to the same connection and
+intent, requires current native inspection rights, and never establishes Table
+completion. The following acquisition rechecks current scoped policy and the
+actual outcome. The console uses this wait and records its time in the wait phase.
+
 `TableValues` supplies owned neutral metadata, schemas, cells, policies, counts,
 results and cursors. Full-width application IDs use canonical decimal strings;
 native IDs remain bounded JSON numbers. Every output belongs to the supplied

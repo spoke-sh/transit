@@ -72,7 +72,7 @@ pub fn main(init: std.process.Init) !void {
                 .terminal => |value| break :mutation value,
                 .upload_cancelled => return error.MutationUploadCancelled,
                 .running => {
-                    try init.io.sleep(.fromMilliseconds(10), .awake);
+                    try reads.call(c.TableClient.waitForChange, .{ &client, &intent });
                     continue;
                 },
             };

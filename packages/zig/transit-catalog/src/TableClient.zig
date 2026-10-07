@@ -16,6 +16,7 @@ key: p.Ed25519.KeyPair,
 batch_support: bool = false,
 // Scheduling only; never cache authorization, progress or application truth.
 pending_observation: ?struct { signature: [64]u8, input: u64, position: u64 } = null,
+pending_change: ?struct { connection: Connection, identity: Intent.Identity, namespace: u64, position: u64 } = null,
 pub const completion_wait_ms: u32 = 50;
 pub const Connection = struct {
     scope: m.Scope,
@@ -141,6 +142,7 @@ fn batch(self: *Self, extra: []const p.Value) !wire.ResourceReader.Batch {
     return result;
 }
 const Source = struct {
+    position: u64,
     cache: wire.ResourceReader.Cached(wire.ResourceReader.Batches),
     reader: wire.ResourceReader.Reader,
     view: @FieldType(wire.ResourceReader.Reader, "view"),
@@ -161,7 +163,7 @@ const Source = struct {
 fn source(self: *Self, extra: []const p.Value) !Source {
     const metadata = try self.batch(extra);
     const reader: wire.ResourceReader.Reader = .{ .client = self.resources(), .view = .{ .resource = metadata.view.resource, .revision = metadata.view.revision } };
-    return .{ .cache = (wire.ResourceReader.Batches{ .client = self.resources() }).cached(metadata), .reader = reader, .view = reader.view };
+    return .{ .position = metadata.position, .cache = (wire.ResourceReader.Batches{ .client = self.resources() }).cached(metadata), .reader = reader, .view = reader.view };
 }
 fn catalog(self: *Self, current: *Source) !c.TableCatalog {
     const config = try c.Records.decode(m.Configuration, 'C', (try current.read(self.address('c', 0, 0))) orelse return error.CatalogNotInitialized);
@@ -334,9 +336,11 @@ pub fn prepareControl(self: *Self, command: Control.Command) !Prepared {
 /// Persist the returned Prepared before submit. An uncertain prior send must
 /// be retried with submit(original), never by calling next again.
 pub fn next(self: *Self, intent: *const Intent) !Next {
+    self.pending_change = null;
     var current = try self.intentSource(intent, null);
     if (try self.outcome(&current, intent.identity)) |result| {
         if (result.terminal()) return .{ .terminal = result };
+        self.pending_change = .{ .connection = self.connection, .identity = intent.identity, .namespace = intent.namespace, .position = current.position };
         return .running;
     }
     const upload_value = (try self.uploadStatus(&current, intent)) orelse {
@@ -344,11 +348,31 @@ pub fn next(self: *Self, intent: *const Intent) !Next {
         return .{ .send = try self.prepareAt(&current, try (Control.Command{ .begin = .{ .header = try intent.header.encode(), .namespace = intent.namespace, .spec = intent.spec } }).encode()) };
     };
     const command: Control.Command = switch (upload_value.phase) {
-        .sealed, .ready => return .running,
+        .sealed, .ready => {
+            self.pending_change = .{ .connection = self.connection, .identity = intent.identity, .namespace = intent.namespace, .position = current.position };
+            return .running;
+        },
         .cancelled => return .upload_cancelled,
         .uploading => if (upload_value.received == upload_value.spec.length) .{ .seal = intent.upload() } else .{ .part = try Control.Part.init(intent.upload(), upload_value.received, intent.body[upload_value.received..][0..@min(c.TableUpload.part_bytes, intent.body.len - upload_value.received)]) },
     };
     return .{ .send = try self.prepareAt(&current, try command.encode()) };
+}
+/// Advisory scheduling after next reports running. This consumes no durable
+/// cursor and says nothing about completion; the caller must acquire next again.
+/// The process read requires current native inspection rights. Resource/scoped
+/// authority is independently rechecked by the following metadata acquisition.
+pub fn waitForChange(self: *Self, intent: *const Intent) !void {
+    errdefer self.pending_change = null;
+    try self.connection.header(intent.header);
+    const cursor = self.pending_change orelse return;
+    self.pending_change = null;
+    if (!std.meta.eql(cursor.connection, self.connection) or !std.meta.eql(cursor.identity, intent.identity) or cursor.namespace != intent.namespace) return error.CatalogIdentityConflict;
+    const response = self.transport.waitForChange(.{ .realm = self.connection.scope.realm, .principal = self.connection.principal, .kind = .{ .process = self.connection.owner } }, self.key, .{ .after = cursor.position, .milliseconds = completion_wait_ms }) catch |err| {
+        if (!wire.Client.unavailable(err) or self.transport.last_rejection != .HttpCapacity) return err;
+        try self.transport.http.io.sleep(.fromMilliseconds(completion_wait_ms), .awake);
+        return;
+    };
+    if (response.body != .process) return error.InvalidAuthorityResponse;
 }
 /// Explicitly resume the same accepted intent after a paused continuation.
 pub fn prepareResume(self: *Self, intent: *const Intent) !Prepared {

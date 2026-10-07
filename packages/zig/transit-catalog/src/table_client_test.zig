@@ -72,6 +72,7 @@ test "signed Table caller rejects altered signatures identities and recovery ste
         @field(client.connection.scope, field) -= 1;
         try t.expectError(error.CatalogIdentityConflict, client.submit(prepared));
         try t.expectError(error.CatalogIdentityConflict, client.next(&operation));
+        try t.expectError(error.CatalogIdentityConflict, client.waitForChange(&operation));
         try t.expectError(error.CatalogIdentityConflict, client.prepareResume(&operation));
         try t.expectError(error.CatalogIdentityConflict, client.status(&operation));
     }
@@ -87,6 +88,24 @@ test "signed Table caller rejects altered signatures identities and recovery ste
     var foreign = operation.upload();
     foreign.namespace += 1;
     try t.expect(!try (try signed(try (c.TableControl.Command{ .drive = foreign }).encode())).matches(&operation));
+}
+test "Table work waits cannot reuse another connection or operation hint" {
+    var client: Client = .{ .transport = undefined, .connection = connection, .key = try p.Ed25519.KeyPair.generateDeterministic(@splat(10)) };
+    var operation = try intent();
+    defer operation.deinit();
+    // Without a preceding running observation this is a local no-op.
+    try client.waitForChange(&operation);
+    for (0..3) |change| {
+        client.pending_change = .{ .connection = connection, .identity = operation.identity, .namespace = operation.namespace, .position = 100 };
+        switch (change) {
+            0 => client.pending_change.?.namespace += 1,
+            1 => client.pending_change.?.identity.ddl.operation -= 1,
+            2 => client.pending_change.?.connection.principal += 1,
+            else => unreachable,
+        }
+        try t.expectError(error.CatalogIdentityConflict, client.waitForChange(&operation));
+        try t.expectEqual(null, client.pending_change);
+    }
 }
 test "typed catalog metadata caller validates connection before opening any source" {
     var client: Client = .{ .transport = undefined, .connection = connection, .key = try p.Ed25519.KeyPair.generateDeterministic(@splat(10)) };

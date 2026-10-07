@@ -108,6 +108,8 @@ pub fn open(self: Self, resource: u64) !Reader {
 /// It supports only the requested keys. Consumers revalidate current authority
 /// before disclosure and never reuse it across independent acquisitions.
 pub const Batch = struct {
+    /// Native authority position for advisory waits, never a resource revision.
+    position: u64 = 0,
     resource: g.Resource,
     view: struct { id: u64 = 0, resource: u64, revision: u64 },
     keys: [g.page_size]?p.Value,
@@ -145,8 +147,9 @@ pub const Batches = struct {
         if (keys.len == 0 or keys.len > g.page_size) return error.InvalidResourceRead;
         var requested: [g.page_size]?p.Value = @splat(null);
         for (keys, 0..) |key, i| requested[i] = key;
-        const result = (try self.client.query(.{ .read_entries = .{ .resource = resource, .revision = revision, .keys = requested } })).body.read_entries;
-        return .{ .resource = result.resource, .view = .{ .resource = resource, .revision = result.resource.revision }, .keys = requested, .entries = result.entries };
+        const response = try self.client.query(.{ .read_entries = .{ .resource = resource, .revision = revision, .keys = requested } });
+        const result = response.body.read_entries;
+        return .{ .position = response.position, .resource = result.resource, .view = .{ .resource = resource, .revision = result.resource.revision }, .keys = requested, .entries = result.entries };
     }
 };
 
