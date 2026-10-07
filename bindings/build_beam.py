@@ -1,10 +1,10 @@
 """Build separate standard OTP applications without network dependency resolution."""
 from pathlib import Path
+import argparse
 import os
 import re
 import shutil
 import subprocess
-import sys
 import tarfile
 import tempfile
 
@@ -21,8 +21,9 @@ IO.write(:io_lib.format(~c"~tp.~n", [term]))
 '''
 
 
-def build(output, names):
+def build(output, names, native_prefix=None):
     output = Path(output).resolve()
+    native_prefix = Path(native_prefix).resolve() if native_prefix else ROOT / 'zig-out'
     output.mkdir(parents=True, exist_ok=True)
     environment = dict(os.environ, ERL_FLAGS='+S 2:2 +SDcpu 1 +SDio 1')
     with tempfile.TemporaryDirectory(prefix='transit-beam-build-') as temporary:
@@ -52,7 +53,7 @@ def build(output, names):
             if name.startswith('transit-native-'):
                 family = name.removeprefix('transit-native-')
                 (target / 'priv').mkdir(exist_ok=True)
-                shutil.copy2(ROOT / 'zig-out/bin' / f'transit-{family}-host', target / 'priv' / f'transit-{family}-host')
+                shutil.copy2(native_prefix / 'bin' / f'transit-{family}-host', target / 'priv' / f'transit-{family}-host')
             if erlang:
                 subprocess.run(['erlc', '-Werror', '+debug_info', '-pa', str(ebin), '-I', str(source / 'include'), '-o', str(ebin), *map(str, erlang)], env=environment, cwd=base, check=True)
             if elixir:
@@ -70,5 +71,10 @@ def build(output, names):
 
 
 if __name__ == '__main__':
-    build(sys.argv[1], sys.argv[2:] or ['transit-native-client', 'transit-client', 'transit-client-elixir', 'transit-native-station', 'transit-station-sdk', 'transit-station-elixir',
-                                      'examples/station-sdk/erlang', 'examples/station-sdk/elixir'])
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('output')
+    parser.add_argument('names', nargs='*')
+    parser.add_argument('--native-prefix')
+    args = parser.parse_args()
+    build(args.output, args.names or ['transit-native-client', 'transit-client', 'transit-client-elixir', 'transit-native-station', 'transit-station-sdk', 'transit-station-elixir',
+                                      'examples/station-sdk/erlang', 'examples/station-sdk/elixir'], args.native_prefix)

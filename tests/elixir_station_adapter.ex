@@ -111,17 +111,16 @@ defmodule ElixirStationAdapter do
   def require_reentrant(s),
     do: State.require(s, %Sdk.Key{name: "total", codec: ElixirStationReentrant})
 
-  def table(t), do: Table.open(t, E.Keys.table())
+  def table(t), do: Table.open(t, 1)
   def basis(t), do: Table.basis(t)
-  def table_get(t, k), do: Table.get(t, k)
-  def table_update(t, k, v), do: Table.update(t, %Sdk.Row{key: k, value: v})
+  def table_get(t, k), do: Table.get_key(t, [E.Keys.signed(k)])
   def table_page(t, :undefined), do: Table.page(t)
   def table_page(t, c), do: Table.page(t, c)
   def retain(t), do: Turn.retain(t)
   def open_version(t, v), do: Turn.open_version(t, v)
   def version(v), do: %Sdk.ReadVersion{pid: v["pid"], input: v["input"], index: v["index"]}
   def source_state(s), do: Source.state(s)
-  def source_table(s), do: Source.table(s, E.Keys.table())
+  def source_table(s), do: Source.table(s, 1)
   def state_page(s), do: State.page(s)
   def release(t, v), do: Turn.release(t, v)
   def result(t, c), do: Query.result(t, c)
@@ -155,6 +154,20 @@ defmodule ElixirStationAdapter do
         )
     end
 
+    table_fixtures = Proof.read(c["table_fixtures"])
+
+    for f <- table_fixtures["valid"] do
+      codec = table_codec(f["codec"])
+      bytes = Base.decode16!(f["hex"], case: :lower)
+      {:ok, value} = E.TableWork.decode(codec, bytes)
+      {:ok, ^bytes} = E.TableWork.encode(codec, value)
+    end
+
+    for f <- table_fixtures["invalid"] do
+      {:error, _} =
+        E.TableWork.decode(table_codec(f["codec"]), Base.decode16!(f["hex"], case: :lower))
+    end
+
     {:ok, <<"STN1", 1, 0::little-64, "TSC", 1, 1, 18_446_744_073_709_551_615::little-64>>} =
       Sdk.encode_cast(%E.Add{value: 18_446_744_073_709_551_615}, E.CounterCodec)
 
@@ -166,6 +179,19 @@ defmodule ElixirStationAdapter do
       )
   end
 
+  defp table_codec("queue"), do: :queue
+  defp table_codec("work"), do: :work
+  defp table_codec("outcome"), do: :outcome
+
+  defp fixture(%{"variant" => "Update", "key" => k} = f),
+    do: %E.Update{
+      key: String.to_integer(k),
+      value: if(is_binary(f["value"]), do: String.to_integer(f["value"]))
+    }
+
+  defp fixture(%{"variant" => "Delete", "key" => k}), do: %E.Delete{key: String.to_integer(k)}
+  defp fixture(%{"variant" => "Advance"}), do: %E.Advance{}
+  defp fixture(%{"variant" => "NotReady"}), do: %E.NotReady{}
   defp fixture(%{"variant" => "Add", "value" => v}), do: %E.Add{value: String.to_integer(v)}
   defp fixture(%{"variant" => "Total", "value" => v}), do: %E.Total{value: String.to_integer(v)}
   defp fixture(%{"variant" => "U64", "value" => v}), do: String.to_integer(v)
@@ -173,7 +199,7 @@ defmodule ElixirStationAdapter do
   defp fixture(%{"variant" => "Insert", "key" => k} = f),
     do: %E.Insert{
       key: String.to_integer(k),
-      value: if(f["value"], do: String.to_integer(f["value"]))
+      value: if(is_binary(f["value"]), do: String.to_integer(f["value"]))
     }
 
   defp fixture(%{"variant" => "Read"}), do: %E.Read{}

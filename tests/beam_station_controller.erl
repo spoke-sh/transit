@@ -146,21 +146,22 @@ table_message(A, Turn, Input, S) ->
     case {A:input_variant(Input), filelib:is_file(path(S, <<"version.json">>))} of
         {rows, _} ->
             Table = ok(A, A:table(Turn)), put(S, escaped_table, Table),
-            Basis = ok(A, A:basis(Table)), {Rows, 6} = pages(A, Table, undefined, Basis, [], 0),
-            41 = length(Rows), #{key := -9223372036854775808, value := undefined} = view(A, hd(Rows)),
+            Basis = ok(A, A:basis(Table)), {Rows, Pages} = pages(A, Table, undefined, Basis, [], 0), true=Pages>=6,
+            41 = length(Rows), #{cells := [{value,{atom,{signed,-9223372036854775808}}},null,_,_]} = view(A, hd(Rows)),
+            lists:foreach(fun(Row)->#{cells:=[_,_,{value,{atom,{utf8,<<"example">>}}},{value,{list,[{value,{atom,{signed,1}}},{value,{atom,{signed,2}}}]}}]}=view(A,Row) end,Rows),
             Version = ok(A, A:retain(Turn)), write(path(S, <<"version.json">>), view(A, Version)),
-            ok(A, A:table_update(Table, -9223372036854775808, 17)), {ok, S};
+            {ok, S};
         {initialize, true} ->
-            Table = ok(A, A:table(Turn)), {found, Row} = ok(A, A:table_get(Table, -9223372036854775808)), #{value := 17} = view(A, Row),
+            Table = ok(A, A:table(Turn)), {found, Row} = ok(A, A:table_get(Table, -9223372036854775808)), #{cells := [_,{value,{atom,{signed,17}}},_,_]} = view(A, Row),
             Version = A:version(read(path(S, <<"version.json">>))), Source = ok(A, A:open_version(Turn, Version)), put(S, escaped_source, Source),
-            Retained = ok(A, A:source_table(Source)), {found, Old} = ok(A, A:table_get(Retained, -9223372036854775808)), #{value := undefined} = view(A, Old),
-            #{entries := Entries} = view(A, ok(A, A:table_page(Retained, undefined))), 8 = length(Entries),
+            Retained = ok(A, A:source_table(Source)), {found, Old} = ok(A, A:table_get(Retained, -9223372036854775808)), #{cells := [_,null,_,_]} = view(A, Old),
+            #{rows := Entries} = view(A, ok(A, A:table_page(Retained, undefined))), 8 = length(Entries),
             State = ok(A, A:source_state(Source)), #{entries := KV} = view(A, ok(A, A:state_page(State))), true = length(KV) =< 8,
             ok(A, A:release(Turn, Version)), {ok, S};
         _ -> A:example_message(<<"table">>, Turn, Input, S)
     end.
 pages(A, Table, Cursor, Basis, Rows, N) ->
-    #{entries := Entries, cursor := Next, basis := Basis} = view(A, ok(A, A:table_page(Table, Cursor))), true = length(Entries) =< 8,
+    Basis = ok(A,A:basis(Table)), #{rows := Entries, next := Next} = view(A, ok(A, A:table_page(Table, Cursor))), true = length(Entries) =< 8,
     case Next of undefined -> {Rows ++ Entries, N+1}; _ -> pages(A, Table, Next, Basis, Rows ++ Entries, N+1) end.
 handle_result(A, Turn, Input, S) ->
     {ok, _} = A:example_result(Turn, Input, S), #{correlation := Correlation} = view(A, Input),

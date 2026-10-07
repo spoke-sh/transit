@@ -18018,3 +18018,30 @@ This schedule is correctness evidence, not a latency claim or final contract
 cutover qualification.
 
 Raw `sdk-table-queue-rust-native3.log` SHA-256: `97df38ae57248bae9bff2122a2bfdfab098abc02150b995d9b30993f8680cb02`.
+
+### Erlang and Elixir queued general Table examples
+
+Fresh OTP packages compile with warnings treated as errors and execute the shared
+[durable Table FIFO](../examples/station-sdk/TABLES.md) through their public
+record/struct APIs. Erlang completes both installed Station and HTTP schedules in
+`sdk-table-queue-beam-native2.log`; that combined process then exits 1 in the Elixir
+golden fixture before Elixir's authority schedule. After correcting the fixture's
+JSON `null` handling, the selected Elixir run completes both schedules in
+`sdk-table-queue-elixir-native3.log` (exit 0). No combined-run success is claimed.
+The earlier selected Erlang attempt similarly failed nullable fixture decoding.
+
+Each language verifies 46 terminal outcomes / 462 drain turns, original input
+identities, host replacement, rejection followed by pending work, explicit busy
+replies and query retry. Retained sources preserve pre-update rows; provenance,
+read-failure poisoning, current grants and exact recovery gates remain exercised.
+Shared message/FIFO golden cases and 27 Erlang handler-value rejection cases pass;
+Elixir additionally verifies its public Table structs and saved operation wrappers.
+Independent PyArrow decodes all four columns and defaults from 41 rows / 6 streams /
+41,992 bytes after 275 publication rounds and host disposal. Each schedule observes
+301 cold objects with 8 MiB hot/cache limits and 64 authority pages. HTTP completes
+in 23.07 seconds (Erlang) and 25.09 seconds (Elixir). These are local correctness
+controls, not latency measurements or final definition-cutover qualification.
+
+Raw `sdk-table-queue-beam-native2.log` SHA-256: `6b8fa667ee85374ba6fe8cad0261fcb258413644a1bccb2de045d9ee4856f7b3`.
+
+Raw `sdk-table-queue-elixir-native3.log` SHA-256: `bdae68aab46636262919a14ee55f534acc4238dfca518e0856bbdf451f682629`.

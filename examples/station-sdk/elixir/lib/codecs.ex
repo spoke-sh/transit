@@ -1,5 +1,17 @@
 defmodule Transit.SdkExamples.Codec do
-  alias Transit.SdkExamples.{Add, Total, Read, Start, Initialize, Insert, Rows}
+  alias Transit.SdkExamples.{
+    Add,
+    Total,
+    Read,
+    Start,
+    Initialize,
+    Insert,
+    Rows,
+    Advance,
+    NotReady,
+    Update,
+    Delete
+  }
 
   defguardp u64(value)
             when is_integer(value) and value >= 0 and value <= 18_446_744_073_709_551_615
@@ -29,6 +41,18 @@ defmodule Transit.SdkExamples.Codec do
 
   def encode(:query, %Rows{}), do: {:ok, <<"TSQ", 1, 3>>}
   def encode(:query, %Start{}), do: {:ok, <<"TSQ", 1, 4>>}
+  def encode(:query, %Advance{}), do: {:ok, <<"TSQ", 1, 5>>}
+  def encode(:query, %NotReady{}), do: {:ok, <<"TSQ", 1, 6>>}
+
+  def encode(:query, %Update{key: key, value: nil}) when i64(key),
+    do: {:ok, <<"TSQ", 1, 7, key::little-signed-64, 0>>}
+
+  def encode(:query, %Update{key: key, value: value}) when i64(key) and i64(value),
+    do: {:ok, <<"TSQ", 1, 7, key::little-signed-64, 1, value::little-signed-64>>}
+
+  def encode(:query, %Delete{key: key}) when i64(key),
+    do: {:ok, <<"TSQ", 1, 8, key::little-signed-64>>}
+
   def encode(_, _), do: {:error, :invalid_application_value}
   def decode(:u64, <<"TSU", 1, value::little-unsigned-64>>), do: {:ok, value}
   def decode(:counter, <<"TSC", 1, 1, value::little-unsigned-64>>), do: {:ok, %Add{value: value}}
@@ -48,6 +72,14 @@ defmodule Transit.SdkExamples.Codec do
 
   def decode(:query, <<"TSQ", 1, 3>>), do: {:ok, %Rows{}}
   def decode(:query, <<"TSQ", 1, 4>>), do: {:ok, %Start{}}
+  def decode(:query, <<"TSQ", 1, 5>>), do: {:ok, %Advance{}}
+  def decode(:query, <<"TSQ", 1, 6>>), do: {:ok, %NotReady{}}
+  def decode(:query, <<"TSQ", 1, 7, key::little-signed-64, 0>>), do: {:ok, %Update{key: key}}
+
+  def decode(:query, <<"TSQ", 1, 7, key::little-signed-64, 1, value::little-signed-64>>),
+    do: {:ok, %Update{key: key, value: value}}
+
+  def decode(:query, <<"TSQ", 1, 8, key::little-signed-64>>), do: {:ok, %Delete{key: key}}
   def decode(_, _), do: {:error, :malformed_application_payload}
   def allowed(:counter, %Add{}), do: true
   def allowed(:counter, %Read{}), do: true
@@ -57,7 +89,11 @@ defmodule Transit.SdkExamples.Codec do
   def allowed(:query_service, %Initialize{}), do: true
   def allowed(:query_service, %Insert{}), do: true
   def allowed(:query_service, %Rows{}), do: true
+  def allowed(:query_service, %Advance{}), do: true
+  def allowed(:query_service, %Update{}), do: true
+  def allowed(:query_service, %Delete{}), do: true
   def allowed(:query_requester, %Start{}), do: true
+  def allowed(:query_requester, %NotReady{}), do: true
   def allowed(:u64, value) when u64(value), do: true
   def allowed(_, _), do: false
 end
