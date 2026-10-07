@@ -34,3 +34,5 @@ The [catalog guide](docs/CATALOG.md) covers general schemas, typed DML, ALTER/DR
 historical definitions and exact saved-intent recovery through the joined worker.
 The [logical value guide](docs/LOGICAL.md) describes owned recursive descriptors,
 exact values and bounded neutral codecs.
+The [handler Table guide](docs/TABLES.md) covers discovered schemas, stable row
+identities, retained reads and explicit saved mutation steps.

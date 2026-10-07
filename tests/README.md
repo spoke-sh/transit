@@ -17683,3 +17683,25 @@ crate with an explicit native-library directory; they do not qualify installed
 handler dispatch or examples, which still require the shared scenario migration.
 
 Raw `handler-table-rust-check3.log` SHA-256: `a314df3c07317d7a1736612fbd7262001ca5d4e63290ab06f8044cab5b2b30b8`.
+
+### Java general handler Table values
+
+Java handlers use the general immutable `Catalog.Schema`, owned logical rows
+and stable identities, with explicit creation and saved mutation/reference
+steps. Catalog mutation decoding validates logical values and canonical recovery
+before native dispatch. Handler query plans freeze `UnifiedQuery.Plan`; manifests
+retain full-width Table IDs and the complete head digest. Scoped reads retain
+the existing active-thread and failed-read gates.
+
+`handler-table-java-check1.log` passes **34 adversarial rejections** plus positive
+ownership, nested decimal/binary/list, saved-schema, default/predicate,
+128-column/1024-row, full-width identity, outcome count and frozen query checks.
+The source SDK and test compile with Java 21, `-Xlint:all -Werror` and the pinned
+Gson dependency. The first compile attempt fails on missing optional annotations
+referenced by Gson's static parser; using the SDK's existing Gson parsing pattern
+removes those warnings, and build attempt 2 succeeds. Documentation checks pass
+5259 local links across 524 files. The test is registered in the installed Java
+Station schedule; its execution here is a source boundary check, not evidence
+for installed dispatch, native authority or the still-unmigrated examples.
+
+Raw `handler-table-java-check1.log` SHA-256: `91d3ead047504fdb562b14f44bf884736a28ad021bec921ddf5c8473c8b2fb62`.

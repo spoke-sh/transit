@@ -40,11 +40,12 @@ provisions resources or falls back from `NATIVE_V1` implicitly.
 
 `Turn.state()` provides `find`, `require`, `put`, `delete` and bounded `page`.
 `Key<T>` carries the application codec. `Optional<T>` distinguishes absence;
-codecs must return non-null decoded values. `Table.Schema<T>` supports `Long`,
-`Boolean`, `String` and immutable `Bytes`, with nullable `Row<T>.value()` and
-signed `long` keys. `Optional<Row<T>>` distinguishes missing rows from null cells.
-Tables validate the captured native schema. Pages own their values/cursors/basis;
-the native profile returns at most eight entries per page.
+codecs must return non-null decoded values. `turn.table(object)` discovers a
+general `Catalog.Schema`; `Table.Row` contains an owned stable identity and
+logical cells. `Optional<Table.Row>` distinguishes a missing row from null cells.
+Tables validate the captured native basis. Pages own their values and cursors;
+the native profile returns at most eight entries per page. See
+[typed handler Tables](TABLES.md) for creation, saved mutation steps and limits.
 
 Turn, state, Table, retained-source and result-reader operations require the
 active handler thread and reject reentrant codec operations. All scoped helpers
@@ -93,7 +94,7 @@ retirement and history unavailability. Handler return alone proves nothing durab
 `next`, `reconcile`, `evidence` and `closeAsync` return futures. There is one admitted
 job, one completion slot and a reserved cleanup command, with an owned pipe worker,
 completion publisher and deadline timer. The child owns native I/O and its 8 MiB
-stack; query-enabled servers have the native 1 MiB workspace and 8192-byte segment
+stack; query-enabled servers have the native 4 MiB workspace and 65535-byte segment
 bound. No native I/O runs on a JVM event loop. Cancellation abandons only the
 future; it does not interrupt its handler/native job. `stop()` is cooperative;
 an uncooperative handler can delay cleanup. A callback cannot join/reenter its
@@ -110,11 +111,12 @@ and garbage collection are not a shutdown protocol; close explicitly.
 ## Query results
 
 `allowQuery`, `startQuery` and `closeQuery` express native policy and typed plans;
-the SDK contains no query engine. `Query.Plan` supports the qualified projection,
-predicate, aggregation and optional full u64 limit. A verified `ResultComplete`
+the SDK contains no query engine. `new Query.Plan(UnifiedQuery.Plan)` freezes a
+general projection, output names, typed predicate, aggregation and optional full
+u64 limit. Object IDs and policy revisions use `BigInteger`. A verified `ResultComplete`
 is delivered separately from application messages. `turn.result(correlation)`
 opens a scoped reader; `manifest()` returns complete source/destination identity,
-resource/revision, table/policy, plan/schema/chain digests, and exact counts.
+resource/revision, Table-head digest, table/policy, plan/schema/chain digests, and exact counts.
 `segment(ordinal)` checks current authorization and returns owned original IPC
 with its manifest/digest. Segment reads remain bounded; stream them through your
 consumer rather than collecting an unbounded result. External consumption effects

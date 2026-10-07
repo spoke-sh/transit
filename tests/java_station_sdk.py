@@ -27,6 +27,11 @@ def run(node, cli, library, artifacts, http_worker=None, *, execute=None):
         classes.mkdir()
         subprocess.run(['javac', '--release', '21', '-Xlint:all', '-Werror', '-cp', str(lib / '*'), '-d', str(classes), str(source)], env=environment, cwd=target, check=True)
         source.unlink()
+        values = target / 'JavaHandlerTables.java'
+        shutil.copy2(root / 'tests/JavaHandlerTables.java', values)
+        subprocess.run(['javac', '--release', '21', '-Xlint:all', '-Werror', '-cp', str(lib / '*'), '-d', str(classes), str(values)], env=environment, cwd=target, check=True)
+        values.unlink()
+        subprocess.run(['java', '-cp', os.pathsep.join((str(classes), str(lib / '*'))), 'io.transit.sdk.station.JavaHandlerTables'], env=environment, cwd=target, check=True, timeout=30)
         smoke = target / 'StationArtifactCheck.java'
         smoke.write_text('''import io.transit.client.*;
 import io.transit.sdk.station.Station;
@@ -56,7 +61,7 @@ public final class StationArtifactCheck {
         mismatched.unlink()
         # Generic state and Table APIs reject values of the wrong public type.
         invalid = target / 'WrongValue.java'
-        for body in ('turn.state().put(Handlers.TOTAL, true);', 'turn.table(Handlers.TABLE).insert(new Table.Row<>(1, true));'):
+        for body in ('turn.state().put(Handlers.TOTAL, true);', 'new Table.Row(new Table.RowIdentity(new byte[20]), java.util.List.of(true));'):
             invalid.write_text('import io.transit.sdk.station.*; import io.transit.examples.Handlers;\n'
                                f'public final class WrongValue {{ void invalid(Turn turn) {{ {body} }} }}\n')
             result = subprocess.run(['javac', '--release', '21', '-cp', str(lib / '*'), '-d', str(classes), str(invalid)], env=environment, cwd=target, capture_output=True, text=True)

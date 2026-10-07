@@ -52,6 +52,50 @@ final class CatalogValues {
         Schema result = new Schema(wide(v.get("object")), wide(v.get("revision")), wide(v.get("next_column")), columns, keys.asList().stream().map(CatalogValues::wide).toList());
         result.wire(); return result;
     }
+    private static List<Assignment> assignments(JsonElement value) {
+        JsonArray array = value.getAsJsonArray();
+        if (array.size() > 128) throw incompatible("catalog-assignment-bound");
+        return array.asList().stream().map(item -> {
+            JsonObject v = fields(item, "column", "value"), cell = object(v.get("value"));
+            if (cell.has("default")) { fields(fields(cell, "default").get("default")); return new Assignment(wide(v.get("column")), Default.VALUE); }
+            return new Assignment(wide(v.get("column")), Logical.cellFromWire(fields(cell, "cell").get("cell")));
+        }).toList();
+    }
+    private static Predicate predicate(JsonElement value) {
+        JsonObject v = object(value);
+        if (v.has("atom")) {
+            JsonObject atom = object(fields(v, "atom").get("atom"));
+            if (atom.has("all")) { fields(fields(atom, "all").get("all")); return BooleanOperator.ALL; }
+            if (atom.has("state")) {
+                JsonObject state = fields(fields(atom, "state").get("state"), "column", "value");
+                return new StatePredicate(wide(state.get("column")), variant(CellState.class, state.get("value")));
+            }
+            JsonObject compare = fields(fields(atom, "compare").get("compare"), "column", "op", "value");
+            return new Comparison(wide(compare.get("column")), variant(CompareOperator.class, compare.get("op")), Logical.atomFromWire(compare.get("value")));
+        }
+        if (v.size() != 1) throw incompatible("catalog-predicate");
+        String tag = v.keySet().iterator().next(); fields(v.get(tag));
+        BooleanOperator result = variant(BooleanOperator.class, new JsonPrimitive(tag));
+        if (result == BooleanOperator.ALL) throw incompatible("catalog-predicate");
+        return result;
+    }
+    static Mutation mutation(JsonElement value) {
+        JsonObject v = fields(value, "action", "predicate"), action = object(v.get("action"));
+        Optional<List<Predicate>> predicates = optional(v.get("predicate"), p -> {
+            JsonArray array = p.getAsJsonArray(); if (array.size() > 64) throw incompatible("catalog-predicate-bound");
+            return array.asList().stream().map(CatalogValues::predicate).toList();
+        });
+        if (action.size() != 1) throw incompatible("catalog-mutation");
+        Mutation result;
+        if (action.has("insert")) {
+            JsonArray rows = action.getAsJsonArray("insert");
+            if (predicates.isPresent() || rows.isEmpty() || rows.size() > 1024) throw incompatible("catalog-insert-bound");
+            result = new Insert(rows.asList().stream().map(CatalogValues::assignments).toList());
+        } else if (action.has("update")) result = new Update(assignments(action.get("update")), predicates);
+        else { fields(fields(action, "delete").get("delete")); result = new Delete(predicates); }
+        if (!result.wire().equals(value)) throw incompatible("catalog-mutation-canonical");
+        return result;
+    }
     static MetadataCommitment commitment(JsonElement value) {
         JsonObject v=fields(value,"format","length","digest");
         if(number(v.get("format"),1)!=0x54434d01)throw incompatible("catalog-metadata-format");

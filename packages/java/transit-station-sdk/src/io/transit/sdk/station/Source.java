@@ -6,5 +6,5 @@ public final class Source {
     Source(Turn turn, ReadVersion identity) { this.turn = turn; this.identity = identity; }
     public ReadVersion identity() { return identity; }
     public State state() { turn.check(); return new State(turn, identity); }
-    public <T> Table<T> table(Table.Schema<T> schema) { return turn.access(true, () -> Table.open(turn, schema, identity)); }
+    public Table table(java.math.BigInteger object) { return turn.access(true, () -> Table.open(turn, object, identity)); }
 }
