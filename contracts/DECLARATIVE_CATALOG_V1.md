@@ -288,7 +288,9 @@ original column type. NULLABILITY contains column ID:u64 and nullable:u8. TYPE
 contains column ID:u64, a u16-length descriptor and character limit:u32. The owner
 rederives the pure transition; the caller cannot assert that no rewrite is needed.
 
-DML uses the complete FDM1 payload under the exact original schema. The header's
+DML embeds the shared action/predicate payload from FDM1 under the exact original
+schema. The enclosing metadata commitment supplies the full schema fingerprint
+and original name, so their standalone FDM1 envelope is omitted. The header's
 kind must agree with its action. Decoding verifies metadata scope/object/revision/
 commitment, original name and full schema fingerprint before interpreting typed
 values. All decoded data is owned and released explicitly. Invalid lengths,

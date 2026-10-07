@@ -18366,3 +18366,21 @@ and 14 SDK scenarios.
 Raw `general-beam-cleanup-native2.log` SHA-256: `30070f738ec805b94f7be0e33c3460faa947ec0f83c58cfb3981551a23ed4d3a`.
 
 Raw `packed-index-table-native1.log` SHA-256: `22f5568cf3742c66776875495b9cac69cb1ab1fb5a133efb8970b0d486eda011`.
+
+### Avoid duplicate schema envelopes in catalog DML
+
+`compact-dml-catalog-unit2.log` and `compact-dml-fuze-unit2.log` pass the Catalog
+and Fuze suites. TCQ1 already verifies its immutable metadata commitment and full
+schema fingerprint before decoding, so its DML body now composes the shared
+action/predicate payload without repeating the standalone FDM1 schema/name
+envelope. Three two-INT64-row INSERTs fit one ordinary Station frame. The
+standalone FDM1 representation remains unchanged and shares the same codec.
+
+Tests check exact intent equivalence, independent FDM1 fixture body bytes,
+allocation-failure ownership, truncation, stale schema/renamed metadata, foreign
+current definitions and rejection of the superseded nested FDM1 envelope.
+The first Fuze command used `--build-file` from the wrong working directory and
+failed configuration; running the package from its own directory passes.
+Documentation links pass in `compact-dml-docs1.log`. Native performance and fault
+qualification remain separate; the final shared-definition replacement includes
+this TCQ1 body cutover.

@@ -27,13 +27,26 @@ pub fn encode(allocator: std.mem.Allocator, plan: d.Plan, output: []u8) ![]const
     try writer.writeAll(&try plan.schema.fingerprint());
     try writer.writeByte(@intCast(plan.name.len));
     try writer.writeAll(plan.name);
+    try writePayload(plan, &writer);
+    return writer.buffered();
+}
+/// Schema/name-free composition for an enclosing command that has already bound
+/// both to exact immutable metadata. This is not a standalone plan envelope.
+pub fn encodePayload(allocator: std.mem.Allocator, plan: d.Plan, output: []u8) ![]const u8 {
+    try nameCheck(plan.name);
+    _ = try plan.fingerprint(allocator);
+    var writer: std.Io.Writer = .fixed(output[0..@min(output.len, max_bytes)]);
+    try writePayload(plan, &writer);
+    return writer.buffered();
+}
+fn writePayload(plan: d.Plan, writer: *std.Io.Writer) !void {
     switch (plan.action) {
         .insert => |rows| {
             try writer.writeByte(1);
             try writer.writeInt(u16, @intCast(rows.len), .little);
             var fields: [s.max_columns]t.Field = undefined;
             const field: t.Field = .{ .name = "row", .type = try plan.schema.rowType(&fields) };
-            for (rows) |row| try cellWrite(&writer, .{ .value = .{ .structure = row } }, field);
+            for (rows) |row| try cellWrite(writer, .{ .value = .{ .structure = row } }, field);
         },
         .update => |assignments| {
             try writer.writeByte(2);
@@ -44,7 +57,7 @@ pub fn encode(allocator: std.mem.Allocator, plan: d.Plan, output: []u8) ![]const
                     .default => try writer.writeByte(0),
                     .cell => |cell| {
                         try writer.writeByte(1);
-                        try cellWrite(&writer, cell, plan.schema.columns[try plan.schema.index(assignment.column)].field());
+                        try cellWrite(writer, cell, plan.schema.columns[try plan.schema.index(assignment.column)].field());
                     },
                 }
             }
@@ -65,13 +78,12 @@ pub fn encode(allocator: std.mem.Allocator, plan: d.Plan, output: []u8) ![]const
                     .state => |state| try writer.writeAll(&.{ 1, state.column, @backingInt(state.value) }),
                     .compare => |compare| {
                         try writer.writeAll(&.{ 2, compare.column, @backingInt(compare.op) });
-                        try cellWrite(&writer, .{ .value = .{ .atom = compare.value } }, .{ .name = "literal", .type = plan.schema.columns[compare.column].type });
+                        try cellWrite(writer, .{ .value = .{ .atom = compare.value } }, .{ .name = "literal", .type = plan.schema.columns[compare.column].type });
                     },
                 }
             },
         };
     } else try writer.writeByte(0);
-    return writer.buffered();
 }
 fn cellRead(arena: *std.heap.ArenaAllocator, reader: *std.Io.Reader, field: t.Field) !Cell {
     const size = try reader.takeInt(u32, .little);
@@ -101,14 +113,22 @@ pub fn decode(allocator: std.mem.Allocator, schema: s.Schema, bytes: []const u8)
     var reader: std.Io.Reader = .fixed(bytes);
     if (!std.mem.eql(u8, try reader.take(4), "FDM1")) return error.InvalidMutationPlan;
     if (!std.mem.eql(u8, try reader.take(32), &try schema.fingerprint())) return error.TableSchemaChanged;
+    const name = try reader.take(try reader.takeByte());
+    return decodePayload(allocator, schema, name, try reader.take(reader.bufferedLen()));
+}
+/// The enclosing contract must verify its exact immutable schema/name binding
+/// before calling. The result owns both, including every schema-dependent cell.
+pub fn decodePayload(allocator: std.mem.Allocator, schema: s.Schema, name: []const u8, bytes: []const u8) !d.Owned {
+    if (bytes.len > max_bytes) return error.MutationBatchTooLarge;
+    try nameCheck(name);
+    try schema.validate();
+    var reader: std.Io.Reader = .fixed(bytes);
     var arena: std.heap.ArenaAllocator = .init(allocator);
     errdefer arena.deinit();
     const a = arena.allocator();
     var owned_schema = try schema.clone(allocator);
     errdefer owned_schema.deinit();
-    const name = try a.dupe(u8, try reader.take(try reader.takeByte()));
-    try nameCheck(name);
-    var plan: d.Plan = .{ .name = name, .schema = owned_schema.schema, .action = undefined };
+    var plan: d.Plan = .{ .name = try a.dupe(u8, name), .schema = owned_schema.schema, .action = undefined };
     plan.action = switch (try reader.takeByte()) {
         1 => blk: {
             const count = try reader.takeInt(u16, .little);

@@ -213,8 +213,9 @@ pub fn encode(allocator: std.mem.Allocator, body: Body, output: []u8) ![]const u
     try writer.writeAll(&try body.header.encode());
     switch (body.request) {
         .dml => |request| {
-            // The FDM1 writer owns the complete remaining payload and byte bound.
-            const bytes = try c.fuze.TableDmlCodec.encode(allocator, request.plan, output[header_bytes..@min(output.len, max_bytes)]);
+            // The header commitment already binds the exact accepted schema/name.
+            // Embed only the shared action/predicate payload, never another envelope.
+            const bytes = try c.fuze.TableDmlCodec.encodePayload(allocator, request.plan, output[header_bytes..@min(output.len, max_bytes)]);
             return output[0 .. header_bytes + bytes.len];
         },
         .ddl => |request| switch (request.action) {
@@ -319,7 +320,7 @@ pub fn decode(allocator: std.mem.Allocator, bytes: []const u8, basis: ?Basis) !O
     const a = arena.allocator();
     var reader: std.Io.Reader = .fixed(bytes[header_bytes..]);
     const request: Request = if (h.kind == .insert or h.kind == .update or h.kind == .delete) blk: {
-        dml_owner = try c.fuze.TableDmlCodec.decode(allocator, original.?, bytes[header_bytes..]);
+        dml_owner = try c.fuze.TableDmlCodec.decodePayload(allocator, original.?, basis.?.record.name.slice(), bytes[header_bytes..]);
         break :blk .{ .dml = .{ .principal = h.principal, .operation = h.operation, .metadata = h.metadata, .plan = dml_owner.?.plan } };
     } else blk: {
         var ddl: c.TableDdlRequest = .{ .principal = h.principal, .operation = h.operation, .object = h.object, .expected_revision = h.metadata.id, .name = if (basis) |value| value.record.name else undefined, .action = undefined };

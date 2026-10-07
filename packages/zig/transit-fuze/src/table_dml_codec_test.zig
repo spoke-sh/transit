@@ -27,6 +27,12 @@ test "compact DML preserves exact typed intent predicates defaults and ownership
         // Leave room for the intended native scope/owner/object/metadata header.
         if (std.mem.eql(u8, sql, "INSERT INTO items VALUES (1, 100)") or std.mem.eql(u8, sql, "UPDATE items SET value = 101 WHERE id = 1")) try t.expect(encoded.len + 141 <= 243);
         try t.checkAllAllocationFailures(t.allocator, roundtrip, .{ encoded, try plan.plan.fingerprint(t.allocator) });
+        var payload_buffer: [8192]u8 = undefined;
+        const payload = try c.encodePayload(t.allocator, plan.plan, &payload_buffer);
+        try t.expectEqualSlices(u8, encoded[37 + plan.plan.name.len ..], payload);
+        var bound = try c.decodePayload(t.allocator, schema, plan.plan.name, payload);
+        defer bound.deinit();
+        try t.expectEqualSlices(u8, &try plan.plan.fingerprint(t.allocator), &try bound.plan.fingerprint(t.allocator));
         for (0..encoded.len) |len| {
             if (c.decode(t.allocator, schema, encoded[0..len])) |value| {
                 var owned = value;
@@ -81,6 +87,10 @@ test "independent compact DML bytes bind defaults Unicode and original schema" {
     defer plan.deinit();
     var output: [4096]u8 = undefined;
     try t.expectEqualSlices(u8, bytes, try c.encode(t.allocator, plan.plan, &output));
+    var payload_output: [4096]u8 = undefined;
+    const payload = try c.encodePayload(t.allocator, plan.plan, &payload_output);
+    // The independently generated FDM1 bytes supply this body's oracle too.
+    try t.expectEqualSlices(u8, bytes[37 + plan.plan.name.len ..], payload);
     @memset(&expected, 0);
     @memset(&schema_bytes, 0);
     try t.expectEqualStrings("people", plan.plan.name);

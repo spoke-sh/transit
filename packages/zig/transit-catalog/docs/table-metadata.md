@@ -126,12 +126,15 @@ object and immutable metadata reference before schema-dependent decoding. Header
 inspection is allocation-free and does not admit work. The host checks current
 native/catalog authority and resolves accepted metadata before supplying a basis.
 CREATE carries its schema; ALTER carries an explicit change against its original
-schema; DML uses FDM1 against that same immutable basis. RENAME and DROP need only
+schema; DML embeds the shared action/predicate payload against that same immutable
+basis. Its schema fingerprint and name come from the verified metadata rather
+than a duplicate standalone FDM1 envelope. RENAME and DROP need only
 metadata. Typed callers and SQL compilation use the same request models.
 
 Decoded commands own their variable-width values and descriptors. DML retains
 its separate schema/value owners; DDL uses one parent arena. Release the command
-with `deinit`. Small point commands fit ordinary Station frames; larger bodies
+with `deinit`. Small point commands and three two-INT64-row inserts fit ordinary Station frames;
+larger bodies
 require the enclosing host's bounded Publication transport. Encoding does not
 send a command, schedule a continuation or add native caller support by itself.
 

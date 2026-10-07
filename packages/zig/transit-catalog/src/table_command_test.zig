@@ -61,9 +61,9 @@ test "typed command CREATE ALTER RENAME DROP roundtrip exact schema intent" {
     absent.expected_revision = 0;
     try check(try Command.fromDdl(scope, 3, absent, null), null);
 }
-test "typed native point commands fit one frame and bind original metadata" {
+test "typed native point and three-row commands fit one frame and bind original metadata" {
     const source = try basis();
-    for ([_][]const u8{ "INSERT INTO items VALUES (1, 100)", "UPDATE items SET value = 200 WHERE id = 1", "DELETE FROM items WHERE id = 1" }) |sql| {
+    for ([_][]const u8{ "INSERT INTO items VALUES (1, 100)", "INSERT INTO items VALUES (1, 100), (2, 200), (3, 300)", "UPDATE items SET value = 200 WHERE id = 1", "DELETE FROM items WHERE id = 1" }) |sql| {
         var compiled = try f.TableDml.compile(t.allocator, sql, "items", schema, null);
         defer compiled.deinit();
         const request: c.TableDmlRequest = .{ .principal = 17, .operation = 2, .metadata = .{ .id = 1, .spec = try source.record.spec() }, .plan = compiled.plan };
@@ -80,6 +80,18 @@ test "typed native point commands fit one frame and bind original metadata" {
         changed = source;
         changed.schema.?.revision += 1;
         try t.expectError(error.TableSchemaChanged, Command.decode(t.allocator, bytes, changed));
+        var old_envelope: [8192]u8 = undefined;
+        @memcpy(old_envelope[0..Command.header_bytes], bytes[0..Command.header_bytes]);
+        const old_payload = try f.TableDmlCodec.encode(t.allocator, request.plan, old_envelope[Command.header_bytes..]);
+        try t.expectError(error.InvalidMutationPlan, Command.decode(t.allocator, old_envelope[0 .. Command.header_bytes + old_payload.len], source));
+        var truncated: usize = Command.header_bytes;
+        while (truncated < bytes.len) : (truncated += 1) {
+            if (Command.decode(t.allocator, bytes[0..truncated], source)) |value| {
+                var accepted = value;
+                accepted.deinit();
+                return error.AcceptedTruncation;
+            } else |_| {}
+        }
         var wrong_definition = buffer;
         wrong_definition[4] ^= 1;
         try t.expectError(error.IncompatibleDefinition, Command.decode(t.allocator, wrong_definition[0..bytes.len], source));

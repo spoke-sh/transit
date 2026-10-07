@@ -70,7 +70,17 @@ schema, names, values and predicate literals. Truncation, invalid flags/tags and
 trailing data reject. Enclosing native requests supply the current shared
 definition, exact catalog metadata/identity and authorization; FDM1 alone does
 not admit work or authorize rebinding to a newer schema. Schema references let
-small point requests avoid retransmitting a complete descriptor.
+small requests avoid retransmitting a complete descriptor.
+
+A catalog `TCQ1` command embeds only the action and predicate payload described
+above. Its mandatory current definition and exact metadata reference bind the
+schema and Table name before decoding; the metadata commitment and full schema
+fingerprint are verified against the original definition. It therefore omits
+the redundant FDM1 magic, fingerprint and name. `encodePayload`/`decodePayload`
+compose this body; they do not independently establish a source binding. The
+standalone FDM1 envelope still carries its own fingerprint/name. Both use the
+same value and predicate codec, validation and owned result. Earlier TCQ1 bodies
+containing a nested FDM1 envelope reject under the current-v1 cutover.
 
 ## UPDATE and DELETE
 
