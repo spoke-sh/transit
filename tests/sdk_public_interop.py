@@ -10,6 +10,8 @@ import importlib
 import json
 from pathlib import Path
 import select
+import math
+import struct
 import subprocess
 import sys
 import tempfile
@@ -18,7 +20,8 @@ import time
 from client_abi import Native
 from client_abi_growing import GrowingSystem
 from cold_storage import ColdStore
-from arrow import simple_rows
+from fuze_logical_arrow import arrow_cell, read_stream
+from fuze_file_query import descriptor, cell_bytes
 from station import frame
 from sdk_scenarios import check
 
@@ -149,7 +152,7 @@ def run(node, cli, library, artifacts, report_path=None):
         def own(cfg):
             command({'own': {'pid': cfg['pid'], 'worker': cfg['principal'], 'expected_generation': cfg['generation']}})
             cfg['generation'] += 1
-        def send(cfg, payload): command({'send': {'pid': cfg['pid'], 'value': frame(payload)}})
+        def send(cfg, payload): return command({'send': {'pid': cfg['pid'], 'value': frame(payload)}})
         def deliver():
             nonlocal after
             position = read({'capabilities': {}})['position']
@@ -205,8 +208,30 @@ def run(node, cli, library, artifacts, report_path=None):
             for child in children:
                 child.kill(); child.wait(timeout=10)
         stack.callback(cleanup)
+        def state_value(cfg, key):
+            revision = read({'resource': cfg['resource']})['body']['resource']['revision']
+            entries = read({'entries': {'resource': cfg['resource'], 'revision': revision, 'key': key.hex()}})['body']['entries']['page']['entries']
+            return next((bytes.fromhex(entry['value']) for entry in entries if entry and bytes.fromhex(entry['key']) == key), None)
+        def drain_table(cfg, child, operations):
+            deadline = time.monotonic() + 600
+            for turns in range(4096):
+                meta = state_value(cfg, b'table.queue')
+                assert meta and len(meta) == 21 and meta[:4] == b'TQM\x01'
+                if meta[4:] == bytes(16) + b'\1': break
+                assert time.monotonic() < deadline, 'Cross-language Table queue deadline'
+                deliver(); one(child)
+            else: raise AssertionError('Cross-language Table queue turn budget')
+            previous = 0
+            for identity, state in [(2**64-1, 0), *[(identity, 1) for identity in operations]]:
+                raw = state_value(cfg, f'table.done.{identity:016x}'.encode())
+                assert raw and len(raw) == 38 and raw[:4] == b'TQO\x01'
+                actual, admitted, completed, matched, changed, rejection = struct.unpack('<BQQQQB', raw[4:])
+                assert (actual, matched, changed, rejection) == (state, state, state, 0)
+                assert 0 < admitted <= completed and previous < completed
+                assert state_value(cfg, f'table.work.{identity:016x}'.encode()) is None
+                previous = completed
+            return turns
         pairs, timings = [], []
-        import pyarrow as pa
         for index, service in enumerate(clients):
             pair_started = time.monotonic()
             requester = clients[(index + 1) % len(clients)]
@@ -231,18 +256,34 @@ def run(node, cli, library, artifacts, report_path=None):
             before_read_retry = read_retries
             fault['pid'] = table['pid']
             fault['reader'] = table['principal']
-            send(table, b'TSQ\x01\x01'); assert one(server) == 'Committed'
-            assert fault['pid'] is None and reconciliations > before_recovery
-            assert fault['reader'] is None and read_retries > before_read_retry
             expected = [{'id': -(2**63), 'value': None}, {'id': 0, 'value': 2**53+1}, {'id': 2**63-1, 'value': -(2**63)}]
+            operations = []
+            # First DML creates a durable automatic schema entry; no explicit
+            # Initialize command or host-memory initialization performs the work.
             for row in expected:
                 payload = b'TSQ\x01\x02' + row['id'].to_bytes(8, 'little', signed=True)
                 payload += b'\0' if row['value'] is None else b'\1' + row['value'].to_bytes(8, 'little', signed=True)
-                send(table, payload); assert one(server) == 'Committed'
+                operations.append(send(table, payload)); assert one(server) == 'Committed'
+            assert fault['pid'] is None and reconciliations > before_recovery
+            assert fault['reader'] is None and read_retries > before_read_retry
             send(query, b'TSQ\x01\x04'); assert one(caller) == 'Committed'
+            for _ in range(32):
+                deliver(); one(server); one(caller)
+                busy = state_value(query, b'not-ready')
+                if busy is not None:
+                    assert busy == state_value(query, b'request')
+                    break
+            else: raise AssertionError('Foreign requester did not authenticate busy reply')
+            close(server); own(table); server = worker(service, table)
+            table_turns = drain_table(table, server, operations)
             close(caller); own(query); caller = worker(requester, query)
+            send(query, b'TSQ\x01\x04'); assert one(caller) == 'Committed'
             manifest_file = Path(query['output'], 'manifest.json')
-            for _ in range(100):
+            fragments = math.ceil(65535 / 221)
+            round_budget = 2 * (fragments + math.ceil(fragments / 3) + 8) + 16
+            deadline = time.monotonic() + 600
+            for query_round in range(round_budget):
+                assert time.monotonic() < deadline, 'Cross-language query deadline'
                 deliver()
                 assert one(server) in ('Committed', 'Idle')
                 assert one(caller) in ('Committed', 'Idle')
@@ -252,12 +293,24 @@ def run(node, cli, library, artifacts, report_path=None):
             manifest = json.loads(manifest_file.read_bytes())
             assert (manifest['rows'], manifest['source'], manifest['destination'], manifest['resource']) == (3, table['pid'], query['pid'], table['resource'])
             segments = [Path(query['output'], f'{i}.arrow').read_bytes() for i in range(manifest['segments'])]
-            rows = [row for ipc in segments for row in simple_rows(pa.ipc.open_stream(ipc).read_all())]
-            assert rows == expected and sum(map(len, segments)) == manifest['bytes']
+            types = [{'int64': {}}, {'int64': {}}, {'utf8': {}}, {'list': {'type': {'int64': {}}, 'nullable': False}}]
+            actual = []
+            for ipc in segments:
+                schema, batches = read_stream(ipc)
+                assert schema.names == ['id', 'value', 'label', 'tags']
+                fields = [{'name': name, 'type': typ, 'nullable': name == 'value', 'optional': False} for name, typ in zip(schema.names, types)]
+                assert schema.metadata[b'transit.logical_schema'] == descriptor({'structure': fields}).hex().encode()
+                for batch in batches:
+                    actual.extend([[arrow_cell(batch.column(column), row, typ) for column, typ in enumerate(types)] for row in range(batch.num_rows)])
+            def signed(value): return {'value': {'atom': {'signed': str(value)}}}
+            expected_cells = [[signed(row['id']), {'null': {}} if row['value'] is None else signed(row['value']),
+                {'value': {'atom': {'utf8': 'example'}}}, {'value': {'list': [signed(1), signed(2)]}}] for row in expected]
+            assert actual == [[cell_bytes(cell, typ) for cell, typ in zip(row, types)] for row in expected_cells]
+            assert sum(map(len, segments)) == manifest['bytes']
             pair = f'{service[0]} -> {requester[0]}'
             pairs.append(pair)
-            timings.append({'pair': pair, 'elapsed_seconds': round(time.monotonic()-pair_started, 3)})
-            print(f'Public pair {pair}: installed CLIs, restarted durable reply, lost-receipt reconciliation, typed Table/query and owned original IPC passed.', flush=True)
+            timings.append({'pair': pair, 'elapsed_seconds': round(time.monotonic()-pair_started, 3), 'table_drain_turns': table_turns, 'query_rounds': query_round + 1, 'ipc_bytes': manifest['bytes']})
+            print(f'Public pair {pair}: installed CLIs, restarted durable reply, lost-receipt reconciliation, automatic schema creation, queued Table recovery, authenticated busy reply and owned nested IPC passed.', flush=True)
         assert fault['lost'] == fault['unavailable_reads'] == len(clients)
         assert fault['delivery_lost'] == 1 and admin_retries > 0
         assert cold.data_objects() > 0

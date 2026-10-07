@@ -18072,3 +18072,29 @@ run is a qualification pass. These are correctness controls, not performance or
 final shared-definition cutover measurements.
 
 Raw `sdk-table-queue-c-native3.log` SHA-256: `8f6252ec6c363a75b7dcf0a709080b9d1ad576b6e30ed64c663cf2444b86976a`.
+
+
+### Ten-language queued Table interoperability
+
+`sdk-table-queue-interop2.log` and its JSON report complete successfully (exit 0):
+Python → Node → Rust → Ruby → C → C++ → Java → .NET → Erlang → Elixir → Python.
+Every pair installs clean artifacts, exercises its counter CLI and durable reply,
+then recovers a pending general Table FIFO after owner replacement. Each verifies
+authenticated NotReady and explicit query retry, automatic schema creation,
+three four-column rows with wide/null/UTF8/list values, and independently decoded
+owned IPC. Each Table drains in 15 turns and publishes 6,696 IPC bytes in 47
+rounds. This is a finite ring, not an all-pairs compatibility claim.
+
+All ten injected lost turn receipts and unavailable reads reconcile with unchanged
+signed attempts; the delivery retry likewise retains its exact request. The run
+observes 306 cold objects / 80,373,167 cold file bytes with 8 MiB hot storage and
+64 authority pages. Elapsed time is 491.181 seconds including 109.905 seconds of
+clean consumer installation, excluding artifact builds. Concurrent local proofs
+were running; these timings do not establish a latency or hosted CI budget.
+The preceding run was interrupted during installation to rebuild the corrected
+C manifest parser and is not a pass. Final shared-definition qualification remains
+separate.
+
+Raw `sdk-table-queue-interop2.log` SHA-256: `1ff494654e52d46550623dba3d1e14d16c5b50b2fcc98a97f1e6c88bfca489fd`.
+
+Report `sdk-table-queue-interop2.json` SHA-256: `097a49df926dbe6bd0a54d3861c167df3498d2bd1136fdbdad6adbbe0fe071d7`.
