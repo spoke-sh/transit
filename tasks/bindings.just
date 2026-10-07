@@ -42,6 +42,7 @@ python-build: build
 # Type-check public APIs and run a clean wheel consumer outside the checkout.
 python-test: python-build
     PYTHONPATH=packages/python/transit-client:packages/python/transit-station python3 -B tests/python_handler_tables.py
+    PYTHONPATH=packages/python/transit-client:packages/python/transit-station:examples/station-sdk/python python3 -B tests/sdk_table_work.py
     PYTHONPATH=packages/python/transit-client python3 -B tests/python_diagnostic_errors.py zig-out/lib/libtransit_client.so
     mypy --strict packages/python/transit-native-client/transit_native_client packages/python/transit-native-station/transit_native_station packages/python/transit-client/transit_client
     mypy --config-file packages/python/transit-station/pyproject.toml packages/python/transit-client/transit_client packages/python/transit-station/transit_station examples/station-sdk/python/transit_sdk_examples

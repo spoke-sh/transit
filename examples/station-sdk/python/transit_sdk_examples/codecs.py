@@ -82,10 +82,33 @@ class Insert:
 
 
 @dataclass(frozen=True, slots=True)
+class Update:
+    key: int
+    value: int | None
+    def __post_init__(self) -> None:
+        bounded(self.key, -(2**63), 2**63-1)
+        if self.value is not None: bounded(self.value, -(2**63), 2**63-1)
+
+
+@dataclass(frozen=True, slots=True)
+class Delete:
+    key: int
+    def __post_init__(self) -> None: bounded(self.key, -(2**63), 2**63-1)
+
+
+@dataclass(frozen=True, slots=True)
 class Rows: pass
 
 
-type QueryMessage = Initialize | Insert | Rows | Start
+@dataclass(frozen=True, slots=True)
+class Advance: pass
+
+
+@dataclass(frozen=True, slots=True)
+class NotReady: pass
+
+
+type QueryMessage = Initialize | Insert | Rows | Start | Advance | NotReady | Update | Delete
 
 
 class QueryCodec:
@@ -93,23 +116,31 @@ class QueryCodec:
     version = 1
     max_encoded_bytes = 22
     def encode(self, value: QueryMessage) -> bytes:
-        tag = {Initialize: 1, Insert: 2, Rows: 3, Start: 4}.get(type(value))
+        tag = {Initialize: 1, Insert: 2, Rows: 3, Start: 4, Advance: 5, NotReady: 6, Update: 7, Delete: 8}.get(type(value))
         if tag is None: raise ValueError('Unsupported query message')
         data = b'TSQ\x01' + bytes([tag])
-        if isinstance(value, Insert):
+        if isinstance(value, (Insert, Update)):
             data += bounded(value.key, -(2**63), 2**63-1).to_bytes(8, 'little', signed=True)
             data += b'\0' if value.value is None else b'\1' + bounded(value.value, -(2**63), 2**63-1).to_bytes(8, 'little', signed=True)
+        elif isinstance(value, Delete):
+            data += value.key.to_bytes(8, 'little', signed=True)
         return data
     def decode(self, data: bytes) -> QueryMessage:
         if type(data) is not bytes or len(data) < 5 or data[:4] != b'TSQ\x01':
             raise ValueError('Unsupported query format')
         tag = data[4]
-        if len(data) == 5 and tag in (1, 3, 4):
-            return Initialize() if tag == 1 else Rows() if tag == 3 else Start()
-        if tag == 2 and len(data) in (14, 22):
+        if len(data) == 5 and tag in (1, 3, 4, 5, 6):
+            if tag == 1: return Initialize()
+            if tag == 3: return Rows()
+            if tag == 4: return Start()
+            if tag == 5: return Advance()
+            return NotReady()
+        if tag == 8 and len(data) == 13: return Delete(int.from_bytes(data[5:], 'little', signed=True))
+        if tag in (2, 7) and len(data) in (14, 22):
             key = int.from_bytes(data[5:13], 'little', signed=True)
-            if data[13] == 0 and len(data) == 14: return Insert(key, None)
-            if data[13] == 1 and len(data) == 22: return Insert(key, int.from_bytes(data[14:], 'little', signed=True))
+            kind = Insert if tag == 2 else Update
+            if data[13] == 0 and len(data) == 14: return kind(key, None)
+            if data[13] == 1 and len(data) == 22: return kind(key, int.from_bytes(data[14:], 'little', signed=True))
         raise ValueError('Invalid query message')
 
 
@@ -136,5 +167,6 @@ query = QueryCodec()
 counter_codec: Codec[Add | Read] = Selected(counter, (Add, Read))
 requester_codec: Codec[Start | Total] = Selected(counter, (Start, Total))
 total_codec: Codec[Total] = Selected(counter, (Total,))
-query_service_codec: Codec[Initialize | Insert | Rows] = Selected(query, (Initialize, Insert, Rows))
-query_requester_codec: Codec[Start] = Selected(query, (Start,))
+query_service_codec: Codec[Initialize | Insert | Rows | Advance | Update | Delete] = Selected(query, (Initialize, Insert, Rows, Advance, Update, Delete))
+query_requester_codec: Codec[Start | NotReady] = Selected(query, (Start, NotReady))
+query_reply_codec: Codec[NotReady] = Selected(query, (NotReady,))

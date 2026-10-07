@@ -17827,3 +17827,37 @@ coverage, coordinated definition cutover and full clean-CI remain separate work.
 Raw `handler-table-c-check6.log` SHA-256: `0072a03edfde54b92d9a068eff9dd7e74d450d7cf1041dd7a4d32f612963a2eb`.
 
 Raw `handler-table-cpp-check4.log` SHA-256: `00c2907e35f59d3380cca04e117e381405bdaad1f541addaac859411a2a30cb8`.
+
+### Durable SDK Table work: independent format and Python model
+
+The shared example contract now specifies a four-column Table, compact FIFO
+records and explicit Advance/NotReady/Update/Delete messages. Python implements
+that application queue with the original admitted input as the DML operation
+identity. Enqueue and final bookkeeping are separate from bounded native steps;
+a terminal step that fills the write budget records a continuation, and a later
+turn observes the same receipt before advancing the FIFO. Pending accepted
+commands survive handler replacement and are not held in host fields.
+
+`tests/sdk_table_work.py` derives wire fixtures independently with `struct`, then
+checks the Python encoders/decoders: **12 valid and 52 rejected queue/work/outcome
+records**, plus **44 shared application-message cases**. Its scripted-domain
+schedule executes **31 private turns**, discards/replays **5** and replaces the
+handler between turns. Five original DML identities remain stable; a rejected
+command does not strand later work; a busy Rows call returns NotReady; no turn
+uses more than **4 writes**. The model also rejects an external Advance origin.
+The mock scripts Table steps that consume all writes; it does not implement
+Table storage or establish native publication, authority, crash recovery or
+performance evidence.
+
+The strict Python type check passes **26 source files**, including the new
+example records and all existing client/Station modules. Documentation passes
+5277 links across 529 files; the verification catalog passes. The initial type
+check catches incorrect use of the SDK's `Found` wrapper and two constructor
+inference errors; the corrected run passes. The source model is registered in
+`just bindings::python-test`. The other language examples and shared live
+schedule still require migration and execution; existing older fixture results
+do not qualify this replacement application flow.
+
+Raw `sdk-table-queue-python-model3.log` SHA-256: `18d2a0feb98dc344c90e00905af71871eb3bef937364cbb0924ffa046c4c767f`.
+
+Raw `sdk-table-queue-python-type3.log` SHA-256: `5107f9446510710cfc458474a6bae8746bf7ed9a2bccb85b1de3b0a14e84c8ad`.

@@ -100,6 +100,36 @@
       "hex": "5453510102ffffffffffffff7f010000000000000080",
       "value": "-9223372036854775808",
       "key": "9223372036854775807"
+    },
+    {
+      "codec": "query",
+      "variant": "Advance",
+      "hex": "5453510105"
+    },
+    {
+      "codec": "query",
+      "variant": "NotReady",
+      "hex": "5453510106"
+    },
+    {
+      "codec": "query",
+      "variant": "Update",
+      "hex": "54535101070000000000000080011100000000000000",
+      "key": "-9223372036854775808",
+      "value": "17"
+    },
+    {
+      "codec": "query",
+      "variant": "Update",
+      "hex": "5453510107000000000000000000",
+      "key": "0",
+      "value": null
+    },
+    {
+      "codec": "query",
+      "variant": "Delete",
+      "hex": "5453510108ffffffffffffff7f",
+      "key": "9223372036854775807"
     }
   ],
   "invalid": [
@@ -192,6 +222,26 @@
       "codec": "query",
       "reason": "nullable_marker",
       "hex": "5453510102000000000000000002"
+    },
+    {
+      "codec": "query",
+      "reason": "control has trailing bytes",
+      "hex": "545351010500"
+    },
+    {
+      "codec": "query",
+      "reason": "control has trailing bytes",
+      "hex": "545351010600"
+    },
+    {
+      "codec": "query",
+      "reason": "update invalid nullable marker",
+      "hex": "5453510107000000000000000002"
+    },
+    {
+      "codec": "query",
+      "reason": "delete trailing bytes",
+      "hex": "5453510108000000000000000000"
     }
   ]
 }

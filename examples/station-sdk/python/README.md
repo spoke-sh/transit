@@ -24,12 +24,21 @@ before committing `observed`; no Python future or object field needs to survive.
 Use `encode_cast(Start(), requester_codec)` plus an independent raw client's
 `prepare_send`/persist/`dispatch` flow to admit a start message.
 
-`query.TableService` creates an int64 Table and explicit requester policy, accepts
-`Initialize` and `Insert` casts, then starts a native query for `Rows` calls.
-`QueryRequester` records its wait and consumes complete result segments through
-an application callback. It writes the row count to `observed`. The callback
-receives owned IPC bytes, one bounded segment at a time. Arbitrary external
-callback effects are not made transactional by handler dispatch.
+`query.TableService` implements the [queued Table contract](../TABLES.md) with
+four logical columns, typed scalar/nested defaults and an explicit requester
+policy. Initialize, Insert, Update and Delete casts enter a durable FIFO.
+Recorded self continuations advance one creation/mutation step at a time with
+the original input identity. `table.done.<input-id>` records terminal outcomes;
+accepted input or a committed intermediate step is not domain completion.
+Rows calls receive NotReady while work remains, then start a native query once
+the queue is ready and empty.
+
+`QueryRequester` records its wait, validates NotReady replies and allows a later
+explicit Start. Complete results are consumed through an application callback,
+which receives original owned IPC one bounded segment at a time; the row count
+is recorded in `observed`. Callback effects are not made transactional by handler
+dispatch. The queue's source model is exercised by `tests/sdk_table_work.py`;
+installed native execution is recorded separately in the proof ledger.
 
 `just bindings::python-test` installs these wheels outside the checkout, runs both
 counter CLI roles with requester restart, and drives both query handlers through
