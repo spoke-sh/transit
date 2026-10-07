@@ -17199,3 +17199,44 @@ SDK consumers were not selected. Documentation, declared diagnostic mappings
 and verification registry checks pass in the corresponding
 `general-table-working-docs1.log`, `mappings1.log` and `invariants1.log`.
 Latency measurements follow separately after compilation and native tests stop.
+
+### Committed general Table latency and native-cache controls
+
+After all builds and the native proof finish, the baseline and committed
+`1504e2db` candidate run sequentially with three repetitions of the seven cases,
+no extra rows/history/readers, and no probes. Both source trees are clean.
+`general-mutation-latency-baseline3.json` and `working1.json` use eight authority
+resident pages. A second sequential pair, `baseline-cache64-1.json` and
+`working-cache64-1.json`, uses 64 authority resident pages. The larger cache is
+an explicit experiment override; the server default remains eight. All four
+schedules complete their 21 samples without errors, unknown outcomes or
+supervisor restarts. These three-sample medians do not establish tails.
+
+| Case | Baseline, 8 pages ms | General, 8 pages ms | Baseline, 64 pages ms | General, 64 pages ms |
+| --- | ---: | ---: | ---: | ---: |
+| insert 1 | 78.361 | 554.492 | 59.061 | 344.574 |
+| update 1 | 82.478 | 559.577 | 65.181 | 366.765 |
+| update same | 75.129 | 157.041 | 60.408 | 105.876 |
+| update absent | 84.336 | 165.191 | 55.948 | 110.001 |
+| delete 1 | 70.191 | 181.481 | 58.373 | 113.229 |
+| delete absent | 95.081 | 153.869 | 62.287 | 113.296 |
+| insert 3 | 83.881 | 3262.655 | 58.743 | 1976.484 |
+
+Separate instrumented single repetitions (`baseline-probe1.json` and
+`working-probe1.json`) show the structural cost: the baseline uses one admitted
+command and one turn for each case; the current candidate uses one command and
+three turns for changed single-row INSERT/UPDATE, and four commands with sixteen
+turns for the three-row INSERT. The latter includes command upload and complete
+statement staging. Candidate worker point reads/batches are 22/18 for INSERT,
+22/24 for UPDATE and 203/49 for the three-row statement. Provider POST counts
+are respectively 40/57/321 versus 9/11/9 in the baseline. No-op and DELETE cases
+still complete in one turn. These are request counts under the instrumented
+controls, not uninstrumented latency samples.
+
+The single-repetition persistent-client control (`working-client1.json`) also
+passes without unknown outcomes or supervisor restarts. All reports retain
+controls and executable hashes in the local Table-schema campaign. The admission
+and bounded-read changes reduce avoidable work, but the generalized representation
+still has a substantial latency regression. A larger cache helps without removing
+the extra commit cost. This does not pass the remaining performance review or
+justify changing deployment budgets without recording the tradeoff.
