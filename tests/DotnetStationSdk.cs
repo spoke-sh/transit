@@ -529,6 +529,7 @@ static class Proof
     }
 
     public static async Task Main(string[] args) {
+        if (args.Length == 1 && args[0] == "handler-tables") { HandlerTables.Run(); return; }
         string mode = args[0], path = args[1]; var cfg = Read(path);
         Check(typeof(Runner<>).Assembly.Location.StartsWith(Path.GetDirectoryName(path)!, StringComparison.Ordinal)); Check(Text(cfg, "profile") == "native_v1");
         if (mode.StartsWith("document-", StringComparison.Ordinal)) { await DocumentProof(mode,cfg); return; }

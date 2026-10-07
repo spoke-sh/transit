@@ -34,7 +34,8 @@ def run(artifacts):
         ET.ElementTree(config).write(source / 'NuGet.Config', encoding='utf-8', xml_declaration=True)
         shutil.copy2(root / 'tests/DotnetLogicalValues.cs', source)
         shutil.copy2(root / 'tests/DotnetSchemaValues.cs', source)
-        (source / 'Program.cs').write_text('SchemaValues.Run(); LogicalValues.Run(); System.Console.WriteLine(".NET owned logical values and recursive schemas passed.");\n')
+        shutil.copy2(root / 'tests/DotnetHandlerTables.cs', source)
+        (source / 'Program.cs').write_text('SchemaValues.Run(); LogicalValues.Run(); HandlerTables.Run(); System.Console.WriteLine(".NET owned logical values and recursive schemas passed.");\n')
         environment = {k: v for k, v in os.environ.items() if k not in ('TRANSIT_LIBRARY_DIR', 'LD_LIBRARY_PATH', 'LIBRARY_PATH')}
         environment.update(NUGET_PACKAGES=str(target / 'packages'), DOTNET_CLI_TELEMETRY_OPTOUT='1', DOTNET_NOLOGO='1')
         subprocess.run(['dotnet', 'restore', 'Proof.csproj', '--configfile', 'NuGet.Config'], cwd=source, env=environment, check=True)

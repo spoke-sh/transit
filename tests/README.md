@@ -17705,3 +17705,33 @@ Station schedule; its execution here is a source boundary check, not evidence
 for installed dispatch, native authority or the still-unmigrated examples.
 
 Raw `handler-table-java-check1.log` SHA-256: `91d3ead047504fdb562b14f44bf884736a28ad021bec921ddf5c8473c8b2fb62`.
+
+### .NET general handler Table values
+
+.NET handlers discover immutable catalog schemas, read owned logical rows and
+stable identities, and explicitly advance saved creation/mutation work. Query
+plans freeze the general unified plan; manifests preserve full-width Table IDs
+and head digests. Saved mutations decode logical values before dispatch and bind
+the original resource, schema and operation. Table reads compare digest bytes
+and retain the active-thread, scope and failed-read guards.
+
+`handler-table-dotnet-check4.log` restores a freshly built Station SDK NuGet
+package into an isolated consumer and passes **34 adversarial rejections** plus
+the existing logical and recursive-schema checks. It covers ownership, exact
+saved identities, defaults/predicates, 128 columns, 1024 rows, byte limits,
+applied-only counts, scope/resource checks, captured-basis changes and frozen
+general query plans. A 15-map nested value exceeds the old 64-level JSON bound;
+the actual handler action encoder accepts it under the shared 96-level bound.
+SDK compilation and consumer compilation treat warnings as errors. Final consumer
+build: 2.42 s, zero warnings/errors. Documentation checks pass 5261 links across
+525 files. The Station package contains the new handler guide.
+
+Check attempt 1 fails on a test syntax error; attempt 2 passes 33 rejection cases.
+Build attempt 3 encounters a name collision in the depth fix, so the subsequent
+check 3 uses the older package and fails on the missing encoder. Build/check 4
+use the corrected package and pass. The log records package hashes. Dependency
+packages are prior campaign artifacts; no native handler dispatch occurs in
+this value suite. Fresh all-package builds, examples and the installed authority
+schedule remain pending; these results do not qualify them.
+
+Raw `handler-table-dotnet-check4.log` SHA-256: `d7c7fd0b57e74d54e31163d0395c5dfcaf2f3443268273cba5ae5f916b1de714`.

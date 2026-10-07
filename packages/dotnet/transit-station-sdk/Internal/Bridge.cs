@@ -205,12 +205,17 @@ internal sealed class Bridge : IWorkerState<object?>
         uint status = Api.station_growing_prepare(server, deadline, out var buffer);
         return Result(status, buffer, "prepare-turn", schema: "GrowingEvent");
     }
+    private static byte[] EncodeAction(JsonObject action)
+    {
+        byte[] bytes = Value.Utf8.GetBytes(action.ToJsonString(Sdk.Catalog.CatalogJson));
+        if (bytes.Length > Value.MaxBody) throw new ArgumentException("Action exceeds its bound");
+        return bytes;
+    }
     internal JsonObject Apply(ulong scope, JsonObject action)
     {
-        byte[] bytes = Value.Json(action);
-        if (bytes.Length > Value.MaxBody) throw new ArgumentException("Action exceeds its bound");
+        byte[] bytes = EncodeAction(action);
         uint status = Api.station_growing_apply(server, scope, bytes, (nuint)bytes.Length, out var buffer);
-        return Result(status, buffer, "apply", schema: "GrowingResult");
+        return Result(status, buffer, "apply", schema: "GrowingResult", maxDepth: 96);
     }
     internal void Finish(ulong scope, bool failed)
     {

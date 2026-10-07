@@ -34,7 +34,7 @@ public static partial class Catalog
         var v = Fields(value, "scope", "principal", "revision", "inspect", "create", "read", "insert", "update", "delete", "alter", "drop");
         return new(ParseScope(v["scope"]), V.Number(v["principal"]), Wide(v["revision"]), new(V.Boolean(v["inspect"]), V.Boolean(v["create"]), V.Boolean(v["read"]), V.Boolean(v["insert"]), V.Boolean(v["update"]), V.Boolean(v["delete"]), V.Boolean(v["alter"]), V.Boolean(v["drop"])));
     }
-    private static Schema ParseSchema(JsonNode? value) {
+    internal static Schema ParseSchema(JsonNode? value) {
         var v = Fields(value, "definition", "object", "revision", "next_column", "columns", "primary_key"); Current(V.String(v["definition"]));
         if (v["columns"] is not JsonArray { Count: > 0 and <= 128 } cols || v["primary_key"] is not JsonArray keys || keys.Count > cols.Count) throw V.Incompatible("catalog-schema-bound");
         List<Column> columns = [];
@@ -43,6 +43,49 @@ public static partial class Catalog
             columns.Add(new(Wide(c["id"]), V.String(c["name"]), Logical.TypeFromWire(c["type"]), V.Boolean(c["nullable"]), c["default"] is {} d ? Logical.CellFromWire(d) : null, c["max_characters"] is {} m ? Small(m, 1) : null));
         }
         Schema result = new(Wide(v["object"]), Wide(v["revision"]), Wide(v["next_column"]), columns, keys.Select(Wide).ToArray()); result.Wire(); return result;
+    }
+    private static IReadOnlyList<Assignment> ParseAssignments(JsonNode? value) {
+        if (value is not JsonArray { Count: <= 128 } array) throw V.Incompatible("catalog-assignment-bound");
+        return array.Select(item => {
+            var v = Fields(item, "column", "value"); var cell = V.Object(v["value"]);
+            if (cell.ContainsKey("default")) { Fields(Fields(cell, "default")["default"]); return new Assignment(Wide(v["column"]), new Default()); }
+            return new Assignment(Wide(v["column"]), Logical.CellFromWire(Fields(cell, "cell")["cell"]));
+        }).ToArray();
+    }
+    private static Predicate ParsePredicate(JsonNode? value) {
+        var v = V.Object(value);
+        if (v.ContainsKey("atom")) {
+            var atom = V.Object(Fields(v, "atom")["atom"]);
+            if (atom.ContainsKey("all")) { Fields(Fields(atom, "all")["all"]); return new BooleanPredicate(BooleanOperator.All); }
+            if (atom.ContainsKey("state")) {
+                var state = Fields(Fields(atom, "state")["state"], "column", "value");
+                return new StatePredicate(Wide(state["column"]), Variant<CellState>(state["value"]));
+            }
+            var compare = Fields(Fields(atom, "compare")["compare"], "column", "op", "value");
+            return new Comparison(Wide(compare["column"]), Variant<CompareOperator>(compare["op"]), Logical.AtomFromWire(compare["value"]));
+        }
+        if (v.Count != 1) throw V.Incompatible("catalog-predicate");
+        var entry = v.Single(); Fields(entry.Value);
+        var op = Variant<BooleanOperator>(JsonValue.Create(entry.Key));
+        if (op == BooleanOperator.All) throw V.Incompatible("catalog-predicate");
+        return new BooleanPredicate(op);
+    }
+    internal static Mutation ParseMutation(JsonNode? value) {
+        var v = Fields(value, "action", "predicate"); var action = V.Object(v["action"]);
+        IReadOnlyList<Predicate>? predicates = null;
+        if (v["predicate"] is {} p) {
+            if (p is not JsonArray { Count: <= 64 } array) throw V.Incompatible("catalog-predicate-bound");
+            predicates = array.Select(ParsePredicate).ToArray();
+        }
+        if (action.Count != 1) throw V.Incompatible("catalog-mutation");
+        Mutation result;
+        if (action.ContainsKey("insert")) {
+            if (predicates is not null || action["insert"] is not JsonArray { Count: > 0 and <= 1024 } rows) throw V.Incompatible("catalog-insert-bound");
+            result = new Insert(rows.Select(ParseAssignments).ToArray());
+        } else if (action.ContainsKey("update")) result = new Update(ParseAssignments(action["update"]), predicates);
+        else { Fields(Fields(action, "delete")["delete"]); result = new Delete(predicates); }
+        if (!JsonNode.DeepEquals(result.Wire(), value)) throw V.Incompatible("catalog-mutation-canonical");
+        return result;
     }
     private static MetadataCommitment ParseCommitment(JsonNode? value) {
         var v=Fields(value,"format","length","digest");

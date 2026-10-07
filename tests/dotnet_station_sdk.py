@@ -34,12 +34,14 @@ def run(node, cli, library, artifacts, http_worker=None, *, execute=None):
         ET.SubElement(sources, 'add', key='local-built', value=str(feed))
         ET.ElementTree(config).write(source / 'NuGet.Config', encoding='utf-8', xml_declaration=True)
         shutil.copy2(root / 'tests/DotnetStationSdk.cs', source / 'Program.cs')
+        shutil.copy2(root / 'tests/DotnetHandlerTables.cs', source)
         subprocess.run(['dotnet', 'restore', project.name, '--configfile', 'NuGet.Config'], env=environment, cwd=source, check=True)
         output = target / 'app'
         subprocess.run(['dotnet', 'build', project.name, '--no-restore', '-c', 'Release', '-o', str(output)], env=environment, cwd=source, check=True)
-        # Both typed keys and nullable typed table cells must reject the wrong value type.
+        subprocess.run(['dotnet', str(output / 'Consumer.dll'), 'handler-tables'], env=environment, cwd=target, check=True, timeout=30)
+        # Both typed keys and logical Table rows reject values of the wrong type.
         original = (source / 'Program.cs').read_text()
-        for body in ('turn.State.Put(StateKeys.Total, true);', 'turn.Table(StateKeys.Table).Insert(new TableRow<bool>(1, true));'):
+        for body in ('turn.State.Put(StateKeys.Total, true);', 'new TableRow(new RowIdentity(new byte[20]), new bool[] { true });'):
             (source / 'Program.cs').write_text('using Transit.Station.Sdk; using Transit.Sdk.Examples; class Wrong { static void Main() {} void Bad(Turn turn) { ' + body + ' } }\n')
             result = subprocess.run(['dotnet', 'build', project.name, '--no-restore', '-c', 'Release'], env=environment, cwd=source, capture_output=True, text=True)
             assert result.returncode != 0 and ('CS0411' in result.stdout or 'CS1503' in result.stdout), result.stdout

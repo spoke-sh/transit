@@ -28,8 +28,8 @@ owned 8 MiB native worker and must be synchronous; `async void` handler and
 persistence callbacks are rejected before startup. Returning from a callback
 does not prove commitment. Local cancellation/stop does not cancel durable work.
 
-`Key<T>` carries a bounded versioned codec. `TableSchema<T>` selects nullable
-`long?`, `bool?`, `string?` or immutable `Bytes?` cells. Turn-derived helpers reject
+`Key<T>` carries a bounded versioned codec. [Handler Tables](docs/TABLES.md) discover
+general `Catalog.Schema` definitions and return owned logical rows. Turn-derived helpers reject
 wrong-thread, reentrant and expired access. Read errors poison the private turn.
 Retained-source identities need explicit durable retain/release operations.
 Queries expose complete metadata and copied original Arrow IPC; no optional .NET

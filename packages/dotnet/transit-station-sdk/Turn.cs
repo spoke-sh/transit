@@ -144,26 +144,19 @@ public sealed class Turn
         return NativeValues.Wide(Raw(Value.Obj(("grpc_followup", Value.Obj(("pid", Peer(connector)), ("resource", parent.Resource.Resource),
             ("parent", Decimal(parent.Exchange)), ("reference", Grpc.Hex(request.Reference))))))["correlation"], true);
     });
-    public Table<T> Table<T>(TableSchema<T> schema) => Access(true, () => Sdk.Table<T>.Open(this, schema, null));
-    public Table<T> CreateTable<T>(TableSchema<T> schema)
-    {
-        Access(false, () => {
-            ArgumentNullException.ThrowIfNull(schema); Value.Text(schema.KeyName, Limit("table_name_bytes")); Value.Text(schema.ValueName, Limit("table_name_bytes"));
-            Raw(Value.Obj(("table_create", Value.Obj(("id", schema.Id), ("key_name", schema.KeyName), ("value_name", schema.ValueName), ("value_type", schema.Cell.WireName))))); return true;
-        });
-        return Table(schema);
-    }
+    public Table Table(ulong objectId) => Access(true, () => Sdk.Table.Open(this, objectId, null));
+    public TableCreation CreateTable(Catalog.Schema schema, Catalog.TableLimits limits) => Access(false, () => Sdk.Table.Create(this, schema, limits));
     public ReadVersion Retain() => Access(false, () => NativeValues.ReadVersion(Raw(Value.Obj(("retain", Value.Obj())))["version"]));
     public Source OpenVersion(ReadVersion identity) { Check(); ArgumentNullException.ThrowIfNull(identity); return new Source(this, identity); }
     public void Release(ReadVersion identity) => Access(false, () => { Raw(Value.Obj(("release", NativeValues.Wire(identity)))); return true; });
-    public void AllowQuery<T>(ProcessRef peer, TableSchema<T> table, ulong expectedRevision, bool allow) => Access(false, () => {
-        Raw(Value.Obj(("query_policy", Value.Obj(("peer", Peer(peer)), ("table", table.Id), ("expected_revision", Value.Counter(expectedRevision, 0)), ("allow", allow))))); return true;
+    public void AllowQuery(ProcessRef peer, ulong objectId, ulong expectedRevision, bool allow) => Access(false, () => {
+        Raw(Value.Obj(("query_policy", Value.Obj(("peer", Peer(peer)), ("table", Decimal(Positive(objectId))), ("expected_revision", Decimal(expectedRevision)), ("allow", allow))))); return true;
     });
-    public QueryJob StartQuery<T>(TableSchema<T> table, QueryPlan plan)
+    public QueryJob StartQuery(ulong objectId, QueryPlan plan)
     {
-        Table(table);
+        Positive(objectId);
         return Access(false, () => {
-            JsonObject value = Value.Object(Raw(Value.Obj(("query_start", Value.Obj(("id", table.Id), ("plan", plan.Wire(Limit("table_cell_bytes")))))))["query"]);
+            JsonObject value = Value.Object(Raw(Value.Obj(("query_start", Value.Obj(("id", Decimal(objectId)), ("plan", plan.Wire())))))["query"]);
             return new QueryJob(Value.Number(value["result"], 1), NativeValues.Wide(value["correlation"], true), NativeValues.ReadVersion(value["source"]));
         });
     }

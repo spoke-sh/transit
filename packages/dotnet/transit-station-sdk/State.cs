@@ -44,5 +44,5 @@ public sealed class Source
     public ReadVersion Identity { get; }
     internal Source(Turn turn, ReadVersion identity) { this.turn = turn; Identity = identity; }
     public State State { get { turn.Check(); return new State(turn, Identity); } }
-    public Table<T> Table<T>(TableSchema<T> schema) => turn.Access(true, () => Sdk.Table<T>.Open(turn, schema, Identity));
+    public Table Table(ulong objectId) => turn.Access(true, () => Sdk.Table.Open(turn, objectId, Identity));
 }
