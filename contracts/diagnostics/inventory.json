@@ -16570,6 +16570,41 @@
         "transit_client"
       ]
     },
+    "packages/zig/transit-station/src/TableCreation.zig": {
+      "errors": {
+        "IncompatibleTableStorage": 1,
+        "InvalidTableCreation": 3,
+        "PublicationTooLarge": 1,
+        "TableCreationConflict": 1,
+        "TableExists": 2
+      },
+      "outcomes": {
+        "Result.state": [
+          "building",
+          "applied"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "Record.decode()": "<inferred>",
+        "Record.encode()": "<inferred>",
+        "step()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 18,
+        "catch": 1
+      },
+      "imports": [
+        "Publication.zig",
+        "TableHead.zig",
+        "TablePages.zig",
+        "Turn.zig",
+        "std",
+        "transit_client",
+        "transit_fuze"
+      ]
+    },
     "packages/zig/transit-station/src/TableData.zig": {
       "errors": {
         "InvalidTableBlob": 3,
@@ -16706,6 +16741,44 @@
         "ImmutableIndex.zig",
         "Publication.zig",
         "TableData.zig",
+        "Turn.zig",
+        "std",
+        "transit_client",
+        "transit_fuze"
+      ]
+    },
+    "packages/zig/transit-station/src/TableReader.zig": {
+      "errors": {
+        "InvalidTableIndex": 1,
+        "InvalidTablePageSize": 1,
+        "StaleTableCursor": 2,
+        "TableHeadChanged": 1,
+        "TableRetired": 1
+      },
+      "outcomes": {
+        "Cut": [
+          "view",
+          "version"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "basisOf()": "<inferred>",
+        "check()": "<inferred>",
+        "get()": "<inferred>",
+        "getKey()": "<inferred>",
+        "open()": "<inferred>",
+        "page()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 13,
+        "catch": 0
+      },
+      "imports": [
+        "TableData.zig",
+        "TableHead.zig",
+        "TablePages.zig",
         "Turn.zig",
         "std",
         "transit_client",
@@ -17006,9 +17079,11 @@
         "TableAlter.zig",
         "TableCandidate.zig",
         "TableCleanup.zig",
+        "TableCreation.zig",
         "TableData.zig",
         "TableHead.zig",
         "TablePages.zig",
+        "TableReader.zig",
         "TableStatement.zig",
         "TableWrite.zig",
         "Turn.zig",

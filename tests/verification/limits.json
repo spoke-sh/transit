@@ -386,6 +386,13 @@
       "expression": "max_nodes * Index.node_bytes + f.TableRow.max_bytes",
       "classification": "working-set",
       "meaning": "Private point or finite batch overlay budget derived from maximum-depth index edits and a bounded row. Intermediates stay private and durable candidates remain paged."
+    },
+    {
+      "source": "packages/zig/transit-station/src/TableReader.zig",
+      "symbol": "max_page_rows",
+      "expression": "p.Growth.page_size",
+      "classification": "operation",
+      "meaning": "One general handler read owns at most eight individually bounded decoded rows; neither Table cardinality nor query execution vectors are bounded by this storage page."
     }
   ],
   "identities": [

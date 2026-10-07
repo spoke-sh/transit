@@ -13,6 +13,213 @@ const Write = @import("TableWrite.zig");
 const Statement = @import("TableStatement.zig");
 const Cleanup = @import("TableCleanup.zig");
 const Alter = @import("TableAlter.zig");
+const TableReader = @import("TableReader.zig");
+const TableCreation = @import("TableCreation.zig");
+
+test "handler creation freezes its schema and quotas and recovers the original publication receipt" {
+    const limits: Pub.Limits = .{ .record_bytes = f.TableRow.max_bytes, .staging_bytes = f.TableRow.max_bytes * 2, .staging_records = 2 };
+    const text: [1024]u8 = @splat('a');
+    var columns = [_]f.TableSchema.Column{
+        schema.columns[0],
+        .{ .id = 2, .name = "value", .type = .utf8, .default = .{ .value = .{ .atom = .{ .bytes = &text } } } },
+        .{ .id = 3, .name = "amount", .type = .{ .decimal = .{ .precision = 18, .scale = 2 } } },
+    };
+    const wide: f.TableSchema.Schema = .{ .object = 9, .revision = 1, .next_column = 4, .columns = &columns, .primary_key = &.{1} };
+    for ([_]f.TableSchema.Schema{ schema, wide }) |definition| {
+        var store: Store = .{};
+        defer store.deinit();
+        var completed: ?TableCreation.Result = null;
+        var admitted: ?u64 = null;
+        for (0..100) |_| {
+            var discarded = try store.capture();
+            _ = try TableCreation.step(t.allocator, &discarded, definition, limits);
+            // Lost private proposals cannot expose a head or complete receipt.
+            var turn = try store.capture();
+            try t.expectError(error.TableNotFound, Head.load(&turn, 9));
+            const result = try TableCreation.step(t.allocator, &turn, definition, limits);
+            try t.expect(writes(turn) <= 4);
+            if (admitted) |input| try t.expectEqual(input, result.admitted_input) else admitted = result.admitted_input;
+            try store.commit(turn);
+            if (result.state == .applied) {
+                completed = result;
+                break;
+            }
+            var changed = definition;
+            changed.primary_key = &.{};
+            turn = try store.capture();
+            try t.expectError(error.TableCreationConflict, TableCreation.step(t.allocator, &turn, changed, limits));
+            try t.expectEqual(0, writes(turn));
+            var changed_limits = limits;
+            changed_limits.staging_records += 1;
+            try t.expectError(error.TableCreationConflict, TableCreation.step(t.allocator, &turn, definition, changed_limits));
+            try t.expectEqual(0, writes(turn));
+        }
+        const result = completed orelse return error.CreationDidNotComplete;
+        try t.expect(result.completed_input > result.admitted_input);
+        var turn = try store.capture();
+        var reader = try TableReader.open(t.allocator, &turn, 9);
+        defer reader.deinit();
+        try t.expectEqualDeep(try definition.fingerprint(), try reader.schema.schema.fingerprint());
+        try t.expectEqualDeep(result, try TableCreation.step(t.allocator, &turn, definition, limits));
+        try t.expectEqual(0, writes(turn));
+        // The original creation result is independent of a later schema and
+        // retirement. Repeating it cannot re-create or reset the Table.
+        try t.expectEqual(.applied, (try sqlAlter(&store, 763, "ALTER TABLE items RENAME COLUMN value TO label")).state);
+        turn = try store.capture();
+        const head = try Head.load(&turn, 9);
+        var retired = head;
+        retired.revision += 1;
+        retired.retired = true;
+        try head.replace(&turn, retired);
+        try store.commit(turn);
+        turn = try store.capture();
+        try t.expectEqualDeep(result, try TableCreation.step(t.allocator, &turn, definition, limits));
+        try t.expectEqual(0, writes(turn));
+        try t.expect((try Head.load(&turn, 9)).retired);
+        var foreign = store.state.get(TableCreation.key(9)).?;
+        foreign.data[4] ^= 1;
+        try store.state.put(t.allocator, TableCreation.key(9), foreign);
+        turn = try store.capture();
+        try t.expectError(error.IncompatibleTableStorage, TableCreation.step(t.allocator, &turn, definition, limits));
+        try t.expectEqual(0, writes(turn));
+    }
+}
+
+test "handler creation cannot adopt an independently populated Table namespace" {
+    var store: Store = .{};
+    defer store.deinit();
+    _ = try store.table();
+    var turn = try store.capture();
+    try t.expectError(error.TableExists, TableCreation.step(t.allocator, &turn, schema, .{ .record_bytes = f.TableRow.max_bytes, .staging_bytes = f.TableRow.max_bytes * 2, .staging_records = 2 }));
+    try t.expectEqual(0, writes(turn));
+}
+
+test "handler creation and typed row readers release allocation failures without partial work" {
+    const limits: Pub.Limits = .{ .record_bytes = f.TableRow.max_bytes, .staging_bytes = f.TableRow.max_bytes * 2, .staging_records = 2 };
+    const Run = struct {
+        fn create(allocator: std.mem.Allocator, store: *Store) !void {
+            var turn = try store.capture();
+            const before = turn.decision;
+            const result = TableCreation.step(allocator, &turn, schema, limits) catch |err| {
+                try t.expectEqualDeep(before, turn.decision);
+                return err;
+            };
+            try t.expectEqual(.applied, result.state);
+        }
+        fn read(allocator: std.mem.Allocator, store: *Store) !void {
+            var turn = try store.capture();
+            var reader = try TableReader.open(allocator, &turn, 9);
+            defer reader.deinit();
+            var page = try reader.page(allocator, &turn, null, 2);
+            defer page.deinit();
+            try t.expectEqual(2, page.len);
+            try t.expectEqual(0, writes(turn));
+        }
+    };
+    var store: Store = .{};
+    defer store.deinit();
+    var turn = try store.capture();
+    try t.expectEqual(.building, (try TableCreation.step(t.allocator, &turn, schema, limits)).state);
+    try store.commit(turn);
+    try t.checkAllAllocationFailures(t.allocator, Run.create, .{&store});
+    turn = try store.capture();
+    try t.expectEqual(.applied, (try TableCreation.step(t.allocator, &turn, schema, limits)).state);
+    try store.commit(turn);
+    _ = try sqlStatement(&store, 764, schema, "INSERT INTO items VALUES(1,'one'),(2,'two')");
+    var no_resize = t.FailingAllocator.init(t.allocator, .{ .resize_fail_index = 0 });
+    try t.checkAllAllocationFailures(no_resize.allocator(), Run.read, .{&store});
+}
+
+test "general handler reads own wide typed rows and keep cursors at one committed cut" {
+    var store: Store = .{};
+    defer store.deinit();
+    var definition = try f.TableDdl.compile(t.allocator, "CREATE TABLE items(id INT64 PRIMARY KEY, value TEXT, score DECIMAL(8,2), tags LIST(BOOL))", null, null);
+    defer definition.deinit();
+    const wide = try definition.statement.create.bind(9);
+    _ = try store.tableSchema(wide);
+    _ = try sqlStatement(&store, 760, wide, "INSERT INTO items VALUES(20,'one',1.25,LIST(TRUE,NULL)),(10,NULL,-2.50,LIST(FALSE)),(30,'three',NULL,LIST())");
+    var turn = try store.capture();
+    var reader = try TableReader.open(t.allocator, &turn, 9);
+    defer reader.deinit();
+    try t.expectEqual(@as(usize, 4), reader.schema.schema.columns.len);
+    var first = try reader.page(t.allocator, &turn, null, 2);
+    defer first.deinit();
+    try t.expectEqual(2, first.len);
+    try t.expectEqual(20, first.rows[0].?.row().cells[0].value.atom.signed);
+    try t.expectEqual(10, first.rows[1].?.row().cells[0].value.atom.signed);
+    try t.expect(first.rows[0].?.row().cells[3].value.list[1] == .null);
+    const cursor = first.next.?;
+    var last = try reader.page(t.allocator, &turn, cursor, 2);
+    defer last.deinit();
+    try t.expectEqual(1, last.len);
+    try t.expectEqual(null, last.next);
+    try t.expectEqual(30, last.rows[0].?.row().cells[0].value.atom.signed);
+    var point = (try reader.getKey(t.allocator, &turn, &.{.{ .value = .{ .atom = .{ .signed = 10 } } }})).?;
+    defer point.deinit();
+    try t.expectEqual(-250, point.row().cells[2].value.atom.decimal);
+    try t.expectEqual(null, try reader.get(t.allocator, &turn, .{ .origin = 2, .operation = 760, .ordinal = 30 }));
+    try t.expectError(error.InvalidTablePageSize, reader.page(t.allocator, &turn, null, 0));
+    try t.expectError(error.InvalidTablePageSize, reader.page(t.allocator, &turn, null, TableReader.max_page_rows + 1));
+    var foreign = cursor;
+    foreign.basis.object += 1;
+    try t.expectError(error.StaleTableCursor, reader.page(t.allocator, &turn, foreign, 2));
+    var another = try store.capture();
+    try t.expectError(error.StaleTableCursor, reader.page(t.allocator, &another, cursor, 2));
+
+    // A private head replacement is invisible to every read helper, including
+    // point lookup. Nothing is implicitly committed or allowed to change cuts.
+    var retired = reader.head;
+    retired.revision += 1;
+    retired.retired = true;
+    try reader.head.replace(&turn, retired);
+    const before = turn.decision;
+    var private = (try reader.get(t.allocator, &turn, point.identity)).?;
+    defer private.deinit();
+    try t.expectEqual(-250, private.row().cells[2].value.atom.decimal);
+    try t.expectEqualDeep(before, turn.decision);
+    try store.commit(turn);
+    turn = try store.capture();
+    try t.expectError(error.TableRetired, TableReader.open(t.allocator, &turn, 9));
+    store.denied = true;
+    turn = try store.capture();
+    try t.expectError(error.AccessDenied, TableReader.open(t.allocator, &turn, 9));
+    try t.expectError(error.AccessDenied, turn.validate());
+}
+
+test "general handler retained cursors preserve original schemas across current evolution" {
+    const Retained = struct {
+        store: *Store,
+        view: p.Growth.ReadVersion,
+        pub fn read(self: *@This(), key: p.Value) !?p.Value {
+            if (self.store.denied) return error.AccessDenied;
+            return self.store.state.get(key);
+        }
+    };
+    var store: Store = .{};
+    defer store.deinit();
+    _ = try store.table();
+    _ = try sqlStatement(&store, 761, schema, "INSERT INTO items VALUES(1,'one'),(2,'two')");
+    var saved: Store = .{ .state = try store.state.clone(t.allocator), .revision = store.revision };
+    defer saved.deinit();
+    var source: Retained = .{ .store = &saved, .view = .{ .id = .{ .pid = 2, .input = 40, .index = 0 }, .resource = 7, .revision = saved.revision, .created_at = 41 } };
+    var reader = try TableReader.open(t.allocator, &source, 9);
+    var first = try reader.page(t.allocator, &source, null, 1);
+    defer first.deinit();
+    try t.expectEqual(.applied, (try sqlAlter(&store, 762, "ALTER TABLE items RENAME COLUMN value TO label")).state);
+    var turn = try store.capture();
+    var current = try TableReader.open(t.allocator, &turn, 9);
+    defer current.deinit();
+    try t.expectEqualStrings("label", current.schema.schema.columns[1].name);
+    try t.expectEqualStrings("value", reader.schema.schema.columns[1].name);
+    try t.expectError(error.StaleTableCursor, current.page(t.allocator, &turn, first.next, 1));
+    var second = try reader.page(t.allocator, &source, first.next, 1);
+    defer second.deinit();
+    reader.deinit();
+    // Rows own their field descriptors and values after the reader is released.
+    try t.expectEqualStrings("two", second.rows[0].?.row().cells[1].value.atom.bytes);
+    try t.expectEqualStrings("one", first.rows[0].?.row().cells[1].value.atom.bytes);
+}
+
 fn runAlter(store: *Store, request: Alter.Request) !Write.Status {
     var turn = try store.capture();
     const original = try Head.load(&turn, 9);
@@ -1032,7 +1239,7 @@ fn expectHex(hex: []const u8, bytes: []const u8) !void {
     try t.expectEqualSlices(u8, try std.fmt.hexToBytes(&output, hex), bytes);
 }
 test "typed Table head and page layouts match independent Python bytes" {
-    const Fixture = struct { native_definition: []const u8, manifest_hex: []const u8, inline_hex: []const u8, head_hex: []const u8, head_key_hex: []const u8, page_key_hex: []const u8, write_key_hex: []const u8, write_status_hex: []const u8, write_rejection_hex: []const u8, statement_progress_hex: []const u8, statement_progress_key_hex: []const u8, cleanup_hex: []const u8, cleanup_key_hex: []const u8 };
+    const Fixture = struct { native_definition: []const u8, creation_receipt_hex: []const u8, creation_key_hex: []const u8, manifest_hex: []const u8, inline_hex: []const u8, head_hex: []const u8, head_key_hex: []const u8, page_key_hex: []const u8, write_key_hex: []const u8, write_status_hex: []const u8, write_rejection_hex: []const u8, statement_progress_hex: []const u8, statement_progress_key_hex: []const u8, cleanup_hex: []const u8, cleanup_key_hex: []const u8 };
     const fixture = try std.json.parseFromSlice(Fixture, t.allocator, @embedFile("fixtures/table-storage.json"), .{});
     defer fixture.deinit();
     const expected = fixture.value;

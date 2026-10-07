@@ -145,6 +145,36 @@ separately authorized retained readers and recovery owners; loading a head alone
 does not admit a new read/write or resolve a live catalog name. Catalog DROP
 dependencies, name removal/reuse and physical cleanup remain explicit owner work.
 
+## Application-owned initialization and reads
+
+`TableCreation` freezes an application-owned revision-one schema and explicit
+publication quotas before staging. It does not publish a catalog binding or
+perform authorization. Its `c` record at Table namespace ID/index zero contains
+`STC1`, the 32-byte shared definition, a 32-byte intent digest, admitted input:u64le
+and completed input:u64le: exactly 84 bytes. A zero completion means building;
+a nonzero completion must be at least the admitted position. Positions fit the
+native counter range. Missing, malformed and foreign definitions reject.
+
+The intent is SHA-256 over `transit.station.table.creation.v1\0`, the shared
+32-byte definition, resource:u64le, record quota:u32le, staging bytes:u64le,
+staging records:u32le, and canonical FTS1 bytes. Object identity and the complete
+schema are inside FTS1. A changed intent cannot adopt accepted initialization.
+An existing namespace without this owner's receipt rejects rather than being
+adopted. The original immutable schema uses record 1; the first head starts the
+record floor at 2. Large schema publication completes before head validation.
+The head and terminal receipt are written in the same native turn. Repeated
+steps recover the original completion after later mutations, ALTER or retirement;
+they do not change the current head. The receipt remains recovery evidence.
+
+`TableReader` binds its owned schema and each cursor to the captured view or
+retained-version identity, resource, resource revision, object and SHA-256 of
+the complete head bytes. Passing a private Turn reads its committed source.
+Moved handles/cursors reject. Pages own one to eight separately bounded typed
+rows in internal identity order; a full final page may have an empty successor.
+Primary-key lookup verifies canonical typed equality after bucket selection.
+No cursor supplies authority or permits a retained reader to use current-schema
+decoders. Current read/version validation remains with the source owner.
+
 ## Single-row publication and recovery
 
 `TableWrite` composes insert/update/delete over this representation. Its caller

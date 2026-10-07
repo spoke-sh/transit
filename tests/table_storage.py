@@ -37,6 +37,8 @@ def fixtures():
         'native_definition': definition,
         'manifest_hex': (b'STM1' + contract + struct.pack('<I', 65536)).hex(),
         'inline_hex': (b'STP1' + struct.pack('<IH', 0x54534301, len(payload)) + payload).hex(),
+        'creation_receipt_hex': (b'STC1' + contract + bytes([119]) * 32 + struct.pack('<QQ', 12, 15)).hex(),
+        'creation_key_hex': (b'\0P' + struct.pack('>IQBQI', 8, 9, ord('c'), 0, 0)).hex(),
         'head_hex': head.hex(),
         'head_key_hex': (b'\0P' + struct.pack('>IQBQI', 8, 9, ord('h'), 0, 0)).hex(),
         'page_key_hex': (b'\0P' + struct.pack('>IQBQI', 8, 9, ord('i'), 7, 0)).hex(),
@@ -59,7 +61,7 @@ def main():
         FIXTURE.write_text(encoded)
     elif not FIXTURE.is_file() or FIXTURE.read_text() != encoded:
         raise SystemExit('Typed Table storage fixtures drifted; review the current format before --record.')
-    print('Typed Table storage: independent head, page, manifest, receipt, statement progress and namespace bytes passed.')
+    print('Typed Table storage: independent head, creation, page, manifest, receipt, statement progress and namespace bytes passed.')
 
 
 if __name__ == '__main__':

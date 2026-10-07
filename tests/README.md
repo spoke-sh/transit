@@ -17391,3 +17391,40 @@ this inventory is not executable proof. The verification registry passes with
 the superseded three-row compiler bounds removed. Handler Table/query migration,
 installed SDKs, current-definition regeneration and complete clean qualification
 remain separate gates.
+
+### General Table handler foundation
+
+`TableReader` owns the current general schema and bounded typed rows at one
+captured or retained cut. `TableCreation` freezes an application-owned schema
+and publication quotas, stages its original immutable schema, and publishes the
+initial head and original completion receipt in one native turn. These helpers
+provide no catalog name, operation authorization or implicit continuation.
+The final SDK/handler dispatch migration remains separate from this foundation.
+
+`general-handler-reader-unit1.log` passes **99/99** Station tests and
+`general-handler-creation-unit1.log` passes **101/101**. The complete
+`general-handler-reader-creation-unit3.log` passes **103/103**, four build steps,
+2 seconds and 27 MiB test-process MaxRSS. Coverage includes typed decimal/nested
+rows wider than two columns, stable identity ordering, moved-cut rejection,
+private-write invisibility, retained original schema after rename, retired-head
+rejection, read denial/poisoning and independently owned row lifetimes.
+
+Small and large initialization schemas are replayed after discarded proposals
+at every stage. Changed schemas/quotas reject with no private writes; all accepted
+steps retain the four-write maximum. Original receipts survive rename and
+retirement without restoring the original head. Independently populated Table
+namespaces cannot be adopted. The independent Python storage oracle adds the
+84-byte STC1 receipt and namespace key, and Zig verifies those exact bytes,
+foreign definitions, truncation, invalid positions and missing data.
+
+The first combined run (`unit2`) passes 101/103: one allocation-failure harness
+sees variable allocator resizing, and a truncated fixture violates native Value
+padding before reaching the intended record-length check. The corrected test
+uses the existing no-resize allocator pattern and canonical truncated Values.
+The final run exhausts creation/read allocation failures, checks released
+ownership, and verifies that failed final creation leaves no partial proposal.
+`general-handler-storage2`, `docs2`, `invariants2` and the recorded diagnostic
+inventory pass. The registry classifies the eight-row operation bound separately
+from total Table cardinality and query execution-vector size. This is unit and
+layout evidence; installed-host/SDK and disk-backed lifecycle qualification
+remain outstanding for the new handler dispatch surface.
