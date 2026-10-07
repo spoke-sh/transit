@@ -17240,3 +17240,65 @@ and bounded-read changes reduce avoidable work, but the generalized representati
 still has a substantial latency regression. A larger cache helps without removing
 the extra commit cost. This does not pass the remaining performance review or
 justify changing deployment budgets without recording the tradeoff.
+
+### Bounded INSERT batches and compact primary-key lookup
+
+`bd064760` builds at most eight INSERT rows within the existing 196-record and
+candidate byte ceilings. Only the final reachable root is staged. Partial next-row
+construction rolls back privately when the overlay fills. Final batches publish
+without an unnecessary cursor/reservation commit. Lost proposals, a duplicate in
+a later saved batch, consumed-ID cleanup, allocation failures and large multi-level
+indexes remain covered. `general-table-batch-unit2.log` passes **99/99** Station
+ReleaseSafe tests (700 ms, 15 MiB); `general-catalog-batch-unit1.log` passes **77/77**
+(470 ms, 22 MiB). The first Station run failed an old cleanup fixture that assumed
+one interval per row; its replacement crosses two complete batches before failing.
+The failed run is retained and is not a passing result.
+
+The clean committed three-repetition `general-mutation-latency-batch1.json` control
+records three-row INSERT median **1,816.821 ms**, versus **3,262.655 ms** in the
+preceding three-repetition candidate. The separate one-repetition instrumented
+`batch-probe1.json` records **four sends and ten turns**, down from sixteen turns;
+provider POSTs fall from 321 to 199. Instrumented elapsed times are not compared
+with uninstrumented samples. Both runs complete without errors, unknown outcomes
+or supervisor restarts.
+
+`c906661f` stores a 128-bit SHA-256 prefix in each primary-key lookup entry.
+Every bucket candidate still requires full typed-key comparison; immutable node
+and row commitments retain all 256 bits. Collision injection continues to prove
+that a matching prefix cannot establish equality. Two keyed rows use a 234-byte
+leaf, allowing a changed point write to fit the four-write native boundary.
+The third row still exercises staged admission, old-root visibility and replay.
+`general-table-key-prefix-unit2.log` passes **99/99** (644 ms, 15 MiB), and catalog
+`key-prefix-unit1.log` passes **77/77** (459 ms, 22 MiB). The first Station run fails
+only the explicitly asserted old maximum head size, 245 versus 229 bytes; the
+updated assertion and contract record the new exact encoding. This incompatible
+storage layout participates in the outstanding coordinated definition cutover.
+
+`general-table-key-prefix-native1.log` passes **9/9** build/proof steps and the
+signed lifecycle, console, CLI and port recovery schedule in **97.372 seconds**:
+**364 turns, 141 sends**, lost send/turn replies, supplied-host receipt loss and
+one injected disconnect. Native writes/values stay at four/256 bytes. No installed
+SDK consumer is selected in this run. Documentation validation passes.
+
+After builds and native recovery finish, clean `c906661f` and baseline `cc5f57e7`
+run sequential **20-repetition** controls with eight authority pages and no extra
+rows, pre-aging, concurrent readers or probes. Both 140-sample schedules complete
+without errors, unknown outcomes or supervisor restarts. Reports
+`general-mutation-latency-key-prefix1.json` and `baseline4.json` retain exact source
+revisions, controls and binary hashes in the local Table-schema campaign.
+
+| Case | Baseline median / p95 ms | General median / p95 ms |
+| --- | ---: | ---: |
+| insert 1 | 112.845 / 126.055 | 197.453 / 237.981 |
+| update 1 | 127.008 / 164.999 | 222.542 / 256.279 |
+| update same | 113.702 / 125.521 | 173.805 / 198.112 |
+| update absent | 130.650 / 157.161 | 211.218 / 227.303 |
+| delete 1 | 115.978 / 128.972 | 188.129 / 207.016 |
+| delete absent | 133.193 / 172.776 | 205.886 / 257.363 |
+| insert 3 | 122.674 / 131.667 | 1946.881 / 2158.296 |
+
+These empirical p95 values meet the fixture's minimum sample count; no p99 or
+latency SLO is claimed. Point-write overhead is substantially reduced, but the
+remaining general-schema metadata, upload and staged-publication cost still
+requires review. The multi-row regression is not resolved by this checkpoint;
+wide/nested, age/readers and final committed-source controls remain separate.

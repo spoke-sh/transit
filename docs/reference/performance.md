@@ -308,11 +308,18 @@ keeps the last acknowledged input until an atomic next-request or completion
 checkpoint replaces it. A restored checkpoint can discover a completed outcome
 without sending another mutation.
 
-The small-request path uses one send, one captured view and one committed turn.
-Requests up to 223 canonical bytes avoid the begin/part/seal/apply sequence.
-Batched captured reads, an eight-key turn-local cache and compatible catalog
-write batches reduce additional requests and page copies while retaining current
-authorization and atomic outcome checks. The console attributes local compilation,
+General Table commands that fit a Station frame avoid upload. Small point writes
+can publish the row, final index, head and outcome in one four-write turn; larger
+values and indexes require staged publication. A 128-bit primary-key lookup prefix
+keeps two keyed rows in one inline index, while full typed-key comparison and
+256-bit node/row commitments retain equality and integrity checks. Finite INSERT
+builds up to eight rows within the existing candidate record/byte budget and
+stages only the final reachable records. Neither optimization increases native
+values, write slots or collection cardinality limits.
+
+Batched reads and a 64-entry captured-turn cache reduce repeated metadata work.
+Native prefetch remains eight keys; cache entries cannot outlive their captured
+turn or mask a poisoned read. The console attributes local compilation,
 preparation, native send, processing wait, result reads and every recovery-file
 save to their respective timing phases. `submit` no longer absorbs the entire
 write lifecycle.
