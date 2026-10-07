@@ -43,6 +43,17 @@ existing host failure policy deliberately. Native handler fields and files are
 not durable staging progress; `inspect` returns the recorded written count,
 chain, lifecycle and publication PID/input.
 
+For an already-owned finite body, `stage(turn, id, spec, bytes)` combines these
+steps within the remaining native mutation slots. Descriptor and quota updates
+to the same keys share private slots; the four-write limit is unchanged. A
+`false` result preserves bounded progress for commitment and exact resumption.
+A `true` result means publication in the private proposal, with no guarantee of
+remaining slots for an application head or receipt. The caller must reserve or
+roll back its composition accordingly. Capacity failure without progress and
+other errors restore this helper's proposal. Reading still requires a committed
+published source; staging does not create a readable cursor or an accepted Table
+operation. General Table pages and catalog metadata use this finite-body helper.
+
 ## Reading and recovery
 
 `open(source, id)` accepts either a growing turn or its `Retained` reader. It

@@ -701,7 +701,7 @@ fn flush(store: *Store, pages: Pages, overlay: anytype) !void {
         while (true) {
             var turn = try store.capture();
             const result = try pages.stage(&turn, .{ .id = record.id, .spec = record.spec }, record.bytes);
-            try t.expect(writes(turn) <= 2);
+            try t.expect(writes(turn) <= 4);
             // A lost pre-commit turn must not advance immutable publication.
             var retry = try store.capture();
             const repeated = try pages.stage(&retry, .{ .id = record.id, .spec = record.spec }, record.bytes);
@@ -1160,7 +1160,8 @@ test "large point write reserves before staging, fences competitors and accepts 
         stages += 1;
         try t.expect(stages < 64);
     }
-    try t.expect(stages > 20);
+    // Packed staging still crosses committed cuts and exercises exact resumption.
+    try t.expect(stages > 1 and stages <= 16);
     try t.expectEqual(.applied, result.state);
     turn = try store.capture();
     try t.expectEqualDeep(result, try Write.step(t.allocator, &turn, request));
@@ -1586,4 +1587,78 @@ test "invalid or exhausted application completion reservation restores the priva
     try t.expectError(error.MutationBudgetExceeded, Write.stepWithReserve(t.allocator, &turn, request, 2));
     try t.expectEqualDeep(occupied, turn.decision);
     try t.expectEqual(@as(u64, 0), (try Head.load(&turn, 9)).rows);
+}
+
+test "bounded Table staging packs chunks without exposing private publication or losing retry identity" {
+    for ([_]usize{ 257, 512, 513, 1025 }) |length| {
+        for (0..5) |occupied| {
+            var store: Store = .{};
+            defer store.deinit();
+            const pages = try store.create();
+            const payload: [1025]u8 = @splat('s');
+            const bytes = payload[0..length];
+            const ref: Pages.Reference = .{ .id = 20, .spec = try Pub.Digest.of(Data.row_format, bytes) };
+            const pubn: Pub = .{ .resource = 7, .domain = .table, .namespace = 9 };
+            var turn = try store.capture();
+            for (0..occupied) |i| try turn.put(p.Value.integer(@intCast(i)), p.Value.integer(7));
+            const before = turn.decision;
+            if (occupied > 2) {
+                try t.expectError(error.MutationBudgetExceeded, pages.stage(&turn, ref, bytes));
+                try t.expectEqualDeep(before, turn.decision);
+                continue;
+            }
+            const step = try pages.stage(&turn, ref, bytes);
+            try t.expect(writes(turn) <= 4);
+            if (occupied == 0 and length <= 512) try t.expectEqual(.ready, step);
+            try t.expectError(error.PublicationReadAfterMutation, pubn.open(&turn, ref.id));
+            var untouched = try store.capture();
+            try t.expectError(error.PublicationNotFound, pubn.inspect(&untouched, ref.id));
+            // Lose this entire private proposal and replay from the original cut.
+            var replay = try store.capture();
+            for (0..occupied) |i| try replay.put(p.Value.integer(@intCast(i)), p.Value.integer(7));
+            try t.expectEqual(step, try pages.stage(&replay, ref, bytes));
+            for (turn.decision.mutations, replay.decision.mutations) |first, second| {
+                if (first) |value| {
+                    try t.expect(second != null);
+                    try t.expect(value.key.eql(second.?.key));
+                    // Publication records retain the actual committed input.
+                    if (!value.key.eql(Pages.key(9, 'r', ref.id))) try t.expectEqualDeep(value, second.?);
+                } else try t.expect(second == null);
+            }
+            try store.commit(replay);
+            for (0..10) |_| {
+                turn = try store.capture();
+                const next = try pages.stage(&turn, ref, bytes);
+                try t.expect(writes(turn) <= 4);
+                if (next == .progress) try t.expect(writes(turn) > 0);
+                try store.commit(turn);
+                if (next == .ready) break;
+            } else return error.UnfinishedTestPage;
+            turn = try store.capture();
+            var output: [1025]u8 = undefined;
+            try t.expectEqualSlices(u8, bytes, try pages.read(&turn, ref, &output));
+            try t.expectEqual(@as(u32, 0), (try pubn.budget(&turn)).records);
+            try t.expectEqual(.ready, try pages.stage(&turn, ref, bytes));
+            try t.expectEqual(@as(usize, 0), writes(turn));
+            const changed: [1025]u8 = @splat('x');
+            const wrong: Pages.Reference = .{ .id = ref.id, .spec = try Pub.Digest.of(Data.row_format, changed[0..length]) };
+            try t.expectError(error.TablePageIdentityConflict, pages.stage(&turn, wrong, changed[0..length]));
+            try t.expectEqual(@as(usize, 0), writes(turn));
+        }
+    }
+}
+
+test "packed Table staging restores its whole proposal after inconsistent chunk evidence" {
+    var store: Store = .{};
+    defer store.deinit();
+    const pages = try store.create();
+    const bytes: [512]u8 = @splat('x');
+    const ref: Pages.Reference = .{ .id = 20, .spec = try Pub.Digest.of(Data.row_format, &bytes) };
+    const chunk = Pub.key(.table, 9, 'c', ref.id, 0);
+    try store.state.put(t.allocator, chunk, try p.Value.init("unaccounted"));
+    var turn = try store.capture();
+    try turn.put(p.Value.integer(1), p.Value.integer(7));
+    const before = turn.decision;
+    try t.expectError(error.InvalidPublicationDescriptor, pages.stage(&turn, ref, &bytes));
+    try t.expectEqualDeep(before, turn.decision);
 }

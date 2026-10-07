@@ -17073,3 +17073,30 @@ The console's single-row INSERT/UPDATE take 705/980 ms and its three-row INSERT
 takes 5,112 ms; the instrumented client takes 1,544/1,994/11,356 ms respectively.
 This exposes work to investigate, not a passed latency target. Controlled
 baseline/current runs and staging/request-count analysis remain outstanding.
+
+### Packed general Table publication
+
+`Publication.stage` packs already-owned finite bytes into the remaining native
+mutation slots, coalescing private descriptor/quota updates. General Table pages
+and catalog metadata use it without changing the four-write boundary. The
+regression matrix crosses 257/512/513/1,025-byte records with zero through four
+occupied slots, discards and replays proposals, rejects conflicting immutable
+content and inconsistent chunk evidence, verifies quota release, and refuses
+private publication cursors. Existing cancellation tests still cancel every
+committed CREATE/ALTER phase. Their former minimum phase counts and two-write
+helper assumptions are replaced by bounded packed-progress checks.
+
+`general-table-staging-unit2.log` passes **95/95** Station ReleaseSafe tests
+(1 second, 14 MiB), and `general-catalog-staging-unit2.log` passes **76/76**
+catalog tests (460 ms, 21 MiB). The first runs failed two and three assertions
+respectively that encoded the former per-call write/phase counts; the raw and
+direct-run detail logs retain those failures.
+`general-table-staging-native1.log` passes **9/9** build/run steps and the signed
+native lifecycle, console, bridge and catalog CLI schedule in **119.991 seconds**.
+It records **401** turns and **141** sends, at most four mutations and 256 bytes
+per native value, accepted-but-lost send/turn replies, supplied-host receipt loss
+and two injected disconnects. Saved work continues to identify the original
+objects after replacement. The earlier corresponding CLI/native schedule used
+525 turns; wall-clock differences are not a matched latency comparison. Installed
+SDK consumers were not selected. `general-table-staging-docs1.log` checks 5,313
+local documentation links.

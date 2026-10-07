@@ -113,7 +113,7 @@ fn validateInline(value: p.Value, spec: Pub.Spec) !void {
         std.mem.readInt(u16, value.data[8..10], .little) != spec.length or value.len != spec.length + 10) return error.InvalidTablePage;
 }
 /// Each call either makes the record readable or prepares one resumable staging
-/// step. Ready small writes still belong to this private turn. The owner must
+/// batch within the native write budget. Ready writes belong to this private turn. The owner must
 /// reserve IDs, keep input/source identity and publish its head/outcome atomically.
 pub fn stage(self: Self, turn: *Turn, ref: Reference, bytes: []const u8) !Step {
     const before = turn.decision;
@@ -134,26 +134,12 @@ pub fn stage(self: Self, turn: *Turn, ref: Reference, bytes: []const u8) !Step {
         return .ready;
     }
     if (small != null) return error.TablePageIdentityConflict;
-    const pubn = self.publication();
-    const descriptor = if (large) |value| try Pub.Descriptor.decode(value) else {
-        _ = try pubn.begin(turn, ref.id, ref.spec);
-        return .progress;
+    const ready = self.publication().stage(turn, ref.id, ref.spec, bytes) catch |err| return switch (err) {
+        error.PublicationIdentityConflict => error.TablePageIdentityConflict,
+        error.PublicationClosed => error.TablePageClosed,
+        else => err,
     };
-    if (!std.meta.eql(descriptor.spec, ref.spec)) return error.TablePageIdentityConflict;
-    switch (descriptor.state) {
-        .abandoned, .retired => return error.TablePageClosed,
-        .published => return .ready,
-        .staging => {
-            if (descriptor.written < ref.spec.chunks()) {
-                const offset = @as(usize, descriptor.written) * Pub.chunk_bytes;
-                _ = try pubn.append(turn, ref.id, descriptor.written, bytes[offset..][0..try ref.spec.size(descriptor.written)]);
-            } else {
-                _ = try pubn.publish(turn, ref.id);
-                return .ready;
-            }
-            return .progress;
-        },
-    }
+    return if (ready) .ready else .progress;
 }
 pub fn read(self: Self, source: anytype, ref: Reference, output: []u8) ![]const u8 {
     try prefetch(source, &.{ key(self.object, 'd', 0), key(self.object, if (ref.spec.length <= inline_bytes) 'i' else 'r', ref.id) });

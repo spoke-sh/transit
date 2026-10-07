@@ -82,26 +82,11 @@ pub fn stage(self: Self, turn: *Turn, record: Meta.Record) !Step {
         return .ready;
     }
     if (small != null) return error.CatalogIdentityConflict;
-    const pubn = self.publication();
-    const descriptor = if (large) |value| try Pub.Descriptor.decode(value) else {
-        _ = try pubn.begin(turn, record.revision, spec);
-        return .progress;
+    const ready = self.publication().stage(turn, record.revision, spec, bytes) catch |err| return switch (err) {
+        error.PublicationIdentityConflict => error.CatalogIdentityConflict,
+        else => err,
     };
-    if (!std.meta.eql(descriptor.spec, spec)) return error.CatalogIdentityConflict;
-    switch (descriptor.state) {
-        .published => return .ready,
-        .abandoned, .retired => return error.PublicationClosed,
-        .staging => {
-            if (descriptor.written < spec.chunks()) {
-                const offset = @as(usize, descriptor.written) * Pub.chunk_bytes;
-                _ = try pubn.append(turn, record.revision, descriptor.written, bytes[offset..][0..try spec.size(descriptor.written)]);
-            } else {
-                _ = try pubn.publish(turn, record.revision);
-                return .ready;
-            }
-            return .progress;
-        },
-    }
+    return if (ready) .ready else .progress;
 }
 /// Find retained bytes by revision without treating their private publication as
 /// catalog acceptance. The caller must still verify the original durable decision.

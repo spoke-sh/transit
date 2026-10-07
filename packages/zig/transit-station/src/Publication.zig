@@ -260,6 +260,41 @@ pub fn publish(self: Publication, turn: *Turn, id: u64) !Outcome {
     try turn.write(key(self.domain, self.namespace, 'r', id, 0), try record.encode());
     return .changed;
 }
+/// Stage already-owned finite bytes using the remaining native mutation slots.
+/// Repeated descriptor/quota writes coalesce in the private proposal. False
+/// means bounded progress that must commit before resuming; true means private
+/// publication, not a committed cursor or an application acceptance result.
+/// A capacity failure with no progress and every other error restore this call.
+pub fn stage(self: Publication, turn: *Turn, id: u64, spec: Spec, bytes: []const u8) !bool {
+    const before = turn.decision;
+    errdefer turn.decision = before;
+    if (!std.meta.eql(try Digest.of(spec.format, bytes), spec)) return error.InvalidPublicationDigest;
+    var progressed = false;
+    while (true) {
+        const record = self.inspect(turn, id) catch |err| blk: {
+            if (err != error.PublicationNotFound) return err;
+            _ = try self.begin(turn, id, spec);
+            progressed = true;
+            break :blk try self.inspect(turn, id);
+        };
+        if (!std.meta.eql(record.spec, spec)) return error.PublicationIdentityConflict;
+        switch (record.state) {
+            .abandoned, .retired => return error.PublicationClosed,
+            .published => return true,
+            .staging => {
+                const result = if (record.written < spec.chunks()) append: {
+                    const offset = @as(usize, record.written) * chunk_bytes;
+                    break :append self.append(turn, id, record.written, bytes[offset..][0..try spec.size(record.written)]);
+                } else self.publish(turn, id);
+                _ = result catch |err| {
+                    if (err != error.MutationBudgetExceeded or !progressed) return err;
+                    return false;
+                };
+                progressed = true;
+            },
+        }
+    }
+}
 /// Explicit disposition. Abandonment retains quota until collect completes.
 pub fn abandon(self: Publication, turn: *Turn, id: u64) !Outcome {
     var record = try self.inspect(turn, id);

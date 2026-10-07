@@ -145,7 +145,7 @@ test "metadata staging resumes large names and refuses same-revision content cha
         _ = try records.stage(&lost, renamed);
         turn = try store.capture(17);
         const result = try records.stage(&turn, renamed);
-        try t.expect(count(turn) <= 2);
+        try t.expect(count(turn) <= 4);
         if (result == .ready) try t.expectError(error.PublicationReadAfterMutation, records.read(&turn, next_ref));
         try store.commit(turn);
         if (result == .ready) break;
