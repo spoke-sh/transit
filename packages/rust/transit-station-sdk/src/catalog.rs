@@ -197,7 +197,7 @@ pub struct TableLimits {
     pub staging_records: u32,
 }
 impl TableLimits {
-    fn wire(&self) -> Result<Value> {
+    pub(crate) fn wire(&self) -> Result<Value> {
         positive(self.record_bytes.into())?;
         positive(self.staging_records.into())?;
         if self.staging_bytes < u64::from(self.record_bytes) {
@@ -394,7 +394,7 @@ pub struct Schema {
     pub primary_key: Vec<u64>,
 }
 impl Schema {
-    fn wire(&self) -> Result<Value> {
+    pub(crate) fn wire(&self) -> Result<Value> {
         if !(1..=128).contains(&self.columns.len()) || self.primary_key.len() > self.columns.len() {
             return Err(invalid());
         }
@@ -415,7 +415,7 @@ impl Schema {
         }
         Ok(out)
     }
-    fn parse(v: &Value) -> Result<Self> {
+    pub(crate) fn parse(v: &Value) -> Result<Self> {
         object(
             v,
             &[
@@ -1178,7 +1178,128 @@ pub enum Mutation {
     },
 }
 impl Mutation {
-    fn wire(&self) -> Result<(Kind, Value)> {
+    pub(crate) fn parse(value: &Value) -> Result<Self> {
+        object(value, &["action", "predicate"])?;
+        fn parsed_assignments(v: &Value) -> Result<Vec<Assignment>> {
+            v.as_array()
+                .filter(|v| v.len() <= 128)
+                .ok_or_else(malformed)?
+                .iter()
+                .map(|v| {
+                    object(v, &["column", "value"])?;
+                    let (tag, data) = variant(&v["value"])?;
+                    let value = match tag {
+                        "default" => {
+                            object(data, &[])?;
+                            AssignmentValue::Default
+                        }
+                        "cell" => AssignmentValue::Cell(Cell::parse(data)?),
+                        _ => return Err(malformed()),
+                    };
+                    Ok(Assignment {
+                        column: w(&v["column"], false)?,
+                        value,
+                    })
+                })
+                .collect()
+        }
+        let predicate = if value["predicate"].is_null() {
+            None
+        } else {
+            Some(
+                value["predicate"]
+                    .as_array()
+                    .filter(|v| (1..=64).contains(&v.len()))
+                    .ok_or_else(malformed)?
+                    .iter()
+                    .map(|v| {
+                        let (tag, data) = variant(v)?;
+                        if tag != "atom" {
+                            object(data, &[])?;
+                            return Ok(match tag {
+                                "negate" => Predicate::Negate,
+                                "conjunction" => Predicate::Conjunction,
+                                "disjunction" => Predicate::Disjunction,
+                                _ => return Err(malformed()),
+                            });
+                        }
+                        let (tag, data) = variant(data)?;
+                        Ok(match tag {
+                            "all" => {
+                                object(data, &[])?;
+                                Predicate::All
+                            }
+                            "state" => {
+                                object(data, &["column", "value"])?;
+                                let state = match string(&data["value"], "cell-state")? {
+                                    "missing" => CellState::Missing,
+                                    "null" => CellState::Null,
+                                    "type_error" => CellState::TypeError,
+                                    "value" => CellState::Value,
+                                    "conflict" => CellState::Conflict,
+                                    _ => return Err(malformed()),
+                                };
+                                Predicate::State {
+                                    column: w(&data["column"], false)?,
+                                    state,
+                                }
+                            }
+                            "compare" => {
+                                object(data, &["column", "op", "value"])?;
+                                let op = match string(&data["op"], "comparison")? {
+                                    "eq" => CompareOperator::Eq,
+                                    "ne" => CompareOperator::Ne,
+                                    "lt" => CompareOperator::Lt,
+                                    "le" => CompareOperator::Le,
+                                    "gt" => CompareOperator::Gt,
+                                    "ge" => CompareOperator::Ge,
+                                    _ => return Err(malformed()),
+                                };
+                                Predicate::Compare {
+                                    column: w(&data["column"], false)?,
+                                    op,
+                                    value: Atom::parse(&data["value"])?,
+                                }
+                            }
+                            _ => return Err(malformed()),
+                        })
+                    })
+                    .collect::<Result<Vec<_>>>()?,
+            )
+        };
+        let (tag, data) = variant(&value["action"])?;
+        let out = match tag {
+            "insert" => {
+                if predicate.is_some() {
+                    return Err(malformed());
+                }
+                Self::Insert {
+                    rows: data
+                        .as_array()
+                        .filter(|v| (1..=1024).contains(&v.len()))
+                        .ok_or_else(malformed)?
+                        .iter()
+                        .map(parsed_assignments)
+                        .collect::<Result<Vec<_>>>()?,
+                }
+            }
+            "update" => Self::Update {
+                assignments: parsed_assignments(data)?,
+                predicate,
+            },
+            "delete" => {
+                object(data, &[])?;
+                Self::Delete { predicate }
+            }
+            _ => return Err(malformed()),
+        };
+        if out.wire()?.1 != *value {
+            return Err(malformed());
+        }
+        Ok(out)
+    }
+
+    pub(crate) fn wire(&self) -> Result<(Kind, Value)> {
         let mut budget = WireBudget(abi::CATALOG_ACTION_BYTES);
         let (kind, action, predicate) = match self {
             Self::Insert { rows } => {

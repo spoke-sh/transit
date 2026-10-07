@@ -307,7 +307,7 @@ pub struct Plan {
     pub aggregate: Aggregate,
 }
 impl Plan {
-    fn wire(&self) -> Result<Value> {
+    pub(crate) fn wire(&self) -> Result<Value> {
         if !(1..=128).contains(&self.projection.len()) || self.projection.iter().any(|v| *v > 127) {
             return Err(invalid());
         }

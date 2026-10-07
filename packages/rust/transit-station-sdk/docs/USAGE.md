@@ -61,10 +61,12 @@ preserve a source basis; using them still requires current authorization and a
 live turn. Associated resources do not grant access or lifetime ownership.
 
 Use `Key<T>` with `state().find/require/put/delete`; missing and nullable values are
-distinct. `TableSchema<C>` selects `i64`, `bool`, `String` or `Vec<u8>` cells with
-nullable values and an i64 key. `table().get/insert/update/upsert/delete/page`
-checks the native schema and bounds. Pages contain at most the native page size;
-cursors remain bound to their source revision. `turn.budgets()` exposes remaining
+distinct. [Typed Tables](TABLES.md) discover a general `TableSchema`, sharing
+catalog columns and logical values. `table(object).get/get_key/page` captures a
+committed head and returns owned row identities/cells. `TableMutation` saves the
+original typed intent and advances it through explicit `step` calls in subsequent
+turns. Input processing and applied mutation completion are separate. Pages
+contain at most eight rows; cursors remain bound to their captured head and cut. `turn.budgets()` exposes remaining
 operation capacity; initialization itself consumes a mutation slot. A durable
 collection's total size is not a resident SDK queue.
 
@@ -77,7 +79,7 @@ Query handlers use `start_query` with a typed plan. A requester receives
 `ResultComplete`; it opens `turn.result(complete.correlation)`, reads the complete
 manifest and individual bounded segments, and releases that borrow before writing
 state. Every segment read rechecks current access. The manifest includes both
-processes, source resource/revision/schema, plan and chain digests, correlation,
+processes, source resource/revision/head, plan and chain digests, correlation,
 rows, segments and bytes. Original IPC remains usable after runner disposal.
 
 Feature `arrow` enables `IpcSegment::to_arrow()` using locked Arrow Rust 59

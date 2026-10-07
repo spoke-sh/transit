@@ -17657,3 +17657,29 @@ Raw `handler-table-result-build1.log` SHA-256: `0097519a84734af8db38f1e62edf2e55
 Raw `handler-table-result-ts1.log` SHA-256: `a29b4575553a19c361fe4435d35603361582aa52c2f8aebdb5d555724c49fb4f`.
 
 Raw `handler-table-result-sdk1.log` SHA-256: `d876dc783d4f558f953cf56a4cff8a4a677df9e269d17eec78c2f35879a3f3ad`.
+
+
+### Rust general handler Table values
+
+Rust handlers now discover `catalog::Schema` through an exclusive Table borrow,
+return owned logical rows and stable identities, and expose typed creation,
+saved mutation/reference recovery and explicit one-turn steps. General handler
+queries freeze `unified::Plan` and retain full-width object IDs/head digests.
+The fixed `TableValue`/two-column cell API and its private schema decoder are
+removed. Private schema/mutation codecs are shared with the catalog models;
+no neutral JSON declaration becomes the public application type.
+
+`handler-table-rust-check3.log` passes **14/14** tests (1.07 s), with zero ignored
+cases and no compiler warnings. Five new handler/query tests cover immutable
+nested decimal/binary/list inputs, original schema ownership, full-width IDs,
+strict saved definitions and canonical recovery, default/predicate round trips,
+128-column/1024-row/byte bounds, applied-only counts and frozen general query
+projections/output names. The existing catalog and logical codec tests pass.
+The initial build fails on a missing internal scalar decoder and a conflicting
+borrow in the page builder; attempt 2 passes 13 tests and warns about the unused
+superseded basis decoder. Attempt 3 removes that decoder and adds the query test.
+`cargo fmt` and documentation link checks pass. Tests use the locked source
+crate with an explicit native-library directory; they do not qualify installed
+handler dispatch or examples, which still require the shared scenario migration.
+
+Raw `handler-table-rust-check3.log` SHA-256: `a314df3c07317d7a1736612fbd7262001ca5d4e63290ab06f8044cab5b2b30b8`.

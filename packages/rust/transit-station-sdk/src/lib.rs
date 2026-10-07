@@ -27,11 +27,15 @@ pub use http::{
     decode_http_reply, prepare_http,
 };
 pub use query::{
-    Aggregate, Column, Comparison, IpcSegment, Predicate, Projection, QueryCloseReason, QueryJob,
-    QueryPlan, ResultComplete, ResultManifest, ResultReader,
+    Aggregate, Comparison, IpcSegment, QueryCloseReason, QueryJob, QueryPlan, ResultComplete,
+    ResultManifest, ResultReader,
 };
 pub use runner::{CloseError, ExchangeDiagnosticKind, Handler, Runner, Shutdown};
-pub use table::{Cell, CellType, Row, Table, TableSchema, TableValue};
+pub use table::{
+    Cell, Row, RowIdentity, Table, TableBasis, TableCreation, TableCreationState, TableLimits,
+    TableMutation, TableMutationReference, TableMutationRoute, TableMutationState,
+    TableMutationStatus, TablePage, TableRejection, TableSchema, TableWitness, TableWitnessSource,
+};
 pub use transit_client::{Correlation, Counter};
 pub use turn::{Source, State, Turn};
 pub use types::*;

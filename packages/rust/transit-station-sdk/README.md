@@ -32,3 +32,6 @@ persisted commands, exclusive caller ownership and owned nested Arrow results.
 
 The [catalog guide](docs/CATALOG.md) covers general typed schemas, DDL/DML,
 historical metadata, policy and owned saved-intent recovery.
+
+The [handler Table guide](docs/TABLES.md) describes owned typed rows, retained
+reads and explicit resumable mutation steps.

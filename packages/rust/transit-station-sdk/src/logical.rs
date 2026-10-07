@@ -334,6 +334,9 @@ pub enum Atom {
     Uuid([u8; 16]),
 }
 impl Atom {
+    pub(crate) fn parse(value: &Json) -> Result<Self> {
+        Self::decode(value, &mut Budget::new(65536))
+    }
     pub(crate) fn wire(&self) -> Result<Json> {
         self.encode(&mut Budget::new(65536))
     }

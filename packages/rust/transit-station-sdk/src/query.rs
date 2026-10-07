@@ -1,19 +1,12 @@
 use crate::{
-    Basis, Cell, Counter, Origin, ReadVersion, Table, TableSchema, TableValue, Turn,
+    Counter, Origin, ReadVersion, TableBasis, Turn,
     bridge::{counter, digest, field, size, wide},
-    turn::{Access, basis, read_version},
+    turn::{Access, read_version},
 };
 use serde_json::{Value, json};
 use transit_client::internal::{number, string, unhex};
-use transit_client::{Correlation, Error, ErrorKind, ProcessRef, Result};
+use transit_client::{Correlation, Error, ErrorKind, ProcessRef, ResourceRef, Result};
 
-#[derive(Clone, Copy, Debug, Default)]
-pub enum Projection {
-    #[default]
-    Both,
-    Key,
-    Value,
-}
 #[derive(Clone, Copy, Debug, Default)]
 pub enum Aggregate {
     #[default]
@@ -21,11 +14,6 @@ pub enum Aggregate {
     Count,
     Sum,
     CountValues,
-}
-#[derive(Clone, Copy, Debug)]
-pub enum Column {
-    Key,
-    Value,
 }
 #[derive(Clone, Copy, Debug)]
 pub enum Comparison {
@@ -36,45 +24,15 @@ pub enum Comparison {
     Gt,
     Ge,
 }
-#[derive(Clone, Debug, Default)]
-pub enum Predicate {
-    #[default]
-    All,
-    IsNull(Column),
-    Compare {
-        column: Column,
-        comparison: Comparison,
-        value: Cell,
-    },
-}
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug)]
 pub struct QueryPlan {
-    pub projection: Projection,
-    pub aggregate: Aggregate,
-    pub limit: Option<u64>,
-    pub predicate: Predicate,
+    value: Value,
 }
 impl QueryPlan {
-    fn wire(&self, bound: usize) -> Result<Value> {
-        let column = |value: Column| match value {
-            Column::Key => 0,
-            Column::Value => 1,
-        };
-        let predicate = match &self.predicate {
-            Predicate::All => json!({"all":{}}),
-            Predicate::IsNull(value) => json!({"is_null":column(*value)}),
-            Predicate::Compare {
-                column: selected,
-                comparison,
-                value,
-            } => json!({"compare":{"column":column(*selected),
-                "op":match comparison { Comparison::Eq=>"eq", Comparison::Ne=>"ne", Comparison::Lt=>"lt", Comparison::Le=>"le", Comparison::Gt=>"gt", Comparison::Ge=>"ge" },
-                "value":value.wire(bound)?}}),
-        };
-        Ok(
-            json!({"projection":match self.projection { Projection::Both=>"both", Projection::Key=>"key", Projection::Value=>"value" },
-            "aggregate":match self.aggregate { Aggregate::Rows=>"rows", Aggregate::Count=>"count", Aggregate::Sum=>"sum",Aggregate::CountValues=>"count_values" }, "limit":self.limit.map(|value|value.to_string()), "predicate":predicate}),
-        )
+    pub fn new(plan: &crate::unified::Plan) -> Result<Self> {
+        Ok(Self {
+            value: plan.wire()?,
+        })
     }
 }
 #[derive(Clone, Debug)]
@@ -95,10 +53,9 @@ pub struct ResultManifest {
     pub source: ProcessRef,
     pub destination: ProcessRef,
     pub correlation: Correlation,
-    pub table: u32,
+    pub table: u64,
     pub policy_revision: u64,
-    pub basis: Basis,
-    pub source_contract: [u8; 32],
+    pub basis: TableBasis,
     pub plan: [u8; 32],
     pub segments: u64,
     pub byte_count: u64,
@@ -174,11 +131,17 @@ impl ResultReader<'_> {
                 number(&value["destination"], "result-destination", false)?,
             )?,
             correlation: Correlation::new(wide(&value["correlation"])?)?,
-            table: u32::try_from(number(&value["table"], "result-table", false)?)
-                .map_err(|_| Error::new(ErrorKind::IncompatibleNative, "result-table"))?,
+            table: wide(&value["table"])?,
             policy_revision: wide(&value["policy_revision"])?,
-            basis: basis(&value["basis"], realm)?,
-            source_contract: digest(&value["basis"]["contract"])?,
+            basis: TableBasis {
+                resource: ResourceRef::new(
+                    realm,
+                    number(&value["basis"]["resource"], "resource", false)?,
+                )?,
+                revision: counter(&value["basis"]["revision"], false)?,
+                object: wide(&value["table"])?,
+                head: digest(&value["basis"]["head"])?,
+            },
             plan: digest(&value["plan"])?,
             segments: wide(&value["segments"])?,
             byte_count: wide(&value["bytes"])?,
@@ -218,27 +181,25 @@ pub enum QueryCloseReason {
     Denied,
 }
 impl Turn<'_> {
-    pub fn allow_query<C: TableValue>(
+    pub fn allow_query(
         &mut self,
         peer: ProcessRef,
-        schema: &TableSchema<C>,
-        expected_revision: Counter,
+        object: u64,
+        expected_revision: u64,
         allow: bool,
     ) -> Result<()> {
         self.check()?;
-        if peer.realm() != self.process().realm() {
-            return Err(Error::new(ErrorKind::InvalidArgument, "query-peer-realm"));
+        if peer.realm() != self.process().realm() || object == 0 {
+            return Err(Error::new(ErrorKind::InvalidArgument, "query-peer-table"));
         }
-        self.apply(json!({"query_policy":{"peer":peer.pid(),"table":schema.id(),"expected_revision":expected_revision.get(),"allow":allow}}), false).map(|_| ())
+        self.apply(json!({"query_policy":{"peer":peer.pid(),"table":object.to_string(),"expected_revision":expected_revision.to_string(),"allow":allow}}),false).map(|_|())
     }
-    pub fn start_query<C: TableValue>(
-        &mut self,
-        schema: &TableSchema<C>,
-        plan: &QueryPlan,
-    ) -> Result<QueryJob> {
-        Table::capture(self, schema, None)?;
+    pub fn start_query(&mut self, object: u64, plan: &QueryPlan) -> Result<QueryJob> {
+        if object == 0 {
+            return Err(Error::new(ErrorKind::InvalidArgument, "query-table"));
+        }
         let value = self.apply(
-            json!({"query_start":{"id":schema.id(),"plan":plan.wire(self.caps().cell)?}}),
+            json!({"query_start":{"id":object.to_string(),"plan":plan.value.clone()}}),
             false,
         )?;
         let value = field(&value, "query")?;
@@ -257,5 +218,49 @@ impl Turn<'_> {
             owner: self,
             correlation,
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::logical::Atom;
+    use crate::unified::{Plan, Predicate};
+    #[test]
+    fn general_query_plan_captures_projection_names_and_exact_predicate() {
+        let mut input = Plan {
+            projection: vec![3, 0, 2],
+            output_names: Some(vec![
+                Some("tags".into()),
+                Some("identity".into()),
+                Some("amount".into()),
+            ]),
+            predicate: Predicate::Compare {
+                column: 2,
+                comparison: Comparison::Ge,
+                value: Atom::Decimal(12345),
+            },
+            limit: Some(u64::MAX),
+            aggregate: Aggregate::Rows,
+        };
+        let captured = QueryPlan::new(&input).unwrap();
+        input.projection[0] = 1;
+        assert_eq!(captured.value["projection"], json!([3, 0, 2]));
+        assert_eq!(
+            captured.value["predicate"]["compare"]["value"],
+            json!({"decimal":"12345"})
+        );
+        assert_eq!(captured.value["limit"], u64::MAX.to_string());
+        input.projection = (0..128).collect();
+        input.output_names = None;
+        assert_eq!(
+            QueryPlan::new(&input).unwrap().value["projection"]
+                .as_array()
+                .unwrap()
+                .len(),
+            128
+        );
+        input.projection.push(128);
+        assert!(QueryPlan::new(&input).is_err());
     }
 }
