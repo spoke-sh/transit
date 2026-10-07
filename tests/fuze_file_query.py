@@ -18,7 +18,7 @@ import zlib
 from fuze_types import DEFINITION, TAGS, KINDS
 
 ROOT = Path(__file__).resolve().parents[1]
-CLI = str(Path(sys.argv[1]).resolve())
+CLI: str
 CASES = 0
 
 
@@ -126,6 +126,8 @@ def invoke(args, data=b'', expected=0, env=None):
 
 
 def main():
+    global CLI
+    CLI = str(Path(sys.argv[1]).resolve())
     global CASES
     with tempfile.TemporaryDirectory(prefix='transit-file-proof-', dir='/var/tmp') as directory:
         work = Path(directory)
