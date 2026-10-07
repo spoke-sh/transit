@@ -108,6 +108,8 @@ pub fn referenceAt(self: Self, source: anytype, revision: u64) !?Reference {
     return ref;
 }
 pub fn read(self: Self, source: anytype, ref: Reference) !Meta.Record {
+    try self.validate(source);
+    try prefetch(source, &.{ key(self.object, 'd', 0), key(self.object, if (ref.spec.length <= p.Value.max_bytes) 'i' else 'r', ref.id) });
     try self.check(source);
     try checkReference(ref);
     var buffer: [Meta.max_bytes]u8 = undefined;
@@ -121,6 +123,10 @@ pub fn read(self: Self, source: anytype, ref: Reference) !Meta.Record {
         if (!std.meta.eql(cursor.spec, ref.spec)) return error.CatalogDefinitionChanged;
         var offset: usize = 0;
         while (true) {
+            var keys: [p.Growth.page_size]p.Value = undefined;
+            const count = @min(keys.len, cursor.spec.chunks() - cursor.index);
+            for (keys[0..count], 0..) |*address, i| address.* = Pub.key(.catalog, self.object, 'c', ref.id, cursor.index + @as(u32, @intCast(i)));
+            try prefetch(source, keys[0..count]);
             const part = try pubn.read(source, cursor);
             if (part.bytes.len > buffer.len - offset) return error.InvalidCatalogDefinition;
             @memcpy(buffer[offset..][0..part.bytes.len], part.bytes.slice());
@@ -133,6 +139,10 @@ pub fn read(self: Self, source: anytype, ref: Reference) !Meta.Record {
     const record = try Meta.Record.decode(bytes);
     if (!std.meta.eql(record.scope, self.scope) or record.object != self.object or record.revision != ref.id) return error.CatalogDefinitionChanged;
     return record;
+}
+fn prefetch(source: anytype, keys: []const p.Value) !void {
+    const Source = @typeInfo(@TypeOf(source)).pointer.child;
+    if (comptime @hasDecl(Source, "prefetch")) try source.prefetch(keys);
 }
 
 /// The caller proves that this exact revision was never accepted and retains

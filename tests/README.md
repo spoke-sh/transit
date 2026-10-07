@@ -17164,3 +17164,38 @@ four turns and 23/24 caller metadata batches for INSERT/UPDATE, and 16 turns wit
 88 caller metadata batches for the three-row INSERT. Staging and worker reads
 still dominate; the matched baseline regression remains unresolved. Reports and
 exact binary hashes remain in the local Table-schema campaign.
+
+### Point admission and the captured metadata working set
+
+Point writes check the fresh candidate's complete native write cost before
+attempting direct publication. When staging is required, admission uses spare
+slots for the first immutable records alongside the busy-head reservation and
+original receipt. A two-row regression verifies that those bytes remain hidden
+behind the old root, complete in at most three turns, and preserve exact terminal
+replay. Large admission reserves its publication quota without exposing a row.
+
+The captured-turn cache holds at most **64** validated point reads, independent
+of durable cardinality. Native prefetch stays limited to **eight** keys. Catalog
+policy pairs, metadata records/chunks and Table staging checks use bounded
+batches. The cache regression exercises a working set larger than one native
+page, eviction at the fixed capacity, private-write precedence, committed reads,
+new-turn reacquisition and poisoned reads. This is a measured-workload cache
+budget change; native storage pages, values, write slots and Table size limits
+do not change.
+
+`general-table-working-unit3.log` passes **97/97** Station ReleaseSafe tests
+(1 second, 15 MiB), and `general-catalog-working-unit3.log` passes **77/77** catalog
+tests (465 ms, 22 MiB). The first builds fail syntax checking because a constant
+was placed between container fields; the second fail because a test-local name
+shadowed a declaration. Neither is counted as executed proof.
+`general-mutation-latency-working-build3.log` passes **18/18** private-prefix
+ReleaseSafe build steps. `general-table-working-native1.log` passes **9/9**
+steps and the signed native lifecycle, console, bridge and CLI schedule in
+**107.772 seconds**, with **400** turns and **141** sends. It verifies lost
+send/turn receipts, supplied-host receipt loss and an injected disconnect, and
+never exceeds four native mutations or a 256-byte value. The component and native
+results include both the admission and bounded-read changes. Optional installed
+SDK consumers were not selected. Documentation, declared diagnostic mappings
+and verification registry checks pass in the corresponding
+`general-table-working-docs1.log`, `mappings1.log` and `invariants1.log`.
+Latency measurements follow separately after compilation and native tests stop.

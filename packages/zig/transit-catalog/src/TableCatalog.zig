@@ -69,6 +69,11 @@ fn policy(self: Self, source: anytype, who: u64) !?m.Policy {
     return rights;
 }
 pub fn authorize(self: Self, source: anytype, who: u64, right: m.Right) !m.Policy {
+    try self.configuration.validate();
+    if (source.view.resource != self.configuration.scope.resource) return error.CrossResourceTransaction;
+    if (who > p.max_counter) return error.InvalidCatalogPolicy;
+    const Source = @typeInfo(@TypeOf(source)).pointer.child;
+    if (comptime @hasDecl(Source, "prefetch")) try source.prefetch(&.{ self.key('c', 0, 0), self.key('p', who, 0) });
     try self.check(source);
     const rights = (try self.policy(source, who)) orelse return error.CatalogDenied;
     if (!rights.permits(right)) return error.CatalogDenied;

@@ -19,14 +19,16 @@ const Session = client.Session;
 const View = p.Growth.View;
 const Decision = Session.Decision;
 pub const Observer = u64;
+pub const read_cache_entries = 64;
 delivery: Session.Delivery,
 view: View,
 reader: Reader,
 read_error: ?anyerror = null,
 decision: Decision,
 resource_deadline_ms: ?u64 = null,
-// Fixed resident bound, scoped to this exact captured view. Absence is cached too.
-read_cache: [p.Growth.page_size]?struct { key: p.Value, value: ?p.Value } = @splat(null),
+// One bounded metadata/row working set, independent of durable cardinality.
+// A native prefetch still requests at most one eight-key protocol page.
+read_cache: [read_cache_entries]?struct { key: p.Value, value: ?p.Value } = @splat(null),
 cache_view: ?View = null,
 cache_next: usize = 0,
 
@@ -415,4 +417,35 @@ test "captured cache preserves private precedence, absence, poison and view boun
     next.view.revision += 1;
     _ = try next.read(key);
     try std.testing.expectEqual(4, source.reads);
+}
+
+test "captured metadata working set is bounded and survives more than one read page" {
+    const t = std.testing;
+    var source: @import("TestStore.zig") = .{};
+    for (0..read_cache_entries + 1) |i| source.entries[i] = .{ .key = p.Value.integer(@intCast(i)), .value = p.Value.integer(@intCast(i)), .revision = 0 };
+    var turn = try source.turn(.{});
+    turn.reader.cache_reads = true;
+    for (0..2) |_| for (0..read_cache_entries) |i| {
+        const value = (try turn.read(p.Value.integer(@intCast(i)))).?;
+        try t.expectEqual(@as(i64, @intCast(i)), try value.asInteger());
+    };
+    try t.expectEqual(read_cache_entries, source.reads);
+    _ = try turn.read(p.Value.integer(read_cache_entries));
+    _ = try turn.read(p.Value.integer(0));
+    try t.expectEqual(read_cache_entries + 2, source.reads);
+    try turn.put(p.Value.integer(4), p.Value.integer(-4));
+    try t.expectEqual(@as(i64, -4), try (try turn.read(p.Value.integer(4))).?.asInteger());
+    var committed_source = turn.committed();
+    try t.expectEqual(@as(i64, 4), try (try committed_source.read(p.Value.integer(4))).?.asInteger());
+    source.fail = true;
+    try t.expectError(error.Unavailable, turn.read(p.Value.integer(100)));
+    try t.expectError(error.Unavailable, turn.read(p.Value.integer(4)));
+    try t.expectError(error.Unavailable, turn.validate());
+    source.fail = false;
+    var next = try source.turn(.{});
+    next.reader.cache_reads = true;
+    _ = try next.read(p.Value.integer(4));
+    try t.expectEqual(read_cache_entries + 4, source.reads);
+    const oversized: [p.Growth.page_size + 1]p.Value = @splat(p.Value.integer(0));
+    try t.expectError(error.MutationBudgetExceeded, next.prefetch(&oversized));
 }

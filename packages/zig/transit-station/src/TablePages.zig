@@ -118,6 +118,9 @@ fn validateInline(value: p.Value, spec: Pub.Spec) !void {
 pub fn stage(self: Self, turn: *Turn, ref: Reference, bytes: []const u8) !Step {
     const before = turn.decision;
     errdefer turn.decision = before;
+    if (self.object == 0 or self.resource == 0 or self.resource > p.max_counter) return error.InvalidTableStorage;
+    if (turn.view.resource != self.resource) return error.CrossResourceTransaction;
+    try turn.prefetch(&.{ key(self.object, 'd', 0), key(self.object, 'i', ref.id), key(self.object, 'r', ref.id) });
     const limit = try self.check(turn);
     try validate(ref);
     if (ref.spec.length > limit) return error.PublicationTooLarge;
