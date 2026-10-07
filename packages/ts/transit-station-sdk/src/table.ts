@@ -3,7 +3,7 @@ import { integer, validators } from "@transit/client/internal";
 import { context, operation, type Context } from "./context.ts";
 import { result } from "./bridge.ts";
 import { hex, unhex } from "./framing.ts";
-import { nativeWide, wide, ReadVersion } from "./values.ts";
+import { nativeWide, wide, ReadVersion, readVersionWire } from "./values.ts";
 import {
   Schema,
   schemaWire,
@@ -291,7 +291,12 @@ export class Table {
     if (wide(objectId) === 0n) throw new TypeError("Table identity must be positive");
     const value = tableResult(
       await current.bridge.apply(current.token, {
-        table: { schema: { object: objectId.toString(), version: version ?? null } },
+        table: {
+          schema: {
+            object: objectId.toString(),
+            version: version ? readVersionWire(version) : null,
+          },
+        },
       }),
       "schema",
     );
@@ -329,7 +334,10 @@ export class Table {
     });
   }
   #source() {
-    return { object: this.schema.objectId.toString(), version: this.#version ?? null };
+    return {
+      object: this.schema.objectId.toString(),
+      version: this.#version ? readVersionWire(this.#version) : null,
+    };
   }
   #check(value: NativeDefinition): void {
     if (

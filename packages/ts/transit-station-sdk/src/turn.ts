@@ -15,6 +15,7 @@ import {
   decode,
   Key,
   ReadVersion,
+  readVersionWire,
   nativeWide,
   wide,
   type Codec,
@@ -51,7 +52,7 @@ export class State {
     return operation(this.#turn, async ({ bridge, token }) => {
       const name = keyBytes(key, bridge.caps.key_bytes);
       const action: GrowingAction = this.#version
-        ? { version_get: { id: this.#version, key: name } }
+        ? { version_get: { id: readVersionWire(this.#version), key: name } }
         : { get: name };
       const value = result(await bridge.apply(token, action), "value");
       return value === null
@@ -69,7 +70,7 @@ export class State {
     return operation(this.#turn, async ({ bridge, token }) => {
       const name = keyBytes(key, bridge.caps.key_bytes);
       const action: GrowingAction = this.#version
-        ? { version_get: { id: this.#version, key: name } }
+        ? { version_get: { id: readVersionWire(this.#version), key: name } }
         : { get: name };
       const value = result(await bridge.apply(token, action), "value");
       if (value === null) throw new MissingValue("Required associated-state value is absent");
@@ -94,7 +95,7 @@ export class State {
     return operation(this.#turn, async ({ bridge, token }) => {
       const position = cursor(after);
       const action: GrowingAction = this.#version
-        ? { version_page: { id: this.#version, cursor: position } }
+        ? { version_page: { id: readVersionWire(this.#version), cursor: position } }
         : { page: position };
       const page = result(await bridge.apply(token, action), "page");
       const entries = page.entries
@@ -439,7 +440,7 @@ export class Turn {
   release(identity: ReadVersion): Promise<void> {
     return operation(this, async ({ bridge, token }) => {
       if (!(identity instanceof ReadVersion)) throw new TypeError("Expected ReadVersion");
-      await bridge.apply(token, { release: identity });
+      await bridge.apply(token, { release: readVersionWire(identity) });
     });
   }
   allowQuery(

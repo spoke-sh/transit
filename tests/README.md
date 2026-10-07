@@ -17917,3 +17917,29 @@ with **306** observed cold objects. The Ruby HTTP SDK schedule also passes
 or qualification of the still-unmigrated language examples.
 
 Raw `sdk-table-queue-ruby-native1.log` SHA-256: `cdee05106802e7f4687e129587c6dbb34a0510c15bafc12cc9916ad036686e7f`.
+
+### Installed TypeScript Table FIFO and retained wire values
+
+Fresh Node tarballs pass the installed Station/HTTP schedules
+(`sdk-table-queue-node-native2.log`, exit 0). TypeScript implements the same
+neutral queue records, four-column schema/defaults and bounded continuation
+flow. The installed codec check exercises all shared message/FIFO fixtures;
+**46** terminal outcomes, **462** drain turns, **41 rows / 6 IPC streams /
+41,992 bytes**, and **275** publication/receipt rounds match the other migrated
+examples. The retained cut survives a later update, and current revocation still
+denies completed-result reads. Both independent PyArrow and the optional Node
+Arrow adapter consume the original owned nested IPC after runner closure.
+
+The first installed run exposes class instances being sent directly through the
+port's plain-JSON boundary. ReadVersion now lowers explicitly for retained Table
+schema/get/page, retained KV get/page, and release. Runtime boundary validation
+remains strict. All **55** Station package tests pass, with no skips; strict
+compilation, formatting and lint pass for the package/examples. The complete
+installed schedule passes exact recovery, poisoned reads, host replacement,
+fencing/expiry and callback/scope checks with **8 MiB** provider hot/cache limits,
+**64** authority pages and **294** cold objects. The HTTP schedule passes
+(**36.00 s**). These executions do not qualify latency or the remaining languages.
+
+Raw `sdk-table-queue-node-native2.log` SHA-256: `bdfdcc6a9964c048aaf566a22941b2b522b509bda315515b99e0794b4da7ae9e`.
+
+Raw `sdk-table-queue-node-unit1.log` SHA-256: `6d4d7362fee7286423db548db656b7e66b38e659511ea89f1c6271c63a315d93`.
