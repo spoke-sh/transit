@@ -1500,13 +1500,15 @@
     },
     {
       "id": "SQL-DECLARATION-01",
-      "claim": "Offline state declarations preserve explicit type and nullability intent and require an explicit capability check for the current Table schema",
+      "claim": "Offline KV/Document definitions preserve typed intent without publication; Table declarations use the shared general DDL and schema owner",
       "owner": "contracts/STATE_DECLARATION_V1.md",
       "implementation": [
         "packages/zig/transit-fuze/src/Declaration.zig",
         "packages/zig/transit-fuze/src/Sql.zig",
         "tests/sql_declaration.zig",
-        "tests/sql/declarations.py"
+        "tests/sql/declarations.py",
+        "packages/zig/transit-fuze/src/TableDdl.zig",
+        "packages/zig/transit-fuze/src/declaration_test.zig"
       ],
       "profile": "state-declaration-v1/offline",
       "tasks": [
@@ -1514,14 +1516,14 @@
         "test::sql"
       ],
       "scenarios": [
-        "Owned names, canonical padding, contiguous columns, duplicate names and complete-input exclusions",
-        "Independent ANTLR ASTs and canonical formatting, including the full four-type/three-nullability product for both Table columns",
-        "Exact existing Table schema fingerprints and explicit rejection of unspecified or incompatible key/value nullability",
-        "Query and mutation parsers continue to reject state declarations as executable work"
+        "Owned names, canonical padding, complete-input exclusions and bounded review formatting for KV/Document definitions",
+        "Independent ANTLR ASTs and canonical KV/Document formatting",
+        "General Table types, aliases, nullable defaults, primary keys and schema bytes use TableDdl without a second fixed-schema parser",
+        "Compilation does not provision, publish or grant authority"
       ],
-      "limits": "Pure in-memory Zig API and review SQL only. One to eight columns per definition, sixteen-byte names and 4096-byte input. No catalog lookup, provisioning, publication, wire/ABI action or language SDK/CLI administrative route.",
+      "limits": "Pure in-memory compilation and review only. KV/Document definitions use sixteen-byte names and 4096-byte input; general Table bounds and ownership follow TABLE_DDL_V1 and TABLE_SCHEMA_V1. No catalog lookup or implicit publication.",
       "model": null,
-      "qualification": "See tests/README.md#offline-state-declaration-compiler for executed parser, component and capability evidence."
+      "qualification": "See tests/README.md for the current general declaration compiler checks and separately recorded catalog runtime evidence."
     },
     {
       "id": "SQL-CATALOG-01",

@@ -126,22 +126,20 @@ pub fn query(text: []const u8, cause: anyerror, inspection: bool) ?Self {
     };
     const semantic = switch (cause) {
         error.InvalidColumnCount => "Check the column count allowed by this source profile.",
-        error.InvalidMutationPlan => "Supply one to three distinct typed INSERT rows, one value UPDATE or one primary-key DELETE.",
-        error.UnknownSource => "The source is not the configured source or Table writer name. Use .sources in the console and use the exact configured name; CREATE TABLE does not configure a query source.",
+        error.InvalidMutationPlan => "Supply a valid schema-bound typed INSERT, UPDATE or DELETE plan within the statement and value bounds.",
+        error.UnknownSource => "Use .sources and SHOW TABLES in the console to inspect available sources and use the exact name.",
         error.UnknownColumn, error.UnknownQualifier => "Use .schema and .sources in the console to check exact column names and the source qualifier.",
         error.DuplicateProjection, error.InvalidProjection, error.InvalidOutputNames => "Select one to 128 output positions with distinct result names. Use explicit AS names when selecting an input column more than once.",
         error.UnsupportedNullComparison => "Use IS NULL to test explicit nulls; use IS MISSING for missing Document fields.",
         error.UnsupportedAggregateLimit => "To limit aggregate input, use an aggregate over a limited derived table; an outer LIMIT is not an input limit. Use .help SQL in the console for an example.",
         error.UnsupportedAggregate => "Use COUNT(*), COUNT(column), or SUM on an int64 column; other aggregate forms are unsupported.",
-        error.UnsupportedTableColumnCount, error.UnspecifiedNullability, error.UnsupportedTableKey, error.UnsupportedTableNullability, error.UnsupportedTableType => "CREATE TABLE requires exactly two columns: an INT64 NOT NULL key and a nullable INT64, BOOL, UTF8 or BINARY value. Use .help CREATE TABLE in the console.",
-        error.NotTableDeclaration => "This catalog compiler accepts CREATE TABLE. KV and Document SQL declarations have no publication route.",
         error.DuplicateColumn => "Use distinct result names in SELECT, assigning names with AS where needed. Declarations also require distinct column names.",
         error.NullPrimaryKey => "Supply a non-NULL INT64 primary key. No mutation command was prepared.",
         error.ParameterCountMismatch, error.ParameterGap, error.ParameterTypeConflict, error.InvalidParameterIndex, error.InvalidParameterSite, error.UnboundParameters => "Use consecutive positional parameters beginning with $1 and supply one exact scalar binding for each index. Repeated indices must have the same type.",
         error.SourceChanged, error.QuerySourceChanged => "Inspect the current source declaration and explicitly prepare the statement again against it.",
         error.InvalidUtf8, error.NonFiniteValue, error.CellTooLarge => "Supply a finite scalar with valid UTF-8 text and within the configured cell byte bound.",
         error.InvalidDocumentInteger, error.InvalidQueryInteger, error.InvalidQueryScalar, error.InvalidHex => "Supply the exact canonical scalar encoding required by the parameter type; integer bindings use decimal strings and binary bindings use hexadecimal bytes.",
-        error.ImmutablePrimaryKey, error.UnsupportedMutationPredicate, error.InvalidMutationColumns, error.DuplicateMutationKey => "Use .help INSERT, .help UPDATE or .help DELETE in the console for bounded literal mutations and key equality.",
+        error.UnsupportedMutationPredicate, error.InvalidMutationColumns => "Use .help INSERT, .help UPDATE or .help DELETE for typed assignments and supported scalar predicates.",
         error.TypeMismatch, error.InvalidPredicate => "Match the literal type to the declared column type; implicit conversions are unsupported.",
         error.InvalidPredicateProgram => "The typed predicate has invalid instruction, literal-storage or stack bounds. Preserve the original plan and correct its construction before submission.",
         error.UnsupportedSchema => "This SQL compiler requires schema version 1. Check the original source or target schema; this failure does not authorize reinterpreting saved work.",
@@ -154,8 +152,6 @@ pub fn query(text: []const u8, cause: anyerror, inspection: bool) ?Self {
         error.DuplicateProjection => "Duplicate result column; assign distinct output names",
         error.DuplicateColumn => "Duplicate column name",
         error.TypeMismatch => "SQL value has the wrong type",
-        error.ImmutablePrimaryKey => "UPDATE cannot change the primary key",
-        error.DuplicateMutationKey => "INSERT repeats a primary key within the statement",
         error.NullPrimaryKey => "The primary key cannot be NULL",
         error.UnsupportedAggregate => "Unsupported aggregate function or input type",
         error.UnsupportedSchema => "The supplied SQL schema version is unsupported",
@@ -177,7 +173,6 @@ pub fn query(text: []const u8, cause: anyerror, inspection: bool) ?Self {
         error.UnsupportedDeclaration,
         error.UnsupportedDeclarationType,
         error.MutationBatchTooLarge,
-        error.DeclarationTooManyColumns,
         error.UnsupportedStatement,
         error.InvalidSqlSyntax,
         error.UnsupportedConstruct,
@@ -367,10 +362,10 @@ pub fn bound(text: []const u8, cause: anyerror, inspection: bool, binding: sql.B
 pub fn writeCompiler(text: []const u8, cause: anyerror, route: Route, binding: sql.Binding) ?Self {
     var result = bound(text, cause, false, binding) orelse return null;
     result.route = route;
-    if (cause == error.UnsupportedStatement or cause == error.NotTableDeclaration) {
+    if (cause == error.UnsupportedStatement or (route == .declaration and cause == error.UnsupportedDeclaration)) {
         result.kind = .unsupported;
-        result.summary = if (route == .declaration) "This catalog compiler requires a supported CREATE TABLE declaration" else "This writer compiler requires a supported INSERT, UPDATE or DELETE statement";
-        result.hint = if (route == .declaration) "Supply CREATE TABLE with an INT64 NOT NULL key and a nullable value column." else mutation_hint;
+        result.summary = if (route == .declaration) "This offline compiler requires a supported KV or Document declaration" else "This writer compiler requires a supported INSERT, UPDATE or DELETE statement";
+        result.hint = if (route == .declaration) "Use CREATE KV or CREATE DOCUMENT for offline definitions. Table schema changes use the Table DDL compiler and authorized catalog route." else mutation_hint;
     }
     return result;
 }
@@ -397,7 +392,7 @@ fn validateTableSyntax(text: []const u8, route: Route, location: *sql.Location) 
 fn parseFailure(text: []const u8, cause: anyerror, location: sql.Location, hint: []const u8, route: Route) Self {
     const kind: Kind = switch (cause) {
         error.InvalidSqlSyntax, error.InvalidSqlEncoding, error.InvalidNumericLiteral, error.InvalidBinaryLiteral => .syntax,
-        error.StatementTooLarge, error.CommentTooDeep, error.PredicateTooComplex, error.LiteralTooLarge, error.LiteralOutOfRange, error.InvalidColumnName, error.MutationBatchTooLarge, error.DeclarationTooManyColumns => .limit,
+        error.StatementTooLarge, error.CommentTooDeep, error.PredicateTooComplex, error.LiteralTooLarge, error.LiteralOutOfRange, error.InvalidColumnName, error.MutationBatchTooLarge => .limit,
         else => if (location.expected != null) .syntax else .unsupported,
     };
     var result: Self = .{ .kind = kind, .route = route, .cause = cause, .summary = switch (kind) {
@@ -621,7 +616,7 @@ test "SQL categories and scalar truncation are machine facts" {
     for ([_]struct { cause: anyerror, category: d.Category }{
         .{ .cause = error.UnsupportedAggregate, .category = .unsupported },
         .{ .cause = error.NullPrimaryKey, .category = .constraint },
-        .{ .cause = error.DuplicateMutationKey, .category = .constraint },
+        .{ .cause = error.NullablePrimaryKey, .category = .constraint },
         .{ .cause = error.SourceChanged, .category = .conflict },
         .{ .cause = error.CellTooLarge, .category = .limit },
     }) |fixture| {

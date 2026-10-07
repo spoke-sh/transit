@@ -153,10 +153,7 @@
     "sql-declaration": {
       "causes": [
         "CommentTooDeep",
-        "DeclarationTooManyColumns",
-        "DuplicateColumn",
         "IncompleteSql",
-        "InvalidColumnCount",
         "InvalidColumnName",
         "InvalidParameterIndex",
         "InvalidSqlEncoding",

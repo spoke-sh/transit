@@ -107,25 +107,13 @@
           "code": "sql.comment_too_deep",
           "category": "limit"
         },
-        "DeclarationTooManyColumns": {
-          "code": "sql.declaration_too_many_columns",
-          "category": "limit"
-        },
         "DuplicateColumn": {
           "code": "sql.duplicate_column",
           "category": "binding"
         },
-        "DuplicateMutationKey": {
-          "code": "sql.duplicate_mutation_key",
-          "category": "constraint"
-        },
         "DuplicateProjection": {
           "code": "sql.duplicate_projection",
           "category": "binding"
-        },
-        "ImmutablePrimaryKey": {
-          "code": "sql.immutable_primary_key",
-          "category": "constraint"
         },
         "InvalidBinaryLiteral": {
           "code": "sql.invalid_binary_literal",
@@ -219,10 +207,6 @@
           "code": "sql.non_finite_value",
           "category": "binding"
         },
-        "NotTableDeclaration": {
-          "code": "sql.not_table_declaration",
-          "category": "unsupported"
-        },
         "NullPrimaryKey": {
           "code": "sql.null_primary_key",
           "category": "constraint"
@@ -275,10 +259,6 @@
           "code": "sql.unknown_source",
           "category": "binding"
         },
-        "UnspecifiedNullability": {
-          "code": "sql.unspecified_nullability",
-          "category": "binding"
-        },
         "UnsupportedAggregate": {
           "code": "sql.unsupported_aggregate",
           "category": "unsupported"
@@ -321,22 +301,6 @@
         },
         "UnsupportedStatement": {
           "code": "sql.unsupported_statement",
-          "category": "unsupported"
-        },
-        "UnsupportedTableColumnCount": {
-          "code": "sql.unsupported_table_column_count",
-          "category": "unsupported"
-        },
-        "UnsupportedTableKey": {
-          "code": "sql.unsupported_table_key",
-          "category": "unsupported"
-        },
-        "UnsupportedTableNullability": {
-          "code": "sql.unsupported_table_nullability",
-          "category": "unsupported"
-        },
-        "UnsupportedTableType": {
-          "code": "sql.unsupported_table_type",
           "category": "unsupported"
         },
         "DuplicateMapKey": {

@@ -18146,3 +18146,21 @@ full-suite pass.
 Raw `general-station-native5.log` SHA-256: `81e183e2158ca83a05f9bc0f6423a882154a9ff42a112a8435f9e8bfabcb4c09`.
 
 Raw `general-station-abi1.log` SHA-256: `1cc746eca2cbcb451836c56f78461e49d078e5e762a9580a475d0c67fbf2fb87`.
+
+### Current declaration ownership and documentation checks
+
+The offline `Declaration` API now owns KV and Document definitions only. Table
+CREATE/ALTER/DROP use the shared `TableDdl` compiler and owned general schema;
+the obsolete eight-column parser and fixed two-column diagnostic are removed.
+`general-declaration-unit3.log`, `general-declaration-errors2.log` and
+`general-declaration-oracle1.log` pass: Fuze unit tests, 16 inferred compiler error
+sets with nine unknown projections, and 270 independent declaration cases with
+238 exact schema identity/type/default/evolution comparisons. The first compile
+attempt missed a highlighting parser call site and failed; its corrected rerun
+passes. The registry accounts for both existing general schema bounds (128
+columns and 65,536 encoded bytes); Markdown links and registry checks pass in
+`general-declaration-docs3.log` and `general-declaration-registry3.log`.
+
+The broader check reached documentation tests and exposed missing ALTER/DROP site
+entries and a stale Python workload excerpt. Those failures are not a full check
+pass; their corrections and site validation are recorded separately.

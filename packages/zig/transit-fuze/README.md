@@ -208,14 +208,13 @@ profile. These expectations do not establish that an unfinished statement binds
 or executes.
 
 `Sql.parseDeclaration` and `Declaration.compile` parse and validate offline
-`CREATE TABLE`, `CREATE KV` and `CREATE DOCUMENT` definitions. Definitions own
-their names and up to eight Table columns, preserve omitted nullability and
-format canonical review SQL into a caller-owned buffer. `Definition.tableSchema`
-explicitly checks compatibility with the existing two-column Table model.
-Compilation does not provision resources, publish a catalog or confer authority;
-query transports still reject declarations. The
+`CREATE KV` and `CREATE DOCUMENT` definitions. Definitions own their names and
+format canonical review SQL into a caller-owned buffer. General Table declarations
+use `TableDdl.compile` and the shared schema/type rules described above; there is
+one Table parser for offline review and catalog publication. Compilation does not
+provision resources, publish a catalog or confer authority. The
 [state declaration contract](../../../contracts/STATE_DECLARATION_V1.md) defines
-types, ownership, errors and capability limits.
+KV/Document types, ownership, errors and capability limits.
 
 `Sql.hints` uses the production parser up to a token-boundary cursor and returns
 bounded grammar expectations. `SqlInput` frames semicolon termination and

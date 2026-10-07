@@ -5370,21 +5370,13 @@
     },
     "packages/zig/transit-fuze/src/Declaration.zig": {
       "errors": {
-        "DuplicateColumn": 2,
-        "InvalidColumnCount": 2,
         "InvalidColumnName": 2,
         "UnsupportedStatement": 1
       },
       "outcomes": {
         "Body": [
-          "table",
           "kv",
           "document"
-        ],
-        "Nullability": [
-          "unspecified",
-          "null",
-          "not_null"
         ]
       },
       "error_sets": {},
@@ -5392,19 +5384,17 @@
         "Definition.format()": "<inferred>",
         "Definition.validate()": "<inferred>",
         "compile()": "<inferred>",
-        "compileDetailed()": "<inferred>",
         "compileDiagnostic()": "<inferred>",
         "validName()": "<inferred>",
         "writeName()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 21,
-        "catch": 2
+        "try": 14,
+        "catch": 1
       },
       "imports": [
         "Sql.zig",
-        "Unified.zig",
         "model.zig",
         "std"
       ]
@@ -6452,7 +6442,6 @@
     "packages/zig/transit-fuze/src/Sql.zig": {
       "errors": {
         "CommentTooDeep": 1,
-        "DeclarationTooManyColumns": 1,
         "IncompleteSql": 1,
         "InvalidBinaryLiteral": 2,
         "InvalidColumnName": 1,
@@ -6585,7 +6574,6 @@
         "literalCell()": "<inferred>",
         "parse()": "<inferred>",
         "parseDeclaration()": "<inferred>",
-        "parseDeclarationDetailed()": "<inferred>",
         "parseDeclarationLocated()": "<inferred>",
         "parseInspection()": "<inferred>",
         "parseInspectionLocated()": "<inferred>",
@@ -6597,7 +6585,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 110,
+        "try": 102,
         "catch": 12
       },
       "imports": [
@@ -6637,17 +6625,14 @@
         "CharacterLimitExceeded": 1,
         "CommentTooDeep": 1,
         "ConflictingTimeZone": 1,
-        "DeclarationTooManyColumns": 1,
         "DuplicateAssignment": 1,
         "DuplicateColumn": 1,
         "DuplicateColumnConstraint": 1,
         "DuplicateColumnIdentity": 1,
         "DuplicateField": 1,
         "DuplicateMapKey": 1,
-        "DuplicateMutationKey": 1,
         "DuplicatePrimaryKeyColumn": 1,
         "DuplicateProjection": 1,
-        "ImmutablePrimaryKey": 1,
         "Inexact": 1,
         "InvalidArrayLength": 1,
         "InvalidBinaryLiteral": 1,
@@ -6704,7 +6689,6 @@
         "MutationBatchTooLarge": 1,
         "NoPrimaryKey": 1,
         "NonFiniteValue": 1,
-        "NotTableDeclaration": 1,
         "NullNotAllowed": 1,
         "NullPrimaryKey": 1,
         "NullableMapKey": 1,
@@ -6738,7 +6722,6 @@
         "UnknownSqlType": 1,
         "UnknownUnionAlternative": 1,
         "UnorderedType": 1,
-        "UnspecifiedNullability": 1,
         "UnsupportedAggregate": 1,
         "UnsupportedAggregateLimit": 1,
         "UnsupportedAlterTable": 1,
@@ -6759,12 +6742,8 @@
         "UnsupportedSchema": 1,
         "UnsupportedSchemaConversion": 1,
         "UnsupportedStatement": 1,
-        "UnsupportedTableColumnCount": 1,
         "UnsupportedTableConstraint": 1,
-        "UnsupportedTableKey": 1,
-        "UnsupportedTableNullability": 1,
         "UnsupportedTableSchemaDefinition": 1,
-        "UnsupportedTableType": 1,
         "UnsupportedTemporalPrecision": 1,
         "UnsupportedTimeZoneType": 1,
         "ValueBudgetExceeded": 1
@@ -6785,11 +6764,8 @@
       "errors": {
         "CellTooLarge": 2,
         "CommentTooDeep": 2,
-        "DeclarationTooManyColumns": 2,
         "DuplicateColumn": 4,
-        "DuplicateMutationKey": 2,
         "DuplicateProjection": 3,
-        "ImmutablePrimaryKey": 2,
         "InvalidBinaryLiteral": 2,
         "InvalidColumnCount": 1,
         "InvalidColumnName": 2,
@@ -6813,7 +6789,6 @@
         "LiteralTooLarge": 2,
         "MutationBatchTooLarge": 3,
         "NonFiniteValue": 2,
-        "NotTableDeclaration": 2,
         "NullPrimaryKey": 2,
         "OutOfMemory": 2,
         "ParameterCountMismatch": 2,
@@ -6829,22 +6804,17 @@
         "UnknownQualifier": 4,
         "UnknownSource": 3,
         "UnmappedSqlDiagnostic": 2,
-        "UnspecifiedNullability": 1,
         "UnsupportedAggregate": 2,
         "UnsupportedAggregateLimit": 1,
         "UnsupportedCatalog": 1,
         "UnsupportedConstruct": 1,
-        "UnsupportedDeclaration": 1,
+        "UnsupportedDeclaration": 2,
         "UnsupportedDeclarationType": 1,
         "UnsupportedLiteral": 1,
         "UnsupportedMutationPredicate": 1,
         "UnsupportedNullComparison": 4,
         "UnsupportedSchema": 2,
-        "UnsupportedStatement": 2,
-        "UnsupportedTableColumnCount": 1,
-        "UnsupportedTableKey": 1,
-        "UnsupportedTableNullability": 1,
-        "UnsupportedTableType": 1
+        "UnsupportedStatement": 2
       },
       "outcomes": {
         "Kind": [

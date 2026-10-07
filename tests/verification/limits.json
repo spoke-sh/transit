@@ -339,11 +339,18 @@
       "meaning": "General nested Arrow segment ceiling. Station Table delivery uses u16 lengths and admits aligned segments up to 65528 bytes."
     },
     {
-      "source": "packages/zig/transit-fuze/src/Declaration.zig",
+      "source": "packages/zig/transit-fuze/src/TableSchema.zig",
       "symbol": "max_columns",
-      "expression": "@import(\"Unified.zig\").max_columns",
+      "expression": "128",
       "classification": "operation",
-      "meaning": "At most eight columns in one offline state definition; not a bound on total catalog objects or durable history."
+      "meaning": "At most 128 columns in one general Table schema; independent of total catalog objects and durable row cardinality."
+    },
+    {
+      "source": "packages/zig/transit-fuze/src/TableSchema.zig",
+      "symbol": "max_bytes",
+      "expression": "65536",
+      "classification": "encoding",
+      "meaning": "Maximum canonical bytes in one general Table schema, including nested descriptors and typed defaults; not a limit on total Tables or rows."
     },
     {
       "source": "packages/zig/transit-catalog/src/TableClient.zig",

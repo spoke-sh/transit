@@ -4,18 +4,15 @@ const d = f.Declaration;
 const expect = std.testing.expect;
 const expectError = std.testing.expectError;
 
-test "state declarations own names and preserve unspecified nullability" {
-    var text = "create table Items (id INT64 NOT NULL, value UTF8, enabled BOOL NULL, body BINARY)".*;
+test "offline KV definitions own names and canonical review text" {
+    var text = "create kv Items (UTF8)".*;
     const definition = try d.compile(&text);
     @memset(&text, '?');
     try std.testing.expectEqualStrings("items", definition.name.slice());
-    try expect(definition.body.table[0].?.nullability == .not_null);
-    try expect(definition.body.table[1].?.nullability == .unspecified);
-    try expect(definition.body.table[2].?.nullability == .null);
-    try expect(definition.body.table[3].?.type == .binary);
+    try expect(definition.body.kv == .utf8);
     var output: [512]u8 = undefined;
     const formatted = try definition.format(&output);
-    try std.testing.expectEqualStrings("CREATE TABLE \"items\" (\"id\" INT64 NOT NULL, \"value\" UTF8, \"enabled\" BOOL NULL, \"body\" BINARY);", formatted);
+    try std.testing.expectEqualStrings("CREATE KV \"items\" (UTF8);", formatted);
     try expect(std.meta.eql(definition, try d.compile(formatted)));
 }
 
@@ -26,8 +23,6 @@ test "state declarations normalize syntax and preserve quoted identity" {
         "CREATE KV flags (BOOL)",
         "CREATE KV counters (INT64)",
         "CREATE KV bodies (BINARY)",
-        "CREATE TABLE \"TABLE\" (\"NULL\" INT64, \"null\" BINARY NULL)",
-        "CREATE TABLE eight (a INT64,b BOOL,c UTF8,d BINARY,e INT64,f BOOL,g UTF8,h BINARY)",
     }) |text| {
         const definition = try d.compile(text);
         var first: [512]u8 = undefined;
@@ -66,24 +61,26 @@ test "state declarations reject incomplete, ambiguous and oversized input" {
     try expectError(error.CommentTooDeep, d.compile(writer.buffered()));
 }
 
-test "typed declarations enforce contiguous columns and canonical owned names" {
-    const original = try d.compile("CREATE TABLE items (id INT64 NOT NULL,value INT64 NULL)");
+test "typed offline declarations enforce canonical owned names" {
+    const original = try d.compile("CREATE DOCUMENT items");
     var changed = original;
-    changed.body.table[0] = null;
-    try expectError(error.InvalidColumnCount, changed.validate());
-    changed = original;
-    changed.body.table[2] = changed.body.table[1];
-    changed.body.table[1] = null;
-    try expectError(error.InvalidColumnCount, changed.validate());
-    changed = original;
-    changed.body.table[1].?.name = changed.body.table[0].?.name;
-    try expectError(error.DuplicateColumn, changed.validate());
-    changed = original;
     changed.name.len = 255;
     try expectError(error.InvalidColumnName, changed.validate());
     changed = original;
-    changed.body.table[1].?.name.bytes[15] = 'x';
+    changed.name.bytes[15] = 'x';
     try expectError(error.InvalidColumnName, changed.validate());
     var output: [512]u8 = undefined;
     try expectError(error.InvalidColumnName, changed.format(&output));
+}
+
+test "general Table declarations have one parser and schema owner" {
+    const text = "CREATE TABLE people(id INTEGER PRIMARY KEY, name VARCHAR(40), amount DECIMAL(18,2), tags LIST(UTF8))";
+    try expectError(error.UnsupportedDeclaration, d.compile(text));
+    var definition = try f.TableDdl.compile(std.testing.allocator, text, null, null);
+    defer definition.deinit();
+    const schema = try definition.statement.create.bind(9);
+    try expect(schema.columns[0].type == .int32 and !schema.columns[0].nullable);
+    try expect(schema.columns[1].nullable and schema.columns[1].max_characters == 40);
+    try expect(schema.columns[2].type == .decimal and schema.columns[3].type == .list);
+    try expect(schema.columns.len == 4 and schema.primary_key.len == 1);
 }

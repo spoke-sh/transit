@@ -93,55 +93,26 @@ pub fn parseTemplate(text: []const u8, location: ?*Location) !TemplateAst {
     ast.unbound_parameters = parameters.any();
     return .{ .ast = ast, .parameters = parameters };
 }
-/// Offline state declaration syntax. No catalog lookup, provisioning or grants.
-/// Omitted nullability remains unspecified; semantic validation is separate.
+/// Offline KV/Document syntax. General Table DDL uses TableDdl.compile.
+/// No catalog lookup, provisioning or grants.
 pub fn parseDeclaration(text: []const u8) !?f.Declaration.Definition {
     return parseDeclarationLocated(text, null);
 }
 pub fn parseDeclarationLocated(text: []const u8, location: ?*Location) !?f.Declaration.Definition {
-    return parseDeclarationDetailed(text, location, null);
-}
-pub const DeclarationLocations = struct {
-    columns: [f.Declaration.max_columns]?usize = @splat(null),
-};
-pub fn parseDeclarationDetailed(text: []const u8, location: ?*Location, locations: ?*DeclarationLocations) !?f.Declaration.Definition {
     if (location) |value| value.* = .{};
-    if (locations) |value| value.* = .{};
     try validateText(text);
     var parser: Parser = .{ .lexer = .{ .text = text }, .location = location };
-    return declaration(&parser, locations);
+    return declaration(&parser);
 }
-fn declaration(parser: *Parser, locations: ?*DeclarationLocations) !?f.Declaration.Definition {
+fn declaration(parser: *Parser) !?f.Declaration.Definition {
     try parser.advance();
     if (!parser.word("CREATE")) return null;
     try parser.advance();
-    const table = parser.word("TABLE");
     const kv = parser.word("KV");
-    if (!table and !kv and !parser.word("DOCUMENT")) return error.UnsupportedDeclaration;
+    if (!kv and !parser.word("DOCUMENT")) return error.UnsupportedDeclaration;
     try parser.advance();
     const name = try parser.name();
-    const body: f.Declaration.Body = if (table) blk: {
-        var columns: f.Declaration.Columns = @splat(null);
-        try parser.require(.left);
-        for (&columns, 0..) |*slot, index| {
-            if (locations) |value| value.columns[index] = parser.lexer.start;
-            const column_name = try parser.name();
-            const data_type = try parser.declarationType();
-            const nullability: f.Declaration.Nullability = if (parser.word("NOT")) nullable: {
-                try parser.advance();
-                try parser.requireWord("NULL");
-                break :nullable .not_null;
-            } else if (parser.word("NULL")) nullable: {
-                try parser.advance();
-                break :nullable .null;
-            } else .unspecified;
-            slot.* = .{ .name = column_name, .type = data_type, .nullability = nullability };
-            if (!try parser.take(.comma)) break;
-            if (index + 1 == columns.len) return error.DeclarationTooManyColumns;
-        }
-        try parser.require(.right);
-        break :blk .{ .table = columns };
-    } else if (kv) blk: {
+    const body: f.Declaration.Body = if (kv) blk: {
         try parser.require(.left);
         const data_type = try parser.declarationType();
         try parser.require(.right);
@@ -257,7 +228,7 @@ pub fn classifyTokens(text: []const u8, roles: []TokenRole) void {
         var ast: Ast = undefined;
         statement(&parser, &ast) catch {};
     } else if (std.ascii.eqlIgnoreCase(first.text, "CREATE")) {
-        _ = declaration(&parser, null) catch null;
+        _ = declaration(&parser) catch null;
     } else if (std.ascii.eqlIgnoreCase(first.text, "EXPLAIN") or std.ascii.eqlIgnoreCase(first.text, "DESCRIBE") or std.ascii.eqlIgnoreCase(first.text, "SHOW")) {
         _ = inspection(&parser) catch null;
     }
