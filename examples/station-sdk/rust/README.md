@@ -5,6 +5,13 @@ Strictly typed counter/requester and Table/query handlers use the
 `u64` and `i64`; correlations are saved in associated state before later reply
 handling. The library exports the handlers, schemas, keys and role-specific codecs.
 
+The Table service follows the shared [durable FIFO contract](../TABLES.md).
+Creation and insert/update/delete use original admitted input identities across
+bounded self continuations. It records terminal outcomes before removing work,
+including rejected mutations. Queries receive an authenticated NotReady reply
+while work remains; a later explicit Start reads four columns with UTF8 and LIST
+defaults. Queue records use strict neutral codecs and keep the four-write budget.
+
 The installed CLI is `transit-rust-counter CONFIG service --commits 1`
 (or `requester`). CONFIG supplies `url`, explicit `profile: "native_v1"`, realm,
 PID, principal, generation, seed file and peer PID. Provision ownership, grants

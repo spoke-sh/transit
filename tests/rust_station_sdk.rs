@@ -13,7 +13,7 @@ use transit_client::{
     OperationIdentity, ProcessRef, ResourceRef, Result,
 };
 use transit_sdk_examples::codecs::*;
-use transit_sdk_examples::{Counter, QueryRequester, Requester, TableService, TABLE, TOTAL};
+use transit_sdk_examples::{Counter, QueryRequester, Requester, TableService, TABLE, TOTAL, signed};
 use transit_station_sdk::*;
 
 fn number(cfg: &Value, name: &str) -> u64 {
@@ -146,15 +146,15 @@ impl Handler<QueryMessage> for TableProof {
                 value: QueryMessage::Rows,
                 ..
             } => {
-                let mut table = turn.table(&TABLE)?;
+                let mut table = turn.table(TABLE.object)?;
                 let mut cursor = None;
                 let mut rows = Vec::new();
                 let mut pages = 0;
                 loop {
-                    let page = table.page(cursor.as_ref())?;
-                    assert!(page.entries.len() <= 8);
-                    assert_eq!(page.basis.as_ref(), Some(table.basis()));
-                    rows.extend(page.entries);
+                    let page = table.page(cursor.as_ref(), 8)?;
+                    assert!(page.rows.len() <= 8);
+                    assert_eq!(table.schema(), &*TABLE);
+                    rows.extend(page.rows);
                     pages += 1;
                     cursor = page.next;
                     if cursor.is_none() {
@@ -162,15 +162,18 @@ impl Handler<QueryMessage> for TableProof {
                     }
                 }
                 assert_eq!(rows.len(), 41);
-                assert_eq!(pages, 6);
-                assert_eq!(rows[0].key, i64::MIN);
-                assert_eq!(rows[0].value, None);
+                assert!(pages >= 6);
+                use transit_station_sdk::logical::{Cell, CellValue, Atom};
+                assert_eq!(rows[0].cells[0], signed(i64::MIN));
+                assert_eq!(rows[0].cells[1], Cell::Null);
+                for row in &rows {
+                    assert_eq!(row.cells.len(), 4);
+                    assert_eq!(row.cells[2], Cell::Value(CellValue::Atom(Atom::Utf8("example".into()))));
+                    assert_eq!(row.cells[3], Cell::Value(CellValue::List(vec![signed(1),signed(2)])));
+                }
                 let version = turn.retain()?;
                 fs::write(saved, json!({"pid":version.pid.get(),"input":version.input.get(),"index":version.index}).to_string()).map_err(io_error)?;
-                turn.table(&TABLE)?.update(&Row {
-                    key: i64::MIN,
-                    value: Some(17),
-                })
+                Ok(())
             }
             Incoming::Cast {
                 value: QueryMessage::Initialize,
@@ -183,10 +186,10 @@ impl Handler<QueryMessage> for TableProof {
                     input: Count::new(number(&value, "input"))?,
                     index: number(&value, "index") as u8,
                 };
-                assert_eq!(turn.table(&TABLE)?.get(i64::MIN)?.unwrap().value, Some(17));
+                assert_eq!(turn.table(TABLE.object)?.get_key(&[signed(i64::MIN)])?.unwrap().cells[1], signed(17));
                 let mut source = turn.open_version(version)?;
-                assert_eq!(source.table(&TABLE)?.get(i64::MIN)?.unwrap().value, None);
-                assert_eq!(source.table(&TABLE)?.page(None)?.entries.len(), 8);
+                assert_eq!(source.table(TABLE.object)?.get_key(&[signed(i64::MIN)])?.unwrap().cells[1], transit_station_sdk::logical::Cell::Null);
+                assert_eq!(source.table(TABLE.object)?.page(None, 8)?.rows.len(), 8);
                 assert!(source.state().page(None)?.entries.len() <= 8);
                 turn.release(version)
             }
@@ -241,7 +244,7 @@ fn save_owned(shared: &Shared, output: &str) -> Result<()> {
     }
     #[cfg(feature = "arrow")]
     if !batches.is_empty() {
-        use arrow_array::{Array, Int64Array, ListArray, StructArray, UInt8Array};
+        use arrow_array::{Array, Int64Array, ListArray, StringArray, StructArray, UInt8Array};
         fn cell(array: &dyn Array, index: usize) -> Option<i64> {
             let cells = array.as_any().downcast_ref::<StructArray>().unwrap();
             assert!(!cells.is_null(index));
@@ -263,16 +266,12 @@ fn save_owned(shared: &Shared, output: &str) -> Result<()> {
                 .as_any()
                 .downcast_ref::<Int64Array>()
                 .unwrap();
-            let alternatives = cells
-                .column_by_name("alternatives")
-                .unwrap()
-                .as_any()
-                .downcast_ref::<ListArray>()
-                .unwrap();
-            assert_eq!(alternatives.value_length(index), 0);
+            if let Some(alternatives) = cells.column_by_name("alternatives") {
+                assert_eq!(alternatives.as_any().downcast_ref::<ListArray>().unwrap().value_length(index), 0);
+            }
             match states.value(index) {
                 1 => {
-                    assert_eq!(kinds.value(index), 7);
+                    assert_eq!(kinds.value(index), 0);
                     assert!(values.is_null(index));
                     None
                 }
@@ -286,7 +285,22 @@ fn save_owned(shared: &Shared, output: &str) -> Result<()> {
         }
         let mut rows = Vec::new();
         for batch in batches {
+            assert_eq!(batch.num_columns(), 4);
+            let labels = batch.column(2).as_any().downcast_ref::<StructArray>().unwrap();
+            let tags = batch.column(3).as_any().downcast_ref::<StructArray>().unwrap();
             for i in 0..batch.num_rows() {
+                for wrapper in [labels, tags] {
+                    assert!(!wrapper.is_null(i));
+                    assert_eq!(wrapper.column_by_name("state").unwrap().as_any().downcast_ref::<UInt8Array>().unwrap().value(i), 3);
+                    assert_eq!(wrapper.column_by_name("alternatives").unwrap().as_any().downcast_ref::<ListArray>().unwrap().value_length(i), 0);
+                }
+                let label = labels.column_by_name("value").unwrap().as_any().downcast_ref::<StringArray>().unwrap();
+                assert!(!label.is_null(i)); assert_eq!(label.value(i), "example");
+                let lists = tags.column_by_name("value").unwrap().as_any().downcast_ref::<ListArray>().unwrap();
+                assert!(!lists.is_null(i));
+                let children = lists.value(i); assert_eq!(children.len(), 2);
+                assert_eq!(cell(children.as_ref(), 0), Some(1));
+                assert_eq!(cell(children.as_ref(), 1), Some(2));
                 rows.push((
                     cell(batch.column(0).as_ref(), i).unwrap(),
                     cell(batch.column(1).as_ref(), i),
@@ -556,6 +570,26 @@ fn codecs(cfg: &Value) -> Result<()> {
             "counter" => CounterFormat.decode(&bytes).is_err(),
             "query" => QueryFormat.decode(&bytes).is_err(),
             "u64" => U64Codec.decode(&bytes).is_err(),
+            _ => false,
+        });
+    }
+    use transit_sdk_examples::table_work::{QueueCodec, WorkCodec, OutcomeCodec};
+    let table_fixtures: Value = serde_json::from_slice(&fs::read(path(cfg, "table_fixtures")).map_err(io_error)?).map_err(io_error)?;
+    for item in table_fixtures["valid"].as_array().unwrap() {
+        let bytes = transit_client::internal::unhex(item["hex"].as_str().unwrap(), 256)?;
+        let encoded = match item["codec"].as_str().unwrap() {
+            "queue" => QueueCodec.encode(&QueueCodec.decode(&bytes)?)?,
+            "work" => WorkCodec.encode(&WorkCodec.decode(&bytes)?)?,
+            "outcome" => OutcomeCodec.encode(&OutcomeCodec.decode(&bytes)?)?,
+            _ => panic!("table codec"),
+        }; assert_eq!(encoded, bytes);
+    }
+    for item in table_fixtures["invalid"].as_array().unwrap() {
+        let bytes = transit_client::internal::unhex(item["hex"].as_str().unwrap(), 256)?;
+        assert!(match item["codec"].as_str().unwrap() {
+            "queue" => QueueCodec.decode(&bytes).is_err(),
+            "work" => WorkCodec.decode(&bytes).is_err(),
+            "outcome" => OutcomeCodec.decode(&bytes).is_err(),
             _ => false,
         });
     }

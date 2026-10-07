@@ -29,15 +29,25 @@ pub enum QueryValue {
     Insert { key: i64, value: Option<i64> },
     Rows,
     Start,
+    Advance,
+    NotReady,
+    Update { key: i64, value: Option<i64> },
+    Delete { key: i64 },
 }
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum QueryMessage {
     Initialize,
     Insert { key: i64, value: Option<i64> },
     Rows,
+    Advance,
+    Update { key: i64, value: Option<i64> },
+    Delete { key: i64 },
 }
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub struct QueryStart;
+pub enum QueryStart {
+    Start,
+    NotReady,
+}
 
 #[derive(Clone, Copy)]
 pub struct CounterFormat;
@@ -124,13 +134,20 @@ impl Codec<QueryValue> for QueryFormat {
             QueryValue::Insert { .. } => 2,
             QueryValue::Rows => 3,
             QueryValue::Start => 4,
+            QueryValue::Advance => 5,
+            QueryValue::NotReady => 6,
+            QueryValue::Update { .. } => 7,
+            QueryValue::Delete { .. } => 8,
         });
-        if let QueryValue::Insert { key, value } = value {
+        if let QueryValue::Insert { key, value } | QueryValue::Update { key, value } = value {
             bytes.extend_from_slice(&key.to_le_bytes());
             bytes.push(u8::from(value.is_some()));
             if let Some(value) = value {
                 bytes.extend_from_slice(&value.to_le_bytes());
             }
+        }
+        if let QueryValue::Delete { key } = value {
+            bytes.extend_from_slice(&key.to_le_bytes());
         }
         Ok(bytes)
     }
@@ -142,14 +159,27 @@ impl Codec<QueryValue> for QueryFormat {
             (1, 5) => Ok(QueryValue::Initialize),
             (3, 5) => Ok(QueryValue::Rows),
             (4, 5) => Ok(QueryValue::Start),
-            (2, 14) if bytes[13] == 0 => Ok(QueryValue::Insert {
+            (5, 5) => Ok(QueryValue::Advance),
+            (6, 5) => Ok(QueryValue::NotReady),
+            (8, 13) => Ok(QueryValue::Delete {
                 key: i64::from_le_bytes(bytes[5..13].try_into().unwrap()),
-                value: None,
             }),
-            (2, 22) if bytes[13] == 1 => Ok(QueryValue::Insert {
-                key: i64::from_le_bytes(bytes[5..13].try_into().unwrap()),
-                value: Some(i64::from_le_bytes(bytes[14..].try_into().unwrap())),
-            }),
+            (2 | 7, 14 | 22)
+                if (bytes[13] == 0 && bytes.len() == 14)
+                    || (bytes[13] == 1 && bytes.len() == 22) =>
+            {
+                let key = i64::from_le_bytes(bytes[5..13].try_into().unwrap());
+                let value = if bytes[13] == 0 {
+                    None
+                } else {
+                    Some(i64::from_le_bytes(bytes[14..].try_into().unwrap()))
+                };
+                Ok(if bytes[4] == 2 {
+                    QueryValue::Insert { key, value }
+                } else {
+                    QueryValue::Update { key, value }
+                })
+            }
             _ => Err(invalid()),
         }
     }
@@ -223,11 +253,17 @@ selected!(
         QueryMessage::Initialize => QueryValue::Initialize,
         QueryMessage::Insert { key, value } => QueryValue::Insert { key, value },
         QueryMessage::Rows => QueryValue::Rows,
+        QueryMessage::Advance => QueryValue::Advance,
+        QueryMessage::Update { key, value } => QueryValue::Update { key, value },
+        QueryMessage::Delete { key } => QueryValue::Delete { key },
     },
     |value| match value {
         QueryValue::Initialize => Ok(QueryMessage::Initialize),
         QueryValue::Insert { key, value } => Ok(QueryMessage::Insert { key, value }),
         QueryValue::Rows => Ok(QueryMessage::Rows),
+        QueryValue::Advance => Ok(QueryMessage::Advance),
+        QueryValue::Update { key, value } => Ok(QueryMessage::Update { key, value }),
+        QueryValue::Delete { key } => Ok(QueryMessage::Delete { key }),
         _ => Err(invalid()),
     }
 );
@@ -235,9 +271,13 @@ selected!(
     QueryStartCodec,
     QueryStart,
     QueryFormat,
-    |_| QueryValue::Start,
     |value| match value {
-        QueryValue::Start => Ok(QueryStart),
+        QueryStart::Start => QueryValue::Start,
+        QueryStart::NotReady => QueryValue::NotReady,
+    },
+    |value| match value {
+        QueryValue::Start => Ok(QueryStart::Start),
+        QueryValue::NotReady => Ok(QueryStart::NotReady),
         _ => Err(invalid()),
     }
 );

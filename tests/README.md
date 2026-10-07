@@ -17991,3 +17991,30 @@ These are correctness controls using the shared cold-store profile, not latency
 measurements or final shared-definition qualification.
 
 Raw `sdk-table-queue-dotnet-native3.log` SHA-256: `7d97dc9f83549baa9ebe32e2f68097bd6991b9636e9af46e64a8d9fb6406c921`.
+
+### Rust queued general Table example
+
+Fresh native/client/Station/example crates pass the full installed Station and
+HTTP schedules (`sdk-table-queue-rust-native3.log`, exit 0). The Rust application
+uses the shared [durable FIFO](../examples/station-sdk/TABLES.md), exact original
+mutation identities, strict owned queue codecs and four-column logical values.
+The installed consumer verifies the neutral message/FIFO fixtures, 46 terminal
+outcomes in 462 drain turns, rejection followed by later queued work, authenticated
+busy replies, retained old rows, current-grant denial and exact signed recovery.
+
+Both core and optional Arrow consumers compile from locked offline dependencies;
+compile-fail borrow/lifetime/value checks remain enabled. The Arrow adapter verifies
+UTF8/list defaults, full-width signed integers and nullable values after the runner
+closes and original IPC buffers are overwritten. Independent PyArrow verifies the
+same 41 rows / 6 streams / 41,992 bytes after 275 delivery rounds. Storage observes
+301 cold objects with the common 8 MiB hot cache and 64 authority pages. The full
+HTTP schedule passes in 56.28 seconds.
+
+The first run completes the queue but fails an obsolete Arrow null-kind assertion.
+The second attempt is deliberately interrupted during compilation after finding
+an incorrect value-kind edit; neither is a pass. The final fixture asserts kind
+zero for null and kind one for present INT64, with bounded nested cell wrappers.
+This schedule is correctness evidence, not a latency claim or final contract
+cutover qualification.
+
+Raw `sdk-table-queue-rust-native3.log` SHA-256: `97df38ae57248bae9bff2122a2bfdfab098abc02150b995d9b30993f8680cb02`.
