@@ -10,7 +10,8 @@ their relationship to Transit authority.
 A Station message is `STN1`, a one-byte kind, a little-endian unsigned 64-bit
 correlation, and at most 243 payload bytes. Kind 1 is cast (correlation zero),
 2 is call, 3 is reply, 4 is result fragment, 5 is result completion, 6 is result
-acknowledgement, 7 is cancellation and 8 is timeout (nonzero correlation).
+acknowledgement, 7 is cancellation, 8 is timeout and 9 is a terminal negative
+query result (nonzero correlation).
 The [Table guide](../packages/zig/transit-station/docs/tables.md) records the
 implemented result framing; the [services guide](../packages/zig/transit-station/docs/services.md)
 records timeout, cancellation, registry and supervisor codecs. Unknown versions/kinds and

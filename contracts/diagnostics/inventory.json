@@ -13789,7 +13789,7 @@
       "open_error_set_uses": 1,
       "propagation": {
         "try": 0,
-        "catch": 36
+        "catch": 37
       },
       "imports": [
         "Abi.zig",
@@ -15688,7 +15688,8 @@
           "result_complete",
           "result_ack",
           "cancel",
-          "timeout"
+          "timeout",
+          "result_failed"
         ]
       },
       "error_sets": {},
@@ -16117,7 +16118,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 94,
+        "try": 93,
         "catch": 3
       },
       "imports": [
@@ -16174,7 +16175,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 104,
+        "try": 108,
         "catch": 1
       },
       "imports": [
@@ -16215,6 +16216,7 @@
         "InvalidQueryJob": 7,
         "InvalidQueryStage": 2,
         "InvalidResultCredit": 2,
+        "InvalidResultFailure": 3,
         "InvalidResultFragment": 2,
         "InvalidResultManifest": 2,
         "InvalidResultSegment": 2,
@@ -16236,6 +16238,13 @@
           "cancelled",
           "denied",
           "failed"
+        ],
+        "ResultFailure.Reason": [
+          "result_too_large",
+          "workspace_exceeded",
+          "overflow",
+          "cancelled",
+          "denied"
         ]
       },
       "error_sets": {},
@@ -16253,6 +16262,8 @@
         "Manifest.encode()": "<inferred>",
         "Publication.decode()": "<inferred>",
         "Publication.encode()": "<inferred>",
+        "ResultFailure.decode()": "<inferred>",
+        "ResultFailure.encode()": "<inferred>",
         "Segment.decode()": "<inferred>",
         "Segment.encode()": "<inferred>",
         "Segment.extend()": "<inferred>",
@@ -16264,7 +16275,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 114,
+        "try": 116,
         "catch": 1
       },
       "imports": [

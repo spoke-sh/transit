@@ -9,6 +9,7 @@ const Table = @import("TableReader.zig");
 const Frame = @import("Frame.zig");
 const q = @import("QueryPolicy.zig");
 pub const records = @import("QueryRecords.zig");
+pub const ResultFailure = records.ResultFailure;
 pub const Job = records.Job;
 pub const Segment = records.Segment;
 pub const Continuation = records.Continuation;
@@ -136,8 +137,13 @@ pub fn advance(allocator: std.mem.Allocator, turn: *Turn, request: Continuation,
         stored.phase = .failed;
         stored.failure = reason;
         try turn.write(key('j', stored.result, 0, 0), try stored.encode());
-        var message: [96]u8 = undefined;
-        try turn.send(stored.destination, .{ .kind = .reply, .correlation = stored.correlation, .payload = try p.Value.init(try std.fmt.bufPrint(&message, "station.query.failed.v1:{s}", .{@tagName(reason)})) });
+        const failure: records.ResultFailure = .{ .result = stored.result, .reason = switch (reason) {
+            .result_too_large => .result_too_large,
+            .workspace_exceeded => .workspace_exceeded,
+            .overflow => .overflow,
+            .none => unreachable,
+        } };
+        try turn.send(stored.destination, .{ .kind = .result_failed, .correlation = stored.correlation, .payload = try failure.encode() });
         try turn.validate();
         return .closed;
     };
@@ -198,7 +204,8 @@ pub fn close(turn: *Turn, identity: u64, phase: enum { cancelled, denied }) !voi
     if (stored.phase == .capturing) try turn.release(stored.source);
     stored.phase = if (phase == .cancelled) .cancelled else .denied;
     try turn.write(key('j', identity, 0, 0), try stored.encode());
-    try turn.send(stored.destination, .{ .kind = .reply, .correlation = stored.correlation, .payload = try p.Value.init(if (phase == .cancelled) "station.query.cancelled.v1" else "station.query.denied.v1") });
+    const failure: records.ResultFailure = .{ .result = stored.result, .reason = if (phase == .cancelled) .cancelled else .denied };
+    try turn.send(stored.destination, .{ .kind = .result_failed, .correlation = stored.correlation, .payload = try failure.encode() });
     try turn.validate();
 }
 pub const Captured = struct { job: Job, progress: stream.Progress };

@@ -214,7 +214,7 @@ fn preprocess(self: *GenServer, turn: *Turn) !bool {
             if (try @import("QueryDelivery.zig").dispatch(turn, frame, context)) return true;
         } else {
             switch (frame.kind) {
-                .result_chunk, .result_complete, .result_ack => return error.UnsupportedQuery,
+                .result_chunk, .result_complete, .result_ack, .result_failed => return error.UnsupportedQuery,
                 else => {},
             }
         }

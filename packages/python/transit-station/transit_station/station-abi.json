@@ -22715,7 +22715,8 @@
                 "origin",
                 "kind",
                 "correlation",
-                "payload"
+                "payload",
+                "query_failure"
               ],
               "properties": {
                 "position": {
@@ -22871,7 +22872,8 @@
                     "result_complete",
                     "result_ack",
                     "cancel",
-                    "timeout"
+                    "timeout",
+                    "result_failed"
                   ]
                 },
                 "correlation": {
@@ -22883,6 +22885,45 @@
                   "pattern": "^(?:[0-9a-f]{2})*$",
                   "maxLength": 512,
                   "x-transit-encoding": "lowercase-hex"
+                },
+                "query_failure": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "x-transit-field-order": [
+                        "result",
+                        "reason"
+                      ],
+                      "properties": {
+                        "result": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991,
+                          "x-transit-bits": 64,
+                          "x-transit-signed": false
+                        },
+                        "reason": {
+                          "type": "string",
+                          "enum": [
+                            "result_too_large",
+                            "workspace_exceeded",
+                            "overflow",
+                            "cancelled",
+                            "denied"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "result",
+                        "reason"
+                      ],
+                      "x-transit-defaults": {}
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
                 }
               },
               "required": [
@@ -22890,9 +22931,12 @@
                 "origin",
                 "kind",
                 "correlation",
-                "payload"
+                "payload",
+                "query_failure"
               ],
-              "x-transit-defaults": {}
+              "x-transit-defaults": {
+                "query_failure": null
+              }
             },
             {
               "type": "null"

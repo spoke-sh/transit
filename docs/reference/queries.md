@@ -277,3 +277,16 @@ footer. Reconnecting starts new statements; `execution: durable` explicitly
 selects the captured-query/recovery console behavior.
 [Workload priorities](workloads.md) and [measured costs](performance.md) explain
 the rationale and the shared storage work needed alongside this lifecycle.
+
+
+### Handler query failures
+
+Station handler queries deliver deterministic output/workspace exhaustion and
+arithmetic overflow as typed negative results. Explicit cancellation and policy
+denial also carry a reason. The framework authenticates the recorded source and
+correlation, preserves any received prefix as incomplete evidence, and invokes
+only the first terminal callback. Application message codecs do not decode these
+frames. Storage, allocation and local cancellation failures still abort private
+work; they do not manufacture a terminal result. See the
+[handler query contract](../../contracts/STATION_QUERY_V1.md) for framing,
+wait closure, retained evidence and duplicate handling.

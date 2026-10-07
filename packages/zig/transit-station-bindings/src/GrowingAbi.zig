@@ -74,7 +74,7 @@ pub const Event = struct {
     generation: u64,
     scope: ?u64 = null,
     initializing: bool = false,
-    input: ?struct { position: u64, origin: p.Growth.Origin, kind: s.Frame.Kind, correlation: []const u8, payload: p.Value } = null,
+    input: ?struct { position: u64, origin: p.Growth.Origin, kind: s.Frame.Kind, correlation: []const u8, payload: p.Value, query_failure: ?s.Query.ResultFailure = null } = null,
     resource: ?u64 = null,
     resource_revision: ?u64 = null,
     pending_kind: ?s.GenServer.PendingKind = null,
@@ -191,7 +191,7 @@ fn eventWithAllocator(alloc: std.mem.Allocator, server: *Impl, out: *?*base.Buff
         const frame = s.Frame.decode(turn.delivery.input.value) catch |err| return base.failure(err, out);
         result.scope = server.scope;
         result.initializing = server.behavior.initializing;
-        result.input = .{ .position = turn.delivery.input.position, .origin = turn.delivery.input.origin, .kind = frame.kind, .correlation = std.fmt.bufPrint(&correlation, "{d}", .{frame.correlation}) catch unreachable, .payload = frame.payload };
+        result.input = .{ .position = turn.delivery.input.position, .origin = turn.delivery.input.origin, .kind = frame.kind, .correlation = std.fmt.bufPrint(&correlation, "{d}", .{frame.correlation}) catch unreachable, .payload = frame.payload, .query_failure = if (frame.kind == .result_failed) s.Query.ResultFailure.decode(frame.payload) catch |err| return base.failure(err, out) else null };
         result.resource = turn.view.resource;
         result.resource_revision = turn.view.revision;
     }

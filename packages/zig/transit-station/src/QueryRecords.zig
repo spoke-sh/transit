@@ -17,6 +17,32 @@ pub const fragment_bytes = Frame.max_payload - 22;
 pub const credit_window: u64 = 2;
 pub const Phase = enum(u8) { capturing = 1, captured = 2, published = 3, acknowledged = 4, cancelled = 5, denied = 6, failed = 7 };
 pub const Failure = enum(u8) { none = 0, result_too_large = 1, workspace_exceeded = 2, overflow = 3 };
+/// Terminal negative result, separate from application reply codecs. The source
+/// and correlation come from the authenticated frame and its durable wait.
+pub const ResultFailure = struct {
+    pub const Reason = enum(u8) { result_too_large = 1, workspace_exceeded = 2, overflow = 3, cancelled = 4, denied = 5 };
+    result: u64,
+    reason: Reason,
+
+    pub fn encode(self: ResultFailure) !p.Value {
+        if (self.result == 0 or self.result > p.max_counter) return error.InvalidResultFailure;
+        var bytes: [13]u8 = undefined;
+        bytes[0..4].* = "GQE1".*;
+        std.mem.writeInt(u64, bytes[4..12], self.result, .little);
+        bytes[12] = @backingInt(self.reason);
+        return p.Value.init(&bytes);
+    }
+    pub fn decode(value: p.Value) !ResultFailure {
+        try value.validate();
+        if (value.len != 13 or !std.mem.eql(u8, value.data[0..4], "GQE1")) return error.InvalidResultFailure;
+        const self: ResultFailure = .{
+            .result = std.mem.readInt(u64, value.data[4..12], .little),
+            .reason = std.enums.fromInt(Reason, value.data[12]) orelse return error.InvalidResultFailure,
+        };
+        _ = try self.encode();
+        return self;
+    }
+};
 
 pub fn key(tag: u8, result: u64, ordinal: u64, fragment: u16) p.Value {
     var bytes: [21]u8 = undefined;

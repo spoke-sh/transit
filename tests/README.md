@@ -18172,3 +18172,21 @@ recursive-reference regression test. `general-docs-check2.log` passes formatting
 lint, TypeScript, all eight content tests and the production site build with
 strict anchor checking. The preceding run passed seven content tests but failed
 the production build on a generated `#t0` anchor; it is not counted as a pass.
+
+### Authenticated negative handler-query outcomes
+
+`query-failure-native-unit2.log` passes the root Zig test target, including the
+native/port codec fixtures. `query-failure-station-unit3.log` passes the Station
+unit suite after adding all five negative reasons, malformed wire lengths/codes/
+identities, forged or external sources, unknown correlations, conflicting prefix
+identity, first-versus-late callbacks, partial evidence retention and private
+write-budget rollback. Earlier deterministic capture tests still distinguish
+host allocation failure from terminal query budget outcomes. The first root
+attempt failed an absent public type export; its corrected rerun passes.
+
+Negative outcomes use dedicated `result_failed` framing and a native-decoded ABI
+`query_failure` value. No application codec parses framework error strings.
+Generated host contracts, documentation links, diagnostic mappings and verification
+registry checks pass. Typed language callbacks, installed-runtime negative-result
+proofs and the final shared-definition cutover remain separate qualification work;
+these unit results do not establish that those consumers are complete.

@@ -693,7 +693,9 @@ test "deterministic query budget failure closes once and never publishes a compl
     try t.expect(store.version.?.released_at != null);
     try t.expectError(error.IncompleteResult, q.captured(&inspect, job.result));
     try t.expectEqual(@as(usize, 1), countSet(failed.turn.decision.outputs));
-    try t.expectEqualStrings("station.query.failed.v1:workspace_exceeded", (try Frame.decode(failed.turn.decision.outputs[0].?.value)).payload.slice());
+    const response = try Frame.decode(failed.turn.decision.outputs[0].?.value);
+    try t.expectEqual(.result_failed, response.kind);
+    try t.expectEqualDeep(r.ResultFailure{ .result = job.result, .reason = .workspace_exceeded }, try r.ResultFailure.decode(response.payload));
     const duplicate = try advance(&store, next, &workspace, &cancel);
     try t.expectEqual(.duplicate, duplicate.result);
     try t.expect(countSet(duplicate.turn.decision.outputs) == 0);
@@ -758,4 +760,108 @@ test "a completed segment prefix remains incomplete when the next page fails" {
     try t.expectError(error.IncompleteResult, q.captured(&inspect, job.result));
     try t.expectError(error.IncompleteResult, q.beginPublication(&inspect, job.result));
     try t.expect(countSet(inspect.decision.outputs) == 0);
+}
+
+test "query failures authenticate, preserve partial evidence and invoke only the first callback" {
+    const reasons = [_]r.ResultFailure.Reason{ .result_too_large, .workspace_exceeded, .overflow, .cancelled, .denied };
+    for (reasons) |reason| {
+        var receiver: Store = .{ .pid = 8, .resource = 9 };
+        defer receiver.deinit();
+        var initial = try receiver.turn(.{ .kind = .cast }, 8);
+        const correlation = try initial.call(2, .{}, null);
+        try receiver.commit(initial);
+        var workspace: [1]u8 = undefined;
+        const cancel = f.execution.Cancellation.init(false);
+        const context: q.Context = .{ .allocator = t.allocator, .workspace = &workspace, .cancellation = &cancel };
+        const data = [_]u8{ 10, 20 };
+        const partial: Frame = .{ .kind = .result_chunk, .correlation = correlation, .payload = try (r.Fragment{ .result = 55, .segment = 0, .offset = 0, .bytes = &data }).encode() };
+        var turn = try receiver.turn(partial, 2);
+        try t.expect(try q.dispatch(&turn, partial, context));
+        try receiver.commit(turn);
+        var frame: Frame = .{ .kind = .result_failed, .correlation = correlation, .payload = try (r.ResultFailure{ .result = 55, .reason = reason }).encode() };
+        turn = try receiver.turn(frame, 3);
+        try t.expectError(error.UnexpectedReplySource, q.dispatch(&turn, frame, context));
+        try t.expectEqual(@as(usize, 0), countSet(turn.decision.mutations));
+        frame.payload = try (r.ResultFailure{ .result = 56, .reason = reason }).encode();
+        turn = try receiver.turn(frame, 2);
+        try t.expectError(error.ConflictingResultIdentity, q.dispatch(&turn, frame, context));
+        try t.expectEqual(.waiting, (try turn.waiting(correlation)).?.phase);
+        try t.expectEqual(@as(usize, 0), countSet(turn.decision.mutations));
+        frame.payload = try (r.ResultFailure{ .result = 55, .reason = reason }).encode();
+        turn = try receiver.turn(frame, 2);
+        try t.expect(!try q.dispatch(&turn, frame, context));
+        try t.expectEqual(.replied, (try turn.waiting(correlation)).?.phase);
+        try t.expectError(error.IncompleteResult, q.completed(&turn, correlation));
+        try t.expectEqualDeep(try r.ResultFailure.decode(frame.payload), try r.ResultFailure.decode((try turn.read(r.key('h', correlation, 0, 0))).?));
+        try t.expectEqual(@as(usize, 2), countSet(turn.decision.mutations));
+        try t.expectEqual(@as(usize, 0), countSet(turn.decision.outputs));
+        try receiver.commit(turn);
+        turn = try receiver.turn(frame, 2);
+        try t.expect(try q.dispatch(&turn, frame, context));
+        try t.expectEqualStrings("station.closed-result.v1", (try turn.read(try p.Value.init("\x00disposition"))).?.slice());
+        try t.expectEqualSlices(u8, &data, (try turn.read(r.key('d', correlation, 0, 0))).?.slice());
+        // Even a different late failure cannot overwrite the first terminal evidence.
+        frame.payload = try (r.ResultFailure{ .result = 55, .reason = if (reason == .denied) .overflow else .denied }).encode();
+        turn = try receiver.turn(frame, 2);
+        try t.expect(try q.dispatch(&turn, frame, context));
+        try t.expectEqual(reason, (try r.ResultFailure.decode((try turn.read(r.key('h', correlation, 0, 0))).?)).reason);
+    }
+}
+
+test "query failure wire rejects malformed codes, sizes and identities" {
+    const good = try (r.ResultFailure{ .result = 55, .reason = .overflow }).encode();
+    for (0..good.len) |length| try t.expectError(error.InvalidResultFailure, r.ResultFailure.decode(try p.Value.init(good.slice()[0..length])));
+    var bad = good;
+    bad.len += 1;
+    try t.expectError(error.InvalidResultFailure, r.ResultFailure.decode(bad));
+    for ([_]u8{ 0, 6, 255 }) |code| {
+        bad = good;
+        bad.data[12] = code;
+        try t.expectError(error.InvalidResultFailure, r.ResultFailure.decode(bad));
+    }
+    for ([_]u64{ 0, p.max_counter + 1, std.math.maxInt(u64) }) |identity| {
+        bad = good;
+        std.mem.writeInt(u64, bad.data[4..12], identity, .little);
+        try t.expectError(error.InvalidResultFailure, r.ResultFailure.decode(bad));
+    }
+    bad = good;
+    bad.data[0] ^= 1;
+    try t.expectError(error.InvalidResultFailure, r.ResultFailure.decode(bad));
+}
+
+test "negative result admission preserves wait, authority and private budget gates" {
+    var receiver: Store = .{ .pid = 8, .resource = 9 };
+    defer receiver.deinit();
+    var workspace: [1]u8 = undefined;
+    const cancel = f.execution.Cancellation.init(false);
+    const context: q.Context = .{ .allocator = t.allocator, .workspace = &workspace, .cancellation = &cancel };
+    var initial = try receiver.turn(.{ .kind = .cast }, 8);
+    const correlation = try initial.call(2, .{}, null);
+    try receiver.commit(initial);
+    var frame: Frame = .{ .kind = .result_failed, .correlation = correlation + 1, .payload = try (r.ResultFailure{ .result = 55, .reason = .denied }).encode() };
+    var turn = try receiver.turn(frame, 2);
+    try t.expectError(error.UnknownCorrelation, q.dispatch(&turn, frame, context));
+    frame.correlation = correlation;
+    turn = try receiver.turn(frame, 2);
+    turn.delivery.input.origin = .{ .external = .{ .principal = 0, .policy_revision = 1 } };
+    try t.expectError(error.ExpectedProcessOrigin, q.dispatch(&turn, frame, context));
+    turn = try receiver.turn(frame, 2);
+    for ([_][]const u8{ "one", "two", "three" }) |key| try turn.put(try p.Value.init(key), .{});
+    const before = turn.decision;
+    try t.expectError(error.MutationBudgetExceeded, q.dispatch(&turn, frame, context));
+    try t.expect(std.meta.eql(before, turn.decision));
+    try t.expectEqual(.waiting, (try turn.waiting(correlation)).?.phase);
+    turn = try receiver.turn(frame, 2);
+    frame.payload.data[12] = 0;
+    turn.delivery.input.value = try frame.encode();
+    try t.expectError(error.InvalidResultFailure, q.dispatch(&turn, frame, context));
+    try t.expectEqual(@as(usize, 0), countSet(turn.decision.mutations));
+    frame.payload = try (r.ResultFailure{ .result = 55, .reason = .denied }).encode();
+    turn = try receiver.turn(frame, 2);
+    try t.expect(try @import("Waiting.zig").cancel(&turn, correlation));
+    try receiver.commit(turn);
+    turn = try receiver.turn(frame, 2);
+    try t.expect(try q.dispatch(&turn, frame, context));
+    try t.expectEqual(.cancelled, (try turn.waiting(correlation)).?.phase);
+    try t.expect(try turn.read(r.key('h', correlation, 0, 0)) == null);
 }

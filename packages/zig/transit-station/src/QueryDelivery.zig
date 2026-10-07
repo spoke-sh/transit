@@ -116,6 +116,15 @@ fn receiving(turn: *Turn, frame: Frame, context: Context) !bool {
         return true;
     }
     if (context.cancellation.load(.acquire)) return error.Cancelled;
+    if (frame.kind == .result_failed) {
+        const failure = try r.ResultFailure.decode(frame.payload);
+        _ = try receiveTransfer(turn, frame.correlation, failure.result, peer);
+        try turn.write(r.key('h', frame.correlation, 0, 0), frame.payload);
+        wait.phase = .replied;
+        wait.resolution_input = turn.delivery.input.position;
+        try turn.write(Turn.waitKey(frame.correlation), wait.encode());
+        return false; // First authenticated terminal failure invokes application code.
+    }
     if (frame.kind == .result_chunk) {
         if (std.mem.startsWith(u8, frame.payload.slice(), "GQF1")) {
             const fragment = try r.Fragment.decode(&frame.payload);
@@ -199,7 +208,7 @@ pub fn dispatch(turn: *Turn, frame: Frame, context: Context) !bool {
             }
             break :blk false;
         },
-        .result_chunk, .result_complete => try receiving(turn, frame, context),
+        .result_chunk, .result_complete, .result_failed => try receiving(turn, frame, context),
         .result_ack => blk: {
             try acknowledge(turn, frame);
             break :blk true;

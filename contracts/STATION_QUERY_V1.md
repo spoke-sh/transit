@@ -4,7 +4,7 @@
 and `QueryRecords` define publication, delivery and acknowledgement. Enable
 result frames by supplying a `QueryDelivery.Context` with an allocator, bounded workspace
 and cancellation flag. Without it, `GenServer` rejects
-`result_chunk`/`result_complete`/`result_ack` with `error.UnsupportedQuery`.
+`result_chunk`/`result_complete`/`result_ack`/`result_failed` with `error.UnsupportedQuery`.
 The growing C/port ABI owns that context when configured with `query_results: true`.
 Public language runners use the same shared implementation. This contract builds
 on [Station](STATION_V1.md), [retained read versions](READ_VERSIONS_V1.md)
@@ -193,12 +193,32 @@ an old fixed-layout job: the current native definition and exact lengths reject
 incompatible records.
 
 A deterministic encoder output/workspace exhaustion or arithmetic overflow during
-capture records failure, releases the source and replies with
-`station.query.failed.v1:<failure-name>` in one native proposal. Earlier captured
+capture records failure, releases the source and sends a typed `result_failed`
+frame in one native proposal. Earlier captured
 segments remain retained evidence and never form a completed result. The failed
 job is terminal; duplicate continuations and later cancellation cannot rewrite
 its outcome. Host allocator failures, failed source reads and local cancellation
 still abort the private proposal. They do not authorize a failed-result commit.
+
+`GQE1` negative-result payloads are 13 bytes: magic, result ID (u64le) and
+reason (u8). Reasons are result_too_large=1, workspace_exceeded=2, overflow=3,
+cancelled=4 and denied=5. IDs must be positive admitted native identities;
+unknown reasons and noncanonical lengths reject. Explicit job cancellation and
+policy denial use the same frame. Application reply payloads do not carry
+framework query failures.
+
+The receiver checks the authenticated process against its durable wait, then
+checks the result identity against any received prefix. It records the payload
+under key tag `h` (correlation), closes the wait as replied and exposes the first
+failure to the handler in the same private proposal. The ABI's ready input includes
+`query_failure: {result, reason}` only for `result_failed`; other inputs carry null.
+Handlers must explicitly handle this framework outcome. It bypasses application
+message codecs and never supplies a completed result reader. Handler failure
+follows the selected block/stop policy and cannot commit a partial callback.
+Duplicate or late results record a disposition without invoking another callback,
+overwriting the first outcome or reopening cancellation/timeout. No acknowledgement
+or automatic new query is emitted. Existing captured/received bytes remain retained
+evidence; the negative result is not successful completion or physical cleanup.
 
 `GQS1` segment manifests are 55 bytes: result and ordinal (u64 each), bytes
 (u16), rows (u8), SHA-256 (32 bytes). The chain starts with 32 zero bytes. Each
@@ -287,10 +307,11 @@ encode/decode functions above remain the source of truth for byte layout.
 | `GQC1` | `Continuation` | Station `cast` payload (capture self-continuation) |
 | `GQX1` | `Transfer` | durable value, key tags `u` (sender copy) and `r` (receiver copy) |
 | `GQM1` | `Manifest` | durable value (key tag `z`) and `result_complete` payload |
+| `GQE1` | `ResultFailure` | `result_failed` payload and receiver durable value, key tag `h` |
 | `GQF1` | `Fragment` | `result_chunk` payload (raw bytes) |
 | `GQP1` | `Publication` | Station `cast` payload (publication self-continuation) |
 | `GQG1` | `Credit` | durable value, key tag `g` (sender copy only) and `cast` payload (receiver-to-sender grant) |
 
-`QueryRecords.key`'s own one-byte tags (`j p e s i m f v r z g`, distinct from
+`QueryRecords.key`'s own one-byte tags (`j p e s i m f v r z g h`, distinct from
 the four-byte magics above) select which durable record a key addresses; they
 are documented alongside the layout sections above, not repeated here.
