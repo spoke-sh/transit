@@ -210,3 +210,34 @@ test "bounded Table pages retain order and release an incomplete prefix on read 
     store.remaining_blobs = null;
     try readPage(e.allocator, data, &store);
 }
+
+test "pull scans prefetch references without decoding unused row values and recheck identity on load" {
+    var store: Store = .{};
+    defer store.deinit();
+    var data: Data = .{ .schema = schema };
+    for (0..11) |i| data = (try data.insert(e.allocator, &store, .{ .identity = identity(@intCast(i)), .cells = &.{ text("tenant"), integer(@intCast(i)), text("payload") } })).data;
+    var refs: [8]Data.RowReference = undefined;
+    // No row body can be loaded yet. Reference gathering uses only the index.
+    store.remaining_blobs = 0;
+    try e.expectEqual(@as(usize, 8), try data.references(&store, null, &refs));
+    for (refs, 0..) |ref, i| try e.expectEqualDeep(identity(@intCast(i)), ref.identity);
+    try e.expectError(error.StorageUnavailable, data.loadReference(e.allocator, &store, refs[0]));
+    store.remaining_blobs = 1;
+    var first = try data.loadReference(e.allocator, &store, refs[0]);
+    defer first.deinit();
+    try e.expectEqualStrings("payload", first.row().cells[2].value.atom.bytes);
+    try e.expectEqual(@as(usize, 0), store.remaining_blobs.?);
+    store.remaining_blobs = null;
+    var wrong = refs[0];
+    wrong.identity = refs[1].identity;
+    try e.expectError(error.InvalidTableIndex, data.loadReference(e.allocator, &store, wrong));
+    wrong = refs[0];
+    wrong.blob.spec.digest[0] ^= 1;
+    try e.expectError(error.InvalidTableBlob, data.loadReference(e.allocator, &store, wrong));
+    store.denied = true;
+    try e.expectError(error.AccessDenied, data.loadReference(e.allocator, &store, refs[0]));
+    try e.expectError(error.AccessDenied, data.references(&store, refs[7].identity, &refs));
+    store.denied = false;
+    try e.expectEqual(@as(usize, 3), try data.references(&store, identity(7), &refs));
+    try e.expectEqualDeep(identity(10), refs[2].identity);
+}

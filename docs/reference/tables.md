@@ -100,8 +100,10 @@ format and does not itself supply scan pruning.
 
 Finite query pages acquire at most eight row references together. Publication
 headers are validated before bounded chunk prefetch, and each decoded row retains
-its schema, digest and identity checks. This storage page size is separate from
-execution-vector design.
+its schema, digest and identity checks. Interactive pull scans decode one row
+at a time from those references, so a selected LIMIT does not allocate the
+remaining values. Current authorization still precedes every output. This storage
+page size is separate from execution-vector design.
 
 Each [interactive query](queries.md) captures an explicit source basis and checks
 current authorization before disclosure. Durable query jobs separately retain

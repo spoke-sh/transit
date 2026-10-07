@@ -18298,3 +18298,15 @@ checks. The final shared-definition replacement covers this incompatible v1
 node encoding; no old-envelope decoder is retained.
 
 Raw `packed-index-root-unit1.log` SHA-256: `f8a9f88dca914da04ad0b24f134ea462bee1ac3aaa7e922f83400f086f362c2f`.
+
+### Lazy pull decoding with bounded Table prefetch
+
+`table-pull-prefetch-station1.log` and `table-pull-prefetch-unit1.log` pass the
+Station (114 tests) and query package suites. Catalog SELECT gathers at most
+eight immutable row references and prefetches their bounded headers/chunks,
+then decodes one owned row per pull. The complete source schema, blob commitment
+and row identity still validate on load; current rights still precede output.
+A source unit forbids all row-body loads during reference gathering, permits
+one subsequent decode, rejects changed identities/digests and current denial,
+and checks the final short page. Existing allocation-failure page tests pass.
+Native lifecycle and request/latency measurements remain separate checks.

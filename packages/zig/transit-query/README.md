@@ -19,7 +19,9 @@ source under current policy. Both execute in separately provisioned Station host
 `TableQuery` executes [general typed Table SELECT](../../../contracts/TABLE_QUERY_V1.md)
 through the catalog's signed connection, without a separately configured source
 or requester per Table. It owns a leased snapshot, typed plan and bounded native
-entry cache. Each output is one owned logical row; current catalog and native
+entry cache. Pull scans acquire at most eight immutable row references together,
+prefetch their bounded headers/chunks, and decode one owned row at a time.
+Stopping at LIMIT does not allocate the remaining row values. Each output is one owned logical row; current catalog and native
 authorization precede disclosure, including completion and empty output. Explicit
 request, row and canonical-byte budgets apply. The console's `catalog_v1` profile uses this adapter. Durable-query and
 foreign-language routes retain their separately admitted profiles.

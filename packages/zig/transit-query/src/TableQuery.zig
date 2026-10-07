@@ -130,6 +130,10 @@ const Scan = struct {
     after: ?f.TableRow.Identity = null,
     point: ?[]const f.Types.Values.Cell = null,
     point_read: bool = false,
+    row_references: [g.page_size]s.TableData.RowReference = undefined,
+    reference_count: usize = 0,
+    reference_index: usize = 0,
+    reference_end: bool = false,
     scanned: u64 = 0,
     complete: bool = false,
     rejection: ?p.ErrorCode = null,
@@ -257,7 +261,18 @@ const Scan = struct {
             self.point_read = true;
             const id = (try data.findKey(self.allocator, &pages, key)) orelse break :point null;
             break :point (try data.get(self.allocator, &pages, id)) orelse return error.InvalidTableIndex;
-        } else try data.next(self.allocator, &pages, self.after);
+        } else batch: {
+            if (self.reference_index == self.reference_count) {
+                if (self.reference_end) break :batch null;
+                self.reference_count = try data.references(&pages, self.after, &self.row_references);
+                self.reference_index = 0;
+                self.reference_end = self.reference_count < self.row_references.len;
+                if (self.reference_count == 0) break :batch null;
+            }
+            const row = try data.loadReference(self.allocator, &pages, self.row_references[self.reference_index]);
+            self.reference_index += 1;
+            break :batch row;
+        };
         if (selected) |owned| {
             var row = owned;
             errdefer row.deinit();
