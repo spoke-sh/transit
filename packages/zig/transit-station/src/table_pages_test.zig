@@ -186,6 +186,81 @@ test "general handler reads own wide typed rows and keep cursors at one committe
     try t.expectError(error.AccessDenied, turn.validate());
 }
 
+test "general Table pages preserve extreme keys, separate objects and bind every cursor field" {
+    var store: Store = .{};
+    defer store.deinit();
+    _ = try store.table();
+    var sql: std.Io.Writer.Allocating = .init(t.allocator);
+    defer sql.deinit();
+    try sql.writer.writeAll("INSERT INTO items VALUES ");
+    for (0..41) |i| {
+        const key: i64 = if (i == 0) std.math.minInt(i64) else if (i == 40) std.math.maxInt(i64) else 20 - @as(i64, @intCast(i));
+        if (i != 0) try sql.writer.writeByte(',');
+        try sql.writer.print("({d},NULL)", .{key});
+    }
+    try t.expectEqual(.applied, (try sqlStatement(&store, 770, schema, sql.written())).state);
+    var neighbor = schema;
+    neighbor.object = 10;
+    for (0..20) |_| {
+        var turn = try store.capture();
+        const result = try TableCreation.step(t.allocator, &turn, neighbor, .{ .record_bytes = 65536, .staging_bytes = 131072, .staging_records = 2 });
+        try store.commit(turn);
+        if (result.state == .applied) break;
+    }
+    var turn = try store.capture();
+    var table = try TableReader.open(t.allocator, &turn, 9);
+    defer table.deinit();
+    var other = try TableReader.open(t.allocator, &turn, 10);
+    defer other.deinit();
+    var empty = try other.page(t.allocator, &turn, null, 8);
+    defer empty.deinit();
+    try t.expect(empty.len == 0 and empty.next == null);
+    var cursor: ?TableReader.Cursor = null;
+    var first: ?TableReader.Cursor = null;
+    var count: usize = 0;
+    var pages: usize = 0;
+    while (true) {
+        var page = try table.page(t.allocator, &turn, cursor, 8);
+        defer page.deinit();
+        pages += 1;
+        for (page.rows[0..page.len]) |slot| {
+            const row_value = slot.?.row();
+            const expected: i64 = if (count == 0) std.math.minInt(i64) else if (count == 40) std.math.maxInt(i64) else 20 - @as(i64, @intCast(count));
+            try t.expectEqual(expected, row_value.cells[0].value.atom.signed);
+            try t.expect(row_value.cells[1] == .null);
+            count += 1;
+        }
+        cursor = page.next;
+        if (first == null) first = cursor;
+        if (cursor == null) break;
+    }
+    try t.expectEqual(41, count);
+    try t.expectEqual(6, pages);
+    // Key lookup follows exact typed equality, independently of page order.
+    for ([_]i64{ std.math.minInt(i64), std.math.maxInt(i64) }) |key| {
+        var found = (try table.getKey(t.allocator, &turn, &.{.{ .value = .{ .atom = .{ .signed = key } } }})).?;
+        defer found.deinit();
+        try t.expectEqual(key, found.row().cells[0].value.atom.signed);
+    }
+    try t.expectError(error.StaleTableCursor, other.page(t.allocator, &turn, first, 8));
+    for (0..5) |field| {
+        var forged = first.?;
+        switch (field) {
+            0 => forged.basis.cut.view += 1,
+            1 => forged.basis.resource += 1,
+            2 => forged.basis.revision += 1,
+            3 => forged.basis.object += 1,
+            4 => forged.basis.head[0] ^= 1,
+            else => unreachable,
+        }
+        try t.expectError(error.StaleTableCursor, table.page(t.allocator, &turn, forged, 8));
+    }
+    var denied = try store.capture();
+    store.denied = true;
+    try t.expectError(error.AccessDenied, TableReader.open(t.allocator, &denied, 9));
+    try t.expectError(error.AccessDenied, denied.validate());
+}
+
 test "general handler retained cursors preserve original schemas across current evolution" {
     const Retained = struct {
         store: *Store,
@@ -1512,6 +1587,10 @@ test "point write allocation and turn-budget failures leave no private accepted 
     var cells: [2]f.Types.Values.Cell = undefined;
     const request = insertRequest(51, 1, "one", &cells);
     var turn = try store.capture();
+    var foreign = request;
+    foreign.resource += 1;
+    try t.expectError(error.CrossResourceTransaction, Write.step(t.allocator, &turn, foreign));
+    try t.expectEqual(0, writes(turn));
     for (0..3) |i| try turn.put(p.Value.integer(@intCast(i)), p.Value.integer(1));
     const before = turn.decision;
     try t.expectError(error.MutationBudgetExceeded, Write.step(t.allocator, &turn, request));

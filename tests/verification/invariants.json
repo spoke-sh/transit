@@ -575,7 +575,8 @@
       "owner": "contracts/STATION_V1.md",
       "implementation": [
         "packages/zig/transit-station/src/Turn.zig",
-        "packages/zig/transit-station/src/Table.zig",
+        "packages/zig/transit-station/src/TableReader.zig",
+        "packages/zig/transit-station/src/TableWrite.zig",
         "packages/zig/transit-station/src/Waiting.zig",
         "packages/zig/transit-station/src/growing_test.zig",
         "packages/zig/transit-station/src/GenServer.zig",

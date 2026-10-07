@@ -18098,3 +18098,51 @@ separate.
 Raw `sdk-table-queue-interop2.log` SHA-256: `1ff494654e52d46550623dba3d1e14d16c5b50b2fcc98a97f1e6c88bfca489fd`.
 
 Report `sdk-table-queue-interop2.json` SHA-256: `097a49df926dbe6bd0a54d3861c167df3498d2bd1136fdbdad6adbbe0fe071d7`.
+
+
+### General Zig Table helpers and native recovery
+
+The superseded fixed two-column Station `Table` helper is removed. Application
+Table access uses `TableCreation`, `TableReader` and `TableWrite`; the growing
+Station guide and GROWTH-08 registry point to these owners. General reader tests
+now exercise 41 rows across six pages, signed extreme keys, exact point lookup,
+neighbor/empty objects and every cursor basis field. Cross-resource writes and
+exhausted private write budgets leave no accepted prefix. Generic Turn tests
+retain private-versus-committed reads, sticky failures, point access independent
+of retained cardinality and automatic retained-version dependency wiring. The
+standalone Station unit suite passes (`general-station-unit3.log`, exit 0).
+
+`general-station-native5.log` completes all three real caller phases (exit 0).
+Forty sequential calls persist their original input, peer and correlation before
+resuming typed Table creation/writes. An additional pending Table step survives
+caller/node/disk replacement and rejects its old ownership generation. Current
+reads verify 41 three-column rows in six pages; a retained source resumes six
+bounded steps across another replacement, excludes the later row and releases
+its dependency. Read poisoning and exact retry after an accepted reply loss
+remain exercised. Writes use 64 authority pages; both recovery phases use one.
+The local run records 55.403 seconds for writes, 16.595 seconds for recovery and
+109 cold objects with the existing 8 MiB hot storage limit. These are correctness
+controls, not interactive SQL latency measurements.
+
+The initial native build failed a pointer argument; the next run rejected the
+legitimate bounded empty-namespace check. Another run completed both caller
+phases but its harness counted only ordinary turns, missing version-bearing
+commits. The final harness recognizes both envelopes, admits only the exact
+creation prefix page, and independently checks one then six committed retained
+steps. None of the failed attempts is counted as passing evidence.
+
+`general-station-abi1.log` also passes (exit 0), using the explicit qualified native
+prefix. Its first staged creation commit loses its reply and is reconciled after
+host/disk replacement. Ten atomic four-row mutations preserve full-width values
+and UTF8 defaults; scoped and retained general readers verify 41 rows, stale
+cursor rejection and a later 42nd row without changing the old cut. Existing
+poison/stop, malformed-input, publication and HTTP/RPC checks remain enabled.
+The ABI schedule uses cold storage and 64 authority pages; final shared-definition
+and committed-source CI qualification remain separate. The broader check first
+stopped on the removed helper's diagnostic inventory entry; the inventory is
+updated and its closed mappings pass, without treating that partial check as a
+full-suite pass.
+
+Raw `general-station-native5.log` SHA-256: `81e183e2158ca83a05f9bc0f6423a882154a9ff42a112a8435f9e8bfabcb4c09`.
+
+Raw `general-station-abi1.log` SHA-256: `1cc746eca2cbcb451836c56f78461e49d078e5e762a9580a475d0c67fbf2fb87`.

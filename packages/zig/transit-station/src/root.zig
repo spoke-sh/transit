@@ -4,7 +4,6 @@ pub const protocol = client.protocol;
 pub const Frame = @import("Frame.zig");
 pub const Turn = @import("Turn.zig");
 pub const GenServer = @import("GenServer.zig");
-pub const Table = @import("Table.zig");
 pub const TableData = @import("TableData.zig");
 pub const TableCandidate = @import("TableCandidate.zig");
 pub const TablePages = @import("TablePages.zig");
@@ -38,7 +37,6 @@ test {
     _ = Frame;
     _ = Turn;
     _ = GenServer;
-    _ = Table;
     _ = Query;
     _ = Registry;
     _ = Waiting;

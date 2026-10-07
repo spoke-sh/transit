@@ -8,11 +8,12 @@ import sys
 import threading
 import time
 from storage import Fixture, free_port, wait_ready
+from cold_storage import ColdStore
 
 
 def run(node, caller, *, resident_pages=64):
     node, caller = str(Path(node).resolve()), str(Path(caller).resolve())
-    with Fixture() as fixture:
+    with ColdStore() as cold, Fixture(storage_config=cold.config()) as fixture:
         public = json.loads(subprocess.check_output([caller, "public"], timeout=10))
         port = free_port()
         url = f"http://127.0.0.1:{port}"
@@ -23,8 +24,8 @@ def run(node, caller, *, resident_pages=64):
             "port": port, "resident_pages": resident_pages, "request_timeout_ms": 10000}))
         manifest = fixture.root / "pending.json"
         fault = {"read": False, "pending": None, "receipt": None, "retried": False,
-                 "point_reads": 0, "scan_allowed": False, "page_reads": 0,
-                 "version_pages": 0}
+                 "point_reads": 0,
+                 "version_reads": 0, "version_steps": 0, "namespace_checks": 0}
 
         class Proxy(BaseHTTPRequestHandler):
             def log_message(self, *_):
@@ -43,25 +44,26 @@ def run(node, caller, *, resident_pages=64):
                         retained = "version_entries" in query["kind"]
                         entries = query["kind"].get("version_entries" if retained else "entries")
                         if query["principal"] != 0 and entries is not None and response.status == 200:
+                            # Creation proves that its namespace is empty with
+                            # one bounded prefix page. Row reads follow indexes.
                             if entries.get("key") is None:
-                                assert fault["scan_allowed"], "Handler materialized a resource before a scan request"
-                                assert entries.get("id" if retained else "view") is not None
-                                assert entries.get("after", "").startswith(b"\x00r\x01\x00\x00\x00".hex())
-                                fault["version_pages" if retained else "page_reads"] += 1
+                                assert not retained and entries.get("view") is not None
+                                assert entries.get("after") == (b"\x00P" + (8).to_bytes(4, "big") + (1).to_bytes(8, "big")).hex()
+                                fault["namespace_checks"] += 1
                             else:
-                                fault["point_reads"] += 1
+                                fault["version_reads" if retained else "point_reads"] += 1
                             if entries.get("key") == b"read-fault".hex() and not fault["read"]:
                                 assert response.status == 200
                                 changed = json.loads(data)
                                 changed["realm"] += 1
                                 data = json.dumps(changed).encode()
                                 fault["read"] = True
-                    elif self.path == "/v1/command" and "send" in envelope["request"]["command"]:
-                        sent = envelope["request"]["command"]["send"]["value"]
-                        if sent == (b"STN1\x01" + bytes(8) + b"scan").hex():
-                            assert envelope["request"]["principal"] == 0
-                            fault["scan_allowed"] = True
-                    elif self.path == "/v1/command" and "turn" in envelope["request"]["command"]:
+                    elif self.path == "/v1/command" and any(kind in envelope["request"]["command"] for kind in ("turn", "turn_with_versions")):
+                        proposal = envelope["request"]["command"]
+                        turn = proposal["turn"] if "turn" in proposal else proposal["turn_with_versions"]["turn"]
+                        mutations = turn["mutations"]
+                        if response.status == 200 and any(item and item["key"] == b"version-progress".hex() for item in mutations):
+                            fault["version_steps"] += 1
                         if fault["pending"] is None:
                             assert response.status == 200
                             fault["pending"], fault["receipt"] = body, data
@@ -115,8 +117,8 @@ def run(node, caller, *, resident_pages=64):
             authority = start()
             started = time.monotonic()
             subprocess.run([caller, proxy_url, "recover", str(manifest)], check=True, timeout=60)
-            assert fault["page_reads"] == 6, "Expected bounded, ordered Table pages after recovery"
-            assert fault["version_pages"] == 1, "Exactly one retained source page before interruption"
+            assert fault["namespace_checks"] == 1, "Only creation needs an empty-namespace prefix page"
+            assert fault["version_steps"] == 1 and fault["version_reads"] > 0, ("Exactly one retained Table page before interruption", fault["version_steps"], fault["version_reads"])
             authority.kill()
             authority.wait(timeout=10)
             authority = None
@@ -124,11 +126,12 @@ def run(node, caller, *, resident_pages=64):
             fixture.start()
             authority = start()
             subprocess.run([caller, proxy_url, "resume", str(manifest)], check=True, timeout=60)
-            assert fault["version_pages"] == 6, "Retained continuation must resume without rescanning committed pages"
+            assert fault["version_steps"] == 6, "Retained continuation must resume without rescanning committed pages"
             print("Growing Station timing:", json.dumps({
                 "write_resident_pages": resident_pages, "recover_resident_pages": 1,
                 "write_seconds": write_seconds,
-                "recover_seconds": round(time.monotonic() - started, 3)}), flush=True)
+                "recover_seconds": round(time.monotonic() - started, 3),
+                "retained_steps": fault["version_steps"], "cold_objects": cold.data_objects()}), flush=True)
         except BaseException:
             log.flush()
             log.seek(0)

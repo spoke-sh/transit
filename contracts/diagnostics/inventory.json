@@ -16416,65 +16416,6 @@
         "transit_client"
       ]
     },
-    "packages/zig/transit-station/src/Table.zig": {
-      "errors": {
-        "CrossResourceTransaction": 1,
-        "InvalidQuerySource": 1,
-        "InvalidTableDescriptor": 4,
-        "InvalidTableId": 2,
-        "InvalidTableRow": 5,
-        "RowExists": 1,
-        "RowNotFound": 1,
-        "StaleTableCursor": 1,
-        "TableExists": 1,
-        "TableNotFound": 1,
-        "TableSchemaChanged": 1,
-        "UnsupportedTableType": 1
-      },
-      "outcomes": {
-        "Change.operation": [
-          "insert",
-          "update",
-          "upsert",
-          "delete"
-        ],
-        "Cursor.source": [
-          "view",
-          "version"
-        ]
-      },
-      "error_sets": {},
-      "error_returns": {
-        "atomic()": "<inferred>",
-        "check()": "<inferred>",
-        "create()": "<inferred>",
-        "decodeCell()": "<inferred>",
-        "decodeSchema()": "<inferred>",
-        "delete()": "<inferred>",
-        "encodeCell()": "<inferred>",
-        "encodeSchema()": "<inferred>",
-        "get()": "<inferred>",
-        "insert()": "<inferred>",
-        "open()": "<inferred>",
-        "page()": "<inferred>",
-        "queryBasis()": "<inferred>",
-        "queryDefinition()": "<inferred>",
-        "querySchema()": "<inferred>",
-        "update()": "<inferred>",
-        "upsert()": "<inferred>"
-      },
-      "open_error_set_uses": 0,
-      "propagation": {
-        "try": 53,
-        "catch": 2
-      },
-      "imports": [
-        "Turn.zig",
-        "std",
-        "transit_client",
-        "transit_fuze"
-      ]
-    },
     "packages/zig/transit-station/src/TableAlter.zig": {
       "errors": {
         "CharacterLimitExceeded": 1,
@@ -17100,7 +17041,6 @@
         "Query.zig",
         "Registry.zig",
         "Supervisor.zig",
-        "Table.zig",
         "TableAlter.zig",
         "TableCandidate.zig",
         "TableCleanup.zig",

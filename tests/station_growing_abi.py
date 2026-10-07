@@ -12,6 +12,7 @@ import time
 
 from client_abi_growing import GrowingSystem
 from storage import wait_ready
+from cold_storage import ColdStore
 from station import frame
 from abi_support import rejects
 from sdk_scenarios import check
@@ -92,7 +93,14 @@ class Port:
 
 
 def run(node, cli, library, raw_library, host):
-    with GrowingSystem(node, cli) as system:
+    with ColdStore() as cold:
+        _run(node, cli, library, raw_library, host, cold)
+
+
+def _run(node, cli, library, raw_library, host, cold):
+    fixture = GrowingSystem(node, cli, storage_config=cold.config())
+    fixture.resident_pages = 64
+    with fixture as system:
         libraries = system.root / 'libraries'
         libraries.mkdir()
         for name, source in (('station', library), ('client', raw_library)):
@@ -211,6 +219,38 @@ def run(node, cli, library, raw_library, host):
             server = Native(libraries, url, seed, config)
             caps = server.api.call('station_growing_capabilities')
             assert caps['gated_dispatch'] and caps['paged_state'] and caps['query_results']
+            source = {'object': '1'}
+            signed = lambda n: {'value': {'atom': {'signed': str(n)}}}
+            schema = dict(definition=caps['definition'], object='1', revision='1', next_column='4',
+                columns=[dict(id=str(i), name=name, type={kind: {}}, nullable=i == 2,
+                    default={'value': {'atom': {'utf8': 'retained'}}} if i == 3 else None, max_characters=None)
+                    for i, name, kind in ((1, 'id', 'int64'), (2, 'value', 'int64'), (3, 'label', 'utf8'))], primary_key=['1'])
+            creation = {'create': dict(realm=72, resource=resource, schema=schema,
+                limits=dict(record_bytes=65536, staging_bytes='8388608', staging_records=1024))}
+
+            def table(scope, action):
+                return server.apply(scope, {'table': action})['table']
+
+            def mutation(operation, values):
+                rows = [[dict(column=str(i + 1), value={'cell': signed(value)}) for i, value in enumerate(pair)] for pair in values]
+                return {'mutate': dict(realm=72, resource=resource, principal=0, operation=str(operation), schema=schema,
+                    mutation=dict(action={'insert': rows}, predicate=None))}
+
+            def complete(action, result_name, first=None):
+                # One fixed original operation survives every later callback.
+                # Each step is committed before scheduling another input.
+                for _ in range(512):
+                    if first is None:
+                        command({'send': {'pid': pid, 'value': frame(b'continue')}})
+                        current = ready(server)
+                    else:
+                        current, first = first, None
+                    result = table(current['scope'], action)[result_name]
+                    finish(server, current['scope'])
+                    if result['state'] != 'building':
+                        assert result['state'] == 'applied', result
+                        return result
+                raise AssertionError('General Table continuation budget exhausted')
             initial = ready(server)
             assert initial['initializing'] and initial['scope'] > 0
             scope = initial['scope']
@@ -224,9 +264,8 @@ def run(node, cli, library, raw_library, host):
             rejects(13, server.apply, scope, {'get': b'local'.hex()})
             scope = event['scope']
             assert server.apply(scope, {'get': b'local'.hex()}) == {'value': None}
-            server.apply(scope, {'table_create': {'id': 1, 'key_name': 'id', 'value_name': 'value', 'value_type': 'int64'}})
-            server.apply(scope, {'table_write': {'id': 1, 'mode': 'insert',
-                'row': {'key': str(-(2**63)), 'value': {'int64': str(2**63-1)}}}})
+            # A lost native commit contains the first durable creation step.
+            assert table(scope, creation)['created']['state'] == 'building'
             server.finish(scope)
             frozen = server.pending()
             saved.write_bytes(frozen)
@@ -250,49 +289,56 @@ def run(node, cli, library, raw_library, host):
             command({'own': {'pid': pid, 'worker': 65536, 'expected_generation': 2}})
             config['generation'] = 3
             server = Native(libraries, url, seed, config)
+            complete(creation, 'created')
+            operation = command({'send': {'pid': pid, 'value': frame(b'first-row')}})
+            first = complete(mutation(operation, [(-(2**63), 2**63 - 1)]), 'mutation', ready(server))
+            assert first['counts'] == {'matched': '1', 'changed': '1'}
             for batch in range(10):
-                command({'send': {'pid': pid, 'value': frame(b'batch')}})
-                event = ready(server)
-                assert not event['initializing']
-                for index in range(batch * 4, batch * 4 + 4):
-                    server.apply(event['scope'], {'table_write': {'id': 1, 'mode': 'insert',
-                        'row': {'key': str(index), 'value': {'int64': '9007199254740993'}}}})
-                finish(server, event['scope'])
+                operation = command({'send': {'pid': pid, 'value': frame(b'batch')}})
+                result = complete(mutation(operation, [(i, 9007199254740993) for i in range(batch * 4, batch * 4 + 4)]), 'mutation', ready(server))
+                assert result['counts'] == {'matched': '4', 'changed': '4'}
             command({'send': {'pid': pid, 'value': frame(b'pages')}})
             event = ready(server)
             cursor, rows, pages = None, [], 0
             while True:
-                result = server.apply(event['scope'], {'table_page': {'id': 1, 'cursor': cursor}})['rows']
+                result = table(event['scope'], {'page': dict(source=source, cursor=cursor)})['page']
                 rows.extend(row for row in result['rows'] if row is not None)
                 pages += 1
                 cursor = result['next']
                 if pages == 1:
                     first_cursor = cursor
-                    rejects(1, server.apply, event['scope'], {'table_page': {'id': 1, 'cursor': ' ' + cursor}})
+                    rejects(1, server.apply, event['scope'], {'table': {'page': dict(source=source, cursor=' ' + cursor)}})
                 if cursor is None:
                     break
             assert len(rows) == 41 and pages == 6
-            assert rows[0] == {'key': str(-(2**63)), 'value': {'int64': str(2**63-1)}}
-            assert rows[-1]['value'] == {'int64': '9007199254740993'}
+            assert rows[0]['cells'] == [signed(-(2**63)), signed(2**63 - 1), {'value': {'atom': {'utf8': 'retained'}}}]
+            assert rows[-1]['cells'][1] == signed(9007199254740993)
+            assert len({row['identity'] for row in rows}) == 41
             version = server.apply(event['scope'], {'retain': {}})['version']
             finish(server, event['scope'])
-            command({'send': {'pid': pid, 'value': frame(b'old-cursor')}})
+            operation = command({'send': {'pid': pid, 'value': frame(b'old-cursor')}})
             event = ready(server)
-            rejects(1, server.apply, event['scope'], {'table_page': {'id': 1, 'cursor': first_cursor}})
-            server.apply(event['scope'], {'table_write': {'id': 1, 'mode': 'insert',
-                'row': {'key': str(2**63-1), 'value': {'int64': '-9007199254740993'}}}})
-            rejects(1, server.apply, event['scope'], {'table_page': {'id': 1}})
-            retained = server.apply(event['scope'], {'table_page': {'id': 1, 'version': version}})['rows']
-            assert len([row for row in retained['rows'] if row is not None]) == 8
-            schema = server.apply(event['scope'], {'table_schema': {'id': 1, 'version': version}})['schema']
-            assert (schema['id'], schema['key_name'], schema['value_name'], schema['value_type']) == (1, 'id', 'value', 'int64')
-            assert schema['basis'] == retained['basis']
-            point = server.apply(event['scope'], {'version_table_get': {'version': version, 'id': 1, 'key': str(-(2**63))}})
-            assert point == {'row': rows[0]}
-            assert server.apply(event['scope'], {'version_table_get': {'version': version, 'id': 1, 'key': str(2**63-1)}}) == {'row': None}
+            rejects(1, server.apply, event['scope'], {'table': {'page': dict(source=source, cursor=first_cursor)}})
+            pending = mutation(operation, [(2**63 - 1, -9007199254740993)])
+            assert table(event['scope'], pending)['mutation']['state'] == 'building'
+            # General Table reads always use the committed cut, including
+            # when a private mutation is already being staged in this turn.
+            captured = table(event['scope'], {'page': {'source': source}})['page']
+            old_source = dict(source, version=version)
+            retained = table(event['scope'], {'page': {'source': old_source}})['page']
+            assert captured['rows'] == retained['rows'] == rows[:8]
+            definition = table(event['scope'], {'schema': old_source})['schema']
+            assert definition['schema'] == schema
+            assert definition['basis'] == retained['definition']['basis']
+            point = table(event['scope'], {'get_key': dict(source=old_source, key=[signed(-(2**63))])})['row']
+            assert point['row'] == rows[0]
+            assert table(event['scope'], {'get_key': dict(source=old_source, key=[signed(2**63 - 1)])})['row']['row'] is None
             finish(server, event['scope'])
+            result = complete(pending, 'mutation')
+            assert result['counts'] == {'matched': '1', 'changed': '1'}
             command({'send': {'pid': pid, 'value': frame(b'poison')}})
             event = ready(server)
+            assert table(event['scope'], {'get_key': dict(source=source, key=[signed(2**63 - 1)])})['row']['row']['cells'][1] == signed(-9007199254740993)
             fault['bad_read'] = True
             rejects(8, server.apply, event['scope'], {'get': b'remote'.hex()})
             rejects(8, server.apply, event['scope'], {'put': {'key': b'local'.hex(), 'value': '01'}})

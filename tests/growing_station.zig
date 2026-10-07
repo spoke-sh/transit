@@ -7,9 +7,17 @@ const g = p.Growth;
 const Server = station.GenServer;
 const Turn = station.Turn;
 const t = std.testing;
+const f = station.fuze;
+const alloc = std.heap.page_allocator;
+const Table = station.TableReader;
+const schema: f.TableSchema.Schema = .{ .object = 1, .revision = 1, .next_column = 4, .columns = &.{
+    .{ .id = 1, .name = "id", .type = .int64, .nullable = false },
+    .{ .id = 2, .name = "amount", .type = .int64 },
+    .{ .id = 3, .name = "label", .type = .utf8, .nullable = false },
+}, .primary_key = &.{1} };
 const Realm = 43;
 const Count = 40;
-const Expected = struct { requester: u64, writer: u64, requests: u64, rows: u64, retained_input: u64 = 0, stale: ?g.SignedRequest = null };
+const Expected = struct { requester: u64, writer: u64, requests: u64, rows: u64, retained_input: u64 = 0, after: u64 = 0, stale: ?g.SignedRequest = null };
 
 const Admin = @import("growing_support.zig").Admin(Realm);
 
@@ -22,10 +30,9 @@ const Handler = struct {
     fn context(raw: ?*anyopaque) *Handler {
         return @ptrCast(@alignCast(raw.?));
     }
-    fn initialize(raw: ?*anyopaque, turn: *Turn) anyerror!void {
+    fn initialize(raw: ?*anyopaque, _: *Turn) anyerror!void {
         const self = context(raw);
         self.initialized += 1;
-        if (self.writer) _ = try station.Table.create(turn, 1, .{ .names = .{ try .init("id"), try .init("amount") }, .value_type = .int64 });
     }
     fn handle(raw: ?*anyopaque, turn: *Turn, frame: station.Frame) anyerror!void {
         const self = context(raw);
@@ -39,28 +46,43 @@ const Handler = struct {
             }
             if (frame.kind == .cast and std.mem.eql(u8, frame.payload.slice(), "version-scan")) return scanVersion(turn);
             if (frame.kind == .cast and std.mem.eql(u8, frame.payload.slice(), "scan")) {
-                const table = try station.Table.open(turn, 1);
-                var cursor: ?station.Table.Cursor = null;
+                var table = try Table.open(alloc, turn, 1);
+                defer table.deinit();
+                var cursor: ?Table.Cursor = null;
                 var count: usize = 0;
+                var pages: usize = 0;
                 while (true) {
-                    const page = try table.page(turn, cursor);
-                    for (page.rows[0..page.len]) |row| {
-                        try t.expectEqual(@as(i64, @intCast(count)), row.key);
-                        try t.expectEqual(row.key * 2, row.value.int64);
+                    var page = try table.page(alloc, turn, cursor, 8);
+                    defer page.deinit();
+                    pages += 1;
+                    for (page.rows[0..page.len]) |slot| {
+                        try checkRow(slot.?.row(), count);
                         count += 1;
                     }
                     cursor = page.next;
                     if (cursor == null) break;
                 }
                 try t.expectEqual(@as(usize, Count + 1), count);
+                try t.expectEqual(@as(usize, 6), pages);
                 try turn.put(try p.Value.init("scanned"), p.Value.integer(@intCast(count)));
                 return;
             }
+            if (frame.kind == .cast and std.mem.eql(u8, frame.payload.slice(), "advance")) {
+                try t.expectEqual(turn.delivery.pid, try station.Frame.source(turn.delivery.input));
+                return advance(turn);
+            }
             if (frame.kind != .call) return error.ExpectedCall;
-            const table = try station.Table.open(turn, 1);
-            const index = try frame.payload.asInteger();
-            try table.insert(turn, .{ .key = index, .value = .{ .int64 = index * 2 } });
-            try turn.reply(p.Value.integer(index * 2));
+            const key = try p.Value.init("pending-row");
+            if (try turn.read(key) != null) return error.PreviousCallPending;
+            // This proof sends one call at a time. Persist its original input,
+            // authenticated reply destination and correlation before resuming.
+            var pending: [32]u8 = undefined;
+            std.mem.writeInt(u64, pending[0..8], turn.delivery.input.position, .little);
+            std.mem.writeInt(u64, pending[8..16], try station.Frame.source(turn.delivery.input), .little);
+            std.mem.writeInt(u64, pending[16..24], frame.correlation, .little);
+            std.mem.writeInt(i64, pending[24..32], try frame.payload.asInteger(), .little);
+            try turn.put(key, try p.Value.init(&pending));
+            try turn.cast(turn.delivery.pid, try p.Value.init("advance"));
         } else switch (frame.kind) {
             .cast => {
                 // The proxy corrupts this read once. Swallowing that transport
@@ -83,34 +105,58 @@ const Handler = struct {
             else => return error.UnexpectedFrame,
         }
     }
+    fn advance(turn: *Turn) !void {
+        const key = try p.Value.init("pending-row");
+        const saved = (try turn.read(key)) orelse return error.MissingPendingCall;
+        if (saved.len != 32) return error.InvalidPendingCall;
+        const creation = try station.TableCreation.step(alloc, turn, schema, .{ .record_bytes = 65536, .staging_bytes = 8 * 1024 * 1024, .staging_records = 1024 });
+        if (creation.state == .building or creation.completed_input == turn.delivery.input.position) {
+            return turn.cast(turn.delivery.pid, try p.Value.init("advance"));
+        }
+        const index = std.mem.readInt(i64, saved.data[24..32], .little);
+        const cells: [3]f.Types.Values.Cell = .{ .{ .value = .{ .atom = .{ .signed = index } } }, .{ .value = .{ .atom = .{ .signed = index * 2 } } }, .{ .value = .{ .atom = .{ .bytes = "retained" } } } };
+        var request: station.TableWrite.Request = .{ .resource = turn.view.resource, .principal = 0, .operation = std.mem.readInt(u64, saved.data[0..8], .little), .schema = schema, .change = undefined };
+        request.change = .{ .insert = .{ .identity = try request.insertIdentity(), .cells = &cells } };
+        const status = try station.TableWrite.step(alloc, turn, request);
+        var writes: usize = 0;
+        for (turn.decision.mutations) |slot| writes += @intFromBool(slot != null);
+        if (status.state == .building or writes == turn.decision.mutations.len) {
+            return turn.cast(turn.delivery.pid, try p.Value.init("advance"));
+        }
+        try t.expectEqual(.applied, status.state);
+        try t.expectEqual(@as(u64, 1), status.changed);
+        try turn.delete(key);
+        try turn.send(std.mem.readInt(u64, saved.data[8..16], .little), .{ .kind = .reply, .correlation = std.mem.readInt(u64, saved.data[16..24], .little), .payload = p.Value.integer(index * 2) });
+    }
     fn interface(self: *Handler) Server.Handler {
         return .{ .context = self, .initialize = initialize, .handle = handle };
     }
     fn scanVersion(turn: *Turn) !void {
         const input = try (try turn.read(try p.Value.init("retained"))).?.asInteger();
         var source = try turn.openVersion(.{ .pid = turn.delivery.pid, .input = @intCast(input), .index = 0 });
-        const table = try station.Table.open(&source, 1);
+        var table = try Table.open(alloc, &source, 1);
+        defer table.deinit();
         const progress_key = try p.Value.init("version-progress");
         const progress = try turn.read(progress_key);
         var count: u64 = 0;
-        var after: i64 = 0;
+        var after: f.TableRow.Identity = undefined;
         if (progress) |value| {
-            if (value.len != 16) return error.InvalidScanProgress;
+            if (value.len != 28) return error.InvalidScanProgress;
             count = std.mem.readInt(u64, value.data[0..8], .little);
-            after = std.mem.readInt(i64, value.data[8..16], .little);
+            after = try f.TableRow.Identity.decode(value.data[8..28]);
             try t.expectEqual(turn.delivery.pid, try station.Frame.source(turn.delivery.input));
         }
-        const cursor: ?station.Table.Cursor = if (progress != null) .{ .source = .{ .version = source.view.id }, .resource = source.view.resource, .revision = source.view.revision, .table = table.id, .schema = try table.schema.fingerprint(), .after = after } else null;
-        const page = try table.page(&source, cursor);
-        for (page.rows[0..page.len]) |row| {
-            try t.expectEqual(@as(i64, @intCast(count)), row.key);
-            try t.expectEqual(row.key * 2, row.value.int64);
+        const cursor: ?Table.Cursor = if (progress != null) .{ .basis = table.basis, .after = after } else null;
+        var page = try table.page(alloc, &source, cursor, 8);
+        defer page.deinit();
+        for (page.rows[0..page.len]) |slot| {
+            try checkRow(slot.?.row(), count);
             count += 1;
-            after = row.key;
+            after = slot.?.identity;
         }
-        var saved: [16]u8 = undefined;
+        var saved: [28]u8 = undefined;
         std.mem.writeInt(u64, saved[0..8], count, .little);
-        std.mem.writeInt(i64, saved[8..16], after, .little);
+        saved[8..28].* = try after.encode();
         try turn.put(progress_key, try p.Value.init(&saved));
         if (page.next != null) {
             try turn.cast(turn.delivery.pid, try p.Value.init("version-scan"));
@@ -205,12 +251,51 @@ fn verify(admin: *Admin, expected: Expected, count: usize) !void {
     }
     try t.expectEqual(count, waits);
     const rows = (try admin.query(.{ .resource = expected.rows })).body.resource;
-    try t.expectEqual(@as(u64, count + 2 + @intFromBool(expected.retained_input != 0)), rows.entries); // descriptor, schema, rows, optional pin manifest
+    const Source = struct {
+        admin: *Admin,
+        view: struct { id: u64 = 0, resource: u64, revision: u64 },
+        pub fn read(self: *@This(), key: p.Value) !?p.Value {
+            const page = (try self.admin.query(.{ .entries = .{ .resource = self.view.resource, .revision = self.view.revision, .key = key } })).body.entries.page;
+            return if (page.entries[0]) |entry| entry.value else null;
+        }
+    };
+    var source: Source = .{ .admin = admin, .view = .{ .resource = rows.id, .revision = rows.revision } };
+    var table = try Table.open(alloc, &source, 1);
+    defer table.deinit();
+    try t.expectEqual(count, table.head.rows);
     for (0..count) |i| {
-        const page = (try admin.query(.{ .entries = .{ .resource = rows.id, .revision = rows.revision, .key = station.Table.rowKey(1, @intCast(i)) } })).body.entries.page;
-        const value = page.entries[0].?.value;
-        try t.expectEqual(@as(i64, @intCast(i * 2)), std.mem.readInt(i64, value.data[2..10], .little));
+        var row = (try table.getKey(alloc, &source, &.{.{ .value = .{ .atom = .{ .signed = @intCast(i) } } }})).?;
+        defer row.deinit();
+        try checkRow(row.row(), i);
     }
+}
+
+fn checkRow(row: f.TableRow.Row, index: u64) !void {
+    try t.expectEqual(3, row.cells.len);
+    try t.expectEqual(@as(i128, @intCast(index)), row.cells[0].value.atom.signed);
+    try t.expectEqual(@as(i128, @intCast(index * 2)), row.cells[1].value.atom.signed);
+    try t.expectEqualStrings("retained", row.cells[2].value.atom.bytes);
+}
+fn deliver(admin: *Admin, after: *u64) !g.Outbox {
+    const position = (try admin.query(.{ .capabilities = {} })).position;
+    const item = (try admin.query(.{ .outputs = .{ .after = if (after.* == 0) null else after.*, .position = position } })).body.outputs.entries[0] orelse return error.MissingOutput;
+    try t.expectEqual(.pending, item.phase);
+    _ = try admin.submit(.{ .deliver = item.id });
+    after.* = item.id;
+    return item;
+}
+fn finishCall(io: std.Io, admin: *Admin, after: *u64, writer: *Server, writer_handler: *Handler, requester: *Server, requester_handler: *Handler) !usize {
+    var lost: usize = 0;
+    for (0..256) |_| {
+        const item = try deliver(admin, after);
+        if (item.destination == requester.session.pid) {
+            lost += try drive(io, requester, requester_handler, false);
+            return lost;
+        }
+        try t.expectEqual(writer.session.pid, item.destination);
+        lost += try drive(io, writer, writer_handler, false);
+    }
+    return error.TableContinuationBudgetExceeded;
 }
 
 pub fn main(init: std.process.Init) !void {
@@ -238,28 +323,29 @@ pub fn main(init: std.process.Init) !void {
         var request_handler: Handler = .{ .writer = false, .peer = writer.pid };
         var write_handler: Handler = .{ .writer = true, .peer = requester.pid };
         var lost: usize = 0;
+        var after: u64 = 0;
         for (0..Count) |i| {
             try admin.send(requester.pid, @intCast(i));
             lost += try drive(init.io, &request_server, &request_handler, false);
-            _ = try admin.submit(.{ .deliver = i * 2 + 1 });
-            lost += try drive(init.io, &write_server, &write_handler, false);
-            _ = try admin.submit(.{ .deliver = i * 2 + 2 });
-            lost += try drive(init.io, &request_server, &request_handler, false);
+            lost += try finishCall(init.io, &admin, &after, &write_server, &write_handler, &request_server, &request_handler);
         }
         try t.expectEqual(@as(usize, 1), lost);
         try t.expectEqual(@as(usize, 1), request_handler.read_failures);
         try t.expectEqual(@as(usize, 2), request_handler.initialized); // first private attempt failed its read
         try t.expectEqual(@as(usize, 1), write_handler.initialized);
         try t.expectEqual(@as(usize, Count * 2 + 1), request_handler.handled);
-        try t.expectEqual(@as(usize, Count), write_handler.handled);
+        try t.expect(write_handler.handled > Count); // Committed Table continuations.
         var expected: Expected = .{ .requester = requester.pid, .writer = writer.pid, .requests = requester.resource, .rows = writer.resource };
         try verify(&admin, expected, Count);
         expected.retained_input = try admin.submit(.{ .send = .{ .pid = writer.pid, .value = try (station.Frame{ .kind = .cast, .payload = try p.Value.init("retain") }).encode() } });
         _ = try drive(init.io, &write_server, &write_handler, false);
         try admin.send(requester.pid, Count);
         _ = try drive(init.io, &request_server, &request_handler, false);
-        _ = try admin.submit(.{ .deliver = Count * 2 + 1 });
-        _ = try drive(init.io, &write_server, &write_handler, true);
+        _ = try deliver(&admin, &after);
+        _ = try drive(init.io, &write_server, &write_handler, false); // Original call admission.
+        _ = try deliver(&admin, &after);
+        _ = try drive(init.io, &write_server, &write_handler, true); // Unsent native Table step.
+        expected.after = after;
         expected.stale = write_server.pending.?.signed;
         const bytes = try std.json.Stringify.valueAlloc(init.gpa, expected, .{});
         defer init.gpa.free(bytes);
@@ -269,14 +355,14 @@ pub fn main(init: std.process.Init) !void {
         defer init.gpa.free(bytes);
         const parsed = try std.json.parseFromSlice(Expected, init.gpa, bytes, .{});
         defer parsed.deinit();
-        const expected = parsed.value;
+        var expected = parsed.value;
         if (std.mem.eql(u8, args[2], "resume")) {
             _ = try admin.submit(.{ .own = .{ .pid = expected.writer, .expected_generation = 3, .worker = 65537 } });
             var server = try makeServer(&wire, 65537, expected.writer, 4, writer_key);
             var handler: Handler = .{ .writer = true, .peer = expected.requester };
             var complete = false;
-            for (0..6) |i| {
-                _ = try admin.submit(.{ .deliver = Count * 2 + 3 + i });
+            for (0..6) |_| {
+                _ = try deliver(&admin, &expected.after);
                 _ = try drive(init.io, &server, &handler, false);
                 const resource = (try admin.query(.{ .resource = expected.rows })).body.resource;
                 const value = (try admin.query(.{ .entries = .{ .resource = resource.id, .revision = resource.revision, .key = try p.Value.init("version-scanned") } })).body.entries.page.entries[0];
@@ -304,10 +390,10 @@ pub fn main(init: std.process.Init) !void {
         var request_handler: Handler = .{ .writer = false, .peer = expected.writer };
         var write_handler: Handler = .{ .writer = true, .peer = expected.requester };
         _ = try drive(init.io, &write_server, &write_handler, false);
-        _ = try admin.submit(.{ .deliver = Count * 2 + 2 });
-        _ = try drive(init.io, &request_server, &request_handler, false);
+        _ = try finishCall(init.io, &admin, &expected.after, &write_server, &write_handler, &request_server, &request_handler);
         try t.expectEqual(@as(usize, 0), request_handler.initialized + write_handler.initialized);
-        try t.expectEqual(@as(usize, 2), request_handler.handled + write_handler.handled);
+        try t.expectEqual(@as(usize, 1), request_handler.handled);
+        try t.expect(write_handler.handled > 1);
         try verify(&admin, expected, Count + 1);
         _ = try admin.submit(.{ .send = .{ .pid = expected.writer, .value = try (station.Frame{ .kind = .cast, .payload = try p.Value.init("scan") }).encode() } });
         _ = try drive(init.io, &write_server, &write_handler, false);
@@ -316,6 +402,9 @@ pub fn main(init: std.process.Init) !void {
         try t.expectEqual(@as(i64, Count + 1), try scanned.value.asInteger());
         _ = try admin.submit(.{ .send = .{ .pid = expected.writer, .value = try (station.Frame{ .kind = .cast, .payload = try p.Value.init("version-scan") }).encode() } });
         _ = try drive(init.io, &write_server, &write_handler, false);
+        const saved = try std.json.Stringify.valueAlloc(init.gpa, expected, .{});
+        defer init.gpa.free(saved);
+        try std.Io.Dir.cwd().writeFile(init.io, .{ .sub_path = args[3], .data = saved });
         // One source page/progress/output committed. The harness loses this
         // caller and both services before delivering its self-continuation.
     } else return error.UnknownPhase;
