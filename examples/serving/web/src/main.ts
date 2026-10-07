@@ -28,7 +28,7 @@ function render() {
   recover.disabled = view.stopping;
   const snapshot = state.snapshot;
   basis.textContent = snapshot
-    ? `Resource ${snapshot.basis.resource} · revision ${snapshot.basis.revision} · data progress ${snapshot.value.observation.data_revision}`
+    ? `Resource ${snapshot.basis.cut.resource} · revision ${snapshot.basis.cut.revision} · data progress ${snapshot.value.observation.data_revision}`
     : "No authorized snapshot.";
   rows.replaceChildren();
   for (const row of snapshot?.value.rows ?? []) {
