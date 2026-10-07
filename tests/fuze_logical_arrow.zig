@@ -13,7 +13,10 @@ pub fn main(init: std.process.Init) !void {
     defer init.gpa.free(workspace);
     var output: [f.LogicalArrow.segment_bytes]u8 = undefined;
     const encoded = try f.LogicalArrow.encode(.{ .structure = &.{value.field} }, &.{.{ .cells = &.{value.cell} }}, workspace, &output);
-    var restored = try f.LogicalInspect.decode(init.gpa, .{ .structure = &.{value.field} }, encoded, 1, workspace);
+    var inferred = try f.LogicalInspect.infer(init.gpa, encoded, workspace);
+    defer inferred.deinit();
+    if (inferred.rows != 1 or !try inferred.descriptor.type.eql(.{ .structure = &.{value.field} })) return error.LogicalArrowSchemaMismatch;
+    var restored = try f.LogicalInspect.decode(init.gpa, inferred.descriptor.type, encoded, 1, workspace);
     defer restored.deinit();
     const before = try f.LogicalJson.encode(init.gpa, value.cell, value.field);
     defer init.gpa.free(before);
@@ -40,5 +43,6 @@ fn batch(init: std.process.Init, path: []const u8) !void {
     const workspace = try allocator.alloc(u8, f.LogicalArrow.working_bytes);
     var output: [f.LogicalArrow.segment_bytes]u8 = undefined;
     const encoded = try f.LogicalArrow.encode(schema, rows, workspace, &output);
+    if (!std.mem.eql(u8, &try schema.fingerprint(), &try f.LogicalInspect.segment(allocator, encoded, @intCast(rows.len), workspace))) return error.LogicalArrowSchemaMismatch;
     try std.Io.File.stdout().writeStreamingAll(init.io, encoded);
 }

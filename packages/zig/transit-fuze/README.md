@@ -72,6 +72,13 @@ defines independent input/workspace/row budgets and excludes general external
 Arrow import. The result owns all bytes until `deinit`; source authority and
 publication evidence remain with the consumer.
 
+`LogicalInspect.infer` recovers the embedded logical descriptor and row count
+from a plain canonical segment. A bounded metadata-only reader locates the two
+required metadata entries; the logical descriptor and complete canonical schema
+are checked before Arrow traverses physical field trees. `segment` also validates
+all cells and returns the logical schema fingerprint for delivery consistency.
+Neither helper supplies source, authorization or computation evidence.
+
 `TableDml` compiles [typed Table statements](../../../contracts/TABLE_DML_V1.md)
 against a supplied name and complete schema. It owns generalized INSERT rows,
 constant/default UPDATE assignments and DELETE predicates using stable column

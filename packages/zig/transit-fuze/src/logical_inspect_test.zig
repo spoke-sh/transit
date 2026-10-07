@@ -20,6 +20,11 @@ test "logical Arrow decoding restores independent scalar bytes including exact w
         defer value.deinit();
         const scalar_schema: t.Type = .{ .structure = &.{value.field} };
         const arrow = try ipc.encode(scalar_schema, &.{.{ .cells = &.{value.cell} }}, workspace, &encoded);
+        var inferred = try inspect.infer(e.allocator, arrow, workspace);
+        defer inferred.deinit();
+        try e.expectEqual(1, inferred.rows);
+        try e.expect(try scalar_schema.eql(inferred.descriptor.type));
+        try e.expectEqualDeep(try scalar_schema.fingerprint(), try inspect.segment(e.allocator, arrow, 1, workspace));
         var restored = try inspect.decode(e.allocator, scalar_schema, arrow, 1, workspace);
         defer restored.deinit();
         @memset(&encoded, 0);
@@ -43,6 +48,53 @@ fn roundtrip(allocator: std.mem.Allocator, bytes: []const u8, workspace: []u8) !
     try e.expectEqualDeep(rows, owned.rows);
     var output: [ipc.segment_bytes]u8 = undefined;
     try e.expectEqualSlices(u8, bytes, try ipc.encode(owned.descriptor.type, owned.rows, workspace, &output));
+}
+
+fn inferRoundtrip(allocator: std.mem.Allocator, bytes: []const u8, workspace: []u8) !void {
+    var inferred = try inspect.infer(allocator, bytes, workspace);
+    defer inferred.deinit();
+    try e.expectEqual(rows.len, inferred.rows);
+    try e.expect(try schema.eql(inferred.descriptor.type));
+    try e.expectEqualDeep(try schema.fingerprint(), try inspect.segment(allocator, bytes, inferred.rows, workspace));
+}
+
+test "self-describing logical segments preserve recursive schemas and release every failed allocation" {
+    const workspace = try e.allocator.alloc(u8, ipc.working_bytes);
+    defer e.allocator.free(workspace);
+    var output: [ipc.segment_bytes]u8 = undefined;
+    const bytes = try ipc.encode(schema, rows, workspace, &output);
+    var no_resize = e.FailingAllocator.init(e.allocator, .{ .resize_fail_index = 0 });
+    try e.checkAllAllocationFailures(no_resize.allocator(), inferRoundtrip, .{ bytes, workspace });
+    var inferred = try inspect.infer(e.allocator, bytes, workspace);
+    defer inferred.deinit();
+    @memset(&output, 0);
+    @memset(workspace, 0);
+    try e.expect(try schema.eql(inferred.descriptor.type));
+    const empty = try ipc.encode(schema, &.{}, workspace, &output);
+    try e.expectEqualDeep(try schema.fingerprint(), try inspect.segment(e.allocator, empty, 0, workspace));
+    try e.expectError(error.InvalidArrowResult, inspect.segment(e.allocator, empty, 1, workspace));
+}
+
+test "logical schema inference rejects every corrupted prefix before traversing physical field trees" {
+    const workspace = try e.allocator.alloc(u8, ipc.working_bytes);
+    defer e.allocator.free(workspace);
+    var output: [ipc.segment_bytes]u8 = undefined;
+    const bytes = try ipc.encode(schema, rows, workspace, &output);
+    const metadata_end = 8 + std.mem.readInt(u32, bytes[4..8], .little);
+    for (0..metadata_end) |at| {
+        output[at] ^= 0x80;
+        defer output[at] ^= 0x80;
+        if (inspect.infer(e.allocator, bytes, workspace)) |value| {
+            var unexpected = value;
+            unexpected.deinit();
+            std.debug.print("accepted changed schema metadata byte {d}\n", .{at});
+            return error.AcceptedChangedArrowMetadata;
+        } else |_| {}
+    }
+    for (0..bytes.len) |length| {
+        if (inspect.segment(e.allocator, bytes[0..length], rows.len, workspace)) |_| return error.AcceptedTruncatedArrow else |_| {}
+    }
+    try e.expectError(error.ArrowWorkspaceExceeded, inspect.infer(e.allocator, bytes, workspace[0..1]));
 }
 test "logical IPC rows own recursive states after every partial-allocation failure" {
     const workspace = try e.allocator.alloc(u8, ipc.working_bytes);

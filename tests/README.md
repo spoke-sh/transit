@@ -17428,3 +17428,28 @@ inventory pass. The registry classifies the eight-row operation bound separately
 from total Table cardinality and query execution-vector size. This is unit and
 layout evidence; installed-host/SDK and disk-backed lifecycle qualification
 remain outstanding for the new handler dispatch surface.
+
+### Self-describing logical Arrow delivery foundation
+
+`LogicalInspect.infer` reads only the bounded Arrow metadata tables, validates
+the embedded logical descriptor, and checks the complete canonical schema before
+Arrow traverses physical field trees. `segment` additionally validates every cell
+and expected row count. The existing plain-segment, workspace and logical value
+budgets remain; neither helper admits external Arrow profiles or supplies source
+or computation authority. This prepares general handler result delivery.
+
+`general-handler-arrow-unit2.log` passes **252/252** Fuze tests in six build steps,
+3 seconds and 80 MiB test-process MaxRSS. Inference covers all **46** independent
+type/value fixtures and recursive states, owned descriptor lifetimes, empty
+results, every partial-allocation failure, every truncated segment length and
+single-byte corruption at every position of the complete schema prefix. The
+first build (`unit1`) fails on a local name shadowing an existing decoder method;
+it executes no tests and is not counted as a pass.
+
+`general-handler-arrow-oracle1.log` passes **5/5** steps and **126 PyArrow 23.0.0
+cases**: exact scalar/recursive values and all five states, metadata, owned
+batches, bounded splitting and failed-prefix completion. The fixture producer
+now verifies inferred schemas and sealed segment fingerprints before the
+independent PyArrow checks. Documentation, invariant registry and the refreshed
+diagnostic inventory pass. Handler dispatch and installed SDK migration remain
+separate from these codec checks.

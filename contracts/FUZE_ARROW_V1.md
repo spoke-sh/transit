@@ -116,3 +116,20 @@ releases partial ownership and provides no batch. Workspace must not alias input
 Decoding establishes no authorization, publication or captured-source evidence.
 The neutral ABI's logical IPC import, logical C data/stream export, Flight and
 SDK Arrow extensions remain separate capabilities.
+
+`LogicalInspect.infer` accepts the same plain canonical envelope without a
+separately supplied logical schema. A bounded, nonrecursive reader visits only
+the Arrow Message/Schema metadata tables and their two required key/value pairs.
+It does not traverse physical field trees. It requires `transit.definition` and
+`transit.logical_schema` in canonical order, validates the embedded logical
+codec under its existing byte/depth/node bounds, and compares the complete
+canonical schema prefix before invoking the Arrow reader. Missing/duplicate/
+extra metadata, foreign definitions, invalid offsets and changed schema bytes
+reject. Discovery-evidence metadata is outside this plain-segment profile.
+
+The inferred descriptor owns its data and includes the observed row count;
+`infer` alone does not validate all cell values or whole-result completion.
+`LogicalInspect.segment` follows inference with complete cell decoding and
+expected-row validation, then returns the logical schema fingerprint. Release
+inferred owners with `deinit`. All existing segment/workspace/value limits apply;
+self-description cannot establish source authority or honest computation.

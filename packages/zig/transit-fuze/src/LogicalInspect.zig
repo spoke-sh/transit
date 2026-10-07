@@ -14,6 +14,110 @@ pub const Batch = struct {
         self.* = undefined;
     }
 };
+
+/// Read only the fixed Arrow Message -> Schema -> two metadata entries. No
+/// physical field tree is traversed before the canonical schema comparison.
+/// Slots follow the pinned upstream Message.fbs, Schema.fbs and KeyValue tables.
+const Metadata = struct {
+    bytes: []const u8,
+    fn slice(self: Metadata, at: usize, count: usize) ![]const u8 {
+        if (at > self.bytes.len or count > self.bytes.len - at) return error.InvalidArrowResult;
+        return self.bytes[at..][0..count];
+    }
+    fn integer(self: Metadata, comptime T: type, at: usize) !T {
+        return std.mem.readInt(T, (try self.slice(at, @sizeOf(T)))[0..@sizeOf(T)], .little);
+    }
+    fn indirect(self: Metadata, at: usize) !usize {
+        const offset = try self.integer(u32, at);
+        if (offset == 0 or offset > self.bytes.len - at) return error.InvalidArrowResult;
+        return at + offset;
+    }
+    fn field(self: Metadata, table: usize, slot: usize) !usize {
+        const delta = try self.integer(i32, table);
+        const location = std.math.cast(usize, @as(i64, @intCast(table)) - @as(i64, delta)) orelse return error.InvalidArrowResult;
+        const size = try self.integer(u16, location);
+        const object_bytes = try self.integer(u16, location + 2);
+        if (size < 4 or size % 2 != 0 or object_bytes < 4 or 4 + slot * 2 + 2 > size) return error.InvalidArrowResult;
+        _ = try self.slice(location, size);
+        _ = try self.slice(table, object_bytes);
+        const offset = try self.integer(u16, location + 4 + slot * 2);
+        if (offset < 4 or offset >= object_bytes) return error.InvalidArrowResult;
+        return table + offset;
+    }
+    fn string(self: Metadata, offset: usize) ![]const u8 {
+        const at = try self.indirect(offset);
+        const size = try self.integer(u32, at);
+        const bytes = try self.slice(at + 4, size);
+        if ((try self.slice(at + 4 + bytes.len, 1))[0] != 0) return error.InvalidArrowResult;
+        return bytes;
+    }
+    fn descriptor(bytes: []const u8) ![]const u8 {
+        if (bytes.len < 8 or bytes.len > ipc.segment_bytes) return error.InvalidArrowResult;
+        if (std.mem.readInt(u32, bytes[0..4], .little) != 0xffffffff) return error.InvalidArrowResult;
+        const length = std.mem.readInt(u32, bytes[4..8], .little);
+        if (length == 0 or length > bytes.len - 8) return error.InvalidArrowResult;
+        const view: Metadata = .{ .bytes = bytes[8..][0..length] };
+        const message = try view.indirect(0);
+        if (try view.integer(u8, try view.field(message, 1)) != 1) return error.InvalidArrowResult;
+        const schema_table = try view.indirect(try view.field(message, 2));
+        const entries = try view.indirect(try view.field(schema_table, 2));
+        if (try view.integer(u32, entries) != 2) return error.InvalidArrowResult;
+        var descriptor_hex: ?[]const u8 = null;
+        inline for (.{ "transit.definition", "transit.logical_schema" }, 0..) |name, index| {
+            const pair = try view.indirect(entries + 4 + index * 4);
+            if (!std.mem.eql(u8, name, try view.string(try view.field(pair, 0)))) return error.InvalidArrowResult;
+            const metadata_value = try view.string(try view.field(pair, 1));
+            if (index == 0) {
+                if (!std.mem.eql(u8, metadata_value, ipc.definition)) return error.InvalidArrowResult;
+            } else descriptor_hex = metadata_value;
+        }
+        return descriptor_hex.?;
+    }
+};
+
+pub const Inferred = struct {
+    descriptor: t.Decoded,
+    rows: u8,
+    pub fn deinit(self: *Inferred) void {
+        self.descriptor.deinit();
+        self.* = undefined;
+    }
+};
+/// Infer the embedded logical descriptor of one plain canonical segment. The
+/// result owns its schema; cells still require decode/segment validation. Extra
+/// metadata, foreign definitions and noncanonical physical schemas reject.
+pub fn infer(allocator: std.mem.Allocator, bytes: []const u8, workspace: []u8) !Inferred {
+    const hex = try Metadata.descriptor(bytes);
+    if (hex.len == 0 or hex.len % 2 != 0 or hex.len / 2 > t.max_encoding_bytes) return error.InvalidArrowResult;
+    var encoded: [t.max_encoding_bytes]u8 = undefined;
+    const logical = std.fmt.hexToBytes(&encoded, hex) catch return error.InvalidArrowResult;
+    var descriptor = try t.decode(allocator, logical);
+    errdefer descriptor.deinit();
+    if (descriptor.type != .structure or descriptor.type.structure.len > 128) return error.InvalidArrowResult;
+    var prefix: [ipc.segment_bytes]u8 = undefined;
+    const canonical = try ipc.messages(descriptor.type, &.{}, .{ .schema = true, .batch = false, .end = false }, workspace, &prefix);
+    if (!std.mem.startsWith(u8, bytes, canonical)) return error.InvalidArrowResult;
+    if (bytes.len < 8 or !std.mem.eql(u8, bytes[bytes.len - 8 ..], &.{ 255, 255, 255, 255, 0, 0, 0, 0 })) return error.InvalidArrowResult;
+    var fixed: std.heap.FixedBufferAllocator = .init(workspace[0..@min(workspace.len, ipc.working_bytes)]);
+    var input: std.Io.Reader = .fixed(bytes);
+    var reader = a.IpcStreamReader(*std.Io.Reader).init(fixed.allocator(), &input);
+    defer reader.deinit();
+    _ = try reader.readSchema();
+    var batch = (try reader.nextRecordBatch()) orelse return error.InvalidArrowResult;
+    defer batch.deinit();
+    if (batch.numRows() > ipc.max_rows) return error.InvalidArrowResult;
+    return .{ .descriptor = descriptor, .rows = @intCast(batch.numRows()) };
+}
+/// Fully validate a self-describing segment before durable result sealing.
+/// The schema fingerprint supplies consistency evidence, never authorization.
+pub fn segment(allocator: std.mem.Allocator, bytes: []const u8, expected_rows: u8, workspace: []u8) ![32]u8 {
+    var inferred = try infer(allocator, bytes, workspace);
+    defer inferred.deinit();
+    if (inferred.rows != expected_rows) return error.InvalidArrowResult;
+    var batch = try decode(allocator, inferred.descriptor.type, bytes, expected_rows, workspace);
+    defer batch.deinit();
+    return inferred.descriptor.type.fingerprint();
+}
 const Budget = struct {
     allocator: std.mem.Allocator,
     limits: t.Limits = .{},

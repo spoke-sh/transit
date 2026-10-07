@@ -5876,7 +5876,7 @@
     },
     "packages/zig/transit-fuze/src/LogicalInspect.zig": {
       "errors": {
-        "InvalidArrowResult": 31,
+        "InvalidArrowResult": 52,
         "ValueBudgetExceeded": 4
       },
       "outcomes": {},
@@ -5885,18 +5885,26 @@
         "Budget.child()": "<inferred>",
         "Budget.copy()": "<inferred>",
         "Budget.count()": "<inferred>",
+        "Metadata.descriptor()": "<inferred>",
+        "Metadata.field()": "<inferred>",
+        "Metadata.indirect()": "<inferred>",
+        "Metadata.integer()": "<inferred>",
+        "Metadata.slice()": "<inferred>",
+        "Metadata.string()": "<inferred>",
         "atom()": "<inferred>",
         "cell()": "anyerror",
         "decode()": "<inferred>",
         "field()": "<inferred>",
+        "infer()": "<inferred>",
         "ordinary()": "<inferred>",
         "primitive()": "<inferred>",
+        "segment()": "<inferred>",
         "value()": "anyerror"
       },
       "open_error_set_uses": 2,
       "propagation": {
-        "try": 80,
-        "catch": 0
+        "try": 112,
+        "catch": 1
       },
       "imports": [
         "root.zig",
