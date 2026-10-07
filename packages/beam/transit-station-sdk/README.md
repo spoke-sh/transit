@@ -36,3 +36,6 @@ shared owner.
 
 [Logical values](docs/logical.md) provide owned recursive descriptors, exact wide
 numbers, distinct cell states and bounded neutral codecs.
+
+[Typed handler Tables](docs/tables.md) share general catalog schemas, stable row
+identities, retained reads and explicit saved mutation steps across Erlang and Elixir.

@@ -2,6 +2,7 @@
 -module(transit_catalog_value).
 -include("transit_catalog.hrl").
 -export([scope/1,commitment/1,action/1,decode/4,connection/2,supported/1,definition/0,limit/1,basis/1,check_request/2,context/0,with_context/2]).
+-export([schema/1,parse_schema/1,mutation/1,parse_mutation/1]).
 positive(V) -> transit_sdk_value:integer(V,1,18446744073709551615).
 u64(V) -> transit_sdk_value:integer(V,0,18446744073709551615).
 small(V) -> transit_sdk_value:integer(V,1,4294967295).
@@ -162,6 +163,37 @@ parse_schema(V) ->
 parse_column(V) ->
     fields(V,[<<"id">>,<<"name">>,<<"type">>,<<"nullable">>,<<"default">>,<<"max_characters">>]),
     #transit_catalog_column{id=wide(maps:get(<<"id">>,V)),name=identifier(maps:get(<<"name">>,V)),type=transit_logical:type_from_wire(maps:get(<<"type">>,V)),nullable=transit_sdk_value:boolean(maps:get(<<"nullable">>,V)),default=parsed(maps:get(<<"default">>,V),fun transit_logical:cell_from_wire/1),max_characters=parsed(maps:get(<<"max_characters">>,V),fun small/1)}.
+parse_assignments(V) -> [begin
+    fields(A,[<<"column">>,<<"value">>]), Cell=maps:get(<<"value">>,A),
+    Value=case maps:to_list(Cell) of
+        [{<<"default">>,Empty}]->fields(Empty,[]),default;
+        [{<<"cell">>,C}]->transit_logical:cell_from_wire(C);
+        _->check(false)
+    end,
+    #transit_catalog_assignment{column=wide(maps:get(<<"column">>,A)),value=Value}
+end || A<-list(V,128)].
+parse_predicate(V) -> case maps:to_list(V) of
+    [{<<"atom">>,Atom}]->case maps:to_list(Atom) of
+        [{<<"all">>,Empty}]->fields(Empty,[]),all;
+        [{<<"state">>,State}]->fields(State,[<<"column">>,<<"value">>]),
+            {state,wide(maps:get(<<"column">>,State)),known(maps:get(<<"value">>,State),[missing,null,type_error,value,conflict])};
+        [{<<"compare">>,Compare}]->fields(Compare,[<<"column">>,<<"op">>,<<"value">>]),
+            {compare,wide(maps:get(<<"column">>,Compare)),known(maps:get(<<"op">>,Compare),[eq,ne,lt,le,gt,ge]),transit_logical:atom_from_wire(maps:get(<<"value">>,Compare))};
+        _->check(false)
+    end;
+    [{Op,Empty}]->fields(Empty,[]),known(Op,[negate,conjunction,disjunction]);
+    _->check(false)
+end.
+parse_mutation(V) ->
+    fields(V,[<<"action">>,<<"predicate">>]),
+    Predicate=parsed(maps:get(<<"predicate">>,V),fun(P)->[parse_predicate(I)||I<-list(P,64)] end),
+    Result=case maps:to_list(maps:get(<<"action">>,V)) of
+        [{<<"insert">>,Rows}]->check(Predicate=:=undefined),{insert,[parse_assignments(R)||R<-list(Rows,1024)]};
+        [{<<"update">>,Assignments}]->{update,parse_assignments(Assignments),Predicate};
+        [{<<"delete">>,Empty}]->fields(Empty,[]),{delete,Predicate};
+        _->check(false)
+    end,
+    {Encoded,_}=mutation(Result),check(Encoded=:=V),Result.
 commitment(#transit_catalog_metadata_commitment{bytes=Bytes,digest=Digest}) ->
     #{<<"format">>=>16#54434d01,<<"length">>=>transit_sdk_value:integer(Bytes,1,436),<<"digest">>=>binary_to_list(fixed(Digest,32))}.
 parse_commitment(V) ->

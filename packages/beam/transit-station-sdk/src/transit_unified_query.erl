@@ -5,6 +5,7 @@
          prepare_next/3,prepare_control/3,submit/2,observe/2,status/2,page/2,page/3]).
 %% Internal bounded-worker callbacks, not an application wire interface.
 -export([open/2,execute/2,evidence/1]).
+-export([plan/1]).
 -export_type([client/0,source/0,scalar/0,cell/0,predicate/0,predicate_atom/0,predicate_instruction/0,inspection/0]).
 -opaque client() :: {transit_unified_client,transit_sdk_worker:handle()}.
 -type source() :: #transit_unified_kv{} | #transit_unified_table{} | #transit_unified_document{}.

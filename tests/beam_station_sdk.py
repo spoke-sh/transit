@@ -27,14 +27,19 @@ def run(node, cli, library, artifacts, http_worker=None, *, execute=None):
             env = dict(os.environ, ERL_LIBS=str(lib), ERL_FLAGS='+S 2:2 +SDcpu 1 +SDio 1')
             classes = target / 'classes'
             classes.mkdir()
-            sources = ['beam_station_controller.erl', 'beam_exchange_controller.erl', 'beam_document_controller.erl']
+            sources = ['beam_station_controller.erl', 'beam_exchange_controller.erl', 'beam_document_controller.erl', 'beam_handler_tables.erl']
             if language == 'erlang': sources += ['beam_station_adapter.erl', 'beam_station_reentrant.erl', 'beam_http_adapter.erl', 'beam_grpc_adapter.erl', 'beam_document_adapter.erl']
             for name in sources:
                 source = target / name
                 shutil.copy2(root / 'tests' / name, source)
                 subprocess.run(['erlc', '-Werror', '-o', str(classes), str(source)], env=env, cwd=target, check=True)
                 source.unlink()
+            subprocess.run(['erl', '-noshell', '-pa', str(classes), '-s', 'beam_handler_tables', 'main'], env=env, cwd=target, check=True, timeout=45)
             if language == 'elixir':
+                values = target / 'elixir_handler_tables.exs'
+                shutil.copy2(root / 'tests/elixir_handler_tables.exs', values)
+                subprocess.run(['elixir', str(values)], env=env, cwd=target, check=True, timeout=45)
+                values.unlink()
                 for name in ('elixir_station_adapter.ex', 'elixir_http_adapter.ex', 'elixir_grpc_adapter.ex', 'elixir_document_adapter.ex'):
                     source = target / name
                     shutil.copy2(root / 'tests' / source.name, source)

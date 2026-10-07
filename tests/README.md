@@ -17747,3 +17747,33 @@ I/O exception; the corrected test compiles with `-Xlint:all -Werror`. This sourc
 test exercises the actual bounded parser, not a running native port or authority.
 
 Raw `handler-table-java-depth2.log` SHA-256: `ae05f6eac9e440e3980aff5fc4980284bb398238a536466279150a704fbc8905`.
+
+### Erlang and Elixir general handler Tables
+
+The shared BEAM implementation discovers general catalog schemas and returns
+logical rows, stable identities, full head bases and typed creation/mutation
+outcomes. Saved mutation/reference handles bind the original work, validate
+logical values and copy binaries on loading. The native handler port uses the
+shared 96-level JSON profile. Elixir projects the same records into public
+structs and reuses `Catalog.Schema` and `UnifiedQuery.Plan`; neither wrapper
+reimplements Table execution or scheduling.
+
+`handler-table-beam-build3.log` builds six OTP archives, including both language
+wrappers, with Erlang and Elixir warnings treated as errors.
+`handler-table-beam-check1.log` installs those archives into an independent
+consumer and passes the existing logical-value/recursive-schema suites,
+**27 Erlang rejection cases**, and Elixir schema, logical-row, saved-reference,
+typed-outcome and general-plan checks. The handler cases cover full-width IDs,
+canonical saved data, 128 columns/1024 rows/action bounds, defaults/predicates,
+applied-only counts, 15 nested maps, foreign/expired scopes and caught-read
+poisoning. Loaded saved data does not pin unrelated large parent binaries.
+Package hashes are recorded in the raw log. The first build rejects a type name
+that shadows Erlang's built-in `reference()`; the renamed opaque type builds.
+
+Documentation passes 5264 local links across 526 files; the bound/invariant
+registry and diagnostic inventory pass. These are installed value and scope
+checks. The archives package existing native executables; the test opens no
+native handler or authority. Shared examples, live installed schedules and final
+full qualification remain pending.
+
+Raw `handler-table-beam-check1.log` SHA-256: `971af456ae695565e47eb3d33652a591a0c17abfc4d2150c76018e60befbb9d9`.

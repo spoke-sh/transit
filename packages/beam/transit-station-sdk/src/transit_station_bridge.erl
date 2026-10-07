@@ -82,7 +82,7 @@ catalog_call(#bridge{port=Port},Action,Mutation) ->
         {transit_sdk_port:limit(Port,<<"catalog_line_bytes">>),96}).
 close(#bridge{port = Port}) -> transit_sdk_port:close(Port).
 prepare(#bridge{port = Port}) -> transit_sdk_port:request(Port, #{<<"growing_prepare">> => erlang:system_time(millisecond) + 30000}, prepare_turn, false, <<"GrowingEvent">>).
-apply(#bridge{port = Port}, Scope, Action) -> transit_sdk_port:request(Port, #{<<"growing_apply">> => #{<<"scope">> => Scope, <<"action">> => Action}}, apply, false, <<"GrowingResult">>).
+apply(#bridge{port = Port}, Scope, Action) -> transit_sdk_port:request(Port, #{<<"growing_apply">> => #{<<"scope">> => Scope, <<"action">> => Action}}, apply, false, <<"GrowingResult">>, {transit_sdk_port:limit(Port, <<"host_line_bytes">>),96}).
 finish(#bridge{port = Port}, Scope, Failed) -> transit_sdk_port:request(Port, #{<<"growing_finish_result">> => #{<<"scope">> => Scope, <<"failed">> => Failed}}, finish, false, undefined).
 discard(#bridge{port = Port}, Scope) -> transit_sdk_port:request(Port, #{<<"growing_discard">> => Scope}, discard, false, undefined).
 dispatch(#bridge{port = Port}) -> transit_sdk_port:request(Port, #{<<"growing_dispatch">> => #{}}, dispatch, true, <<"GrowingEvent">>).

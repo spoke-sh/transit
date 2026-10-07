@@ -28,14 +28,17 @@ def run(artifacts):
         environment.update(ERL_LIBS=str(library), ERL_FLAGS='+S 2:2 +SDcpu 1 +SDio 1')
         classes = target / 'classes'
         classes.mkdir()
-        for name in ('beam_schema_values.erl', 'beam_logical_values.erl'):
+        for name in ('beam_schema_values.erl', 'beam_logical_values.erl', 'beam_handler_tables.erl'):
             source = target / name
             shutil.copy2(root / 'tests' / name, source)
             subprocess.run(['erlc', '-Werror', '-o', str(classes), str(source)], env=environment, cwd=target, check=True)
             source.unlink()
         subprocess.run(['erl', '-noshell', '-pa', str(classes), '-s', 'beam_logical_values', 'main'], env=environment, cwd=target, check=True, timeout=45)
+        subprocess.run(['erl', '-noshell', '-pa', str(classes), '-s', 'beam_handler_tables', 'main'], env=environment, cwd=target, check=True, timeout=45)
         elixir = target / 'consumer.exs'
         shutil.copy2(root / 'tests/elixir_logical_values.exs', elixir)
+        subprocess.run(['elixir', str(elixir)], env=environment, cwd=target, check=True, timeout=45)
+        shutil.copy2(root / 'tests/elixir_handler_tables.exs', elixir)
         subprocess.run(['elixir', str(elixir)], env=environment, cwd=target, check=True, timeout=45)
         print(json.dumps(dict(profile='installed-beam-logical-values', artifacts=identities)))
 
