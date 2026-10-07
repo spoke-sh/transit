@@ -61,3 +61,12 @@ contain at most eight rows, with a 4 MiB Arrow workspace and a 65535-byte segmen
 buffer. Output-budget failure terminates capture; an earlier prefix cannot
 become complete. Catalog DDL and grants remain separate from these
 application-owned Tables.
+
+
+The complete handler Table response, including schema metadata, JSON escaping
+and its envelope, is limited to 256 KiB across direct ABI and native-host SDKs.
+An oversized response returns `OutputBudgetExceeded` before emitting a result;
+it never truncates rows or pretends a page is complete. Retry a page in a new
+turn with fewer rows. A single row or schema that exceeds this response budget
+cannot be read through this handler interface, even if native storage admits it.
+This transport bound is separate from the native Table row and schema bounds.

@@ -86,3 +86,11 @@ fits at most 512 bytes. Segments fit a 65535-byte buffer and the Arrow workspace
 is 4 MiB. A projection that exceeds these operation budgets produces a failed
 query outcome; an earlier segment prefix never becomes a complete result.
 See [capture and delivery](../../../zig/transit-station/docs/queries.md).
+
+The complete handler Table response, including schema metadata, JSON escaping
+and its envelope, is limited to 256 KiB across direct ABI and native-host SDKs.
+An oversized response returns `OutputBudgetExceeded` before emitting a result;
+it never truncates rows or pretends a page is complete. Retry a page in a new
+turn with fewer rows. A single row or schema that exceeds this response budget
+cannot be read through this handler interface, even if native storage admits it.
+This transport bound is separate from the native Table row and schema bounds.

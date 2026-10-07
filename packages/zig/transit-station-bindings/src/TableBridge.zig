@@ -8,6 +8,15 @@ const p = s.protocol;
 const v = c.TableValues;
 const Allocator = std.mem.Allocator;
 const Cell = f.LogicalJson.Cell;
+/// Complete GrowingResult JSON, including its Table envelope. This preserves
+/// the existing direct-ABI response bound and fits the line-framed host bound.
+pub const max_result_bytes = p.max_body;
+pub fn validateResult(value: Result) !void {
+    var scratch: [256]u8 = undefined;
+    var count: std.Io.Writer.Discarding = .init(&scratch);
+    try std.json.Stringify.value(.{ .table = value }, .{}, &count.writer);
+    if (count.fullCount() > max_result_bytes) return error.OutputBudgetExceeded;
+}
 pub const Source = struct { object: []const u8, version: ?p.Growth.ReadVersionId = null };
 pub const Basis = struct { resource: u64, revision: u64, object: []const u8, head: []const u8 };
 pub const Row = struct {
@@ -149,6 +158,11 @@ fn read(arena: *std.heap.ArenaAllocator, source: anytype, object: u64, action: A
 pub fn apply(arena: *std.heap.ArenaAllocator, turn: *s.Turn, action: Action) !Result {
     const before = turn.decision;
     errdefer turn.decision = before;
+    const result = try applyInner(arena, turn, action);
+    try validateResult(result);
+    return result;
+}
+fn applyInner(arena: *std.heap.ArenaAllocator, turn: *s.Turn, action: Action) !Result {
     const allocator = arena.allocator();
     switch (action) {
         .create => |value| {

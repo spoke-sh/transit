@@ -361,3 +361,12 @@ any replay cursor unchanged. It requires current resource read/inspection;
 native effect evidence also requires inspection of the connector PID.
 See the [exchange contract](../../../../contracts/STATION_EXCHANGE_V1.md#capture-failure-evidence)
 for absent evidence, retired exchanges, identity binding and stale-cut errors.
+
+
+Handler Table actions bound the complete `GrowingResult` JSON response to
+`handler_table_result_bytes` (256 KiB), including metadata and escaping. This
+matches the direct ABI response capacity and fits the native-host line frame.
+`OutputBudgetExceeded` returns the budget status before response publication;
+no row, page or schema is truncated. Smaller page limits can reduce a response;
+a single row/schema exceeding this bound requires a different supported read
+surface. Native storage admission does not imply handler transport admission.

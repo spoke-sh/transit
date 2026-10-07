@@ -13828,6 +13828,7 @@
         "GrowingActions.zig",
         "GrpcCodec.zig",
         "HttpCodec.zig",
+        "TableBridge.zig",
         "client_abi",
         "std",
         "transit_station"
@@ -14191,6 +14192,7 @@
         "InvalidCursor": 2,
         "InvalidPrimaryKey": 1,
         "InvalidRowIdentity": 1,
+        "OutputBudgetExceeded": 1,
         "WrongResource": 3
       },
       "outcomes": {
@@ -14218,14 +14220,16 @@
         "Reference.native()": "<inferred>",
         "Status.foreign()": "<inferred>",
         "apply()": "<inferred>",
+        "applyInner()": "<inferred>",
         "definition()": "<inferred>",
         "identity()": "<inferred>",
         "read()": "<inferred>",
-        "row()": "<inferred>"
+        "row()": "<inferred>",
+        "validateResult()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 55,
+        "try": 58,
         "catch": 0
       },
       "imports": [

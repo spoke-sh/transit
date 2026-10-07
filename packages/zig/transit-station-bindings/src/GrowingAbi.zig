@@ -61,6 +61,7 @@ pub const Capabilities = struct {
     table_row_bytes: u32 = s.fuze.TableRow.max_bytes,
     table_page_rows: u32 = s.TableReader.max_page_rows,
     table_action_bytes: u32 = p.max_body,
+    table_result_bytes: u32 = @import("TableBridge.zig").max_result_bytes,
     table_resumable_mutations: bool = true,
     page_entries: u32 = p.Growth.page_size,
     turn_mutations: u32 = p.Growth.turn_mutations,

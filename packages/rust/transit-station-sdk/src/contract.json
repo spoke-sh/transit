@@ -4,6 +4,7 @@
   "minimum_stack_bytes": 8388608,
   "limits": {
     "handler_action_bytes": 262144,
+    "handler_table_result_bytes": 262144,
     "catalog_line_bytes": 16793600,
     "catalog_action_bytes": 16777216,
     "catalog_intent_bytes": 4327031,
@@ -23085,6 +23086,7 @@
         "table_row_bytes",
         "table_page_rows",
         "table_action_bytes",
+        "table_result_bytes",
         "table_resumable_mutations",
         "page_entries",
         "turn_mutations",
@@ -23294,6 +23296,13 @@
           "x-transit-bits": 32,
           "x-transit-signed": false
         },
+        "table_result_bytes": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4294967295,
+          "x-transit-bits": 32,
+          "x-transit-signed": false
+        },
         "table_resumable_mutations": {
           "type": "boolean"
         },
@@ -23369,6 +23378,7 @@
         "table_row_bytes",
         "table_page_rows",
         "table_action_bytes",
+        "table_result_bytes",
         "table_resumable_mutations",
         "page_entries",
         "turn_mutations",
@@ -23418,6 +23428,7 @@
         "table_row_bytes": 2097240,
         "table_page_rows": 8,
         "table_action_bytes": 262144,
+        "table_result_bytes": 262144,
         "table_resumable_mutations": true,
         "page_entries": 8,
         "turn_mutations": 4,

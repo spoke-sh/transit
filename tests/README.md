@@ -17620,3 +17620,40 @@ and documentation links pass. Query examples and the shared multi-turn installed
 scenario remain part of the continuing SDK migration.
 
 Raw `handler-table-ruby-final1.log` SHA-256: `d49edcf78bbffd0b2900554df4ce6f15b4e5f20776e79eb8dcf89ec263c23c7e`.
+
+
+### Shared handler Table response budget
+
+The native Table bridge now measures the complete `GrowingResult` JSON, including
+its envelope, metadata and escaping, before publishing a response. Its 256 KiB
+limit matches the existing direct-ABI read capacity and fits the native-host
+frame. Oversized reads return `OutputBudgetExceeded` with budget status; they
+cannot truncate rows, hide continuation or vary by SDK transport. Smaller pages
+can reduce response size; a single row/schema above this transport bound remains
+unreadable through this handler profile. Native row/schema storage admission is
+separate and unchanged. Result validation restores the private proposal on error.
+
+`handler-table-result-unit1.log` passes **21/21** binding tests, four steps,
+138 ms and 31 MiB test-process MaxRSS. The added test independently serializes
+an exact-fit response, tests one-byte overflow, JSON escaping, page envelope and
+metadata overhead, and the exported budget status. Existing general Table
+creation/read/mutation/recovery tests pass through the shared result guard.
+`handler-table-result-build1.log` builds the ReleaseSafe shared library in four
+steps into the campaign's private prefix (1 minute, 2 GiB compiler MaxRSS).
+Contract attempt 1 imports the same Zig file through two module roots and fails;
+attempt 2 reads the exported capability instead and regenerates successfully.
+
+After regeneration, `handler-table-result-ts1.log` passes formatting, lint,
+strict source type checking and **55/55** tests. The Python/Ruby source suites
+pass **31/28** adversarial rejections respectively in
+`handler-table-result-sdk1.log`. Diagnostic inventory, classified-bound registry
+and documentation links pass. These are bounded-codec/API checks; installed
+handler scenarios and final full qualification remain pending.
+
+Raw `handler-table-result-unit1.log` SHA-256: `1614d07cd8f6bd06055e5c966e82666f489921b1030a1cf16e23e4afff0edde4`.
+
+Raw `handler-table-result-build1.log` SHA-256: `0097519a84734af8db38f1e62edf2e55af4145c2481d2f0f0e1d4982cc9c061b`.
+
+Raw `handler-table-result-ts1.log` SHA-256: `a29b4575553a19c361fe4435d35603361582aa52c2f8aebdb5d555724c49fb4f`.
+
+Raw `handler-table-result-sdk1.log` SHA-256: `d876dc783d4f558f953cf56a4cff8a4a677df9e269d17eec78c2f35879a3f3ad`.

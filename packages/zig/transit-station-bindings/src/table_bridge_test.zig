@@ -191,3 +191,41 @@ test "foreign Arrow cells retain rich descriptors and owned recursive values" {
     try t.expectEqualStrings("12345", decoded.value.value.list[0].value.atom.decimal);
     try t.expectEqual(.null, std.meta.activeTag(decoded.value.value.list[1]));
 }
+
+test "handler Table response budget counts JSON escaping metadata and its envelope" {
+    var arena = std.heap.ArenaAllocator.init(t.allocator);
+    defer arena.deinit();
+    const metadata: b.Definition = .{ .schema = try f.TableSchemaJson.foreign(&arena, schema), .basis = .{
+        .resource = 7,
+        .revision = 1,
+        .object = source.object,
+        .head = &(@as([64]u8, @splat('1'))),
+    } };
+    var cells = [_]f.LogicalJson.Cell{ .{ .value = .{ .atom = .{ .signed = "7" } } }, .{ .value = .{ .atom = .{ .utf8 = "" } } }, .null, .null };
+    const identity = &(@as([40]u8, @splat('1')));
+    const result: b.Result = .{ .row = .{ .definition = metadata, .row = .{ .identity = identity, .cells = &cells } } };
+    const empty = try std.json.Stringify.valueAlloc(t.allocator, .{ .table = result }, .{});
+    defer t.allocator.free(empty);
+    const text = try t.allocator.alloc(u8, b.max_result_bytes - empty.len + 1);
+    defer t.allocator.free(text);
+    @memset(text, 'a');
+    cells[1] = .{ .value = .{ .atom = .{ .utf8 = text[0 .. text.len - 1] } } };
+    const exact = try std.json.Stringify.valueAlloc(t.allocator, .{ .table = result }, .{});
+    defer t.allocator.free(exact);
+    try t.expectEqual(b.max_result_bytes, exact.len);
+    try b.validateResult(result);
+    cells[1] = .{ .value = .{ .atom = .{ .utf8 = text } } };
+    try t.expectError(error.OutputBudgetExceeded, b.validateResult(result));
+    @memset(text, '\n');
+    cells[1] = .{ .value = .{ .atom = .{ .utf8 = text[0 .. text.len / 2 + 1] } } };
+    try t.expectError(error.OutputBudgetExceeded, b.validateResult(result));
+    cells[1] = .{ .value = .{ .atom = .{ .utf8 = text[0..65536] } } };
+    try b.validateResult(result);
+    const row = result.row.row.?;
+    try t.expectError(error.OutputBudgetExceeded, b.validateResult(.{ .page = .{
+        .definition = metadata,
+        .rows = &.{ row, row },
+        .next = null,
+    } }));
+    try t.expectEqual(@import("Abi.zig").Status.budget_exceeded, @import("Abi.zig").status(error.OutputBudgetExceeded));
+}

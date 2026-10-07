@@ -64,3 +64,12 @@ native encoded bytes. Results have eight-row pages, a 4 MiB Arrow workspace and 
 65535-byte segment buffer; an oversized segment records failure and an earlier
 prefix cannot become a complete result. Catalog DDL/grants remain separate from
 these application-owned handler Tables.
+
+
+The complete handler Table response, including schema metadata, JSON escaping
+and its envelope, is limited to 256 KiB across direct ABI and native-host SDKs.
+An oversized response returns `OutputBudgetExceeded` before emitting a result;
+it never truncates rows or pretends a page is complete. Retry a page in a new
+turn with fewer rows. A single row or schema that exceeds this response budget
+cannot be read through this handler interface, even if native storage admits it.
+This transport bound is separate from the native Table row and schema bounds.
