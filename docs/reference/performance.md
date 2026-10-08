@@ -340,6 +340,16 @@ fixed-column storage profile. It also measures wide/nested values and retained
 data with a concurrent reader. The record separates ordinary timings,
 instrumented counts and failed setups;
 general type support does not establish the earlier performance budgets.
+The measured general-schema costs are accepted as the current baseline. For the
+41-row configured-source Table fixture with 64 resident authority pages and no
+setup aging, regression ceilings are 75 requests for scan/COUNT and scalar
+ranges, 23 for LIMIT 3, 13 for LIMIT 0, 22 for primary-key equality, 20 for its
+COUNT, and 11 for metadata inspection. Explicit bindings add ten requests.
+These ceilings apply to that fixture; they are not latency promises or allowances
+for arbitrary schema/cardinality growth. The earlier failed-budget reports remain
+part of the evidence. [Further optimization](https://github.com/rupurt/rey/issues/76)
+tracks metadata reuse, bounded batch disclosure and immutable-record/publication
+costs while preserving authority, recovery and resource bounds.
 Idle workers use bounded authorized waits on the observed process or output
 position. Waits release the authority lock, have separate admission capacity,
 and revalidate current authorization after a publication or timeout. Notifications

@@ -54,6 +54,7 @@ before Station, so higher-level abstractions grow on an inspectable kernel.
 | [M44](M44.md) | Semantic declarative diagnostics | Complete for reviewed interfaces: durable witnesses, precise attribution, recovery guidance and semantic coverage gates; clean task inventory qualified |
 | [M45](M45.md) | Mutation completion and authority efficiency | Complete: bounded completion waits, leaf staging batches, attribution and finite load controls |
 | [M46](M46.md) | General typed Tables and schema lifecycle | In progress: shared schema/row identity, generalized storage, CREATE/ALTER/DROP and typed DML before relational execution |
+| [M47](M47.md) | General Table storage and query efficiency | Planned: reduce accepted schema, immutable-record and publication costs without blocking the qualified relational intake |
 
 The historical [pre-Station review](../history/reviews/PRE_STATION.md) led to the completed
 [M8 readiness requirements](M8.md#exit-criteria). Station now builds on the resource

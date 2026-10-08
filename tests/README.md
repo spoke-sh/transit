@@ -18607,3 +18607,29 @@ the contract/diagnostic inventory, unit and CLI checks, frontend checks and
 documentation production build.
 
 Raw public-query pass SHA-256: `1e6570781aee5d91ccaa35be31ddc87d2fa082837f63ac06c75d086b1141f7eb`.
+
+### Accepted general Table performance baseline
+
+On 2026-10-07 the user explicitly accepts the documented general Table costs
+for issue #75 and selects separate optimization tracking in
+[issue #76](https://github.com/rupurt/rey/issues/76). This decision supersedes the
+earlier pending-budget checkpoints; it does not relabel their failed runs.
+`tests/interactive_query.py` applies the recorded ceilings only to the 41-row,
+64-resident-page, unaged Table fixture. Other sizes/source profiles keep their
+prior checks. The public performance reference and archived mutation report
+describe the accepted costs and their limits; M47 owns subsequent improvement.
+
+`general-interactive-accepted1.log` passes the real Table console schedule on
+runtime `436a0797` with the updated budget assertions: metadata 11 requests,
+scan/COUNT/scalar ranges 75, LIMIT 3 23, LIMIT 0 13, key equality 22, equality
+COUNT 20, and ten additional requests for explicit bindings. Fresh cuts,
+exact rows/parameters, bounded frames, zero durable writes, cancellation, current
+denial and incomplete-result checks also pass. This functional/request-count
+proof overlaps root checks and clean CI; its 25.26-second elapsed time is not an
+ordinary latency comparison.
+The [accepted interactive record](verification/results/m46-accepted-interactive-2026-10-07.json)
+retains all 26 measured statements, controls, binary/harness hashes and raw-log
+digest, separately from the original failed-budget evidence.
+`general-accepted-budgets-check1.log` passes the full root `just check`, including
+documentation ownership/links, generated interfaces, unit/CLI/frontend checks
+and the documentation production build.

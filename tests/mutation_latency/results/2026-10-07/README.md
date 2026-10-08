@@ -84,10 +84,19 @@ cancellation and incomplete-prefix checks do not turn that budget failure into
 a pass. General scalar ranges scan by row identity; the old int64 physical range
 path is no longer their access method.
 
-Performance remains an open completion gate on #75. Larger allowances have not
-been accepted or substituted. These results do not establish the earlier
-point-write latency or scan efficiency. Retained-memory and recovery proofs are
-separate evidence in the [proof ledger](../../../README.md).
+On 2026-10-07 the user explicitly accepted the documented general Table costs
+for #75 and selected separate optimization tracking in
+[issue #76](https://github.com/rupurt/rey/issues/76). The original failed-budget
+run above stays failed. A later focused rerun uses the accepted fixture ceilings:
+75 for scan/COUNT and scalar ranges, 23 for LIMIT 3, 13 for LIMIT 0, 22 for
+primary-key equality, 20 for equality COUNT, and 11 for metadata inspection;
+explicit bindings add ten requests. This acceptance covers the measured 41-row,
+64-resident-page, unaged Table fixture. Other source profiles retain their prior
+ceilings; no cardinality formula or latency SLO is inferred. The timings,
+wide/nested costs and combined-reader observations above remain the accepted
+baseline, not evidence of the earlier point-write latency or scan efficiency.
+Retained-memory, recovery and subsequent executed checks are separate evidence
+in the [proof ledger](../../../README.md).
 
 ## Reproduction
 
