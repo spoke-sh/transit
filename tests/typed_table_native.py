@@ -448,31 +448,35 @@ def run(node, proof, host, cli, station_host, *arguments):
                     finally:
                         consumer.close()
 
+            def restart_owners():
+                nonlocal authority
+                for worker in workers:
+                    if worker.poll() is None:
+                        worker.kill()
+                    worker.wait(timeout=10)
+                workers.clear()
+                authority.kill()
+                authority.wait(timeout=10)
+                authority = None
+                fixture.stop()
+                fixture.start()
+                authority = start()
+                call('host')
+                launch('host.json')
+                launch('courier-config.json')
+
+            logical_types = None
+            if not languages:
+                from table_logical_types import qualify as logical_types_proof
+                logical_types = logical_types_proof(call, execute, applied, restart_owners)
             growth = None
             if options.grow:
-                def restart_growth():
-                    nonlocal authority
-                    for worker in workers:
-                        if worker.poll() is None:
-                            worker.kill()
-                        worker.wait(timeout=10)
-                    workers.clear()
-                    authority.kill()
-                    authority.wait(timeout=10)
-                    authority = None
-                    fixture.stop()
-                    fixture.start()
-                    authority = start()
-                    call('host')
-                    launch('host.json')
-                    launch('courier-config.json')
-
                 def actors():
                     return {'authority': authority, 'store': fixture.server,
                             **{f'worker_{index}': worker for index, worker in enumerate(workers)}}
 
                 from table_growth import qualify as growth_proof
-                growth = growth_proof(options.grow, cli, root, url, call, execute, applied, restart_growth, actors)
+                growth = growth_proof(options.grow, cli, root, url, call, execute, applied, restart_owners, actors)
                 if cold_store:
                     assert cold_store.data_objects() > 0, 'Growth did not exercise cold data'
                     growth['cold_objects'] = cold_store.data_objects()
@@ -480,7 +484,7 @@ def run(node, proof, host, cli, station_host, *arguments):
 
             assert not failures, failures
             assert measurements['max_mutations'] <= 4 and measurements['max_value_bytes'] <= 256, measurements
-            print(json.dumps(dict(profile='typed-table-native', seconds=round(time.monotonic() - started, 3), lost_reply_replays=sorted(replays), supplied_host_lost_receipt='host_turn' in faults, measurements=measurements, bridge=bridge_result, catalog_cli=cli_result, installed=installed, growth=growth)))
+            print(json.dumps(dict(profile='typed-table-native', seconds=round(time.monotonic() - started, 3), lost_reply_replays=sorted(replays), supplied_host_lost_receipt='host_turn' in faults, measurements=measurements, bridge=bridge_result, catalog_cli=cli_result, installed=installed, logical_types=logical_types, growth=growth)))
         finally:
             release_host_reply.set()
             for worker in workers:

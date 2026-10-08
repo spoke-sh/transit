@@ -18714,3 +18714,30 @@ same source revision, including contract/diagnostic drift, units, CLI checks,
 frontend checks and the documentation production build. This completes the
 current catalog consumer checkpoint; the separate ordinary clean bindings lane
 continues and is not yet a complete suite pass.
+
+### Native complete logical-family Table matrix
+
+The final coverage audit identifies a distinction: every family has independent
+compiler/codec evidence, while the existing native lifecycle schedule exercises a
+smaller subset. The ordinary `just test::typed-tables` profile now also runs
+`table_logical_types.py`; explicit `--sdk` selections retain their separate
+installed-consumer profile and report this additional matrix as unselected.
+
+`general-native-logical-matrix3.log` passes 28 exact descriptors through SQL,
+the supplied catalog owner, disk-backed Ursula and typed SELECT: all signed and
+unsigned 8/16/32/64/128-bit widths, float32/64, decimal, boolean, UTF-8, binary,
+date, time, civil/UTC timestamp, interval, UUID, struct, list, fixed array, map,
+union and JSON. Independent expected values include integer extrema, negative
+zero bits, precision-38 decimal, Unicode scalars, binary bytes, pre-epoch dates,
+exact temporal units, nested MISSING/NULL, canonical map order and JSON integers
+above JavaScript's exact range. Complete descriptors and per-cell evidence agree.
+
+The proof inserts typed defaults and a separate all-NULL row, updates only that
+NULL row with typed literals, then restarts both node and store and replaces
+owners. Both complete rows and the original UPDATE result remain identical.
+The whole lifecycle schedule passes in 110.868 seconds, with 420 turns, 176 sends
+and the unchanged four-write/256-byte bounds. These are functional timings under
+concurrent SDK qualification. The first two attempts reject fixture names and an
+incorrect unwrapped-schema expectation; neither is a complete pass. The consumer
+checkpoint record retains their hashes and the successful result. Clean growth
+qualification must exercise this new default profile at committed source.

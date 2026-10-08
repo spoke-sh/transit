@@ -486,5 +486,70 @@
     "exit_code": 0,
     "log": "general-consumer-checkpoint-check1.log",
     "log_sha256": "8a0d4d4b45df4a37928292d2d8e80ace849e0e2b214ec6742fbac0c022a57223"
+  },
+  "native_logical_matrix": {
+    "base_revision": "e56b4d2ee1f31823274d9217ff5fc0f40b200bb7",
+    "fixture_changes": {
+      "tests/table_logical_types.py": "d25f1d01d061f66ece49b80d30495fc090f9afcfc72ac784f02ec4dd0825ad3f",
+      "tests/typed_table_native.py": "f9a9a28cd5d8c68f74af834d77defc73cf55bc91f32eb7744baa4c2160b2042d"
+    },
+    "log": "general-native-logical-matrix3.log",
+    "log_sha256": "e8c19ba1021dc7fb7c607a39f3362c89518bdf6cc4673dd886cc97895597f26c",
+    "result": {
+      "profile": "typed-table-native",
+      "seconds": 110.868,
+      "lost_reply_replays": [
+        "send",
+        "turn"
+      ],
+      "supplied_host_lost_receipt": true,
+      "measurements": {
+        "turns": 420,
+        "sends": 176,
+        "max_mutations": 4,
+        "max_value_bytes": 256,
+        "dispositions": [
+          1,
+          2,
+          2,
+          3,
+          3
+        ],
+        "client_disconnects": 1
+      },
+      "bridge": {
+        "max_step_bytes": 1394,
+        "original_object": "9001",
+        "replacement_object": "9002"
+      },
+      "catalog_cli": {
+        "original_object": "22001",
+        "replacement_object": "22002",
+        "large_artifact_bytes": 142007,
+        "recovered_input": 922
+      },
+      "installed": [],
+      "logical_types": {
+        "descriptors": 28,
+        "rows": 2,
+        "defaults": true,
+        "nulls": true,
+        "typed_update": true,
+        "node_store_restart": true
+      },
+      "growth": null
+    },
+    "failed_attempts": [
+      {
+        "log": "general-native-logical-matrix1.log",
+        "log_sha256": "72ca6fbd5e38069b062819882c875115d1ca35b36601c3161c3bbb303fcfb890",
+        "reason": "The new fixture used unquoted reserved identifiers int64 and count; CREATE rejected before submission."
+      },
+      {
+        "log": "general-native-logical-matrix2.log",
+        "log_sha256": "8caeb4c81c15f868ccb733ebd38652263e47d954e50ab27bc6f143199ae2526f",
+        "reason": "The expected schema omitted the logical definition/type envelope. The 28 actual stored default values match the independent expectations, but this is an incomplete matrix run."
+      }
+    ]
   }
 }
