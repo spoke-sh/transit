@@ -18694,3 +18694,23 @@ and both independently installed Python modes in 116.215 seconds: 426 turns,
 client disconnect. Both SDK modes retain their original typed mutation result
 and historical schema after DROP/name reuse. The consumer checkpoint record
 retains this result and log digest. No runtime identity or recovery rule changes.
+
+### Current installed catalog consumer matrix
+
+`general-all-catalog-build1.log` rebuilds every language package from the current
+source. `general-all-catalog-identity1.log` then passes the complete native
+schedule with all ten languages (eleven consumers including both Python modes)
+at `738ac2cc`: Python, TypeScript, Rust, Ruby, C, C++, Java, .NET, Erlang and Elixir.
+Each installed consumer performs typed CREATE/INSERT/UPDATE/ALTER/DELETE/DROP,
+reopens its saved original intent after replacement and verifies the historical
+schema and committed counts. The run takes 425.412 seconds, with 813 turns,
+303 sends, at most four mutations/256-byte values, original lost-reply recovery
+and one client disconnect. These are functional timings under concurrent checks,
+not a matched performance measurement. The consumer record retains every outcome
+and the raw-log digest. No language is skipped.
+
+`general-consumer-checkpoint-check1.log` passes the full root `just check` at the
+same source revision, including contract/diagnostic drift, units, CLI checks,
+frontend checks and the documentation production build. This completes the
+current catalog consumer checkpoint; the separate ordinary clean bindings lane
+continues and is not yet a complete suite pass.

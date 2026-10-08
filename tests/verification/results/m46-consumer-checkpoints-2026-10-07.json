@@ -305,5 +305,186 @@
     },
     "runtime_revision": "436a07979a89ea7077ad382607cc107d97e1aa7d",
     "fixture_change": "CLI objects 22001/22002 are distinct from installed SDK objects 12001 + index * 10."
+  },
+  "all_language_catalog_pass": {
+    "source_revision": "738ac2cc62fef5add73c8248ab53f6ffb2a26fbe",
+    "log": "general-all-catalog-identity1.log",
+    "log_sha256": "7a17ec2956ac4acb861d1e99e27e37bb67c7f8bd78f189ca64b908073436b6de",
+    "result": {
+      "profile": "typed-table-native",
+      "seconds": 425.412,
+      "lost_reply_replays": [
+        "send",
+        "turn"
+      ],
+      "supplied_host_lost_receipt": true,
+      "measurements": {
+        "turns": 813,
+        "sends": 303,
+        "max_mutations": 4,
+        "max_value_bytes": 256,
+        "dispositions": [
+          1,
+          2,
+          2,
+          3,
+          3
+        ],
+        "client_disconnects": 1
+      },
+      "bridge": {
+        "max_step_bytes": 1394,
+        "original_object": "9001",
+        "replacement_object": "9002"
+      },
+      "catalog_cli": {
+        "original_object": "22001",
+        "replacement_object": "22002",
+        "large_artifact_bytes": 142007,
+        "recovered_input": 922
+      },
+      "installed": [
+        {
+          "language": "python-sync",
+          "result": {
+            "profile": "installed-python-general-table",
+            "original_object": "12001",
+            "replacement_object": "12002",
+            "counts": {
+              "matched": "1",
+              "changed": "1"
+            }
+          }
+        },
+        {
+          "language": "python-async",
+          "result": {
+            "profile": "installed-python-general-table",
+            "original_object": "12011",
+            "replacement_object": "12012",
+            "counts": {
+              "matched": "1",
+              "changed": "1"
+            }
+          }
+        },
+        {
+          "language": "node",
+          "result": {
+            "profile": "installed-node-general-table",
+            "original_object": "12021",
+            "replacement_object": "12022",
+            "counts": {
+              "matched": "1",
+              "changed": "1"
+            }
+          }
+        },
+        {
+          "language": "rust",
+          "result": {
+            "counts": {
+              "changed": "1",
+              "matched": "1"
+            },
+            "original_object": "12031",
+            "profile": "installed-rust-general-table",
+            "replacement_object": "12032"
+          }
+        },
+        {
+          "language": "ruby",
+          "result": {
+            "profile": "installed-ruby-general-table",
+            "original_object": "12041",
+            "replacement_object": "12042",
+            "counts": {
+              "matched": "1",
+              "changed": "1"
+            }
+          }
+        },
+        {
+          "language": "c",
+          "result": {
+            "profile": "installed-c-general-table",
+            "original_object": "12051",
+            "replacement_object": "12052",
+            "counts": {
+              "matched": "1",
+              "changed": "1"
+            }
+          }
+        },
+        {
+          "language": "cpp",
+          "result": {
+            "profile": "installed-cpp-general-table",
+            "original_object": "12061",
+            "replacement_object": "12062",
+            "counts": {
+              "matched": "1",
+              "changed": "1"
+            }
+          }
+        },
+        {
+          "language": "java",
+          "result": {
+            "profile": "installed-java-general-table",
+            "original_object": "12071",
+            "replacement_object": "12072",
+            "counts": {
+              "matched": "1",
+              "changed": "1"
+            }
+          }
+        },
+        {
+          "language": "dotnet",
+          "result": {
+            "profile": "installed-dotnet-general-table",
+            "original_object": "12081",
+            "replacement_object": "12082",
+            "counts": {
+              "matched": "1",
+              "changed": "1"
+            }
+          }
+        },
+        {
+          "language": "erlang",
+          "result": {
+            "profile": "installed-erlang-general-table",
+            "counts": {
+              "matched": "1",
+              "changed": "1"
+            },
+            "original_object": "12091",
+            "replacement_object": "12092"
+          }
+        },
+        {
+          "language": "elixir",
+          "result": {
+            "profile": "installed-elixir-general-table",
+            "counts": {
+              "matched": "1",
+              "changed": "1"
+            },
+            "original_object": "12101",
+            "replacement_object": "12102"
+          }
+        }
+      ],
+      "growth": null
+    }
+  },
+  "root_check": {
+    "source_revision": "738ac2cc62fef5add73c8248ab53f6ffb2a26fbe",
+    "task": "check",
+    "exit_code": 0,
+    "log": "general-consumer-checkpoint-check1.log",
+    "log_sha256": "8a0d4d4b45df4a37928292d2d8e80ace849e0e2b214ec6742fbac0c022a57223"
   }
 }
