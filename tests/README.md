@@ -18498,3 +18498,39 @@ report. It is not concurrent-load performance evidence. The fixture now uses the
 same interactive catalog configuration as its independent verifier; readers own
 separate console processes and need no durable query recovery files. A corrected
 native rerun is required.
+
+### General Table performance qualification checkpoint
+
+The [2026-10-07 campaign](mutation_latency/results/2026-10-07/README.md) retains
+ten original compressed reports, source/binary identities, controls, distributions
+and failed attempts. The matched baseline/general runs each complete 140 cases;
+wide and nested runs each complete 21 cases with exact typed readback. The
+corrected retained-data pair completes 21 mutations and 88/156 concurrent reads.
+All completed controls have zero errors/unknown outcomes and no observed
+supervisor restart. The harness reader tests pass 4/4. Separate instrumentation
+completes seven cases; its counts are not uninstrumented latency measurements.
+
+Point, multi-row and retained-data costs exceed the earlier profile. Wide/nested
+writes have substantial staging costs and no matching historical schema control.
+`general-definition-interactive3.log` also fails the unchanged Table request
+ceilings after completing its correctness, current-denial, cancellation and
+incomplete-prefix checks. A 41-row scan uses 75 requests against nine; LIMIT 3
+uses 23 against four; primary-key equality uses 22 against three. Performance
+remains an open gate, not a passing check with larger allowances.
+
+`general-definition-check5.log` passes the full `just check` at `1832f58a`, after
+the captured INSERT and Document disclosure corrections. The later benchmark
+reader fix passes `general-mutation-latency-reader2.log` and its corrected native
+run. Committed-source clean CI remains separate.
+
+The current-definition KV and Document interactive reruns both pass unchanged
+request ceilings, fresh snapshot cuts, exact literal/parameter results, bounded
+frames, zero durable updates, cancellation, current denial and incomplete-prefix
+checks. `general-definition-interactive-kv1.log` completes its query schedule in
+2.68 seconds; `general-definition-interactive-document1.log` in 112.65 seconds.
+They overlap each other and are functional qualifications, not latency controls.
+The Document fixture contains 12 rows; the KV fixture contains 41.
+
+Raw `general-definition-interactive-kv1.log` SHA-256: `f265486dcfbdc82688ea11e6cf575b8a7ff52e618a7e811b44e87578cb91638f`.
+
+Raw `general-definition-interactive-document1.log` SHA-256: `b342dd0f8400b80bda7480138a6a25f11d8fdccb2f70fbfd2d8a39f9e4c191fd`.

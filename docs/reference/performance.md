@@ -334,6 +334,12 @@ The [executed mutation evidence](../../tests/README.md#durable-table-mutation-la
 records observations and outstanding limits. No latency SLO follows from these
 shared-host samples. Empirical nearest-rank p95 requires at least 20 samples per
 case and p99 at least 100; smaller runs report null for those percentiles.
+The [general Table comparison](../../tests/mutation_latency/results/2026-10-07/README.md)
+records higher mutation latency and request amplification than the earlier
+fixed-column storage profile. It also measures wide/nested values and retained
+data with a concurrent reader. The record separates ordinary timings,
+instrumented counts and failed setups;
+general type support does not establish the earlier performance budgets.
 Idle workers use bounded authorized waits on the observed process or output
 position. Waits release the authority lock, have separate admission capacity,
 and revalidate current authorization after a publication or timeout. Notifications
