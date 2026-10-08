@@ -18633,3 +18633,15 @@ digest, separately from the original failed-budget evidence.
 `general-accepted-budgets-check1.log` passes the full root `just check`, including
 documentation ownership/links, generated interfaces, unit/CLI/frontend checks
 and the documentation production build.
+
+### Clean Station SDK formatting gate
+
+`general-definition-ci-clean4.log` at `436a0797` passes 50 ordinary tasks,
+including every core/growth task, both real connector examples, Board checks
+and the documentation production build. The Node binding task then rejects an
+extra blank line in the Station SDK README. This remains an incomplete run in
+the clean development record; its successful prefix is not the full suite.
+Removing that blank line changes no runtime or interface. The focused
+`general-node-check-format1.log` passes client tests, both package format/lint/type
+checks and all 57 Station SDK tests, including general Tables, recursive metadata,
+exact identities and recovery. Fresh clean consumer qualification remains required.

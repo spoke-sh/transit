@@ -67,7 +67,6 @@ identities and generated runtime validation through the native port.
 The [handler Table guide](docs/tables.md) covers general typed rows, captured
 reads, resumable creation and saved mutation intents within native turns.
 
-
 Handler query failures use a typed callback with the authenticated origin,
 correlation, result identity and reason. See
 [negative query outcomes](../../../docs/reference/sdks.md#handler-query-failures)
