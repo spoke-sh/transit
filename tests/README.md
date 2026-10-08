@@ -18574,3 +18574,36 @@ hashes; neither is labeled complete.
 `general-definition-byte-arrays-check1.log` passes the full `just check`, including
 contract/signature drift, strict decoding, CLI checks, frontend checks and the
 documentation production build, with the serialization correction applied.
+
+### Retained Table reconstruction during recovery
+
+`general-definition-ci-clean3.log` passes 31 ordinary tasks at `5a6365ab`, then
+fails the public query's unchanged 120-second post-fencing completion deadline.
+The clean development record retains its incomplete outcome. Forwarding native
+wait/control/trace headers through the fault proxy alone does not fix it:
+`general-public-query-waits1.log` still fails. The diagnostic run
+`general-public-query-trace1.log` records 3,009 retained point requests over 27
+source reconstructions before the same deadline. Each bounded Arrow publication
+step reconstructs its source page; uncached metadata and index reads repeat even
+within one reconstruction.
+
+An opened retained source now reuses at most 64 point entries when its host
+enables read caching. The cache is private to that open and exact retained cut;
+it never substitutes for current application authorization or native dependency
+validation. Station unit checks cover repeated reads, absence, eviction, private
+write exclusion, reopen/cut isolation, restored dependencies and poisoned reads.
+The diagnostic inventory changes only propagation of the existing dependency
+check. No format definition, resident authority limit or proof deadline changes.
+
+`general-retained-cache-unit1.log` passes Station's tests.
+`general-public-query-cache1.log` passes the complete original public-query
+schedule: transient startup failure, lost send receipt, 41 exact int64/null rows,
+fenced source recovery, busy admission, schema rejection, incomplete-result
+refusal, cancellation and read-time revocation. The proxy also verifies that
+native wait hints were exercised. This is a functional recovery pass, not a
+replacement for the matched performance campaign or full clean qualification.
+`general-retained-cache-check1.log` passes the full root `just check`, including
+the contract/diagnostic inventory, unit and CLI checks, frontend checks and
+documentation production build.
+
+Raw public-query pass SHA-256: `1e6570781aee5d91ccaa35be31ddc87d2fa082837f63ac06c75d086b1141f7eb`.

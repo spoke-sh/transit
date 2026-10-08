@@ -134,6 +134,15 @@ the same durable ID in a replacement handler to resume its saved cursor; do not
 reuse the borrowed `source` pointer after the turn ends. KV callers can use
 `source.read(key)` or `source.page(after)` directly.
 
+When the host enables captured read caching, each opened retained source also
+keeps at most 64 point entries, including absence, for that handler invocation.
+The cache belongs to its exact retained cut and excludes private writes. A new
+open starts empty; eviction fetches the entry again. Ordered pages still use the
+native reader. Every point read, including a cache hit, records the retained
+dependency and rejects an earlier read failure. Current application permissions
+remain a separate live check; cached bytes do not preserve permission or prevent
+the authority from rejecting the final proposal.
+
 Opening/reading automatically includes the version in the final proposal's read
 dependencies, deduplicated within a four-version budget. Current grants, source
 expiry or explicit release can reject the later commit. Failures poison private

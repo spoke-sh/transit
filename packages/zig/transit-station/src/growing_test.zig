@@ -258,6 +258,7 @@ test "retained state sources survive new handler views and stage their dependenc
         snapshot: Store = .{},
         identity: p.Growth.ReadVersionId = .{ .pid = 2, .input = 1, .index = 0 },
         fail: bool = false,
+        reads: usize = 0,
         fn metadata(raw: *anyopaque, id: p.Growth.ReadVersionId) anyerror!p.Growth.ReadVersion {
             const self: *@This() = @ptrCast(@alignCast(raw));
             try t.expect(std.meta.eql(self.identity, id));
@@ -265,6 +266,7 @@ test "retained state sources survive new handler views and stage their dependenc
         }
         fn entries(raw: *anyopaque, basis: p.Growth.ReadVersion, key: ?p.Value, after: ?p.Value) anyerror!@import("Turn.zig").Page {
             const self: *@This() = @ptrCast(@alignCast(raw));
+            self.reads += 1;
             if (self.fail) return error.Unavailable;
             try t.expect(std.meta.eql(self.identity, basis.id));
             const view: p.Growth.View = .{ .id = 6, .pid = 2, .principal = 65536, .generation = 3, .input = 4, .process_revision = 0, .resource = 7, .revision = 8, .deadline_ms = 100 };
@@ -281,7 +283,7 @@ test "retained state sources survive new handler views and stage their dependenc
         }
         fn turn(self: *@This()) !Turn {
             var result = try self.live.turn(.{});
-            result.reader = .{ .context = self, .read = liveRead, .version = metadata, .version_entries = entries };
+            result.reader = .{ .context = self, .cache_reads = true, .read = liveRead, .version = metadata, .version_entries = entries };
             return result;
         }
     };
@@ -318,4 +320,40 @@ test "retained state sources survive new handler views and stage their dependenc
     try t.expectError(error.Unavailable, resumed.read(try stateKey(0)));
     try next.put(try p.Value.init("ignored"), .{});
     try t.expectError(error.Unavailable, next.validate());
+
+    // Repeated point reads, including absence, reuse only this opened cut.
+    // Eviction rereads immutable data; private writes never enter that cache.
+    fixture.fail = false;
+    fixture.reads = 0;
+    for (0..Turn.read_cache_entries + 1) |i| fixture.snapshot.entries[i] = .{ .key = try stateKey(i), .value = p.Value.integer(@intCast(i)), .revision = 8 };
+    var cached_turn = try fixture.turn();
+    var cached = try cached_turn.openVersion(fixture.identity);
+    for (0..2) |_| for (0..Turn.read_cache_entries) |i| {
+        try t.expectEqual(@as(i64, @intCast(i)), try (try cached.read(try stateKey(i))).?.asInteger());
+    };
+    try t.expectEqual(Turn.read_cache_entries, fixture.reads);
+    _ = try cached.read(try stateKey(Turn.read_cache_entries));
+    _ = try cached.read(try stateKey(0));
+    try t.expectEqual(Turn.read_cache_entries + 2, fixture.reads);
+    const absent = try stateKey(Turn.read_cache_entries + 1);
+    try t.expectEqual(null, try cached.read(absent));
+    try cached_turn.put(absent, p.Value.integer(99));
+    try t.expectEqual(null, try cached.read(absent));
+    try t.expectEqual(Turn.read_cache_entries + 3, fixture.reads);
+    cached_turn.decision.read_versions = @splat(null);
+    _ = try cached.read(absent);
+    try t.expect(std.meta.eql(fixture.identity, cached_turn.decision.read_versions[0].?));
+    var reopened = try cached_turn.openVersion(fixture.identity);
+    _ = try reopened.read(absent);
+    try t.expectEqual(Turn.read_cache_entries + 4, fixture.reads);
+    // A distinct retained basis cannot reuse a prior entry under the same key.
+    fixture.identity.input += 1;
+    cached.view.id = fixture.identity;
+    fixture.snapshot.entries[0].?.value = p.Value.integer(200);
+    try t.expectEqual(200, try (try cached.read(try stateKey(0))).?.asInteger());
+    try t.expectEqual(Turn.read_cache_entries + 5, fixture.reads);
+    fixture.fail = true;
+    try t.expectError(error.Unavailable, cached.page(null));
+    try t.expectError(error.Unavailable, cached.read(try stateKey(0)));
+    try t.expectError(error.Unavailable, cached_turn.validate());
 }

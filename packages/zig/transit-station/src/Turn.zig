@@ -67,10 +67,28 @@ pub fn committed(self: *Turn) Committed {
 pub const Retained = struct {
     turn: *Turn,
     view: p.Growth.ReadVersion,
+    cache: [read_cache_entries]?struct { key: p.Value, value: ?p.Value } = @splat(null),
+    cache_view: ?p.Growth.ReadVersion = null,
+    cache_next: usize = 0,
     pub fn read(self: *@This(), key: p.Value) !?p.Value {
         try p.Growth.validateKey(key);
+        if (self.turn.read_error) |err| return err;
+        try self.turn.dependVersion(self.view.id);
+        if (self.turn.reader.cache_reads) {
+            if (self.cache_view == null or !std.meta.eql(self.cache_view.?, self.view)) {
+                self.cache = @splat(null);
+                self.cache_next = 0;
+                self.cache_view = self.view;
+            }
+            for (self.cache) |slot| if (slot) |entry| if (entry.key.eql(key)) return entry.value;
+        }
         const result = try self.fetch(key, null);
-        return if (result.entries[0]) |entry| entry.value else null;
+        const value = if (result.entries[0]) |entry| entry.value else null;
+        if (self.turn.reader.cache_reads) {
+            self.cache[self.cache_next] = .{ .key = key, .value = value };
+            self.cache_next = (self.cache_next + 1) % self.cache.len;
+        }
+        return value;
     }
     pub fn page(self: *@This(), after: ?p.Value) !Page {
         if (after) |key| try p.Growth.validateKey(key);

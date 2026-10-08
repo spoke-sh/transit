@@ -25,7 +25,7 @@ def run(node, host, cli, proof):
             "ursula_url": fixture.url, "bucket": "public-query", "journal": "authority",
             "port": port, "resident_pages": 64, "request_timeout_ms": 10000}))
         processes, logs = [], []
-        fault = {"lost": None, "retry": False, "startup": set(), "stage": threading.Event(), "pause": threading.Event()}
+        fault = {"lost": None, "retry": False, "startup": set(), "stage": threading.Event(), "pause": threading.Event(), "wait_headers": 0}
         fault["pause"].set()
 
         class Proxy(BaseHTTPRequestHandler):
@@ -46,7 +46,15 @@ def run(node, host, cli, proof):
                         return
                 connection = HTTPConnection("127.0.0.1", port, timeout=15)
                 try:
-                    connection.request("POST", self.path, body, {"Content-Type": "application/json"})
+                    # Preserve native scheduling/control while injecting reply
+                    # faults. Dropped waits make idle workers hammer authority.
+                    headers = {"Content-Type": "application/json"}
+                    for name in ("X-Transit-Wait", "X-Transit-Control", "traceparent"):
+                        if value := self.headers.get(name):
+                            headers[name] = value
+                    if "X-Transit-Wait" in headers:
+                        fault["wait_headers"] += 1
+                    connection.request("POST", self.path, body, headers)
                     response = connection.getresponse()
                     data = response.read()
                     if self.path == "/v1/command" and response.status == 200:
@@ -226,11 +234,16 @@ def run(node, host, cli, proof):
             assert send(".next")["err"] == "IncompleteResult"
             assert send(".status")["status"]["phase"] == "cancelled"
             assert fault["startup"] == {65536, 65537}, fault["startup"]
+            assert fault["wait_headers"] > 0, "native wait hints were not exercised"
             shell.close()
             print("public query: transient startup reads, real shell/hosts, 41 exact int64/null rows, exact retry, fenced crash recovery, busy admission, schema rejection, incomplete-result refusal, cancellation and read-time revocation passed")
         except BaseException:
             for log in logs:
-                log.flush(); log.seek(0); sys.stderr.write(log.read()[-4000:])
+                log.flush(); log.seek(0)
+                content = log.read()
+                tail = content if len(content) <= 4000 else content[-4000:].partition('\n')[2]
+                print(json.dumps({'worker_log': Path(log.name).name}), file=sys.stderr)
+                sys.stderr.write(tail)
             raise
         finally:
             fault["pause"].set()
