@@ -765,7 +765,7 @@ test "INSERT batches discard intermediate paths and reject a duplicate after a s
     defer compiled.deinit();
     const request: Statement.Request = .{ .resource = 7, .principal = 1, .operation = 250, .plan = compiled.plan };
     var completed = false;
-    for (0..6) |_| {
+    for (0..3) |iteration| {
         var lost = try store.capture();
         _ = try Statement.step(t.allocator, &lost, request);
         var turn = try store.capture();
@@ -774,6 +774,12 @@ test "INSERT batches discard intermediate paths and reject a duplicate after a s
         try t.expectEqual(initial.rows, visible.rows);
         const result = try Statement.step(t.allocator, &turn, request);
         try t.expect(writes(turn) > 0 and writes(turn) <= 4);
+        if (iteration == 0) {
+            try t.expectEqual(@as(usize, 4), writes(turn));
+            try t.expect((try turn.read(Pages.key(9, 'i', initial.next_record))) != null);
+            var committed = lost.committed();
+            try t.expectEqual(null, try committed.read(Pages.key(9, 'i', initial.next_record)));
+        }
         try store.commit(turn);
         if (result.state == .applied) {
             try t.expectEqual(@as(u64, 3), result.changed);
@@ -829,7 +835,7 @@ test "statement reservations fence competing work and cancellation preserves exa
     var turn = try store.capture();
     const admitted = try Statement.step(t.allocator, &turn, request);
     try t.expectEqual(.building, admitted.state);
-    try t.expectEqual(@as(usize, 3), writes(turn));
+    try t.expectEqual(@as(usize, 4), writes(turn));
     try store.commit(turn);
     turn = try store.capture();
     var competitor = request;

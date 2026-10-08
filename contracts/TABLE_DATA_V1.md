@@ -302,7 +302,10 @@ writes: changing coordinator or intent at an occupied identity rejects.
 
 Admission reserves a bounded immutable record interval and records the busy
 head, receipt and candidate progress atomically. The live schema/data root stays
-unchanged. Every later step verifies that exact head revision, pending identity,
+unchanged. INSERT may stage its first reachable record with the admission turn's
+remaining write. Its saved cursor stays at the start until the complete batch is
+staged; a record that needs more writes waits for a continuation. Every later
+step verifies that exact head revision, pending identity,
 range and schema. INSERT assigns row identities `(principal+1, operation, ordinal)`.
 UPDATE/DELETE traverse the original immutable root in row-identity order and
 evaluate the complete predicate against original rows. Updated keys never change

@@ -219,7 +219,7 @@ pub fn step(allocator: std.mem.Allocator, turn: *Turn, request: Request) !Write.
     const prior = try Write.status(turn, reference);
     if (prior) |result| if (result.route != .statement) return error.InvalidTableWriteStatus;
     if (prior) |result| if (result.state != .building) return result;
-    const head = try Head.load(turn, reference.object);
+    var head = try Head.load(turn, reference.object);
     if (head.retired) return error.TableRetired;
     if (prior == null and head.pending != 0) return error.TableBusy;
     var schema = try head.readSchema(allocator, turn);
@@ -235,9 +235,13 @@ pub fn step(allocator: std.mem.Allocator, turn: *Turn, request: Request) !Write.
         try head.replace(turn, reserved);
         try record(turn, admitted);
         try progress.save(turn, reference);
+        head = reserved;
         break :blk admitted;
     };
-    if (prior == null) return result;
+    // INSERT can use the admission turn's remaining write for its first
+    // reachable record. The reservation and bytes commit together; the saved
+    // cursor remains unchanged, so retry recomputes the exact same candidate.
+    if (prior == null and request.plan.action != .insert) return result;
     var progress = try Progress.load(turn, result, head);
     try validateCandidate(head, progress, request.plan);
     const pages: Pages = .{ .resource = reference.resource, .object = reference.object };
@@ -310,7 +314,7 @@ pub fn step(allocator: std.mem.Allocator, turn: *Turn, request: Request) !Write.
     }
     const count_before = writeCount(turn);
     const ready = stageAll(turn, pages, &overlay) catch |err| {
-        if (err != error.MutationBudgetExceeded or writeCount(turn) == count_before) return err;
+        if (err != error.MutationBudgetExceeded or (prior != null and writeCount(turn) == count_before)) return err;
         return result;
     };
     if (!ready) return result;
@@ -325,6 +329,7 @@ pub fn step(allocator: std.mem.Allocator, turn: *Turn, request: Request) !Write.
     // Advancing the durable cursor consumes this interval. A fresh interval is
     // fenced before any next row can be staged; IDs are never recycled.
     const staged = turn.decision;
+    const running = result;
     var reserved = head;
     reserved.revision = try add(head.revision, 1);
     reserved.next_record = try add(head.next_record, Candidate.max_records);
@@ -333,7 +338,7 @@ pub fn step(allocator: std.mem.Allocator, turn: *Turn, request: Request) !Write.
     advance(turn, head, reserved, result, progress) catch |err| {
         turn.decision = staged;
         if (err != error.MutationBudgetExceeded or writeCount(turn) == count_before) return err;
-        return prior.?;
+        return running;
     };
     return result;
 }

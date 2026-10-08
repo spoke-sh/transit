@@ -18384,3 +18384,17 @@ failed configuration; running the package from its own directory passes.
 Documentation links pass in `compact-dml-docs1.log`. Native performance and fault
 qualification remain separate; the final shared-definition replacement includes
 this TCQ1 body cutover.
+
+### INSERT staging during reservation
+
+`statement-admission-unit3.log` passes all 114 Station tests and
+`statement-admission-catalog1.log` passes all 77 Catalog tests. INSERT uses the
+admission decision's spare write to stage its first reachable record, without
+advancing the saved candidate cursor. The three-row fixture now requires at most
+three turns, discards every first proposal, checks old-head visibility and
+retains exact terminal counts. Large rows can commit only the reservation when
+their first publication needs more than one remaining write. Native writes stay
+bounded at four. Cancellation, competing work, allocation failures and late
+duplicate rejection remain covered. The first test attempt failed compilation
+on a temporary mutable borrow; the second exposed the large-record reservation
+case. Neither is passing evidence. Native qualification remains separate.
