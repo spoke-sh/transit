@@ -49,6 +49,10 @@ pub const Committed = struct {
         try p.State.key(key);
         return self.turn.readCommitted(key);
     }
+    pub fn prefetch(self: *@This(), keys: []const p.Value) !void {
+        try self.check();
+        try self.turn.prefetch(keys);
+    }
     pub fn page(self: *@This(), after: ?p.Value) !Page {
         try self.check();
         return self.turn.pageCommitted(after);

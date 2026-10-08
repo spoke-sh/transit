@@ -307,6 +307,9 @@ remaining write. Its saved cursor stays at the start until the complete batch is
 staged; a record that needs more writes waits for a continuation. Every later
 step verifies that exact head revision, pending identity,
 range and schema. INSERT assigns row identities `(principal+1, operation, ordinal)`.
+Candidate reconstruction reads the captured committed source even when admission
+has private reservation writes. The overlay supplies newly computed records;
+private reservations never become a readable publication basis.
 UPDATE/DELETE traverse the original immutable root in row-identity order and
 evaluate the complete predicate against original rows. Updated keys never change
 selection or cause revisits; inserted candidates do not extend the frozen source.

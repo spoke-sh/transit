@@ -18437,3 +18437,13 @@ reuse a fully cached small index after native permission revocation. The separat
 interactive Table setup fails with the same `PublicationReadAfterMutation`. These
 failures are retained and are not qualified native passes. Corrections and reruns
 are required before closing the issue.
+
+### Captured INSERT reconstruction after reservation
+
+`statement-captured-admission2.log` passes all 114 Station tests. INSERT candidate
+reads use a committed-source borrow while composing the private reservation;
+bounded prefetch still uses the same captured cut and poisoned-read handling.
+The large-value/multilevel fixture now admits another two-row statement after
+40 accepted rows, discards/reconstructs proposals and then verifies 22 predicate
+deletions. The first attempt accidentally reused a test operation ID and correctly
+rejected changed intent. Native reruns remain separate.

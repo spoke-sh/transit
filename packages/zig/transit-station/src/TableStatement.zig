@@ -245,7 +245,11 @@ pub fn step(allocator: std.mem.Allocator, turn: *Turn, request: Request) !Write.
     var progress = try Progress.load(turn, result, head);
     try validateCandidate(head, progress, request.plan);
     const pages: Pages = .{ .resource = reference.resource, .object = reference.object };
-    var reader: Pages.Reader(*Turn) = .{ .pages = pages, .source = turn };
+    // Admission has private reservation writes. Candidate reconstruction reads
+    // only the captured root and earlier staged records; its overlay owns all
+    // newly computed bytes. Never open published data through private mutations.
+    var committed = turn.committed();
+    var reader: Pages.Reader(*Turn.Committed) = .{ .pages = pages, .source = &committed };
     const original: Data = .{ .schema = schema.schema, .index = head.index };
     const candidate: Data = .{ .schema = schema.schema, .index = progress.index };
     var source_row: ?f.TableRow.Owned = null;

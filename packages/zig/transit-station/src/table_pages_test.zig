@@ -884,10 +884,14 @@ test "multi-level finite candidates retain bounded turns with a large value" {
     var turn = try store.capture();
     const head = try Head.load(&turn, 9);
     try t.expect(head.index.root.?.level >= 2);
+    // A new admission must reconstruct from already published index nodes even
+    // while its reservation is private. An empty-table test cannot expose this.
+    const later = try sqlStatement(&store, 231, schema, "INSERT INTO items VALUES(100,'later'),(101,'last')");
+    try t.expectEqual(@as(u64, 2), later.changed);
     const publication: Pub = .{ .resource = 7, .domain = .table, .namespace = 9 };
     try t.expectEqual(@as(u32, 0), (try publication.budget(&turn)).records);
-    const deleted = try sqlStatement(&store, 231, schema, "DELETE FROM items WHERE id>=20");
-    try t.expectEqual(@as(u64, 20), deleted.changed);
+    const deleted = try sqlStatement(&store, 232, schema, "DELETE FROM items WHERE id>=20");
+    try t.expectEqual(@as(u64, 22), deleted.changed);
 }
 fn statementAllocation(allocator: std.mem.Allocator) !void {
     var store: Store = .{};
