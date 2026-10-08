@@ -18757,3 +18757,22 @@ in the consumer checkpoint record. The clean SDK lane remains active; this is
 not a claim that the full ordinary suite has finished. All runtime source is
 unchanged since `436a0797`; later commits migrate fixtures, accept the explicitly
 selected performance ceilings and record/add qualification evidence.
+
+### Final root check and clean Elixir formatting gate
+
+`general-final-check1.log` passes the full root `just check` at `781b2da5`,
+including generated contracts, native units, CLI/frontend checks and the
+production documentation build. Its result and log digest are retained in the
+consumer checkpoint record.
+
+The clean bindings lane at `738ac2cc` passes its first ten tasks, including
+Python, TypeScript, Rust, Ruby, C/C++, Java and .NET. The BEAM task builds its
+artifacts and passes logical-value checks, then fails formatting of two Elixir
+query-failure adapters. The clean development record retains the exact failed
+lane; its BEAM runtime schedule and later tasks did not execute.
+
+The pinned formatter corrects those files. The complete selected Elixir format
+command passes, and independently normalized parsed ASTs compare equal before
+and after formatting (`general-elixir-format-ast1.log`). This changes no runtime
+semantics or definition. The remaining eight standard tasks require fresh clean
+execution; the successful prefix is not relabeled a complete bindings lane.

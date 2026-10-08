@@ -809,5 +809,39 @@
         "reason": "The expected schema omitted the logical definition/type envelope. The 28 actual stored default values match the independent expectations, but this is an incomplete matrix run."
       }
     ]
+  },
+  "final_root_check": {
+    "task": "just check",
+    "source_revision": "781b2da5479083b6b643c8130a9716d97a2dd565",
+    "log": "general-final-check1.log",
+    "log_sha256": "9d3993e685e0eb5a57475eb7105323654dfdf267b403f70fa35be9a4ec352b24",
+    "exit_code": 0
+  },
+  "elixir_format_check": {
+    "scope": "Whitespace formatting only; normalized parsed Elixir ASTs remain identical. The failing clean BEAM task is not a runtime pass.",
+    "checks": [
+      {
+        "log": "general-elixir-format-ast1.log",
+        "log_sha256": "ee373130d5db149f1a28f9009b72823468ed4dcb5f564c490508a976b015e04a",
+        "exit_code": 0
+      },
+      {
+        "log": "general-elixir-format-check1.log",
+        "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "exit_code": 0
+      }
+    ],
+    "files": [
+      {
+        "path": "packages/beam/transit-station-elixir/lib/runner.ex",
+        "before_sha256": "f7e66e2cd52641839b049f2d8cc0bf8c84657d042ccaece6d76abea1c9192dee",
+        "after_sha256": "943e3b81bc9fad5aec5b3556344cc8584e464267535ca6f947170ff8e63c23ed"
+      },
+      {
+        "path": "packages/beam/transit-station-elixir/lib/value.ex",
+        "before_sha256": "d9eb76e3e87675fb11c210ce006e53410124f66945e71da08ae4d554e51cf82a",
+        "after_sha256": "fbce8c72e9776fead956fb669a5af4a58851730f3cbc100ae202b823ae8a35c6"
+      }
+    ]
   }
 }

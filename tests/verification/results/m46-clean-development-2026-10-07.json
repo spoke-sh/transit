@@ -1453,6 +1453,167 @@
           "exit_code": 1
         }
       ]
+    },
+    {
+      "log": "general-definition-clean-bindings2.log",
+      "log_sha256": "7a189a61ac3aaddd462006c488b6450bfd59473afbf8fdb37eb573a67330589c",
+      "failure": "Ten bindings tasks pass; the BEAM task builds its packages and passes owned logical values, then rejects formatting in the Elixir query-failure adapter and value conversion. No BEAM runtime pass is claimed.",
+      "metadata": {
+        "version": 1,
+        "revision": "738ac2cc62fef5add73c8248ab53f6ffb2a26fbe",
+        "tier": "bindings",
+        "expected_tasks": [
+          "bindings::check",
+          "bindings::native",
+          "bindings::python-test",
+          "bindings::node-sdk-test",
+          "bindings::logical-test",
+          "bindings::rust-sdk-test",
+          "bindings::ruby-sdk-test",
+          "bindings::c-sdk-test",
+          "bindings::java-sdk-test",
+          "bindings::dotnet-sdk-test",
+          "bindings::beam-sdk-test",
+          "bindings::sdk-interop",
+          "test::model",
+          "test::model-delivery",
+          "test::sql-rewrites",
+          "test::sql",
+          "bindings::grpc-faults",
+          "bindings::connector-preparation"
+        ],
+        "run_id": null,
+        "run_attempt": null,
+        "machine": {
+          "platform": "Linux-6.17.0-41-generic-x86_64-with-glibc2.42",
+          "logical_cpus": 48,
+          "affinity": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20,
+            21,
+            22,
+            23,
+            24,
+            25,
+            26,
+            27,
+            28,
+            29,
+            30,
+            31,
+            32,
+            33,
+            34,
+            35,
+            36,
+            37,
+            38,
+            39,
+            40,
+            41,
+            42,
+            43,
+            44,
+            45,
+            46,
+            47
+          ],
+          "runner": null,
+          "runner_arch": null
+        },
+        "completed": false,
+        "active_task": null,
+        "seconds": 7826.3,
+        "checkpoint_unix": 1791436673.4826276,
+        "result_count": 11
+      },
+      "tasks": [
+        {
+          "lane": "bindings",
+          "task": "bindings::check",
+          "seconds": 14.82,
+          "exit_code": 0
+        },
+        {
+          "lane": "bindings",
+          "task": "bindings::native",
+          "seconds": 187.61,
+          "exit_code": 0
+        },
+        {
+          "lane": "bindings",
+          "task": "bindings::python-test",
+          "seconds": 1107.88,
+          "exit_code": 0
+        },
+        {
+          "lane": "bindings",
+          "task": "bindings::node-sdk-test",
+          "seconds": 971.68,
+          "exit_code": 0
+        },
+        {
+          "lane": "bindings",
+          "task": "bindings::logical-test",
+          "seconds": 36.31,
+          "exit_code": 0
+        },
+        {
+          "lane": "bindings",
+          "task": "bindings::rust-sdk-test",
+          "seconds": 1053.39,
+          "exit_code": 0
+        },
+        {
+          "lane": "bindings",
+          "task": "bindings::ruby-sdk-test",
+          "seconds": 869.04,
+          "exit_code": 0
+        },
+        {
+          "lane": "bindings",
+          "task": "bindings::c-sdk-test",
+          "seconds": 1746.08,
+          "exit_code": 0
+        },
+        {
+          "lane": "bindings",
+          "task": "bindings::java-sdk-test",
+          "seconds": 915.24,
+          "exit_code": 0
+        },
+        {
+          "lane": "bindings",
+          "task": "bindings::dotnet-sdk-test",
+          "seconds": 888.07,
+          "exit_code": 0
+        },
+        {
+          "lane": "bindings",
+          "task": "bindings::beam-sdk-test",
+          "seconds": 36.17,
+          "exit_code": 1
+        }
+      ]
     }
   ]
 }
