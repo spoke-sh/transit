@@ -18408,3 +18408,32 @@ The test refuses every unbatched read, injects failure at each acquisition and
 resolves the original schema after DROP/name reuse. Current execution and
 inspection revocation checks remain. The first attempt omitted the fixture's
 source-view ID and failed compilation; it is not passing evidence.
+
+### General Table shared-definition cutover
+
+The current native/ABI definition is
+`b510f56ab152d03b55150b3a300bea04ebad75665371471ef0be3a30d4559032`.
+It covers general Table schemas/storage/lifecycle, typed query failures, compact
+immutable index bytes and the catalog DML payload. Public contracts, native/port
+SDK resources, browser schemas/validators and signing fixtures are regenerated
+together. Independent Python SHA-256/Ed25519 recomputation checks canonical
+requests; the two inline turn/query vectors first reproduce their previous
+digests before calculating the new ones. The previous compact-page definition
+is retained only as an explicit rejection input. No legacy decoder or reset is
+introduced.
+
+`general-definition-generate1.log` and `general-definition-consumers1.log` complete
+the generators. `general-definition-check4.log` passes `just check`, including
+root tests, contract drift, diagnostic proofs, CLI/history checks, frontend checks
+and the documentation production build. The earlier three attempts catch enum
+formatting, its recorded inventory spelling and the two inline signing digests;
+none is a complete check pass. This pass precedes the subsequent captured-reader
+correction. Committed-HEAD clean CI remains a separate gate.
+
+`general-definition-native-proofs1.log` passes the publication recovery schedule
+but fails the Table and Document schedules. Table admission opens published
+index data after composing its private reservation; Document page access can
+reuse a fully cached small index after native permission revocation. The separate
+interactive Table setup fails with the same `PublicationReadAfterMutation`. These
+failures are retained and are not qualified native passes. Corrections and reruns
+are required before closing the issue.

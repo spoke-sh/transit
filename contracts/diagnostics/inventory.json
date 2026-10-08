@@ -3068,7 +3068,7 @@
         "CatalogConfigurationChanged": 1,
         "CatalogCursorChanged": 1,
         "CatalogDefinitionChanged": 13,
-        "CatalogDefinitionMissing": 7,
+        "CatalogDefinitionMissing": 8,
         "CatalogDenied": 13,
         "CatalogDependencyConflict": 1,
         "CatalogIdentityConflict": 6,
@@ -3168,7 +3168,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 270,
+        "try": 273,
         "catch": 2
       },
       "imports": [
@@ -7386,7 +7386,7 @@
         "InvalidMutationColumns": 1,
         "InvalidMutationPlan": 12,
         "InvalidTableName": 1,
-        "MutationBatchTooLarge": 2,
+        "MutationBatchTooLarge": 3,
         "TableSchemaChanged": 1,
         "UnknownColumn": 1,
         "ValueBudgetExceeded": 2
@@ -7398,12 +7398,15 @@
         "cellRead()": "<inferred>",
         "cellWrite()": "<inferred>",
         "decode()": "<inferred>",
+        "decodePayload()": "<inferred>",
         "encode()": "<inferred>",
-        "nameCheck()": "<inferred>"
+        "encodePayload()": "<inferred>",
+        "nameCheck()": "<inferred>",
+        "writePayload()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 66,
+        "try": 72,
         "catch": 0
       },
       "imports": [
@@ -9055,7 +9058,7 @@
           "deadline"
         ],
         "Definition": [
-          "@\"57343ef043d4dc7f9612a7ca3309e9218dd527c0f3826a519ff0d29b761b4a82\""
+          "b510f56ab152d03b55150b3a300bea04ebad75665371471ef0be3a30d4559032"
         ],
         "Effect.phase": [
           "pending",
@@ -10557,7 +10560,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 47,
+        "try": 48,
         "catch": 4
       },
       "imports": [
@@ -15792,7 +15795,7 @@
         "IndexStaging": 2,
         "IndexValueTooLarge": 1,
         "InvalidIndexCommitment": 3,
-        "InvalidIndexNode": 8,
+        "InvalidIndexNode": 15,
         "InvalidIndexReference": 3,
         "InvalidIndexValue": 1,
         "PublicationNotFound": 1
@@ -15837,7 +15840,7 @@
       },
       "open_error_set_uses": 3,
       "propagation": {
-        "try": 79,
+        "try": 92,
         "catch": 2
       },
       "imports": [
@@ -16555,7 +16558,7 @@
       "errors": {
         "InvalidTableBlob": 3,
         "InvalidTableIndex": 4,
-        "InvalidTablePageSize": 1,
+        "InvalidTablePageSize": 2,
         "RowExists": 2,
         "RowIdentityExists": 1,
         "WriteFailed": 3
@@ -16574,10 +16577,12 @@
         "identity()": "<inferred>",
         "insert()": "<inferred>",
         "keyValues()": "<inferred>",
+        "loadReference()": "<inferred>",
         "next()": "<inferred>",
         "page()": "<inferred>",
         "primaryKey()": "<inferred>",
         "readRow()": "<inferred>",
+        "references()": "<inferred>",
         "rowKey()": "<inferred>",
         "storeRow()": "<inferred>",
         "update()": "<inferred>",
@@ -16585,7 +16590,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 89,
+        "try": 90,
         "catch": 3
       },
       "imports": [

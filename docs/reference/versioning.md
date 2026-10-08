@@ -88,50 +88,22 @@ incompatible wire, ABI or stored framework definition changes, including changes
 that retain the same fields but alter their meaning. It is a compatibility token,
 not an automatically computed source hash or a substitute for verification.
 
-Table mutation casts carry the full immutable request reference, including the
-resource and content commitment. Namespace-only casts are incompatible and
-reject. This stored framework contract is covered by the same native definition;
-its hard cutover requires matching node, worker, client and SDK builds. Pending
-work under an earlier definition requires that earlier build's recovery procedure,
-not a replacement reference or automatic data reset.
+The current definition includes general typed Tables, immutable schema and
+metadata identities, CREATE/ALTER/DROP lifecycle, exact typed DML recovery,
+compact immutable index nodes and schema-bound catalog command payloads. The
+previous fixed key/value Table representation is incompatible. Matching node,
+worker, CLI and SDK builds are required. No automatic converter, fallback
+decoder or installation reset is supplied. Recover earlier pending work with
+its matching build before an explicit cutover.
 
-The local server uses the combined Table query/writer owner and its two-turn
-initialization. The current shared definition rejects earlier query-only local
-installation records and history. Recover those installations with their matching
-build; enabling the new local default does not convert or reset retained state.
+Station query delivery includes authenticated typed terminal failures, distinct
+from complete or partial Arrow results. The native handler input ABI includes
+that failure value. Earlier handler libraries and port contracts reject at
+loading or capability validation; application callback compatibility is not
+established by sharing a language-level class name.
 
-Finite query plans carry a mandatory plan-definition identifier and optional
-owned output names. Their `FZP1` layout and fingerprints differ from earlier
-plans without those fields. The shared native definition covers this stored
-framework change. Old standalone plans, saved requests and authority heads
-reject; recover accepted work using its matching build before a cutover.
-The current native definition covers both the combined local Table writer and
-owned output names across callers and bounded Boolean programs in saved plans.
-Earlier plans and builds without the current program definition are incompatible;
-accepted work requires its matching build for recovery.
-The same current definition includes direct small Table mutation admission and
-captured batch-read selectors. Builds containing only those native changes or
-only Boolean programs also reject; the combined contract has its own identifier.
-
-The typed C/C++ Boolean predicate APIs extend the public plan and owned
-inspection layouts. This ABI cutover has a new shared native definition, including
-all existing inline mutation and captured-read semantics. Matching headers,
-SDK libraries and native artifacts are required; earlier native definitions and
-saved authority requests reject. The FZP1 program encoding is unchanged.
-
-Publication identity includes its domain, namespace and record ID. Domain-aware
-keys and 72-byte references replace the prior layouts under the current shared
-definition. Native SDK publication actions use the application domain; typed
-framework owners use their declared domains. Earlier authority heads, signing
-fixtures and saved mutation commands are incompatible. Recover pending work
-with its matching build; no fallback decoder, conversion or reset is supplied.
-
-Finite value counts extend the shared plan and persisted query progress. Current
-plans carry the `boolean-programs.count-values.2026-10-01` definition; native peers
-use the combined `inline-table-mutation.captured-read-batch.boolean-predicate-programs.c-cpp-program-abi.count-values.2026-10-01`
-definition. Query checkpoints encode the value counter separately from selected
-rows. Previous plans, saved requests and stored authority/framework records
-require their matching build for recovery. Missing/foreign definitions and the
-old checkpoint layout reject; no conversion, fallback or implicit counter reset
-is provided. The [query contract](../../contracts/UNIFIED_QUERY_V1.md) specifies
-the current bytes and neutral manifest field.
+Finite query plans retain their own mandatory plan-definition identifier, owned
+output names, Boolean programs and value-count progress. Publication identity
+includes domain, namespace and record ID. These unchanged contracts remain part
+of the current shared definition; an identifier does not bypass any of their
+individual validation, recovery or authorization checks.
